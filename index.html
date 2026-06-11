@@ -13960,6 +13960,36 @@ body .timeline-trackRow{
   }
 }
 
+
+/* =========================================================
+   PJ TIMELINE-ONLY FIX — keep slider thumb inside pill
+   and keep all timeline geometry in the same coordinate system.
+   This intentionally does not touch map, overlay, PNG, PGW, boundary,
+   Leaflet, raster, or simulation extent code.
+   ========================================================= */
+#timelineDock{
+  --timeline-thumb-size:14px;
+  --timeline-thumb-half:7px;
+}
+#timelineDock .timeline-trackRow{
+  overflow:hidden !important;
+}
+#timelineDock #hourSlider{
+  width:calc(100% - var(--timeline-thumb-size, 14px)) !important;
+  max-width:calc(100% - var(--timeline-thumb-size, 14px)) !important;
+  margin-left:var(--timeline-thumb-half, 7px) !important;
+  margin-right:var(--timeline-thumb-half, 7px) !important;
+  display:block !important;
+}
+#timelineDock #hourSlider::-webkit-slider-thumb{
+  width:var(--timeline-thumb-size, 14px) !important;
+  height:var(--timeline-thumb-size, 14px) !important;
+}
+#timelineDock #hourSlider::-moz-range-thumb{
+  width:var(--timeline-thumb-size, 14px) !important;
+  height:var(--timeline-thumb-size, 14px) !important;
+}
+
 </style>
 </head>
 <body>
@@ -15592,43 +15622,36 @@ function setDatumHelpOpen(isOpen) {
       return getDepthTimelineColor(rawStage);
     }
 
-    function buildTimelineGroupGradient(startIndex, endIndex) {
-      // Timeline samples are points, but the stripe is an interval bar.
-      // Color each interval [time[i], time[i+1]) with the stage at time[i].
-      // This prevents the flood color from appearing one hour early.
-      const total = currentSeriesHours.length;
-      if (!total) return "";
-      if (total === 1) {
-        const color = getTimelineHourColor(currentSeriesHours[0]);
-        return `linear-gradient(90deg, ${color} 0%, ${color} 100%)`;
-      }
+    function buildTimelineGroupGradient(startIndex, endIndexExclusive) {
+      /*
+        IMPORTANT TIMELINE FIX — color intervals, not samples.
 
-      const firstInterval = Math.max(0, Number(startIndex) || 0);
-      const lastInterval = Math.min(Number(endIndex) || 0, total - 2);
-      if (lastInterval < firstInterval) {
-        const fallback = currentSeriesHours[Math.max(0, Math.min(total - 1, firstInterval))];
-        const color = getTimelineHourColor(fallback);
-        return `linear-gradient(90deg, ${color} 0%, ${color} 100%)`;
-      }
+        The slider has N selectable timestamp samples but only N-1 spaces between
+        those samples. A flood color should begin at the timestamp where that
+        forecast hour begins. The old version divided a day by the number of
+        samples inside that day, which lets the stripe drift slightly earlier
+        than the actual hour. Example: an 8 PM minor-flood sample could paint
+        into the visual space near the 7 PM thumb position.
 
-      const count = lastInterval - firstInterval + 1;
+        This function now paints interval i as [timestamp i, timestamp i+1).
+        That keeps the orange/moderate/major stripe lined up with the same
+        index used by the slider, the bubble, and renderHour().
+      */
+      if (!currentSeriesHours.length) return "";
+      const safeStart = Math.max(0, Math.min(currentSeriesHours.length - 1, Number(startIndex) || 0));
+      const safeEndExclusive = Math.max(safeStart + 1, Math.min(currentSeriesHours.length, Number(endIndexExclusive) || safeStart + 1));
+      const intervalCount = Math.max(1, safeEndExclusive - safeStart);
       const stops = [];
-      for (let i = firstInterval; i <= lastInterval; i++) {
-        const color = getTimelineHourColor(currentSeriesHours[i]);
-        const idx = i - firstInterval;
-        const startPct = (idx / count) * 100;
-        const endPct = ((idx + 1) / count) * 100;
+
+      for (let intervalOffset = 0; intervalOffset < intervalCount; intervalOffset++) {
+        const entryIndex = Math.min(currentSeriesHours.length - 1, safeStart + intervalOffset);
+        const color = getTimelineHourColor(currentSeriesHours[entryIndex]);
+        const startPct = (intervalOffset / intervalCount) * 100;
+        const endPct = ((intervalOffset + 1) / intervalCount) * 100;
         stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
       }
-      return `linear-gradient(90deg, ${stops.join(", ")})`;
-    }
 
-    function getTimelineGroupIntervalSpan(startIndex, endIndex) {
-      const total = currentSeriesHours.length;
-      if (total <= 1) return 1;
-      const firstInterval = Math.max(0, Number(startIndex) || 0);
-      const lastInterval = Math.min(Number(endIndex) || 0, total - 2);
-      return Math.max(1, lastInterval - firstInterval + 1);
+      return `linear-gradient(90deg, ${stops.join(", ")})`;
     }
 
     function stageToCode(stageValue) {
@@ -18942,12 +18965,18 @@ function getEntryESTDate(entry) {
       if (!dock || !slider || !bubble || !currentSeriesHours.length) return;
 
       const max = Math.max(1, currentSeriesHours.length - 1);
-      const pct = currentHourIndex / max;
+      const pct = Math.max(0, Math.min(1, currentHourIndex / max));
       const dockRect = dock.getBoundingClientRect();
       const sliderRect = slider.getBoundingClientRect();
-      const thumbSize = 16;
-      const usableWidth = Math.max(0, sliderRect.width - thumbSize);
-      const x = (sliderRect.left - dockRect.left) + (thumbSize / 2) + (pct * usableWidth);
+
+      /*
+        The slider itself is inset by half a thumb in CSS, so its center can
+        reach the first and last timestamps without the thumb hanging outside
+        the pill. Therefore the bubble should use the slider's actual rendered
+        width directly. Do not subtract the thumb width here; doing that creates
+        a second, separate coordinate system and makes the bubble/stripe drift.
+      */
+      const x = (sliderRect.left - dockRect.left) + (pct * sliderRect.width);
       const bubbleHalf = Math.max(72, (bubble.offsetWidth / 2) + 8);
       const safe = Math.max(bubbleHalf, Math.min(dockRect.width - bubbleHalf, x));
       bubble.style.left = `${safe}px`;
@@ -18990,13 +19019,29 @@ function getEntryESTDate(entry) {
         }
       }
 
-      groups.forEach(group => {
+      groups.forEach((group, groupIndex) => {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "timeline-day";
         btn.textContent = group.label;
-        btn.style.flex = `${getTimelineGroupIntervalSpan(group.start, group.end)} 1 0`;
-        const tideGradient = buildTimelineGroupGradient(group.start, group.end);
+
+        /*
+          Match the day-tab width to slider intervals, not raw sample counts.
+          The complete forecast has N timestamps but N-1 hourly spaces between
+          them. Using sample counts makes the colored day stripe creep out of
+          sync with the slider, especially near the right end and around day
+          boundaries. The final group gets a tiny one-interval minimum only so
+          a one-point/crest-only view never disappears.
+        */
+        const finalIntervalEnd = Math.max(1, currentSeriesHours.length - 1);
+        const nextGroupStart = groups[groupIndex + 1]?.start;
+        const intervalEndExclusive = Number.isFinite(nextGroupStart)
+          ? nextGroupStart
+          : Math.max(group.start + 1, finalIntervalEnd);
+        const intervalCount = Math.max(1, intervalEndExclusive - group.start);
+
+        btn.style.flex = `${intervalCount} 1 0`;
+        const tideGradient = buildTimelineGroupGradient(group.start, intervalEndExclusive);
         if (tideGradient) {
           btn.style.backgroundImage = `linear-gradient(180deg, rgba(10,18,32,.18), rgba(10,18,32,.18)), ${tideGradient}`;
         }
@@ -21751,21 +21796,17 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
   function enforceTimelineWidth(){
     var track = document.querySelector('.timeline-trackRow');
     var slider = document.getElementById('hourSlider');
-    var dayTabs = document.getElementById('timelineDayTabs');
-    var thumbPad = 8; // half the native 16px range thumb used by updateTimelineBubblePosition()
     if (track) {
       track.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
       track.style.setProperty('width', '100%', 'important');
-    }
-    if (dayTabs) {
-      dayTabs.style.setProperty('margin-left', thumbPad + 'px', 'important');
-      dayTabs.style.setProperty('margin-right', thumbPad + 'px', 'important');
+      track.style.setProperty('overflow', 'hidden', 'important');
     }
     if (slider) {
-      slider.style.setProperty('width', 'calc(100% - ' + (thumbPad * 2) + 'px)', 'important');
-      slider.style.setProperty('max-width', 'calc(100% - ' + (thumbPad * 2) + 'px)', 'important');
-      slider.style.setProperty('margin-left', thumbPad + 'px', 'important');
-      slider.style.setProperty('margin-right', thumbPad + 'px', 'important');
+      slider.style.setProperty('width', 'calc(100% - var(--timeline-thumb-size, 14px))', 'important');
+      slider.style.setProperty('max-width', 'calc(100% - var(--timeline-thumb-size, 14px))', 'important');
+      slider.style.setProperty('margin-left', 'var(--timeline-thumb-half, 7px)', 'important');
+      slider.style.setProperty('margin-right', 'var(--timeline-thumb-half, 7px)', 'important');
+      slider.style.setProperty('display', 'block', 'important');
     }
   }
 
@@ -21840,8 +21881,8 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       },
 
       site: {
-        name: "North Wildwood",
-        municipalityName: "North Wildwood",
+        name: "NorthWildwood",
+        municipalityName: "NorthWildwood",
         county: "CAPE MAY",
         usgsGaugeId: "01411360",
         noaaGaugeId: "8535581",
@@ -21879,14 +21920,14 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       },
 
       addressLookup: {
-        title: "Find a North Wildwood Address",
-        displayName: "North Wildwood",
-        city: "North Wildwood",
+        title: "Find a NorthWildwood Address",
+        displayName: "NorthWildwood",
+        city: "NorthWildwood",
         state: "NJ",
         stateName: "New Jersey",
         postalCode: "",
         placeholder: "Example: 123 Main St",
-        buttonText: "Search North Wildwood",
+        buttonText: "Search NorthWildwood",
         bbox: {
           west: -74.8190324,
           south: 38.9875662,
@@ -21901,16 +21942,11 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       exportSlug: "NorthWildwood-floodmapper",
 
       boundary: {
-        // Full CDN URL prevents the app from falling back to the generic map-center rectangle.
-        boundaryUrl: bunnyCdnUrl("Boundaries/NorthWildwood.geojson"),
-        bunnyBoundaryPath: bunnyCdnUrl("Boundaries/NorthWildwood.geojson"),
+        boundaryUrl: "Boundaries/NorthWildwood.geojson",
+        bunnyBoundaryPath: "Boundaries/NorthWildwood.geojson",
         queryCandidates: [
-          "NAME = 'North Wildwood'",
-          "NAME = 'North Wildwood City'",
-          "MUN_LABEL = 'North Wildwood'",
-          "MUN_LABEL = 'North Wildwood City'",
-          "GNIS_NAME = 'North Wildwood'",
-          "GNIS_NAME = 'North Wildwood City'"
+          "NAME = 'NorthWildwood'",
+          "MUN_LABEL = 'NorthWildwood'"
         ]
       },
 
