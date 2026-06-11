@@ -13960,36 +13960,6 @@ body .timeline-trackRow{
   }
 }
 
-
-/* =========================================================
-   PJ TIMELINE-ONLY FIX — keep slider thumb inside pill
-   and keep all timeline geometry in the same coordinate system.
-   This intentionally does not touch map, overlay, PNG, PGW, boundary,
-   Leaflet, raster, or simulation extent code.
-   ========================================================= */
-#timelineDock{
-  --timeline-thumb-size:14px;
-  --timeline-thumb-half:7px;
-}
-#timelineDock .timeline-trackRow{
-  overflow:hidden !important;
-}
-#timelineDock #hourSlider{
-  width:calc(100% - var(--timeline-thumb-size, 14px)) !important;
-  max-width:calc(100% - var(--timeline-thumb-size, 14px)) !important;
-  margin-left:var(--timeline-thumb-half, 7px) !important;
-  margin-right:var(--timeline-thumb-half, 7px) !important;
-  display:block !important;
-}
-#timelineDock #hourSlider::-webkit-slider-thumb{
-  width:var(--timeline-thumb-size, 14px) !important;
-  height:var(--timeline-thumb-size, 14px) !important;
-}
-#timelineDock #hourSlider::-moz-range-thumb{
-  width:var(--timeline-thumb-size, 14px) !important;
-  height:var(--timeline-thumb-size, 14px) !important;
-}
-
 </style>
 </head>
 <body>
@@ -15622,35 +15592,17 @@ function setDatumHelpOpen(isOpen) {
       return getDepthTimelineColor(rawStage);
     }
 
-    function buildTimelineGroupGradient(startIndex, endIndexExclusive) {
-      /*
-        IMPORTANT TIMELINE FIX — color intervals, not samples.
-
-        The slider has N selectable timestamp samples but only N-1 spaces between
-        those samples. A flood color should begin at the timestamp where that
-        forecast hour begins. The old version divided a day by the number of
-        samples inside that day, which lets the stripe drift slightly earlier
-        than the actual hour. Example: an 8 PM minor-flood sample could paint
-        into the visual space near the 7 PM thumb position.
-
-        This function now paints interval i as [timestamp i, timestamp i+1).
-        That keeps the orange/moderate/major stripe lined up with the same
-        index used by the slider, the bubble, and renderHour().
-      */
-      if (!currentSeriesHours.length) return "";
-      const safeStart = Math.max(0, Math.min(currentSeriesHours.length - 1, Number(startIndex) || 0));
-      const safeEndExclusive = Math.max(safeStart + 1, Math.min(currentSeriesHours.length, Number(endIndexExclusive) || safeStart + 1));
-      const intervalCount = Math.max(1, safeEndExclusive - safeStart);
+    function buildTimelineGroupGradient(startIndex, endIndex) {
+      const entries = currentSeriesHours.slice(startIndex, endIndex + 1);
+      if (!entries.length) return "";
+      const count = entries.length;
       const stops = [];
-
-      for (let intervalOffset = 0; intervalOffset < intervalCount; intervalOffset++) {
-        const entryIndex = Math.min(currentSeriesHours.length - 1, safeStart + intervalOffset);
-        const color = getTimelineHourColor(currentSeriesHours[entryIndex]);
-        const startPct = (intervalOffset / intervalCount) * 100;
-        const endPct = ((intervalOffset + 1) / intervalCount) * 100;
+      entries.forEach((entry, idx) => {
+        const color = getTimelineHourColor(entry);
+        const startPct = (idx / count) * 100;
+        const endPct = ((idx + 1) / count) * 100;
         stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
-      }
-
+      });
       return `linear-gradient(90deg, ${stops.join(", ")})`;
     }
 
@@ -18965,18 +18917,12 @@ function getEntryESTDate(entry) {
       if (!dock || !slider || !bubble || !currentSeriesHours.length) return;
 
       const max = Math.max(1, currentSeriesHours.length - 1);
-      const pct = Math.max(0, Math.min(1, currentHourIndex / max));
+      const pct = currentHourIndex / max;
       const dockRect = dock.getBoundingClientRect();
       const sliderRect = slider.getBoundingClientRect();
-
-      /*
-        The slider itself is inset by half a thumb in CSS, so its center can
-        reach the first and last timestamps without the thumb hanging outside
-        the pill. Therefore the bubble should use the slider's actual rendered
-        width directly. Do not subtract the thumb width here; doing that creates
-        a second, separate coordinate system and makes the bubble/stripe drift.
-      */
-      const x = (sliderRect.left - dockRect.left) + (pct * sliderRect.width);
+      const thumbSize = 16;
+      const usableWidth = Math.max(0, sliderRect.width - thumbSize);
+      const x = (sliderRect.left - dockRect.left) + (thumbSize / 2) + (pct * usableWidth);
       const bubbleHalf = Math.max(72, (bubble.offsetWidth / 2) + 8);
       const safe = Math.max(bubbleHalf, Math.min(dockRect.width - bubbleHalf, x));
       bubble.style.left = `${safe}px`;
@@ -19019,29 +18965,13 @@ function getEntryESTDate(entry) {
         }
       }
 
-      groups.forEach((group, groupIndex) => {
+      groups.forEach(group => {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "timeline-day";
         btn.textContent = group.label;
-
-        /*
-          Match the day-tab width to slider intervals, not raw sample counts.
-          The complete forecast has N timestamps but N-1 hourly spaces between
-          them. Using sample counts makes the colored day stripe creep out of
-          sync with the slider, especially near the right end and around day
-          boundaries. The final group gets a tiny one-interval minimum only so
-          a one-point/crest-only view never disappears.
-        */
-        const finalIntervalEnd = Math.max(1, currentSeriesHours.length - 1);
-        const nextGroupStart = groups[groupIndex + 1]?.start;
-        const intervalEndExclusive = Number.isFinite(nextGroupStart)
-          ? nextGroupStart
-          : Math.max(group.start + 1, finalIntervalEnd);
-        const intervalCount = Math.max(1, intervalEndExclusive - group.start);
-
-        btn.style.flex = `${intervalCount} 1 0`;
-        const tideGradient = buildTimelineGroupGradient(group.start, intervalEndExclusive);
+        btn.style.flex = `${Math.max(1, group.hours)} 1 0`;
+        const tideGradient = buildTimelineGroupGradient(group.start, group.end);
         if (tideGradient) {
           btn.style.backgroundImage = `linear-gradient(180deg, rgba(10,18,32,.18), rgba(10,18,32,.18)), ${tideGradient}`;
         }
@@ -21799,14 +21729,10 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
     if (track) {
       track.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
       track.style.setProperty('width', '100%', 'important');
-      track.style.setProperty('overflow', 'hidden', 'important');
     }
     if (slider) {
-      slider.style.setProperty('width', 'calc(100% - var(--timeline-thumb-size, 14px))', 'important');
-      slider.style.setProperty('max-width', 'calc(100% - var(--timeline-thumb-size, 14px))', 'important');
-      slider.style.setProperty('margin-left', 'var(--timeline-thumb-half, 7px)', 'important');
-      slider.style.setProperty('margin-right', 'var(--timeline-thumb-half, 7px)', 'important');
-      slider.style.setProperty('display', 'block', 'important');
+      slider.style.setProperty('width', '100%', 'important');
+      slider.style.setProperty('max-width', '100%', 'important');
     }
   }
 
