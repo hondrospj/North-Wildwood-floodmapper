@@ -13961,58 +13961,28 @@ body .timeline-trackRow{
 }
 
 
-
 /* =========================================================
-   PJ FIX 2026-06-11: align timeline stripe, slider, and bubble
-   ---------------------------------------------------------
-   The timeline has two coordinate systems:
-   1) the native range input uses N-1 intervals between N hourly points;
-   2) the day stripe used to draw N equal blocks.
-   That made flood color appear one visual slot early and let the final
-   thumb protrude past the pill edge. These final overrides give the day
-   stripe and slider the same padded endpoint geometry.
+   PJ HOTFIX 2026-06-11: timeline stripe/slider alignment only
+   - Keep the map and overlay geometry untouched by CSS.
+   - Shrink the visual day stripe and range input by half a thumb on each side
+     so the first/last slider positions stay inside the timeline pill.
    ========================================================= */
 #timelineDock{
-  --pj-timeline-thumb:18px !important;
-  --pj-timeline-edge-pad:calc(var(--pj-timeline-thumb) / 2) !important;
-  overflow:visible !important;
+  --pj-timeline-thumb:14px;
+  --pj-timeline-edge-pad:calc(var(--pj-timeline-thumb) / 2);
 }
-
 #timelineDock #timelineDayTabs{
   margin-left:var(--pj-timeline-edge-pad) !important;
   margin-right:var(--pj-timeline-edge-pad) !important;
-  width:auto !important;
-  max-width:none !important;
 }
-
-#timelineDock .timeline-trackRow{
-  grid-template-columns:minmax(0, 1fr) !important;
-  width:100% !important;
-  padding-left:var(--pj-timeline-edge-pad) !important;
-  padding-right:var(--pj-timeline-edge-pad) !important;
-  overflow:visible !important;
-}
-
 #timelineDock #hourSlider{
-  width:100% !important;
-  max-width:100% !important;
-  margin:0 !important;
-  box-sizing:border-box !important;
-  overflow:visible !important;
+  width:calc(100% - var(--pj-timeline-thumb)) !important;
+  margin-left:var(--pj-timeline-edge-pad) !important;
+  margin-right:var(--pj-timeline-edge-pad) !important;
+  max-width:calc(100% - var(--pj-timeline-thumb)) !important;
 }
-
-#timelineDock #hourSlider::-webkit-slider-thumb{
-  width:var(--pj-timeline-thumb) !important;
-  height:var(--pj-timeline-thumb) !important;
-}
-
-#timelineDock #hourSlider::-moz-range-thumb{
-  width:var(--pj-timeline-thumb) !important;
-  height:var(--pj-timeline-thumb) !important;
-}
-
-body.mobile-optimized #timelineDock{
-  --pj-timeline-thumb:18px !important;
+@media (max-width: 700px){
+  #timelineDock{ --pj-timeline-thumb:13px; }
 }
 
 </style>
@@ -15649,55 +15619,44 @@ function setDatumHelpOpen(isOpen) {
 
     function buildTimelineGroupGradient(startIndex, endIndex) {
       /*
-        IMPORTANT: the slider has N hourly points but only N-1 intervals.
-        The old stripe colored N equal blocks, while the input range places
-        the thumb on N-1 intervals. That is why the orange flood stripe could
-        appear one hour early compared with the selected time.
-
-        This function colors the interval that begins at each timestamp:
-        entry[i] owns the visual span from time[i] to time[i+1]. Therefore a
-        threshold crossing at 8 PM starts the orange stripe at 8 PM, not at 7 PM.
+        Each forecast record is a timestamp sample. The visible stripe must
+        represent the interval that starts at that timestamp, not a centered
+        block around the sample. The range slider has N points and N-1 real
+        intervals; drawing N equal blocks makes color changes appear about one
+        hour early. This draws interval colors instead.
       */
       const total = currentSeriesHours.length;
       if (!total) return "";
-
-      const lastIntervalIndex = total - 2;
-      if (lastIntervalIndex < 0) {
-        const onlyColor = getTimelineHourColor(currentSeriesHours[0]);
-        return `linear-gradient(90deg, ${onlyColor} 0%, ${onlyColor} 100%)`;
+      if (total === 1) {
+        const color = getTimelineHourColor(currentSeriesHours[0]);
+        return `linear-gradient(90deg, ${color} 0%, ${color} 100%)`;
       }
 
-      const intervalStart = Math.max(0, startIndex);
-      const intervalEnd = Math.min(endIndex, lastIntervalIndex);
+      const intervalStart = Math.max(0, Number(startIndex) || 0);
+      const intervalEnd = Math.min(Number(endIndex) || 0, total - 2);
       if (intervalEnd < intervalStart) {
-        const fallbackColor = getTimelineHourColor(currentSeriesHours[Math.max(0, Math.min(startIndex, total - 1))]);
-        return `linear-gradient(90deg, ${fallbackColor} 0%, ${fallbackColor} 100%)`;
+        const fallback = currentSeriesHours[Math.max(0, Math.min(total - 1, intervalStart))];
+        const color = getTimelineHourColor(fallback);
+        return `linear-gradient(90deg, ${color} 0%, ${color} 100%)`;
       }
 
       const count = intervalEnd - intervalStart + 1;
       const stops = [];
       for (let i = intervalStart; i <= intervalEnd; i++) {
         const color = getTimelineHourColor(currentSeriesHours[i]);
-        const idx = i - intervalStart;
-        const startPct = (idx / count) * 100;
-        const endPct = ((idx + 1) / count) * 100;
+        const local = i - intervalStart;
+        const startPct = (local / count) * 100;
+        const endPct = ((local + 1) / count) * 100;
         stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
       }
       return `linear-gradient(90deg, ${stops.join(", ")})`;
     }
 
     function getTimelineGroupIntervalSpan(startIndex, endIndex) {
-      /*
-        Day tabs must also be sized by intervals, not points, so they line up
-        with the slider. For a forecast from Thu 9 AM to Sun 9 PM, the visual
-        widths become the actual hours between points, not the number of point
-        samples printed inside each day group.
-      */
       const total = currentSeriesHours.length;
       if (total <= 1) return 1;
-      const lastIntervalIndex = total - 2;
-      const intervalStart = Math.max(0, startIndex);
-      const intervalEnd = Math.min(endIndex, lastIntervalIndex);
+      const intervalStart = Math.max(0, Number(startIndex) || 0);
+      const intervalEnd = Math.min(Number(endIndex) || 0, total - 2);
       return Math.max(1, intervalEnd - intervalStart + 1);
     }
 
@@ -15859,14 +15818,131 @@ function setDatumHelpOpen(isOpen) {
       });
     }
 
-    async function ensureOverlayBounds(sampleOverlayUrl) {
-      const boundaryBounds = getBoundaryDrivenOverlayBounds();
-      floodLatLngBounds = boundaryBounds;
+    function getWorldFileUrlCandidates(sampleOverlayUrl) {
+      const urls = [];
+      const explicit = TOWN_CONFIG?.overlays?.worldFileUrl || TOWN_CONFIG?.overlays?.worldfileUrl || TOWN_CONFIG?.overlays?.pgwUrl;
+      if (explicit) urls.push(new URL(explicit, APP_BASE).href);
+      if (sampleOverlayUrl) {
+        urls.push(sampleOverlayUrl.replace(/\.png(\?.*)?$/i, ".pgw"));
+        urls.push(sampleOverlayUrl.replace(/\.png(\?.*)?$/i, ".wld"));
+        urls.push(sampleOverlayUrl.replace(/\.png(\?.*)?$/i, ".pngw"));
+      }
+      return [...new Set(urls.filter(Boolean))];
+    }
 
+    function parseWorldFileText(text) {
+      const nums = String(text || "")
+        .trim()
+        .split(/\s+/)
+        .map(Number)
+        .filter(Number.isFinite);
+      return nums.length >= 6 ? nums.slice(0, 6) : null;
+    }
+
+    function projectWorldPointToLatLng(x, y) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
+      // Most exported PGWs are Web Mercator meters. Some are already lon/lat.
+      if (Math.abs(x) <= 180 && Math.abs(y) <= 90) return L.latLng(y, x);
+
+      try {
+        if (typeof proj4 === "function") {
+          const converted = proj4("EPSG:3857", "EPSG:4326", [x, y]);
+          if (Array.isArray(converted) && converted.length >= 2) {
+            const lon = Number(converted[0]);
+            const lat = Number(converted[1]);
+            if (Number.isFinite(lat) && Number.isFinite(lon)) return L.latLng(lat, lon);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not project PGW point with proj4.", err);
+      }
+
+      // Fallback Web Mercator math, so the mapper does not silently stretch the
+      // PNG to the municipal bounding box if proj4 is unavailable.
+      const R = 6378137;
+      const lon = (x / R) * 180 / Math.PI;
+      const lat = (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 180 / Math.PI;
+      return Number.isFinite(lat) && Number.isFinite(lon) ? L.latLng(lat, lon) : null;
+    }
+
+    async function loadImageSize(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.decoding = "async";
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve({ width: img.naturalWidth || img.width, height: img.naturalHeight || img.height });
+        img.onerror = () => reject(new Error("Could not read overlay image dimensions."));
+        img.src = url;
+      });
+    }
+
+    function worldFileBoundsFromAffine(world, width, height) {
+      const [A, D, B, E, C, F] = world;
+      const affine = (col, row) => {
+        const x = A * col + B * row + C;
+        const y = D * col + E * row + F;
+        return projectWorldPointToLatLng(x, y);
+      };
+
+      // C/F are the center of the upper-left pixel. Use outer pixel edges.
+      const corners = [
+        affine(-0.5, -0.5),
+        affine(width - 0.5, -0.5),
+        affine(width - 0.5, height - 0.5),
+        affine(-0.5, height - 0.5)
+      ].filter(Boolean);
+
+      if (corners.length < 2) return null;
+      const bounds = L.latLngBounds(corners);
+      return bounds && bounds.isValid && bounds.isValid() ? bounds : null;
+    }
+
+    async function fetchWorldFileBounds(sampleOverlayUrl) {
+      if (!sampleOverlayUrl) return null;
+      const candidates = getWorldFileUrlCandidates(sampleOverlayUrl);
+      const size = await loadImageSize(sampleOverlayUrl);
+
+      for (const url of candidates) {
+        try {
+          const res = await fetch(url, { cache: "force-cache" });
+          if (!res.ok) continue;
+          const world = parseWorldFileText(await res.text());
+          if (!world) continue;
+          const bounds = worldFileBoundsFromAffine(world, size.width, size.height);
+          if (bounds) return { url, bounds };
+        } catch (err) {
+          // Try the next common worldfile name.
+        }
+      }
+      return null;
+    }
+
+    async function ensureOverlayBounds(sampleOverlayUrl) {
+      const worldBounds = await fetchWorldFileBounds(sampleOverlayUrl).catch(err => {
+        console.warn("Could not load PGW/WLD overlay bounds.", err);
+        return null;
+      });
+
+      if (worldBounds?.bounds) {
+        floodLatLngBounds = worldBounds.bounds;
+        return {
+          url: sampleOverlayUrl || null,
+          mode: "worldfile",
+          worldFileUrl: worldBounds.url,
+          bounds: floodLatLngBounds
+        };
+      }
+
+      // Last-resort only. Do not use this when a PGW is available, because it
+      // stretches the square PNG to the red municipal bbox and creates the huge
+      // rectangular overlay shown in the broken screenshot.
+      const fallbackBounds = getBoundaryDrivenOverlayBounds();
+      floodLatLngBounds = fallbackBounds;
       return {
         url: sampleOverlayUrl || null,
-        mode: "boundary-driven",
-        bounds: boundaryBounds
+        mode: "boundary-fallback-no-worldfile",
+        bounds: fallbackBounds
       };
     }
 
@@ -19011,11 +19087,6 @@ function getEntryESTDate(entry) {
       const bubble = document.getElementById("timelineBubble");
       if (!dock || !slider || !bubble || !currentSeriesHours.length) return;
 
-      /*
-        Use the actual slider rectangle after CSS padding. The browser range
-        already maps value 0 to the left endpoint and max to the right endpoint;
-        do not subtract the thumb width again here or the bubble drifts inward.
-      */
       const max = Math.max(1, currentSeriesHours.length - 1);
       const value = Math.max(0, Math.min(max, Number(currentHourIndex) || 0));
       const pct = value / max;
@@ -21824,31 +21895,21 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 
   function enforceTimelineWidth(){
     var dock = document.getElementById('timelineDock');
-    var days = document.getElementById('timelineDayTabs');
-    var track = document.querySelector('.timeline-trackRow');
     var slider = document.getElementById('hourSlider');
-    var thumb = 18;
+    var days = document.getElementById('timelineDayTabs');
     if (dock) {
-      dock.style.setProperty('--pj-timeline-thumb', thumb + 'px', 'important');
-      dock.style.setProperty('--pj-timeline-edge-pad', (thumb / 2) + 'px', 'important');
+      dock.style.setProperty('--pj-timeline-thumb', '14px');
+      dock.style.setProperty('--pj-timeline-edge-pad', '7px');
     }
     if (days) {
       days.style.setProperty('margin-left', 'var(--pj-timeline-edge-pad)', 'important');
       days.style.setProperty('margin-right', 'var(--pj-timeline-edge-pad)', 'important');
-      days.style.setProperty('width', 'auto', 'important');
-    }
-    if (track) {
-      track.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
-      track.style.setProperty('width', '100%', 'important');
-      track.style.setProperty('padding-left', 'var(--pj-timeline-edge-pad)', 'important');
-      track.style.setProperty('padding-right', 'var(--pj-timeline-edge-pad)', 'important');
-      track.style.setProperty('overflow', 'visible', 'important');
     }
     if (slider) {
-      slider.style.setProperty('width', '100%', 'important');
-      slider.style.setProperty('max-width', '100%', 'important');
-      slider.style.setProperty('margin', '0', 'important');
-      slider.style.setProperty('box-sizing', 'border-box', 'important');
+      slider.style.setProperty('width', 'calc(100% - var(--pj-timeline-thumb))', 'important');
+      slider.style.setProperty('max-width', 'calc(100% - var(--pj-timeline-thumb))', 'important');
+      slider.style.setProperty('margin-left', 'var(--pj-timeline-edge-pad)', 'important');
+      slider.style.setProperty('margin-right', 'var(--pj-timeline-edge-pad)', 'important');
     }
   }
 
