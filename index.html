@@ -13960,24 +13960,6 @@ body .timeline-trackRow{
   }
 }
 
-
-/* PJ minimal timeline-only fix: keep the range thumb inside the pill.
-   No map, raster, boundary, or overlay code is touched. */
-#timelineDock{
-  --pj-timeline-thumb:14px;
-  --pj-timeline-edge-pad:7px;
-}
-#timelineDock #timelineDayTabs{
-  margin-left:var(--pj-timeline-edge-pad) !important;
-  margin-right:var(--pj-timeline-edge-pad) !important;
-}
-#timelineDock #hourSlider{
-  width:calc(100% - var(--pj-timeline-thumb)) !important;
-  max-width:calc(100% - var(--pj-timeline-thumb)) !important;
-  margin-left:var(--pj-timeline-edge-pad) !important;
-  margin-right:var(--pj-timeline-edge-pad) !important;
-}
-
 </style>
 </head>
 <body>
@@ -15611,37 +15593,31 @@ function setDatumHelpOpen(isOpen) {
     }
 
     function buildTimelineGroupGradient(startIndex, endIndex) {
-      /*
-        Timeline fix: color the actual hourly intervals, not the point samples.
-        The slider has N timestamp positions but only N-1 intervals between them.
-        Drawing N equal color blocks makes a flood-category change appear one
-        slot early on the stripe. Here, entry[i] colors the interval from
-        time[i] to time[i+1], so an 8 PM flood start begins at 8 PM.
-      */
+      // Timeline samples are points, but the stripe is an interval bar.
+      // Color each interval [time[i], time[i+1]) with the stage at time[i].
+      // This prevents the flood color from appearing one hour early.
       const total = currentSeriesHours.length;
       if (!total) return "";
-
       if (total === 1) {
         const color = getTimelineHourColor(currentSeriesHours[0]);
         return `linear-gradient(90deg, ${color} 0%, ${color} 100%)`;
       }
 
-      const intervalStart = Math.max(0, Number(startIndex) || 0);
-      const intervalEnd = Math.min(Number(endIndex) || 0, total - 2);
-
-      if (intervalEnd < intervalStart) {
-        const fallback = currentSeriesHours[Math.max(0, Math.min(total - 1, intervalStart))];
+      const firstInterval = Math.max(0, Number(startIndex) || 0);
+      const lastInterval = Math.min(Number(endIndex) || 0, total - 2);
+      if (lastInterval < firstInterval) {
+        const fallback = currentSeriesHours[Math.max(0, Math.min(total - 1, firstInterval))];
         const color = getTimelineHourColor(fallback);
         return `linear-gradient(90deg, ${color} 0%, ${color} 100%)`;
       }
 
-      const count = intervalEnd - intervalStart + 1;
+      const count = lastInterval - firstInterval + 1;
       const stops = [];
-      for (let i = intervalStart; i <= intervalEnd; i++) {
+      for (let i = firstInterval; i <= lastInterval; i++) {
         const color = getTimelineHourColor(currentSeriesHours[i]);
-        const localIndex = i - intervalStart;
-        const startPct = (localIndex / count) * 100;
-        const endPct = ((localIndex + 1) / count) * 100;
+        const idx = i - firstInterval;
+        const startPct = (idx / count) * 100;
+        const endPct = ((idx + 1) / count) * 100;
         stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
       }
       return `linear-gradient(90deg, ${stops.join(", ")})`;
@@ -15650,9 +15626,9 @@ function setDatumHelpOpen(isOpen) {
     function getTimelineGroupIntervalSpan(startIndex, endIndex) {
       const total = currentSeriesHours.length;
       if (total <= 1) return 1;
-      const intervalStart = Math.max(0, Number(startIndex) || 0);
-      const intervalEnd = Math.min(Number(endIndex) || 0, total - 2);
-      return Math.max(1, intervalEnd - intervalStart + 1);
+      const firstInterval = Math.max(0, Number(startIndex) || 0);
+      const lastInterval = Math.min(Number(endIndex) || 0, total - 2);
+      return Math.max(1, lastInterval - firstInterval + 1);
     }
 
     function stageToCode(stageValue) {
@@ -18966,11 +18942,12 @@ function getEntryESTDate(entry) {
       if (!dock || !slider || !bubble || !currentSeriesHours.length) return;
 
       const max = Math.max(1, currentSeriesHours.length - 1);
-      const value = Math.max(0, Math.min(max, Number(currentHourIndex) || 0));
-      const pct = value / max;
+      const pct = currentHourIndex / max;
       const dockRect = dock.getBoundingClientRect();
       const sliderRect = slider.getBoundingClientRect();
-      const x = (sliderRect.left - dockRect.left) + (pct * sliderRect.width);
+      const thumbSize = 16;
+      const usableWidth = Math.max(0, sliderRect.width - thumbSize);
+      const x = (sliderRect.left - dockRect.left) + (thumbSize / 2) + (pct * usableWidth);
       const bubbleHalf = Math.max(72, (bubble.offsetWidth / 2) + 8);
       const safe = Math.max(bubbleHalf, Math.min(dockRect.width - bubbleHalf, x));
       bubble.style.left = `${safe}px`;
@@ -21772,27 +21749,23 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
   }
 
   function enforceTimelineWidth(){
-    var dock = document.getElementById('timelineDock');
-    var days = document.getElementById('timelineDayTabs');
     var track = document.querySelector('.timeline-trackRow');
     var slider = document.getElementById('hourSlider');
-    if (dock) {
-      dock.style.setProperty('--pj-timeline-thumb', '14px');
-      dock.style.setProperty('--pj-timeline-edge-pad', '7px');
-    }
-    if (days) {
-      days.style.setProperty('margin-left', 'var(--pj-timeline-edge-pad)', 'important');
-      days.style.setProperty('margin-right', 'var(--pj-timeline-edge-pad)', 'important');
-    }
+    var dayTabs = document.getElementById('timelineDayTabs');
+    var thumbPad = 8; // half the native 16px range thumb used by updateTimelineBubblePosition()
     if (track) {
       track.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
       track.style.setProperty('width', '100%', 'important');
     }
+    if (dayTabs) {
+      dayTabs.style.setProperty('margin-left', thumbPad + 'px', 'important');
+      dayTabs.style.setProperty('margin-right', thumbPad + 'px', 'important');
+    }
     if (slider) {
-      slider.style.setProperty('width', 'calc(100% - var(--pj-timeline-thumb))', 'important');
-      slider.style.setProperty('max-width', 'calc(100% - var(--pj-timeline-thumb))', 'important');
-      slider.style.setProperty('margin-left', 'var(--pj-timeline-edge-pad)', 'important');
-      slider.style.setProperty('margin-right', 'var(--pj-timeline-edge-pad)', 'important');
+      slider.style.setProperty('width', 'calc(100% - ' + (thumbPad * 2) + 'px)', 'important');
+      slider.style.setProperty('max-width', 'calc(100% - ' + (thumbPad * 2) + 'px)', 'important');
+      slider.style.setProperty('margin-left', thumbPad + 'px', 'important');
+      slider.style.setProperty('margin-right', thumbPad + 'px', 'important');
     }
   }
 
@@ -21867,8 +21840,8 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       },
 
       site: {
-        name: "NorthWildwood",
-        municipalityName: "NorthWildwood",
+        name: "North Wildwood",
+        municipalityName: "North Wildwood",
         county: "CAPE MAY",
         usgsGaugeId: "01411360",
         noaaGaugeId: "8535581",
@@ -21906,14 +21879,14 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       },
 
       addressLookup: {
-        title: "Find a NorthWildwood Address",
-        displayName: "NorthWildwood",
-        city: "NorthWildwood",
+        title: "Find a North Wildwood Address",
+        displayName: "North Wildwood",
+        city: "North Wildwood",
         state: "NJ",
         stateName: "New Jersey",
         postalCode: "",
         placeholder: "Example: 123 Main St",
-        buttonText: "Search NorthWildwood",
+        buttonText: "Search North Wildwood",
         bbox: {
           west: -74.8190324,
           south: 38.9875662,
@@ -21928,11 +21901,16 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       exportSlug: "NorthWildwood-floodmapper",
 
       boundary: {
-        boundaryUrl: "Boundaries/NorthWildwood.geojson",
-        bunnyBoundaryPath: "Boundaries/NorthWildwood.geojson",
+        // Full CDN URL prevents the app from falling back to the generic map-center rectangle.
+        boundaryUrl: bunnyCdnUrl("Boundaries/NorthWildwood.geojson"),
+        bunnyBoundaryPath: bunnyCdnUrl("Boundaries/NorthWildwood.geojson"),
         queryCandidates: [
-          "NAME = 'NorthWildwood'",
-          "MUN_LABEL = 'NorthWildwood'"
+          "NAME = 'North Wildwood'",
+          "NAME = 'North Wildwood City'",
+          "MUN_LABEL = 'North Wildwood'",
+          "MUN_LABEL = 'North Wildwood City'",
+          "GNIS_NAME = 'North Wildwood'",
+          "GNIS_NAME = 'North Wildwood City'"
         ]
       },
 
