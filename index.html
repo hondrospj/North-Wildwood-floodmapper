@@ -13961,15 +13961,11 @@ body .timeline-trackRow{
 }
 
 
-/* =========================================================
-   PJ HOTFIX 2026-06-11: timeline stripe/slider alignment only
-   - Keep the map and overlay geometry untouched by CSS.
-   - Shrink the visual day stripe and range input by half a thumb on each side
-     so the first/last slider positions stay inside the timeline pill.
-   ========================================================= */
+/* PJ minimal timeline-only fix: keep the range thumb inside the pill.
+   No map, raster, boundary, or overlay code is touched. */
 #timelineDock{
   --pj-timeline-thumb:14px;
-  --pj-timeline-edge-pad:calc(var(--pj-timeline-thumb) / 2);
+  --pj-timeline-edge-pad:7px;
 }
 #timelineDock #timelineDayTabs{
   margin-left:var(--pj-timeline-edge-pad) !important;
@@ -13977,12 +13973,9 @@ body .timeline-trackRow{
 }
 #timelineDock #hourSlider{
   width:calc(100% - var(--pj-timeline-thumb)) !important;
+  max-width:calc(100% - var(--pj-timeline-thumb)) !important;
   margin-left:var(--pj-timeline-edge-pad) !important;
   margin-right:var(--pj-timeline-edge-pad) !important;
-  max-width:calc(100% - var(--pj-timeline-thumb)) !important;
-}
-@media (max-width: 700px){
-  #timelineDock{ --pj-timeline-thumb:13px; }
 }
 
 </style>
@@ -15619,14 +15612,15 @@ function setDatumHelpOpen(isOpen) {
 
     function buildTimelineGroupGradient(startIndex, endIndex) {
       /*
-        Each forecast record is a timestamp sample. The visible stripe must
-        represent the interval that starts at that timestamp, not a centered
-        block around the sample. The range slider has N points and N-1 real
-        intervals; drawing N equal blocks makes color changes appear about one
-        hour early. This draws interval colors instead.
+        Timeline fix: color the actual hourly intervals, not the point samples.
+        The slider has N timestamp positions but only N-1 intervals between them.
+        Drawing N equal color blocks makes a flood-category change appear one
+        slot early on the stripe. Here, entry[i] colors the interval from
+        time[i] to time[i+1], so an 8 PM flood start begins at 8 PM.
       */
       const total = currentSeriesHours.length;
       if (!total) return "";
+
       if (total === 1) {
         const color = getTimelineHourColor(currentSeriesHours[0]);
         return `linear-gradient(90deg, ${color} 0%, ${color} 100%)`;
@@ -15634,6 +15628,7 @@ function setDatumHelpOpen(isOpen) {
 
       const intervalStart = Math.max(0, Number(startIndex) || 0);
       const intervalEnd = Math.min(Number(endIndex) || 0, total - 2);
+
       if (intervalEnd < intervalStart) {
         const fallback = currentSeriesHours[Math.max(0, Math.min(total - 1, intervalStart))];
         const color = getTimelineHourColor(fallback);
@@ -15644,9 +15639,9 @@ function setDatumHelpOpen(isOpen) {
       const stops = [];
       for (let i = intervalStart; i <= intervalEnd; i++) {
         const color = getTimelineHourColor(currentSeriesHours[i]);
-        const local = i - intervalStart;
-        const startPct = (local / count) * 100;
-        const endPct = ((local + 1) / count) * 100;
+        const localIndex = i - intervalStart;
+        const startPct = (localIndex / count) * 100;
+        const endPct = ((localIndex + 1) / count) * 100;
         stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
       }
       return `linear-gradient(90deg, ${stops.join(", ")})`;
@@ -15818,131 +15813,14 @@ function setDatumHelpOpen(isOpen) {
       });
     }
 
-    function getWorldFileUrlCandidates(sampleOverlayUrl) {
-      const urls = [];
-      const explicit = TOWN_CONFIG?.overlays?.worldFileUrl || TOWN_CONFIG?.overlays?.worldfileUrl || TOWN_CONFIG?.overlays?.pgwUrl;
-      if (explicit) urls.push(new URL(explicit, APP_BASE).href);
-      if (sampleOverlayUrl) {
-        urls.push(sampleOverlayUrl.replace(/\.png(\?.*)?$/i, ".pgw"));
-        urls.push(sampleOverlayUrl.replace(/\.png(\?.*)?$/i, ".wld"));
-        urls.push(sampleOverlayUrl.replace(/\.png(\?.*)?$/i, ".pngw"));
-      }
-      return [...new Set(urls.filter(Boolean))];
-    }
-
-    function parseWorldFileText(text) {
-      const nums = String(text || "")
-        .trim()
-        .split(/\s+/)
-        .map(Number)
-        .filter(Number.isFinite);
-      return nums.length >= 6 ? nums.slice(0, 6) : null;
-    }
-
-    function projectWorldPointToLatLng(x, y) {
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-
-      // Most exported PGWs are Web Mercator meters. Some are already lon/lat.
-      if (Math.abs(x) <= 180 && Math.abs(y) <= 90) return L.latLng(y, x);
-
-      try {
-        if (typeof proj4 === "function") {
-          const converted = proj4("EPSG:3857", "EPSG:4326", [x, y]);
-          if (Array.isArray(converted) && converted.length >= 2) {
-            const lon = Number(converted[0]);
-            const lat = Number(converted[1]);
-            if (Number.isFinite(lat) && Number.isFinite(lon)) return L.latLng(lat, lon);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not project PGW point with proj4.", err);
-      }
-
-      // Fallback Web Mercator math, so the mapper does not silently stretch the
-      // PNG to the municipal bounding box if proj4 is unavailable.
-      const R = 6378137;
-      const lon = (x / R) * 180 / Math.PI;
-      const lat = (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 180 / Math.PI;
-      return Number.isFinite(lat) && Number.isFinite(lon) ? L.latLng(lat, lon) : null;
-    }
-
-    async function loadImageSize(url) {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.decoding = "async";
-        img.crossOrigin = "anonymous";
-        img.onload = () => resolve({ width: img.naturalWidth || img.width, height: img.naturalHeight || img.height });
-        img.onerror = () => reject(new Error("Could not read overlay image dimensions."));
-        img.src = url;
-      });
-    }
-
-    function worldFileBoundsFromAffine(world, width, height) {
-      const [A, D, B, E, C, F] = world;
-      const affine = (col, row) => {
-        const x = A * col + B * row + C;
-        const y = D * col + E * row + F;
-        return projectWorldPointToLatLng(x, y);
-      };
-
-      // C/F are the center of the upper-left pixel. Use outer pixel edges.
-      const corners = [
-        affine(-0.5, -0.5),
-        affine(width - 0.5, -0.5),
-        affine(width - 0.5, height - 0.5),
-        affine(-0.5, height - 0.5)
-      ].filter(Boolean);
-
-      if (corners.length < 2) return null;
-      const bounds = L.latLngBounds(corners);
-      return bounds && bounds.isValid && bounds.isValid() ? bounds : null;
-    }
-
-    async function fetchWorldFileBounds(sampleOverlayUrl) {
-      if (!sampleOverlayUrl) return null;
-      const candidates = getWorldFileUrlCandidates(sampleOverlayUrl);
-      const size = await loadImageSize(sampleOverlayUrl);
-
-      for (const url of candidates) {
-        try {
-          const res = await fetch(url, { cache: "force-cache" });
-          if (!res.ok) continue;
-          const world = parseWorldFileText(await res.text());
-          if (!world) continue;
-          const bounds = worldFileBoundsFromAffine(world, size.width, size.height);
-          if (bounds) return { url, bounds };
-        } catch (err) {
-          // Try the next common worldfile name.
-        }
-      }
-      return null;
-    }
-
     async function ensureOverlayBounds(sampleOverlayUrl) {
-      const worldBounds = await fetchWorldFileBounds(sampleOverlayUrl).catch(err => {
-        console.warn("Could not load PGW/WLD overlay bounds.", err);
-        return null;
-      });
+      const boundaryBounds = getBoundaryDrivenOverlayBounds();
+      floodLatLngBounds = boundaryBounds;
 
-      if (worldBounds?.bounds) {
-        floodLatLngBounds = worldBounds.bounds;
-        return {
-          url: sampleOverlayUrl || null,
-          mode: "worldfile",
-          worldFileUrl: worldBounds.url,
-          bounds: floodLatLngBounds
-        };
-      }
-
-      // Last-resort only. Do not use this when a PGW is available, because it
-      // stretches the square PNG to the red municipal bbox and creates the huge
-      // rectangular overlay shown in the broken screenshot.
-      const fallbackBounds = getBoundaryDrivenOverlayBounds();
-      floodLatLngBounds = fallbackBounds;
       return {
         url: sampleOverlayUrl || null,
-        mode: "boundary-fallback-no-worldfile",
-        bounds: fallbackBounds
+        mode: "boundary-driven",
+        bounds: boundaryBounds
       };
     }
 
@@ -21895,8 +21773,9 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 
   function enforceTimelineWidth(){
     var dock = document.getElementById('timelineDock');
-    var slider = document.getElementById('hourSlider');
     var days = document.getElementById('timelineDayTabs');
+    var track = document.querySelector('.timeline-trackRow');
+    var slider = document.getElementById('hourSlider');
     if (dock) {
       dock.style.setProperty('--pj-timeline-thumb', '14px');
       dock.style.setProperty('--pj-timeline-edge-pad', '7px');
@@ -21904,6 +21783,10 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
     if (days) {
       days.style.setProperty('margin-left', 'var(--pj-timeline-edge-pad)', 'important');
       days.style.setProperty('margin-right', 'var(--pj-timeline-edge-pad)', 'important');
+    }
+    if (track) {
+      track.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
+      track.style.setProperty('width', '100%', 'important');
     }
     if (slider) {
       slider.style.setProperty('width', 'calc(100% - var(--pj-timeline-thumb))', 'important');
