@@ -13960,6 +13960,61 @@ body .timeline-trackRow{
   }
 }
 
+
+
+/* =========================================================
+   PJ FIX 2026-06-11: align timeline stripe, slider, and bubble
+   ---------------------------------------------------------
+   The timeline has two coordinate systems:
+   1) the native range input uses N-1 intervals between N hourly points;
+   2) the day stripe used to draw N equal blocks.
+   That made flood color appear one visual slot early and let the final
+   thumb protrude past the pill edge. These final overrides give the day
+   stripe and slider the same padded endpoint geometry.
+   ========================================================= */
+#timelineDock{
+  --pj-timeline-thumb:18px !important;
+  --pj-timeline-edge-pad:calc(var(--pj-timeline-thumb) / 2) !important;
+  overflow:visible !important;
+}
+
+#timelineDock #timelineDayTabs{
+  margin-left:var(--pj-timeline-edge-pad) !important;
+  margin-right:var(--pj-timeline-edge-pad) !important;
+  width:auto !important;
+  max-width:none !important;
+}
+
+#timelineDock .timeline-trackRow{
+  grid-template-columns:minmax(0, 1fr) !important;
+  width:100% !important;
+  padding-left:var(--pj-timeline-edge-pad) !important;
+  padding-right:var(--pj-timeline-edge-pad) !important;
+  overflow:visible !important;
+}
+
+#timelineDock #hourSlider{
+  width:100% !important;
+  max-width:100% !important;
+  margin:0 !important;
+  box-sizing:border-box !important;
+  overflow:visible !important;
+}
+
+#timelineDock #hourSlider::-webkit-slider-thumb{
+  width:var(--pj-timeline-thumb) !important;
+  height:var(--pj-timeline-thumb) !important;
+}
+
+#timelineDock #hourSlider::-moz-range-thumb{
+  width:var(--pj-timeline-thumb) !important;
+  height:var(--pj-timeline-thumb) !important;
+}
+
+body.mobile-optimized #timelineDock{
+  --pj-timeline-thumb:18px !important;
+}
+
 </style>
 </head>
 <body>
@@ -15593,17 +15648,57 @@ function setDatumHelpOpen(isOpen) {
     }
 
     function buildTimelineGroupGradient(startIndex, endIndex) {
-      const entries = currentSeriesHours.slice(startIndex, endIndex + 1);
-      if (!entries.length) return "";
-      const count = entries.length;
+      /*
+        IMPORTANT: the slider has N hourly points but only N-1 intervals.
+        The old stripe colored N equal blocks, while the input range places
+        the thumb on N-1 intervals. That is why the orange flood stripe could
+        appear one hour early compared with the selected time.
+
+        This function colors the interval that begins at each timestamp:
+        entry[i] owns the visual span from time[i] to time[i+1]. Therefore a
+        threshold crossing at 8 PM starts the orange stripe at 8 PM, not at 7 PM.
+      */
+      const total = currentSeriesHours.length;
+      if (!total) return "";
+
+      const lastIntervalIndex = total - 2;
+      if (lastIntervalIndex < 0) {
+        const onlyColor = getTimelineHourColor(currentSeriesHours[0]);
+        return `linear-gradient(90deg, ${onlyColor} 0%, ${onlyColor} 100%)`;
+      }
+
+      const intervalStart = Math.max(0, startIndex);
+      const intervalEnd = Math.min(endIndex, lastIntervalIndex);
+      if (intervalEnd < intervalStart) {
+        const fallbackColor = getTimelineHourColor(currentSeriesHours[Math.max(0, Math.min(startIndex, total - 1))]);
+        return `linear-gradient(90deg, ${fallbackColor} 0%, ${fallbackColor} 100%)`;
+      }
+
+      const count = intervalEnd - intervalStart + 1;
       const stops = [];
-      entries.forEach((entry, idx) => {
-        const color = getTimelineHourColor(entry);
+      for (let i = intervalStart; i <= intervalEnd; i++) {
+        const color = getTimelineHourColor(currentSeriesHours[i]);
+        const idx = i - intervalStart;
         const startPct = (idx / count) * 100;
         const endPct = ((idx + 1) / count) * 100;
         stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
-      });
+      }
       return `linear-gradient(90deg, ${stops.join(", ")})`;
+    }
+
+    function getTimelineGroupIntervalSpan(startIndex, endIndex) {
+      /*
+        Day tabs must also be sized by intervals, not points, so they line up
+        with the slider. For a forecast from Thu 9 AM to Sun 9 PM, the visual
+        widths become the actual hours between points, not the number of point
+        samples printed inside each day group.
+      */
+      const total = currentSeriesHours.length;
+      if (total <= 1) return 1;
+      const lastIntervalIndex = total - 2;
+      const intervalStart = Math.max(0, startIndex);
+      const intervalEnd = Math.min(endIndex, lastIntervalIndex);
+      return Math.max(1, intervalEnd - intervalStart + 1);
     }
 
     function stageToCode(stageValue) {
@@ -18916,13 +19011,17 @@ function getEntryESTDate(entry) {
       const bubble = document.getElementById("timelineBubble");
       if (!dock || !slider || !bubble || !currentSeriesHours.length) return;
 
+      /*
+        Use the actual slider rectangle after CSS padding. The browser range
+        already maps value 0 to the left endpoint and max to the right endpoint;
+        do not subtract the thumb width again here or the bubble drifts inward.
+      */
       const max = Math.max(1, currentSeriesHours.length - 1);
-      const pct = currentHourIndex / max;
+      const value = Math.max(0, Math.min(max, Number(currentHourIndex) || 0));
+      const pct = value / max;
       const dockRect = dock.getBoundingClientRect();
       const sliderRect = slider.getBoundingClientRect();
-      const thumbSize = 16;
-      const usableWidth = Math.max(0, sliderRect.width - thumbSize);
-      const x = (sliderRect.left - dockRect.left) + (thumbSize / 2) + (pct * usableWidth);
+      const x = (sliderRect.left - dockRect.left) + (pct * sliderRect.width);
       const bubbleHalf = Math.max(72, (bubble.offsetWidth / 2) + 8);
       const safe = Math.max(bubbleHalf, Math.min(dockRect.width - bubbleHalf, x));
       bubble.style.left = `${safe}px`;
@@ -18970,7 +19069,7 @@ function getEntryESTDate(entry) {
         btn.type = "button";
         btn.className = "timeline-day";
         btn.textContent = group.label;
-        btn.style.flex = `${Math.max(1, group.hours)} 1 0`;
+        btn.style.flex = `${getTimelineGroupIntervalSpan(group.start, group.end)} 1 0`;
         const tideGradient = buildTimelineGroupGradient(group.start, group.end);
         if (tideGradient) {
           btn.style.backgroundImage = `linear-gradient(180deg, rgba(10,18,32,.18), rgba(10,18,32,.18)), ${tideGradient}`;
@@ -21724,15 +21823,32 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
   }
 
   function enforceTimelineWidth(){
+    var dock = document.getElementById('timelineDock');
+    var days = document.getElementById('timelineDayTabs');
     var track = document.querySelector('.timeline-trackRow');
     var slider = document.getElementById('hourSlider');
+    var thumb = 18;
+    if (dock) {
+      dock.style.setProperty('--pj-timeline-thumb', thumb + 'px', 'important');
+      dock.style.setProperty('--pj-timeline-edge-pad', (thumb / 2) + 'px', 'important');
+    }
+    if (days) {
+      days.style.setProperty('margin-left', 'var(--pj-timeline-edge-pad)', 'important');
+      days.style.setProperty('margin-right', 'var(--pj-timeline-edge-pad)', 'important');
+      days.style.setProperty('width', 'auto', 'important');
+    }
     if (track) {
       track.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
       track.style.setProperty('width', '100%', 'important');
+      track.style.setProperty('padding-left', 'var(--pj-timeline-edge-pad)', 'important');
+      track.style.setProperty('padding-right', 'var(--pj-timeline-edge-pad)', 'important');
+      track.style.setProperty('overflow', 'visible', 'important');
     }
     if (slider) {
       slider.style.setProperty('width', '100%', 'important');
       slider.style.setProperty('max-width', '100%', 'important');
+      slider.style.setProperty('margin', '0', 'important');
+      slider.style.setProperty('box-sizing', 'border-box', 'important');
     }
   }
 
@@ -21788,7 +21904,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
     TOWN_CONFIG = {
       pageTitle: "North Wildwood Floodmapper",
       mapTitle: "North Wildwood Floodmapper",
-      brandTitleLine1: "North Wildwood",
+      brandTitleLine1: "NorthWildwood",
       brandTitleLine2: "Floodmapper",
 
       assets: {
@@ -21807,8 +21923,8 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       },
 
       site: {
-        name: "North Wildwood",
-        municipalityName: "North Wildwood",
+        name: "NorthWildwood",
+        municipalityName: "NorthWildwood",
         county: "CAPE MAY",
         usgsGaugeId: "01411360",
         noaaGaugeId: "8535581",
@@ -21846,14 +21962,14 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       },
 
       addressLookup: {
-        title: "Find a North Wildwood Address",
-        displayName: "North Wildwood",
-        city: "North Wildwood",
+        title: "Find a NorthWildwood Address",
+        displayName: "NorthWildwood",
+        city: "NorthWildwood",
         state: "NJ",
         stateName: "New Jersey",
         postalCode: "",
         placeholder: "Example: 123 Main St",
-        buttonText: "Search North Wildwood",
+        buttonText: "Search NorthWildwood",
         bbox: {
           west: -74.8190324,
           south: 38.9875662,
@@ -21865,14 +21981,14 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       },
 
       alerts: { zoneCodes: [] },
-      exportSlug: "North-Wildwood-floodmapper",
+      exportSlug: "NorthWildwood-floodmapper",
 
       boundary: {
-        boundaryUrl: "Boundaries/North Wildwood.geojson",
-        bunnyBoundaryPath: "Boundaries/North Wildwood.geojson",
+        boundaryUrl: "Boundaries/NorthWildwood.geojson",
+        bunnyBoundaryPath: "Boundaries/NorthWildwood.geojson",
         queryCandidates: [
-          "NAME = 'North Wildwood'",
-          "MUN_LABEL = 'North Wildwood'"
+          "NAME = 'NorthWildwood'",
+          "MUN_LABEL = 'NorthWildwood'"
         ]
       },
 
