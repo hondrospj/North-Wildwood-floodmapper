@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: north-wildwood-data-updates-v2
+  cancel-in-progress: false
+
 jobs:
   update-forecast:
     runs-on: ubuntu-latest
@@ -47,16 +51,16 @@ jobs:
               "usgsGaugeId": "01411360",
               "noaaGaugeId": "8535581",
               "observedSource": "usgs",
-              "navd88OffsetFromMllwFt": -2.66,
+              "navd88OffsetFromMllwFt": -2.75,
               "thresholdsMllw": {
-                "minorLow": 6.1,
-                "moderateLow": 7.1,
-                "majorLow": 8.1
+                "minorLow": 6.0,
+                "moderateLow": 7.0,
+                "majorLow": 8.0
               },
               "thresholdsNavd88": {
-                "minorLow": 3.44,
-                "moderateLow": 4.44,
-                "majorLow": 5.44
+                "minorLow": 3.25,
+                "moderateLow": 4.25,
+                "majorLow": 5.25
               }
             }
           ]
@@ -220,6 +224,28 @@ jobs:
           def thresholds_navd_from_mllw(zone):
               return {key: round2(value + zone["navd88OffsetFromMllwFt"]) for key, value in zone["thresholdsMllw"].items()}
 
+          def annotate_hydraulic_phases(hours):
+              epsilon = 0.025
+              for index, row in enumerate(hours):
+                  current = row.get("navd88StageFt")
+                  previous = hours[index - 1].get("navd88StageFt") if index > 0 else None
+                  following = hours[index + 1].get("navd88StageFt") if index + 1 < len(hours) else None
+                  before = current - previous if current is not None and previous is not None else None
+                  after = following - current if following is not None and current is not None else None
+                  if before is not None and after is not None and before > epsilon and after <= epsilon:
+                      phase = "slack"
+                  elif before is not None and after is not None and before >= -epsilon and after < -epsilon:
+                      phase = "slack"
+                  elif after is not None and (before is None or abs(after) >= abs(before)):
+                      phase = "filling" if after > epsilon else "draining" if after < -epsilon else "slack"
+                  elif before is not None:
+                      phase = "filling" if before > epsilon else "draining" if before < -epsilon else "slack"
+                  else:
+                      phase = "slack"
+                  row["hydraulicPhase"] = phase
+                  row["riseRateFtPer15Min"] = round3(before / 4.0) if before is not None else 0.0
+              return hours
+
           def build_zone_forecast(zone, now_utc):
               last_error = None
               for cycle in recent_cycles(now_utc):
@@ -246,7 +272,7 @@ jobs:
               product_meta = {}
               options = {}
               for key, (label, percentile, product) in definitions.items():
-                  hours = products[key]
+                  hours = annotate_hydraulic_phases(products[key])
                   forecasts[key] = {"label": label, "percentile": percentile, "product": product, "hours": hours}
                   options[key] = {"label": label, "percentile": percentile, "product": product}
                   product_meta[key] = {
@@ -286,6 +312,12 @@ jobs:
                   "thresholdsMLLW": zone["thresholdsMllw"],
                   "thresholdsNAVD88": thresholds_navd_from_mllw(zone),
                   "layerStageRangeNAVD88": {"min": MIN_LAYER_STAGE, "max": MAX_LAYER_STAGE, "increment": LAYER_INCREMENT},
+                  "hydraulicModel": {
+                      "timeStepMinutes": 15,
+                      "phaseField": "hydraulicPhase",
+                      "phases": ["filling", "slack", "draining"],
+                      "assetStrategy": "precomputed one-foot-grid hydraulic lookup selected hourly"
+                  },
                   "forecastOptions": options,
                   "products": product_meta,
                   "forecasts": forecasts,

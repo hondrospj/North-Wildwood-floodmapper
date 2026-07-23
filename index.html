@@ -118,19 +118,19 @@
       --minor:#d58a00;
       --moderate:#d84b67;
       --major:#7c5ce0;
-      --below:#79DD5A;
+      --below:#63D471;
 
-      --depth-0:#CFEFFF;
-      --depth-1:#2769DB;
-      --depth-2:#5B5FD6;
-      --depth-3:#5F2DA8;
-      --depth-4:#7C42C4;
-      --depth-5:#A73FA1;
-      --depth-6:#E05AAE;
-      --depth-7:#B1367B;
-      --depth-8:#A52440;
-      --depth-9:#3F000A;
-      --depth-10:#3A0008;
+      --depth-0:#7DF9FF;
+      --depth-1:#5DE7FF;
+      --depth-2:#38D3FF;
+      --depth-3:#1BB7F5;
+      --depth-4:#168CEB;
+      --depth-5:#156BE0;
+      --depth-6:#1853C6;
+      --depth-7:#173EA8;
+      --depth-8:#132F84;
+      --depth-9:#0B1E5B;
+      --depth-10:#050E33;
       --boundary-red:#ef4444;
     }
 
@@ -14005,6 +14005,20 @@ html.win-compact-ui #timelineDock #hourSlider{
         </div>
       </section>
 
+      <section id="timelineIntervalCard" class="panel-card compact-card timeline-resolution-card">
+        <div class="section-title">
+          <div class="title-with-help">
+            <h2>Interval</h2>
+            <button id="timelineDetailHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain timeline interval">?</button>
+          </div>
+        </div>
+        <div id="timelineIntervalToggle" class="timeline-interval-toggle" role="group" aria-label="Timeline interval">
+          <button id="intervalHourBtn" class="active" type="button" data-interval-minutes="60" aria-pressed="true">Hourly</button>
+          <button id="intervalQuarterBtn" type="button" data-interval-minutes="15" aria-pressed="false">15-Min</button>
+          <button id="intervalDailyBtn" type="button" data-interval-minutes="1440" aria-pressed="false">Daily Max</button>
+        </div>
+      </section>
+
         <section id="legendDock" class="rail-card legend-card left-lower-legend-card panel-card compact-card" data-user-moved="1" aria-label="Map key">
           <div id="legendHeader" class="legend-header" title="Legend">
             <div class="legend-header-text">
@@ -14132,6 +14146,12 @@ html.win-compact-ui #timelineDock #hourSlider{
                 <div class="layer-name">Road names</div>
               </div>
             </div>
+            <div class="layer-item">
+              <div id="parcelsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show parcels"></div>
+              <div class="layer-meta">
+                <div class="layer-name">Parcels</div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -14171,6 +14191,8 @@ html.win-compact-ui #timelineDock #hourSlider{
           </form>
           <div id="townAddressStatus" class="town-address-status" role="status" aria-live="polite"></div>
         </section>
+
+        <button id="mapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-rail" type="button">Take The Floodmapper Tour</button>
 </aside>
 
       <div id="topTidesModal" class="top-tides-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="topTidesModalTitle">
@@ -14178,7 +14200,7 @@ html.win-compact-ui #timelineDock #hourSlider{
           <div class="top-tides-modal-head">
             <div>
               <h3 id="topTidesModalTitle">Top 10 Highest Floods</h3>
-              <p>Select a crest to view its maximum flood extent.</p>
+              <p>Select a flood to replay its observed record when available.</p>
             </div>
             <button id="topTidesModalCloseBtn" class="top-tides-modal-close" type="button" aria-label="Close top floods popup">×</button>
           </div>
@@ -14191,18 +14213,14 @@ html.win-compact-ui #timelineDock #hourSlider{
         <div class="timeline-top">
           <div class="timeline-controls">
             <button id="playBtn" type="button" class="playFab" aria-label="Play">▶</button>
-            <div id="timelineIntervalToggle" class="timeline-interval-toggle" role="group" aria-label="Timeline interval">
-              <button id="intervalHourBtn" class="active" type="button" data-interval-minutes="60" aria-pressed="true">1 hr</button>
-              <button id="intervalQuarterBtn" type="button" data-interval-minutes="15" aria-pressed="false">15 min</button>
-            </div>
           </div>
           <div id="timelineMeta" class="timeline-meta">--</div>
         </div>
-        <div id="timelineFloodKey" class="timeline-flood-key" aria-label="Timeline flood stage key">
-          <span class="timeline-key-item"><span class="timeline-key-swatch no-flood"></span>No flooding</span>
-          <span class="timeline-key-item"><span class="timeline-key-swatch minor-flood"></span>Minor flooding</span>
-          <span class="timeline-key-item"><span class="timeline-key-swatch moderate-flood"></span>Moderate flooding</span>
-          <span class="timeline-key-item"><span class="timeline-key-swatch major-flood"></span>Major flooding</span>
+        <div id="timelineFloodKey" class="timeline-flood-key" aria-label="Flood category key">
+          <span class="timeline-key-item"><span class="timeline-key-swatch no-flood" aria-hidden="true"></span><span class="timeline-key-label">No Flooding</span></span>
+          <span class="timeline-key-item"><span class="timeline-key-swatch minor-flood" aria-hidden="true"></span><span class="timeline-key-label">Minor</span></span>
+          <span class="timeline-key-item"><span class="timeline-key-swatch moderate-flood" aria-hidden="true"></span><span class="timeline-key-label">Moderate</span></span>
+          <span class="timeline-key-item"><span class="timeline-key-swatch major-flood" aria-hidden="true"></span><span class="timeline-key-label">Major</span></span>
         </div>
         <div id="timelineDayTabs" class="timeline-days"></div>
         <div class="timeline-trackRow">
@@ -14222,6 +14240,22 @@ html.win-compact-ui #timelineDock #hourSlider{
         <button id="toastCloseBtn" type="button" aria-label="Clear message">×</button>
       </div>
     </main>
+  </div>
+
+  <div id="mapperTutorial" class="mapper-tutorial" hidden aria-hidden="true">
+    <div id="mapperTutorialSpotlight" class="mapper-tutorial-spotlight" aria-hidden="true"></div>
+    <section id="mapperTutorialCard" class="mapper-tutorial-card" role="dialog" aria-modal="true" aria-labelledby="mapperTutorialTitle">
+      <div class="mapper-tutorial-head">
+        <span id="mapperTutorialProgress" class="mapper-tutorial-progress">1 of 9</span>
+        <button id="mapperTutorialClose" class="mapper-tutorial-close" type="button" aria-label="Close tutorial">×</button>
+      </div>
+      <h2 id="mapperTutorialTitle"></h2>
+      <div id="mapperTutorialBody" class="mapper-tutorial-body"></div>
+      <div class="mapper-tutorial-actions">
+        <button id="mapperTutorialBack" type="button">Back</button>
+        <button id="mapperTutorialNext" class="active" type="button">Next</button>
+      </div>
+    </section>
   </div>
 
   <div id="datumModal" class="datum-modal" hidden>
@@ -14379,6 +14413,56 @@ html.win-compact-ui #timelineDock #hourSlider{
     </div>
   </div>
 
+  <style id="floodmapper-2-controls">
+    .mapper-tutorial-launch{
+      width:100%; min-height:38px; border-radius:14px; border:1px solid rgba(125,249,255,.45);
+      background:linear-gradient(135deg, rgba(29,78,216,.72), rgba(8,145,178,.64)); color:#fff;
+      font-size:12px; font-weight:900; letter-spacing:.01em; cursor:pointer; box-shadow:0 12px 28px rgba(2,8,23,.24);
+    }
+    #mapTitleLogo:not([src]),#mapTitleLogo[src=""]{display:none !important}
+    .layer-note{font-size:9px;line-height:1.25;color:var(--muted)}
+    .toggle[role="switch"]{cursor:pointer;outline:none}
+    .toggle[role="switch"]:focus-visible{box-shadow:0 0 0 3px rgba(125,249,255,.32)}
+    .timeline-interval-toggle{
+      grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+      width:190px !important; min-width:190px !important;
+    }
+    .mapper-tutorial{position:fixed;inset:0;z-index:20000;pointer-events:none}
+    .mapper-tutorial[hidden]{display:none !important}
+    .mapper-tutorial-spotlight{
+      position:fixed;left:0;top:0;width:1px;height:1px;border:3px solid #7df9ff;border-radius:18px;
+      box-shadow:0 0 0 9999px rgba(2,6,23,.78),0 0 0 7px rgba(125,249,255,.18),0 16px 45px rgba(0,0,0,.4);
+      transition:left .24s ease,top .24s ease,width .24s ease,height .24s ease;pointer-events:none;
+    }
+    .mapper-tutorial-card{
+      position:fixed;z-index:20002;width:min(390px,calc(100vw - 28px));max-height:min(520px,calc(100vh - 28px));overflow:auto;
+      padding:20px;border:1px solid rgba(125,249,255,.4);border-radius:22px;background:rgba(8,15,31,.98);color:#edf7ff;
+      box-shadow:0 26px 85px rgba(0,0,0,.58);pointer-events:auto;
+    }
+    .mapper-tutorial-head,.mapper-tutorial-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .mapper-tutorial-progress{font-size:11px;font-weight:900;color:#7df9ff;text-transform:uppercase;letter-spacing:.09em}
+    .mapper-tutorial-close{width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:#fff;font-size:22px;cursor:pointer}
+    .mapper-tutorial-card h2{margin:12px 0 8px;font-size:23px;line-height:1.08}
+    .mapper-tutorial-body{color:#cbdaf2;font-size:14px;line-height:1.55}
+    .mapper-tutorial-body p{margin:0 0 10px}.mapper-tutorial-body strong{color:#fff}
+    .mapper-tutorial-actions{margin-top:18px}
+    .mapper-tutorial-actions button{min-width:94px;min-height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#dbeafe;font-weight:850;cursor:pointer}
+    .mapper-tutorial-actions button.active{background:#2563eb;border-color:#60a5fa;color:#fff}
+    .mapper-tutorial-actions button:disabled{opacity:.35;cursor:default}
+    .house-alert-popup{color:#0f172a;min-width:275px;max-width:340px;font:13px/1.35 Inter,system-ui,sans-serif}
+    .house-alert-popup h3{margin:0 0 2px;font-size:17px}.house-alert-popup .house-sub{color:#475569;margin-bottom:10px}
+    .house-alert-stat{display:grid;grid-template-columns:1fr auto;gap:8px;padding:7px 0;border-top:1px solid #e2e8f0}.house-alert-stat strong{font-size:15px}
+    .house-alert-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px;text-align:right}.house-alert-table th:first-child,.house-alert-table td:first-child{text-align:left}
+    .house-alert-table th,.house-alert-table td{padding:4px;border-bottom:1px solid #e2e8f0}.house-alert-note{margin-top:8px;color:#64748b;font-size:10px;line-height:1.35}
+    .depth-query-popup{color:#0f172a;min-width:220px;font:13px/1.4 Inter,system-ui,sans-serif}.depth-query-popup h3{margin:0 0 7px;font-size:16px}.depth-query-popup dl{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin:0}.depth-query-popup dt{color:#64748b}.depth-query-popup dd{margin:0;font-weight:800}
+    @media (max-width:900px),(max-height:560px){
+      .timeline-interval-toggle{width:168px !important;min-width:168px !important}
+      .timeline-interval-toggle button{font-size:9px !important;padding:0 3px !important}
+      .mapper-tutorial-card{left:14px !important;right:14px !important;bottom:14px !important;top:auto !important;width:auto;max-height:42vh}
+    }
+    @media (max-width:360px){.timeline-interval-toggle{width:154px !important;min-width:154px !important}}
+  </style>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js"></script>
   <script src="https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js"></script>
@@ -14387,12 +14471,20 @@ html.win-compact-ui #timelineDock #hourSlider{
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
 
   <script>
     const APP_BASE = new URL(".", window.location.href);
     let FORECAST_URL = "";
     let OBSERVED_URL = "";
+    let OBSERVED_15MIN_URL = "";
+    let LEWES_HOURLY_URL = "";
     let TOP_TIDES_URL = "";
+    let DEPTH_QUERY_COG_URL = "";
+    let HYDRAULIC_STATES_URL = "";
+    let PARCELS_URL = "";
+    let HOUSE_ALERT_CDF_URL = "";
+    let PARCEL_BOUNDARY_PNG_URL = "";
 
     function withFreshJsonUrl(url) {
       const fresh = new URL(url, window.location.href);
@@ -14403,12 +14495,13 @@ html.win-compact-ui #timelineDock #hourSlider{
 
 
     const MIN_STAGE = -4.0;
+    const MIN_DEPTH_STAGE = 0.0;
     const MAX_STAGE = 14.0;
     const STAGE_STEP = 0.1;
     const DEFAULT_OVERLAY_MODE = "depth";
     const DEFAULT_DATA_MODE = "forecast";
     const DEFAULT_OPACITY = 0.75;
-    const TOP_TIDE_DISPLAY_COUNT = 3;
+    const TOP_TIDE_DISPLAY_COUNT = 2;
     const TOP_TIDE_SELECT_COUNT = 10;
     const TOP_TIDE_WINDOW_HOURS = 12;
     const ROAD_LABEL_ZOOM = 10;
@@ -14441,6 +14534,8 @@ html.win-compact-ui #timelineDock #hourSlider{
 
     let TOWN_CONFIG = null;
     let OVERLAY_ROOTS = { depth: [], dynamic: [] };
+    let OVERLAY_PHASE_ROOTS = { depth: {}, dynamic: {} };
+    let OVERLAY_CACHE_VERSIONS = {};
     let NWS_POINT_URL = "";
     let SITE_CONFIG = {};
     let MUNICIPAL_BOUNDARY_QUERY_CANDIDATES = [];
@@ -14465,7 +14560,8 @@ html.win-compact-ui #timelineDock #hourSlider{
     }
 
     function buildOverlayRoots(rootList) {
-      return (rootList || []).map(path => new URL(path, APP_BASE).href);
+      const list = Array.isArray(rootList) ? rootList : (rootList ? [rootList] : []);
+      return list.map(path => new URL(path, APP_BASE).href);
     }
 
 
@@ -14506,7 +14602,14 @@ html.win-compact-ui #timelineDock #hourSlider{
       TOWN_CONFIG = config;
       FORECAST_URL = new URL(config.data?.forecastPath || "./forecast.json", APP_BASE).href;
       OBSERVED_URL = new URL(config.data?.observedPath || "./observed.json", APP_BASE).href;
+      OBSERVED_15MIN_URL = new URL(config.data?.observed15MinPath || "./observed15min.json", APP_BASE).href;
+      LEWES_HOURLY_URL = new URL(config.data?.lewesHourlyPath || "./lewes_hourly.json", APP_BASE).href;
       TOP_TIDES_URL = new URL(config.data?.topTidesPath || "./toptides.json", APP_BASE).href;
+      DEPTH_QUERY_COG_URL = new URL(config.overlays?.depthQueryCogPath || "", APP_BASE).href;
+      HYDRAULIC_STATES_URL = new URL(config.overlays?.hydraulicStatesPath || "", APP_BASE).href;
+      PARCELS_URL = new URL(config.parcels?.geojsonPath || "", APP_BASE).href;
+      HOUSE_ALERT_CDF_URL = new URL(config.parcels?.houseAlertCdfPath || "", APP_BASE).href;
+      PARCEL_BOUNDARY_PNG_URL = new URL(config.parcels?.boundaryPngPath || "", APP_BASE).href;
       MUNICIPAL_BOUNDARY_QUERY_URL = config.boundary?.queryUrl || "";
       MUNICIPAL_BOUNDARY_OUTFIELDS = config.boundary?.outFields || "";
 
@@ -14528,8 +14631,7 @@ html.win-compact-ui #timelineDock #hourSlider{
           mapTitleLogo.style.display = "";
           mapTitleLogo.onerror = function(){ this.style.display = "none"; };
         } else {
-          mapTitleLogo.removeAttribute("src");
-          mapTitleLogo.style.display = "none";
+          mapTitleLogo.remove();
         }
       }
 
@@ -14600,6 +14702,11 @@ html.win-compact-ui #timelineDock #hourSlider{
         depth: buildOverlayRoots(config.overlays?.depthRoots),
         dynamic: buildOverlayRoots(config.overlays?.dynamicRoots)
       };
+      OVERLAY_PHASE_ROOTS = {
+        depth: Object.fromEntries(Object.entries(config.overlays?.phaseRoots?.depth || {}).map(([phase, roots]) => [phase, buildOverlayRoots(roots)])),
+        dynamic: Object.fromEntries(Object.entries(config.overlays?.phaseRoots?.dynamic || {}).map(([phase, roots]) => [phase, buildOverlayRoots(roots)]))
+      };
+      OVERLAY_CACHE_VERSIONS = config.overlays?.cacheVersions || {};
 
       SITE_CONFIG = {
         name: config.site?.name,
@@ -14682,7 +14789,7 @@ html.win-compact-ui #timelineDock #hourSlider{
       { label: "3.00–4.00 ft", color: "var(--depth-8)" },
       { label: "4.00–5.00 ft", color: "var(--depth-9)" },
       { label: "5.00+ ft", color: "var(--depth-10)" },
-      { label: "Uncertainty", color: "var(--below)" }
+      { label: "Below stage, not hydraulically connected", color: "var(--below)" }
     ];
 
     let DYNAMIC_LEGEND = [];
@@ -14751,6 +14858,12 @@ function cloneStyleObject(value) {
     let basemapGrayLayer = null;
     let basemapColorLayer = null;
     let roadsLayer = null;
+    let parcelsLayer = null;
+    let parcelFeatures = [];
+    let houseAlertCdfData = null;
+    let parcelLoadPromise = null;
+    let depthQueryImagePromise = null;
+    let hydraulicStatesPromise = null;
     let cityBoundaryOutline = null;
     let cityBoundaryMask = null;
     let cityBoundaryGuide = null;
@@ -14777,6 +14890,9 @@ function cloneStyleObject(value) {
       highEnd: { label: "High End", percentile: "High End", buttonId: "forecastHighBtn" }
     };
     let observedData = null;
+    let observed15MinuteData = null;
+    let observed15MinuteDaysByDate = new Map();
+    let lewesHourlyData = null;
     let observedDaysCache = null;
     let observedMonthKeys = [];
     let observedFlatHours = [];
@@ -14930,19 +15046,24 @@ function cloneStyleObject(value) {
     }
 
     function getTimelineIntervalMinutes() {
-      return currentTimelineIntervalMinutes === 15 ? 15 : 60;
+      return currentTimelineIntervalMinutes === 15 || currentTimelineIntervalMinutes === 1440
+        ? currentTimelineIntervalMinutes
+        : 60;
     }
 
     function getTimelineIntervalLabel(minutes = getTimelineIntervalMinutes()) {
-      return minutes === 15 ? "15 min" : "1 hour";
+      if (minutes === 15) return "15 min";
+      if (minutes === 1440) return "daily maximum";
+      return "1 hour";
     }
 
     function updateTimelineIntervalUI() {
       const minutes = getTimelineIntervalMinutes();
-      currentObservedResolution = minutes === 15 ? "15min" : "1hour";
+      currentObservedResolution = minutes === 15 ? "15min" : (minutes === 1440 ? "daily" : "1hour");
 
       const hourBtn = document.getElementById("intervalHourBtn");
       const quarterBtn = document.getElementById("intervalQuarterBtn");
+      const dailyBtn = document.getElementById("intervalDailyBtn");
       if (hourBtn) {
         const active = minutes === 60;
         hourBtn.classList.toggle("active", active);
@@ -14952,6 +15073,11 @@ function cloneStyleObject(value) {
         const active = minutes === 15;
         quarterBtn.classList.toggle("active", active);
         quarterBtn.setAttribute("aria-pressed", String(active));
+      }
+      if (dailyBtn) {
+        const active = minutes === 1440;
+        dailyBtn.classList.toggle("active", active);
+        dailyBtn.setAttribute("aria-pressed", String(active));
       }
 
       const dock = document.getElementById("timelineDock");
@@ -15182,6 +15308,21 @@ function parseStoredLocalNyToDate(timeEST) {
     }
 
     function buildObservedDayDisplaySeries(dayRecord, dateStr) {
+      if (dayRecord?.isHistoricalCrestOnly) {
+        return getObservedSourceHoursForDay(dayRecord)
+          .filter(entry => Number.isFinite(getStageValue(entry)))
+          .map(entry => ({
+            ...entry,
+            observedDate: dateStr,
+            observationInterval: "crest",
+            topTideDateOnly: true,
+            isHistoricalTopTide: true,
+            isHistoricalCrestOnly: true
+          }));
+      }
+      if (getTimelineIntervalMinutes() === 1440) {
+        return buildObservedDailyMaximumSeries(dateStr.slice(0, 7));
+      }
       if (getTimelineIntervalMinutes() === 15) {
         return buildObservedQuarterHourDisplaySeries(dayRecord, dateStr);
       }
@@ -15229,6 +15370,39 @@ function parseStoredLocalNyToDate(timeEST) {
         }
       }
       return out;
+    }
+
+    const GAUGE_OUTAGE_THRESHOLD_HOURS = 12;
+
+    function getTimelineFrameHours(entry) {
+      const explicitMinutes = Number(entry?.timelineIntervalMinutes);
+      if (Number.isFinite(explicitMinutes) && explicitMinutes > 0) return explicitMinutes / 60;
+      if (entry?.observationInterval === "15min") return 0.25;
+      if (entry?.observationInterval === "daily") return 24;
+      return getTimelineIntervalMinutes() === 15 ? 0.25 : 1;
+    }
+
+    function getLongestGaugeOutageHours(series = [], startIndex = 0, endIndex = null) {
+      if (!Array.isArray(series) || !series.length) return 0;
+      const start = Math.max(0, Number(startIndex) || 0);
+      const end = Math.min(series.length - 1, endIndex == null ? series.length - 1 : Number(endIndex));
+      let longest = 0;
+      let current = 0;
+      for (let index = start; index <= end; index++) {
+        const entry = series[index];
+        const missing = entry?.isMissingObservedHour || entry?.isMissingTimelineFrame || !Number.isFinite(getStageValue(entry));
+        if (missing) {
+          current += getTimelineFrameHours(entry);
+          longest = Math.max(longest, current);
+        } else {
+          current = 0;
+        }
+      }
+      return Number(longest.toFixed(2));
+    }
+
+    function hasLongGaugeOutage(series = [], startIndex = 0, endIndex = null) {
+      return getLongestGaugeOutageHours(series, startIndex, endIndex) > GAUGE_OUTAGE_THRESHOLD_HOURS;
     }
 
     function getObservedDisplaySeries(entries = [], options = {}) {
@@ -15323,6 +15497,14 @@ function parseStoredLocalNyToDate(timeEST) {
     }
 
     function getObservedSourceHoursForDay(dayRecord) {
+      if (dayRecord?.isLewesSurrogate && dayRecord?.lewesCompactDay) {
+        return decodeLewesHourlyDay(dayRecord);
+      }
+      const dateStr = dayRecord?.date || dayRecord?.d;
+      if (dateStr) {
+        const quarterDay = observed15MinuteDaysByDate.get(dateStr);
+        if (quarterDay) return decodeObserved15MinuteDay(quarterDay);
+      }
       const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];
       if (dense.length) return dense;
       return Array.isArray(dayRecord?.hours) ? dayRecord.hours : [];
@@ -15397,16 +15579,30 @@ function parseStoredLocalNyToDate(timeEST) {
       const stepMs = intervalMinutes * 60 * 1000;
       const valid = (Array.isArray(entries) ? entries : [])
         .map((entry, idx) => ({ entry, idx, t: entryTimeMs(entry) }))
-        .filter(item => Number.isFinite(item.t))
+        .filter(item => Number.isFinite(item.t) && Number.isFinite(getStageValue(item.entry)))
         .sort((a, b) => a.t - b.t || a.idx - b.idx);
 
-      if (!valid.length) return [];
-
       const sourceResolutionMinutes = options.sourceResolutionMinutes ?? detectSeriesResolutionMinutes(entries);
-      const startMs = Number.isFinite(options.startMs) ? options.startMs : Math.ceil(valid[0].t / stepMs) * stepMs;
-      const endMs = Number.isFinite(options.endMs) ? options.endMs : Math.floor(valid[valid.length - 1].t / stepMs) * stepMs;
+      const startMs = Number.isFinite(options.startMs)
+        ? options.startMs
+        : (valid.length ? Math.ceil(valid[0].t / stepMs) * stepMs : null);
+      const endMs = Number.isFinite(options.endMs)
+        ? options.endMs
+        : (valid.length ? Math.floor(valid[valid.length - 1].t / stepMs) * stepMs : null);
       const maxGapMs = (Number(options.maxGapMinutes) || 75) * 60 * 1000;
       const fillMissingSlots = options.fillMissingSlots !== false;
+
+      if (!valid.length) {
+        if (!fillMissingSlots || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return [];
+        const missing = [];
+        for (let slot = startMs; slot <= endMs; slot += stepMs) {
+          missing.push(makeMissingTimelineEntry(slot, intervalMinutes, {
+            ...options,
+            sourceResolutionMinutes
+          }));
+        }
+        return missing;
+      }
 
       const exactBySlot = new Map();
       valid.forEach(item => {
@@ -15451,6 +15647,9 @@ function parseStoredLocalNyToDate(timeEST) {
 
     function buildForecastDisplaySeries(entries = currentRawSeriesHours) {
       const source = Array.isArray(entries) ? entries : [];
+      if (getTimelineIntervalMinutes() === 1440) {
+        return buildDailyMaximumSeries(source, { kind: "forecast" });
+      }
       if (getTimelineIntervalMinutes() !== 15) {
         return source.map(entry => ({
           ...entry,
@@ -15462,6 +15661,135 @@ function parseStoredLocalNyToDate(timeEST) {
         kind: "forecast",
         fillMissingSlots: false,
         maxGapMinutes: 75
+      });
+    }
+
+    function buildDailyMaximumSeries(entries = [], options = {}) {
+      const bestByDate = new Map();
+      (Array.isArray(entries) ? entries : []).forEach(entry => {
+        const date = getEntryESTDate(entry);
+        const parts = date ? getNyParts(date) : null;
+        const key = parts ? `${parts.year}-${parts.month}-${parts.day}` : (entry?.observedDate || "");
+        const stage = getStageValue(entry);
+        if (!key || !Number.isFinite(stage)) return;
+        const existing = bestByDate.get(key);
+        if (!existing || stage > getStageValue(existing)) bestByDate.set(key, entry);
+      });
+      return Array.from(bestByDate.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([dateKey, entry]) => ({
+        ...entry,
+        observedDate: dateKey,
+        observationInterval: "daily",
+        timelineIntervalMinutes: 1440,
+        isDailyMaximum: true,
+        dailyMaximumKind: options.kind || "observed"
+      }));
+    }
+
+    function buildObservedDailyMaximumSeries(monthKey) {
+      const out = [];
+      for (const day of getObservedDaysForMonth(monthKey)) {
+        const dateKey = day?.date;
+        if (!dateKey) continue;
+        const quarterDay = observed15MinuteDaysByDate.get(dateKey);
+        const entries = quarterDay ? decodeObserved15MinuteDay(quarterDay) : getObservedSourceHoursForDay(day);
+        const daily = buildDailyMaximumSeries(entries, { kind: "observed" })[0];
+        if (daily) {
+          out.push({ ...daily, observedDate: dateKey, peakNAVD88: getStageValue(daily) });
+        } else if (Number.isFinite(Number(day.peakNAVD88))) {
+          out.push({
+            navd88StageFt: Number(day.peakNAVD88), stageFt: Number(day.peakNAVD88), value: Number(day.peakNAVD88),
+            displayTimeEST: `${dateKey}T12:00`, observedDate: dateKey, observationInterval: "daily",
+            timelineIntervalMinutes: 1440, isDailyMaximum: true, peakNAVD88: Number(day.peakNAVD88)
+          });
+        }
+      }
+      return out.sort((a, b) => String(a.observedDate).localeCompare(String(b.observedDate)));
+    }
+
+    function buildLewesObservedIndexDays(archive) {
+      const cutoff = String(archive?.stoneHarborCutoffDate || "2007-10-01");
+      return (Array.isArray(archive?.days) ? archive.days : [])
+        .filter(day => day?.d && String(day.d) < cutoff)
+        .map(day => ({
+          date: day.d,
+          classification: day.c || "none",
+          peakNAVD88: day.p != null && Number.isFinite(Number(day.p)) ? Number(day.p) / 100 : null,
+          hours: [],
+          isLewesSurrogate: true,
+          surrogateStationId: archive?.stationId || "8557380",
+          surrogateStationName: archive?.stationName || "Lewes, Delaware",
+          lewesCompactDay: day
+        }));
+    }
+
+    function buildObservedIndexFrom15MinuteArchive(archive, lewesArchive = null) {
+      const compactDays = Array.isArray(archive?.days) ? archive.days : [];
+      const stoneHarborDays = compactDays.map(day => ({
+        date: day.d,
+        classification: day.c || "none",
+        peakNAVD88: day.p != null && Number.isFinite(Number(day.p)) ? Number(day.p) / 100 : null,
+        hours: []
+      }));
+      const lewesDays = buildLewesObservedIndexDays(lewesArchive);
+      const allDays = [...lewesDays, ...stoneHarborDays].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      return {
+        archiveStartDate: allDays[0]?.date || archive?.archiveStartDate || compactDays[0]?.d || null,
+        archiveEndDate: archive?.archiveEndDate || compactDays[compactDays.length - 1]?.d || null,
+        datum: archive?.datum || "NAVD88",
+        gaugeName: archive?.gaugeName || "Stone Harbor",
+        sourceType: lewesDays.length ? "lewes-hourly-plus-stone-harbor-15-minute-index" : "compact-15-minute-index",
+        lewesCutoffDate: lewesArchive?.stoneHarborCutoffDate || "2007-10-01",
+        days: allDays
+      };
+    }
+
+    async function ensureObserved15MinuteArchive() {
+      if (observed15MinuteData) return observed15MinuteData;
+      observed15MinuteData = await fetchJson(withFreshJsonUrl(OBSERVED_15MIN_URL));
+      observed15MinuteDaysByDate = new Map((observed15MinuteData?.days || []).map(day => [day.d, day]));
+      return observed15MinuteData;
+    }
+
+    async function ensureLewesHourlyArchive() {
+      if (lewesHourlyData) return lewesHourlyData;
+      lewesHourlyData = await fetchJson(withFreshJsonUrl(LEWES_HOURLY_URL));
+      return lewesHourlyData;
+    }
+
+    function decodeLewesHourlyDay(dayRecord) {
+      const compact = dayRecord?.lewesCompactDay;
+      if (!compact || !Number.isFinite(Number(compact.u)) || !Array.isArray(compact.v)) return [];
+      const sixMinuteIndexes = new Set(Array.isArray(compact.x) ? compact.x.map(Number) : []);
+      return compact.v.map((encoded, index) => {
+        const timeMs = (Number(compact.u) + index * 3600) * 1000;
+        const stage = encoded == null ? null : Number(encoded) / 100;
+        return setTimelineSlotFields({
+          navd88StageFt: stage,
+          stageFt: stage,
+          value: stage,
+          source: sixMinuteIndexes.has(index) ? "noaa-lewes-verified-6min" : "noaa-lewes-verified-hourly",
+          sourceStationId: lewesHourlyData?.stationId || "8557380",
+          sourceStation: lewesHourlyData?.stationName || "Lewes, Delaware",
+          sourceStationShort: "Lewes",
+          sourceResolutionMinutes: sixMinuteIndexes.has(index) ? 6 : 60,
+          isLewesSurrogate: true,
+          surrogateForStoneHarbor: true,
+          isMissingObservedHour: !Number.isFinite(stage)
+        }, timeMs, 60, { observedDate: dayRecord.date });
+      });
+    }
+
+    function decodeObserved15MinuteDay(day) {
+      if (!day || !Number.isFinite(Number(day.u)) || !Array.isArray(day.v)) return [];
+      return day.v.map((encoded, index) => {
+        const timeMs = (Number(day.u) + index * 900) * 1000;
+        const stage = encoded == null ? null : Number(encoded) / 100;
+        return setTimelineSlotFields({
+          navd88StageFt: stage, stageFt: stage, value: stage,
+          sourceResolutionMinutes: Number(observed15MinuteData?.sourceResolutionMinutes) || 6,
+          isMeasuredQuarterHourArchive: true,
+          isMissingObservedHour: !Number.isFinite(stage)
+        }, timeMs, 15, { observedDate: day.d });
       });
     }
 
@@ -15477,7 +15805,7 @@ function parseStoredLocalNyToDate(timeEST) {
         endMs: end ? end.getTime() : null,
         sourceResolutionMinutes,
         fillMissingSlots: true,
-        maxGapMinutes: 75
+        maxGapMinutes: GAUGE_OUTAGE_THRESHOLD_HOURS * 60
       });
 
       return series.map((entry, idx) => ({
@@ -15507,7 +15835,7 @@ function setDatumHelpOpen(isOpen) {
         title: "Data source",
         body: `
           <p><strong>Forecast</strong> uses model guidance to estimate future water levels.</p>
-          <p><strong>Observed</strong> uses measured tide-gauge data when it is available. Continuous gauge records can show the hourly evolution of a storm, while historical crest records may only preserve the maximum water level reached during an event.</p>
+          <p><strong>Observed</strong> uses the Stone Harbor tide gauge as North Wildwood's constant water-level source. Before October 2007, NOAA's Lewes record supplies the hourly tide shape; from October 2007 onward, Stone Harbor observations are used. Historical crest-only events remain maximum-extent views when no hourly record exists.</p>
         `
       },
       forecastType: {
@@ -15527,10 +15855,18 @@ function setDatumHelpOpen(isOpen) {
           <p><strong>Flood Stages</strong> displays National Weather Service (NWS) flood impact stages (e.g., minor, moderate, major) on the map.</p>
         `
       },
+      timelineDetail: {
+        title: "Timeline detail",
+        body: `
+          <p><strong>Hourly</strong> gives a clean overview. <strong>15-Min</strong> adds storm detail. <strong>Daily Max</strong> compares each day's highest water level.</p>
+        `
+      },
       depthLegend: {
         title: "Flood Depth Key",
         body: `
-          <p><strong>Green areas</strong> are zones of uncertainty. Plan like the entire green area will flood.</p>
+          <p>Bright blue is shallower modeled water. Blue darkens as depth increases.</p>
+          <p><strong>Green areas</strong> are below the selected tide but are not connected by cell sides to a qualifying source block, or have not filled yet during the current 15-minute hydraulic phase.</p>
+          <p>The North Wildwood model conserves water volume across one-foot terrain cells, routes flow over measured topographic saddles and 7.5-ft bulkheads, and treats mapped storm grates as 48-in openings. Rising, slack, and draining tides can therefore show different depths at the same gauge level.</p>
         `
       },
       stageLegend: {
@@ -15644,9 +15980,35 @@ function setDatumHelpOpen(isOpen) {
         legendDock.dataset.previewText = currentOverlayMode === "depth"
           ? "Flood Depth Key"
           : "Flood Stages Key";
+        if (window.innerWidth > 900) {
+          const compactLegendHeight = "54px";
+          legendDock.style.setProperty("height", compactLegendHeight, "important");
+          legendDock.style.setProperty("min-height", compactLegendHeight, "important");
+          legendDock.style.setProperty("max-height", compactLegendHeight, "important");
+          legendDock.style.setProperty("padding", "3px 10px", "important");
+        }
       }
 
       list.innerHTML = "";
+      if (currentOverlayMode === "depth") {
+        list.innerHTML = `
+          <div class="depth-legend-scale" aria-label="Flood depth runs from shallow to deep">
+            <div class="depth-legend-labels"><span>Shallow</span><span>Deep</span></div>
+            <div class="depth-legend-gradient" aria-hidden="true"></div>
+          </div>
+          <div class="depth-legend-disconnected">
+            <span class="depth-legend-disconnected-swatch" aria-hidden="true"></span>
+            <span>Not connected</span>
+            <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain green areas" title="Explain green areas">?</button>
+          </div>
+        `;
+        list.querySelector("[data-legend-help='uncertainty']")?.addEventListener("click", event => {
+          event.stopPropagation();
+          showInfoModal("depthLegend");
+        });
+        note.textContent = "";
+        return;
+      }
       items.forEach(item => {
         const row = document.createElement("div");
         row.className = "legend-row";
@@ -15689,7 +16051,9 @@ function setDatumHelpOpen(isOpen) {
     function getOverlayStage(value) {
       const n = Number(value);
       if (!Number.isFinite(n)) return null;
-      return clampStage(floorToCatalogStep(clampStage(n)));
+      const minimum = MIN_DEPTH_STAGE;
+      const clamped = Math.max(minimum, Math.min(MAX_STAGE, n));
+      return Math.max(minimum, floorToCatalogStep(clamped));
     }
 
     function getDepthTimelineColor(stageValue) {
@@ -15739,6 +16103,35 @@ function setDatumHelpOpen(isOpen) {
       return `${sign}${String(tenths).padStart(3, "0")}`;
     }
 
+    function normalizeHydraulicPhase(value) {
+      const phase = String(value || "").toLowerCase();
+      return phase === "filling" || phase === "draining" ? phase : "slack";
+    }
+
+    function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {
+      if (entry?.hydraulicPhase) return normalizeHydraulicPhase(entry.hydraulicPhase);
+      const rows = Array.isArray(series) ? series : [];
+      let resolvedIndex = Number.isInteger(index) ? index : rows.indexOf(entry);
+      if (resolvedIndex < 0 && entry) resolvedIndex = findClosestEntryIndex(rows, entry);
+      if (resolvedIndex < 0) return "slack";
+
+      const current = getStageValue(rows[resolvedIndex]);
+      const previous = resolvedIndex > 0 ? getStageValue(rows[resolvedIndex - 1]) : null;
+      const next = resolvedIndex + 1 < rows.length ? getStageValue(rows[resolvedIndex + 1]) : null;
+      const before = Number.isFinite(current) && Number.isFinite(previous) ? current - previous : null;
+      const after = Number.isFinite(next) && Number.isFinite(current) ? next - current : null;
+      const epsilon = 0.025;
+
+      if (Number.isFinite(before) && Number.isFinite(after) && before > epsilon && after <= epsilon) return "slack";
+      if (Number.isFinite(before) && Number.isFinite(after) && before >= -epsilon && after < -epsilon) return "slack";
+      if (Number.isFinite(before) && Number.isFinite(after) && before < -epsilon && after >= -epsilon) return "slack";
+      if (Number.isFinite(before) && Number.isFinite(after) && before <= epsilon && after > epsilon) return "slack";
+      const delta = Number.isFinite(after) && (!Number.isFinite(before) || Math.abs(after) >= Math.abs(before)) ? after : before;
+      if (Number.isFinite(delta) && delta > epsilon) return "filling";
+      if (Number.isFinite(delta) && delta < -epsilon) return "draining";
+      return "slack";
+    }
+
     function getOverlayFilename(mode, stageValue) {
       const code = stageToCode(stageValue);
       if (mode === "depth") return `${SITE_CONFIG.depthPngPrefix}${code}.png`;
@@ -15749,10 +16142,17 @@ function setDatumHelpOpen(isOpen) {
       return [getOverlayFilename(mode, stageValue)];
     }
 
-    function getOverlayCandidates(mode, stageValue) {
-      const roots = OVERLAY_ROOTS[mode] || [];
+    function getOverlayCandidates(mode, stageValue, phase = "slack") {
+      const normalizedPhase = normalizeHydraulicPhase(phase);
+      const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedPhase] || [];
+      const roots = phaseRoots.length ? phaseRoots : (OVERLAY_ROOTS[mode] || []);
       const filenames = getOverlayFilenameCandidates(mode, stageValue);
-      return roots.flatMap(root => filenames.map(name => new URL(name, root).href));
+      return roots.flatMap(root => filenames.map(name => {
+        const url = new URL(name, root);
+        const version = OVERLAY_CACHE_VERSIONS?.hydraulic || OVERLAY_CACHE_VERSIONS?.[mode];
+        if (version) url.searchParams.set("v", version);
+        return url.href;
+      }));
     }
 
     function latLngBoundsFromRing(ring) {
@@ -15903,8 +16303,8 @@ function setDatumHelpOpen(isOpen) {
       return promise;
     }
 
-    async function findWorkingOverlay(mode, stageValue) {
-      const candidates = getOverlayCandidates(mode, stageValue);
+    async function findWorkingOverlay(mode, stageValue, phase = "slack") {
+      const candidates = getOverlayCandidates(mode, stageValue, phase);
       for (const url of candidates) {
         throwIfExportCancelled();
         const exists = await testImageUrl(url);
@@ -15917,11 +16317,12 @@ function setDatumHelpOpen(isOpen) {
       return null;
     }
 
-    async function getOverlayRecord(mode, stageValue) {
-      const key = `${mode}:${stageToCode(stageValue)}`;
+    async function getOverlayRecord(mode, stageValue, phase = "slack") {
+      const normalizedPhase = normalizeHydraulicPhase(phase);
+      const key = `${mode}:${normalizedPhase}:${stageToCode(stageValue)}`;
       if (exportCancelRequested) throwIfExportCancelled();
       if (overlayRecordCache.has(key)) return overlayRecordCache.get(key);
-      const match = await findWorkingOverlay(mode, stageValue);
+      const match = await findWorkingOverlay(mode, stageValue, normalizedPhase);
       throwIfExportCancelled();
       overlayRecordCache.set(key, match);
       return match;
@@ -15932,11 +16333,13 @@ function setDatumHelpOpen(isOpen) {
       [0, 1, -1, 2, -2, 3, -3].forEach(offset => {
         const i = index + offset;
         if (i < 0 || i >= currentSeriesHours.length) return;
-        const stage = getOverlayStage(getStageValue(currentSeriesHours[i]));
+        const entry = currentSeriesHours[i];
+        const stage = getOverlayStage(getStageValue(entry));
         if (stage == null) return;
+        const phase = getHydraulicPhaseForEntry(entry, i, currentSeriesHours);
 
         ["depth", "dynamic"].forEach(mode => {
-          getOverlayRecord(mode, stage).then(record => {
+          getOverlayRecord(mode, stage, phase).then(record => {
             if (record?.url) preloadImage(record.url);
           });
         });
@@ -16398,12 +16801,14 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       map.createPane("basemapColorPane");
       map.createPane("boundaryPane");
       map.createPane("floodPane");
+      map.createPane("parcelsPane");
       map.createPane("roadsPane");
       map.createPane("maskPane");
       map.getPane("basemapGrayPane").style.zIndex = 180;
       map.getPane("basemapColorPane").style.zIndex = 190;
       map.getPane("boundaryPane").style.zIndex = 640;
       map.getPane("floodPane").style.zIndex = 500;
+      map.getPane("parcelsPane").style.zIndex = 610;
       map.getPane("roadsPane").style.zIndex = 620;
       map.getPane("maskPane").style.zIndex = 630;
 
@@ -16462,6 +16867,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         updateRoadLayerAppearance();
         updateColorBasemapClip();
       });
+      map.on("click", handleDepthQueryClick);
       updateRoadLayerAppearance();
       updateColorBasemapClip();
 
@@ -18655,9 +19061,9 @@ function updateExportSegmentedUI() {
       if (!exportMap.hasLayer(exportBoundaryMask)) exportBoundaryMask.addTo(exportMap);
     }
 
-    async function setExportFloodLayer(mode, stageValue) {
+    async function setExportFloodLayer(mode, stageValue, phase = "slack") {
       ensureExportMap();
-      const match = await getOverlayRecord(mode, stageValue);
+      const match = await getOverlayRecord(mode, stageValue, phase);
       if (!match) {
         throw new Error(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
       }
@@ -18681,7 +19087,7 @@ function updateExportSegmentedUI() {
 
     function getExportFrameWaterLevelText(entry) {
       const rawStage = getStageValue(entry);
-      const value = Number.isFinite(Number(rawStage)) ? formatStageForDisplay(rawStage) : "No data";
+      const value = Number.isFinite(rawStage) ? formatStageForDisplay(rawStage) : "No data";
       return `${value} ${getDatumLabel()}`;
     }
 
@@ -18720,7 +19126,8 @@ function updateExportSegmentedUI() {
         throw new Error("Stage is not numeric for the selected hour.");
       }
 
-      await setExportFloodLayer(currentOverlayMode, displayStage);
+      const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
+      await setExportFloodLayer(currentOverlayMode, displayStage, hydraulicPhase);
       mapInstance.invalidateSize(false);
       await waitForExportMapReady(isFirstFrame ? 70 : 10);
       await waitForStableRender();
@@ -18864,10 +19271,11 @@ function getUniqueExportStages(frameItems) {
         const rawStage = getStageValue(item?.entry);
         const displayStage = getOverlayStage(rawStage);
         if (displayStage == null) continue;
-        const key = stageToCode(displayStage);
-        if (!byKey.has(key)) byKey.set(key, displayStage);
+        const phase = getHydraulicPhaseForEntry(item?.entry, item?.index, item?.series || currentSeriesHours);
+        const key = `${phase}:${stageToCode(displayStage)}`;
+        if (!byKey.has(key)) byKey.set(key, { stage: displayStage, phase });
       }
-      return Array.from(byKey.entries()).map(([key, stage]) => ({ key, stage }));
+      return Array.from(byKey.entries()).map(([key, value]) => ({ key, ...value }));
     }
 
     async function preloadExportFrameAssets(frameItems) {
@@ -18878,9 +19286,9 @@ function getUniqueExportStages(frameItems) {
       const lookup = new Map();
       let firstUrl = null;
 
-      await runExportLimited(uniqueStages, EXPORT_PRELOAD_CONCURRENCY, async ({ key, stage }, idx) => {
+      await runExportLimited(uniqueStages, EXPORT_PRELOAD_CONCURRENCY, async ({ key, stage, phase }, idx) => {
         throwIfExportCancelled();
-        const record = await getOverlayRecord(currentOverlayMode, stage);
+        const record = await getOverlayRecord(currentOverlayMode, stage, phase);
         if (!record?.url) return;
         if (!firstUrl) firstUrl = record.url;
         const img = await getExportImageElement(record.url);
@@ -19148,10 +19556,11 @@ function getUniqueExportStages(frameItems) {
         const rawStage = getStageValue(item.entry);
         const displayStage = getOverlayStage(rawStage);
         if (displayStage != null) {
-          const stageKey = stageToCode(displayStage);
+          const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
+          const stageKey = `${hydraulicPhase}:${stageToCode(displayStage)}`;
           let overlayImg = overlayImageLookup?.get(stageKey) || null;
           if (!overlayImg) {
-            const record = await getOverlayRecord(currentOverlayMode, displayStage);
+            const record = await getOverlayRecord(currentOverlayMode, displayStage, hydraulicPhase);
             overlayImg = record?.url ? await getExportImageElement(record.url) : null;
             throwIfExportCancelled();
           }
@@ -19494,11 +19903,20 @@ function getEntryESTDate(entry) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "timeline-day";
-        btn.textContent = group.label;
+        const gaugeInoperable = currentDataMode === "observed" && hasLongGaugeOutage(currentSeriesHours, group.start, group.end);
+        btn.classList.toggle("gauge-inoperable", gaugeInoperable);
+        btn.textContent = gaugeInoperable ? "Gauge inoperable" : group.label;
+        if (gaugeInoperable) {
+          const outageHours = getLongestGaugeOutageHours(currentSeriesHours, group.start, group.end);
+          btn.setAttribute("aria-label", `Gauge inoperable for more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} hours`);
+          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable Stone Harbor gauge level`;
+        }
         btn.style.flex = `${Math.max(1, group.hours)} 1 0`;
-        const tideGradient = buildTimelineGroupGradient(group.start, group.end);
+        const tideGradient = gaugeInoperable ? null : buildTimelineGroupGradient(group.start, group.end);
         if (tideGradient) {
           btn.style.backgroundImage = `linear-gradient(180deg, rgba(10,18,32,.18), rgba(10,18,32,.18)), ${tideGradient}`;
+        } else if (gaugeInoperable) {
+          btn.style.backgroundImage = "none";
         }
         if (currentHourIndex >= group.start && currentHourIndex <= group.end) btn.classList.add("active");
         btn.addEventListener("click", () => {
@@ -19541,6 +19959,7 @@ function getEntryESTDate(entry) {
         const k = key.toLowerCase();
         if (!/(navd|stage|water|level|height)/.test(k)) continue;
         if (/(peak|max|min|hour|index|rank|date|time|class|source)/.test(k)) continue;
+        if (entry[key] == null || entry[key] === "") continue;
         const n = Number(entry[key]);
         if (Number.isFinite(n)) return n;
       }
@@ -19950,16 +20369,31 @@ function formatSelectedObservedDate(dateStr) {
       const date = String(item.date || item.crest_date || item.crestDate || "").slice(0, 10);
       if (!Number.isFinite(height) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
       const displayDate = String(item.display_date || item.displayDate || formatTopTideDateLabelFromDateKey(date));
+      const rawTime = String(item.time_est || item.timeEST || item.crest_time || item.crestTime || "").trim();
+      const time = /^\d{2}:\d{2}$/.test(rawTime) ? rawTime : "12:00";
+      const sourceArea = String(item.source_area || item.sourceArea || "historical");
+      const sourceSite = String(item.site_no || item.siteNo || "");
+      const sourceStation = String(item.station_name || item.stationName || "");
+      const sourceStationShort = String(item.station_short || item.stationShort || (sourceArea === "stone-harbor" ? "Stone Harbor" : ""));
 
       return {
         navd88StageFt: height,
         observedDate: date,
-        displayTimeEST: `${date}T12:00`,
-        timeEST: `${date}T12:00`,
+        displayTimeEST: `${date}T${time}`,
+        timeEST: `${date}T${time}`,
         topTideDateOnly: true,
         topTideDisplayDate: displayDate,
         topTideSource: "historical",
         topTideSourceIndex: idx,
+        crestTimeKnown: /^\d{2}:\d{2}$/.test(rawTime),
+        sourceArea,
+        sourceSite,
+        sourceStation,
+        sourceStationShort,
+        stationPriority: Number(item.station_priority ?? item.stationPriority ?? (sourceArea === "stone-harbor" ? 3 : 1)),
+        recordType: String(item.record_type || item.recordType || "USGS storm-tide crest"),
+        eventName: String(item.event_name || item.eventName || ""),
+        sourceUrl: String(item.source_url || item.sourceUrl || ""),
         observationInterval: "crest",
         isHistoricalTopTide: true
       };
@@ -19977,52 +20411,116 @@ function formatSelectedObservedDate(dateStr) {
       }
     }
 
+    function mergeHistoricalCrestsIntoObservedIndex() {
+      if (!observedData || !Array.isArray(observedData.days) || !historicTopTideEntries.length) return;
+      const bestCrestByDate = new Map();
+      historicTopTideEntries.forEach(entry => {
+        const dateKey = String(entry?.observedDate || "");
+        if (!dateKey || !Number.isFinite(getStageValue(entry))) return;
+        const existing = bestCrestByDate.get(dateKey);
+        const nextPriority = Number(entry.stationPriority) || 0;
+        const existingPriority = Number(existing?.stationPriority) || 0;
+        if (!existing || nextPriority > existingPriority || (nextPriority === existingPriority && getStageValue(entry) > getStageValue(existing))) {
+          bestCrestByDate.set(dateKey, entry);
+        }
+      });
+      let changed = false;
+      bestCrestByDate.forEach((entry, dateKey) => {
+        const stage = getStageValue(entry);
+        const crestEntry = {
+          ...entry,
+          observedDate: dateKey,
+          observationInterval: "crest",
+          isHistoricalTopTide: true,
+          isHistoricalCrestOnly: true
+        };
+        const existingDays = observedData.days.filter(day => String(day?.date || "") === dateKey);
+        if (existingDays.length) {
+          existingDays.forEach(day => {
+            day.classification = classifyFloodStage(stage);
+            day.peakNAVD88 = stage;
+            day.peakMLLW = stage + (DATUM_OFFSETS.mllw || 0);
+            day.officialCrestEntry = crestEntry;
+            day.officialCrestStageFt = stage;
+            day.crestSourceSite = entry.sourceSite;
+            day.crestSourceStation = entry.sourceStation;
+          });
+          changed = true;
+          return;
+        }
+        observedData.days.push({
+          date: dateKey,
+          classification: classifyFloodStage(stage),
+          peakNAVD88: stage,
+          peakMLLW: stage + (DATUM_OFFSETS.mllw || 0),
+          isHistoricalCrestOnly: true,
+          crestSourceSite: entry.sourceSite,
+          crestSourceStation: entry.sourceStation,
+          hours: [crestEntry],
+          timelineRawHours: [crestEntry]
+        });
+        changed = true;
+      });
+      if (changed) {
+        observedData.days.sort((a, b) => String(a?.date || "").localeCompare(String(b?.date || "")));
+        observedData.archiveStartDate = observedData.days[0]?.date || observedData.archiveStartDate;
+        observedDaysCache = null;
+        clearExportAvailabilityCache();
+      }
+    }
+
     function buildModernTopTideCandidates() {
-      if (!observedFlatHours.length) return [];
-      const sorted = observedFlatHours
-        .filter(entry => Number.isFinite(getStageValue(entry)))
+      const sortedDays = getObservedDays()
+        .filter(day => !day?.isHistoricalCrestOnly && !day?.isLewesSurrogate && !day?.officialCrestEntry && Number.isFinite(Number(day?.peakNAVD88)))
         .slice()
-        .sort((a, b) => getStageValue(b) - getStageValue(a));
+        .sort((a, b) => Number(b.peakNAVD88) - Number(a.peakNAVD88));
 
       const chosen = [];
       const minGapMs = TOP_TIDE_WINDOW_HOURS * 60 * 60 * 1000;
 
-      for (const sourceEntry of sorted) {
-        const t = entryTimeMs(sourceEntry);
-        if (t == null) continue;
+      for (const dayRecord of sortedDays) {
+        const dateKey = String(dayRecord?.date || "");
+        const t = Date.parse(`${dateKey}T12:00:00Z`);
+        if (!dateKey || !Number.isFinite(t)) continue;
         const overlaps = chosen.some(existing => {
-          const et = entryTimeMs(existing.entry);
-          return et != null && Math.abs(et - t) < minGapMs;
+          const et = Date.parse(`${existing.dateKey}T12:00:00Z`);
+          return Number.isFinite(et) && Math.abs(et - t) < minGapMs;
         });
         if (overlaps) continue;
 
-        const dateKey = sourceEntry.observedDate || (() => {
-          const d = getEntryESTDate(sourceEntry);
-          const parts = d ? getNyParts(d) : null;
-          return parts ? `${parts.year}-${parts.month}-${parts.day}` : "";
-        })();
+        const daySeries = buildObservedDayDisplaySeries(dayRecord, dateKey);
+        if (!daySeries.some(item => Number.isFinite(getStageValue(item)))) continue;
+        const dailyEventIndex = getTimelineIntervalMinutes() === 1440
+          ? daySeries.findIndex(item => item?.observedDate === dateKey)
+          : -1;
+        const peakLocalIndex = dailyEventIndex >= 0 ? dailyEventIndex : getPeakHourIndex(daySeries);
+        const sourceEntry = daySeries[peakLocalIndex];
 
         const entry = {
           ...sourceEntry,
-          observedDate: dateKey || sourceEntry.observedDate,
-          topTideDateOnly: true,
-          topTideDisplayDate: dateKey ? formatTopTideDateLabelFromDateKey(dateKey) : formatTopTideDateLabelFromEntry(sourceEntry),
-          topTideSource: "modern"
+          observedDate: dateKey,
+          topTideDateOnly: false,
+          topTideDisplayDate: formatTopTideDateLabelFromDateKey(dateKey),
+          topTideSource: "modern",
+          sourceArea: "stone-harbor",
+          sourceSite: "01411360",
+          sourceStation: "Great Channel at Stone Harbor NJ",
+          sourceStationShort: "Stone Harbor",
+          stationPriority: 3,
+          isHistoricalTopTide: false
         };
-
-        const dayRecord = dateKey ? getObservedDayRecord(dateKey) : null;
-        const daySeries = dayRecord ? buildObservedDayDisplaySeries(dayRecord, dateKey).filter(item => Number.isFinite(getStageValue(item))) : [];
-        const peakLocalIndex = daySeries.length ? findClosestEntryIndex(daySeries, entry) : 0;
 
         chosen.push({
           entry,
-          dateKey: entry.observedDate || "",
-          peakStage: getStageValue(entry),
-          title: formatTopTideDateLabelFromEntry(entry),
+          dateKey,
+          peakStage: Number(dayRecord.peakNAVD88),
+          title: formatTopTideDateLabelFromDateKey(dateKey),
           subtitle: "",
-          series: daySeries.length ? daySeries : [{ ...entry, topTideHourIndex: 0, observationInterval: "crest" }],
+          series: daySeries,
           peakLocalIndex,
-          sourceType: "modern"
+          sourceType: "modern",
+          sourceArea: "stone-harbor",
+          stationPriority: 3
         });
 
         if (chosen.length >= Math.max(TOP_TIDE_SELECT_COUNT * 2, TOP_TIDE_SELECT_COUNT + 5)) break;
@@ -20030,19 +20528,125 @@ function formatSelectedObservedDate(dateStr) {
       return chosen;
     }
 
+    function injectOfficialStoneHarborCrest(series, crestEntry) {
+      const cloned = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      if (!cloned.length || crestEntry?.sourceArea !== "stone-harbor") return cloned;
+      const officialStage = getStageValue(crestEntry);
+      if (!Number.isFinite(officialStage)) return cloned;
+      const targetIndex = crestEntry?.crestTimeKnown
+        ? findClosestEntryIndex(cloned, crestEntry)
+        : getPeakHourIndex(cloned);
+      if (targetIndex < 0 || targetIndex >= cloned.length) return cloned;
+      const archiveStage = getStageValue(cloned[targetIndex]);
+      if (Number.isFinite(archiveStage) && archiveStage >= officialStage) return cloned;
+      cloned[targetIndex] = {
+        ...cloned[targetIndex],
+        navd88StageFt: officialStage,
+        stageFt: officialStage,
+        value: officialStage,
+        officialCrestStageFt: officialStage,
+        officialCrestSourceSite: crestEntry.sourceSite,
+        sourceStationShort: crestEntry.sourceStationShort,
+        isOfficialCrestFrame: true
+      };
+      return cloned;
+    }
+
+    function fitLewesSurrogateTideToCrest(series, crestEntry) {
+      const cloned = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      const officialStage = getStageValue(crestEntry);
+      if (!cloned.length || !Number.isFinite(officialStage)) return cloned;
+
+      const eventDate = String(crestEntry?.observedDate || "");
+      const eventDayIndex = cloned.findIndex(entry => String(entry?.observedDate || "") === eventDate);
+      const targetIndex = getTimelineIntervalMinutes() === 1440 && eventDayIndex >= 0
+        ? eventDayIndex
+        : getPeakHourIndex(cloned);
+      if (targetIndex < 0 || targetIndex >= cloned.length) return cloned;
+
+      const sourcePeak = getStageValue(cloned[targetIndex]);
+      const targetTime = entryTimeMs(cloned[targetIndex]);
+      if (!Number.isFinite(sourcePeak) || !Number.isFinite(targetTime)) return cloned;
+
+      const delta = officialStage - sourcePeak;
+      const halfWindowHours = getTimelineIntervalMinutes() === 1440 ? 1 : 6;
+      cloned.forEach((entry, index) => {
+        const stage = getStageValue(entry);
+        const time = entryTimeMs(entry);
+        if (!Number.isFinite(stage) || !Number.isFinite(time)) return;
+        const distanceHours = Math.abs(time - targetTime) / (60 * 60 * 1000);
+        if (distanceHours > halfWindowHours) return;
+        const weight = 0.5 * (1 + Math.cos(Math.PI * distanceHours / halfWindowHours));
+        const adjusted = Number((stage + delta * weight).toFixed(4));
+        cloned[index] = {
+          ...entry,
+          navd88StageFt: adjusted,
+          stageFt: adjusted,
+          value: adjusted,
+          sourceStationShort: "Lewes",
+          surrogateForStoneHarbor: true,
+          crestFitMethod: "raised-cosine-12-hour-tide-window",
+          fittedStoneHarborCrestStageFt: officialStage,
+          isFittedCrestFrame: index === targetIndex
+        };
+      });
+
+      cloned[targetIndex] = {
+        ...cloned[targetIndex],
+        navd88StageFt: officialStage,
+        stageFt: officialStage,
+        value: officialStage,
+        isFittedCrestFrame: true
+      };
+      return cloned;
+    }
+
     function buildHistoricalTopTideCandidates() {
       return historicTopTideEntries
         .filter(entry => Number.isFinite(getStageValue(entry)))
-        .map(entry => ({
-          entry,
-          dateKey: entry.observedDate || "",
-          peakStage: getStageValue(entry),
-          title: formatTopTideDateLabelFromEntry(entry),
-          subtitle: "",
-          series: [{ ...entry, topTideHourIndex: 0, observationInterval: "crest" }],
-          peakLocalIndex: 0,
-          sourceType: "historical"
-        }));
+        .map(entry => {
+          const dateKey = entry.observedDate || "";
+          const dayRecord = dateKey ? getObservedDayRecord(dateKey) : null;
+          const canUseStoneHarborArchive = Boolean(
+            dayRecord && !dayRecord.isHistoricalCrestOnly && !dayRecord.isLewesSurrogate && entry.sourceArea === "stone-harbor"
+          );
+          const canUseLewesSurrogate = Boolean(
+            dayRecord && dayRecord.isLewesSurrogate && dateKey < String(observedData?.lewesCutoffDate || "2007-10-01")
+          );
+          let series = (canUseStoneHarborArchive || canUseLewesSurrogate)
+            ? buildObservedDayDisplaySeries(dayRecord, dateKey)
+            : [];
+          const gaugeOutageHours = getLongestGaugeOutageHours(series);
+          const forceCrestOnly = gaugeOutageHours > GAUGE_OUTAGE_THRESHOLD_HOURS;
+          if (forceCrestOnly) series = [];
+          if (series.length > 1) {
+            series = canUseLewesSurrogate
+              ? fitLewesSurrogateTideToCrest(series, entry)
+              : injectOfficialStoneHarborCrest(series, entry);
+          }
+          const replayable = series.length > 1 && series.some(item => Number.isFinite(getStageValue(item)));
+          const dailyEventIndex = replayable && getTimelineIntervalMinutes() === 1440
+            ? series.findIndex(item => item?.observedDate === dateKey)
+            : -1;
+          const peakLocalIndex = replayable
+            ? (dailyEventIndex >= 0 ? dailyEventIndex : (entry.crestTimeKnown ? findClosestEntryIndex(series, entry) : getPeakHourIndex(series)))
+            : 0;
+          return {
+            entry,
+            dateKey,
+            peakStage: getStageValue(entry),
+            title: formatTopTideDateLabelFromEntry(entry),
+            subtitle: entry.sourceStationShort || "USGS crest",
+            series: replayable ? series : [{ ...entry, topTideHourIndex: 0, observationInterval: "crest" }],
+            peakLocalIndex,
+            sourceType: replayable ? (canUseLewesSurrogate ? "lewes-surrogate-crest" : "archive-crest") : "historical",
+            sourceArea: entry.sourceArea,
+            surrogateSource: canUseLewesSurrogate ? "NOAA Lewes 8557380" : "",
+            stationPriority: Number(entry.stationPriority) || 0,
+            forceCrestOnly,
+            gaugeOutageHours
+          };
+        });
     }
 
     function buildTopTideEvents() {
@@ -20055,7 +20659,19 @@ function formatSelectedObservedDate(dateStr) {
       combined.forEach(event => {
         const key = event.dateKey || event.title || `${event.sourceType}-${bestByDate.size}`;
         const existing = bestByDate.get(key);
-        if (!existing || event.peakStage > existing.peakStage) bestByDate.set(key, event);
+        if (!existing) {
+          bestByDate.set(key, event);
+          return;
+        }
+        const eventPriority = Number(event.stationPriority) || (event.sourceType === "modern" ? 3 : 0);
+        const existingPriority = Number(existing.stationPriority) || (existing.sourceType === "modern" ? 3 : 0);
+        const eventReplayable = Array.isArray(event.series) && event.series.length > 1;
+        const existingReplayable = Array.isArray(existing.series) && existing.series.length > 1;
+        const shouldReplace = (event.forceCrestOnly && !existing.forceCrestOnly)
+          || (!existing.forceCrestOnly && eventPriority > existingPriority)
+          || (!existing.forceCrestOnly && eventPriority === existingPriority && eventReplayable && !existingReplayable)
+          || (event.forceCrestOnly === existing.forceCrestOnly && eventPriority === existingPriority && eventReplayable === existingReplayable && event.peakStage > existing.peakStage);
+        if (shouldReplace) bestByDate.set(key, event);
       });
 
       return Array.from(bestByDate.values())
@@ -20079,6 +20695,8 @@ function formatSelectedObservedDate(dateStr) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = options.extraClass ? `top-tide-item ${options.extraClass}` : "top-tide-item";
+      btn.dataset.sourceType = event.sourceType || "unknown";
+      if (event.surrogateSource) btn.dataset.surrogateSource = event.surrogateSource;
       btn.classList.toggle("active", currentViewType === "top-tide" && currentTopTideIndex === idx);
       btn.innerHTML = `
         <div class="top-tide-rank">#${event.rank}</div>
@@ -20186,21 +20804,28 @@ function formatSelectedObservedDate(dateStr) {
       if (currentViewType === "forecast") {
         label.textContent = `${getForecastScenarioLabel()} • ${getTimelineIntervalLabel()}`;
       } else if (currentViewType === "observed-day") {
-        label.textContent = `Observed • ${getTimelineIntervalLabel()}`;
+        label.textContent = entry?.observationInterval === "crest" ? "Observed • USGS crest" : `Observed • ${getTimelineIntervalLabel()}`;
       } else {
         label.textContent = "Top 10 Highest Floods";
       }
 
-      const crestOnlyTopTide = currentViewType === "top-tide" && (entry?.isHistoricalTopTide || currentSeriesHours.length <= 1 || entry?.observationInterval === "crest");
+      const crestOnlyTopTide = (currentViewType === "top-tide" && (entry?.isHistoricalTopTide || currentSeriesHours.length <= 1 || entry?.observationInterval === "crest"))
+        || (currentSeriesHours.length <= 1 && entry?.observationInterval === "crest");
       const timelineDock = document.getElementById("timelineDock");
       if (timelineDock) timelineDock.classList.toggle("top-tide-crest-only", Boolean(crestOnlyTopTide));
 
       if (crestOnlyTopTide) {
-        const msg = "Detailed observations not available; maximum flood extent plotted instead.";
+        const crestStation = entry?.sourceStationShort ? `${entry.sourceStationShort} USGS` : "USGS";
+        const msg = `Only the ${crestStation} storm-tide crest is available; maximum flood extent is plotted.`;
         timelineMeta.textContent = msg;
         timelineStart.textContent = msg;
         timelineEnd.textContent = "";
-        if (bubble) bubble.textContent = "Maximum extent";
+        if (bubble) {
+          const stageValue = getStageValue(entry);
+          const stageText = Number.isFinite(stageValue) ? formatStageForDisplay(stageValue) : "--";
+          const stageClass = Number.isFinite(stageValue) ? classifyFloodStage(stageValue) : "none";
+          bubble.innerHTML = `<span class="timeline-bubble-current">Maximum extent</span><span class="timeline-bubble-stage timeline-bubble-stage-${stageClass}">${stageText}</span>`;
+        }
       } else {
         if (timelineDock) timelineDock.classList.remove("top-tide-crest-only");
         timelineMeta.textContent = "";
@@ -20211,9 +20836,14 @@ function formatSelectedObservedDate(dateStr) {
         if (timelineEnd) timelineEnd.setAttribute("aria-hidden", "true");
         if (bubble) {
           const stageValue = getStageValue(entry);
-          const stageText = Number.isFinite(Number(stageValue)) ? formatStageForDisplay(stageValue) : "--";
-          const stageClass = Number.isFinite(Number(stageValue)) ? classifyFloodStage(stageValue) : "none";
-          bubble.innerHTML = `<span class="timeline-bubble-current">${formatTimelineBubbleText(entry)}</span><span class="timeline-bubble-stage timeline-bubble-stage-${stageClass}">${stageText}</span>`;
+          if (!Number.isFinite(stageValue)) {
+            const outageLabel = hasLongGaugeOutage(currentSeriesHours) ? "Gauge inoperable" : "No gauge level";
+            bubble.innerHTML = `<span class="timeline-bubble-current">${formatTimelineBubbleText(entry)}</span><span class="timeline-bubble-stage timeline-bubble-stage-gauge">${outageLabel}</span>`;
+          } else {
+            const stageText = formatStageForDisplay(stageValue);
+            const stageClass = classifyFloodStage(stageValue);
+            bubble.innerHTML = `<span class="timeline-bubble-current">${formatTimelineBubbleText(entry)}</span><span class="timeline-bubble-stage timeline-bubble-stage-${stageClass}">${stageText}</span>`;
+          }
         }
       }
       renderTimelineDays();
@@ -20223,6 +20853,7 @@ function formatSelectedObservedDate(dateStr) {
 
     function getSnapshotSubLabel(entry) {
       if (currentViewType === "forecast") return getForecastScenarioPercentileLabel();
+      if (entry?.observationInterval === "crest" && currentSeriesHours.length <= 1) return "Maximum extent only";
       if (currentViewType === "top-tide") {
         return (entry?.isHistoricalTopTide || currentSeriesHours.length <= 1 || entry?.observationInterval === "crest")
           ? "Maximum extent only"
@@ -20234,15 +20865,20 @@ function formatSelectedObservedDate(dateStr) {
     function renderSelectionMeta(entry, rawStage, displayStage) {
       document.getElementById("timeText").textContent = formatSnapshotTime(entry);
       if (entry?.isMissingObservedHour || !Number.isFinite(rawStage)) {
-        document.getElementById("stageText").textContent = "No data";
-        document.getElementById("stageSubText").textContent = "No observed record for this time";
+        const gaugeInoperable = currentDataMode === "observed" && hasLongGaugeOutage(currentSeriesHours);
+        document.getElementById("stageText").textContent = gaugeInoperable ? "Gauge inoperable" : "No data";
+        document.getElementById("stageSubText").textContent = gaugeInoperable
+          ? `More than ${GAUGE_OUTAGE_THRESHOLD_HOURS} consecutive hours are unavailable`
+          : "No observed record for this time";
       } else {
         document.getElementById("stageText").textContent = formatStageForDisplay(rawStage);
         const stageSub = currentViewType === "forecast"
           ? getForecastScenarioLabel()
           : currentViewType === "top-tide"
             ? ((entry?.isHistoricalTopTide || currentSeriesHours.length <= 1 || entry?.observationInterval === "crest") ? "Maximum extent only" : `${getTimelineIntervalLabel()} record`)
-            : getDatumLabel();
+            : entry?.observationInterval === "crest"
+              ? `USGS crest • ${getDatumLabel()}`
+              : `${classifyFloodStage(rawStage) === "none" ? "No flooding" : `${classifyFloodStage(rawStage).charAt(0).toUpperCase() + classifyFloodStage(rawStage).slice(1)} flooding`} • ${getDatumLabel()}`;
         document.getElementById("stageSubText").textContent = stageSub;
       }
       updateSnapshotWaterLevelSeverity(rawStage);
@@ -20255,11 +20891,11 @@ function formatSelectedObservedDate(dateStr) {
       requestAnimationFrame(fitSnapshotTimeText);
     }
 
-    async function setFloodLayer(mode, stageValue, token) {
+    async function setFloodLayer(mode, stageValue, phase, token) {
       toast("");
       ensureMap();
 
-      const match = await getOverlayRecord(mode, stageValue);
+      const match = await getOverlayRecord(mode, stageValue, phase);
       if (token !== lastRenderToken) return;
 
       if (!match) {
@@ -20340,15 +20976,19 @@ function formatSelectedObservedDate(dateStr) {
 
       const rawStage = getStageValue(entry);
       const displayStage = getOverlayStage(rawStage);
+      const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);
 
       renderSelectionMeta(entry, rawStage, displayStage);
       renderTimelineMeta(entry);
 
       const slider = document.getElementById("hourSlider");
       slider.value = String(index);
+      updateSliderProgress();
 
       if (displayStage == null) {
-        toast("No observed record for this time.");
+        toast(currentDataMode === "observed" && hasLongGaugeOutage(currentSeriesHours)
+          ? `Gauge inoperable: more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} consecutive hours are unavailable.`
+          : "No observed record for this time.");
         ++lastRenderToken;
         clearFloodLayer();
         return;
@@ -20358,14 +20998,25 @@ function formatSelectedObservedDate(dateStr) {
       toast(note);
 
       const token = ++lastRenderToken;
-      await setFloodLayer(currentOverlayMode, displayStage, token);
+      await setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token);
       preloadAroundHour(index);
+    }
+
+    function updateSliderProgress() {
+      const slider = document.getElementById("hourSlider");
+      if (!slider) return;
+      const min = Number(slider.min) || 0;
+      const max = Number(slider.max) || 0;
+      const value = Number(slider.value) || 0;
+      const percent = max > min ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0;
+      slider.style.setProperty("--timeline-progress", percent.toFixed(3) + "%");
     }
 
     function syncSliderBounds() {
       const slider = document.getElementById("hourSlider");
       slider.max = String(Math.max(0, currentSeriesHours.length - 1));
       slider.value = String(Math.min(currentHourIndex, currentSeriesHours.length - 1));
+      updateSliderProgress();
     }
 
     async function loadForecast(preferredEntry = null) {
@@ -20528,13 +21179,17 @@ function formatSelectedObservedDate(dateStr) {
       const site = getUsgsObservedSiteId();
       if (!site || !startDate || !endDate || compareDateKeys(startDate, endDate) > 0) return [];
       const url = new URL("https://waterservices.usgs.gov/nwis/iv/");
+      const startInstant = parseStoredLocalNyToDate(startDate + "T00:00");
+      const endOfDayInstant = parseStoredLocalNyToDate(endDate + "T23:59");
+      const endInstant = endOfDayInstant && endOfDayInstant.getTime() < Date.now() ? endOfDayInstant : new Date();
       url.searchParams.set("format", "json");
       url.searchParams.set("sites", site);
       url.searchParams.set("parameterCd", getUsgsObservedParameterCd());
-      url.searchParams.set("startDT", startDate);
-      url.searchParams.set("endDT", endDate);
+      const usgsIso = value => value.toISOString().replace(/\.\d{3}Z$/, "Z");
+      url.searchParams.set("startDT", startInstant ? usgsIso(startInstant) : startDate);
+      url.searchParams.set("endDT", usgsIso(endInstant));
       url.searchParams.set("siteStatus", "all");
-      const data = await fetchJson(withFreshJsonUrl(url.href));
+      const data = await fetchJson(url.href);
       return normalizeUsgsIvObservedDays(data);
     }
 
@@ -20575,7 +21230,11 @@ function formatSelectedObservedDate(dateStr) {
 
     async function loadObserved() {
       if (!observedData) {
-        observedData = await fetchJson(withFreshJsonUrl(OBSERVED_URL));
+        const [compactArchive, lewesArchive] = await Promise.all([
+          ensureObserved15MinuteArchive(),
+          ensureLewesHourlyArchive()
+        ]);
+        observedData = buildObservedIndexFrom15MinuteArchive(compactArchive, lewesArchive);
         observedDaysCache = null;
         clearExportAvailabilityCache();
       }
@@ -20583,12 +21242,13 @@ function formatSelectedObservedDate(dateStr) {
 
       await extendObservedArchiveThroughToday();
 
+      if (!historicTopTideEntries.length) await loadHistoricalTopTides();
+      mergeHistoricalCrestsIntoObservedIndex();
       rebuildObservedHourLookup();
-      await loadHistoricalTopTides();
 
       const days = getObservedDays();
       observedMonthKeys = buildObservedMonthKeysFromDays(days);
-      observedFlatHours = buildObservedFlatHours();
+      observedFlatHours = [];
       topTideEvents = buildTopTideEvents();
       renderTopTides();
 
@@ -20797,7 +21457,9 @@ function populateCalendarSelectors() {
           continue;
         }
 
-        const cls = classifyFloodEntries(Array.isArray(meta.hours) ? meta.hours : []);
+        const derivedClass = classifyFloodEntries(Array.isArray(meta.hours) ? meta.hours : []);
+        const storedClass = String(meta.classification || "none").toLowerCase();
+        const cls = ["minor", "moderate", "major"].includes(storedClass) ? storedClass : derivedClass;
         btn.classList.add(`day-${cls}`);
         if (selectedObservedDate === dateStr && currentViewType !== "top-tide") btn.classList.add("selected");
         btn.title = `${formatSelectedObservedDate(dateStr)} • ${cls}`;
@@ -20819,6 +21481,9 @@ function populateCalendarSelectors() {
     async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
       const dayRecord = getObservedDayRecord(dateStr);
       if (!dayRecord) throw new Error(`Observed day not found: ${dateStr}`);
+      if (getTimelineIntervalMinutes() === 15 || getTimelineIntervalMinutes() === 1440) {
+        await ensureObserved15MinuteArchive();
+      }
 
       const preservePlayback = Boolean(options && options.preservePlayback);
       if (!preservePlayback) stopPlayback();
@@ -20827,12 +21492,19 @@ function populateCalendarSelectors() {
 
       selectedObservedDate = dateStr;
       currentMonthKey = dateStr.slice(0, 7);
-      currentRawSeriesHours = getObservedSourceHoursForDay(dayRecord);
-      currentSeriesHours = buildObservedDayDisplaySeries(dayRecord, dateStr);
+      topTideEvents = buildTopTideEvents();
+      const rankedEvent = topTideEvents.find(event => event?.dateKey === dateStr) || null;
+      const rankedSeries = rankedEvent && Array.isArray(rankedEvent.series) && rankedEvent.series.length
+        ? rankedEvent.series.map((entry, idx) => ({ ...entry, topTideHourIndex: idx }))
+        : null;
+      currentRawSeriesHours = rankedSeries || getObservedSourceHoursForDay(dayRecord);
+      currentSeriesHours = rankedSeries || buildObservedDayDisplaySeries(dayRecord, dateStr);
       currentViewType = "observed-day";
       currentTopTideIndex = null;
       currentSelectedLabel = dateStr;
-      currentSelectedSubLabel = dayRecord.peakNAVD88 != null
+      currentSelectedSubLabel = rankedEvent
+        ? `${formatStageForDisplay(rankedEvent.peakStage)} peak`
+        : dayRecord.peakNAVD88 != null
         ? `${formatStageForDisplay(normalizeStageValue(dayRecord.peakNAVD88))} peak`
         : (() => {
           const derived = classifyFloodEntries(Array.isArray(dayRecord.hours) ? dayRecord.hours : []);
@@ -20845,6 +21517,9 @@ function populateCalendarSelectors() {
         currentHourIndex = findClosestEntryIndex(currentSeriesHours, preferredEntry);
       } else if (preferredHourIndex != null) {
         currentHourIndex = Math.max(0, Math.min(preferredHourIndex, Math.max(0, currentSeriesHours.length - 1)));
+      } else if (getTimelineIntervalMinutes() === 1440) {
+        const selectedDayIndex = currentSeriesHours.findIndex(entry => entry?.observedDate === dateStr);
+        currentHourIndex = selectedDayIndex >= 0 ? selectedDayIndex : getPeakHourIndex(currentSeriesHours);
       } else {
         currentHourIndex = getPeakHourIndex(currentSeriesHours);
       }
@@ -20873,14 +21548,14 @@ function populateCalendarSelectors() {
       if (selectedObservedDate) currentMonthKey = selectedObservedDate.slice(0, 7);
 
       const eventSeries = (event.series && event.series.length ? event.series : [event.entry]);
-      const isCrestOnly = event.sourceType === "historical" || eventSeries.length <= 1 || event.entry?.isHistoricalTopTide;
+      const isCrestOnly = event.sourceType === "historical" || eventSeries.length <= 1;
       currentRawSeriesHours = eventSeries.map((entry, idx) => ({
         ...entry,
         topTideHourIndex: idx,
         topTideDateOnly: isCrestOnly,
         topTideDisplayDate: event.title,
         observationInterval: isCrestOnly ? "crest" : (entry.observationInterval || "1hour"),
-        isHistoricalTopTide: Boolean(entry.isHistoricalTopTide || event.sourceType === "historical")
+        isHistoricalTopTide: isCrestOnly && Boolean(entry.isHistoricalTopTide || event.sourceType === "historical")
       }));
       currentSeriesHours = isCrestOnly ? currentRawSeriesHours.slice(0, 1) : currentRawSeriesHours;
 
@@ -20894,7 +21569,8 @@ function populateCalendarSelectors() {
     }
 
     async function setTimelineIntervalMinutes(minutes) {
-      const nextMinutes = Number(minutes) === 15 ? 15 : 60;
+      const requested = Number(minutes);
+      const nextMinutes = requested === 15 || requested === 1440 ? requested : 60;
       if (nextMinutes === getTimelineIntervalMinutes()) return;
 
       const referenceEntry = currentSeriesHours[currentHourIndex] || null;
@@ -20903,6 +21579,10 @@ function populateCalendarSelectors() {
       currentTimelineIntervalMinutes = nextMinutes;
       updateTimelineIntervalUI();
       clearFloodLayer();
+
+      if (currentDataMode === "observed" && nextMinutes !== 60) {
+        await ensureObserved15MinuteArchive();
+      }
 
       if (currentViewType === "forecast" || currentDataMode === "forecast") {
         currentDataMode = "forecast";
@@ -20988,14 +21668,18 @@ function populateCalendarSelectors() {
       toast("");
       imageExistsCache = new Map();
 
-      const [forecast, observed, historicalTopTides] = await Promise.all([
+      const [forecast, observedCompact, lewesArchive, historicalTopTides] = await Promise.all([
         fetchJson(withFreshJsonUrl(FORECAST_URL)),
-        fetchJson(withFreshJsonUrl(OBSERVED_URL)).catch(() => null),
+        fetchJson(withFreshJsonUrl(OBSERVED_15MIN_URL)).catch(() => null),
+        fetchJson(withFreshJsonUrl(LEWES_HOURLY_URL)).catch(() => null),
         fetchJson(withFreshJsonUrl(TOP_TIDES_URL)).catch(() => null)
       ]);
 
       forecastData = forecast;
-      observedData = observed;
+      observed15MinuteData = observedCompact;
+      observed15MinuteDaysByDate = new Map((observedCompact?.days || []).map(day => [day.d, day]));
+      lewesHourlyData = lewesArchive;
+      observedData = observedCompact ? buildObservedIndexFrom15MinuteArchive(observedCompact, lewesArchive) : null;
       historicTopTideEntries = historicalTopTides
         ? (Array.isArray(historicalTopTides?.toptides) ? historicalTopTides.toptides : Array.isArray(historicalTopTides) ? historicalTopTides : [])
             .map(normalizeTopTidesJsonEntry)
@@ -21234,6 +21918,264 @@ function startPlayback() {
       }
     }
 
+    function formatExpectedFloodCount(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "—";
+      if (n > 0 && n < 1) return "<1";
+      return n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(n < 10 ? 1 : 0);
+    }
+
+    function buildHouseAlertPopup(feature) {
+      const p = feature?.properties || {};
+      const historic = Number(p.historicFloodEventCount);
+      const count = Number.isFinite(historic) ? historic.toLocaleString() : "—";
+      return '<div class="house-alert-popup"><span>Flooded</span><strong>' + count + ' time' + (historic === 1 ? '' : 's') + '</strong></div>';
+    }
+
+    async function ensureParcelAssets() {
+      if (parcelLoadPromise) return parcelLoadPromise;
+      parcelLoadPromise = (async () => {
+        const geojson = await fetchJson(withFreshJsonUrl(PARCELS_URL));
+        parcelFeatures = Array.isArray(geojson?.features) ? geojson.features : [];
+        houseAlertCdfData = null;
+        const parcelBounds = floodLatLngBounds || getBoundaryDrivenOverlayBounds();
+        parcelsLayer = L.imageOverlay(PARCEL_BOUNDARY_PNG_URL, parcelBounds, {
+          pane: "parcelsPane",
+          opacity: 0.58,
+          interactive: false,
+          crossOrigin: true,
+          zIndex: 610
+        });
+        return parcelsLayer;
+      })().catch(err => {
+        parcelLoadPromise = null;
+        throw err;
+      });
+      return parcelLoadPromise;
+    }
+
+    async function setParcelsEnabled(enabled) {
+      const toggle = document.getElementById("parcelsToggle");
+      if (toggle) {
+        toggle.classList.toggle("on", Boolean(enabled));
+        toggle.setAttribute("aria-checked", String(Boolean(enabled)));
+      }
+      if (!map) ensureMap();
+      if (!enabled) {
+        if (parcelsLayer && map.hasLayer(parcelsLayer)) map.removeLayer(parcelsLayer);
+        toast("");
+        return;
+      }
+      const layer = await ensureParcelAssets();
+      if (!map.hasLayer(layer)) layer.addTo(map);
+      toast("");
+    }
+
+    function pointInRing(lon, lat, ring) {
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = Number(ring[i]?.[0]), yi = Number(ring[i]?.[1]);
+        const xj = Number(ring[j]?.[0]), yj = Number(ring[j]?.[1]);
+        const intersects = ((yi > lat) !== (yj > lat)) && (lon < ((xj - xi) * (lat - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+        if (intersects) inside = !inside;
+      }
+      return inside;
+    }
+
+    function pointInParcelFeature(feature, lat, lon) {
+      const geometry = feature?.geometry;
+      if (!geometry) return false;
+      const polygons = geometry.type === "Polygon" ? [geometry.coordinates] :
+        (geometry.type === "MultiPolygon" ? geometry.coordinates : []);
+      return polygons.some(rings => {
+        if (!Array.isArray(rings?.[0]) || !pointInRing(lon, lat, rings[0])) return false;
+        return !rings.slice(1).some(hole => pointInRing(lon, lat, hole));
+      });
+    }
+
+    async function findParcelFeatureForLocation(lat, lon) {
+      await ensureParcelAssets();
+      const containing = parcelFeatures.find(feature => pointInParcelFeature(feature, lat, lon));
+      if (containing) return containing;
+      let nearest = null;
+      let nearestDistance = Infinity;
+      parcelFeatures.forEach(feature => {
+        const p = feature?.properties || {};
+        const dLat = Number(p.centroidLat) - lat;
+        const dLon = (Number(p.centroidLon) - lon) * Math.cos(lat * Math.PI / 180);
+        const meters = Math.hypot(dLat, dLon) * 111320;
+        if (Number.isFinite(meters) && meters < nearestDistance) {
+          nearestDistance = meters;
+          nearest = feature;
+        }
+      });
+      return nearestDistance <= 90 ? nearest : null;
+    }
+
+    async function getDepthQueryImage() {
+      if (!DEPTH_QUERY_COG_URL) throw new Error("Depth query COG is not configured.");
+      if (!window.GeoTIFF?.fromUrl) throw new Error("Depth query library did not load.");
+      if (!depthQueryImagePromise) {
+        depthQueryImagePromise = GeoTIFF.fromUrl(DEPTH_QUERY_COG_URL).then(tiff => tiff.getImage());
+      }
+      return depthQueryImagePromise;
+    }
+
+    function decodeHydraulicInt16Base64(encoded) {
+      const binary = atob(String(encoded || ""));
+      const buffer = new ArrayBuffer(binary.length);
+      const bytes = new Uint8Array(buffer);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const view = new DataView(buffer);
+      const output = new Int16Array(binary.length / 2);
+      for (let i = 0; i < output.length; i += 1) output[i] = view.getInt16(i * 2, true);
+      return output;
+    }
+
+    async function fetchHydraulicStateContainer(url) {
+      const response = await fetch(url, { cache: "force-cache", headers: { "Accept": "application/octet-stream,*/*" } });
+      if (!response.ok) throw new Error(`Hydraulic state request failed (${response.status}).`);
+      let buffer = await response.arrayBuffer();
+      let bytes = new Uint8Array(buffer);
+      if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+        if (typeof DecompressionStream !== "function") {
+          throw new Error("This browser cannot decompress the hydraulic state package.");
+        }
+        const decompressed = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+        buffer = await new Response(decompressed).arrayBuffer();
+        bytes = new Uint8Array(buffer);
+      }
+
+      const magic = new TextDecoder().decode(bytes.subarray(0, 8));
+      if (magic.startsWith("NWHYD2")) {
+        const headerLength = new DataView(buffer, 8, 4).getUint32(0, true);
+        const dataStart = 12 + headerLength;
+        const payload = JSON.parse(new TextDecoder().decode(bytes.subarray(12, dataStart)));
+        payload.decodedPhaseWaterSurface = {};
+        Object.entries(payload.phaseArrays || {}).forEach(([phase, record]) => {
+          const offset = Number(record?.offset) || 0;
+          const length = Number(record?.length) || 0;
+          payload.decodedPhaseWaterSurface[phase] = new Uint8Array(buffer, dataStart + offset, length);
+        });
+        return payload;
+      }
+
+      const payload = JSON.parse(new TextDecoder().decode(bytes));
+      const encoded = payload?.phaseWaterSurfaceCentift || {};
+      payload.decodedPhaseWaterSurfaceCentift = {
+        filling: decodeHydraulicInt16Base64(encoded.filling),
+        slack: decodeHydraulicInt16Base64(encoded.slack),
+        draining: decodeHydraulicInt16Base64(encoded.draining)
+      };
+      return payload;
+    }
+
+    async function getHydraulicStates() {
+      if (!HYDRAULIC_STATES_URL) return null;
+      if (!hydraulicStatesPromise) {
+        hydraulicStatesPromise = fetchHydraulicStateContainer(HYDRAULIC_STATES_URL);
+      }
+      return hydraulicStatesPromise;
+    }
+
+    async function getHydraulicWaterSurfaceFt(zoneId, stage, phase) {
+      const payload = await getHydraulicStates();
+      if (!payload || !Number.isInteger(zoneId) || zoneId <= 0) return null;
+      const stageMin = Number(payload.stageMinNavd88Ft) || 0;
+      const stageStep = Number(payload.stageStepFt) || 0.1;
+      const stageCount = Number(payload.stageCount) || 141;
+      const stride = Number(payload.zoneStride) || ((Number(payload.zoneCount) || 0) + 1);
+      const stageIndex = Math.max(0, Math.min(stageCount - 1, Math.round((Number(stage) - stageMin) / stageStep)));
+      const binaryValues = payload.decodedPhaseWaterSurface?.[normalizeHydraulicPhase(phase)];
+      if (binaryValues) {
+        const encoded = binaryValues[stageIndex * stride + zoneId];
+        const drySentinel = Number(payload.drySentinel ?? 255);
+        const offset = Number(payload.surfaceOffsetDecifeet ?? -100);
+        return Number.isFinite(encoded) && encoded !== drySentinel ? (encoded + offset) / 10 : null;
+      }
+      const values = payload.decodedPhaseWaterSurfaceCentift?.[normalizeHydraulicPhase(phase)];
+      const encoded = values?.[stageIndex * stride + zoneId];
+      const drySentinel = Number(payload.drySentinelCentift ?? -32768);
+      return Number.isFinite(encoded) && encoded !== drySentinel ? encoded / 100 : null;
+    }
+
+    async function sampleDepthModel(lat, lon) {
+      const image = await getDepthQueryImage();
+      const bounds = image.getBoundingBox();
+      const width = image.getWidth();
+      const height = image.getHeight();
+      const x = Math.floor(((lon - bounds[0]) / (bounds[2] - bounds[0])) * width);
+      const y = Math.floor(((bounds[3] - lat) / (bounds[3] - bounds[1])) * height);
+      if (x < 0 || y < 0 || x >= width || y >= height) return null;
+      const values = await image.readRasters({ window: [x, y, x + 1, y + 1], samples: [0, 1, 2, 3, 4, 5], interleave: true });
+      const elevation = Number(values[0]);
+      const zoneId = Math.round(Number(values[1]));
+      const connectionStage = Number(values[2]);
+      const sourceFlag = Number(values[3]);
+      const hardStructureFlag = Number(values[4]);
+      const stormGrateFlag = Number(values[5]);
+      if (!Number.isFinite(elevation) || elevation < -1000) return null;
+      return {
+        elevation,
+        zoneId,
+        connectionStage,
+        sourceFlag: sourceFlag >= 0.5,
+        hardStructureFlag: hardStructureFlag >= 0.5,
+        stormGrateFlag: stormGrateFlag >= 0.5
+      };
+    }
+
+    async function handleDepthQueryClick(event) {
+      if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
+      try {
+        if (document.getElementById("parcelsToggle")?.classList.contains("on")) {
+          const parcelFeature = await findParcelFeatureForLocation(event.latlng.lat, event.latlng.lng);
+          if (parcelFeature) {
+            L.popup({ maxWidth: 220 })
+              .setLatLng(event.latlng)
+              .setContent(buildHouseAlertPopup(parcelFeature))
+              .openOn(map);
+            return;
+          }
+        }
+        const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
+        if (!sample) {
+          L.popup().setLatLng(event.latlng).setContent('<div class="depth-query-popup"><h3>Depth query</h3>This point is outside the North Wildwood elevation model.</div>').openOn(map);
+          return;
+        }
+        const rawStage = getStageValue(currentSeriesHours[currentHourIndex]);
+        const stage = Number(rawStage);
+        const hydraulicPhase = getHydraulicPhaseForEntry(currentSeriesHours[currentHourIndex], currentHourIndex, currentSeriesHours);
+        const belowStage = Number.isFinite(stage) && sample.elevation <= stage + 0.0001;
+        let waterSurface = null;
+        try {
+          waterSurface = Number.isFinite(stage) ? await getHydraulicWaterSurfaceFt(sample.zoneId, getOverlayStage(stage), hydraulicPhase) : null;
+        } catch (stateError) {
+          console.warn("Hydraulic state lookup was unavailable; using static connection fallback.", stateError);
+        }
+        const staticConnected = belowStage && Number.isFinite(sample.connectionStage) && sample.connectionStage <= stage + 0.0001;
+        const hydraulicallyWet = belowStage && Number.isFinite(waterSurface) && waterSurface > sample.elevation + 0.005;
+        const connected = Number.isFinite(waterSurface) ? hydraulicallyWet : staticConnected;
+        const depth = connected ? Math.max(0, (Number.isFinite(waterSurface) ? waterSurface : stage) - sample.elevation) : null;
+        const status = !Number.isFinite(stage) ? "No water level selected" :
+          (connected ? `Hydraulically filled (${hydraulicPhase})` : (belowStage ? "Below stage, not connected or not filled yet (green)" : "Dry at selected stage"));
+        const html = '<div class="depth-query-popup"><h3>Modeled depth at this point</h3><dl>' +
+          "<dt>Status</dt><dd>" + status + "</dd>" +
+          "<dt>Hydraulic phase</dt><dd>" + hydraulicPhase.charAt(0).toUpperCase() + hydraulicPhase.slice(1) + "</dd>" +
+          "<dt>Ground</dt><dd>" + sample.elevation.toFixed(2) + " ft NAVD88</dd>" +
+          "<dt>Selected water</dt><dd>" + (Number.isFinite(stage) ? stage.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
+          "<dt>Local water surface</dt><dd>" + (Number.isFinite(waterSurface) ? waterSurface.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
+          "<dt>Water depth</dt><dd>" + (depth == null ? "—" : depth.toFixed(2) + " ft") + "</dd>" +
+          "<dt>First connected</dt><dd>" + (Number.isFinite(sample.connectionStage) && sample.connectionStage < 100 ? sample.connectionStage.toFixed(1) + " ft" : "Not by 14 ft") + "</dd>" +
+          "<dt>1 ft source block</dt><dd>" + (sample.sourceFlag ? "Yes" : "No") + "</dd>" +
+          "<dt>Hydraulic feature</dt><dd>" + (sample.stormGrateFlag ? "48-in storm grate" : (sample.hardStructureFlag ? "7.5-ft bulkhead" : "Terrain")) + "</dd></dl></div>";
+        L.popup({ maxWidth: 330 }).setLatLng(event.latlng).setContent(html).openOn(map);
+      } catch (err) {
+        console.error("Depth query failed", err);
+        toast("Depth query is temporarily unavailable.");
+      }
+    }
+
     function wireLayerToggles() {
       ["boundaryToggle", "roadsToggle"].forEach(id => {
         const el = document.getElementById(id);
@@ -21243,6 +22185,21 @@ function startPlayback() {
           if (id === "roadsToggle") updateRoadLayerAppearance();
           if (id === "boundaryToggle") applyTownBoundaryVisibility();
         });
+      });
+      const parcelsToggle = document.getElementById("parcelsToggle");
+      const toggleParcels = () => {
+        const enabled = !parcelsToggle.classList.contains("on");
+        setParcelsEnabled(enabled).catch(err => {
+          setParcelsEnabled(false);
+          toast(err.message || "Parcels could not be loaded.");
+        });
+      };
+      parcelsToggle?.addEventListener("click", toggleParcels);
+      parcelsToggle?.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleParcels();
+        }
       });
     }
 
@@ -21790,6 +22747,13 @@ function startPlayback() {
 
         const latLng = L.latLng(match.lat, match.lon);
         const label = formatTownAddressLabel(match);
+        let parcelFeature = null;
+        try {
+          parcelFeature = await findParcelFeatureForLocation(match.lat, match.lon);
+          if (parcelFeature) await setParcelsEnabled(true);
+        } catch (parcelErr) {
+          console.warn("House Alert parcel match was unavailable.", parcelErr);
+        }
 
         if (townAddressMarker && map.hasLayer(townAddressMarker)) {
           townAddressMarker.setLatLng(latLng);
@@ -21802,11 +22766,14 @@ function startPlayback() {
           }).addTo(map);
         }
 
+        const popupContent = parcelFeature
+          ? buildHouseAlertPopup(parcelFeature)
+          : '<div class="town-address-popup"><strong>Closest match</strong>' + escapeTownAddressHtml(label) + "</div>";
         townAddressMarker
-          .bindPopup(`<div class="town-address-popup"><strong>Closest match</strong>${escapeTownAddressHtml(label)}</div>`)
+          .bindPopup(popupContent, { maxWidth: parcelFeature ? 220 : 370 })
           .openPopup();
         map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });
-        setTownAddressStatus(`Closest match: ${label}`, "success");
+        setTownAddressStatus(parcelFeature ? `Flood count found: ${label}` : `Closest match: ${label}`, "success");
       } catch (err) {
         setTownAddressStatus(err && err.message ? err.message : "Address lookup failed. Please try again.", "error");
       } finally {
@@ -21827,6 +22794,176 @@ function startPlayback() {
       clearBtn?.addEventListener("click", clearTownAddressLookup);
     }
 
+    const MAPPER_TUTORIAL_STEPS = [
+      {
+        title: "Welcome to Floodmapper 2.0",
+        target: "#mapTitleBadge",
+        body: "<p>This map turns water levels into a street-level picture of potential flooding. You can explore the next several days, replay measured events, click the map for modeled depth, inspect parcels, and export what you see.</p><p><strong>Every mapped depth is referenced to the selected water level and the ground-elevation model.</strong></p>"
+      },
+      {
+        title: "Start with the forecast",
+        target: "#forecastScenarioCard",
+        body: "<p>Forecast mode opens on the central <strong>Mean</strong> guidance. Use Low End and High End to understand the plausible range—especially when a small water-level change could reach another road or property.</p><p>The map and timeline update together, so the selected hour is always the water level being mapped.</p>"
+      },
+      {
+        title: "Switch to observations",
+        target: ".data-source-card",
+        body: "<p>Select <strong>Observed</strong> to explore the tide-gauge archive. Use <strong>Interval</strong> in the left pane to switch among Hourly, 15-Min, and Daily Max views.</p>"
+      },
+      {
+        title: "Choose a historic flood",
+        target: "#calendarCard",
+        body: "<p>The calendar is your archive. Colored dates mark flood thresholds; choose a day or type a date to replay it. Crest-only records show the maximum extent when a full time series was not preserved.</p>"
+      },
+      {
+        title: "Move through time",
+        target: "#timelineDock",
+        body: "<p>Drag the slider to move the map through time, or press Play to animate it. The selected date, time, water level, and mapped depth always stay synchronized.</p>"
+      },
+      {
+        title: "Control map layers",
+        target: ".layers-card",
+        body: "<p>Turn the simulation boundary, road labels, or <strong>Parcels</strong> on and off. Click a parcel to see how many times that structure has flooded in the historic record.</p>"
+      },
+      {
+        title: "Jump to the largest floods",
+        target: ".mobile-top-tides-card, .top-tides-card",
+        body: "<p>The Top 10 list is the fastest way to inspect the archive's highest crests. Select an event to move the calendar, timeline, water-level readout, and inundation map to that flood.</p>"
+      },
+      {
+        title: "Export and share",
+        target: "#downloadCard",
+        body: "<p>Open the export panel to save a single PNG, a PNG sequence, or an animated GIF. Set the time range, frame interval, layout, speed, and labels before export.</p><p>Exports preserve the map, timestamp, datum, depth key, and branding so the result can stand on its own.</p>"
+      }
+    ];
+    let mapperTutorialIndex = 0;
+    let mapperTutorialResizeHandler = null;
+
+    function getVisibleTutorialTarget(selector) {
+      return Array.from(document.querySelectorAll(selector)).find(element => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 4 && rect.height > 4 && style.display !== "none" && style.visibility !== "hidden";
+      }) || document.querySelector(selector);
+    }
+
+    function positionMapperTutorial() {
+      const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
+      const target = step ? getVisibleTutorialTarget(step.target) : null;
+      const spotlight = document.getElementById("mapperTutorialSpotlight");
+      const card = document.getElementById("mapperTutorialCard");
+      if (!target || !spotlight || !card) return;
+      const rect = target.getBoundingClientRect();
+      const pad = 8;
+      spotlight.style.left = Math.max(4, rect.left - pad) + "px";
+      spotlight.style.top = Math.max(4, rect.top - pad) + "px";
+      spotlight.style.width = Math.max(20, Math.min(window.innerWidth - 8, rect.width + pad * 2)) + "px";
+      spotlight.style.height = Math.max(20, Math.min(window.innerHeight - 8, rect.height + pad * 2)) + "px";
+      const cardRect = card.getBoundingClientRect();
+      const gap = 18;
+      const margin = 14;
+      const width = Math.min(cardRect.width, window.innerWidth - margin * 2);
+      const height = Math.min(cardRect.height, window.innerHeight - margin * 2);
+      const clampLeft = value => Math.max(margin, Math.min(window.innerWidth - width - margin, value));
+      const clampTop = value => Math.max(margin, Math.min(window.innerHeight - height - margin, value));
+      const targetBox = {
+        left: Math.max(0, rect.left - pad), top: Math.max(0, rect.top - pad),
+        right: Math.min(window.innerWidth, rect.right + pad), bottom: Math.min(window.innerHeight, rect.bottom + pad)
+      };
+      const candidates = [
+        [rect.right + gap, rect.top],
+        [rect.left - width - gap, rect.top],
+        [rect.left, rect.bottom + gap],
+        [rect.left, rect.top - height - gap],
+        [margin, margin],
+        [window.innerWidth - width - margin, margin],
+        [margin, window.innerHeight - height - margin],
+        [window.innerWidth - width - margin, window.innerHeight - height - margin]
+      ].map(([rawLeft, rawTop]) => ({ left: clampLeft(rawLeft), top: clampTop(rawTop) }));
+      const overlapArea = candidate => {
+        const overlapWidth = Math.max(0, Math.min(candidate.left + width, targetBox.right) - Math.max(candidate.left, targetBox.left));
+        const overlapHeight = Math.max(0, Math.min(candidate.top + height, targetBox.bottom) - Math.max(candidate.top, targetBox.top));
+        return overlapWidth * overlapHeight;
+      };
+      candidates.sort((a, b) => overlapArea(a) - overlapArea(b));
+      const chosen = candidates[0];
+      card.style.setProperty("left", chosen.left + "px", "important");
+      card.style.setProperty("top", chosen.top + "px", "important");
+      card.style.setProperty("right", "auto", "important");
+      card.style.setProperty("bottom", "auto", "important");
+    }
+
+    function renderMapperTutorialStep() {
+      const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
+      if (!step) return;
+      const tutorialModePromise = mapperTutorialIndex === 1 && currentDataMode !== "forecast"
+        ? switchDataMode("forecast")
+        : (mapperTutorialIndex === 3 && currentDataMode !== "observed" ? switchDataMode("observed") : Promise.resolve());
+      const target = getVisibleTutorialTarget(step.target);
+      if (window.innerWidth <= 900 && target) {
+        const needsDrawer = Boolean(target.closest("#leftPanel, #mobileRailMount"));
+        setMobileControlsOpen(needsDrawer);
+      }
+      document.getElementById("mapperTutorialProgress").textContent = (mapperTutorialIndex + 1) + " of " + MAPPER_TUTORIAL_STEPS.length;
+      document.getElementById("mapperTutorialTitle").textContent = step.title;
+      document.getElementById("mapperTutorialBody").innerHTML = step.body;
+      const back = document.getElementById("mapperTutorialBack");
+      const next = document.getElementById("mapperTutorialNext");
+      back.disabled = mapperTutorialIndex === 0;
+      next.textContent = mapperTutorialIndex === MAPPER_TUTORIAL_STEPS.length - 1 ? "Finish" : "Next";
+      window.setTimeout(async () => {
+        try { await tutorialModePromise; } catch (err) {}
+        const resolved = getVisibleTutorialTarget(step.target);
+        const mobileBlockByStep = { 1: "start", 3: "end", 6: "end", 7: "start" };
+        const block = window.innerWidth <= 900 ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
+        resolved?.scrollIntoView({ block, inline: "center", behavior: "auto" });
+        window.setTimeout(positionMapperTutorial, 80);
+        window.setTimeout(positionMapperTutorial, 320);
+      }, 40);
+    }
+
+    function setMapperTutorialOpen(open, startIndex = 0) {
+      const tutorial = document.getElementById("mapperTutorial");
+      if (!tutorial) return;
+      tutorial.hidden = !open;
+      tutorial.setAttribute("aria-hidden", open ? "false" : "true");
+      document.body.classList.toggle("tutorial-active", Boolean(open));
+      if (open) {
+        mapperTutorialIndex = Math.max(0, Math.min(startIndex, MAPPER_TUTORIAL_STEPS.length - 1));
+        renderMapperTutorialStep();
+        mapperTutorialResizeHandler = () => positionMapperTutorial();
+        window.addEventListener("resize", mapperTutorialResizeHandler);
+        document.getElementById("mapperTutorialNext")?.focus();
+      } else if (mapperTutorialResizeHandler) {
+        window.removeEventListener("resize", mapperTutorialResizeHandler);
+        mapperTutorialResizeHandler = null;
+      }
+    }
+
+    function wireMapperTutorial() {
+      document.getElementById("mapperTutorialBtn")?.addEventListener("click", () => setMapperTutorialOpen(true, 0));
+      document.getElementById("mapperTutorialClose")?.addEventListener("click", () => setMapperTutorialOpen(false));
+      document.getElementById("mapperTutorialBack")?.addEventListener("click", () => {
+        if (mapperTutorialIndex > 0) {
+          mapperTutorialIndex -= 1;
+          renderMapperTutorialStep();
+        }
+      });
+      document.getElementById("mapperTutorialNext")?.addEventListener("click", () => {
+        if (mapperTutorialIndex >= MAPPER_TUTORIAL_STEPS.length - 1) setMapperTutorialOpen(false);
+        else {
+          mapperTutorialIndex += 1;
+          renderMapperTutorialStep();
+        }
+      });
+      document.addEventListener("keydown", event => {
+        if (document.getElementById("mapperTutorial")?.hidden) return;
+        if (event.key === "Escape") setMapperTutorialOpen(false);
+        if (event.key === "ArrowRight") document.getElementById("mapperTutorialNext")?.click();
+        if (event.key === "ArrowLeft") document.getElementById("mapperTutorialBack")?.click();
+      });
+    }
+
     function wireEvents() {
       document.getElementById("topBannerCloseBtn")?.addEventListener("click", clearTopBanner);
       document.getElementById("toastCloseBtn")?.addEventListener("click", () => toast(""));
@@ -21843,6 +22980,10 @@ function startPlayback() {
 
       document.getElementById("intervalQuarterBtn")?.addEventListener("click", () => {
         setTimelineIntervalMinutes(15).catch(err => toast(err.message));
+      });
+
+      document.getElementById("intervalDailyBtn")?.addEventListener("click", () => {
+        setTimelineIntervalMinutes(1440).catch(err => toast(err.message));
       });
 
       document.getElementById("opacitySlider").addEventListener("input", e => {
@@ -21984,6 +23125,10 @@ function startPlayback() {
       document.getElementById("overlayHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
         showInfoModal("overlay");
+      });
+      document.getElementById("timelineDetailHelpBtn")?.addEventListener("click", e => {
+        e.stopPropagation();
+        showInfoModal("timelineDetail");
       });
       document.getElementById("legendHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
@@ -22454,6 +23599,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       });
 
       wireLayerToggles();
+      wireMapperTutorial();
     }
 
     async function main() {
@@ -25108,6 +26254,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
     var legend = document.getElementById('legendDock');
     var datum = left ? left.querySelector('.datum-card') : null;
     var opacity = left ? left.querySelector('.opacity-card') : null;
+    var resolution = left ? left.querySelector('.timeline-resolution-card') : null;
     var snapshot = left ? left.querySelector('.snapshot-card') : null;
     var right = document.getElementById('rightRail');
 
@@ -25127,7 +26274,13 @@ html.win-compact-ui .leaflet-top.leaflet-right{
         left.insertBefore(opacity, datum.nextSibling);
       }
       opacity = left.querySelector('.opacity-card');
-      if (opacity && legend.previousElementSibling !== opacity) {
+      if (opacity && resolution && resolution.previousElementSibling !== opacity) {
+        left.insertBefore(resolution, opacity.nextSibling);
+      }
+      resolution = left.querySelector('.timeline-resolution-card');
+      if (resolution && legend.previousElementSibling !== resolution) {
+        left.insertBefore(legend, resolution.nextSibling);
+      } else if (opacity && !resolution && legend.previousElementSibling !== opacity) {
         left.insertBefore(legend, opacity.nextSibling);
       } else if (!opacity && legend.parentElement !== left) {
         left.appendChild(legend);
@@ -27509,8 +28662,8 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
     return {
       left:left,
       right:right,
-      bottom:vh <= 760 ? 166 : 188,
-      gap:vh <= 760 ? 8 : 10
+      bottom:vh <= 760 ? 128 : 188,
+      gap:vh <= 760 ? 4 : 10
     };
   }
 
@@ -27518,6 +28671,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
     var left = document.getElementById("leftPanel");
     var datum = left && left.querySelector(".datum-card");
     var opacity = left && left.querySelector(".opacity-card");
+    var resolution = left && left.querySelector(".timeline-resolution-card");
     var legend = document.getElementById("legendDock");
     if (!left || !legend) return;
 
@@ -27526,7 +28680,13 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
       left.insertBefore(opacity, datum.nextSibling);
     }
     opacity = left.querySelector(".opacity-card");
-    if (opacity && legend.previousElementSibling !== opacity) {
+    if (opacity && resolution && resolution.previousElementSibling !== opacity) {
+      left.insertBefore(resolution, opacity.nextSibling);
+    }
+    resolution = left.querySelector(".timeline-resolution-card");
+    if (resolution && legend.previousElementSibling !== resolution) {
+      left.insertBefore(legend, resolution.nextSibling);
+    } else if (opacity && !resolution && legend.previousElementSibling !== opacity) {
       left.insertBefore(legend, opacity.nextSibling);
     }
 
@@ -28469,7 +29629,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
       compact:compact,
       lane:compact ? 50 : 64,
       pad:compact ? 10 : 20,
-      dockHeight:compact ? 108 : 112,
+      dockHeight:compact ? 112 : 114,
       topBox:compact ? 38 : 48,
       play:compact ? 34 : 42,
       keyHeight:compact ? 18 : 20,
@@ -29440,7 +30600,7 @@ html body #timelineDock #hourSlider{
     var rightW = leftW === 320 ? 228 : (leftW === 340 ? 244 : 260);
     var cardH = shortDesktop ? 82 : (viewportW <= 1120 ? 88 : 92);
     var opacityH = shortDesktop ? 56 : 62;
-    var legendH = shortDesktop ? 132 : (viewportW <= 1120 ? 138 : 144);
+    var legendH = 64;
     var bottomReserve = shortDesktop ? 128 : 188;
     var cardPadding = shortDesktop ? "7px 12px" : "8px 12px";
     var cardGap = shortDesktop ? "5px" : "6px";
@@ -29509,15 +30669,16 @@ html body #timelineDock #hourSlider{
     var legend = document.getElementById("legendDock");
     if (legend && left && legend.parentElement !== left) left.appendChild(legend);
     if (legend) {
+      var activeLegendH = legend.dataset.legendMode === "dynamic" ? 54 : 64;
       setImportant(legend, "flex", "0 0 auto");
-      setImportant(legend, "min-height", "var(--pj-equal-legend-min-h)");
-      setImportant(legend, "height", "auto");
-      setImportant(legend, "max-height", "none");
+      setImportant(legend, "min-height", activeLegendH + "px");
+      setImportant(legend, "height", activeLegendH + "px");
+      setImportant(legend, "max-height", activeLegendH + "px");
       setImportant(legend, "width", "100%");
       setImportant(legend, "min-width", "0");
       setImportant(legend, "max-width", "100%");
       setImportant(legend, "margin", "0");
-      setImportant(legend, "padding", legendPadding);
+      setImportant(legend, "padding", "4px 12px");
       setImportant(legend, "border-radius", "16px");
       setImportant(legend, "overflow", "visible");
       legend.dataset.userMoved = "1";
@@ -30145,6 +31306,8 @@ TOWN_CONFIG = {
   "data": {
     "forecastPath": "./forecast.json",
     "observedPath": "./observed.json",
+    "observed15MinPath": "./observed15min.json",
+    "lewesHourlyPath": "./lewes_hourly.json",
     "topTidesPath": "./toptides.json"
   },
   "bunny": {
@@ -30175,33 +31338,57 @@ TOWN_CONFIG = {
   },
   "datums": {
     "helpText": "Water levels can be viewed in NAVD88 or MLLW depending on the selected datum.",
-    "navd88OffsetFromMllwFt": -2.66,
+    "navd88OffsetFromMllwFt": -2.75,
     "offsets": {
       "navd88": 0,
-      "mllw": 2.66
+      "mllw": 2.75
     }
   },
   "thresholds": {
     "mllw": {
-      "minor": 6.1,
-      "moderate": 7.1,
-      "major": 8.1
+      "minor": 6.0,
+      "moderate": 7.0,
+      "major": 8.0
     },
     "navd88": {
-      "minor": 3.44,
-      "moderate": 4.44,
-      "major": 5.44
+      "minor": 3.25,
+      "moderate": 4.25,
+      "major": 5.25
     }
   },
   "overlays": {
     "depthPngPrefix": "NorthWildwoodDepth",
     "stagePngPrefix": "NorthWildwoodStage",
+    "cacheVersions": {
+      "depth": "20260723-hydraulic-v2",
+      "dynamic": "20260723-hydraulic-v2",
+      "hydraulic": "20260723-hydraulic-v4"
+    },
+    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif.png?v=20260723-hydraulic-v4",
+    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v2",
     "depthRoots": [
       "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/"
     ],
     "dynamicRoots": [
       "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/"
-    ]
+    ],
+    "phaseRoots": {
+      "depth": {
+        "filling": "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/filling/",
+        "slack": "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/",
+        "draining": "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/draining/"
+      },
+      "dynamic": {
+        "filling": "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/filling/",
+        "slack": "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/",
+        "draining": "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/draining/"
+      }
+    }
+  },
+  "parcels": {
+    "boundaryPngPath": "https://floodmapperv1.b-cdn.net/Parcels/North%20Wildwood/NorthWildwoodParcelBoundaries.png?v=20260723-parcels-v1",
+    "geojsonPath": "https://floodmapperv1.b-cdn.net/Parcels/North%20Wildwood/NorthWildwoodParcels.geojson.png?v=20260723-parcels-v1",
+    "houseAlertCdfPath": "https://floodmapperv1.b-cdn.net/Parcels/North%20Wildwood/NorthWildwoodHouseAlertCDF.json.png?v=20260723-parcels-v1"
   },
   "addressLookup": {
     "title": "Find a North Wildwood Address",
@@ -30236,7 +31423,7 @@ TOWN_CONFIG = {
     "queryUrl": "https://services2.arcgis.com/XVOqAjTOJ5P6ngMu/arcgis/rest/services/NJ_Municipalities_3857/FeatureServer/0/query",
     "outFields": "NAME,COUNTY,MUN,MUN_LABEL,MUN_TYPE,GNIS_NAME",
     "queryCandidates": [
-      "MUN_LABEL = 'North Wildwood'",
+      "MUN_LABEL = 'North Wildwood City'",
       "NAME = 'North Wildwood'"
     ]
   },
@@ -30672,6 +31859,33 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 }
 </style>
+<style id="stone-harbor-final-qa-layout-fixes">
+@media (min-width:901px) and (max-height:760px){
+  html body:not(.mobile-optimized) #leftPanel{
+    overflow-x:hidden !important;
+    overflow-y:auto !important;
+    padding-bottom:8px !important;
+    scrollbar-width:thin !important;
+    scrollbar-color:rgba(125,249,255,.55) transparent !important;
+  }
+
+  html body:not(.mobile-optimized) #leftPanel::-webkit-scrollbar{
+    width:4px !important;
+  }
+
+  html body:not(.mobile-optimized) #leftPanel::-webkit-scrollbar-thumb{
+    border-radius:999px !important;
+    background:rgba(125,249,255,.55) !important;
+  }
+}
+
+@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+  html body.mobile-optimized #timelineDock .timeline-top,
+  html body.mobile-optimized #timelineDock .timeline-controls{
+    overflow:visible !important;
+  }
+}
+</style>
 <script id="shorely-mobile-slider-key-correction-script">
 (function(){
   "use strict";
@@ -30693,20 +31907,18 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 
   function ensureSliderKey(timeline){
-    if (!timeline) return null;
     var key = document.getElementById("shorelyMobileSliderKey");
+    if (!timeline) return null;
     if (!key) {
       key = document.createElement("div");
       key.id = "shorelyMobileSliderKey";
-      key.setAttribute("aria-label", "Flood stage key");
+      key.setAttribute("aria-label", "Flood category key");
       key.innerHTML = [
-        '<span class="shorely-mobile-slider-key-item"><span class="shorely-mobile-slider-key-swatch no"></span>None</span>',
+        '<span class="shorely-mobile-slider-key-item"><span class="shorely-mobile-slider-key-swatch no"></span>No Flooding</span>',
         '<span class="shorely-mobile-slider-key-item"><span class="shorely-mobile-slider-key-swatch minor"></span>Minor</span>',
         '<span class="shorely-mobile-slider-key-item"><span class="shorely-mobile-slider-key-swatch moderate"></span>Moderate</span>',
         '<span class="shorely-mobile-slider-key-item"><span class="shorely-mobile-slider-key-swatch major"></span>Major</span>'
       ].join("");
-      timeline.appendChild(key);
-    } else if (key.parentNode !== timeline) {
       timeline.appendChild(key);
     }
     return key;
@@ -30904,19 +32116,28 @@ html body #mapTitleBadge #mapTitleLogo{
     if (!body) return;
     var mobile = isMobile();
     var timeline = document.getElementById("timelineDock");
+    var leftPanel = document.getElementById("leftPanel");
     var sliderKey = document.getElementById("shorelyMobileSliderKey");
     var sliderHelp = document.getElementById("shorelyMobileSliderHelpBtn");
     var legendHelp = document.getElementById("shorelyMobileLegendHelpBtn");
     if (!mobile) {
+      if (leftPanel) {
+        var shortDesktop = window.innerWidth >= 901 && window.innerHeight <= 760;
+        setImportant(leftPanel, "overflow-x", "hidden");
+        setImportant(leftPanel, "overflow-y", shortDesktop ? "auto" : "hidden");
+        setImportant(leftPanel, "padding-bottom", shortDesktop ? "8px" : "0");
+      }
       if (sliderKey) setImportant(sliderKey, "display", "none");
       if (sliderHelp) setImportant(sliderHelp, "display", "none");
       if (legendHelp) setImportant(legendHelp, "display", "none");
       return;
     }
 
-    document.documentElement.style.setProperty("--shorely-mobile-timeline-height", "118px");
-    document.documentElement.style.setProperty("--pj-request-timeline-height", "118px");
-    document.documentElement.style.setProperty("--shorely-mobile-drawer-bottom", "122px");
+    var compactLandscape = window.innerHeight <= 560 && window.innerWidth > window.innerHeight;
+    var mobileTimelineHeight = compactLandscape ? 108 : 124;
+    document.documentElement.style.setProperty("--shorely-mobile-timeline-height", mobileTimelineHeight + "px");
+    document.documentElement.style.setProperty("--pj-request-timeline-height", mobileTimelineHeight + "px");
+    document.documentElement.style.setProperty("--shorely-mobile-drawer-bottom", (mobileTimelineHeight + 4) + "px");
 
     var originalKey = document.getElementById("timelineFloodKey");
     var toggle = document.getElementById("mobileControlsToggle");
@@ -30925,6 +32146,7 @@ html body #mapTitleBadge #mapTitleLogo{
     var top = timeline && timeline.querySelector(".timeline-top");
     var controls = timeline && timeline.querySelector(".timeline-controls");
     var play = document.getElementById("playBtn");
+    var interval = document.getElementById("timelineIntervalToggle");
     var days = document.getElementById("timelineDayTabs");
     var track = timeline && timeline.querySelector(".timeline-trackRow");
     var slider = document.getElementById("hourSlider");
@@ -30944,18 +32166,17 @@ html body #mapTitleBadge #mapTitleLogo{
       setImportant(timeline, "max-width", "calc(100vw - 14px)");
       setImportant(timeline, "transform", "none");
       setImportant(timeline, "-webkit-transform", "none");
-      setImportant(timeline, "height", "118px");
-      setImportant(timeline, "min-height", "118px");
-      setImportant(timeline, "max-height", "118px");
+      setImportant(timeline, "height", mobileTimelineHeight + "px");
+      setImportant(timeline, "min-height", mobileTimelineHeight + "px");
+      setImportant(timeline, "max-height", mobileTimelineHeight + "px");
       setImportant(timeline, "padding", "12px 12px 12px");
       setImportant(timeline, "overflow", "visible");
     }
     if (key) {
-      var tinyPhone = window.innerWidth <= 340;
       setImportant(key, "display", "flex");
-      setImportant(key, "top", "13px");
-      setImportant(key, "left", tinyPhone ? "56px" : "62px");
-      setImportant(key, "right", tinyPhone ? "38px" : "46px");
+      setImportant(key, "top", compactLandscape ? "8px" : "13px");
+      setImportant(key, "left", "58px");
+      setImportant(key, "right", "12px");
       setImportant(key, "height", "18px");
     }
     if (help) {
@@ -30969,17 +32190,21 @@ html body #mapTitleBadge #mapTitleLogo{
     if (top) {
       setImportant(top, "left", "12px");
       setImportant(top, "right", "auto");
-      setImportant(top, "top", "12px");
+      setImportant(top, "top", "8px");
       setImportant(top, "transform", "none");
       setImportant(top, "width", "38px");
       setImportant(top, "height", "38px");
       setImportant(top, "z-index", "18");
+      setImportant(top, "overflow", "visible");
     }
     if (controls) {
       setImportant(controls, "width", "38px");
       setImportant(controls, "height", "38px");
       setImportant(controls, "display", "grid");
-      setImportant(controls, "place-items", "center");
+      setImportant(controls, "grid-template-columns", "38px");
+      setImportant(controls, "gap", "0");
+      setImportant(controls, "place-items", "center start");
+      setImportant(controls, "overflow", "visible");
     }
     if (play) {
       setImportant(play, "width", "38px");
@@ -30990,11 +32215,21 @@ html body #mapTitleBadge #mapTitleLogo{
       setImportant(play, "max-height", "38px");
       setImportant(play, "flex", "0 0 38px");
     }
+    if (interval && timeline && timeline.contains(interval)) {
+      setImportant(interval, "position", "static");
+      setImportant(interval, "transform", "none");
+      setImportant(interval, "width", "178px");
+      setImportant(interval, "min-width", "178px");
+      setImportant(interval, "max-width", "178px");
+      setImportant(interval, "height", "30px");
+      setImportant(interval, "grid-template-columns", "repeat(3, minmax(0, 1fr))");
+      setImportant(interval, "overflow", "visible");
+    }
     if (days) {
       setImportant(days, "width", "calc(100% - 24px)");
       setImportant(days, "max-width", "calc(100% - 24px)");
       setImportant(days, "height", "22px");
-      setImportant(days, "margin", "42px 12px 4px 12px");
+      setImportant(days, "margin", "44px 12px 4px 12px");
       syncTimelineDayWeights();
     }
     if (track) {
@@ -31002,7 +32237,7 @@ html body #mapTitleBadge #mapTitleLogo{
       setImportant(track, "max-width", "calc(100% - 24px)");
       setImportant(track, "margin-left", "12px");
       setImportant(track, "margin-right", "12px");
-      setImportant(track, "margin-top", "6px");
+      setImportant(track, "margin-top", compactLandscape ? "-9px" : "6px");
       setImportant(track, "height", "28px");
       setImportant(track, "grid-template-columns", "minmax(0, 1fr)");
     }
@@ -31019,7 +32254,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
 
     if (toggle) {
-      setImportant(toggle, "display", "inline-grid");
+      setImportant(toggle, "display", body.classList.contains("mobile-controls-open") ? "none" : "inline-grid");
       setImportant(toggle, "position", "fixed");
       setImportant(toggle, "left", "50%");
       setImportant(toggle, "right", "auto");
@@ -31094,5 +32329,417 @@ html body #mapTitleBadge #mapTitleLogo{
 })();
 </script>
 
+<style id="floodmapper-2-final-corrections">
+  .timeline-resolution-card{display:flex !important;flex:0 0 auto !important;flex-direction:column !important;min-height:62px !important;height:auto !important;padding:7px 12px !important;overflow:visible !important;box-sizing:border-box !important}
+  .timeline-resolution-card .section-title{display:flex !important;flex:0 0 18px !important;min-height:18px !important;margin:0 0 3px !important;overflow:visible !important}
+  .timeline-resolution-card .section-title h2{font-size:13px !important;line-height:18px !important;white-space:nowrap !important}
+  .timeline-resolution-card .timeline-interval-toggle{
+    display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    width:100% !important;min-width:0 !important;max-width:none !important;height:34px !important;
+  }
+  .timeline-resolution-card .timeline-interval-toggle button{
+    min-width:0 !important;height:28px !important;padding:0 4px !important;font-size:10px !important;
+  }
+  .mapper-tutorial-launch-rail{flex:0 0 auto;margin:0;min-height:38px}
+
+  #legendDock[data-legend-mode="depth"] .legend-header,#legendDock[data-legend-mode="dynamic"] .legend-header{min-height:20px !important;height:20px !important;margin:0 0 2px !important;padding:0 !important}
+  #legendDock[data-legend-mode="depth"] .legend-title,#legendDock[data-legend-mode="dynamic"] .legend-title{font-size:13px !important;line-height:18px !important}
+  #legendDock[data-legend-mode="depth"] .legend-header-actions,#legendDock[data-legend-mode="dynamic"] .legend-header-actions{height:20px !important}
+  #legendDock[data-legend-mode="depth"] .legend-header-actions button,#legendDock[data-legend-mode="dynamic"] .legend-header-actions button{width:20px !important;height:20px !important;min-width:20px !important;min-height:20px !important}
+  #legendDock[data-legend-mode="depth"] .legend-body{padding:0 !important;margin:0 !important}
+  #legendDock[data-legend-mode="depth"]{height:54px !important;min-height:54px !important;max-height:54px !important;padding:3px 10px !important;overflow:hidden !important}
+  #legendDock[data-legend-mode="depth"] #legendHelpBtn{display:none !important}
+  #legendDock[data-legend-mode="depth"] .legend-list{
+    display:block !important;position:relative !important;height:20px !important;
+    min-height:20px !important;padding:0 !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] #legendList{display:block !important;grid-template-columns:none !important;width:100% !important;max-width:none !important}
+  .depth-legend-scale{display:block !important;width:calc(100% - 104px) !important;max-width:none !important;height:18px;margin:0 !important;min-width:0;box-sizing:border-box}
+  .depth-legend-labels{display:flex;align-items:center;justify-content:space-between;margin:0 1px 1px;color:#e7f3ff;font-size:7.5px;line-height:8px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+  .depth-legend-gradient{height:8px;border-radius:999px;border:1px solid rgba(255,255,255,.42);background:linear-gradient(90deg,#7df9ff 0%,#38d3ff 22%,#168ceb 43%,#1853c6 62%,#132f84 80%,#050e33 100%);box-shadow:inset 0 1px 1px rgba(255,255,255,.22)}
+  .depth-legend-disconnected{display:grid;position:absolute;right:0;top:0;height:18px;grid-template-columns:10px auto 18px;align-items:center;gap:3px;color:#d9fbe0;font-size:8.5px;font-weight:850;white-space:nowrap}
+  .depth-legend-disconnected-swatch{width:10px;height:10px;border-radius:3px;background:#63d471;border:1px solid rgba(255,255,255,.5)}
+  .depth-legend-help{width:18px !important;height:18px !important;min-width:18px !important;min-height:18px !important;padding:0 !important;border-radius:50% !important;font-size:10px !important}
+
+  #legendDock[data-legend-mode="dynamic"]{min-height:0 !important}
+  #legendDock[data-legend-mode="dynamic"]{height:54px !important;min-height:54px !important;max-height:54px !important;padding:4px 12px !important}
+  #legendDock[data-legend-mode="dynamic"] .legend-header{padding-bottom:3px !important}
+  #legendDock[data-legend-mode="dynamic"] .legend-body{padding-top:2px !important}
+  #legendDock[data-legend-mode="dynamic"] .legend-list{
+    display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr)) !important;gap:5px !important;
+    width:100% !important;max-width:none !important;padding:0 !important;min-height:0 !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="dynamic"] #legendList{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr)) !important;grid-template-rows:minmax(0,1fr) !important;grid-auto-flow:row !important;width:100% !important;max-width:none !important;height:18px !important;min-height:18px !important}
+  #legendDock[data-legend-mode="dynamic"] .legend-row{display:flex !important;align-items:center !important;gap:4px !important;min-height:20px !important;margin:0 !important;padding:2px 4px !important;border-radius:7px !important}
+  #legendDock[data-legend-mode="dynamic"] .legend-swatch{width:10px !important;height:10px !important;min-width:10px !important;border-radius:3px !important}
+  #legendDock[data-legend-mode="dynamic"] .legend-label{font-size:8.5px !important;white-space:nowrap !important}
+
+  #timelineDock .timeline-top,#timelineDock .timeline-controls{width:38px !important;max-width:38px !important;overflow:visible !important}
+  #timelineDock .timeline-controls{display:grid !important;grid-template-columns:38px !important;gap:0 !important}
+  #timelineDock .timeline-trackRow{box-sizing:border-box !important;min-width:0 !important}
+  #timelineDock #hourSlider{
+    --timeline-progress:0%;display:block !important;width:100% !important;max-width:100% !important;
+    margin:0 !important;padding:0 !important;box-sizing:border-box !important;appearance:none !important;-webkit-appearance:none !important;
+    background:linear-gradient(90deg,#2583ff 0 var(--timeline-progress),rgba(157,181,218,.38) var(--timeline-progress) 100%) center/100% 5px no-repeat !important;
+  }
+  #timelineDock #hourSlider::-webkit-slider-runnable-track{height:5px !important;background:transparent !important;border:0 !important;border-radius:999px !important}
+  #timelineDock #hourSlider::-moz-range-track{height:5px !important;background:transparent !important;border:0 !important;border-radius:999px !important}
+  #timelineDock #hourSlider::-moz-range-progress{height:5px !important;background:transparent !important}
+  html body #timelineDock .timeline-trackRow #hourSlider{
+    display:block !important;width:100% !important;max-width:100% !important;margin:0 !important;padding:0 !important;
+    background-color:transparent !important;
+    background-image:linear-gradient(to right,#2583ff 0%,#2583ff var(--timeline-progress),rgba(157,181,218,.38) var(--timeline-progress),rgba(157,181,218,.38) 100%) !important;
+    background-position:center !important;background-size:100% 5px !important;background-repeat:no-repeat !important;
+  }
+
+  .leaflet-parcels-pane img{mix-blend-mode:normal !important;filter:none !important}
+  .house-alert-popup{display:flex;align-items:baseline;gap:6px;min-width:0 !important;max-width:190px !important;padding:2px 0;color:#0f172a;font:600 12px/1.25 Inter,system-ui,sans-serif;white-space:nowrap}
+  .house-alert-popup span{color:#64748b}.house-alert-popup strong{font-size:15px;color:#0f172a}
+
+  .mapper-tutorial-card{width:min(390px,calc(100vw - 28px)) !important;max-height:min(520px,calc(100vh - 28px)) !important}
+
+  @media (max-width:900px),(max-height:560px){
+    html body.mobile-optimized #leftPanel .timeline-resolution-card{display:flex !important;width:100% !important;min-height:62px !important;height:auto !important;padding:7px 12px !important;overflow:visible !important;box-sizing:border-box !important}
+    html body.mobile-optimized #leftPanel .timeline-resolution-card .timeline-interval-toggle{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr)) !important;width:100% !important;min-width:0 !important;max-width:none !important;height:32px !important}
+    html body.mobile-optimized #leftPanel .timeline-resolution-card .timeline-interval-toggle button{width:100% !important;min-width:0 !important;height:26px !important;min-height:26px !important;padding:0 3px !important;font-size:9.5px !important}
+    html body.mobile-optimized.mobile-controls-open:not(.mobile-legend-open) #leftPanel #legendDock{
+      position:static !important;inset:auto !important;left:auto !important;right:auto !important;top:auto !important;bottom:auto !important;
+      transform:none !important;width:100% !important;min-width:0 !important;max-width:100% !important;
+      height:54px !important;min-height:54px !important;max-height:54px !important;margin:0 !important;padding:3px 10px !important;
+      visibility:visible !important;opacity:1 !important;pointer-events:auto !important;box-sizing:border-box !important;
+    }
+    html body.mobile-optimized.mobile-controls-open:not(.mobile-legend-open) #leftPanel #legendDock[data-legend-mode="depth"] #legendList{
+      display:block !important;position:relative !important;grid-template-columns:none !important;width:100% !important;height:20px !important;min-height:20px !important;padding:0 !important;
+    }
+    html body.mobile-optimized.mobile-controls-open #mobileControlsToggle{display:none !important;visibility:hidden !important;pointer-events:none !important}
+    html body.mobile-optimized #leftPanel #mobileRailMount{
+      display:flex !important;position:static !important;inset:auto !important;transform:none !important;
+      flex:0 0 auto !important;flex-direction:column !important;width:100% !important;min-width:0 !important;max-width:100% !important;
+      height:auto !important;min-height:0 !important;max-height:none !important;margin:0 !important;padding:0 !important;
+      gap:8px !important;overflow:visible !important;box-sizing:border-box !important;
+    }
+    html body.mobile-optimized #mobileRailMount > .right-logo-card,
+    html body.mobile-optimized #mobileRailMount > .top-tides-card{display:none !important}
+    html body.mobile-optimized #mobileRailMount > .layers-card{order:10 !important;width:100% !important}
+    html body.mobile-optimized #mobileRailMount > #downloadCard{order:20 !important;width:100% !important}
+    html body.mobile-optimized #mobileRailMount > #townAddressCard{order:30 !important;width:100% !important}
+    html body.mobile-optimized #mobileRailMount > #mapperTutorialBtn{order:40 !important;width:100% !important}
+    html body.mobile-optimized.observed-mode #leftPanel > .mobile-top-tides-card{display:grid !important}
+    .mapper-tutorial-card{width:calc(100vw - 28px) !important;max-height:min(46vh,420px) !important}
+  }
+  @media (min-width:901px) and (max-height:760px){
+    #rightRail{bottom:128px !important;gap:4px !important}
+    #rightRail .rail-card{padding:7px !important;border-radius:14px !important}
+    #rightRail .rail-head{margin-bottom:3px !important}
+    #rightRail .rail-head h3{font-size:13px !important;line-height:1.05 !important}
+    #rightRail .layers-card .layer-list{gap:3px !important}
+    #rightRail .layers-card .layer-item{height:28px !important;min-height:28px !important;max-height:28px !important;padding:3px 7px !important;border-radius:10px !important;gap:6px !important}
+    #rightRail .layers-card .layer-name{font-size:10.5px !important;line-height:1 !important}
+    #rightRail .top-tide-list{gap:3px !important}
+    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-item{height:34px !important;min-height:34px !important;max-height:34px !important;padding:2px 7px !important;border-radius:10px !important;gap:0 !important}
+    #rightRail .top-tide-rank{font-size:8px !important;line-height:1 !important}
+    #rightRail .top-tide-main{font-size:11px !important;line-height:1 !important}
+    #rightRail .top-tide-sub{font-size:9px !important;line-height:1 !important}
+    #rightRail .top-tide-more-btn{min-height:28px !important;height:28px !important;padding:3px 7px !important}
+    #rightRail .top-tides-card{height:142px !important;min-height:142px !important;max-height:142px !important;overflow:hidden !important}
+    html body:not(.mobile-optimized) #rightRail #downloadCard .download-launch-meta{display:none !important}
+    html body:not(.mobile-optimized) #rightRail #downloadCard{height:76px !important;min-height:76px !important;max-height:76px !important;overflow:hidden !important}
+    #rightRail .download-card button{min-height:32px !important;height:32px !important}
+    #rightRail .town-address-card{height:140px !important;min-height:140px !important;max-height:140px !important;gap:3px !important;overflow:hidden !important}
+    #rightRail .town-address-form{gap:4px !important}
+    #rightRail .town-address-label{font-size:8.5px !important;line-height:1 !important}
+    #rightRail .town-address-input{height:34px !important;min-height:34px !important;padding:5px 9px !important;font-size:10px !important}
+    #rightRail .town-address-actions{gap:4px !important}
+    #rightRail .town-address-actions button{height:34px !important;min-height:34px !important;padding:4px 7px !important;font-size:9.5px !important;line-height:1 !important}
+    #rightRail .town-address-status:empty{display:none !important}
+    #rightRail .mapper-tutorial-launch-rail{min-height:32px !important;height:32px !important;font-size:11px !important}
+  }
+  @media (max-width:360px){
+    .timeline-resolution-card .timeline-interval-toggle{width:100% !important;min-width:0 !important}
+    .timeline-resolution-card .timeline-interval-toggle button{font-size:9px !important;padding:0 2px !important}
+    .depth-legend-disconnected{font-size:8px}
+    html body.mobile-optimized #mapTitleBadge.shorely-title-badge{gap:4px !important;padding:5px 7px !important;max-width:calc(100vw - 16px) !important}
+    html body.mobile-optimized #mapTitleBadge #mapTitleText{font-size:17px !important;letter-spacing:-.035em !important;white-space:nowrap !important}
+    html body.mobile-optimized #mapTitleBadge #mapTitlePartnerLogo{max-width:56px !important;max-height:26px !important}
+  }
+
+  html body #leftPanel #timelineIntervalCard,
+  html body.observed-mode #leftPanel #timelineIntervalCard,
+  html body.forecast-mode #leftPanel #timelineIntervalCard,
+  html.os-mac body #leftPanel #timelineIntervalCard,
+  html.os-windows body #leftPanel #timelineIntervalCard,
+  html.win-compact-ui body #leftPanel #timelineIntervalCard,
+  html.platform-mac-template body #leftPanel #timelineIntervalCard{
+    position:relative !important;
+    inset:auto !important;
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) !important;
+    grid-template-rows:minmax(18px, auto) 36px !important;
+    align-content:start !important;
+    justify-items:stretch !important;
+    gap:3px !important;
+    flex:0 0 auto !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    height:auto !important;
+    min-height:72px !important;
+    max-height:none !important;
+    margin:0 !important;
+    padding:6px 12px !important;
+    overflow:visible !important;
+    box-sizing:border-box !important;
+    transform:none !important;
+  }
+  html body #leftPanel #timelineIntervalCard .section-title{
+    min-width:0 !important;
+    min-height:18px !important;
+    height:auto !important;
+    margin:0 !important;
+    overflow:visible !important;
+  }
+  html body #leftPanel #timelineIntervalCard #timelineIntervalToggle{
+    align-self:end !important;
+    display:grid !important;
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    height:36px !important;
+    min-height:36px !important;
+    max-height:36px !important;
+    margin:0 !important;
+    padding:3px !important;
+    overflow:hidden !important;
+    box-sizing:border-box !important;
+  }
+  html body #leftPanel #timelineIntervalCard #timelineIntervalToggle > button,
+  html.os-mac body #leftPanel #timelineIntervalCard #timelineIntervalToggle > button,
+  html.os-windows body #leftPanel #timelineIntervalCard #timelineIntervalToggle > button,
+  html.win-compact-ui body #leftPanel #timelineIntervalCard #timelineIntervalToggle > button,
+  html.platform-mac-template body #leftPanel #timelineIntervalCard #timelineIntervalToggle > button{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    height:30px !important;
+    min-height:30px !important;
+    max-height:30px !important;
+    margin:0 !important;
+    padding:0 5px !important;
+    border-radius:999px !important;
+    font-size:11.5px !important;
+    line-height:1 !important;
+    box-sizing:border-box !important;
+    overflow:hidden !important;
+  }
+
+  #timelineFloodKey,
+  #shorelyMobileSliderKey{
+    display:none !important;
+  }
+  #timelineDock .timeline-day.gauge-inoperable{
+    background:#667085 !important;
+    background-image:none !important;
+    border-color:rgba(226,232,240,.42) !important;
+    color:#ffffff !important;
+    text-shadow:0 1px 2px rgba(0,0,0,.38) !important;
+  }
+  #timelineBubble .timeline-bubble-stage-gauge{
+    background:#667085 !important;
+    border-color:rgba(226,232,240,.42) !important;
+    color:#ffffff !important;
+  }
+
+  @media (max-width:900px),(max-height:560px){
+    html body.mobile-optimized #leftPanel #timelineIntervalCard,
+    html body.mobile-optimized.observed-mode #leftPanel #timelineIntervalCard,
+    html body.mobile-optimized.forecast-mode #leftPanel #timelineIntervalCard{
+      grid-template-rows:minmax(18px, auto) 32px !important;
+      flex-basis:auto !important;
+      height:auto !important;
+      min-height:70px !important;
+      max-height:none !important;
+      padding:7px 12px !important;
+    }
+    html body.mobile-optimized #leftPanel #timelineIntervalCard #timelineIntervalToggle{
+      height:32px !important;
+      min-height:32px !important;
+      max-height:32px !important;
+    }
+    html body.mobile-optimized #leftPanel #timelineIntervalCard #timelineIntervalToggle > button{
+      height:26px !important;
+      min-height:26px !important;
+      max-height:26px !important;
+      padding:0 3px !important;
+      font-size:9.5px !important;
+    }
+    html body.mobile-optimized #timelineDock .timeline-day.gauge-inoperable{
+      font-size:9px !important;
+      letter-spacing:0 !important;
+    }
+  }
+  @media (min-width:600px) and (max-height:560px){
+    html body.mobile-optimized #timelineDock .timeline-trackRow{position:relative !important;top:-11px !important}
+  }
+</style>
+<style id="floodmapper-2-observed-key-and-surface-fixes">
+  /* Keep the side controls visually flat against the map. */
+  html body #leftPanel > .panel-card,
+  html body #leftPanel > #legendDock,
+  html body #rightRail > .rail-card,
+  html body #mapperTutorialBtn{
+    box-shadow:none !important;
+    filter:none !important;
+  }
+  html body:not(.mobile-optimized) #timelineDock{
+    bottom:4px !important;
+  }
+
+  /* The slider contains only the compact four-category key. */
+  html body #timelineDock #timelineFloodKey{
+    display:flex !important;
+    color:#eaf0ff !important;
+    font-size:11.5px !important;
+    font-weight:900 !important;
+  }
+  html body #timelineDock #timelineFloodKey .timeline-key-item{
+    display:inline-flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:auto !important;
+    min-width:0 !important;
+    gap:5px !important;
+    color:#eaf0ff !important;
+    font-size:11.5px !important;
+    line-height:1 !important;
+    white-space:nowrap !important;
+  }
+  html body #timelineDock #timelineFloodKey .timeline-key-item::after{
+    content:none !important;
+    display:none !important;
+  }
+  html body #timelineDock #timelineFloodKey .timeline-key-label{
+    display:inline !important;
+    font-size:inherit !important;
+    line-height:inherit !important;
+  }
+  html body #timelineDock #timelineFloodKey .timeline-key-swatch{
+    width:10px !important;
+    min-width:10px !important;
+    height:10px !important;
+    min-height:10px !important;
+    flex:0 0 10px !important;
+  }
+  html body #shorelyMobileSliderKey{display:none !important}
+  html body #shorelyMobileSliderHelpBtn{display:none !important}
+
+  /* Larger, balanced depth key that still keeps green uncertainty in-line. */
+  html body #leftPanel #legendDock[data-legend-mode="depth"]{
+    height:64px !important;
+    min-height:64px !important;
+    max-height:64px !important;
+    padding:4px 10px 5px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .legend-header{
+    height:22px !important;
+    min-height:22px !important;
+    margin:0 0 3px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .legend-title{
+    font-size:14px !important;
+    line-height:20px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] #legendList{
+    display:grid !important;
+    grid-template-columns:minmax(120px,1fr) auto !important;
+    grid-template-rows:25px !important;
+    grid-auto-flow:row !important;
+    grid-auto-rows:25px !important;
+    align-items:end !important;
+    gap:7px !important;
+    width:100% !important;
+    height:25px !important;
+    min-height:25px !important;
+    padding:0 !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .depth-legend-scale{
+    display:block !important;
+    grid-column:1 !important;
+    grid-row:1 !important;
+    width:auto !important;
+    height:25px !important;
+    min-width:0 !important;
+    margin:0 !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .depth-legend-labels{
+    margin:0 2px 2px !important;
+    font-size:10px !important;
+    line-height:10px !important;
+    letter-spacing:.045em !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .depth-legend-gradient{
+    height:10px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .depth-legend-disconnected{
+    position:static !important;
+    display:grid !important;
+    grid-column:2 !important;
+    grid-row:1 !important;
+    grid-template-columns:12px auto 21px !important;
+    align-items:center !important;
+    gap:4px !important;
+    height:25px !important;
+    width:max-content !important;
+    max-width:none !important;
+    justify-self:end !important;
+    color:#ddfbe3 !important;
+    font-size:10.5px !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .depth-legend-disconnected-swatch{
+    width:12px !important;
+    height:12px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .depth-legend-help{
+    width:21px !important;
+    min-width:21px !important;
+    height:21px !important;
+    min-height:21px !important;
+    font-size:11px !important;
+  }
+
+  @media (max-width:900px),(max-height:560px){
+    html body.mobile-optimized #timelineDock #timelineFloodKey{
+      display:none !important;
+    }
+    html body.mobile-optimized #timelineDock #shorelyMobileSliderKey{
+      position:absolute !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      gap:clamp(5px,2vw,10px) !important;
+      overflow:hidden !important;
+      white-space:nowrap !important;
+    }
+    html body.mobile-optimized #timelineDock #shorelyMobileSliderKey .shorely-mobile-slider-key-item{
+      gap:3px !important;
+      font-size:clamp(8px,2.4vw,9.5px) !important;
+    }
+    html body.mobile-optimized #timelineDock #shorelyMobileSliderKey .shorely-mobile-slider-key-swatch{
+      width:8px !important;
+      min-width:8px !important;
+      height:8px !important;
+    }
+    html body.mobile-optimized #leftPanel #legendDock[data-legend-mode="depth"]{
+      height:64px !important;
+      min-height:64px !important;
+      max-height:64px !important;
+    }
+  }
+</style>
 </body>
 </html>
