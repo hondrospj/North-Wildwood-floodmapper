@@ -118,6 +118,52 @@ def classify_peak(peak: float | None) -> str:
     return "none"
 
 
+def hydraulic_phase_for_index(rows: list[dict], index: int) -> str:
+    """Classify an hourly point with the same peak/trough logic as the mapper."""
+    current = float(rows[index].get("navd88StageFt", math.nan))
+    previous = (
+        float(rows[index - 1].get("navd88StageFt", math.nan))
+        if index > 0
+        else math.nan
+    )
+    following = (
+        float(rows[index + 1].get("navd88StageFt", math.nan))
+        if index + 1 < len(rows)
+        else math.nan
+    )
+    before = current - previous if math.isfinite(previous) else math.nan
+    after = following - current if math.isfinite(following) else math.nan
+    epsilon = 0.025
+    if math.isfinite(before) and math.isfinite(after):
+        if before > epsilon and after <= epsilon:
+            return "slack"
+        if before >= -epsilon and after < -epsilon:
+            return "slack"
+        if before < -epsilon and after >= -epsilon:
+            return "slack"
+        if before <= epsilon and after > epsilon:
+            return "slack"
+    delta = (
+        after
+        if math.isfinite(after)
+        and (not math.isfinite(before) or abs(after) >= abs(before))
+        else before
+    )
+    if math.isfinite(delta) and delta > epsilon:
+        return "filling"
+    if math.isfinite(delta) and delta < -epsilon:
+        return "draining"
+    return "slack"
+
+
+def ensure_hourly_phases(day: dict) -> None:
+    rows = day.get("hours")
+    if not isinstance(rows, list):
+        return
+    for index, row in enumerate(rows):
+        row["hydraulicPhase"] = hydraulic_phase_for_index(rows, index)
+
+
 def jonas_transform(values: list[float]) -> tuple[float, float] | None:
     """Return a linear low-water-preserving scale to the documented NW crest."""
     finite = [value for value in values if math.isfinite(value)]
@@ -212,6 +258,7 @@ def build_compact_day(day: date, source: list[tuple[int, float]]) -> tuple[dict,
         "peakMLLW": round(hourly_peak - NAVD88_OFFSET_FROM_MLLW_FT, 2),
         "hours": hours,
     }
+    ensure_hourly_phases(hourly_day)
     return compact, hourly_day
 
 
@@ -235,6 +282,8 @@ def update_hourly_archive(path: Path, new_days: dict[str, dict], end_date: date)
     existing = load_json(path) or {}
     day_map = {str(row.get("date")): row for row in existing.get("days", []) if row.get("date")}
     day_map.update(new_days)
+    for day in day_map.values():
+        ensure_hourly_phases(day)
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     existing.update(
         {
