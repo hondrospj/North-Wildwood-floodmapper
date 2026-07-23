@@ -15866,7 +15866,7 @@ function setDatumHelpOpen(isOpen) {
         body: `
           <p>Bright blue is shallower modeled water. Blue darkens as depth increases.</p>
           <p><strong>Green areas</strong> are below the selected tide but are not connected by cell sides to a qualifying source block, or have not filled yet during the current 15-minute hydraulic phase.</p>
-          <p>The North Wildwood model conserves water volume across one-foot terrain cells, routes flow over measured topographic saddles and 7.5-ft bulkheads, and treats mapped storm grates as 48-in openings. Rising, slack, and draining tides can therefore show different depths at the same gauge level.</p>
+          <p>The North Wildwood model conserves water volume across one-foot terrain cells and routes flow over measured topographic saddles. The mapped bulkhead is stitched into the DEM as a five-cell-wide, 7.5-ft NAVD88 wall before the simulation runs. Storm-drain exchange is currently disabled. Rising, slack, and draining tides can therefore show different depths at the same gauge level.</p>
         `
       },
       stageLegend: {
@@ -22121,7 +22121,7 @@ function startPlayback() {
       // A one-foot line or point is narrower than one screen pixel at ordinary
       // map zooms. Read a sixteen-foot neighbourhood and snap only when the click
       // is near a supplied hydraulic feature, keeping ordinary terrain clicks
-      // exact while making the bulkhead and grate cells realistically usable.
+      // exact while making the narrow bulkhead cells realistically usable.
       const featureRadiusPixels = 16;
       const x0 = Math.max(0, x - featureRadiusPixels);
       const y0 = Math.max(0, y - featureRadiusPixels);
@@ -22225,7 +22225,7 @@ function startPlayback() {
           "<dt>Hydraulic feature</dt><dd>" +
           (sample.stormGrateFlag
             ? "48-in storm grate"
-            : (sample.hardStructureFlag ? "7.5-ft bulkhead" : "Terrain")) +
+            : (sample.hardStructureFlag ? "7.5-ft five-cell DEM bulkhead" : "Terrain")) +
           (Number.isFinite(sample.featureDistanceFt) && sample.featureDistanceFt > 0.05
             ? " (nearest supplied feature, " + sample.featureDistanceFt.toFixed(1) + " ft from click)"
             : "") +
@@ -31429,10 +31429,10 @@ TOWN_CONFIG = {
     "cacheVersions": {
       "depth": "20260723-hydraulic-v2",
       "dynamic": "20260723-hydraulic-v2",
-      "hydraulic": "20260723-hydraulic-v7"
+      "hydraulic": "20260723-hydraulic-v8"
     },
-    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif.png?v=20260723-hydraulic-v7",
-    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v7",
+    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif.png?v=20260723-hydraulic-v8",
+    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v8",
     "depthRoots": [
       "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/"
     ],
