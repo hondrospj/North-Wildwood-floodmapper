@@ -30,7 +30,7 @@ from pathlib import Path
 import numpy as np
 from osgeo import gdal
 from PIL import Image
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, label as ndimage_label
 
 
 gdal.UseExceptions()
@@ -171,7 +171,7 @@ class HydraulicSolver:
         self.source = zones["source_cells"] > 0
         if np.any(zones["grate_cells"]):
             raise RuntimeError(
-                "Storm drains must be disabled for the five-cell bulkhead run"
+                "Storm drains must be disabled for the 21-cell bulkhead run"
             )
         self.histogram = zones["histogram"].astype(np.float64)
         elevation_ft = np.arange(HIST_MIN10, HIST_MAX10 + 1, dtype=np.float64) / 10.0
@@ -454,6 +454,7 @@ def simulate(
         for phase in ("filling", "slack", "draining")
     }
     diagnostics: dict[str, list[dict]] = {"filling": [], "draining": []}
+    draining_generated = np.zeros(len(STAGES_FT), dtype=bool)
 
     if reusable_static_state is not None:
         phases.update(load_reusable_static_phases(reusable_static_state, stride))
@@ -472,17 +473,16 @@ def simulate(
             if index % 10 == 0:
                 print(f"Filling simulation: {stage:4.1f} ft NAVD88")
 
-    # A single 14-to-0 ft descent gives ordinary low tides an impossible
-    # 14-foot storm memory. In protected control volumes that can preserve the
-    # initial 14-foot surface for more than a day and produces a stippled field
-    # of false deep water. Build each one-foot target band from a local
-    # preceding crest 1.6-2.5 feet higher instead. This represents a reusable
-    # roughly four-to-six-hour falling-tide history while retaining the same
-    # 15-minute finite-volume physics and avoiding an extra dimension in hourly
-    # assets.
-    for band_start_index in range(0, 120, 10):
-        peak_index = band_start_index + 25
-        peak_stage = float(peak_index) / 10.0
+    # A single 14-to-0 ft descent gives an ordinary low tide an impossible
+    # extreme-storm memory. Even the former one-foot target bands inherited as
+    # much as 2.5 ft of crest water: for example, the 3.1-ft draining frame was
+    # descended from 5.5 ft. Use half-foot target bands and initialize each
+    # from a crest exactly 1.0 ft above the band floor. A selected stage then
+    # carries only 0.6-1.0 ft (90-150 minutes) of falling-tide history.
+    for band_start_index in range(0, len(STAGES_FT) - 1, 5):
+        band_end_index = min(band_start_index + 4, len(STAGES_FT) - 2)
+        peak_index = min(band_start_index + 10, len(STAGES_FT) - 1)
+        peak_stage = float(STAGES_FT[peak_index])
         storage, surface = solver.equilibrium(peak_stage)
         for index in range(peak_index - 1, band_start_index - 1, -1):
             stage = float(STAGES_FT[index])
@@ -494,29 +494,22 @@ def simulate(
                     **diagnostic,
                 }
             )
-            if index <= band_start_index + 9:
+            if index <= band_end_index:
                 phases["draining"][index] = solver.encode_surface(storage, surface)
+                draining_generated[index] = True
         print(
             f"Draining simulation: {band_start_index / 10:4.1f}-"
-            f"{(band_start_index + 9) / 10:4.1f} ft NAVD88 "
+            f"{band_end_index / 10:4.1f} ft NAVD88 "
             f"from {peak_stage:4.1f} ft crest"
         )
 
-    # The upper two bands share the model maximum as their preceding crest.
+    # The model maximum is equilibrium because no higher crest is represented.
     storage, surface = solver.equilibrium(float(STAGES_FT[-1]))
     phases["draining"][-1] = solver.encode_surface(storage, surface)
-    for index in range(len(STAGES_FT) - 2, 119, -1):
-        stage = float(STAGES_FT[index])
-        storage, surface, diagnostic = solver.advance(storage, surface, stage)
-        phases["draining"][index] = solver.encode_surface(storage, surface)
-        diagnostics["draining"].append(
-            {
-                "stageNavd88Ft": stage,
-                "historyPeakNavd88Ft": float(STAGES_FT[-1]),
-                **diagnostic,
-            }
-        )
-    print("Draining simulation: 12.0-14.0 ft NAVD88 from 14.0 ft crest")
+    draining_generated[-1] = True
+    if not np.all(draining_generated):
+        missing = np.flatnonzero(~draining_generated).tolist()
+        raise RuntimeError(f"Draining stages were not generated: {missing}")
 
     summary = {
         "maximumInternalConservationResidualFt3": max(
@@ -531,8 +524,8 @@ def simulate(
             MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT
         ),
         "drainingHistory": (
-            "one-foot target bands initialized from a local crest 1.6-2.5 ft "
-            "above the selected stage; 12-14 ft bands share the 14 ft crest"
+            "half-foot target bands initialized from a crest 1.0 ft above "
+            "the band floor; each selected stage inherits 0.6-1.0 ft of fall"
         ),
     }
     return phases, summary
@@ -540,7 +533,7 @@ def simulate(
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v2",
+        "schema": "north-wildwood-hydraulic-states-binary-v3",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": 0.0,
         "stageMaxNavd88Ft": 14.0,
@@ -560,8 +553,8 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             "slack": "terrain-connected equilibrium at the selected tide stage",
             "draining": (
                 "0.1 ft fall every 15 minutes from a local preceding crest "
-                "1.6-2.5 ft above each one-foot target band; 12-14 ft states "
-                "share the 14 ft crest"
+                "1.0 ft above each half-foot target-band floor; 0.6-1.0 ft "
+                "of inherited falling-tide history at the selected stage"
             ),
         },
         "physics": {
@@ -582,7 +575,7 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             ),
             "stormDrains": "disabled; no orifice exchange and no connectivity seeds",
             "bulkheadElevationNavd88Ft": 7.5,
-            "bulkheadNominalWidthCells": 5,
+            "bulkheadNominalWidthCells": 21,
             "bulkheadTerrainTreatment": (
                 "stitched into the one-foot DEM with GDAL before graph construction"
             ),
@@ -620,6 +613,60 @@ def write_state_asset(
     print(f"Hydraulic states: {len(raw):,} binary bytes -> {output_path.stat().st_size:,} gzip bytes")
 
 
+FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
+    (
+        (0, 1, 0),
+        (1, 1, 1),
+        (0, 1, 0),
+    ),
+    dtype=np.uint8,
+)
+
+
+def pool_source_to_render_grid(source: np.ndarray) -> np.ndarray:
+    """Preserve any one-foot source cell inside each five-foot render pixel."""
+    if source.shape != (HEIGHT, WIDTH):
+        raise ValueError(f"Unexpected source raster shape {source.shape}")
+    if HEIGHT % RENDER_STRIDE or WIDTH % RENDER_STRIDE:
+        raise ValueError("One-foot source raster is not divisible by render stride")
+    pooled = np.zeros(
+        (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE),
+        dtype=bool,
+    )
+    for y_offset in range(RENDER_STRIDE):
+        for x_offset in range(RENDER_STRIDE):
+            pooled |= (
+                source[
+                    y_offset::RENDER_STRIDE,
+                    x_offset::RENDER_STRIDE,
+                ]
+                != 0
+            )
+    return pooled
+
+
+def retain_source_connected_water(
+    flooded: np.ndarray,
+    source: np.ndarray,
+) -> tuple[np.ndarray, int, int, int]:
+    """Keep only side-connected blue components that touch a qualified source."""
+    labels, component_count = ndimage_label(
+        flooded,
+        structure=FOUR_NEIGHBOUR_STRUCTURE,
+    )
+    if component_count == 0:
+        return flooded, 0, 0, 0
+    seeded_labels = np.unique(labels[flooded & source])
+    seeded_labels = seeded_labels[seeded_labels > 0]
+    component_sizes = np.bincount(labels.ravel(), minlength=component_count + 1)
+    seeded_labels = seeded_labels[component_sizes[seeded_labels] >= 2]
+    keep = np.zeros(component_count + 1, dtype=bool)
+    keep[seeded_labels] = True
+    connected = flooded & keep[labels]
+    removed = int(np.count_nonzero(flooded & ~connected))
+    return connected, int(component_count), int(seeded_labels.size), removed
+
+
 def render_assets(
     graph_dir: Path,
     dem_path: Path,
@@ -636,6 +683,14 @@ def render_assets(
     zone = np.memmap(
         graph_dir / "zone_id.raw", dtype="<i4", mode="r", shape=(HEIGHT, WIDTH)
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    source_raw = np.memmap(
+        graph_dir / "source_flag.raw",
+        dtype=np.uint8,
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+    source = pool_source_to_render_grid(source_raw)
+    del source_raw
 
     dem_ds = gdal.Open(str(dem_path))
     projection = dem_ds.GetProjection()
@@ -674,6 +729,9 @@ def render_assets(
         depth_dir.mkdir(parents=True, exist_ok=True)
         stage_dir.mkdir(parents=True, exist_ok=True)
         phase_bytes = 0
+        disconnected_pixels_removed = 0
+        maximum_unfiltered_components = 0
+        maximum_retained_components = 0
         for stage_index, stage in enumerate(STAGES_FT):
             encoded_surface = phases[phase][stage_index]
             surface_centift = encoded_surface[zone_lookup]
@@ -701,6 +759,42 @@ def render_assets(
                 wet_zone = valid & (wet_weight >= 0.45)
             depth = local_surface - ground
             flooded = valid & wet_zone & (depth > 0.005)
+            (
+                flooded,
+                unfiltered_components,
+                retained_components,
+                removed_pixels,
+            ) = retain_source_connected_water(flooded, source)
+            disconnected_pixels_removed += removed_pixels
+            maximum_unfiltered_components = max(
+                maximum_unfiltered_components,
+                unfiltered_components,
+            )
+            maximum_retained_components = max(
+                maximum_retained_components,
+                retained_components,
+            )
+            if np.any(flooded):
+                # Smooth only the depth values inside the immutable connected
+                # water mask. This removes 5-ft palette stippling caused by
+                # one-cell lidar noise without creating a single new wet pixel.
+                wet_weight = gaussian_filter(
+                    flooded.astype(np.float32),
+                    sigma=2.0,
+                    mode="nearest",
+                )
+                filtered_depth = gaussian_filter(
+                    np.where(flooded, np.maximum(depth, 0.0), 0.0),
+                    sigma=2.0,
+                    mode="nearest",
+                )
+                smoothed_depth = np.divide(
+                    filtered_depth,
+                    np.maximum(wet_weight, 1e-6),
+                    out=np.zeros_like(filtered_depth),
+                    where=wet_weight > 1e-6,
+                )
+                depth = np.where(flooded, smoothed_depth, depth)
             below_stage = valid & (ground <= stage + 0.0001)
             green = below_stage & ~flooded
 
@@ -735,7 +829,14 @@ def render_assets(
                 phase_bytes += path.stat().st_size
             if stage_index % 20 == 0:
                 print(f"Rendered {phase:8s} {stage:4.1f} ft")
-        counts[phase] = {"stageCount": len(STAGES_FT), "pngBytes": phase_bytes}
+        counts[phase] = {
+            "stageCount": len(STAGES_FT),
+            "pngBytes": phase_bytes,
+            "connectivity": "four-neighbour render components touching a qualified source",
+            "disconnectedBluePixelsRemoved": disconnected_pixels_removed,
+            "maximumUnfilteredComponents": maximum_unfiltered_components,
+            "maximumRetainedSourceComponents": maximum_retained_components,
+        }
 
     world_path = output_root / "NorthWildwoodOverlay5ft.pgw"
     center_x = render_transform[0] + render_transform[1] / 2
@@ -817,7 +918,7 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
             "hydraulic_zone_id_plus_one",
             "first_equilibrium_connection_stage_navd88_ft",
             "qualified_source_block_flag",
-            "five_cell_bulkhead_7_5ft_navd88_flag",
+            "twenty_one_cell_bulkhead_7_5ft_navd88_flag",
             "storm_drain_disabled_flag",
         )
         for band_number, description in enumerate(descriptions, start=1):
@@ -989,7 +1090,7 @@ def main() -> None:
         build_query_cog(graph_dir, args.dem.resolve(), query_path)
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v1",
+        "schema": "north-wildwood-hydraulic-assets-v2",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "graph": graph_manifest,
         "render": render_manifest,

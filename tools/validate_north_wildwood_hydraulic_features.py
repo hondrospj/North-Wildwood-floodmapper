@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-fast checks for the five-cell DEM bulkhead and finite propagation."""
+"""Fail-fast checks for the 21-cell DEM bulkhead and finite propagation."""
 
 from __future__ import annotations
 
@@ -72,8 +72,8 @@ def main() -> None:
         ).sum(dtype=np.uint64)
     )
     expected_hard_pixels = int(manifest["bulkheadPixelCount"])
-    if int(manifest.get("bulkheadNominalWidthCells", 0)) != 5:
-        raise AssertionError("Graph does not declare a five-cell bulkhead")
+    if int(manifest.get("bulkheadNominalWidthCells", 0)) != 21:
+        raise AssertionError("Graph does not declare a 21-cell bulkhead")
 
     hard_zone_ids: set[int] = set()
     grate_zone_count = 0
@@ -101,7 +101,7 @@ def main() -> None:
         raise AssertionError(f"Expected {zone_count} zones, read {row_count}")
     if hard_pixels != expected_hard_pixels:
         raise AssertionError(
-            f"Expected {expected_hard_pixels} five-cell bulkhead pixels, "
+            f"Expected {expected_hard_pixels} 21-cell bulkhead pixels, "
             f"found {hard_pixels}"
         )
     if grate_pixels != 0 or grate_zone_count != 0:
@@ -138,20 +138,20 @@ def main() -> None:
             f"Expected 11,200 centerline pixels, found {centerline_pixels}"
         )
 
-    # The GDAL proximity expansion is defined as the centerline plus two cell
-    # centers on every side. Check all four cardinal directions explicitly so
-    # no local break can collapse the nominal five-cell wall.
-    for dy, dx in (
-        (0, 0),
-        (0, -1),
-        (0, 1),
-        (0, -2),
-        (0, 2),
-        (-1, 0),
-        (1, 0),
-        (-2, 0),
-        (2, 0),
-    ):
+    # The GDAL proximity expansion is defined as the centerline plus ten cell
+    # centers on every side. Check intermediate and outer cardinal offsets so
+    # no local break can collapse the nominal 21-cell wall.
+    cardinal_offsets = [(0, 0)]
+    for distance in (1, 5, 10):
+        cardinal_offsets.extend(
+            (
+                (0, -distance),
+                (0, distance),
+                (-distance, 0),
+                (distance, 0),
+            )
+        )
+    for dy, dx in cardinal_offsets:
         source_y0 = max(0, -dy)
         source_y1 = min(height, height - dy)
         source_x0 = max(0, -dx)
@@ -165,7 +165,7 @@ def main() -> None:
             ]
             if np.any(thin & (expanded == 0)):
                 raise AssertionError(
-                    "Bulkhead is not two cells thick on every side of its "
+                    "Bulkhead is not ten cells thick on every side of its "
                     f"centerline at offset ({dx}, {dy})"
                 )
 
@@ -199,8 +199,8 @@ def main() -> None:
         raise AssertionError("State package does not declare disabled storm drains")
     if float(physics.get("bulkheadElevationNavd88Ft", math.nan)) != 7.5:
         raise AssertionError("State package does not declare the 7.5-ft bulkhead")
-    if int(physics.get("bulkheadNominalWidthCells", 0)) != 5:
-        raise AssertionError("State package does not declare a five-cell bulkhead")
+    if int(physics.get("bulkheadNominalWidthCells", 0)) != 21:
+        raise AssertionError("State package does not declare a 21-cell bulkhead")
     expected_speed = math.sqrt(2.0) * 25.0 / 60.0
     expected_travel = expected_speed * 15.0 * 60.0
     if not math.isclose(
@@ -229,7 +229,7 @@ def main() -> None:
                 "zoneCount": zone_count,
                 "bulkheadPixels": hard_pixels,
                 "bulkheadCenterlinePixels": centerline_pixels,
-                "bulkheadNominalWidthCells": 5,
+                "bulkheadNominalWidthCells": 21,
                 "bulkheadZones": len(hard_zone_ids),
                 "bulkheadEdgeRecords": hard_edge_records,
                 "bulkheadSharedEdgeWidthFt": hard_edge_width_ft,
