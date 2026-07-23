@@ -1,0 +1,718 @@
+#!/usr/bin/env python3
+"""Simulate and render North Wildwood's phase-aware one-foot hydraulic model.
+
+The C++ graph builder preserves the one-foot DEM hypsometry and counts every
+shared one-foot cell side along each flow cross section. This solver advances
+the resulting finite-volume graph in stable 60-second substeps inside each
+15-minute tide increment. Terrain connections use a submerged broad-crested
+weir relation; each user-drawn storm grate is a 48-inch circular orifice.
+
+Three reusable lookup families are produced for every 0.1-foot stage from
+0–14 ft NAVD88: filling, slack-water equilibrium, and draining. Forecast and
+observed jobs only select a phase/stage asset; they never rerun this simulation.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import gzip
+import json
+import math
+import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
+
+import numpy as np
+from osgeo import gdal
+from PIL import Image
+from scipy.ndimage import gaussian_filter
+
+
+gdal.UseExceptions()
+
+WIDTH = 10_930
+HEIGHT = 14_120
+RENDER_STRIDE = 5
+STAGES_FT = np.round(np.arange(0.0, 14.0 + 0.05, 0.1), 1)
+DRY_SENTINEL = np.int16(-32768)
+HIST_MIN10 = -100
+HIST_MAX10 = 140
+HIST_COUNT = HIST_MAX10 - HIST_MIN10 + 1
+MODEL_STEP_SECONDS = 60
+TIDE_STEP_SECONDS = 15 * 60
+BROAD_CRESTED_WEIR_CFS = 3.10
+ORIFICE_DISCHARGE_COEFFICIENT = 0.62
+GRAVITY_FT_S2 = 32.174
+GRATE_DIAMETER_FT = 4.0
+GRATE_AREA_FT2 = math.pi * (GRATE_DIAMETER_FT / 2.0) ** 2
+MINOR_NAVD88_FT = 3.25
+MODERATE_NAVD88_FT = 4.25
+MAJOR_NAVD88_FT = 5.25
+
+DEPTH_BREAKS_FT = np.asarray([0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00])
+DEPTH_COLORS = [
+    "#7DF9FF",
+    "#5DE7FF",
+    "#38D3FF",
+    "#1BB7F5",
+    "#168CEB",
+    "#156BE0",
+    "#1853C6",
+    "#173EA8",
+    "#132F84",
+    "#0B1E5B",
+    "#050E33",
+]
+DISCONNECTED_COLOR = "#63D471"
+STAGE_COLORS = ["#F4A742", "#E74C3C", "#7D3C98"]
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--graph", type=Path, required=True)
+    parser.add_argument("--dem", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--skip-query-cog", action="store_true")
+    parser.add_argument("--skip-render", action="store_true")
+    return parser.parse_args()
+
+
+def hex_rgb(value: str) -> tuple[int, int, int]:
+    value = value.lstrip("#")
+    return tuple(int(value[index : index + 2], 16) for index in (0, 2, 4))
+
+
+def palette(colors: list[str], green_index: int) -> tuple[list[int], bytes]:
+    values = [0] * (256 * 3)
+    alpha = bytearray([0] * 256)
+    for index, color in enumerate(colors, start=1):
+        values[index * 3 : index * 3 + 3] = hex_rgb(color)
+        alpha[index] = 225
+    values[green_index * 3 : green_index * 3 + 3] = hex_rgb(DISCONNECTED_COLOR)
+    alpha[green_index] = 205
+    return values, bytes(alpha)
+
+
+def stage_code(stage_ft: float) -> str:
+    sign = "m" if stage_ft < 0 else "p"
+    return f"{sign}{round(abs(stage_ft) * 10):03d}"
+
+
+def load_zones(path: Path) -> dict[str, np.ndarray]:
+    connection: list[int] = []
+    cell_count: list[int] = []
+    source_cells: list[int] = []
+    grate_cells: list[int] = []
+    hard_cells: list[int] = []
+    histograms: list[np.ndarray] = []
+    with path.open(newline="", encoding="utf-8") as stream:
+        reader = csv.DictReader(stream)
+        for expected_id, row in enumerate(reader):
+            if int(row["zone_id"]) != expected_id:
+                raise RuntimeError("Zone IDs are not contiguous")
+            connection.append(int(row["connection10"]))
+            cell_count.append(int(row["cell_count"]))
+            source_cells.append(int(row["source_cells"]))
+            grate_cells.append(int(row["grate_cells"]))
+            hard_cells.append(int(row["hard_cells"]))
+            histogram = np.fromstring(row["hist_counts"], sep=":", dtype=np.int64)
+            if histogram.size != HIST_COUNT:
+                raise RuntimeError(f"Zone {expected_id} has {histogram.size} histogram bins")
+            histograms.append(histogram)
+    return {
+        "connection10": np.asarray(connection, dtype=np.int16),
+        "cell_count": np.asarray(cell_count, dtype=np.int64),
+        "source_cells": np.asarray(source_cells, dtype=np.int64),
+        "grate_cells": np.asarray(grate_cells, dtype=np.int64),
+        "hard_cells": np.asarray(hard_cells, dtype=np.int64),
+        "histogram": np.stack(histograms),
+    }
+
+
+def load_edges(path: Path) -> dict[str, np.ndarray]:
+    data = np.loadtxt(path, delimiter=",", skiprows=1, dtype=np.float64)
+    return {
+        "a": data[:, 0].astype(np.int32),
+        "b": data[:, 1].astype(np.int32),
+        "crest_ft": data[:, 2].astype(np.float64) / 10.0,
+        "width_ft": data[:, 3].astype(np.float64),
+    }
+
+
+class HydraulicSolver:
+    def __init__(self, zones: dict[str, np.ndarray], edges: dict[str, np.ndarray]):
+        self.zone_count = len(zones["connection10"])
+        self.connection_ft = zones["connection10"].astype(np.float64) / 10.0
+        self.source = zones["source_cells"] > 0
+        self.grate_count = zones["grate_cells"].astype(np.float64)
+        self.histogram = zones["histogram"].astype(np.float64)
+        elevation_ft = np.arange(HIST_MIN10, HIST_MAX10 + 1, dtype=np.float64) / 10.0
+        self.cumulative_count = np.cumsum(self.histogram, axis=1)
+        self.cumulative_elevation = np.cumsum(self.histogram * elevation_ft[None, :], axis=1)
+        occupied = self.histogram > 0
+        self.minimum_surface = elevation_ft[np.argmax(occupied, axis=1)]
+        self.maximum_surface = np.full(self.zone_count, 14.0, dtype=np.float64)
+        self.edges = edges
+
+    def storage(self, surface: np.ndarray) -> np.ndarray:
+        bin_index = np.clip(
+            np.floor(surface * 10.0 + 1e-8).astype(np.int32) - HIST_MIN10,
+            0,
+            HIST_COUNT - 1,
+        )
+        rows = np.arange(self.zone_count)
+        count = self.cumulative_count[rows, bin_index]
+        elevation_sum = self.cumulative_elevation[rows, bin_index]
+        return np.maximum(0.0, count * surface - elevation_sum)
+
+    def surface_from_storage(
+        self,
+        storage: np.ndarray,
+        previous_surface: np.ndarray | None = None,
+    ) -> np.ndarray:
+        surface = (
+            np.asarray(previous_surface, dtype=np.float64).copy()
+            if previous_surface is not None
+            else self.minimum_surface.copy()
+        )
+        dry = storage <= 1e-7
+        surface[dry] = self.minimum_surface[dry]
+        rows = np.arange(self.zone_count)
+        for _ in range(7):
+            bin_index = np.clip(
+                np.floor(surface * 10.0 + 1e-8).astype(np.int32) - HIST_MIN10,
+                0,
+                HIST_COUNT - 1,
+            )
+            area = self.cumulative_count[rows, bin_index]
+            elevation_sum = self.cumulative_elevation[rows, bin_index]
+            calculated = np.maximum(0.0, area * surface - elevation_sum)
+            correction = np.divide(
+                storage - calculated,
+                np.maximum(area, 1.0),
+                out=np.zeros_like(storage),
+                where=area > 0,
+            )
+            surface = np.clip(surface + correction, self.minimum_surface, self.maximum_surface)
+        surface[dry] = self.minimum_surface[dry]
+        return surface
+
+    def equilibrium(self, sea_stage_ft: float) -> tuple[np.ndarray, np.ndarray]:
+        connected = self.connection_ft <= sea_stage_ft + 1e-9
+        surface = self.minimum_surface.copy()
+        surface[connected] = sea_stage_ft
+        storage = self.storage(surface)
+        storage[~connected] = 0.0
+        return storage, surface
+
+    def advance(
+        self,
+        storage: np.ndarray,
+        surface: np.ndarray,
+        sea_stage_ft: float,
+    ) -> tuple[np.ndarray, np.ndarray, dict[str, float]]:
+        edge_a = self.edges["a"]
+        edge_b = self.edges["b"]
+        crest = self.edges["crest_ft"]
+        width = self.edges["width_ft"]
+        source_exchange = 0.0
+        grate_exchange = 0.0
+        internal_residual = 0.0
+
+        for _ in range(TIDE_STEP_SECONDS // MODEL_STEP_SECONDS):
+            surface_a = surface[edge_a]
+            surface_b = surface[edge_b]
+            delta = surface_a - surface_b
+            upstream = np.maximum(surface_a, surface_b)
+            downstream = np.minimum(surface_a, surface_b)
+            head = np.maximum(0.0, upstream - crest)
+            tail = np.maximum(0.0, downstream - crest)
+            ratio = np.divide(tail, head, out=np.zeros_like(head), where=head > 1e-9)
+            submergence = np.sqrt(np.maximum(0.0, 1.0 - np.minimum(1.0, ratio) ** 1.5))
+            discharge = BROAD_CRESTED_WEIR_CFS * width * head**1.5 * submergence
+            transfer = np.sign(delta) * discharge * MODEL_STEP_SECONDS
+
+            donor = np.where(transfer >= 0, edge_a, edge_b)
+            outgoing = np.bincount(
+                donor,
+                weights=np.abs(transfer),
+                minlength=self.zone_count,
+            )
+            limiter = np.ones(self.zone_count, dtype=np.float64)
+            normal = ~self.source
+            limiter[normal] = np.minimum(
+                1.0,
+                np.divide(
+                    storage[normal],
+                    outgoing[normal],
+                    out=np.ones_like(storage[normal]),
+                    where=outgoing[normal] > 0,
+                ),
+            )
+            transfer *= limiter[donor]
+            internal_net = (
+                np.bincount(edge_b, weights=transfer, minlength=self.zone_count)
+                - np.bincount(edge_a, weights=transfer, minlength=self.zone_count)
+            )
+            internal_residual = max(internal_residual, abs(float(np.sum(internal_net))))
+            storage += internal_net
+            storage = np.maximum(storage, 0.0)
+
+            grate_delta = sea_stage_ft - surface
+            grate_discharge = (
+                ORIFICE_DISCHARGE_COEFFICIENT
+                * self.grate_count
+                * GRATE_AREA_FT2
+                * np.sqrt(2.0 * GRAVITY_FT_S2 * np.abs(grate_delta))
+            )
+            grate_transfer = np.sign(grate_delta) * grate_discharge * MODEL_STEP_SECONDS
+            draining = grate_transfer < 0
+            grate_transfer[draining] = -np.minimum(-grate_transfer[draining], storage[draining])
+            storage += grate_transfer
+            grate_exchange += float(np.sum(grate_transfer))
+
+            surface = self.surface_from_storage(storage, surface)
+            fixed_volume = self.storage(np.full(self.zone_count, sea_stage_ft))
+            source_exchange += float(np.sum(fixed_volume[self.source] - storage[self.source]))
+            storage[self.source] = fixed_volume[self.source]
+            surface[self.source] = sea_stage_ft
+
+        return storage, surface, {
+            "sourceExchangeFt3": source_exchange,
+            "grateExchangeFt3": grate_exchange,
+            "maxInternalConservationResidualFt3": internal_residual,
+        }
+
+    def encode_surface(self, storage: np.ndarray, surface: np.ndarray) -> np.ndarray:
+        encoded = np.full(self.zone_count + 1, DRY_SENTINEL, dtype="<i2")
+        wet = storage > 0.01
+        centift = np.clip(np.rint(surface[wet] * 100.0), -32767, 32767).astype("<i2")
+        encoded[np.flatnonzero(wet) + 1] = centift
+        return encoded
+
+
+def simulate(solver: HydraulicSolver) -> tuple[dict[str, np.ndarray], dict]:
+    stride = solver.zone_count + 1
+    phases = {
+        phase: np.full((len(STAGES_FT), stride), DRY_SENTINEL, dtype="<i2")
+        for phase in ("filling", "slack", "draining")
+    }
+    diagnostics: dict[str, list[dict]] = {"filling": [], "draining": []}
+
+    for index, stage in enumerate(STAGES_FT):
+        storage, surface = solver.equilibrium(float(stage))
+        phases["slack"][index] = solver.encode_surface(storage, surface)
+
+    storage, surface = solver.equilibrium(float(STAGES_FT[0]))
+    phases["filling"][0] = solver.encode_surface(storage, surface)
+    for index, stage in enumerate(STAGES_FT[1:], start=1):
+        storage, surface, diagnostic = solver.advance(storage, surface, float(stage))
+        phases["filling"][index] = solver.encode_surface(storage, surface)
+        diagnostics["filling"].append({"stageNavd88Ft": float(stage), **diagnostic})
+        if index % 10 == 0:
+            print(f"Filling simulation: {stage:4.1f} ft NAVD88")
+
+    storage, surface = solver.equilibrium(float(STAGES_FT[-1]))
+    phases["draining"][-1] = solver.encode_surface(storage, surface)
+    for index in range(len(STAGES_FT) - 2, -1, -1):
+        stage = float(STAGES_FT[index])
+        storage, surface, diagnostic = solver.advance(storage, surface, stage)
+        phases["draining"][index] = solver.encode_surface(storage, surface)
+        diagnostics["draining"].append({"stageNavd88Ft": stage, **diagnostic})
+        if index % 10 == 0:
+            print(f"Draining simulation: {stage:4.1f} ft NAVD88")
+
+    summary = {
+        "maximumInternalConservationResidualFt3": max(
+            row["maxInternalConservationResidualFt3"]
+            for rows in diagnostics.values()
+            for row in rows
+        ),
+        "diagnosticStepCount": sum(len(rows) for rows in diagnostics.values()),
+    }
+    return phases, summary
+
+
+def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
+    return {
+        "schema": "north-wildwood-hydraulic-states-binary-v2",
+        "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "stageMinNavd88Ft": 0.0,
+        "stageMaxNavd88Ft": 14.0,
+        "stageStepFt": 0.1,
+        "stageCount": len(STAGES_FT),
+        "zoneCount": graph_manifest["zoneCount"],
+        "zoneStride": graph_manifest["zoneCount"] + 1,
+        "encoding": "gzip container: NWHYD2 magic, little-endian uint32 JSON header length, JSON header, then phase Uint8 arrays",
+        "surfaceUnits": "decifeet NAVD88",
+        "surfaceOffsetDecifeet": -100,
+        "drySentinel": 255,
+        "phaseOrder": ["filling", "slack", "draining"],
+        "forcing": {
+            "timeStepMinutes": 15,
+            "substepSeconds": MODEL_STEP_SECONDS,
+            "filling": "0.1 ft rise every 15 minutes",
+            "slack": "terrain-connected equilibrium at the selected tide stage",
+            "draining": "0.1 ft fall every 15 minutes",
+        },
+        "physics": {
+            "terrainFlow": "submerged broad-crested weir",
+            "weirCoefficientCfs": BROAD_CRESTED_WEIR_CFS,
+            "crossSection": "one foot of width per shared one-foot cell side, grouped by crest elevation",
+            "grates": "48-inch circular orifice",
+            "orificeDischargeCoefficient": ORIFICE_DISCHARGE_COEFFICIENT,
+            "bulkheadElevationNavd88Ft": 7.5,
+            "storage": "one-foot DEM hypsometry integrated exactly inside each finite-volume node",
+        },
+        "diagnostics": diagnostics,
+    }
+
+
+def write_state_asset(
+    output_path: Path,
+    phases: dict[str, np.ndarray],
+    graph_manifest: dict,
+    diagnostics: dict,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata = state_metadata(graph_manifest, diagnostics)
+    encoded_phases: list[bytes] = []
+    phase_offsets: dict[str, dict[str, int]] = {}
+    cursor = 0
+    for phase in metadata["phaseOrder"]:
+        centift = phases[phase].astype(np.int32, copy=False)
+        dry = centift == int(DRY_SENTINEL)
+        decifeet = np.rint(centift / 10.0).astype(np.int32)
+        encoded = np.clip(decifeet - metadata["surfaceOffsetDecifeet"], 0, 254).astype(np.uint8)
+        encoded[dry] = metadata["drySentinel"]
+        raw_phase = encoded.tobytes()
+        encoded_phases.append(raw_phase)
+        phase_offsets[phase] = {"offset": cursor, "length": len(raw_phase)}
+        cursor += len(raw_phase)
+    metadata["phaseArrays"] = phase_offsets
+    header = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+    raw = b"NWHYD2\x00\x00" + len(header).to_bytes(4, "little") + header + b"".join(encoded_phases)
+    output_path.write_bytes(gzip.compress(raw, compresslevel=9, mtime=0))
+    print(f"Hydraulic states: {len(raw):,} binary bytes -> {output_path.stat().st_size:,} gzip bytes")
+
+
+def render_assets(
+    graph_dir: Path,
+    dem_path: Path,
+    output_root: Path,
+    phases: dict[str, np.ndarray],
+) -> dict:
+    elevation10 = np.memmap(
+        graph_dir / "elevation10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    connection10 = np.memmap(
+        graph_dir / "connection10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    zone = np.memmap(
+        graph_dir / "zone_id.raw", dtype="<i4", mode="r", shape=(HEIGHT, WIDTH)
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+
+    dem_ds = gdal.Open(str(dem_path))
+    projection = dem_ds.GetProjection()
+    origin = dem_ds.GetGeoTransform()
+    dem_ds = None
+    render_transform = (
+        origin[0],
+        origin[1] * RENDER_STRIDE,
+        origin[2],
+        origin[3],
+        origin[4],
+        origin[5] * RENDER_STRIDE,
+    )
+
+    depth_palette, depth_alpha = palette(DEPTH_COLORS, 12)
+    stage_palette, stage_alpha = palette(STAGE_COLORS, 4)
+    phase_dirs = {
+        "filling": "filling",
+        "slack": "",
+        "draining": "draining",
+    }
+    valid = elevation10 != np.iinfo(np.int16).min
+    ground = elevation10.astype(np.float32) / 10.0
+    zone_lookup = np.where(zone >= 0, zone + 1, 0)
+    connection = connection10.astype(np.float32) / 10.0
+    counts = {}
+
+    for phase, directory in phase_dirs.items():
+        depth_dir = output_root / "DepthPNGs" / "North Wildwood" / directory
+        stage_dir = output_root / "StagePNGs" / "North Wildwood" / directory
+        depth_dir.mkdir(parents=True, exist_ok=True)
+        stage_dir.mkdir(parents=True, exist_ok=True)
+        phase_bytes = 0
+        for stage_index, stage in enumerate(STAGES_FT):
+            encoded_surface = phases[phase][stage_index]
+            surface_centift = encoded_surface[zone_lookup]
+            wet_zone = surface_centift != DRY_SENTINEL
+            local_surface = surface_centift.astype(np.float32) / 100.0
+            if phase != "slack":
+                # Finite-volume nodes preserve exact one-foot storage and flow
+                # widths. Interpolate their piecewise-constant surfaces over a
+                # short (roughly 8 ft) distance for cartographic rendering so
+                # control-volume seams do not appear as artificial squares.
+                wet_weight = gaussian_filter(
+                    wet_zone.astype(np.float32), sigma=1.6, mode="nearest"
+                )
+                filtered_surface = gaussian_filter(
+                    np.where(wet_zone, local_surface, 0.0),
+                    sigma=1.6,
+                    mode="nearest",
+                )
+                local_surface = np.divide(
+                    filtered_surface,
+                    np.maximum(wet_weight, 1e-6),
+                    out=np.full_like(filtered_surface, -9999.0),
+                    where=wet_weight > 1e-6,
+                )
+                wet_zone = valid & (wet_weight >= 0.45)
+            depth = local_surface - ground
+            flooded = valid & wet_zone & (depth > 0.005)
+            below_stage = valid & (ground <= stage + 0.0001)
+            green = below_stage & ~flooded
+
+            depth_codes = np.zeros(zone.shape, dtype=np.uint8)
+            depth_codes[green] = 12
+            if np.any(flooded):
+                depth_codes[flooded] = (
+                    np.digitize(depth[flooded], DEPTH_BREAKS_FT, right=False) + 1
+                ).astype(np.uint8)
+
+            stage_codes = np.zeros(zone.shape, dtype=np.uint8)
+            stage_codes[green] = 4
+            if np.any(flooded):
+                activation = np.maximum(ground[flooded], connection[flooded])
+                stage_codes[flooded] = np.where(
+                    activation < MINOR_NAVD88_FT,
+                    1,
+                    np.where(activation < MODERATE_NAVD88_FT, 2, 3),
+                ).astype(np.uint8)
+
+            code = stage_code(float(stage))
+            depth_path = depth_dir / f"NorthWildwoodDepth{code}.png"
+            stage_path = stage_dir / f"NorthWildwoodStage{code}.png"
+            for array, image_palette, transparency, path in (
+                (depth_codes, depth_palette, depth_alpha, depth_path),
+                (stage_codes, stage_palette, stage_alpha, stage_path),
+            ):
+                image = Image.fromarray(array, mode="P")
+                image.putpalette(image_palette)
+                image.info["transparency"] = transparency
+                image.save(path, format="PNG", optimize=False, compress_level=7)
+                phase_bytes += path.stat().st_size
+            if stage_index % 20 == 0:
+                print(f"Rendered {phase:8s} {stage:4.1f} ft")
+        counts[phase] = {"stageCount": len(STAGES_FT), "pngBytes": phase_bytes}
+
+    world_path = output_root / "NorthWildwoodOverlay5ft.pgw"
+    center_x = render_transform[0] + render_transform[1] / 2
+    center_y = render_transform[3] + render_transform[5] / 2
+    world_path.write_text(
+        "\n".join(
+            f"{value:.12f}"
+            for value in (
+                render_transform[1],
+                render_transform[4],
+                render_transform[2],
+                render_transform[5],
+                center_x,
+                center_y,
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "renderWidth": int(zone.shape[1]),
+        "renderHeight": int(zone.shape[0]),
+        "renderCellSizeFt": RENDER_STRIDE,
+        "projection": projection,
+        "geotransform": list(render_transform),
+        "phases": counts,
+    }
+
+
+def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
+    elevation10 = np.memmap(
+        graph_dir / "elevation10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
+    )
+    connection10 = np.memmap(
+        graph_dir / "connection10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
+    )
+    zone = np.memmap(
+        graph_dir / "zone_id.raw", dtype="<i4", mode="r", shape=(HEIGHT, WIDTH)
+    )
+    source = np.memmap(
+        graph_dir / "source_flag.raw", dtype="u1", mode="r", shape=(HEIGHT, WIDTH)
+    )
+    hard = np.memmap(
+        graph_dir / "hard_flag.raw", dtype="u1", mode="r", shape=(HEIGHT, WIDTH)
+    )
+    grates = np.memmap(
+        graph_dir / "grate_flag.raw", dtype="u1", mode="r", shape=(HEIGHT, WIDTH)
+    )
+    dem_ds = gdal.Open(str(dem_path))
+    projection = dem_ds.GetProjection()
+    transform = dem_ds.GetGeoTransform()
+    dem_ds = None
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="north-wildwood-query-") as temp_raw:
+        temp = Path(temp_raw)
+        projected = temp / "query_projected.tif"
+        wgs84 = temp / "query_wgs84.tif"
+        driver = gdal.GetDriverByName("GTiff")
+        ds = driver.Create(
+            str(projected),
+            WIDTH,
+            HEIGHT,
+            6,
+            gdal.GDT_Float32,
+            options=[
+                "TILED=YES",
+                "BLOCKXSIZE=512",
+                "BLOCKYSIZE=512",
+                "COMPRESS=DEFLATE",
+                "PREDICTOR=3",
+                "BIGTIFF=YES",
+            ],
+        )
+        ds.SetProjection(projection)
+        ds.SetGeoTransform(transform)
+        descriptions = (
+            "conditioned_ground_elevation_navd88_ft",
+            "hydraulic_zone_id_plus_one",
+            "first_equilibrium_connection_stage_navd88_ft",
+            "qualified_source_block_flag",
+            "bulkhead_7_5ft_navd88_flag",
+            "storm_grate_48inch_flag",
+        )
+        for band_number, description in enumerate(descriptions, start=1):
+            ds.GetRasterBand(band_number).SetDescription(description)
+            ds.GetRasterBand(band_number).SetNoDataValue(-9999.0)
+        for y in range(0, HEIGHT, 256):
+            end = min(HEIGHT, y + 256)
+            valid = elevation10[y:end] != np.iinfo(np.int16).min
+            arrays = (
+                np.where(valid, elevation10[y:end].astype(np.float32) / 10.0, -9999.0),
+                np.where(zone[y:end] >= 0, zone[y:end].astype(np.float32) + 1.0, -9999.0),
+                np.where(
+                    connection10[y:end] != np.iinfo(np.int16).max,
+                    connection10[y:end].astype(np.float32) / 10.0,
+                    9999.0,
+                ),
+                source[y:end].astype(np.float32),
+                hard[y:end].astype(np.float32),
+                grates[y:end].astype(np.float32),
+            )
+            for band_number, array in enumerate(arrays, start=1):
+                ds.GetRasterBand(band_number).WriteArray(array, 0, y)
+            if y % 2048 == 0:
+                print(f"Writing query raster row {y:,}/{HEIGHT:,}")
+        ds.SetMetadataItem("MODEL", "one-foot finite-volume broad-crested-weir and 48-inch-orifice routing")
+        ds.SetMetadataItem("VERTICAL_DATUM", "NAVD88 feet")
+        ds.FlushCache()
+        ds = None
+
+        result = gdal.Warp(
+            str(wgs84),
+            str(projected),
+            options=gdal.WarpOptions(
+                dstSRS="EPSG:4326",
+                resampleAlg="near",
+                srcNodata=-9999,
+                dstNodata=-9999,
+                multithread=True,
+                creationOptions=[
+                    "TILED=YES",
+                    "BLOCKXSIZE=512",
+                    "BLOCKYSIZE=512",
+                    "COMPRESS=DEFLATE",
+                    "PREDICTOR=3",
+                    "BIGTIFF=YES",
+                ],
+            ),
+        )
+        if result is None:
+            raise RuntimeError("Could not warp hydraulic query raster")
+        result = None
+        result = gdal.Translate(
+            str(destination),
+            str(wgs84),
+            options=gdal.TranslateOptions(
+                format="COG",
+                creationOptions=[
+                    "COMPRESS=DEFLATE",
+                    "PREDICTOR=3",
+                    "BLOCKSIZE=512",
+                    "OVERVIEWS=AUTO",
+                    "BIGTIFF=YES",
+                ],
+            ),
+        )
+        if result is None:
+            raise RuntimeError("Could not create hydraulic query COG")
+        result = None
+    print(f"Query COG: {destination.stat().st_size:,} bytes")
+
+
+def main() -> None:
+    args = parse_args()
+    graph_dir = args.graph.resolve()
+    output_root = args.output.resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+    graph_manifest = json.loads((graph_dir / "graph_manifest.json").read_text(encoding="utf-8"))
+    zones = load_zones(graph_dir / "zones.csv")
+    edges = load_edges(graph_dir / "edges.csv")
+    print(f"Loaded {len(zones['connection10']):,} zones and {len(edges['a']):,} crest-width edge groups")
+    solver = HydraulicSolver(zones, edges)
+    phases, diagnostics = simulate(solver)
+
+    state_path = (
+        output_root
+        / "COGs"
+        / "North Wildwood"
+        / "NorthWildwoodHydraulicStates.json.png"
+    )
+    write_state_asset(state_path, phases, graph_manifest, diagnostics)
+    render_manifest = None
+    if not args.skip_render:
+        render_manifest = render_assets(graph_dir, args.dem.resolve(), output_root, phases)
+    query_path = (
+        output_root
+        / "COGs"
+        / "North Wildwood"
+        / "NorthWildwoodHydraulicQueryWGS84.cog.tif"
+    )
+    if not args.skip_query_cog:
+        build_query_cog(graph_dir, args.dem.resolve(), query_path)
+
+    manifest = {
+        "schema": "north-wildwood-hydraulic-assets-v1",
+        "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "graph": graph_manifest,
+        "render": render_manifest,
+        "thresholdsNAVD88": {
+            "minorLow": MINOR_NAVD88_FT,
+            "moderateLow": MODERATE_NAVD88_FT,
+            "majorLow": MAJOR_NAVD88_FT,
+        },
+        "thresholdsMLLW": {"minorLow": 6.0, "moderateLow": 7.0, "majorLow": 8.0},
+        "navd88OffsetFromMllwFt": -2.75,
+        "phases": ["filling", "slack", "draining"],
+        "diagnostics": diagnostics,
+        "queryCog": str(query_path) if query_path.exists() else None,
+        "hydraulicStates": str(state_path),
+    }
+    (output_root / "NorthWildwoodHydraulicAssetManifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
+    print("North Wildwood hydraulic assets complete")
+
+
+if __name__ == "__main__":
+    main()
