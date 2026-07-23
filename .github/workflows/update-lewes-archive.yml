@@ -2,6 +2,8 @@ name: Rebuild pre-2007 Lewes archive
 
 on:
   push:
+    branches:
+      - main
     paths:
       - .github/workflows/update-lewes-archive.yml
       - tools/update_lewes_archive.py
