@@ -4,7 +4,7 @@ This repository is the complete North Wildwood counterpart to Stone Harbor
 Floodmapper 2.0. It uses the Great Channel at Stone Harbor gauge as the live and
 historical water-level forcing source, then applies North Wildwood's datum
 conversion, flood thresholds, terrain, DEM-integrated bulkheads, parcels, and
-hydraulic routing.
+a source-connected bathtub model.
 
 ## Water-level contract
 
@@ -33,27 +33,17 @@ vertical units in NAVD88 feet. The model then:
 3. Computes each cell's minimum equilibrium connection stage through 14.0 ft.
    Storm drains are disabled in this model version: they are neither
    connectivity seeds nor underground exchange paths.
-4. Integrates exact one-foot elevation hypsometry inside economical 25-foot
-   finite-volume tiles. A tile is split into separate four-neighbour components
-   for every connection band, and bulkhead cells are isolated as barrier
-   material, so disconnected terrain on opposite sides of a hard structure can
-   never share a storage node. Each terrain cross section contains one foot of
-   width for every shared one-foot cell side, grouped by crest elevation.
-5. Advances flow with submerged broad-crested-weir physics and conservative
-   60-second substeps inside every 15-minute tide interval. All edge transfers
-   in a substep are simultaneous, so a newly wet control volume cannot pass
-   water onward until the following minute. With a conservative 25-foot tile
-   diagonal, the overland front can travel no more than about 530 feet per
-   15-minute interval.
-6. Bounds every explicit transfer by the two-basin equalization volume,
-   aggregate receiving capacity, and available donor storage.
+4. Lowers the effective bathtub surface vertically to avoid overstating
+   low-level flooding. The penalty is 0.75 ft through minor flood, tapers
+   linearly to 0.35 ft at moderate flood, and tapers to zero at major flood.
+5. Marks a cell wet only when its conditioned ground elevation and its exact
+   four-neighbour source-connection threshold are both below that penalized
+   water surface. A corner connection can never make a cell blue.
 
-The expensive solve runs once. It produces reusable `filling`, `slack`, and
-`draining` states from 0.0–14.0 ft NAVD88 at 0.1-foot intervals. Draining
-states use local falling-tide histories: each half-foot target band starts
-from a preceding crest no more than 1.0 ft above its lowest stage. This prevents an ordinary falling tide from
-inheriting residual storage from a fictional 14 ft storm. Hourly and 15-minute
-application updates only choose an existing phase/stage asset.
+The solve produces reusable assets from 0.0–14.0 ft NAVD88 at 0.1-foot
+intervals. It is intentionally static: `filling`, `slack`, and `draining`
+assets are identical for the same gauge level. Hourly and 15-minute application
+updates only choose an existing stage asset.
 
 The main builders are:
 
@@ -92,7 +82,7 @@ The feature validator fails if the centerline is not expanded by at least ten
 cells in all four cardinal directions, any bulkhead cell is below 7.5 ft
 NAVD88, any supplied bulkhead cell is mixed into a terrain node, any edge
 crosses a bulkhead below 7.5 ft NAVD88, a storm-drain cell enters the graph, or
-the finite propagation metadata does not match the explicit routing step.
+the three phase arrays differ, or the declared vertical penalty is wrong.
 
 The feature-preparation step records the source ZIP hash, validates the
 one-foot grid, and requires the expected 1 hard-structure feature, 6 ignored
@@ -102,7 +92,7 @@ DEM provenance in the generated manifest.
 
 The renderer uses the new depth key: shallow water is bright cyan and deeper
 water grades to dark navy. Terrain that is below the selected tide but is not
-connected or has not filled yet is green. As its final step, the renderer
+connected at the vertically penalized water surface is green. As its final step, the renderer
 labels the five-foot water mask with four-neighbour connectivity and removes
 every blue component that does not touch a qualified source. It smooths depth
 values over roughly ten feet only inside that immutable water mask, so lidar noise cannot create
@@ -121,17 +111,16 @@ or blue component without a source.
 5. 21-cell, 7.5-foot bulkhead flag;
 6. disabled storm-drain flag (always zero).
 
-The phase state package is a gzip-compressed binary lookup. It uses a compact
-one-byte decifeet encoding so the browser downloads about 6 MB rather than
-parsing roughly 150 MB of base64 JSON. A click combines the COG cell with the
-exact phase/stage water surface and reports ground, local water surface, depth,
-connection stage, source status, and hydraulic feature.
+The phase-invariant state package is a gzip-compressed, one-byte decifeet audit
+lookup of about 1.4 MB. The browser-readable query COG uses LZW compression for
+reliable HTTP range decoding. A click combines its one-foot cell with the exact
+penalized bathtub surface and reports ground, vertical penalty, local water
+surface, depth, connection stage, source status, and hydraulic feature.
 
 ## Forecast and observed archives
 
 - `.github/workflows/update-forecast.yml` retrieves hourly PETSS/NOAA guidance,
-  applies the -2.75 ft offset, and assigns a rising/slack/falling hydraulic
-  phase.
+  applies the -2.75 ft offset, and assigns the matching static stage asset.
 - `.github/workflows/update-observed.yml` maintains USGS site `01411360`,
   parameter `72279`, on exact 15-minute anchors plus the hourly calendar
   archive and official historic crest list.

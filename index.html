@@ -14454,7 +14454,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     .house-alert-stat{display:grid;grid-template-columns:1fr auto;gap:8px;padding:7px 0;border-top:1px solid #e2e8f0}.house-alert-stat strong{font-size:15px}
     .house-alert-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px;text-align:right}.house-alert-table th:first-child,.house-alert-table td:first-child{text-align:left}
     .house-alert-table th,.house-alert-table td{padding:4px;border-bottom:1px solid #e2e8f0}.house-alert-note{margin-top:8px;color:#64748b;font-size:10px;line-height:1.35}
-    .depth-query-popup{color:#0f172a;min-width:220px;font:13px/1.4 Inter,system-ui,sans-serif}.depth-query-popup h3{margin:0 0 7px;font-size:16px}.depth-query-popup dl{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin:0}.depth-query-popup dt{color:#64748b}.depth-query-popup dd{margin:0;font-weight:800}
+    .depth-query-popup{color:#0f172a;width:300px;max-width:calc(100vw - 70px);font:12.5px/1.25 Inter,system-ui,sans-serif}.depth-query-popup h3{margin:0 0 6px;font-size:15px}.depth-query-popup dl{display:grid;grid-template-columns:minmax(92px,.8fr) minmax(0,1.2fr);gap:3px 10px;margin:0}.depth-query-popup dt{color:#64748b}.depth-query-popup dd{margin:0;font-weight:800}
     @media (max-width:900px),(max-height:560px){
       .timeline-interval-toggle{width:168px !important;min-width:168px !important}
       .timeline-interval-toggle button{font-size:9px !important;padding:0 3px !important}
@@ -15866,8 +15866,8 @@ function setDatumHelpOpen(isOpen) {
         title: "Flood Depth Key",
         body: `
           <p>Bright blue is shallower modeled water. Blue darkens as depth increases.</p>
-          <p><strong>Green areas</strong> are below the selected tide but are not connected by cell sides to a qualifying source block, or have not filled yet during the current 15-minute hydraulic phase.</p>
-          <p>The North Wildwood model conserves water volume across one-foot terrain cells and routes flow over measured topographic saddles. The mapped bulkhead is buffered ten feet on each side of its centerline and stitched into the DEM as a nominal 21-cell-wide, 7.5-ft NAVD88 wall before the simulation runs. Storm-drain exchange is currently disabled. Rising, slack, and draining tides can therefore show different depths at the same gauge level.</p>
+          <p><strong>Green areas</strong> are below the selected gauge tide but remain above the vertically penalized bathtub surface, or are not connected by cell sides to a qualifying source block.</p>
+          <p>The effective water surface is lowered 0.75 ft through minor flood, 0.35 ft at moderate flood, and progressively less between those levels until the penalty reaches zero at major flood. Filling, slack, and draining are identical at the same gauge level. The mapped bulkhead is buffered ten feet on each side of its centerline and stitched into the DEM as a nominal 21-cell-wide, 7.5-ft NAVD88 wall. Storm-drain exchange is disabled.</p>
         `
       },
       stageLegend: {
@@ -16055,6 +16055,27 @@ function setDatumHelpOpen(isOpen) {
       const minimum = MIN_DEPTH_STAGE;
       const clamped = Math.max(minimum, Math.min(MAX_STAGE, n));
       return Math.max(minimum, floorToCatalogStep(clamped));
+    }
+
+    function getVerticalBathtubPenalty(stageValue) {
+      const stage = Number(stageValue);
+      if (!Number.isFinite(stage)) return null;
+      if (stage <= MINOR_FLOOD_FT) return 0.75;
+      if (stage <= MODERATE_FLOOD_FT) {
+        const fraction = (stage - MINOR_FLOOD_FT) / (MODERATE_FLOOD_FT - MINOR_FLOOD_FT);
+        return 0.75 + fraction * (0.35 - 0.75);
+      }
+      if (stage <= MAJOR_FLOOD_FT) {
+        const fraction = (stage - MODERATE_FLOOD_FT) / (MAJOR_FLOOD_FT - MODERATE_FLOOD_FT);
+        return 0.35 * (1 - fraction);
+      }
+      return 0;
+    }
+
+    function getEffectiveBathtubStage(stageValue) {
+      const stage = Number(stageValue);
+      const penalty = getVerticalBathtubPenalty(stage);
+      return Number.isFinite(stage) && Number.isFinite(penalty) ? stage - penalty : null;
     }
 
     function getDepthTimelineColor(stageValue) {
@@ -22251,29 +22272,29 @@ function startPlayback() {
         }
         const rawStage = getStageValue(currentSeriesHours[currentHourIndex]);
         const stage = Number(rawStage);
-        const hydraulicPhase = getHydraulicPhaseForEntry(currentSeriesHours[currentHourIndex], currentHourIndex, currentSeriesHours);
+        const overlayStage = Number.isFinite(stage) ? getOverlayStage(stage) : null;
+        const verticalPenalty = getVerticalBathtubPenalty(overlayStage);
+        const effectiveWaterStage = getEffectiveBathtubStage(overlayStage);
         const belowStage = Number.isFinite(stage) && sample.elevation <= stage + 0.0001;
-        let waterSurface = null;
-        try {
-          waterSurface = Number.isFinite(stage) ? await getHydraulicWaterSurfaceFt(sample.zoneId, getOverlayStage(stage), hydraulicPhase) : null;
-        } catch (stateError) {
-          console.warn("Hydraulic state lookup was unavailable; using static connection fallback.", stateError);
-        }
-        const staticConnected = belowStage && Number.isFinite(sample.connectionStage) && sample.connectionStage <= stage + 0.0001;
-        const hydraulicallyWet = belowStage && Number.isFinite(waterSurface) && waterSurface > sample.elevation + 0.005;
-        const modeledConnected = Number.isFinite(waterSurface) ? hydraulicallyWet : staticConnected;
+        const modeledConnected = belowStage &&
+          Number.isFinite(effectiveWaterStage) &&
+          sample.elevation < effectiveWaterStage - 0.005 &&
+          Number.isFinite(sample.connectionStage) &&
+          sample.connectionStage <= effectiveWaterStage + 0.0001;
         const renderedFlood = sampleRenderedFloodPixel(event.latlng.lat, event.latlng.lng);
         const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
-        const depth = connected ? Math.max(0, (Number.isFinite(waterSurface) ? waterSurface : stage) - sample.elevation) : null;
-        const displayedWaterSurface = connected && Number.isFinite(waterSurface) ? waterSurface : null;
+        const depth = connected && Number.isFinite(effectiveWaterStage) ? Math.max(0, effectiveWaterStage - sample.elevation) : null;
+        const displayedWaterSurface = connected && Number.isFinite(effectiveWaterStage) ? effectiveWaterStage : null;
         const status = !Number.isFinite(stage) ? "No water level selected" :
-          (connected ? `Hydraulically filled (${hydraulicPhase})` :
-            (renderedFlood?.green || belowStage ? "Below stage, not source-connected or not filled yet (green)" : "Dry at selected stage"));
+          (connected ? "Connected bathtub (vertically penalized)" :
+            (renderedFlood?.green || belowStage ? "Below gauge tide but excluded by penalty or connectivity (green)" : "Dry at selected stage"));
         const html = '<div class="depth-query-popup"><h3>Modeled depth at this point</h3><dl>' +
           "<dt>Status</dt><dd>" + status + "</dd>" +
-          "<dt>Hydraulic phase</dt><dd>" + hydraulicPhase.charAt(0).toUpperCase() + hydraulicPhase.slice(1) + "</dd>" +
+          "<dt>Model</dt><dd>Static connected bathtub</dd>" +
           "<dt>Ground</dt><dd>" + sample.elevation.toFixed(2) + " ft NAVD88</dd>" +
           "<dt>Selected water</dt><dd>" + (Number.isFinite(stage) ? stage.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
+          "<dt>Vertical penalty</dt><dd>" + (Number.isFinite(verticalPenalty) ? verticalPenalty.toFixed(2) + " ft" : "—") + "</dd>" +
+          "<dt>Effective water</dt><dd>" + (Number.isFinite(effectiveWaterStage) ? effectiveWaterStage.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
           "<dt>Local water surface</dt><dd>" + (Number.isFinite(displayedWaterSurface) ? displayedWaterSurface.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
           "<dt>Water depth</dt><dd>" + (depth == null ? "—" : depth.toFixed(2) + " ft") + "</dd>" +
           "<dt>First connected</dt><dd>" + (Number.isFinite(sample.connectionStage) && sample.connectionStage < 100 ? sample.connectionStage.toFixed(1) + " ft" : "Not by 14 ft") + "</dd>" +
@@ -31485,10 +31506,10 @@ TOWN_CONFIG = {
     "cacheVersions": {
       "depth": "20260723-hydraulic-v2",
       "dynamic": "20260723-hydraulic-v2",
-      "hydraulic": "20260723-hydraulic-v10"
+      "hydraulic": "20260723-hydraulic-v12"
     },
-    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif.png?v=20260723-hydraulic-v10",
-    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v10",
+    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84LZW.cog.tif.png?v=20260723-hydraulic-v12",
+    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v12",
     "depthRoots": [
       "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/"
     ],

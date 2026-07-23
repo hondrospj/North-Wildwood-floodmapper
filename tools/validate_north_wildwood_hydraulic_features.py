@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-fast checks for the 21-cell DEM bulkhead and finite propagation."""
+"""Fail-fast checks for the conditioned DEM and connected-bathtub states."""
 
 from __future__ import annotations
 
@@ -187,39 +187,55 @@ def main() -> None:
     header, states = load_states(args.states.resolve(), zone_count + 1)
     dry = int(header["drySentinel"])
     offset10 = int(header["surfaceOffsetDecifeet"])
+    if not np.array_equal(states["filling"], states["slack"]):
+        raise AssertionError("Filling and slack states are not phase-invariant")
+    if not np.array_equal(states["filling"], states["draining"]):
+        raise AssertionError("Filling and draining states are not phase-invariant")
     hard_lookup = np.asarray(sorted(hard_zone_ids), dtype=np.int64) + 1
-    for phase in ("filling", "slack"):
+    for phase in ("filling", "slack", "draining"):
         if np.any(states[phase][74, hard_lookup] != dry):
             raise AssertionError(
                 f"{phase} state wets a bulkhead before 7.5 ft NAVD88"
             )
 
     physics = header.get("physics") or {}
+    if physics.get("modelKind") != "vertically-penalized connected bathtub":
+        raise AssertionError("State package does not declare the connected bathtub")
+    if physics.get("phaseInvariant") is not True:
+        raise AssertionError("State package does not declare phase-invariant states")
     if not str(physics.get("stormDrains", "")).startswith("disabled"):
         raise AssertionError("State package does not declare disabled storm drains")
     if float(physics.get("bulkheadElevationNavd88Ft", math.nan)) != 7.5:
         raise AssertionError("State package does not declare the 7.5-ft bulkhead")
     if int(physics.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("State package does not declare a 21-cell bulkhead")
-    expected_speed = math.sqrt(2.0) * 25.0 / 60.0
-    expected_travel = expected_speed * 15.0 * 60.0
+    penalty = physics.get("verticalPenalty") or {}
     if not math.isclose(
-        float(physics.get("maximumOverlandFrontSpeedFtPerSecond", math.nan)),
-        expected_speed,
-        rel_tol=1e-12,
+        float(penalty.get("atOrBelowMinorFt", math.nan)),
+        0.75,
+        abs_tol=1e-12,
     ):
-        raise AssertionError("State package has the wrong propagation speed limit")
+        raise AssertionError("State package has the wrong low-stage vertical penalty")
     if not math.isclose(
-        float(
-            physics.get(
-                "maximumOverlandFrontTravelPer15MinutesFt",
-                math.nan,
-            )
-        ),
-        expected_travel,
-        rel_tol=1e-12,
+        float(penalty.get("atModerateFt", math.nan)),
+        0.35,
+        abs_tol=1e-12,
     ):
-        raise AssertionError("State package has the wrong 15-minute travel limit")
+        raise AssertionError("State package has the wrong moderate-stage vertical penalty")
+    if not math.isclose(
+        float(penalty.get("atOrAboveMajorFt", math.nan)),
+        0.0,
+        abs_tol=1e-12,
+    ):
+        raise AssertionError("State package has the wrong major-stage vertical penalty")
+
+    # At 3.0 ft NAVD88, the requested low-stage penalty lowers the effective
+    # bathtub surface to 2.25 ft. The compact state format stores decifeet, so
+    # no wet zone may encode a surface above 2.3 ft.
+    low_stage = states["slack"][30]
+    low_wet = low_stage != dry
+    if np.any(low_wet) and int(low_stage[low_wet].max()) + offset10 > 23:
+        raise AssertionError("Low-stage states do not apply the vertical penalty")
 
     print(
         json.dumps(
@@ -236,8 +252,9 @@ def main() -> None:
                 "minimumBulkheadEdgeCrestNavd88Ft": 7.5,
                 "stormDrainPixels": grate_pixels,
                 "stormDrainExchange": "disabled",
-                "maximumOverlandFrontSpeedFtPerSecond": expected_speed,
-                "maximumOverlandFrontTravelPer15MinutesFt": expected_travel,
+                "modelKind": physics["modelKind"],
+                "phaseInvariant": physics["phaseInvariant"],
+                "verticalPenalty": penalty,
                 "statePhases": list(states),
             },
             indent=2,
