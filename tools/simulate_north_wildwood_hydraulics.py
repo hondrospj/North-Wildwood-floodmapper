@@ -88,6 +88,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-query-cog", action="store_true")
     parser.add_argument("--skip-render", action="store_true")
     parser.add_argument(
+        "--packed-query-only",
+        action="store_true",
+        help=(
+            "Build only the browser-native five-foot depth-query PNG and update "
+            "the existing asset manifest"
+        ),
+    )
+    parser.add_argument(
         "--draining-only",
         action="store_true",
         help=(
@@ -1077,6 +1085,70 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
     print(f"Query COG: {destination.stat().st_size:,} bytes")
 
 
+def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
+    """Pack the five-foot ground/connection lookup into a browser-native PNG."""
+    elevation10 = np.memmap(
+        graph_dir / "elevation10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    connection10 = np.memmap(
+        graph_dir / "connection10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+
+    valid = elevation10 != np.iinfo(np.int16).min
+    unsigned_elevation = np.zeros(elevation10.shape, dtype=np.uint16)
+    unsigned_elevation[valid] = (
+        elevation10[valid].astype(np.int32) + 32768
+    ).astype(np.uint16)
+
+    packed = np.empty((*elevation10.shape, 4), dtype=np.uint8)
+    packed[..., 0] = (unsigned_elevation >> 8).astype(np.uint8)
+    packed[..., 1] = (unsigned_elevation & 0xFF).astype(np.uint8)
+    packed[..., 2] = 255
+    encodable_connection = (
+        valid
+        & (connection10 >= -100)
+        & (connection10 <= 154)
+    )
+    packed[..., 2][encodable_connection] = (
+        connection10[encodable_connection].astype(np.int32) + 100
+    ).astype(np.uint8)
+    packed[..., 3] = 255
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(packed, mode="RGBA").save(
+        destination,
+        format="PNG",
+        optimize=False,
+        compress_level=7,
+    )
+    metadata = {
+        "schema": "north-wildwood-packed-depth-query-v1",
+        "width": int(packed.shape[1]),
+        "height": int(packed.shape[0]),
+        "renderCellSizeFt": RENDER_STRIDE,
+        "channels": {
+            "redGreen": (
+                "conditioned elevation in tenths NAVD88; unsigned big-endian "
+                "value minus 32768; zero is nodata"
+            ),
+            "blue": (
+                "first four-neighbour connection stage in tenths NAVD88 plus "
+                "100; 255 means not connected through 14 ft"
+            ),
+            "alpha": "255",
+        },
+        "bytes": destination.stat().st_size,
+    }
+    print(f"Packed query PNG: {destination.stat().st_size:,} bytes")
+    return metadata
+
+
 def main() -> None:
     args = parse_args()
     if args.draining_only:
@@ -1099,6 +1171,38 @@ def main() -> None:
         )
         previous_render_manifest = previous_asset_manifest.get("render")
     graph_manifest = json.loads((graph_dir / "graph_manifest.json").read_text(encoding="utf-8"))
+    packed_query_path = (
+        output_root
+        / "COGs"
+        / "North Wildwood"
+        / "NorthWildwoodHydraulicQuery5ft.png"
+    )
+    if args.packed_query_only:
+        packed_query_manifest = build_packed_query_png(
+            graph_dir,
+            packed_query_path,
+        )
+        manifest = {}
+        if asset_manifest_path.is_file():
+            manifest = json.loads(
+                asset_manifest_path.read_text(encoding="utf-8")
+            )
+        manifest.update(
+            {
+                "generatedUtc": datetime.now(timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "packedQueryPng": str(packed_query_path),
+                "packedQuery": packed_query_manifest,
+            }
+        )
+        asset_manifest_path.write_text(
+            json.dumps(manifest, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print("North Wildwood packed depth-query asset complete")
+        return
     state_path = (
         output_root
         / "COGs"
@@ -1182,6 +1286,10 @@ def main() -> None:
     )
     if not args.skip_query_cog:
         build_query_cog(graph_dir, args.dem.resolve(), query_path)
+    packed_query_manifest = build_packed_query_png(
+        graph_dir,
+        packed_query_path,
+    )
 
     manifest = {
         "schema": "north-wildwood-hydraulic-assets-v5",
@@ -1215,6 +1323,8 @@ def main() -> None:
         "phases": ["filling", "slack", "draining"],
         "diagnostics": diagnostics,
         "queryCog": str(query_path) if query_path.exists() else None,
+        "packedQueryPng": str(packed_query_path),
+        "packedQuery": packed_query_manifest,
         "hydraulicStates": str(state_path),
     }
     asset_manifest_path.write_text(
