@@ -15,9 +15,12 @@ a source-connected bathtub model.
 | Major | 5.25 ft | 8.00 ft |
 
 `NAVD88 = MLLW - 2.75 ft`. Forecast and observed water levels come from the
-Stone Harbor gauge. Winter Storm Jonas is calibrated to the documented North
-Wildwood crest of 6.69 ft NAVD88 / 9.44 ft MLLW while preserving the Stone
-Harbor 15-minute tide shape.
+Stone Harbor gauge. Hurricane Sandy's Stone Harbor gauge outage is filled only
+for event replay with NOAA Lewes verified tide shape, time-aligned and scaled
+to the official 6.73 ft NAVD88 / 9.48 ft MLLW crest. Winter Storm Jonas is
+calibrated to the documented North Wildwood crest of 6.69 ft NAVD88 / 9.44 ft
+MLLW while preserving the Stone Harbor 15-minute tide shape. Both events expose
+complete 15-minute replays and derived hourly values.
 
 ## One-foot hydraulic model
 

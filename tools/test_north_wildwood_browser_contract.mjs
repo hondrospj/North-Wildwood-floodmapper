@@ -10,6 +10,8 @@ import path from "node:path";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOURCE = fs.readFileSync(path.join(HERE, "..", "index.html"), "utf8");
+const OBSERVED_15MIN = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed15min.json"), "utf8"));
+const TOP_TIDES = JSON.parse(fs.readFileSync(path.join(HERE, "..", "toptides.json"), "utf8"));
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
@@ -86,5 +88,29 @@ assert.match(
   SOURCE,
   /Packed depth query failed; retrying through the COG/
 );
+assert.match(SOURCE, /id="downloadIntervalControl"/);
+assert.match(SOURCE, /data-export-interval="hourly"/);
+assert.match(SOURCE, /data-export-interval="15min"/);
+assert.match(SOURCE, /data-export-interval="daily"/);
+assert.match(SOURCE, /function buildExportRangeFrameItems\(/);
+assert.match(SOURCE, /function buildQuarterHourRangeFrameItems\(/);
+assert.match(SOURCE, /function buildDailyMaximumRangeFrameItems\(/);
+assert.match(SOURCE, /Daily maximum • Water level|Daily maximum/);
+assert.match(SOURCE, /getExportBaseName\(items\)/);
+assert.doesNotMatch(SOURCE, /\bstageColor\b/);
 
-console.log("North Wildwood browser depth contract checks passed");
+for (const [date, targetHundredths, eventName, peakHour] of [
+  ["2012-10-29", 673, "Hurricane Sandy", "20:45"],
+  ["2016-01-23", 669, "Winter Storm Jonas", "09:00"]
+]) {
+  const day = OBSERVED_15MIN.days.find(item => item.d === date);
+  assert.ok(day, `Missing ${eventName} quarter-hour archive`);
+  assert.equal(day.v.length, 96, `${eventName} must contain 96 quarter-hour frames`);
+  assert.equal(day.v.filter(Number.isFinite).length, 96, `${eventName} must not contain missing quarter-hour frames`);
+  assert.equal(Math.max(...day.v), targetHundredths, `${eventName} peak calibration is wrong`);
+  const event = TOP_TIDES.toptides.find(item => item.date === date);
+  assert.equal(event?.event_name, eventName);
+  assert.equal(event?.time_est, peakHour);
+}
+
+console.log("North Wildwood browser depth and export contract checks passed");
