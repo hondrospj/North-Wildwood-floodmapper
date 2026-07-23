@@ -14864,6 +14864,7 @@ function cloneStyleObject(value) {
     let parcelLoadPromise = null;
     let depthQueryImagePromise = null;
     let hydraulicStatesPromise = null;
+    let renderedFloodPixelCache = null;
     let cityBoundaryOutline = null;
     let cityBoundaryMask = null;
     let cityBoundaryGuide = null;
@@ -15866,7 +15867,7 @@ function setDatumHelpOpen(isOpen) {
         body: `
           <p>Bright blue is shallower modeled water. Blue darkens as depth increases.</p>
           <p><strong>Green areas</strong> are below the selected tide but are not connected by cell sides to a qualifying source block, or have not filled yet during the current 15-minute hydraulic phase.</p>
-          <p>The North Wildwood model conserves water volume across one-foot terrain cells and routes flow over measured topographic saddles. The mapped bulkhead is stitched into the DEM as a five-cell-wide, 7.5-ft NAVD88 wall before the simulation runs. Storm-drain exchange is currently disabled. Rising, slack, and draining tides can therefore show different depths at the same gauge level.</p>
+          <p>The North Wildwood model conserves water volume across one-foot terrain cells and routes flow over measured topographic saddles. The mapped bulkhead is buffered ten feet on each side of its centerline and stitched into the DEM as a nominal 21-cell-wide, 7.5-ft NAVD88 wall before the simulation runs. Storm-drain exchange is currently disabled. Rising, slack, and draining tides can therefore show different depths at the same gauge level.</p>
         `
       },
       stageLegend: {
@@ -22179,6 +22180,57 @@ function startPlayback() {
       };
     }
 
+    function sampleRenderedFloodPixel(lat, lon) {
+      const image = currentFloodLayer?.getElement?.();
+      if (
+        !image ||
+        !image.complete ||
+        image.naturalWidth <= 0 ||
+        image.naturalHeight <= 0 ||
+        !floodLatLngBounds
+      ) return null;
+      const imageUrl = image.currentSrc || image.src;
+      try {
+        if (
+          !renderedFloodPixelCache ||
+          renderedFloodPixelCache.url !== imageUrl ||
+          renderedFloodPixelCache.width !== image.naturalWidth ||
+          renderedFloodPixelCache.height !== image.naturalHeight
+        ) {
+          const canvas = document.createElement("canvas");
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          if (!context) return null;
+          context.drawImage(image, 0, 0);
+          renderedFloodPixelCache = {
+            url: imageUrl,
+            width: image.naturalWidth,
+            height: image.naturalHeight,
+            context
+          };
+        }
+        const west = floodLatLngBounds.getWest();
+        const east = floodLatLngBounds.getEast();
+        const south = floodLatLngBounds.getSouth();
+        const north = floodLatLngBounds.getNorth();
+        const x = Math.floor(((lon - west) / (east - west)) * image.naturalWidth);
+        const y = Math.floor(((north - lat) / (north - south)) * image.naturalHeight);
+        if (x < 0 || y < 0 || x >= image.naturalWidth || y >= image.naturalHeight) return null;
+        const rgba = renderedFloodPixelCache.context.getImageData(x, y, 1, 1).data;
+        const visible = rgba[3] > 0;
+        const green = visible &&
+          Math.abs(rgba[0] - 99) <= 3 &&
+          Math.abs(rgba[1] - 212) <= 3 &&
+          Math.abs(rgba[2] - 113) <= 3;
+        return { visible, green, flooded: visible && !green };
+      } catch (error) {
+        console.warn("Rendered flood-pixel sampling was unavailable.", error);
+        renderedFloodPixelCache = null;
+        return null;
+      }
+    }
+
     async function handleDepthQueryClick(event) {
       if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
       try {
@@ -22209,23 +22261,27 @@ function startPlayback() {
         }
         const staticConnected = belowStage && Number.isFinite(sample.connectionStage) && sample.connectionStage <= stage + 0.0001;
         const hydraulicallyWet = belowStage && Number.isFinite(waterSurface) && waterSurface > sample.elevation + 0.005;
-        const connected = Number.isFinite(waterSurface) ? hydraulicallyWet : staticConnected;
+        const modeledConnected = Number.isFinite(waterSurface) ? hydraulicallyWet : staticConnected;
+        const renderedFlood = sampleRenderedFloodPixel(event.latlng.lat, event.latlng.lng);
+        const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
         const depth = connected ? Math.max(0, (Number.isFinite(waterSurface) ? waterSurface : stage) - sample.elevation) : null;
+        const displayedWaterSurface = connected && Number.isFinite(waterSurface) ? waterSurface : null;
         const status = !Number.isFinite(stage) ? "No water level selected" :
-          (connected ? `Hydraulically filled (${hydraulicPhase})` : (belowStage ? "Below stage, not connected or not filled yet (green)" : "Dry at selected stage"));
+          (connected ? `Hydraulically filled (${hydraulicPhase})` :
+            (renderedFlood?.green || belowStage ? "Below stage, not source-connected or not filled yet (green)" : "Dry at selected stage"));
         const html = '<div class="depth-query-popup"><h3>Modeled depth at this point</h3><dl>' +
           "<dt>Status</dt><dd>" + status + "</dd>" +
           "<dt>Hydraulic phase</dt><dd>" + hydraulicPhase.charAt(0).toUpperCase() + hydraulicPhase.slice(1) + "</dd>" +
           "<dt>Ground</dt><dd>" + sample.elevation.toFixed(2) + " ft NAVD88</dd>" +
           "<dt>Selected water</dt><dd>" + (Number.isFinite(stage) ? stage.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
-          "<dt>Local water surface</dt><dd>" + (Number.isFinite(waterSurface) ? waterSurface.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
+          "<dt>Local water surface</dt><dd>" + (Number.isFinite(displayedWaterSurface) ? displayedWaterSurface.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
           "<dt>Water depth</dt><dd>" + (depth == null ? "—" : depth.toFixed(2) + " ft") + "</dd>" +
           "<dt>First connected</dt><dd>" + (Number.isFinite(sample.connectionStage) && sample.connectionStage < 100 ? sample.connectionStage.toFixed(1) + " ft" : "Not by 14 ft") + "</dd>" +
           "<dt>1 ft source block</dt><dd>" + (sample.sourceFlag ? "Yes" : "No") + "</dd>" +
           "<dt>Hydraulic feature</dt><dd>" +
           (sample.stormGrateFlag
             ? "48-in storm grate"
-            : (sample.hardStructureFlag ? "7.5-ft five-cell DEM bulkhead" : "Terrain")) +
+            : (sample.hardStructureFlag ? "7.5-ft DEM bulkhead (10-ft buffer per side; 21 cells nominal)" : "Terrain")) +
           (Number.isFinite(sample.featureDistanceFt) && sample.featureDistanceFt > 0.05
             ? " (nearest supplied feature, " + sample.featureDistanceFt.toFixed(1) + " ft from click)"
             : "") +
@@ -31429,10 +31485,10 @@ TOWN_CONFIG = {
     "cacheVersions": {
       "depth": "20260723-hydraulic-v2",
       "dynamic": "20260723-hydraulic-v2",
-      "hydraulic": "20260723-hydraulic-v8"
+      "hydraulic": "20260723-hydraulic-v10"
     },
-    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif.png?v=20260723-hydraulic-v8",
-    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v8",
+    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif.png?v=20260723-hydraulic-v10",
+    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v10",
     "depthRoots": [
       "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/"
     ],
@@ -32810,4 +32866,3 @@ html body #mapTitleBadge #mapTitleLogo{
 </style>
 </body>
 </html>
-

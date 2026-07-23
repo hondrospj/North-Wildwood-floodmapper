@@ -2,10 +2,11 @@
 """Prepare North Wildwood's source blocks and DEM-integrated bulkhead.
 
 The supplied hard-structure line is first rasterized on the exact one-foot DEM
-grid. GDAL proximity then expands that centerline by two cells on every side,
-giving a nominal five-cell wall. The expanded mask is burned into a new DEM at
-7.5 ft NAVD88 before the hydraulic graph is built. Storm drains are recorded
-for provenance but deliberately excluded from this model version.
+grid. GDAL proximity then buffers that centerline by ten feet on both sides,
+giving a nominal 21-cell wall including the centerline. The expanded mask is
+appended to a new DEM at 7.5 ft NAVD88 before the hydraulic graph is built.
+Storm drains are recorded for provenance but deliberately excluded from this
+model version.
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ FEATURES = {
 }
 
 BULKHEAD_ELEVATION_FT = 7.5
-BULKHEAD_HALF_WIDTH_CELLS = 2
+BULKHEAD_HALF_WIDTH_CELLS = 10
 BULKHEAD_WIDTH_CELLS = BULKHEAD_HALF_WIDTH_CELLS * 2 + 1
 IGNORED_DRAIN_STEM = "north_wildwood_storm_grates"
 
@@ -149,7 +150,7 @@ def thicken_bulkhead(
     transform: tuple[float, ...],
     projection: str,
 ) -> int:
-    """Expand the centerline by two pixel centers using GDAL proximity."""
+    """Buffer the centerline by ten pixel centers using GDAL proximity."""
     centerline_ds = gdal.Open(str(centerline))
     if centerline_ds is None:
         raise FileNotFoundError(centerline)
@@ -205,7 +206,7 @@ def thicken_bulkhead(
             destination_band.WriteArray(thick, 0, y)
             pixels += int(np.count_nonzero(thick))
         destination_band.SetDescription(
-            "five_cell_bulkhead_mask_two_cell_gdal_proximity_expansion"
+            "twenty_one_cell_bulkhead_mask_ten_foot_gdal_buffer_per_side"
         )
         destination_ds.SetMetadataItem(
             "NOMINAL_WIDTH_CELLS", str(BULKHEAD_WIDTH_CELLS)
@@ -260,7 +261,7 @@ def stitch_bulkhead_into_dem(
     output_band = output_ds.GetRasterBand(1)
     output_band.SetNoDataValue(nodata)
     output_band.SetDescription(
-        "north_wildwood_ground_navd88_ft_with_five_cell_bulkhead"
+        "north_wildwood_ground_navd88_ft_with_twenty_one_cell_bulkhead"
     )
 
     raised_pixels = 0
@@ -403,7 +404,7 @@ def main() -> None:
             )
 
     centerline_path = output / FEATURES["bulkheads"]["raster"]
-    thick_mask_path = output / "bulkheads_5cell_1ft.tif"
+    thick_mask_path = output / "bulkheads_21cell_1ft.tif"
     if thick_mask_path.exists():
         thick_mask_path.unlink()
     thick_pixels = thicken_bulkhead(
@@ -415,7 +416,7 @@ def main() -> None:
         projection,
     )
     if thick_pixels <= records["bulkheads"]["rasterPixelCount"]:
-        raise AssertionError("Five-cell bulkhead expansion did not add any pixels")
+        raise AssertionError("Twenty-one-cell bulkhead expansion did not add any pixels")
     records["bulkheads"]["centerlineRaster"] = records["bulkheads"].pop("raster")
     records["bulkheads"]["centerlineRasterPixelCount"] = records["bulkheads"].pop(
         "rasterPixelCount"
@@ -426,7 +427,7 @@ def main() -> None:
     records["bulkheads"]["expansionCellsPerSide"] = BULKHEAD_HALF_WIDTH_CELLS
 
     conditioned_dem_path = (
-        output / "NorthWildwoodDEM_Bulkhead5Cell_1ft_NAVD88.tif"
+        output / "NorthWildwoodDEM_Bulkhead21Cell_1ft_NAVD88.tif"
     )
     if conditioned_dem_path.exists():
         conditioned_dem_path.unlink()
@@ -441,7 +442,7 @@ def main() -> None:
     )
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-feature-inputs-v2",
+        "schema": "north-wildwood-hydraulic-feature-inputs-v4",
         "generatedUtc": datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat()
@@ -459,7 +460,7 @@ def main() -> None:
         },
         "rasterization": (
             "GDAL ALL_TOUCHED centerline on the exact aligned one-foot grid, "
-            "then a two-pixel GDAL proximity expansion on each side"
+            "then a ten-foot GDAL proximity buffer on each side"
         ),
         "features": records,
         "ignoredFeatures": {

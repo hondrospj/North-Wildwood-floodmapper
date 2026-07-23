@@ -3,7 +3,7 @@
 // The terrain is quantized only for graph topology (0.1 ft NAVD88).  Source
 // blocks follow the literal four-neighbour rule: a <=1.0 ft component must
 // contain at least 101 cells and intersect a supplied source-block polygon.
-// The five-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
+// The 21-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
 // NAVD88 by GDAL. This builder verifies, but never silently changes, that
 // terrain. Storm-drain exchange is disabled for this model version.
 
@@ -566,7 +566,7 @@ void write_manifest(
     uint64_t hard_count) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v3\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v4\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
@@ -574,7 +574,7 @@ void write_manifest(
          << "  \"sourceMinComponentCells\": 101,\n"
          << "  \"sourceConnectivity\": \"four-neighbour/shared-side only\",\n"
          << "  \"bulkheadElevationNavd88Ft\": 7.5,\n"
-         << "  \"bulkheadNominalWidthCells\": 5,\n"
+         << "  \"bulkheadNominalWidthCells\": 21,\n"
          << "  \"bulkheadPixelCount\": " << hard_count << ",\n"
          << "  \"bulkheadTerrainTreatment\": \"stitched into input DEM with GDAL before graph construction\",\n"
          << "  \"stormDrains\": \"disabled; not connectivity seeds and no exchange flow\",\n"
@@ -632,7 +632,7 @@ int main(int argc, char** argv) {
     write_geotiff(
         inputs.output / "NorthWildwoodConditionedElevation10.tif",
         elevation10.data(), info, GDT_Int16, NODATA_ELEV,
-        "input_dem_with_gdal_stitched_five_cell_bulkhead_navd88_decifeet");
+        "input_dem_with_gdal_stitched_twenty_one_cell_bulkhead_navd88_decifeet");
     write_geotiff(
         inputs.output / "NorthWildwoodConnectionStage10.tif",
         connection10.data(), info, GDT_Int16, NO_CONNECTION,
@@ -648,7 +648,7 @@ int main(int argc, char** argv) {
     write_geotiff(
         inputs.output / "NorthWildwoodBulkheads.tif",
         hard.data(), info, GDT_Byte, 0,
-        "five_cell_bulkhead_7_5ft_navd88_flag");
+        "twenty_one_cell_bulkhead_7_5ft_navd88_flag");
     write_geotiff(
         inputs.output / "NorthWildwoodStormGrates.tif",
         grates.data(), info, GDT_Byte, 0,
