@@ -404,42 +404,79 @@ std::vector<int32_t> build_zones(
   std::vector<int32_t> zone(count, -1);
   const int tiles_x = (width + CONTROL_VOLUME_SIZE_FT - 1) / CONTROL_VOLUME_SIZE_FT;
   const int tiles_y = (height + CONTROL_VOLUME_SIZE_FT - 1) / CONTROL_VOLUME_SIZE_FT;
-  const int connection_bins =
-      (HIST_MAX10 - HIST_MIN10) / CONNECTION_BIN10 + 1;
-  std::vector<int32_t> key_to_zone(
-      static_cast<size_t>(tiles_x) * tiles_y * connection_bins, -1);
-  for (int32_t cell = 0; cell < static_cast<int32_t>(count); ++cell) {
-    if (connection10[cell] == NO_CONNECTION) continue;
-    const int x = cell % width;
-    const int y = cell / width;
-    const int tile_id =
-        (y / CONTROL_VOLUME_SIZE_FT) * tiles_x +
-        (x / CONTROL_VOLUME_SIZE_FT);
-    const int16_t clipped_connection =
+  std::vector<int32_t> queue;
+  queue.reserve(
+      static_cast<size_t>(CONTROL_VOLUME_SIZE_FT) * CONTROL_VOLUME_SIZE_FT);
+
+  const auto connection_bin = [&](int32_t cell) {
+    const int16_t clipped =
         std::clamp(connection10[cell], HIST_MIN10, HIST_MAX10);
-    const int connection_bin =
-        (clipped_connection - HIST_MIN10) / CONNECTION_BIN10;
-    const size_t key =
-        static_cast<size_t>(tile_id) * connection_bins + connection_bin;
-    int32_t zone_id = key_to_zone[key];
-    if (zone_id < 0) {
-      zone_id = static_cast<int32_t>(summaries.size());
-      key_to_zone[key] = zone_id;
-      summaries.emplace_back();
-      summaries.back().connection10 = connection10[cell];
+    return (clipped - HIST_MIN10) / CONNECTION_BIN10;
+  };
+
+  // A tile/bin lookup alone is not a hydraulic control volume: two pieces of
+  // terrain on opposite sides of a bulkhead can share that lookup key without
+  // sharing an edge. Build a separate four-neighbour component for every
+  // tile/bin/material combination. This preserves the inexpensive 25-foot
+  // finite volumes while preventing water from teleporting across a supplied
+  // hard-structure line.
+  for (int tile_y = 0; tile_y < tiles_y; ++tile_y) {
+    const int y0 = tile_y * CONTROL_VOLUME_SIZE_FT;
+    const int y1 = std::min(height, y0 + CONTROL_VOLUME_SIZE_FT);
+    for (int tile_x = 0; tile_x < tiles_x; ++tile_x) {
+      const int x0 = tile_x * CONTROL_VOLUME_SIZE_FT;
+      const int x1 = std::min(width, x0 + CONTROL_VOLUME_SIZE_FT);
+      for (int y = y0; y < y1; ++y) {
+        for (int x = x0; x < x1; ++x) {
+          const int32_t seed = y * width + x;
+          if (connection10[seed] == NO_CONNECTION || zone[seed] >= 0) continue;
+
+          const int seed_bin = connection_bin(seed);
+          const uint8_t seed_material = hard[seed] ? 1 : 0;
+          const int32_t zone_id = static_cast<int32_t>(summaries.size());
+          summaries.emplace_back();
+          summaries.back().connection10 = connection10[seed];
+          queue.clear();
+          queue.push_back(seed);
+          zone[seed] = zone_id;
+
+          for (size_t cursor = 0; cursor < queue.size(); ++cursor) {
+            const int32_t cell = queue[cursor];
+            const int cell_x = cell % width;
+            const int cell_y = cell / width;
+            ZoneSummary& summary = summaries[zone_id];
+            summary.connection10 =
+                std::max(summary.connection10, connection10[cell]);
+            ++summary.cell_count;
+            summary.source_cells += source[cell];
+            summary.grate_cells += grates[cell];
+            summary.hard_cells += hard[cell];
+            const int16_t clamped =
+                std::clamp(elevation10[cell], HIST_MIN10, HIST_MAX10);
+            ++summary.histogram[clamped - HIST_MIN10];
+
+            const std::array<int32_t, 4> neighbours = {
+                cell_x > x0 ? cell - 1 : -1,
+                cell_x + 1 < x1 ? cell + 1 : -1,
+                cell_y > y0 ? cell - width : -1,
+                cell_y + 1 < y1 ? cell + width : -1};
+            for (const int32_t neighbour : neighbours) {
+              if (neighbour < 0 || zone[neighbour] >= 0 ||
+                  connection10[neighbour] == NO_CONNECTION ||
+                  connection_bin(neighbour) != seed_bin ||
+                  (hard[neighbour] ? 1 : 0) != seed_material) {
+                continue;
+              }
+              zone[neighbour] = zone_id;
+              queue.push_back(neighbour);
+            }
+          }
+        }
+      }
     }
-    zone[cell] = zone_id;
-    ZoneSummary& summary = summaries[zone_id];
-    summary.connection10 = std::max(summary.connection10, connection10[cell]);
-    ++summary.cell_count;
-    summary.source_cells += source[cell];
-    summary.grate_cells += grates[cell];
-    summary.hard_cells += hard[cell];
-    const int16_t clamped = std::clamp(elevation10[cell], HIST_MIN10, HIST_MAX10);
-    ++summary.histogram[clamped - HIST_MIN10];
   }
   std::cout << "Built " << summaries.size()
-            << " one-foot-hypsometry control volumes ("
+            << " side-connected one-foot-hypsometry control volumes ("
             << CONTROL_VOLUME_SIZE_FT << " ft spatial tiles, "
             << CONNECTION_BIN10 / 10.0 << " ft connection bins)\n";
   return zone;
@@ -519,7 +556,7 @@ void write_manifest(
     size_t zone_count) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v1\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v2\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
@@ -531,6 +568,7 @@ void write_manifest(
          << "  \"modelMaximumNavd88Ft\": 14.0,\n"
          << "  \"controlVolumeSizeFt\": " << CONTROL_VOLUME_SIZE_FT << ",\n"
          << "  \"connectionBinFt\": " << CONNECTION_BIN10 / 10.0 << ",\n"
+         << "  \"controlVolumeConnectivity\": \"four-neighbour components within each tile/connection bin; hard structures isolated as barrier material\",\n"
          << "  \"zoneCount\": " << zone_count << ",\n"
          << "  \"geotransform\": [";
   for (size_t index = 0; index < info.geotransform.size(); ++index) {
