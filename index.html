@@ -2386,7 +2386,7 @@
     }
 
     .export-stage-frame[data-export-aspect="9:16"] .export-stage-logo-strip{
-      right:16px;
+      right:auto;
       max-width:calc(100% - 32px);
     }
 
@@ -2414,19 +2414,19 @@
     .export-stage-timestamp{
       position:absolute;
       left:50%;
-      bottom:18px;
+      top:16px;
       transform:translateX(-50%);
       z-index:1250;
-      min-width:min(520px, calc(100% - 48px));
-      max-width:calc(100% - 48px);
-      padding:11px 20px 12px;
+      min-width:min(560px, calc(100% - 720px));
+      max-width:calc(100% - 720px);
+      padding:13px 22px 14px;
       border-radius:22px;
       border:1px solid rgba(191,219,254,.26);
       background:rgba(11,18,32,.94);
       color:#ffffff;
       box-shadow:0 12px 28px rgba(0,0,0,.24);
-      font-size:clamp(18px, 1.65vw, 28px);
-      line-height:1.12;
+      font-size:clamp(21px, 1.9vw, 32px);
+      line-height:1.08;
       font-weight:900;
       letter-spacing:-.025em;
       text-align:center;
@@ -2436,6 +2436,20 @@
       backdrop-filter:none;
       -webkit-backdrop-filter:none;
       pointer-events:none;
+    }
+
+    .export-stage-frame[data-export-aspect="9:16"] .export-stage-timestamp{
+      top:92px;
+      left:16px;
+      right:214px;
+      transform:none;
+      min-width:0;
+      max-width:none;
+      font-size:clamp(20px, 2.8vw, 30px);
+    }
+
+    .export-stage-frame[data-export-aspect="9:16"] .export-stage-legend{
+      top:92px;
     }
 
     .export-stage-legend *,
@@ -14307,6 +14321,14 @@ html.win-compact-ui #timelineDock #hourSlider{
           </div>
         </label>
         <label class="download-field">
+          Values to export
+          <div id="downloadIntervalControl" class="export-segmented" role="tablist" aria-label="Export time interval" style="--seg-cols:3">
+            <button id="exportIntervalHourlyBtn" type="button" class="active" data-export-interval="hourly" aria-pressed="true">Hourly</button>
+            <button id="exportIntervalQuarterBtn" type="button" data-export-interval="15min" aria-pressed="false">15-Min</button>
+            <button id="exportIntervalDailyBtn" type="button" data-export-interval="daily" aria-pressed="false">Daily Max</button>
+          </div>
+        </label>
+        <label class="download-field">
           Aspect ratio
           <div id="downloadAspectControl" class="export-segmented" role="tablist" aria-label="Export aspect ratio" style="--seg-cols:3">
             <button id="exportAspectLandscapeBtn" type="button" class="active" data-aspect="16:9" aria-pressed="true">16:9</button>
@@ -14357,6 +14379,7 @@ html.win-compact-ui #timelineDock #hourSlider{
         </section>
         <input id="downloadScopeSelect" type="hidden" value="range" />
             <input id="downloadFormatSelect" type="hidden" value="gif" />
+            <input id="downloadIntervalSelect" type="hidden" value="hourly" />
             <input id="downloadAspectSelect" type="hidden" value="16:9" />
             <input id="downloadExtentSelect" type="hidden" value="current" />
             <input id="downloadSpeedSelect" type="hidden" value="normal" />
@@ -14421,9 +14444,10 @@ html.win-compact-ui #timelineDock #hourSlider{
 
   <style id="floodmapper-2-controls">
     .mapper-tutorial-launch{
-      width:100%; min-height:38px; border-radius:14px; border:1px solid rgba(125,249,255,.45);
-      background:linear-gradient(135deg, rgba(29,78,216,.72), rgba(8,145,178,.64)); color:#fff;
-      font-size:12px; font-weight:900; letter-spacing:.01em; cursor:pointer; box-shadow:0 12px 28px rgba(2,8,23,.24);
+      width:100%; min-height:38px; border-radius:14px; border:1px solid #bfdbfe;
+      background:var(--accent-soft); color:var(--accent-strong);
+      font-size:12px; font-weight:900; letter-spacing:.01em; cursor:pointer;
+      box-shadow:0 8px 18px rgba(15,23,42,.18), inset 0 1px 0 rgba(255,255,255,.06);
     }
     #mapTitleLogo:not([src]),#mapTitleLogo[src=""]{display:none !important}
     .layer-note{font-size:9px;line-height:1.25;color:var(--muted)}
@@ -14514,7 +14538,11 @@ html.win-compact-ui #timelineDock #hourSlider{
     const ROAD_LABEL_ZOOM = 10;
     const EXPORT_RANGE_MAX_HOURS = 84;
     const EXPORT_RANGE_MAX_MS = EXPORT_RANGE_MAX_HOURS * 60 * 60 * 1000;
-    const EXPORT_RANGE_MAX_FRAMES = EXPORT_RANGE_MAX_HOURS + 1;
+    const EXPORT_INTERVALS = {
+      hourly: { value: "hourly", label: "Hourly", minutes: 60, frameLimit: EXPORT_RANGE_MAX_HOURS + 1 },
+      "15min": { value: "15min", label: "15-Minute", minutes: 15, frameLimit: (EXPORT_RANGE_MAX_HOURS * 4) + 1 },
+      daily: { value: "daily", label: "Daily Maximum", minutes: 1440, frameLimit: 5 }
+    };
     const PLAYBACK_DAY_CONFIRMATION_INTERVAL = 20;
     const EXPORT_CAPTURE_DELAY_MS = 1;
     const EXPORT_GIF_SPEEDS = {
@@ -14523,10 +14551,10 @@ html.win-compact-ui #timelineDock #hourSlider{
       fast: { value: "fast", label: "Fast", delayMs: 500 }
     };
     const EXPORT_GIF_QUALITY = 1;
-    const EXPORT_CAPTURE_SCALE = 1.5;
+    const EXPORT_CAPTURE_SCALE = 1;
     const EXPORT_GIF_DITHER = false;
     const EXPORT_GIF_MAX_WORKERS = 10;
-    const EXPORT_PNG_SELECTION_LIMIT = EXPORT_RANGE_MAX_FRAMES;
+    const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
     const GIF_WORKER_CDN_URL = "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js";
     const EXPORT_GIF_ASPECTS = {
       "16:9": { value: "16:9", width: 1920, height: 1080, label: "16:9" },
@@ -17055,16 +17083,20 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       }
     }
 
-    function getExportBaseName() {
+    function getExportBaseName(frameItems = []) {
       const mode = currentOverlayMode === "dynamic" ? "impact-thresholds" : "flood-depth";
-      const view = currentViewType === "forecast"
-        ? "forecast"
-        : currentViewType === "observed-day"
-          ? (selectedObservedDate || "observed")
-          : "historic-crest";
+      const firstItem = Array.isArray(frameItems) ? frameItems[0] : null;
+      const view = firstItem?.mode === "observed"
+        ? (firstItem.entry?.observedDate || "observed")
+        : currentViewType === "forecast"
+          ? "forecast"
+          : currentViewType === "observed-day"
+            ? (selectedObservedDate || "observed")
+            : "historic-crest";
       const aspect = getDownloadAspectValue().replace(":", "x");
+      const interval = getDownloadIntervalValue();
       const townSlug = TOWN_CONFIG?.exportSlug || TOWN_CONFIG?.site?.slug || TOWN_CONFIG?.site?.name || "flood-map";
-      return `${townSlug}-${view}-${mode}-${aspect}`.replace(/[^a-z0-9\-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+      return `${townSlug}-${view}-${mode}-${interval}-${aspect}`.replace(/[^a-z0-9\-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
     }
 
     function getSafeFrameStamp(entry, sequence) {
@@ -17123,7 +17155,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         const dateKey = String(day?.date || "");
         if (!dateKey || dateKey < startKey || dateKey > endKey) return;
 
-        const hours = Array.isArray(day.hours) ? day.hours : [];
+        const hours = getObservedSourceHoursForDay(day);
         hours.forEach((hour, idx) => {
           const t = entryTimeMs(hour);
           if (t == null || t < minMs || t > maxMs) return;
@@ -17138,7 +17170,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         });
       });
 
-      return getObservedDisplaySeries(candidates).map(entry => ({
+      return candidates
+        .filter(entry => Number.isFinite(getStageValue(entry)))
+        .sort((a, b) => entryTimeMs(a) - entryTimeMs(b))
+        .map(entry => ({
         ...entry,
         exportSourceMode: "observed"
       }));
@@ -17196,7 +17231,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
     function getDownloadFrameItemFromEntry(entry, fallbackIndex = 0) {
       if (!entry) return null;
-      if (entry.exportSourceMode === "observed" || currentDataMode === "observed") {
+      const sourceMode = entry.exportSourceMode || currentDataMode;
+      if (sourceMode === "observed") {
         return {
           mode: "observed",
           dateStr: entry.observedDate || selectedObservedDate || "",
@@ -17510,6 +17546,23 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       return normalized;
     }
 
+    function getDownloadIntervalValue() {
+      const hiddenInterval = document.getElementById("downloadIntervalSelect");
+      const activeIntervalButton = document.querySelector("#downloadIntervalControl button[data-export-interval].active");
+      const raw = hiddenInterval?.value || activeIntervalButton?.dataset?.exportInterval || "hourly";
+      const normalized = EXPORT_INTERVALS[raw] ? raw : "hourly";
+      if (hiddenInterval && hiddenInterval.value !== normalized) hiddenInterval.value = normalized;
+      return normalized;
+    }
+
+    function getDownloadIntervalConfig() {
+      return EXPORT_INTERVALS[getDownloadIntervalValue()] || EXPORT_INTERVALS.hourly;
+    }
+
+    function getDownloadFrameLimit() {
+      return getDownloadIntervalConfig().frameLimit;
+    }
+
     function getDownloadSpeedValue() {
       const hiddenSpeed = document.getElementById("downloadSpeedSelect");
       const activeSpeedButton = document.querySelector("#downloadSpeedControl button[data-speed].active");
@@ -17626,7 +17679,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         legendDock.style.width = `${config.value === "9:16" ? 176 : config.value === "1:1" ? 184 : 192}px`;
       }
       if (timestamp) {
-        timestamp.style.maxWidth = `calc(${config.width}px - 48px)`;
+        timestamp.style.removeProperty("max-width");
       }
       if (exportMap) exportMap.invalidateSize(false);
       return config;
@@ -17768,9 +17821,10 @@ function getDownloadArchiveBounds() {
         .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
       if (!entries.length) return [];
 
-      const items = buildHourlyRangeFrameItems(entries, range);
-      if (items.length > EXPORT_RANGE_MAX_FRAMES) {
-        return items.slice(0, EXPORT_RANGE_MAX_FRAMES);
+      const items = buildExportRangeFrameItems(entries, range, getDownloadIntervalValue());
+      const frameLimit = getDownloadFrameLimit();
+      if (items.length > frameLimit) {
+        return items.slice(0, frameLimit);
       }
       return items;
     }
@@ -17779,8 +17833,19 @@ function getDownloadArchiveBounds() {
       if (!range || !Number.isFinite(range.startMs) || !Number.isFinite(range.endMs)) return 0;
       const startMs = Math.min(range.startMs, range.endMs);
       const endMs = Math.max(range.startMs, range.endMs);
-      const hourMs = 60 * 60 * 1000;
-      return Math.max(1, Math.floor((endMs - startMs) / hourMs) + 1);
+      const interval = getDownloadIntervalConfig();
+      if (interval.value === "daily") {
+        const keys = new Set();
+        for (let cursor = startMs; cursor <= endMs; cursor += 6 * 60 * 60 * 1000) {
+          const key = getExportDayKeyFromDate(new Date(cursor));
+          if (key) keys.add(key);
+        }
+        const endKey = getExportDayKeyFromDate(new Date(endMs));
+        if (endKey) keys.add(endKey);
+        return Math.max(1, keys.size);
+      }
+      const stepMs = interval.minutes * 60 * 1000;
+      return Math.max(1, Math.floor((endMs - startMs) / stepMs) + 1);
     }
 
 
@@ -18642,6 +18707,8 @@ function updateDownloadSummary() {
       const aspectLabel = getExportAspectConfig().label;
       const extentLabel = getDownloadExtentValue() === "simulation" ? "Simulation Extent" : "Current View";
       const speed = EXPORT_GIF_SPEEDS[getDownloadSpeedValue()]?.label || "Normal";
+      const interval = getDownloadIntervalConfig();
+      const frameLimit = getDownloadFrameLimit();
 
       if (format === "png") {
         const selectedItems = getSelectedPngFrameItems();
@@ -18651,9 +18718,9 @@ function updateDownloadSummary() {
         }
         if (scope === "range") {
           const range = getDownloadRangeRequest();
-          const count = range ? Math.min(getDownloadRangeSummaryFrameCount(range), EXPORT_RANGE_MAX_FRAMES) : 0;
+          const count = range ? Math.min(getDownloadRangeSummaryFrameCount(range), frameLimit) : 0;
           summary.textContent = count
-            ? `PNG (${aspectLabel}, ${extentLabel}) export of ${count} hourly frame${count === 1 ? "" : "s"}.`
+            ? `PNG (${aspectLabel}, ${interval.label}, ${extentLabel}) export of ${count} frame${count === 1 ? "" : "s"}.`
             : "No frames are available for export.";
           return;
         }
@@ -18672,8 +18739,8 @@ function updateDownloadSummary() {
           summary.textContent = `${formatLabel} (${aspectLabel}, ${speed}, ${extentLabel}) export range is longer than ${EXPORT_RANGE_MAX_HOURS} hours and is not allowed.`;
           return;
         }
-        const frameCount = Math.min(getDownloadRangeSummaryFrameCount(range), EXPORT_RANGE_MAX_FRAMES);
-        summary.textContent = `${formatLabel} (${aspectLabel}, ${speed}, ${extentLabel}) export of ${frameCount} hourly frames from ${formatFixedESTFromUtc(range.startDate.toISOString())} to ${formatFixedESTFromUtc(range.endDate.toISOString())}.`;
+        const frameCount = Math.min(getDownloadRangeSummaryFrameCount(range), frameLimit);
+        summary.textContent = `${formatLabel} (${aspectLabel}, ${interval.label}, ${speed}, ${extentLabel}) export of ${frameCount} frame${frameCount === 1 ? "" : "s"} from ${formatFixedESTFromUtc(range.startDate.toISOString())} to ${formatFixedESTFromUtc(range.endDate.toISOString())}.`;
         return;
       }
 
@@ -18690,6 +18757,7 @@ function updateDownloadSummary() {
 function updateExportSegmentedUI() {
       const scopeValue = getDownloadScopeValue();
       const formatValue = getDownloadFormatValue();
+      const intervalValue = getDownloadIntervalValue();
       const aspectValue = getDownloadAspectValue();
       const extentValue = getDownloadExtentValue();
       const speedValue = getDownloadSpeedValue();
@@ -18701,6 +18769,11 @@ function updateExportSegmentedUI() {
       });
       document.querySelectorAll("#downloadFormatControl button[data-format]").forEach(btn => {
         const active = btn.dataset.format === formatValue;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+      document.querySelectorAll("#downloadIntervalControl button[data-export-interval]").forEach(btn => {
+        const active = btn.dataset.exportInterval === intervalValue;
         btn.classList.toggle("active", active);
         btn.setAttribute("aria-pressed", String(active));
       });
@@ -18732,6 +18805,7 @@ function updateExportSegmentedUI() {
       };
 
       setHidden("downloadFormatSelect", "gif");
+      setHidden("downloadIntervalSelect", "hourly");
       setHidden("downloadAspectSelect", "16:9");
       setHidden("downloadSpeedSelect", "normal");
       setHidden("downloadScopeSelect", "range");
@@ -18760,6 +18834,7 @@ function updateExportSegmentedUI() {
       const scope = document.getElementById("downloadScopeSelect");
       const start = document.getElementById("downloadStartInput");
       const format = document.getElementById("downloadFormatSelect");
+      const interval = document.getElementById("downloadIntervalSelect");
       const aspect = document.getElementById("downloadAspectSelect");
       const speed = document.getElementById("downloadSpeedSelect");
       const extent = document.getElementById("downloadExtentSelect");
@@ -18790,9 +18865,10 @@ function updateExportSegmentedUI() {
       }
       if (scope) scope.disabled = isBusy;
       if (format) format.disabled = isBusy;
+      if (interval) interval.disabled = isBusy;
       if (aspect) aspect.disabled = isBusy;
       if (speed) speed.disabled = isBusy;
-      document.querySelectorAll("#downloadFormatControl button, #downloadAspectControl button, #downloadSpeedControl button").forEach(el => { el.disabled = isBusy; });
+      document.querySelectorAll("#downloadFormatControl button, #downloadIntervalControl button, #downloadAspectControl button, #downloadSpeedControl button").forEach(el => { el.disabled = isBusy; });
       const picker = document.getElementById("exportTimePicker");
       if (picker) picker.classList.toggle("is-busy", isBusy);
       if (start) start.disabled = isBusy;
@@ -19199,7 +19275,8 @@ function updateExportSegmentedUI() {
     function getExportFrameTimestampText(entry) {
       const text = formatHourEntryTime(entry);
       const timeText = text && text !== "--" ? text : "Selected time";
-      return `${timeText}\nWater level: ${getExportFrameWaterLevelText(entry)}`;
+      const intervalLabel = entry?.isDailyMaximum ? "Daily maximum" : getDownloadIntervalConfig().label;
+      return `${timeText}\n${intervalLabel} • Water level ${getExportFrameWaterLevelText(entry)}`;
     }
 
     function updateExportTimestampLabel(entry) {
@@ -19290,9 +19367,8 @@ function updateExportSegmentedUI() {
       }
     }
 
-function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set()) {
+function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), toleranceMs = 31 * 60 * 1000) {
       if (!Array.isArray(entries) || !entries.length || !Number.isFinite(slotMs)) return null;
-      const toleranceMs = 61 * 60 * 1000;
       let best = null;
       let bestDiff = Infinity;
       entries.forEach((entry, idx) => {
@@ -19301,17 +19377,6 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set()) {
         const diff = Math.abs(t - slotMs);
         const key = String(t);
         if (diff <= toleranceMs && diff < bestDiff && !usedKeys.has(key)) {
-          best = { entry, idx, key, diff };
-          bestDiff = diff;
-        }
-      });
-      if (best) return best;
-      entries.forEach((entry, idx) => {
-        const t = entryTimeMs(entry);
-        if (t == null) return;
-        const diff = Math.abs(t - slotMs);
-        const key = String(t);
-        if (diff < bestDiff && !usedKeys.has(key)) {
           best = { entry, idx, key, diff };
           bestDiff = diff;
         }
@@ -19326,23 +19391,77 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set()) {
       const items = [];
       const hourMs = 60 * 60 * 1000;
       for (let slotMs = range.startMs; slotMs <= range.endMs + 1000; slotMs += hourMs) {
-        const match = findClosestExportEntryForSlot(sorted, slotMs, usedKeys);
+        const match = findClosestExportEntryForSlot(sorted, slotMs, usedKeys, 31 * 60 * 1000);
         if (!match) continue;
         usedKeys.add(match.key);
-        const fallbackIndex = match.entry.exportSourceMode === "forecast" ? findClosestEntryIndex(currentSeriesHours, match.entry) : match.idx;
-        const item = getDownloadFrameItemFromEntry(match.entry, fallbackIndex);
+        const exportEntry = {
+          ...match.entry,
+          observationInterval: "1hour",
+          timelineIntervalMinutes: 60,
+          exportInterval: "hourly"
+        };
+        const fallbackIndex = exportEntry.exportSourceMode === "forecast" ? findClosestEntryIndex(currentSeriesHours, exportEntry) : match.idx;
+        const item = getDownloadFrameItemFromEntry(exportEntry, fallbackIndex);
         if (item) items.push(item);
       }
-      if (items.length > 1) return items;
-      const startIndex = findStartIndexForTime(sorted, range.startMs);
-      const endIndex = findEndIndexForTime(sorted, range.endMs);
-      if (endIndex >= startIndex) {
-        return sorted.slice(startIndex, endIndex + 1).map((entry, idx) => {
-          const fallbackIndex = entry.exportSourceMode === "forecast" ? findClosestEntryIndex(currentSeriesHours, entry) : startIndex + idx;
-          return getDownloadFrameItemFromEntry(entry, fallbackIndex);
-        }).filter(Boolean);
-      }
       return items;
+    }
+
+    function buildQuarterHourRangeFrameItems(entries, range) {
+      if (!Array.isArray(entries) || !entries.length || !range) return [];
+      const sourceMode = entries.some(entry => entry.exportSourceMode === "forecast") ? "forecast" : "observed";
+      const series = buildQuarterHourTimelineSeries(entries, {
+        kind: sourceMode,
+        startMs: range.startMs,
+        endMs: range.endMs,
+        fillMissingSlots: false,
+        maxGapMinutes: 75
+      });
+      return series
+        .filter(entry => Number.isFinite(getStageValue(entry)))
+        .map((entry, idx) => {
+          const exportEntry = {
+            ...entry,
+            exportSourceMode: entry.exportSourceMode || sourceMode,
+            observationInterval: "15min",
+            timelineIntervalMinutes: 15,
+            exportInterval: "15min"
+          };
+          const fallbackIndex = exportEntry.exportSourceMode === "forecast"
+            ? findClosestEntryIndex(currentSeriesHours, exportEntry)
+            : idx;
+          return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex);
+        })
+        .filter(Boolean);
+    }
+
+    function buildDailyMaximumRangeFrameItems(entries, range) {
+      if (!Array.isArray(entries) || !entries.length || !range) return [];
+      const inRange = entries.filter(entry => {
+        const time = entryTimeMs(entry);
+        return Number.isFinite(time) && time >= range.startMs && time <= range.endMs && Number.isFinite(getStageValue(entry));
+      });
+      return buildDailyMaximumSeries(inRange, { kind: "export" })
+        .map((entry, idx) => {
+          const exportEntry = {
+            ...entry,
+            exportSourceMode: entry.exportSourceMode || "observed",
+            observationInterval: "daily",
+            timelineIntervalMinutes: 1440,
+            exportInterval: "daily"
+          };
+          const fallbackIndex = exportEntry.exportSourceMode === "forecast"
+            ? findClosestEntryIndex(currentSeriesHours, exportEntry)
+            : idx;
+          return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex);
+        })
+        .filter(Boolean);
+    }
+
+    function buildExportRangeFrameItems(entries, range, intervalValue = getDownloadIntervalValue()) {
+      if (intervalValue === "15min") return buildQuarterHourRangeFrameItems(entries, range);
+      if (intervalValue === "daily") return buildDailyMaximumRangeFrameItems(entries, range);
+      return buildHourlyRangeFrameItems(entries, range);
     }
 
 async function runExportLimited(items, limit, worker) {
@@ -19489,11 +19608,13 @@ function getUniqueExportStages(frameItems) {
       ctx.font = `850 ${subFontSize}px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif`;
       const subWidth = lines[1] ? ctx.measureText(lines[1]).width : 0;
       const maxLineWidth = Math.min(Math.max(mainWidth, subWidth), w - 56);
-      const boxWidth = Math.min(w - 48, Math.max(Math.round(w * 0.44), Math.ceil(maxLineWidth + padX * 2)));
+      const portrait = h > w;
+      const availableWidth = portrait ? Math.round(w * 0.62) : w - 48;
+      const boxWidth = Math.min(availableWidth, Math.max(Math.round(w * (portrait ? 0.58 : 0.44)), Math.ceil(maxLineWidth + padX * 2)));
       const contentHeight = lines[1] ? mainFontSize + gap + subFontSize : mainFontSize;
       const boxHeight = Math.ceil(contentHeight + padY * 2);
-      const x = Math.round((w - boxWidth) / 2);
-      const y = h - boxHeight - Math.round(Math.max(12, h * 0.025));
+      const x = portrait ? Math.round(Math.max(12, w * 0.018)) : Math.round((w - boxWidth) / 2);
+      const y = Math.round(Math.max(12, h * (portrait ? 0.084 : 0.015)));
       const radius = Math.round(Math.min(24, boxHeight / 2));
       ctx.fillStyle = "rgba(11,18,32,0.92)";
       ctx.strokeStyle = "rgba(191,219,254,0.42)";
@@ -19518,7 +19639,7 @@ function getUniqueExportStages(frameItems) {
 
     function getExportCaptureScale() {
       const dpr = Number(window.devicePixelRatio) || 1;
-      return Math.max(1.5, Math.min(EXPORT_CAPTURE_SCALE, dpr > 1 ? dpr : EXPORT_CAPTURE_SCALE));
+      return Math.max(1, Math.min(EXPORT_CAPTURE_SCALE, dpr > 1 ? dpr : EXPORT_CAPTURE_SCALE));
     }
 
     function getExportOverlayRect(mapInstance) {
@@ -19561,17 +19682,10 @@ function getUniqueExportStages(frameItems) {
     }
 
     function getGifLegendPaletteColors() {
-      const dynamicSamples = [
-        Math.max(MIN_STAGE, MINOR_FLOOD_FT - 0.1),
-        MINOR_FLOOD_FT,
-        MODERATE_FLOOD_FT,
-        MAJOR_FLOOD_FT
-      ].map(stageColor);
       const legendColors = [
         ...collectGifLegendSwatchColors(),
         ...DEPTH_LEGEND.map(item => resolveCssColorToken(item.color)),
         ...DYNAMIC_LEGEND.map(item => resolveCssColorToken(item.color)),
-        ...dynamicSamples,
         "rgba(121,221,90,.92)",
         "rgba(213,138,0,.92)",
         "rgba(216,75,103,.92)",
@@ -19702,7 +19816,7 @@ function getUniqueExportStages(frameItems) {
         throw new Error("GIF export library did not load.");
       }
       const aspectConfig = applyExportStageAspect(getDownloadAspectValue());
-      const items = frameItems.slice(0, EXPORT_RANGE_MAX_FRAMES);
+      const items = frameItems.slice(0, getDownloadFrameLimit());
       setDownloadStatus(`Preloading ${aspectConfig.label} GIF frames...`);
       setExportProgress(`Preloading ${aspectConfig.label} GIF frames...`, 2, false);
       const overlayImageLookup = await preloadExportFrameAssets(items);
@@ -19749,7 +19863,7 @@ function getUniqueExportStages(frameItems) {
       });
       throwIfExportCancelled();
       setExportProgress("Starting GIF download...", 99, false);
-      downloadBlob(blob, `${getExportBaseName()}.gif`);
+      downloadBlob(blob, `${getExportBaseName(items)}.gif`);
       if (activeGifExport === gif) activeGifExport = null;
     }
 
@@ -19765,7 +19879,7 @@ function getUniqueExportStages(frameItems) {
         await withExportFrames(items, async ({ canvas, entry, sequence }) => {
           const blob = await canvasToBlob(canvas, "image/png");
           throwIfExportCancelled();
-          downloadBlob(blob, `${getExportBaseName()}-${getSafeFrameStamp(entry, sequence)}.png`);
+          downloadBlob(blob, `${getExportBaseName(items)}-${getSafeFrameStamp(entry, sequence)}.png`);
         }, 8, 94);
         return;
       }
@@ -19788,7 +19902,7 @@ function getUniqueExportStages(frameItems) {
         setExportProgress(`Packaging PNG files... ${Math.round(metadata.percent || 0)}%`, pct, false);
       });
       throwIfExportCancelled();
-      downloadBlob(zipBlob, `${getExportBaseName()}-pngs.zip`);
+      downloadBlob(zipBlob, `${getExportBaseName(items)}-pngs.zip`);
     }
 
     async function downloadCurrentSelection() {
@@ -20712,8 +20826,13 @@ function formatSelectedObservedDate(dateStr) {
         .map(entry => {
           const dateKey = entry.observedDate || "";
           const dayRecord = dateKey ? getObservedDayRecord(dateKey) : null;
+          const usesStoneHarborReplayShape = [
+            "stone-harbor",
+            "north-wildwood",
+            "north-wildwood-calibrated"
+          ].includes(String(entry.sourceArea || "").toLowerCase());
           const canUseStoneHarborArchive = Boolean(
-            dayRecord && !dayRecord.isHistoricalCrestOnly && !dayRecord.isLewesSurrogate && entry.sourceArea === "stone-harbor"
+            dayRecord && !dayRecord.isHistoricalCrestOnly && !dayRecord.isLewesSurrogate && usesStoneHarborReplayShape
           );
           const canUseLewesSurrogate = Boolean(
             dayRecord && dayRecord.isLewesSurrogate && dateKey < String(observedData?.lewesCutoffDate || "2007-10-01")
@@ -23622,6 +23741,26 @@ function startPlayback() {
           scheduleExportTimePickerRender(true);
           updateDownloadSummary();
         });
+      });
+
+      document.querySelectorAll("#downloadIntervalControl button[data-export-interval]").forEach(btn => {
+        btn.addEventListener("click", event => {
+          event.preventDefault();
+          const input = document.getElementById("downloadIntervalSelect");
+          if (!input) return;
+          input.value = btn.dataset.exportInterval || "hourly";
+          if (!exportInProgress) setDownloadStatus("", false);
+          updateExportSegmentedUI();
+          scheduleExportTimePickerRender(true);
+          updateDownloadSummary();
+        });
+      });
+
+      document.getElementById("downloadIntervalSelect")?.addEventListener("change", () => {
+        if (!exportInProgress) setDownloadStatus("", false);
+        updateExportSegmentedUI();
+        scheduleExportTimePickerRender(true);
+        updateDownloadSummary();
       });
 
       document.querySelectorAll("#downloadAspectControl button[data-aspect]").forEach(btn => {

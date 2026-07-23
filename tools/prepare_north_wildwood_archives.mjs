@@ -8,9 +8,23 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const NAVD_OFFSET_FROM_MLLW_FT = -2.75;
 const THRESHOLDS_NAVD88 = { minorLow: 3.25, moderateLow: 4.25, majorLow: 5.25 };
 const THRESHOLDS_MLLW = { minorLow: 6.0, moderateLow: 7.0, majorLow: 8.0 };
+const SANDY_DATE = "2012-10-29";
+const SANDY_TARGET_NAVD88_FT = 6.73;
 const JONAS_DATE = "2016-01-23";
 const JONAS_TARGET_NAVD88_FT = 6.69;
 const JONAS_TARGET_MLLW_FT = 9.44;
+// NOAA Lewes 8557380 verified six-minute water levels for October 29, 2012,
+// interpolated to quarter-hours, shifted so the observed Lewes surge peak
+// coincides with the official Stone Harbor Sandy crest, then scaled about low
+// water to preserve the tide shape while matching 6.73 ft NAVD88.
+const SANDY_QUARTER_HOUR_NAVD88_HUNDREDTHS = [
+  506,481,465,439,410,388,353,327,300,298,290,283,289,266,257,255,
+  235,239,266,307,320,341,353,371,374,384,359,337,353,362,369,365,
+  372,366,373,390,410,459,464,467,447,423,399,370,330,314,289,380,
+  368,342,310,297,271,257,247,240,222,221,212,212,232,238,243,258,
+  276,295,318,341,365,378,411,441,455,484,520,555,574,613,629,649,
+  644,652,669,673,670,657,663,668,667,657,633,621,588,559,535,526
+];
 
 function readJson(name) {
   return JSON.parse(fs.readFileSync(path.join(REPO, name), "utf8"));
@@ -104,6 +118,10 @@ function updateForecast() {
 function updateObserved15Minute() {
   const payload = readJson("observed15min.json");
   for (const day of payload.days || []) {
+    if (day.d === SANDY_DATE) {
+      day.v = SANDY_QUARTER_HOUR_NAVD88_HUNDREDTHS.slice();
+      day.s = "NOAA Lewes 8557380 verified tide shape aligned and scaled to the official 6.73 ft NAVD88 Stone Harbor Hurricane Sandy crest";
+    }
     if (day.d === JONAS_DATE) {
       const feet = (day.v || []).map(value => value == null ? NaN : Number(value) / 100);
       const calibrated = calibrateJonas(feet, JONAS_TARGET_NAVD88_FT);
@@ -123,6 +141,13 @@ function updateObserved15Minute() {
     targetNavd88Ft: JONAS_TARGET_NAVD88_FT,
     targetMllwFt: JONAS_TARGET_MLLW_FT,
     method: "preserve the Stone Harbor 15-minute tide shape and scale its excursion about the day's low water to the documented North Wildwood crest"
+  };
+  payload.sandyCalibration = {
+    date: SANDY_DATE,
+    targetNavd88Ft: SANDY_TARGET_NAVD88_FT,
+    targetMllwFt: round2(SANDY_TARGET_NAVD88_FT - NAVD_OFFSET_FROM_MLLW_FT),
+    sourceStation: "NOAA Lewes 8557380",
+    method: "verified six-minute Lewes tide shape interpolated to quarter-hours, time-aligned to the official Stone Harbor crest, and scaled about low water to 6.73 ft NAVD88"
   };
   writeJson("observed15min.json", payload, true);
 }
@@ -176,7 +201,14 @@ function updateLewesArchive() {
 
 function updateTopTides() {
   const payload = readJson("toptides.json");
-  const events = (payload.toptides || []).filter(event => event && typeof event === "object" && event.date !== JONAS_DATE);
+  const events = (payload.toptides || [])
+    .filter(event => event && typeof event === "object" && event.date !== JONAS_DATE)
+    .map(event => event.date === SANDY_DATE ? {
+      ...event,
+      event_name: "Hurricane Sandy",
+      time_est: "20:45",
+      record_type: "Official Stone Harbor crest; replay uses the NOAA Lewes verified tide shape aligned and scaled to 6.73 ft NAVD88"
+    } : event);
   events.push({
     height_ft: JONAS_TARGET_NAVD88_FT,
     height_mllw_ft: JONAS_TARGET_MLLW_FT,
@@ -190,7 +222,7 @@ function updateTopTides() {
     station_priority: 4,
     event_name: "Winter Storm Jonas",
     record_type: "North Wildwood documented crest; Stone Harbor 15-minute gauge shape scaled to 9.44 ft MLLW",
-    time_est: "08:15"
+    time_est: "09:00"
   });
   events.sort((a, b) => Number(b.height_ft) - Number(a.height_ft) || String(a.date).localeCompare(String(b.date)));
   payload.schema = "north-wildwood-stone-harbor-gauge-crests-v1";
