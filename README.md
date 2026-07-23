@@ -31,9 +31,12 @@ vertical units in NAVD88 feet. The model then:
 3. Computes each cell's minimum equilibrium connection stage through 14.0 ft.
    User-drawn storm grates are independent underground connections and are
    modeled as 48-inch circular orifices.
-4. Integrates exact one-foot elevation hypsometry inside 25-foot finite-volume
-   nodes. Each terrain cross section contains one foot of width for every
-   shared one-foot cell side, grouped by crest elevation.
+4. Integrates exact one-foot elevation hypsometry inside economical 25-foot
+   finite-volume tiles. A tile is split into separate four-neighbour components
+   for every connection band, and bulkhead cells are isolated as barrier
+   material, so disconnected terrain on opposite sides of a hard structure can
+   never share a storage node. Each terrain cross section contains one foot of
+   width for every shared one-foot cell side, grouped by crest elevation.
 5. Advances flow with submerged broad-crested-weir physics and conservative
    60-second substeps inside every 15-minute tide interval.
 6. Bounds every explicit transfer by the two-basin equalization volume,
@@ -51,6 +54,11 @@ application updates only choose an existing phase/stage asset.
 The main builders are:
 
 ```bash
+python3 tools/prepare_north_wildwood_hydraulic_features.py \
+  --zip /path/to/north_wildwood_features_shp.zip \
+  --dem /path/to/NorthWildwoodDEM_1ft_NAVD88.tif \
+  --output /path/to/feature-inputs
+
 g++ -O3 -std=c++17 \
   $(gdal-config --cflags) tools/north_wildwood_hydraulic_graph.cpp \
   $(gdal-config --libs) -o north_wildwood_hydraulic_graph
@@ -66,7 +74,23 @@ python3 tools/simulate_north_wildwood_hydraulics.py \
   --graph /path/to/graph \
   --dem /path/to/NorthWildwoodDEM_1ft_NAVD88.tif \
   --output /path/to/assets
+
+python3 tools/validate_north_wildwood_hydraulic_features.py \
+  --graph /path/to/graph \
+  --states /path/to/assets/COGs/North\ Wildwood/NorthWildwoodHydraulicStates.json.png
 ```
+
+The feature validator fails if any supplied bulkhead cell is mixed into a
+terrain node, any edge crosses a bulkhead below 7.5 ft NAVD88, any of the six
+supplied grate cells is lost, or a grate does not fill above its local
+connection stage.
+
+The feature-preparation step records the source ZIP hash, validates the
+one-foot grid, and requires the expected 1 hard-structure feature, 6 grate
+points, 6 source polygons, 11,200 bulkhead pixels, 6 grate pixels, and 254,212
+manual-source pixels. The ZIP's descriptive DBF values say 18 inches for the
+grates; the explicit Floodmapper modeling requirement remains authoritative at
+48 inches and is recorded as a physics override in the generated manifest.
 
 The renderer uses the new depth key: shallow water is bright cyan and deeper
 water grades to dark navy. Terrain that is below the selected tide but is not

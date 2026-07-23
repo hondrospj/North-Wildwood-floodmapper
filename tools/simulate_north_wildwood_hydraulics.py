@@ -83,6 +83,14 @@ def parse_args() -> argparse.Namespace:
             "then solve and render only draining assets"
         ),
     )
+    parser.add_argument(
+        "--reuse-complete-state",
+        action="store_true",
+        help=(
+            "Decode the existing complete state package in the output directory "
+            "and only rebuild PNG/COG assets; do not rerun any hydraulic solve"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -401,6 +409,40 @@ def load_reusable_static_phases(
         centift[encoded == int(header["drySentinel"])] = DRY_SENTINEL
         reusable[phase] = centift
     return reusable
+
+
+def load_complete_state(
+    state_path: Path,
+    expected_stride: int,
+) -> tuple[dict[str, np.ndarray], dict]:
+    raw = gzip.decompress(state_path.read_bytes())
+    if raw[:8] != b"NWHYD2\x00\x00":
+        raise RuntimeError(f"Unsupported reusable state package: {state_path}")
+    header_length = int.from_bytes(raw[8:12], "little")
+    header = json.loads(raw[12 : 12 + header_length])
+    if (
+        header.get("stageCount") != len(STAGES_FT)
+        or header.get("zoneStride") != expected_stride
+    ):
+        raise RuntimeError("Reusable state package dimensions do not match the graph")
+
+    payload_start = 12 + header_length
+    phases: dict[str, np.ndarray] = {}
+    for phase in ("filling", "slack", "draining"):
+        record = header["phaseArrays"][phase]
+        encoded = np.frombuffer(
+            raw,
+            dtype=np.uint8,
+            count=record["length"],
+            offset=payload_start + record["offset"],
+        ).reshape(len(STAGES_FT), expected_stride)
+        centift = (
+            encoded.astype(np.int16)
+            + int(header["surfaceOffsetDecifeet"])
+        ) * 10
+        centift[encoded == int(header["drySentinel"])] = DRY_SENTINEL
+        phases[phase] = centift
+    return phases, dict(header.get("diagnostics") or {})
 
 
 def simulate(
@@ -835,6 +877,8 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
 
 def main() -> None:
     args = parse_args()
+    if args.draining_only and args.reuse_complete_state:
+        raise ValueError("--draining-only and --reuse-complete-state are mutually exclusive")
     graph_dir = args.graph.resolve()
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
@@ -848,10 +892,6 @@ def main() -> None:
         )
         previous_render_manifest = previous_asset_manifest.get("render")
     graph_manifest = json.loads((graph_dir / "graph_manifest.json").read_text(encoding="utf-8"))
-    zones = load_zones(graph_dir / "zones.csv")
-    edges = load_edges(graph_dir / "edges.csv")
-    print(f"Loaded {len(zones['connection10']):,} zones and {len(edges['a']):,} crest-width edge groups")
-    solver = HydraulicSolver(zones, edges)
     state_path = (
         output_root
         / "COGs"
@@ -859,14 +899,29 @@ def main() -> None:
         / "NorthWildwoodHydraulicStates.json.png"
     )
     reusable_static_state = state_path if args.draining_only else None
-    if reusable_static_state is not None and not reusable_static_state.is_file():
+    reusable_complete_state = state_path if args.reuse_complete_state else None
+    required_state = reusable_complete_state or reusable_static_state
+    if required_state is not None and not required_state.is_file():
         raise FileNotFoundError(
-            "--draining-only requires an existing hydraulic state package at "
-            f"{reusable_static_state}"
+            "State reuse requires an existing hydraulic state package at "
+            f"{required_state}"
         )
-    phases, diagnostics = simulate(solver, reusable_static_state)
-
-    write_state_asset(state_path, phases, graph_manifest, diagnostics)
+    if reusable_complete_state is not None:
+        phases, diagnostics = load_complete_state(
+            reusable_complete_state,
+            int(graph_manifest["zoneCount"]) + 1,
+        )
+        print(f"Reused all hydraulic states: {reusable_complete_state}")
+    else:
+        zones = load_zones(graph_dir / "zones.csv")
+        edges = load_edges(graph_dir / "edges.csv")
+        print(
+            f"Loaded {len(zones['connection10']):,} zones and "
+            f"{len(edges['a']):,} crest-width edge groups"
+        )
+        solver = HydraulicSolver(zones, edges)
+        phases, diagnostics = simulate(solver, reusable_static_state)
+        write_state_asset(state_path, phases, graph_manifest, diagnostics)
     render_manifest = None
     if not args.skip_render:
         render_manifest = render_assets(

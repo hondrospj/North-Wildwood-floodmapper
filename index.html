@@ -16347,13 +16347,22 @@ function setDatumHelpOpen(isOpen) {
     }
 
     async function ensureOverlayBounds(sampleOverlayUrl) {
-      const boundaryBounds = getBoundaryDrivenOverlayBounds();
-      floodLatLngBounds = boundaryBounds;
+      const configured = TOWN_CONFIG?.overlays?.boundsWgs84 || {};
+      const south = Number(configured.south);
+      const west = Number(configured.west);
+      const north = Number(configured.north);
+      const east = Number(configured.east);
+      const hasConfiguredBounds = [south, west, north, east].every(Number.isFinite)
+        && south < north
+        && west < east;
+      floodLatLngBounds = hasConfiguredBounds
+        ? L.latLngBounds([south, west], [north, east])
+        : getBoundaryDrivenOverlayBounds();
 
       return {
         url: sampleOverlayUrl || null,
-        mode: "boundary-driven",
-        bounds: boundaryBounds
+        mode: hasConfiguredBounds ? "configured-raster" : "boundary-fallback",
+        bounds: floodLatLngBounds
       };
     }
 
@@ -20951,7 +20960,8 @@ function formatSelectedObservedDate(dateStr) {
         }
 
         if (!mapHasFit && floodLatLngBounds) {
-          map.fitBounds(floodLatLngBounds, { padding: [16, 16] });
+          const townBounds = getBoundaryDrivenOverlayBounds();
+          map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
           mapHasFit = true;
         }
       });
@@ -20971,6 +20981,7 @@ function formatSelectedObservedDate(dateStr) {
 
       const entry = currentSeriesHours[index];
       if (!entry) return;
+      if (map) map.closePopup();
 
       currentHourIndex = index;
 
@@ -22107,13 +22118,55 @@ function startPlayback() {
       const x = Math.floor(((lon - bounds[0]) / (bounds[2] - bounds[0])) * width);
       const y = Math.floor(((bounds[3] - lat) / (bounds[3] - bounds[1])) * height);
       if (x < 0 || y < 0 || x >= width || y >= height) return null;
-      const values = await image.readRasters({ window: [x, y, x + 1, y + 1], samples: [0, 1, 2, 3, 4, 5], interleave: true });
-      const elevation = Number(values[0]);
-      const zoneId = Math.round(Number(values[1]));
-      const connectionStage = Number(values[2]);
-      const sourceFlag = Number(values[3]);
-      const hardStructureFlag = Number(values[4]);
-      const stormGrateFlag = Number(values[5]);
+      // A one-foot line or point is narrower than one screen pixel at ordinary
+      // map zooms. Read a sixteen-foot neighbourhood and snap only when the click
+      // is near a supplied hydraulic feature, keeping ordinary terrain clicks
+      // exact while making the bulkhead and grate cells realistically usable.
+      const featureRadiusPixels = 16;
+      const x0 = Math.max(0, x - featureRadiusPixels);
+      const y0 = Math.max(0, y - featureRadiusPixels);
+      const x1 = Math.min(width, x + featureRadiusPixels + 1);
+      const y1 = Math.min(height, y + featureRadiusPixels + 1);
+      const sampleCount = 6;
+      const windowWidth = x1 - x0;
+      const values = await image.readRasters({
+        window: [x0, y0, x1, y1],
+        samples: [0, 1, 2, 3, 4, 5],
+        interleave: true
+      });
+      let sampleX = x;
+      let sampleY = y;
+      let featureDistanceFt = null;
+      let bestDistanceSquared = Infinity;
+      for (let row = 0; row < y1 - y0; row += 1) {
+        for (let column = 0; column < windowWidth; column += 1) {
+          const offset = (row * windowWidth + column) * sampleCount;
+          const isFeature = Number(values[offset + 4]) >= 0.5 || Number(values[offset + 5]) >= 0.5;
+          if (!isFeature) continue;
+          const candidateX = x0 + column;
+          const candidateY = y0 + row;
+          const distanceSquared = (candidateX - x) ** 2 + (candidateY - y) ** 2;
+          if (distanceSquared < bestDistanceSquared) {
+            bestDistanceSquared = distanceSquared;
+            sampleX = candidateX;
+            sampleY = candidateY;
+          }
+        }
+      }
+      const sampleOffset = ((sampleY - y0) * windowWidth + (sampleX - x0)) * sampleCount;
+      if (Number.isFinite(bestDistanceSquared)) {
+        const feetPerDegreeLatitude = 364000;
+        const feetPerDegreeLongitude = feetPerDegreeLatitude * Math.cos(lat * Math.PI / 180);
+        const xFeet = (sampleX - x) * ((bounds[2] - bounds[0]) / width) * feetPerDegreeLongitude;
+        const yFeet = (sampleY - y) * ((bounds[3] - bounds[1]) / height) * feetPerDegreeLatitude;
+        featureDistanceFt = Math.hypot(xFeet, yFeet);
+      }
+      const elevation = Number(values[sampleOffset]);
+      const zoneId = Math.round(Number(values[sampleOffset + 1]));
+      const connectionStage = Number(values[sampleOffset + 2]);
+      const sourceFlag = Number(values[sampleOffset + 3]);
+      const hardStructureFlag = Number(values[sampleOffset + 4]);
+      const stormGrateFlag = Number(values[sampleOffset + 5]);
       if (!Number.isFinite(elevation) || elevation < -1000) return null;
       return {
         elevation,
@@ -22121,7 +22174,8 @@ function startPlayback() {
         connectionStage,
         sourceFlag: sourceFlag >= 0.5,
         hardStructureFlag: hardStructureFlag >= 0.5,
-        stormGrateFlag: stormGrateFlag >= 0.5
+        stormGrateFlag: stormGrateFlag >= 0.5,
+        featureDistanceFt
       };
     }
 
@@ -22168,7 +22222,14 @@ function startPlayback() {
           "<dt>Water depth</dt><dd>" + (depth == null ? "—" : depth.toFixed(2) + " ft") + "</dd>" +
           "<dt>First connected</dt><dd>" + (Number.isFinite(sample.connectionStage) && sample.connectionStage < 100 ? sample.connectionStage.toFixed(1) + " ft" : "Not by 14 ft") + "</dd>" +
           "<dt>1 ft source block</dt><dd>" + (sample.sourceFlag ? "Yes" : "No") + "</dd>" +
-          "<dt>Hydraulic feature</dt><dd>" + (sample.stormGrateFlag ? "48-in storm grate" : (sample.hardStructureFlag ? "7.5-ft bulkhead" : "Terrain")) + "</dd></dl></div>";
+          "<dt>Hydraulic feature</dt><dd>" +
+          (sample.stormGrateFlag
+            ? "48-in storm grate"
+            : (sample.hardStructureFlag ? "7.5-ft bulkhead" : "Terrain")) +
+          (Number.isFinite(sample.featureDistanceFt) && sample.featureDistanceFt > 0.05
+            ? " (nearest supplied feature, " + sample.featureDistanceFt.toFixed(1) + " ft from click)"
+            : "") +
+          "</dd></dl></div>";
         L.popup({ maxWidth: 330 }).setLatLng(event.latlng).setContent(html).openOn(map);
       } catch (err) {
         console.error("Depth query failed", err);
@@ -31359,13 +31420,19 @@ TOWN_CONFIG = {
   "overlays": {
     "depthPngPrefix": "NorthWildwoodDepth",
     "stagePngPrefix": "NorthWildwoodStage",
+    "boundsWgs84": {
+      "south": 38.9875038,
+      "west": -74.8191427,
+      "north": 39.0263740,
+      "east": -74.7805143
+    },
     "cacheVersions": {
       "depth": "20260723-hydraulic-v2",
       "dynamic": "20260723-hydraulic-v2",
-      "hydraulic": "20260723-hydraulic-v6"
+      "hydraulic": "20260723-hydraulic-v7"
     },
-    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif.png?v=20260723-hydraulic-v6",
-    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v6",
+    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif.png?v=20260723-hydraulic-v7",
+    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v7",
     "depthRoots": [
       "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/"
     ],
