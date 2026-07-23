@@ -33,12 +33,15 @@ vertical units in NAVD88 feet. The model then:
 3. Computes each cell's minimum equilibrium connection stage through 14.0 ft.
    Storm drains are disabled in this model version: they are neither
    connectivity seeds nor underground exchange paths.
-4. Lowers the effective bathtub surface vertically to avoid overstating
-   low-level flooding. The penalty is 0.75 ft through minor flood, tapers
+4. Marks a cell connected when its conditioned ground elevation and its exact
+   four-neighbour source-connection threshold are both below the full selected
+   gauge stage. A corner connection can never make a cell blue.
+5. Penalizes the resulting connected depth to avoid overstating low-level
+   flooding. The maximum penalty is 0.75 ft through minor flood, tapers
    linearly to 0.35 ft at moderate flood, and tapers to zero at major flood.
-5. Marks a cell wet only when its conditioned ground elevation and its exact
-   four-neighbour source-connection threshold are both below that penalized
-   water surface. A corner connection can never make a cell blue.
+   The applied penalty is capped at 75 percent of each cell's raw depth, so a
+   connected wet cell retains at least 25 percent of its depth and remains
+   shallow bright blue instead of being misclassified as green.
 
 The solve produces reusable assets from 0.0–14.0 ft NAVD88 at 0.1-foot
 intervals. It is intentionally static: `filling`, `slack`, and `draining`
@@ -91,14 +94,15 @@ manual-source pixels. It records the expanded wall pixel count and conditioned
 DEM provenance in the generated manifest.
 
 The renderer uses the new depth key: shallow water is bright cyan and deeper
-water grades to dark navy. Terrain that is below the selected tide but is not
-connected at the vertically penalized water surface is green. As its final step, the renderer
-labels the five-foot water mask with four-neighbour connectivity and removes
-every blue component that does not touch a qualified source. It smooths depth
-values over roughly ten feet only inside that immutable water mask, so lidar noise cannot create
-stippled colors or new water. The render validator checks all 423 depth/stage
-pairs and rejects any isolated pixel, mismatched mask, corner-only connection,
-or blue component without a source.
+water grades to dark navy. Green is reserved for terrain that is below the
+selected tide but is genuinely not side-connected to a qualified source at
+that tide. As its final step, the renderer labels the five-foot water mask with
+four-neighbour connectivity and removes every blue component that does not
+touch a qualified source. It smooths depth values over roughly ten feet only
+inside that immutable water mask, so lidar noise cannot create stippled colors
+or new water. The render validator checks all 423 depth/stage pairs and rejects
+any isolated pixel, mismatched mask, corner-only connection, or blue component
+without a source.
 
 ## Clickable depth
 
@@ -116,9 +120,9 @@ lookup of about 1.4 MB. The browser-readable query COG is nearest-neighbour
 resampled from the one-foot model to the same five-foot grid as the PNGs and
 stored without compression. This avoids intermittent browser range-decoder
 failures without changing the one-foot solve. A click combines that query cell
-with the exact penalized bathtub surface and reports ground, vertical penalty,
-local water surface, depth, connection stage, source status, and hydraulic
-feature.
+with full-stage source connectivity and the bounded local depth penalty, then
+reports ground, maximum and applied penalty, local water surface, depth,
+connection stage, source status, and hydraulic feature.
 
 ## Forecast and observed archives
 

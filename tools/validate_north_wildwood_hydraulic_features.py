@@ -199,7 +199,7 @@ def main() -> None:
             )
 
     physics = header.get("physics") or {}
-    if physics.get("modelKind") != "vertically-penalized connected bathtub":
+    if physics.get("modelKind") != "connectivity-first depth-penalized bathtub":
         raise AssertionError("State package does not declare the connected bathtub")
     if physics.get("phaseInvariant") is not True:
         raise AssertionError("State package does not declare phase-invariant states")
@@ -228,14 +228,29 @@ def main() -> None:
         abs_tol=1e-12,
     ):
         raise AssertionError("State package has the wrong major-stage vertical penalty")
+    if not math.isclose(
+        float(penalty.get("maximumLocalDepthPenaltyFraction", math.nan)),
+        0.75,
+        abs_tol=1e-12,
+    ):
+        raise AssertionError("State package has the wrong local depth-penalty cap")
+    if not math.isclose(
+        float(penalty.get("minimumConnectedDepthRetainedFraction", math.nan)),
+        0.25,
+        abs_tol=1e-12,
+    ):
+        raise AssertionError("State package has the wrong connected-depth floor")
+    if "depth only" not in str(penalty.get("application", "")):
+        raise AssertionError("State package applies the penalty to connectivity")
 
-    # At 3.0 ft NAVD88, the requested low-stage penalty lowers the effective
-    # bathtub surface to 2.25 ft. The compact state format stores decifeet, so
-    # no wet zone may encode a surface above 2.3 ft.
+    # State connectivity is evaluated at the full gauge stage. The compact
+    # state format stores decifeet, so a wet zone at 3.0 ft must encode the
+    # unpenalized 3.0-ft connectivity surface. Local depth attenuation is
+    # applied after the one-foot cell has been admitted to the wet footprint.
     low_stage = states["slack"][30]
     low_wet = low_stage != dry
-    if np.any(low_wet) and int(low_stage[low_wet].max()) + offset10 > 23:
-        raise AssertionError("Low-stage states do not apply the vertical penalty")
+    if np.any(low_wet) and int(low_stage[low_wet].max()) + offset10 != 30:
+        raise AssertionError("Low-stage states do not preserve full-stage connectivity")
 
     print(
         json.dumps(
