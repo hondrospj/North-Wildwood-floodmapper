@@ -14548,6 +14548,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     let MINOR_FLOOD_FT = 0;
     let MODERATE_FLOOD_FT = 0;
     let MAJOR_FLOOD_FT = 0;
+    const MAX_LOCAL_DEPTH_PENALTY_FRACTION = 0.75;
 
     function formatOffsetWithSign(value, digits = 2) {
       const n = Number(value) || 0;
@@ -15866,8 +15867,8 @@ function setDatumHelpOpen(isOpen) {
         title: "Flood Depth Key",
         body: `
           <p>Bright blue is shallower modeled water. Blue darkens as depth increases.</p>
-          <p><strong>Green areas</strong> are below the selected gauge tide but remain above the vertically penalized bathtub surface, or are not connected by cell sides to a qualifying source block.</p>
-          <p>The effective water surface is lowered 0.75 ft through minor flood, 0.35 ft at moderate flood, and progressively less between those levels until the penalty reaches zero at major flood. Filling, slack, and draining are identical at the same gauge level. The mapped bulkhead is buffered ten feet on each side of its centerline and stitched into the DEM as a nominal 21-cell-wide, 7.5-ft NAVD88 wall. Storm-drain exchange is disabled.</p>
+          <p><strong>Green areas</strong> are below the selected gauge tide but are not connected by cell sides to a qualifying source block at that tide.</p>
+          <p>Connected depth is penalized by as much as 0.75 ft through minor flood, 0.35 ft at moderate flood, and progressively less until the penalty reaches zero at major flood. The penalty can remove no more than 75% of a cell's raw depth, so connected nuisance flooding remains shallow bright blue. Filling, slack, and draining are identical at the same gauge level. The mapped bulkhead is buffered ten feet on each side of its centerline and stitched into the DEM as a nominal 21-cell-wide, 7.5-ft NAVD88 wall. Storm-drain exchange is disabled.</p>
         `
       },
       stageLegend: {
@@ -16072,10 +16073,21 @@ function setDatumHelpOpen(isOpen) {
       return 0;
     }
 
-    function getEffectiveBathtubStage(stageValue) {
+    function getPenalizedConnectedDepth(stageValue, groundValue) {
       const stage = Number(stageValue);
-      const penalty = getVerticalBathtubPenalty(stage);
-      return Number.isFinite(stage) && Number.isFinite(penalty) ? stage - penalty : null;
+      const ground = Number(groundValue);
+      const maximumPenalty = getVerticalBathtubPenalty(stage);
+      if (!Number.isFinite(stage) || !Number.isFinite(ground) || !Number.isFinite(maximumPenalty)) return null;
+      const rawDepth = Math.max(0, stage - ground);
+      const appliedPenalty = Math.min(maximumPenalty, rawDepth * MAX_LOCAL_DEPTH_PENALTY_FRACTION);
+      const depth = Math.max(0, rawDepth - appliedPenalty);
+      return {
+        rawDepth,
+        maximumPenalty,
+        appliedPenalty,
+        depth,
+        localWaterSurface: ground + depth
+      };
     }
 
     function getDepthTimelineColor(stageValue) {
@@ -22273,28 +22285,29 @@ function startPlayback() {
         const rawStage = getStageValue(currentSeriesHours[currentHourIndex]);
         const stage = Number(rawStage);
         const overlayStage = Number.isFinite(stage) ? getOverlayStage(stage) : null;
-        const verticalPenalty = getVerticalBathtubPenalty(overlayStage);
-        const effectiveWaterStage = getEffectiveBathtubStage(overlayStage);
+        const depthModel = getPenalizedConnectedDepth(overlayStage, sample.elevation);
+        const verticalPenalty = depthModel?.maximumPenalty ?? null;
+        const appliedPenalty = depthModel?.appliedPenalty ?? null;
         const belowStage = Number.isFinite(stage) && sample.elevation <= stage + 0.0001;
         const modeledConnected = belowStage &&
-          Number.isFinite(effectiveWaterStage) &&
-          sample.elevation < effectiveWaterStage - 0.005 &&
+          Number.isFinite(overlayStage) &&
+          sample.elevation < overlayStage - 0.005 &&
           Number.isFinite(sample.connectionStage) &&
-          sample.connectionStage <= effectiveWaterStage + 0.0001;
+          sample.connectionStage <= overlayStage + 0.0001;
         const renderedFlood = sampleRenderedFloodPixel(event.latlng.lat, event.latlng.lng);
         const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
-        const depth = connected && Number.isFinite(effectiveWaterStage) ? Math.max(0, effectiveWaterStage - sample.elevation) : null;
-        const displayedWaterSurface = connected && Number.isFinite(effectiveWaterStage) ? effectiveWaterStage : null;
+        const depth = connected && depthModel ? depthModel.depth : null;
+        const displayedWaterSurface = connected && depthModel ? depthModel.localWaterSurface : null;
         const status = !Number.isFinite(stage) ? "No water level selected" :
-          (connected ? "Connected bathtub (vertically penalized)" :
-            (renderedFlood?.green || belowStage ? "Below gauge tide but excluded by penalty or connectivity (green)" : "Dry at selected stage"));
+          (connected ? "Connected bathtub (depth penalized)" :
+            (renderedFlood?.green || belowStage ? "Below gauge tide but not source-connected (green)" : "Dry at selected stage"));
         const html = '<div class="depth-query-popup"><h3>Modeled depth at this point</h3><dl>' +
           "<dt>Status</dt><dd>" + status + "</dd>" +
           "<dt>Model</dt><dd>Static connected bathtub</dd>" +
           "<dt>Ground</dt><dd>" + sample.elevation.toFixed(2) + " ft NAVD88</dd>" +
           "<dt>Selected water</dt><dd>" + (Number.isFinite(stage) ? stage.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
-          "<dt>Vertical penalty</dt><dd>" + (Number.isFinite(verticalPenalty) ? verticalPenalty.toFixed(2) + " ft" : "—") + "</dd>" +
-          "<dt>Effective water</dt><dd>" + (Number.isFinite(effectiveWaterStage) ? effectiveWaterStage.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
+          "<dt>Maximum depth penalty</dt><dd>" + (Number.isFinite(verticalPenalty) ? verticalPenalty.toFixed(2) + " ft" : "—") + "</dd>" +
+          "<dt>Applied depth penalty</dt><dd>" + (Number.isFinite(appliedPenalty) ? appliedPenalty.toFixed(2) + " ft" : "—") + "</dd>" +
           "<dt>Local water surface</dt><dd>" + (Number.isFinite(displayedWaterSurface) ? displayedWaterSurface.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
           "<dt>Water depth</dt><dd>" + (depth == null ? "—" : depth.toFixed(2) + " ft") + "</dd>" +
           "<dt>First connected</dt><dd>" + (Number.isFinite(sample.connectionStage) && sample.connectionStage < 100 ? sample.connectionStage.toFixed(1) + " ft" : "Not by 14 ft") + "</dd>" +
@@ -31504,12 +31517,12 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260723-hydraulic-v2",
-      "dynamic": "20260723-hydraulic-v2",
-      "hydraulic": "20260723-hydraulic-v13"
+      "depth": "20260723-hydraulic-v14",
+      "dynamic": "20260723-hydraulic-v14",
+      "hydraulic": "20260723-hydraulic-v14"
     },
-    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84Uncompressed5ft.cog.tif.png?v=20260723-hydraulic-v13",
-    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v13",
+    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84Uncompressed5ft.cog.tif.png?v=20260723-hydraulic-v14",
+    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v14",
     "depthRoots": [
       "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/"
     ],

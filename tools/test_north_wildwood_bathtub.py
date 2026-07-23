@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused regression checks for the vertically penalized bathtub."""
+"""Focused regression checks for the connectivity-first depth penalty."""
 
 from __future__ import annotations
 
@@ -41,11 +41,29 @@ def main() -> None:
                 f"Penalty at {stage:.2f} ft is {actual:.6f}, expected {penalty:.6f}"
             )
 
-    effective = np.asarray(
-        [model.effective_bathtub_stage_ft(float(stage)) for stage in model.STAGES_FT]
+    stage = 4.20
+    ground = np.asarray([4.10, 3.90, 3.50, 3.00], dtype=np.float64)
+    raw_depth = stage - ground
+    depth = model.penalized_connected_depth_ft(stage, ground)
+    if np.any(depth <= 0):
+        raise AssertionError("The depth penalty erased connected shallow water")
+    if np.any(depth > raw_depth + 1e-12):
+        raise AssertionError("The depth penalty increased raw bathtub depth")
+    retained_fraction = np.divide(
+        depth,
+        raw_depth,
+        out=np.ones_like(depth),
+        where=raw_depth > 0,
     )
-    if np.any(np.diff(effective) <= 0):
-        raise AssertionError("Effective bathtub stage is not strictly increasing")
+    if np.any(
+        retained_fraction
+        < model.MIN_CONNECTED_DEPTH_RETAINED_FRACTION - 1e-12
+    ):
+        raise AssertionError("The bounded penalty retained too little connected depth")
+    if not np.isclose(depth[0], 0.025, atol=1e-12):
+        raise AssertionError(
+            f"A 0.10-ft connected fringe retained {depth[0]:.4f} ft, expected 0.025 ft"
+        )
 
     phases, diagnostics = model.simulate(FakeSolver())
     if not np.array_equal(phases["filling"], phases["slack"]):
@@ -56,11 +74,13 @@ def main() -> None:
         raise AssertionError("Simulation diagnostics omit phase invariance")
 
     stage_30_surface = float(phases["slack"][30, 1]) / 100.0
-    if not np.isclose(stage_30_surface, 2.25, atol=0.005):
+    if not np.isclose(stage_30_surface, 3.00, atol=0.005):
         raise AssertionError(
             f"3.0-ft gauge stage produced {stage_30_surface:.2f}-ft water surface"
         )
-    print("North Wildwood vertically penalized bathtub regression checks passed")
+    if diagnostics.get("modelKind") != "connectivity-first depth-penalized bathtub":
+        raise AssertionError("Simulation diagnostics declare the wrong model")
+    print("North Wildwood connectivity-first depth-penalty checks passed")
 
 
 if __name__ == "__main__":

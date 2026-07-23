@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Build North Wildwood's vertically penalized connected-bathtub assets.
+"""Build North Wildwood's connectivity-first depth-penalized bathtub assets.
 
 The conditioned one-foot DEM and its four-neighbour connection-stage raster
-remain the hydraulic constraints. For each gauge stage, a transparent
-piecewise vertical penalty lowers the effective bathtub water surface at lower
-flood levels. A cell can be blue only when both its ground and its exact
-side-connected source threshold are below that effective surface.
+remain the hydraulic constraints. Connectivity is evaluated at the selected
+gauge stage. A transparent piecewise penalty then reduces modeled depth at
+lower flood levels, but is capped at 75 percent of each cell's raw bathtub
+depth so that a genuinely connected wet cell cannot be turned green.
 
 Filling, slack, and draining assets are intentionally identical. Storm drains
 remain disabled, and the 21-cell, 7.5-ft NAVD88 bulkhead remains stitched into
@@ -56,6 +56,10 @@ MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
 LOW_STAGE_VERTICAL_PENALTY_FT = 0.75
 MODERATE_VERTICAL_PENALTY_FT = 0.35
+MAX_LOCAL_DEPTH_PENALTY_FRACTION = 0.75
+MIN_CONNECTED_DEPTH_RETAINED_FRACTION = (
+    1.0 - MAX_LOCAL_DEPTH_PENALTY_FRACTION
+)
 
 DEPTH_BREAKS_FT = np.asarray([0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00])
 DEPTH_COLORS = [
@@ -149,8 +153,17 @@ def vertical_penalty_ft(stage_ft: float) -> float:
     return 0.0
 
 
-def effective_bathtub_stage_ft(stage_ft: float) -> float:
-    return float(stage_ft) - vertical_penalty_ft(stage_ft)
+def penalized_connected_depth_ft(
+    stage_ft: float,
+    ground_ft: np.ndarray | float,
+) -> np.ndarray:
+    """Reduce connected depth without erasing the connected wet footprint."""
+    raw_depth = np.maximum(0.0, float(stage_ft) - np.asarray(ground_ft, dtype=np.float64))
+    applied_penalty = np.minimum(
+        vertical_penalty_ft(stage_ft),
+        raw_depth * MAX_LOCAL_DEPTH_PENALTY_FRACTION,
+    )
+    return raw_depth - applied_penalty
 
 
 def load_zones(path: Path) -> dict[str, np.ndarray]:
@@ -492,26 +505,31 @@ def simulate(
     for index, stage_raw in enumerate(STAGES_FT):
         stage = float(stage_raw)
         penalty = vertical_penalty_ft(stage)
-        effective_stage = stage - penalty
-        storage, surface = solver.equilibrium(effective_stage)
+        storage, surface = solver.equilibrium(stage)
         encoded = solver.encode_surface(storage, surface)
         for phase in phases:
             phases[phase][index] = encoded
         stage_diagnostics.append(
             {
                 "stageNavd88Ft": stage,
-                "verticalPenaltyFt": penalty,
-                "effectiveBathtubStageNavd88Ft": effective_stage,
+                "maximumVerticalPenaltyFt": penalty,
+                "maximumLocalDepthPenaltyFraction": (
+                    MAX_LOCAL_DEPTH_PENALTY_FRACTION
+                ),
+                "minimumConnectedDepthRetainedFraction": (
+                    MIN_CONNECTED_DEPTH_RETAINED_FRACTION
+                ),
+                "connectivityStageNavd88Ft": stage,
             }
         )
         if index % 10 == 0:
             print(
-                f"Connected bathtub: {stage:4.1f} ft gauge -> "
-                f"{effective_stage:4.2f} ft effective"
+                f"Connectivity-first bathtub: {stage:4.1f} ft gauge; "
+                f"maximum depth penalty {penalty:4.2f} ft"
             )
 
     summary = {
-        "modelKind": "vertically-penalized connected bathtub",
+        "modelKind": "connectivity-first depth-penalized bathtub",
         "phaseInvariant": True,
         "diagnosticStageCount": len(stage_diagnostics),
         "stageDiagnostics": stage_diagnostics,
@@ -520,6 +538,15 @@ def simulate(
             "atModerateFt": MODERATE_VERTICAL_PENALTY_FT,
             "atOrAboveMajorFt": 0.0,
             "interpolation": "piecewise linear",
+            "maximumLocalDepthPenaltyFraction": (
+                MAX_LOCAL_DEPTH_PENALTY_FRACTION
+            ),
+            "minimumConnectedDepthRetainedFraction": (
+                MIN_CONNECTED_DEPTH_RETAINED_FRACTION
+            ),
+            "application": (
+                "depth only; connectivity is evaluated at the full gauge stage"
+            ),
         },
     }
     return phases, summary
@@ -542,16 +569,16 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
         "phaseOrder": ["filling", "slack", "draining"],
         "forcing": {
             "phaseTreatment": "filling, slack, and draining are identical",
-            "filling": "vertically penalized connected bathtub",
-            "slack": "vertically penalized connected bathtub",
-            "draining": "vertically penalized connected bathtub",
+            "filling": "connectivity-first depth-penalized bathtub",
+            "slack": "connectivity-first depth-penalized bathtub",
+            "draining": "connectivity-first depth-penalized bathtub",
         },
         "physics": {
-            "modelKind": "vertically-penalized connected bathtub",
+            "modelKind": "connectivity-first depth-penalized bathtub",
             "terrainFlow": "none; static water surface",
             "connectivity": (
                 "ground and exact four-neighbour source-connection stage must "
-                "both be below the effective bathtub surface"
+                "both be below the full selected gauge stage"
             ),
             "phaseInvariant": True,
             "verticalPenalty": {
@@ -559,6 +586,15 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
                 "atModerateFt": MODERATE_VERTICAL_PENALTY_FT,
                 "atOrAboveMajorFt": 0.0,
                 "interpolation": "piecewise linear",
+                "maximumLocalDepthPenaltyFraction": (
+                    MAX_LOCAL_DEPTH_PENALTY_FRACTION
+                ),
+                "minimumConnectedDepthRetainedFraction": (
+                    MIN_CONNECTED_DEPTH_RETAINED_FRACTION
+                ),
+                "application": (
+                    "depth only after connectivity; cannot erase connected water"
+                ),
             },
             "stormDrains": "disabled; no orifice exchange and no connectivity seeds",
             "bulkheadElevationNavd88Ft": 7.5,
@@ -566,7 +602,9 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             "bulkheadTerrainTreatment": (
                 "stitched into the one-foot DEM with GDAL before graph construction"
             ),
-            "waterSurface": "selected gauge stage minus vertical penalty",
+            "waterSurface": (
+                "cell-specific ground plus bounded penalized connected depth"
+            ),
         },
         "diagnostics": diagnostics,
     }
@@ -722,21 +760,19 @@ def render_assets(
         maximum_unfiltered_components = 0
         maximum_retained_components = 0
         for stage_index, stage in enumerate(STAGES_FT):
-            effective_stage = effective_bathtub_stage_ft(float(stage))
-            local_surface = np.full(
-                ground.shape,
-                effective_stage,
-                dtype=np.float32,
+            raw_depth = np.maximum(0.0, float(stage) - ground)
+            depth = penalized_connected_depth_ft(float(stage), ground).astype(
+                np.float32,
+                copy=False,
             )
-            depth = local_surface - ground
-            # A blue cell must be physically below the penalized water
-            # surface and reachable from a qualified source by cell sides at
-            # that same surface. The final component filter below enforces the
-            # same four-side rule after five-foot display resampling.
+            # The wet footprint is determined at the full gauge stage. The
+            # bounded penalty changes depth/color only, never connectivity.
+            # The final component filter below enforces the same four-side
+            # source rule after five-foot display resampling.
             flooded = (
                 valid
-                & (depth > 0.005)
-                & (connection <= effective_stage + 1e-9)
+                & (raw_depth > 0.005)
+                & (connection <= float(stage) + 1e-9)
             )
             (
                 flooded,
@@ -811,13 +847,22 @@ def render_assets(
         counts[phase] = {
             "stageCount": len(STAGES_FT),
             "pngBytes": phase_bytes,
-            "modelKind": "vertically-penalized connected bathtub",
+            "modelKind": "connectivity-first depth-penalized bathtub",
             "phaseInvariant": True,
             "verticalPenalty": {
                 "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
                 "atModerateFt": MODERATE_VERTICAL_PENALTY_FT,
                 "atOrAboveMajorFt": 0.0,
                 "interpolation": "piecewise linear",
+                "maximumLocalDepthPenaltyFraction": (
+                    MAX_LOCAL_DEPTH_PENALTY_FRACTION
+                ),
+                "minimumConnectedDepthRetainedFraction": (
+                    MIN_CONNECTED_DEPTH_RETAINED_FRACTION
+                ),
+                "application": (
+                    "depth only after full-stage connectivity"
+                ),
             },
             "connectivity": "four-neighbour render components touching a qualified source",
             "disconnectedBluePixelsRemoved": disconnected_pixels_removed,
@@ -1124,15 +1169,24 @@ def main() -> None:
         build_query_cog(graph_dir, args.dem.resolve(), query_path)
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v3",
+        "schema": "north-wildwood-hydraulic-assets-v4",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "modelKind": "vertically-penalized connected bathtub",
+        "modelKind": "connectivity-first depth-penalized bathtub",
         "phaseInvariant": True,
         "verticalPenalty": {
             "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
             "atModerateFt": MODERATE_VERTICAL_PENALTY_FT,
             "atOrAboveMajorFt": 0.0,
             "interpolation": "piecewise linear",
+            "maximumLocalDepthPenaltyFraction": (
+                MAX_LOCAL_DEPTH_PENALTY_FRACTION
+            ),
+            "minimumConnectedDepthRetainedFraction": (
+                MIN_CONNECTED_DEPTH_RETAINED_FRACTION
+            ),
+            "application": (
+                "depth only; connectivity evaluated at full gauge stage"
+            ),
         },
         "graph": graph_manifest,
         "render": render_manifest,

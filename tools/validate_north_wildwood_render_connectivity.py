@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from scipy.ndimage import label as ndimage_label
+from scipy.ndimage import binary_dilation, label as ndimage_label
 
 
 WIDTH = 10_930
@@ -55,9 +55,25 @@ def main() -> None:
     graph = args.graph.resolve()
     assets = args.assets.resolve()
     source = pool_source(graph / "source_flag.raw")
+    elevation10 = np.memmap(
+        graph / "elevation10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    connection10 = np.memmap(
+        graph / "connection10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    valid = elevation10 != np.iinfo(np.int16).min
+    ground = elevation10.astype(np.float32) / 10.0
+    connection = connection10.astype(np.float32) / 10.0
     records = []
     maximum_components = 0
     maximum_blue_pixels = 0
+    eligible_green_touching_blue = 0
 
     for phase in ("slack", "filling", "draining"):
         relative = "" if phase == "slack" else phase
@@ -109,6 +125,29 @@ def main() -> None:
                         f"Non-source-connected blue components in {phase} "
                         f"{code}: {missing[:20]}"
                     )
+            sign = -1.0 if code.startswith("m") else 1.0
+            stage = sign * int(code[1:]) / 10.0
+            hydraulically_eligible = (
+                valid
+                & (ground < stage - 0.005)
+                & (connection <= stage + 1e-9)
+            )
+            blue_neighbour = binary_dilation(
+                depth_blue,
+                structure=FOUR_NEIGHBOUR_STRUCTURE,
+            ) & ~depth_blue
+            invalid_green = (
+                (depth_codes == 12)
+                & hydraulically_eligible
+                & blue_neighbour
+            )
+            invalid_green_count = int(np.count_nonzero(invalid_green))
+            eligible_green_touching_blue += invalid_green_count
+            if invalid_green_count:
+                raise AssertionError(
+                    f"{invalid_green_count} hydraulically eligible green pixels "
+                    f"touch blue by a side in {phase} {code}"
+                )
             maximum_components = max(maximum_components, int(component_count))
             maximum_blue_pixels = max(
                 maximum_blue_pixels,
@@ -125,6 +164,9 @@ def main() -> None:
                     "every blue component intersects a qualified source pixel"
                 ),
                 "minimumBlueComponentPixels": 2,
+                "eligibleGreenPixelsTouchingBlue": (
+                    eligible_green_touching_blue
+                ),
                 "maximumComponentsInAnyFrame": maximum_components,
                 "maximumBluePixelsInAnyFrame": maximum_blue_pixels,
                 "phases": records,
