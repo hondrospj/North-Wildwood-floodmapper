@@ -1,13 +1,24 @@
 {
-  "schema": "north-wildwood-stone-harbor-gauge-crests-v1",
+  "schema": "usgs-nwis-north-wildwood-crests-v1",
   "datum": "NAVD88",
   "minimumIncludedStageFt": 3.25,
+  "thresholdsNAVD88": {
+    "minorLow": 3.25,
+    "moderateLow": 4.25,
+    "majorLow": 5.25
+  },
+  "thresholdsMLLW": {
+    "minorLow": 6.0,
+    "moderateLow": 7.0,
+    "majorLow": 8.0
+  },
+  "navd88OffsetFromMllwFt": -2.75,
   "stations": [
     {
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3
     }
   ],
@@ -20,7 +31,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "event_name": "Ash Wednesday Storm",
       "record_type": "Documented historic Stone Harbor crest; Lewes NOAA hourly shape",
@@ -34,7 +45,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb",
@@ -52,8 +63,7 @@
       "source_area": "north-wildwood-calibrated",
       "station_priority": 4,
       "event_name": "Winter Storm Jonas",
-      "record_type": "North Wildwood documented crest; Stone Harbor 15-minute gauge shape scaled to 9.44 ft MLLW",
-      "time_est": "08:15"
+      "record_type": "North Wildwood documented crest; Stone Harbor gauge tide shape"
     },
     {
       "height_ft": 6.28,
@@ -63,7 +73,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -76,7 +86,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -89,7 +99,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -102,7 +112,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -115,7 +125,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -128,7 +138,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb",
@@ -142,7 +152,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -155,7 +165,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb",
@@ -169,7 +179,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -182,7 +192,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -195,7 +205,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -208,7 +218,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -221,7 +231,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -234,7 +244,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -247,7 +257,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -260,7 +270,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb",
@@ -274,7 +284,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -287,7 +297,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -300,7 +310,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb",
@@ -314,7 +324,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -327,7 +337,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -340,7 +350,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -353,7 +363,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -366,7 +376,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -379,7 +389,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -392,7 +402,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -405,7 +415,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -418,7 +428,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -431,7 +441,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -444,7 +454,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb",
@@ -458,7 +468,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -471,7 +481,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -484,7 +494,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -497,7 +507,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -510,7 +520,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -523,7 +533,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -536,7 +546,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -549,7 +559,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -562,7 +572,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -575,7 +585,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -588,7 +598,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -601,7 +611,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -614,7 +624,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -627,7 +637,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -640,7 +650,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -653,7 +663,7 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
@@ -666,21 +676,10 @@
       "site_no": "01411360",
       "station_name": "Great Channel at Stone Harbor NJ",
       "station_short": "Stone Harbor",
-      "source_area": "stone-harbor",
+      "source_area": "north-wildwood",
       "station_priority": 3,
       "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb"
     }
-  ],
-  "thresholdsNAVD88": {
-    "minorLow": 3.25,
-    "moderateLow": 4.25,
-    "majorLow": 5.25
-  },
-  "thresholdsMLLW": {
-    "minorLow": 6,
-    "moderateLow": 7,
-    "majorLow": 8
-  },
-  "navd88OffsetFromMllwFt": -2.75
+  ]
 }
