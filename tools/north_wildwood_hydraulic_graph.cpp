@@ -3,8 +3,9 @@
 // The terrain is quantized only for graph topology (0.1 ft NAVD88).  Source
 // blocks follow the literal four-neighbour rule: a <=1.0 ft component must
 // contain at least 101 cells and intersect a supplied source-block polygon.
-// Bulkhead pixels are raised to 7.5 ft.  Grates remain separate 48-inch
-// orifices but act as equilibrium connectivity seeds.
+// The five-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
+// NAVD88 by GDAL. This builder verifies, but never silently changes, that
+// terrain. Storm-drain exchange is disabled for this model version.
 
 #include "gdal_priv.h"
 #include "cpl_conv.h"
@@ -40,7 +41,6 @@ struct Inputs {
   fs::path dem;
   fs::path source;
   fs::path hard;
-  fs::path grates;
   fs::path output;
 };
 
@@ -94,15 +94,14 @@ Inputs parse_args(int argc, char** argv) {
     if (key == "--dem") result.dem = value;
     else if (key == "--source") result.source = value;
     else if (key == "--hard") result.hard = value;
-    else if (key == "--grates") result.grates = value;
     else if (key == "--output") result.output = value;
     else throw std::runtime_error("Unknown argument: " + key);
   }
   if (result.dem.empty() || result.source.empty() || result.hard.empty() ||
-      result.grates.empty() || result.output.empty()) {
+      result.output.empty()) {
     throw std::runtime_error(
         "Usage: north_wildwood_hydraulic_graph --dem DEM --source MASK "
-        "--hard MASK --grates MASK --output DIRECTORY");
+        "--hard FIVE_CELL_MASK --output DIRECTORY");
   }
   return result;
 }
@@ -219,18 +218,29 @@ inline bool is_valid(int16_t value) {
   return value != NODATA_ELEV;
 }
 
-void condition_bulkheads(
-    std::vector<int16_t>& elevation10,
+uint64_t validate_conditioned_bulkheads(
+    const std::vector<int16_t>& elevation10,
     const std::vector<uint8_t>& hard) {
-  uint64_t raised = 0;
+  uint64_t hard_count = 0;
   for (size_t index = 0; index < elevation10.size(); ++index) {
-    if (hard[index] && is_valid(elevation10[index]) &&
-        elevation10[index] < BULKHEAD_STAGE10) {
-      elevation10[index] = BULKHEAD_STAGE10;
-      ++raised;
+    if (!hard[index]) continue;
+    ++hard_count;
+    if (!is_valid(elevation10[index])) {
+      throw std::runtime_error(
+          "Five-cell bulkhead mask intersects DEM nodata");
+    }
+    if (elevation10[index] < BULKHEAD_STAGE10) {
+      throw std::runtime_error(
+          "DEM was not conditioned before graph construction: a bulkhead "
+          "cell is below 7.5 ft NAVD88");
     }
   }
-  std::cout << "Raised " << raised << " bulkhead cells to 7.5 ft NAVD88\n";
+  if (!hard_count) {
+    throw std::runtime_error("Five-cell bulkhead mask is empty");
+  }
+  std::cout << "Verified " << hard_count
+            << " DEM-integrated bulkhead cells at or above 7.5 ft NAVD88\n";
+  return hard_count;
 }
 
 std::vector<uint8_t> find_source_blocks(
@@ -337,7 +347,6 @@ int32_t unite(
 std::vector<int16_t> build_connection_stage(
     const std::vector<int16_t>& elevation10,
     const std::vector<uint8_t>& source,
-    const std::vector<uint8_t>& grates,
     int width,
     int height) {
   const size_t count = elevation10.size();
@@ -358,7 +367,7 @@ std::vector<int16_t> build_connection_stage(
   for (int16_t stage10 = minimum; stage10 <= MODEL_MAX10; ++stage10) {
     const auto& cells = buckets[stage10 - minimum];
     for (const int32_t cell : cells) {
-      const bool seed = source[cell] || grates[cell];
+      const bool seed = source[cell];
       dsu.parent[cell] = -1;
       dsu.connected[cell] = seed ? 1 : 0;
       if (seed) {
@@ -553,10 +562,11 @@ void write_edges(
 void write_manifest(
     const fs::path& path,
     const RasterInfo& info,
-    size_t zone_count) {
+    size_t zone_count,
+    uint64_t hard_count) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v2\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v3\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
@@ -564,7 +574,10 @@ void write_manifest(
          << "  \"sourceMinComponentCells\": 101,\n"
          << "  \"sourceConnectivity\": \"four-neighbour/shared-side only\",\n"
          << "  \"bulkheadElevationNavd88Ft\": 7.5,\n"
-         << "  \"grateDiameterInches\": 48,\n"
+         << "  \"bulkheadNominalWidthCells\": 5,\n"
+         << "  \"bulkheadPixelCount\": " << hard_count << ",\n"
+         << "  \"bulkheadTerrainTreatment\": \"stitched into input DEM with GDAL before graph construction\",\n"
+         << "  \"stormDrains\": \"disabled; not connectivity seeds and no exchange flow\",\n"
          << "  \"modelMaximumNavd88Ft\": 14.0,\n"
          << "  \"controlVolumeSizeFt\": " << CONTROL_VOLUME_SIZE_FT << ",\n"
          << "  \"connectionBinFt\": " << CONNECTION_BIN10 / 10.0 << ",\n"
@@ -587,15 +600,16 @@ int main(int argc, char** argv) {
     const RasterInfo info = read_dem(inputs.dem, elevation10);
     std::vector<uint8_t> manual = read_mask(inputs.source, info);
     std::vector<uint8_t> hard = read_mask(inputs.hard, info);
-    std::vector<uint8_t> grates = read_mask(inputs.grates, info);
-    condition_bulkheads(elevation10, hard);
+    std::vector<uint8_t> grates(elevation10.size(), 0);
+    const uint64_t hard_count =
+        validate_conditioned_bulkheads(elevation10, hard);
     std::vector<uint8_t> source = find_source_blocks(
         elevation10, manual, info.width, info.height);
     manual.clear();
     manual.shrink_to_fit();
 
     std::vector<int16_t> connection10 = build_connection_stage(
-        elevation10, source, grates, info.width, info.height);
+        elevation10, source, info.width, info.height);
     std::vector<ZoneSummary> summaries;
     std::vector<int32_t> zone = build_zones(
         elevation10, connection10, source, grates, hard,
@@ -609,12 +623,16 @@ int main(int argc, char** argv) {
     write_raw(inputs.output / "grate_flag.raw", grates);
     write_zones(inputs.output / "zones.csv", summaries);
     write_edges(inputs.output / "edges.csv", elevation10, zone, info.width, info.height);
-    write_manifest(inputs.output / "graph_manifest.json", info, summaries.size());
+    write_manifest(
+        inputs.output / "graph_manifest.json",
+        info,
+        summaries.size(),
+        hard_count);
 
     write_geotiff(
         inputs.output / "NorthWildwoodConditionedElevation10.tif",
         elevation10.data(), info, GDT_Int16, NODATA_ELEV,
-        "conditioned_ground_elevation_navd88_decifeet");
+        "input_dem_with_gdal_stitched_five_cell_bulkhead_navd88_decifeet");
     write_geotiff(
         inputs.output / "NorthWildwoodConnectionStage10.tif",
         connection10.data(), info, GDT_Int16, NO_CONNECTION,
@@ -630,11 +648,11 @@ int main(int argc, char** argv) {
     write_geotiff(
         inputs.output / "NorthWildwoodBulkheads.tif",
         hard.data(), info, GDT_Byte, 0,
-        "bulkhead_7_5ft_navd88_flag");
+        "five_cell_bulkhead_7_5ft_navd88_flag");
     write_geotiff(
         inputs.output / "NorthWildwoodStormGrates.tif",
         grates.data(), info, GDT_Byte, 0,
-        "storm_grate_48inch_flag");
+        "storm_drain_disabled_flag");
     std::cout << "Hydraulic graph complete\n";
     return 0;
   } catch (const std::exception& error) {

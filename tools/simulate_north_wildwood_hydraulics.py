@@ -5,7 +5,11 @@ The C++ graph builder preserves the one-foot DEM hypsometry and counts every
 shared one-foot cell side along each flow cross section. This solver advances
 the resulting finite-volume graph in stable 60-second substeps inside each
 15-minute tide increment. Terrain connections use a submerged broad-crested
-weir relation; each user-drawn storm grate is a 48-inch circular orifice.
+weir relation. Storm-drain exchange is deliberately disabled in this version.
+
+Newly wetted control volumes cannot donate water until the following substep.
+For a 25-by-25-foot control volume this places a conservative upper bound of
+about 530 feet on overland-front travel during one 15-minute tide interval.
 
 Three reusable lookup families are produced for every 0.1-foot stage from
 0–14 ft NAVD88: filling, slack-water equilibrium, and draining. Forecast and
@@ -41,11 +45,15 @@ HIST_MAX10 = 140
 HIST_COUNT = HIST_MAX10 - HIST_MIN10 + 1
 MODEL_STEP_SECONDS = 60
 TIDE_STEP_SECONDS = 15 * 60
+CONTROL_VOLUME_SIZE_FT = 25
+MAX_CONTROL_VOLUME_DIAGONAL_FT = math.sqrt(2.0) * CONTROL_VOLUME_SIZE_FT
+MAX_OVERLAND_FRONT_SPEED_FPS = (
+    MAX_CONTROL_VOLUME_DIAGONAL_FT / MODEL_STEP_SECONDS
+)
+MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT = (
+    MAX_OVERLAND_FRONT_SPEED_FPS * TIDE_STEP_SECONDS
+)
 BROAD_CRESTED_WEIR_CFS = 3.10
-ORIFICE_DISCHARGE_COEFFICIENT = 0.62
-GRAVITY_FT_S2 = 32.174
-GRATE_DIAMETER_FT = 4.0
-GRATE_AREA_FT2 = math.pi * (GRATE_DIAMETER_FT / 2.0) ** 2
 MINOR_NAVD88_FT = 3.25
 MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
@@ -161,7 +169,10 @@ class HydraulicSolver:
         self.zone_count = len(zones["connection10"])
         self.connection_ft = zones["connection10"].astype(np.float64) / 10.0
         self.source = zones["source_cells"] > 0
-        self.grate_count = zones["grate_cells"].astype(np.float64)
+        if np.any(zones["grate_cells"]):
+            raise RuntimeError(
+                "Storm drains must be disabled for the five-cell bulkhead run"
+            )
         self.histogram = zones["histogram"].astype(np.float64)
         elevation_ft = np.arange(HIST_MIN10, HIST_MAX10 + 1, dtype=np.float64) / 10.0
         self.cumulative_count = np.cumsum(self.histogram, axis=1)
@@ -241,7 +252,6 @@ class HydraulicSolver:
         crest = self.edges["crest_ft"]
         width = self.edges["width_ft"]
         source_exchange = 0.0
-        grate_exchange = 0.0
         internal_residual = 0.0
         # The forcing stage is constant throughout this 15-minute interval.
         # Compute its source-boundary storage once instead of repeating the
@@ -251,6 +261,12 @@ class HydraulicSolver:
         )
 
         for _ in range(TIDE_STEP_SECONDS // MODEL_STEP_SECONDS):
+            # All edge fluxes are simultaneous. A terrain node that first
+            # receives water in this substep cannot become a donor until the
+            # next substep, so the numerical front advances at most one
+            # 25-foot control volume per minute (35.4 ft using the conservative
+            # tile diagonal).
+            wet_at_substep_start = self.source | (storage > 0.01)
             surface_a = surface[edge_a]
             surface_b = surface[edge_b]
             delta = surface_a - surface_b
@@ -279,6 +295,7 @@ class HydraulicSolver:
 
             donor = np.where(transfer >= 0, edge_a, edge_b)
             receiver = np.where(transfer >= 0, edge_b, edge_a)
+            transfer[~wet_at_substep_start[donor]] = 0.0
             outgoing = np.bincount(
                 donor,
                 weights=np.abs(transfer),
@@ -301,7 +318,7 @@ class HydraulicSolver:
             target_surface = surface.copy()
             active_donor = (
                 (np.abs(transfer) > 0.0)
-                & (self.source[donor] | (storage[donor] > 1e-7))
+                & wet_at_substep_start[donor]
             )
             donor_surface = np.where(
                 active_donor,
@@ -340,24 +357,6 @@ class HydraulicSolver:
             storage += internal_net
             storage = np.maximum(storage, 0.0)
 
-            grate_delta = sea_stage_ft - surface
-            grate_discharge = (
-                ORIFICE_DISCHARGE_COEFFICIENT
-                * self.grate_count
-                * GRATE_AREA_FT2
-                * np.sqrt(2.0 * GRAVITY_FT_S2 * np.abs(grate_delta))
-            )
-            grate_transfer = np.sign(grate_delta) * grate_discharge * MODEL_STEP_SECONDS
-            filling = grate_transfer > 0
-            grate_transfer[filling] = np.minimum(
-                grate_transfer[filling],
-                np.maximum(0.0, fixed_volume[filling] - storage[filling]),
-            )
-            draining = grate_transfer < 0
-            grate_transfer[draining] = -np.minimum(-grate_transfer[draining], storage[draining])
-            storage += grate_transfer
-            grate_exchange += float(np.sum(grate_transfer))
-
             surface = self.surface_from_storage(storage, surface)
             source_exchange += float(np.sum(fixed_volume[self.source] - storage[self.source]))
             storage[self.source] = fixed_volume[self.source]
@@ -365,7 +364,7 @@ class HydraulicSolver:
 
         return storage, surface, {
             "sourceExchangeFt3": source_exchange,
-            "grateExchangeFt3": grate_exchange,
+            "stormDrainExchangeFt3": 0.0,
             "maxInternalConservationResidualFt3": internal_residual,
         }
 
@@ -527,6 +526,10 @@ def simulate(
         ),
         "diagnosticStepCount": sum(len(rows) for rows in diagnostics.values()),
         "reusedStaticPhases": reusable_static_state is not None,
+        "maximumOverlandFrontSpeedFtPerSecond": MAX_OVERLAND_FRONT_SPEED_FPS,
+        "maximumOverlandFrontTravelPer15MinutesFt": (
+            MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT
+        ),
         "drainingHistory": (
             "one-foot target bands initialized from a local crest 1.6-2.5 ft "
             "above the selected stage; 12-14 ft bands share the 14 ft crest"
@@ -569,9 +572,20 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
                 "edge transfers are bounded by two-basin equalization volume, "
                 "aggregate receiver capacity, and available donor storage"
             ),
-            "grates": "48-inch circular orifice",
-            "orificeDischargeCoefficient": ORIFICE_DISCHARGE_COEFFICIENT,
+            "propagation": (
+                "simultaneous explicit routing; newly wet terrain cannot donate "
+                "until the next 60-second substep"
+            ),
+            "maximumOverlandFrontSpeedFtPerSecond": MAX_OVERLAND_FRONT_SPEED_FPS,
+            "maximumOverlandFrontTravelPer15MinutesFt": (
+                MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT
+            ),
+            "stormDrains": "disabled; no orifice exchange and no connectivity seeds",
             "bulkheadElevationNavd88Ft": 7.5,
+            "bulkheadNominalWidthCells": 5,
+            "bulkheadTerrainTreatment": (
+                "stitched into the one-foot DEM with GDAL before graph construction"
+            ),
             "storage": "one-foot DEM hypsometry integrated exactly inside each finite-volume node",
         },
         "diagnostics": diagnostics,
@@ -803,8 +817,8 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
             "hydraulic_zone_id_plus_one",
             "first_equilibrium_connection_stage_navd88_ft",
             "qualified_source_block_flag",
-            "bulkhead_7_5ft_navd88_flag",
-            "storm_grate_48inch_flag",
+            "five_cell_bulkhead_7_5ft_navd88_flag",
+            "storm_drain_disabled_flag",
         )
         for band_number, description in enumerate(descriptions, start=1):
             ds.GetRasterBand(band_number).SetDescription(description)
@@ -828,7 +842,10 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
                 ds.GetRasterBand(band_number).WriteArray(array, 0, y)
             if y % 2048 == 0:
                 print(f"Writing query raster row {y:,}/{HEIGHT:,}")
-        ds.SetMetadataItem("MODEL", "one-foot finite-volume broad-crested-weir and 48-inch-orifice routing")
+        ds.SetMetadataItem(
+            "MODEL",
+            "one-foot finite-volume broad-crested-weir routing; storm drains disabled",
+        )
         ds.SetMetadataItem("VERTICAL_DATUM", "NAVD88 feet")
         ds.FlushCache()
         ds = None

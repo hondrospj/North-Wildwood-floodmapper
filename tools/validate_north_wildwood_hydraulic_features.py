@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-fast checks that bulkheads and storm grates survive the full model."""
+"""Fail-fast checks for the five-cell DEM bulkhead and finite propagation."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+from osgeo import gdal
 
 
 MAGIC = b"NWHYD2\x00\x00"
@@ -20,6 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--graph", type=Path, required=True)
     parser.add_argument("--states", type=Path, required=True)
+    parser.add_argument("--centerline", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -45,6 +47,7 @@ def load_states(path: Path, expected_stride: int) -> tuple[dict, dict[str, np.nd
 
 
 def main() -> None:
+    gdal.UseExceptions()
     args = parse_args()
     graph = args.graph.resolve()
     manifest = json.loads((graph / "graph_manifest.json").read_text(encoding="utf-8"))
@@ -68,9 +71,12 @@ def main() -> None:
             shape=(height, width),
         ).sum(dtype=np.uint64)
     )
+    expected_hard_pixels = int(manifest["bulkheadPixelCount"])
+    if int(manifest.get("bulkheadNominalWidthCells", 0)) != 5:
+        raise AssertionError("Graph does not declare a five-cell bulkhead")
 
     hard_zone_ids: set[int] = set()
-    grate_rows: list[dict[str, int]] = []
+    grate_zone_count = 0
     row_count = 0
     with (graph / "zones.csv").open(newline="", encoding="utf-8") as stream:
         for row in csv.DictReader(stream):
@@ -89,24 +95,79 @@ def main() -> None:
                         f"Bulkhead zone {zone_id} also contains non-bulkhead terrain"
                     )
             if grate_cells:
-                grate_rows.append(
-                    {
-                        "zone_id": zone_id,
-                        "connection10": int(row["connection10"]),
-                        "grate_cells": grate_cells,
-                    }
-                )
+                grate_zone_count += 1
 
     if row_count != zone_count:
         raise AssertionError(f"Expected {zone_count} zones, read {row_count}")
-    if hard_pixels != 11_200:
-        raise AssertionError(f"Expected 11,200 bulkhead pixels, found {hard_pixels}")
-    if grate_pixels != 6:
-        raise AssertionError(f"Expected six storm-grate pixels, found {grate_pixels}")
-    if sum(row["grate_cells"] for row in grate_rows) != grate_pixels:
-        raise AssertionError("Storm-grate pixels were lost during zone aggregation")
-    if len(grate_rows) != grate_pixels:
-        raise AssertionError("Each supplied storm grate must occupy a distinct zone")
+    if hard_pixels != expected_hard_pixels:
+        raise AssertionError(
+            f"Expected {expected_hard_pixels} five-cell bulkhead pixels, "
+            f"found {hard_pixels}"
+        )
+    if grate_pixels != 0 or grate_zone_count != 0:
+        raise AssertionError("Storm drains were not fully disabled")
+
+    elevation10 = np.memmap(
+        graph / "elevation10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(height, width),
+    )
+    hard = np.memmap(
+        graph / "hard_flag.raw",
+        dtype=np.uint8,
+        mode="r",
+        shape=(height, width),
+    )
+    if int(elevation10[hard != 0].min()) < 75:
+        raise AssertionError("A stitched bulkhead DEM cell is below 7.5 ft NAVD88")
+
+    centerline_ds = gdal.Open(str(args.centerline.resolve()))
+    if centerline_ds is None:
+        raise FileNotFoundError(args.centerline)
+    if (
+        centerline_ds.RasterXSize != width
+        or centerline_ds.RasterYSize != height
+    ):
+        raise AssertionError("Bulkhead centerline dimensions do not match graph")
+    centerline = centerline_ds.GetRasterBand(1).ReadAsArray().astype(bool)
+    centerline_ds = None
+    centerline_pixels = int(np.count_nonzero(centerline))
+    if centerline_pixels != 11_200:
+        raise AssertionError(
+            f"Expected 11,200 centerline pixels, found {centerline_pixels}"
+        )
+
+    # The GDAL proximity expansion is defined as the centerline plus two cell
+    # centers on every side. Check all four cardinal directions explicitly so
+    # no local break can collapse the nominal five-cell wall.
+    for dy, dx in (
+        (0, 0),
+        (0, -1),
+        (0, 1),
+        (0, -2),
+        (0, 2),
+        (-1, 0),
+        (1, 0),
+        (-2, 0),
+        (2, 0),
+    ):
+        source_y0 = max(0, -dy)
+        source_y1 = min(height, height - dy)
+        source_x0 = max(0, -dx)
+        source_x1 = min(width, width - dx)
+        for y in range(source_y0, source_y1, 512):
+            y_end = min(source_y1, y + 512)
+            thin = centerline[y:y_end, source_x0:source_x1]
+            expanded = hard[
+                y + dy : y_end + dy,
+                source_x0 + dx : source_x1 + dx,
+            ]
+            if np.any(thin & (expanded == 0)):
+                raise AssertionError(
+                    "Bulkhead is not two cells thick on every side of its "
+                    f"centerline at offset ({dx}, {dy})"
+                )
 
     hard_edge_records = 0
     hard_edge_width_ft = 0
@@ -133,36 +194,32 @@ def main() -> None:
                 f"{phase} state wets a bulkhead before 7.5 ft NAVD88"
             )
 
-    grate_checks = []
-    for row in grate_rows:
-        zone_lookup = row["zone_id"] + 1
-        wet_index = min(int(header["stageCount"]) - 1, row["connection10"] + 1)
-        for phase in ("filling", "slack"):
-            encoded = int(states[phase][wet_index, zone_lookup])
-            if encoded == dry:
-                raise AssertionError(
-                    f"Storm-grate zone {row['zone_id']} is dry in {phase} "
-                    f"above its {row['connection10'] / 10:.1f}-ft connection"
-                )
-            surface = (encoded + offset10) / 10
-            selected_stage = wet_index / 10
-            if not math.isfinite(surface) or surface > selected_stage + 0.11:
-                raise AssertionError(
-                    f"Storm-grate zone {row['zone_id']} has invalid {phase} surface"
-                )
-        grate_checks.append(
-            {
-                "zoneId": row["zone_id"],
-                "firstConnectionNavd88Ft": row["connection10"] / 10,
-                "verifiedWetByNavd88Ft": wet_index / 10,
-            }
-        )
-
     physics = header.get("physics") or {}
-    if physics.get("grates") != "48-inch circular orifice":
-        raise AssertionError("State package does not declare the 48-inch grate physics")
+    if not str(physics.get("stormDrains", "")).startswith("disabled"):
+        raise AssertionError("State package does not declare disabled storm drains")
     if float(physics.get("bulkheadElevationNavd88Ft", math.nan)) != 7.5:
         raise AssertionError("State package does not declare the 7.5-ft bulkhead")
+    if int(physics.get("bulkheadNominalWidthCells", 0)) != 5:
+        raise AssertionError("State package does not declare a five-cell bulkhead")
+    expected_speed = math.sqrt(2.0) * 25.0 / 60.0
+    expected_travel = expected_speed * 15.0 * 60.0
+    if not math.isclose(
+        float(physics.get("maximumOverlandFrontSpeedFtPerSecond", math.nan)),
+        expected_speed,
+        rel_tol=1e-12,
+    ):
+        raise AssertionError("State package has the wrong propagation speed limit")
+    if not math.isclose(
+        float(
+            physics.get(
+                "maximumOverlandFrontTravelPer15MinutesFt",
+                math.nan,
+            )
+        ),
+        expected_travel,
+        rel_tol=1e-12,
+    ):
+        raise AssertionError("State package has the wrong 15-minute travel limit")
 
     print(
         json.dumps(
@@ -171,12 +228,16 @@ def main() -> None:
                 "graphSchema": manifest["schema"],
                 "zoneCount": zone_count,
                 "bulkheadPixels": hard_pixels,
+                "bulkheadCenterlinePixels": centerline_pixels,
+                "bulkheadNominalWidthCells": 5,
                 "bulkheadZones": len(hard_zone_ids),
                 "bulkheadEdgeRecords": hard_edge_records,
                 "bulkheadSharedEdgeWidthFt": hard_edge_width_ft,
                 "minimumBulkheadEdgeCrestNavd88Ft": 7.5,
-                "stormGratePixels": grate_pixels,
-                "stormGrateZones": grate_checks,
+                "stormDrainPixels": grate_pixels,
+                "stormDrainExchange": "disabled",
+                "maximumOverlandFrontSpeedFtPerSecond": expected_speed,
+                "maximumOverlandFrontTravelPer15MinutesFt": expected_travel,
                 "statePhases": list(states),
             },
             indent=2,
