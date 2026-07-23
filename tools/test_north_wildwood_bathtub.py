@@ -27,10 +27,14 @@ class FakeSolver:
 
 
 def main() -> None:
+    moderate_expected = model.LOW_STAGE_VERTICAL_PENALTY_FT * (
+        np.exp(-model.VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE * 0.5)
+        - np.exp(-model.VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE)
+    ) / (1 - np.exp(-model.VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE))
     expected = {
-        3.00: 0.75,
-        3.25: 0.75,
-        4.25: 0.35,
+        3.00: 1.25,
+        3.25: 1.25,
+        4.25: moderate_expected,
         5.25: 0.00,
         6.00: 0.00,
     }
@@ -40,6 +44,23 @@ def main() -> None:
             raise AssertionError(
                 f"Penalty at {stage:.2f} ft is {actual:.6f}, expected {penalty:.6f}"
             )
+
+    sampled = np.asarray(
+        [
+            model.vertical_penalty_ft(stage)
+            for stage in np.arange(
+                model.MINOR_NAVD88_FT,
+                model.MAJOR_NAVD88_FT + 0.025,
+                0.05,
+            )
+        ]
+    )
+    if np.any(np.diff(sampled) > 1e-12):
+        raise AssertionError("Exponential penalty is not monotonically decreasing")
+    if model.stage_code(3.90) != "p0390" or model.stage_code(3.95) != "p0395":
+        raise AssertionError("Five-hundredth stage filenames are encoded incorrectly")
+    if len(model.STAGES_FT) != 281 or not np.isclose(model.STAGES_FT[1], 0.05):
+        raise AssertionError("The stage catalog is not a complete 0.05-ft grid")
 
     stage = 4.20
     ground = np.asarray([4.10, 3.90, 3.50, 3.00], dtype=np.float64)
@@ -73,7 +94,7 @@ def main() -> None:
     if diagnostics.get("phaseInvariant") is not True:
         raise AssertionError("Simulation diagnostics omit phase invariance")
 
-    stage_30_surface = float(phases["slack"][30, 1]) / 100.0
+    stage_30_surface = float(phases["slack"][60, 1]) / 100.0
     if not np.isclose(stage_30_surface, 3.00, atol=0.005):
         raise AssertionError(
             f"3.0-ft gauge stage produced {stage_30_surface:.2f}-ft water surface"

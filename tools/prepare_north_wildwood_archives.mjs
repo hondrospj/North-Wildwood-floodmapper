@@ -35,7 +35,7 @@ function classify(stage) {
 
 function stageKey(stage) {
   const value = Math.max(-2, Math.min(14, Number(stage)));
-  return (Math.floor((value + 1e-9) * 10) / 10).toFixed(1);
+  return (Math.floor((value + 1e-9) * 20) / 20).toFixed(2);
 }
 
 function phaseForIndex(rows, index, getter = row => row?.navd88StageFt) {

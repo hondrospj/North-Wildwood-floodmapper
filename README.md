@@ -37,16 +37,16 @@ vertical units in NAVD88 feet. The model then:
    four-neighbour source-connection threshold are both below the full selected
    gauge stage. A corner connection can never make a cell blue.
 5. Penalizes the resulting connected depth to avoid overstating low-level
-   flooding. The maximum penalty is 0.75 ft through minor flood, tapers
-   linearly to 0.35 ft at moderate flood, and tapers to zero at major flood.
+   flooding. The maximum penalty is 1.25 ft through minor flood, then follows
+   a normalized exponential decay that reaches exactly zero at major flood.
    The applied penalty is capped at 75 percent of each cell's raw depth, so a
    connected wet cell retains at least 25 percent of its depth and remains
    shallow bright blue instead of being misclassified as green.
 
-The solve produces reusable assets from 0.0–14.0 ft NAVD88 at 0.1-foot
+The solve produces reusable assets from 0.0–14.0 ft NAVD88 at 0.05-foot
 intervals. It is intentionally static: `filling`, `slack`, and `draining`
 assets are identical for the same gauge level. Hourly and 15-minute application
-updates only choose an existing stage asset.
+updates floor the selected level to the nearest 0.05-foot asset.
 
 The main builders are:
 
@@ -100,7 +100,7 @@ that tide. As its final step, the renderer labels the five-foot water mask with
 four-neighbour connectivity and removes every blue component that does not
 touch a qualified source. It smooths depth values over roughly ten feet only
 inside that immutable water mask, so lidar noise cannot create stippled colors
-or new water. The render validator checks all 423 depth/stage pairs and rejects
+or new water. The render validator checks all 843 depth/stage pairs and rejects
 any isolated pixel, mismatched mask, corner-only connection, or blue component
 without a source.
 
@@ -115,14 +115,13 @@ without a source.
 5. 21-cell, 7.5-foot bulkhead flag;
 6. disabled storm-drain flag (always zero).
 
-The phase-invariant state package is a gzip-compressed, one-byte decifeet audit
-lookup of about 1.4 MB. The browser-readable query COG is nearest-neighbour
+The phase-invariant state package is a gzip-compressed, two-byte centifeet audit
+lookup. The browser-readable query COG is nearest-neighbour
 resampled from the one-foot model to the same five-foot grid as the PNGs and
 stored without compression. This avoids intermittent browser range-decoder
 failures without changing the one-foot solve. A click combines that query cell
 with full-stage source connectivity and the bounded local depth penalty, then
-reports ground, maximum and applied penalty, local water surface, depth,
-connection stage, source status, and hydraulic feature.
+reports only the modeled water depth.
 
 ## Forecast and observed archives
 

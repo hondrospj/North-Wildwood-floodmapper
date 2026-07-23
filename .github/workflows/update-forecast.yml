@@ -70,7 +70,7 @@ jobs:
           FORECAST_HOURS = 84
           MIN_LAYER_STAGE = -2.0
           MAX_LAYER_STAGE = 14.0
-          LAYER_INCREMENT = 0.1
+          LAYER_INCREMENT = 0.05
           CYCLES_NEWEST_FIRST = (18, 12, 6, 0)
           DAYS_BACK_TO_TRY = 5
 
@@ -156,7 +156,8 @@ jobs:
 
           def stage_key(navd88):
               clamped = max(MIN_LAYER_STAGE, min(MAX_LAYER_STAGE, navd88))
-              return f"{round(clamped / LAYER_INCREMENT) * LAYER_INCREMENT:.1f}", navd88 < MIN_LAYER_STAGE or navd88 > MAX_LAYER_STAGE
+              floored = math.floor((clamped + 1e-9) / LAYER_INCREMENT) * LAYER_INCREMENT
+              return f"{floored:.2f}", navd88 < MIN_LAYER_STAGE or navd88 > MAX_LAYER_STAGE
 
           def parse_station_csv(text, zone):
               reader = csv.reader(io.StringIO(text))

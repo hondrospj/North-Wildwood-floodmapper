@@ -14135,6 +14135,12 @@ html.win-compact-ui #timelineDock #hourSlider{
           </div>
           <div class="layer-list">
             <div class="layer-item">
+              <div id="satelliteToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show satellite imagery"></div>
+              <div class="layer-meta">
+                <div class="layer-name">Satellite</div>
+              </div>
+            </div>
+            <div class="layer-item">
               <div id="boundaryToggle" class="toggle on" aria-hidden="true"></div>
               <div class="layer-meta">
                 <div class="layer-name">Simulation Extent</div>
@@ -14454,7 +14460,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     .house-alert-stat{display:grid;grid-template-columns:1fr auto;gap:8px;padding:7px 0;border-top:1px solid #e2e8f0}.house-alert-stat strong{font-size:15px}
     .house-alert-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px;text-align:right}.house-alert-table th:first-child,.house-alert-table td:first-child{text-align:left}
     .house-alert-table th,.house-alert-table td{padding:4px;border-bottom:1px solid #e2e8f0}.house-alert-note{margin-top:8px;color:#64748b;font-size:10px;line-height:1.35}
-    .depth-query-popup{color:#0f172a;width:300px;max-width:calc(100vw - 70px);font:12.5px/1.25 Inter,system-ui,sans-serif}.depth-query-popup h3{margin:0 0 6px;font-size:15px}.depth-query-popup dl{display:grid;grid-template-columns:minmax(92px,.8fr) minmax(0,1.2fr);gap:3px 10px;margin:0}.depth-query-popup dt{color:#64748b}.depth-query-popup dd{margin:0;font-weight:800}
+    .depth-query-popup{color:#0f172a;min-width:190px;max-width:calc(100vw - 70px);font:13px/1.25 Inter,system-ui,sans-serif;text-align:center}.depth-query-popup h3{margin:0 0 8px;font-size:15px}.depth-query-value{font-size:32px;line-height:1;font-weight:950;color:#0b4f94;letter-spacing:-.03em}
     @media (max-width:900px),(max-height:560px){
       .timeline-interval-toggle{width:168px !important;min-width:168px !important}
       .timeline-interval-toggle button{font-size:9px !important;padding:0 3px !important}
@@ -14497,7 +14503,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     const MIN_STAGE = -4.0;
     const MIN_DEPTH_STAGE = 0.0;
     const MAX_STAGE = 14.0;
-    const STAGE_STEP = 0.1;
+    const STAGE_STEP = 0.05;
     const DEFAULT_OVERLAY_MODE = "depth";
     const DEFAULT_DATA_MODE = "forecast";
     const DEFAULT_OPACITY = 0.75;
@@ -14548,6 +14554,8 @@ html.win-compact-ui #timelineDock #hourSlider{
     let MINOR_FLOOD_FT = 0;
     let MODERATE_FLOOD_FT = 0;
     let MAJOR_FLOOD_FT = 0;
+    const LOW_STAGE_VERTICAL_PENALTY_FT = 1.25;
+    const VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE = 1.5;
     const MAX_LOCAL_DEPTH_PENALTY_FRACTION = 0.75;
 
     function formatOffsetWithSign(value, digits = 2) {
@@ -14760,6 +14768,7 @@ html.win-compact-ui #timelineDock #hourSlider{
 
     const ESRI_API_KEY = window.ESRI_API_KEY || "";
     const ESRI_OSM_VECTOR_TILE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer";
+    const ESRI_WORLD_IMAGERY_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
     const FALLBACK_BASEMAP_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png";
     const ROAD_LABELS_URL = "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png";
 
@@ -14858,6 +14867,7 @@ function cloneStyleObject(value) {
     let map = null;
     let basemapGrayLayer = null;
     let basemapColorLayer = null;
+    let satelliteLayer = null;
     let roadsLayer = null;
     let parcelsLayer = null;
     let parcelFeatures = [];
@@ -14873,6 +14883,7 @@ function cloneStyleObject(value) {
 
     let exportMap = null;
     let exportBasemapColorLayer = null;
+    let exportSatelliteLayer = null;
     let exportRoadsLayer = null;
     let exportBoundaryOutline = null;
     let exportBoundaryMask = null;
@@ -15868,7 +15879,7 @@ function setDatumHelpOpen(isOpen) {
         body: `
           <p>Bright blue is shallower modeled water. Blue darkens as depth increases.</p>
           <p><strong>Green areas</strong> are below the selected gauge tide but are not connected by cell sides to a qualifying source block at that tide.</p>
-          <p>Connected depth is penalized by as much as 0.75 ft through minor flood, 0.35 ft at moderate flood, and progressively less until the penalty reaches zero at major flood. The penalty can remove no more than 75% of a cell's raw depth, so connected nuisance flooding remains shallow bright blue. Filling, slack, and draining are identical at the same gauge level. The mapped bulkhead is buffered ten feet on each side of its centerline and stitched into the DEM as a nominal 21-cell-wide, 7.5-ft NAVD88 wall. Storm-drain exchange is disabled.</p>
+          <p>Connected depth is penalized by as much as 1.25 ft through minor flood, then the penalty decreases exponentially until it reaches exactly zero at major flood. The penalty can remove no more than 75% of a cell's raw depth, so connected nuisance flooding remains shallow bright blue. Filling, slack, and draining are identical at the same gauge level. The mapped bulkhead is buffered ten feet on each side of its centerline and stitched into the DEM as a nominal 21-cell-wide, 7.5-ft NAVD88 wall. Storm-drain exchange is disabled.</p>
         `
       },
       stageLegend: {
@@ -16041,13 +16052,13 @@ function setDatumHelpOpen(isOpen) {
       return Math.max(MIN_STAGE, Math.min(MAX_STAGE, value));
     }
 
-    function roundToOneDecimal(value) {
-      return Number(value.toFixed(1));
+    function roundToCatalogPrecision(value) {
+      return Number(value.toFixed(2));
     }
 
     function floorToCatalogStep(value) {
       const stepped = Math.floor((value + 1e-9) / STAGE_STEP) * STAGE_STEP;
-      return roundToOneDecimal(stepped);
+      return roundToCatalogPrecision(stepped);
     }
 
     function getOverlayStage(value) {
@@ -16061,16 +16072,13 @@ function setDatumHelpOpen(isOpen) {
     function getVerticalBathtubPenalty(stageValue) {
       const stage = Number(stageValue);
       if (!Number.isFinite(stage)) return null;
-      if (stage <= MINOR_FLOOD_FT) return 0.75;
-      if (stage <= MODERATE_FLOOD_FT) {
-        const fraction = (stage - MINOR_FLOOD_FT) / (MODERATE_FLOOD_FT - MINOR_FLOOD_FT);
-        return 0.75 + fraction * (0.35 - 0.75);
-      }
-      if (stage <= MAJOR_FLOOD_FT) {
-        const fraction = (stage - MODERATE_FLOOD_FT) / (MAJOR_FLOOD_FT - MODERATE_FLOOD_FT);
-        return 0.35 * (1 - fraction);
-      }
-      return 0;
+      if (stage <= MINOR_FLOOD_FT) return LOW_STAGE_VERTICAL_PENALTY_FT;
+      if (stage >= MAJOR_FLOOD_FT) return 0;
+      const progress = (stage - MINOR_FLOOD_FT) / (MAJOR_FLOOD_FT - MINOR_FLOOD_FT);
+      const decay = VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE;
+      const residual = Math.exp(-decay);
+      const normalized = (Math.exp(-decay * progress) - residual) / (1 - residual);
+      return LOW_STAGE_VERTICAL_PENALTY_FT * normalized;
     }
 
     function getPenalizedConnectedDepth(stageValue, groundValue) {
@@ -16133,8 +16141,8 @@ function setDatumHelpOpen(isOpen) {
     function stageToCode(stageValue) {
       const n = Number(stageValue);
       const sign = n < 0 ? "m" : "p";
-      const tenths = Math.round(Math.abs(n) * 10);
-      return `${sign}${String(tenths).padStart(3, "0")}`;
+      const hundredths = Math.round(Math.abs(n) * 100);
+      return `${sign}${String(hundredths).padStart(4, "0")}`;
     }
 
     function normalizeHydraulicPhase(value) {
@@ -16842,6 +16850,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
       map.createPane("basemapGrayPane");
       map.createPane("basemapColorPane");
+      map.createPane("satellitePane");
       map.createPane("boundaryPane");
       map.createPane("floodPane");
       map.createPane("parcelsPane");
@@ -16849,6 +16858,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       map.createPane("maskPane");
       map.getPane("basemapGrayPane").style.zIndex = 180;
       map.getPane("basemapColorPane").style.zIndex = 190;
+      map.getPane("satellitePane").style.zIndex = 200;
       map.getPane("boundaryPane").style.zIndex = 640;
       map.getPane("floodPane").style.zIndex = 500;
       map.getPane("parcelsPane").style.zIndex = 610;
@@ -16890,6 +16900,16 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         }).addTo(map);
       }
 
+      satelliteLayer = L.tileLayer(ESRI_WORLD_IMAGERY_URL, {
+        attribution: "Tiles &copy; Esri",
+        minZoom: 11,
+        maxZoom: 19,
+        crossOrigin: true,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        pane: "satellitePane"
+      });
+
       roadsLayer = L.tileLayer(ROAD_LABELS_URL, {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
         minZoom: 11,
@@ -16919,6 +16939,22 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         map.invalidateSize();
         updateColorBasemapClip();
       });
+    }
+
+    function setSatelliteEnabled(enabled) {
+      const shouldEnable = Boolean(enabled);
+      const toggle = document.getElementById("satelliteToggle");
+      if (toggle) {
+        toggle.classList.toggle("on", shouldEnable);
+        toggle.setAttribute("aria-checked", String(shouldEnable));
+      }
+      if (!map) ensureMap();
+      if (shouldEnable) {
+        if (satelliteLayer && !map.hasLayer(satelliteLayer)) satelliteLayer.addTo(map);
+      } else if (satelliteLayer && map.hasLayer(satelliteLayer)) {
+        map.removeLayer(satelliteLayer);
+      }
+      updateExportSatelliteLayer();
     }
 
     function updateRoadLayerAppearance() {
@@ -18950,11 +18986,13 @@ function updateExportSegmentedUI() {
       });
 
       exportMap.createPane("basemapColorPane");
+      exportMap.createPane("satellitePane");
       exportMap.createPane("boundaryPane");
       exportMap.createPane("floodPane");
       exportMap.createPane("roadsPane");
       exportMap.createPane("maskPane");
       exportMap.getPane("basemapColorPane").style.zIndex = 190;
+      exportMap.getPane("satellitePane").style.zIndex = 200;
       exportMap.getPane("boundaryPane").style.zIndex = 640;
       exportMap.getPane("floodPane").style.zIndex = 500;
       exportMap.getPane("roadsPane").style.zIndex = 620;
@@ -18993,6 +19031,17 @@ function updateExportSegmentedUI() {
         }).addTo(exportMap);
       }
 
+      exportSatelliteLayer = L.tileLayer(ESRI_WORLD_IMAGERY_URL, {
+        attribution: "Tiles &copy; Esri",
+        minZoom: 11,
+        maxZoom: 19,
+        crossOrigin: true,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        pane: "satellitePane"
+      });
+      updateExportSatelliteLayer();
+
       exportRoadsLayer = L.tileLayer(ROAD_LABELS_URL, {
         attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
         minZoom: 11,
@@ -19017,6 +19066,16 @@ function updateExportSegmentedUI() {
 
       exportMap.fitBounds(getBoundaryDrivenOverlayBounds(), { padding: [20, 20] });
       return exportMap;
+    }
+
+    function updateExportSatelliteLayer() {
+      if (!exportMap || !exportSatelliteLayer) return;
+      const enabled = document.getElementById("satelliteToggle")?.classList.contains("on");
+      if (enabled) {
+        if (!exportMap.hasLayer(exportSatelliteLayer)) exportSatelliteLayer.addTo(exportMap);
+      } else if (exportMap.hasLayer(exportSatelliteLayer)) {
+        exportMap.removeLayer(exportSatelliteLayer);
+      }
     }
 
     function updateExportLegend() {
@@ -22100,7 +22159,16 @@ function startPlayback() {
         Object.entries(payload.phaseArrays || {}).forEach(([phase, record]) => {
           const offset = Number(record?.offset) || 0;
           const length = Number(record?.length) || 0;
-          payload.decodedPhaseWaterSurface[phase] = new Uint8Array(buffer, dataStart + offset, length);
+          if (payload.valueType === "int16-le") {
+            const view = new DataView(buffer, dataStart + offset, length);
+            const values = new Int16Array(length / 2);
+            for (let index = 0; index < values.length; index += 1) {
+              values[index] = view.getInt16(index * 2, true);
+            }
+            payload.decodedPhaseWaterSurface[phase] = values;
+          } else {
+            payload.decodedPhaseWaterSurface[phase] = new Uint8Array(buffer, dataStart + offset, length);
+          }
         });
         return payload;
       }
@@ -22127,13 +22195,17 @@ function startPlayback() {
       const payload = await getHydraulicStates();
       if (!payload || !Number.isInteger(zoneId) || zoneId <= 0) return null;
       const stageMin = Number(payload.stageMinNavd88Ft) || 0;
-      const stageStep = Number(payload.stageStepFt) || 0.1;
-      const stageCount = Number(payload.stageCount) || 141;
+      const stageStep = Number(payload.stageStepFt) || 0.05;
+      const stageCount = Number(payload.stageCount) || 281;
       const stride = Number(payload.zoneStride) || ((Number(payload.zoneCount) || 0) + 1);
       const stageIndex = Math.max(0, Math.min(stageCount - 1, Math.round((Number(stage) - stageMin) / stageStep)));
       const binaryValues = payload.decodedPhaseWaterSurface?.[normalizeHydraulicPhase(phase)];
       if (binaryValues) {
         const encoded = binaryValues[stageIndex * stride + zoneId];
+        if (payload.valueType === "int16-le") {
+          const drySentinel = Number(payload.drySentinelCentift ?? -32768);
+          return Number.isFinite(encoded) && encoded !== drySentinel ? encoded / 100 : null;
+        }
         const drySentinel = Number(payload.drySentinel ?? 255);
         const offset = Number(payload.surfaceOffsetDecifeet ?? -100);
         return Number.isFinite(encoded) && encoded !== drySentinel ? (encoded + offset) / 10 : null;
@@ -22175,7 +22247,13 @@ function startPlayback() {
       for (let row = 0; row < y1 - y0; row += 1) {
         for (let column = 0; column < windowWidth; column += 1) {
           const offset = (row * windowWidth + column) * sampleCount;
-          const isFeature = Number(values[offset + 4]) >= 0.5 || Number(values[offset + 5]) >= 0.5;
+          const candidateElevation = Number(values[offset]);
+          const hardFlag = Number(values[offset + 4]);
+          const grateFlag = Number(values[offset + 5]);
+          const plausibleElevation = Number.isFinite(candidateElevation) &&
+            candidateElevation > -100 && candidateElevation < 100;
+          const isFeature = plausibleElevation &&
+            ((hardFlag >= 0.5 && hardFlag <= 1.5) || (grateFlag >= 0.5 && grateFlag <= 1.5));
           if (!isFeature) continue;
           const candidateX = x0 + column;
           const candidateY = y0 + row;
@@ -22201,7 +22279,7 @@ function startPlayback() {
       const sourceFlag = Number(values[sampleOffset + 3]);
       const hardStructureFlag = Number(values[sampleOffset + 4]);
       const stormGrateFlag = Number(values[sampleOffset + 5]);
-      if (!Number.isFinite(elevation) || elevation < -1000) return null;
+      if (!Number.isFinite(elevation) || elevation <= -1000 || elevation >= 1000) return null;
       return {
         elevation,
         zoneId,
@@ -22279,15 +22357,13 @@ function startPlayback() {
         }
         const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
         if (!sample) {
-          L.popup().setLatLng(event.latlng).setContent('<div class="depth-query-popup"><h3>Depth query</h3>This point is outside the North Wildwood elevation model.</div>').openOn(map);
+          L.popup().setLatLng(event.latlng).setContent('<div class="depth-query-popup"><h3>Modeled water depth</h3><div class="depth-query-value">N/A</div></div>').openOn(map);
           return;
         }
         const rawStage = getStageValue(currentSeriesHours[currentHourIndex]);
         const stage = Number(rawStage);
         const overlayStage = Number.isFinite(stage) ? getOverlayStage(stage) : null;
         const depthModel = getPenalizedConnectedDepth(overlayStage, sample.elevation);
-        const verticalPenalty = depthModel?.maximumPenalty ?? null;
-        const appliedPenalty = depthModel?.appliedPenalty ?? null;
         const belowStage = Number.isFinite(stage) && sample.elevation <= stage + 0.0001;
         const modeledConnected = belowStage &&
           Number.isFinite(overlayStage) &&
@@ -22297,30 +22373,10 @@ function startPlayback() {
         const renderedFlood = sampleRenderedFloodPixel(event.latlng.lat, event.latlng.lng);
         const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
         const depth = connected && depthModel ? depthModel.depth : null;
-        const displayedWaterSurface = connected && depthModel ? depthModel.localWaterSurface : null;
-        const status = !Number.isFinite(stage) ? "No water level selected" :
-          (connected ? "Connected bathtub (depth penalized)" :
-            (renderedFlood?.green || belowStage ? "Below gauge tide but not source-connected (green)" : "Dry at selected stage"));
-        const html = '<div class="depth-query-popup"><h3>Modeled depth at this point</h3><dl>' +
-          "<dt>Status</dt><dd>" + status + "</dd>" +
-          "<dt>Model</dt><dd>Static connected bathtub</dd>" +
-          "<dt>Ground</dt><dd>" + sample.elevation.toFixed(2) + " ft NAVD88</dd>" +
-          "<dt>Selected water</dt><dd>" + (Number.isFinite(stage) ? stage.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
-          "<dt>Maximum depth penalty</dt><dd>" + (Number.isFinite(verticalPenalty) ? verticalPenalty.toFixed(2) + " ft" : "—") + "</dd>" +
-          "<dt>Applied depth penalty</dt><dd>" + (Number.isFinite(appliedPenalty) ? appliedPenalty.toFixed(2) + " ft" : "—") + "</dd>" +
-          "<dt>Local water surface</dt><dd>" + (Number.isFinite(displayedWaterSurface) ? displayedWaterSurface.toFixed(2) + " ft NAVD88" : "—") + "</dd>" +
-          "<dt>Water depth</dt><dd>" + (depth == null ? "—" : depth.toFixed(2) + " ft") + "</dd>" +
-          "<dt>First connected</dt><dd>" + (Number.isFinite(sample.connectionStage) && sample.connectionStage < 100 ? sample.connectionStage.toFixed(1) + " ft" : "Not by 14 ft") + "</dd>" +
-          "<dt>1 ft source block</dt><dd>" + (sample.sourceFlag ? "Yes" : "No") + "</dd>" +
-          "<dt>Hydraulic feature</dt><dd>" +
-          (sample.stormGrateFlag
-            ? "48-in storm grate"
-            : (sample.hardStructureFlag ? "7.5-ft DEM bulkhead (10-ft buffer per side; 21 cells nominal)" : "Terrain")) +
-          (Number.isFinite(sample.featureDistanceFt) && sample.featureDistanceFt > 0.05
-            ? " (nearest supplied feature, " + sample.featureDistanceFt.toFixed(1) + " ft from click)"
-            : "") +
-          "</dd></dl></div>";
-        L.popup({ maxWidth: 330 }).setLatLng(event.latlng).setContent(html).openOn(map);
+        const displayedDepth = Number.isFinite(depth) ? depth : 0;
+        const html = '<div class="depth-query-popup"><h3>Modeled water depth</h3>' +
+          '<div class="depth-query-value">' + displayedDepth.toFixed(2) + ' ft</div></div>';
+        L.popup({ maxWidth: 240 }).setLatLng(event.latlng).setContent(html).openOn(map);
       } catch (err) {
         console.error("Depth query failed", err);
         toast("Depth query is temporarily unavailable.");
@@ -22336,6 +22392,17 @@ function startPlayback() {
           if (id === "roadsToggle") updateRoadLayerAppearance();
           if (id === "boundaryToggle") applyTownBoundaryVisibility();
         });
+      });
+      const satelliteToggle = document.getElementById("satelliteToggle");
+      const toggleSatellite = () => {
+        setSatelliteEnabled(!satelliteToggle?.classList.contains("on"));
+      };
+      satelliteToggle?.addEventListener("click", toggleSatellite);
+      satelliteToggle?.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleSatellite();
+        }
       });
       const parcelsToggle = document.getElementById("parcelsToggle");
       const toggleParcels = () => {
@@ -31517,12 +31584,12 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260723-hydraulic-v14",
-      "dynamic": "20260723-hydraulic-v14",
-      "hydraulic": "20260723-hydraulic-v14"
+      "depth": "20260723-hydraulic-v15",
+      "dynamic": "20260723-hydraulic-v15",
+      "hydraulic": "20260723-hydraulic-v15"
     },
-    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84Uncompressed5ft.cog.tif.png?v=20260723-hydraulic-v14",
-    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v14",
+    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84Uncompressed5ft.cog.tif.png?v=20260723-hydraulic-v15",
+    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v15",
     "depthRoots": [
       "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/"
     ],
