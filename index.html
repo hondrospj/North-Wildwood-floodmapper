@@ -14460,7 +14460,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     .house-alert-stat{display:grid;grid-template-columns:1fr auto;gap:8px;padding:7px 0;border-top:1px solid #e2e8f0}.house-alert-stat strong{font-size:15px}
     .house-alert-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px;text-align:right}.house-alert-table th:first-child,.house-alert-table td:first-child{text-align:left}
     .house-alert-table th,.house-alert-table td{padding:4px;border-bottom:1px solid #e2e8f0}.house-alert-note{margin-top:8px;color:#64748b;font-size:10px;line-height:1.35}
-    .depth-query-popup{color:#0f172a;min-width:190px;max-width:calc(100vw - 70px);font:13px/1.25 Inter,system-ui,sans-serif;text-align:center}.depth-query-popup h3{margin:0 0 8px;font-size:15px}.depth-query-value{font-size:32px;line-height:1;font-weight:950;color:#0b4f94;letter-spacing:-.03em}
+    .depth-query-popup{color:#0f172a;min-width:240px;max-width:calc(100vw - 70px);font:16px/1.25 Inter,system-ui,sans-serif;text-align:center}.depth-query-popup h3{margin:0 0 10px;font-size:20px}.depth-query-value{font-size:48px;line-height:1;font-weight:950;color:#0b4f94;letter-spacing:-.03em}
     @media (max-width:900px),(max-height:560px){
       .timeline-interval-toggle{width:168px !important;min-width:168px !important}
       .timeline-interval-toggle button{font-size:9px !important;padding:0 3px !important}
@@ -22480,7 +22480,7 @@ function startPlayback() {
         const displayedDepth = Number.isFinite(depth) ? depth : 0;
         const html = '<div class="depth-query-popup"><h3>Modeled water depth</h3>' +
           '<div class="depth-query-value">' + displayedDepth.toFixed(2) + ' ft</div></div>';
-        L.popup({ maxWidth: 240 }).setLatLng(event.latlng).setContent(html).openOn(map);
+        L.popup({ maxWidth: 300 }).setLatLng(event.latlng).setContent(html).openOn(map);
       } catch (err) {
         console.error("Depth query failed", err);
         toast("Depth query is temporarily unavailable.");
