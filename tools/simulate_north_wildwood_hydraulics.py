@@ -75,6 +75,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--skip-query-cog", action="store_true")
     parser.add_argument("--skip-render", action="store_true")
+    parser.add_argument(
+        "--draining-only",
+        action="store_true",
+        help=(
+            "Reuse filling/slack arrays from the existing output state package, "
+            "then solve and render only draining assets"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -166,6 +174,14 @@ class HydraulicSolver:
         elevation_sum = self.cumulative_elevation[rows, bin_index]
         return np.maximum(0.0, count * surface - elevation_sum)
 
+    def wetted_area(self, surface: np.ndarray) -> np.ndarray:
+        bin_index = np.clip(
+            np.floor(surface * 10.0 + 1e-8).astype(np.int32) - HIST_MIN10,
+            0,
+            HIST_COUNT - 1,
+        )
+        return self.cumulative_count[np.arange(self.zone_count), bin_index]
+
     def surface_from_storage(
         self,
         storage: np.ndarray,
@@ -219,6 +235,12 @@ class HydraulicSolver:
         source_exchange = 0.0
         grate_exchange = 0.0
         internal_residual = 0.0
+        # The forcing stage is constant throughout this 15-minute interval.
+        # Compute its source-boundary storage once instead of repeating the
+        # same full-zone hypsometry lookup in every 60-second substep.
+        fixed_volume = self.storage(
+            np.full(self.zone_count, sea_stage_ft, dtype=np.float64)
+        )
 
         for _ in range(TIDE_STEP_SECONDS // MODEL_STEP_SECONDS):
             surface_a = surface[edge_a]
@@ -231,9 +253,24 @@ class HydraulicSolver:
             ratio = np.divide(tail, head, out=np.zeros_like(head), where=head > 1e-9)
             submergence = np.sqrt(np.maximum(0.0, 1.0 - np.minimum(1.0, ratio) ** 1.5))
             discharge = BROAD_CRESTED_WEIR_CFS * width * head**1.5 * submergence
-            transfer = np.sign(delta) * discharge * MODEL_STEP_SECONDS
+            transfer_magnitude = discharge * MODEL_STEP_SECONDS
+
+            # A long explicit step can otherwise send more water than is
+            # needed to equalize two small finite-volume nodes. Cap each edge
+            # by the linearized two-basin equalization volume.
+            area = np.maximum(self.wetted_area(surface), 1.0)
+            equalization_volume = np.divide(
+                np.abs(delta),
+                (1.0 / area[edge_a]) + (1.0 / area[edge_b]),
+            )
+            transfer_magnitude = np.minimum(
+                transfer_magnitude,
+                equalization_volume,
+            )
+            transfer = np.sign(delta) * transfer_magnitude
 
             donor = np.where(transfer >= 0, edge_a, edge_b)
+            receiver = np.where(transfer >= 0, edge_b, edge_a)
             outgoing = np.bincount(
                 donor,
                 weights=np.abs(transfer),
@@ -250,7 +287,43 @@ class HydraulicSolver:
                     where=outgoing[normal] > 0,
                 ),
             )
-            transfer *= limiter[donor]
+
+            # Concurrent inflows from many edges must not lift a receiver
+            # above the highest surface supplying it during this substep.
+            target_surface = surface.copy()
+            active_donor = (
+                (np.abs(transfer) > 0.0)
+                & (self.source[donor] | (storage[donor] > 1e-7))
+            )
+            donor_surface = np.where(
+                active_donor,
+                surface[donor],
+                surface[receiver],
+            )
+            np.maximum.at(target_surface, receiver, donor_surface)
+            receiver_capacity = np.maximum(
+                0.0,
+                self.storage(target_surface) - storage,
+            )
+            incoming = np.bincount(
+                receiver,
+                weights=np.abs(transfer),
+                minlength=self.zone_count,
+            )
+            receiver_limiter = np.minimum(
+                1.0,
+                np.divide(
+                    receiver_capacity,
+                    incoming,
+                    out=np.ones_like(receiver_capacity),
+                    where=incoming > 0,
+                ),
+            )
+            receiver_limiter[self.source] = 1.0
+            transfer *= np.minimum(
+                limiter[donor],
+                receiver_limiter[receiver],
+            )
             internal_net = (
                 np.bincount(edge_b, weights=transfer, minlength=self.zone_count)
                 - np.bincount(edge_a, weights=transfer, minlength=self.zone_count)
@@ -267,13 +340,17 @@ class HydraulicSolver:
                 * np.sqrt(2.0 * GRAVITY_FT_S2 * np.abs(grate_delta))
             )
             grate_transfer = np.sign(grate_delta) * grate_discharge * MODEL_STEP_SECONDS
+            filling = grate_transfer > 0
+            grate_transfer[filling] = np.minimum(
+                grate_transfer[filling],
+                np.maximum(0.0, fixed_volume[filling] - storage[filling]),
+            )
             draining = grate_transfer < 0
             grate_transfer[draining] = -np.minimum(-grate_transfer[draining], storage[draining])
             storage += grate_transfer
             grate_exchange += float(np.sum(grate_transfer))
 
             surface = self.surface_from_storage(storage, surface)
-            fixed_volume = self.storage(np.full(self.zone_count, sea_stage_ft))
             source_exchange += float(np.sum(fixed_volume[self.source] - storage[self.source]))
             storage[self.source] = fixed_volume[self.source]
             surface[self.source] = sea_stage_ft
@@ -292,7 +369,44 @@ class HydraulicSolver:
         return encoded
 
 
-def simulate(solver: HydraulicSolver) -> tuple[dict[str, np.ndarray], dict]:
+def load_reusable_static_phases(
+    state_path: Path,
+    expected_stride: int,
+) -> dict[str, np.ndarray]:
+    raw = gzip.decompress(state_path.read_bytes())
+    if raw[:8] != b"NWHYD2\x00\x00":
+        raise RuntimeError(f"Unsupported reusable state package: {state_path}")
+    header_length = int.from_bytes(raw[8:12], "little")
+    header = json.loads(raw[12 : 12 + header_length])
+    if (
+        header.get("stageCount") != len(STAGES_FT)
+        or header.get("zoneStride") != expected_stride
+    ):
+        raise RuntimeError("Reusable state package dimensions do not match the graph")
+
+    payload_start = 12 + header_length
+    reusable: dict[str, np.ndarray] = {}
+    for phase in ("filling", "slack"):
+        record = header["phaseArrays"][phase]
+        encoded = np.frombuffer(
+            raw,
+            dtype=np.uint8,
+            count=record["length"],
+            offset=payload_start + record["offset"],
+        ).reshape(len(STAGES_FT), expected_stride)
+        centift = (
+            encoded.astype(np.int16)
+            + int(header["surfaceOffsetDecifeet"])
+        ) * 10
+        centift[encoded == int(header["drySentinel"])] = DRY_SENTINEL
+        reusable[phase] = centift
+    return reusable
+
+
+def simulate(
+    solver: HydraulicSolver,
+    reusable_static_state: Path | None = None,
+) -> tuple[dict[str, np.ndarray], dict]:
     stride = solver.zone_count + 1
     phases = {
         phase: np.full((len(STAGES_FT), stride), DRY_SENTINEL, dtype="<i2")
@@ -300,28 +414,68 @@ def simulate(solver: HydraulicSolver) -> tuple[dict[str, np.ndarray], dict]:
     }
     diagnostics: dict[str, list[dict]] = {"filling": [], "draining": []}
 
-    for index, stage in enumerate(STAGES_FT):
-        storage, surface = solver.equilibrium(float(stage))
-        phases["slack"][index] = solver.encode_surface(storage, surface)
+    if reusable_static_state is not None:
+        phases.update(load_reusable_static_phases(reusable_static_state, stride))
+        print(f"Reused filling/slack states: {reusable_static_state}")
+    else:
+        for index, stage in enumerate(STAGES_FT):
+            storage, surface = solver.equilibrium(float(stage))
+            phases["slack"][index] = solver.encode_surface(storage, surface)
 
-    storage, surface = solver.equilibrium(float(STAGES_FT[0]))
-    phases["filling"][0] = solver.encode_surface(storage, surface)
-    for index, stage in enumerate(STAGES_FT[1:], start=1):
-        storage, surface, diagnostic = solver.advance(storage, surface, float(stage))
-        phases["filling"][index] = solver.encode_surface(storage, surface)
-        diagnostics["filling"].append({"stageNavd88Ft": float(stage), **diagnostic})
-        if index % 10 == 0:
-            print(f"Filling simulation: {stage:4.1f} ft NAVD88")
+        storage, surface = solver.equilibrium(float(STAGES_FT[0]))
+        phases["filling"][0] = solver.encode_surface(storage, surface)
+        for index, stage in enumerate(STAGES_FT[1:], start=1):
+            storage, surface, diagnostic = solver.advance(storage, surface, float(stage))
+            phases["filling"][index] = solver.encode_surface(storage, surface)
+            diagnostics["filling"].append({"stageNavd88Ft": float(stage), **diagnostic})
+            if index % 10 == 0:
+                print(f"Filling simulation: {stage:4.1f} ft NAVD88")
 
+    # A single 14-to-0 ft descent gives ordinary low tides an impossible
+    # 14-foot storm memory. In protected control volumes that can preserve the
+    # initial 14-foot surface for more than a day and produces a stippled field
+    # of false deep water. Build each one-foot target band from a local
+    # preceding crest 1.6-2.5 feet higher instead. This represents a reusable
+    # roughly four-to-six-hour falling-tide history while retaining the same
+    # 15-minute finite-volume physics and avoiding an extra dimension in hourly
+    # assets.
+    for band_start_index in range(0, 120, 10):
+        peak_index = band_start_index + 25
+        peak_stage = float(peak_index) / 10.0
+        storage, surface = solver.equilibrium(peak_stage)
+        for index in range(peak_index - 1, band_start_index - 1, -1):
+            stage = float(STAGES_FT[index])
+            storage, surface, diagnostic = solver.advance(storage, surface, stage)
+            diagnostics["draining"].append(
+                {
+                    "stageNavd88Ft": stage,
+                    "historyPeakNavd88Ft": peak_stage,
+                    **diagnostic,
+                }
+            )
+            if index <= band_start_index + 9:
+                phases["draining"][index] = solver.encode_surface(storage, surface)
+        print(
+            f"Draining simulation: {band_start_index / 10:4.1f}-"
+            f"{(band_start_index + 9) / 10:4.1f} ft NAVD88 "
+            f"from {peak_stage:4.1f} ft crest"
+        )
+
+    # The upper two bands share the model maximum as their preceding crest.
     storage, surface = solver.equilibrium(float(STAGES_FT[-1]))
     phases["draining"][-1] = solver.encode_surface(storage, surface)
-    for index in range(len(STAGES_FT) - 2, -1, -1):
+    for index in range(len(STAGES_FT) - 2, 119, -1):
         stage = float(STAGES_FT[index])
         storage, surface, diagnostic = solver.advance(storage, surface, stage)
         phases["draining"][index] = solver.encode_surface(storage, surface)
-        diagnostics["draining"].append({"stageNavd88Ft": stage, **diagnostic})
-        if index % 10 == 0:
-            print(f"Draining simulation: {stage:4.1f} ft NAVD88")
+        diagnostics["draining"].append(
+            {
+                "stageNavd88Ft": stage,
+                "historyPeakNavd88Ft": float(STAGES_FT[-1]),
+                **diagnostic,
+            }
+        )
+    print("Draining simulation: 12.0-14.0 ft NAVD88 from 14.0 ft crest")
 
     summary = {
         "maximumInternalConservationResidualFt3": max(
@@ -330,6 +484,11 @@ def simulate(solver: HydraulicSolver) -> tuple[dict[str, np.ndarray], dict]:
             for row in rows
         ),
         "diagnosticStepCount": sum(len(rows) for rows in diagnostics.values()),
+        "reusedStaticPhases": reusable_static_state is not None,
+        "drainingHistory": (
+            "one-foot target bands initialized from a local crest 1.6-2.5 ft "
+            "above the selected stage; 12-14 ft bands share the 14 ft crest"
+        ),
     }
     return phases, summary
 
@@ -354,12 +513,20 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             "substepSeconds": MODEL_STEP_SECONDS,
             "filling": "0.1 ft rise every 15 minutes",
             "slack": "terrain-connected equilibrium at the selected tide stage",
-            "draining": "0.1 ft fall every 15 minutes",
+            "draining": (
+                "0.1 ft fall every 15 minutes from a local preceding crest "
+                "1.6-2.5 ft above each one-foot target band; 12-14 ft states "
+                "share the 14 ft crest"
+            ),
         },
         "physics": {
             "terrainFlow": "submerged broad-crested weir",
             "weirCoefficientCfs": BROAD_CRESTED_WEIR_CFS,
             "crossSection": "one foot of width per shared one-foot cell side, grouped by crest elevation",
+            "fluxStability": (
+                "edge transfers are bounded by two-basin equalization volume, "
+                "aggregate receiver capacity, and available donor storage"
+            ),
             "grates": "48-inch circular orifice",
             "orificeDischargeCoefficient": ORIFICE_DISCHARGE_COEFFICIENT,
             "bulkheadElevationNavd88Ft": 7.5,
@@ -402,6 +569,7 @@ def render_assets(
     dem_path: Path,
     output_root: Path,
     phases: dict[str, np.ndarray],
+    phase_names: tuple[str, ...] | None = None,
 ) -> dict:
     elevation10 = np.memmap(
         graph_dir / "elevation10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
@@ -439,7 +607,12 @@ def render_assets(
     connection = connection10.astype(np.float32) / 10.0
     counts = {}
 
-    for phase, directory in phase_dirs.items():
+    selected_phase_dirs = (
+        phase_dirs.items()
+        if phase_names is None
+        else ((phase, phase_dirs[phase]) for phase in phase_names)
+    )
+    for phase, directory in selected_phase_dirs:
         depth_dir = output_root / "DepthPNGs" / "North Wildwood" / directory
         stage_dir = output_root / "StagePNGs" / "North Wildwood" / directory
         depth_dir.mkdir(parents=True, exist_ok=True)
@@ -665,23 +838,75 @@ def main() -> None:
     graph_dir = args.graph.resolve()
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
+    asset_manifest_path = (
+        output_root / "NorthWildwoodHydraulicAssetManifest.json"
+    )
+    previous_render_manifest = None
+    if args.draining_only and asset_manifest_path.is_file():
+        previous_asset_manifest = json.loads(
+            asset_manifest_path.read_text(encoding="utf-8")
+        )
+        previous_render_manifest = previous_asset_manifest.get("render")
     graph_manifest = json.loads((graph_dir / "graph_manifest.json").read_text(encoding="utf-8"))
     zones = load_zones(graph_dir / "zones.csv")
     edges = load_edges(graph_dir / "edges.csv")
     print(f"Loaded {len(zones['connection10']):,} zones and {len(edges['a']):,} crest-width edge groups")
     solver = HydraulicSolver(zones, edges)
-    phases, diagnostics = simulate(solver)
-
     state_path = (
         output_root
         / "COGs"
         / "North Wildwood"
         / "NorthWildwoodHydraulicStates.json.png"
     )
+    reusable_static_state = state_path if args.draining_only else None
+    if reusable_static_state is not None and not reusable_static_state.is_file():
+        raise FileNotFoundError(
+            "--draining-only requires an existing hydraulic state package at "
+            f"{reusable_static_state}"
+        )
+    phases, diagnostics = simulate(solver, reusable_static_state)
+
     write_state_asset(state_path, phases, graph_manifest, diagnostics)
     render_manifest = None
     if not args.skip_render:
-        render_manifest = render_assets(graph_dir, args.dem.resolve(), output_root, phases)
+        render_manifest = render_assets(
+            graph_dir,
+            args.dem.resolve(),
+            output_root,
+            phases,
+            phase_names=("draining",) if args.draining_only else None,
+        )
+        if previous_render_manifest is not None:
+            phase_counts = dict(previous_render_manifest.get("phases", {}))
+            phase_counts.update(render_manifest["phases"])
+            phase_directories = {
+                "filling": "filling",
+                "slack": "",
+                "draining": "draining",
+            }
+            for phase, directory in phase_directories.items():
+                if phase in phase_counts:
+                    continue
+                paths = []
+                for family in ("DepthPNGs", "StagePNGs"):
+                    paths.extend(
+                        (
+                            output_root
+                            / family
+                            / "North Wildwood"
+                            / directory
+                        ).glob("*.png")
+                    )
+                if len(paths) != len(STAGES_FT) * 2:
+                    raise RuntimeError(
+                        f"Cannot restore {phase} render manifest: "
+                        f"expected {len(STAGES_FT) * 2} PNGs, found {len(paths)}"
+                    )
+                phase_counts[phase] = {
+                    "stageCount": len(STAGES_FT),
+                    "pngBytes": sum(path.stat().st_size for path in paths),
+                }
+            render_manifest["phases"] = phase_counts
     query_path = (
         output_root
         / "COGs"
@@ -708,7 +933,7 @@ def main() -> None:
         "queryCog": str(query_path) if query_path.exists() else None,
         "hydraulicStates": str(state_path),
     }
-    (output_root / "NorthWildwoodHydraulicAssetManifest.json").write_text(
+    asset_manifest_path.write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
     print("North Wildwood hydraulic assets complete")

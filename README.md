@@ -36,10 +36,17 @@ vertical units in NAVD88 feet. The model then:
    shared one-foot cell side, grouped by crest elevation.
 5. Advances flow with submerged broad-crested-weir physics and conservative
    60-second substeps inside every 15-minute tide interval.
+6. Bounds every explicit transfer by the two-basin equalization volume,
+   aggregate receiving capacity, and available donor storage. Grate exchange
+   is likewise capped at the sea-stage storage, preventing numerical overshoot.
 
 The expensive solve runs once. It produces reusable `filling`, `slack`, and
-`draining` states from 0.0–14.0 ft NAVD88 at 0.1-foot intervals. Hourly and
-15-minute application updates only choose an existing phase/stage asset.
+`draining` states from 0.0–14.0 ft NAVD88 at 0.1-foot intervals. Draining
+states use local four-to-six-hour falling-tide histories: each one-foot target
+band starts from a preceding crest 1.6–2.5 ft higher, while the 12–14 ft bands
+share the 14 ft extreme crest. This prevents an ordinary falling tide from
+inheriting residual storage from a fictional 14 ft storm. Hourly and 15-minute
+application updates only choose an existing phase/stage asset.
 
 The main builders are:
 
