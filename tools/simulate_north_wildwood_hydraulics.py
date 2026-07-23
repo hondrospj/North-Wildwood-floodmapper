@@ -986,16 +986,27 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
         if result is None:
             raise RuntimeError("Could not warp hydraulic query raster")
         result = None
+        wgs84_ds = gdal.Open(str(wgs84))
+        query_width = math.ceil(wgs84_ds.RasterXSize / RENDER_STRIDE)
+        query_height = math.ceil(wgs84_ds.RasterYSize / RENDER_STRIDE)
+        wgs84_ds = None
         result = gdal.Translate(
             str(destination),
             str(wgs84),
             options=gdal.TranslateOptions(
                 format="COG",
+                width=query_width,
+                height=query_height,
+                resampleAlg="near",
                 creationOptions=[
-                    "COMPRESS=LZW",
-                    "PREDICTOR=3",
+                    # GeoTIFF.js has produced intermittent DEFLATE and LZW
+                    # decoder failures against valid ranged COG tiles. The
+                    # five-foot query grid matches the display PNG grid and is
+                    # small enough to store uncompressed, eliminating that
+                    # browser failure mode without changing the one-foot solve.
+                    "COMPRESS=NONE",
                     "BLOCKSIZE=512",
-                    "OVERVIEWS=AUTO",
+                    "OVERVIEWS=IGNORE_EXISTING",
                     "BIGTIFF=YES",
                 ],
             ),

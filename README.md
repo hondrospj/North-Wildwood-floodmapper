@@ -112,10 +112,13 @@ or blue component without a source.
 6. disabled storm-drain flag (always zero).
 
 The phase-invariant state package is a gzip-compressed, one-byte decifeet audit
-lookup of about 1.4 MB. The browser-readable query COG uses LZW compression for
-reliable HTTP range decoding. A click combines its one-foot cell with the exact
-penalized bathtub surface and reports ground, vertical penalty, local water
-surface, depth, connection stage, source status, and hydraulic feature.
+lookup of about 1.4 MB. The browser-readable query COG is nearest-neighbour
+resampled from the one-foot model to the same five-foot grid as the PNGs and
+stored without compression. This avoids intermittent browser range-decoder
+failures without changing the one-foot solve. A click combines that query cell
+with the exact penalized bathtub surface and reports ground, vertical penalty,
+local water surface, depth, connection stage, source status, and hydraulic
+feature.
 
 ## Forecast and observed archives
 
