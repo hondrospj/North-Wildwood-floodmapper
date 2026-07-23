@@ -25,6 +25,9 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - name: Build forecast.json from PETSS station CSV guidance
         shell: bash
