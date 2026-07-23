@@ -116,12 +116,15 @@ without a source.
 6. disabled storm-drain flag (always zero).
 
 The phase-invariant state package is a gzip-compressed, two-byte centifeet audit
-lookup. The browser-readable query COG is nearest-neighbour
-resampled from the one-foot model to the same five-foot grid as the PNGs and
-stored without compression. This avoids intermittent browser range-decoder
-failures without changing the one-foot solve. A click combines that query cell
-with full-stage source connectivity and the bounded local depth penalty, then
-reports only the modeled water depth.
+lookup. `NorthWildwoodHydraulicQuery5ft.png` is the routine browser lookup. Its
+red/green channels carry the conditioned elevation in tenths of a foot and its
+blue channel carries the first four-neighbour connection stage. It is aligned
+pixel-for-pixel with the displayed five-foot flood PNGs, so one ordinary PNG
+download replaces the large range requests that could make COG clicks fail
+intermittently. The nearest-neighbour, uncompressed query COG remains a
+retrying fallback. A click combines the packed query cell with full-stage
+source connectivity and the bounded local depth penalty, then reports only the
+modeled water depth.
 
 ## Forecast and observed archives
 

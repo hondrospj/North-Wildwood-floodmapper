@@ -72,5 +72,19 @@ assert.match(SOURCE, /<div class="depth-query-value">/);
 assert.match(SOURCE, /id="satelliteToggle"/);
 assert.match(SOURCE, /World_Imagery\/MapServer\/tile/);
 assert.match(SOURCE, /payload\.valueType === "int16-le"/);
+assert.match(SOURCE, /depthQueryPngPath/);
+assert.match(SOURCE, /function loadDepthQueryPng\(/);
+assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
+assert.match(SOURCE, /encodedElevation - 32768/);
+assert.match(SOURCE, /connectionCode - 100/);
+assert.match(SOURCE, /depthQueryGridPromise = null/);
+assert.match(
+  SOURCE,
+  /depthQueryImagePromise = GeoTIFF\.fromUrl[\s\S]+depthQueryImagePromise = null/
+);
+assert.match(
+  SOURCE,
+  /Packed depth query failed; retrying through the COG/
+);
 
 console.log("North Wildwood browser depth contract checks passed");
