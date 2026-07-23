@@ -80,9 +80,9 @@ def main() -> None:
         depth_dir = assets / "DepthPNGs" / "North Wildwood" / relative
         stage_dir = assets / "StagePNGs" / "North Wildwood" / relative
         depth_paths = sorted(depth_dir.glob("NorthWildwoodDepth*.png"))
-        if len(depth_paths) != 141:
+        if len(depth_paths) != 281:
             raise AssertionError(
-                f"Expected 141 {phase} depth PNGs, found {len(depth_paths)}"
+                f"Expected 281 {phase} depth PNGs, found {len(depth_paths)}"
             )
         for depth_path in depth_paths:
             code = depth_path.stem.removeprefix("NorthWildwoodDepth")
@@ -126,7 +126,7 @@ def main() -> None:
                         f"{code}: {missing[:20]}"
                     )
             sign = -1.0 if code.startswith("m") else 1.0
-            stage = sign * int(code[1:]) / 10.0
+            stage = sign * int(code[1:]) / 100.0
             hydraulically_eligible = (
                 valid
                 & (ground < stage - 0.005)

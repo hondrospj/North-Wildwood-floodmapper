@@ -46,7 +46,7 @@ NOAA_TREND_URL = (
     "sealvltrends.json?station=8536110&units=english"
 )
 SCENARIO_NAMES = {"low": "Low", "intermediate": "Intermediate", "high": "High"}
-ELEVATION_GRID_FT = np.round(np.arange(0.0, 14.0 + 0.05, 0.1), 1)
+ELEVATION_GRID_FT = np.round(np.arange(0.0, 14.0 + 0.025, 0.05), 2)
 YEARS = list(range(CURRENT_YEAR, 2101))
 EXPECTED_HIGH_TIDES_PER_YEAR = 705.0
 PARCEL_BOUNDARY_RASTER_SCALE = 0.5

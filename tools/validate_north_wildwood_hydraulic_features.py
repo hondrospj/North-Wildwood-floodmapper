@@ -37,12 +37,26 @@ def load_states(path: Path, expected_stride: int) -> tuple[dict, dict[str, np.nd
     arrays = {}
     for phase in ("filling", "slack", "draining"):
         record = header["phaseArrays"][phase]
-        arrays[phase] = np.frombuffer(
-            raw,
-            dtype=np.uint8,
-            count=int(record["length"]),
-            offset=payload_start + int(record["offset"]),
-        ).reshape(int(header["stageCount"]), expected_stride)
+        byte_length = int(record["length"])
+        if header.get("valueType") == "int16-le":
+            arrays[phase] = np.frombuffer(
+                raw,
+                dtype="<i2",
+                count=byte_length // 2,
+                offset=payload_start + int(record["offset"]),
+            ).reshape(int(header["stageCount"]), expected_stride)
+        else:
+            encoded = np.frombuffer(
+                raw,
+                dtype=np.uint8,
+                count=byte_length,
+                offset=payload_start + int(record["offset"]),
+            ).reshape(int(header["stageCount"]), expected_stride)
+            arrays[phase] = (
+                encoded.astype(np.int16)
+                + int(header["surfaceOffsetDecifeet"])
+            ) * 10
+            arrays[phase][encoded == int(header["drySentinel"])] = -32768
     return header, arrays
 
 
@@ -185,15 +199,14 @@ def main() -> None:
                 raise AssertionError("An edge crosses a bulkhead below 7.5 ft NAVD88")
 
     header, states = load_states(args.states.resolve(), zone_count + 1)
-    dry = int(header["drySentinel"])
-    offset10 = int(header["surfaceOffsetDecifeet"])
+    dry = int(header.get("drySentinelCentift", -32768))
     if not np.array_equal(states["filling"], states["slack"]):
         raise AssertionError("Filling and slack states are not phase-invariant")
     if not np.array_equal(states["filling"], states["draining"]):
         raise AssertionError("Filling and draining states are not phase-invariant")
     hard_lookup = np.asarray(sorted(hard_zone_ids), dtype=np.int64) + 1
     for phase in ("filling", "slack", "draining"):
-        if np.any(states[phase][74, hard_lookup] != dry):
+        if np.any(states[phase][149, hard_lookup] != dry):
             raise AssertionError(
                 f"{phase} state wets a bulkhead before 7.5 ft NAVD88"
             )
@@ -212,16 +225,18 @@ def main() -> None:
     penalty = physics.get("verticalPenalty") or {}
     if not math.isclose(
         float(penalty.get("atOrBelowMinorFt", math.nan)),
-        0.75,
+        1.25,
         abs_tol=1e-12,
     ):
         raise AssertionError("State package has the wrong low-stage vertical penalty")
+    if penalty.get("curve") != "normalized exponential":
+        raise AssertionError("State package has the wrong depth-penalty curve")
     if not math.isclose(
-        float(penalty.get("atModerateFt", math.nan)),
-        0.35,
+        float(penalty.get("decayRate", math.nan)),
+        1.5,
         abs_tol=1e-12,
     ):
-        raise AssertionError("State package has the wrong moderate-stage vertical penalty")
+        raise AssertionError("State package has the wrong exponential decay rate")
     if not math.isclose(
         float(penalty.get("atOrAboveMajorFt", math.nan)),
         0.0,
@@ -244,12 +259,12 @@ def main() -> None:
         raise AssertionError("State package applies the penalty to connectivity")
 
     # State connectivity is evaluated at the full gauge stage. The compact
-    # state format stores decifeet, so a wet zone at 3.0 ft must encode the
+    # state format stores centifeet, so a wet zone at 3.0 ft must encode the
     # unpenalized 3.0-ft connectivity surface. Local depth attenuation is
     # applied after the one-foot cell has been admitted to the wet footprint.
-    low_stage = states["slack"][30]
+    low_stage = states["slack"][60]
     low_wet = low_stage != dry
-    if np.any(low_wet) and int(low_stage[low_wet].max()) + offset10 != 30:
+    if np.any(low_wet) and int(low_stage[low_wet].max()) != 300:
         raise AssertionError("Low-stage states do not preserve full-stage connectivity")
 
     print(

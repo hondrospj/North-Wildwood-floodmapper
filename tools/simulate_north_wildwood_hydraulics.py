@@ -3,9 +3,10 @@
 
 The conditioned one-foot DEM and its four-neighbour connection-stage raster
 remain the hydraulic constraints. Connectivity is evaluated at the selected
-gauge stage. A transparent piecewise penalty then reduces modeled depth at
+gauge stage. A normalized exponential penalty then reduces modeled depth at
 lower flood levels, but is capped at 75 percent of each cell's raw bathtub
-depth so that a genuinely connected wet cell cannot be turned green.
+depth so that a genuinely connected wet cell cannot be turned green. The
+penalty is exactly zero at major flood.
 
 Filling, slack, and draining assets are intentionally identical. Storm drains
 remain disabled, and the 21-cell, 7.5-ft NAVD88 bulkhead remains stitched into
@@ -35,7 +36,7 @@ gdal.UseExceptions()
 WIDTH = 10_930
 HEIGHT = 14_120
 RENDER_STRIDE = 5
-STAGES_FT = np.round(np.arange(0.0, 14.0 + 0.05, 0.1), 1)
+STAGES_FT = np.round(np.arange(0.0, 14.0 + 0.025, 0.05), 2)
 DRY_SENTINEL = np.int16(-32768)
 HIST_MIN10 = -100
 HIST_MAX10 = 140
@@ -54,8 +55,8 @@ BROAD_CRESTED_WEIR_CFS = 3.10
 MINOR_NAVD88_FT = 3.25
 MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
-LOW_STAGE_VERTICAL_PENALTY_FT = 0.75
-MODERATE_VERTICAL_PENALTY_FT = 0.35
+LOW_STAGE_VERTICAL_PENALTY_FT = 1.25
+VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE = 1.5
 MAX_LOCAL_DEPTH_PENALTY_FRACTION = 0.75
 MIN_CONNECTED_DEPTH_RETAINED_FRACTION = (
     1.0 - MAX_LOCAL_DEPTH_PENALTY_FRACTION
@@ -123,34 +124,26 @@ def palette(colors: list[str], green_index: int) -> tuple[list[int], bytes]:
 
 def stage_code(stage_ft: float) -> str:
     sign = "m" if stage_ft < 0 else "p"
-    return f"{sign}{round(abs(stage_ft) * 10):03d}"
+    return f"{sign}{round(abs(stage_ft) * 100):04d}"
 
 
 def vertical_penalty_ft(stage_ft: float) -> float:
-    """Return the low-stage water-surface reduction in NAVD88 feet."""
+    """Return the normalized exponential depth reduction in NAVD88 feet."""
     stage = float(stage_ft)
     if stage <= MINOR_NAVD88_FT:
         return LOW_STAGE_VERTICAL_PENALTY_FT
-    if stage <= MODERATE_NAVD88_FT:
-        fraction = (
-            (stage - MINOR_NAVD88_FT)
-            / (MODERATE_NAVD88_FT - MINOR_NAVD88_FT)
-        )
-        return (
-            LOW_STAGE_VERTICAL_PENALTY_FT
-            + fraction
-            * (
-                MODERATE_VERTICAL_PENALTY_FT
-                - LOW_STAGE_VERTICAL_PENALTY_FT
-            )
-        )
-    if stage <= MAJOR_NAVD88_FT:
-        fraction = (
-            (stage - MODERATE_NAVD88_FT)
-            / (MAJOR_NAVD88_FT - MODERATE_NAVD88_FT)
-        )
-        return MODERATE_VERTICAL_PENALTY_FT * (1.0 - fraction)
-    return 0.0
+    if stage >= MAJOR_NAVD88_FT:
+        return 0.0
+    progress = (
+        (stage - MINOR_NAVD88_FT)
+        / (MAJOR_NAVD88_FT - MINOR_NAVD88_FT)
+    )
+    decay = VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE
+    residual = math.exp(-decay)
+    normalized = (
+        math.exp(-decay * progress) - residual
+    ) / (1.0 - residual)
+    return LOW_STAGE_VERTICAL_PENALTY_FT * normalized
 
 
 def penalized_connected_depth_ft(
@@ -438,18 +431,13 @@ def load_reusable_static_phases(
     reusable: dict[str, np.ndarray] = {}
     for phase in ("filling", "slack"):
         record = header["phaseArrays"][phase]
-        encoded = np.frombuffer(
+        reusable[phase] = decode_state_phase(
             raw,
-            dtype=np.uint8,
-            count=record["length"],
-            offset=payload_start + record["offset"],
-        ).reshape(len(STAGES_FT), expected_stride)
-        centift = (
-            encoded.astype(np.int16)
-            + int(header["surfaceOffsetDecifeet"])
-        ) * 10
-        centift[encoded == int(header["drySentinel"])] = DRY_SENTINEL
-        reusable[phase] = centift
+            header,
+            record,
+            payload_start,
+            expected_stride,
+        )
     return reusable
 
 
@@ -472,19 +460,49 @@ def load_complete_state(
     phases: dict[str, np.ndarray] = {}
     for phase in ("filling", "slack", "draining"):
         record = header["phaseArrays"][phase]
-        encoded = np.frombuffer(
+        phases[phase] = decode_state_phase(
             raw,
-            dtype=np.uint8,
-            count=record["length"],
-            offset=payload_start + record["offset"],
-        ).reshape(len(STAGES_FT), expected_stride)
-        centift = (
-            encoded.astype(np.int16)
-            + int(header["surfaceOffsetDecifeet"])
-        ) * 10
-        centift[encoded == int(header["drySentinel"])] = DRY_SENTINEL
-        phases[phase] = centift
+            header,
+            record,
+            payload_start,
+            expected_stride,
+        )
     return phases, dict(header.get("diagnostics") or {})
+
+
+def decode_state_phase(
+    raw: bytes,
+    header: dict,
+    record: dict,
+    payload_start: int,
+    expected_stride: int,
+) -> np.ndarray:
+    """Decode either the current centifeet payload or the legacy decifeet one."""
+    offset = payload_start + int(record["offset"])
+    byte_length = int(record["length"])
+    if header.get("valueType") == "int16-le":
+        expected_bytes = len(STAGES_FT) * expected_stride * 2
+        if byte_length != expected_bytes:
+            raise RuntimeError("Centifeet state phase has an invalid byte length")
+        return np.frombuffer(
+            raw,
+            dtype="<i2",
+            count=byte_length // 2,
+            offset=offset,
+        ).reshape(len(STAGES_FT), expected_stride)
+
+    encoded = np.frombuffer(
+        raw,
+        dtype=np.uint8,
+        count=byte_length,
+        offset=offset,
+    ).reshape(len(STAGES_FT), expected_stride)
+    centift = (
+        encoded.astype(np.int16)
+        + int(header["surfaceOffsetDecifeet"])
+    ) * 10
+    centift[encoded == int(header["drySentinel"])] = DRY_SENTINEL
+    return centift
 
 
 def simulate(
@@ -535,9 +553,9 @@ def simulate(
         "stageDiagnostics": stage_diagnostics,
         "verticalPenalty": {
             "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
-            "atModerateFt": MODERATE_VERTICAL_PENALTY_FT,
             "atOrAboveMajorFt": 0.0,
-            "interpolation": "piecewise linear",
+            "curve": "normalized exponential",
+            "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
             "maximumLocalDepthPenaltyFraction": (
                 MAX_LOCAL_DEPTH_PENALTY_FRACTION
             ),
@@ -554,18 +572,20 @@ def simulate(
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v4",
+        "schema": "north-wildwood-hydraulic-states-binary-v5",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": 0.0,
         "stageMaxNavd88Ft": 14.0,
-        "stageStepFt": 0.1,
+        "stageStepFt": 0.05,
         "stageCount": len(STAGES_FT),
         "zoneCount": graph_manifest["zoneCount"],
         "zoneStride": graph_manifest["zoneCount"] + 1,
-        "encoding": "gzip container: NWHYD2 magic, little-endian uint32 JSON header length, JSON header, then phase Uint8 arrays",
-        "surfaceUnits": "decifeet NAVD88",
-        "surfaceOffsetDecifeet": -100,
-        "drySentinel": 255,
+        "encoding": "gzip container: NWHYD2 magic, little-endian uint32 JSON header length, JSON header, then phase little-endian Int16 arrays",
+        "valueType": "int16-le",
+        "bytesPerValue": 2,
+        "surfaceUnits": "centifeet NAVD88",
+        "surfaceScalePerFoot": 100,
+        "drySentinelCentift": int(DRY_SENTINEL),
         "phaseOrder": ["filling", "slack", "draining"],
         "forcing": {
             "phaseTreatment": "filling, slack, and draining are identical",
@@ -583,9 +603,9 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             "phaseInvariant": True,
             "verticalPenalty": {
                 "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
-                "atModerateFt": MODERATE_VERTICAL_PENALTY_FT,
                 "atOrAboveMajorFt": 0.0,
-                "interpolation": "piecewise linear",
+                "curve": "normalized exponential",
+                "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
                 "maximumLocalDepthPenaltyFraction": (
                     MAX_LOCAL_DEPTH_PENALTY_FRACTION
                 ),
@@ -622,12 +642,7 @@ def write_state_asset(
     phase_offsets: dict[str, dict[str, int]] = {}
     cursor = 0
     for phase in metadata["phaseOrder"]:
-        centift = phases[phase].astype(np.int32, copy=False)
-        dry = centift == int(DRY_SENTINEL)
-        decifeet = np.rint(centift / 10.0).astype(np.int32)
-        encoded = np.clip(decifeet - metadata["surfaceOffsetDecifeet"], 0, 254).astype(np.uint8)
-        encoded[dry] = metadata["drySentinel"]
-        raw_phase = encoded.tobytes()
+        raw_phase = phases[phase].astype("<i2", copy=False).tobytes()
         encoded_phases.append(raw_phase)
         phase_offsets[phase] = {"offset": cursor, "length": len(raw_phase)}
         cursor += len(raw_phase)
@@ -851,9 +866,9 @@ def render_assets(
             "phaseInvariant": True,
             "verticalPenalty": {
                 "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
-                "atModerateFt": MODERATE_VERTICAL_PENALTY_FT,
                 "atOrAboveMajorFt": 0.0,
-                "interpolation": "piecewise linear",
+                "curve": "normalized exponential",
+                "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
                 "maximumLocalDepthPenaltyFraction": (
                     MAX_LOCAL_DEPTH_PENALTY_FRACTION
                 ),
@@ -1169,15 +1184,15 @@ def main() -> None:
         build_query_cog(graph_dir, args.dem.resolve(), query_path)
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v4",
+        "schema": "north-wildwood-hydraulic-assets-v5",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "modelKind": "connectivity-first depth-penalized bathtub",
         "phaseInvariant": True,
         "verticalPenalty": {
             "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
-            "atModerateFt": MODERATE_VERTICAL_PENALTY_FT,
             "atOrAboveMajorFt": 0.0,
-            "interpolation": "piecewise linear",
+            "curve": "normalized exponential",
+            "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
             "maximumLocalDepthPenaltyFraction": (
                 MAX_LOCAL_DEPTH_PENALTY_FRACTION
             ),
