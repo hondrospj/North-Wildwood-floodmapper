@@ -95,9 +95,20 @@ assert.match(SOURCE, /data-export-interval="daily"/);
 assert.match(SOURCE, /function buildExportRangeFrameItems\(/);
 assert.match(SOURCE, /function buildQuarterHourRangeFrameItems\(/);
 assert.match(SOURCE, /function buildDailyMaximumRangeFrameItems\(/);
-assert.match(SOURCE, /Daily maximum • Water level|Daily maximum/);
 assert.match(SOURCE, /getExportBaseName\(items\)/);
 assert.doesNotMatch(SOURCE, /\bstageColor\b/);
+assert.match(SOURCE, /function getExportFrameDateTimeText\(/);
+assert.match(SOURCE, /return `\$\{getExportFrameDateTimeText\(entry\)\}\\n\$\{getExportFrameWaterLevelText\(entry\)\}`/);
+assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /15-Minute|Hourly|Daily maximum|Water level/);
+assert.match(SOURCE, /data-export-legend-mode="depth"/);
+assert.match(SOURCE, /class="export-depth-key-gradient"/);
+assert.match(SOURCE, /Low ground below the selected water level/);
+assert.match(SOURCE, /function captureExportRoadLabelsCanvas\(/);
+assert.match(SOURCE, /function normalizeExportRoadLabelCanvas\(/);
+assert.match(SOURCE, /const isHalo = luminance >= 190/);
+assert.match(SOURCE, /ctx\.drawImage\(roadLabelsCanvas[\s\S]+ctx\.drawImage\(chromeCanvas[\s\S]+drawExportTimestampOnCanvas/);
+assert.match(SOURCE, /getPane\("roadsPane"\)\.style\.zIndex = 710/);
+assert.match(SOURCE, /filter:grayscale\(1\) brightness\(\.06\) contrast\(4\.2\) drop-shadow/);
 
 for (const [date, targetHundredths, eventName, peakHour] of [
   ["2012-10-29", 673, "Hurricane Sandy", "20:45"],

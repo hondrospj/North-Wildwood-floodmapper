@@ -16893,7 +16893,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       map.getPane("boundaryPane").style.zIndex = 640;
       map.getPane("floodPane").style.zIndex = 500;
       map.getPane("parcelsPane").style.zIndex = 610;
-      map.getPane("roadsPane").style.zIndex = 620;
+      map.getPane("roadsPane").style.zIndex = 710;
       map.getPane("maskPane").style.zIndex = 630;
 
       basemapGrayLayer = null;
@@ -19074,7 +19074,7 @@ function updateExportSegmentedUI() {
       exportMap.getPane("satellitePane").style.zIndex = 200;
       exportMap.getPane("boundaryPane").style.zIndex = 640;
       exportMap.getPane("floodPane").style.zIndex = 500;
-      exportMap.getPane("roadsPane").style.zIndex = 620;
+      exportMap.getPane("roadsPane").style.zIndex = 710;
       exportMap.getPane("maskPane").style.zIndex = 630;
 
       exportBasemapColorLayer = makeEsriBuildingBasemapLayer();
@@ -19161,7 +19161,31 @@ function updateExportSegmentedUI() {
       const source = document.getElementById("legendDock");
       const target = document.getElementById("exportLegendDock");
       if (!source || !target) return;
-      target.innerHTML = source.innerHTML;
+      const isDepthLegend = currentOverlayMode === "depth";
+      target.dataset.exportLegendMode = isDepthLegend ? "depth" : "dynamic";
+      target.innerHTML = isDepthLegend
+        ? `
+          <div class="export-depth-key">
+            <div class="export-depth-key-heading">
+              <strong>Flood depth</strong>
+              <span>Feet above ground</span>
+            </div>
+            <div class="export-depth-key-scale" aria-label="Flood depth from zero to five or more feet">
+              <div class="export-depth-key-gradient" aria-hidden="true"></div>
+              <div class="export-depth-key-ticks" aria-hidden="true">
+                <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5+ ft</span>
+              </div>
+              <div class="export-depth-key-ends" aria-hidden="true">
+                <span>Shallow</span><span>Deep</span>
+              </div>
+            </div>
+            <div class="export-depth-key-disconnected">
+              <span class="export-depth-key-disconnected-swatch" aria-hidden="true"></span>
+              <span><strong>Not connected</strong><small>Low ground below the selected water level</small></span>
+            </div>
+          </div>
+        `
+        : source.innerHTML;
 
       target.querySelectorAll("button, .help-btn, #legendHelpBtn, #legendCollapseBtn").forEach(el => el.remove());
       target.classList.remove("legend-collapsed", "legend-expanded", "legend-floating-user");
@@ -19272,11 +19296,22 @@ function updateExportSegmentedUI() {
       return `${value} ${getDatumLabel()}`;
     }
 
+    function getExportFrameDateTimeText(entry) {
+      const date = getEntryESTDate(entry);
+      const parts = date ? getNyParts(date) : null;
+      if (!parts) {
+        const fallback = formatHourEntryTime(entry);
+        return fallback && fallback !== "--" ? fallback : "Selected time";
+      }
+      const month = MONTH_NAMES[Number(parts.month) - 1] || parts.month;
+      const time = `${parts.hour}:${parts.minute} ${parts.dayPeriod || ""} ${parts.timeZoneName || "ET"}`
+        .replace(/\s+/g, " ")
+        .trim();
+      return `${month} ${Number(parts.day)}, ${parts.year} · ${time}`;
+    }
+
     function getExportFrameTimestampText(entry) {
-      const text = formatHourEntryTime(entry);
-      const timeText = text && text !== "--" ? text : "Selected time";
-      const intervalLabel = entry?.isDailyMaximum ? "Daily maximum" : getDownloadIntervalConfig().label;
-      return `${timeText}\n${intervalLabel} • Water level ${getExportFrameWaterLevelText(entry)}`;
+      return `${getExportFrameDateTimeText(entry)}\n${getExportFrameWaterLevelText(entry)}`;
     }
 
     function updateExportTimestampLabel(entry) {
@@ -19335,20 +19370,34 @@ function updateExportSegmentedUI() {
       });
     }
 
-    async function captureExportChromeCanvas() {
+    async function captureExportLayerCanvas(options = {}) {
       if (typeof html2canvas !== "function") return null;
       const stage = document.getElementById("exportStageFrame");
       const mapEl = document.getElementById("exportMap");
       const timestamp = document.getElementById("exportTimestampLabel");
+      const legend = document.getElementById("exportLegendDock");
+      const logoStrip = document.getElementById("exportLogoStrip");
       if (!stage) return null;
       await waitForExportChromeReady();
       const previousMapVisibility = mapEl?.style.visibility || "";
       const previousTimestampVisibility = timestamp?.style.visibility || "";
+      const previousLegendVisibility = legend?.style.visibility || "";
+      const previousLogoVisibility = logoStrip?.style.visibility || "";
       const previousBackground = stage.style.background || "";
+      const previousMapBackground = mapEl?.style.background || "";
+      const hiddenPaneNames = Array.isArray(options.hiddenPaneNames) ? options.hiddenPaneNames : [];
+      const hiddenPanes = hiddenPaneNames
+        .map(name => exportMap?.getPane(name))
+        .filter(Boolean)
+        .map(pane => ({ pane, visibility: pane.style.visibility || "" }));
       try {
-        if (mapEl) mapEl.style.visibility = "hidden";
-        if (timestamp) timestamp.style.visibility = "hidden";
+        hiddenPanes.forEach(({ pane }) => { pane.style.visibility = "hidden"; });
+        if (options.hideMap && mapEl) mapEl.style.visibility = "hidden";
+        if (options.hideTimestamp !== false && timestamp) timestamp.style.visibility = "hidden";
+        if (options.hideLegend && legend) legend.style.visibility = "hidden";
+        if (options.hideLogo && logoStrip) logoStrip.style.visibility = "hidden";
         stage.style.background = "transparent";
+        if (mapEl) mapEl.style.background = "transparent";
         const captureScale = getExportCaptureScale();
         return await html2canvas(stage, {
           backgroundColor: null,
@@ -19361,10 +19410,65 @@ function updateExportSegmentedUI() {
           scale: captureScale
         });
       } finally {
+        hiddenPanes.forEach(({ pane, visibility }) => { pane.style.visibility = visibility; });
         if (mapEl) mapEl.style.visibility = previousMapVisibility;
         if (timestamp) timestamp.style.visibility = previousTimestampVisibility;
+        if (legend) legend.style.visibility = previousLegendVisibility;
+        if (logoStrip) logoStrip.style.visibility = previousLogoVisibility;
         stage.style.background = previousBackground;
+        if (mapEl) mapEl.style.background = previousMapBackground;
       }
+    }
+
+    function normalizeExportRoadLabelCanvas(canvas) {
+      if (!canvas) return canvas;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return canvas;
+      try {
+        const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = image.data;
+        for (let idx = 0; idx < pixels.length; idx += 4) {
+          const alpha = pixels[idx + 3];
+          if (alpha <= 2) continue;
+          const luminance = (pixels[idx] * 0.2126) + (pixels[idx + 1] * 0.7152) + (pixels[idx + 2] * 0.0722);
+          const isHalo = luminance >= 190;
+          const value = isHalo ? 255 : 0;
+          pixels[idx] = value;
+          pixels[idx + 1] = value;
+          pixels[idx + 2] = value;
+          pixels[idx + 3] = Math.min(255, Math.round(alpha * (isHalo ? 1.05 : 1.35)));
+        }
+        ctx.putImageData(image, 0, 0);
+      } catch (error) {
+        console.warn("Road-label contrast normalization was skipped.", error);
+      }
+      return canvas;
+    }
+
+    async function captureExportMapForegroundCanvas() {
+      return captureExportLayerCanvas({
+        hiddenPaneNames: ["basemapColorPane", "satellitePane", "floodPane", "roadsPane"],
+        hideTimestamp: true,
+        hideLegend: true,
+        hideLogo: true
+      });
+    }
+
+    async function captureExportRoadLabelsCanvas() {
+      const canvas = await captureExportLayerCanvas({
+        hiddenPaneNames: ["basemapColorPane", "satellitePane", "floodPane", "boundaryPane", "maskPane"],
+        hideTimestamp: true,
+        hideLegend: true,
+        hideLogo: true
+      });
+      return normalizeExportRoadLabelCanvas(canvas);
+    }
+
+    async function captureExportChromeCanvas() {
+      return captureExportLayerCanvas({
+        hideMap: true,
+        hideTimestamp: true
+      });
     }
 
 function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), toleranceMs = 31 * 60 * 1000) {
@@ -19737,15 +19841,29 @@ function getUniqueExportStages(frameItems) {
       if (timestamp) timestamp.style.visibility = previousTimestampVisibility;
       if (legend) legend.style.visibility = previousLegendVisibility;
       if (logoStrip) logoStrip.style.visibility = previousLogoVisibility;
+      const mapForegroundCanvas = await captureExportMapForegroundCanvas();
+      const roadLabelsCanvas = await captureExportRoadLabelsCanvas();
       const chromeCanvas = await captureExportChromeCanvas();
       updateExportTimestampLabel(firstItem?.entry || null);
-      return { baseCanvas, overlayRect: getExportOverlayRect(mapInstance), chromeCanvas };
+      return {
+        baseCanvas,
+        overlayRect: getExportOverlayRect(mapInstance),
+        mapForegroundCanvas,
+        roadLabelsCanvas,
+        chromeCanvas
+      };
     }
 
     async function addFastCompositeGifFrames(gif, frameItems, progressStart = 4, progressEnd = 68, overlayImageLookup = null) {
       const total = Math.max(1, frameItems.length);
       throwIfExportCancelled();
-      const { baseCanvas, overlayRect, chromeCanvas } = await captureFastGifBaseCanvas(frameItems[0]);
+      const {
+        baseCanvas,
+        overlayRect,
+        mapForegroundCanvas,
+        roadLabelsCanvas,
+        chromeCanvas
+      } = await captureFastGifBaseCanvas(frameItems[0]);
       throwIfExportCancelled();
       const frameCanvas = document.createElement("canvas");
       frameCanvas.width = baseCanvas.width;
@@ -19789,6 +19907,8 @@ function getUniqueExportStages(frameItems) {
             ctx.globalAlpha = 1;
           }
         }
+        if (mapForegroundCanvas) ctx.drawImage(mapForegroundCanvas, 0, 0, frameCanvas.width, frameCanvas.height);
+        if (roadLabelsCanvas) ctx.drawImage(roadLabelsCanvas, 0, 0, frameCanvas.width, frameCanvas.height);
         if (chromeCanvas) ctx.drawImage(chromeCanvas, 0, 0, frameCanvas.width, frameCanvas.height);
         drawExportTimestampOnCanvas(ctx, frameCanvas, item.entry);
         seedGifLegendPalette(ctx, frameCanvas);
@@ -19802,10 +19922,10 @@ function getUniqueExportStages(frameItems) {
       }
       baseCanvas.width = 1;
       baseCanvas.height = 1;
-      if (chromeCanvas) {
-        chromeCanvas.width = 1;
-        chromeCanvas.height = 1;
-      }
+      [mapForegroundCanvas, roadLabelsCanvas, chromeCanvas].filter(Boolean).forEach(canvas => {
+        canvas.width = 1;
+        canvas.height = 1;
+      });
       frameCanvas.width = 1;
       frameCanvas.height = 1;
     }
@@ -33207,6 +33327,172 @@ html body #mapTitleBadge #mapTitleLogo{
       min-height:64px !important;
       max-height:64px !important;
     }
+  }
+</style>
+<style id="north-wildwood-export-readability">
+  /* Road labels remain the topmost map information layer and render as true black. */
+  html body .leaflet-pane.roads-dark{
+    z-index:710 !important;
+  }
+  html body .leaflet-pane.roads-dark img,
+  html body .leaflet-layer.roads-dark{
+    filter:grayscale(1) brightness(.06) contrast(4.2) drop-shadow(0 0 1px rgba(255,255,255,.95)) !important;
+    mix-blend-mode:multiply !important;
+    opacity:1 !important;
+  }
+
+  .export-stage-logo-strip{
+    top:18px !important;
+    left:18px !important;
+    min-height:80px !important;
+    max-width:286px !important;
+    padding:11px 16px !important;
+    border-radius:20px !important;
+  }
+  .export-stage-logo{
+    max-width:230px !important;
+    max-height:60px !important;
+  }
+  .export-stage-logo-shorelysafe{
+    max-width:242px !important;
+    max-height:64px !important;
+  }
+
+  .export-stage-timestamp{
+    top:18px !important;
+    min-width:min(620px, calc(100% - 620px)) !important;
+    max-width:min(850px, calc(100% - 620px)) !important;
+    padding:14px 24px 15px !important;
+    border-radius:22px !important;
+    font-size:clamp(23px, 2vw, 34px) !important;
+    line-height:1.16 !important;
+  }
+
+  .export-stage-legend[data-export-legend-mode="depth"]{
+    top:18px !important;
+    right:18px !important;
+    width:300px !important;
+    padding:17px 18px 16px !important;
+    border-radius:20px !important;
+    background:rgba(11,18,32,.96) !important;
+    border:1px solid rgba(191,219,254,.32) !important;
+    box-shadow:0 12px 28px rgba(0,0,0,.28) !important;
+  }
+  .export-depth-key{
+    display:grid;
+    gap:11px;
+    color:#fff;
+  }
+  .export-depth-key-heading{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .export-depth-key-heading strong{
+    color:#fff;
+    font-size:21px;
+    line-height:1;
+    font-weight:950;
+    letter-spacing:-.025em;
+    white-space:nowrap;
+  }
+  .export-depth-key-heading > span{
+    color:#b9c8df;
+    font-size:9.5px;
+    line-height:1.05;
+    font-weight:900;
+    letter-spacing:.055em;
+    text-align:right;
+    text-transform:uppercase;
+  }
+  .export-depth-key-scale{
+    display:grid;
+    gap:3px;
+  }
+  .export-depth-key-gradient{
+    height:18px;
+    border:1px solid rgba(255,255,255,.68);
+    border-radius:999px;
+    background:linear-gradient(90deg,#7df9ff 0%,#38d3ff 20%,#168ceb 40%,#1853c6 60%,#132f84 80%,#050e33 100%);
+    box-shadow:inset 0 1px 2px rgba(255,255,255,.28);
+  }
+  .export-depth-key-ticks,
+  .export-depth-key-ends{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    color:#eef6ff;
+  }
+  .export-depth-key-ticks{
+    padding:0 1px;
+    font-size:10px;
+    line-height:1;
+    font-weight:900;
+    font-variant-numeric:tabular-nums;
+  }
+  .export-depth-key-ends{
+    color:#aebed7;
+    font-size:9px;
+    line-height:1;
+    font-weight:900;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+  }
+  .export-depth-key-disconnected{
+    display:grid;
+    grid-template-columns:18px minmax(0,1fr);
+    align-items:center;
+    gap:9px;
+    padding-top:10px;
+    border-top:1px solid rgba(255,255,255,.14);
+    color:#effff2;
+  }
+  .export-depth-key-disconnected-swatch{
+    width:18px;
+    height:18px;
+    border:1px solid rgba(255,255,255,.66);
+    border-radius:5px;
+    background:#63d471;
+  }
+  .export-depth-key-disconnected > span:last-child{
+    display:grid;
+    gap:2px;
+  }
+  .export-depth-key-disconnected strong{
+    font-size:12px;
+    line-height:1;
+    font-weight:950;
+  }
+  .export-depth-key-disconnected small{
+    color:#b9c8df;
+    font-size:9.5px;
+    line-height:1.18;
+    font-weight:750;
+  }
+
+  .export-stage-frame[data-export-aspect="1:1"] .export-stage-legend[data-export-legend-mode="depth"]{
+    width:276px !important;
+  }
+  .export-stage-frame[data-export-aspect="9:16"] .export-stage-logo-strip{
+    min-height:88px !important;
+    max-width:270px !important;
+  }
+  .export-stage-frame[data-export-aspect="9:16"] .export-stage-logo{
+    max-width:224px !important;
+    max-height:66px !important;
+  }
+  .export-stage-frame[data-export-aspect="9:16"] .export-stage-timestamp{
+    top:122px !important;
+    left:18px !important;
+    right:294px !important;
+    min-width:0 !important;
+    max-width:none !important;
+  }
+  .export-stage-frame[data-export-aspect="9:16"] .export-stage-legend[data-export-legend-mode="depth"]{
+    top:122px !important;
+    right:18px !important;
+    width:258px !important;
   }
 </style>
 </body>
