@@ -102,7 +102,10 @@ assert.match(SOURCE, /return `\$\{getExportFrameDateTimeText\(entry\)\}\\n\$\{ge
 assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /15-Minute|Hourly|Daily maximum|Water level/);
 assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
-assert.match(SOURCE, /Low ground below the selected water level/);
+assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
+assert.match(SOURCE, /linear-gradient\(90deg,#18c8ff 0%,#00a6f2 20%,#1479df 40%,#1852bd 60%,#132f7d 80%,#041536 100%\)/);
+assert.doesNotMatch(SOURCE, /Feet above ground/);
+assert.doesNotMatch(SOURCE, /class="export-depth-key-disconnected"/);
 assert.match(SOURCE, /function captureExportRoadLabelsCanvas\(/);
 assert.match(SOURCE, /function normalizeExportRoadLabelCanvas\(/);
 assert.match(SOURCE, /const isHalo = luminance >= 190/);
