@@ -1,5 +1,5 @@
 {
-  "schema": "north-wildwood-stone-harbor-gauge-crests-v1",
+  "schema": "usgs-nwis-north-wildwood-crests-v1",
   "datum": "NAVD88",
   "minimumIncludedStageFt": 3.25,
   "thresholdsNAVD88": {
@@ -8,9 +8,9 @@
     "majorLow": 5.25
   },
   "thresholdsMLLW": {
-    "minorLow": 6,
-    "moderateLow": 7,
-    "majorLow": 8
+    "minorLow": 6.0,
+    "moderateLow": 7.0,
+    "majorLow": 8.0
   },
   "navd88OffsetFromMllwFt": -2.75,
   "stations": [
@@ -47,10 +47,9 @@
       "station_short": "Stone Harbor",
       "source_area": "north-wildwood",
       "station_priority": 3,
-      "record_type": "Official Stone Harbor crest; replay uses the NOAA Lewes verified tide shape aligned and scaled to 6.73 ft NAVD88",
+      "record_type": "USGS annual storm-tide crest",
       "source_url": "https://nwis.waterdata.usgs.gov/nwis/peak?site_no=01411360&agency_cd=USGS&format=rdb",
-      "time_est": "20:45",
-      "event_name": "Hurricane Sandy"
+      "time_est": "20:36"
     },
     {
       "height_ft": 6.69,
@@ -64,8 +63,7 @@
       "source_area": "north-wildwood-calibrated",
       "station_priority": 4,
       "event_name": "Winter Storm Jonas",
-      "record_type": "North Wildwood documented crest; Stone Harbor 15-minute gauge shape scaled to 9.44 ft MLLW",
-      "time_est": "09:00"
+      "record_type": "North Wildwood documented crest; Stone Harbor gauge tide shape"
     },
     {
       "height_ft": 6.28,
