@@ -96,6 +96,10 @@ assert.match(SOURCE, /function buildExportRangeFrameItems\(/);
 assert.match(SOURCE, /function buildQuarterHourRangeFrameItems\(/);
 assert.match(SOURCE, /function buildDailyMaximumRangeFrameItems\(/);
 assert.match(SOURCE, /getExportBaseName\(items\)/);
+assert.match(SOURCE, /function getCurrentSelectionExportRange\(/);
+assert.match(SOURCE, /const currentDate = getEntryESTDate\(getDownloadCurrentEntry\(\)\)/);
+assert.match(SOURCE, /seedDownloadRangeToCurrentSelection\(force\)/);
+assert.doesNotMatch(SOURCE, /seedDownloadRangeToCurrentForecast/);
 assert.doesNotMatch(SOURCE, /\bstageColor\b/);
 assert.match(SOURCE, /function getExportFrameDateTimeText\(/);
 assert.match(SOURCE, /return `\$\{getExportFrameDateTimeText\(entry\)\}\\n\$\{getExportFrameWaterLevelText\(entry\)\}`/);
@@ -161,6 +165,58 @@ assert.match(SOURCE, /\{ allowNearest: false \}/);
 assert.match(SOURCE, /No parcel contains that building tap/);
 assert.match(SOURCE, /requestIdleCallback/);
 assert.match(SOURCE, /loadForecast\(null, \{ selectCurrent: true, forceRefresh: true \}\)/);
+
+const selectedRangeContext = vm.createContext({
+  Date,
+  Math,
+  Number,
+  EXPORT_RANGE_MAX_MS: 84 * 60 * 60 * 1000,
+  currentSeriesHours: [],
+  currentEntry: null,
+  fallbackRange: null,
+});
+selectedRangeContext.getDownloadCurrentEntry = () => selectedRangeContext.currentEntry;
+selectedRangeContext.getEntryESTDate = entry => entry?.date || null;
+selectedRangeContext.getCurrentForecastExportRange = () => selectedRangeContext.fallbackRange;
+vm.runInContext(
+  `${extractFunction("getCurrentSelectionExportRange")}; globalThis.getCurrentSelectionExportRange = getCurrentSelectionExportRange;`,
+  selectedRangeContext
+);
+
+const sandyPeak = new Date("2012-10-30T00:45:00.000Z");
+selectedRangeContext.currentEntry = { date: sandyPeak };
+selectedRangeContext.currentSeriesHours = [
+  { date: new Date("2012-10-29T04:00:00.000Z") },
+  { date: sandyPeak },
+  { date: new Date("2012-10-30T03:45:00.000Z") },
+];
+let selectedRange = selectedRangeContext.getCurrentSelectionExportRange();
+assert.equal(selectedRange.firstDate.getTime(), sandyPeak.getTime(), "Export must start at the selected Sandy frame");
+assert.equal(
+  selectedRange.lastDate.getTime(),
+  new Date("2012-10-30T03:45:00.000Z").getTime(),
+  "Export must retain the remaining frames in the selected series"
+);
+
+const laterForecastFrame = new Date("2026-07-27T18:00:00.000Z");
+selectedRangeContext.currentEntry = { date: laterForecastFrame };
+selectedRangeContext.currentSeriesHours = [
+  { date: new Date("2026-07-27T12:00:00.000Z") },
+  { date: laterForecastFrame },
+  { date: new Date("2026-07-28T00:00:00.000Z") },
+  { date: new Date("2026-08-01T18:00:00.000Z") },
+];
+selectedRange = selectedRangeContext.getCurrentSelectionExportRange();
+assert.equal(
+  selectedRange.firstDate.getTime(),
+  laterForecastFrame.getTime(),
+  "Export must start at the selected forecast frame, not the first forecast frame"
+);
+assert.equal(
+  selectedRange.lastDate.getTime(),
+  new Date("2026-07-28T00:00:00.000Z").getTime(),
+  "Export end must remain within the 84-hour limit"
+);
 
 for (const [date, targetHundredths, eventName, peakHour] of [
   ["2012-10-29", 673, "Hurricane Sandy", "20:45"],
