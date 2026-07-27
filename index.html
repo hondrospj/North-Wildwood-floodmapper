@@ -14415,7 +14415,6 @@ html.win-compact-ui #timelineDock #hourSlider{
     <aside id="floodHistoryPane" class="flood-history-pane" role="dialog" aria-modal="true" aria-labelledby="floodHistoryTitle">
       <header class="flood-history-head">
         <div>
-          <span class="flood-history-eyebrow">Building flood profile</span>
           <h2 id="floodHistoryTitle">Flood History &amp; Projections</h2>
           <p id="floodHistoryAddress">Selected North Wildwood parcel</p>
         </div>
@@ -14530,43 +14529,39 @@ html.win-compact-ui #timelineDock #hourSlider{
     .house-alert-summary{display:flex;align-items:baseline;gap:7px;margin-bottom:13px;padding:11px 12px;border:1px solid rgba(125,249,255,.18);border-radius:13px;background:rgba(14,116,144,.15)}
     .house-alert-summary strong{color:#fff;font-size:27px;line-height:1}.house-alert-summary span{color:#c7d7ec;font-size:12px;font-weight:800}
     .house-alert-cta{width:100%;min-height:42px;border:1px solid #67e8f9;border-radius:12px;background:linear-gradient(135deg,#0e7490,#2563eb);color:#fff;font-size:12px;font-weight:950;cursor:pointer;box-shadow:0 9px 22px rgba(14,116,144,.26)}
-    .flood-history-backdrop{position:fixed;inset:0;z-index:24000;background:rgba(2,6,23,.46);backdrop-filter:blur(3px)}
+    .flood-history-backdrop{position:fixed;inset:0;z-index:24000;display:grid;place-items:center;padding:18px;background:rgba(2,6,23,.62);backdrop-filter:blur(4px)}
     .flood-history-backdrop[hidden]{display:none!important}
-    .flood-history-pane{position:absolute;top:0;right:0;width:min(500px,calc(100vw - 32px));height:100dvh;display:flex;flex-direction:column;color:#edf7ff;background:linear-gradient(180deg,#0a1427 0%,#07101f 100%);border-left:1px solid rgba(125,249,255,.25);box-shadow:-28px 0 75px rgba(2,6,23,.6);animation:floodHistoryIn .24s ease-out}
-    @keyframes floodHistoryIn{from{transform:translateX(30px);opacity:.2}to{transform:none;opacity:1}}
-    .flood-history-head{display:flex;justify-content:space-between;gap:18px;padding:24px 24px 18px;border-bottom:1px solid rgba(148,163,184,.14);background:rgba(8,15,31,.88)}
-    .flood-history-eyebrow{display:block;margin-bottom:7px;color:#7df9ff;font-size:10px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}
-    .flood-history-head h2{margin:0;color:#fff;font-size:24px;line-height:1.08;letter-spacing:-.035em}
-    .flood-history-head p{margin:7px 0 0;color:#a9bad3;font-size:12px;line-height:1.35}
-    .flood-history-close{flex:0 0 auto;width:38px;height:38px;border:1px solid rgba(255,255,255,.13);border-radius:50%;background:rgba(255,255,255,.06);color:#fff;font-size:25px;cursor:pointer}
-    .flood-history-body{flex:1;overflow:auto;padding:18px 24px max(28px,env(safe-area-inset-bottom))}
-    .flood-history-loading{min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#a9bad3;text-align:center;font-size:12px}
-    .flood-history-loading strong{color:#fff;font-size:15px}.flood-history-spinner{width:36px;height:36px;border:3px solid rgba(125,249,255,.18);border-top-color:#7df9ff;border-radius:50%;animation:floodHistorySpin .8s linear infinite}
+    .flood-history-pane{position:relative;width:min(540px,calc(100vw - 36px));max-height:min(82dvh,680px);display:flex;flex-direction:column;overflow:hidden;color:#edf7ff;background:linear-gradient(180deg,#0a1427 0%,#07101f 100%);border:1px solid rgba(125,249,255,.28);border-radius:20px;box-shadow:0 28px 90px rgba(2,6,23,.72);animation:floodHistoryIn .18s ease-out}
+    @keyframes floodHistoryIn{from{transform:translateY(10px) scale(.975);opacity:.25}to{transform:none;opacity:1}}
+    .flood-history-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:15px 16px 13px;border-bottom:1px solid rgba(148,163,184,.14);background:rgba(8,15,31,.88)}
+    .flood-history-head h2{margin:0;color:#fff;font-size:19px;line-height:1.1;letter-spacing:-.025em}
+    .flood-history-head p{max-width:400px;margin:4px 0 0;overflow:hidden;color:#8fa5bf;font-size:10px;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
+    .flood-history-close{flex:0 0 auto;width:31px;height:31px;border:1px solid rgba(255,255,255,.13);border-radius:9px;background:rgba(255,255,255,.06);color:#fff;font-size:21px;line-height:1;cursor:pointer}
+    .flood-history-body{flex:1;min-height:0;overflow:auto;padding:13px 15px max(14px,env(safe-area-inset-bottom))}
+    .flood-history-loading{min-height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#a9bad3;text-align:center;font-size:11px}
+    .flood-history-loading strong{color:#fff;font-size:13px}.flood-history-spinner{width:30px;height:30px;border:3px solid rgba(125,249,255,.18);border-top-color:#7df9ff;border-radius:50%;animation:floodHistorySpin .8s linear infinite}
     @keyframes floodHistorySpin{to{transform:rotate(360deg)}}
-    .flood-history-hero{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:17px}
-    .flood-history-stat{padding:15px;border:1px solid rgba(125,249,255,.16);border-radius:17px;background:rgba(15,31,54,.78)}
-    .flood-history-stat span{display:block;color:#9fb2ca;font-size:10px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}
-    .flood-history-stat strong{display:block;margin:5px 0 4px;color:#fff;font-size:28px;line-height:1;letter-spacing:-.04em}.flood-history-stat small{color:#8fa5bf;font-size:10px;line-height:1.25}
-    .flood-history-section{margin-top:16px;padding:16px;border:1px solid rgba(148,163,184,.13);border-radius:18px;background:rgba(13,26,47,.68)}
-    .flood-history-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.flood-history-section h3{margin:0;color:#fff;font-size:15px}.flood-history-section-head p{margin:4px 0 0;color:#8fa5bf;font-size:10px}
-    .flood-scenario-chips{display:flex;gap:7px;overflow-x:auto;padding:1px 1px 7px;scrollbar-width:thin}
-    .flood-scenario-chip{flex:0 0 auto;min-height:32px;padding:0 11px;border:1px solid rgba(148,163,184,.2);border-radius:999px;background:rgba(255,255,255,.04);color:#b8c8dc;font-size:10px;font-weight:900;cursor:pointer}
-    .flood-scenario-chip.active{border-color:var(--scenario-color,#7df9ff);color:#fff;box-shadow:inset 0 0 0 1px var(--scenario-color,#7df9ff);background:rgba(255,255,255,.08)}
+    .flood-history-summary{display:flex;align-items:center;gap:16px;padding:10px 12px;border:1px solid rgba(125,249,255,.14);border-radius:13px;background:rgba(15,31,54,.72)}
+    .flood-summary-item{display:flex;align-items:baseline;gap:6px;min-width:0}.flood-summary-item strong{color:#fff;font-size:21px;line-height:1;letter-spacing:-.035em}.flood-summary-item span{color:#a9bad3;font-size:10px;font-weight:800;white-space:nowrap}
+    .flood-summary-divider{width:1px;height:24px;background:rgba(148,163,184,.22)}
+    .flood-history-section{margin-top:10px;padding:12px;border:1px solid rgba(148,163,184,.13);border-radius:15px;background:rgba(13,26,47,.68)}
+    .flood-history-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:5px}.flood-history-section h3{margin:0;color:#fff;font-size:13px}.flood-history-section-head p{margin:2px 0 0;color:#8095af;font-size:9px}
+    .flood-scenario-field{display:grid;gap:2px;flex:0 0 180px;color:#7df9ff;font-size:8px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+    .flood-scenario-select{width:100%;height:31px;padding:0 28px 0 9px;border:1px solid rgba(125,249,255,.28);border-radius:9px;background:#101d32;color:#fff;font:800 10px/1 Inter,system-ui,sans-serif;cursor:pointer}
     .flood-projection-chart{display:block;width:100%;height:auto;overflow:visible}
     .flood-chart-grid{stroke:rgba(148,163,184,.18);stroke-width:1}.flood-chart-axis{fill:#8095af;font-size:9px;font-family:Inter,system-ui,sans-serif}.flood-chart-band{fill:var(--scenario-color,#7df9ff);opacity:.14}.flood-chart-line{fill:none;stroke:var(--scenario-color,#7df9ff);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.flood-chart-dot{fill:#07101f;stroke:var(--scenario-color,#7df9ff);stroke-width:3}
-    .flood-year-control{display:grid;grid-template-columns:1fr 122px;gap:13px;align-items:center;margin-top:12px}.flood-year-control input{width:100%;accent-color:var(--scenario-color,#7df9ff)}
-    .flood-year-readout{padding:10px;border:1px solid rgba(125,249,255,.18);border-radius:13px;background:rgba(2,6,23,.35);text-align:right}.flood-year-readout span{display:block;color:#7df9ff;font-size:10px;font-weight:900}.flood-year-readout strong{display:block;margin:3px 0;color:#fff;font-size:19px}.flood-year-readout small{display:block;color:#91a5bd;font-size:9px}
-    .flood-milestones{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:12px}.flood-milestone{padding:9px 6px;border-radius:12px;background:rgba(255,255,255,.045);text-align:center}.flood-milestone span{display:block;color:#8fa5bf;font-size:9px;font-weight:900}.flood-milestone strong{display:block;margin-top:4px;color:#fff;font-size:13px}
-    .flood-history-method{margin-top:16px;color:#8397b0;font-size:10px;line-height:1.5}.flood-history-error{padding:18px;border:1px solid rgba(251,113,133,.3);border-radius:16px;background:rgba(159,18,57,.12);color:#fecdd3;font-size:12px;line-height:1.5}
+    .flood-year-control{display:grid;grid-template-columns:minmax(0,1fr) 145px;gap:11px;align-items:center;margin-top:5px}.flood-year-control input{width:100%;accent-color:var(--scenario-color,#7df9ff)}
+    .flood-year-readout{display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:baseline;padding:7px 9px;border:1px solid rgba(125,249,255,.16);border-radius:10px;background:rgba(2,6,23,.34);text-align:right}.flood-year-readout span{color:#7df9ff;font-size:9px;font-weight:900}.flood-year-readout strong{color:#fff;font-size:14px}.flood-year-readout small{grid-column:1/-1;color:#91a5bd;font-size:8px}
+    .flood-history-method{margin:9px 2px 0;color:#8397b0;font-size:9px;line-height:1.45}.flood-history-method summary{width:max-content;color:#8fa5bf;font-weight:850;cursor:pointer}.flood-history-method p{margin:6px 0 0}.flood-history-error{padding:16px;border:1px solid rgba(251,113,133,.3);border-radius:14px;background:rgba(159,18,57,.12);color:#fecdd3;font-size:11px;line-height:1.5}
     @media (max-width:900px),(max-height:560px){
       .timeline-interval-toggle{width:168px !important;min-width:168px !important}
       .timeline-interval-toggle button{font-size:9px !important;padding:0 3px !important}
       .mapper-tutorial-card{left:14px !important;right:14px !important;bottom:14px !important;top:auto !important;width:auto;max-height:42vh}
-      .flood-history-backdrop{background:rgba(2,6,23,.58)}
-      .flood-history-pane{top:auto;bottom:0;width:100%;height:min(91dvh,820px);border-left:0;border-top:1px solid rgba(125,249,255,.3);border-radius:24px 24px 0 0;animation:floodHistoryMobileIn .24s ease-out}
-      @keyframes floodHistoryMobileIn{from{transform:translateY(35px);opacity:.25}to{transform:none;opacity:1}}
-      .flood-history-head{padding:18px 18px 15px}.flood-history-head h2{font-size:21px}.flood-history-body{padding:15px 16px max(24px,env(safe-area-inset-bottom))}
-      .flood-history-section{padding:14px}.flood-milestones{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .flood-history-backdrop{padding:12px;background:rgba(2,6,23,.68)}
+      .flood-history-pane{width:min(520px,calc(100vw - 24px));max-height:min(86dvh,640px);border-radius:17px}
+      .flood-history-head{padding:13px 14px 11px}.flood-history-head h2{font-size:17px}.flood-history-body{padding:11px 12px max(12px,env(safe-area-inset-bottom))}
+      .flood-history-summary{gap:10px;padding:9px 10px}.flood-summary-item strong{font-size:18px}.flood-summary-item span{font-size:9px}
+      .flood-history-section{padding:10px}.flood-history-section-head{align-items:flex-end}.flood-scenario-field{flex-basis:156px}.flood-year-control{grid-template-columns:minmax(0,1fr) 132px}
     }
     @media (max-width:360px){.timeline-interval-toggle{width:154px !important;min-width:154px !important}}
   </style>
@@ -22596,8 +22591,8 @@ function startPlayback() {
       const lower = record.lower95?.[elevationIndex] || [];
       const upper = record.upper95?.[elevationIndex] || [];
       const width = 420;
-      const height = 222;
-      const plot = { left: 44, right: 10, top: 14, bottom: 30 };
+      const height = 168;
+      const plot = { left: 42, right: 9, top: 10, bottom: 25 };
       const plotWidth = width - plot.left - plot.right;
       const plotHeight = height - plot.top - plot.bottom;
       const maxValue = niceProjectionMaximum(Math.max(...upper.map(Number).filter(Number.isFinite), 1));
@@ -22619,7 +22614,7 @@ function startPlayback() {
             const index = years.indexOf(year);
             return `<text class="flood-chart-axis" x="${x(index)}" y="${height - 7}" text-anchor="${year === years[0] ? "start" : year === years[years.length - 1] ? "end" : "middle"}">${year}</text>`;
           }).join("")}
-          <circle class="flood-chart-dot" cx="${x(selectedIndex)}" cy="${y(estimate[selectedIndex])}" r="5"></circle>
+          <circle class="flood-chart-dot" cx="${x(selectedIndex)}" cy="${y(estimate[selectedIndex])}" r="4"></circle>
         </svg>`;
     }
 
@@ -22631,8 +22626,6 @@ function startPlayback() {
       const elevationIndex = findProjectionElevationIndex(feature, data);
       const elevation = Number(data.elevationGridFtNavd88?.[elevationIndex]);
       const historic = Number(p.historicFloodEventCount);
-      const archive = [p.historicStartDate || data.observedArchive?.startDate, p.historicEndDate || data.observedArchive?.endDate]
-        .filter(Boolean).map(value => String(value).slice(0, 10)).join("–");
       const defaultYearIndex = Math.max(0, years.indexOf(2050));
       const scenarioKey = data.annualFloodEventCount?.[selectedFloodProjectionScenario]
         ? selectedFloodProjectionScenario
@@ -22643,30 +22636,31 @@ function startPlayback() {
       const estimate = record.estimate[elevationIndex];
       const lower = record.lower95[elevationIndex];
       const upper = record.upper95[elevationIndex];
-      const milestones = [2026, 2050, 2075, 2100].filter(year => years.includes(year));
       body.style.setProperty("--scenario-color", scenario.color);
       body.innerHTML = `
-        <div class="flood-history-hero">
-          <div class="flood-history-stat">
-            <span>Recorded history</span>
+        <div class="flood-history-summary">
+          <div class="flood-summary-item">
             <strong>${Number.isFinite(historic) ? historic.toLocaleString() : "—"}</strong>
-            <small>independent high-tide exceedances${archive ? ` · ${escapeTownAddressHtml(archive)}` : ""}</small>
+            <span>floods</span>
           </div>
-          <div class="flood-history-stat">
-            <span>Parcel elevation</span>
+          <span class="flood-summary-divider" aria-hidden="true"></span>
+          <div class="flood-summary-item">
             <strong>${Number.isFinite(elevation) ? elevation.toFixed(1) : "—"} ft</strong>
-            <small>NAVD88 · highest intersecting original 5-ft DEM cell</small>
+            <span>parcel elevation</span>
           </div>
         </div>
         <section class="flood-history-section">
           <div class="flood-history-section-head">
-            <div><h3>Flooding over the years</h3><p>Expected annual high-tide exceedances · shaded area is the 95% interval</p></div>
-          </div>
-          <div class="flood-scenario-chips" role="tablist" aria-label="Sea level projection curve">
-            ${(data.scenarioOrder || Object.keys(data.annualFloodEventCount)).map(key => {
-              const item = FLOOD_PROJECTION_SCENARIOS[key] || { label: key, color: "#7df9ff" };
-              return `<button class="flood-scenario-chip${key === selectedFloodProjectionScenario ? " active" : ""}" type="button" role="tab" aria-selected="${key === selectedFloodProjectionScenario}" data-flood-scenario="${escapeTownAddressHtml(key)}" style="--scenario-color:${item.color}">${escapeTownAddressHtml(item.label)}</button>`;
-            }).join("")}
+            <div><h3>Projected floods per year</h3><p>Shaded area shows the 95% range</p></div>
+            <label class="flood-scenario-field">
+              Scenario
+              <select id="floodProjectionScenarioSelect" class="flood-scenario-select" aria-label="Sea level projection curve">
+                ${(data.scenarioOrder || Object.keys(data.annualFloodEventCount)).map(key => {
+                  const item = FLOOD_PROJECTION_SCENARIOS[key] || { label: key };
+                  return `<option value="${escapeTownAddressHtml(key)}"${key === selectedFloodProjectionScenario ? " selected" : ""}>${escapeTownAddressHtml(item.label)}</option>`;
+                }).join("")}
+              </select>
+            </label>
           </div>
           <div id="floodProjectionChart">${renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, defaultYearIndex)}</div>
           <div class="flood-year-control">
@@ -22677,14 +22671,11 @@ function startPlayback() {
               <small>95%: ${formatFloodIntervalValue(lower[defaultYearIndex])}–${formatFloodIntervalValue(upper[defaultYearIndex])}</small>
             </div>
           </div>
-          <div class="flood-milestones">
-            ${milestones.map(year => {
-              const index = years.indexOf(year);
-              return `<div class="flood-milestone"><span>${year}</span><strong>${formatExpectedFloodCount(estimate[index])}/yr</strong></div>`;
-            }).join("")}
-          </div>
         </section>
-        <p class="flood-history-method">Stone Harbor independent high tides are rebased to 2026 using the local observed trend. NOAA (2022) Low through High relative sea-level curves are fit quadratically and rebased to 2026; “Existing trend” continues the fitted local trend. Results are statistical parcel-screening estimates, not a guarantee that a structure will flood.</p>
+        <details class="flood-history-method">
+          <summary>Method</summary>
+          <p>Stone Harbor tides and NOAA (2022) sea-level curves are rebased to 2026. The parcel uses its highest intersecting original 5-ft DEM cell. These are screening estimates, not a guarantee that a structure will flood.</p>
+        </details>
       `;
 
       const updateSelectedYear = index => {
@@ -22697,14 +22688,9 @@ function startPlayback() {
         if (chart) chart.innerHTML = renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, selectedIndex);
       };
       document.getElementById("floodProjectionYearSlider")?.addEventListener("input", event => updateSelectedYear(event.target.value));
-      body.querySelectorAll("[data-flood-scenario]").forEach(button => {
-        button.addEventListener("click", () => {
-          selectedFloodProjectionScenario = button.dataset.floodScenario;
-          renderFloodHistoryProjection(feature, data);
-        });
-      });
-      requestAnimationFrame(() => {
-        body.querySelector("[data-flood-scenario].active")?.scrollIntoView({ block: "nearest", inline: "center" });
+      document.getElementById("floodProjectionScenarioSelect")?.addEventListener("change", event => {
+        selectedFloodProjectionScenario = event.target.value;
+        renderFloodHistoryProjection(feature, data);
       });
     }
 
