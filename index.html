@@ -14134,6 +14134,11 @@ html.win-compact-ui #timelineDock #hourSlider{
     </aside>
 <main id="mapWrap">
       <div id="map"></div>
+      <div id="mapClickModeControl" class="map-click-mode-control" role="group" aria-label="Choose what happens when you tap the map" hidden>
+        <span class="map-click-mode-label">Tap map for</span>
+        <button id="mapClickBuildingBtn" type="button" data-map-click-mode="building" aria-pressed="true">Building info</button>
+        <button id="mapClickDepthBtn" type="button" data-map-click-mode="depth" aria-pressed="false">Water depth</button>
+      </div>
 <aside id="rightRail" class="map-floating">
         <section class="rail-card right-logo-card" aria-label="Client logo">
           <a id="rightLogoLink" class="right-logo-link" href="#" target="_blank" rel="noopener noreferrer" aria-label="Visit partner site">
@@ -14528,7 +14533,16 @@ html.win-compact-ui #timelineDock #hourSlider{
     .house-alert-popup .house-sub{margin:0 0 12px;color:#a9bad3;font-size:12px}
     .house-alert-summary{display:flex;align-items:baseline;gap:7px;margin-bottom:13px;padding:11px 12px;border:1px solid rgba(125,249,255,.18);border-radius:13px;background:rgba(14,116,144,.15)}
     .house-alert-summary strong{color:#fff;font-size:27px;line-height:1}.house-alert-summary span{color:#c7d7ec;font-size:12px;font-weight:800}
-    .house-alert-cta{width:100%;min-height:42px;border:1px solid #67e8f9;border-radius:12px;background:linear-gradient(135deg,#0e7490,#2563eb);color:#fff;font-size:12px;font-weight:950;cursor:pointer;box-shadow:0 9px 22px rgba(14,116,144,.26)}
+    .house-alert-cta{width:100%;min-height:42px;border:1px solid rgba(125,249,255,.42);border-radius:12px;background:rgba(125,249,255,.09);color:#d9fdff;font-size:12px;font-weight:950;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 9px 22px rgba(2,6,23,.2)}
+    .house-alert-cta:hover,.house-alert-cta:focus-visible{border-color:#7df9ff;background:rgba(125,249,255,.15);color:#fff}
+    .house-alert-depth-cta{display:block;margin:8px auto 0;padding:3px 6px;border:0;background:transparent;color:#93a8c2;font:800 10px/1.25 Inter,system-ui,sans-serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+    .house-alert-depth-cta:hover,.house-alert-depth-cta:focus-visible{color:#7df9ff}
+    .map-click-mode-control{position:fixed;z-index:780;top:max(72px,calc(env(safe-area-inset-top) + 64px));left:50%;display:grid;grid-template-columns:auto auto auto;align-items:center;gap:4px;padding:5px;border:1px solid rgba(125,249,255,.26);border-radius:14px;background:rgba(8,15,31,.94);box-shadow:0 14px 38px rgba(2,6,23,.42),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(14px);transform:translateX(-50%);white-space:nowrap}
+    .map-click-mode-control[hidden]{display:none!important}
+    .map-click-mode-label{padding:0 5px 0 7px;color:#8fa5bf;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+    .map-click-mode-control button{min-height:31px;padding:0 11px;border:1px solid transparent;border-radius:9px;background:transparent;color:#a9bad3;font-size:10px;font-weight:900;cursor:pointer}
+    .map-click-mode-control button.active{border-color:rgba(125,249,255,.42);background:rgba(125,249,255,.12);color:#e5feff;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+    .map-click-mode-control button:focus-visible{outline:2px solid #7df9ff;outline-offset:1px}
     .flood-history-backdrop{position:fixed;inset:0;z-index:24000;display:grid;place-items:center;padding:18px;background:rgba(2,6,23,.62);backdrop-filter:blur(4px)}
     .flood-history-backdrop[hidden]{display:none!important}
     .flood-history-pane{position:relative;width:min(540px,calc(100vw - 36px));max-height:min(82dvh,680px);display:flex;flex-direction:column;overflow:hidden;color:#edf7ff;background:linear-gradient(180deg,#0a1427 0%,#07101f 100%);border:1px solid rgba(125,249,255,.28);border-radius:20px;box-shadow:0 28px 90px rgba(2,6,23,.72);animation:floodHistoryIn .18s ease-out}
@@ -14554,6 +14568,8 @@ html.win-compact-ui #timelineDock #hourSlider{
     .flood-year-readout{display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:baseline;padding:7px 9px;border:1px solid rgba(125,249,255,.16);border-radius:10px;background:rgba(2,6,23,.34);text-align:right}.flood-year-readout span{color:#7df9ff;font-size:9px;font-weight:900}.flood-year-readout strong{color:#fff;font-size:14px}.flood-year-readout small{grid-column:1/-1;color:#91a5bd;font-size:8px}
     .flood-history-method{margin:9px 2px 0;color:#8397b0;font-size:9px;line-height:1.45}.flood-history-method summary{width:max-content;color:#8fa5bf;font-weight:850;cursor:pointer}.flood-history-method p{margin:6px 0 0}.flood-history-error{padding:16px;border:1px solid rgba(251,113,133,.3);border-radius:14px;background:rgba(159,18,57,.12);color:#fecdd3;font-size:11px;line-height:1.5}
     @media (max-width:900px),(max-height:560px){
+      .map-click-mode-control{top:max(58px,calc(env(safe-area-inset-top) + 54px));width:max-content;max-width:calc(100vw - 20px);padding:4px;border-radius:13px}
+      .map-click-mode-label{display:none}.map-click-mode-control button{min-height:34px;padding:0 13px;font-size:10px}
       .timeline-interval-toggle{width:168px !important;min-width:168px !important}
       .timeline-interval-toggle button{font-size:9px !important;padding:0 3px !important}
       .mapper-tutorial-card{left:14px !important;right:14px !important;bottom:14px !important;top:auto !important;width:auto;max-height:42vh}
@@ -15033,6 +15049,7 @@ function cloneStyleObject(value) {
     let townAddressMarker = null;
     let persistentFloodPopup = null;
     let selectedParcelFeature = null;
+    let mapClickMode = "building";
 
     let exportMap = null;
     let exportBasemapColorLayer = null;
@@ -17115,6 +17132,36 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       updateExportSatelliteLayer();
     }
 
+    function parcelInfoInteractionEnabled() {
+      return Boolean(
+        document.getElementById("parcelsToggle")?.classList.contains("on") ||
+        document.getElementById("buildingsToggle")?.classList.contains("on")
+      );
+    }
+
+    function updateMapClickModeControl() {
+      const control = document.getElementById("mapClickModeControl");
+      const buildingButton = document.getElementById("mapClickBuildingBtn");
+      const depthButton = document.getElementById("mapClickDepthBtn");
+      if (!control || !buildingButton || !depthButton) return;
+      control.hidden = !parcelInfoInteractionEnabled();
+      buildingButton.textContent = document.getElementById("buildingsToggle")?.classList.contains("on")
+        ? "Building info"
+        : "Parcel info";
+      buildingButton.classList.toggle("active", mapClickMode === "building");
+      depthButton.classList.toggle("active", mapClickMode === "depth");
+      buildingButton.setAttribute("aria-pressed", String(mapClickMode === "building"));
+      depthButton.setAttribute("aria-pressed", String(mapClickMode === "depth"));
+    }
+
+    function setMapClickMode(mode, options = {}) {
+      mapClickMode = mode === "depth" ? "depth" : "building";
+      updateMapClickModeControl();
+      if (options.closePopup !== false && persistentFloodPopup && map?.hasLayer(persistentFloodPopup)) {
+        map.removeLayer(persistentFloodPopup);
+      }
+    }
+
     async function setBuildingsEnabled(enabled) {
       const shouldEnable = Boolean(enabled);
       const toggle = document.getElementById("buildingsToggle");
@@ -17126,6 +17173,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (!shouldEnable) {
         if (buildingsLayer && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
         updateExportBuildingsLayer();
+        updateMapClickModeControl();
         toast("");
         return;
       }
@@ -17139,6 +17187,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         });
       }
       if (!map.hasLayer(buildingsLayer)) buildingsLayer.addTo(map);
+      setMapClickMode("building", { closePopup: false });
       updateExportBuildingsLayer();
       toast("");
       ensureParcelAssets().catch(error => console.warn("Building parcel matching will retry when requested.", error));
@@ -22518,6 +22567,7 @@ function startPlayback() {
         (parcel ? '<p class="house-sub">Parcel ' + parcel + '</p>' : '<p class="house-sub">North Wildwood parcel</p>') +
         '<div class="house-alert-summary"><strong>' + count + '</strong><span>floods</span></div>' +
         '<button class="house-alert-cta" type="button">See Flood History And Projections</button>' +
+        '<button class="house-alert-depth-cta" type="button">Switch map taps to water depth</button>' +
         '</div>';
     }
 
@@ -22537,7 +22587,7 @@ function startPlayback() {
       if (!houseAlertCdfPromise) {
         houseAlertCdfPromise = fetchJson(HOUSE_ALERT_CDF_URL, { cache: "force-cache" })
           .then(payload => {
-            if (payload?.schema !== "north-wildwood-flood-history-projections-v2") {
+            if (payload?.schema !== "north-wildwood-flood-history-projections-v3") {
               throw new Error("The flood projection dataset needs to be refreshed.");
             }
             houseAlertCdfData = payload;
@@ -22674,7 +22724,7 @@ function startPlayback() {
         </section>
         <details class="flood-history-method">
           <summary>Method</summary>
-          <p>Stone Harbor tides and NOAA (2022) sea-level curves are rebased to 2026. The parcel uses its highest intersecting original 5-ft DEM cell. These are screening estimates, not a guarantee that a structure will flood.</p>
+          <p>A continuous CDF is fitted to rebased Stone Harbor tides, with a year-block bootstrap 95% range. NOAA (2022) sea-level curves are rebased to 2026. The parcel uses its highest intersecting original 5-ft DEM cell. These are screening estimates, not a guarantee that a structure will flood.</p>
         </details>
       `;
 
@@ -22725,6 +22775,9 @@ function startPlayback() {
         if (event.target?.closest?.(".house-alert-cta") && selectedParcelFeature) {
           openFloodHistoryPane(selectedParcelFeature);
         }
+        if (event.target?.closest?.(".house-alert-depth-cta")) {
+          setMapClickMode("depth");
+        }
       });
       document.addEventListener("keydown", event => {
         if (event.key === "Escape" && backdrop && !backdrop.hidden) closeFloodHistoryPane();
@@ -22761,11 +22814,13 @@ function startPlayback() {
       if (!map) ensureMap();
       if (!enabled) {
         if (parcelsLayer && map.hasLayer(parcelsLayer)) map.removeLayer(parcelsLayer);
+        updateMapClickModeControl();
         toast("");
         return;
       }
       const layer = await ensureParcelAssets();
       if (!map.hasLayer(layer)) layer.addTo(map);
+      setMapClickMode("building", { closePopup: false });
       toast("");
     }
 
@@ -23140,10 +23195,7 @@ function startPlayback() {
     async function handleDepthQueryClick(event) {
       if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
       try {
-        const parcelInteractionEnabled =
-          document.getElementById("parcelsToggle")?.classList.contains("on") ||
-          document.getElementById("buildingsToggle")?.classList.contains("on");
-        if (parcelInteractionEnabled) {
+        if (mapClickMode === "building" && parcelInfoInteractionEnabled()) {
           const parcelFeature = await findParcelFeatureForLocation(event.latlng.lat, event.latlng.lng);
           if (parcelFeature) {
             openParcelFloodPrompt(parcelFeature, event.latlng);
@@ -23179,6 +23231,8 @@ function startPlayback() {
     }
 
     function wireLayerToggles() {
+      document.getElementById("mapClickBuildingBtn")?.addEventListener("click", () => setMapClickMode("building"));
+      document.getElementById("mapClickDepthBtn")?.addEventListener("click", () => setMapClickMode("depth"));
       ["boundaryToggle", "roadsToggle"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -32453,7 +32507,7 @@ TOWN_CONFIG = {
   "parcels": {
     "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260726-parcels-v2",
     "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260726-parcels-v2",
-    "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260726-parcels-v2"
+    "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260726-continuous-cdf-v3"
   },
   "addressLookup": {
     "title": "Find a North Wildwood Address",

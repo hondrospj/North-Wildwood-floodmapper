@@ -16,7 +16,6 @@ from pathlib import Path
 import numpy as np
 from osgeo import gdal, ogr, osr
 from PIL import Image
-from scipy import ndimage
 from scipy.signal import find_peaks
 
 
@@ -61,9 +60,12 @@ ELEVATION_GRID_FT = np.round(np.arange(0.0, 14.0 + 0.05, 0.1), 1)
 YEARS = list(range(CURRENT_YEAR, 2101))
 EXPECTED_HIGH_TIDES_PER_YEAR = 705.0
 PARCEL_BOUNDARY_RASTER_SCALE = 0.5
-CONFIDENCE_Z_95 = 1.959963984540054
 FIVE_FOOT_GRID_STRIDE = 5
 FIVE_FOOT_GRID_CENTER_OFFSET = 2
+KDE_GRID_STEP_FT = 0.002
+KDE_KERNEL_TRUNCATION_SD = 6.0
+KDE_BOOTSTRAP_REPLICATES = 400
+KDE_BOOTSTRAP_SEED = 20260726
 
 
 def fetch_json(url: str, params: dict | None = None) -> dict:
@@ -190,6 +192,7 @@ def extract_high_tide_events(times: list[int], levels: list[float], annual_trend
                     "timeUtc": datetime.fromtimestamp(stamp, timezone.utc).isoformat().replace("+00:00", "Z"),
                     "year": year,
                     "navd88Ft": round(level, 3),
+                    "rebasedNavd88Ft": rebased,
                 }
             )
             rebased_peaks.append(rebased)
@@ -244,28 +247,124 @@ def fit_quadratic_slr_deltas(noaa_payload: dict, annual_trend_ft: float) -> tupl
     return deltas, curve_metadata
 
 
-def exceedance_probability(sorted_peaks: list[float], elevation_ft: float, slr_delta_ft: float) -> tuple[int, int, float]:
-    threshold = elevation_ft - slr_delta_ft
-    index = bisect.bisect_left(sorted_peaks, threshold)
-    sample_size = len(sorted_peaks)
-    exceedances = sample_size - index
-    probability = exceedances / sample_size if sample_size else 0.0
-    return exceedances, sample_size, probability
+def gaussian_kde_bandwidth(samples: np.ndarray) -> float:
+    """Silverman's normal-reference bandwidth for a one-dimensional Gaussian KDE."""
+    if samples.size < 2:
+        return 0.05
+    standard_deviation = float(np.std(samples, ddof=1))
+    if not math.isfinite(standard_deviation) or standard_deviation <= 0.0:
+        return 0.05
+    return max(0.02, 1.06 * standard_deviation * samples.size ** (-0.2))
 
 
-def wilson_probability_interval(successes: int, sample_size: int) -> tuple[float, float]:
-    if sample_size <= 0:
-        return 0.0, 0.0
-    p = successes / sample_size
-    z2 = CONFIDENCE_Z_95**2
-    denominator = 1.0 + z2 / sample_size
-    center = (p + z2 / (2.0 * sample_size)) / denominator
-    half_width = (
-        CONFIDENCE_Z_95
-        * math.sqrt((p * (1.0 - p) + z2 / (4.0 * sample_size)) / sample_size)
-        / denominator
+def _smoothed_cdf_from_histogram(
+    histogram: np.ndarray,
+    kernel_fft: np.ndarray,
+    fft_size: int,
+    kernel_center: int,
+) -> np.ndarray:
+    smoothed = np.fft.irfft(np.fft.rfft(histogram, fft_size) * kernel_fft, fft_size)
+    smoothed = np.maximum(smoothed[kernel_center : kernel_center + histogram.size], 0.0)
+    cumulative = np.cumsum(smoothed)
+    total = float(cumulative[-1]) if cumulative.size else 0.0
+    if total <= 0.0:
+        return np.zeros(histogram.size, dtype=np.float64)
+    return cumulative / total
+
+
+def fit_continuous_exceedance_cdf(
+    rebased_peaks: list[float],
+    events: list[dict],
+    evaluation_thresholds: list[np.ndarray],
+) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray], dict]:
+    """Fit a continuous Gaussian-kernel CDF and bootstrap its 95% interval by year."""
+    samples = np.asarray(rebased_peaks, dtype=np.float64)
+    if samples.size < 2:
+        raise RuntimeError("At least two rebased high-tide peaks are required to fit the CDF")
+    bandwidth = gaussian_kde_bandwidth(samples)
+    threshold_min = min(float(np.min(values)) for values in evaluation_thresholds)
+    threshold_max = max(float(np.max(values)) for values in evaluation_thresholds)
+    margin = KDE_KERNEL_TRUNCATION_SD * bandwidth
+    grid_min = math.floor((min(float(np.min(samples)), threshold_min) - margin) / KDE_GRID_STEP_FT) * KDE_GRID_STEP_FT
+    grid_max = math.ceil((max(float(np.max(samples)), threshold_max) + margin) / KDE_GRID_STEP_FT) * KDE_GRID_STEP_FT
+    grid = np.arange(grid_min, grid_max + KDE_GRID_STEP_FT * 0.5, KDE_GRID_STEP_FT, dtype=np.float64)
+    edges = np.concatenate(
+        (
+            np.asarray([grid[0] - KDE_GRID_STEP_FT / 2.0]),
+            grid + KDE_GRID_STEP_FT / 2.0,
+        )
     )
-    return max(0.0, center - half_width), min(1.0, center + half_width)
+
+    kernel_radius = int(math.ceil(KDE_KERNEL_TRUNCATION_SD * bandwidth / KDE_GRID_STEP_FT))
+    kernel_offsets = np.arange(-kernel_radius, kernel_radius + 1, dtype=np.float64) * KDE_GRID_STEP_FT
+    kernel = np.exp(-0.5 * (kernel_offsets / bandwidth) ** 2)
+    kernel /= np.sum(kernel)
+    fft_size = 1 << (grid.size + kernel.size - 2).bit_length()
+    kernel_fft = np.fft.rfft(kernel, fft_size)
+    kernel_center = (kernel.size - 1) // 2
+
+    central_histogram = np.histogram(samples, bins=edges)[0].astype(np.float64)
+    central_cdf = _smoothed_cdf_from_histogram(
+        central_histogram, kernel_fft, fft_size, kernel_center
+    )
+
+    peak_blocks: dict[int, list[float]] = defaultdict(list)
+    for event in events:
+        rebased = event.get("rebasedNavd88Ft")
+        if rebased is not None and math.isfinite(float(rebased)):
+            peak_blocks[int(event["year"])].append(float(rebased))
+    block_histograms = np.asarray(
+        [np.histogram(values, bins=edges)[0] for _, values in sorted(peak_blocks.items())],
+        dtype=np.float64,
+    )
+    if block_histograms.shape[0] < 2:
+        raise RuntimeError("At least two calendar-year blocks are required for CDF uncertainty")
+
+    rng = np.random.default_rng(KDE_BOOTSTRAP_SEED)
+    block_weights = rng.multinomial(
+        block_histograms.shape[0],
+        np.full(block_histograms.shape[0], 1.0 / block_histograms.shape[0]),
+        size=KDE_BOOTSTRAP_REPLICATES,
+    )
+    bootstrap_cdfs = np.empty((KDE_BOOTSTRAP_REPLICATES, grid.size), dtype=np.float32)
+    for index, weights in enumerate(block_weights):
+        bootstrap_histogram = weights @ block_histograms
+        bootstrap_cdfs[index] = _smoothed_cdf_from_histogram(
+            bootstrap_histogram, kernel_fft, fft_size, kernel_center
+        )
+
+    estimates: list[np.ndarray] = []
+    lower95: list[np.ndarray] = []
+    upper95: list[np.ndarray] = []
+    for thresholds in evaluation_thresholds:
+        flat_thresholds = thresholds.ravel()
+        central_survival = 1.0 - np.interp(
+            flat_thresholds, grid, central_cdf, left=0.0, right=1.0
+        )
+        bootstrap_survival = np.empty(
+            (KDE_BOOTSTRAP_REPLICATES, flat_thresholds.size), dtype=np.float32
+        )
+        for index, bootstrap_cdf in enumerate(bootstrap_cdfs):
+            bootstrap_survival[index] = 1.0 - np.interp(
+                flat_thresholds, grid, bootstrap_cdf, left=0.0, right=1.0
+            )
+        interval = np.percentile(bootstrap_survival, [2.5, 97.5], axis=0)
+        shape = thresholds.shape
+        estimates.append(central_survival.reshape(shape))
+        lower95.append(interval[0].reshape(shape))
+        upper95.append(interval[1].reshape(shape))
+
+    return estimates, lower95, upper95, {
+        "type": "continuous Gaussian-kernel CDF",
+        "bandwidthMethod": "Silverman normal-reference rule",
+        "bandwidthFt": round(bandwidth, 6),
+        "evaluationGridStepFt": KDE_GRID_STEP_FT,
+        "kernelTruncationStandardDeviations": KDE_KERNEL_TRUNCATION_SD,
+        "uncertaintyMethod": "calendar-year block bootstrap percentile interval",
+        "bootstrapReplicates": KDE_BOOTSTRAP_REPLICATES,
+        "bootstrapSeed": KDE_BOOTSTRAP_SEED,
+        "bootstrapBlockCount": int(block_histograms.shape[0]),
+    }
 
 
 def build_cdf_payload(
@@ -286,35 +385,27 @@ def build_cdf_payload(
     detected_tides_per_year = len(events) / observed_duration_years
     tides_per_year = EXPECTED_HIGH_TIDES_PER_YEAR
     slr_deltas, curve_metadata = fit_quadratic_slr_deltas(slr_payload, annual_trend_ft)
+    evaluation_thresholds = [
+        ELEVATION_GRID_FT[:, np.newaxis] - np.asarray(deltas, dtype=np.float64)[np.newaxis, :]
+        for deltas in slr_deltas.values()
+    ]
+    estimates, lowers, uppers, cdf_fit_metadata = fit_continuous_exceedance_cdf(
+        rebased_peaks, events, evaluation_thresholds
+    )
     annual_counts: dict[str, dict[str, list[list[float]]]] = {}
-    for scenario, deltas in slr_deltas.items():
-        estimate_rows = []
-        lower_rows = []
-        upper_rows = []
-        for elevation in ELEVATION_GRID_FT:
-            estimates: list[float] = []
-            lowers: list[float] = []
-            uppers: list[float] = []
-            for delta in deltas:
-                successes, sample_size, probability = exceedance_probability(
-                    rebased_peaks, float(elevation), delta
-                )
-                lower_probability, upper_probability = wilson_probability_interval(successes, sample_size)
-                estimates.append(round(min(tides_per_year, max(0.0, probability * tides_per_year)), 2))
-                lowers.append(round(min(tides_per_year, max(0.0, lower_probability * tides_per_year)), 2))
-                uppers.append(round(min(tides_per_year, max(0.0, upper_probability * tides_per_year)), 2))
-            estimate_rows.append(estimates)
-            lower_rows.append(lowers)
-            upper_rows.append(uppers)
+    for index, scenario in enumerate(slr_deltas):
+        estimate_rows = np.clip(estimates[index] * tides_per_year, 0.0, tides_per_year)
+        lower_rows = np.clip(lowers[index] * tides_per_year, 0.0, tides_per_year)
+        upper_rows = np.clip(uppers[index] * tides_per_year, 0.0, tides_per_year)
         annual_counts[scenario] = {
-            "estimate": estimate_rows,
-            "lower95": lower_rows,
-            "upper95": upper_rows,
+            "estimate": np.round(estimate_rows, 2).tolist(),
+            "lower95": np.round(lower_rows, 2).tolist(),
+            "upper95": np.round(upper_rows, 2).tolist(),
         }
 
     historical_counts = [sum(1 for row in events if row["navd88Ft"] >= float(elevation)) for elevation in ELEVATION_GRID_FT]
     return {
-        "schema": "north-wildwood-flood-history-projections-v2",
+        "schema": "north-wildwood-flood-history-projections-v3",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "currentYear": CURRENT_YEAR,
         "site": {
@@ -334,10 +425,11 @@ def build_cdf_payload(
             "historic": "independent Stone Harbor high-tide peaks separated by at least six hours; parcel floods when peak NAVD88 level is at or above the parcel's highest intersecting original five-foot DEM cell",
             "baselineRebase": f"each observed Stone Harbor peak adjusted to 1 January {CURRENT_YEAR} using the fitted local observed trend",
             "seaLevelCurves": f"quadratic least-squares fits to each NOAA 2022 median scenario, evaluated annually and rebased to zero in {CURRENT_YEAR}; the observed local trend remains linear",
-            "cdf": "empirical exceedance CDF of present-year-rebased independent high-tide peaks",
-            "uncertainty": "two-sided 95 percent Wilson score interval for the empirical exceedance probability at every elevation, year, and curve",
-            "future": "CDF exceedance probability and its 95 percent bounds multiplied by 705 expected astronomical high tides per year",
+            "cdf": "continuous Gaussian-kernel CDF fitted to present-year-rebased independent high-tide peaks",
+            "uncertainty": "two-sided 95 percent calendar-year block-bootstrap percentile interval for the fitted exceedance probability at every elevation, year, and curve",
+            "future": "continuous fitted CDF exceedance probability and its 95 percent bounds multiplied by 705 expected astronomical high tides per year",
         },
+        "cdfFit": cdf_fit_metadata,
         "annualRelativeSeaLevelTrendFt": round(annual_trend_ft, 6),
         "observedTrendFit": trend_metadata,
         "highTidePeakCount": len(events),
@@ -622,7 +714,11 @@ def build(args: argparse.Namespace) -> dict:
     output_dir = args.output.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     observed_times, observed_levels, observed_payload = decode_observed_archive(args.observed.resolve())
-    slr_payload = fetch_json(NOAA_SLR_URL)
+    slr_payload = (
+        json.loads(args.slr.resolve().read_text(encoding="utf-8"))
+        if args.slr
+        else fetch_json(NOAA_SLR_URL)
+    )
     annual_trend_ft, trend_metadata = fit_stone_harbor_trend(observed_times, observed_levels)
     events, rebased_peaks = extract_high_tide_events(observed_times, observed_levels, annual_trend_ft)
     if not rebased_peaks:
@@ -637,8 +733,19 @@ def build(args: argparse.Namespace) -> dict:
     )
     cdf_path = output_dir / "NorthWildwoodHouseAlertCDF.json"
     cdf_path.write_text(json.dumps(cdf, separators=(",", ":")) + "\n", encoding="utf-8")
+    if args.cdf_only:
+        return {
+            "highTidePeakCount": cdf["highTidePeakCount"],
+            "independentTidesPerYear": cdf["independentTidesPerYear"],
+            "historicStartDate": cdf["observedArchive"]["startDate"],
+            "historicEndDate": cdf["observedArchive"]["endDate"],
+            "cdfBytes": cdf_path.stat().st_size,
+            "cdfFit": cdf["cdfFit"],
+        }
 
     parcels = fetch_parcels()
+    if not args.dem:
+        raise RuntimeError("--dem is required unless --cdf-only is used")
     sampler = DemSampler(args.dem.resolve())
     parcel_geojson = build_parcel_geojson(parcels, sampler, events, cdf)
     parcel_path = output_dir / "NorthWildwoodParcels.geojson"
@@ -663,9 +770,11 @@ def build(args: argparse.Namespace) -> dict:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dem", type=Path, required=True)
+    parser.add_argument("--dem", type=Path)
     parser.add_argument("--observed", type=Path, default=Path("observed15min.json"))
+    parser.add_argument("--slr", type=Path, help="Optional cached NOAA 2022 SLR projection payload")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--cdf-only", action="store_true", help="Regenerate only the projection CDF asset")
     return parser.parse_args()
 
 

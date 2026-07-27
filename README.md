@@ -156,15 +156,26 @@ The same Stone Harbor series is fitted from equally weighted monthly means and
 rebased to January 1, 2026. The projection model includes that existing local
 trend plus NOAA's 2022 Low, Intermediate Low, Intermediate, Intermediate High,
 and High Cape May relative sea-level scenarios. Every NOAA median curve is
-fitted quadratically and rebased to zero in 2026. An empirical exceedance CDF
-and two-sided 95% Wilson interval are evaluated for every curve, year from
-2026–2100, and 0.1-foot elevation step from 0.0–14.0 ft NAVD88.
+fitted quadratically and rebased to zero in 2026. A continuous Gaussian-kernel
+exceedance CDF and two-sided 95% calendar-year block-bootstrap interval are
+evaluated for every curve, year from 2026–2100, and 0.1-foot elevation step
+from 0.0–14.0 ft NAVD88.
 
 ```bash
 python3 tools/build_parcel_alerts.py \
   --dem /path/to/NorthWildwoodDEM_1ft_NAVD88.tif \
   --observed observed15min.json \
   --output /path/to/parcel-assets
+```
+
+To refresh only the projection file using a cached NOAA 2022 response:
+
+```bash
+python3 tools/build_parcel_alerts.py \
+  --observed observed15min.json \
+  --slr /path/to/slr_projections_2022.json \
+  --output assets/parcel-history-v2 \
+  --cdf-only
 ```
 
 Parcel results are screening estimates, not surveys, insurance

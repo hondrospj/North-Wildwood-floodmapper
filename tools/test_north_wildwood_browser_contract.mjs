@@ -131,7 +131,15 @@ assert.match(SOURCE, /<summary>Method<\/summary>/);
 assert.doesNotMatch(SOURCE, /class="flood-milestones"/);
 assert.doesNotMatch(SOURCE, /class="flood-scenario-chips"/);
 assert.doesNotMatch(SOURCE, /independent high-tide exceedances/);
-assert.match(SOURCE, /north-wildwood-flood-history-projections-v2/);
+assert.match(SOURCE, /north-wildwood-flood-history-projections-v3/);
+assert.match(SOURCE, /continuous CDF is fitted to rebased Stone Harbor tides/);
+assert.match(SOURCE, /id="mapClickModeControl"/);
+assert.match(SOURCE, /data-map-click-mode="building"/);
+assert.match(SOURCE, /data-map-click-mode="depth"/);
+assert.match(SOURCE, /mapClickMode === "building" && parcelInfoInteractionEnabled\(\)/);
+assert.match(SOURCE, /Switch map taps to water depth/);
+assert.doesNotMatch(SOURCE, /recorded high-tide floods/);
+assert.match(SOURCE, /\.house-alert-cta\{[^}]*background:rgba\(125,249,255,\.09\)/);
 assert.match(SOURCE, /requestIdleCallback/);
 assert.match(SOURCE, /loadForecast\(null, \{ selectCurrent: true, forceRefresh: true \}\)/);
 

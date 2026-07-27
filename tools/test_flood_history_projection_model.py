@@ -52,16 +52,23 @@ assert all(values[0] == 0.0 for values in deltas.values())
 assert metadata["intermediate"]["type"] == "quadratic"
 assert math.isclose(deltas["observedTrend"][-1], 1.48, abs_tol=1e-9)
 
-low, high = model.wilson_probability_interval(50, 100)
-assert 0.4 < low < 0.5 < high < 0.6
-zero_low, zero_high = model.wilson_probability_interval(0, 100)
-assert math.isclose(zero_low, 0.0, abs_tol=1e-15)
-assert 0.0 < zero_high < 0.05
-
 peaks = [1.0, 2.0, 3.0, 4.0]
-successes, sample_size, probability = model.exceedance_probability(peaks, 3.0, 0.0)
-assert (successes, sample_size, probability) == (2, 4, 0.5)
-shifted = model.exceedance_probability(peaks, 3.0, 1.0)
-assert shifted == (3, 4, 0.75)
+events = [
+    {"year": 2024, "rebasedNavd88Ft": 1.0},
+    {"year": 2024, "rebasedNavd88Ft": 2.0},
+    {"year": 2025, "rebasedNavd88Ft": 3.0},
+    {"year": 2025, "rebasedNavd88Ft": 4.0},
+]
+thresholds = model.np.asarray([[3.0, 2.5, 2.0]], dtype=float)
+estimate, lower95, upper95, fit = model.fit_continuous_exceedance_cdf(
+    peaks, events, [thresholds]
+)
+curve = estimate[0][0]
+assert curve[0] < curve[1] < curve[2]
+assert 0.3 < curve[0] < 0.5
+assert lower95[0].shape == thresholds.shape
+assert upper95[0].shape == thresholds.shape
+assert fit["type"] == "continuous Gaussian-kernel CDF"
+assert fit["bootstrapReplicates"] == model.KDE_BOOTSTRAP_REPLICATES
 
 print("North Wildwood flood-history projection model checks passed.")
