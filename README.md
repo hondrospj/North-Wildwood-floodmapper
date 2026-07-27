@@ -147,9 +147,18 @@ boundaries; House Alerts; and clickable depth.
 ## Parcel House Alerts
 
 `tools/build_parcel_alerts.py` uses the official NJ composite MOD-IV layer for
-North Wildwood municipality `0507`. It samples each parcel centroid against the
-one-foot DEM and combines independent high-tide peaks with the NOAA 2022 Cape
-May low, intermediate, and high relative sea-level scenarios through 2100.
+North Wildwood municipality `0507`. Each parcel uses the highest center of an
+intersecting cell from the original five-foot DEM grid. The historical count
+comes from independent Stone Harbor high-tide peaks separated by at least six
+hours.
+
+The same Stone Harbor series is fitted from equally weighted monthly means and
+rebased to January 1, 2026. The projection model includes that existing local
+trend plus NOAA's 2022 Low, Intermediate Low, Intermediate, Intermediate High,
+and High Cape May relative sea-level scenarios. Every NOAA median curve is
+fitted quadratically and rebased to zero in 2026. An empirical exceedance CDF
+and two-sided 95% Wilson interval are evaluated for every curve, year from
+2026–2100, and 0.1-foot elevation step from 0.0–14.0 ft NAVD88.
 
 ```bash
 python3 tools/build_parcel_alerts.py \
@@ -160,6 +169,14 @@ python3 tools/build_parcel_alerts.py \
 
 Parcel results are screening estimates, not surveys, insurance
 determinations, legal boundaries, or structure-specific engineering analyses.
+
+The Buildings switch repeats the exact Esri OSM vector-tile building geometry
+from the basemap in a transparent foreground pane above the floodwater. A
+building click or matched address opens the parcel prompt and loads the
+projection dataset only after the user chooses **See Flood History And
+Projections**. Initial startup similarly renders the forecast hour nearest the
+current time first; observed archives, historical tides, boundary data, and
+other secondary data warm in the background.
 
 ## Bunny layout
 

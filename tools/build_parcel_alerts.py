@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build North Wildwood MOD-IV parcel centroids and flood-frequency analytics."""
+"""Build North Wildwood parcel flood-history and projection analytics."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import json
 import math
 import urllib.parse
 import urllib.request
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,15 +42,28 @@ NOAA_SLR_URL = (
     "https://api.tidesandcurrents.noaa.gov/dpapi/prod/webapi/product/"
     "slr_projections.json?units=metric&station=8536110&report_year=2022"
 )
-NOAA_TREND_URL = (
-    "https://api.tidesandcurrents.noaa.gov/dpapi/prod/webapi/product/"
-    "sealvltrends.json?station=8536110&units=english"
-)
-SCENARIO_NAMES = {"low": "Low", "intermediate": "Intermediate", "high": "High"}
-ELEVATION_GRID_FT = np.round(np.arange(0.0, 14.0 + 0.025, 0.05), 2)
+NOAA_SCENARIO_NAMES = {
+    "low": "Low",
+    "intermediateLow": "Intermediate-Low",
+    "intermediate": "Intermediate",
+    "intermediateHigh": "Intermediate-High",
+    "high": "High",
+}
+SCENARIO_LABELS = {
+    "observedTrend": "Observed trend",
+    "low": "Low",
+    "intermediateLow": "Intermediate Low",
+    "intermediate": "Intermediate",
+    "intermediateHigh": "Intermediate High",
+    "high": "High",
+}
+ELEVATION_GRID_FT = np.round(np.arange(0.0, 14.0 + 0.05, 0.1), 1)
 YEARS = list(range(CURRENT_YEAR, 2101))
 EXPECTED_HIGH_TIDES_PER_YEAR = 705.0
 PARCEL_BOUNDARY_RASTER_SCALE = 0.5
+CONFIDENCE_Z_95 = 1.959963984540054
+FIVE_FOOT_GRID_STRIDE = 5
+FIVE_FOOT_GRID_CENTER_OFFSET = 2
 
 
 def fetch_json(url: str, params: dict | None = None) -> dict:
@@ -122,55 +136,136 @@ def split_contiguous(times: list[int], levels: list[float]) -> list[tuple[np.nda
     return segments
 
 
+def fit_stone_harbor_trend(times: list[int], levels: list[float]) -> tuple[float, dict]:
+    """Fit the existing local trend to equally weighted monthly means."""
+    daily: dict[str, list[float]] = defaultdict(list)
+    for stamp, level in zip(times, levels):
+        day = datetime.fromtimestamp(stamp, timezone.utc).strftime("%Y-%m-%d")
+        daily[day].append(float(level))
+
+    monthly: dict[str, list[float]] = defaultdict(list)
+    for day, values in daily.items():
+        if values:
+            monthly[day[:7]].append(float(np.mean(values)))
+
+    xs: list[float] = []
+    ys: list[float] = []
+    for month, values in sorted(monthly.items()):
+        if not values:
+            continue
+        year, month_number = map(int, month.split("-"))
+        xs.append(year + (month_number - 0.5) / 12.0)
+        ys.append(float(np.mean(values)))
+    if len(xs) < 24:
+        raise RuntimeError("At least 24 Stone Harbor monthly means are required to fit the observed trend")
+
+    slope, intercept = np.polyfit(np.asarray(xs), np.asarray(ys), 1)
+    fitted = np.asarray(xs) * slope + intercept
+    residual = np.asarray(ys) - fitted
+    return float(slope), {
+        "method": "ordinary least squares on equally weighted monthly means from the Stone Harbor 15-minute archive",
+        "monthlyMeanCount": len(xs),
+        "firstMonth": min(monthly),
+        "lastMonth": max(monthly),
+        "slopeFtPerYear": round(float(slope), 8),
+        "interceptFt": round(float(intercept), 6),
+        "residualStandardErrorFt": round(float(np.std(residual, ddof=2)), 4),
+    }
+
+
 def extract_high_tide_events(times: list[int], levels: list[float], annual_trend_ft: float) -> tuple[list[dict], list[float]]:
     events: list[dict] = []
     rebased_peaks: list[float] = []
+    base_timestamp = datetime(CURRENT_YEAR, 1, 1, tzinfo=timezone.utc).timestamp()
     for segment_times, segment_levels in split_contiguous(times, levels):
         peak_indices, _ = find_peaks(segment_levels, distance=24, prominence=0.20)
         for index in peak_indices:
             stamp = int(segment_times[index])
             level = float(segment_levels[index])
             year = datetime.fromtimestamp(stamp, timezone.utc).year
-            rebased = level + annual_trend_ft * (CURRENT_YEAR - year)
-            events.append({"timeUtc": datetime.fromtimestamp(stamp, timezone.utc).isoformat().replace("+00:00", "Z"), "year": year, "navd88Ft": round(level, 3)})
+            years_to_base = (base_timestamp - stamp) / (365.2425 * 86400)
+            rebased = level + annual_trend_ft * years_to_base
+            events.append(
+                {
+                    "timeUtc": datetime.fromtimestamp(stamp, timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "year": year,
+                    "navd88Ft": round(level, 3),
+                }
+            )
             rebased_peaks.append(rebased)
     events.sort(key=lambda row: row["timeUtc"])
     rebased_peaks.sort()
     return events, rebased_peaks
 
 
-def interpolate_year_value(rows_by_year: dict[int, float], year: int) -> float:
-    known_years = sorted(rows_by_year)
-    if year <= known_years[0]:
-        return rows_by_year[known_years[0]]
-    if year >= known_years[-1]:
-        return rows_by_year[known_years[-1]]
-    right_index = bisect.bisect_right(known_years, year)
-    left_year = known_years[right_index - 1]
-    right_year = known_years[right_index]
-    ratio = (year - left_year) / (right_year - left_year)
-    return rows_by_year[left_year] + (rows_by_year[right_year] - rows_by_year[left_year]) * ratio
-
-
-def build_slr_deltas(noaa_payload: dict) -> dict[str, list[float]]:
+def fit_quadratic_slr_deltas(noaa_payload: dict, annual_trend_ft: float) -> tuple[dict[str, list[float]], dict]:
     rows = noaa_payload.get("SlrProjections", [])
-    output: dict[str, list[float]] = {}
-    for key, noaa_name in SCENARIO_NAMES.items():
-        by_year = {
-            int(row["projectionYear"]): float(row["projectionRsl"]) / 30.48
+    deltas: dict[str, list[float]] = {
+        "observedTrend": [round(annual_trend_ft * (year - CURRENT_YEAR), 4) for year in YEARS]
+    }
+    curve_metadata: dict[str, dict] = {
+        "observedTrend": {
+            "label": SCENARIO_LABELS["observedTrend"],
+            "type": "linear",
+            "baseYear": CURRENT_YEAR,
+            "coefficientsForXYearMinus2026": {"a": 0.0, "b": round(annual_trend_ft, 10), "c": 0.0},
+        }
+    }
+
+    for key, noaa_name in NOAA_SCENARIO_NAMES.items():
+        selected = [
+            row
             for row in rows
             if row.get("scenario") == noaa_name
+            and CURRENT_YEAR - 6 <= int(row.get("projectionYear", 0)) <= 2100
+        ]
+        if len(selected) < 3:
+            raise RuntimeError(f"NOAA 2022 payload did not contain enough {noaa_name} projection points")
+        projection_years = np.asarray([float(row["projectionYear"]) - CURRENT_YEAR for row in selected], dtype=float)
+        projection_feet = np.asarray([float(row["projectionRsl"]) / 30.48 for row in selected], dtype=float)
+        a, b, c = np.polyfit(projection_years, projection_feet, 2)
+        base_value = c
+        deltas[key] = [
+            round(max(0.0, float(a * (year - CURRENT_YEAR) ** 2 + b * (year - CURRENT_YEAR) + c - base_value)), 4)
+            for year in YEARS
+        ]
+        curve_metadata[key] = {
+            "label": SCENARIO_LABELS[key],
+            "type": "quadratic",
+            "baseYear": CURRENT_YEAR,
+            "sourceScenario": noaa_name,
+            "fitProjectionYears": [int(min(row["projectionYear"] for row in selected)), int(max(row["projectionYear"] for row in selected))],
+            "coefficientsForXYearMinus2026": {
+                "a": round(float(a), 12),
+                "b": round(float(b), 10),
+                "c": 0.0,
+            },
         }
-        current_baseline = interpolate_year_value(by_year, CURRENT_YEAR)
-        output[key] = [round(interpolate_year_value(by_year, year) - current_baseline, 4) for year in YEARS]
-    return output
+    return deltas, curve_metadata
 
 
-def annual_exceedance_count(sorted_peaks: list[float], elevation_ft: float, slr_delta_ft: float, tides_per_year: float) -> float:
+def exceedance_probability(sorted_peaks: list[float], elevation_ft: float, slr_delta_ft: float) -> tuple[int, int, float]:
     threshold = elevation_ft - slr_delta_ft
     index = bisect.bisect_left(sorted_peaks, threshold)
-    probability = (len(sorted_peaks) - index) / len(sorted_peaks) if sorted_peaks else 0.0
-    return min(tides_per_year, max(0.0, probability * tides_per_year))
+    sample_size = len(sorted_peaks)
+    exceedances = sample_size - index
+    probability = exceedances / sample_size if sample_size else 0.0
+    return exceedances, sample_size, probability
+
+
+def wilson_probability_interval(successes: int, sample_size: int) -> tuple[float, float]:
+    if sample_size <= 0:
+        return 0.0, 0.0
+    p = successes / sample_size
+    z2 = CONFIDENCE_Z_95**2
+    denominator = 1.0 + z2 / sample_size
+    center = (p + z2 / (2.0 * sample_size)) / denominator
+    half_width = (
+        CONFIDENCE_Z_95
+        * math.sqrt((p * (1.0 - p) + z2 / (4.0 * sample_size)) / sample_size)
+        / denominator
+    )
+    return max(0.0, center - half_width), min(1.0, center + half_width)
 
 
 def build_cdf_payload(
@@ -179,6 +274,7 @@ def build_cdf_payload(
     rebased_peaks: list[float],
     annual_trend_ft: float,
     slr_payload: dict,
+    trend_metadata: dict,
 ) -> dict:
     years_with_data = sorted({row["year"] for row in events})
     if len(events) >= 2:
@@ -189,38 +285,61 @@ def build_cdf_payload(
         observed_duration_years = 1.0
     detected_tides_per_year = len(events) / observed_duration_years
     tides_per_year = EXPECTED_HIGH_TIDES_PER_YEAR
-    slr_deltas = build_slr_deltas(slr_payload)
-    annual_counts: dict[str, list[list[float]]] = {}
-    cumulative_counts: dict[str, list[float]] = {}
+    slr_deltas, curve_metadata = fit_quadratic_slr_deltas(slr_payload, annual_trend_ft)
+    annual_counts: dict[str, dict[str, list[list[float]]]] = {}
     for scenario, deltas in slr_deltas.items():
-        scenario_rows = []
-        scenario_cumulative = []
+        estimate_rows = []
+        lower_rows = []
+        upper_rows = []
         for elevation in ELEVATION_GRID_FT:
-            counts = [round(annual_exceedance_count(rebased_peaks, float(elevation), delta, tides_per_year), 2) for delta in deltas]
-            scenario_rows.append(counts)
-            scenario_cumulative.append(round(sum(counts), 1))
-        annual_counts[scenario] = scenario_rows
-        cumulative_counts[scenario] = scenario_cumulative
+            estimates: list[float] = []
+            lowers: list[float] = []
+            uppers: list[float] = []
+            for delta in deltas:
+                successes, sample_size, probability = exceedance_probability(
+                    rebased_peaks, float(elevation), delta
+                )
+                lower_probability, upper_probability = wilson_probability_interval(successes, sample_size)
+                estimates.append(round(min(tides_per_year, max(0.0, probability * tides_per_year)), 2))
+                lowers.append(round(min(tides_per_year, max(0.0, lower_probability * tides_per_year)), 2))
+                uppers.append(round(min(tides_per_year, max(0.0, upper_probability * tides_per_year)), 2))
+            estimate_rows.append(estimates)
+            lower_rows.append(lowers)
+            upper_rows.append(uppers)
+        annual_counts[scenario] = {
+            "estimate": estimate_rows,
+            "lower95": lower_rows,
+            "upper95": upper_rows,
+        }
 
     historical_counts = [sum(1 for row in events if row["navd88Ft"] >= float(elevation)) for elevation in ELEVATION_GRID_FT]
     return {
-        "schema": "north-wildwood-house-alert-cdf-v1",
+        "schema": "north-wildwood-flood-history-projections-v2",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "currentYear": CURRENT_YEAR,
-        "site": {"name": "Great Channel at Stone Harbor", "usgsId": "01411360", "noaaScenarioStationId": "8536110", "noaaScenarioStationName": "Cape May"},
+        "site": {
+            "name": "Great Channel at Stone Harbor",
+            "usgsId": "01411360",
+            "noaaScenarioStationId": "8536110",
+            "noaaScenarioStationName": "Cape May",
+        },
         "sources": {
             "observed": "USGS NWIS parameter 72279, regularized to 15-minute anchors",
             "seaLevelScenarios": "NOAA CO-OPS 2022 Interagency Sea Level Report station projections",
             "scenarioReportYear": 2022,
+            "localObservedTrend": "Great Channel at Stone Harbor monthly means from the same 15-minute archive",
         },
         "observedArchive": {"startDate": observed_payload.get("archiveStartDate"), "endDate": observed_payload.get("archiveEndDate")},
         "method": {
-            "historic": "independent high-tide peaks separated by at least six hours; parcel floods when peak NAVD88 level is at or above centroid elevation",
-            "baselineRebase": f"each observed peak adjusted to {CURRENT_YEAR} using Cape May relative sea-level trend",
-            "cdf": "empirical CDF of present-year-rebased independent high-tide peaks",
-            "future": "empirical exceedance probability multiplied by 705 expected astronomical high tides per year after annual interpolation of rebased NOAA scenario offsets",
+            "historic": "independent Stone Harbor high-tide peaks separated by at least six hours; parcel floods when peak NAVD88 level is at or above the parcel's highest intersecting original five-foot DEM cell",
+            "baselineRebase": f"each observed Stone Harbor peak adjusted to 1 January {CURRENT_YEAR} using the fitted local observed trend",
+            "seaLevelCurves": f"quadratic least-squares fits to each NOAA 2022 median scenario, evaluated annually and rebased to zero in {CURRENT_YEAR}; the observed local trend remains linear",
+            "cdf": "empirical exceedance CDF of present-year-rebased independent high-tide peaks",
+            "uncertainty": "two-sided 95 percent Wilson score interval for the empirical exceedance probability at every elevation, year, and curve",
+            "future": "CDF exceedance probability and its 95 percent bounds multiplied by 705 expected astronomical high tides per year",
         },
         "annualRelativeSeaLevelTrendFt": round(annual_trend_ft, 6),
+        "observedTrendFit": trend_metadata,
         "highTidePeakCount": len(events),
         "calendarYearCount": len(years_with_data),
         "observedDurationYears": round(observed_duration_years, 3),
@@ -229,9 +348,10 @@ def build_cdf_payload(
         "elevationGridFtNavd88": ELEVATION_GRID_FT.tolist(),
         "years": YEARS,
         "scenarioSlrDeltaFtFrom2026": slr_deltas,
+        "scenarioCurves": curve_metadata,
+        "scenarioOrder": list(slr_deltas),
         "historicFloodEventCountByElevation": historical_counts,
         "annualFloodEventCount": annual_counts,
-        "cumulativeFloodEventCount2026Through2100": cumulative_counts,
     }
 
 
@@ -250,6 +370,8 @@ class DemSampler:
         source_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         target_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         self.transform = osr.CoordinateTransformation(source_srs, target_srs)
+        self.reverse_transform = osr.CoordinateTransformation(target_srs, source_srs)
+        self.geo_transform = self.ds.GetGeoTransform()
 
     def sample(self, lon: float, lat: float) -> tuple[float | None, str]:
         x, y, _ = self.transform.TransformPoint(lon, lat)
@@ -275,6 +397,71 @@ class DemSampler:
             best = int(np.argmin(distances))
             return float(data[rows[best], cols[best]]), f"nearest-valid-cell-{radius}"
         return None, "unavailable"
+
+    @staticmethod
+    def _first_grid_index(start: int) -> int:
+        remainder = (start - FIVE_FOOT_GRID_CENTER_OFFSET) % FIVE_FOOT_GRID_STRIDE
+        return start if remainder == 0 else start + (FIVE_FOOT_GRID_STRIDE - remainder)
+
+    def sample_parcel_highest_five_foot_cell(
+        self, source_geometry: ogr.Geometry
+    ) -> tuple[float | None, str, float | None, float | None]:
+        geometry = source_geometry.Clone()
+        geometry.Transform(self.transform)
+        min_x, max_x, min_y, max_y = geometry.GetEnvelope()
+        corner_pixels = [
+            gdal.ApplyGeoTransform(self.inv, x, y)
+            for x, y in ((min_x, min_y), (min_x, max_y), (max_x, min_y), (max_x, max_y))
+        ]
+        cols = [pixel[0] for pixel in corner_pixels]
+        rows = [pixel[1] for pixel in corner_pixels]
+        col_min = max(0, int(math.floor(min(cols))))
+        col_max = min(self.ds.RasterXSize - 1, int(math.ceil(max(cols))))
+        row_min = max(0, int(math.floor(min(rows))))
+        row_max = min(self.ds.RasterYSize - 1, int(math.ceil(max(rows))))
+        first_col = self._first_grid_index(col_min)
+        first_row = self._first_grid_index(row_min)
+        candidate_cols = list(range(first_col, col_max + 1, FIVE_FOOT_GRID_STRIDE))
+        candidate_rows = list(range(first_row, row_max + 1, FIVE_FOOT_GRID_STRIDE))
+        if not candidate_cols or not candidate_rows:
+            centroid = source_geometry.Centroid()
+            value, method = self.sample(centroid.GetX(), centroid.GetY())
+            return value, f"{method}-fallback-no-five-foot-center", centroid.GetX(), centroid.GetY()
+
+        xoff, yoff = min(candidate_cols), min(candidate_rows)
+        xsize = max(candidate_cols) - xoff + 1
+        ysize = max(candidate_rows) - yoff + 1
+        data = self.band.ReadAsArray(xoff, yoff, xsize, ysize)
+        candidates: list[tuple[float, int, int]] = []
+        for row in candidate_rows:
+            for col in candidate_cols:
+                value = float(data[row - yoff, col - xoff])
+                if not math.isfinite(value) or (self.nodata is not None and value == self.nodata):
+                    continue
+                candidates.append((value, col, row))
+        candidates.sort(reverse=True)
+
+        for value, col, row in candidates:
+            x = (
+                self.geo_transform[0]
+                + (col + 0.5) * self.geo_transform[1]
+                + (row + 0.5) * self.geo_transform[2]
+            )
+            y = (
+                self.geo_transform[3]
+                + (col + 0.5) * self.geo_transform[4]
+                + (row + 0.5) * self.geo_transform[5]
+            )
+            point = ogr.Geometry(ogr.wkbPoint)
+            point.AddPoint(x, y)
+            if not geometry.Intersects(point):
+                continue
+            lon, lat, _ = self.reverse_transform.TransformPoint(x, y)
+            return value, "highest-intersecting-original-five-foot-cell", lon, lat
+
+        centroid = source_geometry.Centroid()
+        value, method = self.sample(centroid.GetX(), centroid.GetY())
+        return value, f"{method}-fallback-no-intersecting-five-foot-center", centroid.GetX(), centroid.GetY()
 
 
 def sanitize(value):
@@ -374,7 +561,7 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
             continue
         centroid = geometry.Centroid()
         lon, lat = centroid.GetX(), centroid.GetY()
-        elevation, sample_method = sampler.sample(lon, lat)
+        elevation, sample_method, analysis_lon, analysis_lat = sampler.sample_parcel_highest_five_foot_cell(geometry)
         if elevation is None:
             skipped += 1
             continue
@@ -400,6 +587,8 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
                     "yearBuilt": sanitize(attrs.get("YR_CONSTR")),
                     "centroidLon": round(lon, 7),
                     "centroidLat": round(lat, 7),
+                    "analysisLon": round(float(analysis_lon), 7) if analysis_lon is not None else None,
+                    "analysisLat": round(float(analysis_lat), 7) if analysis_lat is not None else None,
                     "elevationNavd88Ft": round(elevation, 2),
                     "modelElevationNavd88Ft": elevation_grid[grid_index],
                     "modelElevationIndex": grid_index,
@@ -415,11 +604,11 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
             print(f"Processed {index:,}/{len(features):,} parcels")
     return {
         "type": "FeatureCollection",
-        "name": "North Wildwood MOD-IV parcels with centroid flood alerts",
+        "name": "North Wildwood MOD-IV parcels with flood history and projections",
         "metadata": {
             "source": "NJGIN Parcels and MOD-IV Composite of New Jersey",
             "municipalityCode": "0507",
-            "centroidRule": "geometric polygon centroid",
+            "parcelElevationRule": "highest original five-foot DEM cell whose center intersects the parcel",
             "elevationDatum": "NAVD88 feet",
             "parcelCount": len(output_features),
             "skippedParcelCount": skipped,
@@ -429,25 +618,23 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
     }
 
 
-def cape_may_trend_ft_per_year(payload: dict) -> float:
-    rows = payload.get("SeaLvlTrends", [])
-    if not rows:
-        raise RuntimeError("NOAA Cape May trend response had no rows")
-    inches_per_decade = float(rows[0]["trend"])
-    return inches_per_decade / 12.0 / 10.0
-
-
 def build(args: argparse.Namespace) -> dict:
     output_dir = args.output.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     observed_times, observed_levels, observed_payload = decode_observed_archive(args.observed.resolve())
-    trend_payload = fetch_json(NOAA_TREND_URL)
     slr_payload = fetch_json(NOAA_SLR_URL)
-    annual_trend_ft = cape_may_trend_ft_per_year(trend_payload)
+    annual_trend_ft, trend_metadata = fit_stone_harbor_trend(observed_times, observed_levels)
     events, rebased_peaks = extract_high_tide_events(observed_times, observed_levels, annual_trend_ft)
     if not rebased_peaks:
         raise RuntimeError("No independent high-tide events could be extracted")
-    cdf = build_cdf_payload(observed_payload, events, rebased_peaks, annual_trend_ft, slr_payload)
+    cdf = build_cdf_payload(
+        observed_payload,
+        events,
+        rebased_peaks,
+        annual_trend_ft,
+        slr_payload,
+        trend_metadata,
+    )
     cdf_path = output_dir / "NorthWildwoodHouseAlertCDF.json"
     cdf_path.write_text(json.dumps(cdf, separators=(",", ":")) + "\n", encoding="utf-8")
 

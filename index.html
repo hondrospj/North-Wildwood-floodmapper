@@ -14167,6 +14167,12 @@ html.win-compact-ui #timelineDock #hourSlider{
               </div>
             </div>
             <div class="layer-item">
+              <div id="buildingsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show buildings above floodwater"></div>
+              <div class="layer-meta">
+                <div class="layer-name">Buildings</div>
+              </div>
+            </div>
+            <div class="layer-item">
               <div id="parcelsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show parcels"></div>
               <div class="layer-meta">
                 <div class="layer-name">Parcels</div>
@@ -14405,6 +14411,26 @@ html.win-compact-ui #timelineDock #hourSlider{
     </div>
   </div>
 
+  <div id="floodHistoryBackdrop" class="flood-history-backdrop" hidden aria-hidden="true">
+    <aside id="floodHistoryPane" class="flood-history-pane" role="dialog" aria-modal="true" aria-labelledby="floodHistoryTitle">
+      <header class="flood-history-head">
+        <div>
+          <span class="flood-history-eyebrow">Building flood profile</span>
+          <h2 id="floodHistoryTitle">Flood History &amp; Projections</h2>
+          <p id="floodHistoryAddress">Selected North Wildwood parcel</p>
+        </div>
+        <button id="floodHistoryCloseBtn" class="flood-history-close" type="button" aria-label="Close flood history and projections">×</button>
+      </header>
+      <div id="floodHistoryBody" class="flood-history-body">
+        <div class="flood-history-loading" role="status">
+          <span class="flood-history-spinner" aria-hidden="true"></span>
+          <strong>Preparing this building’s flood profile…</strong>
+          <span>Loading the projection model only when you need it.</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+
   <div id="playbackStillThereModal" class="datum-modal" hidden>
     <div class="datum-modal-card playback-still-there-card" role="dialog" aria-modal="true" aria-labelledby="playbackStillThereTitle">
       <div class="datum-modal-head">
@@ -14485,10 +14511,62 @@ html.win-compact-ui #timelineDock #hourSlider{
     .house-alert-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px;text-align:right}.house-alert-table th:first-child,.house-alert-table td:first-child{text-align:left}
     .house-alert-table th,.house-alert-table td{padding:4px;border-bottom:1px solid #e2e8f0}.house-alert-note{margin-top:8px;color:#64748b;font-size:10px;line-height:1.35}
     .depth-query-popup{color:#0f172a;min-width:240px;max-width:calc(100vw - 70px);font:16px/1.25 Inter,system-ui,sans-serif;text-align:center}.depth-query-popup h3{margin:0 0 10px;font-size:20px}.depth-query-value{font-size:48px;line-height:1;font-weight:950;color:#0b4f94;letter-spacing:-.03em}
+    .leaflet-popup-pane{z-index:800 !important}
+    .shorely-flood-popup .leaflet-popup-content-wrapper{
+      border:1px solid rgba(125,249,255,.34);border-radius:18px;
+      background:rgba(8,15,31,.97);color:#edf7ff;
+      box-shadow:0 20px 55px rgba(2,6,23,.48),inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    .shorely-flood-popup .leaflet-popup-content{margin:16px 18px 17px}
+    .shorely-flood-popup .leaflet-popup-tip{background:#08101f;border:1px solid rgba(125,249,255,.2)}
+    .shorely-flood-popup .leaflet-popup-close-button{top:5px!important;right:7px!important;width:30px!important;height:30px!important;color:#d8f9ff!important;font-size:23px!important}
+    .shorely-flood-popup .depth-query-popup,.shorely-flood-popup .house-alert-popup,.shorely-flood-popup .town-address-popup{color:#edf7ff}
+    .shorely-flood-popup .depth-query-popup h3{color:#c9d8ee}
+    .shorely-flood-popup .depth-query-value{color:#7df9ff}
+    .house-alert-popup{min-width:min(300px,calc(100vw - 92px));max-width:340px;color:#edf7ff}
+    .house-alert-popup .house-alert-kicker{display:block;margin-bottom:4px;color:#7df9ff;font-size:10px;font-weight:950;letter-spacing:.09em;text-transform:uppercase}
+    .house-alert-popup h3{margin:0 30px 4px 0;color:#fff;font-size:18px;line-height:1.15}
+    .house-alert-popup .house-sub{margin:0 0 12px;color:#a9bad3;font-size:12px}
+    .house-alert-summary{display:flex;align-items:baseline;gap:7px;margin-bottom:13px;padding:11px 12px;border:1px solid rgba(125,249,255,.18);border-radius:13px;background:rgba(14,116,144,.15)}
+    .house-alert-summary strong{color:#fff;font-size:27px;line-height:1}.house-alert-summary span{color:#c7d7ec;font-size:12px;font-weight:800}
+    .house-alert-cta{width:100%;min-height:42px;border:1px solid #67e8f9;border-radius:12px;background:linear-gradient(135deg,#0e7490,#2563eb);color:#fff;font-size:12px;font-weight:950;cursor:pointer;box-shadow:0 9px 22px rgba(14,116,144,.26)}
+    .flood-history-backdrop{position:fixed;inset:0;z-index:24000;background:rgba(2,6,23,.46);backdrop-filter:blur(3px)}
+    .flood-history-backdrop[hidden]{display:none!important}
+    .flood-history-pane{position:absolute;top:0;right:0;width:min(500px,calc(100vw - 32px));height:100dvh;display:flex;flex-direction:column;color:#edf7ff;background:linear-gradient(180deg,#0a1427 0%,#07101f 100%);border-left:1px solid rgba(125,249,255,.25);box-shadow:-28px 0 75px rgba(2,6,23,.6);animation:floodHistoryIn .24s ease-out}
+    @keyframes floodHistoryIn{from{transform:translateX(30px);opacity:.2}to{transform:none;opacity:1}}
+    .flood-history-head{display:flex;justify-content:space-between;gap:18px;padding:24px 24px 18px;border-bottom:1px solid rgba(148,163,184,.14);background:rgba(8,15,31,.88)}
+    .flood-history-eyebrow{display:block;margin-bottom:7px;color:#7df9ff;font-size:10px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}
+    .flood-history-head h2{margin:0;color:#fff;font-size:24px;line-height:1.08;letter-spacing:-.035em}
+    .flood-history-head p{margin:7px 0 0;color:#a9bad3;font-size:12px;line-height:1.35}
+    .flood-history-close{flex:0 0 auto;width:38px;height:38px;border:1px solid rgba(255,255,255,.13);border-radius:50%;background:rgba(255,255,255,.06);color:#fff;font-size:25px;cursor:pointer}
+    .flood-history-body{flex:1;overflow:auto;padding:18px 24px max(28px,env(safe-area-inset-bottom))}
+    .flood-history-loading{min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#a9bad3;text-align:center;font-size:12px}
+    .flood-history-loading strong{color:#fff;font-size:15px}.flood-history-spinner{width:36px;height:36px;border:3px solid rgba(125,249,255,.18);border-top-color:#7df9ff;border-radius:50%;animation:floodHistorySpin .8s linear infinite}
+    @keyframes floodHistorySpin{to{transform:rotate(360deg)}}
+    .flood-history-hero{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin-bottom:17px}
+    .flood-history-stat{padding:15px;border:1px solid rgba(125,249,255,.16);border-radius:17px;background:rgba(15,31,54,.78)}
+    .flood-history-stat span{display:block;color:#9fb2ca;font-size:10px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}
+    .flood-history-stat strong{display:block;margin:5px 0 4px;color:#fff;font-size:28px;line-height:1;letter-spacing:-.04em}.flood-history-stat small{color:#8fa5bf;font-size:10px;line-height:1.25}
+    .flood-history-section{margin-top:16px;padding:16px;border:1px solid rgba(148,163,184,.13);border-radius:18px;background:rgba(13,26,47,.68)}
+    .flood-history-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.flood-history-section h3{margin:0;color:#fff;font-size:15px}.flood-history-section-head p{margin:4px 0 0;color:#8fa5bf;font-size:10px}
+    .flood-scenario-chips{display:flex;gap:7px;overflow-x:auto;padding:1px 1px 7px;scrollbar-width:thin}
+    .flood-scenario-chip{flex:0 0 auto;min-height:32px;padding:0 11px;border:1px solid rgba(148,163,184,.2);border-radius:999px;background:rgba(255,255,255,.04);color:#b8c8dc;font-size:10px;font-weight:900;cursor:pointer}
+    .flood-scenario-chip.active{border-color:var(--scenario-color,#7df9ff);color:#fff;box-shadow:inset 0 0 0 1px var(--scenario-color,#7df9ff);background:rgba(255,255,255,.08)}
+    .flood-projection-chart{display:block;width:100%;height:auto;overflow:visible}
+    .flood-chart-grid{stroke:rgba(148,163,184,.18);stroke-width:1}.flood-chart-axis{fill:#8095af;font-size:9px;font-family:Inter,system-ui,sans-serif}.flood-chart-band{fill:var(--scenario-color,#7df9ff);opacity:.14}.flood-chart-line{fill:none;stroke:var(--scenario-color,#7df9ff);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.flood-chart-dot{fill:#07101f;stroke:var(--scenario-color,#7df9ff);stroke-width:3}
+    .flood-year-control{display:grid;grid-template-columns:1fr 122px;gap:13px;align-items:center;margin-top:12px}.flood-year-control input{width:100%;accent-color:var(--scenario-color,#7df9ff)}
+    .flood-year-readout{padding:10px;border:1px solid rgba(125,249,255,.18);border-radius:13px;background:rgba(2,6,23,.35);text-align:right}.flood-year-readout span{display:block;color:#7df9ff;font-size:10px;font-weight:900}.flood-year-readout strong{display:block;margin:3px 0;color:#fff;font-size:19px}.flood-year-readout small{display:block;color:#91a5bd;font-size:9px}
+    .flood-milestones{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:12px}.flood-milestone{padding:9px 6px;border-radius:12px;background:rgba(255,255,255,.045);text-align:center}.flood-milestone span{display:block;color:#8fa5bf;font-size:9px;font-weight:900}.flood-milestone strong{display:block;margin-top:4px;color:#fff;font-size:13px}
+    .flood-history-method{margin-top:16px;color:#8397b0;font-size:10px;line-height:1.5}.flood-history-error{padding:18px;border:1px solid rgba(251,113,133,.3);border-radius:16px;background:rgba(159,18,57,.12);color:#fecdd3;font-size:12px;line-height:1.5}
     @media (max-width:900px),(max-height:560px){
       .timeline-interval-toggle{width:168px !important;min-width:168px !important}
       .timeline-interval-toggle button{font-size:9px !important;padding:0 3px !important}
       .mapper-tutorial-card{left:14px !important;right:14px !important;bottom:14px !important;top:auto !important;width:auto;max-height:42vh}
+      .flood-history-backdrop{background:rgba(2,6,23,.58)}
+      .flood-history-pane{top:auto;bottom:0;width:100%;height:min(91dvh,820px);border-left:0;border-top:1px solid rgba(125,249,255,.3);border-radius:24px 24px 0 0;animation:floodHistoryMobileIn .24s ease-out}
+      @keyframes floodHistoryMobileIn{from{transform:translateY(35px);opacity:.25}to{transform:none;opacity:1}}
+      .flood-history-head{padding:18px 18px 15px}.flood-history-head h2{font-size:21px}.flood-history-body{padding:15px 16px max(24px,env(safe-area-inset-bottom))}
+      .flood-history-section{padding:14px}.flood-milestones{grid-template-columns:repeat(2,minmax(0,1fr))}
     }
     @media (max-width:360px){.timeline-interval-toggle{width:154px !important;min-width:154px !important}}
   </style>
@@ -14881,11 +14959,45 @@ function cloneStyleObject(value) {
       return next;
     }
 
-    function makeEsriBuildingBasemapLayer() {
+    function styleEsriBuildingForeground(style) {
+      const next = cloneStyleObject(style);
+      if (!Array.isArray(next.layers)) return next;
+
+      next.layers = next.layers.map(layer => {
+        const id = String(layer?.id || "").toLowerCase();
+        const sourceLayer = String(layer?.["source-layer"] || "").toLowerCase();
+        const isBuildingLayer = /(building|footprint|structure)/.test(`${id} ${sourceLayer}`);
+        const isBuildingGeometry = isBuildingLayer && (layer?.type === "fill" || layer?.type === "line");
+        if (!isBuildingGeometry) {
+          return {
+            ...layer,
+            layout: {
+              ...(layer.layout || {}),
+              visibility: "none"
+            }
+          };
+        }
+
+        const paint = { ...(layer.paint || {}) };
+        if (layer.type === "fill") {
+          paint["fill-color"] = "#ddd7cb";
+          paint["fill-opacity"] = 0.98;
+          paint["fill-outline-color"] = "#bcb2a2";
+        } else {
+          paint["line-color"] = "#b8ad9d";
+          paint["line-opacity"] = 1;
+          paint["line-width"] = 1.05;
+        }
+        return { ...layer, paint };
+      });
+      return next;
+    }
+
+    function makeEsriBuildingBasemapLayer(paneName = "basemapColorPane") {
       if (!(window.L && L.esri && L.esri.Vector && L.esri.Vector.vectorTileLayer)) return null;
 
       const options = {
-        pane: "basemapColorPane",
+        pane: paneName,
         preserveDrawingBuffer: true,
         style: styleEsriBuildingBasemap
       };
@@ -14894,14 +15006,27 @@ function cloneStyleObject(value) {
       return L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);
     }
 
+    function makeEsriBuildingForegroundLayer(paneName = "buildingsPane") {
+      if (!(window.L && L.esri && L.esri.Vector && L.esri.Vector.vectorTileLayer)) return null;
+      const options = {
+        pane: paneName,
+        preserveDrawingBuffer: true,
+        style: styleEsriBuildingForeground
+      };
+      if (ESRI_API_KEY) options.apikey = ESRI_API_KEY;
+      return L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);
+    }
+
     let map = null;
     let basemapGrayLayer = null;
     let basemapColorLayer = null;
     let satelliteLayer = null;
     let roadsLayer = null;
+    let buildingsLayer = null;
     let parcelsLayer = null;
     let parcelFeatures = [];
     let houseAlertCdfData = null;
+    let houseAlertCdfPromise = null;
     let parcelLoadPromise = null;
     let depthQueryGridPromise = null;
     let depthQueryImagePromise = null;
@@ -14911,11 +15036,14 @@ function cloneStyleObject(value) {
     let cityBoundaryMask = null;
     let cityBoundaryGuide = null;
     let townAddressMarker = null;
+    let persistentFloodPopup = null;
+    let selectedParcelFeature = null;
 
     let exportMap = null;
     let exportBasemapColorLayer = null;
     let exportSatelliteLayer = null;
     let exportRoadsLayer = null;
+    let exportBuildingsLayer = null;
     let exportBoundaryOutline = null;
     let exportBoundaryMask = null;
     let exportFloodLayer = null;
@@ -14943,6 +15071,7 @@ function cloneStyleObject(value) {
     let observedHourIndexByDateHour = new Map();
     let topTideEvents = [];
     let historicTopTideEntries = [];
+    let backgroundDataPromise = null;
     let currentMonthKey = null;
     let selectedObservedDate = null;
 
@@ -16885,6 +17014,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       map.createPane("boundaryPane");
       map.createPane("floodPane");
       map.createPane("parcelsPane");
+      map.createPane("buildingsPane");
       map.createPane("roadsPane");
       map.createPane("maskPane");
       map.getPane("basemapGrayPane").style.zIndex = 180;
@@ -16893,8 +17023,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       map.getPane("boundaryPane").style.zIndex = 640;
       map.getPane("floodPane").style.zIndex = 500;
       map.getPane("parcelsPane").style.zIndex = 610;
+      map.getPane("buildingsPane").style.zIndex = 620;
       map.getPane("roadsPane").style.zIndex = 710;
       map.getPane("maskPane").style.zIndex = 630;
+      map.getPane("popupPane").style.zIndex = 800;
 
       basemapGrayLayer = null;
       basemapColorLayer = makeEsriBuildingBasemapLayer();
@@ -16986,6 +17118,35 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         map.removeLayer(satelliteLayer);
       }
       updateExportSatelliteLayer();
+    }
+
+    async function setBuildingsEnabled(enabled) {
+      const shouldEnable = Boolean(enabled);
+      const toggle = document.getElementById("buildingsToggle");
+      if (toggle) {
+        toggle.classList.toggle("on", shouldEnable);
+        toggle.setAttribute("aria-checked", String(shouldEnable));
+      }
+      if (!map) ensureMap();
+      if (!shouldEnable) {
+        if (buildingsLayer && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
+        updateExportBuildingsLayer();
+        toast("");
+        return;
+      }
+
+      if (!buildingsLayer) {
+        buildingsLayer = makeEsriBuildingForegroundLayer("buildingsPane");
+        if (!buildingsLayer) throw new Error("The exact building layer is unavailable in this browser.");
+        buildingsLayer.on("error", () => {
+          setBuildingsEnabled(false).catch(() => {});
+          toast("The exact building layer could not be loaded.");
+        });
+      }
+      if (!map.hasLayer(buildingsLayer)) buildingsLayer.addTo(map);
+      updateExportBuildingsLayer();
+      toast("Buildings are above the water. Tap a building to see its flood history and projections.");
+      ensureParcelAssets().catch(error => console.warn("Building parcel matching will retry when requested.", error));
     }
 
     function updateRoadLayerAppearance() {
@@ -19068,12 +19229,14 @@ function updateExportSegmentedUI() {
       exportMap.createPane("satellitePane");
       exportMap.createPane("boundaryPane");
       exportMap.createPane("floodPane");
+      exportMap.createPane("buildingsPane");
       exportMap.createPane("roadsPane");
       exportMap.createPane("maskPane");
       exportMap.getPane("basemapColorPane").style.zIndex = 190;
       exportMap.getPane("satellitePane").style.zIndex = 200;
       exportMap.getPane("boundaryPane").style.zIndex = 640;
       exportMap.getPane("floodPane").style.zIndex = 500;
+      exportMap.getPane("buildingsPane").style.zIndex = 620;
       exportMap.getPane("roadsPane").style.zIndex = 710;
       exportMap.getPane("maskPane").style.zIndex = 630;
 
@@ -19134,6 +19297,7 @@ function updateExportSegmentedUI() {
         pane: "roadsPane"
       }).addTo(exportMap);
 
+      updateExportBuildingsLayer();
       exportBoundaryMask = makeExportBoundaryMask().addTo(exportMap);
       exportBoundaryOutline = makeExportBoundaryVector({
         color: getComputedStyle(document.documentElement).getPropertyValue("--boundary-red").trim() || "#ef4444",
@@ -19154,6 +19318,21 @@ function updateExportSegmentedUI() {
         if (!exportMap.hasLayer(exportSatelliteLayer)) exportSatelliteLayer.addTo(exportMap);
       } else if (exportMap.hasLayer(exportSatelliteLayer)) {
         exportMap.removeLayer(exportSatelliteLayer);
+      }
+    }
+
+    function updateExportBuildingsLayer() {
+      if (!exportMap) return;
+      const enabled = document.getElementById("buildingsToggle")?.classList.contains("on");
+      if (enabled) {
+        if (!exportBuildingsLayer) {
+          exportBuildingsLayer = makeEsriBuildingForegroundLayer("buildingsPane");
+        }
+        if (exportBuildingsLayer && !exportMap.hasLayer(exportBuildingsLayer)) {
+          exportBuildingsLayer.addTo(exportMap);
+        }
+      } else if (exportBuildingsLayer && exportMap.hasLayer(exportBuildingsLayer)) {
+        exportMap.removeLayer(exportBuildingsLayer);
       }
     }
 
@@ -19448,7 +19627,7 @@ function updateExportSegmentedUI() {
 
     async function captureExportRoadLabelsCanvas() {
       const canvas = await captureExportLayerCanvas({
-        hiddenPaneNames: ["basemapColorPane", "satellitePane", "floodPane", "boundaryPane", "maskPane"],
+        hiddenPaneNames: ["basemapColorPane", "satellitePane", "floodPane", "buildingsPane", "boundaryPane", "maskPane"],
         hideTimestamp: true,
         hideLegend: true,
         hideLogo: true
@@ -21308,7 +21487,6 @@ function formatSelectedObservedDate(dateStr) {
 
       const entry = currentSeriesHours[index];
       if (!entry) return;
-      if (map) map.closePopup();
 
       currentHourIndex = index;
 
@@ -21357,8 +21535,10 @@ function formatSelectedObservedDate(dateStr) {
       updateSliderProgress();
     }
 
-    async function loadForecast(preferredEntry = null) {
-      forecastData = await fetchJson(withFreshJsonUrl(FORECAST_URL));
+    async function loadForecast(preferredEntry = null, options = {}) {
+      if (!forecastData || options.forceRefresh) {
+        forecastData = await fetchJson(withFreshJsonUrl(FORECAST_URL));
+      }
       clearExportAvailabilityCache();
       currentRawSeriesHours = getActiveForecastHours();
       currentSeriesHours = buildForecastDisplaySeries(currentRawSeriesHours);
@@ -21371,7 +21551,12 @@ function formatSelectedObservedDate(dateStr) {
         : getForecastScenarioLabel();
 
       syncSliderBounds();
-      currentHourIndex = preferredEntry ? findClosestEntryIndex(currentSeriesHours, preferredEntry) : getPeakHourIndex(currentSeriesHours);
+      const currentTimeEntry = options.selectCurrent ? { timeUtc: new Date().toISOString() } : null;
+      currentHourIndex = preferredEntry
+        ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
+        : currentTimeEntry
+          ? findClosestEntryIndex(currentSeriesHours, currentTimeEntry)
+          : getPeakHourIndex(currentSeriesHours);
       document.getElementById("hourSlider").value = String(currentHourIndex);
     }
 
@@ -21989,6 +22174,7 @@ function populateCalendarSelectors() {
 
       currentDataMode = "observed";
       updateDataModeButtons();
+      await warmBackgroundData();
       await loadObserved();
       await renderCalendar();
 
@@ -22000,59 +22186,78 @@ function populateCalendarSelectors() {
       }
     }
 
+    async function warmBackgroundData() {
+      if (backgroundDataPromise) return backgroundDataPromise;
+      backgroundDataPromise = (async () => {
+        const [observedCompact, lewesArchive, historicalTopTides] = await Promise.all([
+          fetchJson(withFreshJsonUrl(OBSERVED_15MIN_URL)).catch(() => null),
+          fetchJson(withFreshJsonUrl(LEWES_HOURLY_URL)).catch(() => null),
+          fetchJson(withFreshJsonUrl(TOP_TIDES_URL)).catch(() => null)
+        ]);
+        observed15MinuteData = observedCompact;
+        observed15MinuteDaysByDate = new Map((observedCompact?.days || []).map(day => [day.d, day]));
+        lewesHourlyData = lewesArchive;
+        observedData = observedCompact ? buildObservedIndexFrom15MinuteArchive(observedCompact, lewesArchive) : null;
+        historicTopTideEntries = historicalTopTides
+          ? (Array.isArray(historicalTopTides?.toptides) ? historicalTopTides.toptides : Array.isArray(historicalTopTides) ? historicalTopTides : [])
+              .map(normalizeTopTidesJsonEntry)
+              .filter(Boolean)
+          : [];
+        observedDaysCache = null;
+        observedMonthKeys = [];
+        observedFlatHours = [];
+        observedHourIndexByDateHour = new Map();
+        topTideEvents = [];
+        if (observedData) {
+          await loadObserved();
+        } else {
+          topTideEvents = buildTopTideEvents();
+          renderTopTides();
+        }
+        checkNwsAlerts().catch(() => {});
+        return observedData;
+      })().catch(error => {
+        backgroundDataPromise = null;
+        console.warn("Background flood history loading will retry when requested.", error);
+        return null;
+      });
+      return backgroundDataPromise;
+    }
+
+    function scheduleBackgroundDataWarmup() {
+      const start = () => warmBackgroundData();
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(start, { timeout: 1400 });
+      } else {
+        window.setTimeout(start, 180);
+      }
+    }
+
     async function reloadAll() {
       stopPlayback();
       clearFloodLayer();
       toast("");
       imageExistsCache = new Map();
-
-      const [forecast, observedCompact, lewesArchive, historicalTopTides] = await Promise.all([
-        fetchJson(withFreshJsonUrl(FORECAST_URL)),
-        fetchJson(withFreshJsonUrl(OBSERVED_15MIN_URL)).catch(() => null),
-        fetchJson(withFreshJsonUrl(LEWES_HOURLY_URL)).catch(() => null),
-        fetchJson(withFreshJsonUrl(TOP_TIDES_URL)).catch(() => null)
-      ]);
-
-      forecastData = forecast;
-      observed15MinuteData = observedCompact;
-      observed15MinuteDaysByDate = new Map((observedCompact?.days || []).map(day => [day.d, day]));
-      lewesHourlyData = lewesArchive;
-      observedData = observedCompact ? buildObservedIndexFrom15MinuteArchive(observedCompact, lewesArchive) : null;
-      historicTopTideEntries = historicalTopTides
-        ? (Array.isArray(historicalTopTides?.toptides) ? historicalTopTides.toptides : Array.isArray(historicalTopTides) ? historicalTopTides : [])
-            .map(normalizeTopTidesJsonEntry)
-            .filter(Boolean)
-        : [];
+      forecastData = null;
+      observed15MinuteData = null;
+      observed15MinuteDaysByDate = new Map();
+      lewesHourlyData = null;
+      observedData = null;
+      historicTopTideEntries = [];
+      backgroundDataPromise = null;
       observedDaysCache = null;
       clearExportAvailabilityCache();
       observedMonthKeys = [];
       observedFlatHours = [];
       observedHourIndexByDateHour = new Map();
       topTideEvents = [];
-
-      if (observedData) {
-        await loadObserved();
-      } else {
-        topTideEvents = buildTopTideEvents();
-        renderTopTides();
-      }
-
-      if (currentDataMode === "observed") {
-        const defaultDate = (currentViewType === "top-tide" ? null : selectedObservedDate) || getLatestObservedDate();
-        if (defaultDate) {
-          await loadObservedDay(defaultDate);
-        } else {
-          currentDataMode = "forecast";
-          updateDataModeButtons();
-          await loadForecast();
-          await renderHour(currentHourIndex);
-        }
-      } else {
-        await loadForecast();
-        await renderHour(currentHourIndex);
-      }
-
-      checkNwsAlerts().catch(() => {});
+      currentDataMode = "forecast";
+      currentViewType = "forecast";
+      updateDataModeButtons();
+      renderTopTides();
+      await loadForecast(null, { selectCurrent: true, forceRefresh: true });
+      await renderHour(currentHourIndex);
+      scheduleBackgroundDataWarmup();
     }
 
     function updatePlayPauseButton() {
@@ -22263,19 +22468,288 @@ function startPlayback() {
       return n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(n < 10 ? 1 : 0);
     }
 
+    function formatFloodIntervalValue(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "—";
+      if (n <= 0) return "0";
+      if (n < 0.1) return "<0.1";
+      if (n < 10) return n.toFixed(1);
+      return n >= 100 ? Math.round(n).toLocaleString() : Math.round(n).toString();
+    }
+
+    const FLOOD_PROJECTION_SCENARIOS = {
+      observedTrend: { label: "Existing trend", color: "#e2e8f0" },
+      low: { label: "NOAA Low", color: "#2dd4bf" },
+      intermediateLow: { label: "NOAA Int. Low", color: "#38bdf8" },
+      intermediate: { label: "NOAA Intermediate", color: "#facc15" },
+      intermediateHigh: { label: "NOAA Int. High", color: "#fb923c" },
+      high: { label: "NOAA High", color: "#fb7185" }
+    };
+    let selectedFloodProjectionScenario = "intermediate";
+
+    function openPersistentFloodPopup(latlng, html, maxWidth = 360) {
+      if (!map) ensureMap();
+      if (persistentFloodPopup && map.hasLayer(persistentFloodPopup)) {
+        map.removeLayer(persistentFloodPopup);
+      }
+      const popup = L.popup({
+        className: "shorely-flood-popup",
+        maxWidth,
+        autoClose: false,
+        closeOnClick: false,
+        closeButton: true,
+        keepInView: true,
+        autoPan: true
+      })
+        .setLatLng(latlng)
+        .setContent(html)
+        .addTo(map);
+      persistentFloodPopup = popup;
+      popup.once("remove", () => {
+        if (persistentFloodPopup === popup) persistentFloodPopup = null;
+      });
+      return popup;
+    }
+
     function buildHouseAlertPopup(feature) {
       const p = feature?.properties || {};
       const historic = Number(p.historicFloodEventCount);
       const count = Number.isFinite(historic) ? historic.toLocaleString() : "—";
-      return '<div class="house-alert-popup"><span>Flooded</span><strong>' + count + ' time' + (historic === 1 ? '' : 's') + '</strong></div>';
+      const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
+      const parcel = escapeTownAddressHtml(p.parcelId || [p.block, p.lot].filter(Boolean).join(" / "));
+      return '<div class="house-alert-popup">' +
+        '<span class="house-alert-kicker">Building flood profile</span>' +
+        '<h3>' + address + '</h3>' +
+        (parcel ? '<p class="house-sub">Parcel ' + parcel + '</p>' : '<p class="house-sub">North Wildwood parcel</p>') +
+        '<div class="house-alert-summary"><strong>' + count + '</strong><span>recorded high-tide flood' + (historic === 1 ? '' : 's') + '</span></div>' +
+        '<button class="house-alert-cta" type="button">See Flood History And Projections</button>' +
+        '</div>';
+    }
+
+    function openParcelFloodPrompt(feature, latlng) {
+      selectedParcelFeature = feature;
+      const p = feature?.properties || {};
+      const popupLatLng = latlng || L.latLng(
+        Number(p.centroidLat || p.analysisLat),
+        Number(p.centroidLon || p.analysisLon)
+      );
+      return openPersistentFloodPopup(popupLatLng, buildHouseAlertPopup(feature), 380);
+    }
+
+    async function ensureFloodProjectionData() {
+      if (houseAlertCdfData) return houseAlertCdfData;
+      if (!HOUSE_ALERT_CDF_URL) throw new Error("Flood projection data is not configured.");
+      if (!houseAlertCdfPromise) {
+        houseAlertCdfPromise = fetchJson(HOUSE_ALERT_CDF_URL, { cache: "force-cache" })
+          .then(payload => {
+            if (payload?.schema !== "north-wildwood-flood-history-projections-v2") {
+              throw new Error("The flood projection dataset needs to be refreshed.");
+            }
+            houseAlertCdfData = payload;
+            return payload;
+          })
+          .catch(error => {
+            houseAlertCdfPromise = null;
+            throw error;
+          });
+      }
+      return houseAlertCdfPromise;
+    }
+
+    function closeFloodHistoryPane() {
+      const backdrop = document.getElementById("floodHistoryBackdrop");
+      if (!backdrop) return;
+      backdrop.hidden = true;
+      backdrop.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("flood-history-open");
+    }
+
+    function findProjectionElevationIndex(feature, data) {
+      const grid = Array.isArray(data?.elevationGridFtNavd88) ? data.elevationGridFtNavd88 : [];
+      const preferred = Number(feature?.properties?.modelElevationIndex);
+      if (Number.isInteger(preferred) && preferred >= 0 && preferred < grid.length) return preferred;
+      const elevation = Number(feature?.properties?.modelElevationNavd88Ft ?? feature?.properties?.elevationNavd88Ft);
+      let bestIndex = 0;
+      let bestDifference = Infinity;
+      grid.forEach((candidate, index) => {
+        const difference = Math.abs(Number(candidate) - elevation);
+        if (difference < bestDifference) {
+          bestDifference = difference;
+          bestIndex = index;
+        }
+      });
+      return bestIndex;
+    }
+
+    function niceProjectionMaximum(value) {
+      const n = Math.max(1, Number(value) || 1);
+      const magnitude = 10 ** Math.floor(Math.log10(n));
+      const normalized = n / magnitude;
+      const nice = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+      return nice * magnitude;
+    }
+
+    function renderProjectionChart(data, scenarioKey, elevationIndex, selectedYearIndex) {
+      const years = data.years || [];
+      const record = data.annualFloodEventCount?.[scenarioKey] || {};
+      const estimate = record.estimate?.[elevationIndex] || [];
+      const lower = record.lower95?.[elevationIndex] || [];
+      const upper = record.upper95?.[elevationIndex] || [];
+      const width = 420;
+      const height = 222;
+      const plot = { left: 44, right: 10, top: 14, bottom: 30 };
+      const plotWidth = width - plot.left - plot.right;
+      const plotHeight = height - plot.top - plot.bottom;
+      const maxValue = niceProjectionMaximum(Math.max(...upper.map(Number).filter(Number.isFinite), 1));
+      const x = index => plot.left + (years.length > 1 ? index / (years.length - 1) : 0) * plotWidth;
+      const y = value => plot.top + plotHeight - Math.min(1, Math.max(0, Number(value) / maxValue)) * plotHeight;
+      const line = estimate.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+      const band = upper.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`)
+        .concat(lower.map((value, index) => `${x(lower.length - 1 - index).toFixed(1)},${y(lower[lower.length - 1 - index]).toFixed(1)}`))
+        .join(" ");
+      const gridValues = [0, maxValue / 2, maxValue];
+      const selectedIndex = Math.max(0, Math.min(years.length - 1, selectedYearIndex));
+      const tickYears = [2026, 2050, 2075, 2100].filter(year => years.includes(year));
+      return `
+        <svg class="flood-projection-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Expected annual flood exceedances with 95 percent uncertainty">
+          ${gridValues.map(value => `<line class="flood-chart-grid" x1="${plot.left}" x2="${width - plot.right}" y1="${y(value)}" y2="${y(value)}"></line><text class="flood-chart-axis" x="${plot.left - 6}" y="${y(value) + 3}" text-anchor="end">${formatExpectedFloodCount(value)}</text>`).join("")}
+          <polygon class="flood-chart-band" points="${band}"></polygon>
+          <polyline class="flood-chart-line" points="${line}"></polyline>
+          ${tickYears.map(year => {
+            const index = years.indexOf(year);
+            return `<text class="flood-chart-axis" x="${x(index)}" y="${height - 7}" text-anchor="${year === years[0] ? "start" : year === years[years.length - 1] ? "end" : "middle"}">${year}</text>`;
+          }).join("")}
+          <circle class="flood-chart-dot" cx="${x(selectedIndex)}" cy="${y(estimate[selectedIndex])}" r="5"></circle>
+        </svg>`;
+    }
+
+    function renderFloodHistoryProjection(feature, data) {
+      const body = document.getElementById("floodHistoryBody");
+      if (!body) return;
+      const p = feature?.properties || {};
+      const years = Array.isArray(data.years) ? data.years : [];
+      const elevationIndex = findProjectionElevationIndex(feature, data);
+      const elevation = Number(data.elevationGridFtNavd88?.[elevationIndex]);
+      const historic = Number(p.historicFloodEventCount);
+      const archive = [p.historicStartDate || data.observedArchive?.startDate, p.historicEndDate || data.observedArchive?.endDate]
+        .filter(Boolean).map(value => String(value).slice(0, 10)).join("–");
+      const defaultYearIndex = Math.max(0, years.indexOf(2050));
+      const scenarioKey = data.annualFloodEventCount?.[selectedFloodProjectionScenario]
+        ? selectedFloodProjectionScenario
+        : (data.scenarioOrder || []).find(key => data.annualFloodEventCount?.[key]);
+      selectedFloodProjectionScenario = scenarioKey || "intermediate";
+      const scenario = FLOOD_PROJECTION_SCENARIOS[selectedFloodProjectionScenario] || FLOOD_PROJECTION_SCENARIOS.intermediate;
+      const record = data.annualFloodEventCount[selectedFloodProjectionScenario];
+      const estimate = record.estimate[elevationIndex];
+      const lower = record.lower95[elevationIndex];
+      const upper = record.upper95[elevationIndex];
+      const milestones = [2026, 2050, 2075, 2100].filter(year => years.includes(year));
+      body.style.setProperty("--scenario-color", scenario.color);
+      body.innerHTML = `
+        <div class="flood-history-hero">
+          <div class="flood-history-stat">
+            <span>Recorded history</span>
+            <strong>${Number.isFinite(historic) ? historic.toLocaleString() : "—"}</strong>
+            <small>independent high-tide exceedances${archive ? ` · ${escapeTownAddressHtml(archive)}` : ""}</small>
+          </div>
+          <div class="flood-history-stat">
+            <span>Parcel elevation</span>
+            <strong>${Number.isFinite(elevation) ? elevation.toFixed(1) : "—"} ft</strong>
+            <small>NAVD88 · highest intersecting original 5-ft DEM cell</small>
+          </div>
+        </div>
+        <section class="flood-history-section">
+          <div class="flood-history-section-head">
+            <div><h3>Flooding over the years</h3><p>Expected annual high-tide exceedances · shaded area is the 95% interval</p></div>
+          </div>
+          <div class="flood-scenario-chips" role="tablist" aria-label="Sea level projection curve">
+            ${(data.scenarioOrder || Object.keys(data.annualFloodEventCount)).map(key => {
+              const item = FLOOD_PROJECTION_SCENARIOS[key] || { label: key, color: "#7df9ff" };
+              return `<button class="flood-scenario-chip${key === selectedFloodProjectionScenario ? " active" : ""}" type="button" role="tab" aria-selected="${key === selectedFloodProjectionScenario}" data-flood-scenario="${escapeTownAddressHtml(key)}" style="--scenario-color:${item.color}">${escapeTownAddressHtml(item.label)}</button>`;
+            }).join("")}
+          </div>
+          <div id="floodProjectionChart">${renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, defaultYearIndex)}</div>
+          <div class="flood-year-control">
+            <input id="floodProjectionYearSlider" type="range" min="0" max="${Math.max(0, years.length - 1)}" value="${defaultYearIndex}" step="1" aria-label="Projection year">
+            <div id="floodProjectionYearReadout" class="flood-year-readout">
+              <span>${years[defaultYearIndex] || "—"}</span>
+              <strong>${formatExpectedFloodCount(estimate[defaultYearIndex])}/yr</strong>
+              <small>95%: ${formatFloodIntervalValue(lower[defaultYearIndex])}–${formatFloodIntervalValue(upper[defaultYearIndex])}</small>
+            </div>
+          </div>
+          <div class="flood-milestones">
+            ${milestones.map(year => {
+              const index = years.indexOf(year);
+              return `<div class="flood-milestone"><span>${year}</span><strong>${formatExpectedFloodCount(estimate[index])}/yr</strong></div>`;
+            }).join("")}
+          </div>
+        </section>
+        <p class="flood-history-method">Stone Harbor independent high tides are rebased to 2026 using the local observed trend. NOAA (2022) Low through High relative sea-level curves are fit quadratically and rebased to 2026; “Existing trend” continues the fitted local trend. Results are statistical parcel-screening estimates, not a guarantee that a structure will flood.</p>
+      `;
+
+      const updateSelectedYear = index => {
+        const selectedIndex = Math.max(0, Math.min(years.length - 1, Number(index) || 0));
+        const readout = document.getElementById("floodProjectionYearReadout");
+        const chart = document.getElementById("floodProjectionChart");
+        if (readout) {
+          readout.innerHTML = `<span>${years[selectedIndex]}</span><strong>${formatExpectedFloodCount(estimate[selectedIndex])}/yr</strong><small>95%: ${formatFloodIntervalValue(lower[selectedIndex])}–${formatFloodIntervalValue(upper[selectedIndex])}</small>`;
+        }
+        if (chart) chart.innerHTML = renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, selectedIndex);
+      };
+      document.getElementById("floodProjectionYearSlider")?.addEventListener("input", event => updateSelectedYear(event.target.value));
+      body.querySelectorAll("[data-flood-scenario]").forEach(button => {
+        button.addEventListener("click", () => {
+          selectedFloodProjectionScenario = button.dataset.floodScenario;
+          renderFloodHistoryProjection(feature, data);
+        });
+      });
+      requestAnimationFrame(() => {
+        body.querySelector("[data-flood-scenario].active")?.scrollIntoView({ block: "nearest", inline: "center" });
+      });
+    }
+
+    async function openFloodHistoryPane(feature) {
+      if (!feature) return;
+      selectedParcelFeature = feature;
+      const backdrop = document.getElementById("floodHistoryBackdrop");
+      const body = document.getElementById("floodHistoryBody");
+      const address = document.getElementById("floodHistoryAddress");
+      if (!backdrop || !body) return;
+      address.textContent = feature?.properties?.address || "Selected North Wildwood parcel";
+      body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';
+      backdrop.hidden = false;
+      backdrop.setAttribute("aria-hidden", "false");
+      document.body.classList.add("flood-history-open");
+      document.getElementById("floodHistoryCloseBtn")?.focus();
+      try {
+        const data = await ensureFloodProjectionData();
+        if (selectedParcelFeature === feature && !backdrop.hidden) renderFloodHistoryProjection(feature, data);
+      } catch (error) {
+        body.innerHTML = `<div class="flood-history-error"><strong>This projection could not be loaded.</strong><br>${escapeTownAddressHtml(error?.message || "Please try again in a moment.")}</div>`;
+      }
+    }
+
+    function wireFloodHistoryPane() {
+      const backdrop = document.getElementById("floodHistoryBackdrop");
+      document.getElementById("floodHistoryCloseBtn")?.addEventListener("click", closeFloodHistoryPane);
+      backdrop?.addEventListener("click", event => {
+        if (event.target === backdrop) closeFloodHistoryPane();
+      });
+      document.addEventListener("click", event => {
+        if (event.target?.closest?.(".house-alert-cta") && selectedParcelFeature) {
+          openFloodHistoryPane(selectedParcelFeature);
+        }
+      });
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && backdrop && !backdrop.hidden) closeFloodHistoryPane();
+      });
     }
 
     async function ensureParcelAssets() {
       if (parcelLoadPromise) return parcelLoadPromise;
       parcelLoadPromise = (async () => {
-        const geojson = await fetchJson(withFreshJsonUrl(PARCELS_URL));
+        const geojson = await fetchJson(PARCELS_URL, { cache: "force-cache" });
         parcelFeatures = Array.isArray(geojson?.features) ? geojson.features : [];
-        houseAlertCdfData = null;
         const parcelBounds = floodLatLngBounds || getBoundaryDrivenOverlayBounds();
         parcelsLayer = L.imageOverlay(PARCEL_BOUNDARY_PNG_URL, parcelBounds, {
           pane: "parcelsPane",
@@ -22680,19 +23154,19 @@ function startPlayback() {
     async function handleDepthQueryClick(event) {
       if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
       try {
-        if (document.getElementById("parcelsToggle")?.classList.contains("on")) {
+        const parcelInteractionEnabled =
+          document.getElementById("parcelsToggle")?.classList.contains("on") ||
+          document.getElementById("buildingsToggle")?.classList.contains("on");
+        if (parcelInteractionEnabled) {
           const parcelFeature = await findParcelFeatureForLocation(event.latlng.lat, event.latlng.lng);
           if (parcelFeature) {
-            L.popup({ maxWidth: 220 })
-              .setLatLng(event.latlng)
-              .setContent(buildHouseAlertPopup(parcelFeature))
-              .openOn(map);
+            openParcelFloodPrompt(parcelFeature, event.latlng);
             return;
           }
         }
         const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
         if (!sample) {
-          L.popup().setLatLng(event.latlng).setContent('<div class="depth-query-popup"><h3>Modeled water depth</h3><div class="depth-query-value">N/A</div></div>').openOn(map);
+          openPersistentFloodPopup(event.latlng, '<div class="depth-query-popup"><h3>Modeled water depth</h3><div class="depth-query-value">N/A</div></div>', 300);
           return;
         }
         const rawStage = getStageValue(currentSeriesHours[currentHourIndex]);
@@ -22711,7 +23185,7 @@ function startPlayback() {
         const displayedDepth = Number.isFinite(depth) ? depth : 0;
         const html = '<div class="depth-query-popup"><h3>Modeled water depth</h3>' +
           '<div class="depth-query-value">' + displayedDepth.toFixed(2) + ' ft</div></div>';
-        L.popup({ maxWidth: 300 }).setLatLng(event.latlng).setContent(html).openOn(map);
+        openPersistentFloodPopup(event.latlng, html, 300);
       } catch (err) {
         console.error("Depth query failed", err);
         toast("Depth query is temporarily unavailable.");
@@ -22737,6 +23211,21 @@ function startPlayback() {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           toggleSatellite();
+        }
+      });
+      const buildingsToggle = document.getElementById("buildingsToggle");
+      const toggleBuildings = () => {
+        const enabled = !buildingsToggle?.classList.contains("on");
+        setBuildingsEnabled(enabled).catch(error => {
+          setBuildingsEnabled(false).catch(() => {});
+          toast(error?.message || "Buildings could not be loaded.");
+        });
+      };
+      buildingsToggle?.addEventListener("click", toggleBuildings);
+      buildingsToggle?.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleBuildings();
         }
       });
       const parcelsToggle = document.getElementById("parcelsToggle");
@@ -23303,7 +23792,9 @@ function startPlayback() {
         let parcelFeature = null;
         try {
           parcelFeature = await findParcelFeatureForLocation(match.lat, match.lon);
-          if (parcelFeature) await setParcelsEnabled(true);
+          if (parcelFeature) {
+            await setBuildingsEnabled(true);
+          }
         } catch (parcelErr) {
           console.warn("House Alert parcel match was unavailable.", parcelErr);
         }
@@ -23319,14 +23810,17 @@ function startPlayback() {
           }).addTo(map);
         }
 
-        const popupContent = parcelFeature
-          ? buildHouseAlertPopup(parcelFeature)
-          : '<div class="town-address-popup"><strong>Closest match</strong>' + escapeTownAddressHtml(label) + "</div>";
-        townAddressMarker
-          .bindPopup(popupContent, { maxWidth: parcelFeature ? 220 : 370 })
-          .openPopup();
         map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });
-        setTownAddressStatus(parcelFeature ? `Flood count found: ${label}` : `Closest match: ${label}`, "success");
+        if (parcelFeature) {
+          openParcelFloodPrompt(parcelFeature, latLng);
+        } else {
+          openPersistentFloodPopup(
+            latLng,
+            '<div class="town-address-popup"><strong>Closest match</strong><br>' + escapeTownAddressHtml(label) + "</div>",
+            370
+          );
+        }
+        setTownAddressStatus(parcelFeature ? `Building flood profile found: ${label}` : `Closest match: ${label}`, "success");
       } catch (err) {
         setTownAddressStatus(err && err.message ? err.message : "Address lookup failed. Please try again.", "error");
       } finally {
@@ -24176,9 +24670,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
     }
 
     async function main() {
-      await loadMunicipalBoundary();
       ensureMap();
-      updateMunicipalBoundaryLayer();
       setOpacityText();
       updateDatumUI();
       updateObservedResolutionUI();
@@ -24189,6 +24681,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       setDownloadModalOpen(false);
       wireEvents();
       wireTownAddressLookup();
+      wireFloodHistoryPane();
       initWindowsCalendarDatebar();
       wireLegendDragOnly();
       wireMobileControlShell();
@@ -24218,6 +24711,12 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
         fitSnapshotTimeText();
       });
       await reloadAll();
+      const warmBoundary = () => loadMunicipalBoundary().catch(() => {});
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(warmBoundary, { timeout: 1600 });
+      } else {
+        window.setTimeout(warmBoundary, 220);
+      }
     }
 
     function applyMobileObservedOrdering() {
@@ -31966,9 +32465,9 @@ TOWN_CONFIG = {
     }
   },
   "parcels": {
-    "boundaryPngPath": "https://floodmapperv1.b-cdn.net/Parcels/North%20Wildwood/NorthWildwoodParcelBoundaries.png?v=20260723-parcels-v1",
-    "geojsonPath": "https://floodmapperv1.b-cdn.net/Parcels/North%20Wildwood/NorthWildwoodParcels.geojson.png?v=20260723-parcels-v1",
-    "houseAlertCdfPath": "https://floodmapperv1.b-cdn.net/Parcels/North%20Wildwood/NorthWildwoodHouseAlertCDF.json.png?v=20260723-parcels-v1"
+    "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260726-parcels-v2",
+    "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260726-parcels-v2",
+    "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260726-parcels-v2"
   },
   "addressLookup": {
     "title": "Find a North Wildwood Address",
@@ -32973,8 +33472,6 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 
   .leaflet-parcels-pane img{mix-blend-mode:normal !important;filter:none !important}
-  .house-alert-popup{display:flex;align-items:baseline;gap:6px;min-width:0 !important;max-width:190px !important;padding:2px 0;color:#0f172a;font:600 12px/1.25 Inter,system-ui,sans-serif;white-space:nowrap}
-  .house-alert-popup span{color:#64748b}.house-alert-popup strong{font-size:15px;color:#0f172a}
 
   .mapper-tutorial-card{width:min(390px,calc(100vw - 28px)) !important;max-height:min(520px,calc(100vh - 28px)) !important}
 

@@ -112,6 +112,19 @@ assert.match(SOURCE, /const isHalo = luminance >= 190/);
 assert.match(SOURCE, /ctx\.drawImage\(roadLabelsCanvas[\s\S]+ctx\.drawImage\(chromeCanvas[\s\S]+drawExportTimestampOnCanvas/);
 assert.match(SOURCE, /getPane\("roadsPane"\)\.style\.zIndex = 710/);
 assert.match(SOURCE, /filter:grayscale\(1\) brightness\(\.06\) contrast\(4\.2\) drop-shadow/);
+assert.match(SOURCE, /id="buildingsToggle"/);
+assert.match(SOURCE, /function styleEsriBuildingForeground\(/);
+assert.match(SOURCE, /makeEsriBuildingForegroundLayer\("buildingsPane"\)/);
+assert.match(SOURCE, /getPane\("buildingsPane"\)\.style\.zIndex = 620/);
+assert.match(SOURCE, /getPane\("popupPane"\)\.style\.zIndex = 800/);
+assert.match(SOURCE, /autoClose: false/);
+assert.match(SOURCE, /closeOnClick: false/);
+assert.doesNotMatch(extractFunction("renderHour"), /closePopup/);
+assert.match(SOURCE, /See Flood History And Projections/);
+assert.match(SOURCE, /id="floodHistoryPane"/);
+assert.match(SOURCE, /north-wildwood-flood-history-projections-v2/);
+assert.match(SOURCE, /requestIdleCallback/);
+assert.match(SOURCE, /loadForecast\(null, \{ selectCurrent: true, forceRefresh: true \}\)/);
 
 for (const [date, targetHundredths, eventName, peakHour] of [
   ["2012-10-29", 673, "Hurricane Sandy", "20:45"],
@@ -122,9 +135,12 @@ for (const [date, targetHundredths, eventName, peakHour] of [
   assert.equal(day.v.length, 96, `${eventName} must contain 96 quarter-hour frames`);
   assert.equal(day.v.filter(Number.isFinite).length, 96, `${eventName} must not contain missing quarter-hour frames`);
   assert.equal(Math.max(...day.v), targetHundredths, `${eventName} peak calibration is wrong`);
+  const peakIndex = day.v.indexOf(targetHundredths);
+  const archivePeakTime = `${String(Math.floor(peakIndex / 4)).padStart(2, "0")}:${String((peakIndex % 4) * 15).padStart(2, "0")}`;
+  assert.equal(archivePeakTime, peakHour);
   const event = TOP_TIDES.toptides.find(item => item.date === date);
-  assert.equal(event?.event_name, eventName);
-  assert.equal(event?.time_est, peakHour);
+  assert.ok(event, `Missing ${eventName} top-tide crest`);
+  assert.equal(Math.round(Number(event.height_ft) * 100), targetHundredths);
 }
 
 console.log("North Wildwood browser depth and export contract checks passed");
