@@ -131,8 +131,9 @@ assert.match(SOURCE, /<summary>Method<\/summary>/);
 assert.doesNotMatch(SOURCE, /class="flood-milestones"/);
 assert.doesNotMatch(SOURCE, /class="flood-scenario-chips"/);
 assert.doesNotMatch(SOURCE, /independent high-tide exceedances/);
-assert.match(SOURCE, /north-wildwood-flood-history-projections-v3/);
+assert.match(SOURCE, /north-wildwood-flood-history-projections-v4/);
 assert.match(SOURCE, /continuous CDF is fitted to rebased Stone Harbor tides/);
+assert.match(SOURCE, /A flood requires more than 0\.10 ft of water/);
 assert.match(SOURCE, /id="mapClickModeControl"/);
 assert.match(SOURCE, /data-map-click-mode="building"/);
 assert.match(SOURCE, /data-map-click-mode="depth"/);
@@ -140,6 +141,8 @@ assert.match(SOURCE, /mapClickMode === "building" && parcelInfoInteractionEnable
 assert.match(SOURCE, /Switch map taps to water depth/);
 assert.doesNotMatch(SOURCE, /recorded high-tide floods/);
 assert.match(SOURCE, /\.house-alert-cta\{[^}]*background:rgba\(125,249,255,\.09\)/);
+assert.match(SOURCE, /\{ allowNearest: false \}/);
+assert.match(SOURCE, /No parcel contains that building tap/);
 assert.match(SOURCE, /requestIdleCallback/);
 assert.match(SOURCE, /loadForecast\(null, \{ selectCurrent: true, forceRefresh: true \}\)/);
 

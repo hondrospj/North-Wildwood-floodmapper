@@ -22587,7 +22587,7 @@ function startPlayback() {
       if (!houseAlertCdfPromise) {
         houseAlertCdfPromise = fetchJson(HOUSE_ALERT_CDF_URL, { cache: "force-cache" })
           .then(payload => {
-            if (payload?.schema !== "north-wildwood-flood-history-projections-v3") {
+            if (payload?.schema !== "north-wildwood-flood-history-projections-v4") {
               throw new Error("The flood projection dataset needs to be refreshed.");
             }
             houseAlertCdfData = payload;
@@ -22724,7 +22724,7 @@ function startPlayback() {
         </section>
         <details class="flood-history-method">
           <summary>Method</summary>
-          <p>A continuous CDF is fitted to rebased Stone Harbor tides, with a year-block bootstrap 95% range. NOAA (2022) sea-level curves are rebased to 2026. The parcel uses its highest intersecting original 5-ft DEM cell. These are screening estimates, not a guarantee that a structure will flood.</p>
+          <p>A flood requires more than 0.10 ft of water at the parcel’s highest intersecting original 5-ft DEM cell. A continuous CDF is fitted to rebased Stone Harbor tides, with a year-block bootstrap 95% range. NOAA (2022) sea-level curves are rebased to 2026. These are screening estimates, not a guarantee that a structure will flood.</p>
         </details>
       `;
 
@@ -22846,10 +22846,11 @@ function startPlayback() {
       });
     }
 
-    async function findParcelFeatureForLocation(lat, lon) {
+    async function findParcelFeatureForLocation(lat, lon, options = {}) {
       await ensureParcelAssets();
       const containing = parcelFeatures.find(feature => pointInParcelFeature(feature, lat, lon));
       if (containing) return containing;
+      if (options.allowNearest === false) return null;
       let nearest = null;
       let nearestDistance = Infinity;
       parcelFeatures.forEach(feature => {
@@ -23196,11 +23197,17 @@ function startPlayback() {
       if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
       try {
         if (mapClickMode === "building" && parcelInfoInteractionEnabled()) {
-          const parcelFeature = await findParcelFeatureForLocation(event.latlng.lat, event.latlng.lng);
+          const parcelFeature = await findParcelFeatureForLocation(
+            event.latlng.lat,
+            event.latlng.lng,
+            { allowNearest: false }
+          );
           if (parcelFeature) {
             openParcelFloodPrompt(parcelFeature, event.latlng);
             return;
           }
+          toast("No parcel contains that building tap. Tap inside a building or choose Water depth.");
+          return;
         }
         const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
         if (!sample) {
@@ -32506,8 +32513,8 @@ TOWN_CONFIG = {
   },
   "parcels": {
     "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260726-parcels-v2",
-    "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260726-parcels-v2",
-    "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260726-continuous-cdf-v3"
+    "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260726-depth-threshold-v4",
+    "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260726-depth-threshold-v4"
   },
   "addressLookup": {
     "title": "Find a North Wildwood Address",

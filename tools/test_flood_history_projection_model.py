@@ -52,6 +52,10 @@ assert all(values[0] == 0.0 for values in deltas.values())
 assert metadata["intermediate"]["type"] == "quadratic"
 assert math.isclose(deltas["observedTrend"][-1], 1.48, abs_tol=1e-9)
 
+historic_peaks = [1.0, 1.1, 1.1001, 1.2]
+assert model.historic_flood_count(historic_peaks, 1.0) == 2
+assert model.historic_flood_count([1.1], 1.0) == 0
+
 peaks = [1.0, 2.0, 3.0, 4.0]
 events = [
     {"year": 2024, "rebasedNavd88Ft": 1.0},

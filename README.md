@@ -150,7 +150,8 @@ boundaries; House Alerts; and clickable depth.
 North Wildwood municipality `0507`. Each parcel uses the highest center of an
 intersecting cell from the original five-foot DEM grid. The historical count
 comes from independent Stone Harbor high-tide peaks separated by at least six
-hours.
+hours. A parcel is counted as flooded only when water depth is strictly greater
+than 0.10 ft at that highest parcel cell; a depth equal to 0.10 ft is excluded.
 
 The same Stone Harbor series is fitted from equally weighted monthly means and
 rebased to January 1, 2026. The projection model includes that existing local
@@ -175,7 +176,8 @@ python3 tools/build_parcel_alerts.py \
   --observed observed15min.json \
   --slr /path/to/slr_projections_2022.json \
   --output assets/parcel-history-v2 \
-  --cdf-only
+  --cdf-only \
+  --refresh-existing-parcels
 ```
 
 Parcel results are screening estimates, not surveys, insurance

@@ -59,6 +59,7 @@ SCENARIO_LABELS = {
 ELEVATION_GRID_FT = np.round(np.arange(0.0, 14.0 + 0.05, 0.1), 1)
 YEARS = list(range(CURRENT_YEAR, 2101))
 EXPECTED_HIGH_TIDES_PER_YEAR = 705.0
+MINIMUM_FLOOD_DEPTH_FT = 0.1
 PARCEL_BOUNDARY_RASTER_SCALE = 0.5
 FIVE_FOOT_GRID_STRIDE = 5
 FIVE_FOOT_GRID_CENTER_OFFSET = 2
@@ -257,6 +258,12 @@ def gaussian_kde_bandwidth(samples: np.ndarray) -> float:
     return max(0.02, 1.06 * standard_deviation * samples.size ** (-0.2))
 
 
+def historic_flood_count(sorted_peaks: list[float], elevation_ft: float) -> int:
+    """Count peaks producing strictly more than 0.1 ft above parcel elevation."""
+    threshold = float(elevation_ft) + MINIMUM_FLOOD_DEPTH_FT
+    return len(sorted_peaks) - bisect.bisect_right(sorted_peaks, threshold)
+
+
 def _smoothed_cdf_from_histogram(
     histogram: np.ndarray,
     kernel_fft: np.ndarray,
@@ -386,7 +393,9 @@ def build_cdf_payload(
     tides_per_year = EXPECTED_HIGH_TIDES_PER_YEAR
     slr_deltas, curve_metadata = fit_quadratic_slr_deltas(slr_payload, annual_trend_ft)
     evaluation_thresholds = [
-        ELEVATION_GRID_FT[:, np.newaxis] - np.asarray(deltas, dtype=np.float64)[np.newaxis, :]
+        ELEVATION_GRID_FT[:, np.newaxis]
+        + MINIMUM_FLOOD_DEPTH_FT
+        - np.asarray(deltas, dtype=np.float64)[np.newaxis, :]
         for deltas in slr_deltas.values()
     ]
     estimates, lowers, uppers, cdf_fit_metadata = fit_continuous_exceedance_cdf(
@@ -403,9 +412,13 @@ def build_cdf_payload(
             "upper95": np.round(upper_rows, 2).tolist(),
         }
 
-    historical_counts = [sum(1 for row in events if row["navd88Ft"] >= float(elevation)) for elevation in ELEVATION_GRID_FT]
+    historic_peak_levels = sorted(float(row["navd88Ft"]) for row in events)
+    historical_counts = [
+        historic_flood_count(historic_peak_levels, float(elevation))
+        for elevation in ELEVATION_GRID_FT
+    ]
     return {
-        "schema": "north-wildwood-flood-history-projections-v3",
+        "schema": "north-wildwood-flood-history-projections-v4",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "currentYear": CURRENT_YEAR,
         "site": {
@@ -422,12 +435,17 @@ def build_cdf_payload(
         },
         "observedArchive": {"startDate": observed_payload.get("archiveStartDate"), "endDate": observed_payload.get("archiveEndDate")},
         "method": {
-            "historic": "independent Stone Harbor high-tide peaks separated by at least six hours; parcel floods when peak NAVD88 level is at or above the parcel's highest intersecting original five-foot DEM cell",
+            "historic": "independent Stone Harbor high-tide peaks separated by at least six hours; a parcel floods only when depth is strictly greater than 0.1 foot above the parcel's highest intersecting original five-foot DEM cell",
             "baselineRebase": f"each observed Stone Harbor peak adjusted to 1 January {CURRENT_YEAR} using the fitted local observed trend",
             "seaLevelCurves": f"quadratic least-squares fits to each NOAA 2022 median scenario, evaluated annually and rebased to zero in {CURRENT_YEAR}; the observed local trend remains linear",
             "cdf": "continuous Gaussian-kernel CDF fitted to present-year-rebased independent high-tide peaks",
             "uncertainty": "two-sided 95 percent calendar-year block-bootstrap percentile interval for the fitted exceedance probability at every elevation, year, and curve",
-            "future": "continuous fitted CDF exceedance probability and its 95 percent bounds multiplied by 705 expected astronomical high tides per year",
+            "future": "continuous fitted CDF probability of water level being strictly greater than parcel elevation plus 0.1 foot, with its 95 percent bounds multiplied by 705 expected astronomical high tides per year",
+        },
+        "floodDefinition": {
+            "comparison": "strictlyGreaterThan",
+            "minimumDepthFt": MINIMUM_FLOOD_DEPTH_FT,
+            "elevationRule": "highest original five-foot DEM cell whose center intersects the parcel",
         },
         "cdfFit": cdf_fit_metadata,
         "annualRelativeSeaLevelTrendFt": round(annual_trend_ft, 6),
@@ -657,7 +675,7 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
         if elevation is None:
             skipped += 1
             continue
-        historic_count = len(peak_levels) - bisect.bisect_left(peak_levels, elevation)
+        historic_count = historic_flood_count(peak_levels, elevation)
         model_elevation = min(14.0, max(0.0, round(elevation * 10) / 10))
         grid_index = min(range(len(elevation_grid)), key=lambda i: abs(elevation_grid[i] - model_elevation))
         attrs = feature.get("properties", {})
@@ -686,6 +704,7 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
                     "modelElevationIndex": grid_index,
                     "elevationSampleMethod": sample_method,
                     "historicFloodEventCount": historic_count,
+                    "minimumFloodDepthFt": MINIMUM_FLOOD_DEPTH_FT,
                     "historicStartDate": cdf["observedArchive"]["startDate"],
                     "historicEndDate": cdf["observedArchive"]["endDate"],
                 },
@@ -701,6 +720,7 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
             "source": "NJGIN Parcels and MOD-IV Composite of New Jersey",
             "municipalityCode": "0507",
             "parcelElevationRule": "highest original five-foot DEM cell whose center intersects the parcel",
+            "floodDefinition": "water depth strictly greater than 0.1 foot at the parcel elevation cell",
             "elevationDatum": "NAVD88 feet",
             "parcelCount": len(output_features),
             "skippedParcelCount": skipped,
@@ -708,6 +728,29 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
         },
         "features": output_features,
     }
+
+
+def refresh_existing_parcel_counts(path: Path, events: list[dict], cdf: dict) -> int:
+    """Refresh derived flood counts without resampling parcel geometry or the DEM."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    peak_levels = sorted(float(row["navd88Ft"]) for row in events)
+    features = payload.get("features", [])
+    refreshed = 0
+    for feature in features:
+        properties = feature.get("properties") or {}
+        elevation = properties.get("elevationNavd88Ft")
+        if elevation is None or not math.isfinite(float(elevation)):
+            continue
+        properties["historicFloodEventCount"] = historic_flood_count(peak_levels, float(elevation))
+        properties["minimumFloodDepthFt"] = MINIMUM_FLOOD_DEPTH_FT
+        properties["historicStartDate"] = cdf["observedArchive"]["startDate"]
+        properties["historicEndDate"] = cdf["observedArchive"]["endDate"]
+        refreshed += 1
+    metadata = payload.setdefault("metadata", {})
+    metadata["floodDefinition"] = "water depth strictly greater than 0.1 foot at the parcel elevation cell"
+    metadata["parcelElevationRule"] = "highest original five-foot DEM cell whose center intersects the parcel"
+    path.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
+    return refreshed
 
 
 def build(args: argparse.Namespace) -> dict:
@@ -733,6 +776,24 @@ def build(args: argparse.Namespace) -> dict:
     )
     cdf_path = output_dir / "NorthWildwoodHouseAlertCDF.json"
     cdf_path.write_text(json.dumps(cdf, separators=(",", ":")) + "\n", encoding="utf-8")
+    refreshed_parcel_count = 0
+    if args.refresh_existing_parcels:
+        parcel_path = output_dir / "NorthWildwoodParcels.geojson"
+        if not parcel_path.exists():
+            raise RuntimeError(f"Could not refresh missing parcel asset {parcel_path}")
+        refreshed_parcel_count = refresh_existing_parcel_counts(parcel_path, events, cdf)
+    manifest_path = output_dir / "NorthWildwoodParcelAlertManifest.json"
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["highTidePeakCount"] = cdf["highTidePeakCount"]
+        manifest["historicStartDate"] = cdf["observedArchive"]["startDate"]
+        manifest["historicEndDate"] = cdf["observedArchive"]["endDate"]
+        manifest["cdfBytes"] = cdf_path.stat().st_size
+        manifest["floodDefinition"] = cdf["floodDefinition"]
+        existing_parcel_path = output_dir / "NorthWildwoodParcels.geojson"
+        if existing_parcel_path.exists():
+            manifest["parcelGeoJsonBytes"] = existing_parcel_path.stat().st_size
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     if args.cdf_only:
         return {
             "highTidePeakCount": cdf["highTidePeakCount"],
@@ -741,6 +802,7 @@ def build(args: argparse.Namespace) -> dict:
             "historicEndDate": cdf["observedArchive"]["endDate"],
             "cdfBytes": cdf_path.stat().st_size,
             "cdfFit": cdf["cdfFit"],
+            "refreshedParcelCount": refreshed_parcel_count,
         }
 
     parcels = fetch_parcels()
@@ -775,6 +837,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--slr", type=Path, help="Optional cached NOAA 2022 SLR projection payload")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cdf-only", action="store_true", help="Regenerate only the projection CDF asset")
+    parser.add_argument(
+        "--refresh-existing-parcels",
+        action="store_true",
+        help="Refresh counts in the output directory's existing parcel GeoJSON",
+    )
     return parser.parse_args()
 
 
