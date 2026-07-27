@@ -17145,7 +17145,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       }
       if (!map.hasLayer(buildingsLayer)) buildingsLayer.addTo(map);
       updateExportBuildingsLayer();
-      toast("Buildings are above the water. Tap a building to see its flood history and projections.");
+      toast("");
       ensureParcelAssets().catch(error => console.warn("Building parcel matching will retry when requested.", error));
     }
 
@@ -22521,7 +22521,7 @@ function startPlayback() {
         '<span class="house-alert-kicker">Building flood profile</span>' +
         '<h3>' + address + '</h3>' +
         (parcel ? '<p class="house-sub">Parcel ' + parcel + '</p>' : '<p class="house-sub">North Wildwood parcel</p>') +
-        '<div class="house-alert-summary"><strong>' + count + '</strong><span>recorded high-tide flood' + (historic === 1 ? '' : 's') + '</span></div>' +
+        '<div class="house-alert-summary"><strong>' + count + '</strong><span>floods</span></div>' +
         '<button class="house-alert-cta" type="button">See Flood History And Projections</button>' +
         '</div>';
     }

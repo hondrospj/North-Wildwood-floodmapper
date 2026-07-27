@@ -115,6 +115,9 @@ assert.match(SOURCE, /filter:grayscale\(1\) brightness\(\.06\) contrast\(4\.2\) 
 assert.match(SOURCE, /id="buildingsToggle"/);
 assert.match(SOURCE, /function styleEsriBuildingForeground\(/);
 assert.match(SOURCE, /makeEsriBuildingForegroundLayer\("buildingsPane"\)/);
+assert.doesNotMatch(SOURCE, /Buildings are above the water/);
+assert.doesNotMatch(SOURCE, /recorded high-tide floods?/);
+assert.match(SOURCE, /<span>floods<\/span>/);
 assert.match(SOURCE, /getPane\("buildingsPane"\)\.style\.zIndex = 620/);
 assert.match(SOURCE, /getPane\("popupPane"\)\.style\.zIndex = 800/);
 assert.match(SOURCE, /autoClose: false/);
