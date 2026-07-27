@@ -1,0 +1,11 @@
+{
+  "parcelCount": 6747,
+  "skippedParcelCount": 0,
+  "highTidePeakCount": 12857,
+  "independentTidesPerYear": 705.0,
+  "historicStartDate": "2007-10-01",
+  "historicEndDate": "2026-07-26",
+  "cdfBytes": 1032381,
+  "parcelGeoJsonBytes": 5251414,
+  "parcelBoundaryPngBytes": 799006
+}
