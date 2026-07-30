@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Build synthetic North Wildwood return-interval storm hydrographs.
 
-The target still-water level for each return interval is the arithmetic mean of:
+For the 1, 2, 5, 10, 20, 50, and 100-year intervals, the target still-water
+level is the arithmetic mean of:
 
 1. the 2015 NACCS mean water level at save point 11283; and
 2. a Stone Harbor USGS frequency estimate fitted to annual maxima assembled
    from the historic crest-stage and continuous records at site 01411360.
+
+The 200, 500, 1,000, 2,000, 5,000, and 10,000-year targets use the published
+2015 NACCS station 11283 levels directly; no USGS extrapolation or averaging is
+applied to those intervals.
 
 The USGS fit is a GEV distribution estimated with L-moments. Return levels use
 the Poisson annual-maximum convention F=exp(-1/T), which keeps the one-year
@@ -38,7 +43,16 @@ USGS_SITE_ID = "01411360"
 USGS_PARAMETER_CD = "72279"
 NOAA_STATION_ID = "8535581"
 METERS_TO_FEET = 3.280839895013123
-RETURN_INTERVALS = (1, 2, 5, 10, 20, 50, 100)
+AVERAGED_RETURN_INTERVALS = (1, 2, 5, 10, 20, 50, 100)
+RETURN_INTERVALS = (
+    *AVERAGED_RETURN_INTERVALS,
+    200,
+    500,
+    1000,
+    2000,
+    5000,
+    10000,
+)
 ANALYSIS_END_WATER_YEAR = 2025
 
 NACCS_QUERY_URL = (
@@ -502,25 +516,37 @@ def build(args: argparse.Namespace) -> dict:
     )
     fit = fit_gev_lmoments([row["heightNavd88Ft"] for row in annual_maxima])
     usgs_values = {
-        interval: gev_return_level(fit, interval) for interval in RETURN_INTERVALS
+        interval: gev_return_level(fit, interval)
+        for interval in AVERAGED_RETURN_INTERVALS
     }
     tide_rows = parse_noaa_predictions(fetch_json(NOAA_PREDICTIONS_URL))
     surge_profile = build_surge_profile()
 
     intervals = []
     for interval in RETURN_INTERVALS:
-        target = (naccs_values[interval] + usgs_values[interval]) / 2
+        is_averaged = interval in AVERAGED_RETURN_INTERVALS
+        usgs_value = usgs_values.get(interval)
+        target = (
+            (naccs_values[interval] + usgs_value) / 2
+            if is_averaged and usgs_value is not None
+            else naccs_values[interval]
+        )
         series, surge_peak = build_interval_series(
             target, interval, tide_rows, surge_profile
         )
         intervals.append(
             {
                 "years": interval,
-                "label": f"{interval}-Year",
+                "label": f"{interval:,}-Year",
                 "naccsNavd88Ft": round(naccs_values[interval], 4),
-                "usgsNavd88Ft": round(usgs_values[interval], 4),
-                "averageNavd88Ft": round(target, 4),
-                "averageMllwFt": round(target + 2.75, 4),
+                "usgsNavd88Ft": round(usgs_value, 4) if usgs_value is not None else None,
+                "averageNavd88Ft": round(target, 4) if is_averaged else None,
+                "averageMllwFt": round(target + 2.75, 4) if is_averaged else None,
+                "targetMethod": (
+                    "naccs-usgs-average" if is_averaged else "naccs-only"
+                ),
+                "targetNavd88Ft": round(target, 4),
+                "targetMllwFt": round(target + 2.75, 4),
                 "midpointHarmonicTideNavd88Ft": round(
                     interpolate_tide(tide_rows, STORM_CENTER_UTC), 4
                 ),
@@ -531,7 +557,7 @@ def build(args: argparse.Namespace) -> dict:
         )
 
     return {
-        "schema": "north-wildwood-return-intervals-v1",
+        "schema": "north-wildwood-return-intervals-v2",
         "generatedAtUtc": datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat()
@@ -539,6 +565,12 @@ def build(args: argparse.Namespace) -> dict:
         "datum": "NAVD88",
         "displayMllwOffsetFt": 2.75,
         "returnIntervalsYears": list(RETURN_INTERVALS),
+        "averagedReturnIntervalsYears": list(AVERAGED_RETURN_INTERVALS),
+        "naccsOnlyReturnIntervalsYears": [
+            interval
+            for interval in RETURN_INTERVALS
+            if interval not in AVERAGED_RETURN_INTERVALS
+        ],
         "windowHours": WINDOW_HOURS,
         "intervalMinutes": INTERVAL_MINUTES,
         "stormCenterUtc": STORM_CENTER_UTC.isoformat().replace("+00:00", "Z"),
@@ -552,7 +584,11 @@ def build(args: argparse.Namespace) -> dict:
                 "water year from the USGS Stone Harbor crest-stage and continuous "
                 "records; return-level CDF F=exp(-1/T)"
             ),
-            "blend": "unweighted arithmetic mean of matching NACCS and USGS return levels",
+            "targetSelection": (
+                "Unweighted arithmetic mean of matching NACCS and USGS return "
+                "levels for 1-100 years; published NACCS station 11283 level "
+                "used directly for 200-10,000 years"
+            ),
             "hydrograph": (
                 "NOAA Stone Harbor harmonic prediction plus the supplied, digitized "
                 "Cape May surge-ratio shape compressed from 100 to 84 hours; peak "

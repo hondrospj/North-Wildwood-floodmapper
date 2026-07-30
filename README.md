@@ -25,19 +25,25 @@ complete 15-minute replays and derived hourly values.
 ## Return-interval storms
 
 The **Return Intervals** data source supplies synthetic 84-hour storms at every
-2015 NACCS station 11283 annual recurrence interval through 100 years. All
+2015 NACCS station 11283 annual recurrence interval through 10,000 years. All
 frequency calculations are performed in feet NAVD88; MLLW is only a display
 conversion using the mapper's existing `+2.75 ft` contract.
 
-| Return interval | NACCS 11283 | Stone Harbor USGS fit | Mapper average |
-| ---: | ---: | ---: | ---: |
-| 1 year | 4.2165 ft | 4.3793 ft | 4.2979 ft |
-| 2 years | 5.4460 ft | 4.8525 ft | 5.1493 ft |
-| 5 years | 6.6425 ft | 5.3869 ft | 6.0147 ft |
-| 10 years | 7.3436 ft | 5.7320 ft | 6.5378 ft |
-| 20 years | 8.0468 ft | 6.0331 ft | 7.0399 ft |
-| 50 years | 9.5326 ft | 6.3731 ft | 7.9528 ft |
-| 100 years | 10.7608 ft | 6.5927 ft | 8.6768 ft |
+| Return interval | NACCS 11283 | Stone Harbor USGS fit | Mapper target | Target method |
+| ---: | ---: | ---: | ---: | :--- |
+| 1 year | 4.2165 ft | 4.3793 ft | 4.2979 ft | NACCS–USGS average |
+| 2 years | 5.4460 ft | 4.8525 ft | 5.1493 ft | NACCS–USGS average |
+| 5 years | 6.6425 ft | 5.3869 ft | 6.0147 ft | NACCS–USGS average |
+| 10 years | 7.3436 ft | 5.7320 ft | 6.5378 ft | NACCS–USGS average |
+| 20 years | 8.0468 ft | 6.0331 ft | 7.0399 ft | NACCS–USGS average |
+| 50 years | 9.5326 ft | 6.3731 ft | 7.9528 ft | NACCS–USGS average |
+| 100 years | 10.7608 ft | 6.5927 ft | 8.6768 ft | NACCS–USGS average |
+| 200 years | 11.9254 ft | — | 11.9254 ft | NACCS only |
+| 500 years | 13.4856 ft | — | 13.4856 ft | NACCS only |
+| 1,000 years | 14.7033 ft | — | 14.7033 ft | NACCS only |
+| 2,000 years | 15.9218 ft | — | 15.9218 ft | NACCS only |
+| 5,000 years | 17.5026 ft | — | 17.5026 ft | NACCS only |
+| 10,000 years | 18.6306 ft | — | 18.6306 ft | NACCS only |
 
 The Stone Harbor estimate is a GEV distribution fitted by L-moments to one
 maximum per available complete water year from USGS site `01411360`. The
@@ -47,14 +53,21 @@ return-level convention `F = exp(-1/T)`, which gives a finite one-year level.
 The raw 6.22-ft NAVD88 USGS Jonas crest is used in this statistical series,
 not the mapper's separate 6.69-ft North Wildwood replay calibration.
 
-Each target is the unweighted arithmetic mean of the matching NACCS and USGS
-levels. NOAA station `8535581` Stone Harbor harmonic predictions provide the
-astronomical tide. The user-supplied asymmetric Cape May surge-ratio curve is
-digitized, shape-preserving interpolated, compressed from its pictured
-100-hour axis to 84 hours, and scaled so the averaged target occurs at the
-exact midpoint harmonic high tide. The resulting series contains 337
+The 1–100-year targets are the unweighted arithmetic means of the matching
+NACCS and USGS levels. The 200–10,000-year targets use the published NACCS
+station values directly, with no USGS extrapolation or averaging. NOAA station
+`8535581` Stone Harbor harmonic predictions provide the astronomical tide. The
+user-supplied asymmetric Cape May surge-ratio curve is digitized,
+shape-preserving interpolated, compressed from its pictured 100-hour axis to
+84 hours, and scaled so the selected target occurs at the exact midpoint
+harmonic high tide. The resulting series contains 337
 15-minute frames and retains the sharp central peak, post-peak shoulder, and
 long recession tail in the supplied profile.
+
+The 1,000-year and larger targets exceed the floodmapper's highest available
+14.00-ft NAVD88 flood layer. Their timelines and displayed water levels retain
+the true NACCS targets, while mapped flood depth is capped at that 14.00-ft
+layer and is labeled accordingly in the interface.
 
 These are stationary screening scenarios: no future sea-level-rise increment
 or trend detrending is applied. Rebuild the committed payload from the official

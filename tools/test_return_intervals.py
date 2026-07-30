@@ -12,7 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PAYLOAD = json.loads((ROOT / "return_intervals.json").read_text(encoding="utf-8"))
 INDEX = (ROOT / "index.html").read_text(encoding="utf-8")
-EXPECTED_INTERVALS = [1, 2, 5, 10, 20, 50, 100]
+AVERAGED_INTERVALS = [1, 2, 5, 10, 20, 50, 100]
+NACCS_ONLY_INTERVALS = [200, 500, 1000, 2000, 5000, 10000]
+EXPECTED_INTERVALS = [*AVERAGED_INTERVALS, *NACCS_ONLY_INTERVALS]
 EXPECTED_NACCS_FT = {
     1: 4.2165,
     2: 5.4460,
@@ -21,6 +23,12 @@ EXPECTED_NACCS_FT = {
     20: 8.0468,
     50: 9.5326,
     100: 10.7608,
+    200: 11.9254,
+    500: 13.4856,
+    1000: 14.7033,
+    2000: 15.9218,
+    5000: 17.5026,
+    10000: 18.6306,
 }
 
 
@@ -29,10 +37,14 @@ def parse_utc(value: str) -> datetime:
 
 
 def main() -> None:
-    if PAYLOAD["schema"] != "north-wildwood-return-intervals-v1":
+    if PAYLOAD["schema"] != "north-wildwood-return-intervals-v2":
         raise AssertionError("Unexpected return-interval schema")
     if PAYLOAD["returnIntervalsYears"] != EXPECTED_INTERVALS:
-        raise AssertionError("Return intervals do not match NACCS through 100 years")
+        raise AssertionError("Return intervals do not match NACCS through 10,000 years")
+    if PAYLOAD["averagedReturnIntervalsYears"] != AVERAGED_INTERVALS:
+        raise AssertionError("Only the 1-100-year intervals may use NACCS-USGS averages")
+    if PAYLOAD["naccsOnlyReturnIntervalsYears"] != NACCS_ONLY_INTERVALS:
+        raise AssertionError("The 200-10,000-year intervals must be NACCS-only")
     if PAYLOAD["windowHours"] != 84 or PAYLOAD["intervalMinutes"] != 15:
         raise AssertionError("Synthetic storms must use an 84-hour, 15-minute window")
 
@@ -53,33 +65,53 @@ def main() -> None:
     if [record["years"] for record in records] != EXPECTED_INTERVALS:
         raise AssertionError("Return-interval records are incomplete or out of order")
 
-    previous_naccs = previous_usgs = previous_average = -math.inf
+    previous_naccs = previous_usgs = previous_target = -math.inf
     reference_tide = None
     for record in records:
         years = record["years"]
         if not math.isclose(record["naccsNavd88Ft"], EXPECTED_NACCS_FT[years], abs_tol=5e-5):
             raise AssertionError(f"{years}-year NACCS conversion is incorrect")
+        if years in AVERAGED_INTERVALS:
+            if record["targetMethod"] != "naccs-usgs-average":
+                raise AssertionError(f"{years}-year target must use the NACCS-USGS average")
+            if not math.isclose(
+                record["averageNavd88Ft"],
+                (record["naccsNavd88Ft"] + record["usgsNavd88Ft"]) / 2,
+                abs_tol=1e-4,
+            ):
+                raise AssertionError(f"{years}-year arithmetic mean is incorrect")
+            if not math.isclose(
+                record["targetNavd88Ft"], record["averageNavd88Ft"], abs_tol=1e-9
+            ):
+                raise AssertionError(f"{years}-year target does not match its average")
+            if record["usgsNavd88Ft"] <= previous_usgs:
+                raise AssertionError("Averaged USGS return levels must increase monotonically")
+            previous_usgs = record["usgsNavd88Ft"]
+        else:
+            if record["targetMethod"] != "naccs-only":
+                raise AssertionError(f"{years}-year target must use NACCS directly")
+            if any(
+                record[field] is not None
+                for field in ("usgsNavd88Ft", "averageNavd88Ft", "averageMllwFt")
+            ):
+                raise AssertionError(f"{years}-year record must not contain a USGS average")
+            if not math.isclose(
+                record["targetNavd88Ft"], record["naccsNavd88Ft"], abs_tol=1e-9
+            ):
+                raise AssertionError(f"{years}-year NACCS target is incorrect")
         if not math.isclose(
-            record["averageNavd88Ft"],
-            (record["naccsNavd88Ft"] + record["usgsNavd88Ft"]) / 2,
-            abs_tol=1e-4,
-        ):
-            raise AssertionError(f"{years}-year arithmetic mean is incorrect")
-        if not math.isclose(
-            record["averageMllwFt"],
-            record["averageNavd88Ft"] + 2.75,
+            record["targetMllwFt"],
+            record["targetNavd88Ft"] + 2.75,
             abs_tol=1e-9,
         ):
             raise AssertionError(f"{years}-year MLLW display conversion is incorrect")
         if not (
             record["naccsNavd88Ft"] > previous_naccs
-            and record["usgsNavd88Ft"] > previous_usgs
-            and record["averageNavd88Ft"] > previous_average
+            and record["targetNavd88Ft"] > previous_target
         ):
-            raise AssertionError("Return levels must increase monotonically")
+            raise AssertionError("NACCS and selected target levels must increase monotonically")
         previous_naccs = record["naccsNavd88Ft"]
-        previous_usgs = record["usgsNavd88Ft"]
-        previous_average = record["averageNavd88Ft"]
+        previous_target = record["targetNavd88Ft"]
 
         series = record["series15min"]
         if len(series) != 337 or record["peakIndex15min"] != 168:
@@ -101,7 +133,7 @@ def main() -> None:
             if math.isclose(row["navd88StageFt"], peak, abs_tol=1e-9)
         ]
         if peak_indices != [168] or not math.isclose(
-            peak, record["averageNavd88Ft"], abs_tol=1e-9
+            peak, record["targetNavd88Ft"], abs_tol=1e-9
         ):
             raise AssertionError(f"{years}-year target is not the unique midpoint maximum")
         if series[0]["surgeRatio"] != 0 or series[-1]["surgeRatio"] != 0:
@@ -114,8 +146,12 @@ def main() -> None:
             reference_tide = tide
         elif tide != reference_tide:
             raise AssertionError("Every return interval must use the identical harmonic tide")
-        if any(row["navd88StageFt"] < -4 or row["navd88StageFt"] > 14 for row in series):
-            raise AssertionError(f"{years}-year series exceeds the mapper stage catalog")
+        if any(row["navd88StageFt"] < -4 for row in series):
+            raise AssertionError(f"{years}-year series falls below the mapper stage catalog")
+        if years <= 500 and any(row["navd88StageFt"] > 14 for row in series):
+            raise AssertionError(f"{years}-year series unexpectedly exceeds the 14-ft catalog")
+        if years >= 1000 and max(row["navd88StageFt"] for row in series) <= 14:
+            raise AssertionError(f"{years}-year target should exercise the map-cap warning")
 
     # The digitized curve must retain the image's sharp peak, post-peak shoulder,
     # and long tail rather than becoming a symmetric bell curve.
@@ -133,10 +169,13 @@ def main() -> None:
     required_ui_tokens = (
         'id="returnIntervalDataBtn"',
         'id="returnIntervalCard"',
-        'data-return-years="100"',
+        'id="returnIntervalMethodNote"',
+        'data-return-years="10000"',
         "function loadReturnInterval(",
         "returnIntervalsPath",
         'currentViewType === "return-interval"',
+        "no USGS averaging",
+        "depth map capped at",
     )
     for token in required_ui_tokens:
         if token not in INDEX:

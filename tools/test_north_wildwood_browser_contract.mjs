@@ -217,6 +217,16 @@ assert.match(SOURCE, /await ensureObservedArchiveForDate\(dateStr\)/);
 assert.match(SOURCE, /Loading the selected tide-archive year/);
 assert.doesNotMatch(extractFunction("warmBackgroundData"), /LEWES_HOURLY_URL/);
 assert.doesNotMatch(extractFunction("warmBackgroundData"), /OBSERVED_15MIN_URL/);
+assert.match(SOURCE, /data-return-years="10000"/);
+assert.match(
+  SOURCE,
+  /const RETURN_INTERVAL_OPTIONS = \[1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000\]/
+);
+assert.match(SOURCE, /record\.targetNavd88Ft \?\? record\.averageNavd88Ft \?\? record\.naccsNavd88Ft/);
+assert.match(SOURCE, /record\.targetMethod === "naccs-only"/);
+assert.match(SOURCE, /id="returnIntervalMethodNote"/);
+assert.match(SOURCE, /depth map capped at/);
+assert.match(SOURCE, /function clearStableDesktopPaneSizes\(/);
 assert.equal(OBSERVED_INDEX.source, "stone-harbor");
 assert.equal(LEWES_INDEX.source, "lewes");
 assert.equal(OBSERVED_INDEX.days.length, OBSERVED_15MIN.days.length);
