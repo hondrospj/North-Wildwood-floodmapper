@@ -54,6 +54,15 @@ for (const name of (
   vm.runInContext(`${extractFunction(name)}; globalThis.${name} = ${name};`, context);
 }
 
+vm.runInContext(
+  `${extractFunction("stripExportTimeZoneLabel")}; globalThis.stripExportTimeZoneLabel = stripExportTimeZoneLabel;`,
+  context
+);
+
+assert.equal(context.stripExportTimeZoneLabel("Jul 29, 2026 · 9:00 PM GMT-4"), "Jul 29, 2026 · 9:00 PM");
+assert.equal(context.stripExportTimeZoneLabel("Jul 29, 2026 · 9:00 PM EDT"), "Jul 29, 2026 · 9:00 PM");
+assert.equal(context.stripExportTimeZoneLabel("Jul 29, 2026 · 9:00 PM ET"), "Jul 29, 2026 · 9:00 PM");
+
 assert.equal(context.getOverlayStage(3.94), 3.9);
 assert.equal(context.getOverlayStage(3.95), 3.95);
 assert.equal(context.getOverlayStage(3.999), 3.95);
@@ -137,11 +146,16 @@ assert.match(SOURCE, /linear-gradient\(90deg,#18c8ff 0%,#00a6f2 20%,#1479df 40%,
 assert.doesNotMatch(SOURCE, /Feet above ground/);
 assert.doesNotMatch(SOURCE, /class="export-depth-key-disconnected"/);
 assert.match(SOURCE, /function captureExportRoadLabelsCanvas\(/);
-assert.match(SOURCE, /function normalizeExportRoadLabelCanvas\(/);
-assert.match(SOURCE, /const isHalo = luminance >= 190/);
+assert.doesNotMatch(SOURCE, /function normalizeExportRoadLabelCanvas\(/);
+assert.match(
+  extractFunction("captureExportRoadLabelsCanvas"),
+  /return captureExportLayerCanvas\(\{/
+);
 assert.match(SOURCE, /ctx\.drawImage\(roadLabelsCanvas[\s\S]+ctx\.drawImage\(chromeCanvas[\s\S]+drawExportTimestampOnCanvas/);
 assert.match(SOURCE, /getPane\("roadsPane"\)\.style\.zIndex = 710/);
-assert.match(SOURCE, /filter:grayscale\(1\) brightness\(\.06\) contrast\(4\.2\) drop-shadow/);
+assert.match(SOURCE, /\.export-stage \.leaflet-pane\.roads-dark img,[\s\S]+filter:none !important/);
+assert.match(SOURCE, /\.export-stage-legend\[data-export-legend-mode="depth"\]\{[\s\S]+right:40px !important/);
+assert.doesNotMatch(extractFunction("getExportFrameDateTimeText"), /timeZoneName|GMT|UTC|E\[SD\]T/);
 assert.match(SOURCE, /id="buildingsToggle"/);
 assert.match(SOURCE, /function styleEsriBuildingForeground\(/);
 assert.match(SOURCE, /makeEsriBuildingForegroundLayer\("buildingsPane"\)/);
