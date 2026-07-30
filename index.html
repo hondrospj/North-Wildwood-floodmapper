@@ -15044,6 +15044,7 @@ function cloneStyleObject(value) {
     let cityBoundaryGuide = null;
     let townAddressMarker = null;
     let persistentFloodPopup = null;
+    let persistentDepthQueryContext = null;
     let selectedParcelFeature = null;
     let mapClickMode = "building";
 
@@ -21525,6 +21526,8 @@ function formatSelectedObservedDate(dateStr) {
           map.removeLayer(previousLayer);
         }
 
+        updatePersistentDepthQueryPopup();
+
         if (!mapHasFit && floodLatLngBounds) {
           const townBounds = getBoundaryDrivenOverlayBounds();
           map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
@@ -21554,6 +21557,7 @@ function formatSelectedObservedDate(dateStr) {
       const displayStage = getOverlayStage(rawStage);
       const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);
 
+      updatePersistentDepthQueryPopup({ useRenderedFlood: false });
       renderSelectionMeta(entry, rawStage, displayStage);
       renderTimelineMeta(entry);
 
@@ -22549,6 +22553,7 @@ function startPlayback() {
 
     function openPersistentFloodPopup(latlng, html, maxWidth = 360) {
       if (!map) ensureMap();
+      persistentDepthQueryContext = null;
       if (persistentFloodPopup && map.hasLayer(persistentFloodPopup)) {
         map.removeLayer(persistentFloodPopup);
       }
@@ -22581,6 +22586,7 @@ function startPlayback() {
       popup.once("remove", () => {
         if (persistentFloodPopup === popup) {
           persistentFloodPopup = null;
+          persistentDepthQueryContext = null;
           document.body.classList.remove("persistent-flood-popup-open");
         }
       });
@@ -23209,6 +23215,54 @@ function startPlayback() {
       }
     }
 
+    function getDepthQueryDisplayDepth(sample, stageValue, renderedFlood = null) {
+      if (!sample) return null;
+      const stage = Number(stageValue);
+      const overlayStage = Number.isFinite(stage) ? getOverlayStage(stage) : null;
+      const depthModel = getPenalizedConnectedDepth(overlayStage, sample.elevation);
+      const belowStage = Number.isFinite(stage) && sample.elevation <= stage + 0.0001;
+      const modeledConnected = belowStage &&
+        Number.isFinite(overlayStage) &&
+        sample.elevation < overlayStage - 0.005 &&
+        Number.isFinite(sample.connectionStage) &&
+        sample.connectionStage <= overlayStage + 0.0001;
+      const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
+      const depth = connected && depthModel ? depthModel.depth : null;
+      return Number.isFinite(depth) ? depth : 0;
+    }
+
+    function buildDepthQueryPopupHtml(depth) {
+      const value = Number.isFinite(depth) ? `${depth.toFixed(2)} ft` : "N/A";
+      return '<div class="depth-query-popup" role="status" aria-live="polite">' +
+        '<h3>Modeled water depth</h3><div class="depth-query-value">' + value + '</div></div>';
+    }
+
+    function updatePersistentDepthQueryPopup(options = {}) {
+      const context = persistentDepthQueryContext;
+      const popup = persistentFloodPopup;
+      if (!context || !popup || context.popup !== popup || !map?.hasLayer(popup)) return;
+      const stage = getStageValue(currentSeriesHours[currentHourIndex]);
+      const renderedFlood = options.useRenderedFlood === false
+        ? null
+        : sampleRenderedFloodPixel(context.latlng.lat, context.latlng.lng);
+      const depth = getDepthQueryDisplayDepth(context.sample, stage, renderedFlood);
+      popup.setContent(buildDepthQueryPopupHtml(depth));
+      popup.update();
+    }
+
+    function openDepthQueryPopup(latlng, sample) {
+      const stage = getStageValue(currentSeriesHours[currentHourIndex]);
+      const renderedFlood = sample
+        ? sampleRenderedFloodPixel(latlng.lat, latlng.lng)
+        : null;
+      const depth = getDepthQueryDisplayDepth(sample, stage, renderedFlood);
+      const popup = openPersistentFloodPopup(latlng, buildDepthQueryPopupHtml(depth), 300);
+      if (sample) {
+        persistentDepthQueryContext = { popup, latlng, sample };
+      }
+      return popup;
+    }
+
     async function handleDepthQueryClick(event) {
       if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
       try {
@@ -23227,26 +23281,10 @@ function startPlayback() {
         }
         const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
         if (!sample) {
-          openPersistentFloodPopup(event.latlng, '<div class="depth-query-popup"><h3>Modeled water depth</h3><div class="depth-query-value">N/A</div></div>', 300);
+          openDepthQueryPopup(event.latlng, null);
           return;
         }
-        const rawStage = getStageValue(currentSeriesHours[currentHourIndex]);
-        const stage = Number(rawStage);
-        const overlayStage = Number.isFinite(stage) ? getOverlayStage(stage) : null;
-        const depthModel = getPenalizedConnectedDepth(overlayStage, sample.elevation);
-        const belowStage = Number.isFinite(stage) && sample.elevation <= stage + 0.0001;
-        const modeledConnected = belowStage &&
-          Number.isFinite(overlayStage) &&
-          sample.elevation < overlayStage - 0.005 &&
-          Number.isFinite(sample.connectionStage) &&
-          sample.connectionStage <= overlayStage + 0.0001;
-        const renderedFlood = sampleRenderedFloodPixel(event.latlng.lat, event.latlng.lng);
-        const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
-        const depth = connected && depthModel ? depthModel.depth : null;
-        const displayedDepth = Number.isFinite(depth) ? depth : 0;
-        const html = '<div class="depth-query-popup"><h3>Modeled water depth</h3>' +
-          '<div class="depth-query-value">' + displayedDepth.toFixed(2) + ' ft</div></div>';
-        openPersistentFloodPopup(event.latlng, html, 300);
+        openDepthQueryPopup(event.latlng, sample);
       } catch (err) {
         console.error("Depth query failed", err);
         toast("Depth query is temporarily unavailable.");

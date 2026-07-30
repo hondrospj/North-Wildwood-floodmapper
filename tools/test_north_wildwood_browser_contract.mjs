@@ -38,6 +38,7 @@ const context = vm.createContext({
   MAJOR_FLOOD_FT: 5.25,
   LOW_STAGE_VERTICAL_PENALTY_FT: 1.25,
   VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE: 1.5,
+  MAX_LOCAL_DEPTH_PENALTY_FRACTION: 0.75,
 });
 for (const name of (
   [
@@ -45,6 +46,8 @@ for (const name of (
     "floorToCatalogStep",
     "getOverlayStage",
     "getVerticalBathtubPenalty",
+    "getPenalizedConnectedDepth",
+    "getDepthQueryDisplayDepth",
     "stageToCode",
   ]
 )) {
@@ -59,6 +62,19 @@ assert.equal(context.stageToCode(context.getOverlayStage(3.95)), "p0395");
 assert.equal(context.getVerticalBathtubPenalty(3.25), 1.25);
 assert.equal(context.getVerticalBathtubPenalty(5.25), 0);
 
+const changingDepthSample = { elevation: 2, connectionStage: 1 };
+const lowWaterDepth = context.getDepthQueryDisplayDepth(changingDepthSample, 3.25);
+const highWaterDepth = context.getDepthQueryDisplayDepth(changingDepthSample, 5.25);
+assert.ok(
+  highWaterDepth > lowWaterDepth,
+  "An open depth popup must calculate a larger depth when the selected water level rises"
+);
+assert.equal(
+  context.getDepthQueryDisplayDepth(changingDepthSample, 5.25, { flooded: false }),
+  0,
+  "The rendered overlay can still mark a modeled location as disconnected"
+);
+
 let previous = Infinity;
 for (let stage = 3.25; stage <= 5.25 + 1e-9; stage += 0.05) {
   const penalty = context.getVerticalBathtubPenalty(stage);
@@ -71,6 +87,16 @@ assert.match(SOURCE, /elevation >= 1000/);
 assert.doesNotMatch(SOURCE, /<dt>Ground<\/dt>/);
 assert.doesNotMatch(SOURCE, /<dt>Maximum depth penalty<\/dt>/);
 assert.match(SOURCE, /<div class="depth-query-value">/);
+assert.match(SOURCE, /let persistentDepthQueryContext = null/);
+assert.match(SOURCE, /function updatePersistentDepthQueryPopup\(/);
+assert.match(
+  extractFunction("renderHour"),
+  /updatePersistentDepthQueryPopup\(\{ useRenderedFlood: false \}\)/
+);
+assert.match(
+  extractFunction("setFloodLayer"),
+  /currentFloodLayer = nextLayer;[\s\S]+updatePersistentDepthQueryPopup\(\)/
+);
 assert.match(SOURCE, /id="satelliteToggle"/);
 assert.match(SOURCE, /World_Imagery\/MapServer\/tile/);
 assert.match(SOURCE, /payload\.valueType === "int16-le"/);
