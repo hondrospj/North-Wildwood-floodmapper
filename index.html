@@ -15491,13 +15491,12 @@ function cloneStyleObject(value) {
       if (requested === currentReturnIntervalYears && currentDataMode === "return-interval") return;
       stopPlayback();
       toast("");
-      const previousEntry = currentSeriesHours[currentHourIndex] || null;
       currentReturnIntervalYears = requested;
       currentDataMode = "return-interval";
       currentViewType = "return-interval";
       updateDataModeButtons();
       clearFloodLayer();
-      await loadReturnInterval(previousEntry);
+      await loadReturnInterval();
       await renderHour(currentHourIndex);
     }
 

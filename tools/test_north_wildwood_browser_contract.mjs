@@ -230,6 +230,8 @@ assert.match(
   /const RETURN_INTERVAL_OPTIONS = \[1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000\]/
 );
 assert.match(SOURCE, /record\.targetNavd88Ft \?\? record\.weightedNavd88Ft \?\? record\.naccsNavd88Ft/);
+assert.match(extractFunction("switchReturnInterval"), /await loadReturnInterval\(\)/);
+assert.doesNotMatch(extractFunction("switchReturnInterval"), /previousEntry/);
 assert.match(SOURCE, />Rare Floods<\/button>/);
 assert.match(SOURCE, /<h2>How Rare\?<\/h2>/);
 assert.match(SOURCE, /return-interval-mode #leftPanel > #timelineIntervalCard\{order:1 !important\}/);
