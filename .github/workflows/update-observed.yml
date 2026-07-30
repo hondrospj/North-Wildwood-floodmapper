@@ -8,6 +8,7 @@ on:
       - .github/workflows/update-observed.yml
       - tools/update_observed_15min.py
       - tools/update_historic_crests.py
+      - tools/build_observed_archive_shards.py
   schedule:
     - cron: "37 4,5 * * *"
   workflow_dispatch:
@@ -41,16 +42,19 @@ jobs:
       - name: Update official USGS historic crests
         run: python3 tools/update_historic_crests.py
 
+      - name: Rebuild browser-optimized archive indexes and year shards
+        run: python3 tools/build_observed_archive_shards.py
+
       - name: Commit archive updates
         shell: bash
         run: |
-          if git diff --quiet -- observed.json observed15min.json toptides.json; then
+          if git diff --quiet -- observed.json observed15min.json toptides.json observed_archive_index.json lewes_archive_index.json observed_archive; then
             echo "Observed archives and historic crests are already current."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add observed.json observed15min.json toptides.json
+          git add observed.json observed15min.json toptides.json observed_archive_index.json lewes_archive_index.json observed_archive
           git commit -m "Update North Wildwood observed archives"
           git pull --rebase --autostash origin main
           git push

@@ -22,6 +22,49 @@ calibrated to the documented North Wildwood crest of 6.69 ft NAVD88 / 9.44 ft
 MLLW while preserving the Stone Harbor 15-minute tide shape. Both events expose
 complete 15-minute replays and derived hourly values.
 
+## Return-interval storms
+
+The **Return Intervals** data source supplies synthetic 84-hour storms at every
+2015 NACCS station 11283 annual recurrence interval through 100 years. All
+frequency calculations are performed in feet NAVD88; MLLW is only a display
+conversion using the mapper's existing `+2.75 ft` contract.
+
+| Return interval | NACCS 11283 | Stone Harbor USGS fit | Mapper average |
+| ---: | ---: | ---: | ---: |
+| 1 year | 4.2165 ft | 4.3793 ft | 4.2979 ft |
+| 2 years | 5.4460 ft | 4.8525 ft | 5.1493 ft |
+| 5 years | 6.6425 ft | 5.3869 ft | 6.0147 ft |
+| 10 years | 7.3436 ft | 5.7320 ft | 6.5378 ft |
+| 20 years | 8.0468 ft | 6.0331 ft | 7.0399 ft |
+| 50 years | 9.5326 ft | 6.3731 ft | 7.9528 ft |
+| 100 years | 10.7608 ft | 6.5927 ft | 8.6768 ft |
+
+The Stone Harbor estimate is a GEV distribution fitted by L-moments to one
+maximum per available complete water year from USGS site `01411360`. The
+combined crest-stage and continuous record contains 60 water years from
+1965–2025; water year 1981 is unavailable. The fit uses the point-process
+return-level convention `F = exp(-1/T)`, which gives a finite one-year level.
+The raw 6.22-ft NAVD88 USGS Jonas crest is used in this statistical series,
+not the mapper's separate 6.69-ft North Wildwood replay calibration.
+
+Each target is the unweighted arithmetic mean of the matching NACCS and USGS
+levels. NOAA station `8535581` Stone Harbor harmonic predictions provide the
+astronomical tide. The user-supplied asymmetric Cape May surge-ratio curve is
+digitized, shape-preserving interpolated, compressed from its pictured
+100-hour axis to 84 hours, and scaled so the averaged target occurs at the
+exact midpoint harmonic high tide. The resulting series contains 337
+15-minute frames and retains the sharp central peak, post-peak shoulder, and
+long recession tail in the supplied profile.
+
+These are stationary screening scenarios: no future sea-level-rise increment
+or trend detrending is applied. Rebuild the committed payload from the official
+NACCS, USGS, and NOAA endpoints with:
+
+```bash
+python3 tools/build_return_intervals.py
+python3 tools/test_return_intervals.py
+```
+
 ## One-foot hydraulic model
 
 The source DEM is resampled bilinearly to a one-foot grid in EPSG:6527, with
@@ -135,7 +178,9 @@ modeled water depth.
   applies the -2.75 ft offset, and assigns the matching static stage asset.
 - `.github/workflows/update-observed.yml` maintains USGS site `01411360`,
   parameter `72279`, on exact 15-minute anchors plus the hourly calendar
-  archive and official historic crest list.
+  archive and official historic crest list. It also rebuilds lightweight daily
+  indexes and source/year shards in `observed_archive/`, so the browser renders
+  the calendar first and downloads only the selected year.
 - `.github/workflows/update-lewes-archive.yml` maintains the verified pre-2007
   Lewes surrogate used only when the Stone Harbor continuous record does not
   exist.
@@ -143,6 +188,13 @@ modeled water depth.
 The interface includes 15-minute, hourly, and daily playback; top-ten historic
 tides; guided help; address lookup; map and GIF export; mobile controls; parcel
 boundaries; House Alerts; and clickable depth.
+
+To rebuild and verify the browser-optimized tide archive:
+
+```bash
+python3 tools/build_observed_archive_shards.py
+python3 tools/test_observed_archive_shards.py
+```
 
 ## Parcel House Alerts
 

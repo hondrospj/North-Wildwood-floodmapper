@@ -11,6 +11,8 @@ import path from "node:path";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOURCE = fs.readFileSync(path.join(HERE, "..", "index.html"), "utf8");
 const OBSERVED_15MIN = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed15min.json"), "utf8"));
+const OBSERVED_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed_archive_index.json"), "utf8"));
+const LEWES_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "lewes_archive_index.json"), "utf8"));
 const TOP_TIDES = JSON.parse(fs.readFileSync(path.join(HERE, "..", "toptides.json"), "utf8"));
 
 function extractFunction(name) {
@@ -142,7 +144,9 @@ assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /15-Minute|H
 assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
 assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
-assert.match(SOURCE, /linear-gradient\(90deg,#18c8ff 0%,#00a6f2 20%,#1479df 40%,#1852bd 60%,#132f7d 80%,#041536 100%\)/);
+assert.match(SOURCE, /linear-gradient\(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%/);
+assert.match(SOURCE, /<strong>Green<\/strong> represents uncertainty/);
+assert.match(SOURCE, /Green represents uncertainty\.<\/strong>/);
 assert.doesNotMatch(SOURCE, /Feet above ground/);
 assert.doesNotMatch(SOURCE, /class="export-depth-key-disconnected"/);
 assert.match(SOURCE, /function captureExportRoadLabelsCanvas\(/);
@@ -205,6 +209,18 @@ assert.match(SOURCE, /\{ allowNearest: false \}/);
 assert.match(SOURCE, /No parcel contains that building tap/);
 assert.match(SOURCE, /requestIdleCallback/);
 assert.match(SOURCE, /loadForecast\(null, \{ selectCurrent: true, forceRefresh: true \}\)/);
+assert.match(SOURCE, /observedArchiveIndexPath/);
+assert.match(SOURCE, /lewesArchiveIndexPath/);
+assert.match(SOURCE, /function ensureObservedArchiveYear\(/);
+assert.match(SOURCE, /function ensureObservedArchiveRange\(/);
+assert.match(SOURCE, /await ensureObservedArchiveForDate\(dateStr\)/);
+assert.match(SOURCE, /Loading the selected tide-archive year/);
+assert.doesNotMatch(extractFunction("warmBackgroundData"), /LEWES_HOURLY_URL/);
+assert.doesNotMatch(extractFunction("warmBackgroundData"), /OBSERVED_15MIN_URL/);
+assert.equal(OBSERVED_INDEX.source, "stone-harbor");
+assert.equal(LEWES_INDEX.source, "lewes");
+assert.equal(OBSERVED_INDEX.days.length, OBSERVED_15MIN.days.length);
+assert.ok(LEWES_INDEX.days.length > 23000);
 
 const selectedRangeContext = vm.createContext({
   Date,

@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Regression checks for North Wildwood return-interval scenarios."""
+
+from __future__ import annotations
+
+import json
+import math
+from datetime import datetime
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+PAYLOAD = json.loads((ROOT / "return_intervals.json").read_text(encoding="utf-8"))
+INDEX = (ROOT / "index.html").read_text(encoding="utf-8")
+EXPECTED_INTERVALS = [1, 2, 5, 10, 20, 50, 100]
+EXPECTED_NACCS_FT = {
+    1: 4.2165,
+    2: 5.4460,
+    5: 6.6425,
+    10: 7.3436,
+    20: 8.0468,
+    50: 9.5326,
+    100: 10.7608,
+}
+
+
+def parse_utc(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def main() -> None:
+    if PAYLOAD["schema"] != "north-wildwood-return-intervals-v1":
+        raise AssertionError("Unexpected return-interval schema")
+    if PAYLOAD["returnIntervalsYears"] != EXPECTED_INTERVALS:
+        raise AssertionError("Return intervals do not match NACCS through 100 years")
+    if PAYLOAD["windowHours"] != 84 or PAYLOAD["intervalMinutes"] != 15:
+        raise AssertionError("Synthetic storms must use an 84-hour, 15-minute window")
+
+    fit = PAYLOAD["usgsFrequencyFit"]
+    maxima = fit["annualMaxima"]
+    if fit["sampleCount"] != 60 or len(maxima) != 60:
+        raise AssertionError("USGS fit must contain the 60 available complete water years")
+    years = [row["waterYear"] for row in maxima]
+    if years != sorted(set(years)) or years[0] != 1965 or years[-1] != 2025:
+        raise AssertionError("USGS water-year record is not unique and ordered from 1965-2025")
+    jonas = next(row for row in maxima if row["waterYear"] == 2016)
+    if not math.isclose(jonas["heightNavd88Ft"], 6.22, abs_tol=1e-9):
+        raise AssertionError("Frequency fit used the replay-calibrated Jonas value instead of raw USGS")
+    if jonas["source"] != "usgs-continuous-raw":
+        raise AssertionError("Raw USGS Jonas provenance is missing")
+
+    records = PAYLOAD["intervals"]
+    if [record["years"] for record in records] != EXPECTED_INTERVALS:
+        raise AssertionError("Return-interval records are incomplete or out of order")
+
+    previous_naccs = previous_usgs = previous_average = -math.inf
+    reference_tide = None
+    for record in records:
+        years = record["years"]
+        if not math.isclose(record["naccsNavd88Ft"], EXPECTED_NACCS_FT[years], abs_tol=5e-5):
+            raise AssertionError(f"{years}-year NACCS conversion is incorrect")
+        if not math.isclose(
+            record["averageNavd88Ft"],
+            (record["naccsNavd88Ft"] + record["usgsNavd88Ft"]) / 2,
+            abs_tol=1e-4,
+        ):
+            raise AssertionError(f"{years}-year arithmetic mean is incorrect")
+        if not math.isclose(
+            record["averageMllwFt"],
+            record["averageNavd88Ft"] + 2.75,
+            abs_tol=1e-9,
+        ):
+            raise AssertionError(f"{years}-year MLLW display conversion is incorrect")
+        if not (
+            record["naccsNavd88Ft"] > previous_naccs
+            and record["usgsNavd88Ft"] > previous_usgs
+            and record["averageNavd88Ft"] > previous_average
+        ):
+            raise AssertionError("Return levels must increase monotonically")
+        previous_naccs = record["naccsNavd88Ft"]
+        previous_usgs = record["usgsNavd88Ft"]
+        previous_average = record["averageNavd88Ft"]
+
+        series = record["series15min"]
+        if len(series) != 337 or record["peakIndex15min"] != 168:
+            raise AssertionError(f"{years}-year series does not contain 337 centered frames")
+        start = parse_utc(series[0]["timeUtc"])
+        end = parse_utc(series[-1]["timeUtc"])
+        center = parse_utc(series[168]["timeUtc"])
+        if (end - start).total_seconds() != 84 * 3600:
+            raise AssertionError(f"{years}-year series is not exactly 84 hours")
+        if center != start + (end - start) / 2:
+            raise AssertionError(f"{years}-year storm maximum is not at the midpoint")
+        for before, after in zip(series, series[1:]):
+            if (parse_utc(after["timeUtc"]) - parse_utc(before["timeUtc"])).total_seconds() != 900:
+                raise AssertionError(f"{years}-year series is not on a 15-minute grid")
+
+        peak = max(row["navd88StageFt"] for row in series)
+        peak_indices = [
+            index for index, row in enumerate(series)
+            if math.isclose(row["navd88StageFt"], peak, abs_tol=1e-9)
+        ]
+        if peak_indices != [168] or not math.isclose(
+            peak, record["averageNavd88Ft"], abs_tol=1e-9
+        ):
+            raise AssertionError(f"{years}-year target is not the unique midpoint maximum")
+        if series[0]["surgeRatio"] != 0 or series[-1]["surgeRatio"] != 0:
+            raise AssertionError(f"{years}-year surge must begin and end at zero")
+        if series[168]["surgeRatio"] != 1:
+            raise AssertionError(f"{years}-year midpoint surge ratio must be one")
+
+        tide = [row["astronomicalTideNavd88Ft"] for row in series]
+        if reference_tide is None:
+            reference_tide = tide
+        elif tide != reference_tide:
+            raise AssertionError("Every return interval must use the identical harmonic tide")
+        if any(row["navd88StageFt"] < -4 or row["navd88StageFt"] > 14 for row in series):
+            raise AssertionError(f"{years}-year series exceeds the mapper stage catalog")
+
+    # The digitized curve must retain the image's sharp peak, post-peak shoulder,
+    # and long tail rather than becoming a symmetric bell curve.
+    controls = {
+        int(row["time"]): float(row["ratio"])
+        for row in PAYLOAD["sources"]["surgeProfile"]["controlPoints"]
+    }
+    if not (controls[48] > 0.90 and controls[50] > controls[48] and controls[52] < controls[50]):
+        raise AssertionError("Digitized surge profile lost its sharp central peak")
+    if not (0.47 < controls[58] < 0.51 and 0.47 < controls[60] < 0.51):
+        raise AssertionError("Digitized surge profile lost its post-peak shoulder")
+    if not (0.14 < controls[80] < 0.17 and 0.14 < controls[88] < 0.17):
+        raise AssertionError("Digitized surge profile lost its long recession tail")
+
+    required_ui_tokens = (
+        'id="returnIntervalDataBtn"',
+        'id="returnIntervalCard"',
+        'data-return-years="100"',
+        "function loadReturnInterval(",
+        "returnIntervalsPath",
+        'currentViewType === "return-interval"',
+    )
+    for token in required_ui_tokens:
+        if token not in INDEX:
+            raise AssertionError(f"Return-interval UI contract is missing {token}")
+
+    print("North Wildwood return-interval data and UI contract checks passed")
+
+
+if __name__ == "__main__":
+    main()

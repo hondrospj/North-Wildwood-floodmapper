@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/update-lewes-archive.yml
       - tools/update_lewes_archive.py
+      - tools/build_observed_archive_shards.py
   workflow_dispatch:
 
 permissions:
@@ -35,16 +36,19 @@ jobs:
       - name: Pull verified NOAA Lewes hourly archive and six-minute gap fills
         run: python3 tools/update_lewes_archive.py
 
+      - name: Rebuild browser-optimized archive indexes and year shards
+        run: python3 tools/build_observed_archive_shards.py
+
       - name: Commit rebuilt archive when NOAA data changed
         shell: bash
         run: |
-          if git diff --quiet -- lewes_hourly.json; then
+          if git diff --quiet -- lewes_hourly.json observed_archive_index.json lewes_archive_index.json observed_archive; then
             echo "Lewes archive is already current."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lewes_hourly.json
+          git add lewes_hourly.json observed_archive_index.json lewes_archive_index.json observed_archive
           git commit -m "Rebuild pre-2007 Lewes archive"
           git pull --rebase --autostash origin main
           git push
