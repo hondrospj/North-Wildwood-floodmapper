@@ -235,6 +235,7 @@ assert.doesNotMatch(extractFunction("switchReturnInterval"), /previousEntry/);
 assert.match(SOURCE, />Rare Floods<\/button>/);
 assert.match(SOURCE, /<h2>How Rare\?<\/h2>/);
 assert.match(SOURCE, /return-interval-mode #leftPanel > #timelineIntervalCard\{order:1 !important\}/);
+assert.match(SOURCE, /#rightRail > #mapperTutorialBtn\{order:3 !important\}/);
 assert.doesNotMatch(SOURCE, /id="returnIntervalMethodNote"/);
 assert.doesNotMatch(SOURCE, /no USGS averaging/);
 assert.doesNotMatch(SOURCE, /depth map capped at/);
