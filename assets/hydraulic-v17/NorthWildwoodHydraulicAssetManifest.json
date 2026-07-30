@@ -1,0 +1,2971 @@
+{
+  "schema": "north-wildwood-hydraulic-assets-v5",
+  "generatedUtc": "2026-07-30T14:54:28Z",
+  "modelKind": "connectivity-first depth-penalized bathtub",
+  "phaseInvariant": true,
+  "verticalPenalty": {
+    "atOrBelowMinorFt": 1.25,
+    "atOrAboveMajorFt": 0.0,
+    "curve": "normalized exponential",
+    "decayRate": 1.5,
+    "maximumLocalDepthPenaltyFraction": 0.75,
+    "minimumConnectedDepthRetainedFraction": 0.25,
+    "application": "depth only; connectivity evaluated at full gauge stage"
+  },
+  "graph": {
+    "schema": "north-wildwood-one-foot-hydraulic-graph-v4",
+    "width": 10930,
+    "height": 14120,
+    "cellSizeFt": 1,
+    "sourceStageNavd88Ft": 1.0,
+    "sourceMinComponentCells": 101,
+    "sourceConnectivity": "four-neighbour/shared-side only",
+    "bulkheadElevationNavd88Ft": 7.5,
+    "bulkheadNominalWidthCells": 21,
+    "bulkheadPixelCount": 174993,
+    "bulkheadTerrainTreatment": "stitched into input DEM with GDAL before graph construction",
+    "stormDrains": "disabled; not connectivity seeds and no exchange flow",
+    "modelMaximumNavd88Ft": 20.0,
+    "controlVolumeSizeFt": 25,
+    "connectionBinFt": 2,
+    "controlVolumeConnectivity": "four-neighbour components within each tile/connection bin; hard structures isolated as barrier material",
+    "zoneCount": 137000,
+    "geotransform": [
+      401465,
+      1,
+      0,
+      70425,
+      0,
+      -1
+    ]
+  },
+  "render": {
+    "renderWidth": 2186,
+    "renderHeight": 2824,
+    "renderCellSizeFt": 5,
+    "projection": "PROJCS[\"NAD83(2011) / New Jersey (ftUS)\",GEOGCS[\"NAD83(2011)\",DATUM[\"NAD83_National_Spatial_Reference_System_2011\",SPHEROID[\"GRS 1980\",6378137,298.257222101,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"1116\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"6318\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",38.8333333333333],PARAMETER[\"central_meridian\",-74.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",492125],PARAMETER[\"false_northing\",0],UNIT[\"US survey foot\",0.304800609601219,AUTHORITY[\"EPSG\",\"9003\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"6527\"]]",
+    "geotransform": [
+      401465.0,
+      5.0,
+      0.0,
+      70425.0,
+      0.0,
+      -5.0
+    ],
+    "phases": {
+      "slack": {
+        "stageCount": 401,
+        "pngBytes": 63380024,
+        "modelKind": "connectivity-first depth-penalized bathtub",
+        "phaseInvariant": true,
+        "verticalPenalty": {
+          "atOrBelowMinorFt": 1.25,
+          "atOrAboveMajorFt": 0.0,
+          "curve": "normalized exponential",
+          "decayRate": 1.5,
+          "maximumLocalDepthPenaltyFraction": 0.75,
+          "minimumConnectedDepthRetainedFraction": 0.25,
+          "application": "depth only after full-stage connectivity"
+        },
+        "connectivity": "four-neighbour render components touching a qualified source",
+        "disconnectedBluePixelsRemoved": 936579,
+        "maximumUnfilteredComponents": 289,
+        "maximumRetainedSourceComponents": 91
+      },
+      "filling": {
+        "stageCount": 401,
+        "pngBytes": 63380024,
+        "modelKind": "connectivity-first depth-penalized bathtub",
+        "phaseInvariant": true,
+        "verticalPenalty": {
+          "atOrBelowMinorFt": 1.25,
+          "atOrAboveMajorFt": 0.0,
+          "curve": "normalized exponential",
+          "decayRate": 1.5,
+          "maximumLocalDepthPenaltyFraction": 0.75,
+          "minimumConnectedDepthRetainedFraction": 0.25,
+          "application": "depth only after full-stage connectivity"
+        },
+        "connectivity": "four-neighbour render components touching a qualified source",
+        "disconnectedBluePixelsRemoved": 936579,
+        "maximumUnfilteredComponents": 289,
+        "maximumRetainedSourceComponents": 91,
+        "copiedFromCanonicalPhase": "slack"
+      },
+      "draining": {
+        "stageCount": 401,
+        "pngBytes": 63380024,
+        "modelKind": "connectivity-first depth-penalized bathtub",
+        "phaseInvariant": true,
+        "verticalPenalty": {
+          "atOrBelowMinorFt": 1.25,
+          "atOrAboveMajorFt": 0.0,
+          "curve": "normalized exponential",
+          "decayRate": 1.5,
+          "maximumLocalDepthPenaltyFraction": 0.75,
+          "minimumConnectedDepthRetainedFraction": 0.25,
+          "application": "depth only after full-stage connectivity"
+        },
+        "connectivity": "four-neighbour render components touching a qualified source",
+        "disconnectedBluePixelsRemoved": 936579,
+        "maximumUnfilteredComponents": 289,
+        "maximumRetainedSourceComponents": 91,
+        "copiedFromCanonicalPhase": "slack"
+      }
+    }
+  },
+  "thresholdsNAVD88": {
+    "minorLow": 3.25,
+    "moderateLow": 4.25,
+    "majorLow": 5.25
+  },
+  "thresholdsMLLW": {
+    "minorLow": 6.0,
+    "moderateLow": 7.0,
+    "majorLow": 8.0
+  },
+  "navd88OffsetFromMllwFt": -2.75,
+  "phases": [
+    "filling",
+    "slack",
+    "draining"
+  ],
+  "diagnostics": {
+    "modelKind": "connectivity-first depth-penalized bathtub",
+    "phaseInvariant": true,
+    "diagnosticStageCount": 401,
+    "stageDiagnostics": [
+      {
+        "stageNavd88Ft": 0.0,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.0
+      },
+      {
+        "stageNavd88Ft": 0.05,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.05
+      },
+      {
+        "stageNavd88Ft": 0.1,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.1
+      },
+      {
+        "stageNavd88Ft": 0.15,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.15
+      },
+      {
+        "stageNavd88Ft": 0.2,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.2
+      },
+      {
+        "stageNavd88Ft": 0.25,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.25
+      },
+      {
+        "stageNavd88Ft": 0.3,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.3
+      },
+      {
+        "stageNavd88Ft": 0.35,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.35
+      },
+      {
+        "stageNavd88Ft": 0.4,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.4
+      },
+      {
+        "stageNavd88Ft": 0.45,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.45
+      },
+      {
+        "stageNavd88Ft": 0.5,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.5
+      },
+      {
+        "stageNavd88Ft": 0.55,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.55
+      },
+      {
+        "stageNavd88Ft": 0.6,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.6
+      },
+      {
+        "stageNavd88Ft": 0.65,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.65
+      },
+      {
+        "stageNavd88Ft": 0.7,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.7
+      },
+      {
+        "stageNavd88Ft": 0.75,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.75
+      },
+      {
+        "stageNavd88Ft": 0.8,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.8
+      },
+      {
+        "stageNavd88Ft": 0.85,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.85
+      },
+      {
+        "stageNavd88Ft": 0.9,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.9
+      },
+      {
+        "stageNavd88Ft": 0.95,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 0.95
+      },
+      {
+        "stageNavd88Ft": 1.0,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.0
+      },
+      {
+        "stageNavd88Ft": 1.05,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.05
+      },
+      {
+        "stageNavd88Ft": 1.1,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.1
+      },
+      {
+        "stageNavd88Ft": 1.15,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.15
+      },
+      {
+        "stageNavd88Ft": 1.2,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.2
+      },
+      {
+        "stageNavd88Ft": 1.25,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.25
+      },
+      {
+        "stageNavd88Ft": 1.3,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.3
+      },
+      {
+        "stageNavd88Ft": 1.35,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.35
+      },
+      {
+        "stageNavd88Ft": 1.4,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.4
+      },
+      {
+        "stageNavd88Ft": 1.45,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.45
+      },
+      {
+        "stageNavd88Ft": 1.5,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.5
+      },
+      {
+        "stageNavd88Ft": 1.55,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.55
+      },
+      {
+        "stageNavd88Ft": 1.6,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.6
+      },
+      {
+        "stageNavd88Ft": 1.65,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.65
+      },
+      {
+        "stageNavd88Ft": 1.7,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.7
+      },
+      {
+        "stageNavd88Ft": 1.75,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.75
+      },
+      {
+        "stageNavd88Ft": 1.8,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.8
+      },
+      {
+        "stageNavd88Ft": 1.85,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.85
+      },
+      {
+        "stageNavd88Ft": 1.9,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.9
+      },
+      {
+        "stageNavd88Ft": 1.95,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 1.95
+      },
+      {
+        "stageNavd88Ft": 2.0,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.0
+      },
+      {
+        "stageNavd88Ft": 2.05,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.05
+      },
+      {
+        "stageNavd88Ft": 2.1,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.1
+      },
+      {
+        "stageNavd88Ft": 2.15,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.15
+      },
+      {
+        "stageNavd88Ft": 2.2,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.2
+      },
+      {
+        "stageNavd88Ft": 2.25,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.25
+      },
+      {
+        "stageNavd88Ft": 2.3,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.3
+      },
+      {
+        "stageNavd88Ft": 2.35,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.35
+      },
+      {
+        "stageNavd88Ft": 2.4,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.4
+      },
+      {
+        "stageNavd88Ft": 2.45,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.45
+      },
+      {
+        "stageNavd88Ft": 2.5,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.5
+      },
+      {
+        "stageNavd88Ft": 2.55,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.55
+      },
+      {
+        "stageNavd88Ft": 2.6,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.6
+      },
+      {
+        "stageNavd88Ft": 2.65,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.65
+      },
+      {
+        "stageNavd88Ft": 2.7,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.7
+      },
+      {
+        "stageNavd88Ft": 2.75,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.75
+      },
+      {
+        "stageNavd88Ft": 2.8,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.8
+      },
+      {
+        "stageNavd88Ft": 2.85,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.85
+      },
+      {
+        "stageNavd88Ft": 2.9,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.9
+      },
+      {
+        "stageNavd88Ft": 2.95,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 2.95
+      },
+      {
+        "stageNavd88Ft": 3.0,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.0
+      },
+      {
+        "stageNavd88Ft": 3.05,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.05
+      },
+      {
+        "stageNavd88Ft": 3.1,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.1
+      },
+      {
+        "stageNavd88Ft": 3.15,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.15
+      },
+      {
+        "stageNavd88Ft": 3.2,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.2
+      },
+      {
+        "stageNavd88Ft": 3.25,
+        "maximumVerticalPenaltyFt": 1.25,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.25
+      },
+      {
+        "stageNavd88Ft": 3.3,
+        "maximumVerticalPenaltyFt": 1.1907790398224718,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.3
+      },
+      {
+        "stageNavd88Ft": 3.35,
+        "maximumVerticalPenaltyFt": 1.133737741567409,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.35
+      },
+      {
+        "stageNavd88Ft": 3.4,
+        "maximumVerticalPenaltyFt": 1.0787958815085843,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.4
+      },
+      {
+        "stageNavd88Ft": 3.45,
+        "maximumVerticalPenaltyFt": 1.0258761886007255,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.45
+      },
+      {
+        "stageNavd88Ft": 3.5,
+        "maximumVerticalPenaltyFt": 0.9749042358043762,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.5
+      },
+      {
+        "stageNavd88Ft": 3.55,
+        "maximumVerticalPenaltyFt": 0.9258083354106034,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.55
+      },
+      {
+        "stageNavd88Ft": 3.6,
+        "maximumVerticalPenaltyFt": 0.8785194382183432,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.6
+      },
+      {
+        "stageNavd88Ft": 3.65,
+        "maximumVerticalPenaltyFt": 0.8329710364225851,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.65
+      },
+      {
+        "stageNavd88Ft": 3.7,
+        "maximumVerticalPenaltyFt": 0.7890990700768052,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.7
+      },
+      {
+        "stageNavd88Ft": 3.75,
+        "maximumVerticalPenaltyFt": 0.7468418369981149,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.75
+      },
+      {
+        "stageNavd88Ft": 3.8,
+        "maximumVerticalPenaltyFt": 0.7061399059883926,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.8
+      },
+      {
+        "stageNavd88Ft": 3.85,
+        "maximumVerticalPenaltyFt": 0.6669360332493696,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.85
+      },
+      {
+        "stageNavd88Ft": 3.9,
+        "maximumVerticalPenaltyFt": 0.6291750818741055,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.9
+      },
+      {
+        "stageNavd88Ft": 3.95,
+        "maximumVerticalPenaltyFt": 0.5928039443016236,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 3.95
+      },
+      {
+        "stageNavd88Ft": 4.0,
+        "maximumVerticalPenaltyFt": 0.5577714676256532,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.0
+      },
+      {
+        "stageNavd88Ft": 4.05,
+        "maximumVerticalPenaltyFt": 0.5240283816524237,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.05
+      },
+      {
+        "stageNavd88Ft": 4.1,
+        "maximumVerticalPenaltyFt": 0.4915272296063352,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.1
+      },
+      {
+        "stageNavd88Ft": 4.15,
+        "maximumVerticalPenaltyFt": 0.4602223013860466,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.15
+      },
+      {
+        "stageNavd88Ft": 4.2,
+        "maximumVerticalPenaltyFt": 0.43006956927711404,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.2
+      },
+      {
+        "stageNavd88Ft": 4.25,
+        "maximumVerticalPenaltyFt": 0.4010266260307588,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.25
+      },
+      {
+        "stageNavd88Ft": 4.3,
+        "maximumVerticalPenaltyFt": 0.3730526252216868,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.3
+      },
+      {
+        "stageNavd88Ft": 4.35,
+        "maximumVerticalPenaltyFt": 0.346108223801071,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.35
+      },
+      {
+        "stageNavd88Ft": 4.4,
+        "maximumVerticalPenaltyFt": 0.32015552676390435,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.4
+      },
+      {
+        "stageNavd88Ft": 4.45,
+        "maximumVerticalPenaltyFt": 0.2951580338529062,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.45
+      },
+      {
+        "stageNavd88Ft": 4.5,
+        "maximumVerticalPenaltyFt": 0.27108058822401687,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.5
+      },
+      {
+        "stageNavd88Ft": 4.55,
+        "maximumVerticalPenaltyFt": 0.24788932700129415,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.55
+      },
+      {
+        "stageNavd88Ft": 4.6,
+        "maximumVerticalPenaltyFt": 0.22555163365166234,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.6
+      },
+      {
+        "stageNavd88Ft": 4.65,
+        "maximumVerticalPenaltyFt": 0.20403609211253695,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.65
+      },
+      {
+        "stageNavd88Ft": 4.7,
+        "maximumVerticalPenaltyFt": 0.18331244260781138,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.7
+      },
+      {
+        "stageNavd88Ft": 4.75,
+        "maximumVerticalPenaltyFt": 0.16335153909005673,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.75
+      },
+      {
+        "stageNavd88Ft": 4.8,
+        "maximumVerticalPenaltyFt": 0.14412530824909164,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.8
+      },
+      {
+        "stageNavd88Ft": 4.85,
+        "maximumVerticalPenaltyFt": 0.1256067100292621,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.85
+      },
+      {
+        "stageNavd88Ft": 4.9,
+        "maximumVerticalPenaltyFt": 0.1077696995999072,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.9
+      },
+      {
+        "stageNavd88Ft": 4.95,
+        "maximumVerticalPenaltyFt": 0.09058919072552483,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 4.95
+      },
+      {
+        "stageNavd88Ft": 5.0,
+        "maximumVerticalPenaltyFt": 0.07404102048411668,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.0
+      },
+      {
+        "stageNavd88Ft": 5.05,
+        "maximumVerticalPenaltyFt": 0.0581019152840986,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.05
+      },
+      {
+        "stageNavd88Ft": 5.1,
+        "maximumVerticalPenaltyFt": 0.04274945813197617,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.1
+      },
+      {
+        "stageNavd88Ft": 5.15,
+        "maximumVerticalPenaltyFt": 0.027962057104753503,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.15
+      },
+      {
+        "stageNavd88Ft": 5.2,
+        "maximumVerticalPenaltyFt": 0.013718914982733756,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.2
+      },
+      {
+        "stageNavd88Ft": 5.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.25
+      },
+      {
+        "stageNavd88Ft": 5.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.3
+      },
+      {
+        "stageNavd88Ft": 5.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.35
+      },
+      {
+        "stageNavd88Ft": 5.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.4
+      },
+      {
+        "stageNavd88Ft": 5.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.45
+      },
+      {
+        "stageNavd88Ft": 5.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.5
+      },
+      {
+        "stageNavd88Ft": 5.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.55
+      },
+      {
+        "stageNavd88Ft": 5.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.6
+      },
+      {
+        "stageNavd88Ft": 5.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.65
+      },
+      {
+        "stageNavd88Ft": 5.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.7
+      },
+      {
+        "stageNavd88Ft": 5.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.75
+      },
+      {
+        "stageNavd88Ft": 5.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.8
+      },
+      {
+        "stageNavd88Ft": 5.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.85
+      },
+      {
+        "stageNavd88Ft": 5.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.9
+      },
+      {
+        "stageNavd88Ft": 5.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 5.95
+      },
+      {
+        "stageNavd88Ft": 6.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.0
+      },
+      {
+        "stageNavd88Ft": 6.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.05
+      },
+      {
+        "stageNavd88Ft": 6.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.1
+      },
+      {
+        "stageNavd88Ft": 6.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.15
+      },
+      {
+        "stageNavd88Ft": 6.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.2
+      },
+      {
+        "stageNavd88Ft": 6.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.25
+      },
+      {
+        "stageNavd88Ft": 6.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.3
+      },
+      {
+        "stageNavd88Ft": 6.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.35
+      },
+      {
+        "stageNavd88Ft": 6.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.4
+      },
+      {
+        "stageNavd88Ft": 6.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.45
+      },
+      {
+        "stageNavd88Ft": 6.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.5
+      },
+      {
+        "stageNavd88Ft": 6.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.55
+      },
+      {
+        "stageNavd88Ft": 6.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.6
+      },
+      {
+        "stageNavd88Ft": 6.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.65
+      },
+      {
+        "stageNavd88Ft": 6.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.7
+      },
+      {
+        "stageNavd88Ft": 6.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.75
+      },
+      {
+        "stageNavd88Ft": 6.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.8
+      },
+      {
+        "stageNavd88Ft": 6.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.85
+      },
+      {
+        "stageNavd88Ft": 6.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.9
+      },
+      {
+        "stageNavd88Ft": 6.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 6.95
+      },
+      {
+        "stageNavd88Ft": 7.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.0
+      },
+      {
+        "stageNavd88Ft": 7.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.05
+      },
+      {
+        "stageNavd88Ft": 7.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.1
+      },
+      {
+        "stageNavd88Ft": 7.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.15
+      },
+      {
+        "stageNavd88Ft": 7.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.2
+      },
+      {
+        "stageNavd88Ft": 7.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.25
+      },
+      {
+        "stageNavd88Ft": 7.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.3
+      },
+      {
+        "stageNavd88Ft": 7.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.35
+      },
+      {
+        "stageNavd88Ft": 7.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.4
+      },
+      {
+        "stageNavd88Ft": 7.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.45
+      },
+      {
+        "stageNavd88Ft": 7.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.5
+      },
+      {
+        "stageNavd88Ft": 7.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.55
+      },
+      {
+        "stageNavd88Ft": 7.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.6
+      },
+      {
+        "stageNavd88Ft": 7.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.65
+      },
+      {
+        "stageNavd88Ft": 7.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.7
+      },
+      {
+        "stageNavd88Ft": 7.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.75
+      },
+      {
+        "stageNavd88Ft": 7.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.8
+      },
+      {
+        "stageNavd88Ft": 7.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.85
+      },
+      {
+        "stageNavd88Ft": 7.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.9
+      },
+      {
+        "stageNavd88Ft": 7.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 7.95
+      },
+      {
+        "stageNavd88Ft": 8.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.0
+      },
+      {
+        "stageNavd88Ft": 8.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.05
+      },
+      {
+        "stageNavd88Ft": 8.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.1
+      },
+      {
+        "stageNavd88Ft": 8.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.15
+      },
+      {
+        "stageNavd88Ft": 8.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.2
+      },
+      {
+        "stageNavd88Ft": 8.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.25
+      },
+      {
+        "stageNavd88Ft": 8.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.3
+      },
+      {
+        "stageNavd88Ft": 8.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.35
+      },
+      {
+        "stageNavd88Ft": 8.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.4
+      },
+      {
+        "stageNavd88Ft": 8.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.45
+      },
+      {
+        "stageNavd88Ft": 8.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.5
+      },
+      {
+        "stageNavd88Ft": 8.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.55
+      },
+      {
+        "stageNavd88Ft": 8.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.6
+      },
+      {
+        "stageNavd88Ft": 8.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.65
+      },
+      {
+        "stageNavd88Ft": 8.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.7
+      },
+      {
+        "stageNavd88Ft": 8.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.75
+      },
+      {
+        "stageNavd88Ft": 8.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.8
+      },
+      {
+        "stageNavd88Ft": 8.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.85
+      },
+      {
+        "stageNavd88Ft": 8.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.9
+      },
+      {
+        "stageNavd88Ft": 8.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 8.95
+      },
+      {
+        "stageNavd88Ft": 9.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.0
+      },
+      {
+        "stageNavd88Ft": 9.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.05
+      },
+      {
+        "stageNavd88Ft": 9.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.1
+      },
+      {
+        "stageNavd88Ft": 9.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.15
+      },
+      {
+        "stageNavd88Ft": 9.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.2
+      },
+      {
+        "stageNavd88Ft": 9.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.25
+      },
+      {
+        "stageNavd88Ft": 9.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.3
+      },
+      {
+        "stageNavd88Ft": 9.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.35
+      },
+      {
+        "stageNavd88Ft": 9.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.4
+      },
+      {
+        "stageNavd88Ft": 9.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.45
+      },
+      {
+        "stageNavd88Ft": 9.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.5
+      },
+      {
+        "stageNavd88Ft": 9.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.55
+      },
+      {
+        "stageNavd88Ft": 9.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.6
+      },
+      {
+        "stageNavd88Ft": 9.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.65
+      },
+      {
+        "stageNavd88Ft": 9.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.7
+      },
+      {
+        "stageNavd88Ft": 9.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.75
+      },
+      {
+        "stageNavd88Ft": 9.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.8
+      },
+      {
+        "stageNavd88Ft": 9.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.85
+      },
+      {
+        "stageNavd88Ft": 9.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.9
+      },
+      {
+        "stageNavd88Ft": 9.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 9.95
+      },
+      {
+        "stageNavd88Ft": 10.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.0
+      },
+      {
+        "stageNavd88Ft": 10.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.05
+      },
+      {
+        "stageNavd88Ft": 10.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.1
+      },
+      {
+        "stageNavd88Ft": 10.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.15
+      },
+      {
+        "stageNavd88Ft": 10.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.2
+      },
+      {
+        "stageNavd88Ft": 10.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.25
+      },
+      {
+        "stageNavd88Ft": 10.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.3
+      },
+      {
+        "stageNavd88Ft": 10.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.35
+      },
+      {
+        "stageNavd88Ft": 10.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.4
+      },
+      {
+        "stageNavd88Ft": 10.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.45
+      },
+      {
+        "stageNavd88Ft": 10.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.5
+      },
+      {
+        "stageNavd88Ft": 10.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.55
+      },
+      {
+        "stageNavd88Ft": 10.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.6
+      },
+      {
+        "stageNavd88Ft": 10.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.65
+      },
+      {
+        "stageNavd88Ft": 10.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.7
+      },
+      {
+        "stageNavd88Ft": 10.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.75
+      },
+      {
+        "stageNavd88Ft": 10.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.8
+      },
+      {
+        "stageNavd88Ft": 10.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.85
+      },
+      {
+        "stageNavd88Ft": 10.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.9
+      },
+      {
+        "stageNavd88Ft": 10.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 10.95
+      },
+      {
+        "stageNavd88Ft": 11.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.0
+      },
+      {
+        "stageNavd88Ft": 11.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.05
+      },
+      {
+        "stageNavd88Ft": 11.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.1
+      },
+      {
+        "stageNavd88Ft": 11.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.15
+      },
+      {
+        "stageNavd88Ft": 11.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.2
+      },
+      {
+        "stageNavd88Ft": 11.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.25
+      },
+      {
+        "stageNavd88Ft": 11.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.3
+      },
+      {
+        "stageNavd88Ft": 11.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.35
+      },
+      {
+        "stageNavd88Ft": 11.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.4
+      },
+      {
+        "stageNavd88Ft": 11.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.45
+      },
+      {
+        "stageNavd88Ft": 11.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.5
+      },
+      {
+        "stageNavd88Ft": 11.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.55
+      },
+      {
+        "stageNavd88Ft": 11.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.6
+      },
+      {
+        "stageNavd88Ft": 11.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.65
+      },
+      {
+        "stageNavd88Ft": 11.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.7
+      },
+      {
+        "stageNavd88Ft": 11.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.75
+      },
+      {
+        "stageNavd88Ft": 11.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.8
+      },
+      {
+        "stageNavd88Ft": 11.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.85
+      },
+      {
+        "stageNavd88Ft": 11.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.9
+      },
+      {
+        "stageNavd88Ft": 11.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 11.95
+      },
+      {
+        "stageNavd88Ft": 12.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.0
+      },
+      {
+        "stageNavd88Ft": 12.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.05
+      },
+      {
+        "stageNavd88Ft": 12.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.1
+      },
+      {
+        "stageNavd88Ft": 12.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.15
+      },
+      {
+        "stageNavd88Ft": 12.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.2
+      },
+      {
+        "stageNavd88Ft": 12.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.25
+      },
+      {
+        "stageNavd88Ft": 12.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.3
+      },
+      {
+        "stageNavd88Ft": 12.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.35
+      },
+      {
+        "stageNavd88Ft": 12.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.4
+      },
+      {
+        "stageNavd88Ft": 12.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.45
+      },
+      {
+        "stageNavd88Ft": 12.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.5
+      },
+      {
+        "stageNavd88Ft": 12.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.55
+      },
+      {
+        "stageNavd88Ft": 12.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.6
+      },
+      {
+        "stageNavd88Ft": 12.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.65
+      },
+      {
+        "stageNavd88Ft": 12.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.7
+      },
+      {
+        "stageNavd88Ft": 12.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.75
+      },
+      {
+        "stageNavd88Ft": 12.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.8
+      },
+      {
+        "stageNavd88Ft": 12.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.85
+      },
+      {
+        "stageNavd88Ft": 12.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.9
+      },
+      {
+        "stageNavd88Ft": 12.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 12.95
+      },
+      {
+        "stageNavd88Ft": 13.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.0
+      },
+      {
+        "stageNavd88Ft": 13.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.05
+      },
+      {
+        "stageNavd88Ft": 13.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.1
+      },
+      {
+        "stageNavd88Ft": 13.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.15
+      },
+      {
+        "stageNavd88Ft": 13.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.2
+      },
+      {
+        "stageNavd88Ft": 13.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.25
+      },
+      {
+        "stageNavd88Ft": 13.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.3
+      },
+      {
+        "stageNavd88Ft": 13.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.35
+      },
+      {
+        "stageNavd88Ft": 13.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.4
+      },
+      {
+        "stageNavd88Ft": 13.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.45
+      },
+      {
+        "stageNavd88Ft": 13.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.5
+      },
+      {
+        "stageNavd88Ft": 13.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.55
+      },
+      {
+        "stageNavd88Ft": 13.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.6
+      },
+      {
+        "stageNavd88Ft": 13.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.65
+      },
+      {
+        "stageNavd88Ft": 13.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.7
+      },
+      {
+        "stageNavd88Ft": 13.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.75
+      },
+      {
+        "stageNavd88Ft": 13.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.8
+      },
+      {
+        "stageNavd88Ft": 13.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.85
+      },
+      {
+        "stageNavd88Ft": 13.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.9
+      },
+      {
+        "stageNavd88Ft": 13.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 13.95
+      },
+      {
+        "stageNavd88Ft": 14.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.0
+      },
+      {
+        "stageNavd88Ft": 14.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.05
+      },
+      {
+        "stageNavd88Ft": 14.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.1
+      },
+      {
+        "stageNavd88Ft": 14.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.15
+      },
+      {
+        "stageNavd88Ft": 14.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.2
+      },
+      {
+        "stageNavd88Ft": 14.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.25
+      },
+      {
+        "stageNavd88Ft": 14.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.3
+      },
+      {
+        "stageNavd88Ft": 14.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.35
+      },
+      {
+        "stageNavd88Ft": 14.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.4
+      },
+      {
+        "stageNavd88Ft": 14.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.45
+      },
+      {
+        "stageNavd88Ft": 14.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.5
+      },
+      {
+        "stageNavd88Ft": 14.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.55
+      },
+      {
+        "stageNavd88Ft": 14.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.6
+      },
+      {
+        "stageNavd88Ft": 14.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.65
+      },
+      {
+        "stageNavd88Ft": 14.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.7
+      },
+      {
+        "stageNavd88Ft": 14.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.75
+      },
+      {
+        "stageNavd88Ft": 14.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.8
+      },
+      {
+        "stageNavd88Ft": 14.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.85
+      },
+      {
+        "stageNavd88Ft": 14.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.9
+      },
+      {
+        "stageNavd88Ft": 14.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 14.95
+      },
+      {
+        "stageNavd88Ft": 15.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.0
+      },
+      {
+        "stageNavd88Ft": 15.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.05
+      },
+      {
+        "stageNavd88Ft": 15.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.1
+      },
+      {
+        "stageNavd88Ft": 15.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.15
+      },
+      {
+        "stageNavd88Ft": 15.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.2
+      },
+      {
+        "stageNavd88Ft": 15.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.25
+      },
+      {
+        "stageNavd88Ft": 15.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.3
+      },
+      {
+        "stageNavd88Ft": 15.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.35
+      },
+      {
+        "stageNavd88Ft": 15.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.4
+      },
+      {
+        "stageNavd88Ft": 15.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.45
+      },
+      {
+        "stageNavd88Ft": 15.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.5
+      },
+      {
+        "stageNavd88Ft": 15.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.55
+      },
+      {
+        "stageNavd88Ft": 15.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.6
+      },
+      {
+        "stageNavd88Ft": 15.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.65
+      },
+      {
+        "stageNavd88Ft": 15.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.7
+      },
+      {
+        "stageNavd88Ft": 15.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.75
+      },
+      {
+        "stageNavd88Ft": 15.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.8
+      },
+      {
+        "stageNavd88Ft": 15.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.85
+      },
+      {
+        "stageNavd88Ft": 15.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.9
+      },
+      {
+        "stageNavd88Ft": 15.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 15.95
+      },
+      {
+        "stageNavd88Ft": 16.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.0
+      },
+      {
+        "stageNavd88Ft": 16.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.05
+      },
+      {
+        "stageNavd88Ft": 16.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.1
+      },
+      {
+        "stageNavd88Ft": 16.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.15
+      },
+      {
+        "stageNavd88Ft": 16.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.2
+      },
+      {
+        "stageNavd88Ft": 16.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.25
+      },
+      {
+        "stageNavd88Ft": 16.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.3
+      },
+      {
+        "stageNavd88Ft": 16.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.35
+      },
+      {
+        "stageNavd88Ft": 16.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.4
+      },
+      {
+        "stageNavd88Ft": 16.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.45
+      },
+      {
+        "stageNavd88Ft": 16.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.5
+      },
+      {
+        "stageNavd88Ft": 16.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.55
+      },
+      {
+        "stageNavd88Ft": 16.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.6
+      },
+      {
+        "stageNavd88Ft": 16.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.65
+      },
+      {
+        "stageNavd88Ft": 16.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.7
+      },
+      {
+        "stageNavd88Ft": 16.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.75
+      },
+      {
+        "stageNavd88Ft": 16.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.8
+      },
+      {
+        "stageNavd88Ft": 16.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.85
+      },
+      {
+        "stageNavd88Ft": 16.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.9
+      },
+      {
+        "stageNavd88Ft": 16.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 16.95
+      },
+      {
+        "stageNavd88Ft": 17.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.0
+      },
+      {
+        "stageNavd88Ft": 17.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.05
+      },
+      {
+        "stageNavd88Ft": 17.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.1
+      },
+      {
+        "stageNavd88Ft": 17.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.15
+      },
+      {
+        "stageNavd88Ft": 17.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.2
+      },
+      {
+        "stageNavd88Ft": 17.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.25
+      },
+      {
+        "stageNavd88Ft": 17.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.3
+      },
+      {
+        "stageNavd88Ft": 17.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.35
+      },
+      {
+        "stageNavd88Ft": 17.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.4
+      },
+      {
+        "stageNavd88Ft": 17.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.45
+      },
+      {
+        "stageNavd88Ft": 17.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.5
+      },
+      {
+        "stageNavd88Ft": 17.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.55
+      },
+      {
+        "stageNavd88Ft": 17.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.6
+      },
+      {
+        "stageNavd88Ft": 17.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.65
+      },
+      {
+        "stageNavd88Ft": 17.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.7
+      },
+      {
+        "stageNavd88Ft": 17.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.75
+      },
+      {
+        "stageNavd88Ft": 17.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.8
+      },
+      {
+        "stageNavd88Ft": 17.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.85
+      },
+      {
+        "stageNavd88Ft": 17.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.9
+      },
+      {
+        "stageNavd88Ft": 17.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 17.95
+      },
+      {
+        "stageNavd88Ft": 18.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.0
+      },
+      {
+        "stageNavd88Ft": 18.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.05
+      },
+      {
+        "stageNavd88Ft": 18.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.1
+      },
+      {
+        "stageNavd88Ft": 18.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.15
+      },
+      {
+        "stageNavd88Ft": 18.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.2
+      },
+      {
+        "stageNavd88Ft": 18.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.25
+      },
+      {
+        "stageNavd88Ft": 18.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.3
+      },
+      {
+        "stageNavd88Ft": 18.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.35
+      },
+      {
+        "stageNavd88Ft": 18.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.4
+      },
+      {
+        "stageNavd88Ft": 18.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.45
+      },
+      {
+        "stageNavd88Ft": 18.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.5
+      },
+      {
+        "stageNavd88Ft": 18.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.55
+      },
+      {
+        "stageNavd88Ft": 18.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.6
+      },
+      {
+        "stageNavd88Ft": 18.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.65
+      },
+      {
+        "stageNavd88Ft": 18.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.7
+      },
+      {
+        "stageNavd88Ft": 18.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.75
+      },
+      {
+        "stageNavd88Ft": 18.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.8
+      },
+      {
+        "stageNavd88Ft": 18.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.85
+      },
+      {
+        "stageNavd88Ft": 18.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.9
+      },
+      {
+        "stageNavd88Ft": 18.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 18.95
+      },
+      {
+        "stageNavd88Ft": 19.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.0
+      },
+      {
+        "stageNavd88Ft": 19.05,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.05
+      },
+      {
+        "stageNavd88Ft": 19.1,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.1
+      },
+      {
+        "stageNavd88Ft": 19.15,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.15
+      },
+      {
+        "stageNavd88Ft": 19.2,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.2
+      },
+      {
+        "stageNavd88Ft": 19.25,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.25
+      },
+      {
+        "stageNavd88Ft": 19.3,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.3
+      },
+      {
+        "stageNavd88Ft": 19.35,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.35
+      },
+      {
+        "stageNavd88Ft": 19.4,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.4
+      },
+      {
+        "stageNavd88Ft": 19.45,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.45
+      },
+      {
+        "stageNavd88Ft": 19.5,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.5
+      },
+      {
+        "stageNavd88Ft": 19.55,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.55
+      },
+      {
+        "stageNavd88Ft": 19.6,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.6
+      },
+      {
+        "stageNavd88Ft": 19.65,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.65
+      },
+      {
+        "stageNavd88Ft": 19.7,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.7
+      },
+      {
+        "stageNavd88Ft": 19.75,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.75
+      },
+      {
+        "stageNavd88Ft": 19.8,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.8
+      },
+      {
+        "stageNavd88Ft": 19.85,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.85
+      },
+      {
+        "stageNavd88Ft": 19.9,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.9
+      },
+      {
+        "stageNavd88Ft": 19.95,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 19.95
+      },
+      {
+        "stageNavd88Ft": 20.0,
+        "maximumVerticalPenaltyFt": 0.0,
+        "maximumLocalDepthPenaltyFraction": 0.75,
+        "minimumConnectedDepthRetainedFraction": 0.25,
+        "connectivityStageNavd88Ft": 20.0
+      }
+    ],
+    "verticalPenalty": {
+      "atOrBelowMinorFt": 1.25,
+      "atOrAboveMajorFt": 0.0,
+      "curve": "normalized exponential",
+      "decayRate": 1.5,
+      "maximumLocalDepthPenaltyFraction": 0.75,
+      "minimumConnectedDepthRetainedFraction": 0.25,
+      "application": "depth only; connectivity is evaluated at the full gauge stage"
+    }
+  },
+  "queryCog": "/Users/phondros/Documents/Codex/2026-07-29/today-we-will-be-integrating-return/work/hydraulic-v17/assets/COGs/North Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif",
+  "packedQueryPng": "/Users/phondros/Documents/Codex/2026-07-29/today-we-will-be-integrating-return/work/hydraulic-v17/assets/COGs/North Wildwood/NorthWildwoodHydraulicQuery5ft.png",
+  "packedQuery": {
+    "schema": "north-wildwood-packed-depth-query-v2",
+    "width": 2186,
+    "height": 2824,
+    "renderCellSizeFt": 5,
+    "channels": {
+      "redGreen": "conditioned elevation in tenths NAVD88; unsigned big-endian value minus 32768; zero is nodata",
+      "blue": "first four-neighbour connection stage in tenths NAVD88 plus 50; values below -5 ft are clamped to -5 ft; 255 means not connected through 20 ft",
+      "alpha": "255"
+    },
+    "bytes": 1098374
+  },
+  "hydraulicStates": "/Users/phondros/Documents/Codex/2026-07-29/today-we-will-be-integrating-return/work/hydraulic-v17/assets/COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png"
+}

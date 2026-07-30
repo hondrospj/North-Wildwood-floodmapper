@@ -31,13 +31,13 @@ conversion using the mapper's existing `+2.75 ft` contract.
 
 | Return interval | NACCS 11283 | Stone Harbor USGS fit | Mapper target | Target method |
 | ---: | ---: | ---: | ---: | :--- |
-| 1 year | 4.2165 ft | 4.3793 ft | 4.2979 ft | NACCS–USGS average |
-| 2 years | 5.4460 ft | 4.8525 ft | 5.1493 ft | NACCS–USGS average |
-| 5 years | 6.6425 ft | 5.3869 ft | 6.0147 ft | NACCS–USGS average |
-| 10 years | 7.3436 ft | 5.7320 ft | 6.5378 ft | NACCS–USGS average |
-| 20 years | 8.0468 ft | 6.0331 ft | 7.0399 ft | NACCS–USGS average |
-| 50 years | 9.5326 ft | 6.3731 ft | 7.9528 ft | NACCS–USGS average |
-| 100 years | 10.7608 ft | 6.5927 ft | 8.6768 ft | NACCS–USGS average |
+| 1 year | 4.2165 ft | 4.3793 ft | 4.3250 ft | 2:1 USGS-weighted blend |
+| 2 years | 5.4460 ft | 4.8525 ft | 5.0503 ft | 2:1 USGS-weighted blend |
+| 5 years | 6.6425 ft | 5.3869 ft | 5.8054 ft | 2:1 USGS-weighted blend |
+| 10 years | 7.3436 ft | 5.7320 ft | 6.2692 ft | 2:1 USGS-weighted blend |
+| 20 years | 8.0468 ft | 6.0331 ft | 6.7043 ft | 2:1 USGS-weighted blend |
+| 50 years | 9.5326 ft | 6.3731 ft | 7.4263 ft | 2:1 USGS-weighted blend |
+| 100 years | 10.7608 ft | 6.5927 ft | 7.9821 ft | 2:1 USGS-weighted blend |
 | 200 years | 11.9254 ft | — | 11.9254 ft | NACCS only |
 | 500 years | 13.4856 ft | — | 13.4856 ft | NACCS only |
 | 1,000 years | 14.7033 ft | — | 14.7033 ft | NACCS only |
@@ -53,9 +53,9 @@ return-level convention `F = exp(-1/T)`, which gives a finite one-year level.
 The raw 6.22-ft NAVD88 USGS Jonas crest is used in this statistical series,
 not the mapper's separate 6.69-ft North Wildwood replay calibration.
 
-The 1–100-year targets are the unweighted arithmetic means of the matching
-NACCS and USGS levels. The 200–10,000-year targets use the published NACCS
-station values directly, with no USGS extrapolation or averaging. NOAA station
+The 1–100-year targets use two parts local USGS gauge history to one part
+NACCS. The 200–10,000-year targets use the published NACCS station values
+directly. NOAA station
 `8535581` Stone Harbor harmonic predictions provide the astronomical tide. The
 user-supplied asymmetric Cape May surge-ratio curve is digitized,
 shape-preserving interpolated, compressed from its pictured 100-hour axis to
@@ -64,10 +64,12 @@ harmonic high tide. The resulting series contains 337
 15-minute frames and retains the sharp central peak, post-peak shoulder, and
 long recession tail in the supplied profile.
 
-The 1,000-year and larger targets exceed the floodmapper's highest available
-14.00-ft NAVD88 flood layer. Their timelines and displayed water levels retain
-the true NACCS targets, while mapped flood depth is capped at that 14.00-ft
-layer and is labeled accordingly in the interface.
+The flood-depth catalog extends through 20.00 ft NAVD88, covering every
+published NACCS station 11283 target in this set without a display cap.
+The existing 0.00–14.00 ft images remain CDN-hosted. The 14.05–20.00 ft
+extension and its compact point-query/state files are bundled under
+`assets/hydraulic-v17/`, so the deployed site does not depend on a separate
+credentialed asset release.
 
 These are stationary screening scenarios: no future sea-level-rise increment
 or trend detrending is applied. Rebuild the committed payload from the official
@@ -89,7 +91,7 @@ vertical units in NAVD88 feet. The model then:
 2. Finds four-neighbour components at or below 1.0 ft NAVD88. A component is a
    source block only when it contains at least 101 cells and intersects a
    supplied source-block polygon. Corner-only contact does not count.
-3. Computes each cell's minimum equilibrium connection stage through 14.0 ft.
+3. Computes each cell's minimum equilibrium connection stage through 20.0 ft.
    Storm drains are disabled in this model version: they are neither
    connectivity seeds nor underground exchange paths.
 4. Marks a cell connected when its conditioned ground elevation and its exact
@@ -102,7 +104,7 @@ vertical units in NAVD88 feet. The model then:
    connected wet cell retains at least 25 percent of its depth and remains
    shallow bright blue instead of being misclassified as green.
 
-The solve produces reusable assets from 0.0–14.0 ft NAVD88 at 0.05-foot
+The solve produces reusable assets from 0.0–20.0 ft NAVD88 at 0.05-foot
 intervals. It is intentionally static: `filling`, `slack`, and `draining`
 assets are identical for the same gauge level. Hourly and 15-minute application
 updates floor the selected level to the nearest 0.05-foot asset.
@@ -159,7 +161,7 @@ that tide. As its final step, the renderer labels the five-foot water mask with
 four-neighbour connectivity and removes every blue component that does not
 touch a qualified source. It smooths depth values over roughly ten feet only
 inside that immutable water mask, so lidar noise cannot create stippled colors
-or new water. The render validator checks all 843 depth/stage pairs and rejects
+or new water. The render validator checks all 1,203 depth/stage pairs and rejects
 any isolated pixel, mismatched mask, corner-only connection, or blue component
 without a source.
 

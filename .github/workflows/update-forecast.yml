@@ -72,7 +72,7 @@ jobs:
           OUT_PATH = Path("forecast.json")
           FORECAST_HOURS = 84
           MIN_LAYER_STAGE = -2.0
-          MAX_LAYER_STAGE = 14.0
+          MAX_LAYER_STAGE = 20.0
           LAYER_INCREMENT = 0.05
           CYCLES_NEWEST_FIRST = (18, 12, 6, 0)
           DAYS_BACK_TO_TRY = 5

@@ -13977,15 +13977,15 @@ html.win-compact-ui #timelineDock #hourSlider{
       <section class="panel-card compact-card data-source-card">
         <div class="section-title">
           <div class="title-with-help">
-            <h2>Data Source</h2>
+            <h2>Water View</h2>
             <button id="dataSourceHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain data source">?</button>
           </div>
           <span id="dataModePill" class="pill">Forecast</span>
         </div>
         <div class="button-grid-2 data-source-options">
           <button id="forecastDataBtn" class="active" type="button">Forecast</button>
-          <button id="observedDataBtn" type="button">Observed</button>
-          <button id="returnIntervalDataBtn" type="button" aria-label="Return Intervals"><span>Return<br />Intervals</span></button>
+          <button id="observedDataBtn" type="button">Past</button>
+          <button id="returnIntervalDataBtn" type="button" aria-label="Rare flood scenarios">Rare Floods</button>
         </div>
       </section>
 
@@ -14007,29 +14007,26 @@ html.win-compact-ui #timelineDock #hourSlider{
       <section id="returnIntervalCard" class="panel-card compact-card return-interval-card">
         <div class="section-title">
           <div class="title-with-help">
-            <h2>Return Interval</h2>
-            <button id="returnIntervalHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain return intervals">?</button>
+            <h2>How Rare?</h2>
+            <button id="returnIntervalHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain rare floods">?</button>
           </div>
           <span id="returnIntervalPill" class="pill">10-Year</span>
         </div>
-        <div class="return-interval-grid" role="group" aria-label="Synthetic storm return interval">
-          <button id="return1Btn" type="button" data-return-years="1">1 Yr</button>
-          <button id="return2Btn" type="button" data-return-years="2">2 Yr</button>
-          <button id="return5Btn" type="button" data-return-years="5">5 Yr</button>
-          <button id="return10Btn" class="active" type="button" data-return-years="10">10 Yr</button>
-          <button id="return20Btn" type="button" data-return-years="20">20 Yr</button>
-          <button id="return50Btn" type="button" data-return-years="50">50 Yr</button>
-          <button id="return100Btn" type="button" data-return-years="100">100 Yr</button>
-          <button id="return200Btn" type="button" data-return-years="200">200 Yr</button>
-          <button id="return500Btn" type="button" data-return-years="500">500 Yr</button>
-          <button id="return1000Btn" type="button" data-return-years="1000">1,000 Yr</button>
-          <button id="return2000Btn" type="button" data-return-years="2000">2,000 Yr</button>
-          <button id="return5000Btn" type="button" data-return-years="5000">5,000 Yr</button>
-          <button id="return10000Btn" type="button" data-return-years="10000">10,000 Yr</button>
+        <div class="return-interval-grid" role="group" aria-label="Choose how rare the flood is">
+          <button id="return1Btn" type="button" data-return-years="1" aria-label="1-year flood">1</button>
+          <button id="return2Btn" type="button" data-return-years="2" aria-label="2-year flood">2</button>
+          <button id="return5Btn" type="button" data-return-years="5" aria-label="5-year flood">5</button>
+          <button id="return10Btn" class="active" type="button" data-return-years="10" aria-label="10-year flood">10</button>
+          <button id="return20Btn" type="button" data-return-years="20" aria-label="20-year flood">20</button>
+          <button id="return50Btn" type="button" data-return-years="50" aria-label="50-year flood">50</button>
+          <button id="return100Btn" type="button" data-return-years="100" aria-label="100-year flood">100</button>
+          <button id="return200Btn" type="button" data-return-years="200" aria-label="200-year flood">200</button>
+          <button id="return500Btn" type="button" data-return-years="500" aria-label="500-year flood">500</button>
+          <button id="return1000Btn" type="button" data-return-years="1000" aria-label="1,000-year flood">1,000</button>
+          <button id="return2000Btn" type="button" data-return-years="2000" aria-label="2,000-year flood">2,000</button>
+          <button id="return5000Btn" type="button" data-return-years="5000" aria-label="5,000-year flood">5,000</button>
+          <button id="return10000Btn" type="button" data-return-years="10000" aria-label="10,000-year flood">10,000</button>
         </div>
-        <p id="returnIntervalMethodNote" class="return-interval-method-note" aria-live="polite">
-          1–100 years use the NACCS + USGS average.
-        </p>
       </section>
 
       <section class="panel-card compact-card overlay-card">
@@ -14211,13 +14208,13 @@ html.win-compact-ui #timelineDock #hourSlider{
               </div>
             </div>
             <div class="layer-item">
-              <div id="boundaryToggle" class="toggle on" aria-hidden="true"></div>
+              <div id="boundaryToggle" class="toggle on" role="switch" tabindex="0" aria-checked="true" aria-label="Show simulation extent"></div>
               <div class="layer-meta">
                 <div class="layer-name">Simulation Extent</div>
               </div>
             </div>
             <div class="layer-item">
-              <div id="roadsToggle" class="toggle on" aria-hidden="true"></div>
+              <div id="roadsToggle" class="toggle on" role="switch" tabindex="0" aria-checked="true" aria-label="Show road names"></div>
               <div class="layer-meta">
                 <div class="layer-name">Road names</div>
               </div>
@@ -14666,7 +14663,7 @@ html.win-compact-ui #timelineDock #hourSlider{
 
     const MIN_STAGE = -4.0;
     const MIN_DEPTH_STAGE = 0.0;
-    const MAX_STAGE = 14.0;
+    const MAX_STAGE = 20.0;
     const STAGE_STEP = 0.05;
     const DEFAULT_OVERLAY_MODE = "depth";
     const DEFAULT_DATA_MODE = "forecast";
@@ -15415,16 +15412,6 @@ function cloneStyleObject(value) {
         const dataPill = document.getElementById("dataModePill");
         if (dataPill) dataPill.textContent = getReturnIntervalLabel();
       }
-      const note = document.getElementById("returnIntervalMethodNote");
-      const record = getReturnIntervalRecord();
-      if (note && record) {
-        const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.averageNavd88Ft ?? record.naccsNavd88Ft);
-        const capped = Number.isFinite(targetNavd88Ft) && targetNavd88Ft > MAX_STAGE;
-        note.textContent = record.targetMethod === "naccs-only"
-          ? `NACCS only • no USGS averaging${capped ? ` • depth map capped at ${MAX_STAGE.toFixed(2)} ft NAVD88` : ""}`
-          : "NACCS + USGS average";
-        note.dataset.capped = String(capped);
-      }
     }
 
     function buildReturnIntervalDisplaySeries(entries = currentRawSeriesHours) {
@@ -15482,19 +15469,13 @@ function cloneStyleObject(value) {
       currentDataMode = "return-interval";
       currentViewType = "return-interval";
       currentTopTideIndex = null;
-      currentSelectedLabel = `${getReturnIntervalLabel()} Return Interval`;
-      const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.averageNavd88Ft ?? record.naccsNavd88Ft);
+      currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;
+      const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);
       if (!Number.isFinite(targetNavd88Ft)) {
         throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);
       }
-      const targetSource = record.targetMethod === "naccs-only"
-        ? "NACCS"
-        : "NACCS + USGS average";
-      const mapCapNote = targetNavd88Ft > MAX_STAGE
-        ? ` • depth map capped at ${MAX_STAGE.toFixed(2)} ft`
-        : "";
-      currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88 • ${targetSource}${mapCapNote}`;
-      currentRangeLabel = `Synthetic ${returnIntervalData.windowHours || 84}-hour Stone Harbor tide and surge`;
+      currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;
+      currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;
 
       syncSliderBounds();
       currentHourIndex = preferredEntry
@@ -16421,11 +16402,9 @@ function setDatumHelpOpen(isOpen) {
 
     const HELP_COPY = {
       dataSource: {
-        title: "Data source",
+        title: "Water view",
         body: `
-          <p><strong>Forecast</strong> uses model guidance to estimate future water levels.</p>
-          <p><strong>Observed</strong> uses the Stone Harbor tide gauge as North Wildwood's constant water-level source. Before October 2007, NOAA's Lewes record supplies the hourly tide shape; from October 2007 onward, Stone Harbor observations are used. Historical crest-only events remain maximum-extent views when no hourly record exists.</p>
-          <p><strong>Return Intervals</strong> are synthetic 84-hour planning storms through 10,000 years. The 1–100-year peaks average the matching 2015 NACCS station 11283 and Stone Harbor USGS estimates. The 200–10,000-year peaks use the published NACCS values directly. Every target is applied to the official Stone Harbor harmonic tide with the supplied Cape May surge shape.</p>
+          <p><strong>Forecast</strong> looks ahead. <strong>Past</strong> shows gauge history. <strong>Rare Floods</strong> lets you explore floods from common to extremely rare.</p>
         `
       },
       forecastType: {
@@ -16452,12 +16431,11 @@ function setDatumHelpOpen(isOpen) {
         `
       },
       returnIntervals: {
-        title: "Return intervals",
+        title: "Rare floods",
         body: `
-          <p>A return interval is a long-run frequency estimate, not a schedule. A 100-year water level has about a 1% chance of being exceeded in any year under stationary conditions; it can happen more than once in a short period.</p>
-          <p>For 1, 2, 5, 10, 20, 50, and 100 years, the selected peak is the unweighted average of the matching NACCS station 11283 and Stone Harbor USGS estimates in NAVD88. The 200, 500, 1,000, 2,000, 5,000, and 10,000-year peaks use the published NACCS station value without USGS averaging.</p>
-          <p>The 84-hour hydrograph combines NOAA Stone Harbor harmonic tide predictions with the supplied asymmetric surge profile, with the worst water level at the midpoint. Targets above 14.00 ft NAVD88 retain their true tide and water-level values, but the flood-depth map is capped at the mapper's highest available 14.00-ft layer.</p>
-          <p>These are screening scenarios. They do not include a future sea-level-rise increment and are not survey, insurance, or evacuation products.</p>
+          <p>A 100-year flood means about a 1% chance in any year—not one flood every 100 years.</p>
+          <p>For 1–100 years, the local USGS gauge counts twice as much as NACCS. The rarer choices use NACCS estimates.</p>
+          <p>Each choice shows an 84-hour sample storm, with the highest water in the middle.</p>
         `
       },
       depthLegend: {
@@ -16781,8 +16759,15 @@ function setDatumHelpOpen(isOpen) {
       const normalizedPhase = normalizeHydraulicPhase(phase);
       const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedPhase] || [];
       const roots = phaseRoots.length ? phaseRoots : (OVERLAY_ROOTS[mode] || []);
+      const orderedRoots = Number(stageValue) > 14
+        ? [...roots].sort((left, right) => {
+            const leftIsBundled = left.includes("/assets/hydraulic-v17/");
+            const rightIsBundled = right.includes("/assets/hydraulic-v17/");
+            return Number(rightIsBundled) - Number(leftIsBundled);
+          })
+        : roots;
       const filenames = getOverlayFilenameCandidates(mode, stageValue);
-      return roots.flatMap(root => filenames.map(name => {
+      return orderedRoots.flatMap(root => filenames.map(name => {
         const url = new URL(name, root);
         const version = OVERLAY_CACHE_VERSIONS?.hydraulic || OVERLAY_CACHE_VERSIONS?.[mode];
         if (version) url.searchParams.set("v", version);
@@ -21829,7 +21814,7 @@ function formatSelectedObservedDate(dateStr) {
       if (currentViewType === "forecast") {
         label.textContent = `${getForecastScenarioLabel()} • ${getTimelineIntervalLabel()}`;
       } else if (currentViewType === "return-interval") {
-        label.textContent = `${getReturnIntervalLabel()} Return Interval • ${getTimelineIntervalLabel()}`;
+        label.textContent = `${getReturnIntervalLabel()} Flood • ${getTimelineIntervalLabel()}`;
       } else if (currentViewType === "observed-day") {
         label.textContent = entry?.observationInterval === "crest" ? "Observed • USGS crest" : `Observed • ${getTimelineIntervalLabel()}`;
       } else {
@@ -23508,7 +23493,7 @@ function startPlayback() {
       if (!payload || !Number.isInteger(zoneId) || zoneId <= 0) return null;
       const stageMin = Number(payload.stageMinNavd88Ft) || 0;
       const stageStep = Number(payload.stageStepFt) || 0.05;
-      const stageCount = Number(payload.stageCount) || 281;
+      const stageCount = Number(payload.stageCount) || 401;
       const stride = Number(payload.zoneStride) || ((Number(payload.zoneCount) || 0) + 1);
       const stageIndex = Math.max(0, Math.min(stageCount - 1, Math.round((Number(stage) - stageMin) / stageStep)));
       const binaryValues = payload.decodedPhaseWaterSurface?.[normalizeHydraulicPhase(phase)];
@@ -23546,7 +23531,7 @@ function startPlayback() {
       return {
         elevation: elevation10 / 10,
         zoneId: 0,
-        connectionStage: connectionCode === 255 ? 9999 : (connectionCode - 100) / 10,
+        connectionStage: connectionCode === 255 ? 9999 : (connectionCode - 50) / 10,
         sourceFlag: false,
         hardStructureFlag: false,
         stormGrateFlag: false,
@@ -23782,10 +23767,18 @@ function startPlayback() {
       ["boundaryToggle", "roadsToggle"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.addEventListener("click", () => {
+        const toggleLayer = () => {
           el.classList.toggle("on");
+          el.setAttribute("aria-checked", String(el.classList.contains("on")));
           if (id === "roadsToggle") updateRoadLayerAppearance();
           if (id === "boundaryToggle") applyTownBoundaryVisibility();
+        };
+        el.addEventListener("click", toggleLayer);
+        el.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleLayer();
+          }
         });
       });
       const satelliteToggle = document.getElementById("satelliteToggle");
@@ -33089,29 +33082,49 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260723-hydraulic-v16",
-      "dynamic": "20260723-hydraulic-v16",
-      "hydraulic": "20260723-hydraulic-v16"
+      "depth": "20260730-hydraulic-v17",
+      "dynamic": "20260730-hydraulic-v17",
+      "hydraulic": "20260730-hydraulic-v17"
     },
-    "depthQueryPngPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260723-hydraulic-v16",
+    "depthQueryPngPath": "./assets/hydraulic-v17/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260730-hydraulic-v17",
     "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84Uncompressed5ft.cog.tif.png?v=20260723-hydraulic-v16",
-    "hydraulicStatesPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260723-hydraulic-v16",
+    "hydraulicStatesPath": "./assets/hydraulic-v17/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260730-hydraulic-v17",
     "depthRoots": [
-      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/"
+      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/",
+      "./assets/hydraulic-v17/DepthPNGs/North%20Wildwood/"
     ],
     "dynamicRoots": [
-      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/"
+      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/",
+      "./assets/hydraulic-v17/StagePNGs/North%20Wildwood/"
     ],
     "phaseRoots": {
       "depth": {
-        "filling": "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/filling/",
-        "slack": "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/",
-        "draining": "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/draining/"
+        "filling": [
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/filling/",
+          "./assets/hydraulic-v17/DepthPNGs/North%20Wildwood/filling/"
+        ],
+        "slack": [
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/",
+          "./assets/hydraulic-v17/DepthPNGs/North%20Wildwood/"
+        ],
+        "draining": [
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/draining/",
+          "./assets/hydraulic-v17/DepthPNGs/North%20Wildwood/draining/"
+        ]
       },
       "dynamic": {
-        "filling": "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/filling/",
-        "slack": "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/",
-        "draining": "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/draining/"
+        "filling": [
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/filling/",
+          "./assets/hydraulic-v17/StagePNGs/North%20Wildwood/filling/"
+        ],
+        "slack": [
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/",
+          "./assets/hydraulic-v17/StagePNGs/North%20Wildwood/"
+        ],
+        "draining": [
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/draining/",
+          "./assets/hydraulic-v17/StagePNGs/North%20Wildwood/draining/"
+        ]
       }
     }
   },
@@ -34822,14 +34835,14 @@ html body #mapTitleBadge #mapTitleLogo{
 
   html body #leftPanel .data-source-options button{
     min-width:0 !important;
-    padding:7px 4px !important;
-    font-size:10px !important;
-    line-height:1.05 !important;
-    white-space:normal !important;
+    padding:7px 3px !important;
+    font-size:10.5px !important;
+    line-height:1 !important;
+    white-space:nowrap !important;
   }
 
   html body #leftPanel > .return-interval-card{
-    order:2 !important;
+    order:3 !important;
     display:none !important;
     min-height:0 !important;
     height:auto !important;
@@ -34846,11 +34859,11 @@ html body #mapTitleBadge #mapTitleLogo{
     display:none !important;
   }
 
-  html body.return-interval-mode #leftPanel > .data-source-card{order:1 !important}
-  html body.return-interval-mode #leftPanel > .overlay-card{order:3 !important}
-  html body.return-interval-mode #leftPanel > .datum-card{order:4 !important}
-  html body.return-interval-mode #leftPanel > .opacity-card{order:5 !important}
-  html body.return-interval-mode #leftPanel > #timelineIntervalCard{order:6 !important}
+  html body.return-interval-mode #leftPanel > #timelineIntervalCard{order:1 !important}
+  html body.return-interval-mode #leftPanel > .data-source-card{order:2 !important}
+  html body.return-interval-mode #leftPanel > .overlay-card{order:4 !important}
+  html body.return-interval-mode #leftPanel > .datum-card{order:5 !important}
+  html body.return-interval-mode #leftPanel > .opacity-card{order:6 !important}
   html body.return-interval-mode #leftPanel > #legendDock{order:7 !important}
   html body.return-interval-mode #leftPanel > .snapshot-card{order:8 !important}
 
@@ -34873,17 +34886,8 @@ html body #mapTitleBadge #mapTitleLogo{
     font-size:10px !important;
     line-height:1 !important;
   }
-
-  html body.return-interval-mode #returnIntervalCard .return-interval-method-note{
-    margin:1px 0 0 !important;
-    color:#bed3eb !important;
-    font-size:9.5px !important;
-    line-height:1.25 !important;
-    font-weight:800 !important;
-  }
-
-  html body.return-interval-mode #returnIntervalCard .return-interval-method-note[data-capped="true"]{
-    color:#fde68a !important;
+  html body.return-interval-mode #returnIntervalCard #return2000Btn{
+    grid-column:2;
   }
 
   @media (max-width:900px), (max-height:560px) and (pointer:coarse){
@@ -34894,13 +34898,13 @@ html body #mapTitleBadge #mapTitleLogo{
     }
 
     html body.mobile-optimized.return-interval-mode #leftPanel > .return-interval-card{
-      order:2 !important;
+      order:3 !important;
       flex:0 0 auto !important;
       padding:9px 12px !important;
     }
 
     html body.mobile-optimized.return-interval-mode #returnIntervalCard .return-interval-grid{
-      grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+      grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
     }
 
     html body.mobile-optimized.return-interval-mode #leftPanel > .overlay-card .button-grid-2,
@@ -34908,10 +34912,11 @@ html body #mapTitleBadge #mapTitleLogo{
       grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
     }
 
-    html body.mobile-optimized.return-interval-mode #leftPanel > .overlay-card{order:3 !important}
-    html body.mobile-optimized.return-interval-mode #leftPanel > .datum-card{order:4 !important}
-    html body.mobile-optimized.return-interval-mode #leftPanel > .opacity-card{order:5 !important}
-    html body.mobile-optimized.return-interval-mode #leftPanel > #timelineIntervalCard{order:6 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > #timelineIntervalCard{order:1 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > .data-source-card{order:2 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > .overlay-card{order:4 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > .datum-card{order:5 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > .opacity-card{order:6 !important}
     html body.mobile-optimized.return-interval-mode #leftPanel > .snapshot-card{order:7 !important}
   }
 </style>
@@ -34919,10 +34924,12 @@ html body #mapTitleBadge #mapTitleLogo{
   /* Match the tour action to the navy control panes in every layout. */
   html body #mapperTutorialBtn.mapper-tutorial-launch{
     min-height:38px !important;
+    margin:0 !important;
+    padding:0 14px !important;
     border:1px solid rgba(191,219,254,.26) !important;
     background:rgba(11,18,32,.96) !important;
     color:#f2f7ff !important;
-    box-shadow:0 12px 26px rgba(2,6,23,.30),inset 0 1px 0 rgba(255,255,255,.055) !important;
+    box-shadow:none !important;
     opacity:1 !important;
   }
   html body #mapperTutorialBtn.mapper-tutorial-launch:hover,
@@ -34930,11 +34937,6 @@ html body #mapTitleBadge #mapTitleLogo{
     border-color:#7df9ff !important;
     background:#12213a !important;
     color:#fff !important;
-  }
-
-  html body #returnIntervalDataBtn > span{
-    display:block;
-    line-height:1.05;
   }
 
   /* One key: green uncertainty flows directly into shallow-to-deep blue. */
@@ -35102,6 +35104,9 @@ html body #mapTitleBadge #mapTitleLogo{
       display:block !important;
       visibility:visible !important;
       opacity:1 !important;
+    }
+    html body.mobile-optimized:has(#mapClickModeControl:not([hidden])) #mapWrap > #legendDock{
+      top:126px !important;
     }
   }
 

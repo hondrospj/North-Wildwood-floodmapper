@@ -36,10 +36,10 @@ gdal.UseExceptions()
 WIDTH = 10_930
 HEIGHT = 14_120
 RENDER_STRIDE = 5
-STAGES_FT = np.round(np.arange(0.0, 14.0 + 0.025, 0.05), 2)
+STAGES_FT = np.round(np.arange(0.0, 20.0 + 0.025, 0.05), 2)
 DRY_SENTINEL = np.int16(-32768)
 HIST_MIN10 = -100
-HIST_MAX10 = 140
+HIST_MAX10 = 200
 HIST_COUNT = HIST_MAX10 - HIST_MIN10 + 1
 MODEL_STEP_SECONDS = 60
 TIDE_STEP_SECONDS = 15 * 60
@@ -223,7 +223,7 @@ class HydraulicSolver:
         self.cumulative_elevation = np.cumsum(self.histogram * elevation_ft[None, :], axis=1)
         occupied = self.histogram > 0
         self.minimum_surface = elevation_ft[np.argmax(occupied, axis=1)]
-        self.maximum_surface = np.full(self.zone_count, 14.0, dtype=np.float64)
+        self.maximum_surface = np.full(self.zone_count, 20.0, dtype=np.float64)
         self.edges = edges
 
     def storage(self, surface: np.ndarray) -> np.ndarray:
@@ -583,7 +583,7 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
         "schema": "north-wildwood-hydraulic-states-binary-v5",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": 0.0,
-        "stageMaxNavd88Ft": 14.0,
+        "stageMaxNavd88Ft": 20.0,
         "stageStepFt": 0.05,
         "stageCount": len(STAGES_FT),
         "zoneCount": graph_manifest["zoneCount"],
@@ -1110,13 +1110,16 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     packed[..., 0] = (unsigned_elevation >> 8).astype(np.uint8)
     packed[..., 1] = (unsigned_elevation & 0xFF).astype(np.uint8)
     packed[..., 2] = 255
+    # One byte covers -5.0 through 20.4 ft in tenths. Connection stages below
+    # -5 ft are equivalent here because the published depth catalog starts at 0.
+    packed_connection10 = np.maximum(connection10, -50)
     encodable_connection = (
         valid
-        & (connection10 >= -100)
-        & (connection10 <= 154)
+        & (packed_connection10 >= -50)
+        & (packed_connection10 <= 204)
     )
     packed[..., 2][encodable_connection] = (
-        connection10[encodable_connection].astype(np.int32) + 100
+        packed_connection10[encodable_connection].astype(np.int32) + 50
     ).astype(np.uint8)
     packed[..., 3] = 255
 
@@ -1128,7 +1131,7 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
         compress_level=7,
     )
     metadata = {
-        "schema": "north-wildwood-packed-depth-query-v1",
+        "schema": "north-wildwood-packed-depth-query-v2",
         "width": int(packed.shape[1]),
         "height": int(packed.shape[0]),
         "renderCellSizeFt": RENDER_STRIDE,
@@ -1139,7 +1142,8 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
             ),
             "blue": (
                 "first four-neighbour connection stage in tenths NAVD88 plus "
-                "100; 255 means not connected through 14 ft"
+                "50; values below -5 ft are clamped to -5 ft; 255 means not "
+                "connected through 20 ft"
             ),
             "alpha": "255",
         },

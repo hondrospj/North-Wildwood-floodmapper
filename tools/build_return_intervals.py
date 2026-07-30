@@ -2,7 +2,7 @@
 """Build synthetic North Wildwood return-interval storm hydrographs.
 
 For the 1, 2, 5, 10, 20, 50, and 100-year intervals, the target still-water
-level is the arithmetic mean of:
+level is a 2:1 USGS-to-NACCS weighted blend of:
 
 1. the 2015 NACCS mean water level at save point 11283; and
 2. a Stone Harbor USGS frequency estimate fitted to annual maxima assembled
@@ -43,9 +43,11 @@ USGS_SITE_ID = "01411360"
 USGS_PARAMETER_CD = "72279"
 NOAA_STATION_ID = "8535581"
 METERS_TO_FEET = 3.280839895013123
-AVERAGED_RETURN_INTERVALS = (1, 2, 5, 10, 20, 50, 100)
+WEIGHTED_RETURN_INTERVALS = (1, 2, 5, 10, 20, 50, 100)
+NACCS_WEIGHT = 1.0
+USGS_WEIGHT = 2.0
 RETURN_INTERVALS = (
-    *AVERAGED_RETURN_INTERVALS,
+    *WEIGHTED_RETURN_INTERVALS,
     200,
     500,
     1000,
@@ -517,18 +519,22 @@ def build(args: argparse.Namespace) -> dict:
     fit = fit_gev_lmoments([row["heightNavd88Ft"] for row in annual_maxima])
     usgs_values = {
         interval: gev_return_level(fit, interval)
-        for interval in AVERAGED_RETURN_INTERVALS
+        for interval in WEIGHTED_RETURN_INTERVALS
     }
     tide_rows = parse_noaa_predictions(fetch_json(NOAA_PREDICTIONS_URL))
     surge_profile = build_surge_profile()
 
     intervals = []
     for interval in RETURN_INTERVALS:
-        is_averaged = interval in AVERAGED_RETURN_INTERVALS
+        is_weighted = interval in WEIGHTED_RETURN_INTERVALS
         usgs_value = usgs_values.get(interval)
         target = (
-            (naccs_values[interval] + usgs_value) / 2
-            if is_averaged and usgs_value is not None
+            (
+                naccs_values[interval] * NACCS_WEIGHT
+                + usgs_value * USGS_WEIGHT
+            )
+            / (NACCS_WEIGHT + USGS_WEIGHT)
+            if is_weighted and usgs_value is not None
             else naccs_values[interval]
         )
         series, surge_peak = build_interval_series(
@@ -540,10 +546,10 @@ def build(args: argparse.Namespace) -> dict:
                 "label": f"{interval:,}-Year",
                 "naccsNavd88Ft": round(naccs_values[interval], 4),
                 "usgsNavd88Ft": round(usgs_value, 4) if usgs_value is not None else None,
-                "averageNavd88Ft": round(target, 4) if is_averaged else None,
-                "averageMllwFt": round(target + 2.75, 4) if is_averaged else None,
+                "weightedNavd88Ft": round(target, 4) if is_weighted else None,
+                "weightedMllwFt": round(target + 2.75, 4) if is_weighted else None,
                 "targetMethod": (
-                    "naccs-usgs-average" if is_averaged else "naccs-only"
+                    "naccs-usgs-weighted" if is_weighted else "naccs-only"
                 ),
                 "targetNavd88Ft": round(target, 4),
                 "targetMllwFt": round(target + 2.75, 4),
@@ -557,7 +563,7 @@ def build(args: argparse.Namespace) -> dict:
         )
 
     return {
-        "schema": "north-wildwood-return-intervals-v2",
+        "schema": "north-wildwood-return-intervals-v3",
         "generatedAtUtc": datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat()
@@ -565,11 +571,11 @@ def build(args: argparse.Namespace) -> dict:
         "datum": "NAVD88",
         "displayMllwOffsetFt": 2.75,
         "returnIntervalsYears": list(RETURN_INTERVALS),
-        "averagedReturnIntervalsYears": list(AVERAGED_RETURN_INTERVALS),
+        "weightedReturnIntervalsYears": list(WEIGHTED_RETURN_INTERVALS),
         "naccsOnlyReturnIntervalsYears": [
             interval
             for interval in RETURN_INTERVALS
-            if interval not in AVERAGED_RETURN_INTERVALS
+            if interval not in WEIGHTED_RETURN_INTERVALS
         ],
         "windowHours": WINDOW_HOURS,
         "intervalMinutes": INTERVAL_MINUTES,
@@ -585,10 +591,14 @@ def build(args: argparse.Namespace) -> dict:
                 "records; return-level CDF F=exp(-1/T)"
             ),
             "targetSelection": (
-                "Unweighted arithmetic mean of matching NACCS and USGS return "
-                "levels for 1-100 years; published NACCS station 11283 level "
-                "used directly for 200-10,000 years"
+                "Two parts Stone Harbor USGS to one part NACCS for matching "
+                "1-100-year return levels; published NACCS station 11283 "
+                "level used directly for 200-10,000 years"
             ),
+            "targetWeights": {
+                "naccs": NACCS_WEIGHT,
+                "usgs": USGS_WEIGHT,
+            },
             "hydrograph": (
                 "NOAA Stone Harbor harmonic prediction plus the supplied, digitized "
                 "Cape May surge-ratio shape compressed from 100 to 84 hours; peak "

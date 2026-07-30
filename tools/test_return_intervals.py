@@ -12,9 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PAYLOAD = json.loads((ROOT / "return_intervals.json").read_text(encoding="utf-8"))
 INDEX = (ROOT / "index.html").read_text(encoding="utf-8")
-AVERAGED_INTERVALS = [1, 2, 5, 10, 20, 50, 100]
+WEIGHTED_INTERVALS = [1, 2, 5, 10, 20, 50, 100]
 NACCS_ONLY_INTERVALS = [200, 500, 1000, 2000, 5000, 10000]
-EXPECTED_INTERVALS = [*AVERAGED_INTERVALS, *NACCS_ONLY_INTERVALS]
+EXPECTED_INTERVALS = [*WEIGHTED_INTERVALS, *NACCS_ONLY_INTERVALS]
 EXPECTED_NACCS_FT = {
     1: 4.2165,
     2: 5.4460,
@@ -37,14 +37,16 @@ def parse_utc(value: str) -> datetime:
 
 
 def main() -> None:
-    if PAYLOAD["schema"] != "north-wildwood-return-intervals-v2":
+    if PAYLOAD["schema"] != "north-wildwood-return-intervals-v3":
         raise AssertionError("Unexpected return-interval schema")
     if PAYLOAD["returnIntervalsYears"] != EXPECTED_INTERVALS:
         raise AssertionError("Return intervals do not match NACCS through 10,000 years")
-    if PAYLOAD["averagedReturnIntervalsYears"] != AVERAGED_INTERVALS:
-        raise AssertionError("Only the 1-100-year intervals may use NACCS-USGS averages")
+    if PAYLOAD["weightedReturnIntervalsYears"] != WEIGHTED_INTERVALS:
+        raise AssertionError("Only the 1-100-year intervals may use the NACCS-USGS blend")
     if PAYLOAD["naccsOnlyReturnIntervalsYears"] != NACCS_ONLY_INTERVALS:
         raise AssertionError("The 200-10,000-year intervals must be NACCS-only")
+    if PAYLOAD["method"]["targetWeights"] != {"naccs": 1.0, "usgs": 2.0}:
+        raise AssertionError("The selected blend must weight USGS two-to-one over NACCS")
     if PAYLOAD["windowHours"] != 84 or PAYLOAD["intervalMinutes"] != 15:
         raise AssertionError("Synthetic storms must use an 84-hour, 15-minute window")
 
@@ -71,19 +73,23 @@ def main() -> None:
         years = record["years"]
         if not math.isclose(record["naccsNavd88Ft"], EXPECTED_NACCS_FT[years], abs_tol=5e-5):
             raise AssertionError(f"{years}-year NACCS conversion is incorrect")
-        if years in AVERAGED_INTERVALS:
-            if record["targetMethod"] != "naccs-usgs-average":
-                raise AssertionError(f"{years}-year target must use the NACCS-USGS average")
+        if years in WEIGHTED_INTERVALS:
+            if record["targetMethod"] != "naccs-usgs-weighted":
+                raise AssertionError(f"{years}-year target must use the NACCS-USGS blend")
             if not math.isclose(
-                record["averageNavd88Ft"],
-                (record["naccsNavd88Ft"] + record["usgsNavd88Ft"]) / 2,
+                record["weightedNavd88Ft"],
+                (
+                    record["naccsNavd88Ft"]
+                    + 2 * record["usgsNavd88Ft"]
+                )
+                / 3,
                 abs_tol=1e-4,
             ):
-                raise AssertionError(f"{years}-year arithmetic mean is incorrect")
+                raise AssertionError(f"{years}-year weighted blend is incorrect")
             if not math.isclose(
-                record["targetNavd88Ft"], record["averageNavd88Ft"], abs_tol=1e-9
+                record["targetNavd88Ft"], record["weightedNavd88Ft"], abs_tol=1e-9
             ):
-                raise AssertionError(f"{years}-year target does not match its average")
+                raise AssertionError(f"{years}-year target does not match its blend")
             if record["usgsNavd88Ft"] <= previous_usgs:
                 raise AssertionError("Averaged USGS return levels must increase monotonically")
             previous_usgs = record["usgsNavd88Ft"]
@@ -92,9 +98,9 @@ def main() -> None:
                 raise AssertionError(f"{years}-year target must use NACCS directly")
             if any(
                 record[field] is not None
-                for field in ("usgsNavd88Ft", "averageNavd88Ft", "averageMllwFt")
+                for field in ("usgsNavd88Ft", "weightedNavd88Ft", "weightedMllwFt")
             ):
-                raise AssertionError(f"{years}-year record must not contain a USGS average")
+                raise AssertionError(f"{years}-year record must not contain a USGS blend")
             if not math.isclose(
                 record["targetNavd88Ft"], record["naccsNavd88Ft"], abs_tol=1e-9
             ):
@@ -148,10 +154,8 @@ def main() -> None:
             raise AssertionError("Every return interval must use the identical harmonic tide")
         if any(row["navd88StageFt"] < -4 for row in series):
             raise AssertionError(f"{years}-year series falls below the mapper stage catalog")
-        if years <= 500 and any(row["navd88StageFt"] > 14 for row in series):
-            raise AssertionError(f"{years}-year series unexpectedly exceeds the 14-ft catalog")
-        if years >= 1000 and max(row["navd88StageFt"] for row in series) <= 14:
-            raise AssertionError(f"{years}-year target should exercise the map-cap warning")
+        if any(row["navd88StageFt"] > 20 for row in series):
+            raise AssertionError(f"{years}-year series exceeds the 20-ft catalog")
 
     # The digitized curve must retain the image's sharp peak, post-peak shoulder,
     # and long tail rather than becoming a symmetric bell curve.
@@ -169,17 +173,24 @@ def main() -> None:
     required_ui_tokens = (
         'id="returnIntervalDataBtn"',
         'id="returnIntervalCard"',
-        'id="returnIntervalMethodNote"',
+        ">Rare Floods</button>",
+        "<h2>How Rare?</h2>",
         'data-return-years="10000"',
         "function loadReturnInterval(",
         "returnIntervalsPath",
         'currentViewType === "return-interval"',
-        "no USGS averaging",
-        "depth map capped at",
+        "local USGS gauge counts twice as much as NACCS",
     )
     for token in required_ui_tokens:
         if token not in INDEX:
             raise AssertionError(f"Return-interval UI contract is missing {token}")
+    for forbidden in (
+        'id="returnIntervalMethodNote"',
+        "no USGS averaging",
+        "depth map capped at",
+    ):
+        if forbidden in INDEX:
+            raise AssertionError(f"Return-interval UI still contains {forbidden}")
 
     print("North Wildwood return-interval data and UI contract checks passed")
 

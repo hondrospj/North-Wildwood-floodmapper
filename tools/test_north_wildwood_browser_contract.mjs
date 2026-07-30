@@ -14,6 +14,7 @@ const OBSERVED_15MIN = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observe
 const OBSERVED_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed_archive_index.json"), "utf8"));
 const LEWES_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "lewes_archive_index.json"), "utf8"));
 const TOP_TIDES = JSON.parse(fs.readFileSync(path.join(HERE, "..", "toptides.json"), "utf8"));
+const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v17");
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
@@ -33,7 +34,7 @@ const context = vm.createContext({
   Number,
   MIN_STAGE: -4,
   MIN_DEPTH_STAGE: 0,
-  MAX_STAGE: 14,
+  MAX_STAGE: 20,
   STAGE_STEP: 0.05,
   MINOR_FLOOD_FT: 3.25,
   MODERATE_FLOOD_FT: 4.25,
@@ -115,7 +116,13 @@ assert.match(SOURCE, /depthQueryPngPath/);
 assert.match(SOURCE, /function loadDepthQueryPng\(/);
 assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
 assert.match(SOURCE, /encodedElevation - 32768/);
-assert.match(SOURCE, /connectionCode - 100/);
+assert.match(SOURCE, /connectionCode - 50/);
+assert.match(SOURCE, /Number\(stageValue\) > 14/);
+assert.match(SOURCE, /\/assets\/hydraulic-v17\//);
+assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
+assert.match(SOURCE, /id="roadsToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
+assert.match(SOURCE, /el\.setAttribute\("aria-checked", String\(el\.classList\.contains\("on"\)\)\)/);
+assert.match(SOURCE, /:has\(#mapClickModeControl:not\(\[hidden\]\)\) #mapWrap > #legendDock\{[\s\S]+top:126px !important/);
 assert.match(SOURCE, /depthQueryGridPromise = null/);
 assert.match(
   SOURCE,
@@ -222,15 +229,45 @@ assert.match(
   SOURCE,
   /const RETURN_INTERVAL_OPTIONS = \[1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000\]/
 );
-assert.match(SOURCE, /record\.targetNavd88Ft \?\? record\.averageNavd88Ft \?\? record\.naccsNavd88Ft/);
-assert.match(SOURCE, /record\.targetMethod === "naccs-only"/);
-assert.match(SOURCE, /id="returnIntervalMethodNote"/);
-assert.match(SOURCE, /depth map capped at/);
+assert.match(SOURCE, /record\.targetNavd88Ft \?\? record\.weightedNavd88Ft \?\? record\.naccsNavd88Ft/);
+assert.match(SOURCE, />Rare Floods<\/button>/);
+assert.match(SOURCE, /<h2>How Rare\?<\/h2>/);
+assert.match(SOURCE, /return-interval-mode #leftPanel > #timelineIntervalCard\{order:1 !important\}/);
+assert.doesNotMatch(SOURCE, /id="returnIntervalMethodNote"/);
+assert.doesNotMatch(SOURCE, /no USGS averaging/);
+assert.doesNotMatch(SOURCE, /depth map capped at/);
 assert.match(SOURCE, /function clearStableDesktopPaneSizes\(/);
 assert.equal(OBSERVED_INDEX.source, "stone-harbor");
 assert.equal(LEWES_INDEX.source, "lewes");
 assert.equal(OBSERVED_INDEX.days.length, OBSERVED_15MIN.days.length);
 assert.ok(LEWES_INDEX.days.length > 23000);
+
+for (const family of ["DepthPNGs", "StagePNGs"]) {
+  for (const phase of ["", "filling", "draining"]) {
+    const directory = path.join(
+      BUNDLED_HYDRAULIC_ROOT,
+      family,
+      "North Wildwood",
+      phase
+    );
+    const files = fs.readdirSync(directory).filter(name => name.endsWith(".png")).sort();
+    assert.equal(files.length, 120, `${family}/${phase || "slack"} must contain the 14.05–20.00 ft extension`);
+    assert.match(files[0], /p1405\.png$/);
+    assert.match(files.at(-1), /p2000\.png$/);
+  }
+}
+assert.ok(fs.statSync(path.join(
+  BUNDLED_HYDRAULIC_ROOT,
+  "COGs",
+  "North Wildwood",
+  "NorthWildwoodHydraulicQuery5ft.png"
+)).size > 1_000_000);
+assert.ok(fs.statSync(path.join(
+  BUNDLED_HYDRAULIC_ROOT,
+  "COGs",
+  "North Wildwood",
+  "NorthWildwoodHydraulicStates.json.png"
+)).size > 3_000_000);
 
 const selectedRangeContext = vm.createContext({
   Date,

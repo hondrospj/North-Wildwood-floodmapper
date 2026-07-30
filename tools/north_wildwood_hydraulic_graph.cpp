@@ -29,9 +29,9 @@ constexpr int16_t NO_CONNECTION = std::numeric_limits<int16_t>::max();
 constexpr int32_t INACTIVE = std::numeric_limits<int32_t>::min();
 constexpr int16_t SOURCE_STAGE10 = 10;
 constexpr int16_t BULKHEAD_STAGE10 = 75;
-constexpr int16_t MODEL_MAX10 = 140;
+constexpr int16_t MODEL_MAX10 = 200;
 constexpr int16_t HIST_MIN10 = -100;
-constexpr int16_t HIST_MAX10 = 140;
+constexpr int16_t HIST_MAX10 = 200;
 constexpr int HIST_BINS = HIST_MAX10 - HIST_MIN10 + 1;
 constexpr int32_t SOURCE_MIN_CELLS = 101;
 constexpr int CONTROL_VOLUME_SIZE_FT = 25;
@@ -578,7 +578,7 @@ void write_manifest(
          << "  \"bulkheadPixelCount\": " << hard_count << ",\n"
          << "  \"bulkheadTerrainTreatment\": \"stitched into input DEM with GDAL before graph construction\",\n"
          << "  \"stormDrains\": \"disabled; not connectivity seeds and no exchange flow\",\n"
-         << "  \"modelMaximumNavd88Ft\": 14.0,\n"
+         << "  \"modelMaximumNavd88Ft\": 20.0,\n"
          << "  \"controlVolumeSizeFt\": " << CONTROL_VOLUME_SIZE_FT << ",\n"
          << "  \"connectionBinFt\": " << CONNECTION_BIN10 / 10.0 << ",\n"
          << "  \"controlVolumeConnectivity\": \"four-neighbour components within each tile/connection bin; hard structures isolated as barrier material\",\n"
