@@ -152,8 +152,8 @@ assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
 assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
 assert.match(SOURCE, /linear-gradient\(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%/);
-assert.match(SOURCE, /<strong>Green<\/strong> represents uncertainty/);
-assert.match(SOURCE, /Green represents uncertainty\.<\/strong>/);
+assert.match(SOURCE, /<strong>Green areas<\/strong> may flood/);
+assert.doesNotMatch(SOURCE, /Green represents uncertainty/i);
 assert.doesNotMatch(SOURCE, /Feet above ground/);
 assert.doesNotMatch(SOURCE, /class="export-depth-key-disconnected"/);
 assert.match(SOURCE, /function captureExportRoadLabelsCanvas\(/);
@@ -232,10 +232,87 @@ assert.match(
 assert.match(SOURCE, /record\.targetNavd88Ft \?\? record\.weightedNavd88Ft \?\? record\.naccsNavd88Ft/);
 assert.match(extractFunction("switchReturnInterval"), /await loadReturnInterval\(\)/);
 assert.doesNotMatch(extractFunction("switchReturnInterval"), /previousEntry/);
-assert.match(SOURCE, />Rare Floods<\/button>/);
-assert.match(SOURCE, /<h2>How Rare\?<\/h2>/);
+assert.match(SOURCE, /<h2>Flood Data<\/h2>/);
+assert.match(SOURCE, />Modeled Floods<\/button>/);
+assert.match(SOURCE, /<h2>How Often\?<\/h2>/);
+assert.match(SOURCE, /Every 10 Years/);
 assert.match(SOURCE, /return-interval-mode #leftPanel > #timelineIntervalCard\{order:1 !important\}/);
-assert.match(SOURCE, /#rightRail > #mapperTutorialBtn\{order:3 !important\}/);
+assert.match(SOURCE, /#rightRail > #mapperTutorialBtn\{order:5 !important\}/);
+assert.match(SOURCE, /#mapperTutorialBtn\.mapper-tutorial-launch\{[\s\S]+bottom:0 !important/);
+assert.match(SOURCE, /body\.observed-mode #leftPanel \.data-source-options,[\s\S]+grid-template-columns:repeat\(3,minmax\(0,1fr\)\) !important/);
+assert.match(SOURCE, /function loadObservedDay\([\s\S]+findClosestMeasuredEntryIndex\(currentSeriesHours, preferredEntry\)/);
+assert.match(extractFunction("getLatestObservedDate"), /peakNAVD88 != null/);
+assert.match(extractFunction("getLatestObservedDate"), /hasMeasuredHour/);
+assert.match(extractFunction("renderTimelineDays"), /hasDisplayedLongGaugeOutage\(currentSeriesHours, group\.start, group\.end\)/);
+assert.match(extractFunction("renderHour"), /hasDisplayedLongGaugeOutage\(currentSeriesHours\)/);
+const helpCopyStart = SOURCE.indexOf("const HELP_COPY =");
+const helpCopyEnd = SOURCE.indexOf("function setInfoModalOpen", helpCopyStart);
+assert.ok(helpCopyStart >= 0 && helpCopyEnd > helpCopyStart);
+assert.doesNotMatch(SOURCE.slice(helpCopyStart, helpCopyEnd), /—/);
+assert.doesNotMatch(extractFunction("sliderHelpBody"), /—/);
+
+const nearestObservedContext = vm.createContext({
+  Number,
+  entryTimeMs: entry => Date.parse(entry.timeUtc),
+  getStageValue: entry => entry.navd88StageFt,
+  findClosestEntryIndex: () => 0,
+});
+vm.runInContext(
+  `${extractFunction("findClosestMeasuredEntryIndex")}; globalThis.findClosestMeasuredEntryIndex = findClosestMeasuredEntryIndex;`,
+  nearestObservedContext
+);
+const fallbackSeries = Array.from({ length: 24 }, (_, index) => ({
+  timeUtc: new Date(Date.UTC(2026, 6, 30, index)).toISOString(),
+  navd88StageFt: index === 9 ? 2.13 : null,
+  isMissingObservedHour: index !== 9,
+}));
+assert.equal(
+  nearestObservedContext.findClosestMeasuredEntryIndex(
+    fallbackSeries,
+    { timeUtc: new Date(Date.UTC(2026, 6, 30, 12)).toISOString() }
+  ),
+  9,
+  "Observed mode must choose the nearest real measurement instead of a closer missing slot"
+);
+assert.equal(
+  nearestObservedContext.findClosestMeasuredEntryIndex(
+    [
+      { timeUtc: new Date(Date.UTC(2026, 6, 30, 9)).toISOString(), navd88StageFt: 2.1 },
+      { timeUtc: new Date(Date.UTC(2026, 6, 30, 11)).toISOString(), navd88StageFt: 2.2 },
+    ],
+    { timeUtc: new Date(Date.UTC(2026, 6, 30, 10)).toISOString() }
+  ),
+  1,
+  "An equal-distance observed fallback should prefer the newer measurement"
+);
+
+const gaugeOutageContext = vm.createContext({
+  Number,
+  getStageValue: entry => entry.navd88StageFt,
+  getTimelineFrameHours: () => 1,
+});
+vm.runInContext(
+  `${extractFunction("getLongestGaugeOutageHours")}; globalThis.getLongestGaugeOutageHours = getLongestGaugeOutageHours;`,
+  gaugeOutageContext
+);
+const partialLatestDay = Array.from({ length: 24 }, (_, index) => ({
+  navd88StageFt: index === 9 ? 2.13 : null,
+  isMissingObservedHour: index !== 9,
+}));
+assert.equal(gaugeOutageContext.getLongestGaugeOutageHours(partialLatestDay), 14);
+assert.equal(
+  gaugeOutageContext.getLongestGaugeOutageHours(partialLatestDay, 0, null, { ignoreTrailingGap: true }),
+  9,
+  "Future or not-yet-published slots after the latest real reading must not mark the latest observed day inoperable"
+);
+const interruptedDay = partialLatestDay.map((entry, index) => (
+  index === 23 ? { navd88StageFt: 2.2, isMissingObservedHour: false } : entry
+));
+assert.equal(
+  gaugeOutageContext.getLongestGaugeOutageHours(interruptedDay, 0, null, { ignoreTrailingGap: true }),
+  13,
+  "A completed gap between two real readings must still be treated as a gauge outage"
+);
 assert.doesNotMatch(SOURCE, /id="returnIntervalMethodNote"/);
 assert.doesNotMatch(SOURCE, /no USGS averaging/);
 assert.doesNotMatch(SOURCE, /depth map capped at/);

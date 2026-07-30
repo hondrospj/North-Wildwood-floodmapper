@@ -173,13 +173,14 @@ def main() -> None:
     required_ui_tokens = (
         'id="returnIntervalDataBtn"',
         'id="returnIntervalCard"',
-        ">Rare Floods</button>",
-        "<h2>How Rare?</h2>",
+        ">Modeled Floods</button>",
+        "<h2>How Often?</h2>",
+        "Every 10 Years",
         'data-return-years="10000"',
         "function loadReturnInterval(",
         "returnIntervalsPath",
         'currentViewType === "return-interval"',
-        "local USGS gauge counts twice as much as NACCS",
+        "Every 100 Years",
     )
     for token in required_ui_tokens:
         if token not in INDEX:

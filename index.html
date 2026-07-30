@@ -13977,15 +13977,15 @@ html.win-compact-ui #timelineDock #hourSlider{
       <section class="panel-card compact-card data-source-card">
         <div class="section-title">
           <div class="title-with-help">
-            <h2>Water View</h2>
-            <button id="dataSourceHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain data source">?</button>
+            <h2>Flood Data</h2>
+            <button id="dataSourceHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain flood data">?</button>
           </div>
           <span id="dataModePill" class="pill">Forecast</span>
         </div>
         <div class="button-grid-2 data-source-options">
           <button id="forecastDataBtn" class="active" type="button">Forecast</button>
           <button id="observedDataBtn" type="button">Past</button>
-          <button id="returnIntervalDataBtn" type="button" aria-label="Rare flood scenarios">Rare Floods</button>
+          <button id="returnIntervalDataBtn" type="button" aria-label="Modeled flood scenarios">Modeled Floods</button>
         </div>
       </section>
 
@@ -14007,25 +14007,25 @@ html.win-compact-ui #timelineDock #hourSlider{
       <section id="returnIntervalCard" class="panel-card compact-card return-interval-card">
         <div class="section-title">
           <div class="title-with-help">
-            <h2>How Rare?</h2>
-            <button id="returnIntervalHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain rare floods">?</button>
+            <h2>How Often?</h2>
+            <button id="returnIntervalHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain modeled floods">?</button>
           </div>
-          <span id="returnIntervalPill" class="pill">10-Year</span>
+          <span id="returnIntervalPill" class="pill">Every 10 Years</span>
         </div>
-        <div class="return-interval-grid" role="group" aria-label="Choose how rare the flood is">
-          <button id="return1Btn" type="button" data-return-years="1" aria-label="1-year flood">1</button>
-          <button id="return2Btn" type="button" data-return-years="2" aria-label="2-year flood">2</button>
-          <button id="return5Btn" type="button" data-return-years="5" aria-label="5-year flood">5</button>
-          <button id="return10Btn" class="active" type="button" data-return-years="10" aria-label="10-year flood">10</button>
-          <button id="return20Btn" type="button" data-return-years="20" aria-label="20-year flood">20</button>
-          <button id="return50Btn" type="button" data-return-years="50" aria-label="50-year flood">50</button>
-          <button id="return100Btn" type="button" data-return-years="100" aria-label="100-year flood">100</button>
-          <button id="return200Btn" type="button" data-return-years="200" aria-label="200-year flood">200</button>
-          <button id="return500Btn" type="button" data-return-years="500" aria-label="500-year flood">500</button>
-          <button id="return1000Btn" type="button" data-return-years="1000" aria-label="1,000-year flood">1,000</button>
-          <button id="return2000Btn" type="button" data-return-years="2000" aria-label="2,000-year flood">2,000</button>
-          <button id="return5000Btn" type="button" data-return-years="5000" aria-label="5,000-year flood">5,000</button>
-          <button id="return10000Btn" type="button" data-return-years="10000" aria-label="10,000-year flood">10,000</button>
+        <div class="return-interval-grid" role="group" aria-label="Choose a modeled flood">
+          <button id="return1Btn" type="button" data-return-years="1" aria-label="Every year modeled flood">1</button>
+          <button id="return2Btn" type="button" data-return-years="2" aria-label="Every 2 years modeled flood">2</button>
+          <button id="return5Btn" type="button" data-return-years="5" aria-label="Every 5 years modeled flood">5</button>
+          <button id="return10Btn" class="active" type="button" data-return-years="10" aria-label="Every 10 years modeled flood">10</button>
+          <button id="return20Btn" type="button" data-return-years="20" aria-label="Every 20 years modeled flood">20</button>
+          <button id="return50Btn" type="button" data-return-years="50" aria-label="Every 50 years modeled flood">50</button>
+          <button id="return100Btn" type="button" data-return-years="100" aria-label="Every 100 years modeled flood">100</button>
+          <button id="return200Btn" type="button" data-return-years="200" aria-label="Every 200 years modeled flood">200</button>
+          <button id="return500Btn" type="button" data-return-years="500" aria-label="Every 500 years modeled flood">500</button>
+          <button id="return1000Btn" type="button" data-return-years="1000" aria-label="Every 1,000 years modeled flood">1,000</button>
+          <button id="return2000Btn" type="button" data-return-years="2000" aria-label="Every 2,000 years modeled flood">2,000</button>
+          <button id="return5000Btn" type="button" data-return-years="5000" aria-label="Every 5,000 years modeled flood">5,000</button>
+          <button id="return10000Btn" type="button" data-return-years="10000" aria-label="Every 10,000 years modeled flood">10,000</button>
         </div>
       </section>
 
@@ -14344,8 +14344,8 @@ html.win-compact-ui #timelineDock #hourSlider{
         <button id="datumModalCloseBtn" class="datum-modal-close" type="button" aria-label="Close datum explanation">×</button>
       </div>
       <div class="datum-modal-body">
-        <strong>NAVD88</strong> is a land elevation datum used for surveyed ground heights and flood mapping.<br><br>
-        <strong>MLLW</strong> means Mean Lower Low Water, a tide based datum commonly used for marine water levels.<br><br>
+        <strong>MLLW</strong> is a local tide reference used for water levels.<br><br>
+        <strong>NAVD88</strong> is a land elevation reference used for surveyed ground heights.<br><br>
         <span id="datumHelpTownLine">MLLW offset information is configured for this town.</span>
       </div>
     </div>
@@ -14873,7 +14873,7 @@ html.win-compact-ui #timelineDock #hourSlider{
 
       const datumHelpTownLine = document.getElementById("datumHelpTownLine");
       if (datumHelpTownLine) {
-        datumHelpTownLine.textContent = config.datums?.helpText || "Water levels can be viewed in NAVD88 or MLLW depending on the selected datum.";
+        datumHelpTownLine.textContent = config.datums?.helpText || "Changing the reference changes the number shown, not the mapped flood area.";
       }
 
       OVERLAY_ROOTS = {
@@ -15395,7 +15395,8 @@ function cloneStyleObject(value) {
     }
 
     function getReturnIntervalLabel(years = currentReturnIntervalYears) {
-      return `${Number(years).toLocaleString("en-US")}-Year`;
+      const value = Number(years);
+      return value === 1 ? "Every Year" : `Every ${value.toLocaleString("en-US")} Years`;
     }
 
     function updateReturnIntervalButtons() {
@@ -15737,10 +15738,19 @@ function parseStoredLocalNyToDate(timeEST) {
       return getTimelineIntervalMinutes() === 15 ? 0.25 : 1;
     }
 
-    function getLongestGaugeOutageHours(series = [], startIndex = 0, endIndex = null) {
+    function getLongestGaugeOutageHours(series = [], startIndex = 0, endIndex = null, options = null) {
       if (!Array.isArray(series) || !series.length) return 0;
+      options = options || {};
       const start = Math.max(0, Number(startIndex) || 0);
-      const end = Math.min(series.length - 1, endIndex == null ? series.length - 1 : Number(endIndex));
+      let end = Math.min(series.length - 1, endIndex == null ? series.length - 1 : Number(endIndex));
+      if (options.ignoreTrailingGap) {
+        while (end >= start) {
+          const entry = series[end];
+          const missing = entry?.isMissingObservedHour || entry?.isMissingTimelineFrame || !Number.isFinite(getStageValue(entry));
+          if (!missing) break;
+          end -= 1;
+        }
+      }
       let longest = 0;
       let current = 0;
       for (let index = start; index <= end; index++) {
@@ -15756,8 +15766,32 @@ function parseStoredLocalNyToDate(timeEST) {
       return Number(longest.toFixed(2));
     }
 
-    function hasLongGaugeOutage(series = [], startIndex = 0, endIndex = null) {
-      return getLongestGaugeOutageHours(series, startIndex, endIndex) > GAUGE_OUTAGE_THRESHOLD_HOURS;
+    function hasLongGaugeOutage(series = [], startIndex = 0, endIndex = null, options = {}) {
+      return getLongestGaugeOutageHours(series, startIndex, endIndex, options) > GAUGE_OUTAGE_THRESHOLD_HOURS;
+    }
+
+    function isLatestObservedSeriesSegment(series = [], startIndex = 0, endIndex = null) {
+      if (!Array.isArray(series) || !series.length) return false;
+      const latestDate = getLatestObservedDate();
+      if (!latestDate) return false;
+      const start = Math.max(0, Number(startIndex) || 0);
+      const end = Math.min(series.length - 1, endIndex == null ? series.length - 1 : Number(endIndex));
+      return series.slice(start, end + 1).some(entry =>
+        entry?.observedDate === latestDate
+        && !entry?.isMissingObservedHour
+        && !entry?.isMissingTimelineFrame
+        && Number.isFinite(getStageValue(entry))
+      );
+    }
+
+    function getDisplayedGaugeOutageHours(series = [], startIndex = 0, endIndex = null) {
+      return getLongestGaugeOutageHours(series, startIndex, endIndex, {
+        ignoreTrailingGap: isLatestObservedSeriesSegment(series, startIndex, endIndex)
+      });
+    }
+
+    function hasDisplayedLongGaugeOutage(series = [], startIndex = 0, endIndex = null) {
+      return getDisplayedGaugeOutageHours(series, startIndex, endIndex) > GAUGE_OUTAGE_THRESHOLD_HOURS;
     }
 
     function getObservedDisplaySeries(entries = [], options = {}) {
@@ -15849,6 +15883,33 @@ function parseStoredLocalNyToDate(timeEST) {
         }
       });
       return bestIndex;
+    }
+
+    function findClosestMeasuredEntryIndex(series, referenceEntry) {
+      if (!Array.isArray(series) || !series.length) return 0;
+      const measured = series
+        .map((entry, idx) => ({ entry, idx, time: entryTimeMs(entry) }))
+        .filter(item =>
+          Number.isFinite(item.time)
+          && Number.isFinite(getStageValue(item.entry))
+          && !item.entry?.isMissingObservedHour
+          && !item.entry?.isMissingTimelineFrame
+        );
+      if (!measured.length) return findClosestEntryIndex(series, referenceEntry);
+
+      const target = entryTimeMs(referenceEntry);
+      if (!Number.isFinite(target)) return measured[measured.length - 1].idx;
+
+      let best = measured[0];
+      let bestDiff = Math.abs(best.time - target);
+      measured.slice(1).forEach(item => {
+        const diff = Math.abs(item.time - target);
+        if (diff < bestDiff || (diff === bestDiff && item.time > best.time)) {
+          best = item;
+          bestDiff = diff;
+        }
+      });
+      return best.idx;
     }
 
     function getObservedSourceHoursForDay(dayRecord) {
@@ -16401,60 +16462,57 @@ function setDatumHelpOpen(isOpen) {
 
     const HELP_COPY = {
       dataSource: {
-        title: "Water view",
+        title: "Flood data",
         body: `
-          <p><strong>Forecast</strong> looks ahead. <strong>Past</strong> shows gauge history. <strong>Rare Floods</strong> lets you explore floods from common to extremely rare.</p>
+          <p><strong>Forecast</strong> shows expected tides ahead. <strong>Past</strong> shows measured tide gauge readings. <strong>Modeled Floods</strong> shows sample floods that are possible over time.</p>
         `
       },
       forecastType: {
         title: "Forecast type",
         body: `
           <ul>
-            <li><strong>Low End</strong> is the lower forecast scenario. It is useful for a less severe but still plausible outcome.</li>
-            <li><strong>Mean</strong> is the central forecast estimate.</li>
-            <li><strong>High End</strong> is the higher forecast scenario. It is useful for planning for a more severe plausible outcome.</li>
+            <li><strong>Low End</strong> is a lower possible water level.</li>
+            <li><strong>Mean</strong> is the middle estimate.</li>
+            <li><strong>High End</strong> is a higher possible water level for extra planning.</li>
           </ul>
         `
       },
       overlay: {
         title: "Overlay",
         body: `
-          <p><strong>Flood Depth</strong> maps estimated water depth above the ground surface.</p>
-          <p><strong>Flood Stages</strong> displays National Weather Service (NWS) flood impact stages (e.g., minor, moderate, major) on the map.</p>
+          <p><strong>Flood Depth</strong> shows the estimated feet of water above the ground.</p>
+          <p><strong>Flood Stages</strong> groups flooding as minor, moderate, or major.</p>
         `
       },
       timelineDetail: {
         title: "Timeline detail",
         body: `
-          <p><strong>Hourly</strong> gives a clean overview. <strong>15-Min</strong> adds storm detail. <strong>Daily Max</strong> compares each day's highest water level.</p>
+          <p><strong>Hourly</strong> shows one point per hour. <strong>15-Min</strong> shows four points per hour when available. <strong>Daily Max</strong> shows each day's highest water level.</p>
         `
       },
       returnIntervals: {
-        title: "Rare floods",
+        title: "Modeled floods",
         body: `
-          <p>A 100-year flood means about a 1% chance in any year—not one flood every 100 years.</p>
-          <p>For 1–100 years, the local USGS gauge counts twice as much as NACCS. The rarer choices use NACCS estimates.</p>
-          <p>Each choice shows an 84-hour sample storm, with the highest water in the middle.</p>
+          <p><strong>Every 100 Years</strong> means about a 1% chance in any year. It does not mean the flood can happen only once every 100 years.</p>
+          <p>Each choice shows a sample 84-hour storm with the highest water in the middle.</p>
         `
       },
       depthLegend: {
         title: "Flood Depth Key",
         body: `
-          <p>Bright blue is shallower modeled water. Blue darkens as depth increases.</p>
-          <p><strong>Green represents uncertainty.</strong> These low areas are below the selected gauge tide, but the model cannot confirm a side-connected path to the water source at that level. Plan as though the green area may flood.</p>
-          <p>Connected depth is penalized by as much as 1.25 ft through minor flood, then the penalty decreases exponentially until it reaches exactly zero at major flood. The penalty can remove no more than 75% of a cell's raw depth, so connected nuisance flooding remains shallow bright blue. Filling, slack, and draining are identical at the same gauge level. The mapped bulkhead is buffered ten feet on each side of its centerline and stitched into the DEM as a nominal 21-cell-wide, 7.5-ft NAVD88 wall. Storm-drain exchange is disabled.</p>
+          <p>Light blue is shallow water. Darker blue is deeper water.</p>
+          <p>Green marks low areas that may flood, but the model cannot confirm a direct path from the water. Plan as if green areas could flood.</p>
         `
       },
       stageLegend: {
         title: "Flood Stages Key",
         body: `
-          <p>The Flood Stages Key uses official National Weather Service flood-category definitions:</p>
           <ul>
-            <li><strong>Minor Flooding:</strong> minimal or no property damage, but possibly some public threat.</li>
-            <li><strong>Moderate Flooding:</strong> some inundation of structures and roads near streams. Some evacuations of people and/or transfer of property to higher elevations.</li>
-            <li><strong>Major Flooding:</strong> extensive inundation of structures and roads. Significant evacuations of people and/or transfer of property to higher elevations.</li>
+            <li><strong>Minor:</strong> low roads and public areas may flood.</li>
+            <li><strong>Moderate:</strong> roads and some buildings may flood. Evacuations may be needed.</li>
+            <li><strong>Major:</strong> many roads and buildings may flood. Larger evacuations may be needed.</li>
           </ul>
-          <p><strong>Green areas</strong> are zones of uncertainty. Plan like the entire green area will flood.</p>
+          <p>Green areas may also flood.</p>
         `
       }
     };
@@ -16576,12 +16634,12 @@ function setDatumHelpOpen(isOpen) {
       list.innerHTML = "";
       if (currentOverlayMode === "depth") {
         list.innerHTML = `
-          <div class="depth-legend-scale" aria-label="Green uncertainty followed by modeled flood depth from shallow to deep">
-            <div class="depth-legend-labels"><span>Uncertainty</span><span>Shallow</span><span>Deep</span></div>
+          <div class="depth-legend-scale" aria-label="Green areas that may flood followed by modeled flood depth from shallow to deep">
+            <div class="depth-legend-labels"><span>May Flood</span><span>Shallow</span><span>Deep</span></div>
             <div class="depth-legend-gradient" aria-hidden="true"></div>
           </div>
           <div class="depth-legend-uncertainty-note">
-            <span><strong>Green</strong> represents uncertainty</span>
+            <span><strong>Green areas</strong> may flood</span>
             <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain green areas" title="Explain green areas">?</button>
           </div>
         `;
@@ -16596,7 +16654,7 @@ function setDatumHelpOpen(isOpen) {
         const row = document.createElement("div");
         row.className = "legend-row";
         const helpButtonHtml = item.helpKey === "uncertainty"
-          ? `<button class="legend-help-btn" type="button" data-legend-help="uncertainty" aria-label="Explain uncertainty areas" title="Explain uncertainty areas">?</button>`
+          ? `<button class="legend-help-btn" type="button" data-legend-help="uncertainty" aria-label="Explain green areas" title="Explain green areas">?</button>`
           : "";
 
         let labelText = item.label;
@@ -19819,13 +19877,13 @@ function updateExportSegmentedUI() {
             <div class="export-depth-key-heading">
               <strong>Flood Depth</strong>
             </div>
-            <div class="export-depth-key-scale" aria-label="Green uncertainty followed by modeled flood depth from shallow to deep">
+            <div class="export-depth-key-scale" aria-label="Green areas that may flood followed by modeled flood depth from shallow to deep">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
               <div class="export-depth-key-ends" aria-hidden="true">
-                <span>Uncertainty</span><span>Shallow</span><span>Deep</span>
+                <span>May Flood</span><span>Shallow</span><span>Deep</span>
               </div>
             </div>
-            <div class="export-depth-key-note"><strong>Green</strong> represents uncertainty.</div>
+            <div class="export-depth-key-note"><strong>Green areas</strong> may flood.</div>
           </div>
         `
         : source.innerHTML;
@@ -20907,11 +20965,11 @@ function getEntryESTDate(entry) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "timeline-day";
-        const gaugeInoperable = currentDataMode === "observed" && hasLongGaugeOutage(currentSeriesHours, group.start, group.end);
+        const gaugeInoperable = currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours, group.start, group.end);
         btn.classList.toggle("gauge-inoperable", gaugeInoperable);
         btn.textContent = gaugeInoperable ? "Gauge inoperable" : group.label;
         if (gaugeInoperable) {
-          const outageHours = getLongestGaugeOutageHours(currentSeriesHours, group.start, group.end);
+          const outageHours = getDisplayedGaugeOutageHours(currentSeriesHours, group.start, group.end);
           btn.setAttribute("aria-label", `Gauge inoperable for more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} hours`);
           btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable Stone Harbor gauge level`;
         }
@@ -21212,8 +21270,12 @@ function getEntryESTDate(entry) {
     function getLatestObservedDate() {
       const days = getObservedDays();
       if (!days.length) return null;
-
-
+      for (let index = days.length - 1; index >= 0; index -= 1) {
+        const day = days[index];
+        const hasPeak = day?.peakNAVD88 != null && Number.isFinite(Number(day.peakNAVD88));
+        const hasMeasuredHour = getObservedSourceHoursForDay(day).some(entry => Number.isFinite(getStageValue(entry)));
+        if (hasPeak || hasMeasuredHour) return day.date;
+      }
       return days[days.length - 1].date;
     }
 
@@ -21848,7 +21910,7 @@ function formatSelectedObservedDate(dateStr) {
         if (bubble) {
           const stageValue = getStageValue(entry);
           if (!Number.isFinite(stageValue)) {
-            const outageLabel = hasLongGaugeOutage(currentSeriesHours) ? "Gauge inoperable" : "No gauge level";
+            const outageLabel = hasDisplayedLongGaugeOutage(currentSeriesHours) ? "Gauge inoperable" : "No gauge level";
             bubble.innerHTML = `<span class="timeline-bubble-current">${formatTimelineBubbleText(entry)}</span><span class="timeline-bubble-stage timeline-bubble-stage-gauge">${outageLabel}</span>`;
           } else {
             const stageText = formatStageForDisplay(stageValue);
@@ -21877,7 +21939,7 @@ function formatSelectedObservedDate(dateStr) {
     function renderSelectionMeta(entry, rawStage, displayStage) {
       document.getElementById("timeText").textContent = formatSnapshotTime(entry);
       if (entry?.isMissingObservedHour || !Number.isFinite(rawStage)) {
-        const gaugeInoperable = currentDataMode === "observed" && hasLongGaugeOutage(currentSeriesHours);
+        const gaugeInoperable = currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours);
         document.getElementById("stageText").textContent = gaugeInoperable ? "Gauge inoperable" : "No data";
         document.getElementById("stageSubText").textContent = gaugeInoperable
           ? `More than ${GAUGE_OUTAGE_THRESHOLD_HOURS} consecutive hours are unavailable`
@@ -22004,7 +22066,7 @@ function formatSelectedObservedDate(dateStr) {
       updateSliderProgress();
 
       if (displayStage == null) {
-        toast(currentDataMode === "observed" && hasLongGaugeOutage(currentSeriesHours)
+        toast(currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours)
           ? `Gauge inoperable: more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} consecutive hours are unavailable.`
           : "No observed record for this time.");
         ++lastRenderToken;
@@ -22535,7 +22597,7 @@ function populateCalendarSelectors() {
 
       syncSliderBounds();
       if (preferredEntry) {
-        currentHourIndex = findClosestEntryIndex(currentSeriesHours, preferredEntry);
+        currentHourIndex = findClosestMeasuredEntryIndex(currentSeriesHours, preferredEntry);
       } else if (preferredHourIndex != null) {
         currentHourIndex = Math.max(0, Math.min(preferredHourIndex, Math.max(0, currentSeriesHours.length - 1)));
       } else if (getTimelineIntervalMinutes() === 1440) {
@@ -33052,7 +33114,7 @@ TOWN_CONFIG = {
     "gaugeName": "Stone Harbor"
   },
   "datums": {
-    "helpText": "Water levels can be viewed in NAVD88 or MLLW depending on the selected datum.",
+    "helpText": "Changing the reference changes the number shown, not the mapped flood area.",
     "navd88OffsetFromMllwFt": -2.75,
     "offsets": {
       "navd88": 0,
@@ -33689,12 +33751,12 @@ html body #mapTitleBadge #mapTitleLogo{
     var mllw = (cfg.thresholds && cfg.thresholds.mllw) || { minor:6.2, moderate:7.2, major:8.2 };
     var navd = (cfg.thresholds && cfg.thresholds.navd88) || { minor:3.43, moderate:4.43, major:5.43 };
     return [
-      "<p><strong>National Weather Service flood categories for this area.</strong></p>",
+      "<p>These colors show how serious flooding may be.</p>",
       "<ul>",
-      "<li><strong>No Flooding:</strong> below Minor Coastal Flooding. Below " + ft(mllw.minor) + " ft MLLW / below " + ft(navd.minor) + " ft NAVD88.</li>",
-      "<li><strong>Minor Flooding:</strong> minimal or no property damage, but possibly some public threat. " + ft(mllw.minor) + " - " + upperBound(mllw.moderate) + " ft MLLW / " + ft(navd.minor) + " - " + upperBound(navd.moderate) + " ft NAVD88.</li>",
-      "<li><strong>Moderate Flooding:</strong> some inundation of structures and roads. Some evacuations of people and/or transfer of property to higher elevations. " + ft(mllw.moderate) + " - " + upperBound(mllw.major) + " ft MLLW / " + ft(navd.moderate) + " - " + upperBound(navd.major) + " ft NAVD88.</li>",
-      "<li><strong>Major Flooding:</strong> extensive inundation of structures and roads. Significant evacuations of people and/or transfer of property to higher elevations. " + ft(mllw.major) + "+ ft MLLW / " + ft(navd.major) + "+ ft NAVD88.</li>",
+      "<li><strong>No Flooding:</strong> water is below the local flood level.</li>",
+      "<li><strong>Minor:</strong> low roads and public areas may flood. It starts at " + ft(mllw.minor) + " ft MLLW or " + ft(navd.minor) + " ft NAVD88.</li>",
+      "<li><strong>Moderate:</strong> roads and some buildings may flood. It starts at " + ft(mllw.moderate) + " ft MLLW or " + ft(navd.moderate) + " ft NAVD88.</li>",
+      "<li><strong>Major:</strong> many roads and buildings may flood. It starts at " + ft(mllw.major) + " ft MLLW or " + ft(navd.major) + " ft NAVD88.</li>",
       "</ul>"
     ].join("");
   }
@@ -34939,9 +35001,9 @@ html body #mapTitleBadge #mapTitleLogo{
   }
   html body #rightRail > .layers-card{order:1 !important}
   html body #rightRail > .top-tides-card{order:2 !important}
-  html body #rightRail > #mapperTutorialBtn{order:3 !important}
-  html body #rightRail > #downloadCard{order:4 !important}
-  html body #rightRail > #townAddressCard{order:5 !important}
+  html body #rightRail > #downloadCard{order:3 !important}
+  html body #rightRail > #townAddressCard{order:4 !important}
+  html body #rightRail > #mapperTutorialBtn{order:5 !important}
 
   /* One key: green uncertainty flows directly into shallow-to-deep blue. */
   html body #legendDock[data-legend-mode="depth"]{
@@ -35176,5 +35238,189 @@ html body #mapTitleBadge #mapTitleLogo{
   window.addEventListener("orientationchange",scheduleMobileLegendPlacement,{passive:true});
 })();
 </script>
+<style id="north-wildwood-requested-ui-consistency-20260730">
+  html body #leftPanel > .data-source-card,
+  html body:not(.observed-mode):not(.return-interval-mode) #leftPanel > .data-source-card,
+  html body.observed-mode #leftPanel > .data-source-card,
+  html body.observed-mode.calendar-picker-open #leftPanel > .data-source-card,
+  html body.return-interval-mode #leftPanel > .data-source-card{
+    padding:10px 12px !important;
+    min-height:99px !important;
+    height:99px !important;
+    max-height:99px !important;
+    display:flex !important;
+    flex-direction:column !important;
+    justify-content:flex-start !important;
+    gap:10px !important;
+    box-sizing:border-box !important;
+  }
+
+  html body #leftPanel > .data-source-card .section-title,
+  html body:not(.observed-mode):not(.return-interval-mode) #leftPanel > .data-source-card .section-title,
+  html body.observed-mode #leftPanel > .data-source-card .section-title,
+  html body.observed-mode.calendar-picker-open #leftPanel > .data-source-card .section-title,
+  html body.return-interval-mode #leftPanel > .data-source-card .section-title{
+    flex:0 0 27px !important;
+    min-height:27px !important;
+    height:27px !important;
+    max-height:27px !important;
+    margin:0 !important;
+  }
+
+  html body #leftPanel .data-source-options,
+  html body.observed-mode #leftPanel .data-source-options,
+  html body.observed-mode.calendar-picker-open #leftPanel .data-source-options,
+  html body.return-interval-mode #leftPanel .data-source-options{
+    display:grid !important;
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    gap:5px !important;
+    flex:0 0 auto !important;
+  }
+
+  html body #leftPanel .data-source-options button,
+  html body.observed-mode #leftPanel .data-source-options button,
+  html body.observed-mode.calendar-picker-open #leftPanel .data-source-options button,
+  html body.return-interval-mode #leftPanel .data-source-options button{
+    width:100% !important;
+    min-width:0 !important;
+    min-height:42px !important;
+    height:42px !important;
+    padding:7px 3px !important;
+    font-size:10.5px !important;
+    line-height:1.05 !important;
+    white-space:normal !important;
+  }
+
+  html body .info-modal-card{
+    width:min(460px,calc(100vw - 32px)) !important;
+  }
+
+  html body .info-modal-body{
+    font-size:13.5px !important;
+    line-height:1.45 !important;
+  }
+
+  @media (min-width:901px){
+    html body:not(.mobile-optimized) #rightRail{
+      padding-bottom:46px !important;
+    }
+
+    html body:not(.mobile-optimized) #mapperTutorialBtn.mapper-tutorial-launch{
+      position:fixed !important;
+      right:0 !important;
+      bottom:0 !important;
+      left:auto !important;
+      top:auto !important;
+      width:100% !important;
+      z-index:2700 !important;
+    }
+  }
+
+  @media (min-width:901px) and (max-height:760px){
+    html body:not(.mobile-optimized) #rightRail > .rail-card{
+      padding:7px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > .layers-card{
+      height:178px !important;
+      min-height:178px !important;
+      max-height:178px !important;
+      overflow:hidden !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .layer-list{
+      gap:2px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .layer-item{
+      height:25px !important;
+      min-height:25px !important;
+      max-height:25px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > .top-tides-card{
+      height:136px !important;
+      min-height:136px !important;
+      max-height:136px !important;
+      overflow:hidden !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-item{
+      height:29px !important;
+      min-height:29px !important;
+      max-height:29px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-more-btn{
+      height:26px !important;
+      min-height:26px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > #downloadCard{
+      height:70px !important;
+      min-height:70px !important;
+      max-height:70px !important;
+      gap:4px !important;
+      overflow:hidden !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > #downloadCard .rail-head{
+      min-height:16px !important;
+      height:16px !important;
+      margin:0 !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > #downloadCard .download-launch-btn{
+      height:30px !important;
+      min-height:30px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > #townAddressCard{
+      height:134px !important;
+      min-height:134px !important;
+      max-height:134px !important;
+      gap:4px !important;
+      overflow:hidden !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail #townAddressCard .town-address-form{
+      gap:3px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail #townAddressCard .town-address-input,
+    html body:not(.mobile-optimized) #rightRail #townAddressCard .town-address-actions button{
+      height:30px !important;
+      min-height:30px !important;
+    }
+  }
+
+  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+    html body.mobile-optimized.observed-mode #leftPanel,
+    html body.mobile-optimized.observed-mode.mobile-controls-open #leftPanel{
+      overflow-y:auto !important;
+    }
+
+    html body.mobile-optimized.observed-mode #leftPanel > .data-source-card,
+    html body.mobile-optimized.observed-mode.mobile-controls-open #leftPanel > .data-source-card,
+    html body.mobile-optimized.return-interval-mode #leftPanel > .data-source-card,
+    html body.mobile-optimized.return-interval-mode.mobile-controls-open #leftPanel > .data-source-card{
+      padding:10px 11px !important;
+      width:calc(100% - 10px) !important;
+      align-self:flex-start !important;
+    }
+
+    html body.mobile-optimized:not(.observed-mode):not(.return-interval-mode) #leftPanel > .data-source-card{
+      padding:10px 11px !important;
+    }
+
+    html body.mobile-optimized #leftPanel .data-source-options button,
+    html body.mobile-optimized.observed-mode #leftPanel .data-source-options button,
+    html body.mobile-optimized.return-interval-mode #leftPanel .data-source-options button{
+      min-height:44px !important;
+      height:44px !important;
+      font-size:10px !important;
+    }
+  }
+</style>
 </body>
 </html>
