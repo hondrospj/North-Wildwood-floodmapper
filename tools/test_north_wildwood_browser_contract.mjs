@@ -139,6 +139,11 @@ assert.match(SOURCE, /data-export-interval="daily"/);
 assert.match(SOURCE, /function buildExportRangeFrameItems\(/);
 assert.match(SOURCE, /function buildQuarterHourRangeFrameItems\(/);
 assert.match(SOURCE, /function buildDailyMaximumRangeFrameItems\(/);
+assert.match(SOURCE, /function getReturnIntervalExportEntries\(/);
+assert.match(SOURCE, /exportSourceMode: "return-interval"/);
+assert.match(SOURCE, /mode: "return-interval"/);
+assert.match(SOURCE, /currentDataMode !== "return-interval" && getDownloadScopeValue\(\) !== "current"/);
+assert.match(SOURCE, /Export the full \$\{modeledHours\}-hour modeled storm/);
 assert.match(SOURCE, /getExportBaseName\(items\)/);
 assert.match(SOURCE, /function getCurrentSelectionExportRange\(/);
 assert.match(SOURCE, /const currentDate = getEntryESTDate\(getDownloadCurrentEntry\(\)\)/);
@@ -153,6 +158,7 @@ assert.match(SOURCE, /class="export-depth-key-gradient"/);
 assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
 assert.match(SOURCE, /linear-gradient\(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%/);
 assert.match(SOURCE, /<strong>Green areas<\/strong> may flood/);
+assert.match(SOURCE, /<span>May Flood<\/span><span>Shallow<\/span><span>Deep<\/span>/);
 assert.doesNotMatch(SOURCE, /Green represents uncertainty/i);
 assert.doesNotMatch(SOURCE, /Feet above ground/);
 assert.doesNotMatch(SOURCE, /class="export-depth-key-disconnected"/);
@@ -209,6 +215,9 @@ assert.match(SOURCE, /autoPanPaddingTopLeft: mobilePopup \? L\.point\(10, 126\)/
 assert.match(SOURCE, /document\.body\.classList\.add\("persistent-flood-popup-open"\)/);
 assert.match(SOURCE, /document\.body\.classList\.remove\("persistent-flood-popup-open"\)/);
 assert.match(SOURCE, /\.flood-history-close\{[\s\S]+width:44px !important/);
+assert.match(SOURCE, /id="north-wildwood-centered-close-controls"/);
+assert.match(SOURCE, /transform:translate\(-50%,-50%\) rotate\(45deg\) !important/);
+assert.match(SOURCE, /transform:translate\(-50%,-50%\) rotate\(-45deg\) !important/);
 assert.match(SOURCE, /\.flood-year-control input\[type="range"\]\{[\s\S]+min-height:30px !important/);
 assert.match(SOURCE, /grid-template-columns:120px minmax\(0, 1fr\) !important/);
 assert.match(SOURCE, /persistent-flood-popup-open #timelineBubble/);
@@ -354,6 +363,7 @@ const selectedRangeContext = vm.createContext({
   Math,
   Number,
   EXPORT_RANGE_MAX_MS: 84 * 60 * 60 * 1000,
+  currentDataMode: "forecast",
   currentSeriesHours: [],
   currentEntry: null,
   fallbackRange: null,
@@ -400,6 +410,55 @@ assert.equal(
   new Date("2026-07-28T00:00:00.000Z").getTime(),
   "Export end must remain within the 84-hour limit"
 );
+
+const modeledFrames = [
+  { date: new Date("2026-06-15T13:45:00.000Z"), navd88StageFt: 2.1 },
+  { date: new Date("2026-06-16T01:45:00.000Z"), navd88StageFt: 6.2 },
+  { date: new Date("2026-06-16T13:45:00.000Z"), navd88StageFt: 2.0 },
+];
+selectedRangeContext.currentDataMode = "return-interval";
+selectedRangeContext.currentEntry = modeledFrames[1];
+selectedRangeContext.getReturnIntervalExportEntries = () => modeledFrames;
+selectedRangeContext.entryTimeMs = entry => entry.date.getTime();
+selectedRange = selectedRangeContext.getCurrentSelectionExportRange();
+assert.equal(
+  selectedRange.firstDate.getTime(),
+  modeledFrames[0].date.getTime(),
+  "Modeled export must default to the beginning of the synthetic storm"
+);
+assert.equal(
+  selectedRange.lastDate.getTime(),
+  modeledFrames.at(-1).date.getTime(),
+  "Modeled export must default to the end of the synthetic storm"
+);
+
+const modeledExportContext = vm.createContext({
+  Array,
+  Number,
+  currentDataMode: "return-interval",
+  currentRawSeriesHours: modeledFrames,
+  currentSeriesHours: modeledFrames,
+  selectedObservedDate: "",
+  entryTimeMs: entry => entry.date.getTime(),
+});
+for (const name of [
+  "getReturnIntervalExportEntries",
+  "getCurrentExportSourceMode",
+  "getDownloadSourceEntries",
+  "getDownloadFrameItemFromEntry",
+]) {
+  vm.runInContext(`${extractFunction(name)}; globalThis.${name} = ${name};`, modeledExportContext);
+}
+const modeledSources = modeledExportContext.getDownloadSourceEntries();
+assert.equal(modeledSources.length, modeledFrames.length);
+assert.deepEqual(
+  Array.from(modeledSources, entry => entry.exportSourceMode),
+  ["return-interval", "return-interval", "return-interval"],
+  "Modeled export frames must not be relabeled as forecast frames"
+);
+const modeledFrameItem = modeledExportContext.getDownloadFrameItemFromEntry(modeledSources[1], 1);
+assert.equal(modeledFrameItem.mode, "return-interval");
+assert.equal(modeledFrameItem.series.length, modeledFrames.length);
 
 for (const [date, targetHundredths, eventName, peakHour] of [
   ["2012-10-29", 673, "Hurricane Sandy", "20:45"],

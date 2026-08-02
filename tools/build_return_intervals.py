@@ -16,11 +16,11 @@ The USGS fit is a GEV distribution estimated with L-moments. Return levels use
 the Poisson annual-maximum convention F=exp(-1/T), which keeps the one-year
 level finite and represents a level exceeded once per T years on average.
 
-Each target is converted to an 84-hour, 15-minute hydrograph by adding a
+Each target is converted to a 24-hour, 15-minute hydrograph by adding a
 digitized version of the supplied Cape May surge-ratio curve to NOAA harmonic
 tide predictions for Stone Harbor station 8535581. The curve is compressed
-from its pictured 100-hour axis to 84 hours, and its maximum is aligned with a
-Stone Harbor harmonic high tide at the exact midpoint.
+from its pictured 100-hour axis to 24 hours, and its maximum is aligned with
+the first Stone Harbor harmonic high tide inside the window.
 """
 
 from __future__ import annotations
@@ -107,12 +107,12 @@ NOAA_PREDICTIONS_URL = (
 )
 
 STORM_CENTER_UTC = datetime(2026, 6, 16, 1, 45, tzinfo=timezone.utc)
-WINDOW_HOURS = 84
+WINDOW_HOURS = 24
 INTERVAL_MINUTES = 15
 
 # Digitized from the supplied "Cape May Storm Surge Shape" image. The original
 # horizontal axis is 0-100 hours. The builder normalizes the pictured peak and
-# maps that full curve onto the requested 84-hour window.
+# maps that full curve onto the requested 24-hour window.
 SURGE_PROFILE_CONTROL_POINTS = (
     (0, 0.0033),
     (2, 0.0038),
@@ -482,7 +482,7 @@ def build_interval_series(
     surge_peak = target - center_tide
     if surge_peak <= 0:
         raise RuntimeError(
-            f"{interval_years}-year target is not above the midpoint harmonic tide"
+            f"{interval_years}-year target is not above the aligned first harmonic high tide"
         )
     series = []
     for profile in surge_profile:
@@ -601,8 +601,8 @@ def build(args: argparse.Namespace) -> dict:
             },
             "hydrograph": (
                 "NOAA Stone Harbor harmonic prediction plus the supplied, digitized "
-                "Cape May surge-ratio shape compressed from 100 to 84 hours; peak "
-                "aligned to the midpoint harmonic high tide"
+                "Cape May surge-ratio shape compressed from 100 to 24 hours; peak "
+                "aligned to the first harmonic high tide in the window"
             ),
             "stationarity": (
                 "screening-level stationary frequency estimate; no sea-level-trend "

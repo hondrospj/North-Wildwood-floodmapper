@@ -47,8 +47,8 @@ def main() -> None:
         raise AssertionError("The 200-10,000-year intervals must be NACCS-only")
     if PAYLOAD["method"]["targetWeights"] != {"naccs": 1.0, "usgs": 2.0}:
         raise AssertionError("The selected blend must weight USGS two-to-one over NACCS")
-    if PAYLOAD["windowHours"] != 84 or PAYLOAD["intervalMinutes"] != 15:
-        raise AssertionError("Synthetic storms must use an 84-hour, 15-minute window")
+    if PAYLOAD["windowHours"] != 24 or PAYLOAD["intervalMinutes"] != 15:
+        raise AssertionError("Synthetic storms must use a 24-hour, 15-minute window")
 
     fit = PAYLOAD["usgsFrequencyFit"]
     maxima = fit["annualMaxima"]
@@ -120,13 +120,13 @@ def main() -> None:
         previous_target = record["targetNavd88Ft"]
 
         series = record["series15min"]
-        if len(series) != 337 or record["peakIndex15min"] != 168:
-            raise AssertionError(f"{years}-year series does not contain 337 centered frames")
+        if len(series) != 97 or record["peakIndex15min"] != 48:
+            raise AssertionError(f"{years}-year series does not contain 97 centered frames")
         start = parse_utc(series[0]["timeUtc"])
         end = parse_utc(series[-1]["timeUtc"])
-        center = parse_utc(series[168]["timeUtc"])
-        if (end - start).total_seconds() != 84 * 3600:
-            raise AssertionError(f"{years}-year series is not exactly 84 hours")
+        center = parse_utc(series[48]["timeUtc"])
+        if (end - start).total_seconds() != 24 * 3600:
+            raise AssertionError(f"{years}-year series is not exactly 24 hours")
         if center != start + (end - start) / 2:
             raise AssertionError(f"{years}-year storm maximum is not at the midpoint")
         for before, after in zip(series, series[1:]):
@@ -138,13 +138,13 @@ def main() -> None:
             index for index, row in enumerate(series)
             if math.isclose(row["navd88StageFt"], peak, abs_tol=1e-9)
         ]
-        if peak_indices != [168] or not math.isclose(
+        if peak_indices != [48] or not math.isclose(
             peak, record["targetNavd88Ft"], abs_tol=1e-9
         ):
             raise AssertionError(f"{years}-year target is not the unique midpoint maximum")
         if series[0]["surgeRatio"] != 0 or series[-1]["surgeRatio"] != 0:
             raise AssertionError(f"{years}-year surge must begin and end at zero")
-        if series[168]["surgeRatio"] != 1:
+        if series[48]["surgeRatio"] != 1:
             raise AssertionError(f"{years}-year midpoint surge ratio must be one")
 
         tide = [row["astronomicalTideNavd88Ft"] for row in series]
@@ -152,6 +152,15 @@ def main() -> None:
             reference_tide = tide
         elif tide != reference_tide:
             raise AssertionError("Every return interval must use the identical harmonic tide")
+        local_high_tides = [
+            index
+            for index in range(1, len(tide) - 1)
+            if tide[index] >= tide[index - 1]
+            and tide[index] >= tide[index + 1]
+            and (tide[index] > tide[index - 1] or tide[index] > tide[index + 1])
+        ]
+        if not local_high_tides or local_high_tides[0] != 48:
+            raise AssertionError(f"{years}-year surge peak is not aligned to the first high tide")
         if any(row["navd88StageFt"] < -4 for row in series):
             raise AssertionError(f"{years}-year series falls below the mapper stage catalog")
         if any(row["navd88StageFt"] > 20 for row in series):

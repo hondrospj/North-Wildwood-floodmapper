@@ -13963,7 +13963,7 @@ html.win-compact-ui #timelineDock #hourSlider{
       <div id="bannerMeta" class="banner-meta"></div>
     </div>
     <div id="bannerCount" class="pill">0 active</div>
-    <button id="topBannerCloseBtn" type="button" aria-label="Close flood alert">×</button>
+    <button id="topBannerCloseBtn" class="centered-close-control" type="button" aria-label="Close flood alert">×</button>
   </div>
 
   <div id="app">
@@ -13973,7 +13973,7 @@ html.win-compact-ui #timelineDock #hourSlider{
       <img id="mapTitlePartnerLogo" class="shorely-title-logo shorely-title-logo-shorelysafe" src="" alt="" loading="eager" decoding="async" style="display:none;" />
     </div>
     <aside id="leftPanel">
-      <button id="mobileControlsClose" type="button" aria-label="Close controls" title="Close controls">&times;</button>
+      <button id="mobileControlsClose" class="centered-close-control" type="button" aria-label="Close controls" title="Close controls">&times;</button>
       <section class="panel-card compact-card data-source-card">
         <div class="section-title">
           <div class="title-with-help">
@@ -14147,7 +14147,7 @@ html.win-compact-ui #timelineDock #hourSlider{
         <div id="calendarPopover" class="calendar-popover">
           <div class="calendar-popover-head">
             <span>Choose month</span>
-            <button id="calendarPopoverCloseBtn" class="calendar-popover-close" type="button" aria-label="Close calendar month picker">×</button>
+            <button id="calendarPopoverCloseBtn" class="calendar-popover-close centered-close-control" type="button" aria-label="Close calendar month picker">×</button>
           </div>
           <div class="calendar-popover-grid">
             <label>
@@ -14250,7 +14250,7 @@ html.win-compact-ui #timelineDock #hourSlider{
               <h3>Export as GIF/PNG</h3>
             </div>
           </div>
-          <div class="download-launch-meta">Export a range of times out to 84 hours.</div>
+          <div id="downloadLaunchMeta" class="download-launch-meta">Export a range of times out to 84 hours.</div>
           <button id="openDownloadModalBtn" class="download-launch-btn active" type="button" aria-expanded="false" aria-controls="downloadModal">Open export panel</button>
         </section>
 
@@ -14281,7 +14281,7 @@ html.win-compact-ui #timelineDock #hourSlider{
               <h3 id="topTidesModalTitle">Top 10 Highest Floods</h3>
               <p>Select a flood to replay its observed record when available.</p>
             </div>
-            <button id="topTidesModalCloseBtn" class="top-tides-modal-close" type="button" aria-label="Close top floods popup">×</button>
+            <button id="topTidesModalCloseBtn" class="top-tides-modal-close centered-close-control" type="button" aria-label="Close top floods popup">×</button>
           </div>
           <div id="topTidesModalList" class="top-tides-modal-list"></div>
         </div>
@@ -14316,7 +14316,7 @@ html.win-compact-ui #timelineDock #hourSlider{
 
       <div id="toast" role="status" aria-live="polite">
         <span id="toastMessage"></span>
-        <button id="toastCloseBtn" type="button" aria-label="Clear message">×</button>
+        <button id="toastCloseBtn" class="centered-close-control" type="button" aria-label="Clear message">×</button>
       </div>
     </main>
   </div>
@@ -14326,7 +14326,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     <section id="mapperTutorialCard" class="mapper-tutorial-card" role="dialog" aria-modal="true" aria-labelledby="mapperTutorialTitle">
       <div class="mapper-tutorial-head">
         <span id="mapperTutorialProgress" class="mapper-tutorial-progress">1 of 9</span>
-        <button id="mapperTutorialClose" class="mapper-tutorial-close" type="button" aria-label="Close tutorial">×</button>
+        <button id="mapperTutorialClose" class="mapper-tutorial-close centered-close-control" type="button" aria-label="Close tutorial">×</button>
       </div>
       <h2 id="mapperTutorialTitle"></h2>
       <div id="mapperTutorialBody" class="mapper-tutorial-body"></div>
@@ -14341,7 +14341,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     <div class="datum-modal-card" role="dialog" aria-modal="true" aria-labelledby="datumModalTitle">
       <div class="datum-modal-head">
         <h3 id="datumModalTitle">Datum reference</h3>
-        <button id="datumModalCloseBtn" class="datum-modal-close" type="button" aria-label="Close datum explanation">×</button>
+        <button id="datumModalCloseBtn" class="datum-modal-close centered-close-control" type="button" aria-label="Close datum explanation">×</button>
       </div>
       <div class="datum-modal-body">
         <strong>MLLW</strong> is a local tide reference used for water levels.<br><br>
@@ -14355,7 +14355,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     <div class="datum-modal-card info-modal-card" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
       <div class="datum-modal-head">
         <h3 id="infoModalTitle">Information</h3>
-        <button id="infoModalCloseBtn" class="datum-modal-close" type="button" aria-label="Close explanation">×</button>
+        <button id="infoModalCloseBtn" class="datum-modal-close centered-close-control" type="button" aria-label="Close explanation">×</button>
       </div>
       <div id="infoModalBody" class="datum-modal-body info-modal-body"></div>
     </div>
@@ -14367,10 +14367,10 @@ html.win-compact-ui #timelineDock #hourSlider{
         <h3 id="downloadModalTitle">Export map</h3>
         <div class="download-modal-head-actions">
           <button id="downloadResetBtn" class="download-reset-btn" type="button" aria-label="Reset export inputs to default">Reset</button>
-          <button id="downloadModalCloseBtn" class="datum-modal-close" type="button" aria-label="Close export window">×</button>
+          <button id="downloadModalCloseBtn" class="datum-modal-close centered-close-control" type="button" aria-label="Close export window">×</button>
         </div>
       </div>
-      <p class="download-modal-sub">Choose a start and end date/time, up to 84 hours apart.</p>
+      <p id="downloadModalSub" class="download-modal-sub">Choose a start and end date/time, up to 84 hours apart.</p>
       <div class="download-grid">
         <label class="download-field">
           Format
@@ -14455,7 +14455,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     <div class="datum-modal-card export-order-modal-card" role="dialog" aria-modal="true" aria-labelledby="exportOrderModalTitle">
       <div class="datum-modal-head">
         <h3 id="exportOrderModalTitle">Check export range</h3>
-        <button id="exportOrderModalCloseBtn" class="datum-modal-close" type="button" aria-label="Close export range warning">×</button>
+        <button id="exportOrderModalCloseBtn" class="datum-modal-close centered-close-control" type="button" aria-label="Close export range warning">×</button>
       </div>
       <div id="exportOrderModalBody" class="datum-modal-body export-order-modal-body">Start date must be before end date.</div>
       <div class="export-order-modal-actions">
@@ -14471,7 +14471,7 @@ html.win-compact-ui #timelineDock #hourSlider{
           <h2 id="floodHistoryTitle">Flood History &amp; Projections</h2>
           <p id="floodHistoryAddress">Selected North Wildwood parcel</p>
         </div>
-        <button id="floodHistoryCloseBtn" class="flood-history-close" type="button" aria-label="Close flood history and projections">×</button>
+        <button id="floodHistoryCloseBtn" class="flood-history-close centered-close-control" type="button" aria-label="Close flood history and projections">×</button>
       </header>
       <div id="floodHistoryBody" class="flood-history-body">
         <div class="flood-history-loading" role="status">
@@ -14487,7 +14487,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     <div class="datum-modal-card playback-still-there-card" role="dialog" aria-modal="true" aria-labelledby="playbackStillThereTitle">
       <div class="datum-modal-head">
         <h3 id="playbackStillThereTitle">Still there?</h3>
-        <button id="playbackStillThereCloseBtn" class="datum-modal-close" type="button" aria-label="Stop historical playback">×</button>
+        <button id="playbackStillThereCloseBtn" class="datum-modal-close centered-close-control" type="button" aria-label="Stop historical playback">×</button>
       </div>
       <div class="datum-modal-body">Historical playback has advanced through 20 consecutive days.</div>
       <div class="playback-still-there-actions">
@@ -14499,7 +14499,7 @@ html.win-compact-ui #timelineDock #hourSlider{
 
   <div id="exportProgressOverlay" class="export-progress-overlay" hidden aria-live="polite" aria-busy="true">
     <div class="export-progress-card" role="status">
-      <button id="exportProgressCloseBtn" class="export-progress-close" type="button" aria-label="Hide export progress">×</button>
+      <button id="exportProgressCloseBtn" class="export-progress-close centered-close-control" type="button" aria-label="Hide export progress">×</button>
       <div class="export-progress-wheel" aria-hidden="true"></div>
       <div class="export-progress-title">Preparing export</div>
       <div id="exportProgressMessage" class="export-progress-message">Preparing export...</div>
@@ -16494,7 +16494,7 @@ function setDatumHelpOpen(isOpen) {
         title: "Modeled floods",
         body: `
           <p><strong>Every 100 Years</strong> means about a 1% chance in any year. It does not mean the flood can happen only once every 100 years.</p>
-          <p>Each choice shows a sample 84-hour storm with the highest water in the middle.</p>
+          <p>Each choice shows a sample 24-hour storm whose surge peak is aligned to the first high tide in the window.</p>
         `
       },
       depthLegend: {
@@ -16552,11 +16552,29 @@ function setDatumHelpOpen(isOpen) {
       btn.setAttribute("aria-expanded", String(isOpen));
 
       if (isOpen) {
+        updateDownloadModeCopy();
         updateExportSegmentedUI();
         applyExportStageAspect(getDownloadAspectValue());
         syncDownloadRangeInputs(true);
         updateDownloadSummary();
         requestAnimationFrame(() => document.getElementById("downloadStartDateText")?.focus());
+      }
+    }
+
+    function updateDownloadModeCopy() {
+      const launchMeta = document.getElementById("downloadLaunchMeta");
+      const modalSub = document.getElementById("downloadModalSub");
+      const modeled = currentDataMode === "return-interval";
+      const modeledHours = Number(returnIntervalData?.windowHours || 24);
+      if (launchMeta) {
+        launchMeta.textContent = modeled
+          ? `Export the full ${modeledHours}-hour modeled storm.`
+          : `Export a range of times out to ${EXPORT_RANGE_MAX_HOURS} hours.`;
+      }
+      if (modalSub) {
+        modalSub.textContent = modeled
+          ? `Choose a start and end time within this ${modeledHours}-hour modeled storm.`
+          : `Choose a start and end date/time, up to ${EXPORT_RANGE_MAX_HOURS} hours apart.`;
       }
     }
 
@@ -16604,6 +16622,7 @@ function setDatumHelpOpen(isOpen) {
       updateForecastScenarioButtons();
       updateReturnIntervalButtons();
       updateObservedResolutionUI();
+      updateDownloadModeCopy();
       syncLeftPanelLayout();
     }
 
@@ -17807,6 +17826,22 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       }));
     }
 
+    function getReturnIntervalExportEntries() {
+      const source = Array.isArray(currentRawSeriesHours) && currentRawSeriesHours.length
+        ? currentRawSeriesHours
+        : currentSeriesHours;
+      return source.map(entry => ({
+        ...entry,
+        exportSourceMode: "return-interval"
+      }));
+    }
+
+    function getCurrentExportSourceMode() {
+      if (currentDataMode === "observed") return "observed";
+      if (currentDataMode === "return-interval") return "return-interval";
+      return "forecast";
+    }
+
     function getObservedRangeExportEntries(startDate, endDate) {
       if (!startDate || !endDate) return [];
 
@@ -17850,11 +17885,20 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
     function getDownloadSourceEntries(includeHistorical = false, startDate = null, endDate = null) {
+      if (currentDataMode === "return-interval") {
+        const modeled = getReturnIntervalExportEntries();
+        if (!startDate || !endDate) return modeled;
+        const minMs = Math.min(startDate.getTime(), endDate.getTime());
+        const maxMs = Math.max(startDate.getTime(), endDate.getTime());
+        return modeled.filter(entry => {
+          const time = entryTimeMs(entry);
+          return Number.isFinite(time) && time >= minMs && time <= maxMs;
+        });
+      }
+
       if (!includeHistorical) {
-        if (currentDataMode === "observed") {
-          return currentSeriesHours.map(entry => ({ ...entry, exportSourceMode: "observed" }));
-        }
-        return currentSeriesHours.map(entry => ({ ...entry, exportSourceMode: "forecast" }));
+        const sourceMode = getCurrentExportSourceMode();
+        return currentSeriesHours.map(entry => ({ ...entry, exportSourceMode: sourceMode }));
       }
 
       if (startDate && endDate) {
@@ -17886,7 +17930,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
       return currentSeriesHours.map(entry => ({
         ...entry,
-        exportSourceMode: currentDataMode === "observed" ? "observed" : "forecast"
+        exportSourceMode: getCurrentExportSourceMode()
       }));
     }
 
@@ -17895,7 +17939,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (!entry) return null;
       return {
         ...entry,
-        exportSourceMode: currentDataMode === "observed" ? "observed" : "forecast"
+        exportSourceMode: getCurrentExportSourceMode()
       };
     }
 
@@ -17907,6 +17951,14 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
           mode: "observed",
           dateStr: entry.observedDate || selectedObservedDate || "",
           entry
+        };
+      }
+      if (sourceMode === "return-interval") {
+        return {
+          mode: "return-interval",
+          index: fallbackIndex,
+          entry,
+          series: currentRawSeriesHours
         };
       }
       return {
@@ -18274,6 +18326,14 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
     function getCurrentSelectionExportRange() {
+      if (currentDataMode === "return-interval") {
+        const entries = getReturnIntervalExportEntries()
+          .filter(entry => entryTimeMs(entry) != null)
+          .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+        const firstDate = entries.length ? getEntryESTDate(entries[0]) : null;
+        const lastDate = entries.length ? getEntryESTDate(entries[entries.length - 1]) : null;
+        return firstDate && lastDate ? { firstDate, lastDate } : null;
+      }
       const currentDate = getEntryESTDate(getDownloadCurrentEntry());
       if (!currentDate) return getCurrentForecastExportRange();
 
@@ -18440,6 +18500,14 @@ function getDownloadRangeRequest() {
     }
 
 function getDownloadArchiveBounds() {
+      if (currentDataMode === "return-interval") {
+        const modeledEntries = getReturnIntervalExportEntries()
+          .filter(entry => entryTimeMs(entry) != null)
+          .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+        const firstDate = modeledEntries.length ? getEntryESTDate(modeledEntries[0]) : null;
+        const lastDate = modeledEntries.length ? getEntryESTDate(modeledEntries[modeledEntries.length - 1]) : null;
+        return firstDate && lastDate ? { firstDate, lastDate } : null;
+      }
       const observedBounds = getObservedArchiveDateBounds();
       const forecastEntries = getForecastExportEntries();
       const forecastFirst = forecastEntries.length ? getEntryESTDate(forecastEntries[0]) : null;
@@ -18659,20 +18727,26 @@ function clearExportAvailabilityCache() {
         return map.get(dayKey);
       }
 
-      getObservedExportDayIndex().forEach((day, dayKey) => {
-        const meta = ensureMeta(dayKey);
-        if (!meta) return false;
-        meta.observed = true;
-        const hours = Array.isArray(day?.hours) ? day.hours : [];
-        meta.count += Math.max(1, hours.length || 24);
-      });
+      if (currentDataMode !== "return-interval") {
+        getObservedExportDayIndex().forEach((day, dayKey) => {
+          const meta = ensureMeta(dayKey);
+          if (!meta) return false;
+          meta.observed = true;
+          const hours = Array.isArray(day?.hours) ? day.hours : [];
+          meta.count += Math.max(1, hours.length || 24);
+        });
+      }
 
-      getForecastExportEntriesLimited().forEach(entry => {
+      const activeEntries = currentDataMode === "return-interval"
+        ? getReturnIntervalExportEntries()
+        : getForecastExportEntriesLimited();
+      activeEntries.forEach(entry => {
         const d = getEntryESTDate(entry);
         const dayKey = getExportDayKeyFromDate(d);
         const meta = ensureMeta(dayKey);
         if (!meta) return;
         meta.forecast = true;
+        meta.modeled = currentDataMode === "return-interval";
         meta.count += 1;
         if (d) {
           if (!meta.firstDate || d.getTime() < meta.firstDate.getTime()) meta.firstDate = d;
@@ -20005,6 +20079,9 @@ function updateExportSegmentedUI() {
     }
 
     function getExportFrameDateTimeText(entry) {
+      if (entry?.returnIntervalYears) {
+        return `${getReturnIntervalLabel(entry.returnIntervalYears)} · ${formatReturnStormOffset(entry)}`;
+      }
       const date = getEntryESTDate(entry);
       const parts = date ? getNyParts(date) : null;
       if (!parts) {
@@ -20186,7 +20263,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
           timelineIntervalMinutes: 60,
           exportInterval: "hourly"
         };
-        const fallbackIndex = exportEntry.exportSourceMode === "forecast" ? findClosestEntryIndex(currentSeriesHours, exportEntry) : match.idx;
+        const fallbackIndex = exportEntry.exportSourceMode === "observed" ? match.idx : findClosestEntryIndex(currentSeriesHours, exportEntry);
         const item = getDownloadFrameItemFromEntry(exportEntry, fallbackIndex);
         if (item) items.push(item);
       }
@@ -20195,7 +20272,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
 
     function buildQuarterHourRangeFrameItems(entries, range) {
       if (!Array.isArray(entries) || !entries.length || !range) return [];
-      const sourceMode = entries.some(entry => entry.exportSourceMode === "forecast") ? "forecast" : "observed";
+      const sourceMode = entries.find(entry => entry.exportSourceMode)?.exportSourceMode || "observed";
       const series = buildQuarterHourTimelineSeries(entries, {
         kind: sourceMode,
         startMs: range.startMs,
@@ -20213,9 +20290,9 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
             timelineIntervalMinutes: 15,
             exportInterval: "15min"
           };
-          const fallbackIndex = exportEntry.exportSourceMode === "forecast"
-            ? findClosestEntryIndex(currentSeriesHours, exportEntry)
-            : idx;
+          const fallbackIndex = exportEntry.exportSourceMode === "observed"
+            ? idx
+            : findClosestEntryIndex(currentSeriesHours, exportEntry);
           return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex);
         })
         .filter(Boolean);
@@ -20236,9 +20313,9 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
             timelineIntervalMinutes: 1440,
             exportInterval: "daily"
           };
-          const fallbackIndex = exportEntry.exportSourceMode === "forecast"
-            ? findClosestEntryIndex(currentSeriesHours, exportEntry)
-            : idx;
+          const fallbackIndex = exportEntry.exportSourceMode === "observed"
+            ? idx
+            : findClosestEntryIndex(currentSeriesHours, exportEntry);
           return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex);
         })
         .filter(Boolean);
@@ -20721,7 +20798,7 @@ function getUniqueExportStages(frameItems) {
         return;
       }
 
-      if (getDownloadScopeValue() !== "current" && validation.range) {
+      if (currentDataMode !== "return-interval" && getDownloadScopeValue() !== "current" && validation.range) {
         setDownloadBusy(true, "Loading the selected tide-archive year...");
         try {
           await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
@@ -20815,7 +20892,7 @@ function parseStoredESTToDate(timeEST) {
     function formatReturnStormOffset(entry, options = {}) {
       const offset = Number(entry?.offsetHours);
       if (!Number.isFinite(offset)) return "Synthetic storm";
-      if (Math.abs(offset) < 1e-8) return options.compact ? "Storm peak" : "Storm Peak • Midpoint";
+      if (Math.abs(offset) < 1e-8) return options.compact ? "Storm peak" : "Storm Peak • First High Tide";
       const absolute = Math.abs(offset);
       const value = Number.isInteger(absolute)
         ? String(absolute)
@@ -35419,6 +35496,56 @@ html body #mapTitleBadge #mapTitleLogo{
       min-height:44px !important;
       height:44px !important;
       font-size:10px !important;
+    }
+  }
+</style>
+<style id="north-wildwood-centered-close-controls">
+  :is(.centered-close-control,.leaflet-popup-close-button){
+    --centered-close-x-color:#eaf0ff;
+    --centered-close-x-size:14px;
+    position:relative !important;
+    display:grid !important;
+    place-items:center !important;
+    box-sizing:border-box !important;
+    padding:0 !important;
+    color:transparent !important;
+    font-size:0 !important;
+    line-height:0 !important;
+    text-indent:0 !important;
+  }
+
+  :is(.centered-close-control,.leaflet-popup-close-button)::before,
+  :is(.centered-close-control,.leaflet-popup-close-button)::after{
+    content:"" !important;
+    position:absolute !important;
+    left:50% !important;
+    top:50% !important;
+    width:var(--centered-close-x-size) !important;
+    height:2px !important;
+    margin:0 !important;
+    border:0 !important;
+    border-radius:999px !important;
+    background:var(--centered-close-x-color) !important;
+    box-shadow:none !important;
+    pointer-events:none !important;
+    transform-origin:center !important;
+  }
+
+  :is(.centered-close-control,.leaflet-popup-close-button)::before{
+    transform:translate(-50%,-50%) rotate(45deg) !important;
+  }
+
+  :is(.centered-close-control,.leaflet-popup-close-button)::after{
+    transform:translate(-50%,-50%) rotate(-45deg) !important;
+  }
+
+  .leaflet-popup-close-button{
+    --centered-close-x-color:#d8f9ff;
+  }
+
+  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+    :is(.centered-close-control,.leaflet-popup-close-button){
+      --centered-close-x-size:18px;
     }
   }
 </style>

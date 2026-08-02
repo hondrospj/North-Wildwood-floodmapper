@@ -24,7 +24,7 @@ complete 15-minute replays and derived hourly values.
 
 ## Return-interval storms
 
-The **Return Intervals** data source supplies synthetic 84-hour storms at every
+The **Return Intervals** data source supplies synthetic 24-hour storms at every
 2015 NACCS station 11283 annual recurrence interval through 10,000 years. All
 frequency calculations are performed in feet NAVD88; MLLW is only a display
 conversion using the mapper's existing `+2.75 ft` contract.
@@ -59,8 +59,8 @@ directly. NOAA station
 `8535581` Stone Harbor harmonic predictions provide the astronomical tide. The
 user-supplied asymmetric Cape May surge-ratio curve is digitized,
 shape-preserving interpolated, compressed from its pictured 100-hour axis to
-84 hours, and scaled so the selected target occurs at the exact midpoint
-harmonic high tide. The resulting series contains 337
+24 hours, and scaled so the selected target occurs at the first high tide
+in the window. The resulting series contains 97
 15-minute frames and retains the sharp central peak, post-peak shoulder, and
 long recession tail in the supplied profile.
 
