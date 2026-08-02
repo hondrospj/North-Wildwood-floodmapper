@@ -14209,12 +14209,6 @@ html.win-compact-ui #timelineDock #hourSlider{
               </div>
             </div>
             <div class="layer-item">
-              <div id="boundaryToggle" class="toggle on" role="switch" tabindex="0" aria-checked="true" aria-label="Show simulation extent"></div>
-              <div class="layer-meta">
-                <div class="layer-name">Simulation Extent</div>
-              </div>
-            </div>
-            <div class="layer-item">
               <div id="roadsToggle" class="toggle on" role="switch" tabindex="0" aria-checked="true" aria-label="Show road names"></div>
               <div class="layer-meta">
                 <div class="layer-name">Road names</div>
@@ -17348,8 +17342,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
     function isTownBoundaryEnabled() {
-      const toggle = document.getElementById("boundaryToggle");
-      return !toggle || toggle.classList.contains("on");
+      return true;
     }
 
     function applyTownBoundaryVisibility() {
@@ -19519,7 +19512,7 @@ function updateDownloadSummary() {
       const format = getDownloadFormatValue();
       const formatLabel = format.toUpperCase();
       const aspectLabel = getExportAspectConfig().label;
-      const extentLabel = getDownloadExtentValue() === "simulation" ? "Simulation Extent" : "Current View";
+      const extentLabel = "Current View";
       const speed = EXPORT_GIF_SPEEDS[getDownloadSpeedValue()]?.label || "Normal";
       const interval = getDownloadIntervalConfig();
       const frameLimit = getDownloadFrameLimit();
@@ -23940,14 +23933,13 @@ function startPlayback() {
     function wireLayerToggles() {
       document.getElementById("mapClickBuildingBtn")?.addEventListener("click", () => setMapClickMode("building"));
       document.getElementById("mapClickDepthBtn")?.addEventListener("click", () => setMapClickMode("depth"));
-      ["boundaryToggle", "roadsToggle"].forEach(id => {
+      ["roadsToggle"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         const toggleLayer = () => {
           el.classList.toggle("on");
           el.setAttribute("aria-checked", String(el.classList.contains("on")));
           if (id === "roadsToggle") updateRoadLayerAppearance();
-          if (id === "boundaryToggle") applyTownBoundaryVisibility();
         };
         el.addEventListener("click", toggleLayer);
         el.addEventListener("keydown", event => {
@@ -24625,7 +24617,7 @@ function startPlayback() {
       {
         title: "Control map layers",
         target: ".layers-card",
-        body: "<p>Turn the simulation boundary, road labels, or <strong>Parcels</strong> on and off. Click a parcel to see how many times that structure has flooded in the historic record.</p>"
+        body: "<p>Turn satellite imagery, road labels, buildings, or <strong>Parcels</strong> on and off. The solid black municipal outline always remains visible. Click a parcel to see how many times that structure has flooded in the historic record.</p>"
       },
       {
         title: "Jump to the largest floods",
@@ -28143,9 +28135,9 @@ html.win-compact-ui .leaflet-top.leaflet-right{
       right.style.setProperty('width', 'var(--pj-stable-right-width)', 'important');
       right.style.setProperty('min-width', 'var(--pj-stable-right-width)', 'important');
       right.style.setProperty('max-width', 'var(--pj-stable-right-width)', 'important');
-      right.style.setProperty('gap', '10px', 'important');
-      right.style.setProperty('overflow-y', 'visible', 'important');
-      right.style.setProperty('overflow-x', 'visible', 'important');
+      right.style.setProperty('gap', '8px', 'important');
+      right.style.setProperty('overflow-y', 'auto', 'important');
+      right.style.setProperty('overflow-x', 'hidden', 'important');
       right.style.setProperty('scrollbar-gutter', 'auto', 'important');
       right.style.setProperty('transform', 'none', 'important');
     }
@@ -32485,7 +32477,7 @@ html body #timelineDock #hourSlider{
     var viewportH = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
     var shortDesktop = viewportH <= 940;
     var leftW = viewportW <= 1120 ? 320 : (viewportW <= 1320 ? 340 : 356);
-    var rightW = leftW === 320 ? 228 : (leftW === 340 ? 244 : 260);
+    var rightW = leftW === 320 ? 244 : (leftW === 340 ? 260 : 276);
     var cardH = shortDesktop ? 82 : (viewportW <= 1120 ? 88 : 92);
     var opacityH = shortDesktop ? 56 : 62;
     var legendH = 64;
@@ -32515,8 +32507,8 @@ html body #timelineDock #hourSlider{
       setImportant(left, "max-height", "calc(100vh - " + (16 + bottomReserve) + "px)");
       setImportant(left, "gap", shortDesktop ? "4px" : "6px");
       setImportant(left, "padding", "0 4px 0 0");
-      setImportant(left, "overflow", "hidden");
-      setImportant(left, "overflow-y", "hidden");
+      setImportant(left, "overflow", "auto");
+      setImportant(left, "overflow-y", "auto");
       setImportant(left, "overflow-x", "hidden");
       setImportant(left, "scrollbar-gutter", "auto");
       setImportant(left, "transform", "none");
@@ -32635,7 +32627,7 @@ html body #timelineDock #hourSlider{
     var r = left.getBoundingClientRect();
     var targetW = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) <= 1120 ? 320 :
       (Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) <= 1320 ? 340 : 356);
-    return cs.overflowY !== "hidden" ||
+    return cs.overflowY !== "auto" ||
       cs.transform !== "none" ||
       Math.abs(r.x - 16) > 1 ||
       Math.abs(r.y - 16) > 1 ||
@@ -35650,6 +35642,319 @@ html body #mapTitleBadge #mapTitleLogo{
   }
   .export-stage-frame[data-export-aspect="9:16"] .export-depth-key-note{
     font-size:13px !important;
+  }
+</style>
+<style id="north-wildwood-sidebar-pane-qa-20260802">
+  /* Keep both control rails readable as one consistent, ordered system. */
+  @media (min-width:901px){
+    :root{
+      --pj-stable-right-width:276px;
+      --pj-equal-right-width:276px;
+    }
+
+    html body:not(.mobile-optimized) #leftPanel{
+      gap:7px !important;
+      padding:0 4px 8px 0 !important;
+      overflow-y:auto !important;
+      overflow-x:hidden !important;
+      scrollbar-width:thin !important;
+      scrollbar-color:rgba(125,249,255,.5) transparent !important;
+    }
+
+    html body #leftPanel > .data-source-card{order:1 !important}
+    html body #leftPanel > .forecast-scenario-card,
+    html body #leftPanel > .return-interval-card,
+    html body #leftPanel > #calendarCard{order:2 !important}
+    html body #leftPanel > .overlay-card{order:3 !important}
+    html body #leftPanel > .datum-card{order:4 !important}
+    html body #leftPanel > .opacity-card{order:5 !important}
+    html body #leftPanel > #timelineIntervalCard{order:6 !important}
+    html body #leftPanel > #legendDock{order:7 !important}
+    html body #leftPanel > .snapshot-card{order:8 !important}
+    html body #leftPanel > .mobile-top-tides-card{order:9 !important}
+
+    html body.return-interval-mode #leftPanel > .data-source-card,
+    html body.observed-mode #leftPanel > .data-source-card{order:1 !important}
+    html body.return-interval-mode #leftPanel > .return-interval-card,
+    html body.observed-mode #leftPanel > #calendarCard{order:2 !important}
+    html body.return-interval-mode #leftPanel > .overlay-card,
+    html body.observed-mode #leftPanel > .overlay-card{order:3 !important}
+    html body.return-interval-mode #leftPanel > .datum-card,
+    html body.observed-mode #leftPanel > .datum-card{order:4 !important}
+    html body.return-interval-mode #leftPanel > .opacity-card,
+    html body.observed-mode #leftPanel > .opacity-card{order:5 !important}
+    html body.return-interval-mode #leftPanel > #timelineIntervalCard,
+    html body.observed-mode #leftPanel > #timelineIntervalCard{order:6 !important}
+    html body.return-interval-mode #leftPanel > #legendDock,
+    html body.observed-mode #leftPanel > #legendDock{order:7 !important}
+    html body.return-interval-mode #leftPanel > .snapshot-card,
+    html body.observed-mode #leftPanel > .snapshot-card{order:8 !important}
+    html body.observed-mode #leftPanel > .mobile-top-tides-card{order:9 !important}
+
+    html body:not(.mobile-optimized) #leftPanel > .panel-card,
+    html body:not(.mobile-optimized) #leftPanel > #legendDock,
+    html body:not(.mobile-optimized) #rightRail > .rail-card{
+      background:rgba(11,18,32,.94) !important;
+      border:1px solid rgba(191,219,254,.16) !important;
+      border-radius:16px !important;
+      box-shadow:0 12px 24px rgba(15,23,42,.20) !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail{
+      gap:8px !important;
+      padding:0 !important;
+      overflow-y:auto !important;
+      overflow-x:hidden !important;
+      scrollbar-width:thin !important;
+      scrollbar-color:rgba(125,249,255,.5) transparent !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > .rail-card{
+      padding:10px 12px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .rail-head{
+      min-height:20px !important;
+      height:auto !important;
+      margin:0 0 7px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .rail-head h3{
+      margin:0 !important;
+      font-size:15px !important;
+      line-height:1.08 !important;
+      letter-spacing:-.025em !important;
+      white-space:nowrap !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > .layers-card{
+      min-height:130px !important;
+      height:130px !important;
+      max-height:130px !important;
+      overflow:hidden !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .layer-list{
+      display:grid !important;
+      grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+      gap:7px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .layer-item{
+      display:grid !important;
+      grid-template-columns:34px minmax(0,1fr) !important;
+      align-items:center !important;
+      gap:6px !important;
+      min-width:0 !important;
+      min-height:42px !important;
+      height:42px !important;
+      max-height:42px !important;
+      padding:6px 7px !important;
+      border-radius:12px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .toggle{
+      width:32px !important;
+      min-width:32px !important;
+      height:20px !important;
+      min-height:20px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .toggle::after{
+      width:14px !important;
+      height:14px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .toggle.on::after{
+      left:15px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .layer-name{
+      min-width:0 !important;
+      font-size:10.5px !important;
+      line-height:1.05 !important;
+      letter-spacing:-.015em !important;
+      white-space:nowrap !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > .top-tides-card{
+      min-height:136px !important;
+      height:136px !important;
+      max-height:136px !important;
+      padding:9px 10px !important;
+      gap:5px !important;
+      overflow:hidden !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-item{
+      min-height:30px !important;
+      height:30px !important;
+      max-height:30px !important;
+      padding:3px 7px !important;
+      border-radius:10px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-more-btn{
+      min-height:27px !important;
+      height:27px !important;
+      max-height:27px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > #downloadCard{
+      min-height:82px !important;
+      height:82px !important;
+      max-height:82px !important;
+      gap:5px !important;
+      overflow:hidden !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > #downloadCard .download-launch-meta{
+      display:none !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > #downloadCard .download-launch-btn{
+      min-height:34px !important;
+      height:34px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > #townAddressCard{
+      min-height:136px !important;
+      height:136px !important;
+      max-height:136px !important;
+      gap:5px !important;
+      overflow:hidden !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail #townAddressCard .town-address-form{
+      gap:4px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail #townAddressCard .town-address-input,
+    html body:not(.mobile-optimized) #rightRail #townAddressCard .town-address-actions button{
+      min-height:31px !important;
+      height:31px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail > #mapperTutorialBtn.mapper-tutorial-launch{
+      position:static !important;
+      inset:auto !important;
+      flex:0 0 38px !important;
+      width:100% !important;
+      min-height:38px !important;
+      height:38px !important;
+      margin:0 !important;
+      border-radius:16px !important;
+    }
+  }
+
+  @media (min-width:901px) and (max-width:1320px){
+    :root{
+      --pj-stable-right-width:260px;
+      --pj-equal-right-width:260px;
+    }
+  }
+
+  @media (min-width:901px) and (max-width:1120px){
+    :root{
+      --pj-stable-right-width:244px;
+      --pj-equal-right-width:244px;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .layer-item{
+      grid-template-columns:31px minmax(0,1fr) !important;
+      gap:4px !important;
+      padding-inline:5px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .toggle{
+      width:30px !important;
+      min-width:30px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .toggle.on::after{
+      left:13px !important;
+    }
+
+    html body:not(.mobile-optimized) #rightRail .layers-card .layer-name{
+      font-size:9.5px !important;
+    }
+  }
+
+  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+    html body.mobile-optimized #leftPanel{
+      gap:8px !important;
+      overflow-y:auto !important;
+      overflow-x:hidden !important;
+    }
+
+    html body.mobile-optimized #leftPanel > .data-source-card{order:1 !important}
+    html body.mobile-optimized #leftPanel > .forecast-scenario-card,
+    html body.mobile-optimized #leftPanel > .return-interval-card,
+    html body.mobile-optimized #leftPanel > #calendarCard{order:2 !important}
+    html body.mobile-optimized #leftPanel > .overlay-card{order:3 !important}
+    html body.mobile-optimized #leftPanel > .datum-card{order:4 !important}
+    html body.mobile-optimized #leftPanel > .opacity-card{order:5 !important}
+    html body.mobile-optimized #leftPanel > #timelineIntervalCard{order:6 !important}
+    html body.mobile-optimized #leftPanel > .snapshot-card{order:7 !important}
+    html body.mobile-optimized #leftPanel > .mobile-top-tides-card{order:8 !important}
+    html body.mobile-optimized #leftPanel > #mobileRailMount{order:9 !important}
+
+    html body.mobile-optimized.return-interval-mode #leftPanel > .data-source-card,
+    html body.mobile-optimized.observed-mode #leftPanel > .data-source-card{order:1 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > .return-interval-card,
+    html body.mobile-optimized.observed-mode #leftPanel > #calendarCard{order:2 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > .overlay-card,
+    html body.mobile-optimized.observed-mode #leftPanel > .overlay-card{order:3 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > .datum-card,
+    html body.mobile-optimized.observed-mode #leftPanel > .datum-card{order:4 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > .opacity-card,
+    html body.mobile-optimized.observed-mode #leftPanel > .opacity-card{order:5 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > #timelineIntervalCard,
+    html body.mobile-optimized.observed-mode #leftPanel > #timelineIntervalCard{order:6 !important}
+    html body.mobile-optimized.return-interval-mode #leftPanel > .snapshot-card,
+    html body.mobile-optimized.observed-mode #leftPanel > .snapshot-card{order:7 !important}
+
+    html body.mobile-optimized #leftPanel > .panel-card,
+    html body.mobile-optimized #mobileRailMount > .rail-card,
+    html body.mobile-optimized #mobileRailMount > #mapperTutorialBtn{
+      border:1px solid rgba(191,219,254,.16) !important;
+      border-radius:18px !important;
+      background:rgba(11,18,32,.94) !important;
+      box-shadow:none !important;
+    }
+
+    html body.mobile-optimized #mobileRailMount{
+      display:flex !important;
+      flex-direction:column !important;
+      gap:8px !important;
+      width:100% !important;
+    }
+
+    html body.mobile-optimized #mobileRailMount > .layers-card{
+      width:100% !important;
+      min-height:142px !important;
+      height:auto !important;
+      padding:12px !important;
+    }
+
+    html body.mobile-optimized #mobileRailMount > .layers-card .layer-list{
+      display:grid !important;
+      grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+      gap:8px !important;
+    }
+
+    html body.mobile-optimized #mobileRailMount > .layers-card .layer-item{
+      min-width:0 !important;
+      min-height:48px !important;
+      height:48px !important;
+      padding:7px 9px !important;
+      border-radius:13px !important;
+    }
+
+    html body.mobile-optimized #mobileRailMount > .layers-card .layer-name{
+      font-size:13px !important;
+      white-space:nowrap !important;
+    }
   }
 </style>
 <style id="north-wildwood-centered-close-controls">

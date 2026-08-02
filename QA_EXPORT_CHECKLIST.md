@@ -13,7 +13,7 @@ Completed: August 2, 2026
 ## Export appearance
 
 - [x] The simulation-extent row is omitted from the exported key.
-- [x] Simulation extent remains on by default so the municipal outline is present.
+- [x] The Simulation Extent control is absent from Layers; the municipal outline is permanently enabled.
 - [x] The municipal outline is solid black on the live map and in generated GIFs.
 - [x] Parcel boundaries are red on the live map and in a generated GIF with Parcels enabled.
 - [x] The stray grey/green cap after the deepest legend color is gone; the scale ends cleanly in deep navy.
@@ -27,6 +27,17 @@ Completed: August 2, 2026
 - [x] `python3 tools/test_return_intervals.py`
 - [x] `node tools/test_north_wildwood_browser_contract.mjs`
 - [x] `git diff --check`
+
+## Sidebar follow-up
+
+- [x] The Layers pane contains exactly four controls: Satellite, Road names, Buildings, and Parcels.
+- [x] No Simulation Extent control or label remains anywhere in the interface.
+- [x] The solid black municipal outline remains visible with no user setting that can disable it.
+- [x] Desktop Layers controls render as a balanced 2×2 grid, and all right-rail cards share consistent widths, corners, spacing, and backgrounds.
+- [x] The desktop control pane follows the logical order Flood Data → scenario → Overlay → Datum → Opacity → Interval → key.
+- [x] The pane scrolls instead of clipping controls on shorter screens.
+- [x] Forecast and modeled-flood layouts were visually checked at 1280×720.
+- [x] Forecast and modeled-flood layouts were visually checked at 430×900, including the Layers, export, address, and tour sections.
 
 ## Visual samples inspected
 
