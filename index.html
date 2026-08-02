@@ -131,7 +131,8 @@
       --depth-8:#132F84;
       --depth-9:#0B1E5B;
       --depth-10:#050E33;
-      --boundary-red:#ef4444;
+      --boundary-color:#000000;
+      --parcel-red:#ef4444;
     }
 
     *{ box-sizing:border-box; }
@@ -1004,7 +1005,7 @@
       width:14px;
       height:0;
       border:none;
-      border-top:3px solid var(--boundary-red);
+      border-top:3px solid var(--boundary-color);
       border-radius:999px;
       background:none;
     }
@@ -8396,7 +8397,7 @@
       border:0 !important;
       border-top:0 !important;
       border-radius:999px !important;
-      background:var(--boundary-red) !important;
+      background:var(--boundary-color) !important;
       margin:0 !important;
       align-self:center !important;
       justify-self:start !important;
@@ -8462,7 +8463,7 @@
       border:0 !important;
       border-top:0 !important;
       border-radius:999px !important;
-      background:var(--boundary-red) !important;
+      background:var(--boundary-color) !important;
       margin:0 !important;
       align-self:center !important;
       justify-self:start !important;
@@ -8551,7 +8552,7 @@
       min-height:4px !important;
       border:0 !important;
       border-top:0 !important;
-      background:var(--boundary-red) !important;
+      background:var(--boundary-color) !important;
       border-radius:999px !important;
       align-self:center !important;
     }
@@ -15107,6 +15108,7 @@ function cloneStyleObject(value) {
     let exportSatelliteLayer = null;
     let exportRoadsLayer = null;
     let exportBuildingsLayer = null;
+    let exportParcelsLayer = null;
     let exportBoundaryOutline = null;
     let exportBoundaryMask = null;
     let exportFloodLayer = null;
@@ -15397,6 +15399,11 @@ function cloneStyleObject(value) {
     function getReturnIntervalLabel(years = currentReturnIntervalYears) {
       const value = Number(years);
       return value === 1 ? "Every Year" : `Every ${value.toLocaleString("en-US")} Years`;
+    }
+
+    function getReturnIntervalStormLabel(years = currentReturnIntervalYears) {
+      const value = Number(years);
+      return `${value.toLocaleString("en-US")}-Year Storm`;
     }
 
     function updateReturnIntervalButtons() {
@@ -16557,7 +16564,12 @@ function setDatumHelpOpen(isOpen) {
         applyExportStageAspect(getDownloadAspectValue());
         syncDownloadRangeInputs(true);
         updateDownloadSummary();
-        requestAnimationFrame(() => document.getElementById("downloadStartDateText")?.focus());
+        requestAnimationFrame(() => {
+          const focusTarget = currentDataMode === "return-interval"
+            ? document.getElementById("downloadStartTimeSelect")
+            : document.getElementById("downloadStartDateText");
+          focusTarget?.focus();
+        });
       }
     }
 
@@ -17376,7 +17388,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       updateBoundaryMaskLayer();
 
       cityBoundaryOutline = makeBoundaryVector({
-        color: getComputedStyle(document.documentElement).getPropertyValue("--boundary-red").trim() || "#ef4444",
+        color: getComputedStyle(document.documentElement).getPropertyValue("--boundary-color").trim() || "#000000",
         weight: 4.6,
         opacity: 1,
         lineCap: "round",
@@ -17985,6 +17997,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
     const EXPORT_DATE_MASK = "MM/DD/YYYY";
+    const MODELED_EXPORT_DATE_PLACEHOLDER = "xx/xx/xxxx";
     const EXPORT_DATE_MASK_POSITIONS = [0, 1, 3, 4, 6, 7, 8, 9];
 
     function exportDateMaskPlaceholderAt(index) {
@@ -18163,24 +18176,48 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       }
       if (!values.includes(normalized)) values.push(normalized);
       values.sort();
-      select.innerHTML = values.map(value => `<option value="${value}">${formatExportTimeLabel(value)}</option>`).join("");
+      const existingValues = Array.from(select.options || [], option => option.value);
+      const optionsAreCurrent = existingValues.length === values.length
+        && existingValues.every((value, index) => value === values[index]);
+      if (!optionsAreCurrent) {
+        select.innerHTML = values.map(value => `<option value="${value}">${formatExportTimeLabel(value)}</option>`).join("");
+      }
       select.value = normalized;
     }
 
     function syncExportDateTimeEditorFromCanonical(prefix) {
       const elements = getExportDateEditorElements(prefix);
       if (!elements.canonical || !elements.dateText || !elements.timeSelect) return;
+      const modeledDateLocked = currentDataMode === "return-interval";
+      const cap = prefix === "end" ? "End" : "Start";
+      const calendarButton = document.getElementById(`download${cap}CalendarBtn`);
+      elements.dateText.readOnly = modeledDateLocked;
+      elements.dateText.disabled = exportInProgress || modeledDateLocked;
+      elements.dateText.classList.toggle("modeled-date-locked", modeledDateLocked);
+      elements.dateText.setAttribute(
+        "aria-label",
+        modeledDateLocked
+          ? "Modeled storm date is not applicable"
+          : `Export ${prefix} date in month day year format`
+      );
+      if (calendarButton) {
+        calendarButton.hidden = modeledDateLocked;
+        calendarButton.disabled = exportInProgress || modeledDateLocked;
+      }
+      if (elements.datePicker) elements.datePicker.disabled = exportInProgress || modeledDateLocked;
       const value = elements.canonical.value || "";
       const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
       if (!match) {
-        elements.dateText.value = EXPORT_DATE_MASK;
+        elements.dateText.value = modeledDateLocked ? MODELED_EXPORT_DATE_PLACEHOLDER : EXPORT_DATE_MASK;
         if (elements.datePicker) elements.datePicker.value = "";
         populateExportTimeSelect(elements.timeSelect, "00:00");
         return;
       }
       const isoDate = `${match[1]}-${match[2]}-${match[3]}`;
       const timeValue = `${match[4]}:${match[5]}`;
-      elements.dateText.value = `${match[2]}/${match[3]}/${match[1]}`;
+      elements.dateText.value = modeledDateLocked
+        ? MODELED_EXPORT_DATE_PLACEHOLDER
+        : `${match[2]}/${match[3]}/${match[1]}`;
       elements.dateText.classList.remove("is-invalid");
       elements.dateText.removeAttribute("aria-invalid");
       if (elements.datePicker) elements.datePicker.value = isoDate;
@@ -18190,6 +18227,17 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     function commitExportDateTimeEditor(prefix, options = {}) {
       const elements = getExportDateEditorElements(prefix);
       if (!elements.canonical || !elements.dateText || !elements.timeSelect) return false;
+      if (currentDataMode === "return-interval") {
+        const canonicalMatch = elements.canonical.value.match(/^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}$/);
+        if (!canonicalMatch) return false;
+        const timeValue = /^\d{2}:\d{2}$/.test(elements.timeSelect.value) ? elements.timeSelect.value : "00:00";
+        elements.canonical.value = `${canonicalMatch[1]}T${timeValue}`;
+        if (options.markEdited) elements.canonical.dataset.userEdited = "1";
+        elements.dateText.value = MODELED_EXPORT_DATE_PLACEHOLDER;
+        elements.dateText.classList.remove("is-invalid");
+        elements.dateText.removeAttribute("aria-invalid");
+        return true;
+      }
       const parsed = parseExportDateText(elements.dateText.value);
       if (!parsed) {
         elements.dateText.classList.add("is-invalid");
@@ -19452,7 +19500,9 @@ function setExportRangeFromDayKey(dayKey, prefix = exportRangePickMode) {
       wrap.hidden = false;
       const bounds = getDownloadArchiveBounds();
       if (dataRangeEl) {
-        if (bounds?.firstDate && bounds?.lastDate) {
+        if (currentDataMode === "return-interval") {
+          dataRangeEl.innerHTML = `<span>Modeled storm</span><strong>${Number(returnIntervalData?.windowHours || 24)}-hour synthetic event</strong>`;
+        } else if (bounds?.firstDate && bounds?.lastDate) {
           dataRangeEl.innerHTML = `<span>Available data</span><strong>${formatExportCompactDate(bounds.firstDate)} – ${formatExportCompactDate(bounds.lastDate)}</strong>`;
         } else {
           dataRangeEl.innerHTML = `<span>Available data</span><strong>Loading…</strong>`;
@@ -19637,7 +19687,18 @@ function updateExportSegmentedUI() {
       if (picker) picker.classList.toggle("is-busy", isBusy);
       if (start) start.disabled = isBusy;
       if (end) end.disabled = isBusy;
-      exportEditorControls.forEach(control => { control.disabled = isBusy; });
+      const modeledDateLocked = currentDataMode === "return-interval";
+      const modeledDateControlIds = new Set([
+        "downloadStartDateText",
+        "downloadStartDatePicker",
+        "downloadStartCalendarBtn",
+        "downloadEndDateText",
+        "downloadEndDatePicker",
+        "downloadEndCalendarBtn"
+      ]);
+      exportEditorControls.forEach(control => {
+        control.disabled = isBusy || (modeledDateLocked && modeledDateControlIds.has(control.id));
+      });
       if (isBusy) {
         setExportProgressVisible(true);
         setExportProgress(message || "Preparing export...", 0, false);
@@ -19832,6 +19893,7 @@ function updateExportSegmentedUI() {
       exportMap.createPane("satellitePane");
       exportMap.createPane("boundaryPane");
       exportMap.createPane("floodPane");
+      exportMap.createPane("parcelsPane");
       exportMap.createPane("buildingsPane");
       exportMap.createPane("roadsPane");
       exportMap.createPane("maskPane");
@@ -19839,6 +19901,7 @@ function updateExportSegmentedUI() {
       exportMap.getPane("satellitePane").style.zIndex = 200;
       exportMap.getPane("boundaryPane").style.zIndex = 640;
       exportMap.getPane("floodPane").style.zIndex = 500;
+      exportMap.getPane("parcelsPane").style.zIndex = 610;
       exportMap.getPane("buildingsPane").style.zIndex = 620;
       exportMap.getPane("roadsPane").style.zIndex = 710;
       exportMap.getPane("maskPane").style.zIndex = 630;
@@ -19903,7 +19966,7 @@ function updateExportSegmentedUI() {
       updateExportBuildingsLayer();
       exportBoundaryMask = makeExportBoundaryMask().addTo(exportMap);
       exportBoundaryOutline = makeExportBoundaryVector({
-        color: getComputedStyle(document.documentElement).getPropertyValue("--boundary-red").trim() || "#ef4444",
+        color: getComputedStyle(document.documentElement).getPropertyValue("--boundary-color").trim() || "#000000",
         weight: 4.6,
         opacity: 1,
         lineCap: "round",
@@ -19937,6 +20000,32 @@ function updateExportSegmentedUI() {
       } else if (exportBuildingsLayer && exportMap.hasLayer(exportBuildingsLayer)) {
         exportMap.removeLayer(exportBuildingsLayer);
       }
+    }
+
+    async function updateExportParcelsLayer() {
+      if (!exportMap) return;
+      const enabled = document.getElementById("parcelsToggle")?.classList.contains("on");
+      if (!enabled) {
+        if (exportParcelsLayer && exportMap.hasLayer(exportParcelsLayer)) {
+          exportMap.removeLayer(exportParcelsLayer);
+        }
+        return;
+      }
+      if (!exportParcelsLayer) {
+        await preloadImage(PARCEL_BOUNDARY_PNG_URL);
+        exportParcelsLayer = L.imageOverlay(
+          PARCEL_BOUNDARY_PNG_URL,
+          floodLatLngBounds || getBoundaryDrivenOverlayBounds(),
+          {
+            pane: "parcelsPane",
+            opacity: 0.78,
+            interactive: false,
+            crossOrigin: true,
+            zIndex: 610
+          }
+        );
+      }
+      if (!exportMap.hasLayer(exportParcelsLayer)) exportParcelsLayer.addTo(exportMap);
     }
 
     function updateExportLegend() {
@@ -20005,19 +20094,7 @@ function updateExportSegmentedUI() {
         swatch.style.opacity = styles.opacity;
       });
 
-      target.querySelectorAll(".legend-row-boundary").forEach(row => {
-        row.style.background = "transparent";
-        row.style.boxShadow = "none";
-        row.style.overflow = "visible";
-      });
-      target.querySelectorAll(".legend-swatch.legend-line").forEach(line => {
-        line.style.height = "4px";
-        line.style.minHeight = "4px";
-        line.style.border = "0";
-        line.style.borderTop = "0";
-        line.style.background = "var(--boundary-red)";
-        line.style.borderRadius = "999px";
-      });
+      target.querySelectorAll(".legend-row-boundary").forEach(row => row.remove());
     }
 
     function updateExportRoadLayerAppearance() {
@@ -20080,7 +20157,7 @@ function updateExportSegmentedUI() {
 
     function getExportFrameDateTimeText(entry) {
       if (entry?.returnIntervalYears) {
-        return `${getReturnIntervalLabel(entry.returnIntervalYears)} · ${formatReturnStormOffset(entry)}`;
+        return getReturnIntervalStormLabel(entry.returnIntervalYears);
       }
       const date = getEntryESTDate(entry);
       const parts = date ? getNyParts(date) : null;
@@ -20096,6 +20173,7 @@ function updateExportSegmentedUI() {
     }
 
     function getExportFrameTimestampText(entry) {
+      if (entry?.returnIntervalYears) return getReturnIntervalStormLabel(entry.returnIntervalYears);
       return `${getExportFrameDateTimeText(entry)}\n${getExportFrameWaterLevelText(entry)}`;
     }
 
@@ -20115,6 +20193,7 @@ function updateExportSegmentedUI() {
       if (isFirstFrame || !exportFrameViewPrimed) {
         updateExportLegend();
         updateExportBoundaryVisibility();
+        await updateExportParcelsLayer();
         fitExportMapToSelectedExtent(mapInstance);
         exportFrameViewPrimed = true;
       }
@@ -20216,7 +20295,7 @@ function updateExportSegmentedUI() {
 
     async function captureExportRoadLabelsCanvas() {
       return captureExportLayerCanvas({
-        hiddenPaneNames: ["basemapColorPane", "satellitePane", "floodPane", "buildingsPane", "boundaryPane", "maskPane"],
+        hiddenPaneNames: ["basemapColorPane", "satellitePane", "floodPane", "parcelsPane", "buildingsPane", "boundaryPane", "maskPane"],
         hideTimestamp: true,
         hideLegend: true,
         hideLogo: true
@@ -20458,10 +20537,16 @@ function getUniqueExportStages(frameItems) {
       if (!lines.length) return;
       const w = canvas.width;
       const h = canvas.height;
-      const mainFontSize = Math.max(18, Math.round(Math.min(w, h) * 0.032));
+      const portrait = h > w;
+      const square = Math.abs(w - h) <= Math.min(w, h) * 0.08;
+      const modeledStorm = !!entry?.returnIntervalYears;
+      const mainFontScale = modeledStorm
+        ? (portrait ? 0.050 : square ? 0.050 : 0.056)
+        : 0.032;
+      const mainFontSize = Math.max(18, Math.round(Math.min(w, h) * mainFontScale));
       const subFontSize = Math.max(13, Math.round(mainFontSize * 0.62));
       const gap = Math.max(4, Math.round(mainFontSize * 0.18));
-      const padX = Math.round(mainFontSize * 1.05);
+      const padX = Math.round(mainFontSize * (modeledStorm && square ? 0.72 : 1.05));
       const padY = Math.round(mainFontSize * 0.58);
       ctx.save();
       ctx.textAlign = "center";
@@ -20471,13 +20556,22 @@ function getUniqueExportStages(frameItems) {
       ctx.font = `850 ${subFontSize}px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif`;
       const subWidth = lines[1] ? ctx.measureText(lines[1]).width : 0;
       const maxLineWidth = Math.min(Math.max(mainWidth, subWidth), w - 56);
-      const portrait = h > w;
-      const availableWidth = portrait ? Math.round(w * 0.62) : w - 48;
+      const availableWidth = portrait
+        ? Math.round(w * 0.62)
+        : square
+          ? Math.round(w * 0.54)
+          : w - 48;
       const boxWidth = Math.min(availableWidth, Math.max(Math.round(w * (portrait ? 0.58 : 0.44)), Math.ceil(maxLineWidth + padX * 2)));
       const contentHeight = lines[1] ? mainFontSize + gap + subFontSize : mainFontSize;
       const boxHeight = Math.ceil(contentHeight + padY * 2);
-      const x = portrait ? Math.round(Math.max(12, w * 0.018)) : Math.round((w - boxWidth) / 2);
-      const y = Math.round(Math.max(12, h * (portrait ? 0.084 : 0.015)));
+      const x = portrait
+        ? Math.round(Math.max(12, w * 0.018))
+        : square
+          ? Math.round((w * 0.455) - (boxWidth / 2))
+          : Math.round((w - boxWidth) / 2);
+      const y = modeledStorm && portrait
+        ? Math.round(Math.max(18, h * 0.064))
+        : Math.round(Math.max(12, h * (portrait ? 0.084 : 0.015)));
       const radius = Math.round(Math.min(24, boxHeight / 2));
       ctx.fillStyle = "rgba(11,18,32,0.92)";
       ctx.strokeStyle = "rgba(191,219,254,0.42)";
@@ -20519,66 +20613,13 @@ function getUniqueExportStages(frameItems) {
     }
 
 
-    function resolveCssColorToken(value) {
-      const raw = String(value || "").trim();
-      if (!raw) return "";
-      const varMatch = raw.match(/^var\((--[^)]+)\)$/);
-      if (varMatch) {
-        return getComputedStyle(document.documentElement).getPropertyValue(varMatch[1]).trim() || raw;
-      }
-      return raw;
-    }
-
-    function collectGifLegendSwatchColors() {
-      const colors = [];
-      document.querySelectorAll("#legendDock .legend-swatch, #exportLegendDock .legend-swatch").forEach(swatch => {
-        const styles = window.getComputedStyle(swatch);
-        const image = styles.backgroundImage && styles.backgroundImage !== "none" ? styles.backgroundImage : "";
-        if (!image || !/^linear-gradient/i.test(image)) {
-          const inlineBackground = swatch.style.background || "";
-          if (inlineBackground && !/^linear-gradient/i.test(inlineBackground)) colors.push(inlineBackground);
-          if (styles.backgroundColor && styles.backgroundColor !== "rgba(0, 0, 0, 0)") colors.push(styles.backgroundColor);
-        }
-        if (styles.borderColor && styles.borderColor !== "rgba(0, 0, 0, 0)") colors.push(styles.borderColor);
-      });
-      return colors;
-    }
-
-    function getGifLegendPaletteColors() {
-      const legendColors = [
-        ...collectGifLegendSwatchColors(),
-        ...DEPTH_LEGEND.map(item => resolveCssColorToken(item.color)),
-        ...DYNAMIC_LEGEND.map(item => resolveCssColorToken(item.color)),
-        "rgba(121,221,90,.92)",
-        "rgba(213,138,0,.92)",
-        "rgba(216,75,103,.92)",
-        "rgba(124,92,224,.92)",
-        "#79DD5A", "#ffffff", "#c7d2fe", "#1b2536", "#0b1220"
-      ].filter(Boolean);
-      return Array.from(new Set(legendColors));
-    }
-
-    function seedGifLegendPalette(ctx, canvas) {
-      if (!ctx || !canvas) return;
-      const colors = getGifLegendPaletteColors();
-      const size = Math.max(4, Math.round(Math.min(canvas.width, canvas.height) * 0.004));
-      const y = Math.max(0, canvas.height - size - 1);
-      ctx.save();
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = "source-over";
-      colors.forEach((color, idx) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(idx * size, y, size, size);
-      });
-      ctx.restore();
-    }
-
     async function captureFastGifBaseCanvas(firstItem) {
       const mapInstance = ensureExportMap();
       applyExportStageAspect(getDownloadAspectValue());
       mapInstance.invalidateSize(false);
       updateExportLegend();
       updateExportBoundaryVisibility();
+      await updateExportParcelsLayer();
       updateExportRoadLayerAppearance();
       fitExportMapToSelectedExtent(mapInstance);
 
@@ -20631,8 +20672,6 @@ function getUniqueExportStages(frameItems) {
       if (ctx) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; }
       if (!ctx || !overlayRect) {
         await withExportFrames(frameItems, async ({ canvas }) => {
-          const frameCtx = canvas.getContext("2d");
-          seedGifLegendPalette(frameCtx, canvas);
           gif.addFrame(canvas, { delay: getGifFrameDelayMs(), copy: true });
         }, progressStart, progressEnd);
         return;
@@ -20670,7 +20709,6 @@ function getUniqueExportStages(frameItems) {
         if (roadLabelsCanvas) ctx.drawImage(roadLabelsCanvas, 0, 0, frameCanvas.width, frameCanvas.height);
         if (chromeCanvas) ctx.drawImage(chromeCanvas, 0, 0, frameCanvas.width, frameCanvas.height);
         drawExportTimestampOnCanvas(ctx, frameCanvas, item.entry);
-        seedGifLegendPalette(ctx, frameCanvas);
         gif.addFrame(frameCanvas, { delay: getGifFrameDelayMs(), copy: true });
         throwIfExportCancelled();
         const donePct = progressStart + (((i + 1) / total) * (progressEnd - progressStart));
@@ -20713,7 +20751,7 @@ function getUniqueExportStages(frameItems) {
         width: Math.round(aspectConfig.width * exportScale),
         height: Math.round(aspectConfig.height * exportScale),
         dither: EXPORT_GIF_DITHER,
-        globalPalette: true,
+        globalPalette: false,
         repeat: 0,
         background: "#0b1220"
       });
@@ -23422,7 +23460,7 @@ function startPlayback() {
         const parcelBounds = floodLatLngBounds || getBoundaryDrivenOverlayBounds();
         parcelsLayer = L.imageOverlay(PARCEL_BOUNDARY_PNG_URL, parcelBounds, {
           pane: "parcelsPane",
-          opacity: 0.58,
+          opacity: 0.78,
           interactive: false,
           crossOrigin: true,
           zIndex: 610
@@ -27795,7 +27833,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
     width:22px !important;
     height:0 !important;
     border:none !important;
-    border-top:4px solid var(--boundary-red) !important;
+    border-top:4px solid var(--boundary-color) !important;
     border-radius:999px !important;
   }
   html body #leftPanel #legendDock .legend-note,
@@ -32717,6 +32755,18 @@ html body #timelineDock #hourSlider{
   font-variant-numeric:tabular-nums;
 }
 
+#downloadModal .export-date-text-input.modeled-date-locked{
+  padding:0 13px !important;
+  background:rgba(255,255,255,.035) !important;
+  border-color:rgba(191,219,254,.14) !important;
+  color:#c7d2fe !important;
+  -webkit-text-fill-color:#c7d2fe !important;
+  text-align:center;
+  text-transform:lowercase !important;
+  cursor:not-allowed;
+  opacity:1;
+}
+
 .export-time-select{
   padding:0 34px 0 12px !important;
   cursor:pointer;
@@ -33267,7 +33317,7 @@ TOWN_CONFIG = {
     }
   },
   "parcels": {
-    "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260726-parcels-v2",
+    "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1",
     "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260726-depth-threshold-v4",
     "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260726-depth-threshold-v4"
   },
@@ -34277,7 +34327,9 @@ html body #mapTitleBadge #mapTitleLogo{
     background-position:center !important;background-size:100% 5px !important;background-repeat:no-repeat !important;
   }
 
-  .leaflet-parcels-pane img{mix-blend-mode:normal !important;filter:none !important}
+  .leaflet-parcels-pane img{
+    mix-blend-mode:normal !important;
+  }
 
   .mapper-tutorial-card{width:min(390px,calc(100vw - 28px)) !important;max-height:min(520px,calc(100vh - 28px)) !important}
 
@@ -35497,6 +35549,107 @@ html body #mapTitleBadge #mapTitleLogo{
       height:44px !important;
       font-size:10px !important;
     }
+  }
+</style>
+<style id="north-wildwood-export-final-qa">
+  /* Size export chrome for the actual output canvas, not the browser viewport. */
+  .export-stage-timestamp{
+    min-width:720px !important;
+    max-width:920px !important;
+    padding:18px 30px 20px !important;
+    font-size:60px !important;
+    line-height:1.04 !important;
+  }
+
+  .export-stage-legend{
+    width:330px !important;
+    padding:22px 22px 20px !important;
+  }
+  .export-stage-legend .legend-title{
+    font-size:28px !important;
+  }
+  .export-stage-legend .legend-row{
+    grid-template-columns:24px 1fr !important;
+    gap:12px !important;
+    font-size:18px !important;
+  }
+  .export-stage-legend .legend-swatch{
+    width:22px !important;
+    min-width:22px !important;
+    height:22px !important;
+    min-height:22px !important;
+  }
+
+  .export-stage-legend[data-export-legend-mode="depth"]{
+    right:24px !important;
+    width:330px !important;
+    padding:22px 22px 20px !important;
+  }
+  .export-depth-key{
+    gap:14px !important;
+  }
+  .export-depth-key-heading strong{
+    font-size:30px !important;
+  }
+  .export-depth-key-gradient{
+    height:24px !important;
+    overflow:hidden !important;
+    border:2px solid #041536 !important;
+    background-color:#041536 !important;
+    box-shadow:none !important;
+  }
+  .export-depth-key-ends{
+    font-size:13px !important;
+    letter-spacing:.06em !important;
+  }
+  .export-depth-key-note{
+    font-size:14px !important;
+    line-height:1.2 !important;
+  }
+
+  .export-stage-frame[data-export-aspect="1:1"] .export-stage-timestamp{
+    left:46% !important;
+    min-width:620px !important;
+    max-width:760px !important;
+    font-size:52px !important;
+  }
+  .export-stage-frame[data-export-aspect="1:1"] .export-stage-legend[data-export-legend-mode="depth"]{
+    right:22px !important;
+    width:300px !important;
+  }
+  .export-stage-frame[data-export-aspect="1:1"] .export-depth-key-heading strong{
+    font-size:28px !important;
+  }
+  .export-stage-frame[data-export-aspect="1:1"] .export-depth-key-gradient{
+    height:22px !important;
+  }
+
+  .export-stage-frame[data-export-aspect="9:16"] .export-stage-timestamp{
+    top:122px !important;
+    left:18px !important;
+    right:340px !important;
+    min-width:0 !important;
+    max-width:none !important;
+    padding:17px 22px 19px !important;
+    font-size:50px !important;
+  }
+  .export-stage-frame[data-export-aspect="9:16"] .export-stage-legend[data-export-legend-mode="depth"]{
+    top:122px !important;
+    right:22px !important;
+    width:296px !important;
+    padding:20px 20px 18px !important;
+  }
+  .export-stage-frame[data-export-aspect="9:16"] .export-depth-key-heading strong{
+    font-size:27px !important;
+  }
+  .export-stage-frame[data-export-aspect="9:16"] .export-depth-key-gradient{
+    height:22px !important;
+  }
+  .export-stage-frame[data-export-aspect="9:16"] .export-depth-key-ends{
+    font-size:12px !important;
+  }
+  .export-stage-frame[data-export-aspect="9:16"] .export-depth-key-note{
+    font-size:13px !important;
   }
 </style>
 <style id="north-wildwood-centered-close-controls">

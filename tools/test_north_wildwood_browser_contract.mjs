@@ -153,6 +153,12 @@ assert.doesNotMatch(SOURCE, /\bstageColor\b/);
 assert.match(SOURCE, /function getExportFrameDateTimeText\(/);
 assert.match(SOURCE, /return `\$\{getExportFrameDateTimeText\(entry\)\}\\n\$\{getExportFrameWaterLevelText\(entry\)\}`/);
 assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /15-Minute|Hourly|Daily maximum|Water level/);
+assert.match(SOURCE, /const MODELED_EXPORT_DATE_PLACEHOLDER = "xx\/xx\/xxxx"/);
+assert.match(extractFunction("syncExportDateTimeEditorFromCanonical"), /modeledDateLocked[\s\S]+MODELED_EXPORT_DATE_PLACEHOLDER/);
+assert.match(SOURCE, /function commitExportDateTimeEditor\([\s\S]+currentDataMode === "return-interval"[\s\S]+canonicalMatch/);
+assert.match(extractFunction("getReturnIntervalStormLabel"), /`\$\{value\.toLocaleString\("en-US"\)\}-Year Storm`/);
+assert.match(extractFunction("getExportFrameTimestampText"), /return getReturnIntervalStormLabel\(entry\.returnIntervalYears\)/);
+assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /formatReturnStormOffset/);
 assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
 assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
@@ -162,6 +168,33 @@ assert.match(SOURCE, /<span>May Flood<\/span><span>Shallow<\/span><span>Deep<\/s
 assert.doesNotMatch(SOURCE, /Green represents uncertainty/i);
 assert.doesNotMatch(SOURCE, /Feet above ground/);
 assert.doesNotMatch(SOURCE, /class="export-depth-key-disconnected"/);
+assert.match(extractFunction("updateExportLegend"), /querySelectorAll\("\.legend-row-boundary"\)\.forEach\(row => row\.remove\(\)\)/);
+assert.match(SOURCE, /--boundary-color:#000000/);
+assert.match(SOURCE, /NorthWildwoodParcelBoundaries\.png\?v=20260802-red-parcels-v1/);
+assert.match(SOURCE, /opacity: 0\.78/);
+assert.match(SOURCE, /exportMap\.createPane\("parcelsPane"\)/);
+assert.match(SOURCE, /async function updateExportParcelsLayer\(/);
+assert.match(SOURCE, /async function prepareExportFrame\([\s\S]+await updateExportParcelsLayer\(\)/);
+assert.match(SOURCE, /async function captureFastGifBaseCanvas\([\s\S]+await updateExportParcelsLayer\(\)/);
+assert.match(SOURCE, /globalPalette: false/);
+assert.doesNotMatch(SOURCE, /seedGifLegendPalette/);
+assert.match(SOURCE, /id="north-wildwood-export-final-qa"/);
+assert.match(SOURCE, /data-export-aspect="16:9"|font-size:60px !important/);
+assert.match(SOURCE, /data-export-aspect="1:1"[\s\S]+font-size:52px !important/);
+assert.match(SOURCE, /data-export-aspect="9:16"[\s\S]+font-size:50px !important/);
+
+const modeledStormLabelContext = vm.createContext({ Number });
+vm.runInContext(
+  `${extractFunction("getReturnIntervalStormLabel")}; globalThis.getReturnIntervalStormLabel = getReturnIntervalStormLabel;`,
+  modeledStormLabelContext
+);
+for (const years of [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]) {
+  assert.equal(
+    modeledStormLabelContext.getReturnIntervalStormLabel(years),
+    `${years.toLocaleString("en-US")}-Year Storm`,
+    `Modeled GIF title is wrong for the ${years}-year interval`
+  );
+}
 assert.match(SOURCE, /function captureExportRoadLabelsCanvas\(/);
 assert.doesNotMatch(SOURCE, /function normalizeExportRoadLabelCanvas\(/);
 assert.match(
