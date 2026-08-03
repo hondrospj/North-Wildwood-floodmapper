@@ -6,7 +6,7 @@ Completed: August 2, 2026
 
 - [x] Modeled start and end dates display `xx/xx/xxxx` and cannot be edited.
 - [x] Modeled start and end times remain editable.
-- [x] GIF titles contain only the return-interval storm label, such as `20-Year Storm`.
+- [x] GIF title cards use the return-interval storm label as the heading, such as `20-Year Storm`, with the exact tide height and datum visible on the second line.
 - [x] Exact title output is covered for every interval: 1, 2, 5, 10, 20, 50, 100, 200, 500, 1,000, 2,000, 5,000, and 10,000 years.
 - [x] The longest title, `10,000-Year Storm`, was generated and visually checked at square size with a clear gap from the key.
 
@@ -53,6 +53,9 @@ Completed: August 2, 2026
 
 ## Visual samples inspected
 
+- [x] 10-year storm, 25-frame hourly 16:9 GIF: tide height remains visible and changes from `3.92 ft MLLW` through the `9.02 ft MLLW` peak to `4.02 ft MLLW` on the final frame.
+- [x] 10-year storm, two-frame daily-maximum 1:1 GIF: tide height is centered, unclipped, and clearly separated from the storm heading and depth key.
+- [x] 10-year storm, two-frame daily-maximum 9:16 GIF: tide height is centered, unclipped, and clearly separated from the storm heading and depth key.
 - [x] 20-year storm, 16:9 GIF: title, key, black outline, clean depth colors, and red exported parcels.
 - [x] 20-year storm, 1:1 GIF: title/key spacing and sizing.
 - [x] 20-year storm, 9:16 GIF: portrait title/key sizing and spacing.

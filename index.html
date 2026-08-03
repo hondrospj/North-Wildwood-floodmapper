@@ -20179,7 +20179,6 @@ function updateExportSegmentedUI() {
     }
 
     function getExportFrameTimestampText(entry) {
-      if (entry?.returnIntervalYears) return getReturnIntervalStormLabel(entry.returnIntervalYears);
       return `${getExportFrameDateTimeText(entry)}\n${getExportFrameWaterLevelText(entry)}`;
     }
 

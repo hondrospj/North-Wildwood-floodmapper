@@ -163,7 +163,7 @@ assert.match(SOURCE, /const MODELED_EXPORT_DATE_PLACEHOLDER = "xx\/xx\/xxxx"/);
 assert.match(extractFunction("syncExportDateTimeEditorFromCanonical"), /modeledDateLocked[\s\S]+MODELED_EXPORT_DATE_PLACEHOLDER/);
 assert.match(SOURCE, /function commitExportDateTimeEditor\([\s\S]+currentDataMode === "return-interval"[\s\S]+canonicalMatch/);
 assert.match(extractFunction("getReturnIntervalStormLabel"), /`\$\{value\.toLocaleString\("en-US"\)\}-Year Storm`/);
-assert.match(extractFunction("getExportFrameTimestampText"), /return getReturnIntervalStormLabel\(entry\.returnIntervalYears\)/);
+assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /if \(entry\?\.returnIntervalYears\)/);
 assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /formatReturnStormOffset/);
 assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
@@ -205,6 +205,20 @@ for (const years of [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000
     `Modeled GIF title is wrong for the ${years}-year interval`
   );
 }
+
+const modeledTimestampContext = vm.createContext({
+  getExportFrameDateTimeText: entry => `${Number(entry.returnIntervalYears).toLocaleString("en-US")}-Year Storm`,
+  getExportFrameWaterLevelText: entry => `${Number(entry.stage).toFixed(2)} ft NAVD88`
+});
+vm.runInContext(
+  `${extractFunction("getExportFrameTimestampText")}; globalThis.getExportFrameTimestampText = getExportFrameTimestampText;`,
+  modeledTimestampContext
+);
+assert.equal(
+  modeledTimestampContext.getExportFrameTimestampText({ returnIntervalYears: 20, stage: 4.37 }),
+  "20-Year Storm\n4.37 ft NAVD88",
+  "Modeled GIF title cards must include the tide height and datum on a second line"
+);
 assert.match(SOURCE, /function captureExportRoadLabelsCanvas\(/);
 assert.doesNotMatch(SOURCE, /function normalizeExportRoadLabelCanvas\(/);
 assert.match(
