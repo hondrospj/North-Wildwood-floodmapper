@@ -99,6 +99,10 @@ assert.match(SOURCE, /elevation >= 1000/);
 assert.doesNotMatch(SOURCE, /<dt>Ground<\/dt>/);
 assert.doesNotMatch(SOURCE, /<dt>Maximum depth penalty<\/dt>/);
 assert.match(SOURCE, /<div class="depth-query-value">/);
+assert.match(extractFunction("getDepthQueryPopupHeading"), /currentDataMode === "forecast"[\s\S]+return "Forecast Water Depth"/);
+assert.match(extractFunction("getDepthQueryPopupHeading"), /currentDataMode === "observed"[\s\S]+return "Water Depth"/);
+assert.match(extractFunction("getDepthQueryPopupHeading"), /return "Modeled Water Depth"/);
+assert.match(extractFunction("buildDepthQueryPopupHtml"), /getDepthQueryPopupHeading\(\)/);
 assert.match(SOURCE, /let persistentDepthQueryContext = null/);
 assert.match(SOURCE, /function updatePersistentDepthQueryPopup\(/);
 assert.match(
