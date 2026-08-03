@@ -20720,6 +20720,57 @@ function getUniqueExportStages(frameItems) {
       frameCanvas.height = 1;
     }
 
+    async function buildStableExportGifPalette(firstItem, workerScript, aspectConfig, gifQuality) {
+      throwIfExportCancelled();
+      setDownloadStatus("Locking GIF key colors...");
+      setExportProgress("Locking GIF key colors...", 4, false);
+      exportFrameViewPrimed = false;
+      await prepareExportFrame(firstItem, { isFirstFrame: true });
+      throwIfExportCancelled();
+
+      const paletteCanvas = await captureExportCanvas();
+      const exportScale = getExportCaptureScale();
+      const paletteGif = new GIF({
+        workers: 1,
+        quality: gifQuality,
+        workerScript,
+        width: Math.round(aspectConfig.width * exportScale),
+        height: Math.round(aspectConfig.height * exportScale),
+        dither: EXPORT_GIF_DITHER,
+        globalPalette: true,
+        repeat: 0,
+        background: "#0b1220"
+      });
+      activeGifExport = paletteGif;
+
+      try {
+        paletteGif.addFrame(paletteCanvas, { delay: 1, copy: true });
+        await new Promise((resolve, reject) => {
+          paletteGif.on("finished", resolve);
+          paletteGif.on("abort", () => reject(new Error("GIF export was aborted.")));
+          try {
+            throwIfExportCancelled();
+            paletteGif.render();
+          } catch (err) {
+            reject(err);
+          }
+        });
+        throwIfExportCancelled();
+        const palette = paletteGif.options?.globalPalette;
+        if (!palette || typeof palette.length !== "number" || palette.length < 3) {
+          throw new Error("Could not create a stable GIF color palette.");
+        }
+        return Array.from(palette);
+      } finally {
+        if (activeGifExport === paletteGif) activeGifExport = null;
+        [...(paletteGif.freeWorkers || []), ...(paletteGif.activeWorkers || [])].forEach(worker => {
+          try { worker.terminate(); } catch (_) {}
+        });
+        paletteCanvas.width = 1;
+        paletteCanvas.height = 1;
+      }
+    }
+
     async function exportGif(frameItems) {
       throwIfExportCancelled();
       if (typeof GIF === "undefined") {
@@ -20737,6 +20788,8 @@ function getUniqueExportStages(frameItems) {
       const gifQuality = EXPORT_GIF_QUALITY;
 
       const exportScale = getExportCaptureScale();
+      const stableGlobalPalette = await buildStableExportGifPalette(items[0], workerScript, aspectConfig, gifQuality);
+      throwIfExportCancelled();
       const gif = new GIF({
         workers: getGifWorkerCount(),
         quality: gifQuality,
@@ -20744,12 +20797,14 @@ function getUniqueExportStages(frameItems) {
         width: Math.round(aspectConfig.width * exportScale),
         height: Math.round(aspectConfig.height * exportScale),
         dither: EXPORT_GIF_DITHER,
-        globalPalette: false,
+        // Use the same precomputed palette for every frame, including frame one. This keeps
+        // static chrome—especially the flood-depth key—pixel-stable throughout the GIF.
+        globalPalette: stableGlobalPalette,
         repeat: 0,
         background: "#0b1220"
       });
       activeGifExport = gif;
-      await addFastCompositeGifFrames(gif, items, 4, 58, overlayImageLookup);
+      await addFastCompositeGifFrames(gif, items, 8, 58, overlayImageLookup);
       throwIfExportCancelled();
       setDownloadStatus("Encoding GIF...");
       setExportProgress("Encoding GIF...", 60, false);
@@ -35582,6 +35637,7 @@ html body #mapTitleBadge #mapTitleLogo{
     right:24px !important;
     width:330px !important;
     padding:22px 22px 20px !important;
+    background:#0b1220 !important;
   }
   .export-depth-key{
     gap:14px !important;

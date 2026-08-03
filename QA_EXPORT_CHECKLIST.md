@@ -19,6 +19,8 @@ Completed: August 2, 2026
 - [x] The stray grey/green cap after the deepest legend color is gone; the scale ends cleanly in deep navy.
 - [x] Deep-water areas no longer contain the grey/green GIF quantization dots.
 - [x] The old palette-seed strip is absent from generated GIFs.
+- [x] GIFs use one precomputed global palette, so the flood-depth key does not recolor between frames.
+- [x] A four-frame 1920×1080 forecast GIF produced identical key pixel hashes in every frame, with zero changed key pixels.
 - [x] Title and key sizing was visually checked in generated 16:9, 1:1, and 9:16 GIFs.
 - [x] The title and key remain unclipped, separated, and readable in each aspect ratio.
 
