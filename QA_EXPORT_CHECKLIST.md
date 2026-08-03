@@ -39,16 +39,15 @@ Completed: August 2, 2026
 - [x] Forecast and modeled-flood layouts were visually checked at 1280×720.
 - [x] Forecast and modeled-flood layouts were visually checked at 430×900, including the Layers, export, address, and tour sections.
 
-## Water-depth popup and typography follow-up
+## Water-depth popup follow-up
 
 - [x] The water-depth popup X is anchored inside the upper-right corner of the card on desktop and phone layouts.
 - [x] Forecast depth popups are titled exactly `Forecast Water Depth`.
 - [x] Historical-tide depth popups are titled exactly `Water Depth`.
 - [x] Modeled-storm depth popups remain clearly titled `Modeled Water Depth`.
-- [x] Header pills, data controls, scenario controls, overlay controls, datum controls, timeline controls, return-interval buttons, tide cards, and right-rail actions were measured individually before increasing text.
-- [x] Constrained labels were not enlarged; the longest `Every 10,000 Years` pills use a smaller, verified size and display without clipping.
-- [x] The longest live pill states—High End, Flood Stages, NAVD88, 100%, Daily Max, and Every 10,000 Years—were checked for overflow.
-- [x] Final popup and typography layouts were visually checked at 1280×720 and 430×900.
+- [x] The experimental pill and control text-size increases were reverted at the user's request.
+- [x] Existing control, pill, tide-card, and action typography matches the pre-typography state.
+- [x] The restored typography and retained popup fixes were visually checked at 1280×720 and 430×900.
 
 ## Visual samples inspected
 

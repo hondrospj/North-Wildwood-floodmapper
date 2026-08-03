@@ -36013,7 +36013,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 </style>
-<style id="north-wildwood-depth-popup-pill-type-qa-20260802">
+<style id="north-wildwood-depth-popup-close-qa-20260802">
   /* Leaflet's close control must stay anchored inside the popup card. */
   html body .shorely-flood-popup .leaflet-popup-close-button{
     --centered-close-x-size:12px;
@@ -36035,83 +36035,6 @@ html body #mapTitleBadge #mapTitleLogo{
 
   html body .shorely-flood-popup .depth-query-popup h3{
     padding:0 28px !important;
-    color:#d7e4f6 !important;
-    font-size:20px !important;
-    line-height:1.15 !important;
-    white-space:nowrap !important;
-  }
-
-  html body .shorely-flood-popup .depth-query-value{
-    font-size:52px !important;
-  }
-
-  @media (min-width:901px){
-    /* Header pills: each value is sized against its longest runtime label. */
-    html body:not(.return-interval-mode) #leftPanel #dataModePill{font-size:16px !important}
-    html body.return-interval-mode #leftPanel #dataModePill,
-    html body.return-interval-mode #leftPanel #returnIntervalPill{
-      padding-inline:6px !important;
-      font-size:13px !important;
-    }
-    html body #leftPanel #forecastScenarioPill{font-size:16px !important}
-    html body #leftPanel #overlayModePill{font-size:15.5px !important}
-    html body #leftPanel #datumPill,
-    html body #leftPanel #opacityText{font-size:16px !important}
-    html body #bannerCount{font-size:13px !important}
-
-    /* Data-source labels have unequal safe limits because Modeled Floods is much longer. */
-    html body #leftPanel #forecastDataBtn,
-    html body #leftPanel #observedDataBtn{font-size:12.5px !important}
-    html body #leftPanel #returnIntervalDataBtn{font-size:11px !important}
-
-    html body #leftPanel #forecastLowBtn,
-    html body #leftPanel #forecastMeanBtn,
-    html body #leftPanel #forecastHighBtn{font-size:15px !important}
-
-    html body #leftPanel #depthModeBtn,
-    html body #leftPanel #dynamicModeBtn{font-size:15.5px !important}
-
-    html body #leftPanel #datumMllwBtn,
-    html body #leftPanel #datumNavd88Btn{font-size:16px !important}
-
-    html body #leftPanel #timelineIntervalCard #timelineIntervalToggle > #intervalHourBtn,
-    html body #leftPanel #timelineIntervalCard #timelineIntervalToggle > #intervalQuarterBtn,
-    html body #leftPanel #timelineIntervalCard #timelineIntervalToggle > #intervalDailyBtn{font-size:13px !important}
-
-    html body.return-interval-mode #leftPanel #returnIntervalCard .return-interval-grid button{font-size:12px !important}
-    html body.return-interval-mode #leftPanel #returnIntervalCard :is(#return1000Btn,#return2000Btn,#return5000Btn,#return10000Btn){font-size:10.5px !important}
-
-    /* Two-column Layers grid: only labels with measured room are enlarged. */
-    html body #rightRail #satelliteToggle + .layer-meta .layer-name{font-size:11px !important}
-    html body #rightRail #parcelsToggle + .layer-meta .layer-name{font-size:11.5px !important}
-
-    /* The tide card had spare vertical and horizontal space at 720px. */
-    html body:not(.mobile-optimized) #rightRail > .top-tides-card{
-      min-height:151px !important;
-      height:151px !important;
-      max-height:151px !important;
-    }
-    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-item{
-      min-height:35px !important;
-      height:35px !important;
-      max-height:35px !important;
-      padding:1px 7px !important;
-      gap:0 !important;
-    }
-    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-rank{font-size:8.5px !important}
-    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-main{font-size:12.5px !important}
-    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-sub{font-size:10px !important}
-    html body:not(.mobile-optimized) #rightRail .top-tides-card .top-tide-more-btn{
-      min-height:29px !important;
-      height:29px !important;
-      max-height:29px !important;
-      font-size:14px !important;
-    }
-
-    html body #rightRail #downloadCard #openDownloadModalBtn{font-size:14px !important}
-    html body #rightRail #townAddressSearchBtn,
-    html body #rightRail #townAddressClearBtn{font-size:10.5px !important}
-    html body #rightRail #mapperTutorialBtn{font-size:12.5px !important}
   }
 
   @media (max-width:900px),(max-height:560px) and (pointer:coarse){
@@ -36127,38 +36050,7 @@ html body #mapTitleBadge #mapTitleLogo{
 
     html body.mobile-optimized .shorely-flood-popup .depth-query-popup h3{
       padding:0 34px !important;
-      font-size:18px !important;
     }
-
-    html body.mobile-optimized .shorely-flood-popup .depth-query-value{
-      font-size:48px !important;
-    }
-
-    html body.mobile-optimized:not(.return-interval-mode) #leftPanel #dataModePill{font-size:15px !important}
-    html body.mobile-optimized.return-interval-mode #leftPanel #dataModePill,
-    html body.mobile-optimized.return-interval-mode #leftPanel #returnIntervalPill{
-      padding-inline:6px !important;
-      font-size:12.5px !important;
-    }
-    html body.mobile-optimized #leftPanel #forecastScenarioPill{font-size:15px !important}
-    html body.mobile-optimized #leftPanel #overlayModePill{font-size:14.5px !important}
-    html body.mobile-optimized #leftPanel #datumPill,
-    html body.mobile-optimized #leftPanel #opacityText{font-size:15px !important}
-
-    html body.mobile-optimized #leftPanel #forecastDataBtn,
-    html body.mobile-optimized #leftPanel #observedDataBtn{font-size:12px !important}
-    html body.mobile-optimized #leftPanel #returnIntervalDataBtn{font-size:10.75px !important}
-    html body.mobile-optimized #leftPanel :is(#forecastLowBtn,#forecastMeanBtn,#forecastHighBtn){font-size:15px !important}
-    html body.mobile-optimized #leftPanel :is(#depthModeBtn,#dynamicModeBtn){font-size:15px !important}
-    html body.mobile-optimized #leftPanel :is(#datumMllwBtn,#datumNavd88Btn){font-size:15px !important}
-    html body.mobile-optimized #leftPanel #timelineIntervalCard #timelineIntervalToggle > :is(#intervalHourBtn,#intervalQuarterBtn,#intervalDailyBtn){font-size:11.5px !important}
-    html body.mobile-optimized.return-interval-mode #leftPanel #returnIntervalCard .return-interval-grid button{font-size:11px !important}
-    html body.mobile-optimized.return-interval-mode #leftPanel #returnIntervalCard :is(#return1000Btn,#return2000Btn,#return5000Btn,#return10000Btn){font-size:9.75px !important}
-
-    html body.mobile-optimized #mobileRailMount #downloadCard #openDownloadModalBtn{font-size:14px !important}
-    html body.mobile-optimized #mobileRailMount #townAddressSearchBtn{font-size:12px !important}
-    html body.mobile-optimized #mobileRailMount #townAddressClearBtn{font-size:11.5px !important}
-    html body.mobile-optimized #mobileRailMount #mapperTutorialBtn{font-size:13.5px !important}
   }
 </style>
 </body>
