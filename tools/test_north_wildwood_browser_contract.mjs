@@ -123,11 +123,19 @@ assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 50/);
 assert.match(SOURCE, /Number\(stageValue\) > 14/);
 assert.match(SOURCE, /\/assets\/hydraulic-v17\//);
-assert.doesNotMatch(SOURCE, /id="boundaryToggle"/);
-assert.doesNotMatch(SOURCE, />Simulation Extent</i);
-assert.match(extractFunction("isTownBoundaryEnabled"), /return true/);
+assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
+assert.match(SOURCE, />Simulation Extent</i);
+assert.match(extractFunction("isTownBoundaryEnabled"), /boundaryToggle[\s\S]+classList\.contains\("on"\)/);
 assert.match(SOURCE, /id="roadsToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
 assert.match(SOURCE, /el\.setAttribute\("aria-checked", String\(el\.classList\.contains\("on"\)\)\)/);
+assert.doesNotMatch(
+  SOURCE,
+  /html body:not\(\.mobile-optimized\) #rightRail \.layers-card \.layer-list\{[^}]*grid-template-columns:repeat\(2/
+);
+assert.doesNotMatch(
+  SOURCE,
+  /html body:not\(\.mobile-optimized\) #rightRail > #downloadCard \.download-launch-meta\{[^}]*display:none/
+);
 assert.match(SOURCE, /:has\(#mapClickModeControl:not\(\[hidden\]\)\) #mapWrap > #legendDock\{[\s\S]+top:126px !important/);
 assert.match(SOURCE, /depthQueryGridPromise = null/);
 assert.match(
