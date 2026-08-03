@@ -2783,6 +2783,16 @@
       opacity:1;
     }
 
+    /*
+      Very rare modeled storms push most flooded land into the deepest raster
+      class (#050e33). Lift the dark end for that one view so inundation still
+      reads as blue without changing forecast, observed, or flood-stage maps.
+    */
+    .leaflet-image-layer.return-interval-depth-overlay,
+    body.return-interval-mode .depth-legend-gradient{
+      filter:contrast(.68) brightness(1.25) saturate(1.25);
+    }
+
     #timeSubText{
       white-space:normal;
       font-size:12px;
@@ -20127,7 +20137,10 @@ function updateExportSegmentedUI() {
         interactive: false,
         crossOrigin: true,
         zIndex: 500,
-        pane: "floodPane"
+        pane: "floodPane",
+        className: currentDataMode === "return-interval" && mode === "depth"
+          ? "return-interval-depth-overlay"
+          : ""
       }).addTo(exportMap);
       await new Promise(resolve => {
         exportFloodLayer.once("load", resolve);
@@ -22169,7 +22182,10 @@ function formatSelectedObservedDate(dateStr) {
           interactive: false,
           crossOrigin: true,
           zIndex: 500,
-          pane: "floodPane"
+          pane: "floodPane",
+          className: currentDataMode === "return-interval" && mode === "depth"
+            ? "return-interval-depth-overlay"
+            : ""
         }
       );
 

@@ -281,6 +281,18 @@ assert.match(
   SOURCE,
   /const RETURN_INTERVAL_OPTIONS = \[1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000\]/
 );
+assert.match(
+  SOURCE,
+  /\.leaflet-image-layer\.return-interval-depth-overlay,[\s\S]+filter:contrast\(\.68\) brightness\(1\.25\) saturate\(1\.25\)/
+);
+assert.match(
+  extractFunction("setFloodLayer"),
+  /className: currentDataMode === "return-interval" && mode === "depth"[\s\S]+return-interval-depth-overlay/
+);
+assert.match(
+  extractFunction("setExportFloodLayer"),
+  /className: currentDataMode === "return-interval" && mode === "depth"[\s\S]+return-interval-depth-overlay/
+);
 assert.match(SOURCE, /record\.targetNavd88Ft \?\? record\.weightedNavd88Ft \?\? record\.naccsNavd88Ft/);
 assert.match(extractFunction("switchReturnInterval"), /await loadReturnInterval\(\)/);
 assert.doesNotMatch(extractFunction("switchReturnInterval"), /previousEntry/);
