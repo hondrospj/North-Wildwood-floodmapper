@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-fast checks for the conditioned DEM and connected-bathtub states."""
+"""Fail-fast checks for the conditioned DEM and finite-volume routed states."""
 
 from __future__ import annotations
 
@@ -200,72 +200,53 @@ def main() -> None:
 
     header, states = load_states(args.states.resolve(), zone_count + 1)
     dry = int(header.get("drySentinelCentift", -32768))
-    if not np.array_equal(states["filling"], states["slack"]):
-        raise AssertionError("Filling and slack states are not phase-invariant")
-    if not np.array_equal(states["filling"], states["draining"]):
-        raise AssertionError("Filling and draining states are not phase-invariant")
+    if int(header.get("stageCount", 0)) != 221:
+        raise AssertionError("State package does not contain 221 stage levels")
+    if not math.isclose(float(header.get("stageMinNavd88Ft", math.nan)), 0.0):
+        raise AssertionError("State package does not start at 0.0 ft NAVD88")
+    if not math.isclose(float(header.get("stageMaxNavd88Ft", math.nan)), 22.0):
+        raise AssertionError("State package does not end at 22.0 ft NAVD88")
+    if not math.isclose(float(header.get("stageStepFt", math.nan)), 0.1):
+        raise AssertionError("State package does not use 0.1-ft increments")
+    if np.array_equal(states["filling"], states["slack"]):
+        raise AssertionError("Short-slack states did not advance beyond filling")
+    if np.array_equal(states["filling"], states["draining"]):
+        raise AssertionError("Draining states did not retain a distinct history")
     hard_lookup = np.asarray(sorted(hard_zone_ids), dtype=np.int64) + 1
-    for phase in ("filling", "slack", "draining"):
-        if np.any(states[phase][149, hard_lookup] != dry):
+    for phase in ("filling", "slack"):
+        if np.any(states[phase][74, hard_lookup] != dry):
             raise AssertionError(
                 f"{phase} state wets a bulkhead before 7.5 ft NAVD88"
             )
 
     physics = header.get("physics") or {}
-    if physics.get("modelKind") != "connectivity-first depth-penalized bathtub":
-        raise AssertionError("State package does not declare the connected bathtub")
-    if physics.get("phaseInvariant") is not True:
-        raise AssertionError("State package does not declare phase-invariant states")
+    if physics.get("modelKind") != "phase-aware finite-volume broad-crested-weir routing":
+        raise AssertionError("State package does not declare finite-volume routing")
+    if physics.get("phaseInvariant") is not False:
+        raise AssertionError("State package does not declare phase-aware states")
+    if physics.get("terrainFlow") != "submerged broad-crested weir":
+        raise AssertionError("State package does not declare broad-crested-weir flow")
+    if not math.isclose(
+        float(physics.get("weirCoefficientCfs", math.nan)),
+        3.10,
+        abs_tol=1e-12,
+    ):
+        raise AssertionError("State package has the wrong weir coefficient")
+    if "newly wet" not in str(physics.get("frontPropagation", "")):
+        raise AssertionError("State package does not enforce finite front propagation")
     if not str(physics.get("stormDrains", "")).startswith("disabled"):
         raise AssertionError("State package does not declare disabled storm drains")
     if float(physics.get("bulkheadElevationNavd88Ft", math.nan)) != 7.5:
         raise AssertionError("State package does not declare the 7.5-ft bulkhead")
     if int(physics.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("State package does not declare a 21-cell bulkhead")
-    penalty = physics.get("verticalPenalty") or {}
-    if not math.isclose(
-        float(penalty.get("atOrBelowMinorFt", math.nan)),
-        1.25,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong low-stage vertical penalty")
-    if penalty.get("curve") != "normalized exponential":
-        raise AssertionError("State package has the wrong depth-penalty curve")
-    if not math.isclose(
-        float(penalty.get("decayRate", math.nan)),
-        1.5,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong exponential decay rate")
-    if not math.isclose(
-        float(penalty.get("atOrAboveMajorFt", math.nan)),
-        0.0,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong major-stage vertical penalty")
-    if not math.isclose(
-        float(penalty.get("maximumLocalDepthPenaltyFraction", math.nan)),
-        0.75,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong local depth-penalty cap")
-    if not math.isclose(
-        float(penalty.get("minimumConnectedDepthRetainedFraction", math.nan)),
-        0.25,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong connected-depth floor")
-    if "depth only" not in str(penalty.get("application", "")):
-        raise AssertionError("State package applies the penalty to connectivity")
-
-    # State connectivity is evaluated at the full gauge stage. The compact
-    # state format stores centifeet, so a wet zone at 3.0 ft must encode the
-    # unpenalized 3.0-ft connectivity surface. Local depth attenuation is
-    # applied after the one-foot cell has been admitted to the wet footprint.
-    low_stage = states["slack"][60]
-    low_wet = low_stage != dry
-    if np.any(low_wet) and int(low_stage[low_wet].max()) != 300:
-        raise AssertionError("Low-stage states do not preserve full-stage connectivity")
+    diagnostics = header.get("diagnostics") or {}
+    if diagnostics.get("phaseInvariant") is not False:
+        raise AssertionError("Diagnostics do not declare phase-aware routing")
+    if float(diagnostics.get("maximumInternalConservationResidualFt3", math.inf)) > 1e-5:
+        raise AssertionError("Internal finite-volume routing is not conservative")
+    if int(diagnostics.get("diagnosticStepCount", 0)) < 221:
+        raise AssertionError("Finite-volume diagnostics are incomplete")
 
     print(
         json.dumps(
@@ -284,7 +265,9 @@ def main() -> None:
                 "stormDrainExchange": "disabled",
                 "modelKind": physics["modelKind"],
                 "phaseInvariant": physics["phaseInvariant"],
-                "verticalPenalty": penalty,
+                "maximumInternalConservationResidualFt3": diagnostics[
+                    "maximumInternalConservationResidualFt3"
+                ],
                 "statePhases": list(states),
             },
             indent=2,

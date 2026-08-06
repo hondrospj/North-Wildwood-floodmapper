@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Build North Wildwood's connectivity-first depth-penalized bathtub assets.
+"""Build North Wildwood's phase-aware finite-volume hydraulic PNG atlas.
 
-The conditioned one-foot DEM and its four-neighbour connection-stage raster
-remain the hydraulic constraints. Connectivity is evaluated at the selected
-gauge stage. A normalized exponential penalty then reduces modeled depth at
-lower flood levels, but is capped at 75 percent of each cell's raw bathtub
-depth so that a genuinely connected wet cell cannot be turned green. The
-penalty is exactly zero at major flood.
+The one-foot conditioned DEM is aggregated into 25-foot storage cells while
+retaining its elevation hypsometry and all shared one-foot flow widths. Water
+is routed between cells in 60-second substeps with a submerged broad-crested
+weir relation and strict donor, receiver, and conservation limits. A cell that
+becomes wet during a substep cannot donate until the following substep. This
+finite travel time prevents one newly connected 5-by-5-foot display pixel from
+instantaneously filling every hydraulically connected low spot in the city.
 
-Filling, slack, and draining assets are intentionally identical. Storm drains
-remain disabled, and the 21-cell, 7.5-ft NAVD88 bulkhead remains stitched into
-the DEM before connection stages are computed.
+The expensive solve is run once to build filling, short-slack, and draining
+lookup families from 0.0 through 22.0 ft NAVD88 at 0.1-foot increments.
+Forecast and observed updates only choose a phase/stage PNG. Storm drains stay
+disabled, and the conditioned 21-cell-wide, 7.5-ft NAVD88 bulkhead is honored.
 """
 
 from __future__ import annotations
@@ -20,7 +22,6 @@ import csv
 import gzip
 import json
 import math
-import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,7 +29,7 @@ from pathlib import Path
 import numpy as np
 from osgeo import gdal
 from PIL import Image
-from scipy.ndimage import gaussian_filter, label as ndimage_label
+from scipy.ndimage import gaussian_filter
 
 
 gdal.UseExceptions()
@@ -36,10 +37,20 @@ gdal.UseExceptions()
 WIDTH = 10_930
 HEIGHT = 14_120
 RENDER_STRIDE = 5
-STAGES_FT = np.round(np.arange(0.0, 20.0 + 0.025, 0.05), 2)
+MODEL_MIN_STAGE_FT = 0.0
+MODEL_MAX_STAGE_FT = 22.0
+MODEL_STAGE_STEP_FT = 0.1
+STAGES_FT = np.round(
+    np.arange(
+        MODEL_MIN_STAGE_FT,
+        MODEL_MAX_STAGE_FT + MODEL_STAGE_STEP_FT / 2.0,
+        MODEL_STAGE_STEP_FT,
+    ),
+    1,
+)
 DRY_SENTINEL = np.int16(-32768)
 HIST_MIN10 = -100
-HIST_MAX10 = 200
+HIST_MAX10 = 220
 HIST_COUNT = HIST_MAX10 - HIST_MIN10 + 1
 MODEL_STEP_SECONDS = 60
 TIDE_STEP_SECONDS = 15 * 60
@@ -48,19 +59,14 @@ MAX_CONTROL_VOLUME_DIAGONAL_FT = math.sqrt(2.0) * CONTROL_VOLUME_SIZE_FT
 MAX_OVERLAND_FRONT_SPEED_FPS = (
     MAX_CONTROL_VOLUME_DIAGONAL_FT / MODEL_STEP_SECONDS
 )
-MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT = (
-    MAX_OVERLAND_FRONT_SPEED_FPS * TIDE_STEP_SECONDS
-)
+MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT = MAX_OVERLAND_FRONT_SPEED_FPS * TIDE_STEP_SECONDS
 BROAD_CRESTED_WEIR_CFS = 3.10
 MINOR_NAVD88_FT = 3.25
 MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
-LOW_STAGE_VERTICAL_PENALTY_FT = 1.25
-VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE = 1.5
-MAX_LOCAL_DEPTH_PENALTY_FRACTION = 0.75
-MIN_CONNECTED_DEPTH_RETAINED_FRACTION = (
-    1.0 - MAX_LOCAL_DEPTH_PENALTY_FRACTION
-)
+SHORT_SLACK_INTERVALS = 1
+DRAINING_HISTORY_RISE_FT = 2.5
+DRAINING_BAND_WIDTH_FT = 1.0
 
 DEPTH_BREAKS_FT = np.asarray([0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00])
 DEPTH_COLORS = [
@@ -135,38 +141,6 @@ def stage_code(stage_ft: float) -> str:
     return f"{sign}{round(abs(stage_ft) * 100):04d}"
 
 
-def vertical_penalty_ft(stage_ft: float) -> float:
-    """Return the normalized exponential depth reduction in NAVD88 feet."""
-    stage = float(stage_ft)
-    if stage <= MINOR_NAVD88_FT:
-        return LOW_STAGE_VERTICAL_PENALTY_FT
-    if stage >= MAJOR_NAVD88_FT:
-        return 0.0
-    progress = (
-        (stage - MINOR_NAVD88_FT)
-        / (MAJOR_NAVD88_FT - MINOR_NAVD88_FT)
-    )
-    decay = VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE
-    residual = math.exp(-decay)
-    normalized = (
-        math.exp(-decay * progress) - residual
-    ) / (1.0 - residual)
-    return LOW_STAGE_VERTICAL_PENALTY_FT * normalized
-
-
-def penalized_connected_depth_ft(
-    stage_ft: float,
-    ground_ft: np.ndarray | float,
-) -> np.ndarray:
-    """Reduce connected depth without erasing the connected wet footprint."""
-    raw_depth = np.maximum(0.0, float(stage_ft) - np.asarray(ground_ft, dtype=np.float64))
-    applied_penalty = np.minimum(
-        vertical_penalty_ft(stage_ft),
-        raw_depth * MAX_LOCAL_DEPTH_PENALTY_FRACTION,
-    )
-    return raw_depth - applied_penalty
-
-
 def load_zones(path: Path) -> dict[str, np.ndarray]:
     connection: list[int] = []
     cell_count: list[int] = []
@@ -223,7 +197,11 @@ class HydraulicSolver:
         self.cumulative_elevation = np.cumsum(self.histogram * elevation_ft[None, :], axis=1)
         occupied = self.histogram > 0
         self.minimum_surface = elevation_ft[np.argmax(occupied, axis=1)]
-        self.maximum_surface = np.full(self.zone_count, 20.0, dtype=np.float64)
+        self.maximum_surface = np.full(
+            self.zone_count,
+            MODEL_MAX_STAGE_FT,
+            dtype=np.float64,
+        )
         self.edges = edges
 
     def storage(self, surface: np.ndarray) -> np.ndarray:
@@ -283,6 +261,20 @@ class HydraulicSolver:
         surface[connected] = sea_stage_ft
         storage = self.storage(surface)
         storage[~connected] = 0.0
+        return storage, surface
+
+    def dry_start(self, sea_stage_ft: float) -> tuple[np.ndarray, np.ndarray]:
+        """Initialize only the open-boundary source cells at the sea stage."""
+        storage = np.zeros(self.zone_count, dtype=np.float64)
+        surface = self.minimum_surface.copy()
+        boundary_surface = np.full(
+            self.zone_count,
+            float(sea_stage_ft),
+            dtype=np.float64,
+        )
+        boundary_storage = self.storage(boundary_surface)
+        storage[self.source] = boundary_storage[self.source]
+        surface[self.source] = float(sea_stage_ft)
         return storage, surface
 
     def advance(
@@ -517,74 +509,150 @@ def simulate(
     solver: HydraulicSolver,
     reusable_static_state: Path | None = None,
 ) -> tuple[dict[str, np.ndarray], dict]:
-    if reusable_static_state is not None:
-        raise ValueError(
-            "Partial phase reuse is incompatible with the phase-invariant "
-            "connected-bathtub model"
-        )
     stride = solver.zone_count + 1
     phases = {
         phase: np.full((len(STAGES_FT), stride), DRY_SENTINEL, dtype="<i2")
         for phase in ("filling", "slack", "draining")
     }
-    stage_diagnostics = []
-    for index, stage_raw in enumerate(STAGES_FT):
-        stage = float(stage_raw)
-        penalty = vertical_penalty_ft(stage)
-        storage, surface = solver.equilibrium(stage)
-        encoded = solver.encode_surface(storage, surface)
-        for phase in phases:
-            phases[phase][index] = encoded
-        stage_diagnostics.append(
-            {
-                "stageNavd88Ft": stage,
-                "maximumVerticalPenaltyFt": penalty,
-                "maximumLocalDepthPenaltyFraction": (
-                    MAX_LOCAL_DEPTH_PENALTY_FRACTION
-                ),
-                "minimumConnectedDepthRetainedFraction": (
-                    MIN_CONNECTED_DEPTH_RETAINED_FRACTION
-                ),
-                "connectivityStageNavd88Ft": stage,
-            }
-        )
-        if index % 10 == 0:
-            print(
-                f"Connectivity-first bathtub: {stage:4.1f} ft gauge; "
-                f"maximum depth penalty {penalty:4.2f} ft"
-            )
+    diagnostics: dict[str, list[dict]] = {
+        "filling": [],
+        "slack": [],
+        "draining": [],
+    }
 
+    def restore(encoded: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        encoded_zones = encoded[1:]
+        wet = encoded_zones != DRY_SENTINEL
+        surface = solver.minimum_surface.copy()
+        surface[wet] = encoded_zones[wet].astype(np.float64) / 100.0
+        storage = solver.storage(surface)
+        storage[~wet] = 0.0
+        return storage, surface
+
+    if reusable_static_state is not None:
+        phases.update(load_reusable_static_phases(reusable_static_state, stride))
+        print(f"Reused filling/slack states: {reusable_static_state}")
+    else:
+        # Rising lookup: start with only the ocean-boundary cells wet and
+        # advance one 15-minute interval for every 0.1-ft forcing increment.
+        # The finite-volume front is therefore time limited instead of being
+        # inferred from graph connectivity alone.
+        storage, surface = solver.dry_start(float(STAGES_FT[0]))
+        for index, stage_raw in enumerate(STAGES_FT):
+            stage = float(stage_raw)
+            storage, surface, diagnostic = solver.advance(
+                storage,
+                surface,
+                stage,
+            )
+            phases["filling"][index] = solver.encode_surface(storage, surface)
+            diagnostics["filling"].append(
+                {"stageNavd88Ft": stage, **diagnostic}
+            )
+            if index % 10 == 0:
+                print(f"Filling simulation: {stage:4.1f} ft NAVD88")
+
+        # Crest/slack lookup: hold each rising-stage state at the selected
+        # gauge level for one additional 15-minute interval. It is deliberately
+        # not an equilibrium bathtub state.
+        for index, stage_raw in enumerate(STAGES_FT):
+            stage = float(stage_raw)
+            slack_storage, slack_surface = restore(phases["filling"][index])
+            for _ in range(SHORT_SLACK_INTERVALS):
+                slack_storage, slack_surface, diagnostic = solver.advance(
+                    slack_storage,
+                    slack_surface,
+                    stage,
+                )
+            phases["slack"][index] = solver.encode_surface(
+                slack_storage,
+                slack_surface,
+            )
+            diagnostics["slack"].append(
+                {"stageNavd88Ft": stage, **diagnostic}
+            )
+            if index % 10 == 0:
+                print(f"Short-slack simulation: {stage:4.1f} ft NAVD88")
+
+    # Falling lookup: each one-foot target band begins at a finite-volume
+    # short-slack state 2.5 ft above it, not at an equilibrium water plane.
+    # This preserves a realistic several-hour preceding crest without making
+    # low tides inherit an impossible 22-ft event.
+    band_size = round(DRAINING_BAND_WIDTH_FT / MODEL_STAGE_STEP_FT)
+    peak_offset = round(DRAINING_HISTORY_RISE_FT / MODEL_STAGE_STEP_FT)
+    stage_count = len(STAGES_FT)
+    for band_start in range(0, stage_count, band_size):
+        band_end = min(stage_count - 1, band_start + band_size - 1)
+        peak_index = min(stage_count - 1, band_start + peak_offset)
+        storage, surface = restore(phases["slack"][peak_index])
+        if peak_index == band_end:
+            phases["draining"][band_end] = solver.encode_surface(storage, surface)
+        for index in range(peak_index - 1, band_start - 1, -1):
+            stage = float(STAGES_FT[index])
+            storage, surface, diagnostic = solver.advance(
+                storage,
+                surface,
+                stage,
+            )
+            diagnostics["draining"].append(
+                {
+                    "stageNavd88Ft": stage,
+                    "historyPeakNavd88Ft": float(STAGES_FT[peak_index]),
+                    **diagnostic,
+                }
+            )
+            if index <= band_end:
+                phases["draining"][index] = solver.encode_surface(storage, surface)
+        print(
+            f"Draining simulation: {float(STAGES_FT[band_start]):4.1f}-"
+            f"{float(STAGES_FT[band_end]):4.1f} ft NAVD88 from "
+            f"{float(STAGES_FT[peak_index]):4.1f} ft finite-volume crest"
+        )
+
+    diagnostic_rows = [
+        row
+        for phase_rows in diagnostics.values()
+        for row in phase_rows
+    ]
     summary = {
-        "modelKind": "connectivity-first depth-penalized bathtub",
-        "phaseInvariant": True,
-        "diagnosticStageCount": len(stage_diagnostics),
-        "stageDiagnostics": stage_diagnostics,
-        "verticalPenalty": {
-            "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
-            "atOrAboveMajorFt": 0.0,
-            "curve": "normalized exponential",
-            "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
-            "maximumLocalDepthPenaltyFraction": (
-                MAX_LOCAL_DEPTH_PENALTY_FRACTION
+        "modelKind": "phase-aware finite-volume broad-crested-weir routing",
+        "phaseInvariant": False,
+        "maximumInternalConservationResidualFt3": max(
+            (row["maxInternalConservationResidualFt3"] for row in diagnostic_rows),
+            default=0.0,
+        ),
+        "diagnosticStepCount": len(diagnostic_rows),
+        "reusedStaticPhases": reusable_static_state is not None,
+        "frontTravelLimit": {
+            "controlVolumeSizeFt": CONTROL_VOLUME_SIZE_FT,
+            "maximumNumericalSpeedFtPerSecond": MAX_OVERLAND_FRONT_SPEED_FPS,
+            "maximumNumericalTravelPer15MinutesFt": (
+                MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT
             ),
-            "minimumConnectedDepthRetainedFraction": (
-                MIN_CONNECTED_DEPTH_RETAINED_FRACTION
-            ),
-            "application": (
-                "depth only; connectivity is evaluated at the full gauge stage"
+            "rule": (
+                "a newly wet control volume cannot donate until the next "
+                "60-second substep"
             ),
         },
+        "slackHistory": (
+            f"rising state held for {SHORT_SLACK_INTERVALS * 15} minutes"
+        ),
+        "drainingHistory": (
+            "one-foot target bands initialized from the finite-volume short-"
+            f"slack state up to {DRAINING_HISTORY_RISE_FT:.1f} ft above the "
+            "selected stage"
+        ),
     }
     return phases, summary
 
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v5",
+        "schema": "north-wildwood-hydraulic-states-binary-v6",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "stageMinNavd88Ft": 0.0,
-        "stageMaxNavd88Ft": 20.0,
-        "stageStepFt": 0.05,
+        "stageMinNavd88Ft": MODEL_MIN_STAGE_FT,
+        "stageMaxNavd88Ft": MODEL_MAX_STAGE_FT,
+        "stageStepFt": MODEL_STAGE_STEP_FT,
         "stageCount": len(STAGES_FT),
         "zoneCount": graph_manifest["zoneCount"],
         "zoneStride": graph_manifest["zoneCount"] + 1,
@@ -596,43 +664,47 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
         "drySentinelCentift": int(DRY_SENTINEL),
         "phaseOrder": ["filling", "slack", "draining"],
         "forcing": {
-            "phaseTreatment": "filling, slack, and draining are identical",
-            "filling": "connectivity-first depth-penalized bathtub",
-            "slack": "connectivity-first depth-penalized bathtub",
-            "draining": "connectivity-first depth-penalized bathtub",
+            "timeStepMinutes": TIDE_STEP_SECONDS // 60,
+            "substepSeconds": MODEL_STEP_SECONDS,
+            "filling": "0.1-ft rise every 15 minutes from a source-only wet start",
+            "slack": (
+                "finite-volume filling state held at the selected level for "
+                f"{SHORT_SLACK_INTERVALS * 15} additional minutes"
+            ),
+            "draining": (
+                "0.1-ft fall every 15 minutes from a finite-volume crest up "
+                f"to {DRAINING_HISTORY_RISE_FT:.1f} ft above each one-foot "
+                "target band"
+            ),
         },
         "physics": {
-            "modelKind": "connectivity-first depth-penalized bathtub",
-            "terrainFlow": "none; static water surface",
-            "connectivity": (
-                "ground and exact four-neighbour source-connection stage must "
-                "both be below the full selected gauge stage"
+            "modelKind": "phase-aware finite-volume broad-crested-weir routing",
+            "terrainFlow": "submerged broad-crested weir",
+            "weirCoefficientCfs": BROAD_CRESTED_WEIR_CFS,
+            "crossSection": (
+                "one foot of width per shared one-foot cell side, grouped by "
+                "crest elevation"
             ),
-            "phaseInvariant": True,
-            "verticalPenalty": {
-                "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
-                "atOrAboveMajorFt": 0.0,
-                "curve": "normalized exponential",
-                "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
-                "maximumLocalDepthPenaltyFraction": (
-                    MAX_LOCAL_DEPTH_PENALTY_FRACTION
-                ),
-                "minimumConnectedDepthRetainedFraction": (
-                    MIN_CONNECTED_DEPTH_RETAINED_FRACTION
-                ),
-                "application": (
-                    "depth only after connectivity; cannot erase connected water"
-                ),
-            },
+            "storage": (
+                "one-foot DEM hypsometry integrated inside each 25-foot "
+                "finite-volume node"
+            ),
+            "fluxStability": (
+                "edge transfers are bounded by two-basin equalization volume, "
+                "aggregate receiver capacity, and available donor storage"
+            ),
+            "frontPropagation": (
+                "newly wet nodes cannot donate until the next 60-second "
+                "substep"
+            ),
+            "phaseInvariant": False,
             "stormDrains": "disabled; no orifice exchange and no connectivity seeds",
             "bulkheadElevationNavd88Ft": 7.5,
             "bulkheadNominalWidthCells": 21,
             "bulkheadTerrainTreatment": (
                 "stitched into the one-foot DEM with GDAL before graph construction"
             ),
-            "waterSurface": (
-                "cell-specific ground plus bounded penalized connected depth"
-            ),
+            "waterSurface": "cell-specific finite-volume routed surface",
         },
         "diagnostics": diagnostics,
     }
@@ -661,60 +733,6 @@ def write_state_asset(
     print(f"Hydraulic states: {len(raw):,} binary bytes -> {output_path.stat().st_size:,} gzip bytes")
 
 
-FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
-    (
-        (0, 1, 0),
-        (1, 1, 1),
-        (0, 1, 0),
-    ),
-    dtype=np.uint8,
-)
-
-
-def pool_source_to_render_grid(source: np.ndarray) -> np.ndarray:
-    """Preserve any one-foot source cell inside each five-foot render pixel."""
-    if source.shape != (HEIGHT, WIDTH):
-        raise ValueError(f"Unexpected source raster shape {source.shape}")
-    if HEIGHT % RENDER_STRIDE or WIDTH % RENDER_STRIDE:
-        raise ValueError("One-foot source raster is not divisible by render stride")
-    pooled = np.zeros(
-        (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE),
-        dtype=bool,
-    )
-    for y_offset in range(RENDER_STRIDE):
-        for x_offset in range(RENDER_STRIDE):
-            pooled |= (
-                source[
-                    y_offset::RENDER_STRIDE,
-                    x_offset::RENDER_STRIDE,
-                ]
-                != 0
-            )
-    return pooled
-
-
-def retain_source_connected_water(
-    flooded: np.ndarray,
-    source: np.ndarray,
-) -> tuple[np.ndarray, int, int, int]:
-    """Keep only side-connected blue components that touch a qualified source."""
-    labels, component_count = ndimage_label(
-        flooded,
-        structure=FOUR_NEIGHBOUR_STRUCTURE,
-    )
-    if component_count == 0:
-        return flooded, 0, 0, 0
-    seeded_labels = np.unique(labels[flooded & source])
-    seeded_labels = seeded_labels[seeded_labels > 0]
-    component_sizes = np.bincount(labels.ravel(), minlength=component_count + 1)
-    seeded_labels = seeded_labels[component_sizes[seeded_labels] >= 2]
-    keep = np.zeros(component_count + 1, dtype=bool)
-    keep[seeded_labels] = True
-    connected = flooded & keep[labels]
-    removed = int(np.count_nonzero(flooded & ~connected))
-    return connected, int(component_count), int(seeded_labels.size), removed
-
-
 def render_assets(
     graph_dir: Path,
     dem_path: Path,
@@ -725,21 +743,9 @@ def render_assets(
     elevation10 = np.memmap(
         graph_dir / "elevation10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    connection10 = np.memmap(
-        graph_dir / "connection10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
     zone = np.memmap(
         graph_dir / "zone_id.raw", dtype="<i4", mode="r", shape=(HEIGHT, WIDTH)
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    source_raw = np.memmap(
-        graph_dir / "source_flag.raw",
-        dtype=np.uint8,
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )
-    source = pool_source_to_render_grid(source_raw)
-    del source_raw
-
     dem_ds = gdal.Open(str(dem_path))
     projection = dem_ds.GetProjection()
     origin = dem_ds.GetGeoTransform()
@@ -762,14 +768,23 @@ def render_assets(
     }
     valid = elevation10 != np.iinfo(np.int16).min
     ground = elevation10.astype(np.float32) / 10.0
-    connection = connection10.astype(np.float32) / 10.0
+    zone_lookup = np.where(zone >= 0, zone + 1, 0)
     counts = {}
 
-    # The model is phase-invariant, so render the canonical slack catalog once
-    # and byte-copy it to the two phase directories. This cuts the expensive
-    # component labeling and PNG encoding work by two thirds.
+    # Stage-hazard colors use the first rising stage at which each routed
+    # finite-volume node actually contains water. This replaces the old static
+    # minimum-connection-stage classification.
+    filling_wet = phases["filling"][:, 1:] != DRY_SENTINEL
+    filling_reached = np.any(filling_wet, axis=0)
+    first_filling_index = np.argmax(filling_wet, axis=0)
+    routed_activation = np.full(phases["filling"].shape[1], np.inf, dtype=np.float32)
+    routed_activation[1:][filling_reached] = STAGES_FT[
+        first_filling_index[filling_reached]
+    ]
+    routed_activation_grid = routed_activation[zone_lookup]
+
     selected_phase_dirs = (
-        (("slack", phase_dirs["slack"]),)
+        tuple(phase_dirs.items())
         if phase_names is None
         else tuple((phase, phase_dirs[phase]) for phase in phase_names)
     )
@@ -779,60 +794,44 @@ def render_assets(
         depth_dir.mkdir(parents=True, exist_ok=True)
         stage_dir.mkdir(parents=True, exist_ok=True)
         phase_bytes = 0
-        disconnected_pixels_removed = 0
-        maximum_unfiltered_components = 0
-        maximum_retained_components = 0
+        maximum_flooded_pixels = 0
+        minimum_flooded_pixels = None
         for stage_index, stage in enumerate(STAGES_FT):
-            raw_depth = np.maximum(0.0, float(stage) - ground)
-            depth = penalized_connected_depth_ft(float(stage), ground).astype(
-                np.float32,
-                copy=False,
+            encoded_surface = phases[phase][stage_index]
+            surface_centift = encoded_surface[zone_lookup]
+            wet_zone = valid & (surface_centift != DRY_SENTINEL)
+            local_surface = surface_centift.astype(np.float32) / 100.0
+            # Smooth piecewise-constant control-volume surfaces for display,
+            # but never expand the immutable routed wet footprint.
+            wet_weight = gaussian_filter(
+                wet_zone.astype(np.float32),
+                sigma=1.6,
+                mode="nearest",
             )
-            # The wet footprint is determined at the full gauge stage. The
-            # bounded penalty changes depth/color only, never connectivity.
-            # The final component filter below enforces the same four-side
-            # source rule after five-foot display resampling.
-            flooded = (
-                valid
-                & (raw_depth > 0.005)
-                & (connection <= float(stage) + 1e-9)
+            filtered_surface = gaussian_filter(
+                np.where(wet_zone, local_surface, 0.0),
+                sigma=1.6,
+                mode="nearest",
             )
-            (
-                flooded,
-                unfiltered_components,
-                retained_components,
-                removed_pixels,
-            ) = retain_source_connected_water(flooded, source)
-            disconnected_pixels_removed += removed_pixels
-            maximum_unfiltered_components = max(
-                maximum_unfiltered_components,
-                unfiltered_components,
-            )
-            maximum_retained_components = max(
-                maximum_retained_components,
-                retained_components,
-            )
-            if np.any(flooded):
-                # Smooth only the depth values inside the immutable connected
-                # water mask. This removes 5-ft palette stippling caused by
-                # one-cell lidar noise without creating a single new wet pixel.
-                wet_weight = gaussian_filter(
-                    flooded.astype(np.float32),
-                    sigma=2.0,
-                    mode="nearest",
-                )
-                filtered_depth = gaussian_filter(
-                    np.where(flooded, np.maximum(depth, 0.0), 0.0),
-                    sigma=2.0,
-                    mode="nearest",
-                )
-                smoothed_depth = np.divide(
-                    filtered_depth,
+            local_surface = np.where(
+                wet_zone,
+                np.divide(
+                    filtered_surface,
                     np.maximum(wet_weight, 1e-6),
-                    out=np.zeros_like(filtered_depth),
+                    out=np.full_like(filtered_surface, -9999.0),
                     where=wet_weight > 1e-6,
-                )
-                depth = np.where(flooded, smoothed_depth, depth)
+                ),
+                -9999.0,
+            )
+            depth = local_surface - ground
+            flooded = valid & wet_zone & (depth > 0.005)
+            flooded_pixels = int(np.count_nonzero(flooded))
+            maximum_flooded_pixels = max(maximum_flooded_pixels, flooded_pixels)
+            minimum_flooded_pixels = (
+                flooded_pixels
+                if minimum_flooded_pixels is None
+                else min(minimum_flooded_pixels, flooded_pixels)
+            )
             below_stage = valid & (ground <= stage + 0.0001)
             green = below_stage & ~flooded
 
@@ -846,7 +845,10 @@ def render_assets(
             stage_codes = np.zeros(zone.shape, dtype=np.uint8)
             stage_codes[green] = 4
             if np.any(flooded):
-                activation = np.maximum(ground[flooded], connection[flooded])
+                activation = np.maximum(
+                    ground[flooded],
+                    routed_activation_grid[flooded],
+                )
                 stage_codes[flooded] = np.where(
                     activation < MINOR_NAVD88_FT,
                     1,
@@ -870,51 +872,12 @@ def render_assets(
         counts[phase] = {
             "stageCount": len(STAGES_FT),
             "pngBytes": phase_bytes,
-            "modelKind": "connectivity-first depth-penalized bathtub",
-            "phaseInvariant": True,
-            "verticalPenalty": {
-                "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
-                "atOrAboveMajorFt": 0.0,
-                "curve": "normalized exponential",
-                "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
-                "maximumLocalDepthPenaltyFraction": (
-                    MAX_LOCAL_DEPTH_PENALTY_FRACTION
-                ),
-                "minimumConnectedDepthRetainedFraction": (
-                    MIN_CONNECTED_DEPTH_RETAINED_FRACTION
-                ),
-                "application": (
-                    "depth only after full-stage connectivity"
-                ),
-            },
-            "connectivity": "four-neighbour render components touching a qualified source",
-            "disconnectedBluePixelsRemoved": disconnected_pixels_removed,
-            "maximumUnfilteredComponents": maximum_unfiltered_components,
-            "maximumRetainedSourceComponents": maximum_retained_components,
+            "modelKind": "phase-aware finite-volume broad-crested-weir routing",
+            "phaseInvariant": False,
+            "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
+            "minimumFloodedPixels": minimum_flooded_pixels or 0,
+            "maximumFloodedPixels": maximum_flooded_pixels,
         }
-
-    if phase_names is None:
-        canonical = counts["slack"]
-        for phase in ("filling", "draining"):
-            directory = phase_dirs[phase]
-            copied_bytes = 0
-            for family, prefix in (
-                ("DepthPNGs", "NorthWildwoodDepth"),
-                ("StagePNGs", "NorthWildwoodStage"),
-            ):
-                source_dir = output_root / family / "North Wildwood"
-                destination_dir = source_dir / directory
-                destination_dir.mkdir(parents=True, exist_ok=True)
-                for stage in STAGES_FT:
-                    filename = f"{prefix}{stage_code(float(stage))}.png"
-                    source_path = source_dir / filename
-                    destination_path = destination_dir / filename
-                    shutil.copyfile(source_path, destination_path)
-                    copied_bytes += destination_path.stat().st_size
-            counts[phase] = dict(canonical)
-            counts[phase]["pngBytes"] = copied_bytes
-            counts[phase]["copiedFromCanonicalPhase"] = "slack"
-            print(f"Copied canonical slack catalog to {phase}")
 
     world_path = output_root / "NorthWildwoodOverlay5ft.pgw"
     center_x = render_transform[0] + render_transform[1] / 2
@@ -1110,16 +1073,16 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     packed[..., 0] = (unsigned_elevation >> 8).astype(np.uint8)
     packed[..., 1] = (unsigned_elevation & 0xFF).astype(np.uint8)
     packed[..., 2] = 255
-    # One byte covers -5.0 through 20.4 ft in tenths. Connection stages below
-    # -5 ft are equivalent here because the published depth catalog starts at 0.
-    packed_connection10 = np.maximum(connection10, -50)
+    # One byte covers -3.0 through 22.4 ft in tenths. Connection stages below
+    # -3 ft are equivalent here because the published depth catalog starts at 0.
+    packed_connection10 = np.maximum(connection10, -30)
     encodable_connection = (
         valid
-        & (packed_connection10 >= -50)
-        & (packed_connection10 <= 204)
+        & (packed_connection10 >= -30)
+        & (packed_connection10 <= 224)
     )
     packed[..., 2][encodable_connection] = (
-        packed_connection10[encodable_connection].astype(np.int32) + 50
+        packed_connection10[encodable_connection].astype(np.int32) + 30
     ).astype(np.uint8)
     packed[..., 3] = 255
 
@@ -1131,7 +1094,7 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
         compress_level=7,
     )
     metadata = {
-        "schema": "north-wildwood-packed-depth-query-v2",
+        "schema": "north-wildwood-packed-depth-query-v3",
         "width": int(packed.shape[1]),
         "height": int(packed.shape[0]),
         "renderCellSizeFt": RENDER_STRIDE,
@@ -1142,8 +1105,8 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
             ),
             "blue": (
                 "first four-neighbour connection stage in tenths NAVD88 plus "
-                "50; values below -5 ft are clamped to -5 ft; 255 means not "
-                "connected through 20 ft"
+                "30; values below -3 ft are clamped to -3 ft; 255 means not "
+                "connected through the graph-build ceiling"
             ),
             "alpha": "255",
         },
@@ -1153,18 +1116,50 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     return metadata
 
 
+def build_zone_query_png(graph_dir: Path, destination: Path) -> dict:
+    """Pack the five-foot finite-volume zone ID into a browser-native RGB PNG."""
+    zone = np.memmap(
+        graph_dir / "zone_id.raw",
+        dtype="<i4",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    encoded = np.where(zone >= 0, zone.astype(np.uint32) + 1, 0)
+    if int(encoded.max()) >= 1 << 24:
+        raise RuntimeError("Hydraulic zone IDs do not fit in a 24-bit PNG")
+    packed = np.empty((*zone.shape, 3), dtype=np.uint8)
+    packed[..., 0] = ((encoded >> 16) & 0xFF).astype(np.uint8)
+    packed[..., 1] = ((encoded >> 8) & 0xFF).astype(np.uint8)
+    packed[..., 2] = (encoded & 0xFF).astype(np.uint8)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(packed, mode="RGB").save(
+        destination,
+        format="PNG",
+        optimize=False,
+        compress_level=7,
+    )
+    metadata = {
+        "schema": "north-wildwood-packed-zone-query-v1",
+        "width": int(packed.shape[1]),
+        "height": int(packed.shape[0]),
+        "renderCellSizeFt": RENDER_STRIDE,
+        "channels": "24-bit big-endian hydraulic zone ID plus one; zero is nodata",
+        "bytes": destination.stat().st_size,
+    }
+    print(f"Packed zone query PNG: {destination.stat().st_size:,} bytes")
+    return metadata
+
+
 def main() -> None:
     args = parse_args()
-    if args.draining_only:
-        raise ValueError(
-            "--draining-only is unavailable for the phase-invariant connected-"
-            "bathtub model; rebuild all three identical phases together"
-        )
     if args.draining_only and args.reuse_complete_state:
         raise ValueError("--draining-only and --reuse-complete-state are mutually exclusive")
     graph_dir = args.graph.resolve()
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
+    def asset_path(path: Path) -> str:
+        return path.relative_to(output_root).as_posix()
+
     asset_manifest_path = (
         output_root / "NorthWildwoodHydraulicAssetManifest.json"
     )
@@ -1181,11 +1176,18 @@ def main() -> None:
         / "North Wildwood"
         / "NorthWildwoodHydraulicQuery5ft.png"
     )
+    zone_query_path = (
+        output_root
+        / "COGs"
+        / "North Wildwood"
+        / "NorthWildwoodHydraulicZone5ft.png"
+    )
     if args.packed_query_only:
         packed_query_manifest = build_packed_query_png(
             graph_dir,
             packed_query_path,
         )
+        zone_query_manifest = build_zone_query_png(graph_dir, zone_query_path)
         manifest = {}
         if asset_manifest_path.is_file():
             manifest = json.loads(
@@ -1197,8 +1199,10 @@ def main() -> None:
                 .replace(microsecond=0)
                 .isoformat()
                 .replace("+00:00", "Z"),
-                "packedQueryPng": str(packed_query_path),
+                "packedQueryPng": asset_path(packed_query_path),
                 "packedQuery": packed_query_manifest,
+                "packedZoneQueryPng": asset_path(zone_query_path),
+                "packedZoneQuery": zone_query_manifest,
             }
         )
         asset_manifest_path.write_text(
@@ -1229,15 +1233,10 @@ def main() -> None:
         print(f"Reused all hydraulic states: {reusable_complete_state}")
     else:
         zones = load_zones(graph_dir / "zones.csv")
-        edges = {
-            "a": np.empty(0, dtype=np.int32),
-            "b": np.empty(0, dtype=np.int32),
-            "crest_ft": np.empty(0, dtype=np.float64),
-            "width_ft": np.empty(0, dtype=np.float64),
-        }
+        edges = load_edges(graph_dir / "edges.csv")
         print(
-            f"Loaded {len(zones['connection10']):,} connected-bathtub zones; "
-            "routing edges are not needed"
+            f"Loaded {len(zones['connection10']):,} finite-volume zones and "
+            f"{len(edges['a']):,} crest-width edge groups"
         )
         solver = HydraulicSolver(zones, edges)
         phases, diagnostics = simulate(solver, reusable_static_state)
@@ -1294,28 +1293,26 @@ def main() -> None:
         graph_dir,
         packed_query_path,
     )
+    zone_query_manifest = build_zone_query_png(graph_dir, zone_query_path)
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v5",
+        "schema": "north-wildwood-hydraulic-assets-v6",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "modelKind": "connectivity-first depth-penalized bathtub",
-        "phaseInvariant": True,
-        "verticalPenalty": {
-            "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
-            "atOrAboveMajorFt": 0.0,
-            "curve": "normalized exponential",
-            "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
-            "maximumLocalDepthPenaltyFraction": (
-                MAX_LOCAL_DEPTH_PENALTY_FRACTION
-            ),
-            "minimumConnectedDepthRetainedFraction": (
-                MIN_CONNECTED_DEPTH_RETAINED_FRACTION
-            ),
-            "application": (
-                "depth only; connectivity evaluated at full gauge stage"
-            ),
+        "modelKind": "phase-aware finite-volume broad-crested-weir routing",
+        "phaseInvariant": False,
+        "stageCatalog": {
+            "minimumNavd88Ft": MODEL_MIN_STAGE_FT,
+            "maximumNavd88Ft": MODEL_MAX_STAGE_FT,
+            "incrementFt": MODEL_STAGE_STEP_FT,
+            "stageCountPerPhase": len(STAGES_FT),
+            "phaseCount": 3,
+            "depthPngCount": len(STAGES_FT) * 3,
+            "stagePngCount": len(STAGES_FT) * 3,
         },
-        "graph": graph_manifest,
+        "graph": {
+            **graph_manifest,
+            "modelMaximumNavd88Ft": MODEL_MAX_STAGE_FT,
+        },
         "render": render_manifest,
         "thresholdsNAVD88": {
             "minorLow": MINOR_NAVD88_FT,
@@ -1326,10 +1323,12 @@ def main() -> None:
         "navd88OffsetFromMllwFt": -2.75,
         "phases": ["filling", "slack", "draining"],
         "diagnostics": diagnostics,
-        "queryCog": str(query_path) if query_path.exists() else None,
-        "packedQueryPng": str(packed_query_path),
+        "queryCog": asset_path(query_path) if query_path.exists() else None,
+        "packedQueryPng": asset_path(packed_query_path),
         "packedQuery": packed_query_manifest,
-        "hydraulicStates": str(state_path),
+        "packedZoneQueryPng": asset_path(zone_query_path),
+        "packedZoneQuery": zone_query_manifest,
+        "hydraulicStates": asset_path(state_path),
     }
     asset_manifest_path.write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"

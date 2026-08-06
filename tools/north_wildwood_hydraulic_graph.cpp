@@ -29,10 +29,12 @@ constexpr int16_t NO_CONNECTION = std::numeric_limits<int16_t>::max();
 constexpr int32_t INACTIVE = std::numeric_limits<int32_t>::min();
 constexpr int16_t SOURCE_STAGE10 = 10;
 constexpr int16_t BULKHEAD_STAGE10 = 75;
-constexpr int16_t MODEL_MAX10 = 200;
+constexpr int16_t MODEL_MAX10 = 220;
 constexpr int16_t HIST_MIN10 = -100;
-constexpr int16_t HIST_MAX10 = 200;
+constexpr int16_t HIST_MAX10 = 220;
 constexpr int HIST_BINS = HIST_MAX10 - HIST_MIN10 + 1;
+constexpr int16_t EDGE_MIN10 = -30;
+constexpr int16_t EDGE_MAX10 = 225;
 constexpr int32_t SOURCE_MIN_CELLS = 101;
 constexpr int CONTROL_VOLUME_SIZE_FT = 25;
 constexpr int CONNECTION_BIN10 = 20;
@@ -528,8 +530,8 @@ void write_edges(
     }
     const int16_t crest10 = std::clamp(
         std::max(elevation10[cell], elevation10[neighbour]),
-        HIST_MIN10, HIST_MAX10);
-    const uint8_t crest_code = static_cast<uint8_t>(crest10 - HIST_MIN10);
+        EDGE_MIN10, EDGE_MAX10);
+    const uint8_t crest_code = static_cast<uint8_t>(crest10 - EDGE_MIN10);
     samples.push_back(
         (static_cast<uint64_t>(zone_a) << 36) |
         (static_cast<uint64_t>(zone_b) << 8) |
@@ -552,7 +554,7 @@ void write_edges(
     const uint64_t key = samples[index];
     const uint32_t zone_a = static_cast<uint32_t>(key >> 36);
     const uint32_t zone_b = static_cast<uint32_t>((key >> 8) & ((1ull << 28) - 1));
-    const int16_t crest10 = static_cast<int16_t>((key & 0xff) + HIST_MIN10);
+    const int16_t crest10 = static_cast<int16_t>((key & 0xff) + EDGE_MIN10);
     stream << zone_a << ',' << zone_b << ',' << crest10 << ',' << end - index << '\n';
     index = end;
   }
@@ -578,7 +580,7 @@ void write_manifest(
          << "  \"bulkheadPixelCount\": " << hard_count << ",\n"
          << "  \"bulkheadTerrainTreatment\": \"stitched into input DEM with GDAL before graph construction\",\n"
          << "  \"stormDrains\": \"disabled; not connectivity seeds and no exchange flow\",\n"
-         << "  \"modelMaximumNavd88Ft\": 20.0,\n"
+         << "  \"modelMaximumNavd88Ft\": 22.0,\n"
          << "  \"controlVolumeSizeFt\": " << CONTROL_VOLUME_SIZE_FT << ",\n"
          << "  \"connectionBinFt\": " << CONNECTION_BIN10 / 10.0 << ",\n"
          << "  \"controlVolumeConnectivity\": \"four-neighbour components within each tile/connection bin; hard structures isolated as barrier material\",\n"
