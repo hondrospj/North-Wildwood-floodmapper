@@ -3,6 +3,8 @@
 // The terrain is quantized only for graph topology (0.1 ft NAVD88).  Source
 // blocks follow the literal four-neighbour rule: a <=1.0 ft component must
 // contain at least 101 cells and intersect a supplied source-block polygon.
+// Only the supplied polygon cells become fixed-head boundary cells; the rest
+// of the qualified low component remains finite-volume terrain.
 // The 21-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
 // NAVD88 by GDAL. This builder verifies, but never silently changes, that
 // terrain. Storm-drain exchange is disabled for this model version.
@@ -254,7 +256,8 @@ std::vector<uint8_t> find_source_blocks(
   std::vector<uint8_t> state(count, 0);
   std::vector<int32_t> component;
   uint64_t qualifying_components = 0;
-  uint64_t qualifying_cells = 0;
+  uint64_t qualifying_component_cells = 0;
+  uint64_t qualifying_boundary_cells = 0;
   const auto add = [&](int32_t index, std::vector<int32_t>& queue) {
     state[index] = 1;
     queue.push_back(index);
@@ -285,13 +288,18 @@ std::vector<uint8_t> find_source_blocks(
     }
     if (component.size() >= SOURCE_MIN_CELLS && hits_manual) {
       ++qualifying_components;
-      qualifying_cells += component.size();
-      for (const int32_t cell : component) state[cell] = 2;
+      qualifying_component_cells += component.size();
+      for (const int32_t cell : component) {
+        if (!manual[cell]) continue;
+        state[cell] = 2;
+        ++qualifying_boundary_cells;
+      }
     }
   }
   for (uint8_t& value : state) value = value == 2 ? 1 : 0;
   std::cout << "Qualified " << qualifying_components << " source components ("
-            << qualifying_cells << " cells)\n";
+            << qualifying_component_cells << " low cells, "
+            << qualifying_boundary_cells << " supplied boundary cells)\n";
   return state;
 }
 
@@ -443,7 +451,12 @@ std::vector<int32_t> build_zones(
           if (connection10[seed] == NO_CONNECTION || zone[seed] >= 0) continue;
 
           const int seed_bin = connection_bin(seed);
-          const uint8_t seed_material = hard[seed] ? 1 : 0;
+          // Fixed-head source pixels must never share a storage zone with
+          // ordinary terrain. Keeping source as a material class means a
+          // one-foot opening exchanges water through its actual shared edge
+          // width instead of pinning a whole 25-foot tile to the ocean stage.
+          const uint8_t seed_material =
+              (hard[seed] ? 2 : 0) | (source[seed] ? 1 : 0);
           const int32_t zone_id = static_cast<int32_t>(summaries.size());
           summaries.emplace_back();
           summaries.back().connection10 = connection10[seed];
@@ -475,7 +488,8 @@ std::vector<int32_t> build_zones(
               if (neighbour < 0 || zone[neighbour] >= 0 ||
                   connection10[neighbour] == NO_CONNECTION ||
                   connection_bin(neighbour) != seed_bin ||
-                  (hard[neighbour] ? 1 : 0) != seed_material) {
+                  ((hard[neighbour] ? 2 : 0) |
+                   (source[neighbour] ? 1 : 0)) != seed_material) {
                 continue;
               }
               zone[neighbour] = zone_id;
@@ -565,16 +579,22 @@ void write_manifest(
     const fs::path& path,
     const RasterInfo& info,
     size_t zone_count,
-    uint64_t hard_count) {
+    uint64_t hard_count,
+    uint64_t manual_source_count,
+    uint64_t qualified_source_count) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v4\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v5\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
          << "  \"sourceStageNavd88Ft\": 1.0,\n"
          << "  \"sourceMinComponentCells\": 101,\n"
          << "  \"sourceConnectivity\": \"four-neighbour/shared-side only\",\n"
+         << "  \"sourceBoundaryDefinition\": \"supplied mask cells inside qualified low components; connected interior cells excluded\",\n"
+         << "  \"manualSourcePixelCount\": " << manual_source_count << ",\n"
+         << "  \"qualifiedSourceBoundaryPixelCount\": " << qualified_source_count << ",\n"
+         << "  \"sourceZonesIsolatedFromTerrain\": true,\n"
          << "  \"bulkheadElevationNavd88Ft\": 7.5,\n"
          << "  \"bulkheadNominalWidthCells\": 21,\n"
          << "  \"bulkheadPixelCount\": " << hard_count << ",\n"
@@ -583,7 +603,7 @@ void write_manifest(
          << "  \"modelMaximumNavd88Ft\": 22.0,\n"
          << "  \"controlVolumeSizeFt\": " << CONTROL_VOLUME_SIZE_FT << ",\n"
          << "  \"connectionBinFt\": " << CONNECTION_BIN10 / 10.0 << ",\n"
-         << "  \"controlVolumeConnectivity\": \"four-neighbour components within each tile/connection bin; hard structures isolated as barrier material\",\n"
+         << "  \"controlVolumeConnectivity\": \"four-neighbour components within each tile/connection bin; hard structures and fixed-head sources isolated as separate material classes\",\n"
          << "  \"zoneCount\": " << zone_count << ",\n"
          << "  \"geotransform\": [";
   for (size_t index = 0; index < info.geotransform.size(); ++index) {
@@ -605,8 +625,12 @@ int main(int argc, char** argv) {
     std::vector<uint8_t> grates(elevation10.size(), 0);
     const uint64_t hard_count =
         validate_conditioned_bulkheads(elevation10, hard);
+    const uint64_t manual_source_count = static_cast<uint64_t>(
+        std::count(manual.begin(), manual.end(), static_cast<uint8_t>(1)));
     std::vector<uint8_t> source = find_source_blocks(
         elevation10, manual, info.width, info.height);
+    const uint64_t qualified_source_count = static_cast<uint64_t>(
+        std::count(source.begin(), source.end(), static_cast<uint8_t>(1)));
     manual.clear();
     manual.shrink_to_fit();
 
@@ -629,7 +653,9 @@ int main(int argc, char** argv) {
         inputs.output / "graph_manifest.json",
         info,
         summaries.size(),
-        hard_count);
+        hard_count,
+        manual_source_count,
+        qualified_source_count);
 
     write_geotiff(
         inputs.output / "NorthWildwoodConditionedElevation10.tif",

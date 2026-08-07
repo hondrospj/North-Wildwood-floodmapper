@@ -86,10 +86,33 @@ def main() -> None:
         ).sum(dtype=np.uint64)
     )
     expected_hard_pixels = int(manifest["bulkheadPixelCount"])
+    source_pixels = int(
+        np.memmap(
+            graph / "source_flag.raw",
+            dtype=np.uint8,
+            mode="r",
+            shape=(height, width),
+        ).sum(dtype=np.uint64)
+    )
+    expected_source_pixels = int(manifest["qualifiedSourceBoundaryPixelCount"])
+    manual_source_pixels = int(manifest["manualSourcePixelCount"])
+    if manifest.get("sourceZonesIsolatedFromTerrain") is not True:
+        raise AssertionError("Graph does not isolate fixed-head source zones")
+    if "interior cells excluded" not in str(
+        manifest.get("sourceBoundaryDefinition", "")
+    ):
+        raise AssertionError("Graph still promotes connected terrain to source")
+    if source_pixels != expected_source_pixels:
+        raise AssertionError(
+            f"Expected {expected_source_pixels} source pixels, found {source_pixels}"
+        )
+    if source_pixels > manual_source_pixels:
+        raise AssertionError("Qualified source footprint exceeds supplied mask")
     if int(manifest.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("Graph does not declare a 21-cell bulkhead")
 
     hard_zone_ids: set[int] = set()
+    source_zone_ids: set[int] = set()
     grate_zone_count = 0
     row_count = 0
     with (graph / "zones.csv").open(newline="", encoding="utf-8") as stream:
@@ -98,6 +121,7 @@ def main() -> None:
             zone_id = int(row["zone_id"])
             cell_count = int(row["cell_count"])
             hard_cells = int(row["hard_cells"])
+            source_cells = int(row["source_cells"])
             grate_cells = int(row["grate_cells"])
             histogram_total = sum(int(value) for value in row["hist_counts"].split(":"))
             if histogram_total != cell_count:
@@ -107,6 +131,12 @@ def main() -> None:
                 if hard_cells != cell_count:
                     raise AssertionError(
                         f"Bulkhead zone {zone_id} also contains non-bulkhead terrain"
+                    )
+            if source_cells:
+                source_zone_ids.add(zone_id)
+                if source_cells != cell_count:
+                    raise AssertionError(
+                        f"Source zone {zone_id} also contains interior terrain"
                     )
             if grate_cells:
                 grate_zone_count += 1
@@ -185,8 +215,17 @@ def main() -> None:
 
     hard_edge_records = 0
     hard_edge_width_ft = 0
+    source_edge_records = 0
+    source_shared_edge_width_ft = 0
     with (graph / "edges.csv").open(newline="", encoding="utf-8") as stream:
         for row in csv.DictReader(stream):
+            touches_source = (
+                int(row["zone_a"]) in source_zone_ids
+                or int(row["zone_b"]) in source_zone_ids
+            )
+            if touches_source:
+                source_edge_records += 1
+                source_shared_edge_width_ft += int(row["width_ft"])
             touches_hard = (
                 int(row["zone_a"]) in hard_zone_ids
                 or int(row["zone_b"]) in hard_zone_ids
@@ -197,6 +236,8 @@ def main() -> None:
             hard_edge_width_ft += int(row["width_ft"])
             if int(row["crest10"]) < 75:
                 raise AssertionError("An edge crosses a bulkhead below 7.5 ft NAVD88")
+    if not source_edge_records or not source_shared_edge_width_ft:
+        raise AssertionError("Source zones have no explicit shared-edge exchange")
 
     header, states = load_states(args.states.resolve(), zone_count + 1)
     dry = int(header.get("drySentinelCentift", -32768))
@@ -226,6 +267,12 @@ def main() -> None:
         raise AssertionError("State package does not declare phase-aware states")
     if physics.get("terrainFlow") != "submerged broad-crested weir":
         raise AssertionError("State package does not declare broad-crested-weir flow")
+    if physics.get("sourceZoneIsolation") is not True:
+        raise AssertionError("State package does not declare source-zone isolation")
+    if int(physics.get("sourceBoundaryPixelCount", -1)) != source_pixels:
+        raise AssertionError("State package source footprint does not match graph")
+    if "explicit shared-edge flux" not in str(physics.get("sourceExchange", "")):
+        raise AssertionError("State package still declares component-wide source flow")
     if not math.isclose(
         float(physics.get("weirCoefficientCfs", math.nan)),
         3.10,
@@ -263,6 +310,12 @@ def main() -> None:
                 "minimumBulkheadEdgeCrestNavd88Ft": 7.5,
                 "stormDrainPixels": grate_pixels,
                 "stormDrainExchange": "disabled",
+                "manualSourcePixels": manual_source_pixels,
+                "qualifiedSourceBoundaryPixels": source_pixels,
+                "sourceZones": len(source_zone_ids),
+                "sourceSharedEdgeRecords": source_edge_records,
+                "sourceSharedEdgeWidthFt": source_shared_edge_width_ft,
+                "sourceZonesMixedWithTerrain": 0,
                 "modelKind": physics["modelKind"],
                 "phaseInvariant": physics["phaseInvariant"],
                 "maximumInternalConservationResidualFt3": diagnostics[

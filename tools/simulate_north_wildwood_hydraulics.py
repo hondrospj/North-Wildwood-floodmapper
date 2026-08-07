@@ -2,12 +2,14 @@
 """Build North Wildwood's phase-aware finite-volume hydraulic PNG atlas.
 
 The one-foot conditioned DEM is aggregated into 25-foot storage cells while
-retaining its elevation hypsometry and all shared one-foot flow widths. Water
-is routed between cells in 60-second substeps with a submerged broad-crested
-weir relation and strict donor, receiver, and conservation limits. A cell that
-becomes wet during a substep cannot donate until the following substep. This
-finite travel time prevents one newly connected 5-by-5-foot display pixel from
-instantaneously filling every hydraulically connected low spot in the city.
+retaining its elevation hypsometry and all shared one-foot flow widths. Only
+cells inside the supplied ocean/source mask are fixed-head boundary cells;
+connected interior low terrain is finite storage. Source cells are isolated
+from terrain control volumes, so a one-foot opening exchanges water through
+its actual shared face instead of pinning a whole 25-foot tile to the tide.
+Water is routed in 60-second substeps with a submerged broad-crested-weir
+relation and strict donor, receiver, and conservation limits. A cell that
+becomes wet during a substep cannot donate until the following substep.
 
 The expensive solve is run once to build filling, short-slack, and draining
 lookup families from 0.0 through 22.0 ft NAVD88 at 0.1-foot increments.
@@ -574,20 +576,25 @@ def simulate(
             if index % 10 == 0:
                 print(f"Short-slack simulation: {stage:4.1f} ft NAVD88")
 
-    # Falling lookup: each one-foot target band begins at a finite-volume
-    # short-slack state 2.5 ft above it, not at an equilibrium water plane.
-    # This preserves a realistic several-hour preceding crest without making
-    # low tides inherit an impossible 22-ft event.
+    # Falling lookup: bracket every target with two finite-volume trajectories
+    # whose preceding crests are one foot apart, then linearly interpolate
+    # their stored volume within the target band. The effective history peak
+    # therefore remains target stage + 2.5 ft without jumping by a full foot
+    # at integer-stage band boundaries.
     band_size = round(DRAINING_BAND_WIDTH_FT / MODEL_STAGE_STEP_FT)
     peak_offset = round(DRAINING_HISTORY_RISE_FT / MODEL_STAGE_STEP_FT)
     stage_count = len(STAGES_FT)
-    for band_start in range(0, stage_count, band_size):
+    band_starts = list(range(0, stage_count, band_size))
+    draining_candidates: dict[int, dict[int, np.ndarray]] = {}
+    for band_start in band_starts:
         band_end = min(stage_count - 1, band_start + band_size - 1)
         peak_index = min(stage_count - 1, band_start + peak_offset)
+        extended_start = max(0, band_start - band_size)
         storage, surface = restore(phases["slack"][peak_index])
-        if peak_index == band_end:
-            phases["draining"][band_end] = solver.encode_surface(storage, surface)
-        for index in range(peak_index - 1, band_start - 1, -1):
+        candidate: dict[int, np.ndarray] = {}
+        if extended_start <= peak_index <= band_end:
+            candidate[peak_index] = solver.encode_surface(storage, surface)
+        for index in range(peak_index - 1, extended_start - 1, -1):
             stage = float(STAGES_FT[index])
             storage, surface, diagnostic = solver.advance(
                 storage,
@@ -602,11 +609,44 @@ def simulate(
                 }
             )
             if index <= band_end:
-                phases["draining"][index] = solver.encode_surface(storage, surface)
+                candidate[index] = solver.encode_surface(storage, surface)
+        draining_candidates[band_start] = candidate
         print(
-            f"Draining simulation: {float(STAGES_FT[band_start]):4.1f}-"
+            f"Draining candidate: {float(STAGES_FT[extended_start]):4.1f}-"
             f"{float(STAGES_FT[band_end]):4.1f} ft NAVD88 from "
             f"{float(STAGES_FT[peak_index]):4.1f} ft finite-volume crest"
+        )
+
+    for index in range(stage_count):
+        band_start = (index // band_size) * band_size
+        lower_encoded = draining_candidates[band_start][index]
+        following_start = band_start + band_size
+        fraction = (index - band_start) / band_size
+        if (
+            fraction <= 0.0
+            or following_start not in draining_candidates
+            or index not in draining_candidates[following_start]
+        ):
+            phases["draining"][index] = lower_encoded
+            continue
+        upper_encoded = draining_candidates[following_start][index]
+        lower_storage, lower_surface = restore(lower_encoded)
+        upper_storage, upper_surface = restore(upper_encoded)
+        blended_storage = (
+            (1.0 - fraction) * lower_storage
+            + fraction * upper_storage
+        )
+        blended_surface_hint = (
+            (1.0 - fraction) * lower_surface
+            + fraction * upper_surface
+        )
+        blended_surface = solver.surface_from_storage(
+            blended_storage,
+            blended_surface_hint,
+        )
+        phases["draining"][index] = solver.encode_surface(
+            blended_storage,
+            blended_surface,
         )
 
     diagnostic_rows = [
@@ -638,9 +678,10 @@ def simulate(
             f"rising state held for {SHORT_SLACK_INTERVALS * 15} minutes"
         ),
         "drainingHistory": (
-            "one-foot target bands initialized from the finite-volume short-"
-            f"slack state up to {DRAINING_HISTORY_RISE_FT:.1f} ft above the "
-            "selected stage"
+            "finite-volume trajectories from one-foot-spaced crest brackets "
+            "are linearly interpolated in storage so the effective preceding "
+            f"crest remains {DRAINING_HISTORY_RISE_FT:.1f} ft above the "
+            "selected stage without band-boundary jumps"
         ),
     }
     return phases, summary
@@ -648,7 +689,7 @@ def simulate(
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v6",
+        "schema": "north-wildwood-hydraulic-states-binary-v7",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": MODEL_MIN_STAGE_FT,
         "stageMaxNavd88Ft": MODEL_MAX_STAGE_FT,
@@ -672,9 +713,10 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
                 f"{SHORT_SLACK_INTERVALS * 15} additional minutes"
             ),
             "draining": (
-                "0.1-ft fall every 15 minutes from a finite-volume crest up "
-                f"to {DRAINING_HISTORY_RISE_FT:.1f} ft above each one-foot "
-                "target band"
+                "0.1-ft fall every 15 minutes; storage is interpolated between "
+                "one-foot-spaced routed crest histories so the effective prior "
+                f"crest remains {DRAINING_HISTORY_RISE_FT:.1f} ft above each "
+                "target without band-boundary jumps"
             ),
         },
         "physics": {
@@ -684,6 +726,17 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             "crossSection": (
                 "one foot of width per shared one-foot cell side, grouped by "
                 "crest elevation"
+            ),
+            "sourceBoundary": graph_manifest["sourceBoundaryDefinition"],
+            "sourceBoundaryPixelCount": graph_manifest[
+                "qualifiedSourceBoundaryPixelCount"
+            ],
+            "sourceZoneIsolation": graph_manifest[
+                "sourceZonesIsolatedFromTerrain"
+            ],
+            "sourceExchange": (
+                "fixed tide stage only inside supplied boundary-mask zones; "
+                "terrain receives water through explicit shared-edge flux"
             ),
             "storage": (
                 "one-foot DEM hypsometry integrated inside each 25-foot "
@@ -1296,7 +1349,7 @@ def main() -> None:
     zone_query_manifest = build_zone_query_png(graph_dir, zone_query_path)
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v6",
+        "schema": "north-wildwood-hydraulic-assets-v7",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "modelKind": "phase-aware finite-volume broad-crested-weir routing",
         "phaseInvariant": False,

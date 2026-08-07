@@ -14,7 +14,7 @@ const OBSERVED_15MIN = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observe
 const OBSERVED_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed_archive_index.json"), "utf8"));
 const LEWES_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "lewes_archive_index.json"), "utf8"));
 const TOP_TIDES = JSON.parse(fs.readFileSync(path.join(HERE, "..", "toptides.json"), "utf8"));
-const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v18");
+const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v19");
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
@@ -110,7 +110,7 @@ assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
 assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 30/);
 assert.doesNotMatch(SOURCE, /Number\(stageValue\) > 14/);
-assert.match(SOURCE, /\/assets\/hydraulic-v18\//);
+assert.match(SOURCE, /\/assets\/hydraulic-v19\//);
 assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
 assert.match(SOURCE, />Simulation Extent</i);
 assert.match(extractFunction("isTownBoundaryEnabled"), /boundaryToggle[\s\S]+classList\.contains\("on"\)/);

@@ -26,6 +26,10 @@ FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
     ),
     dtype=np.uint8,
 )
+# At five-foot render resolution this is 62,500 square feet (1.43 acres),
+# consistent with the declared 15-minute front-travel bound and far below a
+# basin- or city-scale component promotion.
+MAX_CONNECTED_WET_CHANGE_PIXELS = 2_500
 
 
 def parse_args() -> argparse.Namespace:
@@ -74,6 +78,10 @@ def main() -> None:
     records = []
     maximum_components = 0
     maximum_blue_pixels = 0
+    maximum_connected_flood_growth_pixels = 0
+    maximum_connected_flood_growth_frame = None
+    maximum_connected_drying_pixels = 0
+    maximum_connected_drying_frame = None
     eligible_green_touching_blue = 0
     phase_mask_hashes: dict[str, list[bytes]] = {}
 
@@ -87,6 +95,7 @@ def main() -> None:
                 f"Expected 221 {phase} depth PNGs, found {len(depth_paths)}"
             )
         phase_mask_hashes[phase] = []
+        previous_depth_blue = None
         for depth_path in depth_paths:
             code = depth_path.stem.removeprefix("NorthWildwoodDepth")
             stage_path = stage_dir / f"NorthWildwoodStage{code}.png"
@@ -99,6 +108,49 @@ def main() -> None:
                     f"Unexpected render dimensions for {depth_path}"
                 )
             depth_blue = (depth_codes >= 1) & (depth_codes <= 11)
+            if previous_depth_blue is not None:
+                for direction, changed in (
+                    ("added", depth_blue & ~previous_depth_blue),
+                    ("removed", previous_depth_blue & ~depth_blue),
+                ):
+                    # Open-water boundary pixels are fixed-head forcing, not
+                    # city inundation. Measure connected growth only on the
+                    # finite-storage terrain reached through source faces.
+                    changed = changed & ~source
+                    changed_labels, changed_count = ndimage_label(
+                        changed,
+                        structure=FOUR_NEIGHBOUR_STRUCTURE,
+                    )
+                    if not changed_count:
+                        continue
+                    largest_change = int(
+                        np.bincount(changed_labels.ravel())[1:].max()
+                    )
+                    is_flood_growth = (
+                        (phase != "draining" and direction == "added")
+                        or (phase == "draining" and direction == "removed")
+                    )
+                    if (
+                        is_flood_growth
+                        and largest_change > maximum_connected_flood_growth_pixels
+                    ):
+                        maximum_connected_flood_growth_pixels = largest_change
+                        maximum_connected_flood_growth_frame = {
+                            "phase": phase,
+                            "code": code,
+                            "direction": direction,
+                        }
+                    if (
+                        not is_flood_growth
+                        and largest_change > maximum_connected_drying_pixels
+                    ):
+                        maximum_connected_drying_pixels = largest_change
+                        maximum_connected_drying_frame = {
+                            "phase": phase,
+                            "code": code,
+                            "direction": direction,
+                        }
+            previous_depth_blue = depth_blue
             phase_mask_hashes[phase].append(
                 hashlib.sha256(depth_blue.tobytes()).digest()
             )
@@ -154,6 +206,14 @@ def main() -> None:
         raise AssertionError("Filling and short-slack rendered masks are identical")
     if phase_mask_hashes["filling"] == phase_mask_hashes["draining"]:
         raise AssertionError("Filling and draining rendered masks are identical")
+    if maximum_connected_flood_growth_pixels > MAX_CONNECTED_WET_CHANGE_PIXELS:
+        raise AssertionError(
+            "An adjacent 0.1-ft frame changes a connected water patch by "
+            f"{maximum_connected_flood_growth_pixels:,} pixels in the "
+            "phase-time flood-growth direction at "
+            f"{maximum_connected_flood_growth_frame}; limit is "
+            f"{MAX_CONNECTED_WET_CHANGE_PIXELS:,}"
+        )
 
     print(
         json.dumps(
@@ -168,6 +228,21 @@ def main() -> None:
                 ),
                 "maximumComponentsInAnyFrame": maximum_components,
                 "maximumBluePixelsInAnyFrame": maximum_blue_pixels,
+                "maximumConnectedInteriorFloodGrowthPixels": (
+                    maximum_connected_flood_growth_pixels
+                ),
+                "maximumConnectedInteriorFloodGrowthFrame": (
+                    maximum_connected_flood_growth_frame
+                ),
+                "maximumConnectedInteriorFloodGrowthLimitPixels": (
+                    MAX_CONNECTED_WET_CHANGE_PIXELS
+                ),
+                "maximumConnectedInteriorDryingPixels": (
+                    maximum_connected_drying_pixels
+                ),
+                "maximumConnectedInteriorDryingFrame": (
+                    maximum_connected_drying_frame
+                ),
                 "phases": records,
             },
             indent=2,

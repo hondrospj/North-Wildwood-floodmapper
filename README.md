@@ -67,7 +67,7 @@ long recession tail in the supplied profile.
 The flood-depth catalog extends through 22.00 ft NAVD88, covering every
 published NACCS station 11283 target in this set without a display cap. All
 phase-aware images and compact point-query/state files are bundled under
-`assets/hydraulic-v18/`; older equilibrium images are not used as fallbacks.
+`assets/hydraulic-v19/`; older equilibrium images are not used as fallbacks.
 
 These are stationary screening scenarios: no future sea-level-rise increment
 or trend detrending is applied. Rebuild the committed payload from the official
@@ -86,21 +86,27 @@ vertical units in NAVD88 feet. The model then:
 1. Rasterizes the user-drawn bulkhead centerline with GDAL, expands it ten
    one-foot cells on both sides (21 cells nominal width), and stitches that
    wall into a new DEM at 7.5 ft NAVD88 before graph construction.
-2. Finds four-neighbour components at or below 1.0 ft NAVD88. A component is a
-   source block only when it contains at least 101 cells and intersects a
-   supplied source-block polygon. Corner-only contact does not count.
+2. Uses four-neighbour components at or below 1.0 ft NAVD88 to qualify supplied
+   source-boundary polygons. A component qualifies only when it contains at
+   least 101 cells and intersects a supplied polygon; corner-only contact does
+   not count. Only the supplied polygon cells inside that qualified component
+   become fixed-head boundary cells. The rest of the low component remains
+   finite terrain storage instead of being promoted to ocean.
 3. Groups the one-foot terrain into 25-foot finite-volume nodes while retaining
    the exact one-foot elevation histogram and the shared one-foot flow width at
-   every edge. Storm drains are disabled: they are neither connectivity seeds
-   nor underground exchange paths.
+   every edge. Boundary cells are placed in separate fixed-head nodes, so a
+   source and interior terrain can never share a 25-foot storage node. Storm
+   drains are disabled: they are neither connectivity seeds nor underground
+   exchange paths.
 4. Routes water through those edges with a submerged broad-crested-weir
    relation in 60-second substeps. Edge flow is capped by donor storage,
    receiver capacity, and the two-basin equalization volume. A cell that first
    becomes wet in one substep cannot donate water until the next substep.
 5. Builds separate rising, short-slack, and falling histories. Slack holds the
-   rising state for 15 minutes; falling one-foot bands begin from a routed crest
-   up to 2.5 ft higher. No phase begins from an equilibrium city-wide water
-   plane.
+   rising state for 15 minutes. Falling targets interpolate the stored water
+   between routed crest histories one foot apart, keeping the effective prior
+   crest continuously 2.5 ft above the target without jumps at band boundaries.
+   No phase begins from an equilibrium city-wide water plane.
 
 The solve produces reusable assets from 0.0–22.0 ft NAVD88 at 0.1-foot
 intervals: 221 stages in each of three phase families, or 663 depth PNGs plus
@@ -162,7 +168,9 @@ The feature-preparation step records the source ZIP hash, validates the
 one-foot grid, and requires the expected 1 hard-structure feature, 6 ignored
 drain points, 6 source polygons, 11,200 centerline pixels, and 254,212
 manual-source pixels. It records the expanded wall pixel count and conditioned
-DEM provenance in the generated manifest.
+DEM provenance in the generated manifest. In the current graph, 113,359
+qualified boundary pixels form 326 boundary-only zones, with no zone containing
+both fixed-head boundary and terrain cells.
 
 The renderer uses the new depth key: shallow water is bright cyan and deeper
 water grades to dark navy. Green includes terrain that is below the selected
@@ -171,7 +179,11 @@ are smoothed over roughly eight feet only inside the immutable finite-volume
 wet mask, so smoothing cannot create new water. Falling-tide puddles may remain
 after their visible five-foot connection to the source has dried. The render
 validator checks all 1,326 depth/stage PNGs, requires matching masks and a real
-moving front, and confirms that the three phase catalogs are distinct.
+moving front, and confirms that the three phase catalogs are distinct. It also
+fails if any newly flooded interior four-neighbour component exceeds 2,500
+one-foot pixels between adjacent 0.1-ft frames. The current maximum is 1,978
+pixels; drying transitions are measured separately and do not count as flood
+growth.
 
 ## Clickable depth
 
@@ -180,7 +192,7 @@ moving front, and confirms that the three phase catalogs are distinct.
 1. conditioned ground elevation;
 2. hydraulic zone ID;
 3. first equilibrium connection stage;
-4. source-block flag;
+4. qualified supplied source-boundary flag;
 5. 21-cell, 7.5-foot bulkhead flag;
 6. disabled storm-drain flag (always zero).
 
