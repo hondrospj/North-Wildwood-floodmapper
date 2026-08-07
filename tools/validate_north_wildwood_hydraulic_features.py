@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-fast checks for the conditioned DEM and connected-bathtub states."""
+"""Fail-fast checks for the conditioned DEM and finite-volume routed states."""
 
 from __future__ import annotations
 
@@ -86,10 +86,33 @@ def main() -> None:
         ).sum(dtype=np.uint64)
     )
     expected_hard_pixels = int(manifest["bulkheadPixelCount"])
+    source_pixels = int(
+        np.memmap(
+            graph / "source_flag.raw",
+            dtype=np.uint8,
+            mode="r",
+            shape=(height, width),
+        ).sum(dtype=np.uint64)
+    )
+    expected_source_pixels = int(manifest["qualifiedSourceBoundaryPixelCount"])
+    manual_source_pixels = int(manifest["manualSourcePixelCount"])
+    if manifest.get("sourceZonesIsolatedFromTerrain") is not True:
+        raise AssertionError("Graph does not isolate fixed-head source zones")
+    if "interior cells excluded" not in str(
+        manifest.get("sourceBoundaryDefinition", "")
+    ):
+        raise AssertionError("Graph still promotes connected terrain to source")
+    if source_pixels != expected_source_pixels:
+        raise AssertionError(
+            f"Expected {expected_source_pixels} source pixels, found {source_pixels}"
+        )
+    if source_pixels > manual_source_pixels:
+        raise AssertionError("Qualified source footprint exceeds supplied mask")
     if int(manifest.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("Graph does not declare a 21-cell bulkhead")
 
     hard_zone_ids: set[int] = set()
+    source_zone_ids: set[int] = set()
     grate_zone_count = 0
     row_count = 0
     with (graph / "zones.csv").open(newline="", encoding="utf-8") as stream:
@@ -98,6 +121,7 @@ def main() -> None:
             zone_id = int(row["zone_id"])
             cell_count = int(row["cell_count"])
             hard_cells = int(row["hard_cells"])
+            source_cells = int(row["source_cells"])
             grate_cells = int(row["grate_cells"])
             histogram_total = sum(int(value) for value in row["hist_counts"].split(":"))
             if histogram_total != cell_count:
@@ -107,6 +131,12 @@ def main() -> None:
                 if hard_cells != cell_count:
                     raise AssertionError(
                         f"Bulkhead zone {zone_id} also contains non-bulkhead terrain"
+                    )
+            if source_cells:
+                source_zone_ids.add(zone_id)
+                if source_cells != cell_count:
+                    raise AssertionError(
+                        f"Source zone {zone_id} also contains interior terrain"
                     )
             if grate_cells:
                 grate_zone_count += 1
@@ -185,8 +215,17 @@ def main() -> None:
 
     hard_edge_records = 0
     hard_edge_width_ft = 0
+    source_edge_records = 0
+    source_shared_edge_width_ft = 0
     with (graph / "edges.csv").open(newline="", encoding="utf-8") as stream:
         for row in csv.DictReader(stream):
+            touches_source = (
+                int(row["zone_a"]) in source_zone_ids
+                or int(row["zone_b"]) in source_zone_ids
+            )
+            if touches_source:
+                source_edge_records += 1
+                source_shared_edge_width_ft += int(row["width_ft"])
             touches_hard = (
                 int(row["zone_a"]) in hard_zone_ids
                 or int(row["zone_b"]) in hard_zone_ids
@@ -197,75 +236,64 @@ def main() -> None:
             hard_edge_width_ft += int(row["width_ft"])
             if int(row["crest10"]) < 75:
                 raise AssertionError("An edge crosses a bulkhead below 7.5 ft NAVD88")
+    if not source_edge_records or not source_shared_edge_width_ft:
+        raise AssertionError("Source zones have no explicit shared-edge exchange")
 
     header, states = load_states(args.states.resolve(), zone_count + 1)
     dry = int(header.get("drySentinelCentift", -32768))
-    if not np.array_equal(states["filling"], states["slack"]):
-        raise AssertionError("Filling and slack states are not phase-invariant")
-    if not np.array_equal(states["filling"], states["draining"]):
-        raise AssertionError("Filling and draining states are not phase-invariant")
+    if int(header.get("stageCount", 0)) != 221:
+        raise AssertionError("State package does not contain 221 stage levels")
+    if not math.isclose(float(header.get("stageMinNavd88Ft", math.nan)), 0.0):
+        raise AssertionError("State package does not start at 0.0 ft NAVD88")
+    if not math.isclose(float(header.get("stageMaxNavd88Ft", math.nan)), 22.0):
+        raise AssertionError("State package does not end at 22.0 ft NAVD88")
+    if not math.isclose(float(header.get("stageStepFt", math.nan)), 0.1):
+        raise AssertionError("State package does not use 0.1-ft increments")
+    if np.array_equal(states["filling"], states["slack"]):
+        raise AssertionError("Short-slack states did not advance beyond filling")
+    if np.array_equal(states["filling"], states["draining"]):
+        raise AssertionError("Draining states did not retain a distinct history")
     hard_lookup = np.asarray(sorted(hard_zone_ids), dtype=np.int64) + 1
-    for phase in ("filling", "slack", "draining"):
-        if np.any(states[phase][149, hard_lookup] != dry):
+    for phase in ("filling", "slack"):
+        if np.any(states[phase][74, hard_lookup] != dry):
             raise AssertionError(
                 f"{phase} state wets a bulkhead before 7.5 ft NAVD88"
             )
 
     physics = header.get("physics") or {}
-    if physics.get("modelKind") != "connectivity-first depth-penalized bathtub":
-        raise AssertionError("State package does not declare the connected bathtub")
-    if physics.get("phaseInvariant") is not True:
-        raise AssertionError("State package does not declare phase-invariant states")
+    if physics.get("modelKind") != "phase-aware finite-volume broad-crested-weir routing":
+        raise AssertionError("State package does not declare finite-volume routing")
+    if physics.get("phaseInvariant") is not False:
+        raise AssertionError("State package does not declare phase-aware states")
+    if physics.get("terrainFlow") != "submerged broad-crested weir":
+        raise AssertionError("State package does not declare broad-crested-weir flow")
+    if physics.get("sourceZoneIsolation") is not True:
+        raise AssertionError("State package does not declare source-zone isolation")
+    if int(physics.get("sourceBoundaryPixelCount", -1)) != source_pixels:
+        raise AssertionError("State package source footprint does not match graph")
+    if "explicit shared-edge flux" not in str(physics.get("sourceExchange", "")):
+        raise AssertionError("State package still declares component-wide source flow")
+    if not math.isclose(
+        float(physics.get("weirCoefficientCfs", math.nan)),
+        3.10,
+        abs_tol=1e-12,
+    ):
+        raise AssertionError("State package has the wrong weir coefficient")
+    if "newly wet" not in str(physics.get("frontPropagation", "")):
+        raise AssertionError("State package does not enforce finite front propagation")
     if not str(physics.get("stormDrains", "")).startswith("disabled"):
         raise AssertionError("State package does not declare disabled storm drains")
     if float(physics.get("bulkheadElevationNavd88Ft", math.nan)) != 7.5:
         raise AssertionError("State package does not declare the 7.5-ft bulkhead")
     if int(physics.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("State package does not declare a 21-cell bulkhead")
-    penalty = physics.get("verticalPenalty") or {}
-    if not math.isclose(
-        float(penalty.get("atOrBelowMinorFt", math.nan)),
-        1.25,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong low-stage vertical penalty")
-    if penalty.get("curve") != "normalized exponential":
-        raise AssertionError("State package has the wrong depth-penalty curve")
-    if not math.isclose(
-        float(penalty.get("decayRate", math.nan)),
-        1.5,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong exponential decay rate")
-    if not math.isclose(
-        float(penalty.get("atOrAboveMajorFt", math.nan)),
-        0.0,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong major-stage vertical penalty")
-    if not math.isclose(
-        float(penalty.get("maximumLocalDepthPenaltyFraction", math.nan)),
-        0.75,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong local depth-penalty cap")
-    if not math.isclose(
-        float(penalty.get("minimumConnectedDepthRetainedFraction", math.nan)),
-        0.25,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong connected-depth floor")
-    if "depth only" not in str(penalty.get("application", "")):
-        raise AssertionError("State package applies the penalty to connectivity")
-
-    # State connectivity is evaluated at the full gauge stage. The compact
-    # state format stores centifeet, so a wet zone at 3.0 ft must encode the
-    # unpenalized 3.0-ft connectivity surface. Local depth attenuation is
-    # applied after the one-foot cell has been admitted to the wet footprint.
-    low_stage = states["slack"][60]
-    low_wet = low_stage != dry
-    if np.any(low_wet) and int(low_stage[low_wet].max()) != 300:
-        raise AssertionError("Low-stage states do not preserve full-stage connectivity")
+    diagnostics = header.get("diagnostics") or {}
+    if diagnostics.get("phaseInvariant") is not False:
+        raise AssertionError("Diagnostics do not declare phase-aware routing")
+    if float(diagnostics.get("maximumInternalConservationResidualFt3", math.inf)) > 1e-5:
+        raise AssertionError("Internal finite-volume routing is not conservative")
+    if int(diagnostics.get("diagnosticStepCount", 0)) < 221:
+        raise AssertionError("Finite-volume diagnostics are incomplete")
 
     print(
         json.dumps(
@@ -282,9 +310,17 @@ def main() -> None:
                 "minimumBulkheadEdgeCrestNavd88Ft": 7.5,
                 "stormDrainPixels": grate_pixels,
                 "stormDrainExchange": "disabled",
+                "manualSourcePixels": manual_source_pixels,
+                "qualifiedSourceBoundaryPixels": source_pixels,
+                "sourceZones": len(source_zone_ids),
+                "sourceSharedEdgeRecords": source_edge_records,
+                "sourceSharedEdgeWidthFt": source_shared_edge_width_ft,
+                "sourceZonesMixedWithTerrain": 0,
                 "modelKind": physics["modelKind"],
                 "phaseInvariant": physics["phaseInvariant"],
-                "verticalPenalty": penalty,
+                "maximumInternalConservationResidualFt3": diagnostics[
+                    "maximumInternalConservationResidualFt3"
+                ],
                 "statePhases": list(states),
             },
             indent=2,

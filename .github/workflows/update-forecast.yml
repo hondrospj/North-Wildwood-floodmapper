@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
@@ -76,8 +76,8 @@ jobs:
           OUT_PATH = Path("forecast.json")
           FORECAST_HOURS = 84
           MIN_LAYER_STAGE = -2.0
-          MAX_LAYER_STAGE = 20.0
-          LAYER_INCREMENT = 0.05
+          MAX_LAYER_STAGE = 22.0
+          LAYER_INCREMENT = 0.1
           CYCLES_NEWEST_FIRST = (18, 12, 6, 0)
           DAYS_BACK_TO_TRY = 5
 

@@ -14661,6 +14661,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     let TOP_TIDES_URL = "";
     let RETURN_INTERVALS_URL = "";
     let DEPTH_QUERY_PNG_URL = "";
+    let DEPTH_ZONE_QUERY_PNG_URL = "";
     let DEPTH_QUERY_COG_URL = "";
     let HYDRAULIC_STATES_URL = "";
     let PARCELS_URL = "";
@@ -14677,8 +14678,8 @@ html.win-compact-ui #timelineDock #hourSlider{
 
     const MIN_STAGE = -4.0;
     const MIN_DEPTH_STAGE = 0.0;
-    const MAX_STAGE = 20.0;
-    const STAGE_STEP = 0.05;
+    const MAX_STAGE = 22.0;
+    const STAGE_STEP = 0.1;
     const DEFAULT_OVERLAY_MODE = "depth";
     const DEFAULT_DATA_MODE = "forecast";
     const DEFAULT_OPACITY = 0.75;
@@ -14733,9 +14734,6 @@ html.win-compact-ui #timelineDock #hourSlider{
     let MINOR_FLOOD_FT = 0;
     let MODERATE_FLOOD_FT = 0;
     let MAJOR_FLOOD_FT = 0;
-    const LOW_STAGE_VERTICAL_PENALTY_FT = 1.25;
-    const VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE = 1.5;
-    const MAX_LOCAL_DEPTH_PENALTY_FRACTION = 0.75;
 
     function formatOffsetWithSign(value, digits = 2) {
       const n = Number(value) || 0;
@@ -14797,7 +14795,10 @@ html.win-compact-ui #timelineDock #hourSlider{
       TOP_TIDES_URL = new URL(config.data?.topTidesPath || "./toptides.json", APP_BASE).href;
       RETURN_INTERVALS_URL = new URL(config.data?.returnIntervalsPath || "./return_intervals.json", APP_BASE).href;
       DEPTH_QUERY_PNG_URL = new URL(config.overlays?.depthQueryPngPath || "", APP_BASE).href;
-      DEPTH_QUERY_COG_URL = new URL(config.overlays?.depthQueryCogPath || "", APP_BASE).href;
+      DEPTH_ZONE_QUERY_PNG_URL = new URL(config.overlays?.depthZoneQueryPngPath || "", APP_BASE).href;
+      DEPTH_QUERY_COG_URL = config.overlays?.depthQueryCogPath
+        ? new URL(config.overlays.depthQueryCogPath, APP_BASE).href
+        : "";
       HYDRAULIC_STATES_URL = new URL(config.overlays?.hydraulicStatesPath || "", APP_BASE).href;
       PARCELS_URL = new URL(config.parcels?.geojsonPath || "", APP_BASE).href;
       HOUSE_ALERT_CDF_URL = new URL(config.parcels?.houseAlertCdfPath || "", APP_BASE).href;
@@ -14982,7 +14983,7 @@ html.win-compact-ui #timelineDock #hourSlider{
       { label: "3.00–4.00 ft", color: "var(--depth-8)" },
       { label: "4.00–5.00 ft", color: "var(--depth-9)" },
       { label: "5.00+ ft", color: "var(--depth-10)" },
-      { label: "Below stage, not hydraulically connected", color: "var(--below)" }
+      { label: "Below stage, not yet reached by routed water", color: "var(--below)" }
     ];
 
     let DYNAMIC_LEGEND = [];
@@ -15104,6 +15105,7 @@ function cloneStyleObject(value) {
     let houseAlertCdfPromise = null;
     let parcelLoadPromise = null;
     let depthQueryGridPromise = null;
+    let depthZoneQueryGridPromise = null;
     let depthQueryImagePromise = null;
     let hydraulicStatesPromise = null;
     let renderedFloodPixelCache = null;
@@ -16521,7 +16523,7 @@ function setDatumHelpOpen(isOpen) {
         title: "Flood Depth Key",
         body: `
           <p>Light blue is shallow water. Darker blue is deeper water.</p>
-          <p>Green marks low areas that may flood, but the model cannot confirm a direct path from the water. Plan as if green areas could flood.</p>
+          <p>Green marks low terrain that the finite-volume wetting front has not reached in this tide phase. It may flood under a longer or differently shaped event.</p>
         `
       },
       stageLegend: {
@@ -16741,32 +16743,14 @@ function setDatumHelpOpen(isOpen) {
       return Math.max(minimum, floorToCatalogStep(clamped));
     }
 
-    function getVerticalBathtubPenalty(stageValue) {
-      const stage = Number(stageValue);
-      if (!Number.isFinite(stage)) return null;
-      if (stage <= MINOR_FLOOD_FT) return LOW_STAGE_VERTICAL_PENALTY_FT;
-      if (stage >= MAJOR_FLOOD_FT) return 0;
-      const progress = (stage - MINOR_FLOOD_FT) / (MAJOR_FLOOD_FT - MINOR_FLOOD_FT);
-      const decay = VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE;
-      const residual = Math.exp(-decay);
-      const normalized = (Math.exp(-decay * progress) - residual) / (1 - residual);
-      return LOW_STAGE_VERTICAL_PENALTY_FT * normalized;
-    }
-
-    function getPenalizedConnectedDepth(stageValue, groundValue) {
-      const stage = Number(stageValue);
+    function getRoutedDepth(waterSurfaceValue, groundValue) {
+      const waterSurface = Number(waterSurfaceValue);
       const ground = Number(groundValue);
-      const maximumPenalty = getVerticalBathtubPenalty(stage);
-      if (!Number.isFinite(stage) || !Number.isFinite(ground) || !Number.isFinite(maximumPenalty)) return null;
-      const rawDepth = Math.max(0, stage - ground);
-      const appliedPenalty = Math.min(maximumPenalty, rawDepth * MAX_LOCAL_DEPTH_PENALTY_FRACTION);
-      const depth = Math.max(0, rawDepth - appliedPenalty);
+      if (!Number.isFinite(waterSurface) || !Number.isFinite(ground)) return null;
+      const depth = Math.max(0, waterSurface - ground);
       return {
-        rawDepth,
-        maximumPenalty,
-        appliedPenalty,
         depth,
-        localWaterSurface: ground + depth
+        localWaterSurface: waterSurface
       };
     }
 
@@ -16860,13 +16844,7 @@ function setDatumHelpOpen(isOpen) {
       const normalizedPhase = normalizeHydraulicPhase(phase);
       const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedPhase] || [];
       const roots = phaseRoots.length ? phaseRoots : (OVERLAY_ROOTS[mode] || []);
-      const orderedRoots = Number(stageValue) > 14
-        ? [...roots].sort((left, right) => {
-            const leftIsBundled = left.includes("/assets/hydraulic-v17/");
-            const rightIsBundled = right.includes("/assets/hydraulic-v17/");
-            return Number(rightIsBundled) - Number(leftIsBundled);
-          })
-        : roots;
+      const orderedRoots = roots;
       const filenames = getOverlayFilenameCandidates(mode, stageValue);
       return orderedRoots.flatMap(root => filenames.map(name => {
         const url = new URL(name, root);
@@ -23657,6 +23635,18 @@ function startPlayback() {
       return depthQueryGridPromise;
     }
 
+    async function getDepthZoneQueryGrid() {
+      if (!DEPTH_ZONE_QUERY_PNG_URL) return null;
+      if (!depthZoneQueryGridPromise) {
+        depthZoneQueryGridPromise = loadDepthQueryPng(DEPTH_ZONE_QUERY_PNG_URL)
+          .catch(error => {
+            depthZoneQueryGridPromise = null;
+            throw error;
+          });
+      }
+      return depthZoneQueryGridPromise;
+    }
+
     async function getDepthQueryImage() {
       if (!DEPTH_QUERY_COG_URL) throw new Error("Depth query COG is not configured.");
       if (!window.GeoTIFF?.fromUrl) throw new Error("Depth query library did not load.");
@@ -23741,8 +23731,8 @@ function startPlayback() {
       const payload = await getHydraulicStates();
       if (!payload || !Number.isInteger(zoneId) || zoneId <= 0) return null;
       const stageMin = Number(payload.stageMinNavd88Ft) || 0;
-      const stageStep = Number(payload.stageStepFt) || 0.05;
-      const stageCount = Number(payload.stageCount) || 401;
+      const stageStep = Number(payload.stageStepFt) || 0.1;
+      const stageCount = Number(payload.stageCount) || 221;
       const stride = Number(payload.zoneStride) || ((Number(payload.zoneCount) || 0) + 1);
       const stageIndex = Math.max(0, Math.min(stageCount - 1, Math.round((Number(stage) - stageMin) / stageStep)));
       const binaryValues = payload.decodedPhaseWaterSurface?.[normalizeHydraulicPhase(phase)];
@@ -23763,7 +23753,10 @@ function startPlayback() {
     }
 
     async function samplePackedDepthGrid(lat, lon) {
-      const grid = await getDepthQueryGrid();
+      const [grid, zoneGrid] = await Promise.all([
+        getDepthQueryGrid(),
+        getDepthZoneQueryGrid()
+      ]);
       if (!grid || !floodLatLngBounds) return null;
       const west = floodLatLngBounds.getWest();
       const east = floodLatLngBounds.getEast();
@@ -23777,10 +23770,13 @@ function startPlayback() {
       if (encodedElevation === 0) return null;
       const elevation10 = encodedElevation - 32768;
       const connectionCode = grid.values[offset + 2];
+      const zoneId = zoneGrid && zoneGrid.width === grid.width && zoneGrid.height === grid.height
+        ? zoneGrid.values[offset] * 65536 + zoneGrid.values[offset + 1] * 256 + zoneGrid.values[offset + 2]
+        : 0;
       return {
         elevation: elevation10 / 10,
-        zoneId: 0,
-        connectionStage: connectionCode === 255 ? 9999 : (connectionCode - 50) / 10,
+        zoneId,
+        connectionStage: connectionCode === 255 ? 9999 : (connectionCode - 30) / 10,
         sourceFlag: false,
         hardStructureFlag: false,
         stormGrateFlag: false,
@@ -23868,19 +23864,22 @@ function startPlayback() {
         try {
           return await samplePackedDepthGrid(lat, lon);
         } catch (error) {
-          console.warn("Packed depth query failed; retrying through the COG.", error);
+          console.warn("Packed routed-depth query failed; retrying through the COG.", error);
         }
       }
-      let lastError = null;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        try {
-          return await sampleDepthModelFromCog(lat, lon);
-        } catch (error) {
-          lastError = error;
-          depthQueryImagePromise = null;
+      if (DEPTH_QUERY_COG_URL) {
+        let lastError = null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            return await sampleDepthModelFromCog(lat, lon);
+          } catch (error) {
+            lastError = error;
+            depthQueryImagePromise = null;
+          }
         }
+        throw lastError || new Error("Depth query data is unavailable.");
       }
-      throw lastError || new Error("Depth query data is unavailable.");
+      throw new Error("Depth query data is unavailable.");
     }
 
     function sampleRenderedFloodPixel(lat, lon) {
@@ -23934,18 +23933,10 @@ function startPlayback() {
       }
     }
 
-    function getDepthQueryDisplayDepth(sample, stageValue, renderedFlood = null) {
+    function getDepthQueryDisplayDepth(sample, waterSurfaceFt, renderedFlood = null) {
       if (!sample) return null;
-      const stage = Number(stageValue);
-      const overlayStage = Number.isFinite(stage) ? getOverlayStage(stage) : null;
-      const depthModel = getPenalizedConnectedDepth(overlayStage, sample.elevation);
-      const belowStage = Number.isFinite(stage) && sample.elevation <= stage + 0.0001;
-      const modeledConnected = belowStage &&
-        Number.isFinite(overlayStage) &&
-        sample.elevation < overlayStage - 0.005 &&
-        Number.isFinite(sample.connectionStage) &&
-        sample.connectionStage <= overlayStage + 0.0001;
-      const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
+      const depthModel = getRoutedDepth(waterSurfaceFt, sample.elevation);
+      const connected = renderedFlood ? renderedFlood.flooded : Boolean(depthModel?.depth > 0.005);
       const depth = connected && depthModel ? depthModel.depth : null;
       return Number.isFinite(depth) ? depth : 0;
     }
@@ -23962,7 +23953,7 @@ function startPlayback() {
         '<h3>' + getDepthQueryPopupHeading() + '</h3><div class="depth-query-value">' + value + '</div></div>';
     }
 
-    function updatePersistentDepthQueryPopup(options = {}) {
+    async function updatePersistentDepthQueryPopup(options = {}) {
       const context = persistentDepthQueryContext;
       const popup = persistentFloodPopup;
       if (!context || !popup || context.popup !== popup || !map?.hasLayer(popup)) return;
@@ -23970,17 +23961,35 @@ function startPlayback() {
       const renderedFlood = options.useRenderedFlood === false
         ? null
         : sampleRenderedFloodPixel(context.latlng.lat, context.latlng.lng);
-      const depth = getDepthQueryDisplayDepth(context.sample, stage, renderedFlood);
+      const phase = getHydraulicPhaseForEntry(
+        currentSeriesHours[currentHourIndex],
+        currentHourIndex,
+        currentSeriesHours
+      );
+      const waterSurfaceFt = await getHydraulicWaterSurfaceFt(
+        context.sample.zoneId,
+        getOverlayStage(stage),
+        phase
+      );
+      const depth = getDepthQueryDisplayDepth(context.sample, waterSurfaceFt, renderedFlood);
       popup.setContent(buildDepthQueryPopupHtml(depth));
       popup.update();
     }
 
-    function openDepthQueryPopup(latlng, sample) {
+    async function openDepthQueryPopup(latlng, sample) {
       const stage = getStageValue(currentSeriesHours[currentHourIndex]);
       const renderedFlood = sample
         ? sampleRenderedFloodPixel(latlng.lat, latlng.lng)
         : null;
-      const depth = getDepthQueryDisplayDepth(sample, stage, renderedFlood);
+      const phase = getHydraulicPhaseForEntry(
+        currentSeriesHours[currentHourIndex],
+        currentHourIndex,
+        currentSeriesHours
+      );
+      const waterSurfaceFt = sample
+        ? await getHydraulicWaterSurfaceFt(sample.zoneId, getOverlayStage(stage), phase)
+        : null;
+      const depth = getDepthQueryDisplayDepth(sample, waterSurfaceFt, renderedFlood);
       const popup = openPersistentFloodPopup(latlng, buildDepthQueryPopupHtml(depth), 300);
       if (sample) {
         persistentDepthQueryContext = { popup, latlng, sample };
@@ -24006,10 +24015,10 @@ function startPlayback() {
         }
         const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
         if (!sample) {
-          openDepthQueryPopup(event.latlng, null);
+          await openDepthQueryPopup(event.latlng, null);
           return;
         }
-        openDepthQueryPopup(event.latlng, sample);
+        await openDepthQueryPopup(event.latlng, sample);
       } catch (err) {
         console.error("Depth query failed", err);
         toast("Depth query is temporarily unavailable.");
@@ -33349,48 +33358,41 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260730-hydraulic-v17",
-      "dynamic": "20260730-hydraulic-v17",
-      "hydraulic": "20260730-hydraulic-v17"
+      "depth": "20260807-hydraulic-v19",
+      "dynamic": "20260807-hydraulic-v19",
+      "hydraulic": "20260807-hydraulic-v19"
     },
-    "depthQueryPngPath": "./assets/hydraulic-v17/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260730-hydraulic-v17",
-    "depthQueryCogPath": "https://floodmapperv1.b-cdn.net/COGs/North%20Wildwood/NorthWildwoodHydraulicQueryWGS84Uncompressed5ft.cog.tif.png?v=20260723-hydraulic-v16",
-    "hydraulicStatesPath": "./assets/hydraulic-v17/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260730-hydraulic-v17",
+    "depthQueryPngPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260807-hydraulic-v19",
+    "depthZoneQueryPngPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicZone5ft.png?v=20260807-hydraulic-v19",
+    "depthQueryCogPath": null,
+    "hydraulicStatesPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260807-hydraulic-v19",
     "depthRoots": [
-      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/",
-      "./assets/hydraulic-v17/DepthPNGs/North%20Wildwood/"
+      "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/"
     ],
     "dynamicRoots": [
-      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/",
-      "./assets/hydraulic-v17/StagePNGs/North%20Wildwood/"
+      "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/"
     ],
     "phaseRoots": {
       "depth": {
         "filling": [
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/filling/",
-          "./assets/hydraulic-v17/DepthPNGs/North%20Wildwood/filling/"
+          "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/filling/"
         ],
         "slack": [
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/",
-          "./assets/hydraulic-v17/DepthPNGs/North%20Wildwood/"
+          "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/"
         ],
         "draining": [
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/draining/",
-          "./assets/hydraulic-v17/DepthPNGs/North%20Wildwood/draining/"
+          "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/draining/"
         ]
       },
       "dynamic": {
         "filling": [
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/filling/",
-          "./assets/hydraulic-v17/StagePNGs/North%20Wildwood/filling/"
+          "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/filling/"
         ],
         "slack": [
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/",
-          "./assets/hydraulic-v17/StagePNGs/North%20Wildwood/"
+          "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/"
         ],
         "draining": [
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/draining/",
-          "./assets/hydraulic-v17/StagePNGs/North%20Wildwood/draining/"
+          "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/draining/"
         ]
       }
     }

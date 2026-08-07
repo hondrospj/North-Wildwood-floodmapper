@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Static and executable checks for the browser's 0.05-ft depth contract.
+// Static and executable checks for the browser's 0.1-ft routed-depth contract.
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -14,7 +14,7 @@ const OBSERVED_15MIN = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observe
 const OBSERVED_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed_archive_index.json"), "utf8"));
 const LEWES_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "lewes_archive_index.json"), "utf8"));
 const TOP_TIDES = JSON.parse(fs.readFileSync(path.join(HERE, "..", "toptides.json"), "utf8"));
-const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v17");
+const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v19");
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
@@ -34,22 +34,18 @@ const context = vm.createContext({
   Number,
   MIN_STAGE: -4,
   MIN_DEPTH_STAGE: 0,
-  MAX_STAGE: 20,
-  STAGE_STEP: 0.05,
+  MAX_STAGE: 22,
+  STAGE_STEP: 0.1,
   MINOR_FLOOD_FT: 3.25,
   MODERATE_FLOOD_FT: 4.25,
   MAJOR_FLOOD_FT: 5.25,
-  LOW_STAGE_VERTICAL_PENALTY_FT: 1.25,
-  VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE: 1.5,
-  MAX_LOCAL_DEPTH_PENALTY_FRACTION: 0.75,
 });
 for (const name of (
   [
     "roundToCatalogPrecision",
     "floorToCatalogStep",
     "getOverlayStage",
-    "getVerticalBathtubPenalty",
-    "getPenalizedConnectedDepth",
+    "getRoutedDepth",
     "getDepthQueryDisplayDepth",
     "stageToCode",
   ]
@@ -67,12 +63,10 @@ assert.equal(context.stripExportTimeZoneLabel("Jul 29, 2026 · 9:00 PM EDT"), "J
 assert.equal(context.stripExportTimeZoneLabel("Jul 29, 2026 · 9:00 PM ET"), "Jul 29, 2026 · 9:00 PM");
 
 assert.equal(context.getOverlayStage(3.94), 3.9);
-assert.equal(context.getOverlayStage(3.95), 3.95);
-assert.equal(context.getOverlayStage(3.999), 3.95);
+assert.equal(context.getOverlayStage(3.95), 3.9);
+assert.equal(context.getOverlayStage(3.999), 3.9);
 assert.equal(context.stageToCode(context.getOverlayStage(3.94)), "p0390");
-assert.equal(context.stageToCode(context.getOverlayStage(3.95)), "p0395");
-assert.equal(context.getVerticalBathtubPenalty(3.25), 1.25);
-assert.equal(context.getVerticalBathtubPenalty(5.25), 0);
+assert.equal(context.stageToCode(context.getOverlayStage(3.95)), "p0390");
 
 const changingDepthSample = { elevation: 2, connectionStage: 1 };
 const lowWaterDepth = context.getDepthQueryDisplayDepth(changingDepthSample, 3.25);
@@ -86,13 +80,6 @@ assert.equal(
   0,
   "The rendered overlay can still mark a modeled location as disconnected"
 );
-
-let previous = Infinity;
-for (let stage = 3.25; stage <= 5.25 + 1e-9; stage += 0.05) {
-  const penalty = context.getVerticalBathtubPenalty(stage);
-  assert.ok(penalty <= previous + 1e-12, "Penalty must decrease monotonically");
-  previous = penalty;
-}
 
 assert.match(SOURCE, /candidateElevation > -100 && candidateElevation < 100/);
 assert.match(SOURCE, /elevation >= 1000/);
@@ -117,12 +104,13 @@ assert.match(SOURCE, /id="satelliteToggle"/);
 assert.match(SOURCE, /World_Imagery\/MapServer\/tile/);
 assert.match(SOURCE, /payload\.valueType === "int16-le"/);
 assert.match(SOURCE, /depthQueryPngPath/);
+assert.match(SOURCE, /depthZoneQueryPngPath/);
 assert.match(SOURCE, /function loadDepthQueryPng\(/);
 assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
 assert.match(SOURCE, /encodedElevation - 32768/);
-assert.match(SOURCE, /connectionCode - 50/);
-assert.match(SOURCE, /Number\(stageValue\) > 14/);
-assert.match(SOURCE, /\/assets\/hydraulic-v17\//);
+assert.match(SOURCE, /connectionCode - 30/);
+assert.doesNotMatch(SOURCE, /Number\(stageValue\) > 14/);
+assert.match(SOURCE, /\/assets\/hydraulic-v19\//);
 assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
 assert.match(SOURCE, />Simulation Extent</i);
 assert.match(extractFunction("isTownBoundaryEnabled"), /boundaryToggle[\s\S]+classList\.contains\("on"\)/);
@@ -144,7 +132,7 @@ assert.match(
 );
 assert.match(
   SOURCE,
-  /Packed depth query failed; retrying through the COG/
+  /Packed routed-depth query failed; retrying through the COG/
 );
 assert.match(SOURCE, /id="downloadIntervalControl"/);
 assert.match(SOURCE, /data-export-interval="hourly"/);
@@ -417,9 +405,9 @@ for (const family of ["DepthPNGs", "StagePNGs"]) {
       phase
     );
     const files = fs.readdirSync(directory).filter(name => name.endsWith(".png")).sort();
-    assert.equal(files.length, 120, `${family}/${phase || "slack"} must contain the 14.05–20.00 ft extension`);
-    assert.match(files[0], /p1405\.png$/);
-    assert.match(files.at(-1), /p2000\.png$/);
+    assert.equal(files.length, 221, `${family}/${phase || "slack"} must contain the complete 0.0–22.0 ft catalog`);
+    assert.match(files[0], /p0000\.png$/);
+    assert.match(files.at(-1), /p2200\.png$/);
   }
 }
 assert.ok(fs.statSync(path.join(
@@ -428,6 +416,12 @@ assert.ok(fs.statSync(path.join(
   "North Wildwood",
   "NorthWildwoodHydraulicQuery5ft.png"
 )).size > 1_000_000);
+assert.ok(fs.statSync(path.join(
+  BUNDLED_HYDRAULIC_ROOT,
+  "COGs",
+  "North Wildwood",
+  "NorthWildwoodHydraulicZone5ft.png"
+)).size > 100_000);
 assert.ok(fs.statSync(path.join(
   BUNDLED_HYDRAULIC_ROOT,
   "COGs",

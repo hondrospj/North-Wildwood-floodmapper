@@ -4,7 +4,7 @@ This repository is the complete North Wildwood counterpart to Stone Harbor
 Floodmapper 2.0. It uses the Great Channel at Stone Harbor gauge as the live and
 historical water-level forcing source, then applies North Wildwood's datum
 conversion, flood thresholds, terrain, DEM-integrated bulkheads, parcels, and
-a source-connected bathtub model.
+a phase-aware finite-volume overland-flow model.
 
 ## Water-level contract
 
@@ -64,12 +64,10 @@ in the window. The resulting series contains 97
 15-minute frames and retains the sharp central peak, post-peak shoulder, and
 long recession tail in the supplied profile.
 
-The flood-depth catalog extends through 20.00 ft NAVD88, covering every
-published NACCS station 11283 target in this set without a display cap.
-The existing 0.00–14.00 ft images remain CDN-hosted. The 14.05–20.00 ft
-extension and its compact point-query/state files are bundled under
-`assets/hydraulic-v17/`, so the deployed site does not depend on a separate
-credentialed asset release.
+The flood-depth catalog extends through 22.00 ft NAVD88, covering every
+published NACCS station 11283 target in this set without a display cap. All
+phase-aware images and compact point-query/state files are bundled under
+`assets/hydraulic-v19/`; older equilibrium images are not used as fallbacks.
 
 These are stationary screening scenarios: no future sea-level-rise increment
 or trend detrending is applied. Rebuild the committed payload from the official
@@ -88,26 +86,43 @@ vertical units in NAVD88 feet. The model then:
 1. Rasterizes the user-drawn bulkhead centerline with GDAL, expands it ten
    one-foot cells on both sides (21 cells nominal width), and stitches that
    wall into a new DEM at 7.5 ft NAVD88 before graph construction.
-2. Finds four-neighbour components at or below 1.0 ft NAVD88. A component is a
-   source block only when it contains at least 101 cells and intersects a
-   supplied source-block polygon. Corner-only contact does not count.
-3. Computes each cell's minimum equilibrium connection stage through 20.0 ft.
-   Storm drains are disabled in this model version: they are neither
-   connectivity seeds nor underground exchange paths.
-4. Marks a cell connected when its conditioned ground elevation and its exact
-   four-neighbour source-connection threshold are both below the full selected
-   gauge stage. A corner connection can never make a cell blue.
-5. Penalizes the resulting connected depth to avoid overstating low-level
-   flooding. The maximum penalty is 1.25 ft through minor flood, then follows
-   a normalized exponential decay that reaches exactly zero at major flood.
-   The applied penalty is capped at 75 percent of each cell's raw depth, so a
-   connected wet cell retains at least 25 percent of its depth and remains
-   shallow bright blue instead of being misclassified as green.
+2. Uses four-neighbour components at or below 1.0 ft NAVD88 to qualify supplied
+   source-boundary polygons. A component qualifies only when it contains at
+   least 101 cells and intersects a supplied polygon; corner-only contact does
+   not count. Only the supplied polygon cells inside that qualified component
+   become fixed-head boundary cells. The rest of the low component remains
+   finite terrain storage instead of being promoted to ocean.
+3. Groups the one-foot terrain into 25-foot finite-volume nodes while retaining
+   the exact one-foot elevation histogram and the shared one-foot flow width at
+   every edge. Boundary cells are placed in separate fixed-head nodes, so a
+   source and interior terrain can never share a 25-foot storage node. Storm
+   drains are disabled: they are neither connectivity seeds nor underground
+   exchange paths.
+4. Routes water through those edges with a submerged broad-crested-weir
+   relation in 60-second substeps. Edge flow is capped by donor storage,
+   receiver capacity, and the two-basin equalization volume. A cell that first
+   becomes wet in one substep cannot donate water until the next substep.
+5. Builds separate rising, short-slack, and falling histories. Slack holds the
+   rising state for 15 minutes. Falling targets interpolate the stored water
+   between routed crest histories one foot apart, keeping the effective prior
+   crest continuously 2.5 ft above the target without jumps at band boundaries.
+   No phase begins from an equilibrium city-wide water plane.
 
-The solve produces reusable assets from 0.0–20.0 ft NAVD88 at 0.05-foot
-intervals. It is intentionally static: `filling`, `slack`, and `draining`
-assets are identical for the same gauge level. Hourly and 15-minute application
-updates floor the selected level to the nearest 0.05-foot asset.
+The solve produces reusable assets from 0.0–22.0 ft NAVD88 at 0.1-foot
+intervals: 221 stages in each of three phase families, or 663 depth PNGs plus
+663 stage-class PNGs. Forecast and observed updates only identify the current
+phase and floor the selected level to the nearest 0.1-foot asset; they never
+rerun the hydraulic model.
+
+This is a compact response atlas, not an exhaustive high/low endpoint matrix.
+At 0.1-foot spacing, even unordered low/high pairs would create 24,531 endpoint
+combinations before adding the frames within each tide. V2 instead represents
+the dominant hydraulic memory with rising, short-slack, and locally initialized
+falling histories. Event-exact timing would require either additional
+rise-rate/amplitude buckets or running the same finite-volume solver for the
+specific tide series. The weir coefficient, control-volume size, and history
+windows should be calibrated against observed street-flood arrival times and
+high-water extents before the maps are used for engineering decisions.
 
 The main builders are:
 
@@ -146,24 +161,29 @@ The feature validator fails if the centerline is not expanded by at least ten
 cells in all four cardinal directions, any bulkhead cell is below 7.5 ft
 NAVD88, any supplied bulkhead cell is mixed into a terrain node, any edge
 crosses a bulkhead below 7.5 ft NAVD88, a storm-drain cell enters the graph, or
-the three phase arrays differ, or the declared vertical penalty is wrong.
+the phase arrays do not differ, finite-volume conservation fails, or the
+declared front-propagation rule is missing.
 
 The feature-preparation step records the source ZIP hash, validates the
 one-foot grid, and requires the expected 1 hard-structure feature, 6 ignored
 drain points, 6 source polygons, 11,200 centerline pixels, and 254,212
 manual-source pixels. It records the expanded wall pixel count and conditioned
-DEM provenance in the generated manifest.
+DEM provenance in the generated manifest. In the current graph, 113,359
+qualified boundary pixels form 326 boundary-only zones, with no zone containing
+both fixed-head boundary and terrain cells.
 
 The renderer uses the new depth key: shallow water is bright cyan and deeper
-water grades to dark navy. Green is reserved for terrain that is below the
-selected tide but is genuinely not side-connected to a qualified source at
-that tide. As its final step, the renderer labels the five-foot water mask with
-four-neighbour connectivity and removes every blue component that does not
-touch a qualified source. It smooths depth values over roughly ten feet only
-inside that immutable water mask, so lidar noise cannot create stippled colors
-or new water. The render validator checks all 1,203 depth/stage pairs and rejects
-any isolated pixel, mismatched mask, corner-only connection, or blue component
-without a source.
+water grades to dark navy. Green includes terrain that is below the selected
+tide but has not yet been reached by the routed wetting front. Surface values
+are smoothed over roughly eight feet only inside the immutable finite-volume
+wet mask, so smoothing cannot create new water. Falling-tide puddles may remain
+after their visible five-foot connection to the source has dried. The render
+validator checks all 1,326 depth/stage PNGs, requires matching masks and a real
+moving front, and confirms that the three phase catalogs are distinct. It also
+fails if any newly flooded interior four-neighbour component exceeds 2,500
+one-foot pixels between adjacent 0.1-ft frames. The current maximum is 1,978
+pixels; drying transitions are measured separately and do not count as flood
+growth.
 
 ## Clickable depth
 
@@ -172,20 +192,17 @@ without a source.
 1. conditioned ground elevation;
 2. hydraulic zone ID;
 3. first equilibrium connection stage;
-4. source-block flag;
+4. qualified supplied source-boundary flag;
 5. 21-cell, 7.5-foot bulkhead flag;
 6. disabled storm-drain flag (always zero).
 
-The phase-invariant state package is a gzip-compressed, two-byte centifeet audit
-lookup. `NorthWildwoodHydraulicQuery5ft.png` is the routine browser lookup. Its
-red/green channels carry the conditioned elevation in tenths of a foot and its
-blue channel carries the first four-neighbour connection stage. It is aligned
-pixel-for-pixel with the displayed five-foot flood PNGs, so one ordinary PNG
-download replaces the large range requests that could make COG clicks fail
-intermittently. The nearest-neighbour, uncompressed query COG remains a
-retrying fallback. A click combines the packed query cell with full-stage
-source connectivity and the bounded local depth penalty, then reports only the
-modeled water depth.
+The phase-aware state package is a gzip-compressed, two-byte centifeet audit
+lookup. `NorthWildwoodHydraulicQuery5ft.png` carries conditioned elevation and
+the legacy connection threshold, while `NorthWildwoodHydraulicZone5ft.png`
+carries the 24-bit finite-volume zone ID. Both align pixel-for-pixel with the
+displayed five-foot flood PNGs, so ordinary PNG downloads avoid fragile large
+COG range requests. A click reads the phase/stage node surface and reports only
+its depth above the conditioned ground.
 
 ## Forecast and observed archives
 
