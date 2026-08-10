@@ -1,2 +1,17 @@
 __pycache__/
 *.py[cod]
+.DS_Store
+.env
+.venv/
+.anuga-env/
+.conda-pkgs/
+.cache/
+vendor/
+
+# Reproducible local hydrodynamic inputs and generated forecast cycles.
+model/data/local/
+model/data/noaa_topobathy/
+model/cache/
+model/logs/
+model/runs/
+model/state/

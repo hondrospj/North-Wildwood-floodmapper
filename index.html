@@ -14664,6 +14664,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     let DEPTH_ZONE_QUERY_PNG_URL = "";
     let DEPTH_QUERY_COG_URL = "";
     let HYDRAULIC_STATES_URL = "";
+    let PHYSICS_FORECAST_POINTER_URL = "";
     let PARCELS_URL = "";
     let HOUSE_ALERT_CDF_URL = "";
     let PARCEL_BOUNDARY_PNG_URL = "";
@@ -14800,6 +14801,9 @@ html.win-compact-ui #timelineDock #hourSlider{
         ? new URL(config.overlays.depthQueryCogPath, APP_BASE).href
         : "";
       HYDRAULIC_STATES_URL = new URL(config.overlays?.hydraulicStatesPath || "", APP_BASE).href;
+      PHYSICS_FORECAST_POINTER_URL = config.overlays?.physicsForecastPointerPath
+        ? new URL(config.overlays.physicsForecastPointerPath, APP_BASE).href
+        : "";
       PARCELS_URL = new URL(config.parcels?.geojsonPath || "", APP_BASE).href;
       HOUSE_ALERT_CDF_URL = new URL(config.parcels?.houseAlertCdfPath || "", APP_BASE).href;
       PARCEL_BOUNDARY_PNG_URL = new URL(config.parcels?.boundaryPngPath || "", APP_BASE).href;
@@ -15108,6 +15112,8 @@ function cloneStyleObject(value) {
     let depthZoneQueryGridPromise = null;
     let depthQueryImagePromise = null;
     let hydraulicStatesPromise = null;
+    let physicsForecastManifests = {};
+    let physicsQueryImageCache = new Map();
     let renderedFloodPixelCache = null;
     let cityBoundaryOutline = null;
     let cityBoundaryMask = null;
@@ -15177,6 +15183,141 @@ function cloneStyleObject(value) {
     let currentObservedResolution = "1hour";
     let currentTimelineIntervalMinutes = 60;
     let currentRawSeriesHours = [];
+
+    function physicsPointerUrl() {
+      if (!PHYSICS_FORECAST_POINTER_URL) return "";
+      const url = new URL(PHYSICS_FORECAST_POINTER_URL, window.location.href);
+      url.searchParams.set("_cycle_check", String(Math.floor(Date.now() / 300000)));
+      return url.href;
+    }
+
+    function resolvePhysicsFileRecord(record, manifestUrl) {
+      if (!record?.path || !manifestUrl) return null;
+      return { ...record, url: new URL(record.path, manifestUrl).href };
+    }
+
+    function hydratePhysicsManifest(manifest, manifestUrl) {
+      const hydrate = record => ({
+        ...record,
+        visible: resolvePhysicsFileRecord(record.visible, manifestUrl),
+        impact: resolvePhysicsFileRecord(record.impact, manifestUrl),
+        query: resolvePhysicsFileRecord(record.query, manifestUrl)
+      });
+      return {
+        ...manifest,
+        frames: (Array.isArray(manifest?.frames) ? manifest.frames : []).map(hydrate),
+        dailyMaximums: (Array.isArray(manifest?.dailyMaximums) ? manifest.dailyMaximums : []).map(hydrate)
+      };
+    }
+
+    function getActivePhysicsManifest() {
+      return physicsForecastManifests[currentForecastScenario] || null;
+    }
+
+    async function loadPhysicsForecast(force = false) {
+      if (!PHYSICS_FORECAST_POINTER_URL) return null;
+      if (Object.keys(physicsForecastManifests).length && !force) {
+        return getActivePhysicsManifest();
+      }
+      const pointerUrl = physicsPointerUrl();
+      const pointer = await fetchJson(pointerUrl);
+      const manifestUrls = pointer?.manifestUrls && typeof pointer.manifestUrls === "object"
+        ? pointer.manifestUrls
+        : (pointer?.manifestUrl ? { [pointer.scenario || "mean"]: pointer.manifestUrl } : {});
+      if (pointer?.status !== "complete" || !Object.keys(manifestUrls).length) {
+        throw new Error("The physics forecast pointer is not complete.");
+      }
+      const hydrated = await Promise.all(Object.entries(manifestUrls).map(async ([scenario, rawUrl]) => {
+        const manifestUrl = new URL(rawUrl, pointerUrl).href;
+        const manifest = await fetchJson(manifestUrl);
+        const recordsValid = records => Array.isArray(records) && records.length &&
+          records.every(record => record?.visible?.path && record?.impact?.path && record?.query?.path);
+        if (
+          manifest?.status !== "complete" ||
+          manifest?.schema !== "north-wildwood-physics-forecast-v1" ||
+          !Array.isArray(manifest?.boundsWgs84) ||
+          !recordsValid(manifest?.frames) ||
+          !recordsValid(manifest?.dailyMaximums)
+        ) {
+          throw new Error(`The ${scenario} physics forecast manifest is invalid.`);
+        }
+        if (pointer.cycleId && manifest.cycleId !== pointer.cycleId) {
+          throw new Error("The physics pointer and manifest cycle do not match.");
+        }
+        if ((manifest.scenario || "mean") !== scenario) {
+          throw new Error(`The ${scenario} physics manifest has the wrong scenario label.`);
+        }
+        return [scenario, hydratePhysicsManifest(manifest, manifestUrl)];
+      }));
+      physicsForecastManifests = Object.fromEntries(hydrated);
+      physicsQueryImageCache = new Map();
+      return getActivePhysicsManifest() || hydrated[0]?.[1] || null;
+    }
+
+    function physicsForecastApplies() {
+      return Boolean(currentDataMode === "forecast" && getActivePhysicsManifest());
+    }
+
+    function physicsFrameToForecastEntry(frame) {
+      const stage = Number(frame?.boundaryStageNavd88Ft);
+      return {
+        timeUtc: frame.timeUtc,
+        displayTimeUtc: frame.timeUtc,
+        navd88StageFt: stage,
+        stageFt: stage,
+        value: stage,
+        timelineIntervalMinutes: 15,
+        observationInterval: "15min",
+        physicsFrame: frame,
+        physicsCycleId: getActivePhysicsManifest()?.cycleId || "",
+        isPhysicsForecast: true
+      };
+    }
+
+    function getPhysicsForecastDisplaySeries() {
+      const manifest = getActivePhysicsManifest();
+      if (!manifest) return null;
+      const allFrames = manifest.frames.map(physicsFrameToForecastEntry);
+      const interval = getTimelineIntervalMinutes();
+      if (interval === 15) return allFrames;
+      if (interval === 60) {
+        return allFrames
+          .filter(entry => entry.physicsFrame?.isHourlySourcePoint)
+          .map(entry => ({ ...entry, timelineIntervalMinutes: 60, observationInterval: "1hour" }));
+      }
+      const entriesByLocalDate = new Map();
+      allFrames.forEach(entry => {
+        const parts = getNyParts(getEntryESTDate(entry));
+        if (!parts) return;
+        const key = `${parts.year}-${parts.month}-${parts.day}`;
+        if (!entriesByLocalDate.has(key)) entriesByLocalDate.set(key, []);
+        entriesByLocalDate.get(key).push(entry);
+      });
+      return manifest.dailyMaximums.map(daily => {
+        const entries = entriesByLocalDate.get(daily.dateLocal) || [];
+        const peak = entries.reduce((best, entry) => (
+          !best || getStageValue(entry) > getStageValue(best) ? entry : best
+        ), entries[0] || allFrames[0]);
+        return {
+          ...peak,
+          observedDate: daily.dateLocal,
+          observationInterval: "daily",
+          timelineIntervalMinutes: 1440,
+          isDailyMaximum: true,
+          dailyMaximumKind: "forecast",
+          physicsDailyMaximum: daily
+        };
+      });
+    }
+
+    function getPhysicsAssetForEntry(entry) {
+      if (!physicsForecastApplies()) return null;
+      return entry?.physicsDailyMaximum || entry?.physicsFrame || null;
+    }
+
+    function getPhysicsDisplayRecord(asset, mode = currentOverlayMode) {
+      return mode === "dynamic" ? asset?.impact : asset?.visible;
+    }
 
     let playTimer = null;
     let playbackInFlight = false;
@@ -17033,6 +17174,12 @@ function setDatumHelpOpen(isOpen) {
         const i = index + offset;
         if (i < 0 || i >= currentSeriesHours.length) return;
         const entry = currentSeriesHours[i];
+        const physicsAsset = getPhysicsAssetForEntry(entry);
+        const physicsRecord = getPhysicsDisplayRecord(physicsAsset);
+        if (physicsRecord?.url) {
+          preloadImage(physicsRecord.url);
+          return;
+        }
         const stage = getOverlayStage(getStageValue(entry));
         if (stage == null) return;
         const phase = getHydraulicPhaseForEntry(entry, i, currentSeriesHours);
@@ -20109,18 +20256,30 @@ function updateExportSegmentedUI() {
       if (!exportMap.hasLayer(exportBoundaryMask)) exportBoundaryMask.addTo(exportMap);
     }
 
-    async function setExportFloodLayer(mode, stageValue, phase = "slack") {
+    async function setExportFloodLayer(mode, stageValue, phase = "slack", entry = null) {
       ensureExportMap();
-      const match = await getOverlayRecord(mode, stageValue, phase);
-      if (!match) {
-        throw new Error(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
+      const physicsRecord = getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode);
+      let overlayUrl = "";
+      if (physicsRecord?.url) {
+        overlayUrl = physicsRecord.url;
+        const bounds = getActivePhysicsManifest()?.boundsWgs84;
+        if (!Array.isArray(bounds) || bounds.length !== 2) {
+          throw new Error("Physics forecast bounds are unavailable.");
+        }
+        floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
+      } else {
+        const match = await getOverlayRecord(mode, stageValue, phase);
+        if (!match) {
+          throw new Error(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
+        }
+        overlayUrl = match.url;
+        await ensureOverlayBounds(overlayUrl);
       }
-      await preloadImage(match.url);
-      await ensureOverlayBounds(match.url);
+      await preloadImage(overlayUrl);
       if (exportFloodLayer && exportMap.hasLayer(exportFloodLayer)) {
         exportMap.removeLayer(exportFloodLayer);
       }
-      exportFloodLayer = L.imageOverlay(match.url, floodLatLngBounds, {
+      exportFloodLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {
         opacity: overlayOpacity,
         interactive: false,
         crossOrigin: true,
@@ -20201,7 +20360,7 @@ function updateExportSegmentedUI() {
       }
 
       const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
-      await setExportFloodLayer(currentOverlayMode, displayStage, hydraulicPhase);
+      await setExportFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, item.entry);
       mapInstance.invalidateSize(false);
       await waitForExportMapReady(isFirstFrame ? 70 : 10);
       await waitForStableRender();
@@ -22211,6 +22370,55 @@ function formatSelectedObservedDate(dateStr) {
       nextLayer.addTo(map);
     }
 
+    async function setPhysicsFloodLayer(asset, token) {
+      toast("");
+      ensureMap();
+      const overlayUrl = getPhysicsDisplayRecord(asset)?.url;
+      const bounds = getActivePhysicsManifest()?.boundsWgs84;
+      if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
+        throw new Error("The selected physics frame is incomplete.");
+      }
+      await preloadImage(overlayUrl);
+      if (token !== lastRenderToken) return;
+      floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
+
+      if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
+        map.removeLayer(pendingFloodLayer);
+        pendingFloodLayer = null;
+      }
+      const previousLayer = currentFloodLayer;
+      const nextLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {
+        opacity: 0,
+        interactive: false,
+        crossOrigin: true,
+        zIndex: 500,
+        pane: "floodPane"
+      });
+      pendingFloodLayer = nextLayer;
+      nextLayer.once("load", () => {
+        if (token !== lastRenderToken) {
+          if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
+          return;
+        }
+        nextLayer.setOpacity(overlayOpacity);
+        currentFloodLayer = nextLayer;
+        pendingFloodLayer = null;
+        renderedFloodPixelCache = null;
+        if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
+        if (!mapHasFit) {
+          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
+          mapHasFit = true;
+        }
+      });
+      nextLayer.on("error", () => {
+        if (token !== lastRenderToken) return;
+        if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
+        pendingFloodLayer = null;
+        toast("The current physics frame could not be drawn.");
+      });
+      nextLayer.addTo(map);
+    }
+
     async function renderHour(index) {
       if (!currentSeriesHours.length) return;
 
@@ -22240,11 +22448,21 @@ function formatSelectedObservedDate(dateStr) {
         return;
       }
 
-      const note = buildNotes(rawStage, displayStage);
+      const physicsAsset = getPhysicsAssetForEntry(entry);
+      const note = physicsAsset
+        ? (entry?.isDailyMaximum
+          ? (currentOverlayMode === "dynamic"
+            ? "Modeled flood-impact bands reached during this local day."
+            : "Cell-by-cell maximum depth from every 15-minute physics frame in this local day.")
+          : (currentOverlayMode === "dynamic"
+            ? "Flood-impact bands reached by this exact 15-minute shallow-water simulation."
+            : "Exact 15-minute nonlinear shallow-water simulation for this PETSS boundary level."))
+        : buildNotes(rawStage, displayStage);
       toast(note);
 
       const token = ++lastRenderToken;
-      await setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token);
+      if (physicsAsset) await setPhysicsFloodLayer(physicsAsset, token);
+      else await setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token);
       preloadAroundHour(index);
     }
 
@@ -22269,9 +22487,21 @@ function formatSelectedObservedDate(dateStr) {
       if (!forecastData || options.forceRefresh) {
         forecastData = await fetchJson(withFreshJsonUrl(FORECAST_URL));
       }
+      if (!Object.keys(physicsForecastManifests).length || options.forceRefresh) {
+        await loadPhysicsForecast(Boolean(options.forceRefresh)).catch(error => {
+          console.warn("Physics forecast is not published yet; using the phase-aware atlas.", error);
+          physicsForecastManifests = {};
+        });
+      }
       clearExportAvailabilityCache();
-      currentRawSeriesHours = getActiveForecastHours();
-      currentSeriesHours = buildForecastDisplaySeries(currentRawSeriesHours);
+      const physicsSeries = getPhysicsForecastDisplaySeries();
+      if (physicsSeries) {
+        currentRawSeriesHours = getActivePhysicsManifest().frames.map(physicsFrameToForecastEntry);
+        currentSeriesHours = physicsSeries;
+      } else {
+        currentRawSeriesHours = getActiveForecastHours();
+        currentSeriesHours = buildForecastDisplaySeries(currentRawSeriesHours);
+      }
       currentViewType = "forecast";
       currentTopTideIndex = null;
       currentSelectedLabel = getForecastScenarioLabel();
@@ -22993,6 +23223,8 @@ function populateCalendarSelectors() {
       clearFloodLayer();
       toast("");
       imageExistsCache = new Map();
+      physicsForecastManifests = {};
+      physicsQueryImageCache = new Map();
       forecastData = null;
       returnIntervalData = null;
       observed15MinuteData = null;
@@ -23859,6 +24091,79 @@ function startPlayback() {
       };
     }
 
+    async function sha256Hex(buffer) {
+      if (!window.crypto?.subtle) return "";
+      const digest = await window.crypto.subtle.digest("SHA-256", buffer);
+      return Array.from(new Uint8Array(digest))
+        .map(value => value.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    function preloadPhysicsQueryImage(record) {
+      const url = record?.url;
+      if (!url) return Promise.resolve(null);
+      if (physicsQueryImageCache.has(url)) return physicsQueryImageCache.get(url);
+      const promise = (async () => {
+        const response = await fetch(url, {
+          mode: "cors",
+          credentials: "omit",
+          cache: "force-cache",
+          headers: { Accept: "image/png" }
+        });
+        if (!response.ok) throw new Error(`Physics query PNG returned HTTP ${response.status}.`);
+        const buffer = await response.arrayBuffer();
+        if (record.sha256 && window.crypto?.subtle) {
+          const actual = await sha256Hex(buffer);
+          if (actual !== String(record.sha256).toLowerCase()) {
+            throw new Error("Physics query PNG failed its SHA-256 integrity check.");
+          }
+        }
+        const objectUrl = URL.createObjectURL(new Blob([buffer], { type: "image/png" }));
+        const image = new Image();
+        image.decoding = "async";
+        try {
+          await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = () => reject(new Error("Physics query PNG could not be decoded."));
+            image.src = objectUrl;
+          });
+          return image;
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+      })().catch(error => {
+        physicsQueryImageCache.delete(url);
+        throw error;
+      });
+      physicsQueryImageCache.set(url, promise);
+      return promise;
+    }
+
+    async function samplePhysicsDepth(asset, lat, lon) {
+      const bounds = getActivePhysicsManifest()?.boundsWgs84;
+      if (!asset?.query?.url || !Array.isArray(bounds) || bounds.length !== 2) return null;
+      const south = Number(bounds[0]?.[0]);
+      const west = Number(bounds[0]?.[1]);
+      const north = Number(bounds[1]?.[0]);
+      const east = Number(bounds[1]?.[1]);
+      if (
+        ![south, west, north, east].every(Number.isFinite) ||
+        lat < south || lat > north || lon < west || lon > east
+      ) return null;
+      const image = await preloadPhysicsQueryImage(asset.query);
+      const x = Math.floor(((lon - west) / (east - west)) * image.naturalWidth);
+      const y = Math.floor(((north - lat) / (north - south)) * image.naturalHeight);
+      if (x < 0 || y < 0 || x >= image.naturalWidth || y >= image.naturalHeight) return null;
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(image, x, y, 1, 1, 0, 0, 1, 1);
+      const pixel = context.getImageData(0, 0, 1, 1).data;
+      const wet = pixel[2] === 1;
+      return { wet, depthM: wet ? (pixel[0] * 256 + pixel[1]) / 1000 : null };
+    }
+
     async function sampleDepthModel(lat, lon) {
       if (DEPTH_QUERY_PNG_URL) {
         try {
@@ -24011,6 +24316,22 @@ function startPlayback() {
             return;
           }
           toast("No parcel contains that building tap. Tap inside a building or choose Water depth.");
+          return;
+        }
+        const entry = currentSeriesHours[currentHourIndex];
+        const physicsAsset = getPhysicsAssetForEntry(entry);
+        if (physicsAsset) {
+          const result = await samplePhysicsDepth(physicsAsset, event.latlng.lat, event.latlng.lng);
+          const depthFt = result?.depthM == null ? null : result.depthM * 3.280839895;
+          const html = '<div class="depth-query-popup" role="status" aria-live="polite">' +
+            '<h3>Physics Water Depth</h3><div class="depth-query-value">' +
+            (depthFt == null ? '0.00 ft' : depthFt.toFixed(2) + ' ft') +
+            '</div><div class="house-alert-note">' +
+            (result?.wet ? 'Hydraulically connected modeled flooding' : 'Dry in this exact time step') +
+            ' • cycle ' + escapeTownAddressHtml(getActivePhysicsManifest()?.cycleId || '—') +
+            '</div></div>';
+          persistentDepthQueryContext = null;
+          openPersistentFloodPopup(event.latlng, html, 330);
           return;
         }
         const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
@@ -33365,6 +33686,7 @@ TOWN_CONFIG = {
     "depthQueryPngPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260807-hydraulic-v19",
     "depthZoneQueryPngPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicZone5ft.png?v=20260807-hydraulic-v19",
     "depthQueryCogPath": null,
+    "physicsForecastPointerPath": "https://floodmapperv1.b-cdn.net/ForecastPhysics/North%20Wildwood/current.json.png",
     "hydraulicStatesPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260807-hydraulic-v19",
     "depthRoots": [
       "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/"

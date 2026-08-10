@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "modelId": "north-wildwood-anuga-nlswe-v1",
+  "town": "North Wildwood",
+  "modelCrs": "EPSG:6347",
+  "horizontalUnits": "metres",
+  "verticalDatum": "NAVD88",
+  "verticalUnits": "metres",
+  "domain": {
+    "xmin": 515300.0,
+    "ymin": 4315100.0,
+    "xmax": 519400.0,
+    "ymax": 4320100.0,
+    "terrainGridM": 5.0,
+    "meshCellM": 20.0,
+    "meshType": "rectangularCross",
+    "openBoundaryBedMaximumM": -1.0,
+    "minimumAuthoritativeTerrainCoveragePercent": 99.0
+  },
+  "solver": {
+    "engine": "ANUGA",
+    "equations": "nonlinear shallow-water equations with advection",
+    "flowAlgorithm": "DE0",
+    "openMpThreads": 8,
+    "boundaryCondition": "Flather characteristic open boundary with time-varying PETSS external stage and zero external velocity",
+    "minimumAllowedHeightM": 0.00001
+  },
+  "terrain": {
+    "localDem": "model/data/local/NorthWildwoodDEM_Bulkhead21Cell_1ft_NAVD88.tif",
+    "localBulkheadMask": "model/data/local/NorthWildwoodBulkheads.tif",
+    "localDemCrs": "EPSG:6527",
+    "localDemHorizontalUnits": "US survey feet",
+    "localDemVerticalUnits": "feet",
+    "topobathyStac": "model/data/reference/noaa_item_collection_m9483.json",
+    "topobathyDirectory": "model/data/noaa_topobathy",
+    "topobathyDataset": "2020 USACE USGS Topobathy Lidar DEM: Cape May and Atlantic City, NJ",
+    "seamlessFallbackUrl": "https://noaa-nos-coastal-lidar-pds.s3.amazonaws.com/dem/SLR_viewer_DEM_6230/NJ/NJ_Southern_GCS_3m_NAVDm_FY21Update.tif",
+    "seamlessLandFallback": "model/data/noaa_topobathy/NJ_Southern_SLR_NorthWildwood_5m_NAVD88.tif",
+    "seamlessOceanPlaceholderBelowM": -10.0,
+    "fallbackOceanBedM": -8.0,
+    "bulkheadMask": "model/cache/north_wildwood_bulkhead_mask_5m.tif",
+    "bulkheadCrestNavd88M": 2.286,
+    "computationalDem": "model/cache/north_wildwood_computational_dem_navd88_m.tif",
+    "displayDem": "model/cache/north_wildwood_display_dem_navd88_m.tif"
+  },
+  "friction": {
+    "openWaterManningN": 0.025,
+    "intertidalManningN": 0.035,
+    "developedManningN": 0.055,
+    "highGroundManningN": 0.045
+  },
+  "petss": {
+    "stationId": "8535581",
+    "stationName": "Stone Harbor, NJ",
+    "sourceDatum": "MLLW",
+    "navd88OffsetFromMllwFt": -2.75,
+    "cyclesUtc": [0, 6, 12, 18],
+    "daysBackToTry": 4,
+    "forecastHours": 84,
+    "outputIntervalSeconds": 900,
+    "scenarios": ["mean", "lowEnd", "highEnd"]
+  },
+  "render": {
+    "minimumWetDepthM": 0.03,
+    "maximumColorDepthFt": 6.0,
+    "dailyMaximumTimeZone": "America/New_York",
+    "visibleDirectoryName": "depth",
+    "impactDirectoryName": "impact",
+    "queryDirectoryName": "query",
+    "dailyMaximumDirectoryName": "daily-max",
+    "impactThresholdsNavd88Ft": {
+      "moderate": 4.25,
+      "major": 5.25
+    }
+  },
+  "bunny": {
+    "storageZone": "floodmapperv1",
+    "cdnBaseUrl": "https://floodmapperv1.b-cdn.net",
+    "remoteRoot": "ForecastPhysics/North Wildwood",
+    "currentPointerName": "current.json.png",
+    "retainCompletedCycles": 2
+  }
+}

@@ -1,0 +1,12 @@
+name: north-wildwood-anuga
+channels:
+  - conda-forge
+dependencies:
+  - python=3.14
+  - anuga=3.3.10
+  - gdal=3.12
+  - numpy=2.3
+  - scipy=1.16
+  - rasterio=1.4
+  - pyproj=3.7
+  - pillow=11

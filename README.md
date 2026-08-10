@@ -1,5 +1,21 @@
 # North Wildwood Floodmapper 2.0
 
+## Event-driven physics forecast
+
+Current PETSS forecasts now have a full nonlinear shallow-water path under
+`model/`. Every cycle routes the actual 84-hour boundary history through
+205,000 ANUGA finite-volume triangles with momentum, wetting/drying, terrain,
+Manning friction, qualified open-ocean boundaries, and an explicitly preserved
+7.5 ft bulkhead crest. The dashboard consumes exact 15-minute depth, impact,
+daily-maximum, and click-query products from an atomically published scenario
+manifest. If no validated physics cycle is available, it safely falls back to
+the bundled v19 phase-aware atlas.
+
+This changes the forecast question from “what terrain is connected at this
+stage?” to “where has water physically reached by this time in this event?”
+The implementation, provenance, runbook, research basis, and limitations are
+documented in `model/README.md`.
+
 This repository is the complete North Wildwood counterpart to Stone Harbor
 Floodmapper 2.0. It uses the Great Channel at Stone Harbor gauge as the live and
 historical water-level forcing source, then applies North Wildwood's datum
