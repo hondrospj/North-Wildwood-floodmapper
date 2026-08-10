@@ -68,6 +68,7 @@ BROAD_CRESTED_WEIR_CFS = 3.10
 MINOR_NAVD88_FT = 3.25
 MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
+NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT = 2.0
 SHORT_CREST_MINUTES = 15
 RISE_RATE_FAMILIES_FT_PER_HOUR = {
     "rising_slow": 0.55,
@@ -732,6 +733,60 @@ def write_state_asset(
     print(f"Hydraulic states: {len(raw):,} binary bytes -> {output_path.stat().st_size:,} gzip bytes")
 
 
+def build_normal_tide_display_mask(
+    elevation10: np.ndarray,
+    zone: np.ndarray,
+    families: dict[str, np.ndarray],
+) -> np.ndarray:
+    """Return the rendered ordinary-tide footprint, not land inundation."""
+    baseline_index = int(
+        round(
+            (NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT - MODEL_MIN_STAGE_FT)
+            / MODEL_STAGE_STEP_FT
+        )
+    )
+    baseline_index = max(0, min(len(STAGES_FT) - 1, baseline_index))
+    zone_lookup = np.where(zone >= 0, zone + 1, 0)
+    ground = elevation10.astype(np.float32) / 10.0
+    ordinary_tide = np.zeros(zone.shape, dtype=bool)
+    # Use the union of all rising histories plus the short crest through the
+    # baseline stage. This avoids classifying normal high-tide water as land
+    # flooding merely because that tide rose more slowly, delivered slightly
+    # more volume, or redistributed water between adjacent control volumes.
+    # Apply the same display interpolation used by render_assets so the
+    # baseline cannot leave isolated raster/smoothing remnants.
+    for family in (*RISE_RATE_FAMILIES_FT_PER_HOUR, "crest"):
+        for stage_index in range(baseline_index + 1):
+            surface_centift = families[family][stage_index][zone_lookup]
+            hydraulic_wet = (
+                (elevation10 != np.iinfo(np.int16).min)
+                & (surface_centift != DRY_SENTINEL)
+            )
+            local_surface = surface_centift.astype(np.float32) / 100.0
+            wet_weight = gaussian_filter(
+                hydraulic_wet.astype(np.float32),
+                sigma=1.6,
+                mode="nearest",
+            )
+            filtered_surface = gaussian_filter(
+                np.where(hydraulic_wet, local_surface, 0.0),
+                sigma=1.6,
+                mode="nearest",
+            )
+            local_surface = np.where(
+                hydraulic_wet,
+                np.divide(
+                    filtered_surface,
+                    np.maximum(wet_weight, 1e-6),
+                    out=np.full_like(filtered_surface, -9999.0),
+                    where=wet_weight > 1e-6,
+                ),
+                -9999.0,
+            )
+            ordinary_tide |= hydraulic_wet & (local_surface - ground > 0.005)
+    return ordinary_tide
+
+
 def render_assets(
     graph_dir: Path,
     dem_path: Path,
@@ -745,6 +800,9 @@ def render_assets(
     zone = np.memmap(
         graph_dir / "zone_id.raw", dtype="<i4", mode="r", shape=(HEIGHT, WIDTH)
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    source_pixel = np.memmap(
+        graph_dir / "source_flag.raw", dtype="u1", mode="r", shape=(HEIGHT, WIDTH)
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE] != 0
     dem_ds = gdal.Open(str(dem_path))
     projection = dem_ds.GetProjection()
     origin = dem_ds.GetGeoTransform()
@@ -764,6 +822,7 @@ def render_assets(
     valid = elevation10 != np.iinfo(np.int16).min
     ground = elevation10.astype(np.float32) / 10.0
     zone_lookup = np.where(zone >= 0, zone + 1, 0)
+    ordinary_tide = build_normal_tide_display_mask(elevation10, zone, families)
     counts = {}
 
     # Stage-hazard colors use the first rising stage at which each routed
@@ -794,22 +853,29 @@ def render_assets(
         for stage_index, stage in enumerate(STAGES_FT):
             encoded_surface = families[family][stage_index]
             surface_centift = encoded_surface[zone_lookup]
-            wet_zone = valid & (surface_centift != DRY_SENTINEL)
+            # Fixed-head source polygons are numerical boundary conditions,
+            # not predicted land inundation. They can be intentionally broad
+            # so the one-foot graph has robust tidal contact, and painting
+            # them produced conspicuous circular/rectangular "source cells"
+            # at low stages. Keep them active in the hydraulic solve, but
+            # render only finite-storage terrain that received water through
+            # a shared cross-section.
+            hydraulic_wet_zone = valid & (surface_centift != DRY_SENTINEL)
             local_surface = surface_centift.astype(np.float32) / 100.0
             # Smooth piecewise-constant control-volume surfaces for display,
             # but never expand the immutable routed wet footprint.
             wet_weight = gaussian_filter(
-                wet_zone.astype(np.float32),
+                hydraulic_wet_zone.astype(np.float32),
                 sigma=1.6,
                 mode="nearest",
             )
             filtered_surface = gaussian_filter(
-                np.where(wet_zone, local_surface, 0.0),
+                np.where(hydraulic_wet_zone, local_surface, 0.0),
                 sigma=1.6,
                 mode="nearest",
             )
             local_surface = np.where(
-                wet_zone,
+                hydraulic_wet_zone,
                 np.divide(
                     filtered_surface,
                     np.maximum(wet_weight, 1e-6),
@@ -819,7 +885,12 @@ def render_assets(
                 -9999.0,
             )
             depth = local_surface - ground
-            flooded = valid & wet_zone & (depth > 0.005)
+            flooded = (
+                hydraulic_wet_zone
+                & ~source_pixel
+                & ~ordinary_tide
+                & (depth > 0.005)
+            )
             flooded_pixels = int(np.count_nonzero(flooded))
             maximum_flooded_pixels = max(maximum_flooded_pixels, flooded_pixels)
             minimum_flooded_pixels = (
@@ -864,7 +935,10 @@ def render_assets(
             "pngBytes": family_bytes,
             "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
             "historyInvariant": False,
-            "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
+            "wetFootprint": (
+                "immutable finite-volume routed terrain nodes; fixed-head "
+                "forcing pixels are excluded and smoothing cannot add wet pixels"
+            ),
             "minimumFloodedPixels": minimum_flooded_pixels or 0,
             "maximumFloodedPixels": maximum_flooded_pixels,
         }
@@ -893,6 +967,17 @@ def render_assets(
         "renderCellSizeFt": RENDER_STRIDE,
         "projection": projection,
         "geotransform": list(render_transform),
+        "fixedHeadBoundaryDisplay": (
+            "excluded; source polygons force tide stage but are not land-flood pixels"
+        ),
+        "normalTideDisplayBaselineNavd88Ft": (
+            NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT
+        ),
+        "normalTideDisplayRule": (
+            "union of rising-slow, rising-typical, rising-fast, and crest wet "
+            "terrain through the baseline remains hydraulic storage but is not "
+            "painted as land inundation"
+        ),
         "families": counts,
     }
 
@@ -1106,15 +1191,36 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     return metadata
 
 
-def build_zone_query_png(graph_dir: Path, destination: Path) -> dict:
-    """Pack the five-foot finite-volume zone ID into a browser-native RGB PNG."""
+def build_zone_query_png(
+    graph_dir: Path,
+    destination: Path,
+    families: dict[str, np.ndarray],
+) -> dict:
+    """Pack displayable five-foot terrain zone IDs into a browser-native PNG."""
     zone = np.memmap(
         graph_dir / "zone_id.raw",
         dtype="<i4",
         mode="r",
         shape=(HEIGHT, WIDTH),
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    encoded = np.where(zone >= 0, zone.astype(np.uint32) + 1, 0)
+    source_pixel = np.memmap(
+        graph_dir / "source_flag.raw",
+        dtype="u1",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE] != 0
+    elevation10 = np.memmap(
+        graph_dir / "elevation10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    ordinary_tide = build_normal_tide_display_mask(elevation10, zone, families)
+    encoded = np.where(
+        (zone >= 0) & ~source_pixel & ~ordinary_tide,
+        zone.astype(np.uint32) + 1,
+        0,
+    )
     if int(encoded.max()) >= 1 << 24:
         raise RuntimeError("Hydraulic zone IDs do not fit in a 24-bit PNG")
     packed = np.empty((*zone.shape, 3), dtype=np.uint8)
@@ -1133,7 +1239,15 @@ def build_zone_query_png(graph_dir: Path, destination: Path) -> dict:
         "width": int(packed.shape[1]),
         "height": int(packed.shape[0]),
         "renderCellSizeFt": RENDER_STRIDE,
-        "channels": "24-bit big-endian hydraulic zone ID plus one; zero is nodata",
+        "channels": (
+            "24-bit big-endian hydraulic terrain zone ID plus one; zero is "
+            "nodata or a hidden fixed-head boundary pixel"
+        ),
+        "fixedHeadBoundaryQuery": "excluded from public water-depth queries",
+        "normalTideDisplayBaselineNavd88Ft": (
+            NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT
+        ),
+        "normalTideQuery": "ordinary tidal water excluded from land-depth queries",
         "bytes": destination.stat().st_size,
     }
     print(f"Packed zone query PNG: {destination.stat().st_size:,} bytes")
@@ -1164,12 +1278,31 @@ def main() -> None:
         / "North Wildwood"
         / "NorthWildwoodHydraulicZone5ft.png"
     )
+    state_path = (
+        output_root
+        / "COGs"
+        / "North Wildwood"
+        / "NorthWildwoodHydraulicStates.json.png"
+    )
     if args.packed_query_only:
+        if not state_path.is_file():
+            raise FileNotFoundError(
+                "Packed zone-query generation requires the existing hydraulic "
+                f"state package at {state_path}"
+            )
+        query_families, _ = load_complete_state(
+            state_path,
+            int(graph_manifest["zoneCount"]) + 1,
+        )
         packed_query_manifest = build_packed_query_png(
             graph_dir,
             packed_query_path,
         )
-        zone_query_manifest = build_zone_query_png(graph_dir, zone_query_path)
+        zone_query_manifest = build_zone_query_png(
+            graph_dir,
+            zone_query_path,
+            query_families,
+        )
         manifest = {}
         if asset_manifest_path.is_file():
             manifest = json.loads(
@@ -1193,12 +1326,6 @@ def main() -> None:
         )
         print("North Wildwood packed depth-query asset complete")
         return
-    state_path = (
-        output_root
-        / "COGs"
-        / "North Wildwood"
-        / "NorthWildwoodHydraulicStates.json.png"
-    )
     reusable_complete_state = state_path if args.reuse_complete_state else None
     if reusable_complete_state is not None and not reusable_complete_state.is_file():
         raise FileNotFoundError(
@@ -1241,10 +1368,14 @@ def main() -> None:
         graph_dir,
         packed_query_path,
     )
-    zone_query_manifest = build_zone_query_png(graph_dir, zone_query_path)
+    zone_query_manifest = build_zone_query_png(
+        graph_dir,
+        zone_query_path,
+        families,
+    )
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v8",
+        "schema": "north-wildwood-hydraulic-assets-v9",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
         "historyInvariant": False,

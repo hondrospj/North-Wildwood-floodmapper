@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify v20 history-family PNG masks and transparent dry terrain."""
+"""Verify v20 history-family PNG masks and hidden forcing boundaries."""
 
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ FAMILIES = (
     "falling_moderate",
     "falling_extreme",
 )
+NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT = 2.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,13 +45,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def pool_source(path: Path) -> np.ndarray:
+def sample_source(path: Path) -> np.ndarray:
     raw = np.memmap(path, dtype=np.uint8, mode="r", shape=(HEIGHT, WIDTH))
-    pooled = np.zeros((RENDER_HEIGHT, RENDER_WIDTH), dtype=bool)
-    for y_offset in range(RENDER_STRIDE):
-        for x_offset in range(RENDER_STRIDE):
-            pooled |= raw[y_offset::RENDER_STRIDE, x_offset::RENDER_STRIDE] != 0
-    return pooled
+    return raw[
+        RENDER_STRIDE // 2 :: RENDER_STRIDE,
+        RENDER_STRIDE // 2 :: RENDER_STRIDE,
+    ] != 0
 
 
 def largest_connected(mask: np.ndarray) -> int:
@@ -64,7 +64,7 @@ def main() -> None:
     args = parse_args()
     graph = args.graph.resolve()
     assets = args.assets.resolve()
-    source = pool_source(graph / "source_flag.raw")
+    source = sample_source(graph / "source_flag.raw")
     elevation10 = np.memmap(
         graph / "elevation10.raw",
         dtype="<i2",
@@ -111,9 +111,19 @@ def main() -> None:
                 raise AssertionError(
                     f"Depth/stage water masks differ for {family} {code}"
                 )
-            if family.startswith("rising_") and not np.any(depth_blue & source):
+            if np.any(depth_blue & source):
                 raise AssertionError(
-                    f"Rising water has no visible source contact in {family} {code}"
+                    f"Fixed-head forcing pixels leaked into {family} {code}"
+                )
+            stage_navd88_ft = int(code.removeprefix("p")) / 100.0
+            if (
+                family in ("rising_slow", "rising_typical", "rising_fast", "crest")
+                and stage_navd88_ft <= NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT
+                and np.any(depth_blue)
+            ):
+                raise AssertionError(
+                    f"Ordinary tidal water leaked into land-inundation frame "
+                    f"{family} {code}"
                 )
             if previous_blue is not None:
                 for direction, changed in (
@@ -158,7 +168,17 @@ def main() -> None:
             {
                 "status": "passed",
                 "connectivity": "four-neighbour/shared-side only",
-                "sourceRequirement": "rising frames retain visible source contact",
+                "sourceRequirement": (
+                    "fixed-head forcing pixels remain hydraulically active but are "
+                    "absent from rendered flood footprints"
+                ),
+                "normalTideDisplayBaselineNavd88Ft": (
+                    NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT
+                ),
+                "normalTideRequirement": (
+                    "rising and crest land-inundation frames through the ordinary "
+                    "2.0-ft NAVD88 baseline contain no painted water"
+                ),
                 "equilibriumPotentialPixels": 0,
                 "transparentDryPixelFrameSum": transparent_dry_pixel_frame_sum,
                 "maximumComponentsInAnyFrame": maximum_components,

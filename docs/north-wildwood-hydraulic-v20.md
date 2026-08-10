@@ -110,6 +110,16 @@ hydrograph memory far better than a stage-only or generic-phase lookup.
 - Forecast and observed updates perform only scalar hydrograph classification
   and one image pull. Per-cycle physics pointers are disabled.
 
+Fixed-head source polygons are computation-only tidal boundary conditions.
+They remain active in the volume and cross-section solve, but are omitted from
+the public PNGs and point-query zone grid. The union of finite-storage terrain
+wet under the slow, typical, fast, or short-crest histories through 2.0 ft
+NAVD88 is also classified as the ordinary-tide/open-water baseline. It remains
+active in hydraulic storage and conveyance, but is not painted or returned as land
+inundation. Only routed expansion beyond that immutable baseline is displayed.
+This prevents a broad hand-drawn source boundary and its normal tidal fringe
+from appearing as an instantaneous circular or rectangular low-stage flood.
+
 The state package reports a maximum internal conservation residual of
 1.37e-10 ft³. The render validator checked all 1,414 PNGs; depth and stage masks
 match, no potential code exists, and the largest connected interior change
