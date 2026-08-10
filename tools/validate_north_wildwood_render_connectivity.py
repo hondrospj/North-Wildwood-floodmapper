@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify v21 history-family PNG masks and visible 2.0-ft source blocks."""
+"""Verify history-family PNG masks and the connected 2.0-ft source footprint."""
 
 from __future__ import annotations
 
@@ -49,6 +49,7 @@ FAMILIES = (
     "falling_extreme",
 )
 SOURCE_BLOCK_ACTIVATION_NAVD88_FT = 2.0
+MIN_DISPLAY_DEPTH_FT = 0.05
 
 
 def parse_args() -> argparse.Namespace:
@@ -85,6 +86,18 @@ def main() -> None:
         shape=(HEIGHT, WIDTH),
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
     valid = elevation10 != np.iinfo(np.int16).min
+    # The complete <=2.0-ft component is fixed-head source. Cells whose ground
+    # is exactly 2.0 ft have zero water depth at activation and therefore remain
+    # transparent until the tide rises another displayable increment.
+    source_visible_at_activation = (
+        source
+        & valid
+        & (
+            SOURCE_BLOCK_ACTIVATION_NAVD88_FT
+            - elevation10.astype(np.float32) / 10.0
+            >= MIN_DISPLAY_DEPTH_FT
+        )
+    )
 
     records = []
     family_hashes: dict[str, list[bytes]] = {}
@@ -139,10 +152,11 @@ def main() -> None:
             if (
                 family in ("rising_slow", "rising_typical", "rising_fast", "crest")
                 and stage_navd88_ft == SOURCE_BLOCK_ACTIVATION_NAVD88_FT
-                and not np.array_equal(depth_blue, source & valid)
+                and not np.array_equal(depth_blue, source_visible_at_activation)
             ):
                 raise AssertionError(
-                    f"The 2.0-ft frame is not exactly the supplied source blocks "
+                    f"The 2.0-ft frame is not exactly the visible portion of the "
+                    f"complete connected source footprint "
                     f"for {family} {code}"
                 )
             if previous_blue is not None:
@@ -201,8 +215,9 @@ def main() -> None:
                 "status": "passed",
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
-                    "supplied source pixels first appear at exactly 2.0 ft NAVD88; "
-                    "the 2.0-ft rising and crest frames contain source blocks only"
+                    "the complete connected <=2.0-ft NAVD88 footprint is fixed-head "
+                    "source; its positive-depth portion first appears at 2.0 ft and "
+                    "the 2.0-ft rising and crest frames contain no exterior terrain"
                 ),
                 "sourceBlockActivationNavd88Ft": (
                     SOURCE_BLOCK_ACTIVATION_NAVD88_FT

@@ -20,7 +20,6 @@ import simulate_north_wildwood_hydraulics as model
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--graph", type=Path, required=True)
-    parser.add_argument("--legacy-state", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
 
@@ -70,10 +69,10 @@ def route_low_stage(
         )
         * model.MODEL_STEP_SECONDS,
     )
-    requested = {0, 19, 20, 21}
+    requested = {0, 19, 20, 21, 22}
     records: list[dict] = []
     maximum_residual = 0.0
-    for index, stage_raw in enumerate(model.STAGES_FT[:22]):
+    for index, stage_raw in enumerate(model.STAGES_FT[:23]):
         stage = float(stage_raw)
         storage, surface, diagnostics = solver.advance(
             storage,
@@ -90,17 +89,17 @@ def route_low_stage(
     return records, maximum_residual, storage, surface
 
 
-def first_positive_head_metrics(
+def first_exterior_routing_metrics(
     solver: model.HydraulicSolver,
     zones: dict[str, np.ndarray],
 ) -> dict:
-    """Measure the first 0.1-ft source head on the rising and crest limbs."""
+    """Measure the first exterior-routing increment and a short crest hold."""
     records, residual, storage, surface = route_low_stage(solver, zones)
-    rising = next(record for record in records if record["stageNavd88Ft"] == 2.1)
+    rising = next(record for record in records if record["stageNavd88Ft"] == 2.2)
     crest_storage, crest_surface, crest_diagnostic = solver.advance(
         storage.copy(),
         surface.copy(),
-        2.1,
+        2.2,
         duration_seconds=model.SHORT_CREST_MINUTES * 60,
     )
     return {
@@ -111,7 +110,7 @@ def first_positive_head_metrics(
             zones,
             crest_storage,
             crest_surface,
-            2.1,
+            2.2,
         ),
         "risingMaximumInternalConservationResidualFt3": residual,
         "crestMaximumInternalConservationResidualFt3": crest_diagnostic[
@@ -150,35 +149,26 @@ def main() -> None:
     zones = model.load_zones(args.graph / "zones.csv")
     edges = model.load_edges(args.graph / "edges.csv")
     storage_solver = model.HydraulicSolver(zones, edges)
-    legacy_families, _ = model.load_complete_state(
-        args.legacy_state,
-        storage_solver.zone_count + 1,
-    )
-
-    equilibrium_storage, equilibrium_surface = storage_solver.equilibrium(2.0)
-    methods: list[dict] = [
+    methods: list[dict] = []
+    equilibrium_states = []
+    for stage in (2.0, 2.1, 2.2):
+        equilibrium_storage, equilibrium_surface = storage_solver.equilibrium(stage)
+        equilibrium_states.append(
+            state_metrics(
+                storage_solver,
+                zones,
+                equilibrium_storage,
+                equilibrium_surface,
+                stage,
+            )
+        )
+    methods.append(
         {
             "method": "connected_equilibrium",
             "description": "current-stage connectivity with instantaneous equalization",
-            "states": [
-                state_metrics(
-                    storage_solver,
-                    zones,
-                    equilibrium_storage,
-                    equilibrium_surface,
-                    2.0,
-                )
-            ],
-        },
-        {
-            "method": "v20_all_faces_weir",
-            "description": (
-                "published pre-mask state; every terrain face uses a submerged "
-                "broad-crested-weir relation and the source is active below 2 ft"
-            ),
-            "states": [decode_legacy_stage(storage_solver, zones, legacy_families, 20)],
-        },
-    ]
+            "states": equilibrium_states,
+        }
+    )
 
     candidates = (
         (
@@ -259,7 +249,7 @@ def main() -> None:
                 "label": label,
                 "manningN": manning_n,
                 "minimumMobileDepthFt": wetting_depth,
-                **first_positive_head_metrics(solver, zones),
+                **first_exterior_routing_metrics(solver, zones),
             }
         )
 
@@ -270,22 +260,27 @@ def main() -> None:
     selected_21 = next(
         state for state in selected["states"] if state["stageNavd88Ft"] == 2.1
     )
+    selected_22 = next(
+        state for state in selected["states"] if state["stageNavd88Ft"] == 2.2
+    )
     report = {
-        "schema": "north-wildwood-routing-method-benchmark-v2",
+        "schema": "north-wildwood-routing-method-benchmark-v3",
         "graphZoneCount": storage_solver.zone_count,
         "graphEdgeGroupCount": int(edges["a"].size),
         "test": (
-            "continuous typical rise on the real North Wildwood graph; exact "
-            "source-block transition and first 0.1 ft of positive head"
+            "continuous typical rise on the real North Wildwood graph; complete "
+            "connected 2.0-ft source transition and first exterior-routing increment"
         ),
         "methods": methods,
         "firstPositiveHeadSensitivity": sensitivities,
         "determination": {
             "selected": selected["method"],
             "reasons": [
-                "the supplied blocks are absent below their stated 2.0-ft condition",
-                "at 2.0 ft the supplied blocks are visible while exterior routed volume is zero",
-                "at 2.1 ft exterior water is finite and derived from eight minutes of face flux",
+                "the seed polygons only select legitimate tidal components",
+                "the complete connected <=2.0-ft footprint is fixed-head source",
+                "at 2.0 ft positive-depth source storage is visible while exterior routed volume is zero",
+                "at 2.1 ft the zero-depth source edge finishes filling without visible exterior terrain",
+                "at 2.2 ft exterior water is finite and derived from perimeter face flux",
                 "ordinary terrain flow includes distance and Manning friction",
                 "true free overflow remains bounded by critical weir capacity",
                 "storage and internal edge transfers conserve volume",
@@ -296,6 +291,9 @@ def main() -> None:
                     "terrainStoredVolumeAcreFt"
                 ],
                 "finiteTerrainVolumeAt2_1FtAcreFt": selected_21[
+                    "terrainStoredVolumeAcreFt"
+                ],
+                "finiteTerrainVolumeAt2_2FtAcreFt": selected_22[
                     "terrainStoredVolumeAcreFt"
                 ],
                 "maximumInternalConservationResidualFt3": selected[

@@ -1,5 +1,9 @@
 # North Wildwood hydraulic atlas v21
 
+> Superseded by [north-wildwood-hydraulic-v22.md](north-wildwood-hydraulic-v22.md),
+> which replaces the six seed-shaped source patches with the complete connected
+> 2.0-ft NAVD88 tidal footprint.
+
 ## Decision
 
 The live mapper keeps its existing operational contract: the browser derives a

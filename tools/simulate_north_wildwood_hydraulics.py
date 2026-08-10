@@ -3,8 +3,8 @@
 
 The one-foot conditioned DEM is aggregated into 25-foot storage cells while
 retaining its elevation hypsometry and all shared one-foot flow widths. Only
-cells inside the supplied ocean/source mask are fixed-head boundary cells;
-connected interior low terrain is finite storage. Source cells are isolated
+the complete connected <=2.0-ft tidal footprint selected by the supplied seed
+polygons is fixed-head boundary; higher terrain is finite storage. Source cells are isolated
 from terrain control volumes, so a one-foot opening exchanges water through
 its actual shared face instead of pinning a whole 25-foot tile to the tide.
 Water is routed in 60-second substeps with a mass-conserving hybrid
@@ -237,12 +237,9 @@ class HydraulicSolver:
         self.manning_n = float(manning_n)
         self.minimum_mobile_depth_ft = float(minimum_mobile_depth_ft)
         source_interface = self.source[self.edges["a"]] ^ self.source[self.edges["b"]]
-        # The supplied blocks define the 2.0-ft NAVD88 source condition. Their
-        # underlying bathymetric pixels are mostly -3.5 ft and cannot be used
-        # as an exterior overland sill: doing so starts hours of artificial
-        # radial leakage before the source block's stated activation stage.
-        # Preserve every one-foot interface width, but gate source-to-terrain
-        # inflow at the specified source-block stage. The gate is directional:
+        # The complete connected <=2.0-ft footprint defines the NAVD88 source
+        # condition. Preserve every one-foot perimeter width, but gate
+        # source-to-terrain inflow at 2.0 ft. The gate is directional:
         # previously routed water may drain back to a falling boundary across
         # the actual terrain connection instead of becoming trapped behind an
         # artificial two-way 2.0-ft wall. At exactly 2.0 ft the blocks are
@@ -820,15 +817,16 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
                 "sourceZonesIsolatedFromTerrain"
             ],
             "sourceExchange": (
-                "fixed tide stage inside supplied boundary-mask zones; source "
+                "fixed tide stage inside the complete connected <=2.0-ft "
+                "source footprint; source "
                 "inflow is activation-gated and terrain exchanges water only "
                 "through explicit shared-edge flux"
             ),
             "sourceBlockActivationNavd88Ft": SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
             "sourceInterfaceTreatment": (
-                "all supplied one-foot source/terrain interface widths are "
-                "preserved; source-to-terrain inflow is directionally gated "
-                "at the 2.0-ft source-block stage, while terrain-to-source "
+                "all one-foot edges along the complete source/terrain perimeter "
+                "are preserved; source-to-terrain inflow is directionally gated "
+                "at 2.0 ft, while terrain-to-source "
                 "recession flow retains the actual graph crest"
             ),
             "storage": (
@@ -945,9 +943,8 @@ def render_assets(
         for stage_index, stage in enumerate(STAGES_FT):
             encoded_surface = families[family][stage_index]
             surface_centift = encoded_surface[zone_lookup]
-            # Source blocks are part of the requested public map. Keep their
-            # exact supplied footprint visible; do not conceal them as a way
-            # of hiding excessive terrain routing.
+            # The complete connected source footprint is part of the requested
+            # public map. Keep every positive-depth source cell visible.
             hydraulic_wet_zone = valid & (surface_centift != DRY_SENTINEL)
             local_surface = surface_centift.astype(np.float32) / 100.0
             # Smooth piecewise-constant control-volume surfaces for display,
@@ -1022,8 +1019,8 @@ def render_assets(
             "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
             "historyInvariant": False,
             "wetFootprint": (
-                "immutable finite-volume routed nodes including the supplied "
-                "fixed-head source blocks; smoothing cannot add wet pixels"
+                "immutable finite-volume routed nodes including the complete "
+                "connected fixed-head source footprint; smoothing cannot add wet pixels"
             ),
             "minimumFloodedPixels": minimum_flooded_pixels or 0,
             "maximumFloodedPixels": maximum_flooded_pixels,
@@ -1053,7 +1050,9 @@ def render_assets(
         "renderCellSizeFt": RENDER_STRIDE,
         "projection": projection,
         "geotransform": list(render_transform),
-        "fixedHeadBoundaryDisplay": "included; supplied source blocks remain visible",
+        "fixedHeadBoundaryDisplay": (
+            "included; complete connected <=2.0-ft source footprint remains visible"
+        ),
         "minimumRenderedDepthFt": MIN_DISPLAY_DEPTH_FT,
         "families": counts,
     }
@@ -1307,7 +1306,9 @@ def build_zone_query_png(
             "24-bit big-endian hydraulic terrain zone ID plus one; zero is "
             "nodata"
         ),
-        "fixedHeadBoundaryQuery": "included; source-block depth remains queryable",
+        "fixedHeadBoundaryQuery": (
+            "included; complete connected source-footprint depth remains queryable"
+        ),
         "bytes": destination.stat().st_size,
     }
     print(f"Packed zone query PNG: {destination.stat().st_size:,} bytes")

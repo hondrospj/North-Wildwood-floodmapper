@@ -1,0 +1,406 @@
+{
+  "schema": "north-wildwood-routing-method-benchmark-v3",
+  "graphZoneCount": 145862,
+  "graphEdgeGroupCount": 933983,
+  "test": "continuous typical rise on the real North Wildwood graph; complete connected 2.0-ft source transition and first exterior-routing increment",
+  "methods": [
+    {
+      "method": "connected_equilibrium",
+      "description": "current-stage connectivity with instantaneous equalization",
+      "states": [
+        {
+          "stageNavd88Ft": 2.0,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1839.021596,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.1,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1880.874474,
+          "terrainWetZoneCount": 23,
+          "terrainStoredVolumeAcreFt": 0.004685,
+          "terrainWetFootprintAcres": 0.270914,
+          "maximumTerrainSurfaceNavd88Ft": 2.1
+        },
+        {
+          "stageNavd88Ft": 2.2,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1922.727353,
+          "terrainWetZoneCount": 1760,
+          "terrainStoredVolumeAcreFt": 0.59332,
+          "terrainWetFootprintAcres": 8.23455,
+          "maximumTerrainSurfaceNavd88Ft": 2.2
+        }
+      ]
+    },
+    {
+      "method": "activated_all_faces_weir",
+      "description": "broad-crested-weir routing on every face with 2.0-ft source activation",
+      "maximumInternalConservationResidualFt3": 4.6629367034256575e-14,
+      "states": [
+        {
+          "stageNavd88Ft": 0.0,
+          "sourceVisible": false,
+          "sourceVolumeAcreFt": 0.0,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 1.9,
+          "sourceVisible": false,
+          "sourceVolumeAcreFt": 0.0,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.0,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1839.021596,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.1,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1880.874474,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.2,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1922.727353,
+          "terrainWetZoneCount": 4541,
+          "terrainStoredVolumeAcreFt": 0.74931,
+          "terrainWetFootprintAcres": 29.556497,
+          "maximumTerrainSurfaceNavd88Ft": 2.2
+        }
+      ]
+    },
+    {
+      "method": "diffusive_without_source_activation",
+      "description": "Manning diffusive-wave face routing",
+      "maximumInternalConservationResidualFt3": 5.42343947529389e-14,
+      "states": [
+        {
+          "stageNavd88Ft": 0.0,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1101.202041,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 1.9,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1797.925785,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.0,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1839.021596,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.1,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1880.874474,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.2,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1922.727353,
+          "terrainWetZoneCount": 4513,
+          "terrainStoredVolumeAcreFt": 0.710862,
+          "terrainWetFootprintAcres": 29.161915,
+          "maximumTerrainSurfaceNavd88Ft": 2.2
+        }
+      ]
+    },
+    {
+      "method": "activated_diffusive_without_free_overflow_cap",
+      "description": "Manning diffusive-wave face routing",
+      "maximumInternalConservationResidualFt3": 5.42343947529389e-14,
+      "states": [
+        {
+          "stageNavd88Ft": 0.0,
+          "sourceVisible": false,
+          "sourceVolumeAcreFt": 0.0,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 1.9,
+          "sourceVisible": false,
+          "sourceVolumeAcreFt": 0.0,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.0,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1839.021596,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.1,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1880.874474,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.2,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1922.727353,
+          "terrainWetZoneCount": 4513,
+          "terrainStoredVolumeAcreFt": 0.710862,
+          "terrainWetFootprintAcres": 29.161915,
+          "maximumTerrainSurfaceNavd88Ft": 2.2
+        }
+      ]
+    },
+    {
+      "method": "selected_hybrid_with_2ft_source_activation",
+      "description": "Manning diffusive-wave routing, free-overflow weir cap, physical wetting depth, and 2.0-ft source activation",
+      "maximumInternalConservationResidualFt3": 6.13398221105399e-14,
+      "states": [
+        {
+          "stageNavd88Ft": 0.0,
+          "sourceVisible": false,
+          "sourceVolumeAcreFt": 0.0,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 1.9,
+          "sourceVisible": false,
+          "sourceVolumeAcreFt": 0.0,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.0,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1839.021596,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.1,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1880.874474,
+          "terrainWetZoneCount": 0,
+          "terrainStoredVolumeAcreFt": 0.0,
+          "terrainWetFootprintAcres": 0.0,
+          "maximumTerrainSurfaceNavd88Ft": -9999.0
+        },
+        {
+          "stageNavd88Ft": 2.2,
+          "sourceVisible": true,
+          "sourceVolumeAcreFt": 1922.727353,
+          "terrainWetZoneCount": 4513,
+          "terrainStoredVolumeAcreFt": 0.710862,
+          "terrainWetFootprintAcres": 29.161915,
+          "maximumTerrainSurfaceNavd88Ft": 2.2
+        }
+      ]
+    }
+  ],
+  "firstPositiveHeadSensitivity": [
+    {
+      "label": "low_roughness",
+      "manningN": 0.08,
+      "minimumMobileDepthFt": 0.05,
+      "rising": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4525,
+        "terrainStoredVolumeAcreFt": 0.720971,
+        "terrainWetFootprintAcres": 29.326928,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "crestAfterAdditionalMinutes": 15,
+      "crest": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4603,
+        "terrainStoredVolumeAcreFt": 0.845431,
+        "terrainWetFootprintAcres": 30.457576,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "risingMaximumInternalConservationResidualFt3": 5.77871084317394e-14,
+      "crestMaximumInternalConservationResidualFt3": 4.3891106027427185e-14,
+      "crestSourceExchangeAcreFt": 0.119669
+    },
+    {
+      "label": "selected",
+      "manningN": 0.12,
+      "minimumMobileDepthFt": 0.05,
+      "rising": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4513,
+        "terrainStoredVolumeAcreFt": 0.710862,
+        "terrainWetFootprintAcres": 29.161915,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "crestAfterAdditionalMinutes": 15,
+      "crest": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4595,
+        "terrainStoredVolumeAcreFt": 0.840987,
+        "terrainWetFootprintAcres": 30.340243,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "risingMaximumInternalConservationResidualFt3": 6.13398221105399e-14,
+      "crestMaximumInternalConservationResidualFt3": 5.709712216916962e-14,
+      "crestSourceExchangeAcreFt": 0.125334
+    },
+    {
+      "label": "high_roughness",
+      "manningN": 0.2,
+      "minimumMobileDepthFt": 0.05,
+      "rising": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4508,
+        "terrainStoredVolumeAcreFt": 0.695678,
+        "terrainWetFootprintAcres": 29.084091,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "crestAfterAdditionalMinutes": 15,
+      "crest": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4582,
+        "terrainStoredVolumeAcreFt": 0.8334,
+        "terrainWetFootprintAcres": 30.14247,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "risingMaximumInternalConservationResidualFt3": 2.930988785010413e-14,
+      "crestMaximumInternalConservationResidualFt3": 4.199242913364416e-14,
+      "crestSourceExchangeAcreFt": 0.132931
+    },
+    {
+      "label": "thin_numerical_film",
+      "manningN": 0.12,
+      "minimumMobileDepthFt": 0.01,
+      "rising": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4568,
+        "terrainStoredVolumeAcreFt": 0.713882,
+        "terrainWetFootprintAcres": 29.943893,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "crestAfterAdditionalMinutes": 15,
+      "crest": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4623,
+        "terrainStoredVolumeAcreFt": 0.84476,
+        "terrainWetFootprintAcres": 30.743939,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "risingMaximumInternalConservationResidualFt3": 3.3306690738754696e-14,
+      "crestMaximumInternalConservationResidualFt3": 6.992399281119388e-14,
+      "crestSourceExchangeAcreFt": 0.126087
+    },
+    {
+      "label": "deep_wetting_front",
+      "manningN": 0.12,
+      "minimumMobileDepthFt": 0.1,
+      "rising": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4167,
+        "terrainStoredVolumeAcreFt": 0.65501,
+        "terrainWetFootprintAcres": 24.233747,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "crestAfterAdditionalMinutes": 15,
+      "crest": {
+        "stageNavd88Ft": 2.2,
+        "sourceVisible": true,
+        "sourceVolumeAcreFt": 1922.727353,
+        "terrainWetZoneCount": 4189,
+        "terrainStoredVolumeAcreFt": 0.718423,
+        "terrainWetFootprintAcres": 24.543182,
+        "maximumTerrainSurfaceNavd88Ft": 2.2
+      },
+      "risingMaximumInternalConservationResidualFt3": 3.3306690738754696e-14,
+      "crestMaximumInternalConservationResidualFt3": 4.242264564450154e-14,
+      "crestSourceExchangeAcreFt": 0.058562
+    }
+  ],
+  "determination": {
+    "selected": "selected_hybrid_with_2ft_source_activation",
+    "reasons": [
+      "the seed polygons only select legitimate tidal components",
+      "the complete connected <=2.0-ft footprint is fixed-head source",
+      "at 2.0 ft positive-depth source storage is visible while exterior routed volume is zero",
+      "at 2.1 ft the zero-depth source edge finishes filling without visible exterior terrain",
+      "at 2.2 ft exterior water is finite and derived from perimeter face flux",
+      "ordinary terrain flow includes distance and Manning friction",
+      "true free overflow remains bounded by critical weir capacity",
+      "storage and internal edge transfers conserve volume"
+    ],
+    "acceptance": {
+      "sourceVisibleAt2Ft": true,
+      "terrainVolumeAt2FtAcreFt": 0.0,
+      "finiteTerrainVolumeAt2_1FtAcreFt": 0.0,
+      "finiteTerrainVolumeAt2_2FtAcreFt": 0.710862,
+      "maximumInternalConservationResidualFt3": 6.13398221105399e-14
+    }
+  }
+}

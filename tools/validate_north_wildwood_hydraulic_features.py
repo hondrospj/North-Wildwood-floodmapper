@@ -101,21 +101,31 @@ def main() -> None:
     manual_source_pixels = int(manifest["manualSourcePixelCount"])
     if manifest.get("sourceZonesIsolatedFromTerrain") is not True:
         raise AssertionError("Graph does not isolate fixed-head source zones")
-    if "interior cells excluded" not in str(
+    if not math.isclose(
+        float(manifest.get("sourceStageNavd88Ft", math.nan)),
+        2.0,
+        abs_tol=1e-12,
+    ):
+        raise AssertionError("Graph does not define the source footprint at 2.0 ft")
+    if "complete four-neighbour <=2.0 ft components" not in str(
         manifest.get("sourceBoundaryDefinition", "")
     ):
-        raise AssertionError("Graph still promotes connected terrain to source")
+        raise AssertionError("Graph does not promote the complete 2.0-ft footprint")
     if source_pixels != expected_source_pixels:
         raise AssertionError(
             f"Expected {expected_source_pixels} source pixels, found {source_pixels}"
         )
-    if source_pixels > manual_source_pixels:
-        raise AssertionError("Qualified source footprint exceeds supplied mask")
+    if source_pixels <= manual_source_pixels:
+        raise AssertionError(
+            "Source still consists only of seed shapes instead of the complete "
+            "connected 2.0-ft footprint"
+        )
     if int(manifest.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("Graph does not declare a 21-cell bulkhead")
 
     hard_zone_ids: set[int] = set()
     source_zone_ids: set[int] = set()
+    source_zone_ids_with_positive_depth_at_2ft: set[int] = set()
     grate_zone_count = 0
     row_count = 0
     with (graph / "zones.csv").open(newline="", encoding="utf-8") as stream:
@@ -126,7 +136,8 @@ def main() -> None:
             hard_cells = int(row["hard_cells"])
             source_cells = int(row["source_cells"])
             grate_cells = int(row["grate_cells"])
-            histogram_total = sum(int(value) for value in row["hist_counts"].split(":"))
+            histogram = [int(value) for value in row["hist_counts"].split(":")]
+            histogram_total = sum(histogram)
             if histogram_total != cell_count:
                 raise AssertionError(f"Zone {zone_id} hypsometry does not match cell count")
             if hard_cells:
@@ -141,6 +152,10 @@ def main() -> None:
                     raise AssertionError(
                         f"Source zone {zone_id} also contains interior terrain"
                     )
+                hist_min10 = int(row["hist_min10"])
+                below_2ft_bins = max(0, min(len(histogram), 20 - hist_min10))
+                if sum(histogram[:below_2ft_bins]) > 0:
+                    source_zone_ids_with_positive_depth_at_2ft.add(zone_id)
             if grate_cells:
                 grate_zone_count += 1
 
@@ -168,6 +183,14 @@ def main() -> None:
     )
     if int(elevation10[hard != 0].min()) < 75:
         raise AssertionError("A stitched bulkhead DEM cell is below 7.5 ft NAVD88")
+    source_flag = np.memmap(
+        graph / "source_flag.raw",
+        dtype=np.uint8,
+        mode="r",
+        shape=(height, width),
+    )
+    if int(elevation10[source_flag != 0].max()) > 20:
+        raise AssertionError("A fixed-head source cell is above 2.0 ft NAVD88")
 
     centerline_ds = gdal.Open(str(args.centerline.resolve()))
     if centerline_ds is None:
@@ -222,11 +245,10 @@ def main() -> None:
     source_shared_edge_width_ft = 0
     with (graph / "edges.csv").open(newline="", encoding="utf-8") as stream:
         for row in csv.DictReader(stream):
-            touches_source = (
-                int(row["zone_a"]) in source_zone_ids
-                or int(row["zone_b"]) in source_zone_ids
-            )
-            if touches_source:
+            a_is_source = int(row["zone_a"]) in source_zone_ids
+            b_is_source = int(row["zone_b"]) in source_zone_ids
+            crosses_source_perimeter = a_is_source != b_is_source
+            if crosses_source_perimeter:
                 source_edge_records += 1
                 source_shared_edge_width_ft += int(row["width_ft"])
             touches_hard = (
@@ -258,6 +280,27 @@ def main() -> None:
         raise AssertionError("Rising and falling states did not retain history")
     hard_lookup = np.asarray(sorted(hard_zone_ids), dtype=np.int64) + 1
     source_lookup = np.asarray(sorted(source_zone_ids), dtype=np.int64) + 1
+    source_positive_depth_lookup = (
+        np.asarray(
+            sorted(source_zone_ids_with_positive_depth_at_2ft),
+            dtype=np.int64,
+        )
+        + 1
+    )
+    source_zero_depth_lookup = (
+        np.asarray(
+            sorted(source_zone_ids - source_zone_ids_with_positive_depth_at_2ft),
+            dtype=np.int64,
+        )
+        + 1
+    )
+    terrain_lookup = (
+        np.asarray(
+            sorted(set(range(zone_count)) - source_zone_ids),
+            dtype=np.int64,
+        )
+        + 1
+    )
     for phase in ("rising_slow", "rising_typical", "rising_fast", "crest"):
         if np.any(states[phase][74, hard_lookup] != dry):
             raise AssertionError(
@@ -265,8 +308,22 @@ def main() -> None:
             )
         if np.any(states[phase][19, source_lookup] != dry):
             raise AssertionError(f"{phase} activates a source block below 2.0 ft")
-        if np.any(states[phase][20, source_lookup] == dry):
-            raise AssertionError(f"{phase} does not show every source block at 2.0 ft")
+        if np.any(states[phase][20, source_positive_depth_lookup] == dry):
+            raise AssertionError(
+                f"{phase} omits positive-depth source storage at 2.0 ft"
+            )
+        if source_zero_depth_lookup.size and np.any(
+            states[phase][20, source_zero_depth_lookup] != dry
+        ):
+            raise AssertionError(
+                f"{phase} invents water volume in zero-depth source zones at 2.0 ft"
+            )
+        if np.any(states[phase][20, terrain_lookup] != dry):
+            raise AssertionError(f"{phase} wets exterior terrain at 2.0 ft")
+        if np.any(states[phase][21, source_lookup] == dry):
+            raise AssertionError(
+                f"{phase} does not fill the complete source footprint by 2.1 ft"
+            )
 
     physics = header.get("physics") or {}
     if physics.get("modelKind") != "history-aware subgrid diffusive-wave finite-volume response atlas":

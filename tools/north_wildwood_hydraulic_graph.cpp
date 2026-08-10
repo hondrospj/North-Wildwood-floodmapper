@@ -1,10 +1,11 @@
 // Build the one-foot North Wildwood hydraulic terrain graph.
 //
 // The terrain is quantized only for graph topology (0.1 ft NAVD88).  Source
-// blocks follow the literal four-neighbour rule: a <=1.0 ft component must
-// contain at least 101 cells and intersect a supplied source-block polygon.
-// Only the supplied polygon cells become fixed-head boundary cells; the rest
-// of the qualified low component remains finite-volume terrain.
+// footprint follows the literal four-neighbour rule: a <=2.0 ft component must
+// contain at least 101 cells and intersect a supplied source seed polygon.
+// The seed polygons identify legitimate tide-connected components; every cell
+// in each qualified <=2.0 ft component becomes fixed-head source.  Finite-rate
+// routing starts at the complete component perimeter, not at the seed shapes.
 // The 21-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
 // NAVD88 by GDAL. This builder verifies, but never silently changes, that
 // terrain. Storm-drain exchange is disabled for this model version.
@@ -29,7 +30,7 @@ namespace fs = std::filesystem;
 constexpr int16_t NODATA_ELEV = std::numeric_limits<int16_t>::min();
 constexpr int16_t NO_CONNECTION = std::numeric_limits<int16_t>::max();
 constexpr int32_t INACTIVE = std::numeric_limits<int32_t>::min();
-constexpr int16_t SOURCE_STAGE10 = 10;
+constexpr int16_t SOURCE_STAGE10 = 20;
 constexpr int16_t BULKHEAD_STAGE10 = 75;
 constexpr int16_t MODEL_MAX10 = 220;
 constexpr int16_t HIST_MIN10 = -100;
@@ -289,11 +290,8 @@ std::vector<uint8_t> find_source_blocks(
     if (component.size() >= SOURCE_MIN_CELLS && hits_manual) {
       ++qualifying_components;
       qualifying_component_cells += component.size();
-      for (const int32_t cell : component) {
-        if (!manual[cell]) continue;
-        state[cell] = 2;
-        ++qualifying_boundary_cells;
-      }
+      for (const int32_t cell : component) state[cell] = 2;
+      qualifying_boundary_cells += component.size();
     }
   }
   for (uint8_t& value : state) value = value == 2 ? 1 : 0;
@@ -584,14 +582,14 @@ void write_manifest(
     uint64_t qualified_source_count) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v5\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v6\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
-         << "  \"sourceStageNavd88Ft\": 1.0,\n"
+         << "  \"sourceStageNavd88Ft\": 2.0,\n"
          << "  \"sourceMinComponentCells\": 101,\n"
          << "  \"sourceConnectivity\": \"four-neighbour/shared-side only\",\n"
-         << "  \"sourceBoundaryDefinition\": \"supplied mask cells inside qualified low components; connected interior cells excluded\",\n"
+         << "  \"sourceBoundaryDefinition\": \"complete four-neighbour <=2.0 ft components intersecting supplied source seed polygons\",\n"
          << "  \"manualSourcePixelCount\": " << manual_source_count << ",\n"
          << "  \"qualifiedSourceBoundaryPixelCount\": " << qualified_source_count << ",\n"
          << "  \"sourceZonesIsolatedFromTerrain\": true,\n"
