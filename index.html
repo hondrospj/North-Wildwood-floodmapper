@@ -16820,7 +16820,16 @@ function setDatumHelpOpen(isOpen) {
 
       list.innerHTML = "";
       if (currentOverlayMode === "depth") {
-        list.innerHTML = `
+        const physicsActive = physicsForecastApplies();
+        list.innerHTML = physicsActive ? `
+          <div class="depth-legend-scale" aria-label="Modeled flood depth at the selected time from shallow to deep">
+            <div class="depth-legend-labels"><span>Current Time</span><span>Shallow</span><span>Deep</span></div>
+            <div class="depth-legend-gradient" aria-hidden="true"></div>
+          </div>
+          <div class="depth-legend-uncertainty-note">
+            <span><strong>Physics frame</strong> shows cells wet by this time</span>
+          </div>
+        ` : `
           <div class="depth-legend-scale" aria-label="Green areas that may flood followed by modeled flood depth from shallow to deep">
             <div class="depth-legend-labels"><span>May Flood</span><span>Shallow</span><span>Deep</span></div>
             <div class="depth-legend-gradient" aria-hidden="true"></div>
@@ -20171,6 +20180,7 @@ function updateExportSegmentedUI() {
       const target = document.getElementById("exportLegendDock");
       if (!source || !target) return;
       const isDepthLegend = currentOverlayMode === "depth";
+      const isPhysicsDepth = isDepthLegend && physicsForecastApplies();
       target.dataset.exportLegendMode = isDepthLegend ? "depth" : "dynamic";
       target.innerHTML = isDepthLegend
         ? `
@@ -20178,13 +20188,13 @@ function updateExportSegmentedUI() {
             <div class="export-depth-key-heading">
               <strong>Flood Depth</strong>
             </div>
-            <div class="export-depth-key-scale" aria-label="Green areas that may flood followed by modeled flood depth from shallow to deep">
+            <div class="export-depth-key-scale" aria-label="${isPhysicsDepth ? "Modeled depth at this exact time" : "Green areas that may flood followed by modeled flood depth from shallow to deep"}">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
               <div class="export-depth-key-ends" aria-hidden="true">
-                <span>May Flood</span><span>Shallow</span><span>Deep</span>
+                <span>${isPhysicsDepth ? "Current Time" : "May Flood"}</span><span>Shallow</span><span>Deep</span>
               </div>
             </div>
-            <div class="export-depth-key-note"><strong>Green areas</strong> may flood.</div>
+            <div class="export-depth-key-note">${isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green areas</strong> may flood."}</div>
           </div>
         `
         : source.innerHTML;
@@ -22449,6 +22459,10 @@ function formatSelectedObservedDate(dateStr) {
       }
 
       const physicsAsset = getPhysicsAssetForEntry(entry);
+      const physicsUiWasActive = document.body.classList.contains("physics-forecast-active");
+      const physicsUiIsActive = Boolean(physicsAsset);
+      document.body.classList.toggle("physics-forecast-active", physicsUiIsActive);
+      if (physicsUiWasActive !== physicsUiIsActive) renderLegend();
       const note = physicsAsset
         ? (entry?.isDailyMaximum
           ? (currentOverlayMode === "dynamic"
@@ -36272,6 +36286,16 @@ html body #mapTitleBadge #mapTitleLogo{
     html body.mobile-optimized .shorely-flood-popup .depth-query-popup h3{
       padding:0 34px !important;
     }
+  }
+</style>
+<style id="north-wildwood-physics-legend">
+  html body.physics-forecast-active #legendDock[data-legend-mode="depth"] .depth-legend-gradient,
+  html body.physics-forecast-active .export-depth-key-gradient{
+    background:linear-gradient(90deg,#7df9ff 0%,#38d3ff 22%,#168ceb 43%,#1853c6 62%,#132f84 80%,#050e33 100%) !important;
+  }
+  html body.physics-forecast-active #legendDock[data-legend-mode="depth"] .depth-legend-uncertainty-note strong,
+  html body.physics-forecast-active .export-depth-key-note strong{
+    color:#7df9ff !important;
   }
 </style>
 </body>
