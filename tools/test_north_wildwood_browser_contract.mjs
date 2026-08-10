@@ -167,6 +167,17 @@ assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
 assert.match(SOURCE, /linear-gradient\(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%/);
 assert.match(SOURCE, /<strong>Green areas<\/strong> may flood/);
 assert.match(SOURCE, /<span>May Flood<\/span><span>Shallow<\/span><span>Deep<\/span>/);
+assert.match(extractFunction("renderLegend"), /physics-daily-maximum-active/);
+assert.match(extractFunction("renderLegend"), /Daily Max/);
+assert.match(extractFunction("renderLegend"), /Physics daily max/);
+assert.match(extractFunction("updateExportLegend"), /entry = null/);
+assert.match(extractFunction("updateExportLegend"), /isPhysicsDailyMaximum/);
+assert.match(
+  SOURCE,
+  /async function prepareExportFrame\(item, options = \{\}\)[\s\S]+updateExportLegend\(item\.entry\)/
+);
+assert.match(extractFunction("captureFastGifBaseCanvas"), /updateExportLegend\(firstItem\?\.entry\)/);
+assert.match(extractFunction("renderHour"), /physics-daily-maximum-active/);
 assert.doesNotMatch(SOURCE, /Green represents uncertainty/i);
 assert.doesNotMatch(SOURCE, /Feet above ground/);
 assert.doesNotMatch(SOURCE, /class="export-depth-key-disconnected"/);

@@ -16833,13 +16833,17 @@ function setDatumHelpOpen(isOpen) {
       list.innerHTML = "";
       if (currentOverlayMode === "depth") {
         const physicsActive = physicsForecastApplies();
+        const physicsDailyMaximumActive = physicsActive &&
+          document.body.classList.contains("physics-daily-maximum-active");
         list.innerHTML = physicsActive ? `
-          <div class="depth-legend-scale" aria-label="Modeled flood depth at the selected time from shallow to deep">
-            <div class="depth-legend-labels"><span>Current Time</span><span>Shallow</span><span>Deep</span></div>
+          <div class="depth-legend-scale" aria-label="${physicsDailyMaximumActive ? "Modeled daily maximum flood depth" : "Modeled flood depth at the selected time"} from shallow to deep">
+            <div class="depth-legend-labels"><span>${physicsDailyMaximumActive ? "Daily Max" : "Current Time"}</span><span>Shallow</span><span>Deep</span></div>
             <div class="depth-legend-gradient" aria-hidden="true"></div>
           </div>
           <div class="depth-legend-uncertainty-note">
-            <span><strong>Physics frame</strong> shows cells wet by this time</span>
+            <span>${physicsDailyMaximumActive
+              ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day"
+              : "<strong>Physics frame</strong> shows cells wet by this time"}</span>
           </div>
         ` : `
           <div class="depth-legend-scale" aria-label="Green areas that may flood followed by modeled flood depth from shallow to deep">
@@ -20187,12 +20191,13 @@ function updateExportSegmentedUI() {
       if (!exportMap.hasLayer(exportParcelsLayer)) exportParcelsLayer.addTo(exportMap);
     }
 
-    function updateExportLegend() {
+    function updateExportLegend(entry = null) {
       const source = document.getElementById("legendDock");
       const target = document.getElementById("exportLegendDock");
       if (!source || !target) return;
       const isDepthLegend = currentOverlayMode === "depth";
       const isPhysicsDepth = isDepthLegend && physicsForecastApplies();
+      const isPhysicsDailyMaximum = isPhysicsDepth && Boolean(entry?.isDailyMaximum);
       target.dataset.exportLegendMode = isDepthLegend ? "depth" : "dynamic";
       target.innerHTML = isDepthLegend
         ? `
@@ -20200,13 +20205,13 @@ function updateExportSegmentedUI() {
             <div class="export-depth-key-heading">
               <strong>Flood Depth</strong>
             </div>
-            <div class="export-depth-key-scale" aria-label="${isPhysicsDepth ? "Modeled depth at this exact time" : "Green areas that may flood followed by modeled flood depth from shallow to deep"}">
+            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Green areas that may flood followed by modeled flood depth from shallow to deep"}">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
               <div class="export-depth-key-ends" aria-hidden="true">
-                <span>${isPhysicsDepth ? "Current Time" : "May Flood"}</span><span>Shallow</span><span>Deep</span>
+                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "May Flood"}</span><span>Shallow</span><span>Deep</span>
               </div>
             </div>
-            <div class="export-depth-key-note">${isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green areas</strong> may flood."}</div>
+            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green areas</strong> may flood."}</div>
           </div>
         `
         : source.innerHTML;
@@ -20365,7 +20370,7 @@ function updateExportSegmentedUI() {
       mapInstance.invalidateSize(false);
 
       if (isFirstFrame || !exportFrameViewPrimed) {
-        updateExportLegend();
+        updateExportLegend(item.entry);
         updateExportBoundaryVisibility();
         await updateExportParcelsLayer();
         fitExportMapToSelectedExtent(mapInstance);
@@ -20791,7 +20796,7 @@ function getUniqueExportStages(frameItems) {
       const mapInstance = ensureExportMap();
       applyExportStageAspect(getDownloadAspectValue());
       mapInstance.invalidateSize(false);
-      updateExportLegend();
+      updateExportLegend(firstItem?.entry);
       updateExportBoundaryVisibility();
       await updateExportParcelsLayer();
       updateExportRoadLayerAppearance();
@@ -22473,8 +22478,14 @@ function formatSelectedObservedDate(dateStr) {
       const physicsAsset = getPhysicsAssetForEntry(entry);
       const physicsUiWasActive = document.body.classList.contains("physics-forecast-active");
       const physicsUiIsActive = Boolean(physicsAsset);
+      const physicsDailyUiWasActive = document.body.classList.contains("physics-daily-maximum-active");
+      const physicsDailyUiIsActive = Boolean(physicsAsset && entry?.isDailyMaximum);
       document.body.classList.toggle("physics-forecast-active", physicsUiIsActive);
-      if (physicsUiWasActive !== physicsUiIsActive) renderLegend();
+      document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiIsActive);
+      if (
+        physicsUiWasActive !== physicsUiIsActive ||
+        physicsDailyUiWasActive !== physicsDailyUiIsActive
+      ) renderLegend();
       const note = physicsAsset
         ? (entry?.isDailyMaximum
           ? (currentOverlayMode === "dynamic"
