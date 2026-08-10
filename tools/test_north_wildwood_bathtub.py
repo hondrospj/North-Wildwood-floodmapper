@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression checks proving v20 does not use a connected bathtub atlas."""
+"""Regression checks proving v21 does not use a connected bathtub atlas."""
 
 from __future__ import annotations
 
@@ -30,16 +30,24 @@ def main() -> None:
         raise AssertionError("Absolute prior-crest families changed")
     if len(model.ATLAS_FAMILIES) != 7:
         raise AssertionError("The compact atlas must contain seven history families")
+    if model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT != 2.0:
+        raise AssertionError("The supplied source blocks must activate at 2.0 ft")
+    if model.MIN_MOBILE_DEPTH_FT < 0.05:
+        raise AssertionError("The routing wet/dry threshold is too small")
+    if model.URBAN_OVERLAND_MANNING_N != 0.12:
+        raise AssertionError("The urban overland Manning roughness changed")
 
     print(
         {
             "status": "passed",
-            "model": "history-aware finite-volume response atlas",
+            "model": "history-aware subgrid diffusive-wave finite-volume response atlas",
             "stageCountPerFamily": len(model.STAGES_FT),
             "depthPngCount": len(model.STAGES_FT) * len(model.ATLAS_FAMILIES),
             "stagePngCount": len(model.STAGES_FT) * len(model.ATLAS_FAMILIES),
             "familyCount": len(model.ATLAS_FAMILIES),
             "substepSeconds": model.MODEL_STEP_SECONDS,
+            "sourceBlockActivationNavd88Ft": model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
+            "minimumMobileDepthFt": model.MIN_MOBILE_DEPTH_FT,
         }
     )
 

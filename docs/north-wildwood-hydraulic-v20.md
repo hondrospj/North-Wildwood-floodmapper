@@ -1,5 +1,9 @@
 # North Wildwood hydraulic v20 determination
 
+> Superseded by [north-wildwood-hydraulic-v21.md](north-wildwood-hydraulic-v21.md).
+> This document is retained as the record of the all-face-weir approach that
+> exposed the low-stage source-activation failure.
+
 ## Failure reproduced
 
 The browser did not route water. It classified each scalar tide entry as

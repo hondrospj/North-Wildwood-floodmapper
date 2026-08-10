@@ -7,9 +7,15 @@ cells inside the supplied ocean/source mask are fixed-head boundary cells;
 connected interior low terrain is finite storage. Source cells are isolated
 from terrain control volumes, so a one-foot opening exchanges water through
 its actual shared face instead of pinning a whole 25-foot tile to the tide.
-Water is routed in 60-second substeps with a submerged broad-crested-weir
-relation and strict donor, receiver, and conservation limits. A cell that
-becomes wet during a substep cannot donate until the following substep.
+Water is routed in 60-second substeps with a mass-conserving hybrid
+diffusive-wave scheme. Ordinary overland conveyance follows Manning's
+equation over the actual one-foot face elevations. A broad-crested-weir
+capacity is retained only as an upper bound where a face is free-flowing over
+a sill. This prevents the old model from treating every street-scale face as
+an unconstrained weir. Strict donor, receiver, wetting-depth, and conservation
+limits prevent a numerically insignificant film from advancing across the
+city. A cell that becomes wet during a substep cannot donate until the
+following substep.
 
 The expensive solve is run once to build three observed-rise-rate families, a
 short-crest family, and three preceding-crest recession families from 0.0
@@ -65,10 +71,15 @@ MAX_OVERLAND_FRONT_SPEED_FPS = (
 )
 MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT = MAX_OVERLAND_FRONT_SPEED_FPS * TIDE_STEP_SECONDS
 BROAD_CRESTED_WEIR_CFS = 3.10
+MANNING_US_CUSTOMARY = 1.486
+URBAN_OVERLAND_MANNING_N = 0.12
+MIN_MOBILE_DEPTH_FT = 0.05
+MIN_DISPLAY_DEPTH_FT = 0.05
+FLOW_LENGTH_FT = CONTROL_VOLUME_SIZE_FT
 MINOR_NAVD88_FT = 3.25
 MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
-NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT = 2.0
+SOURCE_BLOCK_ACTIVATION_NAVD88_FT = 2.0
 SHORT_CREST_MINUTES = 15
 RISE_RATE_FAMILIES_FT_PER_HOUR = {
     "rising_slow": 0.55,
@@ -190,7 +201,18 @@ def load_edges(path: Path) -> dict[str, np.ndarray]:
 
 
 class HydraulicSolver:
-    def __init__(self, zones: dict[str, np.ndarray], edges: dict[str, np.ndarray]):
+    def __init__(
+        self,
+        zones: dict[str, np.ndarray],
+        edges: dict[str, np.ndarray],
+        *,
+        routing_method: str = "hybrid_diffusive",
+        source_activation_navd88_ft: float | None = SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
+        manning_n: float = URBAN_OVERLAND_MANNING_N,
+        minimum_mobile_depth_ft: float = MIN_MOBILE_DEPTH_FT,
+    ):
+        if routing_method not in {"hybrid_diffusive", "diffusive", "legacy_weir"}:
+            raise ValueError(f"Unsupported routing method: {routing_method}")
         self.zone_count = len(zones["connection10"])
         self.connection_ft = zones["connection10"].astype(np.float64) / 10.0
         self.source = zones["source_cells"] > 0
@@ -209,7 +231,43 @@ class HydraulicSolver:
             MODEL_MAX_STAGE_FT,
             dtype=np.float64,
         )
-        self.edges = edges
+        self.edges = {**edges, "crest_ft": edges["crest_ft"].copy()}
+        self.routing_method = routing_method
+        self.source_activation_navd88_ft = source_activation_navd88_ft
+        self.manning_n = float(manning_n)
+        self.minimum_mobile_depth_ft = float(minimum_mobile_depth_ft)
+        source_interface = self.source[self.edges["a"]] ^ self.source[self.edges["b"]]
+        # The supplied blocks define the 2.0-ft NAVD88 source condition. Their
+        # underlying bathymetric pixels are mostly -3.5 ft and cannot be used
+        # as an exterior overland sill: doing so starts hours of artificial
+        # radial leakage before the source block's stated activation stage.
+        # Preserve every one-foot interface width, but gate source-to-terrain
+        # inflow at the specified source-block stage. The gate is directional:
+        # previously routed water may drain back to a falling boundary across
+        # the actual terrain connection instead of becoming trapped behind an
+        # artificial two-way 2.0-ft wall. At exactly 2.0 ft the blocks are
+        # visible and exterior inflow head is zero; finite inflow begins above.
+        self.source_interface = source_interface
+        self.source_inflow_crest_ft = self.edges["crest_ft"].copy()
+        if source_activation_navd88_ft is not None:
+            self.source_inflow_crest_ft[source_interface] = np.maximum(
+                self.source_inflow_crest_ft[source_interface],
+                source_activation_navd88_ft,
+            )
+        self.source_interface_edge_groups = int(np.count_nonzero(source_interface))
+        self.source_interface_width_ft = float(
+            self.edges["width_ft"][source_interface].sum()
+        )
+
+    def mobile_storage_threshold(self, surface: np.ndarray) -> np.ndarray:
+        """Minimum volume needed before a finite-storage node can transmit.
+
+        This is a standard wet/dry treatment expressed as physical depth over
+        the node's currently wetted subgrid area. It replaces the previous
+        0.01-cubic-foot switch, which let a microscopic numerical film move a
+        full 25-foot cell every minute.
+        """
+        return self.wetted_area(surface) * self.minimum_mobile_depth_ft
 
     def storage(self, surface: np.ndarray) -> np.ndarray:
         bin_index = np.clip(
@@ -274,6 +332,12 @@ class HydraulicSolver:
         """Initialize only the open-boundary source cells at the sea stage."""
         storage = np.zeros(self.zone_count, dtype=np.float64)
         surface = self.minimum_surface.copy()
+        if (
+            self.source_activation_navd88_ft is not None
+            and sea_stage_ft < self.source_activation_navd88_ft - 1e-9
+        ):
+            surface[self.source] = float(sea_stage_ft)
+            return storage, surface
         boundary_surface = np.full(
             self.zone_count,
             float(sea_stage_ft),
@@ -293,7 +357,7 @@ class HydraulicSolver:
     ) -> tuple[np.ndarray, np.ndarray, dict[str, float]]:
         edge_a = self.edges["a"]
         edge_b = self.edges["b"]
-        crest = self.edges["crest_ft"]
+        base_crest = self.edges["crest_ft"]
         width = self.edges["width_ft"]
         source_exchange = 0.0
         internal_residual = 0.0
@@ -303,6 +367,12 @@ class HydraulicSolver:
         fixed_volume = self.storage(
             np.full(self.zone_count, sea_stage_ft, dtype=np.float64)
         )
+        source_active = (
+            self.source_activation_navd88_ft is None
+            or sea_stage_ft >= self.source_activation_navd88_ft - 1e-9
+        )
+        if not source_active:
+            fixed_volume[self.source] = 0.0
 
         if duration_seconds <= 0 or duration_seconds % MODEL_STEP_SECONDS:
             raise ValueError("Routing duration must be a positive whole number of model steps")
@@ -312,17 +382,61 @@ class HydraulicSolver:
             # next substep, so the numerical front advances at most one
             # 25-foot control volume per minute (35.4 ft using the conservative
             # tile diagonal).
-            wet_at_substep_start = self.source | (storage > 0.01)
+            wet_at_substep_start = self.source | (
+                storage >= self.mobile_storage_threshold(surface)
+            )
             surface_a = surface[edge_a]
             surface_b = surface[edge_b]
             delta = surface_a - surface_b
+            source_is_donor = np.where(
+                delta >= 0.0,
+                self.source[edge_a],
+                self.source[edge_b],
+            )
+            crest = np.where(
+                self.source_interface & source_is_donor,
+                self.source_inflow_crest_ft,
+                base_crest,
+            )
             upstream = np.maximum(surface_a, surface_b)
-            downstream = np.minimum(surface_a, surface_b)
             head = np.maximum(0.0, upstream - crest)
-            tail = np.maximum(0.0, downstream - crest)
-            ratio = np.divide(tail, head, out=np.zeros_like(head), where=head > 1e-9)
-            submergence = np.sqrt(np.maximum(0.0, 1.0 - np.minimum(1.0, ratio) ** 1.5))
-            discharge = BROAD_CRESTED_WEIR_CFS * width * head**1.5 * submergence
+            if self.routing_method == "legacy_weir":
+                downstream = np.minimum(surface_a, surface_b)
+                tail = np.maximum(0.0, downstream - crest)
+                ratio = np.divide(
+                    tail,
+                    head,
+                    out=np.zeros_like(head),
+                    where=head > 1e-9,
+                )
+                submergence = np.sqrt(
+                    np.maximum(0.0, 1.0 - np.minimum(1.0, ratio) ** 1.5)
+                )
+                discharge = (
+                    BROAD_CRESTED_WEIR_CFS * width * head**1.5 * submergence
+                )
+            else:
+                hydraulic_slope = np.maximum(0.0, np.abs(delta) / FLOW_LENGTH_FT)
+                # Subgrid diffusive-wave conveyance. Every grouped record retains
+                # the exact count of one-foot face segments at this crest, so the
+                # sum of these discharges preserves narrow openings and partially
+                # wetted faces instead of promoting a whole connection component.
+                discharge = (
+                    MANNING_US_CUSTOMARY
+                    / self.manning_n
+                    * width
+                    * head ** (5.0 / 3.0)
+                    * np.sqrt(hydraulic_slope)
+                )
+                if self.routing_method == "hybrid_diffusive":
+                    # At a dry/free outfall the diffusive approximation can exceed
+                    # the critical-flow capacity of a sill. Retain the weir relation
+                    # only as that physical upper bound; submerged ordinary terrain
+                    # flow is controlled by the water-surface gradient and friction.
+                    free_weir_capacity = (
+                        BROAD_CRESTED_WEIR_CFS * width * head**1.5
+                    )
+                    discharge = np.minimum(discharge, free_weir_capacity)
             transfer_magnitude = discharge * MODEL_STEP_SECONDS
 
             # A long explicit step can otherwise send more water than is
@@ -425,6 +539,8 @@ class HydraulicSolver:
 def load_complete_state(
     state_path: Path,
     expected_stride: int,
+    *,
+    require_current_physics: bool = False,
 ) -> tuple[dict[str, np.ndarray], dict]:
     raw = gzip.decompress(state_path.read_bytes())
     if raw[:8] != b"NWHYD2\x00\x00":
@@ -442,6 +558,22 @@ def load_complete_state(
     family_order = tuple(header.get("familyOrder") or header.get("phaseOrder") or ())
     if family_order != ATLAS_FAMILIES:
         raise RuntimeError("Reusable state package families do not match this atlas")
+    if require_current_physics:
+        physics = header.get("physics") or {}
+        compatible = (
+            header.get("schema") == "north-wildwood-hydraulic-states-binary-v10"
+            and physics.get("modelKind")
+            == "history-aware subgrid diffusive-wave finite-volume response atlas"
+            and physics.get("sourceBlockActivationNavd88Ft")
+            == SOURCE_BLOCK_ACTIVATION_NAVD88_FT
+            and "directionally gated"
+            in str(physics.get("sourceInterfaceTreatment", ""))
+        )
+        if not compatible:
+            raise RuntimeError(
+                "State reuse requires a v21 package generated with the "
+                "2.0-ft directional source gate"
+            )
     for family in family_order:
         record = header["phaseArrays"][family]
         families[family] = decode_state_phase(
@@ -611,7 +743,7 @@ def simulate(
         )
 
     summary = {
-        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": False,
         "maximumInternalConservationResidualFt3": max(
             (row["maxInternalConservationResidualFt3"] for row in diagnostic_rows),
@@ -619,7 +751,7 @@ def simulate(
         ),
         "diagnosticStepCount": len(diagnostic_rows),
         "atlasFamilies": list(ATLAS_FAMILIES),
-        "frontTravelLimit": {
+        "wettingAndFrontControls": {
             "controlVolumeSizeFt": CONTROL_VOLUME_SIZE_FT,
             "maximumNumericalSpeedFtPerSecond": MAX_OVERLAND_FRONT_SPEED_FPS,
             "maximumNumericalTravelPer15MinutesFt": (
@@ -627,8 +759,10 @@ def simulate(
             ),
             "rule": (
                 "a newly wet control volume cannot donate until the next "
-                "60-second substep"
+                "60-second substep and must first store at least the physical "
+                "minimum mobile depth"
             ),
+            "minimumMobileDepthFt": MIN_MOBILE_DEPTH_FT,
         },
         "risingHistoriesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
         "crestHistoryMinutes": SHORT_CREST_MINUTES,
@@ -639,7 +773,7 @@ def simulate(
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v8",
+        "schema": "north-wildwood-hydraulic-states-binary-v10",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": MODEL_MIN_STAGE_FT,
         "stageMaxNavd88Ft": MODEL_MAX_STAGE_FT,
@@ -665,9 +799,15 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             ),
         },
         "physics": {
-            "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
-            "terrainFlow": "submerged broad-crested weir",
-            "weirCoefficientCfs": BROAD_CRESTED_WEIR_CFS,
+            "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
+            "terrainFlow": (
+                "Manning diffusive-wave conveyance with broad-crested-weir "
+                "free-overflow capacity bound"
+            ),
+            "manningUsCustomaryFactor": MANNING_US_CUSTOMARY,
+            "urbanOverlandManningN": URBAN_OVERLAND_MANNING_N,
+            "flowLengthFt": FLOW_LENGTH_FT,
+            "freeOverflowWeirCoefficientCfs": BROAD_CRESTED_WEIR_CFS,
             "crossSection": (
                 "one foot of width per shared one-foot cell side, grouped by "
                 "crest elevation"
@@ -680,8 +820,16 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
                 "sourceZonesIsolatedFromTerrain"
             ],
             "sourceExchange": (
-                "fixed tide stage only inside supplied boundary-mask zones; "
-                "terrain receives water through explicit shared-edge flux"
+                "fixed tide stage inside supplied boundary-mask zones; source "
+                "inflow is activation-gated and terrain exchanges water only "
+                "through explicit shared-edge flux"
+            ),
+            "sourceBlockActivationNavd88Ft": SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
+            "sourceInterfaceTreatment": (
+                "all supplied one-foot source/terrain interface widths are "
+                "preserved; source-to-terrain inflow is directionally gated "
+                "at the 2.0-ft source-block stage, while terrain-to-source "
+                "recession flow retains the actual graph crest"
             ),
             "storage": (
                 "one-foot DEM hypsometry integrated inside each 25-foot "
@@ -693,8 +841,10 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             ),
             "frontPropagation": (
                 "newly wet nodes cannot donate until the next 60-second "
-                "substep"
+                "substep and contain the minimum mobile depth"
             ),
+            "minimumMobileDepthFt": MIN_MOBILE_DEPTH_FT,
+            "minimumRenderedDepthFt": MIN_DISPLAY_DEPTH_FT,
             "historyInvariant": False,
             "stormDrains": "disabled; no orifice exchange and no connectivity seeds",
             "bulkheadElevationNavd88Ft": 7.5,
@@ -733,60 +883,6 @@ def write_state_asset(
     print(f"Hydraulic states: {len(raw):,} binary bytes -> {output_path.stat().st_size:,} gzip bytes")
 
 
-def build_normal_tide_display_mask(
-    elevation10: np.ndarray,
-    zone: np.ndarray,
-    families: dict[str, np.ndarray],
-) -> np.ndarray:
-    """Return the rendered ordinary-tide footprint, not land inundation."""
-    baseline_index = int(
-        round(
-            (NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT - MODEL_MIN_STAGE_FT)
-            / MODEL_STAGE_STEP_FT
-        )
-    )
-    baseline_index = max(0, min(len(STAGES_FT) - 1, baseline_index))
-    zone_lookup = np.where(zone >= 0, zone + 1, 0)
-    ground = elevation10.astype(np.float32) / 10.0
-    ordinary_tide = np.zeros(zone.shape, dtype=bool)
-    # Use the union of all rising histories plus the short crest through the
-    # baseline stage. This avoids classifying normal high-tide water as land
-    # flooding merely because that tide rose more slowly, delivered slightly
-    # more volume, or redistributed water between adjacent control volumes.
-    # Apply the same display interpolation used by render_assets so the
-    # baseline cannot leave isolated raster/smoothing remnants.
-    for family in (*RISE_RATE_FAMILIES_FT_PER_HOUR, "crest"):
-        for stage_index in range(baseline_index + 1):
-            surface_centift = families[family][stage_index][zone_lookup]
-            hydraulic_wet = (
-                (elevation10 != np.iinfo(np.int16).min)
-                & (surface_centift != DRY_SENTINEL)
-            )
-            local_surface = surface_centift.astype(np.float32) / 100.0
-            wet_weight = gaussian_filter(
-                hydraulic_wet.astype(np.float32),
-                sigma=1.6,
-                mode="nearest",
-            )
-            filtered_surface = gaussian_filter(
-                np.where(hydraulic_wet, local_surface, 0.0),
-                sigma=1.6,
-                mode="nearest",
-            )
-            local_surface = np.where(
-                hydraulic_wet,
-                np.divide(
-                    filtered_surface,
-                    np.maximum(wet_weight, 1e-6),
-                    out=np.full_like(filtered_surface, -9999.0),
-                    where=wet_weight > 1e-6,
-                ),
-                -9999.0,
-            )
-            ordinary_tide |= hydraulic_wet & (local_surface - ground > 0.005)
-    return ordinary_tide
-
-
 def render_assets(
     graph_dir: Path,
     dem_path: Path,
@@ -800,9 +896,6 @@ def render_assets(
     zone = np.memmap(
         graph_dir / "zone_id.raw", dtype="<i4", mode="r", shape=(HEIGHT, WIDTH)
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    source_pixel = np.memmap(
-        graph_dir / "source_flag.raw", dtype="u1", mode="r", shape=(HEIGHT, WIDTH)
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE] != 0
     dem_ds = gdal.Open(str(dem_path))
     projection = dem_ds.GetProjection()
     origin = dem_ds.GetGeoTransform()
@@ -822,7 +915,6 @@ def render_assets(
     valid = elevation10 != np.iinfo(np.int16).min
     ground = elevation10.astype(np.float32) / 10.0
     zone_lookup = np.where(zone >= 0, zone + 1, 0)
-    ordinary_tide = build_normal_tide_display_mask(elevation10, zone, families)
     counts = {}
 
     # Stage-hazard colors use the first rising stage at which each routed
@@ -853,13 +945,9 @@ def render_assets(
         for stage_index, stage in enumerate(STAGES_FT):
             encoded_surface = families[family][stage_index]
             surface_centift = encoded_surface[zone_lookup]
-            # Fixed-head source polygons are numerical boundary conditions,
-            # not predicted land inundation. They can be intentionally broad
-            # so the one-foot graph has robust tidal contact, and painting
-            # them produced conspicuous circular/rectangular "source cells"
-            # at low stages. Keep them active in the hydraulic solve, but
-            # render only finite-storage terrain that received water through
-            # a shared cross-section.
+            # Source blocks are part of the requested public map. Keep their
+            # exact supplied footprint visible; do not conceal them as a way
+            # of hiding excessive terrain routing.
             hydraulic_wet_zone = valid & (surface_centift != DRY_SENTINEL)
             local_surface = surface_centift.astype(np.float32) / 100.0
             # Smooth piecewise-constant control-volume surfaces for display,
@@ -887,9 +975,7 @@ def render_assets(
             depth = local_surface - ground
             flooded = (
                 hydraulic_wet_zone
-                & ~source_pixel
-                & ~ordinary_tide
-                & (depth > 0.005)
+                & (depth >= MIN_DISPLAY_DEPTH_FT)
             )
             flooded_pixels = int(np.count_nonzero(flooded))
             maximum_flooded_pixels = max(maximum_flooded_pixels, flooded_pixels)
@@ -933,11 +1019,11 @@ def render_assets(
         counts[family] = {
             "stageCount": len(STAGES_FT),
             "pngBytes": family_bytes,
-            "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+            "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
             "historyInvariant": False,
             "wetFootprint": (
-                "immutable finite-volume routed terrain nodes; fixed-head "
-                "forcing pixels are excluded and smoothing cannot add wet pixels"
+                "immutable finite-volume routed nodes including the supplied "
+                "fixed-head source blocks; smoothing cannot add wet pixels"
             ),
             "minimumFloodedPixels": minimum_flooded_pixels or 0,
             "maximumFloodedPixels": maximum_flooded_pixels,
@@ -967,17 +1053,8 @@ def render_assets(
         "renderCellSizeFt": RENDER_STRIDE,
         "projection": projection,
         "geotransform": list(render_transform),
-        "fixedHeadBoundaryDisplay": (
-            "excluded; source polygons force tide stage but are not land-flood pixels"
-        ),
-        "normalTideDisplayBaselineNavd88Ft": (
-            NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT
-        ),
-        "normalTideDisplayRule": (
-            "union of rising-slow, rising-typical, rising-fast, and crest wet "
-            "terrain through the baseline remains hydraulic storage but is not "
-            "painted as land inundation"
-        ),
+        "fixedHeadBoundaryDisplay": "included; supplied source blocks remain visible",
+        "minimumRenderedDepthFt": MIN_DISPLAY_DEPTH_FT,
         "families": counts,
     }
 
@@ -1060,8 +1137,8 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
             if y % 2048 == 0:
                 print(f"Writing query raster row {y:,}/{HEIGHT:,}")
         ds.SetMetadataItem(
-            "MODEL",
-            "one-foot finite-volume broad-crested-weir routing; storm drains disabled",
+        "MODEL",
+            "subgrid diffusive-wave finite-volume routing; storm drains disabled",
         )
         ds.SetMetadataItem("VERTICAL_DATUM", "NAVD88 feet")
         ds.FlushCache()
@@ -1203,21 +1280,8 @@ def build_zone_query_png(
         mode="r",
         shape=(HEIGHT, WIDTH),
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    source_pixel = np.memmap(
-        graph_dir / "source_flag.raw",
-        dtype="u1",
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE] != 0
-    elevation10 = np.memmap(
-        graph_dir / "elevation10.raw",
-        dtype="<i2",
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    ordinary_tide = build_normal_tide_display_mask(elevation10, zone, families)
     encoded = np.where(
-        (zone >= 0) & ~source_pixel & ~ordinary_tide,
+        zone >= 0,
         zone.astype(np.uint32) + 1,
         0,
     )
@@ -1241,13 +1305,9 @@ def build_zone_query_png(
         "renderCellSizeFt": RENDER_STRIDE,
         "channels": (
             "24-bit big-endian hydraulic terrain zone ID plus one; zero is "
-            "nodata or a hidden fixed-head boundary pixel"
+            "nodata"
         ),
-        "fixedHeadBoundaryQuery": "excluded from public water-depth queries",
-        "normalTideDisplayBaselineNavd88Ft": (
-            NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT
-        ),
-        "normalTideQuery": "ordinary tidal water excluded from land-depth queries",
+        "fixedHeadBoundaryQuery": "included; source-block depth remains queryable",
         "bytes": destination.stat().st_size,
     }
     print(f"Packed zone query PNG: {destination.stat().st_size:,} bytes")
@@ -1293,6 +1353,7 @@ def main() -> None:
         query_families, _ = load_complete_state(
             state_path,
             int(graph_manifest["zoneCount"]) + 1,
+            require_current_physics=True,
         )
         packed_query_manifest = build_packed_query_png(
             graph_dir,
@@ -1336,6 +1397,7 @@ def main() -> None:
         families, diagnostics = load_complete_state(
             reusable_complete_state,
             int(graph_manifest["zoneCount"]) + 1,
+            require_current_physics=True,
         )
         print(f"Reused all hydraulic states: {reusable_complete_state}")
     else:
@@ -1347,7 +1409,10 @@ def main() -> None:
         )
         solver = HydraulicSolver(zones, edges)
         families, diagnostics = simulate(solver)
-        write_state_asset(state_path, families, graph_manifest, diagnostics)
+    # Repacking a reused payload is intentional: solver/forcing metadata can
+    # be strengthened without recomputing the 707 hydraulic states, and the
+    # state package must describe the code that generated the public atlas.
+    write_state_asset(state_path, families, graph_manifest, diagnostics)
     render_manifest = None
     if not args.skip_render:
         render_manifest = render_assets(
@@ -1375,9 +1440,9 @@ def main() -> None:
     )
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v9",
+        "schema": "north-wildwood-hydraulic-assets-v10",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": False,
         "stageCatalog": {
             "minimumNavd88Ft": MODEL_MIN_STAGE_FT,

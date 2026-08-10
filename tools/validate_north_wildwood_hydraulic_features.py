@@ -257,19 +257,24 @@ def main() -> None:
     if np.array_equal(states["rising_typical"], states["falling_moderate"]):
         raise AssertionError("Rising and falling states did not retain history")
     hard_lookup = np.asarray(sorted(hard_zone_ids), dtype=np.int64) + 1
+    source_lookup = np.asarray(sorted(source_zone_ids), dtype=np.int64) + 1
     for phase in ("rising_slow", "rising_typical", "rising_fast", "crest"):
         if np.any(states[phase][74, hard_lookup] != dry):
             raise AssertionError(
                 f"{phase} state wets a bulkhead before 7.5 ft NAVD88"
             )
+        if np.any(states[phase][19, source_lookup] != dry):
+            raise AssertionError(f"{phase} activates a source block below 2.0 ft")
+        if np.any(states[phase][20, source_lookup] == dry):
+            raise AssertionError(f"{phase} does not show every source block at 2.0 ft")
 
     physics = header.get("physics") or {}
-    if physics.get("modelKind") != "history-aware finite-volume broad-crested-weir response atlas":
+    if physics.get("modelKind") != "history-aware subgrid diffusive-wave finite-volume response atlas":
         raise AssertionError("State package does not declare finite-volume routing")
     if physics.get("historyInvariant") is not False:
         raise AssertionError("State package does not declare history-aware states")
-    if physics.get("terrainFlow") != "submerged broad-crested weir":
-        raise AssertionError("State package does not declare broad-crested-weir flow")
+    if "Manning diffusive-wave" not in str(physics.get("terrainFlow", "")):
+        raise AssertionError("State package does not declare diffusive-wave flow")
     if physics.get("sourceZoneIsolation") is not True:
         raise AssertionError("State package does not declare source-zone isolation")
     if int(physics.get("sourceBoundaryPixelCount", -1)) != source_pixels:
@@ -277,12 +282,28 @@ def main() -> None:
     if "explicit shared-edge flux" not in str(physics.get("sourceExchange", "")):
         raise AssertionError("State package still declares component-wide source flow")
     if not math.isclose(
-        float(physics.get("weirCoefficientCfs", math.nan)),
+        float(physics.get("freeOverflowWeirCoefficientCfs", math.nan)),
         3.10,
         abs_tol=1e-12,
     ):
         raise AssertionError("State package has the wrong weir coefficient")
-    if "newly wet" not in str(physics.get("frontPropagation", "")):
+    if not math.isclose(
+        float(physics.get("urbanOverlandManningN", math.nan)),
+        0.12,
+        abs_tol=1e-12,
+    ):
+        raise AssertionError("State package has the wrong overland Manning n")
+    if not math.isclose(
+        float(physics.get("sourceBlockActivationNavd88Ft", math.nan)),
+        2.0,
+        abs_tol=1e-12,
+    ):
+        raise AssertionError("State package does not activate source blocks at 2.0 ft")
+    if "directionally gated" not in str(physics.get("sourceInterfaceTreatment", "")):
+        raise AssertionError("State package does not declare directional source inflow")
+    if "recession flow" not in str(physics.get("sourceInterfaceTreatment", "")):
+        raise AssertionError("State package does not preserve source drainage")
+    if "minimum mobile depth" not in str(physics.get("frontPropagation", "")):
         raise AssertionError("State package does not enforce finite front propagation")
     if not str(physics.get("stormDrains", "")).startswith("disabled"):
         raise AssertionError("State package does not declare disabled storm drains")

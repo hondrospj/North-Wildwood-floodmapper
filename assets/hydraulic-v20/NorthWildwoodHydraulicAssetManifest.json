@@ -1,7 +1,7 @@
 {
-  "schema": "north-wildwood-hydraulic-assets-v9",
-  "generatedUtc": "2026-08-10T20:55:04Z",
-  "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+  "schema": "north-wildwood-hydraulic-assets-v10",
+  "generatedUtc": "2026-08-10T22:21:12Z",
+  "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
   "historyInvariant": false,
   "stageCatalog": {
     "minimumNavd88Ft": 0.0,
@@ -56,72 +56,71 @@
       0.0,
       -5.0
     ],
-    "fixedHeadBoundaryDisplay": "excluded; source polygons force tide stage but are not land-flood pixels",
-    "normalTideDisplayBaselineNavd88Ft": 2.0,
-    "normalTideDisplayRule": "union of rising-slow, rising-typical, rising-fast, and crest wet terrain through the baseline remains hydraulic storage but is not painted as land inundation",
+    "fixedHeadBoundaryDisplay": "included; supplied source blocks remain visible",
+    "minimumRenderedDepthFt": 0.05,
     "families": {
       "rising_slow": {
         "stageCount": 101,
-        "pngBytes": 5419441,
-        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "pngBytes": 5602655,
+        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed terrain nodes; fixed-head forcing pixels are excluded and smoothing cannot add wet pixels",
+        "wetFootprint": "immutable finite-volume routed nodes including the supplied fixed-head source blocks; smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 182178
+        "maximumFloodedPixels": 217885
       },
       "rising_typical": {
         "stageCount": 101,
-        "pngBytes": 4755995,
-        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "pngBytes": 5076645,
+        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed terrain nodes; fixed-head forcing pixels are excluded and smoothing cannot add wet pixels",
+        "wetFootprint": "immutable finite-volume routed nodes including the supplied fixed-head source blocks; smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 143369
+        "maximumFloodedPixels": 181918
       },
       "rising_fast": {
         "stageCount": 101,
-        "pngBytes": 4467997,
-        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "pngBytes": 4883893,
+        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed terrain nodes; fixed-head forcing pixels are excluded and smoothing cannot add wet pixels",
+        "wetFootprint": "immutable finite-volume routed nodes including the supplied fixed-head source blocks; smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 130514
+        "maximumFloodedPixels": 171203
       },
       "crest": {
         "stageCount": 101,
-        "pngBytes": 4859077,
-        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "pngBytes": 5189078,
+        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed terrain nodes; fixed-head forcing pixels are excluded and smoothing cannot add wet pixels",
+        "wetFootprint": "immutable finite-volume routed nodes including the supplied fixed-head source blocks; smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 148374
+        "maximumFloodedPixels": 187230
       },
       "falling_minor": {
         "stageCount": 101,
-        "pngBytes": 6069133,
-        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "pngBytes": 6523717,
+        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed terrain nodes; fixed-head forcing pixels are excluded and smoothing cannot add wet pixels",
-        "minimumFloodedPixels": 39082,
-        "maximumFloodedPixels": 148374
+        "wetFootprint": "immutable finite-volume routed nodes including the supplied fixed-head source blocks; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 67906,
+        "maximumFloodedPixels": 187230
       },
       "falling_moderate": {
         "stageCount": 101,
-        "pngBytes": 7090219,
-        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "pngBytes": 7490848,
+        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed terrain nodes; fixed-head forcing pixels are excluded and smoothing cannot add wet pixels",
-        "minimumFloodedPixels": 68912,
-        "maximumFloodedPixels": 148374
+        "wetFootprint": "immutable finite-volume routed nodes including the supplied fixed-head source blocks; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 101118,
+        "maximumFloodedPixels": 187230
       },
       "falling_extreme": {
         "stageCount": 101,
-        "pngBytes": 9075640,
-        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "pngBytes": 9348101,
+        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed terrain nodes; fixed-head forcing pixels are excluded and smoothing cannot add wet pixels",
-        "minimumFloodedPixels": 122660,
-        "maximumFloodedPixels": 215208
+        "wetFootprint": "immutable finite-volume routed nodes including the supplied fixed-head source blocks; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 160951,
+        "maximumFloodedPixels": 246094
       }
     }
   },
@@ -159,9 +158,9 @@
     }
   },
   "diagnostics": {
-    "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+    "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
     "historyInvariant": false,
-    "maximumInternalConservationResidualFt3": 1.3710632629226893e-10,
+    "maximumInternalConservationResidualFt3": 1.3596945791505277e-10,
     "diagnosticStepCount": 584,
     "atlasFamilies": [
       "rising_slow",
@@ -172,11 +171,12 @@
       "falling_moderate",
       "falling_extreme"
     ],
-    "frontTravelLimit": {
+    "wettingAndFrontControls": {
       "controlVolumeSizeFt": 25,
       "maximumNumericalSpeedFtPerSecond": 0.5892556509887896,
       "maximumNumericalTravelPer15MinutesFt": 530.3300858899106,
-      "rule": "a newly wet control volume cannot donate until the next 60-second substep"
+      "rule": "a newly wet control volume cannot donate until the next 60-second substep and must first store at least the physical minimum mobile depth",
+      "minimumMobileDepthFt": 0.05
     },
     "risingHistoriesFtPerHour": {
       "rising_slow": 0.55,
@@ -210,11 +210,9 @@
     "width": 2186,
     "height": 2824,
     "renderCellSizeFt": 5,
-    "channels": "24-bit big-endian hydraulic terrain zone ID plus one; zero is nodata or a hidden fixed-head boundary pixel",
-    "fixedHeadBoundaryQuery": "excluded from public water-depth queries",
-    "normalTideDisplayBaselineNavd88Ft": 2.0,
-    "normalTideQuery": "ordinary tidal water excluded from land-depth queries",
-    "bytes": 238214
+    "channels": "24-bit big-endian hydraulic terrain zone ID plus one; zero is nodata",
+    "fixedHeadBoundaryQuery": "included; source-block depth remains queryable",
+    "bytes": 231172
   },
   "hydraulicStates": "COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png"
 }

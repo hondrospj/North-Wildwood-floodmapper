@@ -1,20 +1,24 @@
-# North Wildwood Floodmapper 2.0
+# North Wildwood Floodmapper 2.1
 
-## Event-driven physics forecast
+## Compact physics response atlas
 
-Current PETSS forecasts now have a full nonlinear shallow-water path under
-`model/`. Every cycle routes the actual 84-hour boundary history through
-205,000 ANUGA finite-volume triangles with momentum, wetting/drying, terrain,
-Manning friction, qualified open-ocean boundaries, and an explicitly preserved
-7.5 ft bulkhead crest. The dashboard consumes exact 15-minute depth, impact,
-daily-maximum, and click-query products from an atomically published scenario
-manifest. If no validated physics cycle is available, it safely falls back to
-the bundled v19 phase-aware atlas.
+The live dashboard preserves its existing pull-one-PNG browser contract. It
+does not run a new hydraulic simulation for every tide. Instead, it chooses one
+of seven precomputed history families from the scalar hydrograph, floors the
+level to a 0.1-foot NAVD88 stage, and downloads one depth or stage PNG.
 
-This changes the forecast question from “what terrain is connected at this
-stage?” to “where has water physically reached by this time in this event?”
-The implementation, provenance, runbook, research basis, and limitations are
-documented in `model/README.md`.
+The v21 atlas underneath that unchanged browser behavior is a mass-conserving
+subgrid finite-volume model. It applies time, storage, one-foot interface
+width, distance, water-surface gradient, Manning friction, wetting/drying, and
+a free-overflow capacity limit. A connected depression is no longer promoted
+instantaneously to the tide elevation.
+
+The supplied source blocks first appear at exactly **2.0 ft NAVD88**. Exterior
+routed volume is exactly zero in the 2.0-foot rising and crest frames. Above
+2.0 ft, water can leave a block only through its measured source–terrain face
+width and only for the time represented by the selected history family. On
+recession, previously routed water can drain back toward a lower boundary; the
+2.0-foot inflow condition is not misused as a two-way wall.
 
 This repository is the complete North Wildwood counterpart to Stone Harbor
 Floodmapper 2.0. It uses the Great Channel at Stone Harbor gauge as the live and
@@ -81,9 +85,11 @@ in the window. The resulting series contains 97
 long recession tail in the supplied profile.
 
 The planning flood-depth catalog still extends through 22.00 ft NAVD88. The
-history-aware operational catalog covers 0.0–10.0 ft under
-`assets/hydraulic-v20/`; levels above 10 ft retain the volume-routed v19 PNGs
-as a planning-only fallback. No equilibrium/bathtub images are used.
+history-aware operational catalog covers 0.0–10.0 ft under the retained
+`assets/hydraulic-v20/` public path; that directory name is kept to avoid a
+second large deployment copy, while its manifest identifies the v21/v10
+solver and render schemas. Levels above 10 ft retain the volume-routed v19
+PNGs as a planning-only fallback. No equilibrium/bathtub images are used.
 
 These are stationary screening scenarios: no future sea-level-rise increment
 or trend detrending is applied. Rebuild the committed payload from the official
@@ -114,35 +120,39 @@ vertical units in NAVD88 feet. The model then:
    source and interior terrain can never share a 25-foot storage node. Storm
    drains are disabled: they are neither connectivity seeds nor underground
    exchange paths.
-4. Routes water through those edges with a submerged broad-crested-weir
-   relation in 60-second substeps. Edge flow is capped by donor storage,
-   receiver capacity, and the two-basin equalization volume. A cell that first
-   becomes wet in one substep cannot donate water until the next substep.
-5. Builds seven history families: rising at 0.55, 0.79, and 0.90 ft/hour; a
+4. Gates source-to-terrain inflow at the supplied 2.0-ft NAVD88 source
+   condition, while allowing terrain-to-source drainage across the actual
+   connection on recession. At exactly 2.0 ft the supplied blocks are visible
+   and exterior inflow head is zero.
+5. Routes ordinary terrain flow with a Manning diffusive-wave face flux in
+   60-second substeps. True dry/free overflow is capped by broad-crested-weir
+   capacity. Every transfer is capped by donor storage, receiver capacity, and
+   the two-basin equalization volume. A cell first wetted in one substep cannot
+   donate until the next substep.
+6. Builds seven history families: rising at 0.55, 0.79, and 0.90 ft/hour; a
    15-minute crest hold; and continuous recessions from absolute 4.0, 5.5, and
    8.5 ft NAVD88 crests. The rise rates are the lower, median, and upper
    representative rates measured across 940 observed high tides. An entire
    rising limb uses one stable rate family. Falling frames use the nearest
    preceding absolute crest, eliminating v19's moving `stage + 2.5 ft` history
    and its one-foot band resets.
-6. Renders only water that the finite-volume solve actually delivered. Low
+7. Renders only water that the finite-volume solve actually delivered. Low
    terrain that is merely equilibrium-connected remains transparent; it is not
    labeled or colored as flooding.
 
 The operational solve produces 101 stages per family from 0.0–10.0 ft NAVD88
-at 0.1-foot increments: 707 depth PNGs plus 707 stage-class PNGs. The complete
-v20 bundle is about 61 MB, compared with 135 MB for v19. Forecast and observed
-updates inspect the scalar hydrograph, choose a history family, floor the level
-to the nearest 0.1-foot asset, and pull one PNG. They never rerun hydraulics.
+at 0.1-foot increments: 707 depth PNGs plus 707 stage-class PNGs. Forecast and
+observed updates inspect the scalar hydrograph, choose a history family, floor
+the level to the nearest 0.1-foot asset, and pull one PNG. They never rerun
+hydraulics.
 
 This is a compact physics response atlas, not an event-exact hydrodynamic
-forecast. A 432-case narrow-opening benchmark compared equilibrium mapping,
-v19 fixed-phase lookup, and v20 history-family lookup against full-hydrograph
-finite-storage routing. Aggregate normalized RMSE was 33.7%, 8.8%, and 1.8%,
-respectively. V20 uses 1,414 PNGs versus v19's 1,326 and is smaller on disk
-because dry terrain is transparent. See
-`tools/benchmark_north_wildwood_atlas.py` and
-`docs/north-wildwood-hydraulic-v20.md`.
+forecast. The real-graph low-stage benchmark shows why activation and finite
+flux both matter: connected equilibrium wets 408.37 exterior acres at 2.0 ft;
+the previous all-face-weir atlas wets 26.70 acres; v21 wets zero exterior acres
+at 2.0 ft and delivers 2.12 acre-ft to 4.57 acres during the first eight
+minutes at 2.1 ft. See `tools/benchmark_north_wildwood_methods.py` and
+`docs/north-wildwood-hydraulic-v21.md`.
 
 The main builders are:
 
@@ -175,6 +185,10 @@ python3 tools/validate_north_wildwood_hydraulic_features.py \
 python3 tools/validate_north_wildwood_render_connectivity.py \
   --graph /path/to/graph \
   --assets /path/to/assets
+
+python3 tools/build_north_wildwood_contact_sheets.py \
+  --assets /path/to/assets \
+  --output /path/to/contact-sheets
 ```
 
 The feature validator fails if the centerline is not expanded by at least ten

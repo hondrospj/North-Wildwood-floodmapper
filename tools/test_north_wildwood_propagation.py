@@ -33,11 +33,14 @@ def main() -> None:
     solver = model.HydraulicSolver(zones, edges)
     storage = np.zeros(zone_count, dtype=np.float64)
     surface = np.zeros(zone_count, dtype=np.float64)
-    source_storage = solver.storage(np.ones(zone_count, dtype=np.float64))
+    source_stage = 2.1
+    source_storage = solver.storage(
+        np.full(zone_count, source_stage, dtype=np.float64)
+    )
     storage[0] = source_storage[0]
-    surface[0] = 1.0
+    surface[0] = source_stage
 
-    storage, _, diagnostics = solver.advance(storage, surface, 1.0)
+    storage, _, diagnostics = solver.advance(storage, surface, source_stage)
     wet = np.flatnonzero(storage > 0.01)
     farthest_hop = int(wet.max()) if wet.size else -1
     substeps = model.TIDE_STEP_SECONDS // model.MODEL_STEP_SECONDS

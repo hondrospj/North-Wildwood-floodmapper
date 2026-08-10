@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify v20 history-family PNG masks and hidden forcing boundaries."""
+"""Verify v21 history-family PNG masks and visible 2.0-ft source blocks."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage import label as ndimage_label
 
 
@@ -22,10 +23,22 @@ FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
     ((0, 1, 0), (1, 1, 1), (0, 1, 0)),
     dtype=np.uint8,
 )
-# 62,500 square feet (1.43 acres) at five-foot display resolution. This limit
-# applies to a single connected change, not the many small cells that may
-# redistribute water simultaneously across the city.
-MAX_CONNECTED_WET_CHANGE_PIXELS = 2_500
+# Each simultaneous one-minute flux update can activate no more than one
+# 25-foot control volume. The longest atlas transition is the eight-minute
+# typical 0.1-foot rise followed by the explicit 15-minute crest hold. Using
+# shared-side control-volume length gives a 575-foot maximum front travel,
+# or 115 five-foot render pixels in taxicab distance. This tests travel time directly;
+# an area-only threshold incorrectly rejects a shallow fringe around a long
+# source perimeter while failing to distinguish a remote connected basin.
+MAX_TRANSITION_MINUTES = 23
+CONTROL_VOLUME_SIZE_FT = 25.0
+MAX_NEW_WATER_DISTANCE_PIXELS = int(
+    np.ceil(
+        MAX_TRANSITION_MINUTES
+        * CONTROL_VOLUME_SIZE_FT
+        / RENDER_STRIDE
+    )
+)
 FAMILIES = (
     "rising_slow",
     "rising_typical",
@@ -35,7 +48,7 @@ FAMILIES = (
     "falling_moderate",
     "falling_extreme",
 )
-NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT = 2.0
+SOURCE_BLOCK_ACTIVATION_NAVD88_FT = 2.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,6 +92,8 @@ def main() -> None:
     maximum_blue_pixels = 0
     maximum_connected_change = 0
     maximum_connected_change_frame = None
+    maximum_new_water_distance_pixels = 0.0
+    maximum_new_water_distance_frame = None
     transparent_dry_pixel_frame_sum = 0
 
     for family in FAMILIES:
@@ -111,21 +126,30 @@ def main() -> None:
                 raise AssertionError(
                     f"Depth/stage water masks differ for {family} {code}"
                 )
-            if np.any(depth_blue & source):
-                raise AssertionError(
-                    f"Fixed-head forcing pixels leaked into {family} {code}"
-                )
             stage_navd88_ft = int(code.removeprefix("p")) / 100.0
             if (
                 family in ("rising_slow", "rising_typical", "rising_fast", "crest")
-                and stage_navd88_ft <= NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT
+                and stage_navd88_ft < SOURCE_BLOCK_ACTIVATION_NAVD88_FT
                 and np.any(depth_blue)
             ):
                 raise AssertionError(
-                    f"Ordinary tidal water leaked into land-inundation frame "
+                    f"Water appears before source-block activation in "
                     f"{family} {code}"
                 )
+            if (
+                family in ("rising_slow", "rising_typical", "rising_fast", "crest")
+                and stage_navd88_ft == SOURCE_BLOCK_ACTIVATION_NAVD88_FT
+                and not np.array_equal(depth_blue, source & valid)
+            ):
+                raise AssertionError(
+                    f"The 2.0-ft frame is not exactly the supplied source blocks "
+                    f"for {family} {code}"
+                )
             if previous_blue is not None:
+                arrival_distance = distance_transform_cdt(
+                    ~(previous_blue | source),
+                    metric="taxicab",
+                )
                 for direction, changed in (
                     ("added", depth_blue & ~previous_blue & ~source),
                     ("removed", previous_blue & ~depth_blue & ~source),
@@ -138,6 +162,14 @@ def main() -> None:
                             "code": code,
                             "direction": direction,
                         }
+                    if direction == "added" and np.any(changed):
+                        farthest = float(np.max(arrival_distance[changed]))
+                        if farthest > maximum_new_water_distance_pixels:
+                            maximum_new_water_distance_pixels = farthest
+                            maximum_new_water_distance_frame = {
+                                "family": family,
+                                "code": code,
+                            }
             previous_blue = depth_blue
             family_hashes[family].append(hashlib.sha256(depth_blue.tobytes()).digest())
             _, component_count = ndimage_label(
@@ -155,12 +187,12 @@ def main() -> None:
         raise AssertionError("Slow and fast rising histories are identical")
     if family_hashes["rising_typical"] == family_hashes["falling_moderate"]:
         raise AssertionError("Rising and falling histories are identical")
-    if maximum_connected_change > MAX_CONNECTED_WET_CHANGE_PIXELS:
+    if maximum_new_water_distance_pixels > MAX_NEW_WATER_DISTANCE_PIXELS:
         raise AssertionError(
-            "An adjacent 0.1-ft frame changes one connected water patch by "
-            f"{maximum_connected_change:,} pixels at "
-            f"{maximum_connected_change_frame}; limit is "
-            f"{MAX_CONNECTED_WET_CHANGE_PIXELS:,}"
+            "An adjacent 0.1-ft frame creates water "
+            f"{maximum_new_water_distance_pixels:.1f} five-foot pixels from "
+            f"previous water at {maximum_new_water_distance_frame}; physical "
+            f"travel envelope is {MAX_NEW_WATER_DISTANCE_PIXELS} pixels"
         )
 
     print(
@@ -169,15 +201,11 @@ def main() -> None:
                 "status": "passed",
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
-                    "fixed-head forcing pixels remain hydraulically active but are "
-                    "absent from rendered flood footprints"
+                    "supplied source pixels first appear at exactly 2.0 ft NAVD88; "
+                    "the 2.0-ft rising and crest frames contain source blocks only"
                 ),
-                "normalTideDisplayBaselineNavd88Ft": (
-                    NORMAL_TIDE_DISPLAY_BASELINE_NAVD88_FT
-                ),
-                "normalTideRequirement": (
-                    "rising and crest land-inundation frames through the ordinary "
-                    "2.0-ft NAVD88 baseline contain no painted water"
+                "sourceBlockActivationNavd88Ft": (
+                    SOURCE_BLOCK_ACTIVATION_NAVD88_FT
                 ),
                 "equilibriumPotentialPixels": 0,
                 "transparentDryPixelFrameSum": transparent_dry_pixel_frame_sum,
@@ -185,8 +213,13 @@ def main() -> None:
                 "maximumBluePixelsInAnyFrame": maximum_blue_pixels,
                 "maximumConnectedInteriorChangePixels": maximum_connected_change,
                 "maximumConnectedInteriorChangeFrame": maximum_connected_change_frame,
-                "maximumConnectedInteriorChangeLimitPixels": (
-                    MAX_CONNECTED_WET_CHANGE_PIXELS
+                "maximumNewWaterDistancePixels": round(
+                    maximum_new_water_distance_pixels,
+                    3,
+                ),
+                "maximumNewWaterDistanceFrame": maximum_new_water_distance_frame,
+                "maximumNewWaterDistanceLimitPixels": (
+                    MAX_NEW_WATER_DISTANCE_PIXELS
                 ),
                 "families": records,
             },
