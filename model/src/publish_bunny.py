@@ -442,29 +442,52 @@ def main() -> None:
         "manifestUrls": manifest_urls,
     }
     pointer_payload = (json.dumps(pointer, indent=2) + "\n").encode("utf-8")
-    pointer_remote_path = join_remote(
+    stable_pointer_remote_path = join_remote(
         bunny_config["remoteRoot"],
         bunny_config["currentPointerName"],
     )
+    cycle_pointer_name = str(
+        bunny_config.get(
+            "cyclePointerNameTemplate",
+            "pointers/{cycleId}.json.png",
+        )
+    ).replace("{cycleId}", cycle_id)
+    cycle_pointer_remote_path = join_remote(
+        bunny_config["remoteRoot"],
+        cycle_pointer_name,
+    )
 
-    # The stable pointer is deliberately the final write: users either see the
-    # old fully verified cycle or the new fully verified cycle, never a partial.
+    # This cycle-addressed completion marker is deliberately the final public
+    # write. Its immutable URL avoids stale pull-zone cache entries while still
+    # ensuring users see either no completed cycle or one fully verified cycle.
     bunny.upload_bytes(
-        pointer_remote_path,
+        cycle_pointer_remote_path,
         pointer_payload,
         "application/json; charset=utf-8",
     )
     verify_token = f"{cycle_id}-pointer-{int(time.time())}"
     downloaded_pointer, headers = bunny.fetch_cdn(
-        pointer_remote_path,
+        cycle_pointer_remote_path,
         verify_token,
     )
-    verify_cors(headers, pointer_remote_path)
+    verify_cors(headers, cycle_pointer_remote_path)
     if sha256_bytes(downloaded_pointer) != sha256_bytes(pointer_payload):
-        raise RuntimeError("CDN current-pointer verification failed")
+        raise RuntimeError("CDN cycle-pointer verification failed")
     remote_pointer = json.loads(downloaded_pointer.decode("utf-8"))
     if remote_pointer.get("cycleId") != cycle_id:
-        raise RuntimeError("CDN current pointer names the wrong cycle")
+        raise RuntimeError("CDN cycle pointer names the wrong cycle")
+
+    # Keep the conventional discovery pointer in storage for operators and
+    # rollback tooling. The dashboard uses the immutable cycle pointer because
+    # this pull zone caches a path for 30 days and does not vary it by query.
+    bunny.upload_bytes(
+        stable_pointer_remote_path,
+        pointer_payload,
+        "application/json; charset=utf-8",
+    )
+    stored_pointer, _ = bunny.request("GET", stable_pointer_remote_path)
+    if sha256_bytes(stored_pointer) != sha256_bytes(pointer_payload):
+        raise RuntimeError("Bunny Storage current-pointer verification failed")
 
     local_pointer_path = (
         ROOT / "model/state" / f"published_{cycle_id}_pointer.json"
@@ -481,7 +504,8 @@ def main() -> None:
         )
 
     print(f"Published and verified {cycle_id}.")
-    print(f"Live pointer: {bunny.cdn_url(pointer_remote_path)}")
+    print(f"Live pointer: {bunny.cdn_url(cycle_pointer_remote_path)}")
+    print(f"Storage discovery pointer: {bunny.cdn_url(stable_pointer_remote_path)}")
     if deleted:
         print(f"Discarded old cycles: {', '.join(deleted)}")
 

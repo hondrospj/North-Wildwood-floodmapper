@@ -78,6 +78,7 @@
     "cdnBaseUrl": "https://floodmapperv1.b-cdn.net",
     "remoteRoot": "ForecastPhysics/North Wildwood",
     "currentPointerName": "current.json.png",
+    "cyclePointerNameTemplate": "pointers/{cycleId}.json.png",
     "retainCompletedCycles": 2
   }
 }

@@ -14665,6 +14665,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     let DEPTH_QUERY_COG_URL = "";
     let HYDRAULIC_STATES_URL = "";
     let PHYSICS_FORECAST_POINTER_URL = "";
+    let PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE = "";
     let PARCELS_URL = "";
     let HOUSE_ALERT_CDF_URL = "";
     let PARCEL_BOUNDARY_PNG_URL = "";
@@ -14804,6 +14805,8 @@ html.win-compact-ui #timelineDock #hourSlider{
       PHYSICS_FORECAST_POINTER_URL = config.overlays?.physicsForecastPointerPath
         ? new URL(config.overlays.physicsForecastPointerPath, APP_BASE).href
         : "";
+      PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE =
+        config.overlays?.physicsForecastCyclePointerTemplatePath || "";
       PARCELS_URL = new URL(config.parcels?.geojsonPath || "", APP_BASE).href;
       HOUSE_ALERT_CDF_URL = new URL(config.parcels?.houseAlertCdfPath || "", APP_BASE).href;
       PARCEL_BOUNDARY_PNG_URL = new URL(config.parcels?.boundaryPngPath || "", APP_BASE).href;
@@ -15185,8 +15188,16 @@ function cloneStyleObject(value) {
     let currentRawSeriesHours = [];
 
     function physicsPointerUrl() {
-      if (!PHYSICS_FORECAST_POINTER_URL) return "";
-      const url = new URL(PHYSICS_FORECAST_POINTER_URL, window.location.href);
+      const forecastCycle = Date.parse(forecastData?.petssCycleUtc || "");
+      const cycleId = Number.isFinite(forecastCycle)
+        ? new Date(forecastCycle).toISOString().replace(/[-:]/g, "").replace(/\.000Z$/, "Z")
+        : "";
+      const cyclePointerPath = PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE && cycleId
+        ? PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE.replaceAll("{cycleId}", cycleId)
+        : "";
+      const pointerPath = cyclePointerPath || PHYSICS_FORECAST_POINTER_URL;
+      if (!pointerPath) return "";
+      const url = new URL(pointerPath, window.location.href);
       url.searchParams.set("_cycle_check", String(Math.floor(Date.now() / 300000)));
       return url.href;
     }
@@ -15215,7 +15226,7 @@ function cloneStyleObject(value) {
     }
 
     async function loadPhysicsForecast(force = false) {
-      if (!PHYSICS_FORECAST_POINTER_URL) return null;
+      if (!PHYSICS_FORECAST_POINTER_URL && !PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE) return null;
       if (Object.keys(physicsForecastManifests).length && !force) {
         return getActivePhysicsManifest();
       }
@@ -33724,6 +33735,7 @@ TOWN_CONFIG = {
     "depthZoneQueryPngPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicZone5ft.png?v=20260807-hydraulic-v19",
     "depthQueryCogPath": null,
     "physicsForecastPointerPath": "https://floodmapperv1.b-cdn.net/ForecastPhysics/North%20Wildwood/current.json.png",
+    "physicsForecastCyclePointerTemplatePath": "https://floodmapperv1.b-cdn.net/ForecastPhysics/North%20Wildwood/pointers/{cycleId}.json.png",
     "hydraulicStatesPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260807-hydraulic-v19",
     "depthRoots": [
       "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/"
