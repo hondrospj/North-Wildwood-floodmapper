@@ -14,7 +14,7 @@ const OBSERVED_15MIN = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observe
 const OBSERVED_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed_archive_index.json"), "utf8"));
 const LEWES_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "lewes_archive_index.json"), "utf8"));
 const TOP_TIDES = JSON.parse(fs.readFileSync(path.join(HERE, "..", "toptides.json"), "utf8"));
-const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v19");
+const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v20");
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
@@ -110,7 +110,7 @@ assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
 assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 30/);
 assert.doesNotMatch(SOURCE, /Number\(stageValue\) > 14/);
-assert.match(SOURCE, /\/assets\/hydraulic-v19\//);
+assert.match(SOURCE, /\/assets\/hydraulic-v20\//);
 assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
 assert.match(SOURCE, />Simulation Extent</i);
 assert.match(extractFunction("isTownBoundaryEnabled"), /boundaryToggle[\s\S]+classList\.contains\("on"\)/);
@@ -164,9 +164,9 @@ assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /formatRetur
 assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
 assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
-assert.match(SOURCE, /linear-gradient\(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%/);
-assert.match(SOURCE, /<strong>Green areas<\/strong> may flood/);
-assert.match(SOURCE, /<span>May Flood<\/span><span>Shallow<\/span><span>Deep<\/span>/);
+assert.match(SOURCE, /linear-gradient\(90deg,#7df9ff 0%,#38d3ff 22%,#168ceb 43%/);
+assert.match(SOURCE, /<strong>Colored cells<\/strong> contain volume-routed water/);
+assert.doesNotMatch(SOURCE, /<span>May Flood<\/span>/);
 assert.match(extractFunction("renderLegend"), /physics-daily-maximum-active/);
 assert.match(extractFunction("renderLegend"), /Daily Max/);
 assert.match(extractFunction("renderLegend"), /Physics daily max/);
@@ -268,8 +268,8 @@ assert.match(SOURCE, /id="mapClickBuildingBtn"[^>]+aria-label="Building info"/);
 assert.match(SOURCE, /id="mapClickDepthBtn"[^>]+aria-label="Water depth"/);
 assert.match(SOURCE, /mapClickMode === "building" && parcelInfoInteractionEnabled\(\)/);
 assert.match(SOURCE, /north-wildwood-physics-forecast-v1/);
-assert.match(SOURCE, /ForecastPhysics\/North%20Wildwood\/current\.json\.png/);
-assert.match(SOURCE, /ForecastPhysics\/North%20Wildwood\/pointers\/\{cycleId\}\.json\.png/);
+assert.match(SOURCE, /"physicsForecastPointerPath": null/);
+assert.match(SOURCE, /"physicsForecastCyclePointerTemplatePath": null/);
 assert.match(extractFunction("physicsPointerUrl"), /forecastData\?\.petssCycleUtc/);
 assert.match(extractFunction("physicsPointerUrl"), /replaceAll\("\{cycleId\}", cycleId\)/);
 assert.match(SOURCE, /function getPhysicsForecastDisplaySeries\(/);
@@ -421,7 +421,15 @@ assert.equal(OBSERVED_INDEX.days.length, OBSERVED_15MIN.days.length);
 assert.ok(LEWES_INDEX.days.length > 23000);
 
 for (const family of ["DepthPNGs", "StagePNGs"]) {
-  for (const phase of ["", "filling", "draining"]) {
+  for (const phase of [
+    "rising_slow",
+    "rising_typical",
+    "rising_fast",
+    "crest",
+    "falling_minor",
+    "falling_moderate",
+    "falling_extreme",
+  ]) {
     const directory = path.join(
       BUNDLED_HYDRAULIC_ROOT,
       family,
@@ -429,9 +437,9 @@ for (const family of ["DepthPNGs", "StagePNGs"]) {
       phase
     );
     const files = fs.readdirSync(directory).filter(name => name.endsWith(".png")).sort();
-    assert.equal(files.length, 221, `${family}/${phase || "slack"} must contain the complete 0.0–22.0 ft catalog`);
+    assert.equal(files.length, 101, `${family}/${phase} must contain the complete operational 0.0–10.0 ft catalog`);
     assert.match(files[0], /p0000\.png$/);
-    assert.match(files.at(-1), /p2200\.png$/);
+    assert.match(files.at(-1), /p1000\.png$/);
   }
 }
 assert.ok(fs.statSync(path.join(

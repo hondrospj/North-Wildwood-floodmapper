@@ -14902,9 +14902,10 @@ html.win-compact-ui #timelineDock #hourSlider{
         depth: buildOverlayRoots(config.overlays?.depthRoots),
         dynamic: buildOverlayRoots(config.overlays?.dynamicRoots)
       };
+      const configuredFamilyRoots = config.overlays?.familyRoots || config.overlays?.phaseRoots || {};
       OVERLAY_PHASE_ROOTS = {
-        depth: Object.fromEntries(Object.entries(config.overlays?.phaseRoots?.depth || {}).map(([phase, roots]) => [phase, buildOverlayRoots(roots)])),
-        dynamic: Object.fromEntries(Object.entries(config.overlays?.phaseRoots?.dynamic || {}).map(([phase, roots]) => [phase, buildOverlayRoots(roots)]))
+        depth: Object.fromEntries(Object.entries(configuredFamilyRoots.depth || {}).map(([family, roots]) => [family, buildOverlayRoots(roots)])),
+        dynamic: Object.fromEntries(Object.entries(configuredFamilyRoots.dynamic || {}).map(([family, roots]) => [family, buildOverlayRoots(roots)]))
       };
       OVERLAY_CACHE_VERSIONS = config.overlays?.cacheVersions || {};
 
@@ -14989,8 +14990,7 @@ html.win-compact-ui #timelineDock #hourSlider{
       { label: "2.50–3.00 ft", color: "var(--depth-7)" },
       { label: "3.00–4.00 ft", color: "var(--depth-8)" },
       { label: "4.00–5.00 ft", color: "var(--depth-9)" },
-      { label: "5.00+ ft", color: "var(--depth-10)" },
-      { label: "Below stage, not yet reached by routed water", color: "var(--below)" }
+      { label: "5.00+ ft", color: "var(--depth-10)" }
     ];
 
     let DYNAMIC_LEGEND = [];
@@ -16687,7 +16687,7 @@ function setDatumHelpOpen(isOpen) {
         title: "Flood Depth Key",
         body: `
           <p>Light blue is shallow water. Darker blue is deeper water.</p>
-          <p>Green marks low terrain that the finite-volume wetting front has not reached in this tide phase. It may flood under a longer or differently shaped event.</p>
+          <p>Only cells reached by volume-conserving routed water are colored. Dry low terrain remains transparent.</p>
         `
       },
       stageLegend: {
@@ -16698,7 +16698,6 @@ function setDatumHelpOpen(isOpen) {
             <li><strong>Moderate:</strong> roads and some buildings may flood. Evacuations may be needed.</li>
             <li><strong>Major:</strong> many roads and buildings may flood. Larger evacuations may be needed.</li>
           </ul>
-          <p>Green areas may also flood.</p>
         `
       }
     };
@@ -16857,13 +16856,13 @@ function setDatumHelpOpen(isOpen) {
               : "<strong>Physics frame</strong> shows cells wet by this time"}</span>
           </div>
         ` : `
-          <div class="depth-legend-scale" aria-label="Green areas that may flood followed by modeled flood depth from shallow to deep">
-            <div class="depth-legend-labels"><span>May Flood</span><span>Shallow</span><span>Deep</span></div>
+          <div class="depth-legend-scale" aria-label="Volume-routed modeled flood depth from shallow to deep">
+            <div class="depth-legend-labels"><span>Shallow</span><span>Deep</span></div>
             <div class="depth-legend-gradient" aria-hidden="true"></div>
           </div>
           <div class="depth-legend-uncertainty-note">
-            <span><strong>Green areas</strong> may flood</span>
-            <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain green areas" title="Explain green areas">?</button>
+            <span><strong>Colored cells</strong> contain routed water</span>
+            <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain routed depth" title="Explain routed depth">?</button>
           </div>
         `;
         list.querySelector("[data-legend-help='uncertainty']")?.addEventListener("click", event => {
@@ -16983,6 +16982,24 @@ function setDatumHelpOpen(isOpen) {
       return phase === "filling" || phase === "draining" ? phase : "slack";
     }
 
+    const HYDRAULIC_ATLAS_FAMILIES = Object.freeze([
+      "rising_slow",
+      "rising_typical",
+      "rising_fast",
+      "crest",
+      "falling_minor",
+      "falling_moderate",
+      "falling_extreme"
+    ]);
+
+    function normalizeHydraulicAtlasFamily(value) {
+      const family = String(value || "").toLowerCase();
+      if (HYDRAULIC_ATLAS_FAMILIES.includes(family)) return family;
+      if (family === "filling") return "rising_typical";
+      if (family === "draining") return "falling_moderate";
+      return "crest";
+    }
+
     function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {
       if (entry?.hydraulicPhase) return normalizeHydraulicPhase(entry.hydraulicPhase);
       const rows = Array.isArray(series) ? series : [];
@@ -17007,6 +17024,83 @@ function setDatumHelpOpen(isOpen) {
       return "slack";
     }
 
+    function getHydraulicEntryTimeMs(entry) {
+      const raw = entry?.timeUtc || entry?.displayTimeUtc || entry?.timeEST || entry?.timeEst;
+      const value = raw ? Date.parse(raw) : NaN;
+      return Number.isFinite(value) ? value : null;
+    }
+
+    function getHydraulicRiseRateFtPerHour(entry, index = null, series = currentSeriesHours) {
+      const rows = Array.isArray(series) ? series : [];
+      let resolvedIndex = Number.isInteger(index) ? index : rows.indexOf(entry);
+      if (resolvedIndex < 0 && entry) resolvedIndex = findClosestEntryIndex(rows, entry);
+      if (resolvedIndex < 0) return 0.79;
+      const epsilon = 0.025;
+      let troughIndex = resolvedIndex;
+      while (troughIndex > 0) {
+        const earlier = getStageValue(rows[troughIndex - 1]);
+        const later = getStageValue(rows[troughIndex]);
+        if (!Number.isFinite(earlier) || !Number.isFinite(later) || earlier > later + epsilon) break;
+        troughIndex -= 1;
+      }
+      let crestIndex = resolvedIndex;
+      while (crestIndex + 1 < rows.length) {
+        const earlier = getStageValue(rows[crestIndex]);
+        const later = getStageValue(rows[crestIndex + 1]);
+        if (!Number.isFinite(earlier) || !Number.isFinite(later) || later < earlier - epsilon) break;
+        crestIndex += 1;
+      }
+      const trough = getStageValue(rows[troughIndex]);
+      const crest = getStageValue(rows[crestIndex]);
+      const troughMs = getHydraulicEntryTimeMs(rows[troughIndex]);
+      const crestMs = getHydraulicEntryTimeMs(rows[crestIndex]);
+      const durationHours = Number.isFinite(troughMs) && Number.isFinite(crestMs)
+        ? (crestMs - troughMs) / 3600000
+        : crestIndex - troughIndex;
+      if (Number.isFinite(trough) && Number.isFinite(crest) && durationHours > 0 && crest > trough) {
+        return (crest - trough) / durationHours;
+      }
+      const declared = Number(entry?.riseRateFtPer15Min);
+      if (Number.isFinite(declared) && declared > 0) return declared * 4;
+      return 0.79;
+    }
+
+    function getHydraulicPriorCrestFt(entry, index = null, series = currentSeriesHours) {
+      const declared = Number(entry?.priorCrestNavd88Ft ?? entry?.historyPeakNavd88Ft);
+      if (Number.isFinite(declared)) return declared;
+      const rows = Array.isArray(series) ? series : [];
+      let resolvedIndex = Number.isInteger(index) ? index : rows.indexOf(entry);
+      if (resolvedIndex < 0 && entry) resolvedIndex = findClosestEntryIndex(rows, entry);
+      const current = resolvedIndex >= 0 ? getStageValue(rows[resolvedIndex]) : getStageValue(entry);
+      let peak = Number.isFinite(current) ? current : 5.5;
+      if (resolvedIndex < 0) return peak;
+      const currentMs = getHydraulicEntryTimeMs(rows[resolvedIndex]);
+      for (let i = resolvedIndex; i >= 0; i -= 1) {
+        const rowMs = getHydraulicEntryTimeMs(rows[i]);
+        if (Number.isFinite(currentMs) && Number.isFinite(rowMs) && currentMs - rowMs > 18 * 3600000) break;
+        const stage = getStageValue(rows[i]);
+        if (Number.isFinite(stage)) peak = Math.max(peak, stage);
+        if (i < resolvedIndex - 1 && getHydraulicPhaseForEntry(rows[i], i, rows) === "filling") break;
+      }
+      return peak;
+    }
+
+    function getHydraulicAtlasFamilyForEntry(entry, index = null, series = currentSeriesHours) {
+      if (entry?.hydraulicAtlasFamily) return normalizeHydraulicAtlasFamily(entry.hydraulicAtlasFamily);
+      const phase = getHydraulicPhaseForEntry(entry, index, series);
+      if (phase === "slack") return "crest";
+      if (phase === "filling") {
+        const rate = getHydraulicRiseRateFtPerHour(entry, index, series);
+        if (rate <= 0.67) return "rising_slow";
+        if (rate <= 0.845) return "rising_typical";
+        return "rising_fast";
+      }
+      const priorCrest = getHydraulicPriorCrestFt(entry, index, series);
+      if (priorCrest <= 4.75) return "falling_minor";
+      if (priorCrest <= 7.0) return "falling_moderate";
+      return "falling_extreme";
+    }
+
     function getOverlayFilename(mode, stageValue) {
       const code = stageToCode(stageValue);
       if (mode === "depth") return `${SITE_CONFIG.depthPngPrefix}${code}.png`;
@@ -17017,9 +17111,9 @@ function setDatumHelpOpen(isOpen) {
       return [getOverlayFilename(mode, stageValue)];
     }
 
-    function getOverlayCandidates(mode, stageValue, phase = "slack") {
-      const normalizedPhase = normalizeHydraulicPhase(phase);
-      const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedPhase] || [];
+    function getOverlayCandidates(mode, stageValue, family = "crest") {
+      const normalizedFamily = normalizeHydraulicAtlasFamily(family);
+      const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedFamily] || [];
       const roots = phaseRoots.length ? phaseRoots : (OVERLAY_ROOTS[mode] || []);
       const orderedRoots = roots;
       const filenames = getOverlayFilenameCandidates(mode, stageValue);
@@ -17179,8 +17273,8 @@ function setDatumHelpOpen(isOpen) {
       return promise;
     }
 
-    async function findWorkingOverlay(mode, stageValue, phase = "slack") {
-      const candidates = getOverlayCandidates(mode, stageValue, phase);
+    async function findWorkingOverlay(mode, stageValue, family = "crest") {
+      const candidates = getOverlayCandidates(mode, stageValue, family);
       for (const url of candidates) {
         throwIfExportCancelled();
         const exists = await testImageUrl(url);
@@ -17193,12 +17287,12 @@ function setDatumHelpOpen(isOpen) {
       return null;
     }
 
-    async function getOverlayRecord(mode, stageValue, phase = "slack") {
-      const normalizedPhase = normalizeHydraulicPhase(phase);
-      const key = `${mode}:${normalizedPhase}:${stageToCode(stageValue)}`;
+    async function getOverlayRecord(mode, stageValue, family = "crest") {
+      const normalizedFamily = normalizeHydraulicAtlasFamily(family);
+      const key = `${mode}:${normalizedFamily}:${stageToCode(stageValue)}`;
       if (exportCancelRequested) throwIfExportCancelled();
       if (overlayRecordCache.has(key)) return overlayRecordCache.get(key);
-      const match = await findWorkingOverlay(mode, stageValue, normalizedPhase);
+      const match = await findWorkingOverlay(mode, stageValue, normalizedFamily);
       throwIfExportCancelled();
       overlayRecordCache.set(key, match);
       return match;
@@ -17218,7 +17312,7 @@ function setDatumHelpOpen(isOpen) {
         }
         const stage = getOverlayStage(getStageValue(entry));
         if (stage == null) return;
-        const phase = getHydraulicPhaseForEntry(entry, i, currentSeriesHours);
+        const phase = getHydraulicAtlasFamilyForEntry(entry, i, currentSeriesHours);
 
         ["depth", "dynamic"].forEach(mode => {
           getOverlayRecord(mode, stage, phase).then(record => {
@@ -20216,13 +20310,13 @@ function updateExportSegmentedUI() {
             <div class="export-depth-key-heading">
               <strong>Flood Depth</strong>
             </div>
-            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Green areas that may flood followed by modeled flood depth from shallow to deep"}">
+            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Volume-routed modeled flood depth from shallow to deep"}">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
               <div class="export-depth-key-ends" aria-hidden="true">
-                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "May Flood"}</span><span>Shallow</span><span>Deep</span>
+                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "Shallow"}</span><span>Deep</span>
               </div>
             </div>
-            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green areas</strong> may flood."}</div>
+            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Colored cells</strong> contain volume-routed water."}</div>
           </div>
         `
         : source.innerHTML;
@@ -20397,7 +20491,7 @@ function updateExportSegmentedUI() {
         throw new Error("Stage is not numeric for the selected hour.");
       }
 
-      const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
+      const hydraulicPhase = getHydraulicAtlasFamilyForEntry(item.entry, item.index, item.series || currentSeriesHours);
       await setExportFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, item.entry);
       mapInstance.invalidateSize(false);
       await waitForExportMapReady(isFirstFrame ? 70 : 10);
@@ -20627,7 +20721,7 @@ function getUniqueExportStages(frameItems) {
         const rawStage = getStageValue(item?.entry);
         const displayStage = getOverlayStage(rawStage);
         if (displayStage == null) continue;
-        const phase = getHydraulicPhaseForEntry(item?.entry, item?.index, item?.series || currentSeriesHours);
+        const phase = getHydraulicAtlasFamilyForEntry(item?.entry, item?.index, item?.series || currentSeriesHours);
         const key = `${phase}:${stageToCode(displayStage)}`;
         if (!byKey.has(key)) byKey.set(key, { stage: displayStage, phase });
       }
@@ -20881,7 +20975,7 @@ function getUniqueExportStages(frameItems) {
         const rawStage = getStageValue(item.entry);
         const displayStage = getOverlayStage(rawStage);
         if (displayStage != null) {
-          const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
+          const hydraulicPhase = getHydraulicAtlasFamilyForEntry(item.entry, item.index, item.series || currentSeriesHours);
           const stageKey = `${hydraulicPhase}:${stageToCode(displayStage)}`;
           let overlayImg = overlayImageLookup?.get(stageKey) || null;
           if (!overlayImg) {
@@ -22467,7 +22561,7 @@ function formatSelectedObservedDate(dateStr) {
 
       const rawStage = getStageValue(entry);
       const displayStage = getOverlayStage(rawStage);
-      const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);
+      const hydraulicPhase = getHydraulicAtlasFamilyForEntry(entry, index, currentSeriesHours);
 
       updatePersistentDepthQueryPopup({ useRenderedFlood: false });
       renderSelectionMeta(entry, rawStage, displayStage);
@@ -24011,11 +24105,16 @@ function startPlayback() {
       const payload = await getHydraulicStates();
       if (!payload || !Number.isInteger(zoneId) || zoneId <= 0) return null;
       const stageMin = Number(payload.stageMinNavd88Ft) || 0;
+      const stageMax = Number(payload.stageMaxNavd88Ft);
       const stageStep = Number(payload.stageStepFt) || 0.1;
       const stageCount = Number(payload.stageCount) || 221;
       const stride = Number(payload.zoneStride) || ((Number(payload.zoneCount) || 0) + 1);
+      // Operational v20 families stop at 10 ft; higher planning levels retain
+      // v19 PNG fallbacks. Use the selected level for a masked point-depth
+      // estimate rather than silently returning the v20 10-ft state.
+      if (Number.isFinite(stageMax) && Number(stage) > stageMax + 1e-9) return Number(stage);
       const stageIndex = Math.max(0, Math.min(stageCount - 1, Math.round((Number(stage) - stageMin) / stageStep)));
-      const binaryValues = payload.decodedPhaseWaterSurface?.[normalizeHydraulicPhase(phase)];
+      const binaryValues = payload.decodedPhaseWaterSurface?.[normalizeHydraulicAtlasFamily(phase)];
       if (binaryValues) {
         const encoded = binaryValues[stageIndex * stride + zoneId];
         if (payload.valueType === "int16-le") {
@@ -24026,7 +24125,7 @@ function startPlayback() {
         const offset = Number(payload.surfaceOffsetDecifeet ?? -100);
         return Number.isFinite(encoded) && encoded !== drySentinel ? (encoded + offset) / 10 : null;
       }
-      const values = payload.decodedPhaseWaterSurfaceCentift?.[normalizeHydraulicPhase(phase)];
+      const values = payload.decodedPhaseWaterSurfaceCentift?.[normalizeHydraulicAtlasFamily(phase)];
       const encoded = values?.[stageIndex * stride + zoneId];
       const drySentinel = Number(payload.drySentinelCentift ?? -32768);
       return Number.isFinite(encoded) && encoded !== drySentinel ? encoded / 100 : null;
@@ -24314,7 +24413,7 @@ function startPlayback() {
       const renderedFlood = options.useRenderedFlood === false
         ? null
         : sampleRenderedFloodPixel(context.latlng.lat, context.latlng.lng);
-      const phase = getHydraulicPhaseForEntry(
+      const phase = getHydraulicAtlasFamilyForEntry(
         currentSeriesHours[currentHourIndex],
         currentHourIndex,
         currentSeriesHours
@@ -24334,7 +24433,7 @@ function startPlayback() {
       const renderedFlood = sample
         ? sampleRenderedFloodPixel(latlng.lat, latlng.lng)
         : null;
-      const phase = getHydraulicPhaseForEntry(
+      const phase = getHydraulicAtlasFamilyForEntry(
         currentSeriesHours[currentHourIndex],
         currentHourIndex,
         currentSeriesHours
@@ -33727,42 +33826,82 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260807-hydraulic-v19",
-      "dynamic": "20260807-hydraulic-v19",
-      "hydraulic": "20260807-hydraulic-v19"
+      "depth": "20260810-hydraulic-v20",
+      "dynamic": "20260810-hydraulic-v20",
+      "hydraulic": "20260810-hydraulic-v20"
     },
-    "depthQueryPngPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260807-hydraulic-v19",
-    "depthZoneQueryPngPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicZone5ft.png?v=20260807-hydraulic-v19",
+    "depthQueryPngPath": "./assets/hydraulic-v20/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260810-hydraulic-v20",
+    "depthZoneQueryPngPath": "./assets/hydraulic-v20/COGs/North%20Wildwood/NorthWildwoodHydraulicZone5ft.png?v=20260810-hydraulic-v20",
     "depthQueryCogPath": null,
-    "physicsForecastPointerPath": "https://floodmapperv1.b-cdn.net/ForecastPhysics/North%20Wildwood/current.json.png",
-    "physicsForecastCyclePointerTemplatePath": "https://floodmapperv1.b-cdn.net/ForecastPhysics/North%20Wildwood/pointers/{cycleId}.json.png",
-    "hydraulicStatesPath": "./assets/hydraulic-v19/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260807-hydraulic-v19",
+    "physicsForecastPointerPath": null,
+    "physicsForecastCyclePointerTemplatePath": null,
+    "hydraulicStatesPath": "./assets/hydraulic-v20/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260810-hydraulic-v20",
     "depthRoots": [
+      "./assets/hydraulic-v20/DepthPNGs/North%20Wildwood/crest/",
       "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/"
     ],
     "dynamicRoots": [
+      "./assets/hydraulic-v20/StagePNGs/North%20Wildwood/crest/",
       "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/"
     ],
-    "phaseRoots": {
+    "familyRoots": {
       "depth": {
-        "filling": [
+        "rising_slow": [
+          "./assets/hydraulic-v20/DepthPNGs/North%20Wildwood/rising_slow/",
           "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/filling/"
         ],
-        "slack": [
+        "rising_typical": [
+          "./assets/hydraulic-v20/DepthPNGs/North%20Wildwood/rising_typical/",
+          "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/filling/"
+        ],
+        "rising_fast": [
+          "./assets/hydraulic-v20/DepthPNGs/North%20Wildwood/rising_fast/",
+          "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/filling/"
+        ],
+        "crest": [
+          "./assets/hydraulic-v20/DepthPNGs/North%20Wildwood/crest/",
           "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/"
         ],
-        "draining": [
+        "falling_minor": [
+          "./assets/hydraulic-v20/DepthPNGs/North%20Wildwood/falling_minor/",
+          "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/draining/"
+        ],
+        "falling_moderate": [
+          "./assets/hydraulic-v20/DepthPNGs/North%20Wildwood/falling_moderate/",
+          "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/draining/"
+        ],
+        "falling_extreme": [
+          "./assets/hydraulic-v20/DepthPNGs/North%20Wildwood/falling_extreme/",
           "./assets/hydraulic-v19/DepthPNGs/North%20Wildwood/draining/"
         ]
       },
       "dynamic": {
-        "filling": [
+        "rising_slow": [
+          "./assets/hydraulic-v20/StagePNGs/North%20Wildwood/rising_slow/",
           "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/filling/"
         ],
-        "slack": [
+        "rising_typical": [
+          "./assets/hydraulic-v20/StagePNGs/North%20Wildwood/rising_typical/",
+          "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/filling/"
+        ],
+        "rising_fast": [
+          "./assets/hydraulic-v20/StagePNGs/North%20Wildwood/rising_fast/",
+          "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/filling/"
+        ],
+        "crest": [
+          "./assets/hydraulic-v20/StagePNGs/North%20Wildwood/crest/",
           "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/"
         ],
-        "draining": [
+        "falling_minor": [
+          "./assets/hydraulic-v20/StagePNGs/North%20Wildwood/falling_minor/",
+          "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/draining/"
+        ],
+        "falling_moderate": [
+          "./assets/hydraulic-v20/StagePNGs/North%20Wildwood/falling_moderate/",
+          "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/draining/"
+        ],
+        "falling_extreme": [
+          "./assets/hydraulic-v20/StagePNGs/North%20Wildwood/falling_extreme/",
           "./assets/hydraulic-v19/StagePNGs/North%20Wildwood/draining/"
         ]
       }
@@ -35634,7 +35773,7 @@ html body #mapTitleBadge #mapTitleLogo{
     height:10px !important;
     border-radius:999px !important;
     border:1px solid rgba(255,255,255,.48) !important;
-    background:linear-gradient(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%,#00a6f2 34%,#1479df 50%,#1852bd 67%,#132f7d 83%,#041536 100%) !important;
+    background:linear-gradient(90deg,#7df9ff 0%,#38d3ff 22%,#168ceb 43%,#1853c6 62%,#132f84 80%,#050e33 100%) !important;
     box-shadow:inset 0 1px 1px rgba(255,255,255,.25) !important;
   }
   html body #legendDock[data-legend-mode="depth"] .depth-legend-uncertainty-note{
@@ -35666,11 +35805,11 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 
   .export-depth-key-gradient{
-    background:linear-gradient(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%,#00a6f2 34%,#1479df 50%,#1852bd 67%,#132f7d 83%,#041536 100%) !important;
+    background:linear-gradient(90deg,#7df9ff 0%,#38d3ff 22%,#168ceb 43%,#1853c6 62%,#132f84 80%,#050e33 100%) !important;
   }
   .export-depth-key-ends{
     display:grid !important;
-    grid-template-columns:22% minmax(0,1fr) auto !important;
+    grid-template-columns:minmax(0,1fr) auto !important;
   }
   .export-depth-key-ends span:nth-child(2){justify-self:start}
   .export-depth-key-ends span:last-child{justify-self:end}

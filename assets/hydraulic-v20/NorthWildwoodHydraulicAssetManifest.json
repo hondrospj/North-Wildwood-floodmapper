@@ -1,0 +1,214 @@
+{
+  "schema": "north-wildwood-hydraulic-assets-v8",
+  "generatedUtc": "2026-08-10T20:13:21Z",
+  "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+  "historyInvariant": false,
+  "stageCatalog": {
+    "minimumNavd88Ft": 0.0,
+    "maximumNavd88Ft": 10.0,
+    "incrementFt": 0.1,
+    "stageCountPerFamily": 101,
+    "familyCount": 7,
+    "depthPngCount": 707,
+    "stagePngCount": 707
+  },
+  "graph": {
+    "schema": "north-wildwood-one-foot-hydraulic-graph-v5",
+    "width": 10930,
+    "height": 14120,
+    "cellSizeFt": 1,
+    "sourceStageNavd88Ft": 1.0,
+    "sourceMinComponentCells": 101,
+    "sourceConnectivity": "four-neighbour/shared-side only",
+    "sourceBoundaryDefinition": "supplied mask cells inside qualified low components; connected interior cells excluded",
+    "manualSourcePixelCount": 254212,
+    "qualifiedSourceBoundaryPixelCount": 113359,
+    "sourceZonesIsolatedFromTerrain": true,
+    "bulkheadElevationNavd88Ft": 7.5,
+    "bulkheadNominalWidthCells": 21,
+    "bulkheadPixelCount": 174993,
+    "bulkheadTerrainTreatment": "stitched into input DEM with GDAL before graph construction",
+    "stormDrains": "disabled; not connectivity seeds and no exchange flow",
+    "modelMaximumNavd88Ft": 10.0,
+    "controlVolumeSizeFt": 25,
+    "connectionBinFt": 2,
+    "controlVolumeConnectivity": "four-neighbour components within each tile/connection bin; hard structures and fixed-head sources isolated as separate material classes",
+    "zoneCount": 136612,
+    "geotransform": [
+      401465,
+      1,
+      0,
+      70425,
+      0,
+      -1
+    ]
+  },
+  "render": {
+    "renderWidth": 2186,
+    "renderHeight": 2824,
+    "renderCellSizeFt": 5,
+    "projection": "PROJCS[\"NAD83(2011) / New Jersey (ftUS)\",GEOGCS[\"NAD83(2011)\",DATUM[\"NAD83_National_Spatial_Reference_System_2011\",SPHEROID[\"GRS 1980\",6378137,298.257222101,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"1116\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"6318\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",38.8333333333333],PARAMETER[\"central_meridian\",-74.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",492125],PARAMETER[\"false_northing\",0],UNIT[\"US survey foot\",0.304800609601219,AUTHORITY[\"EPSG\",\"9003\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"6527\"]]",
+    "geotransform": [
+      401465.0,
+      5.0,
+      0.0,
+      70425.0,
+      0.0,
+      -5.0
+    ],
+    "families": {
+      "rising_slow": {
+        "stageCount": 101,
+        "pngBytes": 6420197,
+        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "historyInvariant": false,
+        "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 12691,
+        "maximumFloodedPixels": 236726
+      },
+      "rising_typical": {
+        "stageCount": 101,
+        "pngBytes": 5819006,
+        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "historyInvariant": false,
+        "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 11274,
+        "maximumFloodedPixels": 196589
+      },
+      "rising_fast": {
+        "stageCount": 101,
+        "pngBytes": 5555334,
+        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "historyInvariant": false,
+        "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 11413,
+        "maximumFloodedPixels": 183684
+      },
+      "crest": {
+        "stageCount": 101,
+        "pngBytes": 5919827,
+        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "historyInvariant": false,
+        "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 16379,
+        "maximumFloodedPixels": 201986
+      },
+      "falling_minor": {
+        "stageCount": 101,
+        "pngBytes": 6975092,
+        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "historyInvariant": false,
+        "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 90806,
+        "maximumFloodedPixels": 201986
+      },
+      "falling_moderate": {
+        "stageCount": 101,
+        "pngBytes": 7904451,
+        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "historyInvariant": false,
+        "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 121287,
+        "maximumFloodedPixels": 201986
+      },
+      "falling_extreme": {
+        "stageCount": 101,
+        "pngBytes": 9648985,
+        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "historyInvariant": false,
+        "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 176052,
+        "maximumFloodedPixels": 267978
+      }
+    }
+  },
+  "thresholdsNAVD88": {
+    "minorLow": 3.25,
+    "moderateLow": 4.25,
+    "majorLow": 5.25
+  },
+  "thresholdsMLLW": {
+    "minorLow": 6.0,
+    "moderateLow": 7.0,
+    "majorLow": 8.0
+  },
+  "navd88OffsetFromMllwFt": -2.75,
+  "families": [
+    "rising_slow",
+    "rising_typical",
+    "rising_fast",
+    "crest",
+    "falling_minor",
+    "falling_moderate",
+    "falling_extreme"
+  ],
+  "familySelection": {
+    "risingRatesFtPerHour": {
+      "rising_slow": 0.55,
+      "rising_typical": 0.79,
+      "rising_fast": 0.9
+    },
+    "crestHoldMinutes": 15,
+    "fallingPriorCrestsNavd88Ft": {
+      "falling_minor": 4.0,
+      "falling_moderate": 5.5,
+      "falling_extreme": 8.5
+    }
+  },
+  "diagnostics": {
+    "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+    "historyInvariant": false,
+    "maximumInternalConservationResidualFt3": 1.3710632629226893e-10,
+    "diagnosticStepCount": 584,
+    "atlasFamilies": [
+      "rising_slow",
+      "rising_typical",
+      "rising_fast",
+      "crest",
+      "falling_minor",
+      "falling_moderate",
+      "falling_extreme"
+    ],
+    "frontTravelLimit": {
+      "controlVolumeSizeFt": 25,
+      "maximumNumericalSpeedFtPerSecond": 0.5892556509887896,
+      "maximumNumericalTravelPer15MinutesFt": 530.3300858899106,
+      "rule": "a newly wet control volume cannot donate until the next 60-second substep"
+    },
+    "risingHistoriesFtPerHour": {
+      "rising_slow": 0.55,
+      "rising_typical": 0.79,
+      "rising_fast": 0.9
+    },
+    "crestHistoryMinutes": 15,
+    "fallingHistoryPeaksNavd88Ft": {
+      "falling_minor": 4.0,
+      "falling_moderate": 5.5,
+      "falling_extreme": 8.5
+    }
+  },
+  "queryCog": null,
+  "packedQueryPng": "COGs/North Wildwood/NorthWildwoodHydraulicQuery5ft.png",
+  "packedQuery": {
+    "schema": "north-wildwood-packed-depth-query-v3",
+    "width": 2186,
+    "height": 2824,
+    "renderCellSizeFt": 5,
+    "channels": {
+      "redGreen": "conditioned elevation in tenths NAVD88; unsigned big-endian value minus 32768; zero is nodata",
+      "blue": "first four-neighbour connection stage in tenths NAVD88 plus 30; values below -3 ft are clamped to -3 ft; 255 means not connected through the graph-build ceiling",
+      "alpha": "255"
+    },
+    "bytes": 1107030
+  },
+  "packedZoneQueryPng": "COGs/North Wildwood/NorthWildwoodHydraulicZone5ft.png",
+  "packedZoneQuery": {
+    "schema": "north-wildwood-packed-zone-query-v1",
+    "width": 2186,
+    "height": 2824,
+    "renderCellSizeFt": 5,
+    "channels": "24-bit big-endian hydraulic zone ID plus one; zero is nodata",
+    "bytes": 231172
+  },
+  "hydraulicStates": "COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png"
+}

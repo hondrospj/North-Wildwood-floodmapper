@@ -35,7 +35,10 @@ def load_states(path: Path, expected_stride: int) -> tuple[dict, dict[str, np.nd
         raise AssertionError("Hydraulic state stride does not match graph")
     payload_start = 12 + header_length
     arrays = {}
-    for phase in ("filling", "slack", "draining"):
+    families = tuple(header.get("familyOrder") or ())
+    if len(families) != 7:
+        raise AssertionError("Hydraulic states do not contain seven history families")
+    for phase in families:
         record = header["phaseArrays"][phase]
         byte_length = int(record["length"])
         if header.get("valueType") == "int16-le":
@@ -241,30 +244,30 @@ def main() -> None:
 
     header, states = load_states(args.states.resolve(), zone_count + 1)
     dry = int(header.get("drySentinelCentift", -32768))
-    if int(header.get("stageCount", 0)) != 221:
-        raise AssertionError("State package does not contain 221 stage levels")
+    if int(header.get("stageCount", 0)) != 101:
+        raise AssertionError("State package does not contain 101 operational stage levels")
     if not math.isclose(float(header.get("stageMinNavd88Ft", math.nan)), 0.0):
         raise AssertionError("State package does not start at 0.0 ft NAVD88")
-    if not math.isclose(float(header.get("stageMaxNavd88Ft", math.nan)), 22.0):
-        raise AssertionError("State package does not end at 22.0 ft NAVD88")
+    if not math.isclose(float(header.get("stageMaxNavd88Ft", math.nan)), 10.0):
+        raise AssertionError("State package does not end at 10.0 ft NAVD88")
     if not math.isclose(float(header.get("stageStepFt", math.nan)), 0.1):
         raise AssertionError("State package does not use 0.1-ft increments")
-    if np.array_equal(states["filling"], states["slack"]):
-        raise AssertionError("Short-slack states did not advance beyond filling")
-    if np.array_equal(states["filling"], states["draining"]):
-        raise AssertionError("Draining states did not retain a distinct history")
+    if np.array_equal(states["rising_slow"], states["rising_fast"]):
+        raise AssertionError("Slow and fast rising states are identical")
+    if np.array_equal(states["rising_typical"], states["falling_moderate"]):
+        raise AssertionError("Rising and falling states did not retain history")
     hard_lookup = np.asarray(sorted(hard_zone_ids), dtype=np.int64) + 1
-    for phase in ("filling", "slack"):
+    for phase in ("rising_slow", "rising_typical", "rising_fast", "crest"):
         if np.any(states[phase][74, hard_lookup] != dry):
             raise AssertionError(
                 f"{phase} state wets a bulkhead before 7.5 ft NAVD88"
             )
 
     physics = header.get("physics") or {}
-    if physics.get("modelKind") != "phase-aware finite-volume broad-crested-weir routing":
+    if physics.get("modelKind") != "history-aware finite-volume broad-crested-weir response atlas":
         raise AssertionError("State package does not declare finite-volume routing")
-    if physics.get("phaseInvariant") is not False:
-        raise AssertionError("State package does not declare phase-aware states")
+    if physics.get("historyInvariant") is not False:
+        raise AssertionError("State package does not declare history-aware states")
     if physics.get("terrainFlow") != "submerged broad-crested weir":
         raise AssertionError("State package does not declare broad-crested-weir flow")
     if physics.get("sourceZoneIsolation") is not True:
@@ -288,11 +291,11 @@ def main() -> None:
     if int(physics.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("State package does not declare a 21-cell bulkhead")
     diagnostics = header.get("diagnostics") or {}
-    if diagnostics.get("phaseInvariant") is not False:
-        raise AssertionError("Diagnostics do not declare phase-aware routing")
+    if diagnostics.get("historyInvariant") is not False:
+        raise AssertionError("Diagnostics do not declare history-aware routing")
     if float(diagnostics.get("maximumInternalConservationResidualFt3", math.inf)) > 1e-5:
         raise AssertionError("Internal finite-volume routing is not conservative")
-    if int(diagnostics.get("diagnosticStepCount", 0)) < 221:
+    if int(diagnostics.get("diagnosticStepCount", 0)) < 101:
         raise AssertionError("Finite-volume diagnostics are incomplete")
 
     print(
@@ -317,11 +320,11 @@ def main() -> None:
                 "sourceSharedEdgeWidthFt": source_shared_edge_width_ft,
                 "sourceZonesMixedWithTerrain": 0,
                 "modelKind": physics["modelKind"],
-                "phaseInvariant": physics["phaseInvariant"],
+                "historyInvariant": physics["historyInvariant"],
                 "maximumInternalConservationResidualFt3": diagnostics[
                     "maximumInternalConservationResidualFt3"
                 ],
-                "statePhases": list(states),
+                "stateFamilies": list(states),
             },
             indent=2,
         )

@@ -80,10 +80,10 @@ in the window. The resulting series contains 97
 15-minute frames and retains the sharp central peak, post-peak shoulder, and
 long recession tail in the supplied profile.
 
-The flood-depth catalog extends through 22.00 ft NAVD88, covering every
-published NACCS station 11283 target in this set without a display cap. All
-phase-aware images and compact point-query/state files are bundled under
-`assets/hydraulic-v19/`; older equilibrium images are not used as fallbacks.
+The planning flood-depth catalog still extends through 22.00 ft NAVD88. The
+history-aware operational catalog covers 0.0–10.0 ft under
+`assets/hydraulic-v20/`; levels above 10 ft retain the volume-routed v19 PNGs
+as a planning-only fallback. No equilibrium/bathtub images are used.
 
 These are stationary screening scenarios: no future sea-level-rise increment
 or trend detrending is applied. Rebuild the committed payload from the official
@@ -118,27 +118,31 @@ vertical units in NAVD88 feet. The model then:
    relation in 60-second substeps. Edge flow is capped by donor storage,
    receiver capacity, and the two-basin equalization volume. A cell that first
    becomes wet in one substep cannot donate water until the next substep.
-5. Builds separate rising, short-slack, and falling histories. Slack holds the
-   rising state for 15 minutes. Falling targets interpolate the stored water
-   between routed crest histories one foot apart, keeping the effective prior
-   crest continuously 2.5 ft above the target without jumps at band boundaries.
-   No phase begins from an equilibrium city-wide water plane.
+5. Builds seven history families: rising at 0.55, 0.79, and 0.90 ft/hour; a
+   15-minute crest hold; and continuous recessions from absolute 4.0, 5.5, and
+   8.5 ft NAVD88 crests. The rise rates are the lower, median, and upper
+   representative rates measured across 940 observed high tides. An entire
+   rising limb uses one stable rate family. Falling frames use the nearest
+   preceding absolute crest, eliminating v19's moving `stage + 2.5 ft` history
+   and its one-foot band resets.
+6. Renders only water that the finite-volume solve actually delivered. Low
+   terrain that is merely equilibrium-connected remains transparent; it is not
+   labeled or colored as flooding.
 
-The solve produces reusable assets from 0.0–22.0 ft NAVD88 at 0.1-foot
-intervals: 221 stages in each of three phase families, or 663 depth PNGs plus
-663 stage-class PNGs. Forecast and observed updates only identify the current
-phase and floor the selected level to the nearest 0.1-foot asset; they never
-rerun the hydraulic model.
+The operational solve produces 101 stages per family from 0.0–10.0 ft NAVD88
+at 0.1-foot increments: 707 depth PNGs plus 707 stage-class PNGs. The complete
+v20 bundle is about 61 MB, compared with 135 MB for v19. Forecast and observed
+updates inspect the scalar hydrograph, choose a history family, floor the level
+to the nearest 0.1-foot asset, and pull one PNG. They never rerun hydraulics.
 
-This is a compact response atlas, not an exhaustive high/low endpoint matrix.
-At 0.1-foot spacing, even unordered low/high pairs would create 24,531 endpoint
-combinations before adding the frames within each tide. V2 instead represents
-the dominant hydraulic memory with rising, short-slack, and locally initialized
-falling histories. Event-exact timing would require either additional
-rise-rate/amplitude buckets or running the same finite-volume solver for the
-specific tide series. The weir coefficient, control-volume size, and history
-windows should be calibrated against observed street-flood arrival times and
-high-water extents before the maps are used for engineering decisions.
+This is a compact physics response atlas, not an event-exact hydrodynamic
+forecast. A 432-case narrow-opening benchmark compared equilibrium mapping,
+v19 fixed-phase lookup, and v20 history-family lookup against full-hydrograph
+finite-storage routing. Aggregate normalized RMSE was 33.7%, 8.8%, and 1.8%,
+respectively. V20 uses 1,414 PNGs versus v19's 1,326 and is smaller on disk
+because dry terrain is transparent. See
+`tools/benchmark_north_wildwood_atlas.py` and
+`docs/north-wildwood-hydraulic-v20.md`.
 
 The main builders are:
 
@@ -177,7 +181,7 @@ The feature validator fails if the centerline is not expanded by at least ten
 cells in all four cardinal directions, any bulkhead cell is below 7.5 ft
 NAVD88, any supplied bulkhead cell is mixed into a terrain node, any edge
 crosses a bulkhead below 7.5 ft NAVD88, a storm-drain cell enters the graph, or
-the phase arrays do not differ, finite-volume conservation fails, or the
+the history-family arrays do not differ, finite-volume conservation fails, or the
 declared front-propagation rule is missing.
 
 The feature-preparation step records the source ZIP hash, validates the
@@ -188,18 +192,15 @@ DEM provenance in the generated manifest. In the current graph, 113,359
 qualified boundary pixels form 326 boundary-only zones, with no zone containing
 both fixed-head boundary and terrain cells.
 
-The renderer uses the new depth key: shallow water is bright cyan and deeper
-water grades to dark navy. Green includes terrain that is below the selected
-tide but has not yet been reached by the routed wetting front. Surface values
-are smoothed over roughly eight feet only inside the immutable finite-volume
-wet mask, so smoothing cannot create new water. Falling-tide puddles may remain
-after their visible five-foot connection to the source has dried. The render
-validator checks all 1,326 depth/stage PNGs, requires matching masks and a real
-moving front, and confirms that the three phase catalogs are distinct. It also
-fails if any newly flooded interior four-neighbour component exceeds 2,500
-one-foot pixels between adjacent 0.1-ft frames. The current maximum is 1,978
-pixels; drying transitions are measured separately and do not count as flood
-growth.
+The renderer uses a cyan-to-navy depth key and leaves dry low terrain
+transparent. Surface values are smoothed over roughly eight feet only inside
+the immutable finite-volume wet mask, so smoothing cannot create new water.
+Falling-tide puddles may remain after their visible five-foot connection to the
+source has dried. The render validator checks all 1,414 depth/stage PNGs,
+requires matching masks, rejects the former green potential codes, and confirms
+that the history catalogs differ. It also rejects any adjacent-stage connected
+interior change over 2,500 five-foot pixels (1.43 acres); the v20 maximum is
+1,150 pixels.
 
 ## Clickable depth
 
@@ -212,12 +213,12 @@ growth.
 5. 21-cell, 7.5-foot bulkhead flag;
 6. disabled storm-drain flag (always zero).
 
-The phase-aware state package is a gzip-compressed, two-byte centifeet audit
+The history-aware state package is a gzip-compressed, two-byte centifeet audit
 lookup. `NorthWildwoodHydraulicQuery5ft.png` carries conditioned elevation and
 the legacy connection threshold, while `NorthWildwoodHydraulicZone5ft.png`
 carries the 24-bit finite-volume zone ID. Both align pixel-for-pixel with the
 displayed five-foot flood PNGs, so ordinary PNG downloads avoid fragile large
-COG range requests. A click reads the phase/stage node surface and reports only
+COG range requests. A click reads the family/stage node surface and reports only
 its depth above the conditioned ground.
 
 ## Forecast and observed archives

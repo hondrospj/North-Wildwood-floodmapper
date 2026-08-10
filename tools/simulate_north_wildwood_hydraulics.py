@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build North Wildwood's phase-aware finite-volume hydraulic PNG atlas.
+"""Build North Wildwood's history-aware finite-volume hydraulic PNG atlas.
 
 The one-foot conditioned DEM is aggregated into 25-foot storage cells while
 retaining its elevation hypsometry and all shared one-foot flow widths. Only
@@ -11,9 +11,11 @@ Water is routed in 60-second substeps with a submerged broad-crested-weir
 relation and strict donor, receiver, and conservation limits. A cell that
 becomes wet during a substep cannot donate until the following substep.
 
-The expensive solve is run once to build filling, short-slack, and draining
-lookup families from 0.0 through 22.0 ft NAVD88 at 0.1-foot increments.
-Forecast and observed updates only choose a phase/stage PNG. Storm drains stay
+The expensive solve is run once to build three observed-rise-rate families, a
+short-crest family, and three preceding-crest recession families from 0.0
+through 10.0 ft NAVD88 at 0.1-foot increments. Forecast and observed updates
+only choose a compact history family and stage PNG. Planning levels above ten
+feet retain the previous atlas as a browser fallback. Storm drains stay
 disabled, and the conditioned 21-cell-wide, 7.5-ft NAVD88 bulkhead is honored.
 """
 
@@ -40,7 +42,7 @@ WIDTH = 10_930
 HEIGHT = 14_120
 RENDER_STRIDE = 5
 MODEL_MIN_STAGE_FT = 0.0
-MODEL_MAX_STAGE_FT = 22.0
+MODEL_MAX_STAGE_FT = 10.0
 MODEL_STAGE_STEP_FT = 0.1
 STAGES_FT = np.round(
     np.arange(
@@ -66,9 +68,22 @@ BROAD_CRESTED_WEIR_CFS = 3.10
 MINOR_NAVD88_FT = 3.25
 MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
-SHORT_SLACK_INTERVALS = 1
-DRAINING_HISTORY_RISE_FT = 2.5
-DRAINING_BAND_WIDTH_FT = 1.0
+SHORT_CREST_MINUTES = 15
+RISE_RATE_FAMILIES_FT_PER_HOUR = {
+    "rising_slow": 0.55,
+    "rising_typical": 0.79,
+    "rising_fast": 0.90,
+}
+FALLING_CREST_FAMILIES_FT = {
+    "falling_minor": 4.0,
+    "falling_moderate": 5.5,
+    "falling_extreme": 8.5,
+}
+ATLAS_FAMILIES = (
+    *RISE_RATE_FAMILIES_FT_PER_HOUR,
+    "crest",
+    *FALLING_CREST_FAMILIES_FT,
+)
 
 DEPTH_BREAKS_FT = np.asarray([0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00])
 DEPTH_COLORS = [
@@ -84,7 +99,6 @@ DEPTH_COLORS = [
     "#0B1E5B",
     "#050E33",
 ]
-DISCONNECTED_COLOR = "#63D471"
 STAGE_COLORS = ["#F4A742", "#E74C3C", "#7D3C98"]
 
 
@@ -104,14 +118,6 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--draining-only",
-        action="store_true",
-        help=(
-            "Reuse filling/slack arrays from the existing output state package, "
-            "then solve and render only draining assets"
-        ),
-    )
-    parser.add_argument(
         "--reuse-complete-state",
         action="store_true",
         help=(
@@ -127,14 +133,12 @@ def hex_rgb(value: str) -> tuple[int, int, int]:
     return tuple(int(value[index : index + 2], 16) for index in (0, 2, 4))
 
 
-def palette(colors: list[str], green_index: int) -> tuple[list[int], bytes]:
+def palette(colors: list[str]) -> tuple[list[int], bytes]:
     values = [0] * (256 * 3)
     alpha = bytearray([0] * 256)
     for index, color in enumerate(colors, start=1):
         values[index * 3 : index * 3 + 3] = hex_rgb(color)
         alpha[index] = 225
-    values[green_index * 3 : green_index * 3 + 3] = hex_rgb(DISCONNECTED_COLOR)
-    alpha[green_index] = 205
     return values, bytes(alpha)
 
 
@@ -284,6 +288,7 @@ class HydraulicSolver:
         storage: np.ndarray,
         surface: np.ndarray,
         sea_stage_ft: float,
+        duration_seconds: int = TIDE_STEP_SECONDS,
     ) -> tuple[np.ndarray, np.ndarray, dict[str, float]]:
         edge_a = self.edges["a"]
         edge_b = self.edges["b"]
@@ -298,7 +303,9 @@ class HydraulicSolver:
             np.full(self.zone_count, sea_stage_ft, dtype=np.float64)
         )
 
-        for _ in range(TIDE_STEP_SECONDS // MODEL_STEP_SECONDS):
+        if duration_seconds <= 0 or duration_seconds % MODEL_STEP_SECONDS:
+            raise ValueError("Routing duration must be a positive whole number of model steps")
+        for _ in range(duration_seconds // MODEL_STEP_SECONDS):
             # All edge fluxes are simultaneous. A terrain node that first
             # receives water in this substep cannot become a donor until the
             # next substep, so the numerical front advances at most one
@@ -414,35 +421,6 @@ class HydraulicSolver:
         return encoded
 
 
-def load_reusable_static_phases(
-    state_path: Path,
-    expected_stride: int,
-) -> dict[str, np.ndarray]:
-    raw = gzip.decompress(state_path.read_bytes())
-    if raw[:8] != b"NWHYD2\x00\x00":
-        raise RuntimeError(f"Unsupported reusable state package: {state_path}")
-    header_length = int.from_bytes(raw[8:12], "little")
-    header = json.loads(raw[12 : 12 + header_length])
-    if (
-        header.get("stageCount") != len(STAGES_FT)
-        or header.get("zoneStride") != expected_stride
-    ):
-        raise RuntimeError("Reusable state package dimensions do not match the graph")
-
-    payload_start = 12 + header_length
-    reusable: dict[str, np.ndarray] = {}
-    for phase in ("filling", "slack"):
-        record = header["phaseArrays"][phase]
-        reusable[phase] = decode_state_phase(
-            raw,
-            header,
-            record,
-            payload_start,
-            expected_stride,
-        )
-    return reusable
-
-
 def load_complete_state(
     state_path: Path,
     expected_stride: int,
@@ -459,17 +437,20 @@ def load_complete_state(
         raise RuntimeError("Reusable state package dimensions do not match the graph")
 
     payload_start = 12 + header_length
-    phases: dict[str, np.ndarray] = {}
-    for phase in ("filling", "slack", "draining"):
-        record = header["phaseArrays"][phase]
-        phases[phase] = decode_state_phase(
+    families: dict[str, np.ndarray] = {}
+    family_order = tuple(header.get("familyOrder") or header.get("phaseOrder") or ())
+    if family_order != ATLAS_FAMILIES:
+        raise RuntimeError("Reusable state package families do not match this atlas")
+    for family in family_order:
+        record = header["phaseArrays"][family]
+        families[family] = decode_state_phase(
             raw,
             header,
             record,
             payload_start,
             expected_stride,
         )
-    return phases, dict(header.get("diagnostics") or {})
+    return families, dict(header.get("diagnostics") or {})
 
 
 def decode_state_phase(
@@ -509,18 +490,13 @@ def decode_state_phase(
 
 def simulate(
     solver: HydraulicSolver,
-    reusable_static_state: Path | None = None,
 ) -> tuple[dict[str, np.ndarray], dict]:
     stride = solver.zone_count + 1
-    phases = {
-        phase: np.full((len(STAGES_FT), stride), DRY_SENTINEL, dtype="<i2")
-        for phase in ("filling", "slack", "draining")
+    families = {
+        family: np.full((len(STAGES_FT), stride), DRY_SENTINEL, dtype="<i2")
+        for family in ATLAS_FAMILIES
     }
-    diagnostics: dict[str, list[dict]] = {
-        "filling": [],
-        "slack": [],
-        "draining": [],
-    }
+    diagnostic_rows: list[dict] = []
 
     def restore(encoded: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         encoded_zones = encoded[1:]
@@ -531,138 +507,117 @@ def simulate(
         storage[~wet] = 0.0
         return storage, surface
 
-    if reusable_static_state is not None:
-        phases.update(load_reusable_static_phases(reusable_static_state, stride))
-        print(f"Reused filling/slack states: {reusable_static_state}")
-    else:
-        # Rising lookup: start with only the ocean-boundary cells wet and
-        # advance one 15-minute interval for every 0.1-ft forcing increment.
-        # The finite-volume front is therefore time limited instead of being
-        # inferred from graph connectivity alone.
+    # Three rising histories use observed high-tide rise-rate quantiles. Each
+    # family starts with only the fixed-head source zones wet. A 0.1-foot stage
+    # step therefore consumes the physical time implied by that family rather
+    # than the v19 atlas's artificial 15 minutes at every stage.
+    for family, rise_rate in RISE_RATE_FAMILIES_FT_PER_HOUR.items():
         storage, surface = solver.dry_start(float(STAGES_FT[0]))
+        duration_seconds = max(
+            MODEL_STEP_SECONDS,
+            round(
+                MODEL_STAGE_STEP_FT / rise_rate * 3600.0 / MODEL_STEP_SECONDS
+            ) * MODEL_STEP_SECONDS,
+        )
         for index, stage_raw in enumerate(STAGES_FT):
             stage = float(stage_raw)
             storage, surface, diagnostic = solver.advance(
                 storage,
                 surface,
                 stage,
+                duration_seconds=duration_seconds,
             )
-            phases["filling"][index] = solver.encode_surface(storage, surface)
-            diagnostics["filling"].append(
-                {"stageNavd88Ft": stage, **diagnostic}
-            )
-            if index % 10 == 0:
-                print(f"Filling simulation: {stage:4.1f} ft NAVD88")
-
-        # Crest/slack lookup: hold each rising-stage state at the selected
-        # gauge level for one additional 15-minute interval. It is deliberately
-        # not an equilibrium bathtub state.
-        for index, stage_raw in enumerate(STAGES_FT):
-            stage = float(stage_raw)
-            slack_storage, slack_surface = restore(phases["filling"][index])
-            for _ in range(SHORT_SLACK_INTERVALS):
-                slack_storage, slack_surface, diagnostic = solver.advance(
-                    slack_storage,
-                    slack_surface,
-                    stage,
-                )
-            phases["slack"][index] = solver.encode_surface(
-                slack_storage,
-                slack_surface,
-            )
-            diagnostics["slack"].append(
-                {"stageNavd88Ft": stage, **diagnostic}
+            families[family][index] = solver.encode_surface(storage, surface)
+            diagnostic_rows.append(
+                {
+                    "family": family,
+                    "stageNavd88Ft": stage,
+                    "durationSeconds": duration_seconds,
+                    **diagnostic,
+                }
             )
             if index % 10 == 0:
-                print(f"Short-slack simulation: {stage:4.1f} ft NAVD88")
+                print(f"{family}: {stage:4.1f} ft NAVD88")
 
-    # Falling lookup: bracket every target with two finite-volume trajectories
-    # whose preceding crests are one foot apart, then linearly interpolate
-    # their stored volume within the target band. The effective history peak
-    # therefore remains target stage + 2.5 ft without jumping by a full foot
-    # at integer-stage band boundaries.
-    band_size = round(DRAINING_BAND_WIDTH_FT / MODEL_STAGE_STEP_FT)
-    peak_offset = round(DRAINING_HISTORY_RISE_FT / MODEL_STAGE_STEP_FT)
-    stage_count = len(STAGES_FT)
-    band_starts = list(range(0, stage_count, band_size))
-    draining_candidates: dict[int, dict[int, np.ndarray]] = {}
-    for band_start in band_starts:
-        band_end = min(stage_count - 1, band_start + band_size - 1)
-        peak_index = min(stage_count - 1, band_start + peak_offset)
-        extended_start = max(0, band_start - band_size)
-        storage, surface = restore(phases["slack"][peak_index])
-        candidate: dict[int, np.ndarray] = {}
-        if extended_start <= peak_index <= band_end:
-            candidate[peak_index] = solver.encode_surface(storage, surface)
-        for index in range(peak_index - 1, extended_start - 1, -1):
+    # The turning-point state gets an explicit short hold. It is kept separate
+    # from rising states, so dry lowlands cannot appear wet merely because the
+    # browser called an hourly peak "slack".
+    crest_duration_seconds = SHORT_CREST_MINUTES * 60
+    for index, stage_raw in enumerate(STAGES_FT):
+        stage = float(stage_raw)
+        storage, surface = restore(families["rising_typical"][index])
+        storage, surface, diagnostic = solver.advance(
+            storage,
+            surface,
+            stage,
+            duration_seconds=crest_duration_seconds,
+        )
+        families["crest"][index] = solver.encode_surface(storage, surface)
+        diagnostic_rows.append(
+            {
+                "family": "crest",
+                "stageNavd88Ft": stage,
+                "durationSeconds": crest_duration_seconds,
+                **diagnostic,
+            }
+        )
+        if index % 10 == 0:
+            print(f"crest: {stage:4.1f} ft NAVD88")
+
+    # Each falling family is one continuous recession from an absolute prior
+    # crest. This eliminates v19's stage+2.5-ft moving history and its one-foot
+    # band resets. The browser chooses the closest prior crest once per frame.
+    fall_duration_seconds = max(
+        MODEL_STEP_SECONDS,
+        round(
+            MODEL_STAGE_STEP_FT
+            / RISE_RATE_FAMILIES_FT_PER_HOUR["rising_typical"]
+            * 3600.0
+            / MODEL_STEP_SECONDS
+        )
+        * MODEL_STEP_SECONDS,
+    )
+    for family, prior_crest in FALLING_CREST_FAMILIES_FT.items():
+        peak_index = int(round(prior_crest / MODEL_STAGE_STEP_FT))
+        peak_index = max(0, min(len(STAGES_FT) - 1, peak_index))
+        # Values above this family's crest are not normally requested. Keeping
+        # the corresponding crest states makes browser fallbacks conservative
+        # and avoids holes if a truncated forecast starts mid-event.
+        families[family][peak_index:] = families["crest"][peak_index:]
+        storage, surface = restore(families["crest"][peak_index])
+        families[family][peak_index] = solver.encode_surface(storage, surface)
+        for index in range(peak_index - 1, -1, -1):
             stage = float(STAGES_FT[index])
             storage, surface, diagnostic = solver.advance(
                 storage,
                 surface,
                 stage,
+                duration_seconds=fall_duration_seconds,
             )
-            diagnostics["draining"].append(
+            families[family][index] = solver.encode_surface(storage, surface)
+            diagnostic_rows.append(
                 {
+                    "family": family,
                     "stageNavd88Ft": stage,
                     "historyPeakNavd88Ft": float(STAGES_FT[peak_index]),
+                    "durationSeconds": fall_duration_seconds,
                     **diagnostic,
                 }
             )
-            if index <= band_end:
-                candidate[index] = solver.encode_surface(storage, surface)
-        draining_candidates[band_start] = candidate
         print(
-            f"Draining candidate: {float(STAGES_FT[extended_start]):4.1f}-"
-            f"{float(STAGES_FT[band_end]):4.1f} ft NAVD88 from "
-            f"{float(STAGES_FT[peak_index]):4.1f} ft finite-volume crest"
+            f"{family}: continuous recession from "
+            f"{float(STAGES_FT[peak_index]):.1f} ft NAVD88"
         )
 
-    for index in range(stage_count):
-        band_start = (index // band_size) * band_size
-        lower_encoded = draining_candidates[band_start][index]
-        following_start = band_start + band_size
-        fraction = (index - band_start) / band_size
-        if (
-            fraction <= 0.0
-            or following_start not in draining_candidates
-            or index not in draining_candidates[following_start]
-        ):
-            phases["draining"][index] = lower_encoded
-            continue
-        upper_encoded = draining_candidates[following_start][index]
-        lower_storage, lower_surface = restore(lower_encoded)
-        upper_storage, upper_surface = restore(upper_encoded)
-        blended_storage = (
-            (1.0 - fraction) * lower_storage
-            + fraction * upper_storage
-        )
-        blended_surface_hint = (
-            (1.0 - fraction) * lower_surface
-            + fraction * upper_surface
-        )
-        blended_surface = solver.surface_from_storage(
-            blended_storage,
-            blended_surface_hint,
-        )
-        phases["draining"][index] = solver.encode_surface(
-            blended_storage,
-            blended_surface,
-        )
-
-    diagnostic_rows = [
-        row
-        for phase_rows in diagnostics.values()
-        for row in phase_rows
-    ]
     summary = {
-        "modelKind": "phase-aware finite-volume broad-crested-weir routing",
-        "phaseInvariant": False,
+        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "historyInvariant": False,
         "maximumInternalConservationResidualFt3": max(
             (row["maxInternalConservationResidualFt3"] for row in diagnostic_rows),
             default=0.0,
         ),
         "diagnosticStepCount": len(diagnostic_rows),
-        "reusedStaticPhases": reusable_static_state is not None,
+        "atlasFamilies": list(ATLAS_FAMILIES),
         "frontTravelLimit": {
             "controlVolumeSizeFt": CONTROL_VOLUME_SIZE_FT,
             "maximumNumericalSpeedFtPerSecond": MAX_OVERLAND_FRONT_SPEED_FPS,
@@ -674,22 +629,16 @@ def simulate(
                 "60-second substep"
             ),
         },
-        "slackHistory": (
-            f"rising state held for {SHORT_SLACK_INTERVALS * 15} minutes"
-        ),
-        "drainingHistory": (
-            "finite-volume trajectories from one-foot-spaced crest brackets "
-            "are linearly interpolated in storage so the effective preceding "
-            f"crest remains {DRAINING_HISTORY_RISE_FT:.1f} ft above the "
-            "selected stage without band-boundary jumps"
-        ),
+        "risingHistoriesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
+        "crestHistoryMinutes": SHORT_CREST_MINUTES,
+        "fallingHistoryPeaksNavd88Ft": FALLING_CREST_FAMILIES_FT,
     }
-    return phases, summary
+    return families, summary
 
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v7",
+        "schema": "north-wildwood-hydraulic-states-binary-v8",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": MODEL_MIN_STAGE_FT,
         "stageMaxNavd88Ft": MODEL_MAX_STAGE_FT,
@@ -697,30 +646,25 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
         "stageCount": len(STAGES_FT),
         "zoneCount": graph_manifest["zoneCount"],
         "zoneStride": graph_manifest["zoneCount"] + 1,
-        "encoding": "gzip container: NWHYD2 magic, little-endian uint32 JSON header length, JSON header, then phase little-endian Int16 arrays",
+        "encoding": "gzip container: NWHYD2 magic, little-endian uint32 JSON header length, JSON header, then family little-endian Int16 arrays",
         "valueType": "int16-le",
         "bytesPerValue": 2,
         "surfaceUnits": "centifeet NAVD88",
         "surfaceScalePerFoot": 100,
         "drySentinelCentift": int(DRY_SENTINEL),
-        "phaseOrder": ["filling", "slack", "draining"],
+        "familyOrder": list(ATLAS_FAMILIES),
         "forcing": {
-            "timeStepMinutes": TIDE_STEP_SECONDS // 60,
             "substepSeconds": MODEL_STEP_SECONDS,
-            "filling": "0.1-ft rise every 15 minutes from a source-only wet start",
-            "slack": (
-                "finite-volume filling state held at the selected level for "
-                f"{SHORT_SLACK_INTERVALS * 15} additional minutes"
-            ),
-            "draining": (
-                "0.1-ft fall every 15 minutes; storage is interpolated between "
-                "one-foot-spaced routed crest histories so the effective prior "
-                f"crest remains {DRAINING_HISTORY_RISE_FT:.1f} ft above each "
-                "target without band-boundary jumps"
+            "risingFamiliesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
+            "crestHoldMinutes": SHORT_CREST_MINUTES,
+            "fallingPriorCrestsNavd88Ft": FALLING_CREST_FAMILIES_FT,
+            "selection": (
+                "browser uses observed/forecast rising-limb rate or the "
+                "preceding absolute crest; no tide-cycle hydraulic solve"
             ),
         },
         "physics": {
-            "modelKind": "phase-aware finite-volume broad-crested-weir routing",
+            "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
             "terrainFlow": "submerged broad-crested weir",
             "weirCoefficientCfs": BROAD_CRESTED_WEIR_CFS,
             "crossSection": (
@@ -750,7 +694,7 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
                 "newly wet nodes cannot donate until the next 60-second "
                 "substep"
             ),
-            "phaseInvariant": False,
+            "historyInvariant": False,
             "stormDrains": "disabled; no orifice exchange and no connectivity seeds",
             "bulkheadElevationNavd88Ft": 7.5,
             "bulkheadNominalWidthCells": 21,
@@ -765,23 +709,25 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
 
 def write_state_asset(
     output_path: Path,
-    phases: dict[str, np.ndarray],
+    families: dict[str, np.ndarray],
     graph_manifest: dict,
     diagnostics: dict,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     metadata = state_metadata(graph_manifest, diagnostics)
-    encoded_phases: list[bytes] = []
-    phase_offsets: dict[str, dict[str, int]] = {}
+    encoded_families: list[bytes] = []
+    family_offsets: dict[str, dict[str, int]] = {}
     cursor = 0
-    for phase in metadata["phaseOrder"]:
-        raw_phase = phases[phase].astype("<i2", copy=False).tobytes()
-        encoded_phases.append(raw_phase)
-        phase_offsets[phase] = {"offset": cursor, "length": len(raw_phase)}
-        cursor += len(raw_phase)
-    metadata["phaseArrays"] = phase_offsets
+    for family in metadata["familyOrder"]:
+        raw_family = families[family].astype("<i2", copy=False).tobytes()
+        encoded_families.append(raw_family)
+        family_offsets[family] = {"offset": cursor, "length": len(raw_family)}
+        cursor += len(raw_family)
+    # Keep the container field name for old browsers; its keys are now atlas
+    # families and are discovered dynamically by the current browser.
+    metadata["phaseArrays"] = family_offsets
     header = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
-    raw = b"NWHYD2\x00\x00" + len(header).to_bytes(4, "little") + header + b"".join(encoded_phases)
+    raw = b"NWHYD2\x00\x00" + len(header).to_bytes(4, "little") + header + b"".join(encoded_families)
     output_path.write_bytes(gzip.compress(raw, compresslevel=9, mtime=0))
     print(f"Hydraulic states: {len(raw):,} binary bytes -> {output_path.stat().st_size:,} gzip bytes")
 
@@ -790,8 +736,8 @@ def render_assets(
     graph_dir: Path,
     dem_path: Path,
     output_root: Path,
-    phases: dict[str, np.ndarray],
-    phase_names: tuple[str, ...] | None = None,
+    families: dict[str, np.ndarray],
+    family_names: tuple[str, ...] | None = None,
 ) -> dict:
     elevation10 = np.memmap(
         graph_dir / "elevation10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
@@ -812,13 +758,9 @@ def render_assets(
         origin[5] * RENDER_STRIDE,
     )
 
-    depth_palette, depth_alpha = palette(DEPTH_COLORS, 12)
-    stage_palette, stage_alpha = palette(STAGE_COLORS, 4)
-    phase_dirs = {
-        "filling": "filling",
-        "slack": "",
-        "draining": "draining",
-    }
+    depth_palette, depth_alpha = palette(DEPTH_COLORS)
+    stage_palette, stage_alpha = palette(STAGE_COLORS)
+    family_dirs = {family: family for family in ATLAS_FAMILIES}
     valid = elevation10 != np.iinfo(np.int16).min
     ground = elevation10.astype(np.float32) / 10.0
     zone_lookup = np.where(zone >= 0, zone + 1, 0)
@@ -827,30 +769,30 @@ def render_assets(
     # Stage-hazard colors use the first rising stage at which each routed
     # finite-volume node actually contains water. This replaces the old static
     # minimum-connection-stage classification.
-    filling_wet = phases["filling"][:, 1:] != DRY_SENTINEL
+    filling_wet = families["rising_typical"][:, 1:] != DRY_SENTINEL
     filling_reached = np.any(filling_wet, axis=0)
     first_filling_index = np.argmax(filling_wet, axis=0)
-    routed_activation = np.full(phases["filling"].shape[1], np.inf, dtype=np.float32)
+    routed_activation = np.full(families["rising_typical"].shape[1], np.inf, dtype=np.float32)
     routed_activation[1:][filling_reached] = STAGES_FT[
         first_filling_index[filling_reached]
     ]
     routed_activation_grid = routed_activation[zone_lookup]
 
-    selected_phase_dirs = (
-        tuple(phase_dirs.items())
-        if phase_names is None
-        else tuple((phase, phase_dirs[phase]) for phase in phase_names)
+    selected_family_dirs = (
+        tuple(family_dirs.items())
+        if family_names is None
+        else tuple((family, family_dirs[family]) for family in family_names)
     )
-    for phase, directory in selected_phase_dirs:
+    for family, directory in selected_family_dirs:
         depth_dir = output_root / "DepthPNGs" / "North Wildwood" / directory
         stage_dir = output_root / "StagePNGs" / "North Wildwood" / directory
         depth_dir.mkdir(parents=True, exist_ok=True)
         stage_dir.mkdir(parents=True, exist_ok=True)
-        phase_bytes = 0
+        family_bytes = 0
         maximum_flooded_pixels = 0
         minimum_flooded_pixels = None
         for stage_index, stage in enumerate(STAGES_FT):
-            encoded_surface = phases[phase][stage_index]
+            encoded_surface = families[family][stage_index]
             surface_centift = encoded_surface[zone_lookup]
             wet_zone = valid & (surface_centift != DRY_SENTINEL)
             local_surface = surface_centift.astype(np.float32) / 100.0
@@ -885,18 +827,13 @@ def render_assets(
                 if minimum_flooded_pixels is None
                 else min(minimum_flooded_pixels, flooded_pixels)
             )
-            below_stage = valid & (ground <= stage + 0.0001)
-            green = below_stage & ~flooded
-
             depth_codes = np.zeros(zone.shape, dtype=np.uint8)
-            depth_codes[green] = 12
             if np.any(flooded):
                 depth_codes[flooded] = (
                     np.digitize(depth[flooded], DEPTH_BREAKS_FT, right=False) + 1
                 ).astype(np.uint8)
 
             stage_codes = np.zeros(zone.shape, dtype=np.uint8)
-            stage_codes[green] = 4
             if np.any(flooded):
                 activation = np.maximum(
                     ground[flooded],
@@ -919,14 +856,14 @@ def render_assets(
                 image.putpalette(image_palette)
                 image.info["transparency"] = transparency
                 image.save(path, format="PNG", optimize=False, compress_level=7)
-                phase_bytes += path.stat().st_size
+                family_bytes += path.stat().st_size
             if stage_index % 20 == 0:
-                print(f"Rendered {phase:8s} {stage:4.1f} ft")
-        counts[phase] = {
+                print(f"Rendered {family:16s} {stage:4.1f} ft")
+        counts[family] = {
             "stageCount": len(STAGES_FT),
-            "pngBytes": phase_bytes,
-            "modelKind": "phase-aware finite-volume broad-crested-weir routing",
-            "phaseInvariant": False,
+            "pngBytes": family_bytes,
+            "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+            "historyInvariant": False,
             "wetFootprint": "immutable finite-volume routed nodes; smoothing cannot add wet pixels",
             "minimumFloodedPixels": minimum_flooded_pixels or 0,
             "maximumFloodedPixels": maximum_flooded_pixels,
@@ -956,7 +893,7 @@ def render_assets(
         "renderCellSizeFt": RENDER_STRIDE,
         "projection": projection,
         "geotransform": list(render_transform),
-        "phases": counts,
+        "families": counts,
     }
 
 
@@ -1205,8 +1142,6 @@ def build_zone_query_png(graph_dir: Path, destination: Path) -> dict:
 
 def main() -> None:
     args = parse_args()
-    if args.draining_only and args.reuse_complete_state:
-        raise ValueError("--draining-only and --reuse-complete-state are mutually exclusive")
     graph_dir = args.graph.resolve()
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
@@ -1216,12 +1151,6 @@ def main() -> None:
     asset_manifest_path = (
         output_root / "NorthWildwoodHydraulicAssetManifest.json"
     )
-    previous_render_manifest = None
-    if args.draining_only and asset_manifest_path.is_file():
-        previous_asset_manifest = json.loads(
-            asset_manifest_path.read_text(encoding="utf-8")
-        )
-        previous_render_manifest = previous_asset_manifest.get("render")
     graph_manifest = json.loads((graph_dir / "graph_manifest.json").read_text(encoding="utf-8"))
     packed_query_path = (
         output_root
@@ -1270,16 +1199,14 @@ def main() -> None:
         / "North Wildwood"
         / "NorthWildwoodHydraulicStates.json.png"
     )
-    reusable_static_state = state_path if args.draining_only else None
     reusable_complete_state = state_path if args.reuse_complete_state else None
-    required_state = reusable_complete_state or reusable_static_state
-    if required_state is not None and not required_state.is_file():
+    if reusable_complete_state is not None and not reusable_complete_state.is_file():
         raise FileNotFoundError(
             "State reuse requires an existing hydraulic state package at "
-            f"{required_state}"
+            f"{reusable_complete_state}"
         )
     if reusable_complete_state is not None:
-        phases, diagnostics = load_complete_state(
+        families, diagnostics = load_complete_state(
             reusable_complete_state,
             int(graph_manifest["zoneCount"]) + 1,
         )
@@ -1292,48 +1219,16 @@ def main() -> None:
             f"{len(edges['a']):,} crest-width edge groups"
         )
         solver = HydraulicSolver(zones, edges)
-        phases, diagnostics = simulate(solver, reusable_static_state)
-        write_state_asset(state_path, phases, graph_manifest, diagnostics)
+        families, diagnostics = simulate(solver)
+        write_state_asset(state_path, families, graph_manifest, diagnostics)
     render_manifest = None
     if not args.skip_render:
         render_manifest = render_assets(
             graph_dir,
             args.dem.resolve(),
             output_root,
-            phases,
-            phase_names=("draining",) if args.draining_only else None,
+            families,
         )
-        if previous_render_manifest is not None:
-            phase_counts = dict(previous_render_manifest.get("phases", {}))
-            phase_counts.update(render_manifest["phases"])
-            phase_directories = {
-                "filling": "filling",
-                "slack": "",
-                "draining": "draining",
-            }
-            for phase, directory in phase_directories.items():
-                if phase in phase_counts:
-                    continue
-                paths = []
-                for family in ("DepthPNGs", "StagePNGs"):
-                    paths.extend(
-                        (
-                            output_root
-                            / family
-                            / "North Wildwood"
-                            / directory
-                        ).glob("*.png")
-                    )
-                if len(paths) != len(STAGES_FT) * 2:
-                    raise RuntimeError(
-                        f"Cannot restore {phase} render manifest: "
-                        f"expected {len(STAGES_FT) * 2} PNGs, found {len(paths)}"
-                    )
-                phase_counts[phase] = {
-                    "stageCount": len(STAGES_FT),
-                    "pngBytes": sum(path.stat().st_size for path in paths),
-                }
-            render_manifest["phases"] = phase_counts
     query_path = (
         output_root
         / "COGs"
@@ -1349,18 +1244,18 @@ def main() -> None:
     zone_query_manifest = build_zone_query_png(graph_dir, zone_query_path)
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v7",
+        "schema": "north-wildwood-hydraulic-assets-v8",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "modelKind": "phase-aware finite-volume broad-crested-weir routing",
-        "phaseInvariant": False,
+        "modelKind": "history-aware finite-volume broad-crested-weir response atlas",
+        "historyInvariant": False,
         "stageCatalog": {
             "minimumNavd88Ft": MODEL_MIN_STAGE_FT,
             "maximumNavd88Ft": MODEL_MAX_STAGE_FT,
             "incrementFt": MODEL_STAGE_STEP_FT,
-            "stageCountPerPhase": len(STAGES_FT),
-            "phaseCount": 3,
-            "depthPngCount": len(STAGES_FT) * 3,
-            "stagePngCount": len(STAGES_FT) * 3,
+            "stageCountPerFamily": len(STAGES_FT),
+            "familyCount": len(ATLAS_FAMILIES),
+            "depthPngCount": len(STAGES_FT) * len(ATLAS_FAMILIES),
+            "stagePngCount": len(STAGES_FT) * len(ATLAS_FAMILIES),
         },
         "graph": {
             **graph_manifest,
@@ -1374,7 +1269,12 @@ def main() -> None:
         },
         "thresholdsMLLW": {"minorLow": 6.0, "moderateLow": 7.0, "majorLow": 8.0},
         "navd88OffsetFromMllwFt": -2.75,
-        "phases": ["filling", "slack", "draining"],
+        "families": list(ATLAS_FAMILIES),
+        "familySelection": {
+            "risingRatesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
+            "crestHoldMinutes": SHORT_CREST_MINUTES,
+            "fallingPriorCrestsNavd88Ft": FALLING_CREST_FAMILIES_FT,
+        },
         "diagnostics": diagnostics,
         "queryCog": asset_path(query_path) if query_path.exists() else None,
         "packedQueryPng": asset_path(packed_query_path),
