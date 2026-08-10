@@ -259,6 +259,8 @@ assert.match(SOURCE, /mapClickMode === "building" && parcelInfoInteractionEnable
 assert.match(SOURCE, /north-wildwood-physics-forecast-v1/);
 assert.match(SOURCE, /ForecastPhysics\/North%20Wildwood\/current\.json\.png/);
 assert.match(SOURCE, /function getPhysicsForecastDisplaySeries\(/);
+assert.match(SOURCE, /function physicsManifestMatchesForecastCycle\(/);
+assert.match(SOURCE, /physicsCycle === dashboardCycle/);
 assert.match(SOURCE, /function setPhysicsFloodLayer\(/);
 assert.match(SOURCE, /function samplePhysicsDepth\(/);
 assert.match(extractFunction("renderHour"), /if \(physicsAsset\) await setPhysicsFloodLayer/);

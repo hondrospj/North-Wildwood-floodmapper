@@ -15254,8 +15254,20 @@ function cloneStyleObject(value) {
       return getActivePhysicsManifest() || hydrated[0]?.[1] || null;
     }
 
+    function physicsManifestMatchesForecastCycle(manifest = getActivePhysicsManifest()) {
+      if (!manifest || !forecastData) return false;
+      const physicsCycle = Date.parse(manifest?.petssSource?.cycleUtc || "");
+      const dashboardCycle = Date.parse(forecastData?.petssCycleUtc || "");
+      return Number.isFinite(physicsCycle) &&
+        Number.isFinite(dashboardCycle) &&
+        physicsCycle === dashboardCycle;
+    }
+
     function physicsForecastApplies() {
-      return Boolean(currentDataMode === "forecast" && getActivePhysicsManifest());
+      return Boolean(
+        currentDataMode === "forecast" &&
+        physicsManifestMatchesForecastCycle()
+      );
     }
 
     function physicsFrameToForecastEntry(frame) {
@@ -15276,7 +15288,7 @@ function cloneStyleObject(value) {
 
     function getPhysicsForecastDisplaySeries() {
       const manifest = getActivePhysicsManifest();
-      if (!manifest) return null;
+      if (!physicsForecastApplies() || !manifest) return null;
       const allFrames = manifest.frames.map(physicsFrameToForecastEntry);
       const interval = getTimelineIntervalMinutes();
       if (interval === 15) return allFrames;
