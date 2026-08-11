@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Build North Wildwood's history-aware finite-volume hydraulic PNG atlas.
 
-The one-foot conditioned DEM is aggregated into 25-foot storage cells while
-retaining its elevation hypsometry and all shared one-foot flow widths. Only
-the qualified complete <=2.0-ft tidal fields are fixed-head boundary; supplied
-polygons mark components but never paint source geometry, and higher terrain is
-finite storage. Source cells are isolated
+The one-foot conditioned DEM is aggregated into ten-foot storage cells while
+retaining its elevation hypsometry and all shared one-foot flow widths. The
+qualified complete <=2.0-ft tidal fields and their enclosed valid DEM pockets
+are fixed-head boundary; supplied polygons mark components but never paint
+source geometry, and exterior-connected higher terrain is finite storage.
+Source cells are isolated
 from terrain control volumes, so a one-foot opening exchanges water through
-its actual shared face instead of pinning a whole 25-foot tile to the tide.
+its actual shared face instead of pinning a whole tile to the tide.
 Water is routed in 60-second substeps with a mass-conserving hybrid
 diffusive-wave scheme. Ordinary overland conveyance follows Manning's
 equation over the actual one-foot face elevations. A broad-crested-weir
@@ -65,18 +66,11 @@ HIST_MAX10 = 220
 HIST_COUNT = HIST_MAX10 - HIST_MIN10 + 1
 MODEL_STEP_SECONDS = 60
 TIDE_STEP_SECONDS = 15 * 60
-CONTROL_VOLUME_SIZE_FT = 25
-MAX_CONTROL_VOLUME_DIAGONAL_FT = math.sqrt(2.0) * CONTROL_VOLUME_SIZE_FT
-MAX_OVERLAND_FRONT_SPEED_FPS = (
-    MAX_CONTROL_VOLUME_DIAGONAL_FT / MODEL_STEP_SECONDS
-)
-MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT = MAX_OVERLAND_FRONT_SPEED_FPS * TIDE_STEP_SECONDS
 BROAD_CRESTED_WEIR_CFS = 3.10
 MANNING_US_CUSTOMARY = 1.486
 URBAN_OVERLAND_MANNING_N = 0.12
 MIN_MOBILE_DEPTH_FT = 0.05
 MIN_DISPLAY_DEPTH_FT = 0.05
-FLOW_LENGTH_FT = CONTROL_VOLUME_SIZE_FT
 MINOR_NAVD88_FT = 3.25
 MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
@@ -238,6 +232,7 @@ class HydraulicSolver:
         source_activation_navd88_ft: float | None = SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
         manning_n: float = URBAN_OVERLAND_MANNING_N,
         minimum_mobile_depth_ft: float = MIN_MOBILE_DEPTH_FT,
+        control_volume_size_ft: float = 10.0,
     ):
         if routing_method not in {"hybrid_diffusive", "diffusive", "legacy_weir"}:
             raise ValueError(f"Unsupported routing method: {routing_method}")
@@ -264,6 +259,16 @@ class HydraulicSolver:
         self.source_activation_navd88_ft = source_activation_navd88_ft
         self.manning_n = float(manning_n)
         self.minimum_mobile_depth_ft = float(minimum_mobile_depth_ft)
+        self.control_volume_size_ft = float(control_volume_size_ft)
+        if self.control_volume_size_ft <= 0.0:
+            raise ValueError("Control-volume size must be positive")
+        self.flow_length_ft = self.control_volume_size_ft
+        self.maximum_numerical_speed_fps = (
+            math.sqrt(2.0) * self.control_volume_size_ft / MODEL_STEP_SECONDS
+        )
+        self.maximum_numerical_travel_per_tide_step_ft = (
+            self.maximum_numerical_speed_fps * TIDE_STEP_SECONDS
+        )
         source_interface = self.source[self.edges["a"]] ^ self.source[self.edges["b"]]
         # Each complete qualified <=2.0-ft field defines the NAVD88 source
         # condition. Preserve every one-foot perimeter width, but gate
@@ -291,7 +296,7 @@ class HydraulicSolver:
         This is a standard wet/dry treatment expressed as physical depth over
         the node's currently wetted subgrid area. It replaces the previous
         0.01-cubic-foot switch, which let a microscopic numerical film move a
-        full 25-foot cell every minute.
+        full control volume every minute.
         """
         return self.wetted_area(surface) * self.minimum_mobile_depth_ft
 
@@ -406,8 +411,7 @@ class HydraulicSolver:
             # All edge fluxes are simultaneous. A terrain node that first
             # receives water in this substep cannot become a donor until the
             # next substep, so the numerical front advances at most one
-            # 25-foot control volume per minute (35.4 ft using the conservative
-            # tile diagonal).
+            # control volume per minute (using the conservative tile diagonal).
             wet_at_substep_start = self.source | (
                 storage >= self.mobile_storage_threshold(surface)
             )
@@ -442,7 +446,10 @@ class HydraulicSolver:
                     BROAD_CRESTED_WEIR_CFS * width * head**1.5 * submergence
                 )
             else:
-                hydraulic_slope = np.maximum(0.0, np.abs(delta) / FLOW_LENGTH_FT)
+                hydraulic_slope = np.maximum(
+                    0.0,
+                    np.abs(delta) / self.flow_length_ft,
+                )
                 # Subgrid diffusive-wave conveyance. Every grouped record retains
                 # the exact count of one-foot face segments at this crest, so the
                 # sum of these discharges preserves narrow openings and partially
@@ -587,7 +594,7 @@ def load_complete_state(
     if require_current_physics:
         physics = header.get("physics") or {}
         compatible = (
-            header.get("schema") == "north-wildwood-hydraulic-states-binary-v12"
+            header.get("schema") == "north-wildwood-hydraulic-states-binary-v13"
             and physics.get("modelKind")
             == "history-aware subgrid diffusive-wave finite-volume response atlas"
             and physics.get("sourceBlockActivationNavd88Ft")
@@ -597,8 +604,8 @@ def load_complete_state(
         )
         if not compatible:
             raise RuntimeError(
-                "State reuse requires a v24 package generated with the "
-                "complete qualified 2.0-ft tidal source fields"
+                "State reuse requires a v26 package generated with the "
+                "complete filled 2.0-ft tidal source field"
             )
     for family in family_order:
         record = header["phaseArrays"][family]
@@ -778,10 +785,10 @@ def simulate(
         "diagnosticStepCount": len(diagnostic_rows),
         "atlasFamilies": list(ATLAS_FAMILIES),
         "wettingAndFrontControls": {
-            "controlVolumeSizeFt": CONTROL_VOLUME_SIZE_FT,
-            "maximumNumericalSpeedFtPerSecond": MAX_OVERLAND_FRONT_SPEED_FPS,
+            "controlVolumeSizeFt": solver.control_volume_size_ft,
+            "maximumNumericalSpeedFtPerSecond": solver.maximum_numerical_speed_fps,
             "maximumNumericalTravelPer15MinutesFt": (
-                MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT
+                solver.maximum_numerical_travel_per_tide_step_ft
             ),
             "rule": (
                 "a newly wet control volume cannot donate until the next "
@@ -799,7 +806,7 @@ def simulate(
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v12",
+        "schema": "north-wildwood-hydraulic-states-binary-v13",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": MODEL_MIN_STAGE_FT,
         "stageMaxNavd88Ft": MODEL_MAX_STAGE_FT,
@@ -832,7 +839,7 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             ),
             "manningUsCustomaryFactor": MANNING_US_CUSTOMARY,
             "urbanOverlandManningN": URBAN_OVERLAND_MANNING_N,
-            "flowLengthFt": FLOW_LENGTH_FT,
+            "flowLengthFt": graph_manifest["controlVolumeSizeFt"],
             "freeOverflowWeirCoefficientCfs": BROAD_CRESTED_WEIR_CFS,
             "crossSection": (
                 "one foot of width per shared one-foot cell side, grouped by "
@@ -841,6 +848,9 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             "sourceBoundary": graph_manifest["sourceBoundaryDefinition"],
             "sourceBoundaryPixelCount": graph_manifest[
                 "qualifiedSourceBoundaryPixelCount"
+            ],
+            "sourceEnclaveTreatment": graph_manifest[
+                "sourceEnclaveTreatment"
             ],
             "sourceZoneIsolation": graph_manifest[
                 "sourceZonesIsolatedFromTerrain"
@@ -859,8 +869,8 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
                 "recession flow retains the actual graph crest"
             ),
             "storage": (
-                "one-foot DEM hypsometry integrated inside each 25-foot "
-                "finite-volume node"
+                "one-foot DEM hypsometry integrated inside each finite-volume "
+                "node"
             ),
             "fluxStability": (
                 "edge transfers are bounded by two-basin equalization volume, "
@@ -1572,7 +1582,13 @@ def main() -> None:
             f"Loaded {len(zones['connection10']):,} finite-volume zones and "
             f"{len(edges['a']):,} crest-width edge groups"
         )
-        solver = HydraulicSolver(zones, edges)
+        solver = HydraulicSolver(
+            zones,
+            edges,
+            control_volume_size_ft=float(
+                graph_manifest["controlVolumeSizeFt"]
+            ),
+        )
         families, diagnostics = simulate(solver)
     # Repacking a reused payload is intentional: solver/forcing metadata can
     # be strengthened without recomputing the 707 hydraulic states, and the
@@ -1605,7 +1621,7 @@ def main() -> None:
     )
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v13",
+        "schema": "north-wildwood-hydraulic-assets-v14",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": False,

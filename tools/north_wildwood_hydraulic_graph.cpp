@@ -6,9 +6,12 @@
 // intersect a supplied tidal marker.  Markers qualify complete components;
 // they never paint source geometry.  The area floor rejects the tiny isolated
 // marker artifacts without discarding the genuine southern tidal field that is
-// separated from the raster edge by domain nodata.  Every cell in each
-// qualified <=2.0 ft component becomes fixed-head source.  Finite-rate routing
-// starts at the complete component perimeter, not at marker shapes.
+// separated from the raster edge by domain nodata. Every cell in each
+// qualified <=2.0 ft component becomes fixed-head source; valid complement
+// pockets wholly enclosed by that tidal field are filled into the same source
+// footprint so raster islands do not render as offshore rings. Finite-rate
+// routing starts at the complete exterior-connected component perimeter, not
+// at marker shapes.
 // The 21-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
 // NAVD88 by GDAL. This builder verifies, but never silently changes, that
 // terrain. Storm-drain exchange is disabled for this model version.
@@ -42,8 +45,8 @@ constexpr int HIST_BINS = HIST_MAX10 - HIST_MIN10 + 1;
 constexpr int16_t EDGE_MIN10 = -30;
 constexpr int16_t EDGE_MAX10 = 225;
 constexpr int32_t SOURCE_MIN_CELLS = 43'560;
-constexpr int CONTROL_VOLUME_SIZE_FT = 25;
-constexpr int CONNECTION_BIN10 = 20;
+constexpr int DEFAULT_CONTROL_VOLUME_SIZE_FT = 10;
+constexpr int DEFAULT_CONNECTION_BIN10 = 20;
 constexpr int RENDER_STRIDE = 5;
 
 struct Inputs {
@@ -51,6 +54,8 @@ struct Inputs {
   fs::path source;
   fs::path hard;
   fs::path output;
+  int control_volume_size_ft = DEFAULT_CONTROL_VOLUME_SIZE_FT;
+  int connection_bin10 = DEFAULT_CONNECTION_BIN10;
 };
 
 struct RasterInfo {
@@ -126,13 +131,30 @@ Inputs parse_args(int argc, char** argv) {
     else if (key == "--source") result.source = value;
     else if (key == "--hard") result.hard = value;
     else if (key == "--output") result.output = value;
+    else if (key == "--control-volume-size-ft") {
+      result.control_volume_size_ft = std::stoi(value.string());
+    }
+    else if (key == "--connection-bin-tenths-ft") {
+      result.connection_bin10 = std::stoi(value.string());
+    }
     else throw std::runtime_error("Unknown argument: " + key);
   }
   if (result.dem.empty() || result.source.empty() || result.hard.empty() ||
       result.output.empty()) {
     throw std::runtime_error(
         "Usage: north_wildwood_hydraulic_graph --dem DEM --source MASK "
-        "--hard FIVE_CELL_MASK --output DIRECTORY");
+        "--hard MASK --output DIRECTORY "
+        "[--control-volume-size-ft INTEGER] "
+        "[--connection-bin-tenths-ft INTEGER]");
+  }
+  if (result.control_volume_size_ft < RENDER_STRIDE ||
+      result.control_volume_size_ft % RENDER_STRIDE != 0) {
+    throw std::runtime_error(
+        "Control-volume size must be a positive multiple of the five-foot "
+        "render stride");
+  }
+  if (result.connection_bin10 < 1) {
+    throw std::runtime_error("Connection bin must be at least one tenth of a foot");
   }
   return result;
 }
@@ -330,6 +352,67 @@ std::vector<uint8_t> find_source_blocks(
             << qualifying_component_cells << " low cells, "
             << qualifying_boundary_cells << " supplied boundary cells)\n";
   return state;
+}
+
+uint64_t fill_source_enclaves(
+    const std::vector<int16_t>& elevation10,
+    std::vector<uint8_t>& source,
+    int width,
+    int height) {
+  // The selected <=2.0-ft field is a boundary footprint, not a collection of
+  // rings. Above-threshold DEM pockets wholly enclosed by that footprint are
+  // usually bathymetric/raster artifacts; leaving them as finite terrain
+  // produces the offshore circles and triangles seen in the public map.
+  // Flood-fill the complement from the raster/nodata exterior and fold only
+  // unreachable valid pockets into the source. The connected city landmass
+  // remains ordinary finite storage.
+  const size_t count = elevation10.size();
+  std::vector<uint8_t> exterior(count, 0);
+  std::vector<int32_t> queue;
+  queue.reserve(count / 8);
+  const auto add_exterior = [&](int32_t cell) {
+    if (cell < 0 || exterior[cell] || source[cell] ||
+        !is_valid(elevation10[cell])) {
+      return;
+    }
+    exterior[cell] = 1;
+    queue.push_back(cell);
+  };
+
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const int32_t cell = y * width + x;
+      if (source[cell] || !is_valid(elevation10[cell])) continue;
+      bool exposed = x == 0 || x + 1 == width || y == 0 || y + 1 == height;
+      if (!exposed && !is_valid(elevation10[cell - 1])) exposed = true;
+      if (!exposed && !is_valid(elevation10[cell + 1])) exposed = true;
+      if (!exposed && !is_valid(elevation10[cell - width])) exposed = true;
+      if (!exposed && !is_valid(elevation10[cell + width])) exposed = true;
+      if (exposed) add_exterior(cell);
+    }
+  }
+  for (size_t cursor = 0; cursor < queue.size(); ++cursor) {
+    const int32_t cell = queue[cursor];
+    const int x = cell % width;
+    const int y = cell / width;
+    const std::array<int32_t, 4> neighbours = {
+        x > 0 ? cell - 1 : -1,
+        x + 1 < width ? cell + 1 : -1,
+        y > 0 ? cell - width : -1,
+        y + 1 < height ? cell + width : -1};
+    for (const int32_t neighbour : neighbours) add_exterior(neighbour);
+  }
+
+  uint64_t filled_cells = 0;
+  for (size_t cell = 0; cell < count; ++cell) {
+    if (is_valid(elevation10[cell]) && !source[cell] && !exterior[cell]) {
+      source[cell] = 1;
+      ++filled_cells;
+    }
+  }
+  std::cout << "Filled " << filled_cells
+            << " valid terrain cells enclosed by the complete source field\n";
+  return filled_cells;
 }
 
 std::vector<RenderCellSummary> build_render_cell_summaries(
@@ -543,33 +626,79 @@ std::vector<int32_t> build_zones(
     const std::vector<uint8_t>& hard,
     int width,
     int height,
+    int control_volume_size_ft,
+    int connection_bin10,
     std::vector<ZoneSummary>& summaries) {
   const size_t count = elevation10.size();
   std::vector<int32_t> zone(count, -1);
-  const int tiles_x = (width + CONTROL_VOLUME_SIZE_FT - 1) / CONTROL_VOLUME_SIZE_FT;
-  const int tiles_y = (height + CONTROL_VOLUME_SIZE_FT - 1) / CONTROL_VOLUME_SIZE_FT;
+  const int tiles_x = (width + control_volume_size_ft - 1) / control_volume_size_ft;
+  const int tiles_y = (height + control_volume_size_ft - 1) / control_volume_size_ft;
   std::vector<int32_t> queue;
   queue.reserve(
-      static_cast<size_t>(CONTROL_VOLUME_SIZE_FT) * CONTROL_VOLUME_SIZE_FT);
+      static_cast<size_t>(control_volume_size_ft) * control_volume_size_ft);
+
+  // A qualified source component is one fixed-head boundary, not finite
+  // storage. Keep each complete four-neighbour source field as one node. The
+  // edge builder still retains every one-foot source/terrain face and crest,
+  // so this removes redundant state entries without changing the available
+  // inflow cross-section or painting any source geometry into the overlay.
+  for (int32_t seed = 0; seed < static_cast<int32_t>(count); ++seed) {
+    if (!source[seed] || zone[seed] >= 0) continue;
+    const int32_t zone_id = static_cast<int32_t>(summaries.size());
+    summaries.emplace_back();
+    queue.clear();
+    queue.push_back(seed);
+    zone[seed] = zone_id;
+    for (size_t cursor = 0; cursor < queue.size(); ++cursor) {
+      const int32_t cell = queue[cursor];
+      const int cell_x = cell % width;
+      const int cell_y = cell / width;
+      ZoneSummary& summary = summaries[zone_id];
+      summary.connection10 = std::max(
+          summary.connection10 == NO_CONNECTION
+              ? connection10[cell]
+              : summary.connection10,
+          connection10[cell]);
+      ++summary.cell_count;
+      ++summary.source_cells;
+      summary.grate_cells += grates[cell];
+      summary.hard_cells += hard[cell];
+      const int16_t clamped =
+          std::clamp(elevation10[cell], HIST_MIN10, HIST_MAX10);
+      ++summary.histogram[clamped - HIST_MIN10];
+      const std::array<int32_t, 4> neighbours = {
+          cell_x > 0 ? cell - 1 : -1,
+          cell_x + 1 < width ? cell + 1 : -1,
+          cell_y > 0 ? cell - width : -1,
+          cell_y + 1 < height ? cell + width : -1};
+      for (const int32_t neighbour : neighbours) {
+        if (neighbour < 0 || zone[neighbour] >= 0 || !source[neighbour]) {
+          continue;
+        }
+        zone[neighbour] = zone_id;
+        queue.push_back(neighbour);
+      }
+    }
+  }
 
   const auto connection_bin = [&](int32_t cell) {
     const int16_t clipped =
         std::clamp(connection10[cell], HIST_MIN10, HIST_MAX10);
-    return (clipped - HIST_MIN10) / CONNECTION_BIN10;
+    return (clipped - HIST_MIN10) / connection_bin10;
   };
 
   // A tile/bin lookup alone is not a hydraulic control volume: two pieces of
   // terrain on opposite sides of a bulkhead can share that lookup key without
   // sharing an edge. Build a separate four-neighbour component for every
-  // tile/bin/material combination. This preserves the inexpensive 25-foot
+  // tile/bin/material combination. This preserves the selected ten-foot
   // finite volumes while preventing water from teleporting across a supplied
   // hard-structure line.
   for (int tile_y = 0; tile_y < tiles_y; ++tile_y) {
-    const int y0 = tile_y * CONTROL_VOLUME_SIZE_FT;
-    const int y1 = std::min(height, y0 + CONTROL_VOLUME_SIZE_FT);
+    const int y0 = tile_y * control_volume_size_ft;
+    const int y1 = std::min(height, y0 + control_volume_size_ft);
     for (int tile_x = 0; tile_x < tiles_x; ++tile_x) {
-      const int x0 = tile_x * CONTROL_VOLUME_SIZE_FT;
-      const int x1 = std::min(width, x0 + CONTROL_VOLUME_SIZE_FT);
+      const int x0 = tile_x * control_volume_size_ft;
+      const int x1 = std::min(width, x0 + control_volume_size_ft);
       for (int y = y0; y < y1; ++y) {
         for (int x = x0; x < x1; ++x) {
           const int32_t seed = y * width + x;
@@ -579,9 +708,8 @@ std::vector<int32_t> build_zones(
           // Fixed-head source pixels must never share a storage zone with
           // ordinary terrain. Keeping source as a material class means a
           // one-foot opening exchanges water through its actual shared edge
-          // width instead of pinning a whole 25-foot tile to the ocean stage.
-          const uint8_t seed_material =
-              (hard[seed] ? 2 : 0) | (source[seed] ? 1 : 0);
+          // width instead of pinning a whole tile to the ocean stage.
+          const uint8_t seed_material = hard[seed] ? 2 : 0;
           const int32_t zone_id = static_cast<int32_t>(summaries.size());
           summaries.emplace_back();
           summaries.back().connection10 = connection10[seed];
@@ -613,8 +741,8 @@ std::vector<int32_t> build_zones(
               if (neighbour < 0 || zone[neighbour] >= 0 ||
                   connection10[neighbour] == NO_CONNECTION ||
                   connection_bin(neighbour) != seed_bin ||
-                  ((hard[neighbour] ? 2 : 0) |
-                   (source[neighbour] ? 1 : 0)) != seed_material) {
+                  source[neighbour] ||
+                  (hard[neighbour] ? 2 : 0) != seed_material) {
                 continue;
               }
               zone[neighbour] = zone_id;
@@ -627,8 +755,8 @@ std::vector<int32_t> build_zones(
   }
   std::cout << "Built " << summaries.size()
             << " side-connected one-foot-hypsometry control volumes ("
-            << CONTROL_VOLUME_SIZE_FT << " ft spatial tiles, "
-            << CONNECTION_BIN10 / 10.0 << " ft connection bins)\n";
+            << control_volume_size_ft << " ft spatial tiles, "
+            << connection_bin10 / 10.0 << " ft connection bins)\n";
   return zone;
 }
 
@@ -706,33 +834,41 @@ void write_manifest(
     size_t zone_count,
     uint64_t hard_count,
     uint64_t manual_source_count,
+    uint64_t qualified_source_low_count,
     uint64_t qualified_source_count,
     uint64_t qualified_source_components,
-    uint64_t omitted_render_terrain_cells) {
+    uint64_t source_enclave_count,
+    uint64_t omitted_render_terrain_cells,
+    int control_volume_size_ft,
+    int connection_bin10) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v8\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v10\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
          << "  \"sourceStageNavd88Ft\": 2.0,\n"
          << "  \"sourceMinComponentCells\": " << SOURCE_MIN_CELLS << ",\n"
          << "  \"sourceConnectivity\": \"four-neighbour/shared-side only\",\n"
-         << "  \"sourceBoundaryDefinition\": \"complete four-neighbour <=2.0 ft components of at least one acre that touch the exterior DEM boundary or intersect a supplied tidal component marker\",\n"
+         << "  \"sourceBoundaryDefinition\": \"complete tidal footprint formed by four-neighbour <=2.0 ft components of at least one acre that touch the exterior DEM boundary or intersect a supplied tidal component marker, with valid complement pockets wholly enclosed by that footprint filled as source\",\n"
          << "  \"manualSourcePixelCount\": " << manual_source_count << ",\n"
          << "  \"manualSourceTreatment\": \"component markers only; polygons never paint source geometry and sub-acre components are rejected\",\n"
+         << "  \"qualifiedSourceLowPixelCount\": " << qualified_source_low_count << ",\n"
          << "  \"qualifiedSourceBoundaryPixelCount\": " << qualified_source_count << ",\n"
          << "  \"qualifiedSourceComponentCount\": " << qualified_source_components << ",\n"
+         << "  \"sourceEnclosedTerrainPixelCount\": " << source_enclave_count << ",\n"
+         << "  \"sourceEnclaveTreatment\": \"valid non-source terrain components unreachable from the raster/nodata exterior are filled into the complete tidal boundary footprint; exterior-connected city terrain remains finite storage\",\n"
          << "  \"sourceZonesIsolatedFromTerrain\": true,\n"
+         << "  \"sourceControlVolumes\": \"one fixed-head node per complete four-neighbour source component; all one-foot perimeter faces retained\",\n"
          << "  \"bulkheadElevationNavd88Ft\": 7.5,\n"
          << "  \"bulkheadNominalWidthCells\": 21,\n"
          << "  \"bulkheadPixelCount\": " << hard_count << ",\n"
          << "  \"bulkheadTerrainTreatment\": \"stitched into input DEM with GDAL before graph construction\",\n"
          << "  \"stormDrains\": \"disabled; not connectivity seeds and no exchange flow\",\n"
          << "  \"modelMaximumNavd88Ft\": 22.0,\n"
-         << "  \"controlVolumeSizeFt\": " << CONTROL_VOLUME_SIZE_FT << ",\n"
-         << "  \"connectionBinFt\": " << CONNECTION_BIN10 / 10.0 << ",\n"
-         << "  \"controlVolumeConnectivity\": \"four-neighbour components within each tile/connection bin; hard structures and fixed-head sources isolated as separate material classes\",\n"
+         << "  \"controlVolumeSizeFt\": " << control_volume_size_ft << ",\n"
+         << "  \"connectionBinFt\": " << connection_bin10 / 10.0 << ",\n"
+         << "  \"controlVolumeConnectivity\": \"terrain uses four-neighbour components within each tile/connection bin; hard structures are separate material classes; each complete source component is one fixed-head boundary node\",\n"
          << "  \"renderSummarySchema\": \"north-wildwood-five-foot-area-summary-v2\",\n"
          << "  \"renderSummaryStrideFt\": " << RENDER_STRIDE << ",\n"
          << "  \"renderSummaryTerrainSlots\": 2,\n"
@@ -764,6 +900,10 @@ int main(int argc, char** argv) {
     std::vector<uint8_t> source = find_source_blocks(
         elevation10, manual, info.width, info.height,
         qualified_source_components);
+    const uint64_t qualified_source_low_count = static_cast<uint64_t>(
+        std::count(source.begin(), source.end(), static_cast<uint8_t>(1)));
+    const uint64_t source_enclave_count = fill_source_enclaves(
+        elevation10, source, info.width, info.height);
     const uint64_t qualified_source_count = static_cast<uint64_t>(
         std::count(source.begin(), source.end(), static_cast<uint8_t>(1)));
     manual.clear();
@@ -774,7 +914,10 @@ int main(int argc, char** argv) {
     std::vector<ZoneSummary> summaries;
     std::vector<int32_t> zone = build_zones(
         elevation10, connection10, source, grates, hard,
-        info.width, info.height, summaries);
+        info.width, info.height,
+        inputs.control_volume_size_ft,
+        inputs.connection_bin10,
+        summaries);
     uint64_t omitted_render_terrain_cells = 0;
     std::vector<RenderCellSummary> render_cells = build_render_cell_summaries(
         elevation10, zone, source, info.width, info.height,
@@ -795,9 +938,13 @@ int main(int argc, char** argv) {
         summaries.size(),
         hard_count,
         manual_source_count,
+        qualified_source_low_count,
         qualified_source_count,
         qualified_source_components,
-        omitted_render_terrain_cells);
+        source_enclave_count,
+        omitted_render_terrain_cells,
+        inputs.control_volume_size_ft,
+        inputs.connection_bin10);
 
     write_geotiff(
         inputs.output / "NorthWildwoodConditionedElevation10.tif",

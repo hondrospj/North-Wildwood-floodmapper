@@ -7,15 +7,16 @@ does not run a new hydraulic simulation for every tide. Instead, it chooses one
 of seven precomputed history families from the scalar hydrograph, floors the
 level to a 0.1-foot NAVD88 stage, and downloads one depth or stage PNG.
 
-The v25 atlas underneath that unchanged browser behavior is a mass-conserving
+The v26 atlas underneath that unchanged browser behavior is a mass-conserving
 subgrid finite-volume model. It applies time, storage, one-foot interface
 width, distance, water-surface gradient, Manning friction, wetting/drying, and
 a free-overflow capacity limit. A connected depression is no longer promoted
 instantaneously to the tide elevation.
 
-The two complete four-neighbour tidal fields at or below **2.0 ft NAVD88** are
-an internal fixed-head forcing boundary. They are never painted as flood
-impact. A component must contain at least one acre and either
+The two complete four-neighbour tidal fields at or below **2.0 ft NAVD88**,
+including valid DEM pockets wholly enclosed by those fields, are an internal
+fixed-head forcing boundary. They are never painted as flood impact. A
+component must contain at least one acre and either
 touch the exterior DEM boundary or intersect a supplied tidal marker. Markers
 qualify the complete DEM component but never paint their own circles or shapes.
 Exterior routed volume is exactly zero at 2.0 ft. Above 2.0 ft, water can leave
@@ -90,9 +91,9 @@ long recession tail in the supplied profile.
 
 The planning flood-depth catalog still extends through 22.00 ft NAVD88. The
 history-aware operational catalog covers 0.0–10.0 ft under the retained
-`assets/hydraulic-v20/` public path; that directory name is kept to avoid a
-second large deployment copy, while its manifest identifies the v25 render
-contract, the v13 asset schema, and the v12 hydraulic-state schema. The
+`assets/hydraulic-v20/` public fallback path; that directory name is kept to
+avoid a second large GitHub deployment copy, while its manifest identifies the
+v26 render contract, the v14 asset schema, and the v13 hydraulic-state schema. The
 operational atlas still
 contains only 1,414 PNGs; it does not enumerate tide-cycle permutations.
 Levels above 10 ft retain the volume-routed v19 PNGs as a planning-only
@@ -119,14 +120,18 @@ vertical units in NAVD88 feet. The model then:
    footprint. A component qualifies only when it contains at least 43,560 cells
    (one acre) and either touches the exterior DEM boundary or intersects a
    supplied tidal marker; corner-only contact does not count. Every cell in the
-   two qualified components becomes fixed-head source. The polygons mark whole
-   tidal components but have no hydraulic-shape or display role.
-3. Groups the one-foot terrain into 25-foot finite-volume nodes while retaining
+   two qualified components becomes fixed-head source. Valid non-source
+   components unreachable from the raster/nodata exterior are filled into the
+   complete source footprint, removing offshore and marsh enclave rings while
+   keeping the exterior-connected city landmass as terrain. The polygons mark
+   whole tidal components but have no hydraulic-shape or display role.
+3. Groups the one-foot terrain into 10-foot finite-volume nodes while retaining
    the exact one-foot elevation histogram and the shared one-foot flow width at
    every edge. Boundary cells are placed in separate fixed-head nodes, so a
-   source and interior terrain can never share a 25-foot storage node. Storm
-   drains are disabled: they are neither connectivity seeds nor underground
-   exchange paths.
+   source and interior terrain can never share a storage node. Each complete
+   source component is represented by one fixed-head node, while every
+   one-foot perimeter face is retained. Storm drains are disabled: they are
+   neither connectivity seeds nor underground exchange paths.
 4. Gates source-to-terrain inflow at the 2.0-ft NAVD88 condition while allowing
    terrain-to-source drainage across the actual connection on recession. At
    exactly 2.0 ft the internal source activates, but the public overlay remains
@@ -159,14 +164,14 @@ hydraulics.
 
 This is a compact physics response atlas, not an event-exact hydrodynamic
 forecast. The internal source is two complete tidal components containing
-18,230,034 one-foot cells, or 418.504 acres. At 2.0 ft, all 418.504 source
-acres are hydraulically active but none are displayed; exterior terrain volume
-is zero and the public frame is transparent. At 2.1 ft there is still no
-visible exterior terrain. At 2.2 ft the typical-rise solve stores only
-0.704237 acre-ft outside the source after finite perimeter routing; its wet
-terrain control-volume footprint is 28.856703 acres. See
+19,556,870 one-foot cells, or 448.964 acres: 18,230,034 cells in the qualified
+low fields plus 1,326,836 cells in their enclosed valid pockets. At 2.0 ft,
+the complete source field is hydraulically active but none is displayed;
+exterior terrain volume is zero and the public frame is transparent. At 2.2
+ft the selected ten-foot preview stored 0.227 acre-ft outside the source after
+finite perimeter routing. See
 `tools/benchmark_north_wildwood_methods.py` and
-`docs/north-wildwood-hydraulic-v25.md`.
+`docs/north-wildwood-hydraulic-v26.md`.
 
 The main builders are:
 
@@ -184,7 +189,9 @@ g++ -O3 -std=c++17 \
   --dem /path/to/NorthWildwoodDEM_Bulkhead21Cell_1ft_NAVD88.tif \
   --source /path/to/source_blocks_1ft.tif \
   --hard /path/to/bulkheads_21cell_1ft.tif \
-  --output /path/to/graph
+  --output /path/to/graph \
+  --control-volume-size-ft 10 \
+  --connection-bin-tenths-ft 20
 
 python3 tools/simulate_north_wildwood_hydraulics.py \
   --graph /path/to/graph \
@@ -216,10 +223,10 @@ The feature-preparation step records the source ZIP hash, validates the
 one-foot grid, and requires the expected 1 hard-structure feature, 6 ignored
 drain points, 6 source polygons, 11,200 centerline pixels, and 254,212
 manual-source pixels. It records the expanded wall pixel count and conditioned
-DEM provenance in the generated manifest. In the current graph, 18,230,034
-qualified source-footprint pixels form 47,436 boundary-only subgrid zones, with
-no zone containing both fixed-head boundary and terrain cells. The complete
-source perimeter retains 116,536 one-foot terrain exchange faces.
+DEM provenance in the generated manifest. In the current graph, 19,556,870
+complete source-footprint pixels form exactly two fixed-head source nodes, with
+no node containing both source and terrain. The complete source perimeter
+retains 66,088 one-foot terrain exchange faces.
 
 The renderer uses a cyan-to-navy depth key and leaves dry low terrain
 transparent. Surface values are smoothed over roughly five feet only inside
@@ -230,9 +237,9 @@ Falling-tide puddles may remain after their visible five-foot connection to the
 source has dried. The render validator checks all 1,414 depth/stage PNGs,
 requires matching masks, rejects the former green potential codes, and confirms
 that the history catalogs differ. It measures the farthest new-water arrival
-against the physical per-frame travel envelope; the v25 maximum is 59 five-foot
-pixels (295 ft) against a 115-pixel (575-ft) limit. The largest connected
-adjacent-stage terrain addition is 524 five-foot pixels (0.30 acre).
+against the physical per-frame travel envelope; the v26 maximum is 32 five-foot
+pixels (160 ft) against a 46-pixel (230-ft) limit. The largest connected
+adjacent-stage terrain addition is 215 five-foot pixels.
 
 ## Clickable depth
 
@@ -327,21 +334,15 @@ other secondary data warm in the background.
 ## Bunny layout
 
 ```text
-DepthPNGs/North Wildwood/rising_slow/
-DepthPNGs/North Wildwood/rising_typical/
-DepthPNGs/North Wildwood/rising_fast/
-DepthPNGs/North Wildwood/crest/
-DepthPNGs/North Wildwood/falling_minor/
-DepthPNGs/North Wildwood/falling_moderate/
-DepthPNGs/North Wildwood/falling_extreme/
-StagePNGs/North Wildwood/<same seven history families>/
-COGs/North Wildwood/v25/NorthWildwoodHydraulicQuery5ft.png
-COGs/North Wildwood/v25/NorthWildwoodHydraulicZone5ft.png
-COGs/North Wildwood/v25/NorthWildwoodHydraulicStates.json.png
+DepthPNGs/North Wildwood/v26/<seven history families>/
+StagePNGs/North Wildwood/v26/<seven history families>/
+COGs/North Wildwood/v26/NorthWildwoodHydraulicQuery5ft.png
+COGs/North Wildwood/v26/NorthWildwoodHydraulicZone5ft.png
+COGs/North Wildwood/v26/NorthWildwoodHydraulicStates.json.png
 Parcels/North Wildwood/
 ```
 
-The dashboard tries the Bunny v25 family first and retains the bundled GitHub
+The dashboard tries the Bunny v26 family first and retains the bundled GitHub
 copy as a fail-safe. The `.json.png` and `.geojson.png` transport aliases retain
 their compressed binary, JSON, and GeoJSON bytes because this Bunny pull
 zone's cross-origin allowlist is extension-based.

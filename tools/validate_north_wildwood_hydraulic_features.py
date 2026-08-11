@@ -71,8 +71,8 @@ def main() -> None:
     width = int(manifest["width"])
     height = int(manifest["height"])
     zone_count = int(manifest["zoneCount"])
-    if manifest.get("schema") != "north-wildwood-one-foot-hydraulic-graph-v8":
-        raise AssertionError("Graph does not use the complete-field v8 source schema")
+    if manifest.get("schema") != "north-wildwood-one-foot-hydraulic-graph-v10":
+        raise AssertionError("Graph does not use the complete-field v10 source schema")
 
     hard_pixels = int(
         np.memmap(
@@ -100,6 +100,8 @@ def main() -> None:
         ).sum(dtype=np.uint64)
     )
     expected_source_pixels = int(manifest["qualifiedSourceBoundaryPixelCount"])
+    qualified_low_pixels = int(manifest["qualifiedSourceLowPixelCount"])
+    source_enclave_pixels = int(manifest["sourceEnclosedTerrainPixelCount"])
     manual_source_pixels = int(manifest["manualSourcePixelCount"])
     if manifest.get("sourceZonesIsolatedFromTerrain") is not True:
         raise AssertionError("Graph does not isolate fixed-head source zones")
@@ -109,7 +111,7 @@ def main() -> None:
         abs_tol=1e-12,
     ):
         raise AssertionError("Graph does not define the source footprint at 2.0 ft")
-    if "complete four-neighbour <=2.0 ft components" not in str(
+    if "four-neighbour <=2.0 ft components" not in str(
         manifest.get("sourceBoundaryDefinition", "")
     ):
         raise AssertionError("Graph does not promote the complete 2.0-ft footprint")
@@ -131,6 +133,15 @@ def main() -> None:
         raise AssertionError(
             "Source does not contain the complete qualified 2.0-ft fields"
         )
+    if source_pixels != qualified_low_pixels + source_enclave_pixels:
+        raise AssertionError(
+            "Complete source footprint does not equal qualified low field plus "
+            "its enclosed valid complement pockets"
+        )
+    if source_enclave_pixels <= 0 or "unreachable from the raster/nodata exterior" not in str(
+        manifest.get("sourceEnclaveTreatment", "")
+    ):
+        raise AssertionError("Source field does not fill its enclosed DEM pockets")
     if int(manifest.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("Graph does not declare a 21-cell bulkhead")
 
@@ -200,8 +211,13 @@ def main() -> None:
         mode="r",
         shape=(height, width),
     )
-    if int(elevation10[source_flag != 0].max()) > 20:
-        raise AssertionError("A fixed-head source cell is above 2.0 ft NAVD88")
+    source_above_2ft = int(
+        np.count_nonzero((source_flag != 0) & (elevation10 > 20))
+    )
+    if source_above_2ft > source_enclave_pixels:
+        raise AssertionError(
+            "Above-2.0-ft source terrain is not confined to enclosed footprint pockets"
+        )
 
     centerline_ds = gdal.Open(str(args.centerline.resolve()))
     if centerline_ds is None:

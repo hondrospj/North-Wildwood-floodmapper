@@ -24,21 +24,11 @@ FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
     dtype=np.uint8,
 )
 # Each simultaneous one-minute flux update can activate no more than one
-# 25-foot control volume. The longest atlas transition is the eight-minute
-# typical 0.1-foot rise followed by the explicit 15-minute crest hold. Using
-# shared-side control-volume length gives a 575-foot maximum front travel,
-# or 115 five-foot render pixels in taxicab distance. This tests travel time directly;
-# an area-only threshold incorrectly rejects a shallow fringe around a long
-# source perimeter while failing to distinguish a remote connected basin.
+# control volume. The longest atlas transition is the eight-minute typical
+# 0.1-foot rise followed by the explicit 15-minute crest hold. The graph
+# manifest supplies the selected resolution so the travel envelope remains a
+# physical time/distance check rather than a hard-coded legacy-mesh allowance.
 MAX_TRANSITION_MINUTES = 23
-CONTROL_VOLUME_SIZE_FT = 25.0
-MAX_NEW_WATER_DISTANCE_PIXELS = int(
-    np.ceil(
-        MAX_TRANSITION_MINUTES
-        * CONTROL_VOLUME_SIZE_FT
-        / RENDER_STRIDE
-    )
-)
 FAMILIES = (
     "rising_slow",
     "rising_typical",
@@ -79,6 +69,17 @@ def main() -> None:
     args = parse_args()
     graph = args.graph.resolve()
     assets = args.assets.resolve()
+    graph_manifest = json.loads(
+        (graph / "graph_manifest.json").read_text(encoding="utf-8")
+    )
+    control_volume_size_ft = float(graph_manifest["controlVolumeSizeFt"])
+    max_new_water_distance_pixels = int(
+        np.ceil(
+            MAX_TRANSITION_MINUTES
+            * control_volume_size_ft
+            / RENDER_STRIDE
+        )
+    )
     source_flag = np.memmap(
         graph / "source_flag.raw",
         dtype=np.uint8,
@@ -205,22 +206,25 @@ def main() -> None:
         raise AssertionError("Slow and fast rising histories are identical")
     if family_hashes["rising_typical"] == family_hashes["falling_moderate"]:
         raise AssertionError("Rising and falling histories are identical")
-    if maximum_new_water_distance_pixels > MAX_NEW_WATER_DISTANCE_PIXELS:
+    if maximum_new_water_distance_pixels > max_new_water_distance_pixels:
         raise AssertionError(
             "An adjacent 0.1-ft frame creates water "
             f"{maximum_new_water_distance_pixels:.1f} five-foot pixels from "
             f"previous water at {maximum_new_water_distance_frame}; physical "
-            f"travel envelope is {MAX_NEW_WATER_DISTANCE_PIXELS} pixels"
+            f"travel envelope is {max_new_water_distance_pixels} pixels"
         )
 
     print(
         json.dumps(
             {
                 "status": "passed",
+                "controlVolumeSizeFt": control_volume_size_ft,
+                "maximumAllowedNewWaterDistancePixels": max_new_water_distance_pixels,
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
-                    "the two qualified complete <=2.0-ft NAVD88 fields are fixed-head "
-                    "forcing only and never rendered; public overlays contain only "
+                    "the two qualified complete <=2.0-ft NAVD88 fields and their "
+                    "enclosed valid pockets are fixed-head forcing only and never "
+                    "rendered; public overlays contain only "
                     "finite-storage terrain that received routed volume, and the "
                     "2.0-ft rising and crest frames are transparent"
                 ),
@@ -239,7 +243,7 @@ def main() -> None:
                 ),
                 "maximumNewWaterDistanceFrame": maximum_new_water_distance_frame,
                 "maximumNewWaterDistanceLimitPixels": (
-                    MAX_NEW_WATER_DISTANCE_PIXELS
+                    max_new_water_distance_pixels
                 ),
                 "families": records,
             },

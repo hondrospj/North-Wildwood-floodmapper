@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Atomically prepare and verify the North Wildwood v25 Bunny asset tree."""
+"""Atomically prepare and verify the North Wildwood v26 Bunny asset tree."""
 
 from __future__ import annotations
 
@@ -17,11 +17,14 @@ from urllib.parse import quote
 import requests
 
 
+# The repository keeps one bundled fallback atlas under the stable historical
+# directory name; Bunny destinations are independently versioned below.
 ROOT = Path(__file__).resolve().parents[1] / "assets" / "hydraulic-v20"
 ZONE = "floodmapperv1"
 STORAGE_ROOT = f"https://storage.bunnycdn.com/{ZONE}"
 CDN_ROOT = "https://floodmapperv1.b-cdn.net"
-CACHE_VERSION = "20260811-hydraulic-v25-bunny"
+CACHE_VERSION = "20260811-hydraulic-v26-bunny"
+ATLAS_VERSION = "v26"
 FAMILIES = (
     "rising_slow",
     "rising_typical",
@@ -46,7 +49,10 @@ def upload_records() -> list[tuple[Path, str]]:
     for overlay in ("DepthPNGs", "StagePNGs"):
         directory = ROOT / overlay / "North Wildwood"
         for path in sorted(directory.rglob("*.png")):
-            records.append((path, path.relative_to(ROOT).as_posix()))
+            relative = path.relative_to(directory).as_posix()
+            records.append(
+                (path, f"{overlay}/North Wildwood/{ATLAS_VERSION}/{relative}")
+            )
 
     cog_directory = ROOT / "COGs" / "North Wildwood"
     for name in (
@@ -55,11 +61,11 @@ def upload_records() -> list[tuple[Path, str]]:
         "NorthWildwoodHydraulicStates.json.png",
     ):
         path = cog_directory / name
-        records.append((path, f"COGs/North Wildwood/v25/{name}"))
+        records.append((path, f"COGs/North Wildwood/{ATLAS_VERSION}/{name}"))
     records.append(
         (
             ROOT / "NorthWildwoodHydraulicAssetManifest.json",
-            "COGs/North Wildwood/v25/NorthWildwoodHydraulicAssetManifest.json.png",
+            f"COGs/North Wildwood/{ATLAS_VERSION}/NorthWildwoodHydraulicAssetManifest.json.png",
         )
     )
 
@@ -137,10 +143,10 @@ def verification_records(
     records: list[tuple[Path, str]],
 ) -> list[tuple[Path, str]]:
     wanted: set[str] = {
-        "COGs/North Wildwood/v25/NorthWildwoodHydraulicQuery5ft.png",
-        "COGs/North Wildwood/v25/NorthWildwoodHydraulicZone5ft.png",
-        "COGs/North Wildwood/v25/NorthWildwoodHydraulicStates.json.png",
-        "COGs/North Wildwood/v25/NorthWildwoodHydraulicAssetManifest.json.png",
+        f"COGs/North Wildwood/{ATLAS_VERSION}/NorthWildwoodHydraulicQuery5ft.png",
+        f"COGs/North Wildwood/{ATLAS_VERSION}/NorthWildwoodHydraulicZone5ft.png",
+        f"COGs/North Wildwood/{ATLAS_VERSION}/NorthWildwoodHydraulicStates.json.png",
+        f"COGs/North Wildwood/{ATLAS_VERSION}/NorthWildwoodHydraulicAssetManifest.json.png",
     }
     for family in FAMILIES:
         for overlay, prefix in (
@@ -149,9 +155,9 @@ def verification_records(
         ):
             for code in ("p0200", "p0750", "p1000"):
                 wanted.add(
-                    f"{overlay}/North Wildwood/{family}/{prefix}{code}.png"
+                    f"{overlay}/North Wildwood/{ATLAS_VERSION}/{family}/{prefix}{code}.png"
                 )
-    if len(records) == 4 and all("/v25/" in destination for _, destination in records):
+    if len(records) == 4 and all(f"/{ATLAS_VERSION}/" in destination for _, destination in records):
         return records
     selected = [record for record in records if record[1] in wanted]
     if len(selected) != len(wanted):
@@ -196,7 +202,11 @@ def main() -> None:
     args = parse_args()
     records = upload_records()
     if args.metadata_only:
-        records = [record for record in records if "/v25/" in record[1]]
+        records = [
+            record
+            for record in records
+            if record[1].startswith(f"COGs/North Wildwood/{ATLAS_VERSION}/")
+        ]
     total_bytes = sum(path.stat().st_size for path, _ in records)
     print(f"Prepared {len(records):,} files ({total_bytes:,} bytes).")
 
@@ -234,7 +244,7 @@ def main() -> None:
         "cacheVersion": CACHE_VERSION,
         "verification": verification,
     }
-    report_path = Path("/tmp/north-wildwood-bunny-v25-upload.json")
+    report_path = Path("/tmp/north-wildwood-bunny-v26-upload.json")
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({key: value for key, value in report.items() if key != "verification"}, indent=2))
 

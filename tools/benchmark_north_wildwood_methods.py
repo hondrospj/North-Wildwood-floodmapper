@@ -146,9 +146,17 @@ def decode_legacy_stage(
 
 def main() -> None:
     args = parse_args()
+    graph_manifest = json.loads(
+        (args.graph / "graph_manifest.json").read_text(encoding="utf-8")
+    )
+    solver_kwargs = {
+        "control_volume_size_ft": float(
+            graph_manifest["controlVolumeSizeFt"]
+        )
+    }
     zones = model.load_zones(args.graph / "zones.csv")
     edges = model.load_edges(args.graph / "edges.csv")
-    storage_solver = model.HydraulicSolver(zones, edges)
+    storage_solver = model.HydraulicSolver(zones, edges, **solver_kwargs)
     methods: list[dict] = []
     equilibrium_states = []
     for stage in (2.0, 2.1, 2.2):
@@ -178,6 +186,7 @@ def main() -> None:
                 edges,
                 routing_method="legacy_weir",
                 source_activation_navd88_ft=model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
+                **solver_kwargs,
             ),
         ),
         (
@@ -187,6 +196,7 @@ def main() -> None:
                 edges,
                 routing_method="diffusive",
                 source_activation_navd88_ft=None,
+                **solver_kwargs,
             ),
         ),
         (
@@ -196,6 +206,7 @@ def main() -> None:
                 edges,
                 routing_method="diffusive",
                 source_activation_navd88_ft=model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
+                **solver_kwargs,
             ),
         ),
         (
@@ -205,6 +216,7 @@ def main() -> None:
                 edges,
                 routing_method="hybrid_diffusive",
                 source_activation_navd88_ft=model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
+                **solver_kwargs,
             ),
         ),
     )
@@ -243,6 +255,7 @@ def main() -> None:
             source_activation_navd88_ft=model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
             manning_n=manning_n,
             minimum_mobile_depth_ft=wetting_depth,
+            **solver_kwargs,
         )
         sensitivities.append(
             {
