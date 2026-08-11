@@ -7,14 +7,15 @@ does not run a new hydraulic simulation for every tide. Instead, it chooses one
 of seven precomputed history families from the scalar hydrograph, floors the
 level to a 0.1-foot NAVD88 stage, and downloads one depth or stage PNG.
 
-The v24 atlas underneath that unchanged browser behavior is a mass-conserving
+The v25 atlas underneath that unchanged browser behavior is a mass-conserving
 subgrid finite-volume model. It applies time, storage, one-foot interface
 width, distance, water-surface gradient, Manning friction, wetting/drying, and
 a free-overflow capacity limit. A connected depression is no longer promoted
 instantaneously to the tide elevation.
 
 The two complete four-neighbour tidal fields at or below **2.0 ft NAVD88** are
-the fixed-head source. A component must contain at least one acre and either
+an internal fixed-head forcing boundary. They are never painted as flood
+impact. A component must contain at least one acre and either
 touch the exterior DEM boundary or intersect a supplied tidal marker. Markers
 qualify the complete DEM component but never paint their own circles or shapes.
 Exterior routed volume is exactly zero at 2.0 ft. Above 2.0 ft, water can leave
@@ -90,8 +91,9 @@ long recession tail in the supplied profile.
 The planning flood-depth catalog still extends through 22.00 ft NAVD88. The
 history-aware operational catalog covers 0.0–10.0 ft under the retained
 `assets/hydraulic-v20/` public path; that directory name is kept to avoid a
-second large deployment copy, while its manifest identifies the v24 model and
-the v12 binary/render container schemas. The operational atlas still
+second large deployment copy, while its manifest identifies the v25 render
+contract, the v13 asset schema, and the v12 hydraulic-state schema. The
+operational atlas still
 contains only 1,414 PNGs; it does not enumerate tide-cycle permutations.
 Levels above 10 ft retain the volume-routed v19 PNGs as a planning-only
 fallback. No equilibrium/bathtub images are used.
@@ -127,9 +129,8 @@ vertical units in NAVD88 feet. The model then:
    exchange paths.
 4. Gates source-to-terrain inflow at the 2.0-ft NAVD88 condition while allowing
    terrain-to-source drainage across the actual connection on recession. At
-   exactly 2.0 ft the entire source footprint is visible; literal 2.0-ft contour
-   cells use the 0.05-ft minimum cartographic depth, while exterior inflow and
-   exterior terrain storage remain zero.
+   exactly 2.0 ft the internal source activates, but the public overlay remains
+   transparent because exterior inflow and exterior terrain storage are zero.
 5. Routes ordinary terrain flow with a Manning diffusive-wave face flux in
    60-second substeps. True dry/free overflow is capped by broad-crested-weir
    capacity. Every transfer is capped by donor storage, receiver capacity, and
@@ -142,11 +143,12 @@ vertical units in NAVD88 feet. The model then:
    rising limb uses one stable rate family. Falling frames use the nearest
    preceding absolute crest, eliminating v19's moving `stage + 2.5 ft` history
    and its one-foot band resets.
-7. Renders only water that the finite-volume solve actually delivered. Every
-   five-foot output pixel area-aggregates all 25 underlying one-foot cells,
-   keeping the fixed-head source separate from the two dominant terrain nodes
-   and encoding fractional wet coverage in alpha. This removes center-sample
-   holes without painting neighboring dry ground. Low terrain that is merely
+7. Renders only water that the finite-volume solve actually delivered to
+   finite-storage terrain. Every five-foot output pixel area-aggregates the
+   non-source one-foot subcells and encodes their fractional wet coverage in
+   alpha. The internal fixed-head forcing field is excluded from both depth and
+   stage PNGs. This removes center-sample holes without painting the hydraulic
+   boundary or neighboring dry ground. Low terrain that is merely
    equilibrium-connected remains transparent.
 
 The operational solve produces 101 stages per family from 0.0–10.0 ft NAVD88
@@ -156,14 +158,15 @@ the level to the nearest 0.1-foot asset, and pull one PNG. They never rerun
 hydraulics.
 
 This is a compact physics response atlas, not an event-exact hydrodynamic
-forecast. The corrected source is two complete tidal components containing
+forecast. The internal source is two complete tidal components containing
 18,230,034 one-foot cells, or 418.504 acres. At 2.0 ft, all 418.504 source
-acres are displayed and exterior terrain volume is zero. At 2.1 ft there is
-still no visible exterior terrain. At 2.2 ft the typical-rise solve stores only
+acres are hydraulically active but none are displayed; exterior terrain volume
+is zero and the public frame is transparent. At 2.1 ft there is still no
+visible exterior terrain. At 2.2 ft the typical-rise solve stores only
 0.704237 acre-ft outside the source after finite perimeter routing; its wet
 terrain control-volume footprint is 28.856703 acres. See
 `tools/benchmark_north_wildwood_methods.py` and
-`docs/north-wildwood-hydraulic-v24.md`.
+`docs/north-wildwood-hydraulic-v25.md`.
 
 The main builders are:
 
@@ -227,7 +230,7 @@ Falling-tide puddles may remain after their visible five-foot connection to the
 source has dried. The render validator checks all 1,414 depth/stage PNGs,
 requires matching masks, rejects the former green potential codes, and confirms
 that the history catalogs differ. It measures the farthest new-water arrival
-against the physical per-frame travel envelope; the v24 maximum is 59 five-foot
+against the physical per-frame travel envelope; the v25 maximum is 59 five-foot
 pixels (295 ft) against a 115-pixel (575-ft) limit. The largest connected
 adjacent-stage terrain addition is 524 five-foot pixels (0.30 acre).
 

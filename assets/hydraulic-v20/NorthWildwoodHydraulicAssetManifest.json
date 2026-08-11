@@ -1,6 +1,6 @@
 {
-  "schema": "north-wildwood-hydraulic-assets-v12",
-  "generatedUtc": "2026-08-11T02:04:27Z",
+  "schema": "north-wildwood-hydraulic-assets-v13",
+  "generatedUtc": "2026-08-11T02:37:11Z",
   "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
   "historyInvariant": false,
   "stageCatalog": {
@@ -62,7 +62,8 @@
       0.0,
       -5.0
     ],
-    "fixedHeadBoundaryDisplay": "the complete qualified source is visible at 2.0 ft and all twenty-five underlying one-foot cells are area aggregated; fractional edge coverage is encoded without center-cell aliasing",
+    "fixedHeadBoundaryDisplay": "the complete qualified source is hydraulic forcing only and is never painted; all twenty-five underlying terrain cells are area aggregated with fractional coverage",
+    "sourceBoundaryRendered": false,
     "coverageAlphaLevels": [
       72,
       132,
@@ -75,66 +76,66 @@
     "families": {
       "rising_slow": {
         "stageCount": 101,
-        "pngBytes": 14881671,
+        "pngBytes": 14300703,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the two qualified fixed-head tidal fields; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed terrain nodes only; the fixed-head forcing boundary is excluded from public overlays and smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 1134041
+        "maximumFloodedPixels": 413969
       },
       "rising_typical": {
         "stageCount": 101,
-        "pngBytes": 14575053,
+        "pngBytes": 13951469,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the two qualified fixed-head tidal fields; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed terrain nodes only; the fixed-head forcing boundary is excluded from public overlays and smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 1094014
+        "maximumFloodedPixels": 373922
       },
       "rising_fast": {
         "stageCount": 101,
-        "pngBytes": 14472019,
+        "pngBytes": 13826008,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the two qualified fixed-head tidal fields; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed terrain nodes only; the fixed-head forcing boundary is excluded from public overlays and smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 1081193
+        "maximumFloodedPixels": 361087
       },
       "crest": {
         "stageCount": 101,
-        "pngBytes": 14598556,
+        "pngBytes": 14025114,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the two qualified fixed-head tidal fields; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed terrain nodes only; the fixed-head forcing boundary is excluded from public overlays and smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 1104574
+        "maximumFloodedPixels": 384499
       },
       "falling_minor": {
         "stageCount": 101,
-        "pngBytes": 16232582,
+        "pngBytes": 15699498,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the two qualified fixed-head tidal fields; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed terrain nodes only; the fixed-head forcing boundary is excluded from public overlays and smoothing cannot add wet pixels",
         "minimumFloodedPixels": 42649,
-        "maximumFloodedPixels": 1104574
+        "maximumFloodedPixels": 384499
       },
       "falling_moderate": {
         "stageCount": 101,
-        "pngBytes": 18392208,
+        "pngBytes": 17913559,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the two qualified fixed-head tidal fields; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed terrain nodes only; the fixed-head forcing boundary is excluded from public overlays and smoothing cannot add wet pixels",
         "minimumFloodedPixels": 80380,
-        "maximumFloodedPixels": 1104574
+        "maximumFloodedPixels": 384499
       },
       "falling_extreme": {
         "stageCount": 101,
-        "pngBytes": 28904241,
+        "pngBytes": 28392696,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the two qualified fixed-head tidal fields; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed terrain nodes only; the fixed-head forcing boundary is excluded from public overlays and smoothing cannot add wet pixels",
         "minimumFloodedPixels": 274752,
-        "maximumFloodedPixels": 1104574
+        "maximumFloodedPixels": 384499
       }
     }
   },

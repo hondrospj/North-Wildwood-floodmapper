@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify history-family PNG masks and the complete 2.0-ft source fields."""
+"""Verify routed-water PNG masks while keeping source forcing invisible."""
 
 from __future__ import annotations
 
@@ -68,11 +68,6 @@ def aggregate_any(raw: np.ndarray) -> np.ndarray:
     ).any(axis=(1, 3))
 
 
-def sample_source(path: Path) -> np.ndarray:
-    raw = np.memmap(path, dtype=np.uint8, mode="r", shape=(HEIGHT, WIDTH))
-    return aggregate_any(raw != 0)
-
-
 def largest_connected(mask: np.ndarray) -> int:
     labels, count = ndimage_label(mask, structure=FOUR_NEIGHBOUR_STRUCTURE)
     if not count:
@@ -84,19 +79,34 @@ def main() -> None:
     args = parse_args()
     graph = args.graph.resolve()
     assets = args.assets.resolve()
-    source = sample_source(graph / "source_flag.raw")
+    source_flag = np.memmap(
+        graph / "source_flag.raw",
+        dtype=np.uint8,
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+    source = aggregate_any(source_flag != 0)
     elevation10 = np.memmap(
         graph / "elevation10.raw",
         dtype="<i2",
         mode="r",
         shape=(HEIGHT, WIDTH),
     )
-    valid = aggregate_any(elevation10 != np.iinfo(np.int16).min)
-    # The entire qualified <=2.0-ft source footprint is legible at activation;
-    # literal 2.0-ft cells use the minimum cartographic depth but add no routed
-    # exterior terrain volume.
-    source_visible_at_activation = source
-
+    valid_raw = elevation10 != np.iinfo(np.int16).min
+    valid = aggregate_any(valid_raw)
+    source_counts = (source_flag != 0).reshape(
+        RENDER_HEIGHT,
+        RENDER_STRIDE,
+        RENDER_WIDTH,
+        RENDER_STRIDE,
+    ).sum(axis=(1, 3))
+    valid_counts = valid_raw.reshape(
+        RENDER_HEIGHT,
+        RENDER_STRIDE,
+        RENDER_WIDTH,
+        RENDER_STRIDE,
+    ).sum(axis=(1, 3))
+    source_only = (valid_counts > 0) & (source_counts == valid_counts)
     records = []
     family_hashes: dict[str, list[bytes]] = {}
     maximum_components = 0
@@ -140,21 +150,17 @@ def main() -> None:
             stage_navd88_ft = int(code.removeprefix("p")) / 100.0
             if (
                 family in ("rising_slow", "rising_typical", "rising_fast", "crest")
-                and stage_navd88_ft < SOURCE_BLOCK_ACTIVATION_NAVD88_FT
+                and stage_navd88_ft <= SOURCE_BLOCK_ACTIVATION_NAVD88_FT
                 and np.any(depth_blue)
             ):
                 raise AssertionError(
-                    f"Water appears before source-block activation in "
+                    f"Rendered terrain water appears at or before zero-head "
+                    f"source activation in "
                     f"{family} {code}"
                 )
-            if (
-                family in ("rising_slow", "rising_typical", "rising_fast", "crest")
-                and stage_navd88_ft == SOURCE_BLOCK_ACTIVATION_NAVD88_FT
-                and not np.array_equal(depth_blue, source_visible_at_activation)
-            ):
+            if np.any(depth_blue & source_only):
                 raise AssertionError(
-                    f"The 2.0-ft frame is not exactly the complete qualified "
-                    f"source footprint "
+                    f"Fixed-head-only forcing cells leaked into the public overlay "
                     f"for {family} {code}"
                 )
             if previous_blue is not None:
@@ -214,9 +220,9 @@ def main() -> None:
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
                     "the two qualified complete <=2.0-ft NAVD88 fields are fixed-head "
-                    "source; all twenty-five one-foot subcells are area aggregated, "
-                    "the entire source footprint first appears at 2.0 ft, and the "
-                    "2.0-ft rising and crest frames contain no exterior terrain"
+                    "forcing only and never rendered; public overlays contain only "
+                    "finite-storage terrain that received routed volume, and the "
+                    "2.0-ft rising and crest frames are transparent"
                 ),
                 "sourceBlockActivationNavd88Ft": (
                     SOURCE_BLOCK_ACTIVATION_NAVD88_FT

@@ -270,8 +270,9 @@ class HydraulicSolver:
         # source-to-terrain inflow at 2.0 ft. The gate is directional:
         # previously routed water may drain back to a falling boundary across
         # the actual terrain connection instead of becoming trapped behind an
-        # artificial two-way 2.0-ft wall. At exactly 2.0 ft the blocks are
-        # visible and exterior inflow head is zero; finite inflow begins above.
+        # artificial two-way 2.0-ft wall. At exactly 2.0 ft the internal
+        # boundary activates with zero exterior inflow head; finite inflow
+        # begins above, and the boundary is never part of the public overlay.
         self.source_interface = source_interface
         self.source_inflow_crest_ft = self.edges["crest_ft"].copy()
         if source_activation_navd88_ft is not None:
@@ -1027,30 +1028,10 @@ def render_assets(
             depth_sum = np.zeros(render_shape, dtype=np.float32)
             activation_max = np.full(render_shape, -np.inf, dtype=np.float32)
 
-            # The fixed-head source is aggregated from all twenty-five one-foot
-            # cells in each display pixel. At activation, the complete qualified
-            # source footprint is displayed with the minimum cartographic depth,
-            # including literal 2.0-ft contour cells. This makes the 2.0-ft field
-            # legible as the boundary condition without assigning any exterior
-            # terrain volume or painting beyond the source components.
-            if stage >= SOURCE_BLOCK_ACTIVATION_NAVD88_FT - 1e-9:
-                source_area = render_cells["source_count"].astype(np.float32)
-                source_present = source_area > 0
-                source_ground_mean = np.divide(
-                    render_cells["source_ground_sum10"].astype(np.float32),
-                    np.maximum(source_area * 10.0, 1.0),
-                )
-                source_depth = np.maximum(
-                    float(stage) - source_ground_mean,
-                    MIN_DISPLAY_DEPTH_FT,
-                )
-                wet_area += source_area
-                depth_sum += source_area * np.where(
-                    source_present,
-                    source_depth,
-                    0.0,
-                )
-                activation_max[source_present] = SOURCE_BLOCK_ACTIVATION_NAVD88_FT
+            # The fixed-head source is a forcing reservoir, not modeled flood
+            # impact. Never paint source cells into either public overlay. Only
+            # finite-storage terrain that receives routed volume contributes to
+            # wet area, depth, or stage color.
 
             add_terrain_slot(
                 0,
@@ -1156,7 +1137,8 @@ def render_assets(
             "historyInvariant": False,
             "wetFootprint": (
                 "area-weighted one-foot subcells from immutable finite-volume "
-                "routed nodes and the two qualified fixed-head tidal fields; "
+                "routed terrain nodes only; the fixed-head forcing boundary is "
+                "excluded from public overlays and "
                 "smoothing cannot add wet pixels"
             ),
             "minimumFloodedPixels": minimum_flooded_pixels or 0,
@@ -1188,10 +1170,11 @@ def render_assets(
         "projection": projection,
         "geotransform": list(render_transform),
         "fixedHeadBoundaryDisplay": (
-            "the complete qualified source is visible at 2.0 ft and all "
-            "twenty-five underlying one-foot cells are area aggregated; "
-            "fractional edge coverage is encoded without center-cell aliasing"
+            "the complete qualified source is hydraulic forcing only and is "
+            "never painted; all twenty-five underlying terrain cells are area "
+            "aggregated with fractional coverage"
         ),
+        "sourceBoundaryRendered": False,
         "coverageAlphaLevels": list(COVERAGE_ALPHA_LEVELS),
         "maximumOmittedTerrainSubcells": int(
             np.max(render_cells["omitted_terrain_count"])
@@ -1622,7 +1605,7 @@ def main() -> None:
     )
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v12",
+        "schema": "north-wildwood-hydraulic-assets-v13",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": False,

@@ -111,7 +111,7 @@ assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 30/);
 assert.doesNotMatch(SOURCE, /Number\(stageValue\) > 14/);
 assert.match(SOURCE, /\/assets\/hydraulic-v20\//);
-assert.match(SOURCE, /20260810-hydraulic-v24-complete-tidal-fields/);
+assert.match(SOURCE, /20260810-hydraulic-v25-boundary-not-rendered/);
 assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
 assert.match(SOURCE, />Simulation Extent</i);
 assert.match(extractFunction("isTownBoundaryEnabled"), /boundaryToggle[\s\S]+classList\.contains\("on"\)/);
