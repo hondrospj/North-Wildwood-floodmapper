@@ -327,17 +327,21 @@ other secondary data warm in the background.
 ## Bunny layout
 
 ```text
-DepthPNGs/North Wildwood/                         # slack depth
-DepthPNGs/North Wildwood/filling/
-DepthPNGs/North Wildwood/draining/
-StagePNGs/North Wildwood/                         # slack stage
-StagePNGs/North Wildwood/filling/
-StagePNGs/North Wildwood/draining/
-COGs/North Wildwood/NorthWildwoodHydraulicQueryWGS84.cog.tif.png
-COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png
+DepthPNGs/North Wildwood/rising_slow/
+DepthPNGs/North Wildwood/rising_typical/
+DepthPNGs/North Wildwood/rising_fast/
+DepthPNGs/North Wildwood/crest/
+DepthPNGs/North Wildwood/falling_minor/
+DepthPNGs/North Wildwood/falling_moderate/
+DepthPNGs/North Wildwood/falling_extreme/
+StagePNGs/North Wildwood/<same seven history families>/
+COGs/North Wildwood/v25/NorthWildwoodHydraulicQuery5ft.png
+COGs/North Wildwood/v25/NorthWildwoodHydraulicZone5ft.png
+COGs/North Wildwood/v25/NorthWildwoodHydraulicStates.json.png
 Parcels/North Wildwood/
 ```
 
-The `.tif.png`, `.json.png`, and `.geojson.png` transport aliases retain their
-actual COG, compressed binary, JSON, and GeoJSON bytes. The aliases exist
-because this Bunny pull zone's cross-origin allowlist is extension-based.
+The dashboard tries the Bunny v25 family first and retains the bundled GitHub
+copy as a fail-safe. The `.json.png` and `.geojson.png` transport aliases retain
+their compressed binary, JSON, and GeoJSON bytes because this Bunny pull
+zone's cross-origin allowlist is extension-based.
