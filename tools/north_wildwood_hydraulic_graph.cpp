@@ -116,12 +116,13 @@ struct RenderCellSummary {
   uint8_t terrain_count0 = 0;
   uint8_t terrain_count1 = 0;
   uint8_t source_count = 0;
+  uint8_t enclosed_source_fill_count = 0;
   uint8_t valid_count = 0;
   uint8_t omitted_terrain_count = 0;
 };
 #pragma pack(pop)
 
-static_assert(sizeof(RenderCellSummary) == 37);
+static_assert(sizeof(RenderCellSummary) == 38);
 
 Inputs parse_args(int argc, char** argv) {
   Inputs result;
@@ -460,9 +461,17 @@ std::vector<RenderCellSummary> build_render_cell_summaries(
         for (int dx = 0; dx < RENDER_STRIDE; ++dx) {
           const int x = render_x * RENDER_STRIDE + dx;
           const int32_t cell = y * width + x;
-          if (!is_valid(elevation10[cell]) || zone[cell] < 0 ||
-              render_suppressed[cell]) continue;
+          if (!is_valid(elevation10[cell]) || zone[cell] < 0) continue;
           ++output.valid_count;
+          if (render_suppressed[cell]) {
+            // These are DEM pockets wholly enclosed by a qualifying tidal
+            // source component.  They stay ordinary finite-storage terrain in
+            // the hydraulic graph, but the public source-field image fills
+            // them so the fixed two-foot boundary is not drawn as offshore
+            // circles and triangles.
+            ++output.enclosed_source_fill_count;
+            continue;
+          }
           if (source[cell]) {
             if (output.source_zone < 0) output.source_zone = zone[cell];
             ++output.source_count;
@@ -868,7 +877,7 @@ void write_manifest(
          << "  \"qualifiedSourceBoundaryPixelCount\": " << qualified_source_count << ",\n"
          << "  \"qualifiedSourceComponentCount\": " << qualified_source_components << ",\n"
          << "  \"sourceEnclosedTerrainPixelCount\": " << source_enclave_count << ",\n"
-         << "  \"sourceEnclaveTreatment\": \"enclosed cells above 2.0 ft remain finite-storage hydraulic terrain and are never boundary forcing; because they are isolated raster artifacts inside the tidal waterbody, they are excluded only from public impact rendering and browser queries\",\n"
+         << "  \"sourceEnclaveTreatment\": \"enclosed cells above 2.0 ft remain finite-storage hydraulic terrain and are never boundary forcing; the visible source field fills these isolated raster artifacts so it has no offshore circles or triangles\",\n"
          << "  \"renderSuppressedWaterbodyTerrainPixelCount\": " << source_enclave_count << ",\n"
          << "  \"sourceZonesIsolatedFromTerrain\": true,\n"
          << "  \"sourceControlVolumes\": \"one fixed-head node per complete four-neighbour source component; all one-foot perimeter faces retained\",\n"
@@ -881,7 +890,7 @@ void write_manifest(
          << "  \"controlVolumeSizeFt\": " << control_volume_size_ft << ",\n"
          << "  \"connectionBinFt\": " << connection_bin10 / 10.0 << ",\n"
          << "  \"controlVolumeConnectivity\": \"terrain uses four-neighbour components within each tile/connection bin; hard structures are separate material classes; each complete source component is one fixed-head boundary node\",\n"
-         << "  \"renderSummarySchema\": \"north-wildwood-five-foot-area-summary-v2\",\n"
+         << "  \"renderSummarySchema\": \"north-wildwood-five-foot-area-summary-v3\",\n"
          << "  \"renderSummaryStrideFt\": " << RENDER_STRIDE << ",\n"
          << "  \"renderSummaryTerrainSlots\": 2,\n"
          << "  \"renderSummaryOmittedTerrainCells\": " << omitted_render_terrain_cells << ",\n"

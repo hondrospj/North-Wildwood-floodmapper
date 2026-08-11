@@ -120,11 +120,12 @@ vertical units in NAVD88 feet. The model then:
    footprint. A component qualifies only when it contains at least 43,560 cells
    (one acre) and either touches the exterior DEM boundary or intersects a
    supplied tidal marker; corner-only contact does not count. Every cell in the
-   two qualified components becomes fixed-head source. Valid non-source
-   components unreachable from the raster/nodata exterior are filled into the
-   complete source footprint, removing offshore and marsh enclave rings while
-   keeping the exterior-connected city landmass as terrain. The polygons mark
-   whole tidal components but have no hydraulic-shape or display role.
+   two qualified components becomes fixed-head source. Valid higher DEM pockets
+   enclosed by those components remain finite-storage terrain in the hydraulic
+   graph, but are filled in the public source-field image so raster artifacts do
+   not appear as offshore circles or triangles. The exterior-connected city
+   landmass remains terrain. The polygons mark whole tidal components but have
+   no hydraulic-shape or display role.
 3. Groups the one-foot terrain into 10-foot finite-volume nodes while retaining
    the exact one-foot elevation histogram and the shared one-foot flow width at
    every edge. Boundary cells are placed in separate fixed-head nodes, so a
@@ -132,10 +133,9 @@ vertical units in NAVD88 feet. The model then:
    source component is represented by one fixed-head node, while every
    one-foot perimeter face is retained. Storm drains are disabled: they are
    neither connectivity seeds nor underground exchange paths.
-4. Gates source-to-terrain inflow at the 2.0-ft NAVD88 condition while allowing
-   terrain-to-source drainage across the actual connection on recession. At
-   exactly 2.0 ft the internal source activates, but the public overlay remains
-   transparent because exterior inflow and exterior terrain storage are zero.
+4. Uses 2.0 ft NAVD88 to define source geometry, not an invented activation
+   sill. The fixed-head field follows the tide continuously; both inflow and
+   recession cross the actual one-foot shared-face crests.
 5. Routes ordinary terrain flow with a Manning diffusive-wave face flux in
    60-second substeps. True dry/free overflow is capped by broad-crested-weir
    capacity. Every transfer is capped by donor storage, receiver capacity, and
@@ -148,13 +148,12 @@ vertical units in NAVD88 feet. The model then:
    rising limb uses one stable rate family. Falling frames use the nearest
    preceding absolute crest, eliminating v19's moving `stage + 2.5 ft` history
    and its one-foot band resets.
-7. Renders only water that the finite-volume solve actually delivered to
-   finite-storage terrain. Every five-foot output pixel area-aggregates the
-   non-source one-foot subcells and encodes their fractional wet coverage in
-   alpha. The internal fixed-head forcing field is excluded from both depth and
-   stage PNGs. This removes center-sample holes without painting the hydraulic
-   boundary or neighboring dry ground. Low terrain that is merely
-   equilibrium-connected remains transparent.
+7. Matches Stone Harbor's source-field contract: from 2.0 ft upward, every
+   qualified source cell is visible boundary water. Enclosed raster artifacts
+   are filled for display only. Beyond that immutable field, every five-foot
+   output pixel area-aggregates only finite-storage terrain that actually
+   received routed volume and encodes fractional wet coverage in alpha. Low
+   terrain that is merely equilibrium-connected remains transparent.
 
 The operational solve produces 101 stages per family from 0.0–10.0 ft NAVD88
 at 0.1-foot increments: 707 depth PNGs plus 707 stage-class PNGs. Forecast and
@@ -163,13 +162,11 @@ the level to the nearest 0.1-foot asset, and pull one PNG. They never rerun
 hydraulics.
 
 This is a compact physics response atlas, not an event-exact hydrodynamic
-forecast. The internal source is two complete tidal components containing
-19,556,870 one-foot cells, or 448.964 acres: 18,230,034 cells in the qualified
-low fields plus 1,326,836 cells in their enclosed valid pockets. At 2.0 ft,
-the complete source field is hydraulically active but none is displayed;
-exterior terrain volume is zero and the public frame is transparent. At 2.2
-ft the selected ten-foot preview stored 0.227 acre-ft outside the source after
-finite perimeter routing. See
+forecast. The hydraulic source is two tidal components containing 18,230,034
+qualified one-foot cells. The continuous public source field also fills
+1,326,836 enclosed display artifacts, without turning them into forcing. At
+2.0 ft every five-foot display bin in that complete field is present; water
+beyond it still requires finite perimeter routing. See
 `tools/benchmark_north_wildwood_methods.py` and
 `docs/north-wildwood-hydraulic-v26.md`.
 

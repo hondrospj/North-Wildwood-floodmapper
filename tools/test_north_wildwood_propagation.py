@@ -66,7 +66,7 @@ def main() -> None:
             "sourceFaceWidthFt": 1.0,
             "sourceZoneAreaSqFt": 1,
             "maximumConservativeTravelFt": (
-                model.MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT
+                substeps * solver.control_volume_size_ft
             ),
             "stormDrainExchangeFt3": diagnostics["stormDrainExchangeFt3"],
         }

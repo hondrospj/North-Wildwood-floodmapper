@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify routed-water PNG masks while keeping source forcing invisible."""
+"""Verify routed-water PNG masks and the visible two-foot source field."""
 
 from __future__ import annotations
 
@@ -48,7 +48,8 @@ RENDER_CELL_DTYPE = np.dtype([
     ("terrain_ground_min10_0", "<i2"), ("terrain_ground_max10_0", "<i2"),
     ("terrain_ground_min10_1", "<i2"), ("terrain_ground_max10_1", "<i2"),
     ("terrain_count0", "u1"), ("terrain_count1", "u1"),
-    ("source_count", "u1"), ("valid_count", "u1"),
+    ("source_count", "u1"), ("enclosed_source_fill_count", "u1"),
+    ("valid_count", "u1"),
     ("omitted_terrain_count", "u1"),
 ])
 
@@ -98,10 +99,12 @@ def main() -> None:
         shape=(RENDER_HEIGHT, RENDER_WIDTH),
     )
     source_counts = render_cells["source_count"].astype(np.int16)
+    enclosed_fill_counts = render_cells["enclosed_source_fill_count"].astype(
+        np.int16
+    )
     valid_counts = render_cells["valid_count"].astype(np.int16)
-    source = source_counts > 0
+    source = (source_counts + enclosed_fill_counts) > 0
     valid = valid_counts > 0
-    source_only = (valid_counts > 0) & (source_counts == valid_counts)
     records = []
     family_hashes: dict[str, list[bytes]] = {}
     maximum_components = 0
@@ -144,10 +147,10 @@ def main() -> None:
                     f"Depth/stage water masks differ for {family} {code}"
                 )
             stage_navd88_ft = int(code.removeprefix("p")) / 100.0
-            if np.any(depth_blue & source_only):
+            if stage_navd88_ft >= 2.0 and np.any(source & ~depth_blue):
                 raise AssertionError(
-                    f"Fixed-head-only forcing cells leaked into the public overlay "
-                    f"for {family} {code}"
+                    f"The complete two-foot source field is missing from the "
+                    f"public overlay for {family} {code}"
                 )
             if previous_blue is not None:
                 arrival_distance = distance_transform_cdt(
@@ -208,10 +211,10 @@ def main() -> None:
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
                     "the two qualified complete <=2.0-ft NAVD88 fields are "
-                    "continuous fixed-head forcing only and never "
-                    "rendered; public overlays contain only "
-                    "finite-storage terrain that received routed volume; every "
-                    "cell above 2.0 ft remains finite storage"
+                    "continuous visible fixed-head water from 2.0 ft upward; "
+                    "enclosed display artifacts fill without becoming forcing; "
+                    "all expansion beyond that field contains only finite-storage "
+                    "terrain that received routed volume"
                 ),
                 "sourceBlockActivationNavd88Ft": None,
                 "equilibriumPotentialPixels": 0,

@@ -152,13 +152,14 @@ RENDER_CELL_DTYPE = np.dtype(
         ("terrain_count0", "u1"),
         ("terrain_count1", "u1"),
         ("source_count", "u1"),
+        ("enclosed_source_fill_count", "u1"),
         ("valid_count", "u1"),
         ("omitted_terrain_count", "u1"),
     ],
     align=False,
 )
-if RENDER_CELL_DTYPE.itemsize != 37:
-    raise RuntimeError("Five-foot render summary dtype is not packed to 37 bytes")
+if RENDER_CELL_DTYPE.itemsize != 38:
+    raise RuntimeError("Five-foot render summary dtype is not packed to 38 bytes")
 
 
 def parse_args() -> argparse.Namespace:
@@ -1096,6 +1097,63 @@ def render_assets(
             activation[contributing],
         )
 
+    def add_source_field(
+        stage: float,
+        encoded_surface: np.ndarray,
+        wet_area: np.ndarray,
+        depth_sum: np.ndarray,
+        activation_max: np.ndarray,
+    ) -> None:
+        """Paint the complete qualified two-foot field as boundary water.
+
+        Stone Harbor's connected-stage contract keeps its qualifying source
+        block visible in every applicable public frame.  North Wildwood's
+        finite-volume solve still controls all water routed beyond this fixed
+        field, but the field itself must not disappear from the map.  Because
+        every qualified source subcell is at or below 2.0 ft NAVD88, all of it
+        is wet once the two-foot source stage is reached.
+        """
+        if stage < SOURCE_BLOCK_MAX_NAVD88_FT - 1e-9:
+            return
+        zone = render_cells["source_zone"]
+        count = render_cells["source_count"].astype(np.float32)
+        enclosed_count = render_cells["enclosed_source_fill_count"].astype(
+            np.float32
+        )
+        present = (zone >= 0) & (count > 0)
+        enclosed_present = enclosed_count > 0
+        visible_source = present | enclosed_present
+        if not np.any(visible_source):
+            return
+        zone_lookup = np.where(present, zone + 1, 0)
+        surface_centift = encoded_surface[zone_lookup]
+        state_wet = present & (surface_centift != DRY_SENTINEL)
+        if not np.any(state_wet | enclosed_present):
+            return
+        surface = surface_centift.astype(np.float32) / 100.0
+        ground_mean = np.divide(
+            render_cells["source_ground_sum10"].astype(np.float32),
+            np.maximum(count * 10.0, 1.0),
+        )
+        source_depth = np.maximum(
+            surface - ground_mean,
+            MIN_DISPLAY_DEPTH_FT,
+        )
+        source_area = np.where(state_wet, count, 0.0).astype(np.float32)
+        # Enclosed display artifacts are filled to the two-foot boundary
+        # datum.  They do not alter any hydraulic zone, flux, or stored state.
+        enclosed_depth = max(
+            stage - SOURCE_BLOCK_MAX_NAVD88_FT,
+            MIN_DISPLAY_DEPTH_FT,
+        )
+        filled_area = source_area + enclosed_count
+        wet_area += filled_area
+        depth_sum += source_area * source_depth + enclosed_count * enclosed_depth
+        activation_max[visible_source] = np.maximum(
+            activation_max[visible_source],
+            SOURCE_BLOCK_MAX_NAVD88_FT,
+        )
+
     selected_family_dirs = (
         tuple(family_dirs.items())
         if family_names is None
@@ -1121,10 +1179,16 @@ def render_assets(
             depth_sum = np.zeros(render_shape, dtype=np.float32)
             activation_max = np.full(render_shape, -np.inf, dtype=np.float32)
 
-            # The fixed-head source is a forcing reservoir, not modeled flood
-            # impact. Never paint source cells into either public overlay. Only
-            # finite-storage terrain that receives routed volume contributes to
-            # wet area, depth, or stage color.
+            # Match Stone Harbor's source-field contract: the complete
+            # qualifying <=2.0-ft field is visible boundary water.  Only the
+            # expansion beyond this immutable field is capacity/time limited.
+            add_source_field(
+                float(stage),
+                encoded_surface,
+                wet_area,
+                depth_sum,
+                activation_max,
+            )
 
             add_terrain_slot(
                 0,
@@ -1230,8 +1294,8 @@ def render_assets(
             "historyInvariant": False,
             "wetFootprint": (
                 "area-weighted one-foot subcells from immutable finite-volume "
-                "routed terrain nodes only; the fixed-head forcing boundary is "
-                "excluded from public overlays and "
+                "routed terrain nodes plus the complete visible <=2.0-ft "
+                "fixed-head source field; "
                 "smoothing cannot add wet pixels"
             ),
             "minimumFloodedPixels": minimum_flooded_pixels or 0,
@@ -1263,11 +1327,11 @@ def render_assets(
         "projection": projection,
         "geotransform": list(render_transform),
         "fixedHeadBoundaryDisplay": (
-            "the complete qualified source is hydraulic forcing only and is "
-            "never painted; all twenty-five underlying terrain cells are area "
-            "aggregated with fractional coverage"
+            "the complete qualified <=2.0-ft source field is visible boundary "
+            "water from its two-foot source stage upward; routed terrain remains "
+            "area aggregated with fractional coverage"
         ),
-        "sourceBoundaryRendered": False,
+        "sourceBoundaryRendered": True,
         "coverageAlphaLevels": list(COVERAGE_ALPHA_LEVELS),
         "maximumOmittedTerrainSubcells": int(
             np.max(render_cells["omitted_terrain_count"])
@@ -1432,11 +1496,14 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     )
     represented_count = (
         render_cells["source_count"].astype(np.int32)
+        + render_cells["enclosed_source_fill_count"].astype(np.int32)
         + render_cells["terrain_count0"].astype(np.int32)
         + render_cells["terrain_count1"].astype(np.int32)
     )
     represented_ground_sum10 = (
         render_cells["source_ground_sum10"].astype(np.int32)
+        + render_cells["enclosed_source_fill_count"].astype(np.int32)
+        * int(round(SOURCE_BLOCK_MAX_NAVD88_FT * 10.0))
         + render_cells["terrain_ground_sum10_0"].astype(np.int32)
         + render_cells["terrain_ground_sum10_1"].astype(np.int32)
     )
@@ -1452,6 +1519,10 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
         mode="r",
         shape=(HEIGHT, WIDTH),
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    connection10 = np.asarray(connection10).copy()
+    connection10[render_cells["enclosed_source_fill_count"] > 0] = int(
+        round(SOURCE_BLOCK_MAX_NAVD88_FT * 10.0)
+    )
 
     valid = represented_count > 0
     unsigned_elevation = np.zeros(elevation10.shape, dtype=np.uint16)

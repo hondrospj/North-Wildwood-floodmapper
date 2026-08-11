@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Atomically prepare and verify the North Wildwood v27 Bunny asset tree."""
+"""Upload and verify the corrected North Wildwood v28 Bunny asset tree."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ ROOT = Path(__file__).resolve().parents[1] / "assets" / "hydraulic-v20"
 ZONE = "floodmapperv1"
 STORAGE_ROOT = f"https://storage.bunnycdn.com/{ZONE}"
 CDN_ROOT = "https://floodmapperv1.b-cdn.net"
-CACHE_VERSION = "20260811-hydraulic-v27-bunny"
-ATLAS_VERSION = "v27"
+CACHE_VERSION = "20260811-hydraulic-v28-source-field"
+ATLAS_VERSION = "v28"
 FAMILIES = (
     "rising_slow",
     "rising_typical",

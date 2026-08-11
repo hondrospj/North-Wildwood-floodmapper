@@ -71,8 +71,8 @@ def main() -> None:
     width = int(manifest["width"])
     height = int(manifest["height"])
     zone_count = int(manifest["zoneCount"])
-    if manifest.get("schema") != "north-wildwood-one-foot-hydraulic-graph-v10":
-        raise AssertionError("Graph does not use the complete-field v10 source schema")
+    if manifest.get("schema") != "north-wildwood-one-foot-hydraulic-graph-v11":
+        raise AssertionError("Graph does not use the complete-field v11 source schema")
 
     hard_pixels = int(
         np.memmap(
@@ -133,15 +133,14 @@ def main() -> None:
         raise AssertionError(
             "Source does not contain the complete qualified 2.0-ft fields"
         )
-    if source_pixels != qualified_low_pixels + source_enclave_pixels:
+    if source_pixels != qualified_low_pixels:
         raise AssertionError(
-            "Complete source footprint does not equal qualified low field plus "
-            "its enclosed valid complement pockets"
+            "Hydraulic forcing extends beyond the qualified <=2.0-ft field"
         )
-    if source_enclave_pixels <= 0 or "unreachable from the raster/nodata exterior" not in str(
+    if source_enclave_pixels <= 0 or "visible source field fills" not in str(
         manifest.get("sourceEnclaveTreatment", "")
     ):
-        raise AssertionError("Source field does not fill its enclosed DEM pockets")
+        raise AssertionError("Visible source field does not fill enclosed DEM artifacts")
     if int(manifest.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("Graph does not declare a 21-cell bulkhead")
 
@@ -214,10 +213,8 @@ def main() -> None:
     source_above_2ft = int(
         np.count_nonzero((source_flag != 0) & (elevation10 > 20))
     )
-    if source_above_2ft > source_enclave_pixels:
-        raise AssertionError(
-            "Above-2.0-ft source terrain is not confined to enclosed footprint pockets"
-        )
+    if source_above_2ft != 0:
+        raise AssertionError("Above-2.0-ft terrain became hydraulic source forcing")
 
     centerline_ds = gdal.Open(str(args.centerline.resolve()))
     if centerline_ds is None:
@@ -333,8 +330,10 @@ def main() -> None:
             raise AssertionError(
                 f"{phase} state wets a bulkhead before 7.5 ft NAVD88"
             )
-        if np.any(states[phase][19, source_lookup] != dry):
-            raise AssertionError(f"{phase} activates a source block below 2.0 ft")
+        if not np.any(states[phase][19, source_lookup] != dry):
+            raise AssertionError(
+                f"{phase} does not continuously force the two-foot source geometry"
+            )
         if np.any(states[phase][20, source_positive_depth_lookup] == dry):
             raise AssertionError(
                 f"{phase} omits positive-depth source storage at 2.0 ft"
@@ -345,8 +344,6 @@ def main() -> None:
             raise AssertionError(
                 f"{phase} invents water volume in zero-depth source zones at 2.0 ft"
             )
-        if np.any(states[phase][20, terrain_lookup] != dry):
-            raise AssertionError(f"{phase} wets exterior terrain at 2.0 ft")
         if np.any(states[phase][21, source_lookup] == dry):
             raise AssertionError(
                 f"{phase} does not fill the complete source footprint by 2.1 ft"
@@ -377,14 +374,10 @@ def main() -> None:
         abs_tol=1e-12,
     ):
         raise AssertionError("State package has the wrong overland Manning n")
-    if not math.isclose(
-        float(physics.get("sourceBlockActivationNavd88Ft", math.nan)),
-        2.0,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package does not activate source blocks at 2.0 ft")
-    if "directionally gated" not in str(physics.get("sourceInterfaceTreatment", "")):
-        raise AssertionError("State package does not declare directional source inflow")
+    if physics.get("sourceBlockActivationNavd88Ft") is not None:
+        raise AssertionError("State package invents a source activation sill")
+    if "actual graph crest" not in str(physics.get("sourceInterfaceTreatment", "")):
+        raise AssertionError("State package does not retain real source-interface crests")
     if "recession flow" not in str(physics.get("sourceInterfaceTreatment", "")):
         raise AssertionError("State package does not preserve source drainage")
     if "minimum mobile depth" not in str(physics.get("frontPropagation", "")):
