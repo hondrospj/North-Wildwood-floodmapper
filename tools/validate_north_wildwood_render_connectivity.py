@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify history-family PNG masks and the exterior 2.0-ft source footprint."""
+"""Verify history-family PNG masks and the complete 2.0-ft source fields."""
 
 from __future__ import annotations
 
@@ -92,18 +92,10 @@ def main() -> None:
         shape=(HEIGHT, WIDTH),
     )
     valid = aggregate_any(elevation10 != np.iinfo(np.int16).min)
-    # The complete <=2.0-ft component is fixed-head source. Cells whose ground
-    # is exactly 2.0 ft have zero water depth at activation and therefore remain
-    # transparent until the tide rises another displayable increment.
-    source_flag = np.memmap(
-        graph / "source_flag.raw",
-        dtype=np.uint8,
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )
-    source_visible_at_activation = aggregate_any(
-        (source_flag != 0) & (elevation10 <= 19)
-    )
+    # The entire qualified <=2.0-ft source footprint is legible at activation;
+    # literal 2.0-ft cells use the minimum cartographic depth but add no routed
+    # exterior terrain volume.
+    source_visible_at_activation = source
 
     records = []
     family_hashes: dict[str, list[bytes]] = {}
@@ -161,8 +153,8 @@ def main() -> None:
                 and not np.array_equal(depth_blue, source_visible_at_activation)
             ):
                 raise AssertionError(
-                    f"The 2.0-ft frame is not exactly the visible portion of the "
-                    f"complete connected source footprint "
+                    f"The 2.0-ft frame is not exactly the complete qualified "
+                    f"source footprint "
                     f"for {family} {code}"
                 )
             if previous_blue is not None:
@@ -221,9 +213,9 @@ def main() -> None:
                 "status": "passed",
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
-                    "the exterior-connected <=2.0-ft NAVD88 footprint is fixed-head "
+                    "the two qualified complete <=2.0-ft NAVD88 fields are fixed-head "
                     "source; all twenty-five one-foot subcells are area aggregated, "
-                    "its positive-depth portion first appears at 2.0 ft, and the "
+                    "the entire source footprint first appears at 2.0 ft, and the "
                     "2.0-ft rising and crest frames contain no exterior terrain"
                 ),
                 "sourceBlockActivationNavd88Ft": (

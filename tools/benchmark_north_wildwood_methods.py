@@ -264,7 +264,7 @@ def main() -> None:
         state for state in selected["states"] if state["stageNavd88Ft"] == 2.2
     )
     report = {
-        "schema": "north-wildwood-routing-method-benchmark-v4",
+        "schema": "north-wildwood-routing-method-benchmark-v5",
         "graphZoneCount": storage_solver.zone_count,
         "graphEdgeGroupCount": int(edges["a"].size),
         "test": (
@@ -276,10 +276,10 @@ def main() -> None:
         "determination": {
             "selected": selected["method"],
             "reasons": [
-                "the source is selected only by exterior-connected DEM topology; manual polygons are provenance, not hydraulic seeds",
-                "the complete exterior-connected <=2.0-ft footprint is fixed-head source",
-                "at 2.0 ft positive-depth source storage is visible while exterior routed volume is zero",
-                "at 2.1 ft the zero-depth source edge finishes filling without visible exterior terrain",
+                "complete <=2.0-ft components of at least one acre qualify by exterior topology or supplied tidal markers; polygons never paint source geometry",
+                "the two complete qualified <=2.0-ft fields are fixed-head source",
+                "at 2.0 ft the entire source boundary is displayed while exterior routed volume is zero",
+                "at 2.1 ft the source remains complete without visible exterior terrain",
                 "at 2.2 ft exterior water is finite and derived from perimeter face flux",
                 "ordinary terrain flow includes distance and Manning friction",
                 "true free overflow remains bounded by critical weir capacity",

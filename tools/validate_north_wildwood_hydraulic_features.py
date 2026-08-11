@@ -71,8 +71,8 @@ def main() -> None:
     width = int(manifest["width"])
     height = int(manifest["height"])
     zone_count = int(manifest["zoneCount"])
-    if manifest.get("schema") != "north-wildwood-one-foot-hydraulic-graph-v7":
-        raise AssertionError("Graph does not use the exterior-connected v7 source schema")
+    if manifest.get("schema") != "north-wildwood-one-foot-hydraulic-graph-v8":
+        raise AssertionError("Graph does not use the complete-field v8 source schema")
 
     hard_pixels = int(
         np.memmap(
@@ -113,21 +113,23 @@ def main() -> None:
         manifest.get("sourceBoundaryDefinition", "")
     ):
         raise AssertionError("Graph does not promote the complete 2.0-ft footprint")
-    if "exterior DEM boundary" not in str(
-        manifest.get("sourceBoundaryDefinition", "")
-    ):
-        raise AssertionError("Source is not selected from the open DEM boundary")
-    if int(manifest.get("qualifiedSourceComponentCount", -1)) != 1:
-        raise AssertionError("Expected one genuine exterior-connected source component")
-    if "provenance only" not in str(manifest.get("manualSourceTreatment", "")):
-        raise AssertionError("Manual polygons can still qualify source components")
+    source_definition = str(manifest.get("sourceBoundaryDefinition", ""))
+    if "exterior DEM boundary" not in source_definition or "tidal component marker" not in source_definition:
+        raise AssertionError("Source qualification omits an authentic tidal boundary path")
+    if int(manifest.get("sourceMinComponentCells", -1)) != 43_560:
+        raise AssertionError("Source component floor is not one acre")
+    if int(manifest.get("qualifiedSourceComponentCount", -1)) != 2:
+        raise AssertionError("Expected exactly two genuine tidal source components")
+    manual_treatment = str(manifest.get("manualSourceTreatment", ""))
+    if "component markers only" not in manual_treatment or "never paint" not in manual_treatment:
+        raise AssertionError("Manual polygons are not restricted to component qualification")
     if source_pixels != expected_source_pixels:
         raise AssertionError(
             f"Expected {expected_source_pixels} source pixels, found {source_pixels}"
         )
     if source_pixels <= manual_source_pixels:
         raise AssertionError(
-            "Source does not contain the complete exterior-connected 2.0-ft footprint"
+            "Source does not contain the complete qualified 2.0-ft fields"
         )
     if int(manifest.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("Graph does not declare a 21-cell bulkhead")

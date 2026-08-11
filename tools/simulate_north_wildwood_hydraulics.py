@@ -3,8 +3,9 @@
 
 The one-foot conditioned DEM is aggregated into 25-foot storage cells while
 retaining its elevation hypsometry and all shared one-foot flow widths. Only
-the exterior-connected <=2.0-ft tidal footprint is fixed-head boundary; the
-manual polygons are provenance only and higher terrain is finite storage. Source cells are isolated
+the qualified complete <=2.0-ft tidal fields are fixed-head boundary; supplied
+polygons mark components but never paint source geometry, and higher terrain is
+finite storage. Source cells are isolated
 from terrain control volumes, so a one-foot opening exchanges water through
 its actual shared face instead of pinning a whole 25-foot tile to the tide.
 Water is routed in 60-second substeps with a mass-conserving hybrid
@@ -122,7 +123,6 @@ RENDER_CELL_DTYPE = np.dtype(
         ("terrain_ground_sum10_0", "<i4"),
         ("terrain_ground_sum10_1", "<i4"),
         ("source_ground_sum10", "<i4"),
-        ("source_positive2_ground_sum10", "<i4"),
         ("terrain_ground_min10_0", "<i2"),
         ("terrain_ground_max10_0", "<i2"),
         ("terrain_ground_min10_1", "<i2"),
@@ -130,14 +130,13 @@ RENDER_CELL_DTYPE = np.dtype(
         ("terrain_count0", "u1"),
         ("terrain_count1", "u1"),
         ("source_count", "u1"),
-        ("source_positive2_count", "u1"),
         ("valid_count", "u1"),
         ("omitted_terrain_count", "u1"),
     ],
     align=False,
 )
-if RENDER_CELL_DTYPE.itemsize != 42:
-    raise RuntimeError("Five-foot render summary dtype is not packed to 42 bytes")
+if RENDER_CELL_DTYPE.itemsize != 37:
+    raise RuntimeError("Five-foot render summary dtype is not packed to 37 bytes")
 
 
 def parse_args() -> argparse.Namespace:
@@ -266,7 +265,7 @@ class HydraulicSolver:
         self.manning_n = float(manning_n)
         self.minimum_mobile_depth_ft = float(minimum_mobile_depth_ft)
         source_interface = self.source[self.edges["a"]] ^ self.source[self.edges["b"]]
-        # The complete exterior-connected <=2.0-ft footprint defines the NAVD88 source
+        # Each complete qualified <=2.0-ft field defines the NAVD88 source
         # condition. Preserve every one-foot perimeter width, but gate
         # source-to-terrain inflow at 2.0 ft. The gate is directional:
         # previously routed water may drain back to a falling boundary across
@@ -587,7 +586,7 @@ def load_complete_state(
     if require_current_physics:
         physics = header.get("physics") or {}
         compatible = (
-            header.get("schema") == "north-wildwood-hydraulic-states-binary-v11"
+            header.get("schema") == "north-wildwood-hydraulic-states-binary-v12"
             and physics.get("modelKind")
             == "history-aware subgrid diffusive-wave finite-volume response atlas"
             and physics.get("sourceBlockActivationNavd88Ft")
@@ -597,8 +596,8 @@ def load_complete_state(
         )
         if not compatible:
             raise RuntimeError(
-                "State reuse requires a v23 package generated with the "
-                "exterior-connected 2.0-ft source boundary"
+                "State reuse requires a v24 package generated with the "
+                "complete qualified 2.0-ft tidal source fields"
             )
     for family in family_order:
         record = header["phaseArrays"][family]
@@ -799,7 +798,7 @@ def simulate(
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v11",
+        "schema": "north-wildwood-hydraulic-states-binary-v12",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": MODEL_MIN_STAGE_FT,
         "stageMaxNavd88Ft": MODEL_MAX_STAGE_FT,
@@ -846,7 +845,7 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
                 "sourceZonesIsolatedFromTerrain"
             ],
             "sourceExchange": (
-                "fixed tide stage inside the exterior-connected <=2.0-ft "
+                "fixed tide stage inside the qualified complete <=2.0-ft "
                 "source footprint; source "
                 "inflow is activation-gated and terrain exchanges water only "
                 "through explicit shared-edge flux"
@@ -1029,29 +1028,16 @@ def render_assets(
             activation_max = np.full(render_shape, -np.inf, dtype=np.float32)
 
             # The fixed-head source is aggregated from all twenty-five one-foot
-            # cells in each display pixel.  At exactly 2.0 ft, cells on the
-            # literal 2.0-ft contour have zero depth; all lower source cells are
-            # represented.  At 2.1 ft and above the complete source footprint
-            # contributes area.  This removes the old center-cell holes without
-            # painting dry terrain outside the source boundary.
+            # cells in each display pixel. At activation, the complete qualified
+            # source footprint is displayed with the minimum cartographic depth,
+            # including literal 2.0-ft contour cells. This makes the 2.0-ft field
+            # legible as the boundary condition without assigning any exterior
+            # terrain volume or painting beyond the source components.
             if stage >= SOURCE_BLOCK_ACTIVATION_NAVD88_FT - 1e-9:
-                exact_activation = math.isclose(
-                    float(stage),
-                    SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
-                    abs_tol=1e-9,
-                )
-                count_field = (
-                    "source_positive2_count" if exact_activation else "source_count"
-                )
-                sum_field = (
-                    "source_positive2_ground_sum10"
-                    if exact_activation
-                    else "source_ground_sum10"
-                )
-                source_area = render_cells[count_field].astype(np.float32)
+                source_area = render_cells["source_count"].astype(np.float32)
                 source_present = source_area > 0
                 source_ground_mean = np.divide(
-                    render_cells[sum_field].astype(np.float32),
+                    render_cells["source_ground_sum10"].astype(np.float32),
                     np.maximum(source_area * 10.0, 1.0),
                 )
                 source_depth = np.maximum(
@@ -1170,7 +1156,7 @@ def render_assets(
             "historyInvariant": False,
             "wetFootprint": (
                 "area-weighted one-foot subcells from immutable finite-volume "
-                "routed nodes and the exterior-connected fixed-head source; "
+                "routed nodes and the two qualified fixed-head tidal fields; "
                 "smoothing cannot add wet pixels"
             ),
             "minimumFloodedPixels": minimum_flooded_pixels or 0,
@@ -1202,7 +1188,8 @@ def render_assets(
         "projection": projection,
         "geotransform": list(render_transform),
         "fixedHeadBoundaryDisplay": (
-            "all twenty-five underlying one-foot cells are area aggregated; "
+            "the complete qualified source is visible at 2.0 ft and all "
+            "twenty-five underlying one-foot cells are area aggregated; "
             "fractional edge coverage is encoded without center-cell aliasing"
         ),
         "coverageAlphaLevels": list(COVERAGE_ALPHA_LEVELS),
@@ -1635,7 +1622,7 @@ def main() -> None:
     )
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v11",
+        "schema": "north-wildwood-hydraulic-assets-v12",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": False,

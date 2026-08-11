@@ -2,11 +2,13 @@
 //
 // The terrain is quantized only for graph topology (0.1 ft NAVD88).  Source
 // footprint follows the literal four-neighbour rule: a <=2.0 ft component must
-// contain at least 101 cells and touch the exterior of the DEM.  The supplied
-// polygons are retained only as provenance; they never create or qualify a
-// source component.  Every cell in each exterior-connected <=2.0 ft component
-// becomes fixed-head source.  Finite-rate routing starts at the complete
-// component perimeter, not at seed shapes.
+// contain at least one acre and either touch the exterior of the DEM or
+// intersect a supplied tidal marker.  Markers qualify complete components;
+// they never paint source geometry.  The area floor rejects the tiny isolated
+// marker artifacts without discarding the genuine southern tidal field that is
+// separated from the raster edge by domain nodata.  Every cell in each
+// qualified <=2.0 ft component becomes fixed-head source.  Finite-rate routing
+// starts at the complete component perimeter, not at marker shapes.
 // The 21-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
 // NAVD88 by GDAL. This builder verifies, but never silently changes, that
 // terrain. Storm-drain exchange is disabled for this model version.
@@ -39,7 +41,7 @@ constexpr int16_t HIST_MAX10 = 220;
 constexpr int HIST_BINS = HIST_MAX10 - HIST_MIN10 + 1;
 constexpr int16_t EDGE_MIN10 = -30;
 constexpr int16_t EDGE_MAX10 = 225;
-constexpr int32_t SOURCE_MIN_CELLS = 101;
+constexpr int32_t SOURCE_MIN_CELLS = 43'560;
 constexpr int CONTROL_VOLUME_SIZE_FT = 25;
 constexpr int CONNECTION_BIN10 = 20;
 constexpr int RENDER_STRIDE = 5;
@@ -101,7 +103,6 @@ struct RenderCellSummary {
   int32_t terrain_ground_sum10_0 = 0;
   int32_t terrain_ground_sum10_1 = 0;
   int32_t source_ground_sum10 = 0;
-  int32_t source_positive2_ground_sum10 = 0;
   int16_t terrain_ground_min10_0 = NODATA_ELEV;
   int16_t terrain_ground_max10_0 = NODATA_ELEV;
   int16_t terrain_ground_min10_1 = NODATA_ELEV;
@@ -109,13 +110,12 @@ struct RenderCellSummary {
   uint8_t terrain_count0 = 0;
   uint8_t terrain_count1 = 0;
   uint8_t source_count = 0;
-  uint8_t source_positive2_count = 0;
   uint8_t valid_count = 0;
   uint8_t omitted_terrain_count = 0;
 };
 #pragma pack(pop)
 
-static_assert(sizeof(RenderCellSummary) == 42);
+static_assert(sizeof(RenderCellSummary) == 37);
 
 Inputs parse_args(int argc, char** argv) {
   Inputs result;
@@ -276,6 +276,7 @@ uint64_t validate_conditioned_bulkheads(
 
 std::vector<uint8_t> find_source_blocks(
     const std::vector<int16_t>& elevation10,
+    const std::vector<uint8_t>& manual,
     int width,
     int height,
     uint64_t& qualifying_components) {
@@ -296,12 +297,14 @@ std::vector<uint8_t> find_source_blocks(
     component.clear();
     add(seed, component);
     bool touches_exterior = false;
+    bool intersects_tidal_marker = false;
     for (size_t cursor = 0; cursor < component.size(); ++cursor) {
       const int32_t current = component[cursor];
       const int x = current % width;
       const int y = current / width;
       touches_exterior = touches_exterior || x == 0 || x + 1 == width ||
           y == 0 || y + 1 == height;
+      intersects_tidal_marker = intersects_tidal_marker || manual[current] != 0;
       const std::array<int32_t, 4> neighbours = {
           x > 0 ? current - 1 : -1,
           x + 1 < width ? current + 1 : -1,
@@ -314,7 +317,8 @@ std::vector<uint8_t> find_source_blocks(
         add(neighbour, component);
       }
     }
-    if (component.size() >= SOURCE_MIN_CELLS && touches_exterior) {
+    if (component.size() >= SOURCE_MIN_CELLS &&
+        (touches_exterior || intersects_tidal_marker)) {
       ++qualifying_components;
       qualifying_component_cells += component.size();
       for (const int32_t cell : component) state[cell] = 2;
@@ -369,10 +373,6 @@ std::vector<RenderCellSummary> build_render_cell_summaries(
             if (output.source_zone < 0) output.source_zone = zone[cell];
             ++output.source_count;
             output.source_ground_sum10 += elevation10[cell];
-            if (elevation10[cell] <= SOURCE_STAGE10 - 1) {
-              ++output.source_positive2_count;
-              output.source_positive2_ground_sum10 += elevation10[cell];
-            }
             continue;
           }
           int accumulator = 0;
@@ -711,16 +711,16 @@ void write_manifest(
     uint64_t omitted_render_terrain_cells) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v7\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v8\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
          << "  \"sourceStageNavd88Ft\": 2.0,\n"
-         << "  \"sourceMinComponentCells\": 101,\n"
+         << "  \"sourceMinComponentCells\": " << SOURCE_MIN_CELLS << ",\n"
          << "  \"sourceConnectivity\": \"four-neighbour/shared-side only\",\n"
-         << "  \"sourceBoundaryDefinition\": \"complete four-neighbour <=2.0 ft components touching the exterior DEM boundary\",\n"
+         << "  \"sourceBoundaryDefinition\": \"complete four-neighbour <=2.0 ft components of at least one acre that touch the exterior DEM boundary or intersect a supplied tidal component marker\",\n"
          << "  \"manualSourcePixelCount\": " << manual_source_count << ",\n"
-         << "  \"manualSourceTreatment\": \"provenance only; polygons cannot qualify or create source components\",\n"
+         << "  \"manualSourceTreatment\": \"component markers only; polygons never paint source geometry and sub-acre components are rejected\",\n"
          << "  \"qualifiedSourceBoundaryPixelCount\": " << qualified_source_count << ",\n"
          << "  \"qualifiedSourceComponentCount\": " << qualified_source_components << ",\n"
          << "  \"sourceZonesIsolatedFromTerrain\": true,\n"
@@ -733,7 +733,7 @@ void write_manifest(
          << "  \"controlVolumeSizeFt\": " << CONTROL_VOLUME_SIZE_FT << ",\n"
          << "  \"connectionBinFt\": " << CONNECTION_BIN10 / 10.0 << ",\n"
          << "  \"controlVolumeConnectivity\": \"four-neighbour components within each tile/connection bin; hard structures and fixed-head sources isolated as separate material classes\",\n"
-         << "  \"renderSummarySchema\": \"north-wildwood-five-foot-area-summary-v1\",\n"
+         << "  \"renderSummarySchema\": \"north-wildwood-five-foot-area-summary-v2\",\n"
          << "  \"renderSummaryStrideFt\": " << RENDER_STRIDE << ",\n"
          << "  \"renderSummaryTerrainSlots\": 2,\n"
          << "  \"renderSummaryOmittedTerrainCells\": " << omitted_render_terrain_cells << ",\n"
@@ -762,7 +762,8 @@ int main(int argc, char** argv) {
         std::count(manual.begin(), manual.end(), static_cast<uint8_t>(1)));
     uint64_t qualified_source_components = 0;
     std::vector<uint8_t> source = find_source_blocks(
-        elevation10, info.width, info.height, qualified_source_components);
+        elevation10, manual, info.width, info.height,
+        qualified_source_components);
     const uint64_t qualified_source_count = static_cast<uint64_t>(
         std::count(source.begin(), source.end(), static_cast<uint8_t>(1)));
     manual.clear();
