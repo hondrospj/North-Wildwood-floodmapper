@@ -111,9 +111,11 @@ assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 30/);
 assert.doesNotMatch(SOURCE, /Number\(stageValue\) > 14/);
 assert.match(SOURCE, /\/assets\/hydraulic-v20\//);
-assert.match(SOURCE, /20260811-hydraulic-v26-bunny/);
-assert.match(SOURCE, /floodmapperv1\.b-cdn\.net\/DepthPNGs\/North%20Wildwood\/v26\/crest\//);
-assert.match(SOURCE, /floodmapperv1\.b-cdn\.net\/COGs\/North%20Wildwood\/v26\/NorthWildwoodHydraulicStates\.json\.png/);
+assert.match(SOURCE, /20260811-hydraulic-v27-bunny/);
+assert.match(SOURCE, /floodmapperv1\.b-cdn\.net\/DepthPNGs\/North%20Wildwood\/v27\/crest\//);
+assert.match(SOURCE, /floodmapperv1\.b-cdn\.net\/COGs\/North%20Wildwood\/v27\/NorthWildwoodHydraulicStates\.json\.png/);
+assert.match(SOURCE, /historic_1962_five_tides/);
+assert.match(extractFunction("getHydraulicAtlasFamilyForEntry"), /1962-03-07[\s\S]+historic_1962_five_tides/);
 assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
 assert.match(SOURCE, />Simulation Extent</i);
 assert.match(extractFunction("isTownBoundaryEnabled"), /boundaryToggle[\s\S]+classList\.contains\("on"\)/);
@@ -444,6 +446,15 @@ for (const family of ["DepthPNGs", "StagePNGs"]) {
     assert.match(files[0], /p0000\.png$/);
     assert.match(files.at(-1), /p1000\.png$/);
   }
+  const historicDirectory = path.join(
+    BUNDLED_HYDRAULIC_ROOT,
+    family,
+    "North Wildwood",
+    "historic_1962_five_tides"
+  );
+  const historicFiles = fs.readdirSync(historicDirectory).filter(name => name.endsWith(".png")).sort();
+  assert.equal(historicFiles.length, 1, `${family}/historic_1962_five_tides must contain one compact maximum-extent frame`);
+  assert.match(historicFiles[0], /p0750\.png$/);
 }
 assert.ok(fs.statSync(path.join(
   BUNDLED_HYDRAULIC_ROOT,

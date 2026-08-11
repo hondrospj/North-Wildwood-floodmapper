@@ -29,7 +29,7 @@ FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
 # manifest supplies the selected resolution so the travel envelope remains a
 # physical time/distance check rather than a hard-coded legacy-mesh allowance.
 MAX_TRANSITION_MINUTES = 23
-FAMILIES = (
+OPERATIONAL_FAMILIES = (
     "rising_slow",
     "rising_typical",
     "rising_fast",
@@ -38,8 +38,19 @@ FAMILIES = (
     "falling_moderate",
     "falling_extreme",
 )
-SOURCE_BLOCK_ACTIVATION_NAVD88_FT = 2.0
+SPECIAL_FAMILY_COUNTS = {"historic_1962_five_tides": 1}
+FAMILIES = (*OPERATIONAL_FAMILIES, *SPECIAL_FAMILY_COUNTS)
 MIN_DISPLAY_DEPTH_FT = 0.05
+RENDER_CELL_DTYPE = np.dtype([
+    ("terrain_zone0", "<i4"), ("terrain_zone1", "<i4"),
+    ("source_zone", "<i4"), ("terrain_ground_sum10_0", "<i4"),
+    ("terrain_ground_sum10_1", "<i4"), ("source_ground_sum10", "<i4"),
+    ("terrain_ground_min10_0", "<i2"), ("terrain_ground_max10_0", "<i2"),
+    ("terrain_ground_min10_1", "<i2"), ("terrain_ground_max10_1", "<i2"),
+    ("terrain_count0", "u1"), ("terrain_count1", "u1"),
+    ("source_count", "u1"), ("valid_count", "u1"),
+    ("omitted_terrain_count", "u1"),
+])
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,33 +91,16 @@ def main() -> None:
             / RENDER_STRIDE
         )
     )
-    source_flag = np.memmap(
-        graph / "source_flag.raw",
-        dtype=np.uint8,
+    render_cells = np.memmap(
+        graph / "render_cells.raw",
+        dtype=RENDER_CELL_DTYPE,
         mode="r",
-        shape=(HEIGHT, WIDTH),
+        shape=(RENDER_HEIGHT, RENDER_WIDTH),
     )
-    source = aggregate_any(source_flag != 0)
-    elevation10 = np.memmap(
-        graph / "elevation10.raw",
-        dtype="<i2",
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )
-    valid_raw = elevation10 != np.iinfo(np.int16).min
-    valid = aggregate_any(valid_raw)
-    source_counts = (source_flag != 0).reshape(
-        RENDER_HEIGHT,
-        RENDER_STRIDE,
-        RENDER_WIDTH,
-        RENDER_STRIDE,
-    ).sum(axis=(1, 3))
-    valid_counts = valid_raw.reshape(
-        RENDER_HEIGHT,
-        RENDER_STRIDE,
-        RENDER_WIDTH,
-        RENDER_STRIDE,
-    ).sum(axis=(1, 3))
+    source_counts = render_cells["source_count"].astype(np.int16)
+    valid_counts = render_cells["valid_count"].astype(np.int16)
+    source = source_counts > 0
+    valid = valid_counts > 0
     source_only = (valid_counts > 0) & (source_counts == valid_counts)
     records = []
     family_hashes: dict[str, list[bytes]] = {}
@@ -122,9 +116,10 @@ def main() -> None:
         depth_dir = assets / "DepthPNGs" / "North Wildwood" / family
         stage_dir = assets / "StagePNGs" / "North Wildwood" / family
         depth_paths = sorted(depth_dir.glob("NorthWildwoodDepth*.png"))
-        if len(depth_paths) != 101:
+        expected_count = SPECIAL_FAMILY_COUNTS.get(family, 101)
+        if len(depth_paths) != expected_count:
             raise AssertionError(
-                f"Expected 101 {family} depth PNGs, found {len(depth_paths)}"
+                f"Expected {expected_count} {family} depth PNGs, found {len(depth_paths)}"
             )
         family_hashes[family] = []
         previous_blue = None
@@ -149,16 +144,6 @@ def main() -> None:
                     f"Depth/stage water masks differ for {family} {code}"
                 )
             stage_navd88_ft = int(code.removeprefix("p")) / 100.0
-            if (
-                family in ("rising_slow", "rising_typical", "rising_fast", "crest")
-                and stage_navd88_ft <= SOURCE_BLOCK_ACTIVATION_NAVD88_FT
-                and np.any(depth_blue)
-            ):
-                raise AssertionError(
-                    f"Rendered terrain water appears at or before zero-head "
-                    f"source activation in "
-                    f"{family} {code}"
-                )
             if np.any(depth_blue & source_only):
                 raise AssertionError(
                     f"Fixed-head-only forcing cells leaked into the public overlay "
@@ -222,15 +207,13 @@ def main() -> None:
                 "maximumAllowedNewWaterDistancePixels": max_new_water_distance_pixels,
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
-                    "the two qualified complete <=2.0-ft NAVD88 fields and their "
-                    "enclosed valid pockets are fixed-head forcing only and never "
+                    "the two qualified complete <=2.0-ft NAVD88 fields are "
+                    "continuous fixed-head forcing only and never "
                     "rendered; public overlays contain only "
-                    "finite-storage terrain that received routed volume, and the "
-                    "2.0-ft rising and crest frames are transparent"
+                    "finite-storage terrain that received routed volume; every "
+                    "cell above 2.0 ft remains finite storage"
                 ),
-                "sourceBlockActivationNavd88Ft": (
-                    SOURCE_BLOCK_ACTIVATION_NAVD88_FT
-                ),
+                "sourceBlockActivationNavd88Ft": None,
                 "equilibriumPotentialPixels": 0,
                 "transparentDryPixelFrameSum": transparent_dry_pixel_frame_sum,
                 "maximumComponentsInAnyFrame": maximum_components,

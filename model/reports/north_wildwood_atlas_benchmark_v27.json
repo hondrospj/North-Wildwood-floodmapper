@@ -1,0 +1,158 @@
+{
+  "schema": "north-wildwood-atlas-benchmark-v1",
+  "reference": "60-second finite-storage routing with bidirectional submerged broad-crested-weir flow over each full hydrograph",
+  "scenarioCount": 432,
+  "hydrographCount": 108,
+  "riseRatesFtPerHour": [
+    0.55,
+    0.79,
+    0.9
+  ],
+  "priorCrestFamiliesNavd88Ft": [
+    4.0,
+    5.5,
+    8.5
+  ],
+  "aggregateMetrics": {
+    "equilibrium": {
+      "normalizedRmse": 0.3371449554914339,
+      "normalizedMae": 0.20381342854423362,
+      "maximumOverprediction": 0.7190936731260449,
+      "maximumUnderprediction": 0.06892721115955946
+    },
+    "v19FixedPhase": {
+      "normalizedRmse": 0.08844501997976219,
+      "normalizedMae": 0.04649300255530707,
+      "maximumOverprediction": 0.3306044595722095,
+      "maximumUnderprediction": 0.06450140597655746
+    },
+    "v20HistoryFamily": {
+      "normalizedRmse": 0.017810410044962897,
+      "normalizedMae": 0.012192888828121784,
+      "maximumOverprediction": 0.007114128133185586,
+      "maximumUnderprediction": 0.038638437866029
+    }
+  },
+  "assetBudget": {
+    "v19PngCount": 1326,
+    "v20PngCountThrough10Ft": 1414
+  },
+  "bottlenecks": [
+    {
+      "name": "31-acre / 3-ft opening",
+      "crestNavd88Ft": 3.7,
+      "openingWidthFt": 3.0,
+      "newlyConnectedAreaFt2": 1366757.0,
+      "newlyConnectedAreaAcres": 31.376423324150597,
+      "oneHourVolumeAtOneFootHeadFt3": 33480.0,
+      "meanDepthIfSpreadAcrossWholeAreaInches": 0.2939513022431932,
+      "metrics": {
+        "equilibrium": {
+          "normalizedRmse": 0.46765014350637285,
+          "normalizedMae": 0.2910256771301993,
+          "maximumOverprediction": 0.9683588626583313,
+          "maximumUnderprediction": 0.06777968560257487
+        },
+        "v19FixedPhase": {
+          "normalizedRmse": 0.0891292417306829,
+          "normalizedMae": 0.047395993361990664,
+          "maximumOverprediction": 0.3396370524388458,
+          "maximumUnderprediction": 0.06737774528122936
+        },
+        "v20HistoryFamily": {
+          "normalizedRmse": 0.017260353713455294,
+          "normalizedMae": 0.012127158753465457,
+          "maximumOverprediction": 0.008143938242519463,
+          "maximumUnderprediction": 0.035180684643712476
+        }
+      }
+    },
+    {
+      "name": "9-acre / 1-ft opening",
+      "crestNavd88Ft": 3.8,
+      "openingWidthFt": 1.0,
+      "newlyConnectedAreaFt2": 401912.0,
+      "newlyConnectedAreaAcres": 9.226629935720846,
+      "oneHourVolumeAtOneFootHeadFt3": 11160.0,
+      "meanDepthIfSpreadAcrossWholeAreaInches": 0.3332072692529708,
+      "metrics": {
+        "equilibrium": {
+          "normalizedRmse": 0.45323207568467877,
+          "normalizedMae": 0.27756158537258496,
+          "maximumOverprediction": 0.9666641602319724,
+          "maximumUnderprediction": 0.07182936148422078
+        },
+        "v19FixedPhase": {
+          "normalizedRmse": 0.09567005893898728,
+          "normalizedMae": 0.050475367433540516,
+          "maximumOverprediction": 0.36688773047665013,
+          "maximumUnderprediction": 0.0713314937451407
+        },
+        "v20HistoryFamily": {
+          "normalizedRmse": 0.018362719077252006,
+          "normalizedMae": 0.012850758152748385,
+          "maximumOverprediction": 0.008635698803812328,
+          "maximumUnderprediction": 0.037758376898006034
+        }
+      }
+    },
+    {
+      "name": "3-acre / 1-ft opening",
+      "crestNavd88Ft": 4.4,
+      "openingWidthFt": 1.0,
+      "newlyConnectedAreaFt2": 139375.0,
+      "newlyConnectedAreaAcres": 3.1996097337006426,
+      "oneHourVolumeAtOneFootHeadFt3": 11160.0,
+      "meanDepthIfSpreadAcrossWholeAreaInches": 0.9608609865470852,
+      "metrics": {
+        "equilibrium": {
+          "normalizedRmse": 0.32868623739085906,
+          "normalizedMae": 0.2045840417746263,
+          "maximumOverprediction": 0.6916972263806022,
+          "maximumUnderprediction": 0.13589962717663798
+        },
+        "v19FixedPhase": {
+          "normalizedRmse": 0.16823185443854116,
+          "normalizedMae": 0.08781224604151873,
+          "maximumOverprediction": 0.6120204735288136,
+          "maximumUnderprediction": 0.11909621450505548
+        },
+        "v20HistoryFamily": {
+          "normalizedRmse": 0.035570312891486384,
+          "normalizedMae": 0.023759136866689217,
+          "maximumOverprediction": 0.011605584528290502,
+          "maximumUnderprediction": 0.08154672867487908
+        }
+      }
+    },
+    {
+      "name": "123-acre / 1-ft opening",
+      "crestNavd88Ft": 7.2,
+      "openingWidthFt": 1.0,
+      "newlyConnectedAreaFt2": 5357594.0,
+      "newlyConnectedAreaAcres": 122.99343434343434,
+      "oneHourVolumeAtOneFootHeadFt3": 11160.0,
+      "meanDepthIfSpreadAcrossWholeAreaInches": 0.024996294978678862,
+      "metrics": {
+        "equilibrium": {
+          "normalizedRmse": 0.09901136538382509,
+          "normalizedMae": 0.042082409899524005,
+          "maximumOverprediction": 0.24965444323327407,
+          "maximumUnderprediction": 0.0002001703748042575
+        },
+        "v19FixedPhase": {
+          "normalizedRmse": 0.0007489248108373599,
+          "normalizedMae": 0.00028840338417838345,
+          "maximumOverprediction": 0.0038725818445283825,
+          "maximumUnderprediction": 0.0002001703748042575
+        },
+        "v20HistoryFamily": {
+          "normalizedRmse": 4.825449765790534e-05,
+          "normalizedMae": 3.4501539584081986e-05,
+          "maximumOverprediction": 7.129095812004677e-05,
+          "maximumUnderprediction": 6.796124751845903e-05
+        }
+      }
+    }
+  ]
+}

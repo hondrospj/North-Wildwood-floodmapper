@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression checks proving v24 does not use a connected bathtub atlas."""
+"""Regression checks proving v27 does not use a connected bathtub atlas."""
 
 from __future__ import annotations
 
@@ -28,10 +28,16 @@ def main() -> None:
         raise AssertionError("Observed rising-rate families changed")
     if tuple(model.FALLING_CREST_FAMILIES_FT.values()) != (4.0, 5.5, 8.5):
         raise AssertionError("Absolute prior-crest families changed")
-    if len(model.ATLAS_FAMILIES) != 7:
-        raise AssertionError("The compact atlas must contain seven history families")
-    if model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT != 2.0:
-        raise AssertionError("The supplied source blocks must activate at 2.0 ft")
+    if len(model.OPERATIONAL_ATLAS_FAMILIES) != 7:
+        raise AssertionError("The compact operational atlas must contain seven history families")
+    if len(model.ATLAS_FAMILIES) != 8:
+        raise AssertionError("The atlas must add exactly one historic 1962 family")
+    if model.SOURCE_BLOCK_MAX_NAVD88_FT != 2.0:
+        raise AssertionError("The supplied source field must end at 2.0 ft")
+    if model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT is not None:
+        raise AssertionError("The 2.0-ft source field must follow the tide continuously")
+    if len(model.HISTORIC_1962_EXTREMA) != 10:
+        raise AssertionError("The March 1962 design hydrograph must contain five high tides")
     if model.MIN_MOBILE_DEPTH_FT < 0.05:
         raise AssertionError("The routing wet/dry threshold is too small")
     if model.URBAN_OVERLAND_MANNING_N != 0.12:
@@ -42,8 +48,8 @@ def main() -> None:
             "status": "passed",
             "model": "history-aware subgrid diffusive-wave finite-volume response atlas",
             "stageCountPerFamily": len(model.STAGES_FT),
-            "depthPngCount": len(model.STAGES_FT) * len(model.ATLAS_FAMILIES),
-            "stagePngCount": len(model.STAGES_FT) * len(model.ATLAS_FAMILIES),
+            "depthPngCount": len(model.STAGES_FT) * len(model.OPERATIONAL_ATLAS_FAMILIES) + 1,
+            "stagePngCount": len(model.STAGES_FT) * len(model.OPERATIONAL_ATLAS_FAMILIES) + 1,
             "familyCount": len(model.ATLAS_FAMILIES),
             "substepSeconds": model.MODEL_STEP_SECONDS,
             "sourceBlockActivationNavd88Ft": model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT,

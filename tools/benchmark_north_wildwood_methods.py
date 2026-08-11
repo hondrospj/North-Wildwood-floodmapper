@@ -180,17 +180,17 @@ def main() -> None:
 
     candidates = (
         (
-            "activated_all_faces_weir",
+            "legacy_weir_with_artificial_2ft_activation",
             model.HydraulicSolver(
                 zones,
                 edges,
                 routing_method="legacy_weir",
-                source_activation_navd88_ft=model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
+                source_activation_navd88_ft=2.0,
                 **solver_kwargs,
             ),
         ),
         (
-            "diffusive_without_source_activation",
+            "uncapped_diffusive_continuous_boundary",
             model.HydraulicSolver(
                 zones,
                 edges,
@@ -200,17 +200,17 @@ def main() -> None:
             ),
         ),
         (
-            "activated_diffusive_without_free_overflow_cap",
+            "uncapped_diffusive_with_artificial_2ft_activation",
             model.HydraulicSolver(
                 zones,
                 edges,
                 routing_method="diffusive",
-                source_activation_navd88_ft=model.SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
+                source_activation_navd88_ft=2.0,
                 **solver_kwargs,
             ),
         ),
         (
-            "selected_hybrid_with_2ft_source_activation",
+            "selected_hybrid_continuous_2ft_field",
             model.HydraulicSolver(
                 zones,
                 edges,
@@ -226,13 +226,13 @@ def main() -> None:
             {
                 "method": name,
                 "description": (
-                    "broad-crested-weir routing on every face with 2.0-ft source activation"
-                    if name.startswith("activated_all_faces")
+                    "broad-crested-weir routing on every face with an artificial 2.0-ft activation"
+                    if name.startswith("legacy_weir")
                     else "Manning diffusive-wave face routing"
                     if "diffusive" in name
                     else (
                         "Manning diffusive-wave routing, free-overflow weir cap, "
-                        "physical wetting depth, and 2.0-ft source activation"
+                        "physical wetting depth, and continuous forcing of the literal <=2.0-ft field"
                     )
                 ),
                 "maximumInternalConservationResidualFt3": residual,
@@ -291,9 +291,9 @@ def main() -> None:
             "reasons": [
                 "complete <=2.0-ft components of at least one acre qualify by exterior topology or supplied tidal markers; polygons never paint source geometry",
                 "the two complete qualified <=2.0-ft fields are fixed-head source",
-                "at 2.0 ft the entire source boundary is displayed while exterior routed volume is zero",
-                "at 2.1 ft the source remains complete without visible exterior terrain",
-                "at 2.2 ft exterior water is finite and derived from perimeter face flux",
+                "2.0 ft defines the complete source geometry and is not an invented hydraulic sill",
+                "the source follows the tide continuously below, at, and above 2.0 ft",
+                "exterior water volume is finite and derived from real perimeter-face flux",
                 "ordinary terrain flow includes distance and Manning friction",
                 "true free overflow remains bounded by critical weir capacity",
                 "storage and internal edge transfers conserve volume",

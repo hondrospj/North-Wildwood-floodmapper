@@ -7,11 +7,11 @@
 // they never paint source geometry.  The area floor rejects the tiny isolated
 // marker artifacts without discarding the genuine southern tidal field that is
 // separated from the raster edge by domain nodata. Every cell in each
-// qualified <=2.0 ft component becomes fixed-head source; valid complement
-// pockets wholly enclosed by that tidal field are filled into the same source
-// footprint so raster islands do not render as offshore rings. Finite-rate
-// routing starts at the complete exterior-connected component perimeter, not
-// at marker shapes.
+// qualified <=2.0 ft component becomes fixed-head source. Cells above 2.0 ft
+// are never promoted into that boundary, including high-ground pockets inside
+// a low tidal component: they remain finite storage behind their actual DEM
+// elevations. Finite-rate routing starts at the complete qualified component
+// perimeter, not at marker shapes.
 // The 21-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
 // NAVD88 by GDAL. This builder verifies, but never silently changes, that
 // terrain. Storm-drain exchange is disabled for this model version.
@@ -56,6 +56,7 @@ struct Inputs {
   fs::path output;
   int control_volume_size_ft = DEFAULT_CONTROL_VOLUME_SIZE_FT;
   int connection_bin10 = DEFAULT_CONNECTION_BIN10;
+  bool minimal_output = false;
 };
 
 struct RasterInfo {
@@ -137,6 +138,9 @@ Inputs parse_args(int argc, char** argv) {
     else if (key == "--connection-bin-tenths-ft") {
       result.connection_bin10 = std::stoi(value.string());
     }
+    else if (key == "--minimal-output") {
+      result.minimal_output = value == "true" || value == "1";
+    }
     else throw std::runtime_error("Unknown argument: " + key);
   }
   if (result.dem.empty() || result.source.empty() || result.hard.empty() ||
@@ -145,7 +149,8 @@ Inputs parse_args(int argc, char** argv) {
         "Usage: north_wildwood_hydraulic_graph --dem DEM --source MASK "
         "--hard MASK --output DIRECTORY "
         "[--control-volume-size-ft INTEGER] "
-        "[--connection-bin-tenths-ft INTEGER]");
+        "[--connection-bin-tenths-ft INTEGER] "
+        "[--minimal-output true|false]");
   }
   if (result.control_volume_size_ft < RENDER_STRIDE ||
       result.control_volume_size_ft % RENDER_STRIDE != 0) {
@@ -354,18 +359,20 @@ std::vector<uint8_t> find_source_blocks(
   return state;
 }
 
-uint64_t fill_source_enclaves(
+std::vector<uint8_t> find_source_enclaves(
     const std::vector<int16_t>& elevation10,
-    std::vector<uint8_t>& source,
+    const std::vector<uint8_t>& source,
     int width,
-    int height) {
+    int height,
+    uint64_t& enclosed_count) {
   // The selected <=2.0-ft field is a boundary footprint, not a collection of
   // rings. Above-threshold DEM pockets wholly enclosed by that footprint are
   // usually bathymetric/raster artifacts; leaving them as finite terrain
   // produces the offshore circles and triangles seen in the public map.
-  // Flood-fill the complement from the raster/nodata exterior and fold only
-  // unreachable valid pockets into the source. The connected city landmass
-  // remains ordinary finite storage.
+  // Flood-fill the complement from the raster/nodata exterior and tag only
+  // unreachable valid pockets for display suppression. They remain ordinary
+  // finite-storage zones in the hydraulic graph; only their non-impact public
+  // rendering is suppressed. The connected city landmass is never tagged.
   const size_t count = elevation10.size();
   std::vector<uint8_t> exterior(count, 0);
   std::vector<int32_t> queue;
@@ -403,22 +410,25 @@ uint64_t fill_source_enclaves(
     for (const int32_t neighbour : neighbours) add_exterior(neighbour);
   }
 
-  uint64_t filled_cells = 0;
+  std::vector<uint8_t> enclosed(count, 0);
+  enclosed_count = 0;
   for (size_t cell = 0; cell < count; ++cell) {
     if (is_valid(elevation10[cell]) && !source[cell] && !exterior[cell]) {
-      source[cell] = 1;
-      ++filled_cells;
+      enclosed[cell] = 1;
+      ++enclosed_count;
     }
   }
-  std::cout << "Filled " << filled_cells
-            << " valid terrain cells enclosed by the complete source field\n";
-  return filled_cells;
+  std::cout << "Classified " << enclosed_count
+            << " enclosed higher terrain cells as non-impact waterbody display "
+            << "artifacts; hydraulic terrain remains unchanged\n";
+  return enclosed;
 }
 
 std::vector<RenderCellSummary> build_render_cell_summaries(
     const std::vector<int16_t>& elevation10,
     const std::vector<int32_t>& zone,
     const std::vector<uint8_t>& source,
+    const std::vector<uint8_t>& render_suppressed,
     int width,
     int height,
     uint64_t& omitted_terrain_cells) {
@@ -450,7 +460,8 @@ std::vector<RenderCellSummary> build_render_cell_summaries(
         for (int dx = 0; dx < RENDER_STRIDE; ++dx) {
           const int x = render_x * RENDER_STRIDE + dx;
           const int32_t cell = y * width + x;
-          if (!is_valid(elevation10[cell]) || zone[cell] < 0) continue;
+          if (!is_valid(elevation10[cell]) || zone[cell] < 0 ||
+              render_suppressed[cell]) continue;
           ++output.valid_count;
           if (source[cell]) {
             if (output.source_zone < 0) output.source_zone = zone[cell];
@@ -843,21 +854,22 @@ void write_manifest(
     int connection_bin10) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v10\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v11\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
          << "  \"sourceStageNavd88Ft\": 2.0,\n"
          << "  \"sourceMinComponentCells\": " << SOURCE_MIN_CELLS << ",\n"
          << "  \"sourceConnectivity\": \"four-neighbour/shared-side only\",\n"
-         << "  \"sourceBoundaryDefinition\": \"complete tidal footprint formed by four-neighbour <=2.0 ft components of at least one acre that touch the exterior DEM boundary or intersect a supplied tidal component marker, with valid complement pockets wholly enclosed by that footprint filled as source\",\n"
+         << "  \"sourceBoundaryDefinition\": \"complete tidal footprint formed only by four-neighbour <=2.0 ft components of at least one acre that touch the exterior DEM boundary or intersect a supplied tidal component marker; every cell above 2.0 ft remains finite-storage terrain\",\n"
          << "  \"manualSourcePixelCount\": " << manual_source_count << ",\n"
          << "  \"manualSourceTreatment\": \"component markers only; polygons never paint source geometry and sub-acre components are rejected\",\n"
          << "  \"qualifiedSourceLowPixelCount\": " << qualified_source_low_count << ",\n"
          << "  \"qualifiedSourceBoundaryPixelCount\": " << qualified_source_count << ",\n"
          << "  \"qualifiedSourceComponentCount\": " << qualified_source_components << ",\n"
          << "  \"sourceEnclosedTerrainPixelCount\": " << source_enclave_count << ",\n"
-         << "  \"sourceEnclaveTreatment\": \"valid non-source terrain components unreachable from the raster/nodata exterior are filled into the complete tidal boundary footprint; exterior-connected city terrain remains finite storage\",\n"
+         << "  \"sourceEnclaveTreatment\": \"enclosed cells above 2.0 ft remain finite-storage hydraulic terrain and are never boundary forcing; because they are isolated raster artifacts inside the tidal waterbody, they are excluded only from public impact rendering and browser queries\",\n"
+         << "  \"renderSuppressedWaterbodyTerrainPixelCount\": " << source_enclave_count << ",\n"
          << "  \"sourceZonesIsolatedFromTerrain\": true,\n"
          << "  \"sourceControlVolumes\": \"one fixed-head node per complete four-neighbour source component; all one-foot perimeter faces retained\",\n"
          << "  \"bulkheadElevationNavd88Ft\": 7.5,\n"
@@ -902,8 +914,9 @@ int main(int argc, char** argv) {
         qualified_source_components);
     const uint64_t qualified_source_low_count = static_cast<uint64_t>(
         std::count(source.begin(), source.end(), static_cast<uint8_t>(1)));
-    const uint64_t source_enclave_count = fill_source_enclaves(
-        elevation10, source, info.width, info.height);
+    uint64_t source_enclave_count = 0;
+    std::vector<uint8_t> render_suppressed = find_source_enclaves(
+        elevation10, source, info.width, info.height, source_enclave_count);
     const uint64_t qualified_source_count = static_cast<uint64_t>(
         std::count(source.begin(), source.end(), static_cast<uint8_t>(1)));
     manual.clear();
@@ -920,16 +933,14 @@ int main(int argc, char** argv) {
         summaries);
     uint64_t omitted_render_terrain_cells = 0;
     std::vector<RenderCellSummary> render_cells = build_render_cell_summaries(
-        elevation10, zone, source, info.width, info.height,
+        elevation10, zone, source, render_suppressed, info.width, info.height,
         omitted_render_terrain_cells);
 
-    write_raw(inputs.output / "elevation10.raw", elevation10);
-    write_raw(inputs.output / "connection10.raw", connection10);
-    write_raw(inputs.output / "zone_id.raw", zone);
-    write_raw(inputs.output / "source_flag.raw", source);
-    write_raw(inputs.output / "hard_flag.raw", hard);
-    write_raw(inputs.output / "grate_flag.raw", grates);
     write_raw(inputs.output / "render_cells.raw", render_cells);
+    // The compact browser query still needs the one-foot connection stage.
+    // Keep this one diagnostic array in minimal builds; all other full-size
+    // rasters can be omitted after zones, edges, and render summaries exist.
+    write_raw(inputs.output / "connection10.raw", connection10);
     write_zones(inputs.output / "zones.csv", summaries);
     write_edges(inputs.output / "edges.csv", elevation10, zone, info.width, info.height);
     write_manifest(
@@ -946,30 +957,37 @@ int main(int argc, char** argv) {
         inputs.control_volume_size_ft,
         inputs.connection_bin10);
 
-    write_geotiff(
-        inputs.output / "NorthWildwoodConditionedElevation10.tif",
-        elevation10.data(), info, GDT_Int16, NODATA_ELEV,
-        "input_dem_with_gdal_stitched_twenty_one_cell_bulkhead_navd88_decifeet");
-    write_geotiff(
-        inputs.output / "NorthWildwoodConnectionStage10.tif",
-        connection10.data(), info, GDT_Int16, NO_CONNECTION,
-        "first_equilibrium_connection_stage_navd88_decifeet");
-    write_geotiff(
-        inputs.output / "NorthWildwoodHydraulicZone.tif",
-        zone.data(), info, GDT_Int32, -1,
-        "hydraulic_zone_id");
-    write_geotiff(
-        inputs.output / "NorthWildwoodSourceBlocks.tif",
-        source.data(), info, GDT_Byte, 0,
-        "qualified_source_block_flag");
-    write_geotiff(
-        inputs.output / "NorthWildwoodBulkheads.tif",
-        hard.data(), info, GDT_Byte, 0,
-        "twenty_one_cell_bulkhead_7_5ft_navd88_flag");
-    write_geotiff(
-        inputs.output / "NorthWildwoodStormGrates.tif",
-        grates.data(), info, GDT_Byte, 0,
-        "storm_drain_disabled_flag");
+    if (!inputs.minimal_output) {
+      write_raw(inputs.output / "elevation10.raw", elevation10);
+      write_raw(inputs.output / "zone_id.raw", zone);
+      write_raw(inputs.output / "source_flag.raw", source);
+      write_raw(inputs.output / "hard_flag.raw", hard);
+      write_raw(inputs.output / "grate_flag.raw", grates);
+      write_geotiff(
+          inputs.output / "NorthWildwoodConditionedElevation10.tif",
+          elevation10.data(), info, GDT_Int16, NODATA_ELEV,
+          "input_dem_with_gdal_stitched_twenty_one_cell_bulkhead_navd88_decifeet");
+      write_geotiff(
+          inputs.output / "NorthWildwoodConnectionStage10.tif",
+          connection10.data(), info, GDT_Int16, NO_CONNECTION,
+          "first_equilibrium_connection_stage_navd88_decifeet");
+      write_geotiff(
+          inputs.output / "NorthWildwoodHydraulicZone.tif",
+          zone.data(), info, GDT_Int32, -1,
+          "hydraulic_zone_id");
+      write_geotiff(
+          inputs.output / "NorthWildwoodSourceBlocks.tif",
+          source.data(), info, GDT_Byte, 0,
+          "qualified_source_block_flag");
+      write_geotiff(
+          inputs.output / "NorthWildwoodBulkheads.tif",
+          hard.data(), info, GDT_Byte, 0,
+          "twenty_one_cell_bulkhead_7_5ft_navd88_flag");
+      write_geotiff(
+          inputs.output / "NorthWildwoodStormGrates.tif",
+          grates.data(), info, GDT_Byte, 0,
+          "storm_drain_disabled_flag");
+    }
     std::cout << "Hydraulic graph complete\n";
     return 0;
   } catch (const std::exception& error) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Atomically prepare and verify the North Wildwood v26 Bunny asset tree."""
+"""Atomically prepare and verify the North Wildwood v27 Bunny asset tree."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ ROOT = Path(__file__).resolve().parents[1] / "assets" / "hydraulic-v20"
 ZONE = "floodmapperv1"
 STORAGE_ROOT = f"https://storage.bunnycdn.com/{ZONE}"
 CDN_ROOT = "https://floodmapperv1.b-cdn.net"
-CACHE_VERSION = "20260811-hydraulic-v26-bunny"
-ATLAS_VERSION = "v26"
+CACHE_VERSION = "20260811-hydraulic-v27-bunny"
+ATLAS_VERSION = "v27"
 FAMILIES = (
     "rising_slow",
     "rising_typical",
@@ -33,6 +33,7 @@ FAMILIES = (
     "falling_minor",
     "falling_moderate",
     "falling_extreme",
+    "historic_1962_five_tides",
 )
 
 
@@ -72,8 +73,8 @@ def upload_records() -> list[tuple[Path, str]]:
     missing = [str(path) for path, _ in records if not path.is_file()]
     if missing:
         raise FileNotFoundError("Missing Bunny assets:\n" + "\n".join(missing))
-    if len(records) != 1_418:
-        raise RuntimeError(f"Expected 1,418 Bunny assets, found {len(records):,}")
+    if len(records) != 1_420:
+        raise RuntimeError(f"Expected 1,420 Bunny assets, found {len(records):,}")
     return records
 
 
@@ -153,7 +154,12 @@ def verification_records(
             ("DepthPNGs", "NorthWildwoodDepth"),
             ("StagePNGs", "NorthWildwoodStage"),
         ):
-            for code in ("p0200", "p0750", "p1000"):
+            codes = (
+                ("p0750",)
+                if family == "historic_1962_five_tides"
+                else ("p0200", "p0750", "p1000")
+            )
+            for code in codes:
                 wanted.add(
                     f"{overlay}/North Wildwood/{ATLAS_VERSION}/{family}/{prefix}{code}.png"
                 )
@@ -244,7 +250,7 @@ def main() -> None:
         "cacheVersion": CACHE_VERSION,
         "verification": verification,
     }
-    report_path = Path("/tmp/north-wildwood-bunny-v26-upload.json")
+    report_path = Path("/tmp/north-wildwood-bunny-v27-upload.json")
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({key: value for key, value in report.items() if key != "verification"}, indent=2))
 

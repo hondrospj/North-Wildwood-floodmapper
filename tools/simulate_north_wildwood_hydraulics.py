@@ -3,10 +3,9 @@
 
 The one-foot conditioned DEM is aggregated into ten-foot storage cells while
 retaining its elevation hypsometry and all shared one-foot flow widths. The
-qualified complete <=2.0-ft tidal fields and their enclosed valid DEM pockets
-are fixed-head boundary; supplied polygons mark components but never paint
-source geometry, and exterior-connected higher terrain is finite storage.
-Source cells are isolated
+qualified complete <=2.0-ft tidal fields are fixed-head boundary; supplied
+polygons mark components but never paint source geometry, and every higher DEM
+cell is finite storage even when enclosed by a low tidal field. Source cells are isolated
 from terrain control volumes, so a one-foot opening exchanges water through
 its actual shared face instead of pinning a whole tile to the tide.
 Water is routed in 60-second substeps with a mass-conserving hybrid
@@ -20,11 +19,13 @@ city. A cell that becomes wet during a substep cannot donate until the
 following substep.
 
 The expensive solve is run once to build three observed-rise-rate families, a
-short-crest family, and three preceding-crest recession families from 0.0
-through 10.0 ft NAVD88 at 0.1-foot increments. Forecast and observed updates
-only choose a compact history family and stage PNG. Planning levels above ten
-feet retain the previous atlas as a browser fallback. Storm drains stay
-disabled, and the conditioned 21-cell-wide, 7.5-ft NAVD88 bulkhead is honored.
+short-crest family, three preceding-crest recession families from 0.0 through
+10.0 ft NAVD88 at 0.1-foot increments, and one compact March 1962 maximum-
+extent state driven by five successive high tides. Forecast and observed
+updates only choose a stored history family and stage PNG; no live tide cycle
+runs a hydraulic simulation. Planning levels above ten feet retain the
+previous atlas as a browser fallback. Storm drains stay disabled, and the
+conditioned 21-cell-wide, 7.5-ft NAVD88 bulkhead is honored.
 """
 
 from __future__ import annotations
@@ -74,7 +75,11 @@ MIN_DISPLAY_DEPTH_FT = 0.05
 MINOR_NAVD88_FT = 3.25
 MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
-SOURCE_BLOCK_ACTIVATION_NAVD88_FT = 2.0
+SOURCE_BLOCK_MAX_NAVD88_FT = 2.0
+# Two feet defines boundary geometry, not a synthetic sill or activation
+# stage. The fixed-head field follows the tide continuously and exchanges
+# across the real shared-face elevations.
+SOURCE_BLOCK_ACTIVATION_NAVD88_FT = None
 SHORT_CREST_MINUTES = 15
 RISE_RATE_FAMILIES_FT_PER_HOUR = {
     "rising_slow": 0.55,
@@ -86,10 +91,33 @@ FALLING_CREST_FAMILIES_FT = {
     "falling_moderate": 5.5,
     "falling_extreme": 8.5,
 }
-ATLAS_FAMILIES = (
+OPERATIONAL_ATLAS_FAMILIES = (
     *RISE_RATE_FAMILIES_FT_PER_HOUR,
     "crest",
     *FALLING_CREST_FAMILIES_FT,
+)
+HISTORIC_1962_FAMILY = "historic_1962_five_tides"
+HISTORIC_1962_STAGE_FT = 7.5
+HISTORIC_1962_STAGE_INDEX = int(
+    round(HISTORIC_1962_STAGE_FT / MODEL_STAGE_STEP_FT)
+)
+ATLAS_FAMILIES = (*OPERATIONAL_ATLAS_FAMILIES, HISTORIC_1962_FAMILY)
+
+# The City hazard-mitigation plan describes the March 1962 northeaster as
+# lasting for five high tides. These rounded extrema retain that duration and
+# the dashboard's calibrated 7.5-ft NAVD88 local crest. They are an offline
+# design hydrograph, not invented quarter-hour observations.
+HISTORIC_1962_EXTREMA = (
+    (0.00, 0.0),
+    (6.21, 4.2),
+    (12.42, 0.8),
+    (18.63, 5.2),
+    (24.84, 1.5),
+    (31.05, 6.1),
+    (37.26, 2.2),
+    (43.47, 6.9),
+    (49.68, 3.0),
+    (55.89, HISTORIC_1962_STAGE_FT),
 )
 
 DEPTH_BREAKS_FT = np.asarray([0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00])
@@ -270,14 +298,10 @@ class HydraulicSolver:
             self.maximum_numerical_speed_fps * TIDE_STEP_SECONDS
         )
         source_interface = self.source[self.edges["a"]] ^ self.source[self.edges["b"]]
-        # Each complete qualified <=2.0-ft field defines the NAVD88 source
-        # condition. Preserve every one-foot perimeter width, but gate
-        # source-to-terrain inflow at 2.0 ft. The gate is directional:
-        # previously routed water may drain back to a falling boundary across
-        # the actual terrain connection instead of becoming trapped behind an
-        # artificial two-way 2.0-ft wall. At exactly 2.0 ft the internal
-        # boundary activates with zero exterior inflow head; finite inflow
-        # begins above, and the boundary is never part of the public overlay.
+        # Each complete qualified <=2.0-ft field defines the spatial footprint
+        # of the tidal boundary. Two feet is not a sill: preserve every
+        # one-foot perimeter width and its real DEM crest so both inflow and
+        # recession are capacity-limited by the actual shared cross section.
         self.source_interface = source_interface
         self.source_inflow_crest_ft = self.edges["crest_ft"].copy()
         if source_activation_navd88_ft is not None:
@@ -363,12 +387,6 @@ class HydraulicSolver:
         """Initialize only the open-boundary source cells at the sea stage."""
         storage = np.zeros(self.zone_count, dtype=np.float64)
         surface = self.minimum_surface.copy()
-        if (
-            self.source_activation_navd88_ft is not None
-            and sea_stage_ft < self.source_activation_navd88_ft - 1e-9
-        ):
-            surface[self.source] = float(sea_stage_ft)
-            return storage, surface
         boundary_surface = np.full(
             self.zone_count,
             float(sea_stage_ft),
@@ -594,18 +612,18 @@ def load_complete_state(
     if require_current_physics:
         physics = header.get("physics") or {}
         compatible = (
-            header.get("schema") == "north-wildwood-hydraulic-states-binary-v13"
+            header.get("schema") == "north-wildwood-hydraulic-states-binary-v14"
             and physics.get("modelKind")
             == "history-aware subgrid diffusive-wave finite-volume response atlas"
             and physics.get("sourceBlockActivationNavd88Ft")
             == SOURCE_BLOCK_ACTIVATION_NAVD88_FT
-            and "directionally gated"
+            and "defines geometry only"
             in str(physics.get("sourceInterfaceTreatment", ""))
         )
         if not compatible:
             raise RuntimeError(
-                "State reuse requires a v26 package generated with the "
-                "complete filled 2.0-ft tidal source field"
+                "State reuse requires a v27 package generated with the "
+                "literal 2.0-ft tidal source field and continuous forcing"
             )
     for family in family_order:
         record = header["phaseArrays"][family]
@@ -775,6 +793,51 @@ def simulate(
             f"{float(STAGES_FT[peak_index]):.1f} ft NAVD88"
         )
 
+    # March 1962 was not a single turning point. Route one offline design
+    # hydrograph through all five documented high tides and retain only the
+    # calibrated final-crest state. This adds one PNG per overlay to Bunny,
+    # yet preserves the accumulated finite volume and drainage history that a
+    # one-tide crest frame cannot represent.
+    storage, surface = solver.dry_start(HISTORIC_1962_EXTREMA[0][1])
+    historic_elapsed_seconds = 0
+    historic_source_exchange_ft3 = 0.0
+    for segment_index in range(1, len(HISTORIC_1962_EXTREMA)):
+        start_hour, start_stage = HISTORIC_1962_EXTREMA[segment_index - 1]
+        end_hour, end_stage = HISTORIC_1962_EXTREMA[segment_index]
+        segment_steps = max(
+            1,
+            round((end_hour - start_hour) * 3600.0 / TIDE_STEP_SECONDS),
+        )
+        for step_index in range(1, segment_steps + 1):
+            fraction = step_index / segment_steps
+            eased = 0.5 - 0.5 * math.cos(math.pi * fraction)
+            stage = start_stage + (end_stage - start_stage) * eased
+            storage, surface, diagnostic = solver.advance(
+                storage,
+                surface,
+                float(stage),
+                duration_seconds=TIDE_STEP_SECONDS,
+            )
+            historic_elapsed_seconds += TIDE_STEP_SECONDS
+            historic_source_exchange_ft3 += diagnostic["sourceExchangeFt3"]
+            diagnostic_rows.append(
+                {
+                    "family": HISTORIC_1962_FAMILY,
+                    "stageNavd88Ft": float(stage),
+                    "durationSeconds": TIDE_STEP_SECONDS,
+                    "elapsedSeconds": historic_elapsed_seconds,
+                    **diagnostic,
+                }
+            )
+    families[HISTORIC_1962_FAMILY][HISTORIC_1962_STAGE_INDEX] = (
+        solver.encode_surface(storage, surface)
+    )
+    print(
+        f"{HISTORIC_1962_FAMILY}: five-high-tide design hydrograph, "
+        f"{historic_elapsed_seconds / 3600.0:.2f} hours to "
+        f"{HISTORIC_1962_STAGE_FT:.1f} ft NAVD88"
+    )
+
     summary = {
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": False,
@@ -800,13 +863,24 @@ def simulate(
         "risingHistoriesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
         "crestHistoryMinutes": SHORT_CREST_MINUTES,
         "fallingHistoryPeaksNavd88Ft": FALLING_CREST_FAMILIES_FT,
+        "historic1962": {
+            "family": HISTORIC_1962_FAMILY,
+            "documentedHighTideCount": 5,
+            "designHydrographExtremaHoursNavd88Ft": [
+                list(item) for item in HISTORIC_1962_EXTREMA
+            ],
+            "durationHours": historic_elapsed_seconds / 3600.0,
+            "retainedStageNavd88Ft": HISTORIC_1962_STAGE_FT,
+            "sourceExchangeFt3": historic_source_exchange_ft3,
+            "storedFrameCountPerOverlay": 1,
+        },
     }
     return families, summary
 
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v13",
+        "schema": "north-wildwood-hydraulic-states-binary-v14",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": MODEL_MIN_STAGE_FT,
         "stageMaxNavd88Ft": MODEL_MAX_STAGE_FT,
@@ -826,9 +900,13 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             "risingFamiliesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
             "crestHoldMinutes": SHORT_CREST_MINUTES,
             "fallingPriorCrestsNavd88Ft": FALLING_CREST_FAMILIES_FT,
+            "historic1962FiveTideExtremaHoursNavd88Ft": [
+                list(item) for item in HISTORIC_1962_EXTREMA
+            ],
             "selection": (
                 "browser uses observed/forecast rising-limb rate or the "
-                "preceding absolute crest; no tide-cycle hydraulic solve"
+                "preceding absolute crest, with one stored March 1962 "
+                "five-high-tide maximum; no live tide-cycle hydraulic solve"
             ),
         },
         "physics": {
@@ -857,16 +935,15 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             ],
             "sourceExchange": (
                 "fixed tide stage inside the qualified complete <=2.0-ft "
-                "source footprint; source "
-                "inflow is activation-gated and terrain exchanges water only "
-                "through explicit shared-edge flux"
+                "source footprint; terrain exchanges water only through "
+                "explicit shared-edge flux at real DEM crest elevations"
             ),
             "sourceBlockActivationNavd88Ft": SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
             "sourceInterfaceTreatment": (
                 "all one-foot edges along the complete source/terrain perimeter "
-                "are preserved; source-to-terrain inflow is directionally gated "
-                "at 2.0 ft, while terrain-to-source "
-                "recession flow retains the actual graph crest"
+                "are preserved; both source-to-terrain inflow and "
+                "terrain-to-source recession retain the actual graph crest; "
+                "2.0 ft defines geometry only"
             ),
             "storage": (
                 "one-foot DEM hypsometry integrated inside each finite-volume "
@@ -1032,7 +1109,13 @@ def render_assets(
         family_bytes = 0
         maximum_flooded_pixels = 0
         minimum_flooded_pixels = None
-        for stage_index, stage in enumerate(STAGES_FT):
+        render_stage_indices = (
+            (HISTORIC_1962_STAGE_INDEX,)
+            if family == HISTORIC_1962_FAMILY
+            else range(len(STAGES_FT))
+        )
+        for stage_index in render_stage_indices:
+            stage = STAGES_FT[stage_index]
             encoded_surface = families[family][stage_index]
             wet_area = np.zeros(render_shape, dtype=np.float32)
             depth_sum = np.zeros(render_shape, dtype=np.float32)
@@ -1141,7 +1224,7 @@ def render_assets(
             if stage_index % 20 == 0:
                 print(f"Rendered {family:16s} {stage:4.1f} ft")
         counts[family] = {
-            "stageCount": len(STAGES_FT),
+            "stageCount": len(render_stage_indices),
             "pngBytes": family_bytes,
             "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
             "historyInvariant": False,
@@ -1621,7 +1704,7 @@ def main() -> None:
     )
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v14",
+        "schema": "north-wildwood-hydraulic-assets-v15",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": False,
@@ -1629,10 +1712,15 @@ def main() -> None:
             "minimumNavd88Ft": MODEL_MIN_STAGE_FT,
             "maximumNavd88Ft": MODEL_MAX_STAGE_FT,
             "incrementFt": MODEL_STAGE_STEP_FT,
-            "stageCountPerFamily": len(STAGES_FT),
+            "operationalStageCountPerFamily": len(STAGES_FT),
+            "historic1962StageCount": 1,
             "familyCount": len(ATLAS_FAMILIES),
-            "depthPngCount": len(STAGES_FT) * len(ATLAS_FAMILIES),
-            "stagePngCount": len(STAGES_FT) * len(ATLAS_FAMILIES),
+            "depthPngCount": (
+                len(STAGES_FT) * len(OPERATIONAL_ATLAS_FAMILIES) + 1
+            ),
+            "stagePngCount": (
+                len(STAGES_FT) * len(OPERATIONAL_ATLAS_FAMILIES) + 1
+            ),
         },
         "graph": {
             **graph_manifest,
@@ -1651,6 +1739,13 @@ def main() -> None:
             "risingRatesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
             "crestHoldMinutes": SHORT_CREST_MINUTES,
             "fallingPriorCrestsNavd88Ft": FALLING_CREST_FAMILIES_FT,
+            "historic1962": {
+                "family": HISTORIC_1962_FAMILY,
+                "date": "1962-03-07",
+                "documentedHighTideCount": 5,
+                "storedStageNavd88Ft": HISTORIC_1962_STAGE_FT,
+                "storedFrameCountPerOverlay": 1,
+            },
         },
         "diagnostics": diagnostics,
         "queryCog": asset_path(query_path) if query_path.exists() else None,
