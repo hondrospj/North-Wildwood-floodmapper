@@ -1,6 +1,6 @@
 {
-  "schema": "north-wildwood-hydraulic-assets-v10",
-  "generatedUtc": "2026-08-10T23:20:45Z",
+  "schema": "north-wildwood-hydraulic-assets-v11",
+  "generatedUtc": "2026-08-11T01:03:18Z",
   "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
   "historyInvariant": false,
   "stageCatalog": {
@@ -13,16 +13,18 @@
     "stagePngCount": 707
   },
   "graph": {
-    "schema": "north-wildwood-one-foot-hydraulic-graph-v6",
+    "schema": "north-wildwood-one-foot-hydraulic-graph-v7",
     "width": 10930,
     "height": 14120,
     "cellSizeFt": 1,
     "sourceStageNavd88Ft": 2.0,
     "sourceMinComponentCells": 101,
     "sourceConnectivity": "four-neighbour/shared-side only",
-    "sourceBoundaryDefinition": "complete four-neighbour <=2.0 ft components intersecting supplied source seed polygons",
+    "sourceBoundaryDefinition": "complete four-neighbour <=2.0 ft components touching the exterior DEM boundary",
     "manualSourcePixelCount": 254212,
-    "qualifiedSourceBoundaryPixelCount": 18231114,
+    "manualSourceTreatment": "provenance only; polygons cannot qualify or create source components",
+    "qualifiedSourceBoundaryPixelCount": 17452983,
+    "qualifiedSourceComponentCount": 1,
     "sourceZonesIsolatedFromTerrain": true,
     "bulkheadElevationNavd88Ft": 7.5,
     "bulkheadNominalWidthCells": 21,
@@ -33,7 +35,11 @@
     "controlVolumeSizeFt": 25,
     "connectionBinFt": 2,
     "controlVolumeConnectivity": "four-neighbour components within each tile/connection bin; hard structures and fixed-head sources isolated as separate material classes",
-    "zoneCount": 145862,
+    "renderSummarySchema": "north-wildwood-five-foot-area-summary-v1",
+    "renderSummaryStrideFt": 5,
+    "renderSummaryTerrainSlots": 2,
+    "renderSummaryOmittedTerrainCells": 2077,
+    "zoneCount": 144541,
     "geotransform": [
       401465,
       1,
@@ -56,71 +62,79 @@
       0.0,
       -5.0
     ],
-    "fixedHeadBoundaryDisplay": "included; complete connected <=2.0-ft source footprint remains visible",
+    "fixedHeadBoundaryDisplay": "all twenty-five underlying one-foot cells are area aggregated; fractional edge coverage is encoded without center-cell aliasing",
+    "coverageAlphaLevels": [
+      72,
+      132,
+      192,
+      225
+    ],
+    "maximumOmittedTerrainSubcells": 8,
+    "totalOmittedTerrainSubcells": 2077,
     "minimumRenderedDepthFt": 0.05,
     "families": {
       "rising_slow": {
         "stageCount": 101,
-        "pngBytes": 12883889,
+        "pngBytes": 13811330,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed nodes including the complete connected fixed-head source footprint; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the exterior-connected fixed-head source; smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 1132816
+        "maximumFloodedPixels": 1079653
       },
       "rising_typical": {
         "stageCount": 101,
-        "pngBytes": 12625840,
+        "pngBytes": 13504926,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed nodes including the complete connected fixed-head source footprint; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the exterior-connected fixed-head source; smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 1093667
+        "maximumFloodedPixels": 1041234
       },
       "rising_fast": {
         "stageCount": 101,
-        "pngBytes": 12555236,
+        "pngBytes": 13404291,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed nodes including the complete connected fixed-head source footprint; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the exterior-connected fixed-head source; smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 1080210
+        "maximumFloodedPixels": 1029059
       },
       "crest": {
         "stageCount": 101,
-        "pngBytes": 12685820,
+        "pngBytes": 13535093,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed nodes including the complete connected fixed-head source footprint; smoothing cannot add wet pixels",
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the exterior-connected fixed-head source; smoothing cannot add wet pixels",
         "minimumFloodedPixels": 0,
-        "maximumFloodedPixels": 1103983
+        "maximumFloodedPixels": 1051519
       },
       "falling_minor": {
         "stageCount": 101,
-        "pngBytes": 13852200,
+        "pngBytes": 15112369,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed nodes including the complete connected fixed-head source footprint; smoothing cannot add wet pixels",
-        "minimumFloodedPixels": 34496,
-        "maximumFloodedPixels": 1103983
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the exterior-connected fixed-head source; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 42155,
+        "maximumFloodedPixels": 1051519
       },
       "falling_moderate": {
         "stageCount": 101,
-        "pngBytes": 15334724,
+        "pngBytes": 17155149,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed nodes including the complete connected fixed-head source footprint; smoothing cannot add wet pixels",
-        "minimumFloodedPixels": 70901,
-        "maximumFloodedPixels": 1103983
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the exterior-connected fixed-head source; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 79449,
+        "maximumFloodedPixels": 1051519
       },
       "falling_extreme": {
         "stageCount": 101,
-        "pngBytes": 22886518,
+        "pngBytes": 27438684,
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": false,
-        "wetFootprint": "immutable finite-volume routed nodes including the complete connected fixed-head source footprint; smoothing cannot add wet pixels",
-        "minimumFloodedPixels": 259875,
-        "maximumFloodedPixels": 1103983
+        "wetFootprint": "area-weighted one-foot subcells from immutable finite-volume routed nodes and the exterior-connected fixed-head source; smoothing cannot add wet pixels",
+        "minimumFloodedPixels": 272981,
+        "maximumFloodedPixels": 1051519
       }
     }
   },
@@ -160,7 +174,7 @@
   "diagnostics": {
     "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
     "historyInvariant": false,
-    "maximumInternalConservationResidualFt3": 9.094947017729282e-11,
+    "maximumInternalConservationResidualFt3": 7.548806024715304e-11,
     "diagnosticStepCount": 584,
     "atlasFamilies": [
       "rising_slow",
@@ -202,7 +216,7 @@
       "blue": "first four-neighbour connection stage in tenths NAVD88 plus 30; values below -3 ft are clamped to -3 ft; 255 means not connected through the graph-build ceiling",
       "alpha": "255"
     },
-    "bytes": 1102060
+    "bytes": 1267212
   },
   "packedZoneQueryPng": "COGs/North Wildwood/NorthWildwoodHydraulicZone5ft.png",
   "packedZoneQuery": {
@@ -212,7 +226,7 @@
     "renderCellSizeFt": 5,
     "channels": "24-bit big-endian hydraulic terrain zone ID plus one; zero is nodata",
     "fixedHeadBoundaryQuery": "included; complete connected source-footprint depth remains queryable",
-    "bytes": 246700
+    "bytes": 237099
   },
   "hydraulicStates": "COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png"
 }

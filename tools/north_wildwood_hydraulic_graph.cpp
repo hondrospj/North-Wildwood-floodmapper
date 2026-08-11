@@ -2,10 +2,11 @@
 //
 // The terrain is quantized only for graph topology (0.1 ft NAVD88).  Source
 // footprint follows the literal four-neighbour rule: a <=2.0 ft component must
-// contain at least 101 cells and intersect a supplied source seed polygon.
-// The seed polygons identify legitimate tide-connected components; every cell
-// in each qualified <=2.0 ft component becomes fixed-head source.  Finite-rate
-// routing starts at the complete component perimeter, not at the seed shapes.
+// contain at least 101 cells and touch the exterior of the DEM.  The supplied
+// polygons are retained only as provenance; they never create or qualify a
+// source component.  Every cell in each exterior-connected <=2.0 ft component
+// becomes fixed-head source.  Finite-rate routing starts at the complete
+// component perimeter, not at seed shapes.
 // The 21-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
 // NAVD88 by GDAL. This builder verifies, but never silently changes, that
 // terrain. Storm-drain exchange is disabled for this model version.
@@ -41,6 +42,7 @@ constexpr int16_t EDGE_MAX10 = 225;
 constexpr int32_t SOURCE_MIN_CELLS = 101;
 constexpr int CONTROL_VOLUME_SIZE_FT = 25;
 constexpr int CONNECTION_BIN10 = 20;
+constexpr int RENDER_STRIDE = 5;
 
 struct Inputs {
   fs::path dem;
@@ -90,6 +92,30 @@ struct ZoneSummary {
   uint64_t hard_cells = 0;
   std::array<uint64_t, HIST_BINS> histogram{};
 };
+
+#pragma pack(push, 1)
+struct RenderCellSummary {
+  int32_t terrain_zone0 = -1;
+  int32_t terrain_zone1 = -1;
+  int32_t source_zone = -1;
+  int32_t terrain_ground_sum10_0 = 0;
+  int32_t terrain_ground_sum10_1 = 0;
+  int32_t source_ground_sum10 = 0;
+  int32_t source_positive2_ground_sum10 = 0;
+  int16_t terrain_ground_min10_0 = NODATA_ELEV;
+  int16_t terrain_ground_max10_0 = NODATA_ELEV;
+  int16_t terrain_ground_min10_1 = NODATA_ELEV;
+  int16_t terrain_ground_max10_1 = NODATA_ELEV;
+  uint8_t terrain_count0 = 0;
+  uint8_t terrain_count1 = 0;
+  uint8_t source_count = 0;
+  uint8_t source_positive2_count = 0;
+  uint8_t valid_count = 0;
+  uint8_t omitted_terrain_count = 0;
+};
+#pragma pack(pop)
+
+static_assert(sizeof(RenderCellSummary) == 42);
 
 Inputs parse_args(int argc, char** argv) {
   Inputs result;
@@ -250,13 +276,13 @@ uint64_t validate_conditioned_bulkheads(
 
 std::vector<uint8_t> find_source_blocks(
     const std::vector<int16_t>& elevation10,
-    const std::vector<uint8_t>& manual,
     int width,
-    int height) {
+    int height,
+    uint64_t& qualifying_components) {
   const size_t count = elevation10.size();
   std::vector<uint8_t> state(count, 0);
   std::vector<int32_t> component;
-  uint64_t qualifying_components = 0;
+  qualifying_components = 0;
   uint64_t qualifying_component_cells = 0;
   uint64_t qualifying_boundary_cells = 0;
   const auto add = [&](int32_t index, std::vector<int32_t>& queue) {
@@ -269,11 +295,13 @@ std::vector<uint8_t> find_source_blocks(
         elevation10[seed] > SOURCE_STAGE10) continue;
     component.clear();
     add(seed, component);
-    bool hits_manual = manual[seed] != 0;
+    bool touches_exterior = false;
     for (size_t cursor = 0; cursor < component.size(); ++cursor) {
       const int32_t current = component[cursor];
       const int x = current % width;
       const int y = current / width;
+      touches_exterior = touches_exterior || x == 0 || x + 1 == width ||
+          y == 0 || y + 1 == height;
       const std::array<int32_t, 4> neighbours = {
           x > 0 ? current - 1 : -1,
           x + 1 < width ? current + 1 : -1,
@@ -284,10 +312,9 @@ std::vector<uint8_t> find_source_blocks(
             !is_valid(elevation10[neighbour]) ||
             elevation10[neighbour] > SOURCE_STAGE10) continue;
         add(neighbour, component);
-        hits_manual = hits_manual || manual[neighbour];
       }
     }
-    if (component.size() >= SOURCE_MIN_CELLS && hits_manual) {
+    if (component.size() >= SOURCE_MIN_CELLS && touches_exterior) {
       ++qualifying_components;
       qualifying_component_cells += component.size();
       for (const int32_t cell : component) state[cell] = 2;
@@ -299,6 +326,106 @@ std::vector<uint8_t> find_source_blocks(
             << qualifying_component_cells << " low cells, "
             << qualifying_boundary_cells << " supplied boundary cells)\n";
   return state;
+}
+
+std::vector<RenderCellSummary> build_render_cell_summaries(
+    const std::vector<int16_t>& elevation10,
+    const std::vector<int32_t>& zone,
+    const std::vector<uint8_t>& source,
+    int width,
+    int height,
+    uint64_t& omitted_terrain_cells) {
+  if (width % RENDER_STRIDE || height % RENDER_STRIDE) {
+    throw std::runtime_error("One-foot graph dimensions are not divisible by render stride");
+  }
+  struct TerrainAccumulator {
+    int32_t zone = -1;
+    int32_t ground_sum10 = 0;
+    int16_t ground_min10 = std::numeric_limits<int16_t>::max();
+    int16_t ground_max10 = std::numeric_limits<int16_t>::min();
+    uint8_t count = 0;
+  };
+
+  const int render_width = width / RENDER_STRIDE;
+  const int render_height = height / RENDER_STRIDE;
+  std::vector<RenderCellSummary> result(
+      static_cast<size_t>(render_width) * render_height);
+  omitted_terrain_cells = 0;
+
+  for (int render_y = 0; render_y < render_height; ++render_y) {
+    for (int render_x = 0; render_x < render_width; ++render_x) {
+      RenderCellSummary& output =
+          result[static_cast<size_t>(render_y) * render_width + render_x];
+      std::array<TerrainAccumulator, RENDER_STRIDE * RENDER_STRIDE> terrain{};
+      int terrain_size = 0;
+      for (int dy = 0; dy < RENDER_STRIDE; ++dy) {
+        const int y = render_y * RENDER_STRIDE + dy;
+        for (int dx = 0; dx < RENDER_STRIDE; ++dx) {
+          const int x = render_x * RENDER_STRIDE + dx;
+          const int32_t cell = y * width + x;
+          if (!is_valid(elevation10[cell]) || zone[cell] < 0) continue;
+          ++output.valid_count;
+          if (source[cell]) {
+            if (output.source_zone < 0) output.source_zone = zone[cell];
+            ++output.source_count;
+            output.source_ground_sum10 += elevation10[cell];
+            if (elevation10[cell] <= SOURCE_STAGE10 - 1) {
+              ++output.source_positive2_count;
+              output.source_positive2_ground_sum10 += elevation10[cell];
+            }
+            continue;
+          }
+          int accumulator = 0;
+          while (accumulator < terrain_size &&
+                 terrain[accumulator].zone != zone[cell]) {
+            ++accumulator;
+          }
+          if (accumulator == terrain_size) {
+            terrain[terrain_size].zone = zone[cell];
+            ++terrain_size;
+          }
+          TerrainAccumulator& item = terrain[accumulator];
+          ++item.count;
+          item.ground_sum10 += elevation10[cell];
+          item.ground_min10 = std::min(item.ground_min10, elevation10[cell]);
+          item.ground_max10 = std::max(item.ground_max10, elevation10[cell]);
+        }
+      }
+      std::sort(
+          terrain.begin(), terrain.begin() + terrain_size,
+          [](const TerrainAccumulator& a, const TerrainAccumulator& b) {
+            if (a.count != b.count) return a.count > b.count;
+            return a.zone < b.zone;
+          });
+      const auto assign_slot = [&](int slot, const TerrainAccumulator& item) {
+        if (slot == 0) {
+          output.terrain_zone0 = item.zone;
+          output.terrain_ground_sum10_0 = item.ground_sum10;
+          output.terrain_ground_min10_0 = item.ground_min10;
+          output.terrain_ground_max10_0 = item.ground_max10;
+          output.terrain_count0 = item.count;
+        } else {
+          output.terrain_zone1 = item.zone;
+          output.terrain_ground_sum10_1 = item.ground_sum10;
+          output.terrain_ground_min10_1 = item.ground_min10;
+          output.terrain_ground_max10_1 = item.ground_max10;
+          output.terrain_count1 = item.count;
+        }
+      };
+      if (terrain_size > 0) assign_slot(0, terrain[0]);
+      if (terrain_size > 1) assign_slot(1, terrain[1]);
+      for (int index = 2; index < terrain_size; ++index) {
+        output.omitted_terrain_count = static_cast<uint8_t>(
+            output.omitted_terrain_count + terrain[index].count);
+        omitted_terrain_cells += terrain[index].count;
+      }
+    }
+  }
+  std::cout << "Built " << result.size()
+            << " area-preserving five-foot render summaries; top two terrain "
+            << "zones omit " << omitted_terrain_cells << " of "
+            << static_cast<uint64_t>(width) * height << " one-foot cells\n";
+  return result;
 }
 
 void assign_component(
@@ -579,19 +706,23 @@ void write_manifest(
     size_t zone_count,
     uint64_t hard_count,
     uint64_t manual_source_count,
-    uint64_t qualified_source_count) {
+    uint64_t qualified_source_count,
+    uint64_t qualified_source_components,
+    uint64_t omitted_render_terrain_cells) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v6\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v7\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
          << "  \"sourceStageNavd88Ft\": 2.0,\n"
          << "  \"sourceMinComponentCells\": 101,\n"
          << "  \"sourceConnectivity\": \"four-neighbour/shared-side only\",\n"
-         << "  \"sourceBoundaryDefinition\": \"complete four-neighbour <=2.0 ft components intersecting supplied source seed polygons\",\n"
+         << "  \"sourceBoundaryDefinition\": \"complete four-neighbour <=2.0 ft components touching the exterior DEM boundary\",\n"
          << "  \"manualSourcePixelCount\": " << manual_source_count << ",\n"
+         << "  \"manualSourceTreatment\": \"provenance only; polygons cannot qualify or create source components\",\n"
          << "  \"qualifiedSourceBoundaryPixelCount\": " << qualified_source_count << ",\n"
+         << "  \"qualifiedSourceComponentCount\": " << qualified_source_components << ",\n"
          << "  \"sourceZonesIsolatedFromTerrain\": true,\n"
          << "  \"bulkheadElevationNavd88Ft\": 7.5,\n"
          << "  \"bulkheadNominalWidthCells\": 21,\n"
@@ -602,6 +733,10 @@ void write_manifest(
          << "  \"controlVolumeSizeFt\": " << CONTROL_VOLUME_SIZE_FT << ",\n"
          << "  \"connectionBinFt\": " << CONNECTION_BIN10 / 10.0 << ",\n"
          << "  \"controlVolumeConnectivity\": \"four-neighbour components within each tile/connection bin; hard structures and fixed-head sources isolated as separate material classes\",\n"
+         << "  \"renderSummarySchema\": \"north-wildwood-five-foot-area-summary-v1\",\n"
+         << "  \"renderSummaryStrideFt\": " << RENDER_STRIDE << ",\n"
+         << "  \"renderSummaryTerrainSlots\": 2,\n"
+         << "  \"renderSummaryOmittedTerrainCells\": " << omitted_render_terrain_cells << ",\n"
          << "  \"zoneCount\": " << zone_count << ",\n"
          << "  \"geotransform\": [";
   for (size_t index = 0; index < info.geotransform.size(); ++index) {
@@ -625,8 +760,9 @@ int main(int argc, char** argv) {
         validate_conditioned_bulkheads(elevation10, hard);
     const uint64_t manual_source_count = static_cast<uint64_t>(
         std::count(manual.begin(), manual.end(), static_cast<uint8_t>(1)));
+    uint64_t qualified_source_components = 0;
     std::vector<uint8_t> source = find_source_blocks(
-        elevation10, manual, info.width, info.height);
+        elevation10, info.width, info.height, qualified_source_components);
     const uint64_t qualified_source_count = static_cast<uint64_t>(
         std::count(source.begin(), source.end(), static_cast<uint8_t>(1)));
     manual.clear();
@@ -638,6 +774,10 @@ int main(int argc, char** argv) {
     std::vector<int32_t> zone = build_zones(
         elevation10, connection10, source, grates, hard,
         info.width, info.height, summaries);
+    uint64_t omitted_render_terrain_cells = 0;
+    std::vector<RenderCellSummary> render_cells = build_render_cell_summaries(
+        elevation10, zone, source, info.width, info.height,
+        omitted_render_terrain_cells);
 
     write_raw(inputs.output / "elevation10.raw", elevation10);
     write_raw(inputs.output / "connection10.raw", connection10);
@@ -645,6 +785,7 @@ int main(int argc, char** argv) {
     write_raw(inputs.output / "source_flag.raw", source);
     write_raw(inputs.output / "hard_flag.raw", hard);
     write_raw(inputs.output / "grate_flag.raw", grates);
+    write_raw(inputs.output / "render_cells.raw", render_cells);
     write_zones(inputs.output / "zones.csv", summaries);
     write_edges(inputs.output / "edges.csv", elevation10, zone, info.width, info.height);
     write_manifest(
@@ -653,7 +794,9 @@ int main(int argc, char** argv) {
         summaries.size(),
         hard_count,
         manual_source_count,
-        qualified_source_count);
+        qualified_source_count,
+        qualified_source_components,
+        omitted_render_terrain_cells);
 
     write_geotiff(
         inputs.output / "NorthWildwoodConditionedElevation10.tif",

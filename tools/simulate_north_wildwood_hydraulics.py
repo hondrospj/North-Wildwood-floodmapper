@@ -3,8 +3,8 @@
 
 The one-foot conditioned DEM is aggregated into 25-foot storage cells while
 retaining its elevation hypsometry and all shared one-foot flow widths. Only
-the complete connected <=2.0-ft tidal footprint selected by the supplied seed
-polygons is fixed-head boundary; higher terrain is finite storage. Source cells are isolated
+the exterior-connected <=2.0-ft tidal footprint is fixed-head boundary; the
+manual polygons are provenance only and higher terrain is finite storage. Source cells are isolated
 from terrain control volumes, so a one-foot opening exchanges water through
 its actual shared face instead of pinning a whole 25-foot tile to the tide.
 Water is routed in 60-second substeps with a mass-conserving hybrid
@@ -112,6 +112,32 @@ DEPTH_COLORS = [
     "#050E33",
 ]
 STAGE_COLORS = ["#F4A742", "#E74C3C", "#7D3C98"]
+COVERAGE_ALPHA_LEVELS = (72, 132, 192, 225)
+COVERAGE_BREAKS = np.asarray([0.25, 0.50, 0.75], dtype=np.float32)
+RENDER_CELL_DTYPE = np.dtype(
+    [
+        ("terrain_zone0", "<i4"),
+        ("terrain_zone1", "<i4"),
+        ("source_zone", "<i4"),
+        ("terrain_ground_sum10_0", "<i4"),
+        ("terrain_ground_sum10_1", "<i4"),
+        ("source_ground_sum10", "<i4"),
+        ("source_positive2_ground_sum10", "<i4"),
+        ("terrain_ground_min10_0", "<i2"),
+        ("terrain_ground_max10_0", "<i2"),
+        ("terrain_ground_min10_1", "<i2"),
+        ("terrain_ground_max10_1", "<i2"),
+        ("terrain_count0", "u1"),
+        ("terrain_count1", "u1"),
+        ("source_count", "u1"),
+        ("source_positive2_count", "u1"),
+        ("valid_count", "u1"),
+        ("omitted_terrain_count", "u1"),
+    ],
+    align=False,
+)
+if RENDER_CELL_DTYPE.itemsize != 42:
+    raise RuntimeError("Five-foot render summary dtype is not packed to 42 bytes")
 
 
 def parse_args() -> argparse.Namespace:
@@ -148,9 +174,12 @@ def hex_rgb(value: str) -> tuple[int, int, int]:
 def palette(colors: list[str]) -> tuple[list[int], bytes]:
     values = [0] * (256 * 3)
     alpha = bytearray([0] * 256)
-    for index, color in enumerate(colors, start=1):
-        values[index * 3 : index * 3 + 3] = hex_rgb(color)
-        alpha[index] = 225
+    index = 1
+    for color in colors:
+        for coverage_alpha in COVERAGE_ALPHA_LEVELS:
+            values[index * 3 : index * 3 + 3] = hex_rgb(color)
+            alpha[index] = coverage_alpha
+            index += 1
     return values, bytes(alpha)
 
 
@@ -237,7 +266,7 @@ class HydraulicSolver:
         self.manning_n = float(manning_n)
         self.minimum_mobile_depth_ft = float(minimum_mobile_depth_ft)
         source_interface = self.source[self.edges["a"]] ^ self.source[self.edges["b"]]
-        # The complete connected <=2.0-ft footprint defines the NAVD88 source
+        # The complete exterior-connected <=2.0-ft footprint defines the NAVD88 source
         # condition. Preserve every one-foot perimeter width, but gate
         # source-to-terrain inflow at 2.0 ft. The gate is directional:
         # previously routed water may drain back to a falling boundary across
@@ -558,7 +587,7 @@ def load_complete_state(
     if require_current_physics:
         physics = header.get("physics") or {}
         compatible = (
-            header.get("schema") == "north-wildwood-hydraulic-states-binary-v10"
+            header.get("schema") == "north-wildwood-hydraulic-states-binary-v11"
             and physics.get("modelKind")
             == "history-aware subgrid diffusive-wave finite-volume response atlas"
             and physics.get("sourceBlockActivationNavd88Ft")
@@ -568,8 +597,8 @@ def load_complete_state(
         )
         if not compatible:
             raise RuntimeError(
-                "State reuse requires a v21 package generated with the "
-                "2.0-ft directional source gate"
+                "State reuse requires a v23 package generated with the "
+                "exterior-connected 2.0-ft source boundary"
             )
     for family in family_order:
         record = header["phaseArrays"][family]
@@ -770,7 +799,7 @@ def simulate(
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v10",
+        "schema": "north-wildwood-hydraulic-states-binary-v11",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": MODEL_MIN_STAGE_FT,
         "stageMaxNavd88Ft": MODEL_MAX_STAGE_FT,
@@ -817,7 +846,7 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
                 "sourceZonesIsolatedFromTerrain"
             ],
             "sourceExchange": (
-                "fixed tide stage inside the complete connected <=2.0-ft "
+                "fixed tide stage inside the exterior-connected <=2.0-ft "
                 "source footprint; source "
                 "inflow is activation-gated and terrain exchanges water only "
                 "through explicit shared-edge flux"
@@ -888,12 +917,13 @@ def render_assets(
     families: dict[str, np.ndarray],
     family_names: tuple[str, ...] | None = None,
 ) -> dict:
-    elevation10 = np.memmap(
-        graph_dir / "elevation10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    zone = np.memmap(
-        graph_dir / "zone_id.raw", dtype="<i4", mode="r", shape=(HEIGHT, WIDTH)
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    render_shape = (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE)
+    render_cells = np.memmap(
+        graph_dir / "render_cells.raw",
+        dtype=RENDER_CELL_DTYPE,
+        mode="r",
+        shape=render_shape,
+    )
     dem_ds = gdal.Open(str(dem_path))
     projection = dem_ds.GetProjection()
     origin = dem_ds.GetGeoTransform()
@@ -910,9 +940,7 @@ def render_assets(
     depth_palette, depth_alpha = palette(DEPTH_COLORS)
     stage_palette, stage_alpha = palette(STAGE_COLORS)
     family_dirs = {family: family for family in ATLAS_FAMILIES}
-    valid = elevation10 != np.iinfo(np.int16).min
-    ground = elevation10.astype(np.float32) / 10.0
-    zone_lookup = np.where(zone >= 0, zone + 1, 0)
+    valid = render_cells["valid_count"] > 0
     counts = {}
 
     # Stage-hazard colors use the first rising stage at which each routed
@@ -925,7 +953,61 @@ def render_assets(
     routed_activation[1:][filling_reached] = STAGES_FT[
         first_filling_index[filling_reached]
     ]
-    routed_activation_grid = routed_activation[zone_lookup]
+
+    def add_terrain_slot(
+        slot: int,
+        encoded_surface: np.ndarray,
+        wet_area: np.ndarray,
+        depth_sum: np.ndarray,
+        activation_max: np.ndarray,
+    ) -> None:
+        zone = render_cells[f"terrain_zone{slot}"]
+        count = render_cells[f"terrain_count{slot}"].astype(np.float32)
+        present = (zone >= 0) & (count > 0)
+        zone_lookup = np.where(present, zone + 1, 0)
+        surface_centift = encoded_surface[zone_lookup]
+        state_wet = present & (surface_centift != DRY_SENTINEL)
+        if not np.any(state_wet):
+            return
+        surface = surface_centift.astype(np.float32) / 100.0
+        ground_min = render_cells[f"terrain_ground_min10_{slot}"].astype(
+            np.float32
+        ) / 10.0
+        ground_max = render_cells[f"terrain_ground_max10_{slot}"].astype(
+            np.float32
+        ) / 10.0
+        ground_mean = np.divide(
+            render_cells[f"terrain_ground_sum10_{slot}"].astype(np.float32),
+            np.maximum(count * 10.0, 1.0),
+        )
+        threshold = surface - MIN_DISPLAY_DEPTH_FT
+        fully_wet = state_wet & (threshold >= ground_max)
+        partly_wet = state_wet & (threshold >= ground_min) & ~fully_wet
+        slot_area = np.where(fully_wet, count, 0.0).astype(np.float32)
+        slot_depth = np.where(
+            fully_wet,
+            np.maximum(surface - ground_mean, MIN_DISPLAY_DEPTH_FT),
+            0.0,
+        ).astype(np.float32)
+        if np.any(partly_wet):
+            span = np.maximum(ground_max - ground_min, 0.1)
+            fraction = np.clip((threshold - ground_min + 0.1) / (span + 0.1), 0.0, 1.0)
+            partial_area = count * fraction
+            wet_ground_mean = (ground_min + np.minimum(ground_max, threshold)) / 2.0
+            partial_depth = np.maximum(
+                surface - wet_ground_mean,
+                MIN_DISPLAY_DEPTH_FT,
+            )
+            slot_area = np.where(partly_wet, partial_area, slot_area)
+            slot_depth = np.where(partly_wet, partial_depth, slot_depth)
+        contributing = slot_area > 0
+        wet_area += slot_area
+        depth_sum += slot_area * slot_depth
+        activation = np.maximum(ground_mean, routed_activation[zone_lookup])
+        activation_max[contributing] = np.maximum(
+            activation_max[contributing],
+            activation[contributing],
+        )
 
     selected_family_dirs = (
         tuple(family_dirs.items())
@@ -942,37 +1024,93 @@ def render_assets(
         minimum_flooded_pixels = None
         for stage_index, stage in enumerate(STAGES_FT):
             encoded_surface = families[family][stage_index]
-            surface_centift = encoded_surface[zone_lookup]
-            # The complete connected source footprint is part of the requested
-            # public map. Keep every positive-depth source cell visible.
-            hydraulic_wet_zone = valid & (surface_centift != DRY_SENTINEL)
-            local_surface = surface_centift.astype(np.float32) / 100.0
-            # Smooth piecewise-constant control-volume surfaces for display,
-            # but never expand the immutable routed wet footprint.
+            wet_area = np.zeros(render_shape, dtype=np.float32)
+            depth_sum = np.zeros(render_shape, dtype=np.float32)
+            activation_max = np.full(render_shape, -np.inf, dtype=np.float32)
+
+            # The fixed-head source is aggregated from all twenty-five one-foot
+            # cells in each display pixel.  At exactly 2.0 ft, cells on the
+            # literal 2.0-ft contour have zero depth; all lower source cells are
+            # represented.  At 2.1 ft and above the complete source footprint
+            # contributes area.  This removes the old center-cell holes without
+            # painting dry terrain outside the source boundary.
+            if stage >= SOURCE_BLOCK_ACTIVATION_NAVD88_FT - 1e-9:
+                exact_activation = math.isclose(
+                    float(stage),
+                    SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
+                    abs_tol=1e-9,
+                )
+                count_field = (
+                    "source_positive2_count" if exact_activation else "source_count"
+                )
+                sum_field = (
+                    "source_positive2_ground_sum10"
+                    if exact_activation
+                    else "source_ground_sum10"
+                )
+                source_area = render_cells[count_field].astype(np.float32)
+                source_present = source_area > 0
+                source_ground_mean = np.divide(
+                    render_cells[sum_field].astype(np.float32),
+                    np.maximum(source_area * 10.0, 1.0),
+                )
+                source_depth = np.maximum(
+                    float(stage) - source_ground_mean,
+                    MIN_DISPLAY_DEPTH_FT,
+                )
+                wet_area += source_area
+                depth_sum += source_area * np.where(
+                    source_present,
+                    source_depth,
+                    0.0,
+                )
+                activation_max[source_present] = SOURCE_BLOCK_ACTIVATION_NAVD88_FT
+
+            add_terrain_slot(
+                0,
+                encoded_surface,
+                wet_area,
+                depth_sum,
+                activation_max,
+            )
+            add_terrain_slot(
+                1,
+                encoded_surface,
+                wet_area,
+                depth_sum,
+                activation_max,
+            )
+
+            flooded = valid & (wet_area > 0)
+            coverage = np.clip(wet_area / float(RENDER_STRIDE**2), 0.0, 1.0)
+            depth = np.divide(
+                depth_sum,
+                np.maximum(wet_area, 1e-6),
+                out=np.zeros_like(depth_sum),
+                where=wet_area > 0,
+            )
+            # Smooth only the displayed depth values, weighted by represented
+            # wet area.  The immutable wet mask and fractional edge coverage
+            # are never expanded by this display-only filter.
             wet_weight = gaussian_filter(
-                hydraulic_wet_zone.astype(np.float32),
-                sigma=1.6,
+                coverage,
+                sigma=1.0,
                 mode="nearest",
             )
-            filtered_surface = gaussian_filter(
-                np.where(hydraulic_wet_zone, local_surface, 0.0),
-                sigma=1.6,
+            filtered_depth = gaussian_filter(
+                depth * coverage,
+                sigma=1.0,
                 mode="nearest",
             )
-            local_surface = np.where(
-                hydraulic_wet_zone,
+            depth = np.where(
+                flooded,
                 np.divide(
-                    filtered_surface,
+                    filtered_depth,
                     np.maximum(wet_weight, 1e-6),
-                    out=np.full_like(filtered_surface, -9999.0),
+                    out=np.zeros_like(filtered_depth),
                     where=wet_weight > 1e-6,
                 ),
-                -9999.0,
-            )
-            depth = local_surface - ground
-            flooded = (
-                hydraulic_wet_zone
-                & (depth >= MIN_DISPLAY_DEPTH_FT)
+                0.0,
             )
             flooded_pixels = int(np.count_nonzero(flooded))
             maximum_flooded_pixels = max(maximum_flooded_pixels, flooded_pixels)
@@ -981,23 +1119,35 @@ def render_assets(
                 if minimum_flooded_pixels is None
                 else min(minimum_flooded_pixels, flooded_pixels)
             )
-            depth_codes = np.zeros(zone.shape, dtype=np.uint8)
+            coverage_code = np.digitize(
+                coverage,
+                COVERAGE_BREAKS,
+                right=False,
+            ).astype(np.uint8)
+            depth_codes = np.zeros(render_shape, dtype=np.uint8)
             if np.any(flooded):
+                depth_class = np.digitize(
+                    depth[flooded], DEPTH_BREAKS_FT, right=False
+                ).astype(np.uint8)
                 depth_codes[flooded] = (
-                    np.digitize(depth[flooded], DEPTH_BREAKS_FT, right=False) + 1
-                ).astype(np.uint8)
-
-            stage_codes = np.zeros(zone.shape, dtype=np.uint8)
-            if np.any(flooded):
-                activation = np.maximum(
-                    ground[flooded],
-                    routed_activation_grid[flooded],
+                    depth_class * len(COVERAGE_ALPHA_LEVELS)
+                    + coverage_code[flooded]
+                    + 1
                 )
-                stage_codes[flooded] = np.where(
+
+            stage_codes = np.zeros(render_shape, dtype=np.uint8)
+            if np.any(flooded):
+                activation = activation_max[flooded]
+                stage_class = np.where(
                     activation < MINOR_NAVD88_FT,
-                    1,
-                    np.where(activation < MODERATE_NAVD88_FT, 2, 3),
+                    0,
+                    np.where(activation < MODERATE_NAVD88_FT, 1, 2),
                 ).astype(np.uint8)
+                stage_codes[flooded] = (
+                    stage_class * len(COVERAGE_ALPHA_LEVELS)
+                    + coverage_code[flooded]
+                    + 1
+                )
 
             code = stage_code(float(stage))
             depth_path = depth_dir / f"NorthWildwoodDepth{code}.png"
@@ -1019,8 +1169,9 @@ def render_assets(
             "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
             "historyInvariant": False,
             "wetFootprint": (
-                "immutable finite-volume routed nodes including the complete "
-                "connected fixed-head source footprint; smoothing cannot add wet pixels"
+                "area-weighted one-foot subcells from immutable finite-volume "
+                "routed nodes and the exterior-connected fixed-head source; "
+                "smoothing cannot add wet pixels"
             ),
             "minimumFloodedPixels": minimum_flooded_pixels or 0,
             "maximumFloodedPixels": maximum_flooded_pixels,
@@ -1045,13 +1196,21 @@ def render_assets(
         encoding="utf-8",
     )
     return {
-        "renderWidth": int(zone.shape[1]),
-        "renderHeight": int(zone.shape[0]),
+        "renderWidth": int(render_shape[1]),
+        "renderHeight": int(render_shape[0]),
         "renderCellSizeFt": RENDER_STRIDE,
         "projection": projection,
         "geotransform": list(render_transform),
         "fixedHeadBoundaryDisplay": (
-            "included; complete connected <=2.0-ft source footprint remains visible"
+            "all twenty-five underlying one-foot cells are area aggregated; "
+            "fractional edge coverage is encoded without center-cell aliasing"
+        ),
+        "coverageAlphaLevels": list(COVERAGE_ALPHA_LEVELS),
+        "maximumOmittedTerrainSubcells": int(
+            np.max(render_cells["omitted_terrain_count"])
+        ),
+        "totalOmittedTerrainSubcells": int(
+            np.sum(render_cells["omitted_terrain_count"], dtype=np.int64)
         ),
         "minimumRenderedDepthFt": MIN_DISPLAY_DEPTH_FT,
         "families": counts,
@@ -1201,12 +1360,29 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
 
 def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     """Pack the five-foot ground/connection lookup into a browser-native PNG."""
-    elevation10 = np.memmap(
-        graph_dir / "elevation10.raw",
-        dtype="<i2",
+    render_shape = (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE)
+    render_cells = np.memmap(
+        graph_dir / "render_cells.raw",
+        dtype=RENDER_CELL_DTYPE,
         mode="r",
-        shape=(HEIGHT, WIDTH),
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+        shape=render_shape,
+    )
+    represented_count = (
+        render_cells["source_count"].astype(np.int32)
+        + render_cells["terrain_count0"].astype(np.int32)
+        + render_cells["terrain_count1"].astype(np.int32)
+    )
+    represented_ground_sum10 = (
+        render_cells["source_ground_sum10"].astype(np.int32)
+        + render_cells["terrain_ground_sum10_0"].astype(np.int32)
+        + render_cells["terrain_ground_sum10_1"].astype(np.int32)
+    )
+    elevation10 = np.rint(
+        np.divide(
+            represented_ground_sum10.astype(np.float32),
+            np.maximum(represented_count, 1),
+        )
+    ).astype(np.int16)
     connection10 = np.memmap(
         graph_dir / "connection10.raw",
         dtype="<i2",
@@ -1214,7 +1390,7 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
         shape=(HEIGHT, WIDTH),
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
 
-    valid = elevation10 != np.iinfo(np.int16).min
+    valid = represented_count > 0
     unsigned_elevation = np.zeros(elevation10.shape, dtype=np.uint16)
     unsigned_elevation[valid] = (
         elevation10[valid].astype(np.int32) + 32768
@@ -1273,12 +1449,30 @@ def build_zone_query_png(
     families: dict[str, np.ndarray],
 ) -> dict:
     """Pack displayable five-foot terrain zone IDs into a browser-native PNG."""
-    zone = np.memmap(
-        graph_dir / "zone_id.raw",
-        dtype="<i4",
+    render_shape = (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE)
+    render_cells = np.memmap(
+        graph_dir / "render_cells.raw",
+        dtype=RENDER_CELL_DTYPE,
         mode="r",
-        shape=(HEIGHT, WIDTH),
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+        shape=render_shape,
+    )
+    source_dominates = (
+        (render_cells["source_zone"] >= 0)
+        & (
+            render_cells["source_count"]
+            >= render_cells["terrain_count0"]
+        )
+    )
+    zone = np.where(
+        source_dominates,
+        render_cells["source_zone"],
+        render_cells["terrain_zone0"],
+    )
+    zone = np.where(
+        (zone < 0) & (render_cells["source_zone"] >= 0),
+        render_cells["source_zone"],
+        zone,
+    ).astype(np.int32)
     encoded = np.where(
         zone >= 0,
         zone.astype(np.uint32) + 1,
@@ -1441,7 +1635,7 @@ def main() -> None:
     )
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v10",
+        "schema": "north-wildwood-hydraulic-assets-v11",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
         "historyInvariant": False,

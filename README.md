@@ -7,19 +7,20 @@ does not run a new hydraulic simulation for every tide. Instead, it chooses one
 of seven precomputed history families from the scalar hydrograph, floors the
 level to a 0.1-foot NAVD88 stage, and downloads one depth or stage PNG.
 
-The v22 atlas underneath that unchanged browser behavior is a mass-conserving
+The v23 atlas underneath that unchanged browser behavior is a mass-conserving
 subgrid finite-volume model. It applies time, storage, one-foot interface
 width, distance, water-surface gradient, Manning friction, wetting/drying, and
 a free-overflow capacity limit. A connected depression is no longer promoted
 instantaneously to the tide elevation.
 
-The complete four-neighbour tidal footprint at or below **2.0 ft NAVD88** is
-the fixed-head source. Six small seed polygons only identify legitimate tidal
-components; they are not rendered or used as hydraulic source shapes. Exterior
-routed volume is exactly zero at 2.0 ft. Above 2.0 ft, water can leave the full
-source perimeter only through measured one-foot source–terrain faces and only
-for the time represented by the selected history family. On recession,
-previously routed water can drain back toward a lower boundary.
+The single four-neighbour tidal footprint at or below **2.0 ft NAVD88** that
+touches the exterior DEM boundary is the fixed-head source. The six supplied
+manual polygons are retained only as provenance; they cannot create or qualify
+a source component. Exterior routed volume is exactly zero at 2.0 ft. Above
+2.0 ft, water can leave the full source perimeter only through measured
+one-foot source–terrain faces and only for the time represented by the selected
+history family. On recession, previously routed water can drain back toward a
+lower boundary.
 
 This repository is the complete North Wildwood counterpart to Stone Harbor
 Floodmapper 2.0. It uses the Great Channel at Stone Harbor gauge as the live and
@@ -88,8 +89,8 @@ long recession tail in the supplied profile.
 The planning flood-depth catalog still extends through 22.00 ft NAVD88. The
 history-aware operational catalog covers 0.0–10.0 ft under the retained
 `assets/hydraulic-v20/` public path; that directory name is kept to avoid a
-second large deployment copy, while its manifest identifies the v22 model and
-the unchanged v10 binary/render container schemas. The operational atlas still
+second large deployment copy, while its manifest identifies the v23 model and
+the v11 binary/render container schemas. The operational atlas still
 contains only 1,414 PNGs; it does not enumerate tide-cycle permutations.
 Levels above 10 ft retain the volume-routed v19 PNGs as a planning-only
 fallback. No equilibrium/bathtub images are used.
@@ -113,9 +114,9 @@ vertical units in NAVD88 feet. The model then:
    wall into a new DEM at 7.5 ft NAVD88 before graph construction.
 2. Uses four-neighbour components at or below 2.0 ft NAVD88 to build the source
    footprint. A component qualifies only when it contains at least 101 cells
-   and intersects one of the six supplied seed polygons; corner-only contact
-   does not count. Every cell in each qualified component becomes fixed-head
-   source. The polygons themselves have no hydraulic shape or display role.
+   and touches the exterior DEM boundary; corner-only contact does not count.
+   Every cell in the one qualified component becomes fixed-head source. The
+   manual polygons have no source-selection, hydraulic-shape, or display role.
 3. Groups the one-foot terrain into 25-foot finite-volume nodes while retaining
    the exact one-foot elevation histogram and the shared one-foot flow width at
    every edge. Boundary cells are placed in separate fixed-head nodes, so a
@@ -138,9 +139,12 @@ vertical units in NAVD88 feet. The model then:
    rising limb uses one stable rate family. Falling frames use the nearest
    preceding absolute crest, eliminating v19's moving `stage + 2.5 ft` history
    and its one-foot band resets.
-7. Renders only water that the finite-volume solve actually delivered. Low
-   terrain that is merely equilibrium-connected remains transparent; it is not
-   labeled or colored as flooding.
+7. Renders only water that the finite-volume solve actually delivered. Every
+   five-foot output pixel area-aggregates all 25 underlying one-foot cells,
+   keeping the fixed-head source separate from the two dominant terrain nodes
+   and encoding fractional wet coverage in alpha. This removes center-sample
+   holes without painting neighboring dry ground. Low terrain that is merely
+   equilibrium-connected remains transparent.
 
 The operational solve produces 101 stages per family from 0.0–10.0 ft NAVD88
 at 0.1-foot increments: 707 depth PNGs plus 707 stage-class PNGs. Forecast and
@@ -149,13 +153,15 @@ the level to the nearest 0.1-foot asset, and pull one PNG. They never rerun
 hydraulics.
 
 This is a compact physics response atlas, not an event-exact hydrodynamic
-forecast. The corrected footprint contains 18,231,114 one-foot cells, or
-418.53 acres. At 2.0 ft, 410.68 acres have positive rendered depth and exterior
-terrain volume is zero. At 2.1 ft the remaining zero-depth source edge fills,
-still without visible exterior terrain. At 2.2 ft the typical-rise frame shows
-7.76 exterior acres after finite perimeter routing. See
+forecast. The corrected source is one exterior-connected component containing
+17,452,983 one-foot cells, or 400.67 acres. At 2.0 ft, 393.42 acres have
+positive rendered depth and exterior terrain volume is zero. At 2.1 ft the
+remaining zero-depth source edge fills, still without visible exterior terrain.
+At 2.2 ft the typical-rise solve stores only 0.674865 acre-ft outside the source
+after finite perimeter routing; its wet terrain control-volume footprint is
+26.86 acres. See
 `tools/benchmark_north_wildwood_methods.py` and
-`docs/north-wildwood-hydraulic-v22.md`.
+`docs/north-wildwood-hydraulic-v23.md`.
 
 The main builders are:
 
@@ -205,21 +211,23 @@ The feature-preparation step records the source ZIP hash, validates the
 one-foot grid, and requires the expected 1 hard-structure feature, 6 ignored
 drain points, 6 source polygons, 11,200 centerline pixels, and 254,212
 manual-source pixels. It records the expanded wall pixel count and conditioned
-DEM provenance in the generated manifest. In the current graph, 18,231,114
-qualified source-footprint pixels form 47,453 boundary-only subgrid zones, with
+DEM provenance in the generated manifest. In the current graph, 17,452,983
+qualified source-footprint pixels form 45,424 boundary-only subgrid zones, with
 no zone containing both fixed-head boundary and terrain cells. The complete
-source perimeter retains 116,898 one-foot terrain exchange faces.
+source perimeter retains 110,487 one-foot terrain exchange faces.
 
 The renderer uses a cyan-to-navy depth key and leaves dry low terrain
-transparent. Surface values are smoothed over roughly eight feet only inside
+transparent. Surface values are smoothed over roughly five feet only inside
 the immutable finite-volume wet mask, so smoothing cannot create new water.
+Four alpha levels represent subpixel wet coverage; all 25 one-foot subcells are
+examined instead of choosing the center cell.
 Falling-tide puddles may remain after their visible five-foot connection to the
 source has dried. The render validator checks all 1,414 depth/stage PNGs,
 requires matching masks, rejects the former green potential codes, and confirms
 that the history catalogs differ. It measures the farthest new-water arrival
-against the physical per-frame travel envelope; the v22 maximum is 57 five-foot
-pixels (285 ft) against a 115-pixel (575-ft) limit. The largest connected
-adjacent-stage terrain addition is 643 five-foot pixels (0.37 acre).
+against the physical per-frame travel envelope; the v23 maximum is 59 five-foot
+pixels (295 ft) against a 115-pixel (575-ft) limit. The largest connected
+adjacent-stage terrain addition is 524 five-foot pixels (0.30 acre).
 
 ## Clickable depth
 
@@ -228,7 +236,7 @@ adjacent-stage terrain addition is 643 five-foot pixels (0.37 acre).
 1. conditioned ground elevation;
 2. hydraulic zone ID;
 3. first equilibrium connection stage;
-4. complete connected <=2.0-ft source-footprint flag;
+4. complete exterior-connected <=2.0-ft source-footprint flag;
 5. 21-cell, 7.5-foot bulkhead flag;
 6. disabled storm-drain flag (always zero).
 

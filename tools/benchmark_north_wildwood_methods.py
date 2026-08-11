@@ -264,7 +264,7 @@ def main() -> None:
         state for state in selected["states"] if state["stageNavd88Ft"] == 2.2
     )
     report = {
-        "schema": "north-wildwood-routing-method-benchmark-v3",
+        "schema": "north-wildwood-routing-method-benchmark-v4",
         "graphZoneCount": storage_solver.zone_count,
         "graphEdgeGroupCount": int(edges["a"].size),
         "test": (
@@ -276,8 +276,8 @@ def main() -> None:
         "determination": {
             "selected": selected["method"],
             "reasons": [
-                "the seed polygons only select legitimate tidal components",
-                "the complete connected <=2.0-ft footprint is fixed-head source",
+                "the source is selected only by exterior-connected DEM topology; manual polygons are provenance, not hydraulic seeds",
+                "the complete exterior-connected <=2.0-ft footprint is fixed-head source",
                 "at 2.0 ft positive-depth source storage is visible while exterior routed volume is zero",
                 "at 2.1 ft the zero-depth source edge finishes filling without visible exterior terrain",
                 "at 2.2 ft exterior water is finite and derived from perimeter face flux",

@@ -71,6 +71,8 @@ def main() -> None:
     width = int(manifest["width"])
     height = int(manifest["height"])
     zone_count = int(manifest["zoneCount"])
+    if manifest.get("schema") != "north-wildwood-one-foot-hydraulic-graph-v7":
+        raise AssertionError("Graph does not use the exterior-connected v7 source schema")
 
     hard_pixels = int(
         np.memmap(
@@ -111,14 +113,21 @@ def main() -> None:
         manifest.get("sourceBoundaryDefinition", "")
     ):
         raise AssertionError("Graph does not promote the complete 2.0-ft footprint")
+    if "exterior DEM boundary" not in str(
+        manifest.get("sourceBoundaryDefinition", "")
+    ):
+        raise AssertionError("Source is not selected from the open DEM boundary")
+    if int(manifest.get("qualifiedSourceComponentCount", -1)) != 1:
+        raise AssertionError("Expected one genuine exterior-connected source component")
+    if "provenance only" not in str(manifest.get("manualSourceTreatment", "")):
+        raise AssertionError("Manual polygons can still qualify source components")
     if source_pixels != expected_source_pixels:
         raise AssertionError(
             f"Expected {expected_source_pixels} source pixels, found {source_pixels}"
         )
     if source_pixels <= manual_source_pixels:
         raise AssertionError(
-            "Source still consists only of seed shapes instead of the complete "
-            "connected 2.0-ft footprint"
+            "Source does not contain the complete exterior-connected 2.0-ft footprint"
         )
     if int(manifest.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("Graph does not declare a 21-cell bulkhead")
@@ -393,6 +402,9 @@ def main() -> None:
                 "stormDrainExchange": "disabled",
                 "manualSourcePixels": manual_source_pixels,
                 "qualifiedSourceBoundaryPixels": source_pixels,
+                "qualifiedSourceComponents": int(
+                    manifest["qualifiedSourceComponentCount"]
+                ),
                 "sourceZones": len(source_zone_ids),
                 "sourceSharedEdgeRecords": source_edge_records,
                 "sourceSharedEdgeWidthFt": source_shared_edge_width_ft,

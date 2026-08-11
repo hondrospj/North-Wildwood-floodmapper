@@ -111,7 +111,7 @@ assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 30/);
 assert.doesNotMatch(SOURCE, /Number\(stageValue\) > 14/);
 assert.match(SOURCE, /\/assets\/hydraulic-v20\//);
-assert.match(SOURCE, /20260810-hydraulic-v22-connected-2ft-source/);
+assert.match(SOURCE, /20260810-hydraulic-v23-exterior-area-source/);
 assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
 assert.match(SOURCE, />Simulation Extent</i);
 assert.match(extractFunction("isTownBoundaryEnabled"), /boundaryToggle[\s\S]+classList\.contains\("on"\)/);

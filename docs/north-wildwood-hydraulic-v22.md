@@ -1,5 +1,8 @@
 # North Wildwood hydraulic atlas v22
 
+> Superseded by [north-wildwood-hydraulic-v23.md](north-wildwood-hydraulic-v23.md),
+> which removes manual seed qualification and center-cell rendering.
+
 ## Corrected boundary interpretation
 
 The six small GIS polygons are seed markers, not tidal cells and not hydraulic

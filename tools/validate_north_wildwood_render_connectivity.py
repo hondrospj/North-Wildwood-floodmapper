@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify history-family PNG masks and the connected 2.0-ft source footprint."""
+"""Verify history-family PNG masks and the exterior 2.0-ft source footprint."""
 
 from __future__ import annotations
 
@@ -59,12 +59,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def aggregate_any(raw: np.ndarray) -> np.ndarray:
+    return raw.reshape(
+        RENDER_HEIGHT,
+        RENDER_STRIDE,
+        RENDER_WIDTH,
+        RENDER_STRIDE,
+    ).any(axis=(1, 3))
+
+
 def sample_source(path: Path) -> np.ndarray:
     raw = np.memmap(path, dtype=np.uint8, mode="r", shape=(HEIGHT, WIDTH))
-    return raw[
-        RENDER_STRIDE // 2 :: RENDER_STRIDE,
-        RENDER_STRIDE // 2 :: RENDER_STRIDE,
-    ] != 0
+    return aggregate_any(raw != 0)
 
 
 def largest_connected(mask: np.ndarray) -> int:
@@ -84,19 +90,19 @@ def main() -> None:
         dtype="<i2",
         mode="r",
         shape=(HEIGHT, WIDTH),
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    valid = elevation10 != np.iinfo(np.int16).min
+    )
+    valid = aggregate_any(elevation10 != np.iinfo(np.int16).min)
     # The complete <=2.0-ft component is fixed-head source. Cells whose ground
     # is exactly 2.0 ft have zero water depth at activation and therefore remain
     # transparent until the tide rises another displayable increment.
-    source_visible_at_activation = (
-        source
-        & valid
-        & (
-            SOURCE_BLOCK_ACTIVATION_NAVD88_FT
-            - elevation10.astype(np.float32) / 10.0
-            >= MIN_DISPLAY_DEPTH_FT
-        )
+    source_flag = np.memmap(
+        graph / "source_flag.raw",
+        dtype=np.uint8,
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+    source_visible_at_activation = aggregate_any(
+        (source_flag != 0) & (elevation10 <= 19)
     )
 
     records = []
@@ -128,13 +134,13 @@ def main() -> None:
             stage_codes = np.asarray(Image.open(stage_path))
             if depth_codes.shape != (RENDER_HEIGHT, RENDER_WIDTH):
                 raise AssertionError(f"Unexpected render dimensions for {depth_path}")
-            if np.any(depth_codes > 11):
+            if np.any(depth_codes > 11 * 4):
                 raise AssertionError(f"Potential/equilibrium color leaked into {depth_path}")
-            if np.any(stage_codes > 3):
+            if np.any(stage_codes > 3 * 4):
                 raise AssertionError(f"Potential/equilibrium color leaked into {stage_path}")
 
-            depth_blue = (depth_codes >= 1) & (depth_codes <= 11)
-            stage_blue = (stage_codes >= 1) & (stage_codes <= 3)
+            depth_blue = depth_codes >= 1
+            stage_blue = stage_codes >= 1
             if not np.array_equal(depth_blue, stage_blue):
                 raise AssertionError(
                     f"Depth/stage water masks differ for {family} {code}"
@@ -215,9 +221,10 @@ def main() -> None:
                 "status": "passed",
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
-                    "the complete connected <=2.0-ft NAVD88 footprint is fixed-head "
-                    "source; its positive-depth portion first appears at 2.0 ft and "
-                    "the 2.0-ft rising and crest frames contain no exterior terrain"
+                    "the exterior-connected <=2.0-ft NAVD88 footprint is fixed-head "
+                    "source; all twenty-five one-foot subcells are area aggregated, "
+                    "its positive-depth portion first appears at 2.0 ft, and the "
+                    "2.0-ft rising and crest frames contain no exterior terrain"
                 ),
                 "sourceBlockActivationNavd88Ft": (
                     SOURCE_BLOCK_ACTIVATION_NAVD88_FT

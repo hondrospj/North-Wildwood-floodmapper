@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression checks proving v21 does not use a connected bathtub atlas."""
+"""Regression checks proving v23 does not use a connected bathtub atlas."""
 
 from __future__ import annotations
 
