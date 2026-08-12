@@ -4,10 +4,10 @@
   "stationName": "STONE HARBOR, NJ",
   "noaaGaugeId": "8535581",
   "usgsGaugeId": "01411360",
-  "issuedUtc": "2026-08-12T01:00:00Z",
+  "issuedUtc": "2026-08-12T03:00:00Z",
   "petssCycleUtc": "2026-08-11T18:00:00Z",
-  "forecastStartUtc": "2026-08-12T01:00:00Z",
-  "forecastEndUtc": "2026-08-15T13:00:00Z",
+  "forecastStartUtc": "2026-08-12T03:00:00Z",
+  "forecastEndUtc": "2026-08-15T15:00:00Z",
   "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/petss.20260811/petss.t18z.csv.tar.gz",
   "sourceMember": "petss.20260811/t18z.csv/8535581.csv",
   "sourceType": "NOMADS_PETSS_FORECAST_ONLY_station_csv_TWL_TWL10p_TWL90p",
@@ -106,46 +106,6 @@
       "product": "mean",
       "hours": [
         {
-          "timeUtc": "2026-08-12T01:00:00Z",
-          "scenario": "mean",
-          "product": "mean",
-          "percentile": "Mean",
-          "rawPetssValue": 6.023,
-          "rawPetssScale": 1.0,
-          "sourceStageFt": 3.27,
-          "sourceDatum": "NAVD88",
-          "navd88StageFt": 3.27,
-          "mllwStageFt": 6.02,
-          "twlMllwFt": 6.02,
-          "tideMllwFt": 5.374,
-          "surgeFt": 0.5,
-          "matchedStageKey": "3.20",
-          "wasClamped": false,
-          "hourIndex": 0,
-          "hydraulicPhase": "draining",
-          "riseRateFtPer15Min": 0.0
-        },
-        {
-          "timeUtc": "2026-08-12T02:00:00Z",
-          "scenario": "mean",
-          "product": "mean",
-          "percentile": "Mean",
-          "rawPetssValue": 5.461,
-          "rawPetssScale": 1.0,
-          "sourceStageFt": 2.71,
-          "sourceDatum": "NAVD88",
-          "navd88StageFt": 2.71,
-          "mllwStageFt": 5.46,
-          "twlMllwFt": 5.46,
-          "tideMllwFt": 4.815,
-          "surgeFt": 0.5,
-          "matchedStageKey": "2.70",
-          "wasClamped": false,
-          "hourIndex": 1,
-          "hydraulicPhase": "draining",
-          "riseRateFtPer15Min": -0.14
-        },
-        {
           "timeUtc": "2026-08-12T03:00:00Z",
           "scenario": "mean",
           "product": "mean",
@@ -161,9 +121,9 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.70",
           "wasClamped": false,
-          "hourIndex": 2,
+          "hourIndex": 0,
           "hydraulicPhase": "draining",
-          "riseRateFtPer15Min": -0.237
+          "riseRateFtPer15Min": 0.0
         },
         {
           "timeUtc": "2026-08-12T04:00:00Z",
@@ -181,7 +141,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.50",
           "wasClamped": false,
-          "hourIndex": 3,
+          "hourIndex": 1,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.312
         },
@@ -201,7 +161,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.90",
           "wasClamped": false,
-          "hourIndex": 4,
+          "hourIndex": 2,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.332
         },
@@ -221,7 +181,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.80",
           "wasClamped": false,
-          "hourIndex": 5,
+          "hourIndex": 3,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.245
         },
@@ -241,7 +201,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 6,
+          "hourIndex": 4,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.062
         },
@@ -261,7 +221,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.70",
           "wasClamped": false,
-          "hourIndex": 7,
+          "hourIndex": 5,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.11
         },
@@ -281,7 +241,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.80",
           "wasClamped": false,
-          "hourIndex": 8,
+          "hourIndex": 6,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.225
         },
@@ -301,7 +261,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.40",
           "wasClamped": false,
-          "hourIndex": 9,
+          "hourIndex": 7,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.278
         },
@@ -321,7 +281,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.40",
           "wasClamped": false,
-          "hourIndex": 10,
+          "hourIndex": 8,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.255
         },
@@ -341,7 +301,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.00",
           "wasClamped": false,
-          "hourIndex": 11,
+          "hourIndex": 9,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.158
         },
@@ -361,7 +321,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.10",
           "wasClamped": false,
-          "hourIndex": 12,
+          "hourIndex": 10,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.025
         },
@@ -381,7 +341,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.70",
           "wasClamped": false,
-          "hourIndex": 13,
+          "hourIndex": 11,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.102
         },
@@ -401,7 +361,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "1.00",
           "wasClamped": false,
-          "hourIndex": 14,
+          "hourIndex": 12,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.172
         },
@@ -421,7 +381,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "0.00",
           "wasClamped": false,
-          "hourIndex": 15,
+          "hourIndex": 13,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.255
         },
@@ -441,7 +401,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.10",
           "wasClamped": false,
-          "hourIndex": 16,
+          "hourIndex": 14,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.272
         },
@@ -461,7 +421,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.90",
           "wasClamped": false,
-          "hourIndex": 17,
+          "hourIndex": 15,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.21
         },
@@ -481,7 +441,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 18,
+          "hourIndex": 16,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.047
         },
@@ -501,7 +461,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.60",
           "wasClamped": false,
-          "hourIndex": 19,
+          "hourIndex": 17,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.14
         },
@@ -521,7 +481,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-0.50",
           "wasClamped": false,
-          "hourIndex": 20,
+          "hourIndex": 18,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.263
         },
@@ -541,7 +501,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "0.80",
           "wasClamped": false,
-          "hourIndex": 21,
+          "hourIndex": 19,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.32
         },
@@ -561,7 +521,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "2.10",
           "wasClamped": false,
-          "hourIndex": 22,
+          "hourIndex": 20,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.338
         },
@@ -581,7 +541,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "3.00",
           "wasClamped": false,
-          "hourIndex": 23,
+          "hourIndex": 21,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.235
         },
@@ -601,7 +561,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "3.50",
           "wasClamped": false,
-          "hourIndex": 24,
+          "hourIndex": 22,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.108
         },
@@ -621,7 +581,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "3.30",
           "wasClamped": false,
-          "hourIndex": 25,
+          "hourIndex": 23,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.035
         },
@@ -641,7 +601,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "2.70",
           "wasClamped": false,
-          "hourIndex": 26,
+          "hourIndex": 24,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.162
         },
@@ -661,7 +621,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "1.60",
           "wasClamped": false,
-          "hourIndex": 27,
+          "hourIndex": 25,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.262
         },
@@ -681,7 +641,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "0.30",
           "wasClamped": false,
-          "hourIndex": 28,
+          "hourIndex": 26,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.33
         },
@@ -701,7 +661,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.10",
           "wasClamped": false,
-          "hourIndex": 29,
+          "hourIndex": 27,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.36
         },
@@ -721,7 +681,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-2.00",
           "wasClamped": false,
-          "hourIndex": 30,
+          "hourIndex": 28,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.22
         },
@@ -741,7 +701,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 31,
+          "hourIndex": 29,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.022
         },
@@ -761,7 +721,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.50",
           "wasClamped": false,
-          "hourIndex": 32,
+          "hourIndex": 30,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.153
         },
@@ -781,7 +741,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-0.50",
           "wasClamped": false,
-          "hourIndex": 33,
+          "hourIndex": 31,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.258
         },
@@ -801,7 +761,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "0.70",
           "wasClamped": false,
-          "hourIndex": 34,
+          "hourIndex": 32,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.293
         },
@@ -821,7 +781,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "1.70",
           "wasClamped": false,
-          "hourIndex": 35,
+          "hourIndex": 33,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.258
         },
@@ -841,7 +801,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "2.40",
           "wasClamped": false,
-          "hourIndex": 36,
+          "hourIndex": 34,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.153
         },
@@ -861,7 +821,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "2.40",
           "wasClamped": false,
-          "hourIndex": 37,
+          "hourIndex": 35,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.01
         },
@@ -881,7 +841,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "1.90",
           "wasClamped": false,
-          "hourIndex": 38,
+          "hourIndex": 36,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.12
         },
@@ -901,7 +861,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.00",
           "wasClamped": false,
-          "hourIndex": 39,
+          "hourIndex": 37,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.24
         },
@@ -921,7 +881,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.10",
           "wasClamped": false,
-          "hourIndex": 40,
+          "hourIndex": 38,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.275
         },
@@ -941,7 +901,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.30",
           "wasClamped": false,
-          "hourIndex": 41,
+          "hourIndex": 39,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.287
         },
@@ -961,7 +921,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 42,
+          "hourIndex": 40,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.207
         },
@@ -981,7 +941,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 43,
+          "hourIndex": 41,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.022
         },
@@ -1001,7 +961,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.60",
           "wasClamped": false,
-          "hourIndex": 44,
+          "hourIndex": 42,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.163
         },
@@ -1021,7 +981,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.50",
           "wasClamped": false,
-          "hourIndex": 45,
+          "hourIndex": 43,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -1041,7 +1001,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.80",
           "wasClamped": false,
-          "hourIndex": 46,
+          "hourIndex": 44,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.318
         },
@@ -1061,7 +1021,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.00",
           "wasClamped": false,
-          "hourIndex": 47,
+          "hourIndex": 45,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.3
         },
@@ -1081,7 +1041,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.90",
           "wasClamped": false,
-          "hourIndex": 48,
+          "hourIndex": 46,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.215
         },
@@ -1101,7 +1061,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "3.20",
           "wasClamped": false,
-          "hourIndex": 49,
+          "hourIndex": 47,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.08
         },
@@ -1121,7 +1081,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.90",
           "wasClamped": false,
-          "hourIndex": 50,
+          "hourIndex": 48,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.065
         },
@@ -1141,7 +1101,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "2.10",
           "wasClamped": false,
-          "hourIndex": 51,
+          "hourIndex": 49,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.215
         },
@@ -1161,7 +1121,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "0.90",
           "wasClamped": false,
-          "hourIndex": 52,
+          "hourIndex": 50,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.28
         },
@@ -1181,7 +1141,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-0.40",
           "wasClamped": false,
-          "hourIndex": 53,
+          "hourIndex": 51,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.335
         },
@@ -1201,7 +1161,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-1.70",
           "wasClamped": false,
-          "hourIndex": 54,
+          "hourIndex": 52,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.315
         },
@@ -1221,7 +1181,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 55,
+          "hourIndex": 53,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.17
         },
@@ -1241,7 +1201,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 56,
+          "hourIndex": 54,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.03
         },
@@ -1261,7 +1221,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.30",
           "wasClamped": false,
-          "hourIndex": 57,
+          "hourIndex": 55,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.218
         },
@@ -1281,7 +1241,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.20",
           "wasClamped": false,
-          "hourIndex": 58,
+          "hourIndex": 56,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -1301,7 +1261,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.90",
           "wasClamped": false,
-          "hourIndex": 59,
+          "hourIndex": 57,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.295
         },
@@ -1321,7 +1281,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.90",
           "wasClamped": false,
-          "hourIndex": 60,
+          "hourIndex": 58,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.248
         },
@@ -1341,7 +1301,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.50",
           "wasClamped": false,
-          "hourIndex": 61,
+          "hourIndex": 59,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.133
         },
@@ -1361,7 +1321,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.40",
           "wasClamped": false,
-          "hourIndex": 62,
+          "hourIndex": 60,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.012
         },
@@ -1381,7 +1341,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.80",
           "wasClamped": false,
-          "hourIndex": 63,
+          "hourIndex": 61,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.145
         },
@@ -1401,7 +1361,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.90",
           "wasClamped": false,
-          "hourIndex": 64,
+          "hourIndex": 62,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.232
         },
@@ -1421,7 +1381,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.20",
           "wasClamped": false,
-          "hourIndex": 65,
+          "hourIndex": 63,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.285
         },
@@ -1441,7 +1401,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.40",
           "wasClamped": false,
-          "hourIndex": 66,
+          "hourIndex": 64,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.285
         },
@@ -1461,7 +1421,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 67,
+          "hourIndex": 65,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.18
         },
@@ -1481,7 +1441,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 68,
+          "hourIndex": 66,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.01
         },
@@ -1501,7 +1461,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.30",
           "wasClamped": false,
-          "hourIndex": 69,
+          "hourIndex": 67,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.185
         },
@@ -1521,7 +1481,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.20",
           "wasClamped": false,
-          "hourIndex": 70,
+          "hourIndex": 68,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -1541,7 +1501,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.00",
           "wasClamped": false,
-          "hourIndex": 71,
+          "hourIndex": 69,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.305
         },
@@ -1561,7 +1521,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.10",
           "wasClamped": false,
-          "hourIndex": 72,
+          "hourIndex": 70,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -1581,7 +1541,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.80",
           "wasClamped": false,
-          "hourIndex": 73,
+          "hourIndex": 71,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.178
         },
@@ -1601,7 +1561,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "3.00",
           "wasClamped": false,
-          "hourIndex": 74,
+          "hourIndex": 72,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.04
         },
@@ -1621,7 +1581,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.60",
           "wasClamped": false,
-          "hourIndex": 75,
+          "hourIndex": 73,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.102
         },
@@ -1641,7 +1601,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.70",
           "wasClamped": false,
-          "hourIndex": 76,
+          "hourIndex": 74,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.212
         },
@@ -1661,7 +1621,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.60",
           "wasClamped": false,
-          "hourIndex": 77,
+          "hourIndex": 75,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.287
         },
@@ -1681,7 +1641,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.70",
           "wasClamped": false,
-          "hourIndex": 78,
+          "hourIndex": 76,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.32
         },
@@ -1701,7 +1661,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.80",
           "wasClamped": false,
-          "hourIndex": 79,
+          "hourIndex": 77,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.267
         },
@@ -1721,7 +1681,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 80,
+          "hourIndex": 78,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.105
         },
@@ -1741,7 +1701,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.90",
           "wasClamped": false,
-          "hourIndex": 81,
+          "hourIndex": 79,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.09
         },
@@ -1761,7 +1721,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.00",
           "wasClamped": false,
-          "hourIndex": 82,
+          "hourIndex": 80,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.218
         },
@@ -1781,7 +1741,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.10",
           "wasClamped": false,
-          "hourIndex": 83,
+          "hourIndex": 81,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.28
         },
@@ -1801,9 +1761,49 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.30",
           "wasClamped": false,
-          "hourIndex": 84,
+          "hourIndex": 82,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.285
+        },
+        {
+          "timeUtc": "2026-08-15T14:00:00Z",
+          "scenario": "mean",
+          "product": "mean",
+          "percentile": "Mean",
+          "rawPetssValue": 4.964,
+          "rawPetssScale": 1.0,
+          "sourceStageFt": 2.21,
+          "sourceDatum": "NAVD88",
+          "navd88StageFt": 2.21,
+          "mllwStageFt": 4.96,
+          "twlMllwFt": 4.96,
+          "tideMllwFt": 4.346,
+          "surgeFt": 0.5,
+          "matchedStageKey": "2.20",
+          "wasClamped": false,
+          "hourIndex": 83,
+          "hydraulicPhase": "filling",
+          "riseRateFtPer15Min": 0.223
+        },
+        {
+          "timeUtc": "2026-08-15T15:00:00Z",
+          "scenario": "mean",
+          "product": "mean",
+          "percentile": "Mean",
+          "rawPetssValue": 5.362,
+          "rawPetssScale": 1.0,
+          "sourceStageFt": 2.61,
+          "sourceDatum": "NAVD88",
+          "navd88StageFt": 2.61,
+          "mllwStageFt": 5.36,
+          "twlMllwFt": 5.36,
+          "tideMllwFt": 4.744,
+          "surgeFt": 0.5,
+          "matchedStageKey": "2.60",
+          "wasClamped": false,
+          "hourIndex": 84,
+          "hydraulicPhase": "filling",
+          "riseRateFtPer15Min": 0.1
         }
       ]
     },
@@ -1812,46 +1812,6 @@
       "percentile": "90p / e90",
       "product": "e90",
       "hours": [
-        {
-          "timeUtc": "2026-08-12T01:00:00Z",
-          "scenario": "lowEnd",
-          "product": "e90",
-          "percentile": "90p / e90",
-          "rawPetssValue": 6.023,
-          "rawPetssScale": 1.0,
-          "sourceStageFt": 3.27,
-          "sourceDatum": "NAVD88",
-          "navd88StageFt": 3.27,
-          "mllwStageFt": 6.02,
-          "twlMllwFt": 6.02,
-          "tideMllwFt": 5.374,
-          "surgeFt": 0.5,
-          "matchedStageKey": "3.20",
-          "wasClamped": false,
-          "hourIndex": 0,
-          "hydraulicPhase": "draining",
-          "riseRateFtPer15Min": 0.0
-        },
-        {
-          "timeUtc": "2026-08-12T02:00:00Z",
-          "scenario": "lowEnd",
-          "product": "e90",
-          "percentile": "90p / e90",
-          "rawPetssValue": 5.461,
-          "rawPetssScale": 1.0,
-          "sourceStageFt": 2.71,
-          "sourceDatum": "NAVD88",
-          "navd88StageFt": 2.71,
-          "mllwStageFt": 5.46,
-          "twlMllwFt": 5.46,
-          "tideMllwFt": 4.815,
-          "surgeFt": 0.5,
-          "matchedStageKey": "2.70",
-          "wasClamped": false,
-          "hourIndex": 1,
-          "hydraulicPhase": "draining",
-          "riseRateFtPer15Min": -0.14
-        },
         {
           "timeUtc": "2026-08-12T03:00:00Z",
           "scenario": "lowEnd",
@@ -1868,9 +1828,9 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.70",
           "wasClamped": false,
-          "hourIndex": 2,
+          "hourIndex": 0,
           "hydraulicPhase": "draining",
-          "riseRateFtPer15Min": -0.237
+          "riseRateFtPer15Min": 0.0
         },
         {
           "timeUtc": "2026-08-12T04:00:00Z",
@@ -1888,7 +1848,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.50",
           "wasClamped": false,
-          "hourIndex": 3,
+          "hourIndex": 1,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.312
         },
@@ -1908,7 +1868,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.90",
           "wasClamped": false,
-          "hourIndex": 4,
+          "hourIndex": 2,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.332
         },
@@ -1928,7 +1888,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.80",
           "wasClamped": false,
-          "hourIndex": 5,
+          "hourIndex": 3,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.245
         },
@@ -1948,7 +1908,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 6,
+          "hourIndex": 4,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.062
         },
@@ -1968,7 +1928,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.70",
           "wasClamped": false,
-          "hourIndex": 7,
+          "hourIndex": 5,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.11
         },
@@ -1988,7 +1948,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.80",
           "wasClamped": false,
-          "hourIndex": 8,
+          "hourIndex": 6,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.225
         },
@@ -2008,7 +1968,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.40",
           "wasClamped": false,
-          "hourIndex": 9,
+          "hourIndex": 7,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.278
         },
@@ -2028,7 +1988,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.40",
           "wasClamped": false,
-          "hourIndex": 10,
+          "hourIndex": 8,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.255
         },
@@ -2048,7 +2008,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.00",
           "wasClamped": false,
-          "hourIndex": 11,
+          "hourIndex": 9,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.158
         },
@@ -2068,7 +2028,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.10",
           "wasClamped": false,
-          "hourIndex": 12,
+          "hourIndex": 10,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.025
         },
@@ -2088,7 +2048,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.70",
           "wasClamped": false,
-          "hourIndex": 13,
+          "hourIndex": 11,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.102
         },
@@ -2108,7 +2068,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "0.90",
           "wasClamped": false,
-          "hourIndex": 14,
+          "hourIndex": 12,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.197
         },
@@ -2128,7 +2088,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-0.10",
           "wasClamped": false,
-          "hourIndex": 15,
+          "hourIndex": 13,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.255
         },
@@ -2148,7 +2108,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.20",
           "wasClamped": false,
-          "hourIndex": 16,
+          "hourIndex": 14,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.272
         },
@@ -2168,7 +2128,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-2.00",
           "wasClamped": false,
-          "hourIndex": 17,
+          "hourIndex": 15,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.21
         },
@@ -2188,7 +2148,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 18,
+          "hourIndex": 16,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.022
         },
@@ -2208,7 +2168,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.60",
           "wasClamped": false,
-          "hourIndex": 19,
+          "hourIndex": 17,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.14
         },
@@ -2228,7 +2188,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-0.50",
           "wasClamped": false,
-          "hourIndex": 20,
+          "hourIndex": 18,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.263
         },
@@ -2248,7 +2208,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "0.80",
           "wasClamped": false,
-          "hourIndex": 21,
+          "hourIndex": 19,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.32
         },
@@ -2268,7 +2228,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "2.00",
           "wasClamped": false,
-          "hourIndex": 22,
+          "hourIndex": 20,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.313
         },
@@ -2288,7 +2248,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "2.90",
           "wasClamped": false,
-          "hourIndex": 23,
+          "hourIndex": 21,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.235
         },
@@ -2308,7 +2268,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "3.40",
           "wasClamped": false,
-          "hourIndex": 24,
+          "hourIndex": 22,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.108
         },
@@ -2328,7 +2288,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "3.20",
           "wasClamped": false,
-          "hourIndex": 25,
+          "hourIndex": 23,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.035
         },
@@ -2348,7 +2308,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "2.60",
           "wasClamped": false,
-          "hourIndex": 26,
+          "hourIndex": 24,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.162
         },
@@ -2368,7 +2328,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "1.50",
           "wasClamped": false,
-          "hourIndex": 27,
+          "hourIndex": 25,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.262
         },
@@ -2388,7 +2348,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "0.20",
           "wasClamped": false,
-          "hourIndex": 28,
+          "hourIndex": 26,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.33
         },
@@ -2408,7 +2368,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.10",
           "wasClamped": false,
-          "hourIndex": 29,
+          "hourIndex": 27,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.335
         },
@@ -2428,7 +2388,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-2.00",
           "wasClamped": false,
-          "hourIndex": 30,
+          "hourIndex": 28,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.22
         },
@@ -2448,7 +2408,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 31,
+          "hourIndex": 29,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.022
         },
@@ -2468,7 +2428,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.50",
           "wasClamped": false,
-          "hourIndex": 32,
+          "hourIndex": 30,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.153
         },
@@ -2488,7 +2448,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-0.50",
           "wasClamped": false,
-          "hourIndex": 33,
+          "hourIndex": 31,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.258
         },
@@ -2508,7 +2468,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "0.60",
           "wasClamped": false,
-          "hourIndex": 34,
+          "hourIndex": 32,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.268
         },
@@ -2528,7 +2488,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "1.60",
           "wasClamped": false,
-          "hourIndex": 35,
+          "hourIndex": 33,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.258
         },
@@ -2548,7 +2508,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "2.30",
           "wasClamped": false,
-          "hourIndex": 36,
+          "hourIndex": 34,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.153
         },
@@ -2568,7 +2528,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "2.30",
           "wasClamped": false,
-          "hourIndex": 37,
+          "hourIndex": 35,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.01
         },
@@ -2588,7 +2548,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "1.80",
           "wasClamped": false,
-          "hourIndex": 38,
+          "hourIndex": 36,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.12
         },
@@ -2608,7 +2568,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.00",
           "wasClamped": false,
-          "hourIndex": 39,
+          "hourIndex": 37,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.215
         },
@@ -2628,7 +2588,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.10",
           "wasClamped": false,
-          "hourIndex": 40,
+          "hourIndex": 38,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.275
         },
@@ -2648,7 +2608,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.40",
           "wasClamped": false,
-          "hourIndex": 41,
+          "hourIndex": 39,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.312
         },
@@ -2668,7 +2628,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 42,
+          "hourIndex": 40,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.207
         },
@@ -2688,7 +2648,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 43,
+          "hourIndex": 41,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.022
         },
@@ -2708,7 +2668,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.70",
           "wasClamped": false,
-          "hourIndex": 44,
+          "hourIndex": 42,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.163
         },
@@ -2728,7 +2688,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.60",
           "wasClamped": false,
-          "hourIndex": 45,
+          "hourIndex": 43,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -2748,7 +2708,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.70",
           "wasClamped": false,
-          "hourIndex": 46,
+          "hourIndex": 44,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.318
         },
@@ -2768,7 +2728,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.90",
           "wasClamped": false,
-          "hourIndex": 47,
+          "hourIndex": 45,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.3
         },
@@ -2788,7 +2748,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.80",
           "wasClamped": false,
-          "hourIndex": 48,
+          "hourIndex": 46,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.215
         },
@@ -2808,7 +2768,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "3.10",
           "wasClamped": false,
-          "hourIndex": 49,
+          "hourIndex": 47,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.08
         },
@@ -2828,7 +2788,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.80",
           "wasClamped": false,
-          "hourIndex": 50,
+          "hourIndex": 48,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.065
         },
@@ -2848,7 +2808,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "2.10",
           "wasClamped": false,
-          "hourIndex": 51,
+          "hourIndex": 49,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.19
         },
@@ -2868,7 +2828,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "0.80",
           "wasClamped": false,
-          "hourIndex": 52,
+          "hourIndex": 50,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.305
         },
@@ -2888,7 +2848,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-0.50",
           "wasClamped": false,
-          "hourIndex": 53,
+          "hourIndex": 51,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.335
         },
@@ -2908,7 +2868,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-1.80",
           "wasClamped": false,
-          "hourIndex": 54,
+          "hourIndex": 52,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.315
         },
@@ -2928,7 +2888,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 55,
+          "hourIndex": 53,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.145
         },
@@ -2948,7 +2908,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 56,
+          "hourIndex": 54,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.03
         },
@@ -2968,7 +2928,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.40",
           "wasClamped": false,
-          "hourIndex": 57,
+          "hourIndex": 55,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.193
         },
@@ -2988,7 +2948,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.30",
           "wasClamped": false,
-          "hourIndex": 58,
+          "hourIndex": 56,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -3008,7 +2968,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.80",
           "wasClamped": false,
-          "hourIndex": 59,
+          "hourIndex": 57,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.295
         },
@@ -3028,7 +2988,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.80",
           "wasClamped": false,
-          "hourIndex": 60,
+          "hourIndex": 58,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.248
         },
@@ -3048,7 +3008,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.40",
           "wasClamped": false,
-          "hourIndex": 61,
+          "hourIndex": 59,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.133
         },
@@ -3068,7 +3028,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.30",
           "wasClamped": false,
-          "hourIndex": 62,
+          "hourIndex": 60,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.012
         },
@@ -3088,7 +3048,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.70",
           "wasClamped": false,
-          "hourIndex": 63,
+          "hourIndex": 61,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.145
         },
@@ -3108,7 +3068,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.80",
           "wasClamped": false,
-          "hourIndex": 64,
+          "hourIndex": 62,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.232
         },
@@ -3128,7 +3088,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.30",
           "wasClamped": false,
-          "hourIndex": 65,
+          "hourIndex": 63,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.285
         },
@@ -3148,7 +3108,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.50",
           "wasClamped": false,
-          "hourIndex": 66,
+          "hourIndex": 64,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.285
         },
@@ -3168,7 +3128,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 67,
+          "hourIndex": 65,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.18
         },
@@ -3188,7 +3148,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 68,
+          "hourIndex": 66,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.01
         },
@@ -3208,7 +3168,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.40",
           "wasClamped": false,
-          "hourIndex": 69,
+          "hourIndex": 67,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.185
         },
@@ -3228,7 +3188,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.30",
           "wasClamped": false,
-          "hourIndex": 70,
+          "hourIndex": 68,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -3248,7 +3208,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.90",
           "wasClamped": false,
-          "hourIndex": 71,
+          "hourIndex": 69,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.305
         },
@@ -3268,7 +3228,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.00",
           "wasClamped": false,
-          "hourIndex": 72,
+          "hourIndex": 70,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -3288,7 +3248,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.70",
           "wasClamped": false,
-          "hourIndex": 73,
+          "hourIndex": 71,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.178
         },
@@ -3308,7 +3268,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.90",
           "wasClamped": false,
-          "hourIndex": 74,
+          "hourIndex": 72,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.04
         },
@@ -3328,7 +3288,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.50",
           "wasClamped": false,
-          "hourIndex": 75,
+          "hourIndex": 73,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.102
         },
@@ -3348,7 +3308,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.60",
           "wasClamped": false,
-          "hourIndex": 76,
+          "hourIndex": 74,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.212
         },
@@ -3368,7 +3328,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.50",
           "wasClamped": false,
-          "hourIndex": 77,
+          "hourIndex": 75,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.287
         },
@@ -3388,7 +3348,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.80",
           "wasClamped": false,
-          "hourIndex": 78,
+          "hourIndex": 76,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.32
         },
@@ -3408,7 +3368,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.90",
           "wasClamped": false,
-          "hourIndex": 79,
+          "hourIndex": 77,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.267
         },
@@ -3428,7 +3388,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 80,
+          "hourIndex": 78,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.105
         },
@@ -3448,7 +3408,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": false,
-          "hourIndex": 81,
+          "hourIndex": 79,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.09
         },
@@ -3468,7 +3428,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.10",
           "wasClamped": false,
-          "hourIndex": 82,
+          "hourIndex": 80,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.218
         },
@@ -3488,7 +3448,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.00",
           "wasClamped": false,
-          "hourIndex": 83,
+          "hourIndex": 81,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.28
         },
@@ -3508,9 +3468,49 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.20",
           "wasClamped": false,
-          "hourIndex": 84,
+          "hourIndex": 82,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.285
+        },
+        {
+          "timeUtc": "2026-08-15T14:00:00Z",
+          "scenario": "lowEnd",
+          "product": "e90",
+          "percentile": "90p / e90",
+          "rawPetssValue": 4.864,
+          "rawPetssScale": 1.0,
+          "sourceStageFt": 2.11,
+          "sourceDatum": "NAVD88",
+          "navd88StageFt": 2.11,
+          "mllwStageFt": 4.86,
+          "twlMllwFt": 4.86,
+          "tideMllwFt": 4.346,
+          "surgeFt": 0.5,
+          "matchedStageKey": "2.10",
+          "wasClamped": false,
+          "hourIndex": 83,
+          "hydraulicPhase": "filling",
+          "riseRateFtPer15Min": 0.223
+        },
+        {
+          "timeUtc": "2026-08-15T15:00:00Z",
+          "scenario": "lowEnd",
+          "product": "e90",
+          "percentile": "90p / e90",
+          "rawPetssValue": 5.262,
+          "rawPetssScale": 1.0,
+          "sourceStageFt": 2.51,
+          "sourceDatum": "NAVD88",
+          "navd88StageFt": 2.51,
+          "mllwStageFt": 5.26,
+          "twlMllwFt": 5.26,
+          "tideMllwFt": 4.744,
+          "surgeFt": 0.5,
+          "matchedStageKey": "2.50",
+          "wasClamped": false,
+          "hourIndex": 84,
+          "hydraulicPhase": "filling",
+          "riseRateFtPer15Min": 0.1
         }
       ]
     },
@@ -3519,46 +3519,6 @@
       "percentile": "10p / e10",
       "product": "e10",
       "hours": [
-        {
-          "timeUtc": "2026-08-12T01:00:00Z",
-          "scenario": "highEnd",
-          "product": "e10",
-          "percentile": "10p / e10",
-          "rawPetssValue": 6.023,
-          "rawPetssScale": 1.0,
-          "sourceStageFt": 3.27,
-          "sourceDatum": "NAVD88",
-          "navd88StageFt": 3.27,
-          "mllwStageFt": 6.02,
-          "twlMllwFt": 6.02,
-          "tideMllwFt": 5.374,
-          "surgeFt": 0.5,
-          "matchedStageKey": "3.20",
-          "wasClamped": false,
-          "hourIndex": 0,
-          "hydraulicPhase": "draining",
-          "riseRateFtPer15Min": 0.0
-        },
-        {
-          "timeUtc": "2026-08-12T02:00:00Z",
-          "scenario": "highEnd",
-          "product": "e10",
-          "percentile": "10p / e10",
-          "rawPetssValue": 5.461,
-          "rawPetssScale": 1.0,
-          "sourceStageFt": 2.71,
-          "sourceDatum": "NAVD88",
-          "navd88StageFt": 2.71,
-          "mllwStageFt": 5.46,
-          "twlMllwFt": 5.46,
-          "tideMllwFt": 4.815,
-          "surgeFt": 0.5,
-          "matchedStageKey": "2.70",
-          "wasClamped": false,
-          "hourIndex": 1,
-          "hydraulicPhase": "draining",
-          "riseRateFtPer15Min": -0.14
-        },
         {
           "timeUtc": "2026-08-12T03:00:00Z",
           "scenario": "highEnd",
@@ -3575,9 +3535,9 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.70",
           "wasClamped": false,
-          "hourIndex": 2,
+          "hourIndex": 0,
           "hydraulicPhase": "draining",
-          "riseRateFtPer15Min": -0.237
+          "riseRateFtPer15Min": 0.0
         },
         {
           "timeUtc": "2026-08-12T04:00:00Z",
@@ -3595,7 +3555,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.50",
           "wasClamped": false,
-          "hourIndex": 3,
+          "hourIndex": 1,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.312
         },
@@ -3615,7 +3575,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.90",
           "wasClamped": false,
-          "hourIndex": 4,
+          "hourIndex": 2,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.332
         },
@@ -3635,7 +3595,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.80",
           "wasClamped": false,
-          "hourIndex": 5,
+          "hourIndex": 3,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.245
         },
@@ -3655,7 +3615,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 6,
+          "hourIndex": 4,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.062
         },
@@ -3675,7 +3635,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.70",
           "wasClamped": false,
-          "hourIndex": 7,
+          "hourIndex": 5,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.11
         },
@@ -3695,7 +3655,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.70",
           "wasClamped": false,
-          "hourIndex": 8,
+          "hourIndex": 6,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.25
         },
@@ -3715,7 +3675,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.50",
           "wasClamped": false,
-          "hourIndex": 9,
+          "hourIndex": 7,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.278
         },
@@ -3735,7 +3695,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.50",
           "wasClamped": false,
-          "hourIndex": 10,
+          "hourIndex": 8,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.255
         },
@@ -3755,7 +3715,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.10",
           "wasClamped": false,
-          "hourIndex": 11,
+          "hourIndex": 9,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.158
         },
@@ -3775,7 +3735,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.20",
           "wasClamped": false,
-          "hourIndex": 12,
+          "hourIndex": 10,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.025
         },
@@ -3795,7 +3755,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.80",
           "wasClamped": false,
-          "hourIndex": 13,
+          "hourIndex": 11,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.102
         },
@@ -3815,7 +3775,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "1.00",
           "wasClamped": false,
-          "hourIndex": 14,
+          "hourIndex": 12,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.197
         },
@@ -3835,7 +3795,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "0.00",
           "wasClamped": false,
-          "hourIndex": 15,
+          "hourIndex": 13,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.255
         },
@@ -3855,7 +3815,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.10",
           "wasClamped": false,
-          "hourIndex": 16,
+          "hourIndex": 14,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.272
         },
@@ -3875,7 +3835,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.90",
           "wasClamped": false,
-          "hourIndex": 17,
+          "hourIndex": 15,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.21
         },
@@ -3895,7 +3855,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 18,
+          "hourIndex": 16,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.047
         },
@@ -3915,7 +3875,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.50",
           "wasClamped": false,
-          "hourIndex": 19,
+          "hourIndex": 17,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.165
         },
@@ -3935,7 +3895,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-0.40",
           "wasClamped": false,
-          "hourIndex": 20,
+          "hourIndex": 18,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.263
         },
@@ -3955,7 +3915,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "0.90",
           "wasClamped": false,
-          "hourIndex": 21,
+          "hourIndex": 19,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.32
         },
@@ -3975,7 +3935,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "2.10",
           "wasClamped": false,
-          "hourIndex": 22,
+          "hourIndex": 20,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.313
         },
@@ -3995,7 +3955,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "3.00",
           "wasClamped": false,
-          "hourIndex": 23,
+          "hourIndex": 21,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.235
         },
@@ -4015,7 +3975,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "3.50",
           "wasClamped": false,
-          "hourIndex": 24,
+          "hourIndex": 22,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.108
         },
@@ -4035,7 +3995,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "3.30",
           "wasClamped": false,
-          "hourIndex": 25,
+          "hourIndex": 23,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.035
         },
@@ -4055,7 +4015,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "2.70",
           "wasClamped": false,
-          "hourIndex": 26,
+          "hourIndex": 24,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.162
         },
@@ -4075,7 +4035,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "1.60",
           "wasClamped": false,
-          "hourIndex": 27,
+          "hourIndex": 25,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.262
         },
@@ -4095,7 +4055,7 @@
           "surgeFt": 0.7,
           "matchedStageKey": "0.30",
           "wasClamped": false,
-          "hourIndex": 28,
+          "hourIndex": 26,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.33
         },
@@ -4115,7 +4075,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.00",
           "wasClamped": false,
-          "hourIndex": 29,
+          "hourIndex": 27,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.335
         },
@@ -4135,7 +4095,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.90",
           "wasClamped": false,
-          "hourIndex": 30,
+          "hourIndex": 28,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.22
         },
@@ -4155,7 +4115,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-2.00",
           "wasClamped": false,
-          "hourIndex": 31,
+          "hourIndex": 29,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.022
         },
@@ -4175,7 +4135,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-1.40",
           "wasClamped": false,
-          "hourIndex": 32,
+          "hourIndex": 30,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.153
         },
@@ -4195,7 +4155,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "-0.40",
           "wasClamped": false,
-          "hourIndex": 33,
+          "hourIndex": 31,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.258
         },
@@ -4215,7 +4175,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "0.80",
           "wasClamped": false,
-          "hourIndex": 34,
+          "hourIndex": 32,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.293
         },
@@ -4235,7 +4195,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "1.80",
           "wasClamped": false,
-          "hourIndex": 35,
+          "hourIndex": 33,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.258
         },
@@ -4255,7 +4215,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "2.40",
           "wasClamped": false,
-          "hourIndex": 36,
+          "hourIndex": 34,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.128
         },
@@ -4275,7 +4235,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "2.40",
           "wasClamped": false,
-          "hourIndex": 37,
+          "hourIndex": 35,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.01
         },
@@ -4295,7 +4255,7 @@
           "surgeFt": 0.6,
           "matchedStageKey": "1.90",
           "wasClamped": false,
-          "hourIndex": 38,
+          "hourIndex": 36,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.12
         },
@@ -4315,7 +4275,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.10",
           "wasClamped": false,
-          "hourIndex": 39,
+          "hourIndex": 37,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.215
         },
@@ -4335,7 +4295,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.00",
           "wasClamped": false,
-          "hourIndex": 40,
+          "hourIndex": 38,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.275
         },
@@ -4355,7 +4315,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.20",
           "wasClamped": false,
-          "hourIndex": 41,
+          "hourIndex": 39,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.287
         },
@@ -4375,7 +4335,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": false,
-          "hourIndex": 42,
+          "hourIndex": 40,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.207
         },
@@ -4395,7 +4355,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 43,
+          "hourIndex": 41,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": -0.022
         },
@@ -4415,7 +4375,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.50",
           "wasClamped": false,
-          "hourIndex": 44,
+          "hourIndex": 42,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.163
         },
@@ -4435,7 +4395,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.40",
           "wasClamped": false,
-          "hourIndex": 45,
+          "hourIndex": 43,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -4455,7 +4415,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.90",
           "wasClamped": false,
-          "hourIndex": 46,
+          "hourIndex": 44,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.318
         },
@@ -4475,7 +4435,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.10",
           "wasClamped": false,
-          "hourIndex": 47,
+          "hourIndex": 45,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.3
         },
@@ -4495,7 +4455,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "3.00",
           "wasClamped": false,
-          "hourIndex": 48,
+          "hourIndex": 46,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.215
         },
@@ -4515,7 +4475,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "3.20",
           "wasClamped": false,
-          "hourIndex": 49,
+          "hourIndex": 47,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.055
         },
@@ -4535,7 +4495,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.90",
           "wasClamped": false,
-          "hourIndex": 50,
+          "hourIndex": 48,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.065
         },
@@ -4555,7 +4515,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "2.20",
           "wasClamped": false,
-          "hourIndex": 51,
+          "hourIndex": 49,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.19
         },
@@ -4575,7 +4535,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "1.00",
           "wasClamped": false,
-          "hourIndex": 52,
+          "hourIndex": 50,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.28
         },
@@ -4595,7 +4555,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-0.30",
           "wasClamped": false,
-          "hourIndex": 53,
+          "hourIndex": 51,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.335
         },
@@ -4615,7 +4575,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-1.60",
           "wasClamped": false,
-          "hourIndex": 54,
+          "hourIndex": 52,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.315
         },
@@ -4635,7 +4595,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 55,
+          "hourIndex": 53,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.17
         },
@@ -4655,7 +4615,7 @@
           "surgeFt": 0.4,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 56,
+          "hourIndex": 54,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.03
         },
@@ -4675,7 +4635,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.30",
           "wasClamped": false,
-          "hourIndex": 57,
+          "hourIndex": 55,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.193
         },
@@ -4695,7 +4655,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.20",
           "wasClamped": false,
-          "hourIndex": 58,
+          "hourIndex": 56,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -4715,7 +4675,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.90",
           "wasClamped": false,
-          "hourIndex": 59,
+          "hourIndex": 57,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.295
         },
@@ -4735,7 +4695,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.90",
           "wasClamped": false,
-          "hourIndex": 60,
+          "hourIndex": 58,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.248
         },
@@ -4755,7 +4715,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.50",
           "wasClamped": false,
-          "hourIndex": 61,
+          "hourIndex": 59,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.133
         },
@@ -4775,7 +4735,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.40",
           "wasClamped": false,
-          "hourIndex": 62,
+          "hourIndex": 60,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.012
         },
@@ -4795,7 +4755,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.90",
           "wasClamped": false,
-          "hourIndex": 63,
+          "hourIndex": 61,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.12
         },
@@ -4815,7 +4775,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.00",
           "wasClamped": false,
-          "hourIndex": 64,
+          "hourIndex": 62,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.232
         },
@@ -4835,7 +4795,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.10",
           "wasClamped": false,
-          "hourIndex": 65,
+          "hourIndex": 63,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.285
         },
@@ -4855,7 +4815,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.30",
           "wasClamped": false,
-          "hourIndex": 66,
+          "hourIndex": 64,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.285
         },
@@ -4875,7 +4835,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": false,
-          "hourIndex": 67,
+          "hourIndex": 65,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.18
         },
@@ -4895,7 +4855,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": false,
-          "hourIndex": 68,
+          "hourIndex": 66,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.01
         },
@@ -4915,7 +4875,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.20",
           "wasClamped": false,
-          "hourIndex": 69,
+          "hourIndex": 67,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.185
         },
@@ -4935,7 +4895,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.10",
           "wasClamped": false,
-          "hourIndex": 70,
+          "hourIndex": 68,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -4955,7 +4915,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.10",
           "wasClamped": false,
-          "hourIndex": 71,
+          "hourIndex": 69,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.305
         },
@@ -4975,7 +4935,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.20",
           "wasClamped": false,
-          "hourIndex": 72,
+          "hourIndex": 70,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.275
         },
@@ -4995,7 +4955,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.90",
           "wasClamped": false,
-          "hourIndex": 73,
+          "hourIndex": 71,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.178
         },
@@ -5015,7 +4975,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "3.10",
           "wasClamped": false,
-          "hourIndex": 74,
+          "hourIndex": 72,
           "hydraulicPhase": "slack",
           "riseRateFtPer15Min": 0.04
         },
@@ -5035,7 +4995,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "2.70",
           "wasClamped": false,
-          "hourIndex": 75,
+          "hourIndex": 73,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.102
         },
@@ -5055,7 +5015,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.80",
           "wasClamped": false,
-          "hourIndex": 76,
+          "hourIndex": 74,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.212
         },
@@ -5075,7 +5035,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.70",
           "wasClamped": false,
-          "hourIndex": 77,
+          "hourIndex": 75,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.287
         },
@@ -5095,7 +5055,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.60",
           "wasClamped": false,
-          "hourIndex": 78,
+          "hourIndex": 76,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.32
         },
@@ -5115,7 +5075,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.70",
           "wasClamped": false,
-          "hourIndex": 79,
+          "hourIndex": 77,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.267
         },
@@ -5135,7 +5095,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-2.00",
           "wasClamped": true,
-          "hourIndex": 80,
+          "hourIndex": 78,
           "hydraulicPhase": "draining",
           "riseRateFtPer15Min": -0.105
         },
@@ -5155,7 +5115,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-1.80",
           "wasClamped": false,
-          "hourIndex": 81,
+          "hourIndex": 79,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.09
         },
@@ -5175,7 +5135,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "-0.90",
           "wasClamped": false,
-          "hourIndex": 82,
+          "hourIndex": 80,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.218
         },
@@ -5195,7 +5155,7 @@
           "surgeFt": 0.5,
           "matchedStageKey": "0.20",
           "wasClamped": false,
-          "hourIndex": 83,
+          "hourIndex": 81,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.28
         },
@@ -5215,54 +5175,54 @@
           "surgeFt": 0.5,
           "matchedStageKey": "1.40",
           "wasClamped": false,
-          "hourIndex": 84,
+          "hourIndex": 82,
           "hydraulicPhase": "filling",
           "riseRateFtPer15Min": 0.285
+        },
+        {
+          "timeUtc": "2026-08-15T14:00:00Z",
+          "scenario": "highEnd",
+          "product": "e10",
+          "percentile": "10p / e10",
+          "rawPetssValue": 5.164,
+          "rawPetssScale": 1.0,
+          "sourceStageFt": 2.41,
+          "sourceDatum": "NAVD88",
+          "navd88StageFt": 2.41,
+          "mllwStageFt": 5.16,
+          "twlMllwFt": 5.16,
+          "tideMllwFt": 4.346,
+          "surgeFt": 0.5,
+          "matchedStageKey": "2.40",
+          "wasClamped": false,
+          "hourIndex": 83,
+          "hydraulicPhase": "filling",
+          "riseRateFtPer15Min": 0.248
+        },
+        {
+          "timeUtc": "2026-08-15T15:00:00Z",
+          "scenario": "highEnd",
+          "product": "e10",
+          "percentile": "10p / e10",
+          "rawPetssValue": 5.562,
+          "rawPetssScale": 1.0,
+          "sourceStageFt": 2.81,
+          "sourceDatum": "NAVD88",
+          "navd88StageFt": 2.81,
+          "mllwStageFt": 5.56,
+          "twlMllwFt": 5.56,
+          "tideMllwFt": 4.744,
+          "surgeFt": 0.5,
+          "matchedStageKey": "2.80",
+          "wasClamped": false,
+          "hourIndex": 84,
+          "hydraulicPhase": "filling",
+          "riseRateFtPer15Min": 0.1
         }
       ]
     }
   },
   "hours": [
-    {
-      "timeUtc": "2026-08-12T01:00:00Z",
-      "scenario": "mean",
-      "product": "mean",
-      "percentile": "Mean",
-      "rawPetssValue": 6.023,
-      "rawPetssScale": 1.0,
-      "sourceStageFt": 3.27,
-      "sourceDatum": "NAVD88",
-      "navd88StageFt": 3.27,
-      "mllwStageFt": 6.02,
-      "twlMllwFt": 6.02,
-      "tideMllwFt": 5.374,
-      "surgeFt": 0.5,
-      "matchedStageKey": "3.20",
-      "wasClamped": false,
-      "hourIndex": 0,
-      "hydraulicPhase": "draining",
-      "riseRateFtPer15Min": 0.0
-    },
-    {
-      "timeUtc": "2026-08-12T02:00:00Z",
-      "scenario": "mean",
-      "product": "mean",
-      "percentile": "Mean",
-      "rawPetssValue": 5.461,
-      "rawPetssScale": 1.0,
-      "sourceStageFt": 2.71,
-      "sourceDatum": "NAVD88",
-      "navd88StageFt": 2.71,
-      "mllwStageFt": 5.46,
-      "twlMllwFt": 5.46,
-      "tideMllwFt": 4.815,
-      "surgeFt": 0.5,
-      "matchedStageKey": "2.70",
-      "wasClamped": false,
-      "hourIndex": 1,
-      "hydraulicPhase": "draining",
-      "riseRateFtPer15Min": -0.14
-    },
     {
       "timeUtc": "2026-08-12T03:00:00Z",
       "scenario": "mean",
@@ -5279,9 +5239,9 @@
       "surgeFt": 0.5,
       "matchedStageKey": "1.70",
       "wasClamped": false,
-      "hourIndex": 2,
+      "hourIndex": 0,
       "hydraulicPhase": "draining",
-      "riseRateFtPer15Min": -0.237
+      "riseRateFtPer15Min": 0.0
     },
     {
       "timeUtc": "2026-08-12T04:00:00Z",
@@ -5299,7 +5259,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "0.50",
       "wasClamped": false,
-      "hourIndex": 3,
+      "hourIndex": 1,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.312
     },
@@ -5319,7 +5279,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-0.90",
       "wasClamped": false,
-      "hourIndex": 4,
+      "hourIndex": 2,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.332
     },
@@ -5339,7 +5299,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.80",
       "wasClamped": false,
-      "hourIndex": 5,
+      "hourIndex": 3,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.245
     },
@@ -5359,7 +5319,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 6,
+      "hourIndex": 4,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": -0.062
     },
@@ -5379,7 +5339,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.70",
       "wasClamped": false,
-      "hourIndex": 7,
+      "hourIndex": 5,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.11
     },
@@ -5399,7 +5359,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-0.80",
       "wasClamped": false,
-      "hourIndex": 8,
+      "hourIndex": 6,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.225
     },
@@ -5419,7 +5379,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "0.40",
       "wasClamped": false,
-      "hourIndex": 9,
+      "hourIndex": 7,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.278
     },
@@ -5439,7 +5399,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "1.40",
       "wasClamped": false,
-      "hourIndex": 10,
+      "hourIndex": 8,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.255
     },
@@ -5459,7 +5419,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.00",
       "wasClamped": false,
-      "hourIndex": 11,
+      "hourIndex": 9,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.158
     },
@@ -5479,7 +5439,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.10",
       "wasClamped": false,
-      "hourIndex": 12,
+      "hourIndex": 10,
       "hydraulicPhase": "slack",
       "riseRateFtPer15Min": 0.025
     },
@@ -5499,7 +5459,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "1.70",
       "wasClamped": false,
-      "hourIndex": 13,
+      "hourIndex": 11,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.102
     },
@@ -5519,7 +5479,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "1.00",
       "wasClamped": false,
-      "hourIndex": 14,
+      "hourIndex": 12,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.172
     },
@@ -5539,7 +5499,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "0.00",
       "wasClamped": false,
-      "hourIndex": 15,
+      "hourIndex": 13,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.255
     },
@@ -5559,7 +5519,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-1.10",
       "wasClamped": false,
-      "hourIndex": 16,
+      "hourIndex": 14,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.272
     },
@@ -5579,7 +5539,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-1.90",
       "wasClamped": false,
-      "hourIndex": 17,
+      "hourIndex": 15,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.21
     },
@@ -5599,7 +5559,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 18,
+      "hourIndex": 16,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": -0.047
     },
@@ -5619,7 +5579,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-1.60",
       "wasClamped": false,
-      "hourIndex": 19,
+      "hourIndex": 17,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.14
     },
@@ -5639,7 +5599,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-0.50",
       "wasClamped": false,
-      "hourIndex": 20,
+      "hourIndex": 18,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.263
     },
@@ -5659,7 +5619,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "0.80",
       "wasClamped": false,
-      "hourIndex": 21,
+      "hourIndex": 19,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.32
     },
@@ -5679,7 +5639,7 @@
       "surgeFt": 0.7,
       "matchedStageKey": "2.10",
       "wasClamped": false,
-      "hourIndex": 22,
+      "hourIndex": 20,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.338
     },
@@ -5699,7 +5659,7 @@
       "surgeFt": 0.7,
       "matchedStageKey": "3.00",
       "wasClamped": false,
-      "hourIndex": 23,
+      "hourIndex": 21,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.235
     },
@@ -5719,7 +5679,7 @@
       "surgeFt": 0.7,
       "matchedStageKey": "3.50",
       "wasClamped": false,
-      "hourIndex": 24,
+      "hourIndex": 22,
       "hydraulicPhase": "slack",
       "riseRateFtPer15Min": 0.108
     },
@@ -5739,7 +5699,7 @@
       "surgeFt": 0.7,
       "matchedStageKey": "3.30",
       "wasClamped": false,
-      "hourIndex": 25,
+      "hourIndex": 23,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.035
     },
@@ -5759,7 +5719,7 @@
       "surgeFt": 0.7,
       "matchedStageKey": "2.70",
       "wasClamped": false,
-      "hourIndex": 26,
+      "hourIndex": 24,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.162
     },
@@ -5779,7 +5739,7 @@
       "surgeFt": 0.7,
       "matchedStageKey": "1.60",
       "wasClamped": false,
-      "hourIndex": 27,
+      "hourIndex": 25,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.262
     },
@@ -5799,7 +5759,7 @@
       "surgeFt": 0.7,
       "matchedStageKey": "0.30",
       "wasClamped": false,
-      "hourIndex": 28,
+      "hourIndex": 26,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.33
     },
@@ -5819,7 +5779,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-1.10",
       "wasClamped": false,
-      "hourIndex": 29,
+      "hourIndex": 27,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.36
     },
@@ -5839,7 +5799,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-2.00",
       "wasClamped": false,
-      "hourIndex": 30,
+      "hourIndex": 28,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.22
     },
@@ -5859,7 +5819,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 31,
+      "hourIndex": 29,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": -0.022
     },
@@ -5879,7 +5839,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-1.50",
       "wasClamped": false,
-      "hourIndex": 32,
+      "hourIndex": 30,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.153
     },
@@ -5899,7 +5859,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "-0.50",
       "wasClamped": false,
-      "hourIndex": 33,
+      "hourIndex": 31,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.258
     },
@@ -5919,7 +5879,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "0.70",
       "wasClamped": false,
-      "hourIndex": 34,
+      "hourIndex": 32,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.293
     },
@@ -5939,7 +5899,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "1.70",
       "wasClamped": false,
-      "hourIndex": 35,
+      "hourIndex": 33,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.258
     },
@@ -5959,7 +5919,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "2.40",
       "wasClamped": false,
-      "hourIndex": 36,
+      "hourIndex": 34,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.153
     },
@@ -5979,7 +5939,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "2.40",
       "wasClamped": false,
-      "hourIndex": 37,
+      "hourIndex": 35,
       "hydraulicPhase": "slack",
       "riseRateFtPer15Min": 0.01
     },
@@ -5999,7 +5959,7 @@
       "surgeFt": 0.6,
       "matchedStageKey": "1.90",
       "wasClamped": false,
-      "hourIndex": 38,
+      "hourIndex": 36,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.12
     },
@@ -6019,7 +5979,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "1.00",
       "wasClamped": false,
-      "hourIndex": 39,
+      "hourIndex": 37,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.24
     },
@@ -6039,7 +5999,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-0.10",
       "wasClamped": false,
-      "hourIndex": 40,
+      "hourIndex": 38,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.275
     },
@@ -6059,7 +6019,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.30",
       "wasClamped": false,
-      "hourIndex": 41,
+      "hourIndex": 39,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.287
     },
@@ -6079,7 +6039,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 42,
+      "hourIndex": 40,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.207
     },
@@ -6099,7 +6059,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 43,
+      "hourIndex": 41,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": -0.022
     },
@@ -6119,7 +6079,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.60",
       "wasClamped": false,
-      "hourIndex": 44,
+      "hourIndex": 42,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.163
     },
@@ -6139,7 +6099,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-0.50",
       "wasClamped": false,
-      "hourIndex": 45,
+      "hourIndex": 43,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.275
     },
@@ -6159,7 +6119,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "0.80",
       "wasClamped": false,
-      "hourIndex": 46,
+      "hourIndex": 44,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.318
     },
@@ -6179,7 +6139,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.00",
       "wasClamped": false,
-      "hourIndex": 47,
+      "hourIndex": 45,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.3
     },
@@ -6199,7 +6159,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.90",
       "wasClamped": false,
-      "hourIndex": 48,
+      "hourIndex": 46,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.215
     },
@@ -6219,7 +6179,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "3.20",
       "wasClamped": false,
-      "hourIndex": 49,
+      "hourIndex": 47,
       "hydraulicPhase": "slack",
       "riseRateFtPer15Min": 0.08
     },
@@ -6239,7 +6199,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.90",
       "wasClamped": false,
-      "hourIndex": 50,
+      "hourIndex": 48,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.065
     },
@@ -6259,7 +6219,7 @@
       "surgeFt": 0.4,
       "matchedStageKey": "2.10",
       "wasClamped": false,
-      "hourIndex": 51,
+      "hourIndex": 49,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.215
     },
@@ -6279,7 +6239,7 @@
       "surgeFt": 0.4,
       "matchedStageKey": "0.90",
       "wasClamped": false,
-      "hourIndex": 52,
+      "hourIndex": 50,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.28
     },
@@ -6299,7 +6259,7 @@
       "surgeFt": 0.4,
       "matchedStageKey": "-0.40",
       "wasClamped": false,
-      "hourIndex": 53,
+      "hourIndex": 51,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.335
     },
@@ -6319,7 +6279,7 @@
       "surgeFt": 0.4,
       "matchedStageKey": "-1.70",
       "wasClamped": false,
-      "hourIndex": 54,
+      "hourIndex": 52,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.315
     },
@@ -6339,7 +6299,7 @@
       "surgeFt": 0.4,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 55,
+      "hourIndex": 53,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.17
     },
@@ -6359,7 +6319,7 @@
       "surgeFt": 0.4,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 56,
+      "hourIndex": 54,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.03
     },
@@ -6379,7 +6339,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.30",
       "wasClamped": false,
-      "hourIndex": 57,
+      "hourIndex": 55,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.218
     },
@@ -6399,7 +6359,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-0.20",
       "wasClamped": false,
-      "hourIndex": 58,
+      "hourIndex": 56,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.275
     },
@@ -6419,7 +6379,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "0.90",
       "wasClamped": false,
-      "hourIndex": 59,
+      "hourIndex": 57,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.295
     },
@@ -6439,7 +6399,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "1.90",
       "wasClamped": false,
-      "hourIndex": 60,
+      "hourIndex": 58,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.248
     },
@@ -6459,7 +6419,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.50",
       "wasClamped": false,
-      "hourIndex": 61,
+      "hourIndex": 59,
       "hydraulicPhase": "slack",
       "riseRateFtPer15Min": 0.133
     },
@@ -6479,7 +6439,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.40",
       "wasClamped": false,
-      "hourIndex": 62,
+      "hourIndex": 60,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.012
     },
@@ -6499,7 +6459,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "1.80",
       "wasClamped": false,
-      "hourIndex": 63,
+      "hourIndex": 61,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.145
     },
@@ -6519,7 +6479,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "0.90",
       "wasClamped": false,
-      "hourIndex": 64,
+      "hourIndex": 62,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.232
     },
@@ -6539,7 +6499,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-0.20",
       "wasClamped": false,
-      "hourIndex": 65,
+      "hourIndex": 63,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.285
     },
@@ -6559,7 +6519,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.40",
       "wasClamped": false,
-      "hourIndex": 66,
+      "hourIndex": 64,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.285
     },
@@ -6579,7 +6539,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 67,
+      "hourIndex": 65,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.18
     },
@@ -6599,7 +6559,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 68,
+      "hourIndex": 66,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.01
     },
@@ -6619,7 +6579,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.30",
       "wasClamped": false,
-      "hourIndex": 69,
+      "hourIndex": 67,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.185
     },
@@ -6639,7 +6599,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-0.20",
       "wasClamped": false,
-      "hourIndex": 70,
+      "hourIndex": 68,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.275
     },
@@ -6659,7 +6619,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "1.00",
       "wasClamped": false,
-      "hourIndex": 71,
+      "hourIndex": 69,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.305
     },
@@ -6679,7 +6639,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.10",
       "wasClamped": false,
-      "hourIndex": 72,
+      "hourIndex": 70,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.275
     },
@@ -6699,7 +6659,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.80",
       "wasClamped": false,
-      "hourIndex": 73,
+      "hourIndex": 71,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.178
     },
@@ -6719,7 +6679,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "3.00",
       "wasClamped": false,
-      "hourIndex": 74,
+      "hourIndex": 72,
       "hydraulicPhase": "slack",
       "riseRateFtPer15Min": 0.04
     },
@@ -6739,7 +6699,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "2.60",
       "wasClamped": false,
-      "hourIndex": 75,
+      "hourIndex": 73,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.102
     },
@@ -6759,7 +6719,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "1.70",
       "wasClamped": false,
-      "hourIndex": 76,
+      "hourIndex": 74,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.212
     },
@@ -6779,7 +6739,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "0.60",
       "wasClamped": false,
-      "hourIndex": 77,
+      "hourIndex": 75,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.287
     },
@@ -6799,7 +6759,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-0.70",
       "wasClamped": false,
-      "hourIndex": 78,
+      "hourIndex": 76,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.32
     },
@@ -6819,7 +6779,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.80",
       "wasClamped": false,
-      "hourIndex": 79,
+      "hourIndex": 77,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.267
     },
@@ -6839,7 +6799,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-2.00",
       "wasClamped": true,
-      "hourIndex": 80,
+      "hourIndex": 78,
       "hydraulicPhase": "draining",
       "riseRateFtPer15Min": -0.105
     },
@@ -6859,7 +6819,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.90",
       "wasClamped": false,
-      "hourIndex": 81,
+      "hourIndex": 79,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.09
     },
@@ -6879,7 +6839,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "-1.00",
       "wasClamped": false,
-      "hourIndex": 82,
+      "hourIndex": 80,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.218
     },
@@ -6899,7 +6859,7 @@
       "surgeFt": 0.5,
       "matchedStageKey": "0.10",
       "wasClamped": false,
-      "hourIndex": 83,
+      "hourIndex": 81,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.28
     },
@@ -6919,9 +6879,49 @@
       "surgeFt": 0.5,
       "matchedStageKey": "1.30",
       "wasClamped": false,
-      "hourIndex": 84,
+      "hourIndex": 82,
       "hydraulicPhase": "filling",
       "riseRateFtPer15Min": 0.285
+    },
+    {
+      "timeUtc": "2026-08-15T14:00:00Z",
+      "scenario": "mean",
+      "product": "mean",
+      "percentile": "Mean",
+      "rawPetssValue": 4.964,
+      "rawPetssScale": 1.0,
+      "sourceStageFt": 2.21,
+      "sourceDatum": "NAVD88",
+      "navd88StageFt": 2.21,
+      "mllwStageFt": 4.96,
+      "twlMllwFt": 4.96,
+      "tideMllwFt": 4.346,
+      "surgeFt": 0.5,
+      "matchedStageKey": "2.20",
+      "wasClamped": false,
+      "hourIndex": 83,
+      "hydraulicPhase": "filling",
+      "riseRateFtPer15Min": 0.223
+    },
+    {
+      "timeUtc": "2026-08-15T15:00:00Z",
+      "scenario": "mean",
+      "product": "mean",
+      "percentile": "Mean",
+      "rawPetssValue": 5.362,
+      "rawPetssScale": 1.0,
+      "sourceStageFt": 2.61,
+      "sourceDatum": "NAVD88",
+      "navd88StageFt": 2.61,
+      "mllwStageFt": 5.36,
+      "twlMllwFt": 5.36,
+      "tideMllwFt": 4.744,
+      "surgeFt": 0.5,
+      "matchedStageKey": "2.60",
+      "wasClamped": false,
+      "hourIndex": 84,
+      "hydraulicPhase": "filling",
+      "riseRateFtPer15Min": 0.1
     }
   ]
 }
