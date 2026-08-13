@@ -47,7 +47,7 @@ if gdal is not None:
 WIDTH = 10_930
 HEIGHT = 14_120
 RENDER_STRIDE = 5
-STAGES_FT = np.round(np.arange(0.0, 20.0 + 0.025, 0.05), 2)
+STAGES_FT = np.round(np.arange(0.0, 20.0 + 0.05, 0.1), 2)
 DRY_SENTINEL = np.int16(-32768)
 HIST_MIN10 = -100
 HIST_MAX10 = 200
@@ -595,7 +595,7 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "stageMinNavd88Ft": 0.0,
         "stageMaxNavd88Ft": 20.0,
-        "stageStepFt": 0.05,
+        "stageStepFt": 0.1,
         "stageCount": len(STAGES_FT),
         "zoneCount": graph_manifest["zoneCount"],
         "zoneStride": graph_manifest["zoneCount"] + 1,

@@ -14680,7 +14680,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     const MIN_STAGE = -4.0;
     const MIN_DEPTH_STAGE = 0.0;
     const MAX_STAGE = 20.0;
-    const STAGE_STEP = 0.05;
+    const STAGE_STEP = 0.1;
     const DEFAULT_OVERLAY_MODE = "depth";
     const DEFAULT_DATA_MODE = "forecast";
     const DEFAULT_OPACITY = 0.75;
@@ -14696,6 +14696,8 @@ html.win-compact-ui #timelineDock #hourSlider{
       daily: { value: "daily", label: "Daily Maximum", minutes: 1440, frameLimit: 5 }
     };
     const PLAYBACK_DAY_CONFIRMATION_INTERVAL = 20;
+    const PLAYBACK_SIMULATED_HOUR_MS = 950;
+    const PLAYBACK_MINIMUM_FRAME_DELAY_MS = 20;
     const EXPORT_CAPTURE_DELAY_MS = 1;
     const EXPORT_GIF_SPEEDS = {
       slow: { value: "slow", label: "Slow", delayMs: 2000 },
@@ -17102,7 +17104,7 @@ function setDatumHelpOpen(isOpen) {
       if (!url) return { ok: false };
       if (exportCancelRequested) return { ok: false, cancelled: true };
       if (imageExistsCache.has(url)) return imageExistsCache.get(url);
-      const result = await new Promise(resolve => {
+      const request = new Promise(resolve => {
         const img = new Image();
         let settled = false;
         let cancelTimer = null;
@@ -17127,7 +17129,10 @@ function setDatumHelpOpen(isOpen) {
         img.onerror = () => done({ ok: false });
         img.src = url;
       });
-      if (!result.cancelled) imageExistsCache.set(url, result);
+      imageExistsCache.set(url, request);
+      const result = await request;
+      if (result.cancelled) imageExistsCache.delete(url);
+      else imageExistsCache.set(url, result);
       return result;
     }
 
@@ -17222,14 +17227,22 @@ function setDatumHelpOpen(isOpen) {
       const key = `${mode}:${normalizedPhase}:${stageToCode(stageValue)}`;
       if (exportCancelRequested) throwIfExportCancelled();
       if (overlayRecordCache.has(key)) return overlayRecordCache.get(key);
-      const match = await findWorkingOverlay(mode, stageValue, normalizedPhase);
-      throwIfExportCancelled();
-      overlayRecordCache.set(key, match);
-      return match;
+      const request = findWorkingOverlay(mode, stageValue, normalizedPhase);
+      overlayRecordCache.set(key, request);
+      try {
+        const match = await request;
+        throwIfExportCancelled();
+        overlayRecordCache.set(key, match);
+        return match;
+      } catch (error) {
+        overlayRecordCache.delete(key);
+        throw error;
+      }
     }
 
     function preloadAroundHour(index) {
       if (!currentSeriesHours.length) return;
+      const queued = new Set();
       [0, 1, -1, 2, -2, 3, -3].forEach(offset => {
         const i = index + offset;
         if (i < 0 || i >= currentSeriesHours.length) return;
@@ -17243,11 +17256,11 @@ function setDatumHelpOpen(isOpen) {
         const stage = getOverlayStage(getStageValue(entry));
         if (stage == null) return;
         const phase = getHydraulicPhaseForEntry(entry, i, currentSeriesHours);
-
-        ["depth", "dynamic"].forEach(mode => {
-          getOverlayRecord(mode, stage, phase).then(record => {
-            if (record?.url) preloadImage(record.url);
-          });
+        const key = `${currentOverlayMode}:${phase}:${stageToCode(stage)}`;
+        if (queued.has(key)) return;
+        queued.add(key);
+        getOverlayRecord(currentOverlayMode, stage, phase).then(record => {
+          if (record?.url) preloadImage(record.url);
         });
       });
     }
@@ -23430,6 +23443,12 @@ function populateCalendarSelectors() {
       await stepSeriesBy(1);
     }
 
+    function getPlaybackFrameDurationMs() {
+      const intervalMinutes = getTimelineIntervalMinutes();
+      if (intervalMinutes === 1440) return PLAYBACK_SIMULATED_HOUR_MS;
+      return PLAYBACK_SIMULATED_HOUR_MS * (intervalMinutes / 60);
+    }
+
 function startPlayback() {
       stopPlayback({ resetDayGuard: false, closePrompt: true });
       if (!currentSeriesHours.length) {
@@ -23443,6 +23462,7 @@ function startPlayback() {
 
       const loop = async () => {
         if (!playTimer) return;
+        const frameStartedAt = performance.now();
         try {
           await stepPlaybackForward();
         } catch (err) {
@@ -23451,7 +23471,12 @@ function startPlayback() {
           return;
         }
         if (!playTimer) return;
-        playTimer = setTimeout(loop, 950);
+        const renderDurationMs = performance.now() - frameStartedAt;
+        const nextFrameDelayMs = Math.max(
+          PLAYBACK_MINIMUM_FRAME_DELAY_MS,
+          getPlaybackFrameDurationMs() - renderDurationMs
+        );
+        playTimer = setTimeout(loop, nextFrameDelayMs);
         updatePlayPauseButton();
       };
 
@@ -24024,8 +24049,10 @@ function startPlayback() {
       if (!payload || !Number.isInteger(zoneId) || zoneId <= 0) return null;
       const stageMin = Number(payload.stageMinNavd88Ft) || 0;
       const stageMax = Number(payload.stageMaxNavd88Ft);
-      const stageStep = Number(payload.stageStepFt) || 0.05;
-      const stageCount = Number(payload.stageCount) || 401;
+      const stageStep = Number(payload.stageStepFt) || STAGE_STEP;
+      const stageCount = Number(payload.stageCount) || Math.round(
+        ((Number.isFinite(stageMax) ? stageMax : MAX_STAGE) - stageMin) / stageStep
+      ) + 1;
       const stride = Number(payload.zoneStride) || ((Number(payload.zoneCount) || 0) + 1);
       // Operational v20 families stop at 10 ft; higher planning levels retain
       // v19 PNG fallbacks. Use the selected level for a masked point-depth

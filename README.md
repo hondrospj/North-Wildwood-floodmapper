@@ -5,7 +5,7 @@
 The dashboard keeps its later gauge archives, return-interval storms, exports,
 mobile layout, and parcel tools, but its flood surface has been restored to the
 original Stone Harbor-style connected-bathtub contract. It floors the selected
-water level to a reusable 0.05-ft NAVD88 frame and pulls one PNG; it does not
+water level to a reusable 0.1-ft NAVD88 frame and pulls one PNG; it does not
 run a new simulation for each tide cycle.
 
 This repository is the complete North Wildwood counterpart to the Stone Harbor
@@ -112,10 +112,12 @@ vertical units in NAVD88 feet. The model then:
    connected wet cell retains at least 25 percent of its depth and remains
    shallow bright blue instead of being misclassified as green.
 
-The solve produces reusable assets from 0.0–20.0 ft NAVD88 at 0.05-foot
+The solve produces reusable assets from 0.0–20.0 ft NAVD88 at 0.1-foot
 intervals. It is intentionally static: `filling`, `slack`, and `draining`
 assets are identical for the same gauge level. Hourly and 15-minute application
-updates floor the selected level to the nearest 0.05-foot asset.
+updates floor the selected level to the nearest 0.1-foot asset. Fifteen-minute
+playback uses four shorter frame intervals per hour, preserving the same
+simulated-time speed as hourly playback.
 
 The main builders are:
 

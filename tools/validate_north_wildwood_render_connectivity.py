@@ -80,9 +80,9 @@ def main() -> None:
         depth_dir = assets / "DepthPNGs" / "North Wildwood" / relative
         stage_dir = assets / "StagePNGs" / "North Wildwood" / relative
         depth_paths = sorted(depth_dir.glob("NorthWildwoodDepth*.png"))
-        if len(depth_paths) != 401:
+        if len(depth_paths) != 201:
             raise AssertionError(
-                f"Expected 401 {phase} depth PNGs, found {len(depth_paths)}"
+                f"Expected 201 {phase} depth PNGs, found {len(depth_paths)}"
             )
         for depth_path in depth_paths:
             code = depth_path.stem.removeprefix("NorthWildwoodDepth")

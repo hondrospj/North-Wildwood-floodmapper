@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Static and executable checks for the browser's 0.05-ft connected-depth contract.
+// Static and executable checks for the browser's 0.1-ft connected-depth contract.
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -35,7 +35,7 @@ const context = vm.createContext({
   MIN_STAGE: -4,
   MIN_DEPTH_STAGE: 0,
   MAX_STAGE: 20,
-  STAGE_STEP: 0.05,
+  STAGE_STEP: 0.1,
   MINOR_FLOOD_FT: 3.25,
   MODERATE_FLOOD_FT: 4.25,
   MAJOR_FLOOD_FT: 5.25,
@@ -67,12 +67,32 @@ assert.equal(context.stripExportTimeZoneLabel("Jul 29, 2026 · 9:00 PM EDT"), "J
 assert.equal(context.stripExportTimeZoneLabel("Jul 29, 2026 · 9:00 PM ET"), "Jul 29, 2026 · 9:00 PM");
 
 assert.equal(context.getOverlayStage(3.94), 3.9);
-assert.equal(context.getOverlayStage(3.95), 3.95);
-assert.equal(context.getOverlayStage(3.999), 3.95);
+assert.equal(context.getOverlayStage(3.95), 3.9);
+assert.equal(context.getOverlayStage(3.999), 3.9);
 assert.equal(context.stageToCode(context.getOverlayStage(3.94)), "p0390");
-assert.equal(context.stageToCode(context.getOverlayStage(3.95)), "p0395");
+assert.equal(context.stageToCode(context.getOverlayStage(3.95)), "p0390");
+assert.match(SOURCE, /const STAGE_STEP = 0\.1;/);
 assert.equal(context.getVerticalBathtubPenalty(3.25), 1.25);
 assert.equal(context.getVerticalBathtubPenalty(5.25), 0);
+
+let playbackIntervalMinutes = 15;
+const playbackContext = vm.createContext({
+  getTimelineIntervalMinutes: () => playbackIntervalMinutes,
+  PLAYBACK_SIMULATED_HOUR_MS: 950,
+});
+vm.runInContext(
+  `${extractFunction("getPlaybackFrameDurationMs")}; globalThis.getPlaybackFrameDurationMs = getPlaybackFrameDurationMs;`,
+  playbackContext
+);
+assert.equal(playbackContext.getPlaybackFrameDurationMs(), 237.5);
+playbackIntervalMinutes = 60;
+assert.equal(playbackContext.getPlaybackFrameDurationMs(), 950);
+playbackIntervalMinutes = 1440;
+assert.equal(playbackContext.getPlaybackFrameDurationMs(), 950);
+assert.match(extractFunction("preloadAroundHour"), /currentOverlayMode/);
+assert.doesNotMatch(extractFunction("preloadAroundHour"), /\["depth", "dynamic"\]/);
+assert.match(extractFunction("testImageUrl"), /imageExistsCache\.set\(url, request\)[\s\S]+await request/);
+assert.match(extractFunction("getOverlayRecord"), /overlayRecordCache\.set\(key, request\)[\s\S]+await request/);
 
 const changingDepthSample = { elevation: 2, connectionStage: 1 };
 const lowWaterDepth = context.getDepthQueryDisplayDepth(changingDepthSample, 3.25);
@@ -88,7 +108,7 @@ assert.equal(
 );
 
 let previousPenalty = Infinity;
-for (let stage = 3.25; stage <= 5.25 + 1e-9; stage += 0.05) {
+for (let stage = 3.25; stage <= 5.25 + 1e-9; stage += 0.1) {
   const penalty = context.getVerticalBathtubPenalty(stage);
   assert.ok(penalty <= previousPenalty + 1e-12, "Penalty must decrease monotonically");
   previousPenalty = penalty;

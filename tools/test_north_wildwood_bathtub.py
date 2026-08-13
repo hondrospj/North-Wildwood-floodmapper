@@ -50,21 +50,21 @@ def main() -> None:
             model.vertical_penalty_ft(stage)
             for stage in np.arange(
                 model.MINOR_NAVD88_FT,
-                model.MAJOR_NAVD88_FT + 0.025,
-                0.05,
+                model.MAJOR_NAVD88_FT + 0.05,
+                0.1,
             )
         ]
     )
     if np.any(np.diff(sampled) > 1e-12):
         raise AssertionError("Exponential penalty is not monotonically decreasing")
-    if model.stage_code(3.90) != "p0390" or model.stage_code(3.95) != "p0395":
-        raise AssertionError("Five-hundredth stage filenames are encoded incorrectly")
+    if model.stage_code(3.90) != "p0390" or model.stage_code(4.00) != "p0400":
+        raise AssertionError("Tenth-foot stage filenames are encoded incorrectly")
     if (
-        len(model.STAGES_FT) != 401
-        or not np.isclose(model.STAGES_FT[1], 0.05)
+        len(model.STAGES_FT) != 201
+        or not np.isclose(model.STAGES_FT[1], 0.1)
         or not np.isclose(model.STAGES_FT[-1], 20.0)
     ):
-        raise AssertionError("The stage catalog is not a complete 0.05-ft grid")
+        raise AssertionError("The stage catalog is not a complete 0.1-ft grid")
 
     stage = 4.20
     ground = np.asarray([4.10, 3.90, 3.50, 3.00], dtype=np.float64)
@@ -98,7 +98,7 @@ def main() -> None:
     if diagnostics.get("phaseInvariant") is not True:
         raise AssertionError("Simulation diagnostics omit phase invariance")
 
-    stage_30_surface = float(phases["slack"][60, 1]) / 100.0
+    stage_30_surface = float(phases["slack"][30, 1]) / 100.0
     if not np.isclose(stage_30_surface, 3.00, atol=0.005):
         raise AssertionError(
             f"3.0-ft gauge stage produced {stage_30_surface:.2f}-ft water surface"
