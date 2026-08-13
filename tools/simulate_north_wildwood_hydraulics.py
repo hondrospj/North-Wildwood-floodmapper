@@ -1,31 +1,16 @@
 #!/usr/bin/env python3
-"""Build North Wildwood's history-aware finite-volume hydraulic PNG atlas.
+"""Build North Wildwood's connectivity-first depth-penalized bathtub assets.
 
-The one-foot conditioned DEM is aggregated into ten-foot storage cells while
-retaining its elevation hypsometry and all shared one-foot flow widths. The
-qualified complete <=2.0-ft tidal fields are fixed-head boundary; supplied
-polygons mark components but never paint source geometry, and every higher DEM
-cell is finite storage even when enclosed by a low tidal field. Source cells are isolated
-from terrain control volumes, so a one-foot opening exchanges water through
-its actual shared face instead of pinning a whole tile to the tide.
-Water is routed in 60-second substeps with a mass-conserving hybrid
-diffusive-wave scheme. Ordinary overland conveyance follows Manning's
-equation over the actual one-foot face elevations. A broad-crested-weir
-capacity is retained only as an upper bound where a face is free-flowing over
-a sill. This prevents the old model from treating every street-scale face as
-an unconstrained weir. Strict donor, receiver, wetting-depth, and conservation
-limits prevent a numerically insignificant film from advancing across the
-city. A cell that becomes wet during a substep cannot donate until the
-following substep.
+The conditioned one-foot DEM and its four-neighbour connection-stage raster
+remain the hydraulic constraints. Connectivity is evaluated at the selected
+gauge stage. A normalized exponential penalty then reduces modeled depth at
+lower flood levels, but is capped at 75 percent of each cell's raw bathtub
+depth so that a genuinely connected wet cell cannot be turned green. The
+penalty is exactly zero at major flood.
 
-The expensive solve is run once to build three observed-rise-rate families, a
-short-crest family, three preceding-crest recession families from 0.0 through
-10.0 ft NAVD88 at 0.1-foot increments, and one compact March 1962 maximum-
-extent state driven by five successive high tides. Forecast and observed
-updates only choose a stored history family and stage PNG; no live tide cycle
-runs a hydraulic simulation. Planning levels above ten feet retain the
-previous atlas as a browser fallback. Storm drains stay disabled, and the
-conditioned 21-cell-wide, 7.5-ft NAVD88 bulkhead is honored.
+Filling, slack, and draining assets are intentionally identical. Storm drains
+remain disabled, and the 21-cell, 7.5-ft NAVD88 bulkhead remains stitched into
+the DEM before connection stages are computed.
 """
 
 from __future__ import annotations
@@ -35,89 +20,57 @@ import csv
 import gzip
 import json
 import math
+import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-from osgeo import gdal
-from PIL import Image
-from scipy.ndimage import gaussian_filter
+try:
+    from osgeo import gdal
+except ModuleNotFoundError:  # Unit checks do not open or write rasters.
+    gdal = None
+try:
+    from PIL import Image
+except ModuleNotFoundError:  # Unit checks do not render images.
+    Image = None
+try:
+    from scipy.ndimage import gaussian_filter, label as ndimage_label
+except ModuleNotFoundError:  # Unit checks do not render images.
+    gaussian_filter = None
+    ndimage_label = None
 
 
-gdal.UseExceptions()
+if gdal is not None:
+    gdal.UseExceptions()
 
 WIDTH = 10_930
 HEIGHT = 14_120
 RENDER_STRIDE = 5
-MODEL_MIN_STAGE_FT = 0.0
-MODEL_MAX_STAGE_FT = 10.0
-MODEL_STAGE_STEP_FT = 0.1
-STAGES_FT = np.round(
-    np.arange(
-        MODEL_MIN_STAGE_FT,
-        MODEL_MAX_STAGE_FT + MODEL_STAGE_STEP_FT / 2.0,
-        MODEL_STAGE_STEP_FT,
-    ),
-    1,
-)
+STAGES_FT = np.round(np.arange(0.0, 20.0 + 0.025, 0.05), 2)
 DRY_SENTINEL = np.int16(-32768)
 HIST_MIN10 = -100
-HIST_MAX10 = 220
+HIST_MAX10 = 200
 HIST_COUNT = HIST_MAX10 - HIST_MIN10 + 1
 MODEL_STEP_SECONDS = 60
 TIDE_STEP_SECONDS = 15 * 60
+CONTROL_VOLUME_SIZE_FT = 25
+MAX_CONTROL_VOLUME_DIAGONAL_FT = math.sqrt(2.0) * CONTROL_VOLUME_SIZE_FT
+MAX_OVERLAND_FRONT_SPEED_FPS = (
+    MAX_CONTROL_VOLUME_DIAGONAL_FT / MODEL_STEP_SECONDS
+)
+MAX_OVERLAND_FRONT_TRAVEL_PER_TIDE_STEP_FT = (
+    MAX_OVERLAND_FRONT_SPEED_FPS * TIDE_STEP_SECONDS
+)
 BROAD_CRESTED_WEIR_CFS = 3.10
-MANNING_US_CUSTOMARY = 1.486
-URBAN_OVERLAND_MANNING_N = 0.12
-MIN_MOBILE_DEPTH_FT = 0.05
-MIN_DISPLAY_DEPTH_FT = 0.05
 MINOR_NAVD88_FT = 3.25
 MODERATE_NAVD88_FT = 4.25
 MAJOR_NAVD88_FT = 5.25
-SOURCE_BLOCK_MAX_NAVD88_FT = 2.0
-# Two feet defines boundary geometry, not a synthetic sill or activation
-# stage. The fixed-head field follows the tide continuously and exchanges
-# across the real shared-face elevations.
-SOURCE_BLOCK_ACTIVATION_NAVD88_FT = None
-SHORT_CREST_MINUTES = 15
-RISE_RATE_FAMILIES_FT_PER_HOUR = {
-    "rising_slow": 0.55,
-    "rising_typical": 0.79,
-    "rising_fast": 0.90,
-}
-FALLING_CREST_FAMILIES_FT = {
-    "falling_minor": 4.0,
-    "falling_moderate": 5.5,
-    "falling_extreme": 8.5,
-}
-OPERATIONAL_ATLAS_FAMILIES = (
-    *RISE_RATE_FAMILIES_FT_PER_HOUR,
-    "crest",
-    *FALLING_CREST_FAMILIES_FT,
-)
-HISTORIC_1962_FAMILY = "historic_1962_five_tides"
-HISTORIC_1962_STAGE_FT = 7.5
-HISTORIC_1962_STAGE_INDEX = int(
-    round(HISTORIC_1962_STAGE_FT / MODEL_STAGE_STEP_FT)
-)
-ATLAS_FAMILIES = (*OPERATIONAL_ATLAS_FAMILIES, HISTORIC_1962_FAMILY)
-
-# The City hazard-mitigation plan describes the March 1962 northeaster as
-# lasting for five high tides. These rounded extrema retain that duration and
-# the dashboard's calibrated 7.5-ft NAVD88 local crest. They are an offline
-# design hydrograph, not invented quarter-hour observations.
-HISTORIC_1962_EXTREMA = (
-    (0.00, 0.0),
-    (6.21, 4.2),
-    (12.42, 0.8),
-    (18.63, 5.2),
-    (24.84, 1.5),
-    (31.05, 6.1),
-    (37.26, 2.2),
-    (43.47, 6.9),
-    (49.68, 3.0),
-    (55.89, HISTORIC_1962_STAGE_FT),
+LOW_STAGE_VERTICAL_PENALTY_FT = 1.25
+VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE = 1.5
+MAX_LOCAL_DEPTH_PENALTY_FRACTION = 0.75
+MIN_CONNECTED_DEPTH_RETAINED_FRACTION = (
+    1.0 - MAX_LOCAL_DEPTH_PENALTY_FRACTION
 )
 
 DEPTH_BREAKS_FT = np.asarray([0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00])
@@ -134,32 +87,8 @@ DEPTH_COLORS = [
     "#0B1E5B",
     "#050E33",
 ]
+DISCONNECTED_COLOR = "#63D471"
 STAGE_COLORS = ["#F4A742", "#E74C3C", "#7D3C98"]
-COVERAGE_ALPHA_LEVELS = (72, 132, 192, 225)
-COVERAGE_BREAKS = np.asarray([0.25, 0.50, 0.75], dtype=np.float32)
-RENDER_CELL_DTYPE = np.dtype(
-    [
-        ("terrain_zone0", "<i4"),
-        ("terrain_zone1", "<i4"),
-        ("source_zone", "<i4"),
-        ("terrain_ground_sum10_0", "<i4"),
-        ("terrain_ground_sum10_1", "<i4"),
-        ("source_ground_sum10", "<i4"),
-        ("terrain_ground_min10_0", "<i2"),
-        ("terrain_ground_max10_0", "<i2"),
-        ("terrain_ground_min10_1", "<i2"),
-        ("terrain_ground_max10_1", "<i2"),
-        ("terrain_count0", "u1"),
-        ("terrain_count1", "u1"),
-        ("source_count", "u1"),
-        ("enclosed_source_fill_count", "u1"),
-        ("valid_count", "u1"),
-        ("omitted_terrain_count", "u1"),
-    ],
-    align=False,
-)
-if RENDER_CELL_DTYPE.itemsize != 38:
-    raise RuntimeError("Five-foot render summary dtype is not packed to 38 bytes")
 
 
 def parse_args() -> argparse.Namespace:
@@ -178,6 +107,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--draining-only",
+        action="store_true",
+        help=(
+            "Reuse filling/slack arrays from the existing output state package, "
+            "then solve and render only draining assets"
+        ),
+    )
+    parser.add_argument(
         "--reuse-complete-state",
         action="store_true",
         help=(
@@ -193,21 +130,52 @@ def hex_rgb(value: str) -> tuple[int, int, int]:
     return tuple(int(value[index : index + 2], 16) for index in (0, 2, 4))
 
 
-def palette(colors: list[str]) -> tuple[list[int], bytes]:
+def palette(colors: list[str], green_index: int) -> tuple[list[int], bytes]:
     values = [0] * (256 * 3)
     alpha = bytearray([0] * 256)
-    index = 1
-    for color in colors:
-        for coverage_alpha in COVERAGE_ALPHA_LEVELS:
-            values[index * 3 : index * 3 + 3] = hex_rgb(color)
-            alpha[index] = coverage_alpha
-            index += 1
+    for index, color in enumerate(colors, start=1):
+        values[index * 3 : index * 3 + 3] = hex_rgb(color)
+        alpha[index] = 225
+    values[green_index * 3 : green_index * 3 + 3] = hex_rgb(DISCONNECTED_COLOR)
+    alpha[green_index] = 205
     return values, bytes(alpha)
 
 
 def stage_code(stage_ft: float) -> str:
     sign = "m" if stage_ft < 0 else "p"
     return f"{sign}{round(abs(stage_ft) * 100):04d}"
+
+
+def vertical_penalty_ft(stage_ft: float) -> float:
+    """Return the normalized exponential depth reduction in NAVD88 feet."""
+    stage = float(stage_ft)
+    if stage <= MINOR_NAVD88_FT:
+        return LOW_STAGE_VERTICAL_PENALTY_FT
+    if stage >= MAJOR_NAVD88_FT:
+        return 0.0
+    progress = (
+        (stage - MINOR_NAVD88_FT)
+        / (MAJOR_NAVD88_FT - MINOR_NAVD88_FT)
+    )
+    decay = VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE
+    residual = math.exp(-decay)
+    normalized = (
+        math.exp(-decay * progress) - residual
+    ) / (1.0 - residual)
+    return LOW_STAGE_VERTICAL_PENALTY_FT * normalized
+
+
+def penalized_connected_depth_ft(
+    stage_ft: float,
+    ground_ft: np.ndarray | float,
+) -> np.ndarray:
+    """Reduce connected depth without erasing the connected wet footprint."""
+    raw_depth = np.maximum(0.0, float(stage_ft) - np.asarray(ground_ft, dtype=np.float64))
+    applied_penalty = np.minimum(
+        vertical_penalty_ft(stage_ft),
+        raw_depth * MAX_LOCAL_DEPTH_PENALTY_FRACTION,
+    )
+    return raw_depth - applied_penalty
 
 
 def load_zones(path: Path) -> dict[str, np.ndarray]:
@@ -252,19 +220,7 @@ def load_edges(path: Path) -> dict[str, np.ndarray]:
 
 
 class HydraulicSolver:
-    def __init__(
-        self,
-        zones: dict[str, np.ndarray],
-        edges: dict[str, np.ndarray],
-        *,
-        routing_method: str = "hybrid_diffusive",
-        source_activation_navd88_ft: float | None = SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
-        manning_n: float = URBAN_OVERLAND_MANNING_N,
-        minimum_mobile_depth_ft: float = MIN_MOBILE_DEPTH_FT,
-        control_volume_size_ft: float = 10.0,
-    ):
-        if routing_method not in {"hybrid_diffusive", "diffusive", "legacy_weir"}:
-            raise ValueError(f"Unsupported routing method: {routing_method}")
+    def __init__(self, zones: dict[str, np.ndarray], edges: dict[str, np.ndarray]):
         self.zone_count = len(zones["connection10"])
         self.connection_ft = zones["connection10"].astype(np.float64) / 10.0
         self.source = zones["source_cells"] > 0
@@ -278,52 +234,8 @@ class HydraulicSolver:
         self.cumulative_elevation = np.cumsum(self.histogram * elevation_ft[None, :], axis=1)
         occupied = self.histogram > 0
         self.minimum_surface = elevation_ft[np.argmax(occupied, axis=1)]
-        self.maximum_surface = np.full(
-            self.zone_count,
-            MODEL_MAX_STAGE_FT,
-            dtype=np.float64,
-        )
-        self.edges = {**edges, "crest_ft": edges["crest_ft"].copy()}
-        self.routing_method = routing_method
-        self.source_activation_navd88_ft = source_activation_navd88_ft
-        self.manning_n = float(manning_n)
-        self.minimum_mobile_depth_ft = float(minimum_mobile_depth_ft)
-        self.control_volume_size_ft = float(control_volume_size_ft)
-        if self.control_volume_size_ft <= 0.0:
-            raise ValueError("Control-volume size must be positive")
-        self.flow_length_ft = self.control_volume_size_ft
-        self.maximum_numerical_speed_fps = (
-            math.sqrt(2.0) * self.control_volume_size_ft / MODEL_STEP_SECONDS
-        )
-        self.maximum_numerical_travel_per_tide_step_ft = (
-            self.maximum_numerical_speed_fps * TIDE_STEP_SECONDS
-        )
-        source_interface = self.source[self.edges["a"]] ^ self.source[self.edges["b"]]
-        # Each complete qualified <=2.0-ft field defines the spatial footprint
-        # of the tidal boundary. Two feet is not a sill: preserve every
-        # one-foot perimeter width and its real DEM crest so both inflow and
-        # recession are capacity-limited by the actual shared cross section.
-        self.source_interface = source_interface
-        self.source_inflow_crest_ft = self.edges["crest_ft"].copy()
-        if source_activation_navd88_ft is not None:
-            self.source_inflow_crest_ft[source_interface] = np.maximum(
-                self.source_inflow_crest_ft[source_interface],
-                source_activation_navd88_ft,
-            )
-        self.source_interface_edge_groups = int(np.count_nonzero(source_interface))
-        self.source_interface_width_ft = float(
-            self.edges["width_ft"][source_interface].sum()
-        )
-
-    def mobile_storage_threshold(self, surface: np.ndarray) -> np.ndarray:
-        """Minimum volume needed before a finite-storage node can transmit.
-
-        This is a standard wet/dry treatment expressed as physical depth over
-        the node's currently wetted subgrid area. It replaces the previous
-        0.01-cubic-foot switch, which let a microscopic numerical film move a
-        full control volume every minute.
-        """
-        return self.wetted_area(surface) * self.minimum_mobile_depth_ft
+        self.maximum_surface = np.full(self.zone_count, 20.0, dtype=np.float64)
+        self.edges = edges
 
     def storage(self, surface: np.ndarray) -> np.ndarray:
         bin_index = np.clip(
@@ -384,30 +296,15 @@ class HydraulicSolver:
         storage[~connected] = 0.0
         return storage, surface
 
-    def dry_start(self, sea_stage_ft: float) -> tuple[np.ndarray, np.ndarray]:
-        """Initialize only the open-boundary source cells at the sea stage."""
-        storage = np.zeros(self.zone_count, dtype=np.float64)
-        surface = self.minimum_surface.copy()
-        boundary_surface = np.full(
-            self.zone_count,
-            float(sea_stage_ft),
-            dtype=np.float64,
-        )
-        boundary_storage = self.storage(boundary_surface)
-        storage[self.source] = boundary_storage[self.source]
-        surface[self.source] = float(sea_stage_ft)
-        return storage, surface
-
     def advance(
         self,
         storage: np.ndarray,
         surface: np.ndarray,
         sea_stage_ft: float,
-        duration_seconds: int = TIDE_STEP_SECONDS,
     ) -> tuple[np.ndarray, np.ndarray, dict[str, float]]:
         edge_a = self.edges["a"]
         edge_b = self.edges["b"]
-        base_crest = self.edges["crest_ft"]
+        crest = self.edges["crest_ft"]
         width = self.edges["width_ft"]
         source_exchange = 0.0
         internal_residual = 0.0
@@ -417,78 +314,24 @@ class HydraulicSolver:
         fixed_volume = self.storage(
             np.full(self.zone_count, sea_stage_ft, dtype=np.float64)
         )
-        source_active = (
-            self.source_activation_navd88_ft is None
-            or sea_stage_ft >= self.source_activation_navd88_ft - 1e-9
-        )
-        if not source_active:
-            fixed_volume[self.source] = 0.0
 
-        if duration_seconds <= 0 or duration_seconds % MODEL_STEP_SECONDS:
-            raise ValueError("Routing duration must be a positive whole number of model steps")
-        for _ in range(duration_seconds // MODEL_STEP_SECONDS):
+        for _ in range(TIDE_STEP_SECONDS // MODEL_STEP_SECONDS):
             # All edge fluxes are simultaneous. A terrain node that first
             # receives water in this substep cannot become a donor until the
             # next substep, so the numerical front advances at most one
-            # control volume per minute (using the conservative tile diagonal).
-            wet_at_substep_start = self.source | (
-                storage >= self.mobile_storage_threshold(surface)
-            )
+            # 25-foot control volume per minute (35.4 ft using the conservative
+            # tile diagonal).
+            wet_at_substep_start = self.source | (storage > 0.01)
             surface_a = surface[edge_a]
             surface_b = surface[edge_b]
             delta = surface_a - surface_b
-            source_is_donor = np.where(
-                delta >= 0.0,
-                self.source[edge_a],
-                self.source[edge_b],
-            )
-            crest = np.where(
-                self.source_interface & source_is_donor,
-                self.source_inflow_crest_ft,
-                base_crest,
-            )
             upstream = np.maximum(surface_a, surface_b)
+            downstream = np.minimum(surface_a, surface_b)
             head = np.maximum(0.0, upstream - crest)
-            if self.routing_method == "legacy_weir":
-                downstream = np.minimum(surface_a, surface_b)
-                tail = np.maximum(0.0, downstream - crest)
-                ratio = np.divide(
-                    tail,
-                    head,
-                    out=np.zeros_like(head),
-                    where=head > 1e-9,
-                )
-                submergence = np.sqrt(
-                    np.maximum(0.0, 1.0 - np.minimum(1.0, ratio) ** 1.5)
-                )
-                discharge = (
-                    BROAD_CRESTED_WEIR_CFS * width * head**1.5 * submergence
-                )
-            else:
-                hydraulic_slope = np.maximum(
-                    0.0,
-                    np.abs(delta) / self.flow_length_ft,
-                )
-                # Subgrid diffusive-wave conveyance. Every grouped record retains
-                # the exact count of one-foot face segments at this crest, so the
-                # sum of these discharges preserves narrow openings and partially
-                # wetted faces instead of promoting a whole connection component.
-                discharge = (
-                    MANNING_US_CUSTOMARY
-                    / self.manning_n
-                    * width
-                    * head ** (5.0 / 3.0)
-                    * np.sqrt(hydraulic_slope)
-                )
-                if self.routing_method == "hybrid_diffusive":
-                    # At a dry/free outfall the diffusive approximation can exceed
-                    # the critical-flow capacity of a sill. Retain the weir relation
-                    # only as that physical upper bound; submerged ordinary terrain
-                    # flow is controlled by the water-surface gradient and friction.
-                    free_weir_capacity = (
-                        BROAD_CRESTED_WEIR_CFS * width * head**1.5
-                    )
-                    discharge = np.minimum(discharge, free_weir_capacity)
+            tail = np.maximum(0.0, downstream - crest)
+            ratio = np.divide(tail, head, out=np.zeros_like(head), where=head > 1e-9)
+            submergence = np.sqrt(np.maximum(0.0, 1.0 - np.minimum(1.0, ratio) ** 1.5))
+            discharge = BROAD_CRESTED_WEIR_CFS * width * head**1.5 * submergence
             transfer_magnitude = discharge * MODEL_STEP_SECONDS
 
             # A long explicit step can otherwise send more water than is
@@ -588,11 +431,38 @@ class HydraulicSolver:
         return encoded
 
 
+def load_reusable_static_phases(
+    state_path: Path,
+    expected_stride: int,
+) -> dict[str, np.ndarray]:
+    raw = gzip.decompress(state_path.read_bytes())
+    if raw[:8] != b"NWHYD2\x00\x00":
+        raise RuntimeError(f"Unsupported reusable state package: {state_path}")
+    header_length = int.from_bytes(raw[8:12], "little")
+    header = json.loads(raw[12 : 12 + header_length])
+    if (
+        header.get("stageCount") != len(STAGES_FT)
+        or header.get("zoneStride") != expected_stride
+    ):
+        raise RuntimeError("Reusable state package dimensions do not match the graph")
+
+    payload_start = 12 + header_length
+    reusable: dict[str, np.ndarray] = {}
+    for phase in ("filling", "slack"):
+        record = header["phaseArrays"][phase]
+        reusable[phase] = decode_state_phase(
+            raw,
+            header,
+            record,
+            payload_start,
+            expected_stride,
+        )
+    return reusable
+
+
 def load_complete_state(
     state_path: Path,
     expected_stride: int,
-    *,
-    require_current_physics: bool = False,
 ) -> tuple[dict[str, np.ndarray], dict]:
     raw = gzip.decompress(state_path.read_bytes())
     if raw[:8] != b"NWHYD2\x00\x00":
@@ -606,36 +476,17 @@ def load_complete_state(
         raise RuntimeError("Reusable state package dimensions do not match the graph")
 
     payload_start = 12 + header_length
-    families: dict[str, np.ndarray] = {}
-    family_order = tuple(header.get("familyOrder") or header.get("phaseOrder") or ())
-    if family_order != ATLAS_FAMILIES:
-        raise RuntimeError("Reusable state package families do not match this atlas")
-    if require_current_physics:
-        physics = header.get("physics") or {}
-        compatible = (
-            header.get("schema") == "north-wildwood-hydraulic-states-binary-v14"
-            and physics.get("modelKind")
-            == "history-aware subgrid diffusive-wave finite-volume response atlas"
-            and physics.get("sourceBlockActivationNavd88Ft")
-            == SOURCE_BLOCK_ACTIVATION_NAVD88_FT
-            and "defines geometry only"
-            in str(physics.get("sourceInterfaceTreatment", ""))
-        )
-        if not compatible:
-            raise RuntimeError(
-                "State reuse requires a v27 package generated with the "
-                "literal 2.0-ft tidal source field and continuous forcing"
-            )
-    for family in family_order:
-        record = header["phaseArrays"][family]
-        families[family] = decode_state_phase(
+    phases: dict[str, np.ndarray] = {}
+    for phase in ("filling", "slack", "draining"):
+        record = header["phaseArrays"][phase]
+        phases[phase] = decode_state_phase(
             raw,
             header,
             record,
             payload_start,
             expected_stride,
         )
-    return families, dict(header.get("diagnostics") or {})
+    return phases, dict(header.get("diagnostics") or {})
 
 
 def decode_state_phase(
@@ -675,299 +526,124 @@ def decode_state_phase(
 
 def simulate(
     solver: HydraulicSolver,
+    reusable_static_state: Path | None = None,
 ) -> tuple[dict[str, np.ndarray], dict]:
-    stride = solver.zone_count + 1
-    families = {
-        family: np.full((len(STAGES_FT), stride), DRY_SENTINEL, dtype="<i2")
-        for family in ATLAS_FAMILIES
-    }
-    diagnostic_rows: list[dict] = []
-
-    def restore(encoded: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        encoded_zones = encoded[1:]
-        wet = encoded_zones != DRY_SENTINEL
-        surface = solver.minimum_surface.copy()
-        surface[wet] = encoded_zones[wet].astype(np.float64) / 100.0
-        storage = solver.storage(surface)
-        storage[~wet] = 0.0
-        return storage, surface
-
-    # Three rising histories use observed high-tide rise-rate quantiles. Each
-    # family starts with only the fixed-head source zones wet. A 0.1-foot stage
-    # step therefore consumes the physical time implied by that family rather
-    # than the v19 atlas's artificial 15 minutes at every stage.
-    for family, rise_rate in RISE_RATE_FAMILIES_FT_PER_HOUR.items():
-        storage, surface = solver.dry_start(float(STAGES_FT[0]))
-        duration_seconds = max(
-            MODEL_STEP_SECONDS,
-            round(
-                MODEL_STAGE_STEP_FT / rise_rate * 3600.0 / MODEL_STEP_SECONDS
-            ) * MODEL_STEP_SECONDS,
+    if reusable_static_state is not None:
+        raise ValueError(
+            "Partial phase reuse is incompatible with the phase-invariant "
+            "connected-bathtub model"
         )
-        for index, stage_raw in enumerate(STAGES_FT):
-            stage = float(stage_raw)
-            storage, surface, diagnostic = solver.advance(
-                storage,
-                surface,
-                stage,
-                duration_seconds=duration_seconds,
-            )
-            families[family][index] = solver.encode_surface(storage, surface)
-            diagnostic_rows.append(
-                {
-                    "family": family,
-                    "stageNavd88Ft": stage,
-                    "durationSeconds": duration_seconds,
-                    **diagnostic,
-                }
-            )
-            if index % 10 == 0:
-                print(f"{family}: {stage:4.1f} ft NAVD88")
-
-    # The turning-point state gets an explicit short hold. It is kept separate
-    # from rising states, so dry lowlands cannot appear wet merely because the
-    # browser called an hourly peak "slack".
-    crest_duration_seconds = SHORT_CREST_MINUTES * 60
+    stride = solver.zone_count + 1
+    phases = {
+        phase: np.full((len(STAGES_FT), stride), DRY_SENTINEL, dtype="<i2")
+        for phase in ("filling", "slack", "draining")
+    }
+    stage_diagnostics = []
     for index, stage_raw in enumerate(STAGES_FT):
         stage = float(stage_raw)
-        storage, surface = restore(families["rising_typical"][index])
-        storage, surface, diagnostic = solver.advance(
-            storage,
-            surface,
-            stage,
-            duration_seconds=crest_duration_seconds,
-        )
-        families["crest"][index] = solver.encode_surface(storage, surface)
-        diagnostic_rows.append(
+        penalty = vertical_penalty_ft(stage)
+        storage, surface = solver.equilibrium(stage)
+        encoded = solver.encode_surface(storage, surface)
+        for phase in phases:
+            phases[phase][index] = encoded
+        stage_diagnostics.append(
             {
-                "family": "crest",
                 "stageNavd88Ft": stage,
-                "durationSeconds": crest_duration_seconds,
-                **diagnostic,
+                "maximumVerticalPenaltyFt": penalty,
+                "maximumLocalDepthPenaltyFraction": (
+                    MAX_LOCAL_DEPTH_PENALTY_FRACTION
+                ),
+                "minimumConnectedDepthRetainedFraction": (
+                    MIN_CONNECTED_DEPTH_RETAINED_FRACTION
+                ),
+                "connectivityStageNavd88Ft": stage,
             }
         )
         if index % 10 == 0:
-            print(f"crest: {stage:4.1f} ft NAVD88")
-
-    # Each falling family is one continuous recession from an absolute prior
-    # crest. This eliminates v19's stage+2.5-ft moving history and its one-foot
-    # band resets. The browser chooses the closest prior crest once per frame.
-    fall_duration_seconds = max(
-        MODEL_STEP_SECONDS,
-        round(
-            MODEL_STAGE_STEP_FT
-            / RISE_RATE_FAMILIES_FT_PER_HOUR["rising_typical"]
-            * 3600.0
-            / MODEL_STEP_SECONDS
-        )
-        * MODEL_STEP_SECONDS,
-    )
-    for family, prior_crest in FALLING_CREST_FAMILIES_FT.items():
-        peak_index = int(round(prior_crest / MODEL_STAGE_STEP_FT))
-        peak_index = max(0, min(len(STAGES_FT) - 1, peak_index))
-        # Values above this family's crest are not normally requested. Keeping
-        # the corresponding crest states makes browser fallbacks conservative
-        # and avoids holes if a truncated forecast starts mid-event.
-        families[family][peak_index:] = families["crest"][peak_index:]
-        storage, surface = restore(families["crest"][peak_index])
-        families[family][peak_index] = solver.encode_surface(storage, surface)
-        for index in range(peak_index - 1, -1, -1):
-            stage = float(STAGES_FT[index])
-            storage, surface, diagnostic = solver.advance(
-                storage,
-                surface,
-                stage,
-                duration_seconds=fall_duration_seconds,
+            print(
+                f"Connectivity-first bathtub: {stage:4.1f} ft gauge; "
+                f"maximum depth penalty {penalty:4.2f} ft"
             )
-            families[family][index] = solver.encode_surface(storage, surface)
-            diagnostic_rows.append(
-                {
-                    "family": family,
-                    "stageNavd88Ft": stage,
-                    "historyPeakNavd88Ft": float(STAGES_FT[peak_index]),
-                    "durationSeconds": fall_duration_seconds,
-                    **diagnostic,
-                }
-            )
-        print(
-            f"{family}: continuous recession from "
-            f"{float(STAGES_FT[peak_index]):.1f} ft NAVD88"
-        )
-
-    # March 1962 was not a single turning point. Route one offline design
-    # hydrograph through all five documented high tides and retain only the
-    # calibrated final-crest state. This adds one PNG per overlay to Bunny,
-    # yet preserves the accumulated finite volume and drainage history that a
-    # one-tide crest frame cannot represent.
-    storage, surface = solver.dry_start(HISTORIC_1962_EXTREMA[0][1])
-    historic_elapsed_seconds = 0
-    historic_source_exchange_ft3 = 0.0
-    for segment_index in range(1, len(HISTORIC_1962_EXTREMA)):
-        start_hour, start_stage = HISTORIC_1962_EXTREMA[segment_index - 1]
-        end_hour, end_stage = HISTORIC_1962_EXTREMA[segment_index]
-        segment_steps = max(
-            1,
-            round((end_hour - start_hour) * 3600.0 / TIDE_STEP_SECONDS),
-        )
-        for step_index in range(1, segment_steps + 1):
-            fraction = step_index / segment_steps
-            eased = 0.5 - 0.5 * math.cos(math.pi * fraction)
-            stage = start_stage + (end_stage - start_stage) * eased
-            storage, surface, diagnostic = solver.advance(
-                storage,
-                surface,
-                float(stage),
-                duration_seconds=TIDE_STEP_SECONDS,
-            )
-            historic_elapsed_seconds += TIDE_STEP_SECONDS
-            historic_source_exchange_ft3 += diagnostic["sourceExchangeFt3"]
-            diagnostic_rows.append(
-                {
-                    "family": HISTORIC_1962_FAMILY,
-                    "stageNavd88Ft": float(stage),
-                    "durationSeconds": TIDE_STEP_SECONDS,
-                    "elapsedSeconds": historic_elapsed_seconds,
-                    **diagnostic,
-                }
-            )
-    families[HISTORIC_1962_FAMILY][HISTORIC_1962_STAGE_INDEX] = (
-        solver.encode_surface(storage, surface)
-    )
-    print(
-        f"{HISTORIC_1962_FAMILY}: five-high-tide design hydrograph, "
-        f"{historic_elapsed_seconds / 3600.0:.2f} hours to "
-        f"{HISTORIC_1962_STAGE_FT:.1f} ft NAVD88"
-    )
 
     summary = {
-        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
-        "historyInvariant": False,
-        "maximumInternalConservationResidualFt3": max(
-            (row["maxInternalConservationResidualFt3"] for row in diagnostic_rows),
-            default=0.0,
-        ),
-        "diagnosticStepCount": len(diagnostic_rows),
-        "atlasFamilies": list(ATLAS_FAMILIES),
-        "wettingAndFrontControls": {
-            "controlVolumeSizeFt": solver.control_volume_size_ft,
-            "maximumNumericalSpeedFtPerSecond": solver.maximum_numerical_speed_fps,
-            "maximumNumericalTravelPer15MinutesFt": (
-                solver.maximum_numerical_travel_per_tide_step_ft
+        "modelKind": "connectivity-first depth-penalized bathtub",
+        "phaseInvariant": True,
+        "diagnosticStageCount": len(stage_diagnostics),
+        "stageDiagnostics": stage_diagnostics,
+        "verticalPenalty": {
+            "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
+            "atOrAboveMajorFt": 0.0,
+            "curve": "normalized exponential",
+            "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
+            "maximumLocalDepthPenaltyFraction": (
+                MAX_LOCAL_DEPTH_PENALTY_FRACTION
             ),
-            "rule": (
-                "a newly wet control volume cannot donate until the next "
-                "60-second substep and must first store at least the physical "
-                "minimum mobile depth"
+            "minimumConnectedDepthRetainedFraction": (
+                MIN_CONNECTED_DEPTH_RETAINED_FRACTION
             ),
-            "minimumMobileDepthFt": MIN_MOBILE_DEPTH_FT,
-        },
-        "risingHistoriesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
-        "crestHistoryMinutes": SHORT_CREST_MINUTES,
-        "fallingHistoryPeaksNavd88Ft": FALLING_CREST_FAMILIES_FT,
-        "historic1962": {
-            "family": HISTORIC_1962_FAMILY,
-            "documentedHighTideCount": 5,
-            "designHydrographExtremaHoursNavd88Ft": [
-                list(item) for item in HISTORIC_1962_EXTREMA
-            ],
-            "durationHours": historic_elapsed_seconds / 3600.0,
-            "retainedStageNavd88Ft": HISTORIC_1962_STAGE_FT,
-            "sourceExchangeFt3": historic_source_exchange_ft3,
-            "storedFrameCountPerOverlay": 1,
+            "application": (
+                "depth only; connectivity is evaluated at the full gauge stage"
+            ),
         },
     }
-    return families, summary
+    return phases, summary
 
 
 def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
     return {
-        "schema": "north-wildwood-hydraulic-states-binary-v14",
+        "schema": "north-wildwood-hydraulic-states-binary-v5",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "stageMinNavd88Ft": MODEL_MIN_STAGE_FT,
-        "stageMaxNavd88Ft": MODEL_MAX_STAGE_FT,
-        "stageStepFt": MODEL_STAGE_STEP_FT,
+        "stageMinNavd88Ft": 0.0,
+        "stageMaxNavd88Ft": 20.0,
+        "stageStepFt": 0.05,
         "stageCount": len(STAGES_FT),
         "zoneCount": graph_manifest["zoneCount"],
         "zoneStride": graph_manifest["zoneCount"] + 1,
-        "encoding": "gzip container: NWHYD2 magic, little-endian uint32 JSON header length, JSON header, then family little-endian Int16 arrays",
+        "encoding": "gzip container: NWHYD2 magic, little-endian uint32 JSON header length, JSON header, then phase little-endian Int16 arrays",
         "valueType": "int16-le",
         "bytesPerValue": 2,
         "surfaceUnits": "centifeet NAVD88",
         "surfaceScalePerFoot": 100,
         "drySentinelCentift": int(DRY_SENTINEL),
-        "familyOrder": list(ATLAS_FAMILIES),
+        "phaseOrder": ["filling", "slack", "draining"],
         "forcing": {
-            "substepSeconds": MODEL_STEP_SECONDS,
-            "risingFamiliesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
-            "crestHoldMinutes": SHORT_CREST_MINUTES,
-            "fallingPriorCrestsNavd88Ft": FALLING_CREST_FAMILIES_FT,
-            "historic1962FiveTideExtremaHoursNavd88Ft": [
-                list(item) for item in HISTORIC_1962_EXTREMA
-            ],
-            "selection": (
-                "browser uses observed/forecast rising-limb rate or the "
-                "preceding absolute crest, with one stored March 1962 "
-                "five-high-tide maximum; no live tide-cycle hydraulic solve"
-            ),
+            "phaseTreatment": "filling, slack, and draining are identical",
+            "filling": "connectivity-first depth-penalized bathtub",
+            "slack": "connectivity-first depth-penalized bathtub",
+            "draining": "connectivity-first depth-penalized bathtub",
         },
         "physics": {
-            "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
-            "terrainFlow": (
-                "Manning diffusive-wave conveyance with broad-crested-weir "
-                "free-overflow capacity bound"
+            "modelKind": "connectivity-first depth-penalized bathtub",
+            "terrainFlow": "none; static water surface",
+            "connectivity": (
+                "ground and exact four-neighbour source-connection stage must "
+                "both be below the full selected gauge stage"
             ),
-            "manningUsCustomaryFactor": MANNING_US_CUSTOMARY,
-            "urbanOverlandManningN": URBAN_OVERLAND_MANNING_N,
-            "flowLengthFt": graph_manifest["controlVolumeSizeFt"],
-            "freeOverflowWeirCoefficientCfs": BROAD_CRESTED_WEIR_CFS,
-            "crossSection": (
-                "one foot of width per shared one-foot cell side, grouped by "
-                "crest elevation"
-            ),
-            "sourceBoundary": graph_manifest["sourceBoundaryDefinition"],
-            "sourceBoundaryPixelCount": graph_manifest[
-                "qualifiedSourceBoundaryPixelCount"
-            ],
-            "sourceEnclaveTreatment": graph_manifest[
-                "sourceEnclaveTreatment"
-            ],
-            "sourceZoneIsolation": graph_manifest[
-                "sourceZonesIsolatedFromTerrain"
-            ],
-            "sourceExchange": (
-                "fixed tide stage inside the qualified complete <=2.0-ft "
-                "source footprint; terrain exchanges water only through "
-                "explicit shared-edge flux at real DEM crest elevations"
-            ),
-            "sourceBlockActivationNavd88Ft": SOURCE_BLOCK_ACTIVATION_NAVD88_FT,
-            "sourceInterfaceTreatment": (
-                "all one-foot edges along the complete source/terrain perimeter "
-                "are preserved; both source-to-terrain inflow and "
-                "terrain-to-source recession retain the actual graph crest; "
-                "2.0 ft defines geometry only"
-            ),
-            "storage": (
-                "one-foot DEM hypsometry integrated inside each finite-volume "
-                "node"
-            ),
-            "fluxStability": (
-                "edge transfers are bounded by two-basin equalization volume, "
-                "aggregate receiver capacity, and available donor storage"
-            ),
-            "frontPropagation": (
-                "newly wet nodes cannot donate until the next 60-second "
-                "substep and contain the minimum mobile depth"
-            ),
-            "minimumMobileDepthFt": MIN_MOBILE_DEPTH_FT,
-            "minimumRenderedDepthFt": MIN_DISPLAY_DEPTH_FT,
-            "historyInvariant": False,
+            "phaseInvariant": True,
+            "verticalPenalty": {
+                "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
+                "atOrAboveMajorFt": 0.0,
+                "curve": "normalized exponential",
+                "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
+                "maximumLocalDepthPenaltyFraction": (
+                    MAX_LOCAL_DEPTH_PENALTY_FRACTION
+                ),
+                "minimumConnectedDepthRetainedFraction": (
+                    MIN_CONNECTED_DEPTH_RETAINED_FRACTION
+                ),
+                "application": (
+                    "depth only after connectivity; cannot erase connected water"
+                ),
+            },
             "stormDrains": "disabled; no orifice exchange and no connectivity seeds",
             "bulkheadElevationNavd88Ft": 7.5,
             "bulkheadNominalWidthCells": 21,
             "bulkheadTerrainTreatment": (
                 "stitched into the one-foot DEM with GDAL before graph construction"
             ),
-            "waterSurface": "cell-specific finite-volume routed surface",
+            "waterSurface": (
+                "cell-specific ground plus bounded penalized connected depth"
+            ),
         },
         "diagnostics": diagnostics,
     }
@@ -975,43 +651,106 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
 
 def write_state_asset(
     output_path: Path,
-    families: dict[str, np.ndarray],
+    phases: dict[str, np.ndarray],
     graph_manifest: dict,
     diagnostics: dict,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     metadata = state_metadata(graph_manifest, diagnostics)
-    encoded_families: list[bytes] = []
-    family_offsets: dict[str, dict[str, int]] = {}
+    encoded_phases: list[bytes] = []
+    phase_offsets: dict[str, dict[str, int]] = {}
     cursor = 0
-    for family in metadata["familyOrder"]:
-        raw_family = families[family].astype("<i2", copy=False).tobytes()
-        encoded_families.append(raw_family)
-        family_offsets[family] = {"offset": cursor, "length": len(raw_family)}
-        cursor += len(raw_family)
-    # Keep the container field name for old browsers; its keys are now atlas
-    # families and are discovered dynamically by the current browser.
-    metadata["phaseArrays"] = family_offsets
+    for phase in metadata["phaseOrder"]:
+        raw_phase = phases[phase].astype("<i2", copy=False).tobytes()
+        encoded_phases.append(raw_phase)
+        phase_offsets[phase] = {"offset": cursor, "length": len(raw_phase)}
+        cursor += len(raw_phase)
+    metadata["phaseArrays"] = phase_offsets
     header = json.dumps(metadata, separators=(",", ":")).encode("utf-8")
-    raw = b"NWHYD2\x00\x00" + len(header).to_bytes(4, "little") + header + b"".join(encoded_families)
+    raw = b"NWHYD2\x00\x00" + len(header).to_bytes(4, "little") + header + b"".join(encoded_phases)
     output_path.write_bytes(gzip.compress(raw, compresslevel=9, mtime=0))
     print(f"Hydraulic states: {len(raw):,} binary bytes -> {output_path.stat().st_size:,} gzip bytes")
+
+
+FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
+    (
+        (0, 1, 0),
+        (1, 1, 1),
+        (0, 1, 0),
+    ),
+    dtype=np.uint8,
+)
+
+
+def pool_source_to_render_grid(source: np.ndarray) -> np.ndarray:
+    """Preserve any one-foot source cell inside each five-foot render pixel."""
+    if source.shape != (HEIGHT, WIDTH):
+        raise ValueError(f"Unexpected source raster shape {source.shape}")
+    if HEIGHT % RENDER_STRIDE or WIDTH % RENDER_STRIDE:
+        raise ValueError("One-foot source raster is not divisible by render stride")
+    pooled = np.zeros(
+        (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE),
+        dtype=bool,
+    )
+    for y_offset in range(RENDER_STRIDE):
+        for x_offset in range(RENDER_STRIDE):
+            pooled |= (
+                source[
+                    y_offset::RENDER_STRIDE,
+                    x_offset::RENDER_STRIDE,
+                ]
+                != 0
+            )
+    return pooled
+
+
+def retain_source_connected_water(
+    flooded: np.ndarray,
+    source: np.ndarray,
+) -> tuple[np.ndarray, int, int, int]:
+    """Keep only side-connected blue components that touch a qualified source."""
+    labels, component_count = ndimage_label(
+        flooded,
+        structure=FOUR_NEIGHBOUR_STRUCTURE,
+    )
+    if component_count == 0:
+        return flooded, 0, 0, 0
+    seeded_labels = np.unique(labels[flooded & source])
+    seeded_labels = seeded_labels[seeded_labels > 0]
+    component_sizes = np.bincount(labels.ravel(), minlength=component_count + 1)
+    seeded_labels = seeded_labels[component_sizes[seeded_labels] >= 2]
+    keep = np.zeros(component_count + 1, dtype=bool)
+    keep[seeded_labels] = True
+    connected = flooded & keep[labels]
+    removed = int(np.count_nonzero(flooded & ~connected))
+    return connected, int(component_count), int(seeded_labels.size), removed
 
 
 def render_assets(
     graph_dir: Path,
     dem_path: Path,
     output_root: Path,
-    families: dict[str, np.ndarray],
-    family_names: tuple[str, ...] | None = None,
+    phases: dict[str, np.ndarray],
+    phase_names: tuple[str, ...] | None = None,
 ) -> dict:
-    render_shape = (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE)
-    render_cells = np.memmap(
-        graph_dir / "render_cells.raw",
-        dtype=RENDER_CELL_DTYPE,
+    elevation10 = np.memmap(
+        graph_dir / "elevation10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    connection10 = np.memmap(
+        graph_dir / "connection10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    zone = np.memmap(
+        graph_dir / "zone_id.raw", dtype="<i4", mode="r", shape=(HEIGHT, WIDTH)
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    source_raw = np.memmap(
+        graph_dir / "source_flag.raw",
+        dtype=np.uint8,
         mode="r",
-        shape=render_shape,
+        shape=(HEIGHT, WIDTH),
     )
+    source = pool_source_to_render_grid(source_raw)
+    del source_raw
+
     dem_ds = gdal.Open(str(dem_path))
     projection = dem_ds.GetProjection()
     origin = dem_ds.GetGeoTransform()
@@ -1025,253 +764,105 @@ def render_assets(
         origin[5] * RENDER_STRIDE,
     )
 
-    depth_palette, depth_alpha = palette(DEPTH_COLORS)
-    stage_palette, stage_alpha = palette(STAGE_COLORS)
-    family_dirs = {family: family for family in ATLAS_FAMILIES}
-    valid = render_cells["valid_count"] > 0
+    depth_palette, depth_alpha = palette(DEPTH_COLORS, 12)
+    stage_palette, stage_alpha = palette(STAGE_COLORS, 4)
+    phase_dirs = {
+        "filling": "filling",
+        "slack": "",
+        "draining": "draining",
+    }
+    valid = elevation10 != np.iinfo(np.int16).min
+    ground = elevation10.astype(np.float32) / 10.0
+    connection = connection10.astype(np.float32) / 10.0
     counts = {}
 
-    # Stage-hazard colors use the first rising stage at which each routed
-    # finite-volume node actually contains water. This replaces the old static
-    # minimum-connection-stage classification.
-    filling_wet = families["rising_typical"][:, 1:] != DRY_SENTINEL
-    filling_reached = np.any(filling_wet, axis=0)
-    first_filling_index = np.argmax(filling_wet, axis=0)
-    routed_activation = np.full(families["rising_typical"].shape[1], np.inf, dtype=np.float32)
-    routed_activation[1:][filling_reached] = STAGES_FT[
-        first_filling_index[filling_reached]
-    ]
-
-    def add_terrain_slot(
-        slot: int,
-        encoded_surface: np.ndarray,
-        wet_area: np.ndarray,
-        depth_sum: np.ndarray,
-        activation_max: np.ndarray,
-    ) -> None:
-        zone = render_cells[f"terrain_zone{slot}"]
-        count = render_cells[f"terrain_count{slot}"].astype(np.float32)
-        present = (zone >= 0) & (count > 0)
-        zone_lookup = np.where(present, zone + 1, 0)
-        surface_centift = encoded_surface[zone_lookup]
-        state_wet = present & (surface_centift != DRY_SENTINEL)
-        if not np.any(state_wet):
-            return
-        surface = surface_centift.astype(np.float32) / 100.0
-        ground_min = render_cells[f"terrain_ground_min10_{slot}"].astype(
-            np.float32
-        ) / 10.0
-        ground_max = render_cells[f"terrain_ground_max10_{slot}"].astype(
-            np.float32
-        ) / 10.0
-        ground_mean = np.divide(
-            render_cells[f"terrain_ground_sum10_{slot}"].astype(np.float32),
-            np.maximum(count * 10.0, 1.0),
-        )
-        threshold = surface - MIN_DISPLAY_DEPTH_FT
-        fully_wet = state_wet & (threshold >= ground_max)
-        partly_wet = state_wet & (threshold >= ground_min) & ~fully_wet
-        slot_area = np.where(fully_wet, count, 0.0).astype(np.float32)
-        slot_depth = np.where(
-            fully_wet,
-            np.maximum(surface - ground_mean, MIN_DISPLAY_DEPTH_FT),
-            0.0,
-        ).astype(np.float32)
-        if np.any(partly_wet):
-            span = np.maximum(ground_max - ground_min, 0.1)
-            fraction = np.clip((threshold - ground_min + 0.1) / (span + 0.1), 0.0, 1.0)
-            partial_area = count * fraction
-            wet_ground_mean = (ground_min + np.minimum(ground_max, threshold)) / 2.0
-            partial_depth = np.maximum(
-                surface - wet_ground_mean,
-                MIN_DISPLAY_DEPTH_FT,
-            )
-            slot_area = np.where(partly_wet, partial_area, slot_area)
-            slot_depth = np.where(partly_wet, partial_depth, slot_depth)
-        contributing = slot_area > 0
-        wet_area += slot_area
-        depth_sum += slot_area * slot_depth
-        activation = np.maximum(ground_mean, routed_activation[zone_lookup])
-        activation_max[contributing] = np.maximum(
-            activation_max[contributing],
-            activation[contributing],
-        )
-
-    def add_source_field(
-        stage: float,
-        encoded_surface: np.ndarray,
-        wet_area: np.ndarray,
-        depth_sum: np.ndarray,
-        activation_max: np.ndarray,
-    ) -> None:
-        """Paint the complete qualified two-foot field as boundary water.
-
-        Stone Harbor's connected-stage contract keeps its qualifying source
-        block visible in every applicable public frame.  North Wildwood's
-        finite-volume solve still controls all water routed beyond this fixed
-        field, but the field itself must not disappear from the map.  Because
-        every qualified source subcell is at or below 2.0 ft NAVD88, all of it
-        is wet once the two-foot source stage is reached.
-        """
-        if stage < SOURCE_BLOCK_MAX_NAVD88_FT - 1e-9:
-            return
-        zone = render_cells["source_zone"]
-        count = render_cells["source_count"].astype(np.float32)
-        enclosed_count = render_cells["enclosed_source_fill_count"].astype(
-            np.float32
-        )
-        present = (zone >= 0) & (count > 0)
-        enclosed_present = enclosed_count > 0
-        visible_source = present | enclosed_present
-        if not np.any(visible_source):
-            return
-        zone_lookup = np.where(present, zone + 1, 0)
-        surface_centift = encoded_surface[zone_lookup]
-        state_wet = present & (surface_centift != DRY_SENTINEL)
-        if not np.any(state_wet | enclosed_present):
-            return
-        surface = surface_centift.astype(np.float32) / 100.0
-        ground_mean = np.divide(
-            render_cells["source_ground_sum10"].astype(np.float32),
-            np.maximum(count * 10.0, 1.0),
-        )
-        source_depth = np.maximum(
-            surface - ground_mean,
-            MIN_DISPLAY_DEPTH_FT,
-        )
-        source_area = np.where(state_wet, count, 0.0).astype(np.float32)
-        # Enclosed display artifacts are filled to the two-foot boundary
-        # datum.  They do not alter any hydraulic zone, flux, or stored state.
-        enclosed_depth = max(
-            stage - SOURCE_BLOCK_MAX_NAVD88_FT,
-            MIN_DISPLAY_DEPTH_FT,
-        )
-        filled_area = source_area + enclosed_count
-        wet_area += filled_area
-        depth_sum += source_area * source_depth + enclosed_count * enclosed_depth
-        activation_max[visible_source] = np.maximum(
-            activation_max[visible_source],
-            SOURCE_BLOCK_MAX_NAVD88_FT,
-        )
-
-    selected_family_dirs = (
-        tuple(family_dirs.items())
-        if family_names is None
-        else tuple((family, family_dirs[family]) for family in family_names)
+    # The model is phase-invariant, so render the canonical slack catalog once
+    # and byte-copy it to the two phase directories. This cuts the expensive
+    # component labeling and PNG encoding work by two thirds.
+    selected_phase_dirs = (
+        (("slack", phase_dirs["slack"]),)
+        if phase_names is None
+        else tuple((phase, phase_dirs[phase]) for phase in phase_names)
     )
-    for family, directory in selected_family_dirs:
+    for phase, directory in selected_phase_dirs:
         depth_dir = output_root / "DepthPNGs" / "North Wildwood" / directory
         stage_dir = output_root / "StagePNGs" / "North Wildwood" / directory
         depth_dir.mkdir(parents=True, exist_ok=True)
         stage_dir.mkdir(parents=True, exist_ok=True)
-        family_bytes = 0
-        maximum_flooded_pixels = 0
-        minimum_flooded_pixels = None
-        render_stage_indices = (
-            (HISTORIC_1962_STAGE_INDEX,)
-            if family == HISTORIC_1962_FAMILY
-            else range(len(STAGES_FT))
-        )
-        for stage_index in render_stage_indices:
-            stage = STAGES_FT[stage_index]
-            encoded_surface = families[family][stage_index]
-            wet_area = np.zeros(render_shape, dtype=np.float32)
-            depth_sum = np.zeros(render_shape, dtype=np.float32)
-            activation_max = np.full(render_shape, -np.inf, dtype=np.float32)
-
-            # Match Stone Harbor's source-field contract: the complete
-            # qualifying <=2.0-ft field is visible boundary water.  Only the
-            # expansion beyond this immutable field is capacity/time limited.
-            add_source_field(
-                float(stage),
-                encoded_surface,
-                wet_area,
-                depth_sum,
-                activation_max,
+        phase_bytes = 0
+        disconnected_pixels_removed = 0
+        maximum_unfiltered_components = 0
+        maximum_retained_components = 0
+        for stage_index, stage in enumerate(STAGES_FT):
+            raw_depth = np.maximum(0.0, float(stage) - ground)
+            depth = penalized_connected_depth_ft(float(stage), ground).astype(
+                np.float32,
+                copy=False,
             )
-
-            add_terrain_slot(
-                0,
-                encoded_surface,
-                wet_area,
-                depth_sum,
-                activation_max,
+            # The wet footprint is determined at the full gauge stage. The
+            # bounded penalty changes depth/color only, never connectivity.
+            # The final component filter below enforces the same four-side
+            # source rule after five-foot display resampling.
+            flooded = (
+                valid
+                & (raw_depth > 0.005)
+                & (connection <= float(stage) + 1e-9)
             )
-            add_terrain_slot(
-                1,
-                encoded_surface,
-                wet_area,
-                depth_sum,
-                activation_max,
-            )
-
-            flooded = valid & (wet_area > 0)
-            coverage = np.clip(wet_area / float(RENDER_STRIDE**2), 0.0, 1.0)
-            depth = np.divide(
-                depth_sum,
-                np.maximum(wet_area, 1e-6),
-                out=np.zeros_like(depth_sum),
-                where=wet_area > 0,
-            )
-            # Smooth only the displayed depth values, weighted by represented
-            # wet area.  The immutable wet mask and fractional edge coverage
-            # are never expanded by this display-only filter.
-            wet_weight = gaussian_filter(
-                coverage,
-                sigma=1.0,
-                mode="nearest",
-            )
-            filtered_depth = gaussian_filter(
-                depth * coverage,
-                sigma=1.0,
-                mode="nearest",
-            )
-            depth = np.where(
+            (
                 flooded,
-                np.divide(
+                unfiltered_components,
+                retained_components,
+                removed_pixels,
+            ) = retain_source_connected_water(flooded, source)
+            disconnected_pixels_removed += removed_pixels
+            maximum_unfiltered_components = max(
+                maximum_unfiltered_components,
+                unfiltered_components,
+            )
+            maximum_retained_components = max(
+                maximum_retained_components,
+                retained_components,
+            )
+            if np.any(flooded):
+                # Smooth only the depth values inside the immutable connected
+                # water mask. This removes 5-ft palette stippling caused by
+                # one-cell lidar noise without creating a single new wet pixel.
+                wet_weight = gaussian_filter(
+                    flooded.astype(np.float32),
+                    sigma=2.0,
+                    mode="nearest",
+                )
+                filtered_depth = gaussian_filter(
+                    np.where(flooded, np.maximum(depth, 0.0), 0.0),
+                    sigma=2.0,
+                    mode="nearest",
+                )
+                smoothed_depth = np.divide(
                     filtered_depth,
                     np.maximum(wet_weight, 1e-6),
                     out=np.zeros_like(filtered_depth),
                     where=wet_weight > 1e-6,
-                ),
-                0.0,
-            )
-            flooded_pixels = int(np.count_nonzero(flooded))
-            maximum_flooded_pixels = max(maximum_flooded_pixels, flooded_pixels)
-            minimum_flooded_pixels = (
-                flooded_pixels
-                if minimum_flooded_pixels is None
-                else min(minimum_flooded_pixels, flooded_pixels)
-            )
-            coverage_code = np.digitize(
-                coverage,
-                COVERAGE_BREAKS,
-                right=False,
-            ).astype(np.uint8)
-            depth_codes = np.zeros(render_shape, dtype=np.uint8)
-            if np.any(flooded):
-                depth_class = np.digitize(
-                    depth[flooded], DEPTH_BREAKS_FT, right=False
-                ).astype(np.uint8)
-                depth_codes[flooded] = (
-                    depth_class * len(COVERAGE_ALPHA_LEVELS)
-                    + coverage_code[flooded]
-                    + 1
                 )
+                depth = np.where(flooded, smoothed_depth, depth)
+            below_stage = valid & (ground <= stage + 0.0001)
+            green = below_stage & ~flooded
 
-            stage_codes = np.zeros(render_shape, dtype=np.uint8)
+            depth_codes = np.zeros(zone.shape, dtype=np.uint8)
+            depth_codes[green] = 12
             if np.any(flooded):
-                activation = activation_max[flooded]
-                stage_class = np.where(
-                    activation < MINOR_NAVD88_FT,
-                    0,
-                    np.where(activation < MODERATE_NAVD88_FT, 1, 2),
+                depth_codes[flooded] = (
+                    np.digitize(depth[flooded], DEPTH_BREAKS_FT, right=False) + 1
                 ).astype(np.uint8)
-                stage_codes[flooded] = (
-                    stage_class * len(COVERAGE_ALPHA_LEVELS)
-                    + coverage_code[flooded]
-                    + 1
-                )
+
+            stage_codes = np.zeros(zone.shape, dtype=np.uint8)
+            stage_codes[green] = 4
+            if np.any(flooded):
+                activation = np.maximum(ground[flooded], connection[flooded])
+                stage_codes[flooded] = np.where(
+                    activation < MINOR_NAVD88_FT,
+                    1,
+                    np.where(activation < MODERATE_NAVD88_FT, 2, 3),
+                ).astype(np.uint8)
 
             code = stage_code(float(stage))
             depth_path = depth_dir / f"NorthWildwoodDepth{code}.png"
@@ -1284,23 +875,57 @@ def render_assets(
                 image.putpalette(image_palette)
                 image.info["transparency"] = transparency
                 image.save(path, format="PNG", optimize=False, compress_level=7)
-                family_bytes += path.stat().st_size
+                phase_bytes += path.stat().st_size
             if stage_index % 20 == 0:
-                print(f"Rendered {family:16s} {stage:4.1f} ft")
-        counts[family] = {
-            "stageCount": len(render_stage_indices),
-            "pngBytes": family_bytes,
-            "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
-            "historyInvariant": False,
-            "wetFootprint": (
-                "area-weighted one-foot subcells from immutable finite-volume "
-                "routed terrain nodes plus the complete visible <=2.0-ft "
-                "fixed-head source field; "
-                "smoothing cannot add wet pixels"
-            ),
-            "minimumFloodedPixels": minimum_flooded_pixels or 0,
-            "maximumFloodedPixels": maximum_flooded_pixels,
+                print(f"Rendered {phase:8s} {stage:4.1f} ft")
+        counts[phase] = {
+            "stageCount": len(STAGES_FT),
+            "pngBytes": phase_bytes,
+            "modelKind": "connectivity-first depth-penalized bathtub",
+            "phaseInvariant": True,
+            "verticalPenalty": {
+                "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
+                "atOrAboveMajorFt": 0.0,
+                "curve": "normalized exponential",
+                "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
+                "maximumLocalDepthPenaltyFraction": (
+                    MAX_LOCAL_DEPTH_PENALTY_FRACTION
+                ),
+                "minimumConnectedDepthRetainedFraction": (
+                    MIN_CONNECTED_DEPTH_RETAINED_FRACTION
+                ),
+                "application": (
+                    "depth only after full-stage connectivity"
+                ),
+            },
+            "connectivity": "four-neighbour render components touching a qualified source",
+            "disconnectedBluePixelsRemoved": disconnected_pixels_removed,
+            "maximumUnfilteredComponents": maximum_unfiltered_components,
+            "maximumRetainedSourceComponents": maximum_retained_components,
         }
+
+    if phase_names is None:
+        canonical = counts["slack"]
+        for phase in ("filling", "draining"):
+            directory = phase_dirs[phase]
+            copied_bytes = 0
+            for family, prefix in (
+                ("DepthPNGs", "NorthWildwoodDepth"),
+                ("StagePNGs", "NorthWildwoodStage"),
+            ):
+                source_dir = output_root / family / "North Wildwood"
+                destination_dir = source_dir / directory
+                destination_dir.mkdir(parents=True, exist_ok=True)
+                for stage in STAGES_FT:
+                    filename = f"{prefix}{stage_code(float(stage))}.png"
+                    source_path = source_dir / filename
+                    destination_path = destination_dir / filename
+                    shutil.copyfile(source_path, destination_path)
+                    copied_bytes += destination_path.stat().st_size
+            counts[phase] = dict(canonical)
+            counts[phase]["pngBytes"] = copied_bytes
+            counts[phase]["copiedFromCanonicalPhase"] = "slack"
+            print(f"Copied canonical slack catalog to {phase}")
 
     world_path = output_root / "NorthWildwoodOverlay5ft.pgw"
     center_x = render_transform[0] + render_transform[1] / 2
@@ -1321,26 +946,12 @@ def render_assets(
         encoding="utf-8",
     )
     return {
-        "renderWidth": int(render_shape[1]),
-        "renderHeight": int(render_shape[0]),
+        "renderWidth": int(zone.shape[1]),
+        "renderHeight": int(zone.shape[0]),
         "renderCellSizeFt": RENDER_STRIDE,
         "projection": projection,
         "geotransform": list(render_transform),
-        "fixedHeadBoundaryDisplay": (
-            "the complete qualified <=2.0-ft source field is visible boundary "
-            "water from its two-foot source stage upward; routed terrain remains "
-            "area aggregated with fractional coverage"
-        ),
-        "sourceBoundaryRendered": True,
-        "coverageAlphaLevels": list(COVERAGE_ALPHA_LEVELS),
-        "maximumOmittedTerrainSubcells": int(
-            np.max(render_cells["omitted_terrain_count"])
-        ),
-        "totalOmittedTerrainSubcells": int(
-            np.sum(render_cells["omitted_terrain_count"], dtype=np.int64)
-        ),
-        "minimumRenderedDepthFt": MIN_DISPLAY_DEPTH_FT,
-        "families": counts,
+        "phases": counts,
     }
 
 
@@ -1422,8 +1033,8 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
             if y % 2048 == 0:
                 print(f"Writing query raster row {y:,}/{HEIGHT:,}")
         ds.SetMetadataItem(
-        "MODEL",
-            "subgrid diffusive-wave finite-volume routing; storm drains disabled",
+            "MODEL",
+            "one-foot finite-volume broad-crested-weir routing; storm drains disabled",
         )
         ds.SetMetadataItem("VERTICAL_DATUM", "NAVD88 feet")
         ds.FlushCache()
@@ -1487,44 +1098,20 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
 
 def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     """Pack the five-foot ground/connection lookup into a browser-native PNG."""
-    render_shape = (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE)
-    render_cells = np.memmap(
-        graph_dir / "render_cells.raw",
-        dtype=RENDER_CELL_DTYPE,
+    elevation10 = np.memmap(
+        graph_dir / "elevation10.raw",
+        dtype="<i2",
         mode="r",
-        shape=render_shape,
-    )
-    represented_count = (
-        render_cells["source_count"].astype(np.int32)
-        + render_cells["enclosed_source_fill_count"].astype(np.int32)
-        + render_cells["terrain_count0"].astype(np.int32)
-        + render_cells["terrain_count1"].astype(np.int32)
-    )
-    represented_ground_sum10 = (
-        render_cells["source_ground_sum10"].astype(np.int32)
-        + render_cells["enclosed_source_fill_count"].astype(np.int32)
-        * int(round(SOURCE_BLOCK_MAX_NAVD88_FT * 10.0))
-        + render_cells["terrain_ground_sum10_0"].astype(np.int32)
-        + render_cells["terrain_ground_sum10_1"].astype(np.int32)
-    )
-    elevation10 = np.rint(
-        np.divide(
-            represented_ground_sum10.astype(np.float32),
-            np.maximum(represented_count, 1),
-        )
-    ).astype(np.int16)
+        shape=(HEIGHT, WIDTH),
+    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
     connection10 = np.memmap(
         graph_dir / "connection10.raw",
         dtype="<i2",
         mode="r",
         shape=(HEIGHT, WIDTH),
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    connection10 = np.asarray(connection10).copy()
-    connection10[render_cells["enclosed_source_fill_count"] > 0] = int(
-        round(SOURCE_BLOCK_MAX_NAVD88_FT * 10.0)
-    )
 
-    valid = represented_count > 0
+    valid = elevation10 != np.iinfo(np.int16).min
     unsigned_elevation = np.zeros(elevation10.shape, dtype=np.uint16)
     unsigned_elevation[valid] = (
         elevation10[valid].astype(np.int32) + 32768
@@ -1534,16 +1121,16 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     packed[..., 0] = (unsigned_elevation >> 8).astype(np.uint8)
     packed[..., 1] = (unsigned_elevation & 0xFF).astype(np.uint8)
     packed[..., 2] = 255
-    # One byte covers -3.0 through 22.4 ft in tenths. Connection stages below
-    # -3 ft are equivalent here because the published depth catalog starts at 0.
-    packed_connection10 = np.maximum(connection10, -30)
+    # One byte covers -5.0 through 20.4 ft in tenths. Connection stages below
+    # -5 ft are equivalent here because the published depth catalog starts at 0.
+    packed_connection10 = np.maximum(connection10, -50)
     encodable_connection = (
         valid
-        & (packed_connection10 >= -30)
-        & (packed_connection10 <= 224)
+        & (packed_connection10 >= -50)
+        & (packed_connection10 <= 204)
     )
     packed[..., 2][encodable_connection] = (
-        packed_connection10[encodable_connection].astype(np.int32) + 30
+        packed_connection10[encodable_connection].astype(np.int32) + 50
     ).astype(np.uint8)
     packed[..., 3] = 255
 
@@ -1555,7 +1142,7 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
         compress_level=7,
     )
     metadata = {
-        "schema": "north-wildwood-packed-depth-query-v3",
+        "schema": "north-wildwood-packed-depth-query-v2",
         "width": int(packed.shape[1]),
         "height": int(packed.shape[0]),
         "renderCellSizeFt": RENDER_STRIDE,
@@ -1566,8 +1153,8 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
             ),
             "blue": (
                 "first four-neighbour connection stage in tenths NAVD88 plus "
-                "30; values below -3 ft are clamped to -3 ft; 255 means not "
-                "connected through the graph-build ceiling"
+                "50; values below -5 ft are clamped to -5 ft; 255 means not "
+                "connected through 20 ft"
             ),
             "alpha": "255",
         },
@@ -1577,83 +1164,31 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     return metadata
 
 
-def build_zone_query_png(
-    graph_dir: Path,
-    destination: Path,
-    families: dict[str, np.ndarray],
-) -> dict:
-    """Pack displayable five-foot terrain zone IDs into a browser-native PNG."""
-    render_shape = (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE)
-    render_cells = np.memmap(
-        graph_dir / "render_cells.raw",
-        dtype=RENDER_CELL_DTYPE,
-        mode="r",
-        shape=render_shape,
-    )
-    source_dominates = (
-        (render_cells["source_zone"] >= 0)
-        & (
-            render_cells["source_count"]
-            >= render_cells["terrain_count0"]
-        )
-    )
-    zone = np.where(
-        source_dominates,
-        render_cells["source_zone"],
-        render_cells["terrain_zone0"],
-    )
-    zone = np.where(
-        (zone < 0) & (render_cells["source_zone"] >= 0),
-        render_cells["source_zone"],
-        zone,
-    ).astype(np.int32)
-    encoded = np.where(
-        zone >= 0,
-        zone.astype(np.uint32) + 1,
-        0,
-    )
-    if int(encoded.max()) >= 1 << 24:
-        raise RuntimeError("Hydraulic zone IDs do not fit in a 24-bit PNG")
-    packed = np.empty((*zone.shape, 3), dtype=np.uint8)
-    packed[..., 0] = ((encoded >> 16) & 0xFF).astype(np.uint8)
-    packed[..., 1] = ((encoded >> 8) & 0xFF).astype(np.uint8)
-    packed[..., 2] = (encoded & 0xFF).astype(np.uint8)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(packed, mode="RGB").save(
-        destination,
-        format="PNG",
-        optimize=False,
-        compress_level=7,
-    )
-    metadata = {
-        "schema": "north-wildwood-packed-zone-query-v1",
-        "width": int(packed.shape[1]),
-        "height": int(packed.shape[0]),
-        "renderCellSizeFt": RENDER_STRIDE,
-        "channels": (
-            "24-bit big-endian hydraulic terrain zone ID plus one; zero is "
-            "nodata"
-        ),
-        "fixedHeadBoundaryQuery": (
-            "included; complete connected source-footprint depth remains queryable"
-        ),
-        "bytes": destination.stat().st_size,
-    }
-    print(f"Packed zone query PNG: {destination.stat().st_size:,} bytes")
-    return metadata
-
-
 def main() -> None:
+    if gdal is None or Image is None or gaussian_filter is None or ndimage_label is None:
+        raise RuntimeError(
+            "GDAL, Pillow, and SciPy are required to build hydraulic assets"
+        )
     args = parse_args()
+    if args.draining_only:
+        raise ValueError(
+            "--draining-only is unavailable for the phase-invariant connected-"
+            "bathtub model; rebuild all three identical phases together"
+        )
+    if args.draining_only and args.reuse_complete_state:
+        raise ValueError("--draining-only and --reuse-complete-state are mutually exclusive")
     graph_dir = args.graph.resolve()
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
-    def asset_path(path: Path) -> str:
-        return path.relative_to(output_root).as_posix()
-
     asset_manifest_path = (
         output_root / "NorthWildwoodHydraulicAssetManifest.json"
     )
+    previous_render_manifest = None
+    if args.draining_only and asset_manifest_path.is_file():
+        previous_asset_manifest = json.loads(
+            asset_manifest_path.read_text(encoding="utf-8")
+        )
+        previous_render_manifest = previous_asset_manifest.get("render")
     graph_manifest = json.loads((graph_dir / "graph_manifest.json").read_text(encoding="utf-8"))
     packed_query_path = (
         output_root
@@ -1661,37 +1196,10 @@ def main() -> None:
         / "North Wildwood"
         / "NorthWildwoodHydraulicQuery5ft.png"
     )
-    zone_query_path = (
-        output_root
-        / "COGs"
-        / "North Wildwood"
-        / "NorthWildwoodHydraulicZone5ft.png"
-    )
-    state_path = (
-        output_root
-        / "COGs"
-        / "North Wildwood"
-        / "NorthWildwoodHydraulicStates.json.png"
-    )
     if args.packed_query_only:
-        if not state_path.is_file():
-            raise FileNotFoundError(
-                "Packed zone-query generation requires the existing hydraulic "
-                f"state package at {state_path}"
-            )
-        query_families, _ = load_complete_state(
-            state_path,
-            int(graph_manifest["zoneCount"]) + 1,
-            require_current_physics=True,
-        )
         packed_query_manifest = build_packed_query_png(
             graph_dir,
             packed_query_path,
-        )
-        zone_query_manifest = build_zone_query_png(
-            graph_dir,
-            zone_query_path,
-            query_families,
         )
         manifest = {}
         if asset_manifest_path.is_file():
@@ -1704,10 +1212,8 @@ def main() -> None:
                 .replace(microsecond=0)
                 .isoformat()
                 .replace("+00:00", "Z"),
-                "packedQueryPng": asset_path(packed_query_path),
+                "packedQueryPng": str(packed_query_path),
                 "packedQuery": packed_query_manifest,
-                "packedZoneQueryPng": asset_path(zone_query_path),
-                "packedZoneQuery": zone_query_manifest,
             }
         )
         asset_manifest_path.write_text(
@@ -1716,46 +1222,81 @@ def main() -> None:
         )
         print("North Wildwood packed depth-query asset complete")
         return
+    state_path = (
+        output_root
+        / "COGs"
+        / "North Wildwood"
+        / "NorthWildwoodHydraulicStates.json.png"
+    )
+    reusable_static_state = state_path if args.draining_only else None
     reusable_complete_state = state_path if args.reuse_complete_state else None
-    if reusable_complete_state is not None and not reusable_complete_state.is_file():
+    required_state = reusable_complete_state or reusable_static_state
+    if required_state is not None and not required_state.is_file():
         raise FileNotFoundError(
             "State reuse requires an existing hydraulic state package at "
-            f"{reusable_complete_state}"
+            f"{required_state}"
         )
     if reusable_complete_state is not None:
-        families, diagnostics = load_complete_state(
+        phases, diagnostics = load_complete_state(
             reusable_complete_state,
             int(graph_manifest["zoneCount"]) + 1,
-            require_current_physics=True,
         )
         print(f"Reused all hydraulic states: {reusable_complete_state}")
     else:
         zones = load_zones(graph_dir / "zones.csv")
-        edges = load_edges(graph_dir / "edges.csv")
+        edges = {
+            "a": np.empty(0, dtype=np.int32),
+            "b": np.empty(0, dtype=np.int32),
+            "crest_ft": np.empty(0, dtype=np.float64),
+            "width_ft": np.empty(0, dtype=np.float64),
+        }
         print(
-            f"Loaded {len(zones['connection10']):,} finite-volume zones and "
-            f"{len(edges['a']):,} crest-width edge groups"
+            f"Loaded {len(zones['connection10']):,} connected-bathtub zones; "
+            "routing edges are not needed"
         )
-        solver = HydraulicSolver(
-            zones,
-            edges,
-            control_volume_size_ft=float(
-                graph_manifest["controlVolumeSizeFt"]
-            ),
-        )
-        families, diagnostics = simulate(solver)
-    # Repacking a reused payload is intentional: solver/forcing metadata can
-    # be strengthened without recomputing the 707 hydraulic states, and the
-    # state package must describe the code that generated the public atlas.
-    write_state_asset(state_path, families, graph_manifest, diagnostics)
+        solver = HydraulicSolver(zones, edges)
+        phases, diagnostics = simulate(solver, reusable_static_state)
+        write_state_asset(state_path, phases, graph_manifest, diagnostics)
     render_manifest = None
     if not args.skip_render:
         render_manifest = render_assets(
             graph_dir,
             args.dem.resolve(),
             output_root,
-            families,
+            phases,
+            phase_names=("draining",) if args.draining_only else None,
         )
+        if previous_render_manifest is not None:
+            phase_counts = dict(previous_render_manifest.get("phases", {}))
+            phase_counts.update(render_manifest["phases"])
+            phase_directories = {
+                "filling": "filling",
+                "slack": "",
+                "draining": "draining",
+            }
+            for phase, directory in phase_directories.items():
+                if phase in phase_counts:
+                    continue
+                paths = []
+                for family in ("DepthPNGs", "StagePNGs"):
+                    paths.extend(
+                        (
+                            output_root
+                            / family
+                            / "North Wildwood"
+                            / directory
+                        ).glob("*.png")
+                    )
+                if len(paths) != len(STAGES_FT) * 2:
+                    raise RuntimeError(
+                        f"Cannot restore {phase} render manifest: "
+                        f"expected {len(STAGES_FT) * 2} PNGs, found {len(paths)}"
+                    )
+                phase_counts[phase] = {
+                    "stageCount": len(STAGES_FT),
+                    "pngBytes": sum(path.stat().st_size for path in paths),
+                }
+            render_manifest["phases"] = phase_counts
     query_path = (
         output_root
         / "COGs"
@@ -1768,35 +1309,28 @@ def main() -> None:
         graph_dir,
         packed_query_path,
     )
-    zone_query_manifest = build_zone_query_png(
-        graph_dir,
-        zone_query_path,
-        families,
-    )
 
     manifest = {
-        "schema": "north-wildwood-hydraulic-assets-v15",
+        "schema": "north-wildwood-hydraulic-assets-v5",
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "modelKind": "history-aware subgrid diffusive-wave finite-volume response atlas",
-        "historyInvariant": False,
-        "stageCatalog": {
-            "minimumNavd88Ft": MODEL_MIN_STAGE_FT,
-            "maximumNavd88Ft": MODEL_MAX_STAGE_FT,
-            "incrementFt": MODEL_STAGE_STEP_FT,
-            "operationalStageCountPerFamily": len(STAGES_FT),
-            "historic1962StageCount": 1,
-            "familyCount": len(ATLAS_FAMILIES),
-            "depthPngCount": (
-                len(STAGES_FT) * len(OPERATIONAL_ATLAS_FAMILIES) + 1
+        "modelKind": "connectivity-first depth-penalized bathtub",
+        "phaseInvariant": True,
+        "verticalPenalty": {
+            "atOrBelowMinorFt": LOW_STAGE_VERTICAL_PENALTY_FT,
+            "atOrAboveMajorFt": 0.0,
+            "curve": "normalized exponential",
+            "decayRate": VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE,
+            "maximumLocalDepthPenaltyFraction": (
+                MAX_LOCAL_DEPTH_PENALTY_FRACTION
             ),
-            "stagePngCount": (
-                len(STAGES_FT) * len(OPERATIONAL_ATLAS_FAMILIES) + 1
+            "minimumConnectedDepthRetainedFraction": (
+                MIN_CONNECTED_DEPTH_RETAINED_FRACTION
+            ),
+            "application": (
+                "depth only; connectivity evaluated at full gauge stage"
             ),
         },
-        "graph": {
-            **graph_manifest,
-            "modelMaximumNavd88Ft": MODEL_MAX_STAGE_FT,
-        },
+        "graph": graph_manifest,
         "render": render_manifest,
         "thresholdsNAVD88": {
             "minorLow": MINOR_NAVD88_FT,
@@ -1805,26 +1339,12 @@ def main() -> None:
         },
         "thresholdsMLLW": {"minorLow": 6.0, "moderateLow": 7.0, "majorLow": 8.0},
         "navd88OffsetFromMllwFt": -2.75,
-        "families": list(ATLAS_FAMILIES),
-        "familySelection": {
-            "risingRatesFtPerHour": RISE_RATE_FAMILIES_FT_PER_HOUR,
-            "crestHoldMinutes": SHORT_CREST_MINUTES,
-            "fallingPriorCrestsNavd88Ft": FALLING_CREST_FAMILIES_FT,
-            "historic1962": {
-                "family": HISTORIC_1962_FAMILY,
-                "date": "1962-03-07",
-                "documentedHighTideCount": 5,
-                "storedStageNavd88Ft": HISTORIC_1962_STAGE_FT,
-                "storedFrameCountPerOverlay": 1,
-            },
-        },
+        "phases": ["filling", "slack", "draining"],
         "diagnostics": diagnostics,
-        "queryCog": asset_path(query_path) if query_path.exists() else None,
-        "packedQueryPng": asset_path(packed_query_path),
+        "queryCog": str(query_path) if query_path.exists() else None,
+        "packedQueryPng": str(packed_query_path),
         "packedQuery": packed_query_manifest,
-        "packedZoneQueryPng": asset_path(zone_query_path),
-        "packedZoneQuery": zone_query_manifest,
-        "hydraulicStates": asset_path(state_path),
+        "hydraulicStates": str(state_path),
     }
     asset_manifest_path.write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
