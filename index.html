@@ -14764,6 +14764,100 @@ html.win-compact-ui #timelineDock #hourSlider{
       return el.value;
     }
 
+    let mapTitleFitRaf = 0;
+
+    function fitMapTitleBadgeToViewport() {
+      mapTitleFitRaf = 0;
+      const badge = document.getElementById("mapTitleBadge");
+      const text = document.getElementById("mapTitleText");
+      if (!badge || !text) return;
+
+      const viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+      const compact = window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches;
+      let leftLimit = 12;
+      let rightLimit = viewportWidth - 12;
+
+      if (!compact) {
+        const leftPanel = document.getElementById("leftPanel");
+        const rightRail = document.getElementById("rightRail");
+        const leftRect = leftPanel?.getBoundingClientRect();
+        const rightRect = rightRail?.getBoundingClientRect();
+        if (leftRect?.width && getComputedStyle(leftPanel).display !== "none") {
+          leftLimit = Math.max(leftLimit, leftRect.right + 14);
+        }
+        if (rightRect?.width && getComputedStyle(rightRail).display !== "none") {
+          rightLimit = Math.min(rightLimit, rightRect.left - 14);
+        }
+      }
+
+      if (rightLimit - leftLimit < 180) {
+        leftLimit = 12;
+        rightLimit = viewportWidth - 12;
+      }
+      const availableWidth = Math.max(156, rightLimit - leftLimit);
+      const center = leftLimit + (availableWidth / 2);
+      badge.style.setProperty("left", `${center}px`, "important");
+      badge.style.setProperty("max-width", `${availableWidth}px`, "important");
+      badge.style.setProperty("width", compact ? `${availableWidth}px` : "auto", "important");
+
+      const maximumFontSize = compact
+        ? Math.min(25, Math.max(17, viewportWidth * 0.056))
+        : viewportWidth <= 1080
+          ? Math.min(32, Math.max(20, viewportWidth * 0.028))
+          : viewportWidth <= 1280
+            ? Math.min(36, Math.max(24, viewportWidth * 0.026))
+            : Math.min(42, Math.max(28, viewportWidth * 0.024));
+      const maximumLogoWidth = compact
+        ? (viewportWidth <= 430 ? 0 : Math.min(68, availableWidth * 0.17))
+        : viewportWidth <= 1080
+          ? 0
+          : Math.min(viewportWidth <= 1280 ? 122 : 150, availableWidth * 0.2);
+      badge.style.setProperty("--nww-title-font-size", `${maximumFontSize}px`);
+      text.style.setProperty("font-size", `${maximumFontSize}px`, "important");
+      badge.style.setProperty("--nww-title-logo-max", `${maximumLogoWidth}px`);
+      badge.querySelectorAll(".shorely-title-logo").forEach(logo => {
+        logo.style.setProperty("max-width", `${maximumLogoWidth}px`, "important");
+      });
+
+      const badgeStyle = getComputedStyle(badge);
+      const paddingWidth = (parseFloat(badgeStyle.paddingLeft) || 0) + (parseFloat(badgeStyle.paddingRight) || 0);
+      const children = Array.from(badge.children).filter(child => {
+        const rect = child.getBoundingClientRect();
+        const style = getComputedStyle(child);
+        return child !== text && rect.width > 0 && style.display !== "none" && style.visibility !== "hidden";
+      });
+      const gap = parseFloat(badgeStyle.columnGap || badgeStyle.gap) || 0;
+      const fixedWidth = paddingWidth
+        + children.reduce((sum, child) => sum + child.getBoundingClientRect().width, 0)
+        + gap * Math.max(0, children.length);
+      const naturalTextWidth = Math.max(text.scrollWidth, text.getBoundingClientRect().width, 1);
+      const availableTextWidth = Math.max(80, availableWidth - fixedWidth);
+      const minimumFontSize = compact ? 12 : viewportWidth <= 1080 ? 11 : 16;
+      const fittedFontSize = Math.max(
+        minimumFontSize,
+        Math.min(maximumFontSize, maximumFontSize * (availableTextWidth / naturalTextWidth))
+      );
+      let finalFontSize = fittedFontSize;
+      for (let pass = 0; pass < 3; pass += 1) {
+        badge.style.setProperty("--nww-title-font-size", `${finalFontSize.toFixed(2)}px`);
+        text.style.setProperty("font-size", `${finalFontSize.toFixed(2)}px`, "important");
+        if (text.scrollWidth <= text.clientWidth + 1 || !text.scrollWidth) break;
+        const correction = Math.max(0.5, Math.min(0.99, text.clientWidth / text.scrollWidth));
+        finalFontSize = Math.max(minimumFontSize, finalFontSize * correction * 0.985);
+      }
+
+      const rect = badge.getBoundingClientRect();
+      badge.dataset.viewportContained = String(
+        rect.left >= leftLimit - 1 && rect.right <= rightLimit + 1 && rect.left >= -1 && rect.right <= viewportWidth + 1
+      );
+      badge.dataset.textContained = String(text.scrollWidth <= text.clientWidth + 1);
+    }
+
+    function scheduleMapTitleFit() {
+      if (mapTitleFitRaf) cancelAnimationFrame(mapTitleFitRaf);
+      mapTitleFitRaf = requestAnimationFrame(fitMapTitleBadgeToViewport);
+    }
+
     function setExportLogoImage(id, src, alt = "") {
       const img = document.getElementById(id);
       if (!img) return;
@@ -14833,7 +14927,8 @@ html.win-compact-ui #timelineDock #hourSlider{
           mapTitleLogo.src = config.assets.titleLogoPath;
           mapTitleLogo.alt = config.assets?.titleLogoAlt || "";
           mapTitleLogo.style.display = "";
-          mapTitleLogo.onerror = function(){ this.style.display = "none"; };
+          mapTitleLogo.onload = scheduleMapTitleFit;
+          mapTitleLogo.onerror = function(){ this.style.display = "none"; scheduleMapTitleFit(); };
         } else {
           mapTitleLogo.remove();
         }
@@ -14845,12 +14940,14 @@ html.win-compact-ui #timelineDock #hourSlider{
           mapTitlePartnerLogo.src = config.assets.partnerLogoPath;
           mapTitlePartnerLogo.alt = config.assets?.partnerLogoAlt || "";
           mapTitlePartnerLogo.style.display = "";
+          mapTitlePartnerLogo.onload = scheduleMapTitleFit;
           mapTitlePartnerLogo.onerror = function(){
             if (config.assets?.partnerLogoFallbackPath && !this.dataset.logoFallback) {
               this.dataset.logoFallback = "1";
               this.src = config.assets.partnerLogoFallbackPath;
             } else {
               this.style.display = "none";
+              scheduleMapTitleFit();
             }
           };
         } else {
@@ -14858,6 +14955,7 @@ html.win-compact-ui #timelineDock #hourSlider{
           mapTitlePartnerLogo.style.display = "none";
         }
       }
+      scheduleMapTitleFit();
 
       const rightLogoLink = document.getElementById("rightLogoLink");
       if (rightLogoLink) {
@@ -15145,6 +15243,7 @@ function cloneStyleObject(value) {
     let pendingFloodLayer = null;
     let floodLatLngBounds = null;
     let mapHasFit = false;
+    let deferredMapLayersStarted = false;
 
     let forecastData = null;
     let currentForecastScenario = "mean";
@@ -17669,6 +17768,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
           "scrollbar-gutter", "gap", "padding", "transform", "transition",
           "animation", "display", "flex-direction", "grid-template-columns"
         ].forEach(prop => panel.style.removeProperty(prop));
+        scheduleMapTitleFit();
         return;
       }
 
@@ -17711,6 +17811,30 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       panel.style.setProperty("transform", "none", "important");
       panel.style.setProperty("transition", "none", "important");
       panel.style.setProperty("animation", "none", "important");
+      scheduleMapTitleFit();
+    }
+
+    function markInitialFloodFrameReady() {
+      if (document.body.dataset.initialFloodFrame === "ready") return;
+      document.body.dataset.initialFloodFrame = "ready";
+      document.body.dataset.initialFloodFrameReadyAt = performance.now().toFixed(1);
+    }
+
+    function markInitialFloodFrameFailed() {
+      if (document.body.dataset.initialFloodFrame === "ready") return;
+      document.body.dataset.initialFloodFrame = "failed";
+      document.body.dataset.initialFloodFrameReadyAt = performance.now().toFixed(1);
+    }
+
+    function activateDeferredMapLayers() {
+      if (!map || deferredMapLayersStarted) return;
+      deferredMapLayersStarted = true;
+      document.body.dataset.deferredMapLayers = "active";
+      document.body.dataset.deferredMapLayersStartedAt = performance.now().toFixed(1);
+      if (basemapColorLayer && !map.hasLayer(basemapColorLayer)) basemapColorLayer.addTo(map);
+      if (roadsLayer && !map.hasLayer(roadsLayer)) roadsLayer.addTo(map);
+      updateRoadLayerAppearance();
+      updateColorBasemapClip();
     }
 
     function ensureMap() {
@@ -17763,9 +17887,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
             keepBuffer: 1,
             className: "basemap-color-layer",
             pane: "basemapColorPane"
-          }).addTo(map);
+          });
+          if (deferredMapLayersStarted) basemapColorLayer.addTo(map);
         });
-        basemapColorLayer.addTo(map);
       } else {
         basemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
           attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
@@ -17777,7 +17901,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
           keepBuffer: 1,
           className: "basemap-color-layer",
           pane: "basemapColorPane"
-        }).addTo(map);
+        });
       }
 
       satelliteLayer = L.tileLayer(ESRI_WORLD_IMAGERY_URL, {
@@ -17801,7 +17925,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         keepBuffer: 1,
         className: "roads-layer",
         pane: "roadsPane"
-      }).addTo(map);
+      });
 
       updateMunicipalBoundaryLayer();
 
@@ -22373,6 +22497,7 @@ function formatSelectedObservedDate(dateStr) {
 
       if (!match) {
         toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
+        markInitialFloodFrameFailed();
         return;
       }
 
@@ -22384,6 +22509,7 @@ function formatSelectedObservedDate(dateStr) {
         await ensureOverlayBounds(overlayUrl);
       } catch (err) {
         toast(err.message);
+        markInitialFloodFrameFailed();
         return;
       }
 
@@ -22411,38 +22537,45 @@ function formatSelectedObservedDate(dateStr) {
       );
 
       pendingFloodLayer = nextLayer;
+      await new Promise(resolve => {
+        nextLayer.once("load", () => {
+          if (token !== lastRenderToken) {
+            if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
+            resolve(false);
+            return;
+          }
 
-      nextLayer.once("load", () => {
-        if (token !== lastRenderToken) {
-          if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-          return;
-        }
+          nextLayer.setOpacity(overlayOpacity);
+          currentFloodLayer = nextLayer;
+          pendingFloodLayer = null;
 
-        nextLayer.setOpacity(overlayOpacity);
-        currentFloodLayer = nextLayer;
-        pendingFloodLayer = null;
+          if (previousLayer && map.hasLayer(previousLayer)) {
+            map.removeLayer(previousLayer);
+          }
 
-        if (previousLayer && map.hasLayer(previousLayer)) {
-          map.removeLayer(previousLayer);
-        }
+          updatePersistentDepthQueryPopup();
 
-        updatePersistentDepthQueryPopup();
+          if (!mapHasFit && floodLatLngBounds) {
+            const townBounds = getBoundaryDrivenOverlayBounds();
+            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
+            mapHasFit = true;
+          }
+          markInitialFloodFrameReady();
+          resolve(true);
+        });
 
-        if (!mapHasFit && floodLatLngBounds) {
-          const townBounds = getBoundaryDrivenOverlayBounds();
-          map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
-          mapHasFit = true;
-        }
+        nextLayer.once("error", () => {
+          if (token === lastRenderToken) {
+            if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
+            pendingFloodLayer = null;
+            toast(`Leaflet could not draw ${match.filename}.`);
+            markInitialFloodFrameFailed();
+          }
+          resolve(false);
+        });
+
+        nextLayer.addTo(map);
       });
-
-      nextLayer.on("error", () => {
-        if (token !== lastRenderToken) return;
-        if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-        pendingFloodLayer = null;
-        toast(`Leaflet could not draw ${match.filename}.`);
-      });
-
-      nextLayer.addTo(map);
     }
 
     async function setPhysicsFloodLayer(asset, token) {
@@ -22451,6 +22584,7 @@ function formatSelectedObservedDate(dateStr) {
       const overlayUrl = getPhysicsDisplayRecord(asset)?.url;
       const bounds = getActivePhysicsManifest()?.boundsWgs84;
       if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
+        markInitialFloodFrameFailed();
         throw new Error("The selected physics frame is incomplete.");
       }
       await preloadImage(overlayUrl);
@@ -22470,28 +22604,36 @@ function formatSelectedObservedDate(dateStr) {
         pane: "floodPane"
       });
       pendingFloodLayer = nextLayer;
-      nextLayer.once("load", () => {
-        if (token !== lastRenderToken) {
-          if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-          return;
-        }
-        nextLayer.setOpacity(overlayOpacity);
-        currentFloodLayer = nextLayer;
-        pendingFloodLayer = null;
-        renderedFloodPixelCache = null;
-        if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
-        if (!mapHasFit) {
-          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
-          mapHasFit = true;
-        }
+      await new Promise(resolve => {
+        nextLayer.once("load", () => {
+          if (token !== lastRenderToken) {
+            if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
+            resolve(false);
+            return;
+          }
+          nextLayer.setOpacity(overlayOpacity);
+          currentFloodLayer = nextLayer;
+          pendingFloodLayer = null;
+          renderedFloodPixelCache = null;
+          if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
+          if (!mapHasFit) {
+            map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
+            mapHasFit = true;
+          }
+          markInitialFloodFrameReady();
+          resolve(true);
+        });
+        nextLayer.once("error", () => {
+          if (token === lastRenderToken) {
+            if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
+            pendingFloodLayer = null;
+            toast("The current physics frame could not be drawn.");
+            markInitialFloodFrameFailed();
+          }
+          resolve(false);
+        });
+        nextLayer.addTo(map);
       });
-      nextLayer.on("error", () => {
-        if (token !== lastRenderToken) return;
-        if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-        pendingFloodLayer = null;
-        toast("The current physics frame could not be drawn.");
-      });
-      nextLayer.addTo(map);
     }
 
     async function renderHour(index) {
@@ -23334,7 +23476,12 @@ function populateCalendarSelectors() {
       updateDataModeButtons();
       renderTopTides();
       await loadForecast(null, { selectCurrent: true, forceRefresh: true });
-      await renderHour(currentHourIndex);
+      try {
+        await renderHour(currentHourIndex);
+      } finally {
+        if (document.body.dataset.initialFloodFrame === "loading") markInitialFloodFrameFailed();
+        activateDeferredMapLayers();
+      }
       scheduleBackgroundDataWarmup();
     }
 
@@ -25924,6 +26071,8 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
     }
 
     async function main() {
+      document.body.dataset.initialFloodFrame = "loading";
+      document.body.dataset.deferredMapLayers = "waiting";
       ensureMap();
       setOpacityText();
       updateDatumUI();
@@ -25944,6 +26093,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       updateExportSegmentedUI();
       syncDownloadRangeInputs(true);
       updateDownloadSummary();
+      scheduleMapTitleFit();
       window.addEventListener('resize', () => {
         if (map) {
           map.invalidateSize();
@@ -25953,6 +26103,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
         syncLeftPanelLayout();
         positionTimelineBubble();
         fitSnapshotTimeText();
+        scheduleMapTitleFit();
       });
       requestAnimationFrame(() => {
         if (map) {
@@ -25963,6 +26114,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
         syncLeftPanelLayout();
         positionTimelineBubble();
         fitSnapshotTimeText();
+        scheduleMapTitleFit();
       });
       await reloadAll();
       const warmBoundary = () => loadMunicipalBoundary().catch(() => {});
@@ -36368,6 +36520,35 @@ html body #mapTitleBadge #mapTitleLogo{
   html body.physics-forecast-active #legendDock[data-legend-mode="depth"] .depth-legend-uncertainty-note strong,
   html body.physics-forecast-active .export-depth-key-note strong{
     color:#7df9ff !important;
+  }
+</style>
+<style id="north-wildwood-title-viewport-containment">
+  html body #mapTitleBadge,
+  html body #mapTitleBadge.shorely-title-badge,
+  html body.forecast-mode #mapTitleBadge.shorely-title-badge,
+  html body.observed-mode #mapTitleBadge.shorely-title-badge{
+    box-sizing:border-box !important;
+    min-width:0 !important;
+    overflow:hidden !important;
+    grid-template-columns:minmax(0,1fr) max-content !important;
+  }
+
+  html body #mapTitleBadge #mapTitleText,
+  html body #mapTitleBadge .shorely-title-text{
+    min-width:0 !important;
+    max-width:100% !important;
+    font-size:var(--nww-title-font-size, clamp(18px, 2.4vw, 42px)) !important;
+    overflow:hidden !important;
+    text-overflow:clip !important;
+  }
+
+  html body #mapTitleBadge #mapTitleLogo,
+  html body #mapTitleBadge #mapTitlePartnerLogo,
+  html body #mapTitleBadge .shorely-title-logo,
+  html body #mapTitleBadge .shorely-title-logo-town,
+  html body #mapTitleBadge .shorely-title-logo-shorelysafe{
+    min-width:0 !important;
+    max-width:var(--nww-title-logo-max, 150px) !important;
   }
 </style>
 </body>

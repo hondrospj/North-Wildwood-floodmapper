@@ -93,6 +93,21 @@ assert.match(extractFunction("preloadAroundHour"), /currentOverlayMode/);
 assert.doesNotMatch(extractFunction("preloadAroundHour"), /\["depth", "dynamic"\]/);
 assert.match(extractFunction("testImageUrl"), /imageExistsCache\.set\(url, request\)[\s\S]+await request/);
 assert.match(extractFunction("getOverlayRecord"), /overlayRecordCache\.set\(key, request\)[\s\S]+await request/);
+assert.match(extractFunction("setFloodLayer"), /await new Promise[\s\S]+markInitialFloodFrameReady\(\)/);
+assert.match(extractFunction("setPhysicsFloodLayer"), /await new Promise[\s\S]+markInitialFloodFrameReady\(\)/);
+assert.match(
+  extractFunction("reloadAll"),
+  /await renderHour\(currentHourIndex\)[\s\S]+activateDeferredMapLayers\(\)[\s\S]+scheduleBackgroundDataWarmup\(\)/
+);
+assert.match(extractFunction("activateDeferredMapLayers"), /basemapColorLayer\.addTo\(map\)/);
+assert.doesNotMatch(
+  extractFunction("ensureMap"),
+  /className: "roads-layer",[\s\S]{0,120}\}\)\.addTo\(map\)/
+);
+assert.match(extractFunction("fitMapTitleBadgeToViewport"), /leftPanel[\s\S]+rightRail[\s\S]+availableWidth/);
+assert.match(extractFunction("fitMapTitleBadgeToViewport"), /dataset\.viewportContained/);
+assert.match(SOURCE, /id="north-wildwood-title-viewport-containment"/);
+assert.match(SOURCE, /font-size:var\(--nww-title-font-size/);
 
 const changingDepthSample = { elevation: 2, connectionStage: 1 };
 const lowWaterDepth = context.getDepthQueryDisplayDepth(changingDepthSample, 3.25);
