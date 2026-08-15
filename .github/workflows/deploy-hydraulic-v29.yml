@@ -1,0 +1,50 @@
+name: Deploy North Wildwood hydraulic v29
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-hydraulic-v29.yml
+      - assets/hydraulic-v29/**
+      - tools/upload_north_wildwood_bunny_v29.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: north-wildwood-hydraulic-v29-bunny
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uploader dependency
+        run: python -m pip install --disable-pip-version-check requests
+
+      - name: Confirm Bunny credential is available
+        env:
+          BUNNY_STORAGE_PASSWORD: ${{ secrets.BUNNY_STORAGE_PASSWORD }}
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+        run: |
+          if [[ -z "$BUNNY_STORAGE_PASSWORD" && -z "$BUNNY_STORAGE_KEY" ]]; then
+            echo "Neither BUNNY_STORAGE_PASSWORD nor BUNNY_STORAGE_KEY is configured."
+            exit 1
+          fi
+
+      - name: Upload and verify v29 assets
+        env:
+          BUNNY_STORAGE_PASSWORD: ${{ secrets.BUNNY_STORAGE_PASSWORD }}
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+        run: python tools/upload_north_wildwood_bunny_v29.py --workers 16
