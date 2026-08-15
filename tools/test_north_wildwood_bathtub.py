@@ -105,6 +105,34 @@ def main() -> None:
     if diagnostics.get("modelKind") != "phase-aware developed-land conditional connectivity":
         raise AssertionError("Simulation diagnostics declare the wrong model")
 
+    # Crest release must advance a connected front instead of turning an
+    # entire flat penalty-held basin blue at once.
+    filling_front = np.zeros((11, 11), dtype=bool)
+    filling_front[5, 5] = True
+    slack_front = np.zeros_like(filling_front)
+    slack_front[2:9, 2:9] = True
+    source_front = filling_front.copy()
+    front_ground = np.full(filling_front.shape, 3.5, dtype=np.float32)
+    released_front, newly_released, release_diagnostics = (
+        model.release_penalty_area_by_lowest_front(
+            filling_front,
+            slack_front,
+            source_front,
+            front_ground,
+            0.5,
+        )
+    )
+    if np.any(released_front & ~slack_front):
+        raise AssertionError("Crest-release front escaped the slack endpoint")
+    if not released_front[5, 5]:
+        raise AssertionError("Crest-release front lost its qualified source")
+    if not 20 <= int(np.count_nonzero(newly_released)) <= 26:
+        raise AssertionError("Crest-release front did not release half the basin")
+    if release_diagnostics["ordering"] != (
+        "geodesic nearest connected front, then road corridor and lowest ground"
+    ):
+        raise AssertionError("Crest-release front declares the wrong ordering")
+
     # Visible feeders must follow the supplied public-road corridor exactly.
     adjusted = np.zeros((9, 15), dtype=bool)
     adjusted[3:6, 1:4] = True

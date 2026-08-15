@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 from conditional_connectivity_routes import (
     connect_penalty_basins_by_lowest_road_route,
+    release_penalty_area_by_lowest_front,
 )
 from osgeo import gdal
 from PIL import Image
@@ -22,6 +23,25 @@ RENDER_STRIDE = 5
 RENDER_WIDTH = WIDTH // RENDER_STRIDE
 RENDER_HEIGHT = HEIGHT // RENDER_STRIDE
 DRAINING_VERTICAL_PENALTY_SCALE = 0.25
+FILLING_PENALTY_SCALES = {
+    "filling": 1.0,
+    "crest-release-44": 0.5625,
+    "crest-release-75": 0.25,
+    "crest-release-94": 0.0625,
+}
+CREST_RELEASE_PROGRESS = {
+    "crest-release-44": 0.4375,
+    "crest-release-75": 0.75,
+    "crest-release-94": 0.9375,
+}
+PHASE_DIRECTORIES = {
+    "filling": "filling",
+    "crest-release-44": "crest-release-44",
+    "crest-release-75": "crest-release-75",
+    "crest-release-94": "crest-release-94",
+    "slack": "",
+    "draining": "draining",
+}
 FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
     (
         (0, 1, 0),
@@ -241,8 +261,7 @@ def main() -> None:
     recession_retained_pixel_instances = 0
     feeder_pixel_instances = 0
 
-    for phase in ("slack", "filling", "draining"):
-        relative = "" if phase == "slack" else phase
+    for phase, relative in PHASE_DIRECTORIES.items():
         depth_dir = assets / "DepthPNGs" / "North Wildwood" / relative
         stage_dir = assets / "StagePNGs" / "North Wildwood" / relative
         depth_paths = sorted(depth_dir.glob("NorthWildwoodDepth*.png"))
@@ -250,6 +269,7 @@ def main() -> None:
             raise AssertionError(
                 f"Expected 201 {phase} depth PNGs, found {len(depth_paths)}"
             )
+        previous_release_stage_expected = None
         for depth_path in depth_paths:
             code = depth_path.stem.removeprefix("NorthWildwoodDepth")
             stage_path = stage_dir / f"NorthWildwoodStage{code}.png"
@@ -300,6 +320,7 @@ def main() -> None:
             stage = sign * int(code[1:]) / 100.0
             baseline = valid & (activation <= stage + 1e-9)
             adjustment = vertical_penalty(stage)
+            release_progress = CREST_RELEASE_PROGRESS.get(phase)
             if phase == "draining":
                 developed_stage = (
                     stage + adjustment * DRAINING_VERTICAL_PENALTY_SCALE
@@ -307,21 +328,88 @@ def main() -> None:
                 developed_blue = (
                     activation_developed <= developed_stage + 1e-9
                 )
-            else:
-                phase_adjustment = adjustment if phase == "filling" else 0.0
+            elif release_progress is None:
+                phase_adjustment = (
+                    adjustment * FILLING_PENALTY_SCALES.get(phase, 0.0)
+                )
                 developed_stage = stage - phase_adjustment
                 developed_blue = (
                     (activation_developed <= stage + 1e-9)
                     & (ground_developed <= developed_stage + 1e-9)
                 )
-            adjusted_blue = valid & (
-                developed_blue
-                | (activation_undeveloped <= stage + 1e-9)
-            )
+            else:
+                filling_developed = (
+                    (activation_developed <= stage + 1e-9)
+                    & (ground_developed <= stage - adjustment + 1e-9)
+                )
+                slack_developed = (
+                    (activation_developed <= stage + 1e-9)
+                    & (ground_developed <= stage + 1e-9)
+                )
+                undeveloped = activation_undeveloped <= stage + 1e-9
+                filling_adjusted = valid & (
+                    filling_developed | undeveloped
+                )
+                slack_adjusted = valid & (slack_developed | undeveloped)
+                filling_blue, filling_feeder = add_visible_source_feeders(
+                    filling_adjusted,
+                    baseline,
+                    source,
+                    road,
+                    ground,
+                )
+                slack_blue, slack_feeder = add_visible_source_feeders(
+                    slack_adjusted,
+                    baseline,
+                    source,
+                    road,
+                    ground,
+                )
+                required_flooded = (
+                    previous_release_stage_expected.copy()
+                    if previous_release_stage_expected is not None
+                    else np.zeros(filling_blue.shape, dtype=bool)
+                )
+                release_order = tuple(CREST_RELEASE_PROGRESS)
+                release_index = release_order.index(phase)
+                if release_index > 0:
+                    prior_phase = release_order[release_index - 1]
+                    prior_relative = PHASE_DIRECTORIES[prior_phase]
+                    prior_path = (
+                        assets
+                        / "DepthPNGs"
+                        / "North Wildwood"
+                        / prior_relative
+                        / f"NorthWildwoodDepth{code}.png"
+                    )
+                    prior_codes = np.asarray(Image.open(prior_path))
+                    required_flooded |= (
+                        (prior_codes >= 1) & (prior_codes <= 11)
+                    )
+                expected_blue, _, _ = release_penalty_area_by_lowest_front(
+                    filling_blue,
+                    slack_blue,
+                    source,
+                    ground,
+                    release_progress,
+                    priority_corridor=slack_feeder,
+                    required_flooded=required_flooded,
+                )
+                previous_release_stage_expected = expected_blue.copy()
+                feeder = (filling_feeder | slack_feeder) & expected_blue
+                adjusted_blue = expected_blue
             if phase == "draining":
+                adjusted_blue = valid & (
+                    developed_blue
+                    | (activation_undeveloped <= stage + 1e-9)
+                )
                 expected_blue = adjusted_blue
                 feeder = np.zeros(expected_blue.shape, dtype=bool)
-            else:
+            elif release_progress is None:
+                adjusted_blue = valid & (
+                    developed_blue
+                    | (activation_undeveloped <= stage + 1e-9)
+                )
                 expected_blue, feeder = add_visible_source_feeders(
                     adjusted_blue,
                     baseline,
@@ -367,8 +455,9 @@ def main() -> None:
                 "status": "passed",
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
-                    "every filling/slack blue component intersects a qualified "
-                    "source; draining may retain isolated developed-land lag"
+                    "every filling/release/slack blue component intersects a "
+                    "qualified source; draining may retain isolated "
+                    "developed-land lag"
                 ),
                 "minimumBlueComponentPixels": minimum_blue_component_pixels,
                 "isolatedSourcePixelInstances": isolated_source_pixel_instances,

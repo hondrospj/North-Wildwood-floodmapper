@@ -17056,11 +17056,18 @@ function setDatumHelpOpen(isOpen) {
       if (!Number.isFinite(stage) || !Number.isFinite(ground) || !Number.isFinite(polynomialPenalty)) return null;
       const appliedPenalty = developed ? polynomialPenalty : 0;
       const normalizedPhase = normalizeHydraulicPhase(phase);
+      const fillingScale = normalizedPhase === "filling"
+        ? 1
+        : normalizedPhase === "crest-release-44"
+          ? 0.5625
+          : normalizedPhase === "crest-release-75"
+            ? 0.25
+            : normalizedPhase === "crest-release-94"
+              ? 0.0625
+              : 0;
       const adjustment = normalizedPhase === "draining"
         ? appliedPenalty * DRAINING_VERTICAL_PENALTY_SCALE
-        : normalizedPhase === "filling"
-          ? -appliedPenalty
-          : 0;
+        : -appliedPenalty * fillingScale;
       const adjustedStage = stage + adjustment;
       const rawDepth = Math.max(0, stage - ground);
       const depth = Math.max(0, adjustedStage - ground);
@@ -17124,13 +17131,26 @@ function setDatumHelpOpen(isOpen) {
 
     function normalizeHydraulicPhase(value) {
       const phase = String(value || "").toLowerCase();
-      return phase === "filling" || phase === "draining" ? phase : "slack";
+      const supported = new Set([
+        "filling",
+        "crest-release-44",
+        "crest-release-75",
+        "crest-release-94",
+        "slack",
+        "draining"
+      ]);
+      return supported.has(phase) ? phase : "slack";
+    }
+
+    function getHydraulicStatePhase(value) {
+      const phase = normalizeHydraulicPhase(value);
+      return phase.startsWith("crest-release-") ? "filling" : phase;
     }
 
     function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {
-      if (entry?.hydraulicPhase && !entry?.isInterpolatedTimelineFrame) {
-        return normalizeHydraulicPhase(entry.hydraulicPhase);
-      }
+      const explicitPhase = entry?.hydraulicPhase
+        ? normalizeHydraulicPhase(entry.hydraulicPhase)
+        : null;
       const rows = Array.isArray(series) ? series : [];
       let resolvedIndex = Number.isInteger(index) ? index : rows.indexOf(entry);
       if (resolvedIndex < 0 && entry) resolvedIndex = findClosestEntryIndex(rows, entry);
@@ -17143,17 +17163,63 @@ function setDatumHelpOpen(isOpen) {
       const after = Number.isFinite(next) && Number.isFinite(current) ? next - current : null;
       const epsilon = 0.025;
 
-      if (Number.isFinite(before) && Number.isFinite(after) && before > epsilon && after <= epsilon) return "slack";
       // Start recession retention on the first lower sample when the next
       // sample confirms a falling tide. Keeping this frame at slack caused a
       // one-frame green flash before the draining catalog appeared.
       if (Number.isFinite(before) && Number.isFinite(after) && before < 0 && after < -epsilon) return "draining";
       if (Number.isFinite(before) && Number.isFinite(after) && before < -epsilon && after >= -epsilon) return "slack";
       if (Number.isFinite(before) && Number.isFinite(after) && before <= epsilon && after > epsilon) return "slack";
+
+      // A full filling-to-slack penalty release can expose a large connected
+      // basin in a single 15-minute frame. Look no more than one hour ahead
+      // for a locally confirmed crest and release the developed-land penalty
+      // at 15-minute quarter steps. The interval is time-based so hourly and
+      // quarter-hour views select the same family at shared timestamps.
+      const explicitMinutes = Number(entry?.timelineIntervalMinutes);
+      const frameMinutes = Number.isFinite(explicitMinutes) && explicitMinutes > 0
+        ? explicitMinutes
+        : entry?.observationInterval === "15min"
+          ? 15
+          : 60;
+      const releaseFrames = Math.max(1, Math.ceil(60 / frameMinutes));
+      const releaseEnd = Math.min(rows.length - 1, resolvedIndex + releaseFrames);
+      let crestIndex = -1;
+      let crestStage = -Infinity;
+      for (let candidate = resolvedIndex; candidate <= releaseEnd; candidate += 1) {
+        const candidateStage = getStageValue(rows[candidate]);
+        if (!Number.isFinite(candidateStage)) continue;
+        if (candidateStage > crestStage + 1e-9 || Math.abs(candidateStage - crestStage) <= 1e-9) {
+          crestStage = candidateStage;
+          crestIndex = candidate;
+        }
+      }
+      let crestConfirmed = false;
+      if (crestIndex >= resolvedIndex && Number.isFinite(crestStage)) {
+        const confirmationEnd = Math.min(rows.length - 1, crestIndex + 2);
+        for (let candidate = crestIndex + 1; candidate <= confirmationEnd; candidate += 1) {
+          const candidateStage = getStageValue(rows[candidate]);
+          if (!Number.isFinite(candidateStage)) continue;
+          if (candidateStage > crestStage + epsilon) {
+            crestConfirmed = false;
+            break;
+          }
+          if (candidateStage < crestStage - epsilon) crestConfirmed = true;
+        }
+      }
+      if (crestConfirmed) {
+        const minutesToCrest = Math.max(0, (crestIndex - resolvedIndex) * frameMinutes);
+        if (minutesToCrest <= 0) return "slack";
+        if (minutesToCrest < 60) {
+          if (minutesToCrest <= 15) return "crest-release-94";
+          if (minutesToCrest <= 30) return "crest-release-75";
+          return "crest-release-44";
+        }
+      }
+
       const delta = Number.isFinite(after) && (!Number.isFinite(before) || Math.abs(after) >= Math.abs(before)) ? after : before;
       if (Number.isFinite(delta) && delta > epsilon) return "filling";
       if (Number.isFinite(delta) && delta < -epsilon) return "draining";
-      return "slack";
+      return explicitPhase || "slack";
     }
 
     function getOverlayFilename(mode, stageValue) {
@@ -24336,7 +24402,7 @@ function startPlayback() {
       // estimate rather than silently returning the v20 10-ft state.
       if (Number.isFinite(stageMax) && Number(stage) > stageMax + 1e-9) return Number(stage);
       const stageIndex = Math.max(0, Math.min(stageCount - 1, Math.round((Number(stage) - stageMin) / stageStep)));
-      const binaryValues = payload.decodedPhaseWaterSurface?.[normalizeHydraulicPhase(phase)];
+      const binaryValues = payload.decodedPhaseWaterSurface?.[getHydraulicStatePhase(phase)];
       if (binaryValues) {
         const encoded = binaryValues[stageIndex * stride + zoneId];
         if (payload.valueType === "int16-le") {
@@ -24347,7 +24413,7 @@ function startPlayback() {
         const offset = Number(payload.surfaceOffsetDecifeet ?? -100);
         return Number.isFinite(encoded) && encoded !== drySentinel ? (encoded + offset) / 10 : null;
       }
-      const values = payload.decodedPhaseWaterSurfaceCentift?.[normalizeHydraulicPhase(phase)];
+      const values = payload.decodedPhaseWaterSurfaceCentift?.[getHydraulicStatePhase(phase)];
       const encoded = values?.[stageIndex * stride + zoneId];
       const drySentinel = Number(payload.drySentinelCentift ?? -32768);
       return Number.isFinite(encoded) && encoded !== drySentinel ? encoded / 100 : null;
@@ -34078,53 +34144,77 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260815-reduced-drainage-v34",
-      "dynamic": "20260815-reduced-drainage-v34",
-      "hydraulic": "20260815-reduced-drainage-v34"
+      "depth": "20260815-crest-release-v35",
+      "dynamic": "20260815-crest-release-v35",
+      "hydraulic": "20260815-crest-release-v35"
     },
     "modelKind": "phase-aware developed-land conditional connectivity",
     "phaseInvariant": false,
-    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260815-reduced-drainage-v34",
-    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260815-reduced-drainage-v34",
+    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260815-crest-release-v35",
+    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260815-crest-release-v35",
     "depthQueryCogPath": null,
     "physicsForecastPointerPath": null,
     "physicsForecastCyclePointerTemplatePath": null,
-    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260815-reduced-drainage-v34",
+    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260815-crest-release-v35",
     "depthRoots": [
       "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
-      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v34/"
+      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v35/"
     ],
     "dynamicRoots": [
       "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
-      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v34/"
+      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v35/"
     ],
     "phaseRoots": {
       "depth": {
         "filling": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/filling/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v34/filling/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v35/filling/"
+        ],
+        "crest-release-44": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/crest-release-44/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v35/crest-release-44/"
+        ],
+        "crest-release-75": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/crest-release-75/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v35/crest-release-75/"
+        ],
+        "crest-release-94": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/crest-release-94/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v35/crest-release-94/"
         ],
         "slack": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v34/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v35/"
         ],
         "draining": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/draining/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v34/draining/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v35/draining/"
         ]
       },
       "dynamic": {
         "filling": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/filling/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v34/filling/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v35/filling/"
+        ],
+        "crest-release-44": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/crest-release-44/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v35/crest-release-44/"
+        ],
+        "crest-release-75": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/crest-release-75/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v35/crest-release-75/"
+        ],
+        "crest-release-94": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/crest-release-94/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v35/crest-release-94/"
         ],
         "slack": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v34/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v35/"
         ],
         "draining": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/draining/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v34/draining/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v35/draining/"
         ]
       }
     }

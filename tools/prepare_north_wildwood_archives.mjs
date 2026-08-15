@@ -108,8 +108,8 @@ function updateForecast() {
   payload.hydraulicModel = {
     timeStepMinutes: 15,
     phaseField: "hydraulicPhase",
-    phases: ["filling", "slack", "draining"],
-    note: "The hourly forecast selects a precomputed one-foot-grid hydraulic state; the expensive terrain solve is not repeated hourly."
+    phases: ["filling", "crest-release-44", "crest-release-75", "crest-release-94", "slack", "draining"],
+    note: "The browser applies a time-based one-hour crest release while selecting precomputed one-foot-grid hydraulic states; the expensive terrain solve is not repeated hourly."
   };
   payload.hours = forecasts.mean?.hours || payload.hours;
   writeJson("forecast.json", payload);

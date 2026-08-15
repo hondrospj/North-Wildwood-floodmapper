@@ -76,8 +76,8 @@ The flood-depth catalog extends through 20.00 ft NAVD88, covering every
 published NACCS station 11283 target in this set without a display cap.
 The complete 0.00–20.00 ft catalog uses the established Bunny filename
 convention (`NorthWildwoodDepthp0000.png` through
-`NorthWildwoodDepthp2000.png`) under versioned v34 filling, slack, and draining
-directories.
+`NorthWildwoodDepthp2000.png`) under versioned v35 filling, three crest-release,
+slack, and draining directories.
 
 These are stationary screening scenarios: no future sea-level-rise increment
 or trend detrending is applied. Rebuild the committed payload from the official
@@ -114,8 +114,12 @@ measurement accuracy. The model then:
    stage/penalty anchors. Connectivity is always evaluated at the full gauge
    stage; on filling frames the negative offset is applied only to local
    developed ground. This prevents one penalized route crest from suppressing
-   an entire lower connected basin. The offset is zero at slack/high tide so
-   the rising uncertainty rapidly wears off. Terrain below the selected stage
+   an entire lower connected basin. During the final hour before a confirmed
+   local crest, a transferable nearest-front rule releases 44%, 75%, and 94%
+   of the penalty-held connected area, followed by 100% at slack/high tide.
+   Shared-side travel distance from existing water controls the front; road
+   corridor and lower ground break ties. This spreads a flat connected basin across the approaching high tide
+   instead of exposing it in one frame. Terrain below the selected stage
    that has no qualified source connection is also green in every phase. On
    draining frames one quarter of that offset is positive, retaining already
    routed water to represent a shorter recession lag without adding inflow.
@@ -126,12 +130,17 @@ measurement accuracy. The model then:
    either adjustment on marshes, beaches, water, forest, and agriculture.
 
 The solve produces 201 stages from 0.0–20.0 ft NAVD88 at 0.1-foot intervals for
-each of `filling`, `slack`, and `draining`. Hourly and 15-minute updates floor
-the selected level to the same stage catalog. Interpolated 15-minute rows
-derive phase from their own neighboring stages rather than copying an hourly
-phase, so flooding starts and ends at the same physical time. The visible
-frame and nearest neighbors load first; farther frames warm sequentially during
-browser idle time.
+`filling`, `crest-release-44`, `crest-release-75`,
+`crest-release-94`, `slack`, and `draining`. The three release families
+advance the nearest connected front through 44%, 75%, and 94% of the
+penalty-held area, using lower ground as the tie-breaker. Hourly and 15-minute
+updates floor the selected level to the same stage catalog. Crest release is based on
+elapsed time, not array position, so shared hourly and quarter-hour timestamps
+select the same hydraulic state. Interpolated 15-minute rows derive phase from
+their own neighboring stages rather than copying an hourly phase, so flooding
+starts and ends at the same physical time. The visible frame and nearest
+neighbors load first; farther frames warm sequentially during browser idle
+time.
 
 The main builders are:
 

@@ -12,7 +12,10 @@ from __future__ import annotations
 import heapq
 
 import numpy as np
-from scipy.ndimage import binary_dilation, label as ndimage_label
+from scipy.ndimage import (
+    binary_dilation,
+    label as ndimage_label,
+)
 
 
 FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
@@ -52,6 +55,152 @@ def _retain_source_connected(
     keep = np.zeros(component_count + 1, dtype=bool)
     keep[source_labels] = True
     return flooded & keep[labels]
+
+
+def release_penalty_area_by_lowest_front(
+    filling_flooded: np.ndarray,
+    slack_flooded: np.ndarray,
+    qualified_source: np.ndarray,
+    ground_elevation: np.ndarray,
+    released_fraction: float,
+    priority_corridor: np.ndarray | None = None,
+    required_flooded: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, dict[str, int | float | str]]:
+    """Release a fraction of penalty-held water as a connected spatial front.
+
+    This town-independent temporal bridge is used between the fully penalized
+    filling state and the zero-penalty slack state. Candidate pixels are ranked
+    first by distance from existing filling water and then by ground elevation,
+    so a flat connected basin advances outward instead of appearing everywhere
+    in one frame. Source connectivity is rechecked after selection.
+    """
+    _require_aligned(
+        filling_flooded,
+        slack_flooded,
+        qualified_source,
+        ground_elevation,
+    )
+    if priority_corridor is not None:
+        _require_aligned(filling_flooded, priority_corridor)
+    if required_flooded is not None:
+        _require_aligned(filling_flooded, required_flooded)
+    ordering_label = "geodesic nearest connected front, then road corridor and lowest ground"
+    progress = float(released_fraction)
+    if not 0.0 <= progress <= 1.0:
+        raise ValueError("released_fraction must be between zero and one")
+    source = np.asarray(qualified_source, dtype=bool)
+    filling = _retain_source_connected(
+        np.asarray(filling_flooded, dtype=bool), source
+    )
+    slack = _retain_source_connected(
+        np.asarray(slack_flooded, dtype=bool), source
+    )
+    candidate = slack & ~filling
+    candidate_count = int(np.count_nonzero(candidate))
+    requested_count = int(round(candidate_count * progress))
+    required = (
+        np.asarray(required_flooded, dtype=bool) & slack
+        if required_flooded is not None
+        else np.zeros(slack.shape, dtype=bool)
+    )
+    connected = _retain_source_connected(filling | required, source)
+    required_release = connected & candidate
+    required_count = int(np.count_nonzero(required_release))
+    target_count = max(requested_count, required_count)
+    if target_count <= 0 or candidate_count == 0:
+        empty = np.zeros(filling.shape, dtype=bool)
+        return connected, empty, {
+            "candidatePixels": candidate_count,
+            "targetReleasedPixels": requested_count,
+            "minimumRequiredPixels": required_count,
+            "releasedPixels": 0,
+            "releasedFraction": progress,
+            "ordering": ordering_label,
+        }
+    if target_count >= candidate_count:
+        return slack, candidate, {
+            "candidatePixels": candidate_count,
+            "targetReleasedPixels": requested_count,
+            "minimumRequiredPixels": required_count,
+            "releasedPixels": candidate_count,
+            "releasedFraction": progress,
+            "ordering": ordering_label,
+        }
+
+    height, width = filling.shape
+    released = required_release.copy()
+    connected_flat = connected.ravel()
+    released_flat = released.ravel()
+    candidate_flat = candidate.ravel()
+    flat_ground = np.asarray(ground_elevation, dtype=np.float32).ravel()
+    flat_priority = (
+        np.asarray(priority_corridor, dtype=bool).ravel()
+        if priority_corridor is not None
+        else np.zeros(candidate.size, dtype=bool)
+    )
+    discovered = np.zeros(candidate.size, dtype=bool)
+    front = binary_dilation(
+        connected,
+        structure=FOUR_NEIGHBOUR_STRUCTURE,
+    ) & candidate
+    queue: list[tuple[int, int, float, int]] = []
+    for position_raw in np.flatnonzero(front):
+        position = int(position_raw)
+        discovered[position] = True
+        heapq.heappush(
+            queue,
+            (
+                1,
+                0 if flat_priority[position] else 1,
+                float(flat_ground[position]),
+                position,
+            ),
+        )
+
+    released_count = required_count
+    while queue and released_count < target_count:
+        distance, _, _, position = heapq.heappop(queue)
+        if connected_flat[position]:
+            continue
+        connected_flat[position] = True
+        released_flat[position] = True
+        released_count += 1
+        y, x = divmod(position, width)
+        for neighbor in (
+            position - width if y > 0 else -1,
+            position - 1 if x > 0 else -1,
+            position + 1 if x + 1 < width else -1,
+            position + width if y + 1 < height else -1,
+        ):
+            if (
+                neighbor < 0
+                or discovered[neighbor]
+                or not candidate_flat[neighbor]
+            ):
+                continue
+            discovered[neighbor] = True
+            heapq.heappush(
+                queue,
+                (
+                    distance + 1,
+                    0 if flat_priority[neighbor] else 1,
+                    float(flat_ground[neighbor]),
+                    neighbor,
+                ),
+            )
+    if released_count != target_count:
+        raise RuntimeError(
+            "The slack endpoint contains penalty-held pixels unreachable from "
+            "the filling endpoint"
+        )
+    return connected, released, {
+        "candidatePixels": candidate_count,
+        "targetReleasedPixels": requested_count,
+        "minimumRequiredPixels": required_count,
+        "releasedPixels": released_count,
+        "releasedFraction": progress,
+        "ordering": ordering_label,
+    }
 
 
 def connect_penalty_basins_by_lowest_road_route(

@@ -50,6 +50,7 @@ for (const name of (
     "floorToCatalogStep",
     "getOverlayStage",
     "normalizeHydraulicPhase",
+    "getHydraulicStatePhase",
     "getVerticalBathtubPenalty",
     "getPenalizedConnectedDepth",
     "getDepthQueryDisplayDepth",
@@ -150,16 +151,35 @@ assert.equal(
   "The penalty must wear off at slack/high tide"
 );
 assert.equal(
+  context.getPenalizedConnectedDepth(4.25, 4.0, true, "crest-release-44").depth,
+  0.109375,
+  "The first crest-release family must expose 44% of the penalty-held area"
+);
+assert.equal(
+  context.getPenalizedConnectedDepth(4.25, 4.0, true, "crest-release-75").depth,
+  0.1875,
+  "The second crest-release family must expose 75% of the penalty-held area"
+);
+assert.equal(
+  context.getPenalizedConnectedDepth(4.25, 4.0, true, "crest-release-94").depth,
+  0.234375,
+  "The final crest-release family must expose 94% of the penalty-held area"
+);
+assert.equal(context.getHydraulicStatePhase("crest-release-75"), "filling");
+assert.equal(
   context.getPenalizedConnectedDepth(4.25, 4.0, true, "draining").depth,
   0.3125,
   "The positive drainage adjustment must retain developed water"
 );
 
 const phaseTransitionRows = [
-  { stage: 3.89 },
-  { stage: 3.90 },
-  { stage: 3.88 },
-  { stage: 3.77 },
+  { stage: 3.65, timelineIntervalMinutes: 15, hydraulicPhase: "filling" },
+  { stage: 3.74, timelineIntervalMinutes: 15, hydraulicPhase: "filling" },
+  { stage: 3.83, timelineIntervalMinutes: 15, hydraulicPhase: "filling" },
+  { stage: 3.89, timelineIntervalMinutes: 15, hydraulicPhase: "slack" },
+  { stage: 3.90, timelineIntervalMinutes: 15, hydraulicPhase: "slack" },
+  { stage: 3.88, timelineIntervalMinutes: 15, hydraulicPhase: "slack" },
+  { stage: 3.77, timelineIntervalMinutes: 15, hydraulicPhase: "draining" },
 ];
 const phaseContext = vm.createContext({
   Number,
@@ -173,14 +193,47 @@ vm.runInContext(
   phaseContext
 );
 assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[0], 0, phaseTransitionRows),
+  "filling",
+  "The filling penalty must remain full one hour before the crest"
+);
+assert.equal(
   phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[1], 1, phaseTransitionRows),
+  "crest-release-44"
+);
+assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[2], 2, phaseTransitionRows),
+  "crest-release-75"
+);
+assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[3], 3, phaseTransitionRows),
+  "crest-release-94"
+);
+assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[4], 4, phaseTransitionRows),
   "slack",
   "The crest must remain slack"
 );
 assert.equal(
-  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[2], 2, phaseTransitionRows),
+  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[5], 5, phaseTransitionRows),
   "draining",
   "The first confirmed lower frame must begin drainage without a slack flash"
+);
+
+const hourlyPhaseRows = [
+  { stage: 3.65, timelineIntervalMinutes: 60 },
+  { stage: 3.90, timelineIntervalMinutes: 60 },
+  { stage: 3.77, timelineIntervalMinutes: 60 },
+];
+assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(hourlyPhaseRows[0], 0, hourlyPhaseRows),
+  "filling",
+  "Hourly and quarter-hour views must both retain the full penalty one hour before crest"
+);
+assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(hourlyPhaseRows[1], 1, hourlyPhaseRows),
+  "slack",
+  "Hourly and quarter-hour views must both use slack at crest"
 );
 
 let previousPenalty = Infinity;
@@ -222,10 +275,10 @@ assert.match(SOURCE, /connectionCode - 50/);
 assert.match(SOURCE, /\/assets\/hydraulic-v29\//);
 assert.match(extractFunction("getOverlayCandidates"), /floodmapperv1\.b-cdn\.net/);
 assert.match(extractFunction("getOverlayCandidates"), /Number\(rightIsCdn\) - Number\(leftIsCdn\)/);
-assert.match(SOURCE, /20260815-reduced-drainage-v34/);
+assert.match(SOURCE, /20260815-crest-release-v35/);
 assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
 assert.match(SOURCE, /"phaseInvariant": false/);
-assert.match(SOURCE, /\/v34\//);
+assert.match(SOURCE, /\/v35\//);
 assert.match(extractFunction("getDepthQueryDisplayDepth"), /connectionStageLimit/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /TOP_TIDE_DISPLAY_COUNT/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /ensureObservedArchiveForDate/);

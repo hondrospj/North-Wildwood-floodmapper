@@ -339,8 +339,8 @@ jobs:
                   "hydraulicModel": {
                       "timeStepMinutes": 15,
                       "phaseField": "hydraulicPhase",
-                      "phases": ["filling", "slack", "draining"],
-                      "assetStrategy": "precomputed one-foot-grid hydraulic lookup selected hourly"
+                      "phases": ["filling", "crest-release-44", "crest-release-75", "crest-release-94", "slack", "draining"],
+                      "assetStrategy": "time-based one-hour crest release over precomputed one-foot-grid hydraulic lookups"
                   },
                   "forecastOptions": options,
                   "products": product_meta,

@@ -278,6 +278,20 @@ def main() -> None:
         raise AssertionError("State package does not constrain the penalty to developed land")
     if "positive offset" not in str(penalty.get("draining", "")):
         raise AssertionError("State package does not declare drainage retention")
+    crest_release = penalty.get("crestRelease") or {}
+    if int(crest_release.get("durationMinutes", 0)) != 60:
+        raise AssertionError("State package does not declare a one-hour crest release")
+    release_fractions = crest_release.get("quarterHourReleasedAreaFractions") or []
+    expected_release_fractions = (0.0, 0.4375, 0.75, 0.9375, 1.0)
+    if len(release_fractions) != len(expected_release_fractions) or any(
+        not math.isclose(float(actual), expected)
+        for actual, expected in zip(release_fractions, expected_release_fractions)
+    ):
+        raise AssertionError("State package has the wrong crest-release progression")
+    if "geodesic nearest connected front" not in str(
+        crest_release.get("ordering", "")
+    ):
+        raise AssertionError("State package does not declare a connected crest-release front")
 
     # State connectivity is evaluated at the full gauge stage. The compact
     # state format stores centifeet, so a wet zone at 3.0 ft must encode the

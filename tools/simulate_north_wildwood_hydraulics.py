@@ -10,9 +10,10 @@ during draining. Wetlands, water, and
 barren beach land receive neither adjustment. The polynomial is anchored at
 0.75 ft at minor, 0.25 ft at moderate, and 0.00 ft at major flood.
 
-Filling, slack, and draining assets are intentionally different. Storm drains
-remain disabled, and the 21-cell, 7.5-ft NAVD88 bulkhead remains stitched into
-the DEM before connection stages are computed.
+Filling, three spatial crest-release, slack, and draining assets are
+intentionally different. Storm drains remain disabled, and the 21-cell,
+7.5-ft NAVD88 bulkhead remains stitched into the DEM before connection stages
+are computed.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from pathlib import Path
 import numpy as np
 from conditional_connectivity_routes import (
     connect_penalty_basins_by_lowest_road_route,
+    release_penalty_area_by_lowest_front,
 )
 try:
     from osgeo import gdal
@@ -79,6 +81,28 @@ MINOR_VERTICAL_PENALTY_FT = 0.75
 MODERATE_VERTICAL_PENALTY_FT = 0.25
 MAJOR_VERTICAL_PENALTY_FT = 0.0
 DRAINING_VERTICAL_PENALTY_SCALE = 0.25
+FILLING_PENALTY_SCALES = {
+    "filling": 1.0,
+    "crest-release-44": 0.5625,
+    "crest-release-75": 0.25,
+    "crest-release-94": 0.0625,
+}
+CREST_RELEASE_PROGRESS = {
+    "crest-release-44": 0.4375,
+    "crest-release-75": 0.75,
+    "crest-release-94": 0.9375,
+}
+PHASE_DIRECTORIES = {
+    "filling": "filling",
+    "crest-release-44": "crest-release-44",
+    "crest-release-75": "crest-release-75",
+    "crest-release-94": "crest-release-94",
+    "slack": "",
+    "draining": "draining",
+}
+CREST_RELEASE_PHASES = tuple(
+    phase for phase in PHASE_DIRECTORIES if phase.startswith("crest-release-")
+)
 
 DEPTH_BREAKS_FT = np.asarray([0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00])
 DEPTH_COLORS = [
@@ -137,6 +161,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--crest-release-only",
+        action="store_true",
+        help=(
+            "Reuse the complete state package and build only the three "
+            "quarter-hour crest-release families"
+        ),
+    )
+    parser.add_argument(
         "--reuse-complete-state",
         action="store_true",
         help=(
@@ -191,8 +223,8 @@ def phase_adjusted_stage_ft(
     penalty = vertical_penalty_ft(stage)
     if phase == "draining":
         adjustment = penalty * DRAINING_VERTICAL_PENALTY_SCALE
-    elif phase == "filling":
-        adjustment = -penalty
+    elif phase in FILLING_PENALTY_SCALES:
+        adjustment = -penalty * FILLING_PENALTY_SCALES[phase]
     else:
         adjustment = 0.0
     return stage + np.asarray(developed, dtype=np.float64) * adjustment
@@ -212,7 +244,20 @@ def vertical_penalty_metadata() -> dict:
         "drainingScale": DRAINING_VERTICAL_PENALTY_SCALE,
         "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
         "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-        "slack": "zero offset so the rising penalty rapidly wears off at high tide",
+        "crestRelease": {
+            "durationMinutes": 60,
+            "quarterHourReleasedAreaFractions": [0.0, 0.4375, 0.75, 0.9375, 1.0],
+            "description": (
+                "the penalty-held connected area advances from existing "
+                "water as an ease-out spatial front over the four 15-minute "
+                "steps before a confirmed local crest"
+            ),
+            "ordering": (
+                "geodesic nearest connected front, then road corridor and "
+                "lowest ground"
+            ),
+        },
+        "slack": "zero offset after the one-hour high-tide release",
         "draining": (
             "quarter-strength positive offset retains prior routed water; "
             "it is not new inflow"
@@ -962,11 +1007,7 @@ def render_assets(
 
     depth_palette, depth_alpha = palette(DEPTH_COLORS, 12)
     stage_palette, stage_alpha = palette(STAGE_COLORS, 4)
-    phase_dirs = {
-        "filling": "filling",
-        "slack": "",
-        "draining": "draining",
-    }
+    phase_dirs = PHASE_DIRECTORIES
     maximum = np.iinfo(np.int16).max
     valid = render_summary["minimum_ground10"] != maximum
     ground = render_summary["minimum_ground10"].astype(np.float32) / 10.0
@@ -1011,8 +1052,13 @@ def render_assets(
         detached_components_road_unreachable = 0
         maximum_feeder_length = 0
         maximum_feeder_route_crest = 0.0
+        release_candidate_pixels = 0
+        release_target_pixels = 0
+        release_actual_pixels = 0
+        previous_release_stage_flooded = None
         for stage_index, stage in enumerate(STAGES_FT):
             stage_value = float(stage)
+            code = stage_code(stage_value)
             baseline_flooded = valid & (activation <= stage_value + 1e-9)
             labels, unfiltered_components = ndimage_label(
                 baseline_flooded,
@@ -1033,6 +1079,7 @@ def render_assets(
                 retained_components,
             )
             penalty = vertical_penalty_ft(stage_value)
+            release_progress = CREST_RELEASE_PROGRESS.get(phase)
             if phase == "draining":
                 adjusted_developed_stage = (
                     stage_value + penalty * DRAINING_VERTICAL_PENALTY_SCALE
@@ -1040,17 +1087,114 @@ def render_assets(
                 developed_flooded = (
                     activation_developed <= adjusted_developed_stage + 1e-9
                 )
-            else:
+            elif release_progress is None:
                 # Connectivity is evaluated at the real gauge stage. The
                 # rising-tide penalty is then applied only to local developed
                 # ground, not to the controlling source/route crest. Applying
                 # it to the route stage suppressed entire low connected basins
                 # beyond one slightly higher cell and produced excessive green.
-                phase_penalty = penalty if phase == "filling" else 0.0
+                phase_penalty = penalty * FILLING_PENALTY_SCALES.get(phase, 0.0)
                 adjusted_developed_stage = stage_value - phase_penalty
                 developed_flooded = (
                     (activation_developed <= stage_value + 1e-9)
                     & (ground_developed <= adjusted_developed_stage + 1e-9)
+                )
+            else:
+                # Build the two physical endpoints, then advance a connected
+                # front through a fraction of the penalty-held slack area.
+                # This prevents a flat developed elevation band from turning
+                # blue everywhere in one quarter-hour.
+                filling_developed_stage = stage_value - penalty
+                filling_developed = (
+                    (activation_developed <= stage_value + 1e-9)
+                    & (ground_developed <= filling_developed_stage + 1e-9)
+                )
+                slack_developed = (
+                    (activation_developed <= stage_value + 1e-9)
+                    & (ground_developed <= stage_value + 1e-9)
+                )
+                undeveloped_endpoint = (
+                    activation_undeveloped <= stage_value + 1e-9
+                )
+                filling_adjusted = valid & (
+                    filling_developed | undeveloped_endpoint
+                )
+                slack_adjusted = valid & (
+                    slack_developed | undeveloped_endpoint
+                )
+                filling_flooded, filling_feeder, _ = add_visible_source_feeders(
+                    filling_adjusted,
+                    baseline_flooded,
+                    source,
+                    road_corridor,
+                    ground,
+                )
+                slack_flooded, slack_feeder, slack_feeder_diagnostics = (
+                    add_visible_source_feeders(
+                        slack_adjusted,
+                        baseline_flooded,
+                        source,
+                        road_corridor,
+                        ground,
+                    )
+                )
+                required_flooded = (
+                    previous_release_stage_flooded.copy()
+                    if previous_release_stage_flooded is not None
+                    else np.zeros(filling_flooded.shape, dtype=bool)
+                )
+                release_order = tuple(CREST_RELEASE_PROGRESS)
+                release_index = release_order.index(phase)
+                if release_index > 0:
+                    prior_phase = release_order[release_index - 1]
+                    prior_path = (
+                        output_root
+                        / "DepthPNGs"
+                        / "North Wildwood"
+                        / PHASE_DIRECTORIES[prior_phase]
+                        / f"NorthWildwoodDepth{code}.png"
+                    )
+                    if not prior_path.is_file():
+                        raise FileNotFoundError(
+                            "Crest-release nesting requires the prior family: "
+                            f"{prior_path}"
+                        )
+                    prior_codes = np.asarray(Image.open(prior_path))
+                    required_flooded |= (
+                        (prior_codes >= 1) & (prior_codes <= 11)
+                    )
+                flooded, released_front, release_diagnostics = (
+                    release_penalty_area_by_lowest_front(
+                        filling_flooded,
+                        slack_flooded,
+                        source,
+                        ground,
+                        release_progress,
+                        priority_corridor=slack_feeder,
+                        required_flooded=required_flooded,
+                    )
+                )
+                previous_release_stage_flooded = flooded.copy()
+                feeder = (filling_feeder | slack_feeder) & flooded
+                feeder_diagnostics = dict(slack_feeder_diagnostics)
+                feeder_diagnostics["feederPixels"] = int(
+                    np.count_nonzero(feeder)
+                )
+                adjusted_developed_stage = (
+                    stage_value - penalty * (1.0 - release_progress)
+                )
+                developed_flooded = filling_developed | (
+                    released_front
+                    & (activation_developed <= stage_value + 1e-9)
+                )
+                release_candidate_pixels += int(
+                    release_diagnostics["candidatePixels"]
+                )
+                release_target_pixels += int(
+                    release_diagnostics["targetReleasedPixels"]
+                )
+                release_actual_pixels += int(
+                    release_diagnostics["releasedPixels"]
                 )
             undeveloped_flooded = (
                 activation_undeveloped <= stage_value + 1e-9
@@ -1063,7 +1207,7 @@ def render_assets(
                 retained_lag = adjusted_flooded & ~baseline_flooded
                 flooded = adjusted_flooded
                 recession_retained_pixels += int(np.count_nonzero(retained_lag))
-            else:
+            elif release_progress is None:
                 flooded, feeder, feeder_diagnostics = add_visible_source_feeders(
                     adjusted_flooded,
                     baseline_flooded,
@@ -1071,6 +1215,11 @@ def render_assets(
                     road_corridor,
                     ground,
                 )
+            else:
+                # The transition mask and its feeder were built from the full
+                # filling/slack endpoints above.
+                pass
+            if phase != "draining":
                 feeder_pixels += feeder_diagnostics["feederPixels"]
                 detached_components_joined += feeder_diagnostics[
                     "detachedComponentsJoined"
@@ -1161,7 +1310,6 @@ def render_assets(
                     ),
                 ).astype(np.uint8)
 
-            code = stage_code(float(stage))
             depth_path = depth_dir / f"NorthWildwoodDepth{code}.png"
             stage_path = stage_dir / f"NorthWildwoodStage{code}.png"
             for array, image_palette, transparency, path in (
@@ -1195,6 +1343,10 @@ def render_assets(
             ),
             "maximumVisibleFeederLengthPixels": maximum_feeder_length,
             "maximumVisibleFeederRouteCrestFt": maximum_feeder_route_crest,
+            "crestReleaseAreaFraction": CREST_RELEASE_PROGRESS.get(phase),
+            "crestReleaseCandidatePixelInstances": release_candidate_pixels,
+            "crestReleaseTargetPixelInstances": release_target_pixels,
+            "crestReleaseActualPixelInstances": release_actual_pixels,
             "visibleFeederRouteCriterion": (
                 "minimum road-route ground crest, then minimum length"
             ),
@@ -1496,8 +1648,16 @@ def main() -> None:
             "GDAL, Pillow, and SciPy are required to build hydraulic assets"
         )
     args = parse_args()
-    if args.filling_only and args.draining_only:
-        raise ValueError("Choose at most one of --filling-only and --draining-only")
+    partial_render_flags = (
+        args.filling_only,
+        args.draining_only,
+        args.crest_release_only,
+    )
+    if sum(bool(flag) for flag in partial_render_flags) > 1:
+        raise ValueError(
+            "Choose at most one of --filling-only, --draining-only, and "
+            "--crest-release-only"
+        )
     graph_dir = args.graph.resolve()
     road_mask_path = (
         args.road_mask.resolve()
@@ -1511,12 +1671,23 @@ def main() -> None:
     )
     previous_render_manifest = None
     if (
-        args.draining_only or args.filling_only or args.skip_render
+        args.draining_only
+        or args.filling_only
+        or args.crest_release_only
+        or args.skip_render
     ) and asset_manifest_path.is_file():
         previous_asset_manifest = json.loads(
             asset_manifest_path.read_text(encoding="utf-8")
         )
         previous_render_manifest = previous_asset_manifest.get("render")
+        if previous_render_manifest is not None:
+            previous_render_manifest["phases"] = {
+                phase: record
+                for phase, record in previous_render_manifest.get(
+                    "phases", {}
+                ).items()
+                if phase in PHASE_DIRECTORIES
+            }
     graph_manifest = json.loads((graph_dir / "graph_manifest.json").read_text(encoding="utf-8"))
     packed_query_path = (
         output_root
@@ -1608,18 +1779,15 @@ def main() -> None:
                 if args.draining_only
                 else ("filling",)
                 if args.filling_only
+                else CREST_RELEASE_PHASES
+                if args.crest_release_only
                 else None
             ),
         )
         if previous_render_manifest is not None:
             phase_counts = dict(previous_render_manifest.get("phases", {}))
             phase_counts.update(render_manifest["phases"])
-            phase_directories = {
-                "filling": "filling",
-                "slack": "",
-                "draining": "draining",
-            }
-            for phase, directory in phase_directories.items():
+            for phase, directory in PHASE_DIRECTORIES.items():
                 if phase in phase_counts:
                     continue
                 paths = []
@@ -1679,7 +1847,8 @@ def main() -> None:
         },
         "thresholdsMLLW": {"minorLow": 6.0, "moderateLow": 7.0, "majorLow": 8.0},
         "navd88OffsetFromMllwFt": -2.75,
-        "phases": ["filling", "slack", "draining"],
+        "phases": list(PHASE_DIRECTORIES),
+        "statePhases": ["filling", "slack", "draining"],
         "diagnostics": diagnostics,
         "queryCog": str(query_path.relative_to(output_root)) if query_path.exists() else None,
         "packedQueryPng": str(packed_query_path.relative_to(output_root)),

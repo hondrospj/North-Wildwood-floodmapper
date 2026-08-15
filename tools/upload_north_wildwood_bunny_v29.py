@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upload and verify the North Wildwood reduced-drainage feeder v34 tree."""
+"""Upload and verify the North Wildwood one-hour crest-release v35 tree."""
 
 from __future__ import annotations
 
@@ -21,9 +21,16 @@ ROOT = Path(__file__).resolve().parents[1] / "assets" / "hydraulic-v29"
 ZONE = "floodmapperv1"
 STORAGE_ROOT = f"https://storage.bunnycdn.com/{ZONE}"
 CDN_ROOT = "https://floodmapperv1.b-cdn.net"
-CACHE_VERSION = "20260815-reduced-drainage-v34"
-ATLAS_VERSION = "v34"
-FAMILIES = ("filling", "", "draining")
+CACHE_VERSION = "20260815-crest-release-v35"
+ATLAS_VERSION = "v35"
+FAMILIES = (
+    "filling",
+    "crest-release-44",
+    "crest-release-75",
+    "crest-release-94",
+    "",
+    "draining",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,8 +69,8 @@ def upload_records() -> list[tuple[Path, str]]:
     missing = [str(path) for path, _ in records if not path.is_file()]
     if missing:
         raise FileNotFoundError("Missing Bunny assets:\n" + "\n".join(missing))
-    if len(records) != 1_210:
-        raise RuntimeError(f"Expected 1,210 Bunny assets, found {len(records):,}")
+    if len(records) != 2_416:
+        raise RuntimeError(f"Expected 2,416 Bunny assets, found {len(records):,}")
     return records
 
 
@@ -236,7 +243,7 @@ def main() -> None:
         "cacheVersion": CACHE_VERSION,
         "verification": verification,
     }
-    report_path = Path("/tmp/north-wildwood-bunny-v34-upload.json")
+    report_path = Path("/tmp/north-wildwood-bunny-v35-upload.json")
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({key: value for key, value in report.items() if key != "verification"}, indent=2))
 
