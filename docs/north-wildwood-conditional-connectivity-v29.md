@@ -1,4 +1,4 @@
-# North Wildwood conditional-connectivity v29
+# North Wildwood connected-feeder conditional-connectivity v30
 
 Generated and validated on 2026-08-15.
 
@@ -55,8 +55,20 @@ three exact stage/penalty anchors are `(3.25, 0.75)`, `(4.25, 0.25)`, and
   introduce a new source or inflow.
 - Undeveloped cells always use the unadjusted gauge stage.
 
-Every phase-adjusted candidate mask is relabeled with four-neighbor
-connectivity, and every blue component must touch a qualified source pixel.
+Green is also used in every phase for terrain below the selected gauge stage
+that does not have a qualified source connection. Blue always means connected
+or lag-retained source-routed water. Green never means "no flooding" by itself; it distinguishes the
+disconnected or penalty-held diagnostic state from connected blue water.
+
+Each five-foot display cell pools all 25 underlying one-foot cells. The first
+eligible one-foot source connection paints the display cell, preserving narrow
+shared-side feeder paths at a visible five-foot width. This replaces the old
+center-cell sample and coarse-grid relabel that could erase a valid connection.
+If the developed penalty would visually sever a lower connected basin during
+filling or slack, the renderer keeps only a shortest shallow feeder through
+the unadjusted connected corridor. Every filling/slack blue component must
+therefore touch a qualified source pixel. Draining may retain isolated blue
+puddles as the explicit developed-area recession lag.
 
 ## Published asset contract
 
@@ -81,12 +93,15 @@ The production validation passed all of the following:
   centerline cells;
 - no bulkhead terrain below 7.5 ft NAVD88 and no active drain cells;
 - all 603 depth/stage frame pairs have identical blue masks;
-- every blue component is shared-side connected to a source;
-- every green cell is exactly the developed rising/slack exclusion band;
+- every filling/slack blue component is shared-side connected to a source;
+- every green cell is either disconnected terrain below the selected stage or
+  the developed rising/slack exclusion band;
 - every draining-only retained cell is developed land; and
-- 1,277,094 green uncertainty pixel-instances and 2,095,899 recession-retained
-  pixel-instances were independently reproduced by the validator.
+- 1,185,728 developed green uncertainty pixel-instances per filling/slack
+  family, 1,691 feeder pixel-instances per family joining 24 detached basins,
+  and 1,715,671 recession-retained pixel-instances were independently
+  reproduced by the validator.
 
-The Bunny upload helper targets versioned `v29` paths and verifies public
-checksums and CORS. The repository also contains the complete local v29 catalog
+The Bunny upload helper targets versioned `v30` paths and verifies public
+checksums and CORS. The repository also contains the complete local catalog
 so the dashboard does not depend on an upload being present.

@@ -35,8 +35,13 @@ try:
 except ModuleNotFoundError:  # Unit checks do not render images.
     Image = None
 try:
-    from scipy.ndimage import gaussian_filter, label as ndimage_label
+    from scipy.ndimage import (
+        binary_dilation,
+        gaussian_filter,
+        label as ndimage_label,
+    )
 except ModuleNotFoundError:  # Unit checks do not render images.
+    binary_dilation = None
     gaussian_filter = None
     ndimage_label = None
 
@@ -713,6 +718,126 @@ def pool_mask_majority(mask: np.ndarray) -> np.ndarray:
     return counts >= ((RENDER_STRIDE * RENDER_STRIDE) // 2 + 1)
 
 
+def build_render_cell_summaries(graph_dir: Path) -> dict[str, np.ndarray]:
+    """Collapse the one-foot topology without losing sub-pixel flow paths.
+
+    The previous renderer sampled only the center one-foot cell from every
+    five-foot display cell, then rebuilt connectivity on that sampled grid.
+    A valid one- to four-foot-wide connection could consequently disappear.
+    Here each display cell represents all 25 underlying model cells.  The
+    earliest eligible one-foot connection paints the full five-foot display
+    cell, so a preserved feeder is visibly five one-foot cells wide while its
+    activation stage still comes from the original shared-side topology.
+    """
+    render_shape = (HEIGHT // RENDER_STRIDE, WIDTH // RENDER_STRIDE)
+    elevation10 = np.memmap(
+        graph_dir / "elevation10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+    connection10 = np.memmap(
+        graph_dir / "connection10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+    developed = np.memmap(
+        graph_dir / "developed_flag.raw",
+        dtype=np.uint8,
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+    source = np.memmap(
+        graph_dir / "source_flag.raw",
+        dtype=np.uint8,
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+
+    maximum = np.iinfo(np.int16).max
+    activation_maximum = np.iinfo(np.int32).max
+    nodata = np.iinfo(np.int16).min
+    summary = {
+        "minimum_ground10": np.full(render_shape, maximum, dtype=np.int16),
+        "minimum_ground10_developed": np.full(render_shape, maximum, dtype=np.int16),
+        "minimum_ground10_undeveloped": np.full(render_shape, maximum, dtype=np.int16),
+        "minimum_activation100": np.full(
+            render_shape, activation_maximum, dtype=np.int32
+        ),
+        "minimum_activation100_developed": np.full(
+            render_shape, activation_maximum, dtype=np.int32
+        ),
+        "minimum_activation100_undeveloped": np.full(
+            render_shape, activation_maximum, dtype=np.int32
+        ),
+        "source": np.zeros(render_shape, dtype=bool),
+    }
+
+    for y_offset in range(RENDER_STRIDE):
+        for x_offset in range(RENDER_STRIDE):
+            ground = elevation10[y_offset::RENDER_STRIDE, x_offset::RENDER_STRIDE]
+            connection = connection10[
+                y_offset::RENDER_STRIDE,
+                x_offset::RENDER_STRIDE,
+            ]
+            is_valid = ground != nodata
+            is_developed = (developed[
+                y_offset::RENDER_STRIDE,
+                x_offset::RENDER_STRIDE,
+            ] != 0) & is_valid
+            is_undeveloped = is_valid & ~is_developed
+            # Include a zero-depth crest cell when it is the shared-side route
+            # from the source into a lower basin. The palette renders that
+            # topological bridge as the shallowest water class, producing a
+            # continuous visible feeder instead of a detached blue basin.
+            activation = np.maximum(
+                ground.astype(np.int32) * 10,
+                connection.astype(np.int32) * 10,
+            )
+            activation = np.where(
+                is_valid,
+                activation,
+                activation_maximum,
+            ).astype(
+                np.int32,
+                copy=False,
+            )
+            valid_ground = np.where(is_valid, ground, maximum)
+
+            np.minimum(summary["minimum_ground10"], valid_ground, out=summary["minimum_ground10"])
+            np.minimum(
+                summary["minimum_activation100"],
+                activation,
+                out=summary["minimum_activation100"],
+            )
+            np.minimum(
+                summary["minimum_ground10_developed"],
+                np.where(is_developed, ground, maximum),
+                out=summary["minimum_ground10_developed"],
+            )
+            np.minimum(
+                summary["minimum_ground10_undeveloped"],
+                np.where(is_undeveloped, ground, maximum),
+                out=summary["minimum_ground10_undeveloped"],
+            )
+            np.minimum(
+                summary["minimum_activation100_developed"],
+                np.where(is_developed, activation, activation_maximum),
+                out=summary["minimum_activation100_developed"],
+            )
+            np.minimum(
+                summary["minimum_activation100_undeveloped"],
+                np.where(is_undeveloped, activation, activation_maximum),
+                out=summary["minimum_activation100_undeveloped"],
+            )
+            summary["source"] |= (
+                source[y_offset::RENDER_STRIDE, x_offset::RENDER_STRIDE] != 0
+            )
+
+    return summary
+
+
 def retain_source_connected_water(
     flooded: np.ndarray,
     source: np.ndarray,
@@ -735,6 +860,124 @@ def retain_source_connected_water(
     return connected, int(component_count), int(seeded_labels.size), removed
 
 
+def add_visible_source_feeders(
+    adjusted_flooded: np.ndarray,
+    baseline_flooded: np.ndarray,
+    source: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, dict[str, int]]:
+    """Join adjusted blue basins to a source with one-pixel feeder paths.
+
+    A developed-land penalty can turn a few cells along an otherwise valid
+    source route green, leaving a lower adjusted-blue basin looking detached.
+    A four-neighbour wave records geodesic distance through the unadjusted
+    connected mask, then traces only the first shortest path to every detached
+    blue component. One display pixel is five one-foot cells wide, satisfying
+    the visible several-cell feeder requirement without painting the entire
+    penalty band blue.
+    """
+    labels, component_count = ndimage_label(
+        adjusted_flooded,
+        structure=FOUR_NEIGHBOUR_STRUCTURE,
+    )
+    if component_count == 0:
+        empty = np.zeros(adjusted_flooded.shape, dtype=bool)
+        return adjusted_flooded, empty, {
+            "detachedComponentsJoined": 0,
+            "feederPixels": 0,
+            "maximumFeederLengthPixels": 0,
+        }
+
+    source_labels = np.unique(labels[adjusted_flooded & source])
+    source_labels = source_labels[source_labels > 0]
+    all_labels = np.arange(1, component_count + 1, dtype=np.int32)
+    detached_labels = np.setdiff1d(all_labels, source_labels, assume_unique=True)
+    if detached_labels.size == 0:
+        empty = np.zeros(adjusted_flooded.shape, dtype=bool)
+        return adjusted_flooded, empty, {
+            "detachedComponentsJoined": 0,
+            "feederPixels": 0,
+            "maximumFeederLengthPixels": 0,
+        }
+
+    source_lookup = np.zeros(component_count + 1, dtype=bool)
+    source_lookup[source_labels] = True
+    routed_source = adjusted_flooded & source_lookup[labels]
+    if not np.any(routed_source):
+        raise RuntimeError("Adjusted flood mask has no visible source component")
+
+    distance = np.full(adjusted_flooded.shape, -1, dtype=np.int16)
+    distance[routed_source] = 0
+    frontier = routed_source
+    unresolved = set(int(value) for value in detached_labels)
+    first_hits: dict[int, int] = {}
+
+    for step in range(1, np.iinfo(np.int16).max):
+        new = (
+            binary_dilation(frontier, structure=FOUR_NEIGHBOUR_STRUCTURE)
+            & baseline_flooded
+            & (distance < 0)
+        )
+        if not np.any(new):
+            break
+        distance[new] = step
+        hit_positions = np.flatnonzero(new & (labels > 0))
+        if hit_positions.size:
+            hit_values = labels.ravel()[hit_positions]
+            for label_value in np.unique(hit_values):
+                label_id = int(label_value)
+                if label_id not in unresolved:
+                    continue
+                first_index = int(np.flatnonzero(hit_values == label_id)[0])
+                first_hits[label_id] = int(hit_positions[first_index])
+                unresolved.remove(label_id)
+        if not unresolved:
+            break
+        frontier = new
+
+    if unresolved:
+        raise RuntimeError(
+            "Could not trace a visible source feeder to adjusted components "
+            + ", ".join(str(value) for value in sorted(unresolved)[:20])
+        )
+
+    paths = np.zeros(adjusted_flooded.shape, dtype=bool)
+    maximum_length = 0
+    height, width = adjusted_flooded.shape
+    for flat_position in first_hits.values():
+        y, x = divmod(flat_position, width)
+        path_length = int(distance[y, x])
+        maximum_length = max(maximum_length, path_length)
+        while distance[y, x] > 0:
+            paths[y, x] = True
+            target_distance = int(distance[y, x]) - 1
+            next_cell = None
+            for candidate_y, candidate_x in (
+                (y - 1, x),
+                (y, x - 1),
+                (y, x + 1),
+                (y + 1, x),
+            ):
+                if (
+                    0 <= candidate_y < height
+                    and 0 <= candidate_x < width
+                    and distance[candidate_y, candidate_x] == target_distance
+                ):
+                    next_cell = (candidate_y, candidate_x)
+                    break
+            if next_cell is None:
+                raise RuntimeError("Visible feeder distance trace is discontinuous")
+            y, x = next_cell
+        paths[y, x] = True
+
+    feeder = paths & baseline_flooded & ~adjusted_flooded
+    flooded = adjusted_flooded | feeder
+    return flooded, feeder, {
+        "detachedComponentsJoined": int(detached_labels.size),
+        "feederPixels": int(np.count_nonzero(feeder)),
+        "maximumFeederLengthPixels": maximum_length,
+    }
+
+
 def render_assets(
     graph_dir: Path,
     dem_path: Path,
@@ -742,31 +985,11 @@ def render_assets(
     phases: dict[str, np.ndarray],
     phase_names: tuple[str, ...] | None = None,
 ) -> dict:
-    elevation10 = np.memmap(
-        graph_dir / "elevation10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    connection10 = np.memmap(
-        graph_dir / "connection10.raw", dtype="<i2", mode="r", shape=(HEIGHT, WIDTH)
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
     zone = np.memmap(
         graph_dir / "zone_id.raw", dtype="<i4", mode="r", shape=(HEIGHT, WIDTH)
     )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    source_raw = np.memmap(
-        graph_dir / "source_flag.raw",
-        dtype=np.uint8,
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )
-    source = pool_source_to_render_grid(source_raw)
-    del source_raw
-    developed_raw = np.memmap(
-        graph_dir / "developed_flag.raw",
-        dtype=np.uint8,
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )
-    developed = pool_mask_majority(developed_raw)
-    del developed_raw
+    render_summary = build_render_cell_summaries(graph_dir)
+    source = render_summary["source"]
 
     dem_ds = gdal.Open(str(dem_path))
     projection = dem_ds.GetProjection()
@@ -788,9 +1011,26 @@ def render_assets(
         "slack": "",
         "draining": "draining",
     }
-    valid = elevation10 != np.iinfo(np.int16).min
-    ground = elevation10.astype(np.float32) / 10.0
-    connection = connection10.astype(np.float32) / 10.0
+    maximum = np.iinfo(np.int16).max
+    valid = render_summary["minimum_ground10"] != maximum
+    ground = render_summary["minimum_ground10"].astype(np.float32) / 10.0
+    ground_developed = (
+        render_summary["minimum_ground10_developed"].astype(np.float32) / 10.0
+    )
+    ground_undeveloped = (
+        render_summary["minimum_ground10_undeveloped"].astype(np.float32) / 10.0
+    )
+    activation = (
+        render_summary["minimum_activation100"].astype(np.float64) / 100.0
+    )
+    activation_developed = (
+        render_summary["minimum_activation100_developed"].astype(np.float64)
+        / 100.0
+    )
+    activation_undeveloped = (
+        render_summary["minimum_activation100_undeveloped"].astype(np.float64)
+        / 100.0
+    )
     counts = {}
 
     selected_phase_dirs = (
@@ -808,55 +1048,86 @@ def render_assets(
         maximum_unfiltered_components = 0
         maximum_retained_components = 0
         uncertainty_pixels = 0
+        disconnected_pixels = 0
         recession_retained_pixels = 0
+        feeder_pixels = 0
+        detached_components_joined = 0
+        maximum_feeder_length = 0
         for stage_index, stage in enumerate(STAGES_FT):
-            raw_depth = np.maximum(0.0, float(stage) - ground)
-            baseline_candidate = (
-                valid
-                & (raw_depth > 0.005)
-                & (connection <= float(stage) + 1e-9)
-            )
-            (
+            stage_value = float(stage)
+            baseline_flooded = valid & (activation <= stage_value + 1e-9)
+            labels, unfiltered_components = ndimage_label(
                 baseline_flooded,
-                unfiltered_components,
-                retained_components,
-                removed_pixels,
-            ) = retain_source_connected_water(baseline_candidate, source)
-            disconnected_pixels_removed += removed_pixels
+                structure=FOUR_NEIGHBOUR_STRUCTURE,
+            )
+            seeded_labels = (
+                np.unique(labels[baseline_flooded & source])
+                if unfiltered_components
+                else np.asarray([], dtype=np.int32)
+            )
+            retained_components = int(np.count_nonzero(seeded_labels > 0))
             maximum_unfiltered_components = max(
                 maximum_unfiltered_components,
-                unfiltered_components,
+                int(unfiltered_components),
             )
             maximum_retained_components = max(
                 maximum_retained_components,
                 retained_components,
             )
-            adjusted_stage = phase_adjusted_stage_ft(
-                float(stage), phase, developed
-            ).astype(np.float32, copy=False)
-            adjusted_candidate = (
-                valid
-                & (ground < adjusted_stage - 0.005)
-                & (connection <= adjusted_stage + 1e-9)
+            penalty = vertical_penalty_ft(stage_value)
+            adjusted_developed_stage = (
+                stage_value + penalty if phase == "draining"
+                else stage_value - penalty
             )
-            (
-                adjusted_flooded,
-                _,
-                _,
-                adjusted_removed_pixels,
-            ) = retain_source_connected_water(adjusted_candidate, source)
-            disconnected_pixels_removed += adjusted_removed_pixels
+            developed_flooded = (
+                activation_developed <= adjusted_developed_stage + 1e-9
+            )
+            undeveloped_flooded = (
+                activation_undeveloped <= stage_value + 1e-9
+            )
+            adjusted_flooded = valid & (developed_flooded | undeveloped_flooded)
+            terrain_wet = valid & (ground < stage_value - 0.005)
+            disconnected = terrain_wet & ~baseline_flooded
+            disconnected_pixels += int(np.count_nonzero(disconnected))
             if phase == "draining":
-                retained_lag = developed & adjusted_flooded & ~baseline_flooded
+                retained_lag = adjusted_flooded & ~baseline_flooded
                 flooded = adjusted_flooded
-                green = np.zeros(flooded.shape, dtype=bool)
                 recession_retained_pixels += int(np.count_nonzero(retained_lag))
             else:
-                flooded = adjusted_flooded
-                green = baseline_flooded & developed & ~flooded
-                uncertainty_pixels += int(np.count_nonzero(green))
-            depth = np.maximum(0.0, adjusted_stage - ground).astype(
-                np.float32, copy=False
+                flooded, feeder, feeder_diagnostics = add_visible_source_feeders(
+                    adjusted_flooded,
+                    baseline_flooded,
+                    source,
+                )
+                feeder_pixels += feeder_diagnostics["feederPixels"]
+                detached_components_joined += feeder_diagnostics[
+                    "detachedComponentsJoined"
+                ]
+                maximum_feeder_length = max(
+                    maximum_feeder_length,
+                    feeder_diagnostics["maximumFeederLengthPixels"],
+                )
+                penalized = baseline_flooded & ~flooded
+                uncertainty_pixels += int(np.count_nonzero(penalized))
+            # Green is a diagnostic state, not a declaration of dry land: it
+            # includes terrain below the gauge stage that is disconnected as
+            # well as the developed-land band held back by the polynomial.
+            green = ~flooded & (disconnected | (baseline_flooded & ~flooded))
+
+            depth = np.maximum(
+                np.where(
+                    developed_flooded,
+                    adjusted_developed_stage - ground_developed,
+                    0.0,
+                ),
+                np.where(
+                    undeveloped_flooded,
+                    stage_value - ground_undeveloped,
+                    0.0,
+                ),
+            ).astype(
+                np.float32,
+                copy=False,
             )
             if np.any(flooded):
                 # Smooth only the depth values inside the immutable connected
@@ -889,11 +1160,26 @@ def render_assets(
             stage_codes = np.zeros(zone.shape, dtype=np.uint8)
             stage_codes[green] = 4
             if np.any(flooded):
-                activation = np.maximum(ground[flooded], connection[flooded])
+                local_activation = np.minimum(
+                    np.where(developed_flooded, activation_developed, np.inf),
+                    np.where(undeveloped_flooded, activation_undeveloped, np.inf),
+                )
+                if phase != "draining":
+                    # Feeder pixels inherit their unadjusted hydraulic
+                    # activation so their stage color remains meaningful.
+                    local_activation = np.where(
+                        feeder,
+                        activation,
+                        local_activation,
+                    )
                 stage_codes[flooded] = np.where(
-                    activation < MINOR_NAVD88_FT,
+                    local_activation[flooded] < MINOR_NAVD88_FT,
                     1,
-                    np.where(activation < MODERATE_NAVD88_FT, 2, 3),
+                    np.where(
+                        local_activation[flooded] < MODERATE_NAVD88_FT,
+                        2,
+                        3,
+                    ),
                 ).astype(np.uint8)
 
             code = stage_code(float(stage))
@@ -920,8 +1206,16 @@ def render_assets(
             "disconnectedBluePixelsRemoved": disconnected_pixels_removed,
             "maximumUnfilteredComponents": maximum_unfiltered_components,
             "maximumRetainedSourceComponents": maximum_retained_components,
+            "disconnectedGreenPixelInstances": disconnected_pixels,
             "developedUncertaintyPixelInstances": uncertainty_pixels,
             "developedRecessionRetainedPixelInstances": recession_retained_pixels,
+            "visibleFeederPixelInstances": feeder_pixels,
+            "detachedComponentsJoinedByFeeders": detached_components_joined,
+            "maximumVisibleFeederLengthPixels": maximum_feeder_length,
+            "renderConnectivity": (
+                "all 25 one-foot cells pooled into each five-foot pixel; "
+                "sub-pixel feeder paths preserved at five-foot visible width"
+            ),
         }
 
     world_path = output_root / "NorthWildwoodOverlay5ft.pgw"
@@ -1196,7 +1490,13 @@ def build_developed_query_png(graph_dir: Path, destination: Path) -> dict:
 
 
 def main() -> None:
-    if gdal is None or Image is None or gaussian_filter is None or ndimage_label is None:
+    if (
+        gdal is None
+        or Image is None
+        or binary_dilation is None
+        or gaussian_filter is None
+        or ndimage_label is None
+    ):
         raise RuntimeError(
             "GDAL, Pillow, and SciPy are required to build hydraulic assets"
         )

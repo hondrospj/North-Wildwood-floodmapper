@@ -15225,6 +15225,8 @@ function cloneStyleObject(value) {
     let physicsQueryImageCache = new Map();
     let renderedFloodPixelCache = null;
     let overlayPreloadGeneration = 0;
+    let historicalTopTideWarmupScheduled = false;
+    let historicalTopTideWarmupGeneration = 0;
     let cityBoundaryOutline = null;
     let cityBoundaryMask = null;
     let cityBoundaryGuide = null;
@@ -16796,7 +16798,7 @@ function setDatumHelpOpen(isOpen) {
         title: "Flood Depth Key",
         body: `
           <p>Light blue is shallow water. Darker blue is deeper water.</p>
-          <p>Green marks source-connected developed streets inside the model's conservative rising-tide uncertainty band. The adjustment is not applied to marshes or beaches. During drainage, retained street water is shown in blue.</p>
+          <p>Green marks terrain below the selected water level that is not connected to a qualified tidal source, plus developed-area cells held back by the conservative filling penalty. The penalty is not applied to marshes or beaches. During drainage, lag-retained street water is blue.</p>
         `
       },
       stageLegend: {
@@ -16965,12 +16967,12 @@ function setDatumHelpOpen(isOpen) {
               : "<strong>Physics frame</strong> shows cells wet by this time"}</span>
           </div>
         ` : `
-          <div class="depth-legend-scale" aria-label="Green areas that may flood followed by modeled flood depth from shallow to deep">
-            <div class="depth-legend-labels"><span>May Flood</span><span>Shallow</span><span>Deep</span></div>
+          <div class="depth-legend-scale" aria-label="Green disconnected or penalty-held areas followed by connected modeled flood depth from shallow to deep">
+            <div class="depth-legend-labels"><span>Unconnected / Held</span><span>Shallow</span><span>Deep</span></div>
             <div class="depth-legend-gradient" aria-hidden="true"></div>
           </div>
           <div class="depth-legend-uncertainty-note">
-            <span><strong>Green areas</strong> may flood</span>
+            <span><strong>Green</strong> = unconnected or penalty-held</span>
             <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain green areas" title="Explain green areas">?</button>
           </div>
         `;
@@ -17161,13 +17163,13 @@ function setDatumHelpOpen(isOpen) {
       const normalizedPhase = normalizeHydraulicPhase(phase);
       const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedPhase] || [];
       const roots = phaseRoots.length ? phaseRoots : (OVERLAY_ROOTS[mode] || []);
-      const orderedRoots = Number(stageValue) > 14
-        ? [...roots].sort((left, right) => {
-            const leftIsBundled = left.includes("/assets/hydraulic-v29/");
-            const rightIsBundled = right.includes("/assets/hydraulic-v29/");
-            return Number(rightIsBundled) - Number(leftIsBundled);
-          })
-        : roots;
+      // Bunny is the optimized delivery path for the large raster catalog.
+      // The bundled GitHub copy remains a complete offline/failure fallback.
+      const orderedRoots = [...roots].sort((left, right) => {
+        const leftIsCdn = left.includes("floodmapperv1.b-cdn.net");
+        const rightIsCdn = right.includes("floodmapperv1.b-cdn.net");
+        return Number(rightIsCdn) - Number(leftIsCdn);
+      });
       const filenames = getOverlayFilenameCandidates(mode, stageValue);
       return orderedRoots.flatMap(root => filenames.map(name => {
         const url = new URL(name, root);
@@ -17410,6 +17412,51 @@ function setDatumHelpOpen(isOpen) {
       } else {
         window.setTimeout(loadNextInBackground, 120);
       }
+    }
+
+    function scheduleHistoricalTopTideWarmup() {
+      if (historicalTopTideWarmupScheduled || !topTideEvents.length) return;
+      historicalTopTideWarmupScheduled = true;
+      const generation = ++historicalTopTideWarmupGeneration;
+      const events = topTideEvents.slice(0, TOP_TIDE_SELECT_COUNT);
+
+      const warmEvent = async event => {
+        if (generation !== historicalTopTideWarmupGeneration) return;
+        const dateKey = String(event?.dateKey || event?.entry?.observedDate || "");
+        const stage = getOverlayStage(event?.peakStage);
+        const tasks = [];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+          tasks.push(ensureObservedArchiveForDate(dateKey).catch(() => null));
+        }
+        if (stage != null) {
+          for (const mode of ["depth", "dynamic"]) {
+            const url = getOverlayCandidates(mode, stage, "slack")[0];
+            if (url) tasks.push(preloadImage(url, "low"));
+          }
+        }
+        await Promise.all(tasks);
+      };
+
+      // The two visible cards are ready first. Remaining storms warm one at a
+      // time so they never compete with the selected map frame.
+      Promise.all(events.slice(0, TOP_TIDE_DISPLAY_COUNT).map(warmEvent))
+        .finally(() => {
+          let cursor = TOP_TIDE_DISPLAY_COUNT;
+          const warmNext = async () => {
+            if (generation !== historicalTopTideWarmupGeneration || cursor >= events.length) return;
+            await warmEvent(events[cursor++]);
+            if (typeof window.requestIdleCallback === "function") {
+              window.requestIdleCallback(warmNext, { timeout: 1200 });
+            } else {
+              window.setTimeout(warmNext, 160);
+            }
+          };
+          if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(warmNext, { timeout: 900 });
+          } else {
+            window.setTimeout(warmNext, 160);
+          }
+        });
     }
 
     async function ensureOverlayBounds(sampleOverlayUrl) {
@@ -20425,13 +20472,13 @@ function updateExportSegmentedUI() {
             <div class="export-depth-key-heading">
               <strong>Flood Depth</strong>
             </div>
-            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Green areas that may flood followed by modeled flood depth from shallow to deep"}">
+            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Green disconnected or penalty-held areas followed by connected modeled flood depth from shallow to deep"}">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
               <div class="export-depth-key-ends" aria-hidden="true">
-                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "May Flood"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
+                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "Unconnected / Held"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
               </div>
             </div>
-            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green areas</strong> may flood."}</div>
+            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green</strong> means unconnected or penalty-held."}</div>
           </div>
         `
         : source.innerHTML;
@@ -23006,6 +23053,7 @@ function formatSelectedObservedDate(dateStr) {
       observedFlatHours = [];
       topTideEvents = buildTopTideEvents();
       renderTopTides();
+      scheduleHistoricalTopTideWarmup();
 
       if (!currentMonthKey) {
         currentMonthKey =
@@ -23295,7 +23343,16 @@ function populateCalendarSelectors() {
       let event = topTideEvents[index];
       const requestedDate = event.dateKey || event.entry?.observedDate || null;
       if (requestedDate) {
-        await ensureObservedArchiveForDate(requestedDate);
+        const crestStage = getOverlayStage(event.peakStage);
+        const crestAssetPromise = crestStage == null
+          ? Promise.resolve(null)
+          : getOverlayRecord(currentOverlayMode, crestStage, "slack")
+              .then(record => record?.url ? preloadImage(record.url, "high") : null)
+              .catch(() => null);
+        await Promise.all([
+          ensureObservedArchiveForDate(requestedDate),
+          crestAssetPromise,
+        ]);
         topTideEvents = buildTopTideEvents();
         event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;
       }
@@ -23320,7 +23377,11 @@ function populateCalendarSelectors() {
       currentSeriesHours = isCrestOnly ? currentRawSeriesHours.slice(0, 1) : currentRawSeriesHours;
 
       syncSliderBounds();
-      currentHourIndex = isCrestOnly ? 0 : Math.max(0, Math.min(event.peakLocalIndex || 0, currentSeriesHours.length - 1));
+      currentHourIndex = isCrestOnly
+        ? 0
+        : preferredEntry
+          ? findClosestMeasuredEntryIndex(currentSeriesHours, preferredEntry)
+          : Math.max(0, Math.min(event.peakLocalIndex || 0, currentSeriesHours.length - 1));
       document.getElementById("hourSlider").value = String(currentHourIndex);
 
       await renderCalendar();
@@ -23513,6 +23574,8 @@ function populateCalendarSelectors() {
       observedData = null;
       historicTopTideEntries = [];
       backgroundDataPromise = null;
+      historicalTopTideWarmupScheduled = false;
+      historicalTopTideWarmupGeneration += 1;
       observedDaysCache = null;
       clearExportAvailabilityCache();
       observedMonthKeys = [];
@@ -24562,6 +24625,9 @@ function startPlayback() {
         sample.connectionStage <= adjustedStage + 0.0001;
       const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
       const depth = connected && depthModel ? depthModel.depth : null;
+      if (renderedFlood?.flooded && Number.isFinite(depth) && depth <= 0.005) {
+        return 0.05;
+      }
       return Number.isFinite(depth) ? depth : 0;
     }
 
@@ -34001,53 +34067,53 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260815-conditional-connectivity-v29",
-      "dynamic": "20260815-conditional-connectivity-v29",
-      "hydraulic": "20260815-conditional-connectivity-v29"
+      "depth": "20260815-connected-feeders-v30",
+      "dynamic": "20260815-connected-feeders-v30",
+      "hydraulic": "20260815-connected-feeders-v30"
     },
     "modelKind": "phase-aware developed-land conditional connectivity",
     "phaseInvariant": false,
-    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260815-conditional-connectivity-v29",
-    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260815-conditional-connectivity-v29",
+    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260815-connected-feeders-v30",
+    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260815-connected-feeders-v30",
     "depthQueryCogPath": null,
     "physicsForecastPointerPath": null,
     "physicsForecastCyclePointerTemplatePath": null,
-    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260815-conditional-connectivity-v29",
+    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260815-connected-feeders-v30",
     "depthRoots": [
       "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
-      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v29/"
+      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v30/"
     ],
     "dynamicRoots": [
       "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
-      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v29/"
+      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v30/"
     ],
     "phaseRoots": {
       "depth": {
         "filling": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/filling/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v29/filling/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v30/filling/"
         ],
         "slack": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v29/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v30/"
         ],
         "draining": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/draining/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v29/draining/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v30/draining/"
         ]
       },
       "dynamic": {
         "filling": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/filling/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v29/filling/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v30/filling/"
         ],
         "slack": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v29/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v30/"
         ],
         "draining": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/draining/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v29/draining/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v30/draining/"
         ]
       }
     }

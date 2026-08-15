@@ -129,6 +129,15 @@ assert.equal(
   0,
   "The rendered overlay can still mark a modeled location as disconnected"
 );
+assert.equal(
+  context.getDepthQueryDisplayDepth(
+    { elevation: 4.1, connectionStage: 4.1, developedFlag: false },
+    4.1,
+    { flooded: true }
+  ),
+  0.05,
+  "A visible zero-depth crest feeder must report the shallow-water range"
+);
 
 let previousPenalty = Infinity;
 for (let stage = 3.25; stage <= 5.25 + 1e-9; stage += 0.1) {
@@ -166,12 +175,21 @@ assert.match(SOURCE, /function loadDepthQueryPng\(/);
 assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
 assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 50/);
-assert.match(SOURCE, /Number\(stageValue\) > 14/);
 assert.match(SOURCE, /\/assets\/hydraulic-v29\//);
-assert.match(SOURCE, /20260815-conditional-connectivity-v29/);
+assert.match(extractFunction("getOverlayCandidates"), /floodmapperv1\.b-cdn\.net/);
+assert.match(extractFunction("getOverlayCandidates"), /Number\(rightIsCdn\) - Number\(leftIsCdn\)/);
+assert.match(SOURCE, /20260815-connected-feeders-v30/);
 assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
 assert.match(SOURCE, /"phaseInvariant": false/);
-assert.match(SOURCE, /\/v29\//);
+assert.match(SOURCE, /\/v30\//);
+assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /TOP_TIDE_DISPLAY_COUNT/);
+assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /ensureObservedArchiveForDate/);
+assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /preloadImage/);
+assert.match(extractFunction("loadTopTideEvent"), /Promise\.all\(\[[\s\S]+crestAssetPromise/);
+assert.match(
+  extractFunction("loadTopTideEvent"),
+  /preferredEntry[\s\S]+findClosestMeasuredEntryIndex\(currentSeriesHours, preferredEntry\)/,
+);
 assert.doesNotMatch(SOURCE, /historic_1962_five_tides/);
 assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
 assert.match(SOURCE, />Simulation Extent</i);
@@ -227,8 +245,8 @@ assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
 assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
 assert.match(SOURCE, /linear-gradient\(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%/);
-assert.match(SOURCE, /<strong>Green areas<\/strong> may flood/);
-assert.match(SOURCE, /<span>May Flood<\/span>/);
+assert.match(SOURCE, /<strong>Green<\/strong> = unconnected or penalty-held/);
+assert.match(SOURCE, /<span>Unconnected \/ Held<\/span>/);
 assert.match(extractFunction("renderLegend"), /physics-daily-maximum-active/);
 assert.match(extractFunction("renderLegend"), /Daily Max/);
 assert.match(extractFunction("renderLegend"), /Physics daily max/);

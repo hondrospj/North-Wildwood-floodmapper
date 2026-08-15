@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upload and verify the North Wildwood conditional-connectivity v29 tree."""
+"""Upload and verify the North Wildwood connected-feeder v30 tree."""
 
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ ROOT = Path(__file__).resolve().parents[1] / "assets" / "hydraulic-v29"
 ZONE = "floodmapperv1"
 STORAGE_ROOT = f"https://storage.bunnycdn.com/{ZONE}"
 CDN_ROOT = "https://floodmapperv1.b-cdn.net"
-CACHE_VERSION = "20260815-conditional-connectivity-v29"
-ATLAS_VERSION = "v29"
+CACHE_VERSION = "20260815-connected-feeders-v30"
+ATLAS_VERSION = "v30"
 FAMILIES = ("filling", "", "draining")
 
 
@@ -236,7 +236,7 @@ def main() -> None:
         "cacheVersion": CACHE_VERSION,
         "verification": verification,
     }
-    report_path = Path("/tmp/north-wildwood-bunny-v29-upload.json")
+    report_path = Path("/tmp/north-wildwood-bunny-v30-upload.json")
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({key: value for key, value in report.items() if key != "verification"}, indent=2))
 

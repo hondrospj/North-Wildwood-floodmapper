@@ -76,7 +76,7 @@ The flood-depth catalog extends through 20.00 ft NAVD88, covering every
 published NACCS station 11283 target in this set without a display cap.
 The complete 0.00–20.00 ft catalog uses the established Bunny filename
 convention (`NorthWildwoodDepthp0000.png` through
-`NorthWildwoodDepthp2000.png`) under versioned v29 filling, slack, and draining
+`NorthWildwoodDepthp2000.png`) under versioned v30 filling, slack, and draining
 directories.
 
 These are stationary screening scenarios: no future sea-level-rise increment
@@ -112,7 +112,9 @@ measurement accuracy. The model then:
 5. Applies a developed-land-only polynomial offset through the minor
    `(3.25, 0.75)`, moderate `(4.25, 0.25)`, and major `(5.25, 0.00)` NAVD88
    stage/penalty anchors. On filling and slack frames the negative offset makes
-   the excluded connected band green uncertainty. On draining frames the same
+   the excluded connected band green uncertainty. Terrain below the selected
+   stage that has no qualified source connection is also green in every phase.
+   On draining frames the same
    offset is positive, retaining already routed water to represent recession
    lag without adding inflow. The NJDEP 2015 `TYPE15 = URBAN` mask prevents
    either adjustment on marshes, beaches, water, forest, and agriculture.
@@ -178,16 +180,22 @@ The six legacy source polygons and their 254,212 cells remain recorded only as
 input provenance. The generated source field is entirely terrain-derived.
 
 The renderer uses the new depth key: shallow water is bright cyan and deeper
-water grades to dark navy. Green is reserved for the developed-land connected
-band excluded by the rising/slack polynomial offset. The renderer labels each
-phase-adjusted five-foot water mask with four-neighbour connectivity and
-removes every blue component that does not touch a qualified source. It smooths
+water grades to dark navy. Green identifies either terrain below the selected
+stage that is disconnected from a qualified tidal source or the developed-land
+connected band excluded by the rising/slack polynomial offset. Each five-foot
+display pixel pools all 25 underlying one-foot cells instead of sampling only
+its center. A one- to four-foot source route therefore remains visible as a
+five-foot-wide feeder rather than disappearing during display downsampling.
+The renderer labels each phase-adjusted mask from the original shared-side
+connection stage. It smooths
 depth values over roughly ten feet only
 inside that immutable water mask, so lidar noise cannot create stippled colors
 or new water. The render validator checks all 1,206 PNGs and rejects any
-isolated pixel, mismatched depth/stage mask, corner-only connection, blue
-component without a source, misplaced green uncertainty, or incorrect
-drainage-retention pixel.
+mismatched depth/stage mask, corner-only filling/slack connection, blue
+filling/slack component without a source, misplaced green
+disconnected/penalty state, or incorrect drainage-retention pixel. Isolated
+draining water is permitted only where the developed-land recession lag
+explicitly predicts it.
 
 ## Clickable depth
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from scipy.ndimage import label as ndimage_label
+from scipy.ndimage import binary_dilation, label as ndimage_label
 
 
 WIDTH = 10_930
@@ -50,15 +50,93 @@ def pool_source(path: Path) -> np.ndarray:
     return pooled
 
 
-def pool_developed(path: Path) -> np.ndarray:
-    raw = np.memmap(path, dtype=np.uint8, mode="r", shape=(HEIGHT, WIDTH))
-    count = np.zeros((RENDER_HEIGHT, RENDER_WIDTH), dtype=np.uint8)
+def build_render_summaries(graph: Path) -> dict[str, np.ndarray]:
+    elevation10 = np.memmap(
+        graph / "elevation10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+    connection10 = np.memmap(
+        graph / "connection10.raw",
+        dtype="<i2",
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+    developed = np.memmap(
+        graph / "developed_flag.raw",
+        dtype=np.uint8,
+        mode="r",
+        shape=(HEIGHT, WIDTH),
+    )
+    maximum = np.iinfo(np.int16).max
+    activation_maximum = np.iinfo(np.int32).max
+    nodata = np.iinfo(np.int16).min
+    summary = {
+        "ground10": np.full(
+            (RENDER_HEIGHT, RENDER_WIDTH), maximum, dtype=np.int16
+        ),
+        "activation100": np.full(
+            (RENDER_HEIGHT, RENDER_WIDTH),
+            activation_maximum,
+            dtype=np.int32,
+        ),
+        "activation100_developed": np.full(
+            (RENDER_HEIGHT, RENDER_WIDTH),
+            activation_maximum,
+            dtype=np.int32,
+        ),
+        "activation100_undeveloped": np.full(
+            (RENDER_HEIGHT, RENDER_WIDTH),
+            activation_maximum,
+            dtype=np.int32,
+        ),
+    }
     for y_offset in range(RENDER_STRIDE):
         for x_offset in range(RENDER_STRIDE):
-            count += (
-                raw[y_offset::RENDER_STRIDE, x_offset::RENDER_STRIDE] != 0
-            ).astype(np.uint8)
-    return count >= 13
+            ground = elevation10[
+                y_offset::RENDER_STRIDE,
+                x_offset::RENDER_STRIDE,
+            ]
+            connection = connection10[
+                y_offset::RENDER_STRIDE,
+                x_offset::RENDER_STRIDE,
+            ]
+            valid = ground != nodata
+            is_developed = (
+                developed[y_offset::RENDER_STRIDE, x_offset::RENDER_STRIDE]
+                != 0
+            ) & valid
+            activation100 = np.maximum(
+                ground.astype(np.int32) * 10,
+                connection.astype(np.int32) * 10,
+            )
+            activation100 = np.where(
+                valid,
+                activation100,
+                activation_maximum,
+            )
+            np.minimum(
+                summary["ground10"],
+                np.where(valid, ground, maximum),
+                out=summary["ground10"],
+            )
+            np.minimum(
+                summary["activation100"],
+                activation100,
+                out=summary["activation100"],
+            )
+            np.minimum(
+                summary["activation100_developed"],
+                np.where(is_developed, activation100, activation_maximum),
+                out=summary["activation100_developed"],
+            )
+            np.minimum(
+                summary["activation100_undeveloped"],
+                np.where(valid & ~is_developed, activation100, activation_maximum),
+                out=summary["activation100_undeveloped"],
+            )
+    return summary
 
 
 def vertical_penalty(stage: float) -> float:
@@ -82,32 +160,111 @@ def retain_source_connected(mask: np.ndarray, source: np.ndarray) -> np.ndarray:
     return mask & keep[labels]
 
 
+def add_visible_source_feeders(
+    adjusted: np.ndarray,
+    baseline: np.ndarray,
+    source: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Reproduce the renderer's shortest source-feeder construction."""
+    labels, component_count = ndimage_label(
+        adjusted,
+        structure=FOUR_NEIGHBOUR_STRUCTURE,
+    )
+    if component_count == 0:
+        return adjusted, np.zeros(adjusted.shape, dtype=bool)
+    source_labels = np.unique(labels[adjusted & source])
+    source_labels = source_labels[source_labels > 0]
+    detached = np.setdiff1d(
+        np.arange(1, component_count + 1, dtype=np.int32),
+        source_labels,
+        assume_unique=True,
+    )
+    if detached.size == 0:
+        return adjusted, np.zeros(adjusted.shape, dtype=bool)
+
+    source_lookup = np.zeros(component_count + 1, dtype=bool)
+    source_lookup[source_labels] = True
+    routed_source = adjusted & source_lookup[labels]
+    distance = np.full(adjusted.shape, -1, dtype=np.int16)
+    distance[routed_source] = 0
+    frontier = routed_source
+    unresolved = set(int(value) for value in detached)
+    first_hits: dict[int, int] = {}
+    for step in range(1, np.iinfo(np.int16).max):
+        new = (
+            binary_dilation(frontier, structure=FOUR_NEIGHBOUR_STRUCTURE)
+            & baseline
+            & (distance < 0)
+        )
+        if not np.any(new):
+            break
+        distance[new] = step
+        positions = np.flatnonzero(new & (labels > 0))
+        if positions.size:
+            values = labels.ravel()[positions]
+            for value in np.unique(values):
+                label_id = int(value)
+                if label_id in unresolved:
+                    first = int(np.flatnonzero(values == label_id)[0])
+                    first_hits[label_id] = int(positions[first])
+                    unresolved.remove(label_id)
+        if not unresolved:
+            break
+        frontier = new
+    if unresolved:
+        raise AssertionError(f"Validator could not route feeders: {unresolved}")
+
+    paths = np.zeros(adjusted.shape, dtype=bool)
+    height, width = adjusted.shape
+    for position in first_hits.values():
+        y, x = divmod(position, width)
+        while distance[y, x] > 0:
+            paths[y, x] = True
+            previous = int(distance[y, x]) - 1
+            for candidate_y, candidate_x in (
+                (y - 1, x),
+                (y, x - 1),
+                (y, x + 1),
+                (y + 1, x),
+            ):
+                if (
+                    0 <= candidate_y < height
+                    and 0 <= candidate_x < width
+                    and distance[candidate_y, candidate_x] == previous
+                ):
+                    y, x = candidate_y, candidate_x
+                    break
+            else:
+                raise AssertionError("Validator feeder trace is discontinuous")
+        paths[y, x] = True
+    feeder = paths & baseline & ~adjusted
+    return adjusted | feeder, feeder
+
+
 def main() -> None:
     args = parse_args()
     graph = args.graph.resolve()
     assets = args.assets.resolve()
     source = pool_source(graph / "source_flag.raw")
-    developed = pool_developed(graph / "developed_flag.raw")
-    elevation10 = np.memmap(
-        graph / "elevation10.raw",
-        dtype="<i2",
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    connection10 = np.memmap(
-        graph / "connection10.raw",
-        dtype="<i2",
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    valid = elevation10 != np.iinfo(np.int16).min
-    ground = elevation10.astype(np.float32) / 10.0
-    connection = connection10.astype(np.float32) / 10.0
+    summary = build_render_summaries(graph)
+    valid = summary["ground10"] != np.iinfo(np.int16).max
+    ground = summary["ground10"].astype(np.float32) / 10.0
+    activation = summary["activation100"].astype(np.float64) / 100.0
+    activation_developed = (
+        summary["activation100_developed"].astype(np.float64) / 100.0
+    )
+    activation_undeveloped = (
+        summary["activation100_undeveloped"].astype(np.float64) / 100.0
+    )
     records = []
     maximum_components = 0
     maximum_blue_pixels = 0
+    minimum_blue_component_pixels = None
+    isolated_source_pixel_instances = 0
     uncertainty_pixel_instances = 0
+    disconnected_pixel_instances = 0
     recession_retained_pixel_instances = 0
+    feeder_pixel_instances = 0
 
     for phase in ("slack", "filling", "draining"):
         relative = "" if phase == "slack" else phase
@@ -144,13 +301,18 @@ def main() -> None:
                     labels.ravel(),
                     minlength=component_count + 1,
                 )
-                if np.any(component_sizes[1:] < 2):
-                    raise AssertionError(
-                        f"Isolated one-pixel blue component in {phase} {code}"
-                    )
+                minimum_blue_component_pixels = min(
+                    minimum_blue_component_pixels
+                    if minimum_blue_component_pixels is not None
+                    else int(component_sizes[1:].min()),
+                    int(component_sizes[1:].min()),
+                )
+                isolated_source_pixel_instances += int(
+                    np.count_nonzero(component_sizes[1:] == 1)
+                )
                 source_labels = np.unique(labels[depth_blue & source])
                 source_labels = source_labels[source_labels > 0]
-                if source_labels.size != component_count:
+                if phase != "draining" and source_labels.size != component_count:
                     missing = sorted(
                         set(range(1, component_count + 1))
                         - set(int(value) for value in source_labels)
@@ -161,29 +323,28 @@ def main() -> None:
                     )
             sign = -1.0 if code.startswith("m") else 1.0
             stage = sign * int(code[1:]) / 100.0
-            baseline_candidate = (
-                valid
-                & (ground < stage - 0.005)
-                & (connection <= stage + 1e-9)
-            )
-            baseline = retain_source_connected(baseline_candidate, source)
+            baseline = valid & (activation <= stage + 1e-9)
             adjustment = vertical_penalty(stage)
-            adjusted_stage = np.full(ground.shape, stage, dtype=np.float32)
+            developed_stage = (
+                stage + adjustment if phase == "draining"
+                else stage - adjustment
+            )
+            adjusted_blue = valid & (
+                (activation_developed <= developed_stage + 1e-9)
+                | (activation_undeveloped <= stage + 1e-9)
+            )
             if phase == "draining":
-                adjusted_stage[developed] += adjustment
+                expected_blue = adjusted_blue
+                feeder = np.zeros(expected_blue.shape, dtype=bool)
             else:
-                adjusted_stage[developed] -= adjustment
-            adjusted_candidate = (
-                valid
-                & (ground < adjusted_stage - 0.005)
-                & (connection <= adjusted_stage + 1e-9)
-            )
-            expected_blue = retain_source_connected(adjusted_candidate, source)
-            expected_green = (
-                np.zeros(expected_blue.shape, dtype=bool)
-                if phase == "draining"
-                else baseline & developed & ~expected_blue
-            )
+                expected_blue, feeder = add_visible_source_feeders(
+                    adjusted_blue,
+                    baseline,
+                    source,
+                )
+            disconnected = valid & (ground < stage - 0.005) & ~baseline
+            penalized = baseline & ~expected_blue
+            expected_green = ~expected_blue & (disconnected | penalized)
             if not np.array_equal(depth_blue, expected_blue):
                 raise AssertionError(
                     f"Rendered blue mask differs from the developed-land "
@@ -191,13 +352,16 @@ def main() -> None:
                 )
             if not np.array_equal(depth_codes == 12, expected_green):
                 raise AssertionError(
-                    f"Rendered green uncertainty differs from the polynomial "
-                    f"exclusion band in {phase} {code}"
+                    f"Rendered green diagnostic mask differs from the "
+                    f"disconnected/penalized mask in {phase} {code}"
                 )
-            uncertainty_pixel_instances += int(np.count_nonzero(expected_green))
+            disconnected_pixel_instances += int(np.count_nonzero(disconnected))
+            if phase != "draining":
+                uncertainty_pixel_instances += int(np.count_nonzero(penalized))
+                feeder_pixel_instances += int(np.count_nonzero(feeder))
             if phase == "draining":
                 recession_retained_pixel_instances += int(
-                    np.count_nonzero(expected_blue & developed & ~baseline)
+                    np.count_nonzero(expected_blue & ~baseline)
                 )
             maximum_components = max(maximum_components, int(component_count))
             maximum_blue_pixels = max(
@@ -212,11 +376,15 @@ def main() -> None:
                 "status": "passed",
                 "connectivity": "four-neighbour/shared-side only",
                 "sourceRequirement": (
-                    "every blue component intersects a qualified source pixel"
+                    "every filling/slack blue component intersects a qualified "
+                    "source; draining may retain isolated developed-land lag"
                 ),
-                "minimumBlueComponentPixels": 2,
+                "minimumBlueComponentPixels": minimum_blue_component_pixels,
+                "isolatedSourcePixelInstances": isolated_source_pixel_instances,
+                "disconnectedGreenPixelInstances": disconnected_pixel_instances,
                 "developedUncertaintyPixelInstances": uncertainty_pixel_instances,
                 "developedRecessionRetainedPixelInstances": recession_retained_pixel_instances,
+                "visibleFeederPixelInstances": feeder_pixel_instances,
                 "maximumComponentsInAnyFrame": maximum_components,
                 "maximumBluePixelsInAnyFrame": maximum_blue_pixels,
                 "phases": records,

@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-conditional-connectivity-assets-v1",
-  "generatedUtc": "2026-08-15T14:38:25Z",
+  "generatedUtc": "2026-08-15T16:43:13Z",
   "modelKind": "phase-aware developed-land conditional connectivity",
   "phaseInvariant": false,
   "verticalPenalty": {
@@ -74,7 +74,7 @@
     "phases": {
       "filling": {
         "stageCount": 201,
-        "pngBytes": 30112933,
+        "pngBytes": 30840719,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -105,15 +105,20 @@
           "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
         },
         "connectivity": "four-neighbour render components touching a qualified source",
-        "disconnectedBluePixelsRemoved": 1197114,
-        "maximumUnfilteredComponents": 290,
-        "maximumRetainedSourceComponents": 110,
-        "developedUncertaintyPixelInstances": 638547,
-        "developedRecessionRetainedPixelInstances": 0
+        "disconnectedBluePixelsRemoved": 0,
+        "maximumUnfilteredComponents": 95,
+        "maximumRetainedSourceComponents": 95,
+        "disconnectedGreenPixelInstances": 1773510,
+        "developedUncertaintyPixelInstances": 1185728,
+        "developedRecessionRetainedPixelInstances": 0,
+        "visibleFeederPixelInstances": 1691,
+        "detachedComponentsJoinedByFeeders": 24,
+        "maximumVisibleFeederLengthPixels": 644,
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at five-foot visible width"
       },
       "slack": {
         "stageCount": 201,
-        "pngBytes": 30112933,
+        "pngBytes": 30840719,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -144,15 +149,20 @@
           "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
         },
         "connectivity": "four-neighbour render components touching a qualified source",
-        "disconnectedBluePixelsRemoved": 1197114,
-        "maximumUnfilteredComponents": 290,
-        "maximumRetainedSourceComponents": 110,
-        "developedUncertaintyPixelInstances": 638547,
-        "developedRecessionRetainedPixelInstances": 0
+        "disconnectedBluePixelsRemoved": 0,
+        "maximumUnfilteredComponents": 95,
+        "maximumRetainedSourceComponents": 95,
+        "disconnectedGreenPixelInstances": 1773510,
+        "developedUncertaintyPixelInstances": 1185728,
+        "developedRecessionRetainedPixelInstances": 0,
+        "visibleFeederPixelInstances": 1691,
+        "detachedComponentsJoinedByFeeders": 24,
+        "maximumVisibleFeederLengthPixels": 644,
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at five-foot visible width"
       },
       "draining": {
         "stageCount": 201,
-        "pngBytes": 30660318,
+        "pngBytes": 31049705,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -183,11 +193,16 @@
           "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
         },
         "connectivity": "four-neighbour render components touching a qualified source",
-        "disconnectedBluePixelsRemoved": 1212140,
-        "maximumUnfilteredComponents": 290,
-        "maximumRetainedSourceComponents": 110,
+        "disconnectedBluePixelsRemoved": 0,
+        "maximumUnfilteredComponents": 95,
+        "maximumRetainedSourceComponents": 95,
+        "disconnectedGreenPixelInstances": 1773510,
         "developedUncertaintyPixelInstances": 0,
-        "developedRecessionRetainedPixelInstances": 2095899
+        "developedRecessionRetainedPixelInstances": 1715671,
+        "visibleFeederPixelInstances": 0,
+        "detachedComponentsJoinedByFeeders": 0,
+        "maximumVisibleFeederLengthPixels": 0,
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at five-foot visible width"
       }
     }
   },
