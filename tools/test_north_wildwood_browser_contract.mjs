@@ -273,8 +273,13 @@ assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
 assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 50/);
 assert.match(SOURCE, /\/assets\/hydraulic-v29\//);
-assert.match(extractFunction("getOverlayCandidates"), /floodmapperv1\.b-cdn\.net/);
-assert.match(extractFunction("getOverlayCandidates"), /Number\(rightIsCdn\) - Number\(leftIsCdn\)/);
+assert.match(extractFunction("getOverlayCandidates"), /const orderedRoots = \[\.\.\.roots\]/);
+assert.doesNotMatch(extractFunction("getOverlayCandidates"), /\.sort\(/);
+assert.ok(
+  SOURCE.indexOf('"./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/"') <
+    SOURCE.indexOf('"https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v35/"'),
+  "The complete bundled catalog must precede the unavailable Bunny v35 catalog",
+);
 assert.match(SOURCE, /20260815-crest-release-v35/);
 assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
 assert.match(SOURCE, /"phaseInvariant": false/);

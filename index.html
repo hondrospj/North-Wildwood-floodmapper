@@ -17236,13 +17236,10 @@ function setDatumHelpOpen(isOpen) {
       const normalizedPhase = normalizeHydraulicPhase(phase);
       const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedPhase] || [];
       const roots = phaseRoots.length ? phaseRoots : (OVERLAY_ROOTS[mode] || []);
-      // Bunny is the optimized delivery path for the large raster catalog.
-      // The bundled GitHub copy remains a complete offline/failure fallback.
-      const orderedRoots = [...roots].sort((left, right) => {
-        const leftIsCdn = left.includes("floodmapperv1.b-cdn.net");
-        const rightIsCdn = right.includes("floodmapperv1.b-cdn.net");
-        return Number(rightIsCdn) - Number(leftIsCdn);
-      });
+      // Preserve configured priority. The bundled v35 catalog is first while
+      // the matching Bunny version is unavailable, avoiding a 404 before
+      // every distinct historic stage/phase frame.
+      const orderedRoots = [...roots];
       const filenames = getOverlayFilenameCandidates(mode, stageValue);
       return orderedRoots.flatMap(root => filenames.map(name => {
         const url = new URL(name, root);
