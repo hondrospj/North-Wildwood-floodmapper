@@ -71,14 +71,19 @@ def main() -> None:
     draining = model.penalized_connected_depth_ft(
         stage, ground, developed, "draining"
     )
+    slack = model.penalized_connected_depth_ft(
+        stage, ground, developed, "slack"
+    )
     if not np.allclose(rising, [0.0, 0.25]):
-        raise AssertionError(f"Unexpected rising/slack depths: {rising}")
+        raise AssertionError(f"Unexpected rising depths: {rising}")
     if not np.allclose(draining, [0.50, 0.25]):
         raise AssertionError(f"Unexpected recession-retention depths: {draining}")
+    if not np.allclose(slack, [0.25, 0.25]):
+        raise AssertionError(f"Unexpected high-tide release depths: {slack}")
     if not np.isclose(
-        model.phase_adjusted_stage_ft(stage, "slack", True), 4.00
+        model.phase_adjusted_stage_ft(stage, "slack", True), 4.25
     ):
-        raise AssertionError("The developed-land rising penalty has the wrong sign")
+        raise AssertionError("The developed-land penalty did not wear off at slack tide")
     if not np.isclose(
         model.phase_adjusted_stage_ft(stage, "draining", True), 4.50
     ):

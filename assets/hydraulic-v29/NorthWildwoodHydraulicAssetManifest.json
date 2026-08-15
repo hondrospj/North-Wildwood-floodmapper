@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-conditional-connectivity-assets-v1",
-  "generatedUtc": "2026-08-15T16:43:13Z",
+  "generatedUtc": "2026-08-15T17:26:07Z",
   "modelKind": "phase-aware developed-land conditional connectivity",
   "phaseInvariant": false,
   "verticalPenalty": {
@@ -26,7 +26,8 @@
     "belowMinorTreatment": "clamped to 0.75 ft",
     "aboveMajorTreatment": "clamped to 0.00 ft",
     "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-    "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
+    "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
+    "slack": "zero offset so the rising penalty rapidly wears off at high tide",
     "draining": "positive offset retains prior routed water; it is not new inflow",
     "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
   },
@@ -74,7 +75,7 @@
     "phases": {
       "filling": {
         "stageCount": 201,
-        "pngBytes": 30840719,
+        "pngBytes": 30970362,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -100,7 +101,8 @@
           "belowMinorTreatment": "clamped to 0.75 ft",
           "aboveMajorTreatment": "clamped to 0.00 ft",
           "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-          "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
+          "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
+          "slack": "zero offset so the rising penalty rapidly wears off at high tide",
           "draining": "positive offset retains prior routed water; it is not new inflow",
           "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
         },
@@ -109,89 +111,37 @@
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 1185728,
+        "developedUncertaintyPixelInstances": 844997,
         "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 1691,
-        "detachedComponentsJoinedByFeeders": 24,
-        "maximumVisibleFeederLengthPixels": 644,
-        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at five-foot visible width"
+        "visibleFeederPixelInstances": 70547,
+        "detachedComponentsJoinedByFeeders": 2555,
+        "maximumVisibleFeederLengthPixels": 1232,
+        "visibleFeederWidthFt": 15,
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at 15-foot visible width"
       },
       "slack": {
         "stageCount": 201,
-        "pngBytes": 30840719,
+        "pngBytes": 30653723,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
-        "verticalPenalty": {
-          "anchors": [
-            {
-              "threshold": "minor",
-              "stageNavd88Ft": 3.25,
-              "penaltyFt": 0.75
-            },
-            {
-              "threshold": "moderate",
-              "stageNavd88Ft": 4.25,
-              "penaltyFt": 0.25
-            },
-            {
-              "threshold": "major",
-              "stageNavd88Ft": 5.25,
-              "penaltyFt": 0.0
-            }
-          ],
-          "curve": "quadratic through all three anchors",
-          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-          "belowMinorTreatment": "clamped to 0.75 ft",
-          "aboveMajorTreatment": "clamped to 0.00 ft",
-          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-          "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
-          "draining": "positive offset retains prior routed water; it is not new inflow",
-          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
-        },
         "connectivity": "four-neighbour render components touching a qualified source",
         "disconnectedBluePixelsRemoved": 0,
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 1185728,
+        "developedUncertaintyPixelInstances": 0,
         "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 1691,
-        "detachedComponentsJoinedByFeeders": 24,
-        "maximumVisibleFeederLengthPixels": 644,
-        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at five-foot visible width"
+        "visibleFeederPixelInstances": 0,
+        "detachedComponentsJoinedByFeeders": 0,
+        "maximumVisibleFeederLengthPixels": 0,
+        "visibleFeederWidthFt": 15,
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at 15-foot visible width"
       },
       "draining": {
         "stageCount": 201,
         "pngBytes": 31049705,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
-        "verticalPenalty": {
-          "anchors": [
-            {
-              "threshold": "minor",
-              "stageNavd88Ft": 3.25,
-              "penaltyFt": 0.75
-            },
-            {
-              "threshold": "moderate",
-              "stageNavd88Ft": 4.25,
-              "penaltyFt": 0.25
-            },
-            {
-              "threshold": "major",
-              "stageNavd88Ft": 5.25,
-              "penaltyFt": 0.0
-            }
-          ],
-          "curve": "quadratic through all three anchors",
-          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-          "belowMinorTreatment": "clamped to 0.75 ft",
-          "aboveMajorTreatment": "clamped to 0.00 ft",
-          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-          "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
-          "draining": "positive offset retains prior routed water; it is not new inflow",
-          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
-        },
         "connectivity": "four-neighbour render components touching a qualified source",
         "disconnectedBluePixelsRemoved": 0,
         "maximumUnfilteredComponents": 95,
@@ -202,7 +152,8 @@
         "visibleFeederPixelInstances": 0,
         "detachedComponentsJoinedByFeeders": 0,
         "maximumVisibleFeederLengthPixels": 0,
-        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at five-foot visible width"
+        "visibleFeederWidthFt": 15,
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at 15-foot visible width"
       }
     }
   },
@@ -1256,7 +1207,8 @@
       "belowMinorTreatment": "clamped to 0.75 ft",
       "aboveMajorTreatment": "clamped to 0.00 ft",
       "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-      "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
+      "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
+      "slack": "zero offset so the rising penalty rapidly wears off at high tide",
       "draining": "positive offset retains prior routed water; it is not new inflow",
       "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
     }

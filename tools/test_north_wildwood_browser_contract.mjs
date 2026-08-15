@@ -138,6 +138,21 @@ assert.equal(
   0.05,
   "A visible zero-depth crest feeder must report the shallow-water range"
 );
+assert.equal(
+  context.getPenalizedConnectedDepth(4.25, 4.0, true, "filling").depth,
+  0,
+  "The rising penalty must suppress only the local developed depth band"
+);
+assert.equal(
+  context.getPenalizedConnectedDepth(4.25, 4.0, true, "slack").depth,
+  0.25,
+  "The penalty must wear off at slack/high tide"
+);
+assert.equal(
+  context.getPenalizedConnectedDepth(4.25, 4.0, true, "draining").depth,
+  0.5,
+  "The positive drainage adjustment must retain developed water"
+);
 
 let previousPenalty = Infinity;
 for (let stage = 3.25; stage <= 5.25 + 1e-9; stage += 0.1) {
@@ -178,10 +193,11 @@ assert.match(SOURCE, /connectionCode - 50/);
 assert.match(SOURCE, /\/assets\/hydraulic-v29\//);
 assert.match(extractFunction("getOverlayCandidates"), /floodmapperv1\.b-cdn\.net/);
 assert.match(extractFunction("getOverlayCandidates"), /Number\(rightIsCdn\) - Number\(leftIsCdn\)/);
-assert.match(SOURCE, /20260815-connected-feeders-v30/);
+assert.match(SOURCE, /20260815-local-penalty-v31/);
 assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
 assert.match(SOURCE, /"phaseInvariant": false/);
-assert.match(SOURCE, /\/v30\//);
+assert.match(SOURCE, /\/v31\//);
+assert.match(extractFunction("getDepthQueryDisplayDepth"), /connectionStageLimit/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /TOP_TIDE_DISPLAY_COUNT/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /ensureObservedArchiveForDate/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /preloadImage/);

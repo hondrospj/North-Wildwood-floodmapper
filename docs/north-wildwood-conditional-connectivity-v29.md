@@ -1,4 +1,4 @@
-# North Wildwood connected-feeder conditional-connectivity v30
+# North Wildwood local-penalty conditional-connectivity v31
 
 Generated and validated on 2026-08-15.
 
@@ -47,9 +47,12 @@ It is clamped to 0.75 ft below minor flood and 0.00 ft above major flood. The
 three exact stage/penalty anchors are `(3.25, 0.75)`, `(4.25, 0.25)`, and
 `(5.25, 0.00)`.
 
-- Filling and slack: developed cells use `adjusted stage = gauge stage - P`.
-  Cells connected at the gauge stage but excluded at the adjusted stage are
-  green uncertainty.
+- Filling: source connectivity is evaluated at the real gauge stage, then the
+  negative offset is applied only to local developed ground. Cells in that
+  shallow local band are green uncertainty; a penalized route crest cannot
+  suppress a lower connected basin beyond it.
+- Slack/high tide: the offset is zero, rapidly releasing the rising
+  uncertainty as high tide arrives.
 - Draining: developed cells use `adjusted stage = gauge stage + P`. This
   retains previously routed water to represent lagged recession; it does not
   introduce a new source or inflow.
@@ -62,10 +65,10 @@ disconnected or penalty-held diagnostic state from connected blue water.
 
 Each five-foot display cell pools all 25 underlying one-foot cells. The first
 eligible one-foot source connection paints the display cell, preserving narrow
-shared-side feeder paths at a visible five-foot width. This replaces the old
+shared-side feeder paths at a visible 15-foot width. This replaces the old
 center-cell sample and coarse-grid relabel that could erase a valid connection.
 If the developed penalty would visually sever a lower connected basin during
-filling or slack, the renderer keeps only a shortest shallow feeder through
+filling, the renderer keeps a shortest shallow street-scale feeder through
 the unadjusted connected corridor. Every filling/slack blue component must
 therefore touch a qualified source pixel. Draining may retain isolated blue
 puddles as the explicit developed-area recession lag.
@@ -95,13 +98,20 @@ The production validation passed all of the following:
 - all 603 depth/stage frame pairs have identical blue masks;
 - every filling/slack blue component is shared-side connected to a source;
 - every green cell is either disconnected terrain below the selected stage or
-  the developed rising/slack exclusion band;
+  the developed filling exclusion band;
 - every draining-only retained cell is developed land; and
-- 1,185,728 developed green uncertainty pixel-instances per filling/slack
-  family, 1,691 feeder pixel-instances per family joining 24 detached basins,
-  and 1,715,671 recession-retained pixel-instances were independently
-  reproduced by the validator.
+- 844,997 developed green uncertainty pixel-instances in the filling family,
+  zero penalty-held pixels at slack/high tide, 70,547 street-scale feeder
+  pixel-instances joining 2,555 detached local basins, and 1,715,671
+  recession-retained pixel-instances were independently reproduced by the
+  validator.
 
-The Bunny upload helper targets versioned `v30` paths and verifies public
+At the reported Jan. 23, 2016 5:45 AM frame, 6.84 ft MLLW floors to the
+`p0400` NAVD88 catalog image. Relative to v30, the revised local penalty and
+widened feeders convert 66,908 formerly green connected pixels to blue,
+reducing the rendered green count from 132,724 to 65,816 while preserving the
+polynomial's local developed-land fringe.
+
+The Bunny upload helper targets versioned `v31` paths and verifies public
 checksums and CORS. The repository also contains the complete local catalog
 so the dashboard does not depend on an upload being present.

@@ -25,6 +25,7 @@ FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
     ),
     dtype=np.uint8,
 )
+VISIBLE_FEEDER_WIDTH_STRUCTURE = FOUR_NEIGHBOUR_STRUCTURE
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,6 +77,9 @@ def build_render_summaries(graph: Path) -> dict[str, np.ndarray]:
         "ground10": np.full(
             (RENDER_HEIGHT, RENDER_WIDTH), maximum, dtype=np.int16
         ),
+        "ground10_developed": np.full(
+            (RENDER_HEIGHT, RENDER_WIDTH), maximum, dtype=np.int16
+        ),
         "activation100": np.full(
             (RENDER_HEIGHT, RENDER_WIDTH),
             activation_maximum,
@@ -120,6 +124,11 @@ def build_render_summaries(graph: Path) -> dict[str, np.ndarray]:
                 summary["ground10"],
                 np.where(valid, ground, maximum),
                 out=summary["ground10"],
+            )
+            np.minimum(
+                summary["ground10_developed"],
+                np.where(is_developed, ground, maximum),
+                out=summary["ground10_developed"],
             )
             np.minimum(
                 summary["activation100"],
@@ -237,7 +246,11 @@ def add_visible_source_feeders(
             else:
                 raise AssertionError("Validator feeder trace is discontinuous")
         paths[y, x] = True
-    feeder = paths & baseline & ~adjusted
+    feeder = (
+        binary_dilation(paths, structure=VISIBLE_FEEDER_WIDTH_STRUCTURE)
+        & baseline
+        & ~adjusted
+    )
     return adjusted | feeder, feeder
 
 
@@ -249,6 +262,9 @@ def main() -> None:
     summary = build_render_summaries(graph)
     valid = summary["ground10"] != np.iinfo(np.int16).max
     ground = summary["ground10"].astype(np.float32) / 10.0
+    ground_developed = (
+        summary["ground10_developed"].astype(np.float32) / 10.0
+    )
     activation = summary["activation100"].astype(np.float64) / 100.0
     activation_developed = (
         summary["activation100_developed"].astype(np.float64) / 100.0
@@ -325,12 +341,20 @@ def main() -> None:
             stage = sign * int(code[1:]) / 100.0
             baseline = valid & (activation <= stage + 1e-9)
             adjustment = vertical_penalty(stage)
-            developed_stage = (
-                stage + adjustment if phase == "draining"
-                else stage - adjustment
-            )
+            if phase == "draining":
+                developed_stage = stage + adjustment
+                developed_blue = (
+                    activation_developed <= developed_stage + 1e-9
+                )
+            else:
+                phase_adjustment = adjustment if phase == "filling" else 0.0
+                developed_stage = stage - phase_adjustment
+                developed_blue = (
+                    (activation_developed <= stage + 1e-9)
+                    & (ground_developed <= developed_stage + 1e-9)
+                )
             adjusted_blue = valid & (
-                (activation_developed <= developed_stage + 1e-9)
+                developed_blue
                 | (activation_undeveloped <= stage + 1e-9)
             )
             if phase == "draining":

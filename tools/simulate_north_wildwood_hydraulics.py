@@ -4,12 +4,13 @@
 The conditioned one-foot DEM and its four-neighbour connection-stage raster
 remain the hydraulic constraints. Connectivity is evaluated at the selected
 gauge stage. In NJDEP-developed land only, a quadratic penalty marks the
-shallower rising/slack-tide band green (uncertain) and a positive recession
-offset retains already-routed water during draining. Wetlands, water, and
+shallower rising-tide local-ground band green (uncertain), wears off at slack
+tide, and becomes a positive recession offset retaining already-routed water
+during draining. Wetlands, water, and
 barren beach land receive neither adjustment. The polynomial is anchored at
 0.75 ft at minor, 0.25 ft at moderate, and 0.00 ft at major flood.
 
-Filling/slack and draining assets are intentionally different. Storm drains
+Filling, slack, and draining assets are intentionally different. Storm drains
 remain disabled, and the 21-cell, 7.5-ft NAVD88 bulkhead remains stitched into
 the DEM before connection stages are computed.
 """
@@ -117,6 +118,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--filling-only",
+        action="store_true",
+        help=(
+            "Reuse the complete state package and rebuild only filling assets"
+        ),
+    )
+    parser.add_argument(
         "--reuse-complete-state",
         action="store_true",
         help=(
@@ -166,10 +174,10 @@ def phase_adjusted_stage_ft(
     phase: str,
     developed: np.ndarray | bool,
 ) -> np.ndarray:
-    """Apply negative rising and positive draining offsets to developed land."""
+    """Apply rising suppression, crest release, and draining retention."""
     stage = float(stage_ft)
     penalty = vertical_penalty_ft(stage)
-    direction = 1.0 if phase == "draining" else -1.0
+    direction = 1.0 if phase == "draining" else -1.0 if phase == "filling" else 0.0
     return stage + np.asarray(developed, dtype=np.float64) * direction * penalty
 
 
@@ -185,7 +193,8 @@ def vertical_penalty_metadata() -> dict:
         "belowMinorTreatment": "clamped to 0.75 ft",
         "aboveMajorTreatment": "clamped to 0.00 ft",
         "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-        "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
+        "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
+        "slack": "zero offset so the rising penalty rapidly wears off at high tide",
         "draining": "positive offset retains prior routed water; it is not new inflow",
         "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land",
     }
@@ -679,6 +688,7 @@ FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
     ),
     dtype=np.uint8,
 )
+VISIBLE_FEEDER_WIDTH_STRUCTURE = FOUR_NEIGHBOUR_STRUCTURE
 
 
 def pool_source_to_render_grid(source: np.ndarray) -> np.ndarray:
@@ -865,15 +875,15 @@ def add_visible_source_feeders(
     baseline_flooded: np.ndarray,
     source: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, int]]:
-    """Join adjusted blue basins to a source with one-pixel feeder paths.
+    """Join adjusted blue basins to a source with street-scale feeder paths.
 
     A developed-land penalty can turn a few cells along an otherwise valid
     source route green, leaving a lower adjusted-blue basin looking detached.
     A four-neighbour wave records geodesic distance through the unadjusted
     connected mask, then traces only the first shortest path to every detached
-    blue component. One display pixel is five one-foot cells wide, satisfying
-    the visible several-cell feeder requirement without painting the entire
-    penalty band blue.
+    blue component. The traced centerline is expanded to three display pixels,
+    or 15 one-foot cells, satisfying the visible several-cell feeder
+    requirement without painting the entire penalty band blue.
     """
     labels, component_count = ndimage_label(
         adjusted_flooded,
@@ -969,7 +979,14 @@ def add_visible_source_feeders(
             y, x = next_cell
         paths[y, x] = True
 
-    feeder = paths & baseline_flooded & ~adjusted_flooded
+    # Three five-foot render cells produce a clearly visible, street-scale
+    # 15-foot stream while every added cell remains inside the unadjusted
+    # source-connected mask.
+    feeder = (
+        binary_dilation(paths, structure=VISIBLE_FEEDER_WIDTH_STRUCTURE)
+        & baseline_flooded
+        & ~adjusted_flooded
+    )
     flooded = adjusted_flooded | feeder
     return flooded, feeder, {
         "detachedComponentsJoined": int(detached_labels.size),
@@ -1075,13 +1092,23 @@ def render_assets(
                 retained_components,
             )
             penalty = vertical_penalty_ft(stage_value)
-            adjusted_developed_stage = (
-                stage_value + penalty if phase == "draining"
-                else stage_value - penalty
-            )
-            developed_flooded = (
-                activation_developed <= adjusted_developed_stage + 1e-9
-            )
+            if phase == "draining":
+                adjusted_developed_stage = stage_value + penalty
+                developed_flooded = (
+                    activation_developed <= adjusted_developed_stage + 1e-9
+                )
+            else:
+                # Connectivity is evaluated at the real gauge stage. The
+                # rising-tide penalty is then applied only to local developed
+                # ground, not to the controlling source/route crest. Applying
+                # it to the route stage suppressed entire low connected basins
+                # beyond one slightly higher cell and produced excessive green.
+                phase_penalty = penalty if phase == "filling" else 0.0
+                adjusted_developed_stage = stage_value - phase_penalty
+                developed_flooded = (
+                    (activation_developed <= stage_value + 1e-9)
+                    & (ground_developed <= adjusted_developed_stage + 1e-9)
+                )
             undeveloped_flooded = (
                 activation_undeveloped <= stage_value + 1e-9
             )
@@ -1212,9 +1239,10 @@ def render_assets(
             "visibleFeederPixelInstances": feeder_pixels,
             "detachedComponentsJoinedByFeeders": detached_components_joined,
             "maximumVisibleFeederLengthPixels": maximum_feeder_length,
+            "visibleFeederWidthFt": 15,
             "renderConnectivity": (
                 "all 25 one-foot cells pooled into each five-foot pixel; "
-                "sub-pixel feeder paths preserved at five-foot visible width"
+                "sub-pixel feeder paths preserved at 15-foot visible width"
             ),
         }
 
@@ -1501,6 +1529,8 @@ def main() -> None:
             "GDAL, Pillow, and SciPy are required to build hydraulic assets"
         )
     args = parse_args()
+    if args.filling_only and args.draining_only:
+        raise ValueError("Choose at most one of --filling-only and --draining-only")
     if args.draining_only:
         raise ValueError(
             "--draining-only is unavailable because the developed-land mask "
@@ -1515,7 +1545,9 @@ def main() -> None:
         output_root / "NorthWildwoodHydraulicAssetManifest.json"
     )
     previous_render_manifest = None
-    if (args.draining_only or args.skip_render) and asset_manifest_path.is_file():
+    if (
+        args.draining_only or args.filling_only or args.skip_render
+    ) and asset_manifest_path.is_file():
         previous_asset_manifest = json.loads(
             asset_manifest_path.read_text(encoding="utf-8")
         )
@@ -1601,7 +1633,13 @@ def main() -> None:
             args.dem.resolve(),
             output_root,
             phases,
-            phase_names=("draining",) if args.draining_only else None,
+            phase_names=(
+                ("draining",)
+                if args.draining_only
+                else ("filling",)
+                if args.filling_only
+                else None
+            ),
         )
         if previous_render_manifest is not None:
             phase_counts = dict(previous_render_manifest.get("phases", {}))
