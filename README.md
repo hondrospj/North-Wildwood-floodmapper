@@ -76,7 +76,7 @@ The flood-depth catalog extends through 20.00 ft NAVD88, covering every
 published NACCS station 11283 target in this set without a display cap.
 The complete 0.00–20.00 ft catalog uses the established Bunny filename
 convention (`NorthWildwoodDepthp0000.png` through
-`NorthWildwoodDepthp2000.png`) under versioned v31 filling, slack, and draining
+`NorthWildwoodDepthp2000.png`) under versioned v32 filling, slack, and draining
 directories.
 
 These are stationary screening scenarios: no future sea-level-rise increment
@@ -153,9 +153,15 @@ g++ -O3 -std=c++17 \
   --developed /path/to/developed_urban_1ft.tif \
   --output /path/to/graph
 
+python3 tools/prepare_north_wildwood_road_mask.py \
+  --overpass model/data/reference/north_wildwood_osm_highways_20260815.json \
+  --dem /path/to/NorthWildwoodDEM_Bulkhead21Cell_1ft_NAVD88.tif \
+  --output /path/to/graph/NorthWildwoodRoadCorridor5ft.tif
+
 python3 tools/simulate_north_wildwood_hydraulics.py \
   --graph /path/to/graph \
   --dem /path/to/NorthWildwoodDEM_Bulkhead21Cell_1ft_NAVD88.tif \
+  --road-mask /path/to/graph/NorthWildwoodRoadCorridor5ft.tif \
   --output /path/to/assets
 
 python3 tools/validate_north_wildwood_hydraulic_features.py \
@@ -166,6 +172,7 @@ python3 tools/validate_north_wildwood_hydraulic_features.py \
 
 python3 tools/validate_north_wildwood_render_connectivity.py \
   --graph /path/to/graph \
+  --road-mask /path/to/graph/NorthWildwoodRoadCorridor5ft.tif \
   --assets /path/to/assets
 ```
 
@@ -187,9 +194,13 @@ water grades to dark navy. Green identifies either terrain below the selected
 stage that is disconnected from a qualified tidal source or the developed-land
 connected band excluded by the local rising polynomial offset. Each five-foot
 display pixel pools all 25 underlying one-foot cells instead of sampling only
-its center. A one- to four-foot source route therefore remains visible as a
-15-foot-wide street-scale feeder rather than disappearing during display
-downsampling.
+its center. Where the rising penalty visually separates a connected low basin,
+the renderer may preserve a feeder up to 15 feet wide, but every synthetic
+feeder pixel is clipped to an aligned public motor-vehicle road corridor and
+the unadjusted hydraulic mask. The road mask is derived from OpenStreetMap
+centerlines and excludes footways, paths, tracks, parking aisles, driveways,
+and private ways. A basin without a continuous eligible road route remains
+green uncertainty; the renderer never draws a cross-parcel substitute.
 The renderer labels each phase-adjusted mask from the original shared-side
 connection stage. It smooths
 depth values over roughly ten feet only
@@ -199,7 +210,8 @@ mismatched depth/stage mask, corner-only filling/slack connection, blue
 filling/slack component without a source, misplaced green
 disconnected/penalty state, or incorrect drainage-retention pixel. Isolated
 draining water is permitted only where the developed-land recession lag
-explicitly predicts it.
+explicitly predicts it. The same validator rejects any feeder pixel outside
+the public-road corridor.
 
 ## Clickable depth
 

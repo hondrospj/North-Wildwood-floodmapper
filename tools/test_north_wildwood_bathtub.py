@@ -104,6 +104,44 @@ def main() -> None:
         )
     if diagnostics.get("modelKind") != "phase-aware developed-land conditional connectivity":
         raise AssertionError("Simulation diagnostics declare the wrong model")
+
+    # Visible feeders must follow the supplied public-road corridor exactly.
+    adjusted = np.zeros((9, 15), dtype=bool)
+    adjusted[3:6, 1:4] = True
+    adjusted[3:6, 11:14] = True
+    baseline = adjusted.copy()
+    baseline[4, 3:12] = True
+    source = np.zeros_like(adjusted)
+    source[4, 1] = True
+    road = np.zeros_like(adjusted)
+    road[4, :] = True
+    flooded, feeder, feeder_diagnostics = model.add_visible_source_feeders(
+        adjusted,
+        baseline,
+        source,
+        road,
+    )
+    if np.any(feeder & ~road):
+        raise AssertionError("Synthetic feeder escaped the public-road corridor")
+    if not np.all(flooded[3:6, 11:14]):
+        raise AssertionError("Road-reachable detached basin was not joined")
+    if feeder_diagnostics["detachedComponentsJoined"] != 1:
+        raise AssertionError("Road-reachable component count is incorrect")
+
+    broken_road = road.copy()
+    broken_road[4, 7] = False
+    flooded, feeder, feeder_diagnostics = model.add_visible_source_feeders(
+        adjusted,
+        baseline,
+        source,
+        broken_road,
+    )
+    if np.any(flooded[3:6, 11:14]):
+        raise AssertionError("Road-unreachable basin was kept blue")
+    if np.any(feeder & ~broken_road):
+        raise AssertionError("Feeder crossed a break in the road mask")
+    if feeder_diagnostics["detachedComponentsRoadUnreachable"] != 1:
+        raise AssertionError("Road-unreachable component count is incorrect")
     print("North Wildwood phase-aware conditional-connectivity checks passed")
 
 

@@ -8,8 +8,11 @@ import json
 from pathlib import Path
 
 import numpy as np
+from osgeo import gdal
 from PIL import Image
 from scipy.ndimage import binary_dilation, label as ndimage_label
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import dijkstra
 
 
 WIDTH = 10_930
@@ -32,6 +35,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--graph", type=Path, required=True)
     parser.add_argument("--assets", type=Path, required=True)
+    parser.add_argument(
+        "--road-mask",
+        type=Path,
+        help=(
+            "Aligned five-foot public-road corridor mask. Defaults to "
+            "NorthWildwoodRoadCorridor5ft.tif inside --graph."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -173,8 +184,11 @@ def add_visible_source_feeders(
     adjusted: np.ndarray,
     baseline: np.ndarray,
     source: np.ndarray,
+    road: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Reproduce the renderer's shortest source-feeder construction."""
+    """Reproduce the renderer's public-road-only feeder construction."""
+    if road.shape != adjusted.shape:
+        raise AssertionError("Road mask and render mask dimensions differ")
     labels, component_count = ndimage_label(
         adjusted,
         structure=FOUR_NEIGHBOUR_STRUCTURE,
@@ -194,70 +208,115 @@ def add_visible_source_feeders(
     source_lookup = np.zeros(component_count + 1, dtype=bool)
     source_lookup[source_labels] = True
     routed_source = adjusted & source_lookup[labels]
-    distance = np.full(adjusted.shape, -1, dtype=np.int16)
-    distance[routed_source] = 0
-    frontier = routed_source
-    unresolved = set(int(value) for value in detached)
-    first_hits: dict[int, int] = {}
-    for step in range(1, np.iinfo(np.int16).max):
-        new = (
-            binary_dilation(frontier, structure=FOUR_NEIGHBOUR_STRUCTURE)
-            & baseline
-            & (distance < 0)
-        )
-        if not np.any(new):
-            break
-        distance[new] = step
-        positions = np.flatnonzero(new & (labels > 0))
-        if positions.size:
-            values = labels.ravel()[positions]
-            for value in np.unique(values):
-                label_id = int(value)
-                if label_id in unresolved:
-                    first = int(np.flatnonzero(values == label_id)[0])
-                    first_hits[label_id] = int(positions[first])
-                    unresolved.remove(label_id)
-        if not unresolved:
-            break
-        frontier = new
-    if unresolved:
-        raise AssertionError(f"Validator could not route feeders: {unresolved}")
-
+    route_domain = baseline & road
+    route_origin = route_domain & (
+        routed_source
+        | binary_dilation(routed_source, structure=FOUR_NEIGHBOUR_STRUCTURE)
+    )
     paths = np.zeros(adjusted.shape, dtype=bool)
-    height, width = adjusted.shape
-    for position in first_hits.values():
-        y, x = divmod(position, width)
-        while distance[y, x] > 0:
-            paths[y, x] = True
-            previous = int(distance[y, x]) - 1
-            for candidate_y, candidate_x in (
-                (y - 1, x),
-                (y, x - 1),
-                (y, x + 1),
-                (y + 1, x),
-            ):
-                if (
-                    0 <= candidate_y < height
-                    and 0 <= candidate_x < width
-                    and distance[candidate_y, candidate_x] == previous
-                ):
-                    y, x = candidate_y, candidate_x
-                    break
-            else:
-                raise AssertionError("Validator feeder trace is discontinuous")
-        paths[y, x] = True
+    if np.any(route_origin):
+        node_at = np.full(route_domain.shape, -1, dtype=np.int32)
+        road_positions = np.flatnonzero(route_domain)
+        node_at.ravel()[road_positions] = np.arange(
+            road_positions.size,
+            dtype=np.int32,
+        )
+        horizontal = route_domain[:, :-1] & route_domain[:, 1:]
+        vertical = route_domain[:-1, :] & route_domain[1:, :]
+        left_nodes = node_at[:, :-1][horizontal]
+        right_nodes = node_at[:, 1:][horizontal]
+        upper_nodes = node_at[:-1, :][vertical]
+        lower_nodes = node_at[1:, :][vertical]
+        rows = np.concatenate(
+            (left_nodes, right_nodes, upper_nodes, lower_nodes)
+        )
+        columns = np.concatenate(
+            (right_nodes, left_nodes, lower_nodes, upper_nodes)
+        )
+        graph = coo_matrix(
+            (np.ones(rows.size, dtype=np.uint8), (rows, columns)),
+            shape=(road_positions.size, road_positions.size),
+        ).tocsr()
+        distances, predecessors, _ = dijkstra(
+            graph,
+            directed=False,
+            indices=node_at[route_origin],
+            unweighted=True,
+            min_only=True,
+            return_predecessors=True,
+        )
+        detached_lookup = np.zeros(component_count + 1, dtype=bool)
+        detached_lookup[detached] = True
+        target_nodes: list[np.ndarray] = []
+        target_labels: list[np.ndarray] = []
+        for route_view, label_view, node_view in (
+            (route_domain, labels, node_at),
+            (route_domain[:-1, :], labels[1:, :], node_at[:-1, :]),
+            (route_domain[1:, :], labels[:-1, :], node_at[1:, :]),
+            (route_domain[:, :-1], labels[:, 1:], node_at[:, :-1]),
+            (route_domain[:, 1:], labels[:, :-1], node_at[:, 1:]),
+        ):
+            touches_detached = route_view & detached_lookup[label_view]
+            if np.any(touches_detached):
+                target_nodes.append(node_view[touches_detached])
+                target_labels.append(label_view[touches_detached])
+        if target_nodes:
+            candidate_nodes = np.concatenate(target_nodes)
+            candidate_labels = np.concatenate(target_labels)
+            reachable = np.isfinite(distances[candidate_nodes])
+            candidate_nodes = candidate_nodes[reachable]
+            candidate_labels = candidate_labels[reachable]
+            if candidate_nodes.size:
+                ordering = np.lexsort(
+                    (distances[candidate_nodes], candidate_labels)
+                )
+                ordered_labels = candidate_labels[ordering]
+                first_for_label = np.concatenate(
+                    (
+                        np.asarray([True]),
+                        ordered_labels[1:] != ordered_labels[:-1],
+                    )
+                )
+                endpoints = candidate_nodes[ordering][first_for_label]
+                path_nodes = np.zeros(road_positions.size, dtype=bool)
+                for endpoint in endpoints:
+                    node = int(endpoint)
+                    while node >= 0 and not path_nodes[node]:
+                        path_nodes[node] = True
+                        node = int(predecessors[node])
+                paths.ravel()[road_positions[path_nodes]] = True
     feeder = (
         binary_dilation(paths, structure=VISIBLE_FEEDER_WIDTH_STRUCTURE)
+        & road
         & baseline
         & ~adjusted
     )
-    return adjusted | feeder, feeder
+    if np.any(feeder & ~road):
+        raise AssertionError("A visible feeder escaped the public-road mask")
+    flooded = retain_source_connected(adjusted | feeder, source)
+    feeder &= flooded
+    return flooded, feeder
 
 
 def main() -> None:
     args = parse_args()
     graph = args.graph.resolve()
     assets = args.assets.resolve()
+    road_path = (
+        args.road_mask.resolve()
+        if args.road_mask is not None
+        else graph / "NorthWildwoodRoadCorridor5ft.tif"
+    )
+    road_ds = gdal.Open(str(road_path))
+    if road_ds is None:
+        raise FileNotFoundError(road_path)
+    if (
+        road_ds.RasterXSize != RENDER_WIDTH
+        or road_ds.RasterYSize != RENDER_HEIGHT
+    ):
+        raise AssertionError("Unexpected public-road mask dimensions")
+    road = road_ds.GetRasterBand(1).ReadAsArray() != 0
+    road_ds = None
     source = pool_source(graph / "source_flag.raw")
     summary = build_render_summaries(graph)
     valid = summary["ground10"] != np.iinfo(np.int16).max
@@ -365,7 +424,12 @@ def main() -> None:
                     adjusted_blue,
                     baseline,
                     source,
+                    road,
                 )
+                if np.any(feeder & ~road):
+                    raise AssertionError(
+                        f"Off-road visible feeder in {phase} {code}"
+                    )
             disconnected = valid & (ground < stage - 0.005) & ~baseline
             penalized = baseline & ~expected_blue
             expected_green = ~expected_blue & (disconnected | penalized)
@@ -409,6 +473,8 @@ def main() -> None:
                 "developedUncertaintyPixelInstances": uncertainty_pixel_instances,
                 "developedRecessionRetainedPixelInstances": recession_retained_pixel_instances,
                 "visibleFeederPixelInstances": feeder_pixel_instances,
+                "offRoadVisibleFeederPixelInstances": 0,
+                "roadCorridorPixels": int(np.count_nonzero(road)),
                 "maximumComponentsInAnyFrame": maximum_components,
                 "maximumBluePixelsInAnyFrame": maximum_blue_pixels,
                 "phases": records,

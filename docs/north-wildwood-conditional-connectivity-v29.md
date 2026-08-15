@@ -1,4 +1,4 @@
-# North Wildwood local-penalty conditional-connectivity v31
+# North Wildwood road-constrained conditional-connectivity v32
 
 Generated and validated on 2026-08-15.
 
@@ -18,6 +18,10 @@ Generated and validated on 2026-08-15.
 - Developed land: official NJDEP Land Use/Land Cover 2015 polygons selected by
   `TYPE15 = URBAN`, aligned to the 1 ft grid. Wetlands, water, forest,
   agriculture, and barren land (including beaches) receive no penalty.
+- Public roads: 398 current OpenStreetMap motor-vehicle road ways were buffered
+  by classification or tagged width onto the aligned 5 ft display grid. The
+  333,731-cell mask excludes footways, paths, tracks, parking aisles,
+  driveways, and private ways.
 
 The original 5 ft measurements remain the accuracy support of the interpolated
 grid. The 1 ft spacing is used to preserve narrow barriers and shared-side
@@ -68,10 +72,13 @@ eligible one-foot source connection paints the display cell, preserving narrow
 shared-side feeder paths at a visible 15-foot width. This replaces the old
 center-cell sample and coarse-grid relabel that could erase a valid connection.
 If the developed penalty would visually sever a lower connected basin during
-filling, the renderer keeps a shortest shallow street-scale feeder through
-the unadjusted connected corridor. Every filling/slack blue component must
-therefore touch a qualified source pixel. Draining may retain isolated blue
-puddles as the explicit developed-area recession lag.
+filling, the renderer searches the eligible public-road graph for the shortest
+source-connected route. The feeder is clipped to both that road corridor and
+the unadjusted hydraulic mask. A road-unreachable basin stays green rather
+than receiving a synthetic path across a parcel, building, marsh, beach, or
+parking lot. Every filling/slack blue component must therefore touch a
+qualified source pixel. Draining may retain isolated blue puddles as the
+explicit developed-area recession lag.
 
 ## Published asset contract
 
@@ -100,18 +107,20 @@ The production validation passed all of the following:
 - every green cell is either disconnected terrain below the selected stage or
   the developed filling exclusion band;
 - every draining-only retained cell is developed land; and
-- 844,997 developed green uncertainty pixel-instances in the filling family,
-  zero penalty-held pixels at slack/high tide, 70,547 street-scale feeder
-  pixel-instances joining 2,555 detached local basins, and 1,715,671
-  recession-retained pixel-instances were independently reproduced by the
-  validator.
+- all 20,452 feeder pixel-instances are inside the 333,731-cell public-road
+  mask, with zero off-road feeder pixels across all 603 frames;
+- 950,703 developed green uncertainty pixel-instances in the filling family,
+  zero penalty-held pixels at slack/high tide, 1,096 road-reachable detached
+  components joined, 1,459 road-unreachable components conservatively left
+  green, and 1,715,671 recession-retained pixel-instances were independently
+  reproduced by the validator.
 
-At the reported Jan. 23, 2016 5:45 AM frame, 6.84 ft MLLW floors to the
-`p0400` NAVD88 catalog image. Relative to v30, the revised local penalty and
-widened feeders convert 66,908 formerly green connected pixels to blue,
-reducing the rendered green count from 132,724 to 65,816 while preserving the
-polynomial's local developed-land fringe.
+At the reported Aug. 21, 2025 6:00 PM frame, 6.55 ft MLLW floors to the
+`p0380` NAVD88 filling image. It contains 905,333 blue pixels and 74,625 green
+diagnostic pixels. Browser review at Delaware Avenue and the west-side street
+grid confirms that preserved feeders follow the visible road network rather
+than the v31 right-angle paths across blocks.
 
-The Bunny upload helper targets versioned `v31` paths and verifies public
+The Bunny upload helper targets versioned `v32` paths and verifies public
 checksums and CORS. The repository also contains the complete local catalog
 so the dashboard does not depend on an upload being present.

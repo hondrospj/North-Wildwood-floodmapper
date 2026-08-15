@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-conditional-connectivity-assets-v1",
-  "generatedUtc": "2026-08-15T17:26:07Z",
+  "generatedUtc": "2026-08-15T18:12:09Z",
   "modelKind": "phase-aware developed-land conditional connectivity",
   "phaseInvariant": false,
   "verticalPenalty": {
@@ -72,10 +72,17 @@
       0.0,
       -5.0
     ],
+    "roadCorridor": {
+      "path": "NorthWildwoodRoadCorridor5ft.tif",
+      "roadPixels": 333731,
+      "source": "OpenStreetMap contributors via Overpass API",
+      "sourceFile": "north_wildwood_osm_highways_20260815.json",
+      "filter": "public primary/secondary/tertiary/residential/unclassified/living_street plus named public service streets; excludes footways, paths, tracks, parking aisles, driveways, private ways"
+    },
     "phases": {
       "filling": {
         "stageCount": 201,
-        "pngBytes": 30970362,
+        "pngBytes": 30929940,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -111,13 +118,14 @@
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 844997,
+        "developedUncertaintyPixelInstances": 950703,
         "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 70547,
-        "detachedComponentsJoinedByFeeders": 2555,
-        "maximumVisibleFeederLengthPixels": 1232,
+        "visibleFeederPixelInstances": 20452,
+        "detachedComponentsJoinedByFeeders": 1096,
+        "detachedComponentsRoadUnreachable": 1459,
+        "maximumVisibleFeederLengthPixels": 1335,
         "visibleFeederWidthFt": 15,
-        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at 15-foot visible width"
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
       },
       "slack": {
         "stageCount": 201,
