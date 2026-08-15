@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused regression checks for the connectivity-first depth penalty."""
+"""Focused regression checks for the phase-aware developed-land penalty."""
 
 from __future__ import annotations
 
@@ -27,14 +27,10 @@ class FakeSolver:
 
 
 def main() -> None:
-    moderate_expected = model.LOW_STAGE_VERTICAL_PENALTY_FT * (
-        np.exp(-model.VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE * 0.5)
-        - np.exp(-model.VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE)
-    ) / (1 - np.exp(-model.VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE))
     expected = {
-        3.00: 1.25,
-        3.25: 1.25,
-        4.25: moderate_expected,
+        3.00: 0.75,
+        3.25: 0.75,
+        4.25: 0.25,
         5.25: 0.00,
         6.00: 0.00,
     }
@@ -56,7 +52,7 @@ def main() -> None:
         ]
     )
     if np.any(np.diff(sampled) > 1e-12):
-        raise AssertionError("Exponential penalty is not monotonically decreasing")
+        raise AssertionError("Polynomial penalty is not monotonically decreasing")
     if model.stage_code(3.90) != "p0390" or model.stage_code(4.00) != "p0400":
         raise AssertionError("Tenth-foot stage filenames are encoded incorrectly")
     if (
@@ -66,46 +62,44 @@ def main() -> None:
     ):
         raise AssertionError("The stage catalog is not a complete 0.1-ft grid")
 
-    stage = 4.20
-    ground = np.asarray([4.10, 3.90, 3.50, 3.00], dtype=np.float64)
-    raw_depth = stage - ground
-    depth = model.penalized_connected_depth_ft(stage, ground)
-    if np.any(depth <= 0):
-        raise AssertionError("The depth penalty erased connected shallow water")
-    if np.any(depth > raw_depth + 1e-12):
-        raise AssertionError("The depth penalty increased raw bathtub depth")
-    retained_fraction = np.divide(
-        depth,
-        raw_depth,
-        out=np.ones_like(depth),
-        where=raw_depth > 0,
+    stage = 4.25
+    ground = np.asarray([4.00, 4.00], dtype=np.float64)
+    developed = np.asarray([True, False])
+    rising = model.penalized_connected_depth_ft(
+        stage, ground, developed, "filling"
     )
-    if np.any(
-        retained_fraction
-        < model.MIN_CONNECTED_DEPTH_RETAINED_FRACTION - 1e-12
+    draining = model.penalized_connected_depth_ft(
+        stage, ground, developed, "draining"
+    )
+    if not np.allclose(rising, [0.0, 0.25]):
+        raise AssertionError(f"Unexpected rising/slack depths: {rising}")
+    if not np.allclose(draining, [0.50, 0.25]):
+        raise AssertionError(f"Unexpected recession-retention depths: {draining}")
+    if not np.isclose(
+        model.phase_adjusted_stage_ft(stage, "slack", True), 4.00
     ):
-        raise AssertionError("The bounded penalty retained too little connected depth")
-    if not np.isclose(depth[0], 0.025, atol=1e-12):
-        raise AssertionError(
-            f"A 0.10-ft connected fringe retained {depth[0]:.4f} ft, expected 0.025 ft"
-        )
+        raise AssertionError("The developed-land rising penalty has the wrong sign")
+    if not np.isclose(
+        model.phase_adjusted_stage_ft(stage, "draining", True), 4.50
+    ):
+        raise AssertionError("The developed-land drainage lag has the wrong sign")
 
     phases, diagnostics = model.simulate(FakeSolver())
     if not np.array_equal(phases["filling"], phases["slack"]):
         raise AssertionError("Filling and slack states differ")
     if not np.array_equal(phases["filling"], phases["draining"]):
         raise AssertionError("Filling and draining states differ")
-    if diagnostics.get("phaseInvariant") is not True:
-        raise AssertionError("Simulation diagnostics omit phase invariance")
+    if diagnostics.get("phaseInvariant") is not False:
+        raise AssertionError("Simulation diagnostics incorrectly claim phase invariance")
 
     stage_30_surface = float(phases["slack"][30, 1]) / 100.0
     if not np.isclose(stage_30_surface, 3.00, atol=0.005):
         raise AssertionError(
             f"3.0-ft gauge stage produced {stage_30_surface:.2f}-ft water surface"
         )
-    if diagnostics.get("modelKind") != "connectivity-first depth-penalized bathtub":
+    if diagnostics.get("modelKind") != "phase-aware developed-land conditional connectivity":
         raise AssertionError("Simulation diagnostics declare the wrong model")
-    print("North Wildwood connectivity-first depth-penalty checks passed")
+    print("North Wildwood phase-aware conditional-connectivity checks passed")
 
 
 if __name__ == "__main__":

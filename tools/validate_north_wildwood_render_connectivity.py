@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that every rendered blue component is side-connected to a source."""
+"""Verify every phase-aware render against the conditional-connectivity mask."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from scipy.ndimage import binary_dilation, label as ndimage_label
+from scipy.ndimage import label as ndimage_label
 
 
 WIDTH = 10_930
@@ -50,11 +50,44 @@ def pool_source(path: Path) -> np.ndarray:
     return pooled
 
 
+def pool_developed(path: Path) -> np.ndarray:
+    raw = np.memmap(path, dtype=np.uint8, mode="r", shape=(HEIGHT, WIDTH))
+    count = np.zeros((RENDER_HEIGHT, RENDER_WIDTH), dtype=np.uint8)
+    for y_offset in range(RENDER_STRIDE):
+        for x_offset in range(RENDER_STRIDE):
+            count += (
+                raw[y_offset::RENDER_STRIDE, x_offset::RENDER_STRIDE] != 0
+            ).astype(np.uint8)
+    return count >= 13
+
+
+def vertical_penalty(stage: float) -> float:
+    if stage <= 3.25:
+        return 0.75
+    if stage >= 5.25:
+        return 0.0
+    x = stage - 3.25
+    return 0.125 * x * x - 0.625 * x + 0.75
+
+
+def retain_source_connected(mask: np.ndarray, source: np.ndarray) -> np.ndarray:
+    labels, component_count = ndimage_label(mask, structure=FOUR_NEIGHBOUR_STRUCTURE)
+    if not component_count:
+        return mask
+    component_sizes = np.bincount(labels.ravel(), minlength=component_count + 1)
+    seeded = np.unique(labels[mask & source])
+    seeded = seeded[(seeded > 0) & (component_sizes[seeded] >= 2)]
+    keep = np.zeros(component_count + 1, dtype=bool)
+    keep[seeded] = True
+    return mask & keep[labels]
+
+
 def main() -> None:
     args = parse_args()
     graph = args.graph.resolve()
     assets = args.assets.resolve()
     source = pool_source(graph / "source_flag.raw")
+    developed = pool_developed(graph / "developed_flag.raw")
     elevation10 = np.memmap(
         graph / "elevation10.raw",
         dtype="<i2",
@@ -73,7 +106,8 @@ def main() -> None:
     records = []
     maximum_components = 0
     maximum_blue_pixels = 0
-    eligible_green_touching_blue = 0
+    uncertainty_pixel_instances = 0
+    recession_retained_pixel_instances = 0
 
     for phase in ("slack", "filling", "draining"):
         relative = "" if phase == "slack" else phase
@@ -127,26 +161,43 @@ def main() -> None:
                     )
             sign = -1.0 if code.startswith("m") else 1.0
             stage = sign * int(code[1:]) / 100.0
-            hydraulically_eligible = (
+            baseline_candidate = (
                 valid
                 & (ground < stage - 0.005)
                 & (connection <= stage + 1e-9)
             )
-            blue_neighbour = binary_dilation(
-                depth_blue,
-                structure=FOUR_NEIGHBOUR_STRUCTURE,
-            ) & ~depth_blue
-            invalid_green = (
-                (depth_codes == 12)
-                & hydraulically_eligible
-                & blue_neighbour
+            baseline = retain_source_connected(baseline_candidate, source)
+            adjustment = vertical_penalty(stage)
+            adjusted_stage = np.full(ground.shape, stage, dtype=np.float32)
+            if phase == "draining":
+                adjusted_stage[developed] += adjustment
+            else:
+                adjusted_stage[developed] -= adjustment
+            adjusted_candidate = (
+                valid
+                & (ground < adjusted_stage - 0.005)
+                & (connection <= adjusted_stage + 1e-9)
             )
-            invalid_green_count = int(np.count_nonzero(invalid_green))
-            eligible_green_touching_blue += invalid_green_count
-            if invalid_green_count:
+            expected_blue = retain_source_connected(adjusted_candidate, source)
+            expected_green = (
+                np.zeros(expected_blue.shape, dtype=bool)
+                if phase == "draining"
+                else baseline & developed & ~expected_blue
+            )
+            if not np.array_equal(depth_blue, expected_blue):
                 raise AssertionError(
-                    f"{invalid_green_count} hydraulically eligible green pixels "
-                    f"touch blue by a side in {phase} {code}"
+                    f"Rendered blue mask differs from the developed-land "
+                    f"conditional-connectivity mask in {phase} {code}"
+                )
+            if not np.array_equal(depth_codes == 12, expected_green):
+                raise AssertionError(
+                    f"Rendered green uncertainty differs from the polynomial "
+                    f"exclusion band in {phase} {code}"
+                )
+            uncertainty_pixel_instances += int(np.count_nonzero(expected_green))
+            if phase == "draining":
+                recession_retained_pixel_instances += int(
+                    np.count_nonzero(expected_blue & developed & ~baseline)
                 )
             maximum_components = max(maximum_components, int(component_count))
             maximum_blue_pixels = max(
@@ -164,9 +215,8 @@ def main() -> None:
                     "every blue component intersects a qualified source pixel"
                 ),
                 "minimumBlueComponentPixels": 2,
-                "eligibleGreenPixelsTouchingBlue": (
-                    eligible_green_touching_blue
-                ),
+                "developedUncertaintyPixelInstances": uncertainty_pixel_instances,
+                "developedRecessionRetainedPixelInstances": recession_retained_pixel_instances,
                 "maximumComponentsInAnyFrame": maximum_components,
                 "maximumBluePixelsInAnyFrame": maximum_blue_pixels,
                 "phases": records,

@@ -1,8 +1,9 @@
 // Build the one-foot North Wildwood hydraulic terrain graph.
 //
 // The terrain is quantized only for graph topology (0.1 ft NAVD88).  Source
-// blocks follow the literal four-neighbour rule: a <=1.0 ft component must
-// contain at least 101 cells and intersect a supplied source-block polygon.
+// blocks follow the literal four-neighbour rule: every <=2.0 ft component must
+// contain its seed plus at least 100 other cells (101 cells total). No hand-
+// drawn polygon is allowed to add or remove source cells.
 // The 21-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
 // NAVD88 by GDAL. This builder verifies, but never silently changes, that
 // terrain. Storm-drain exchange is disabled for this model version.
@@ -27,7 +28,6 @@ namespace fs = std::filesystem;
 constexpr int16_t NODATA_ELEV = std::numeric_limits<int16_t>::min();
 constexpr int16_t NO_CONNECTION = std::numeric_limits<int16_t>::max();
 constexpr int32_t INACTIVE = std::numeric_limits<int32_t>::min();
-constexpr int16_t SOURCE_STAGE10 = 10;
 constexpr int16_t BULKHEAD_STAGE10 = 75;
 constexpr int16_t MODEL_MAX10 = 200;
 constexpr int16_t HIST_MIN10 = -100;
@@ -39,8 +39,8 @@ constexpr int CONNECTION_BIN10 = 20;
 
 struct Inputs {
   fs::path dem;
-  fs::path source;
   fs::path hard;
+  fs::path developed;
   fs::path output;
 };
 
@@ -83,6 +83,7 @@ struct ZoneSummary {
   uint64_t source_cells = 0;
   uint64_t grate_cells = 0;
   uint64_t hard_cells = 0;
+  uint64_t developed_cells = 0;
   std::array<uint64_t, HIST_BINS> histogram{};
 };
 
@@ -92,16 +93,16 @@ Inputs parse_args(int argc, char** argv) {
     const std::string key = argv[index];
     const fs::path value = argv[index + 1];
     if (key == "--dem") result.dem = value;
-    else if (key == "--source") result.source = value;
     else if (key == "--hard") result.hard = value;
+    else if (key == "--developed") result.developed = value;
     else if (key == "--output") result.output = value;
     else throw std::runtime_error("Unknown argument: " + key);
   }
-  if (result.dem.empty() || result.source.empty() || result.hard.empty() ||
+  if (result.dem.empty() || result.hard.empty() || result.developed.empty() ||
       result.output.empty()) {
     throw std::runtime_error(
-        "Usage: north_wildwood_hydraulic_graph --dem DEM --source MASK "
-        "--hard FIVE_CELL_MASK --output DIRECTORY");
+        "Usage: north_wildwood_hydraulic_graph --dem DEM --hard MASK "
+        "--developed MASK --output DIRECTORY");
   }
   return result;
 }
@@ -115,7 +116,8 @@ GDALDataset* open_raster(const fs::path& path) {
 
 RasterInfo read_dem(
     const fs::path& path,
-    std::vector<int16_t>& elevation10) {
+    std::vector<int16_t>& elevation10,
+    std::vector<uint8_t>& source_eligible) {
   GDALDataset* dataset = open_raster(path);
   RasterInfo info;
   info.width = dataset->GetRasterXSize();
@@ -138,12 +140,14 @@ RasterInfo read_dem(
   }
   GDALClose(dataset);
   elevation10.resize(count, NODATA_ELEV);
+  source_eligible.resize(count, 0);
   uint64_t valid_count = 0;
   for (size_t index = 0; index < count; ++index) {
     const float value = source[index];
     if (!std::isfinite(value) || (has_nodata && value == static_cast<float>(nodata))) continue;
     elevation10[index] = static_cast<int16_t>(std::clamp(
         static_cast<int>(std::lround(value * 10.0)), -300, 300));
+    source_eligible[index] = value <= 2.0000001f ? 1 : 0;
     ++valid_count;
   }
   std::cout << "Loaded " << valid_count << " valid one-foot DEM cells\n";
@@ -245,7 +249,7 @@ uint64_t validate_conditioned_bulkheads(
 
 std::vector<uint8_t> find_source_blocks(
     const std::vector<int16_t>& elevation10,
-    const std::vector<uint8_t>& manual,
+    const std::vector<uint8_t>& source_eligible,
     int width,
     int height) {
   const size_t count = elevation10.size();
@@ -259,11 +263,9 @@ std::vector<uint8_t> find_source_blocks(
   };
 
   for (int32_t seed = 0; seed < static_cast<int32_t>(count); ++seed) {
-    if (state[seed] || !is_valid(elevation10[seed]) ||
-        elevation10[seed] > SOURCE_STAGE10) continue;
+    if (state[seed] || !source_eligible[seed]) continue;
     component.clear();
     add(seed, component);
-    bool hits_manual = manual[seed] != 0;
     for (size_t cursor = 0; cursor < component.size(); ++cursor) {
       const int32_t current = component[cursor];
       const int x = current % width;
@@ -275,13 +277,11 @@ std::vector<uint8_t> find_source_blocks(
           y + 1 < height ? current + width : -1};
       for (const int32_t neighbour : neighbours) {
         if (neighbour < 0 || state[neighbour] ||
-            !is_valid(elevation10[neighbour]) ||
-            elevation10[neighbour] > SOURCE_STAGE10) continue;
+            !source_eligible[neighbour]) continue;
         add(neighbour, component);
-        hits_manual = hits_manual || manual[neighbour];
       }
     }
-    if (component.size() >= SOURCE_MIN_CELLS && hits_manual) {
+    if (component.size() >= SOURCE_MIN_CELLS) {
       ++qualifying_components;
       qualifying_cells += component.size();
       for (const int32_t cell : component) state[cell] = 2;
@@ -406,6 +406,7 @@ std::vector<int32_t> build_zones(
     const std::vector<uint8_t>& source,
     const std::vector<uint8_t>& grates,
     const std::vector<uint8_t>& hard,
+    const std::vector<uint8_t>& developed,
     int width,
     int height,
     std::vector<ZoneSummary>& summaries) {
@@ -460,6 +461,7 @@ std::vector<int32_t> build_zones(
             summary.source_cells += source[cell];
             summary.grate_cells += grates[cell];
             summary.hard_cells += hard[cell];
+            summary.developed_cells += developed[cell];
             const int16_t clamped =
                 std::clamp(elevation10[cell], HIST_MIN10, HIST_MAX10);
             ++summary.histogram[clamped - HIST_MIN10];
@@ -495,12 +497,12 @@ void write_zones(
     const fs::path& path,
     const std::vector<ZoneSummary>& summaries) {
   std::ofstream stream(path);
-  stream << "zone_id,connection10,cell_count,source_cells,grate_cells,hard_cells,hist_min10,hist_counts\n";
+  stream << "zone_id,connection10,cell_count,source_cells,grate_cells,hard_cells,developed_cells,hist_min10,hist_counts\n";
   for (size_t zone_id = 0; zone_id < summaries.size(); ++zone_id) {
     const ZoneSummary& row = summaries[zone_id];
     stream << zone_id << ',' << row.connection10 << ',' << row.cell_count << ','
            << row.source_cells << ',' << row.grate_cells << ',' << row.hard_cells
-           << ',' << HIST_MIN10 << ',';
+           << ',' << row.developed_cells << ',' << HIST_MIN10 << ',';
     for (int index = 0; index < HIST_BINS; ++index) {
       if (index) stream << ':';
       stream << row.histogram[index];
@@ -566,13 +568,14 @@ void write_manifest(
     uint64_t hard_count) {
   std::ofstream stream(path);
   stream << "{\n"
-         << "  \"schema\": \"north-wildwood-one-foot-hydraulic-graph-v4\",\n"
+         << "  \"schema\": \"north-wildwood-one-foot-conditional-connectivity-graph-v1\",\n"
          << "  \"width\": " << info.width << ",\n"
          << "  \"height\": " << info.height << ",\n"
          << "  \"cellSizeFt\": 1,\n"
-         << "  \"sourceStageNavd88Ft\": 1.0,\n"
+         << "  \"sourceStageNavd88Ft\": 2.0,\n"
          << "  \"sourceMinComponentCells\": 101,\n"
          << "  \"sourceConnectivity\": \"four-neighbour/shared-side only\",\n"
+         << "  \"sourceBoundaryDefinition\": \"all unrounded conditioned DEM cells at or below 2.00 ft NAVD88 in four-neighbour components of at least 101 cells; no manual source geometry\",\n"
          << "  \"bulkheadElevationNavd88Ft\": 7.5,\n"
          << "  \"bulkheadNominalWidthCells\": 21,\n"
          << "  \"bulkheadPixelCount\": " << hard_count << ",\n"
@@ -597,22 +600,23 @@ int main(int argc, char** argv) {
     const Inputs inputs = parse_args(argc, argv);
     fs::create_directories(inputs.output);
     std::vector<int16_t> elevation10;
-    const RasterInfo info = read_dem(inputs.dem, elevation10);
-    std::vector<uint8_t> manual = read_mask(inputs.source, info);
+    std::vector<uint8_t> source_eligible;
+    const RasterInfo info = read_dem(
+        inputs.dem, elevation10, source_eligible);
     std::vector<uint8_t> hard = read_mask(inputs.hard, info);
+    std::vector<uint8_t> developed = read_mask(inputs.developed, info);
     std::vector<uint8_t> grates(elevation10.size(), 0);
     const uint64_t hard_count =
         validate_conditioned_bulkheads(elevation10, hard);
     std::vector<uint8_t> source = find_source_blocks(
-        elevation10, manual, info.width, info.height);
-    manual.clear();
-    manual.shrink_to_fit();
+        elevation10, source_eligible, info.width, info.height);
 
     std::vector<int16_t> connection10 = build_connection_stage(
         elevation10, source, info.width, info.height);
     std::vector<ZoneSummary> summaries;
     std::vector<int32_t> zone = build_zones(
         elevation10, connection10, source, grates, hard,
+        developed,
         info.width, info.height, summaries);
 
     write_raw(inputs.output / "elevation10.raw", elevation10);
@@ -620,6 +624,7 @@ int main(int argc, char** argv) {
     write_raw(inputs.output / "zone_id.raw", zone);
     write_raw(inputs.output / "source_flag.raw", source);
     write_raw(inputs.output / "hard_flag.raw", hard);
+    write_raw(inputs.output / "developed_flag.raw", developed);
     write_raw(inputs.output / "grate_flag.raw", grates);
     write_zones(inputs.output / "zones.csv", summaries);
     write_edges(inputs.output / "edges.csv", elevation10, zone, info.width, info.height);
@@ -653,6 +658,10 @@ int main(int argc, char** argv) {
         inputs.output / "NorthWildwoodStormGrates.tif",
         grates.data(), info, GDT_Byte, 0,
         "storm_drain_disabled_flag");
+    write_geotiff(
+        inputs.output / "NorthWildwoodDevelopedUrban.tif",
+        developed.data(), info, GDT_Byte, 0,
+        "njdep_2015_type15_urban_developed_penalty_flag");
     std::cout << "Hydraulic graph complete\n";
     return 0;
   } catch (const std::exception& error) {

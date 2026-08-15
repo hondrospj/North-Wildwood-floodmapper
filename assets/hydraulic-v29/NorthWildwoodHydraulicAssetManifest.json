@@ -1,0 +1,1274 @@
+{
+  "schema": "north-wildwood-conditional-connectivity-assets-v1",
+  "generatedUtc": "2026-08-15T14:38:25Z",
+  "modelKind": "phase-aware developed-land conditional connectivity",
+  "phaseInvariant": false,
+  "verticalPenalty": {
+    "anchors": [
+      {
+        "threshold": "minor",
+        "stageNavd88Ft": 3.25,
+        "penaltyFt": 0.75
+      },
+      {
+        "threshold": "moderate",
+        "stageNavd88Ft": 4.25,
+        "penaltyFt": 0.25
+      },
+      {
+        "threshold": "major",
+        "stageNavd88Ft": 5.25,
+        "penaltyFt": 0.0
+      }
+    ],
+    "curve": "quadratic through all three anchors",
+    "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
+    "belowMinorTreatment": "clamped to 0.75 ft",
+    "aboveMajorTreatment": "clamped to 0.00 ft",
+    "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
+    "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
+    "draining": "positive offset retains prior routed water; it is not new inflow",
+    "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
+  },
+  "graph": {
+    "schema": "north-wildwood-one-foot-conditional-connectivity-graph-v1",
+    "width": 10930,
+    "height": 14120,
+    "cellSizeFt": 1,
+    "sourceStageNavd88Ft": 2.0,
+    "sourceMinComponentCells": 101,
+    "sourceConnectivity": "four-neighbour/shared-side only",
+    "sourceBoundaryDefinition": "all unrounded conditioned DEM cells at or below 2.00 ft NAVD88 in four-neighbour components of at least 101 cells; no manual source geometry",
+    "bulkheadElevationNavd88Ft": 7.5,
+    "bulkheadNominalWidthCells": 21,
+    "bulkheadPixelCount": 174993,
+    "bulkheadTerrainTreatment": "stitched into input DEM with GDAL before graph construction",
+    "stormDrains": "disabled; not connectivity seeds and no exchange flow",
+    "modelMaximumNavd88Ft": 20.0,
+    "controlVolumeSizeFt": 25,
+    "connectionBinFt": 2,
+    "controlVolumeConnectivity": "four-neighbour components within each tile/connection bin; hard structures isolated as barrier material",
+    "zoneCount": 137936,
+    "geotransform": [
+      401465,
+      1,
+      0,
+      70425,
+      0,
+      -1
+    ]
+  },
+  "render": {
+    "renderWidth": 2186,
+    "renderHeight": 2824,
+    "renderCellSizeFt": 5,
+    "projection": "PROJCS[\"NAD83(2011) / New Jersey (ftUS)\",GEOGCS[\"NAD83(2011)\",DATUM[\"NAD83_National_Spatial_Reference_System_2011\",SPHEROID[\"GRS 1980\",6378137,298.257222101,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"1116\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"6318\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",38.8333333333333],PARAMETER[\"central_meridian\",-74.5],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",492125],PARAMETER[\"false_northing\",0],UNIT[\"US survey foot\",0.304800609601219,AUTHORITY[\"EPSG\",\"9003\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"6527\"]]",
+    "geotransform": [
+      401464.9999999895,
+      5.0,
+      0.0,
+      70424.99999999919,
+      0.0,
+      -5.0
+    ],
+    "phases": {
+      "filling": {
+        "stageCount": 201,
+        "pngBytes": 30112933,
+        "modelKind": "phase-aware developed-land conditional connectivity",
+        "phaseInvariant": false,
+        "verticalPenalty": {
+          "anchors": [
+            {
+              "threshold": "minor",
+              "stageNavd88Ft": 3.25,
+              "penaltyFt": 0.75
+            },
+            {
+              "threshold": "moderate",
+              "stageNavd88Ft": 4.25,
+              "penaltyFt": 0.25
+            },
+            {
+              "threshold": "major",
+              "stageNavd88Ft": 5.25,
+              "penaltyFt": 0.0
+            }
+          ],
+          "curve": "quadratic through all three anchors",
+          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
+          "belowMinorTreatment": "clamped to 0.75 ft",
+          "aboveMajorTreatment": "clamped to 0.00 ft",
+          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
+          "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
+          "draining": "positive offset retains prior routed water; it is not new inflow",
+          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
+        },
+        "connectivity": "four-neighbour render components touching a qualified source",
+        "disconnectedBluePixelsRemoved": 1197114,
+        "maximumUnfilteredComponents": 290,
+        "maximumRetainedSourceComponents": 110,
+        "developedUncertaintyPixelInstances": 638547,
+        "developedRecessionRetainedPixelInstances": 0
+      },
+      "slack": {
+        "stageCount": 201,
+        "pngBytes": 30112933,
+        "modelKind": "phase-aware developed-land conditional connectivity",
+        "phaseInvariant": false,
+        "verticalPenalty": {
+          "anchors": [
+            {
+              "threshold": "minor",
+              "stageNavd88Ft": 3.25,
+              "penaltyFt": 0.75
+            },
+            {
+              "threshold": "moderate",
+              "stageNavd88Ft": 4.25,
+              "penaltyFt": 0.25
+            },
+            {
+              "threshold": "major",
+              "stageNavd88Ft": 5.25,
+              "penaltyFt": 0.0
+            }
+          ],
+          "curve": "quadratic through all three anchors",
+          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
+          "belowMinorTreatment": "clamped to 0.75 ft",
+          "aboveMajorTreatment": "clamped to 0.00 ft",
+          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
+          "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
+          "draining": "positive offset retains prior routed water; it is not new inflow",
+          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
+        },
+        "connectivity": "four-neighbour render components touching a qualified source",
+        "disconnectedBluePixelsRemoved": 1197114,
+        "maximumUnfilteredComponents": 290,
+        "maximumRetainedSourceComponents": 110,
+        "developedUncertaintyPixelInstances": 638547,
+        "developedRecessionRetainedPixelInstances": 0
+      },
+      "draining": {
+        "stageCount": 201,
+        "pngBytes": 30660318,
+        "modelKind": "phase-aware developed-land conditional connectivity",
+        "phaseInvariant": false,
+        "verticalPenalty": {
+          "anchors": [
+            {
+              "threshold": "minor",
+              "stageNavd88Ft": 3.25,
+              "penaltyFt": 0.75
+            },
+            {
+              "threshold": "moderate",
+              "stageNavd88Ft": 4.25,
+              "penaltyFt": 0.25
+            },
+            {
+              "threshold": "major",
+              "stageNavd88Ft": 5.25,
+              "penaltyFt": 0.0
+            }
+          ],
+          "curve": "quadratic through all three anchors",
+          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
+          "belowMinorTreatment": "clamped to 0.75 ft",
+          "aboveMajorTreatment": "clamped to 0.00 ft",
+          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
+          "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
+          "draining": "positive offset retains prior routed water; it is not new inflow",
+          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
+        },
+        "connectivity": "four-neighbour render components touching a qualified source",
+        "disconnectedBluePixelsRemoved": 1212140,
+        "maximumUnfilteredComponents": 290,
+        "maximumRetainedSourceComponents": 110,
+        "developedUncertaintyPixelInstances": 0,
+        "developedRecessionRetainedPixelInstances": 2095899
+      }
+    }
+  },
+  "thresholdsNAVD88": {
+    "minorLow": 3.25,
+    "moderateLow": 4.25,
+    "majorLow": 5.25
+  },
+  "thresholdsMLLW": {
+    "minorLow": 6.0,
+    "moderateLow": 7.0,
+    "majorLow": 8.0
+  },
+  "navd88OffsetFromMllwFt": -2.75,
+  "phases": [
+    "filling",
+    "slack",
+    "draining"
+  ],
+  "diagnostics": {
+    "modelKind": "phase-aware developed-land conditional connectivity",
+    "phaseInvariant": false,
+    "diagnosticStageCount": 201,
+    "stageDiagnostics": [
+      {
+        "stageNavd88Ft": 0.0,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.0
+      },
+      {
+        "stageNavd88Ft": 0.1,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.1
+      },
+      {
+        "stageNavd88Ft": 0.2,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.2
+      },
+      {
+        "stageNavd88Ft": 0.3,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.3
+      },
+      {
+        "stageNavd88Ft": 0.4,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.4
+      },
+      {
+        "stageNavd88Ft": 0.5,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.5
+      },
+      {
+        "stageNavd88Ft": 0.6,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.6
+      },
+      {
+        "stageNavd88Ft": 0.7,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.7
+      },
+      {
+        "stageNavd88Ft": 0.8,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.8
+      },
+      {
+        "stageNavd88Ft": 0.9,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 0.9
+      },
+      {
+        "stageNavd88Ft": 1.0,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.0
+      },
+      {
+        "stageNavd88Ft": 1.1,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.1
+      },
+      {
+        "stageNavd88Ft": 1.2,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.2
+      },
+      {
+        "stageNavd88Ft": 1.3,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.3
+      },
+      {
+        "stageNavd88Ft": 1.4,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.4
+      },
+      {
+        "stageNavd88Ft": 1.5,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.5
+      },
+      {
+        "stageNavd88Ft": 1.6,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.6
+      },
+      {
+        "stageNavd88Ft": 1.7,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.7
+      },
+      {
+        "stageNavd88Ft": 1.8,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.8
+      },
+      {
+        "stageNavd88Ft": 1.9,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 1.9
+      },
+      {
+        "stageNavd88Ft": 2.0,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.0
+      },
+      {
+        "stageNavd88Ft": 2.1,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.1
+      },
+      {
+        "stageNavd88Ft": 2.2,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.2
+      },
+      {
+        "stageNavd88Ft": 2.3,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.3
+      },
+      {
+        "stageNavd88Ft": 2.4,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.4
+      },
+      {
+        "stageNavd88Ft": 2.5,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.5
+      },
+      {
+        "stageNavd88Ft": 2.6,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.6
+      },
+      {
+        "stageNavd88Ft": 2.7,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.7
+      },
+      {
+        "stageNavd88Ft": 2.8,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.8
+      },
+      {
+        "stageNavd88Ft": 2.9,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 2.9
+      },
+      {
+        "stageNavd88Ft": 3.0,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 3.0
+      },
+      {
+        "stageNavd88Ft": 3.1,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 3.1
+      },
+      {
+        "stageNavd88Ft": 3.2,
+        "developedLandPolynomialPenaltyFt": 0.75,
+        "connectivityStageNavd88Ft": 3.2
+      },
+      {
+        "stageNavd88Ft": 3.3,
+        "developedLandPolynomialPenaltyFt": 0.7190625000000002,
+        "connectivityStageNavd88Ft": 3.3
+      },
+      {
+        "stageNavd88Ft": 3.4,
+        "developedLandPolynomialPenaltyFt": 0.6590625000000001,
+        "connectivityStageNavd88Ft": 3.4
+      },
+      {
+        "stageNavd88Ft": 3.5,
+        "developedLandPolynomialPenaltyFt": 0.6015625,
+        "connectivityStageNavd88Ft": 3.5
+      },
+      {
+        "stageNavd88Ft": 3.6,
+        "developedLandPolynomialPenaltyFt": 0.5465625,
+        "connectivityStageNavd88Ft": 3.6
+      },
+      {
+        "stageNavd88Ft": 3.7,
+        "developedLandPolynomialPenaltyFt": 0.4940624999999999,
+        "connectivityStageNavd88Ft": 3.7
+      },
+      {
+        "stageNavd88Ft": 3.8,
+        "developedLandPolynomialPenaltyFt": 0.4440625000000001,
+        "connectivityStageNavd88Ft": 3.8
+      },
+      {
+        "stageNavd88Ft": 3.9,
+        "developedLandPolynomialPenaltyFt": 0.39656250000000004,
+        "connectivityStageNavd88Ft": 3.9
+      },
+      {
+        "stageNavd88Ft": 4.0,
+        "developedLandPolynomialPenaltyFt": 0.3515625,
+        "connectivityStageNavd88Ft": 4.0
+      },
+      {
+        "stageNavd88Ft": 4.1,
+        "developedLandPolynomialPenaltyFt": 0.30906250000000013,
+        "connectivityStageNavd88Ft": 4.1
+      },
+      {
+        "stageNavd88Ft": 4.2,
+        "developedLandPolynomialPenaltyFt": 0.2690624999999999,
+        "connectivityStageNavd88Ft": 4.2
+      },
+      {
+        "stageNavd88Ft": 4.3,
+        "developedLandPolynomialPenaltyFt": 0.23156250000000012,
+        "connectivityStageNavd88Ft": 4.3
+      },
+      {
+        "stageNavd88Ft": 4.4,
+        "developedLandPolynomialPenaltyFt": 0.19656249999999986,
+        "connectivityStageNavd88Ft": 4.4
+      },
+      {
+        "stageNavd88Ft": 4.5,
+        "developedLandPolynomialPenaltyFt": 0.1640625,
+        "connectivityStageNavd88Ft": 4.5
+      },
+      {
+        "stageNavd88Ft": 4.6,
+        "developedLandPolynomialPenaltyFt": 0.13406250000000008,
+        "connectivityStageNavd88Ft": 4.6
+      },
+      {
+        "stageNavd88Ft": 4.7,
+        "developedLandPolynomialPenaltyFt": 0.1065624999999999,
+        "connectivityStageNavd88Ft": 4.7
+      },
+      {
+        "stageNavd88Ft": 4.8,
+        "developedLandPolynomialPenaltyFt": 0.08156249999999998,
+        "connectivityStageNavd88Ft": 4.8
+      },
+      {
+        "stageNavd88Ft": 4.9,
+        "developedLandPolynomialPenaltyFt": 0.05906249999999991,
+        "connectivityStageNavd88Ft": 4.9
+      },
+      {
+        "stageNavd88Ft": 5.0,
+        "developedLandPolynomialPenaltyFt": 0.0390625,
+        "connectivityStageNavd88Ft": 5.0
+      },
+      {
+        "stageNavd88Ft": 5.1,
+        "developedLandPolynomialPenaltyFt": 0.02156250000000004,
+        "connectivityStageNavd88Ft": 5.1
+      },
+      {
+        "stageNavd88Ft": 5.2,
+        "developedLandPolynomialPenaltyFt": 0.006562500000000027,
+        "connectivityStageNavd88Ft": 5.2
+      },
+      {
+        "stageNavd88Ft": 5.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 5.3
+      },
+      {
+        "stageNavd88Ft": 5.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 5.4
+      },
+      {
+        "stageNavd88Ft": 5.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 5.5
+      },
+      {
+        "stageNavd88Ft": 5.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 5.6
+      },
+      {
+        "stageNavd88Ft": 5.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 5.7
+      },
+      {
+        "stageNavd88Ft": 5.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 5.8
+      },
+      {
+        "stageNavd88Ft": 5.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 5.9
+      },
+      {
+        "stageNavd88Ft": 6.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.0
+      },
+      {
+        "stageNavd88Ft": 6.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.1
+      },
+      {
+        "stageNavd88Ft": 6.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.2
+      },
+      {
+        "stageNavd88Ft": 6.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.3
+      },
+      {
+        "stageNavd88Ft": 6.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.4
+      },
+      {
+        "stageNavd88Ft": 6.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.5
+      },
+      {
+        "stageNavd88Ft": 6.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.6
+      },
+      {
+        "stageNavd88Ft": 6.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.7
+      },
+      {
+        "stageNavd88Ft": 6.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.8
+      },
+      {
+        "stageNavd88Ft": 6.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 6.9
+      },
+      {
+        "stageNavd88Ft": 7.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.0
+      },
+      {
+        "stageNavd88Ft": 7.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.1
+      },
+      {
+        "stageNavd88Ft": 7.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.2
+      },
+      {
+        "stageNavd88Ft": 7.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.3
+      },
+      {
+        "stageNavd88Ft": 7.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.4
+      },
+      {
+        "stageNavd88Ft": 7.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.5
+      },
+      {
+        "stageNavd88Ft": 7.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.6
+      },
+      {
+        "stageNavd88Ft": 7.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.7
+      },
+      {
+        "stageNavd88Ft": 7.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.8
+      },
+      {
+        "stageNavd88Ft": 7.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 7.9
+      },
+      {
+        "stageNavd88Ft": 8.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.0
+      },
+      {
+        "stageNavd88Ft": 8.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.1
+      },
+      {
+        "stageNavd88Ft": 8.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.2
+      },
+      {
+        "stageNavd88Ft": 8.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.3
+      },
+      {
+        "stageNavd88Ft": 8.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.4
+      },
+      {
+        "stageNavd88Ft": 8.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.5
+      },
+      {
+        "stageNavd88Ft": 8.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.6
+      },
+      {
+        "stageNavd88Ft": 8.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.7
+      },
+      {
+        "stageNavd88Ft": 8.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.8
+      },
+      {
+        "stageNavd88Ft": 8.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 8.9
+      },
+      {
+        "stageNavd88Ft": 9.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.0
+      },
+      {
+        "stageNavd88Ft": 9.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.1
+      },
+      {
+        "stageNavd88Ft": 9.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.2
+      },
+      {
+        "stageNavd88Ft": 9.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.3
+      },
+      {
+        "stageNavd88Ft": 9.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.4
+      },
+      {
+        "stageNavd88Ft": 9.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.5
+      },
+      {
+        "stageNavd88Ft": 9.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.6
+      },
+      {
+        "stageNavd88Ft": 9.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.7
+      },
+      {
+        "stageNavd88Ft": 9.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.8
+      },
+      {
+        "stageNavd88Ft": 9.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 9.9
+      },
+      {
+        "stageNavd88Ft": 10.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.0
+      },
+      {
+        "stageNavd88Ft": 10.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.1
+      },
+      {
+        "stageNavd88Ft": 10.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.2
+      },
+      {
+        "stageNavd88Ft": 10.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.3
+      },
+      {
+        "stageNavd88Ft": 10.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.4
+      },
+      {
+        "stageNavd88Ft": 10.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.5
+      },
+      {
+        "stageNavd88Ft": 10.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.6
+      },
+      {
+        "stageNavd88Ft": 10.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.7
+      },
+      {
+        "stageNavd88Ft": 10.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.8
+      },
+      {
+        "stageNavd88Ft": 10.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 10.9
+      },
+      {
+        "stageNavd88Ft": 11.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.0
+      },
+      {
+        "stageNavd88Ft": 11.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.1
+      },
+      {
+        "stageNavd88Ft": 11.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.2
+      },
+      {
+        "stageNavd88Ft": 11.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.3
+      },
+      {
+        "stageNavd88Ft": 11.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.4
+      },
+      {
+        "stageNavd88Ft": 11.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.5
+      },
+      {
+        "stageNavd88Ft": 11.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.6
+      },
+      {
+        "stageNavd88Ft": 11.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.7
+      },
+      {
+        "stageNavd88Ft": 11.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.8
+      },
+      {
+        "stageNavd88Ft": 11.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 11.9
+      },
+      {
+        "stageNavd88Ft": 12.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.0
+      },
+      {
+        "stageNavd88Ft": 12.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.1
+      },
+      {
+        "stageNavd88Ft": 12.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.2
+      },
+      {
+        "stageNavd88Ft": 12.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.3
+      },
+      {
+        "stageNavd88Ft": 12.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.4
+      },
+      {
+        "stageNavd88Ft": 12.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.5
+      },
+      {
+        "stageNavd88Ft": 12.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.6
+      },
+      {
+        "stageNavd88Ft": 12.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.7
+      },
+      {
+        "stageNavd88Ft": 12.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.8
+      },
+      {
+        "stageNavd88Ft": 12.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 12.9
+      },
+      {
+        "stageNavd88Ft": 13.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.0
+      },
+      {
+        "stageNavd88Ft": 13.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.1
+      },
+      {
+        "stageNavd88Ft": 13.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.2
+      },
+      {
+        "stageNavd88Ft": 13.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.3
+      },
+      {
+        "stageNavd88Ft": 13.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.4
+      },
+      {
+        "stageNavd88Ft": 13.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.5
+      },
+      {
+        "stageNavd88Ft": 13.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.6
+      },
+      {
+        "stageNavd88Ft": 13.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.7
+      },
+      {
+        "stageNavd88Ft": 13.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.8
+      },
+      {
+        "stageNavd88Ft": 13.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 13.9
+      },
+      {
+        "stageNavd88Ft": 14.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.0
+      },
+      {
+        "stageNavd88Ft": 14.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.1
+      },
+      {
+        "stageNavd88Ft": 14.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.2
+      },
+      {
+        "stageNavd88Ft": 14.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.3
+      },
+      {
+        "stageNavd88Ft": 14.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.4
+      },
+      {
+        "stageNavd88Ft": 14.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.5
+      },
+      {
+        "stageNavd88Ft": 14.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.6
+      },
+      {
+        "stageNavd88Ft": 14.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.7
+      },
+      {
+        "stageNavd88Ft": 14.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.8
+      },
+      {
+        "stageNavd88Ft": 14.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 14.9
+      },
+      {
+        "stageNavd88Ft": 15.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.0
+      },
+      {
+        "stageNavd88Ft": 15.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.1
+      },
+      {
+        "stageNavd88Ft": 15.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.2
+      },
+      {
+        "stageNavd88Ft": 15.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.3
+      },
+      {
+        "stageNavd88Ft": 15.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.4
+      },
+      {
+        "stageNavd88Ft": 15.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.5
+      },
+      {
+        "stageNavd88Ft": 15.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.6
+      },
+      {
+        "stageNavd88Ft": 15.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.7
+      },
+      {
+        "stageNavd88Ft": 15.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.8
+      },
+      {
+        "stageNavd88Ft": 15.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 15.9
+      },
+      {
+        "stageNavd88Ft": 16.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.0
+      },
+      {
+        "stageNavd88Ft": 16.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.1
+      },
+      {
+        "stageNavd88Ft": 16.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.2
+      },
+      {
+        "stageNavd88Ft": 16.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.3
+      },
+      {
+        "stageNavd88Ft": 16.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.4
+      },
+      {
+        "stageNavd88Ft": 16.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.5
+      },
+      {
+        "stageNavd88Ft": 16.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.6
+      },
+      {
+        "stageNavd88Ft": 16.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.7
+      },
+      {
+        "stageNavd88Ft": 16.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.8
+      },
+      {
+        "stageNavd88Ft": 16.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 16.9
+      },
+      {
+        "stageNavd88Ft": 17.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.0
+      },
+      {
+        "stageNavd88Ft": 17.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.1
+      },
+      {
+        "stageNavd88Ft": 17.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.2
+      },
+      {
+        "stageNavd88Ft": 17.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.3
+      },
+      {
+        "stageNavd88Ft": 17.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.4
+      },
+      {
+        "stageNavd88Ft": 17.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.5
+      },
+      {
+        "stageNavd88Ft": 17.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.6
+      },
+      {
+        "stageNavd88Ft": 17.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.7
+      },
+      {
+        "stageNavd88Ft": 17.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.8
+      },
+      {
+        "stageNavd88Ft": 17.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 17.9
+      },
+      {
+        "stageNavd88Ft": 18.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.0
+      },
+      {
+        "stageNavd88Ft": 18.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.1
+      },
+      {
+        "stageNavd88Ft": 18.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.2
+      },
+      {
+        "stageNavd88Ft": 18.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.3
+      },
+      {
+        "stageNavd88Ft": 18.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.4
+      },
+      {
+        "stageNavd88Ft": 18.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.5
+      },
+      {
+        "stageNavd88Ft": 18.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.6
+      },
+      {
+        "stageNavd88Ft": 18.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.7
+      },
+      {
+        "stageNavd88Ft": 18.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.8
+      },
+      {
+        "stageNavd88Ft": 18.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 18.9
+      },
+      {
+        "stageNavd88Ft": 19.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.0
+      },
+      {
+        "stageNavd88Ft": 19.1,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.1
+      },
+      {
+        "stageNavd88Ft": 19.2,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.2
+      },
+      {
+        "stageNavd88Ft": 19.3,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.3
+      },
+      {
+        "stageNavd88Ft": 19.4,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.4
+      },
+      {
+        "stageNavd88Ft": 19.5,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.5
+      },
+      {
+        "stageNavd88Ft": 19.6,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.6
+      },
+      {
+        "stageNavd88Ft": 19.7,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.7
+      },
+      {
+        "stageNavd88Ft": 19.8,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.8
+      },
+      {
+        "stageNavd88Ft": 19.9,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 19.9
+      },
+      {
+        "stageNavd88Ft": 20.0,
+        "developedLandPolynomialPenaltyFt": 0.0,
+        "connectivityStageNavd88Ft": 20.0
+      }
+    ],
+    "verticalPenalty": {
+      "anchors": [
+        {
+          "threshold": "minor",
+          "stageNavd88Ft": 3.25,
+          "penaltyFt": 0.75
+        },
+        {
+          "threshold": "moderate",
+          "stageNavd88Ft": 4.25,
+          "penaltyFt": 0.25
+        },
+        {
+          "threshold": "major",
+          "stageNavd88Ft": 5.25,
+          "penaltyFt": 0.0
+        }
+      ],
+      "curve": "quadratic through all three anchors",
+      "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
+      "belowMinorTreatment": "clamped to 0.75 ft",
+      "aboveMajorTreatment": "clamped to 0.00 ft",
+      "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
+      "fillingAndSlack": "negative offset; excluded connected band is green uncertainty",
+      "draining": "positive offset retains prior routed water; it is not new inflow",
+      "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
+    }
+  },
+  "queryCog": null,
+  "packedQueryPng": "COGs/North Wildwood/NorthWildwoodHydraulicQuery5ft.png",
+  "packedQuery": {
+    "schema": "north-wildwood-packed-depth-query-v2",
+    "width": 2186,
+    "height": 2824,
+    "renderCellSizeFt": 5,
+    "channels": {
+      "redGreen": "conditioned elevation in tenths NAVD88; unsigned big-endian value minus 32768; zero is nodata",
+      "blue": "first four-neighbour connection stage in tenths NAVD88 plus 50; values below -5 ft are clamped to -5 ft; 255 means not connected through 20 ft",
+      "alpha": "255"
+    },
+    "bytes": 1093637
+  },
+  "developedQueryPng": "COGs/North Wildwood/NorthWildwoodDevelopedMask5ft.png",
+  "developedQuery": {
+    "schema": "north-wildwood-developed-query-v1",
+    "width": 2186,
+    "height": 2824,
+    "renderCellSizeFt": 5,
+    "classification": "developed when at least 13 of 25 one-foot cells are NJDEP TYPE15 URBAN",
+    "developedPixels": 1948272,
+    "bytes": 22514
+  },
+  "hydraulicStates": "COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png"
+}

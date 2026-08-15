@@ -66,7 +66,7 @@ def main() -> None:
             "sourceFaceWidthFt": 1.0,
             "sourceZoneAreaSqFt": 1,
             "maximumConservativeTravelFt": (
-                substeps * solver.control_volume_size_ft
+                substeps * model.CONTROL_VOLUME_SIZE_FT
             ),
             "stormDrainExchangeFt3": diagnostics["stormDrainExchangeFt3"],
         }

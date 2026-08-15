@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Prepare North Wildwood's source blocks and DEM-integrated bulkhead.
+"""Prepare North Wildwood's DEM-integrated bulkhead and developed-land mask.
 
 The supplied hard-structure line is first rasterized on the exact one-foot DEM
 grid. GDAL proximity then buffers that centerline by ten feet on both sides,
 giving a nominal 21-cell wall including the centerline. The expanded mask is
 appended to a new DEM at 7.5 ft NAVD88 before the hydraulic graph is built.
 Storm drains are recorded for provenance but deliberately excluded from this
-model version.
+model version. The source geometry is derived from the conditioned DEM by the
+graph builder; the old hand-drawn source polygons are retained only as audited
+input provenance. NJDEP ``TYPE15 = URBAN`` land-use polygons are rasterized on
+the same grid so uncertainty and recession lag are not applied to wetlands,
+water, or barren beach land.
 """
 
 from __future__ import annotations
@@ -48,6 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--zip", type=Path, required=True)
     parser.add_argument("--dem", type=Path, required=True)
+    parser.add_argument("--developed", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
 
@@ -316,8 +321,11 @@ def main() -> None:
     args = parse_args()
     zip_path = args.zip.resolve()
     dem_path = args.dem.resolve()
+    developed_path = args.developed.resolve()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    if not developed_path.is_file():
+        raise FileNotFoundError(developed_path)
 
     dem = gdal.Open(str(dem_path))
     if dem is None:
@@ -441,8 +449,22 @@ def main() -> None:
         projection,
     )
 
+    developed_raster_path = output / "developed_urban_1ft.tif"
+    if developed_raster_path.exists():
+        developed_raster_path.unlink()
+    developed_pixels = rasterize(
+        developed_path,
+        developed_raster_path,
+        width,
+        height,
+        transform,
+        projection,
+    )
+    if developed_pixels <= 0:
+        raise AssertionError("Developed-land raster is empty")
+
     manifest = {
-        "schema": "north-wildwood-hydraulic-feature-inputs-v4",
+        "schema": "north-wildwood-hydraulic-feature-inputs-v5",
         "generatedUtc": datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat()
@@ -463,6 +485,18 @@ def main() -> None:
             "then a ten-foot GDAL proximity buffer on each side"
         ),
         "features": records,
+        "developedMask": {
+            "source": developed_path.name,
+            "sourceSha256": sha256(developed_path),
+            "selection": "NJDEP Land Use 2015 TYPE15 = URBAN",
+            "raster": developed_raster_path.name,
+            "rasterPixelCount": developed_pixels,
+            "application": (
+                "polynomial rising-tide uncertainty and draining retention; "
+                "excluded from wetlands, water, forest, agriculture, and "
+                "barren land including beaches"
+            ),
+        },
         "ignoredFeatures": {
             "stormDrains": {
                 "source": f"{IGNORED_DRAIN_STEM}.shp",

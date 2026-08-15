@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-fast checks for the conditioned DEM and connected-bathtub states."""
+"""Fail-fast checks for the one-foot conditional-connectivity model."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 from osgeo import gdal
+from scipy.ndimage import label as ndimage_label
 
 
 MAGIC = b"NWHYD2\x00\x00"
@@ -22,6 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--graph", type=Path, required=True)
     parser.add_argument("--states", type=Path, required=True)
     parser.add_argument("--centerline", type=Path, required=True)
+    parser.add_argument("--dem", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -88,6 +90,12 @@ def main() -> None:
     expected_hard_pixels = int(manifest["bulkheadPixelCount"])
     if int(manifest.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("Graph does not declare a 21-cell bulkhead")
+    if float(manifest.get("sourceStageNavd88Ft", math.nan)) != 2.0:
+        raise AssertionError("Graph does not declare the exact 2.00-ft source stage")
+    if int(manifest.get("sourceMinComponentCells", 0)) != 101:
+        raise AssertionError("Graph does not require a source plus 100 other cells")
+    if manifest.get("sourceConnectivity") != "four-neighbour/shared-side only":
+        raise AssertionError("Graph does not declare four-neighbour source connectivity")
 
     hard_zone_ids: set[int] = set()
     grate_zone_count = 0
@@ -135,6 +143,38 @@ def main() -> None:
     )
     if int(elevation10[hard != 0].min()) < 75:
         raise AssertionError("A stitched bulkhead DEM cell is below 7.5 ft NAVD88")
+
+    dem_ds = gdal.Open(str(args.dem.resolve()))
+    if dem_ds is None:
+        raise FileNotFoundError(args.dem)
+    raw_elevation = dem_ds.GetRasterBand(1).ReadAsArray()
+    raw_nodata = dem_ds.GetRasterBand(1).GetNoDataValue()
+    dem_ds = None
+    source = np.memmap(
+        graph / "source_flag.raw",
+        dtype=np.uint8,
+        mode="r",
+        shape=(height, width),
+    )
+    eligible = np.isfinite(raw_elevation) & (raw_elevation <= 2.0000001)
+    if raw_nodata is not None:
+        eligible &= raw_elevation != raw_nodata
+    labels, component_count = ndimage_label(
+        eligible,
+        structure=np.asarray(((0, 1, 0), (1, 1, 1), (0, 1, 0)), dtype=np.uint8),
+    )
+    component_sizes = np.bincount(labels.ravel(), minlength=component_count + 1)
+    qualifying = component_sizes >= 101
+    qualifying[0] = False
+    expected_source = qualifying[labels]
+    if not np.array_equal(source != 0, expected_source):
+        raise AssertionError(
+            "Source raster does not exactly match the unrounded <=2.00-ft, "
+            "four-neighbour, >=101-cell rule"
+        )
+    source_components = int(np.count_nonzero(qualifying))
+    source_pixels = int(np.count_nonzero(expected_source))
+    del labels, expected_source, eligible, raw_elevation
 
     centerline_ds = gdal.Open(str(args.centerline.resolve()))
     if centerline_ds is None:
@@ -201,21 +241,21 @@ def main() -> None:
     header, states = load_states(args.states.resolve(), zone_count + 1)
     dry = int(header.get("drySentinelCentift", -32768))
     if not np.array_equal(states["filling"], states["slack"]):
-        raise AssertionError("Filling and slack states are not phase-invariant")
+        raise AssertionError("Unadjusted filling/slack audit states differ")
     if not np.array_equal(states["filling"], states["draining"]):
-        raise AssertionError("Filling and draining states are not phase-invariant")
+        raise AssertionError("Unadjusted filling/draining audit states differ")
     hard_lookup = np.asarray(sorted(hard_zone_ids), dtype=np.int64) + 1
     for phase in ("filling", "slack", "draining"):
-        if np.any(states[phase][149, hard_lookup] != dry):
+        if np.any(states[phase][74, hard_lookup] != dry):
             raise AssertionError(
                 f"{phase} state wets a bulkhead before 7.5 ft NAVD88"
             )
 
     physics = header.get("physics") or {}
-    if physics.get("modelKind") != "connectivity-first depth-penalized bathtub":
-        raise AssertionError("State package does not declare the connected bathtub")
-    if physics.get("phaseInvariant") is not True:
-        raise AssertionError("State package does not declare phase-invariant states")
+    if physics.get("modelKind") != "phase-aware developed-land conditional connectivity":
+        raise AssertionError("State package declares the wrong model")
+    if physics.get("phaseInvariant") is not False:
+        raise AssertionError("State package incorrectly declares phase invariance")
     if not str(physics.get("stormDrains", "")).startswith("disabled"):
         raise AssertionError("State package does not declare disabled storm drains")
     if float(physics.get("bulkheadElevationNavd88Ft", math.nan)) != 7.5:
@@ -223,46 +263,27 @@ def main() -> None:
     if int(physics.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("State package does not declare a 21-cell bulkhead")
     penalty = physics.get("verticalPenalty") or {}
-    if not math.isclose(
-        float(penalty.get("atOrBelowMinorFt", math.nan)),
-        1.25,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong low-stage vertical penalty")
-    if penalty.get("curve") != "normalized exponential":
-        raise AssertionError("State package has the wrong depth-penalty curve")
-    if not math.isclose(
-        float(penalty.get("decayRate", math.nan)),
-        1.5,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong exponential decay rate")
-    if not math.isclose(
-        float(penalty.get("atOrAboveMajorFt", math.nan)),
-        0.0,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong major-stage vertical penalty")
-    if not math.isclose(
-        float(penalty.get("maximumLocalDepthPenaltyFraction", math.nan)),
-        0.75,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong local depth-penalty cap")
-    if not math.isclose(
-        float(penalty.get("minimumConnectedDepthRetainedFraction", math.nan)),
-        0.25,
-        abs_tol=1e-12,
-    ):
-        raise AssertionError("State package has the wrong connected-depth floor")
-    if "depth only" not in str(penalty.get("application", "")):
-        raise AssertionError("State package applies the penalty to connectivity")
+    anchors = penalty.get("anchors") or []
+    expected_anchors = ((3.25, 0.75), (4.25, 0.25), (5.25, 0.0))
+    if len(anchors) != len(expected_anchors):
+        raise AssertionError("State package has the wrong number of penalty anchors")
+    for anchor, (stage, value) in zip(anchors, expected_anchors):
+        if not math.isclose(float(anchor.get("stageNavd88Ft", math.nan)), stage) or not math.isclose(
+            float(anchor.get("penaltyFt", math.nan)), value
+        ):
+            raise AssertionError("State package has a wrong polynomial anchor")
+    if penalty.get("curve") != "quadratic through all three anchors":
+        raise AssertionError("State package has the wrong penalty curve")
+    if "TYPE15 = URBAN" not in str(penalty.get("spatialMask", "")):
+        raise AssertionError("State package does not constrain the penalty to developed land")
+    if "positive offset" not in str(penalty.get("draining", "")):
+        raise AssertionError("State package does not declare drainage retention")
 
     # State connectivity is evaluated at the full gauge stage. The compact
     # state format stores centifeet, so a wet zone at 3.0 ft must encode the
     # unpenalized 3.0-ft connectivity surface. Local depth attenuation is
     # applied after the one-foot cell has been admitted to the wet footprint.
-    low_stage = states["slack"][60]
+    low_stage = states["slack"][30]
     low_wet = low_stage != dry
     if np.any(low_wet) and int(low_stage[low_wet].max()) != 300:
         raise AssertionError("Low-stage states do not preserve full-stage connectivity")
@@ -273,6 +294,8 @@ def main() -> None:
                 "status": "passed",
                 "graphSchema": manifest["schema"],
                 "zoneCount": zone_count,
+                "sourceComponents": source_components,
+                "sourcePixels": source_pixels,
                 "bulkheadPixels": hard_pixels,
                 "bulkheadCenterlinePixels": centerline_pixels,
                 "bulkheadNominalWidthCells": 21,

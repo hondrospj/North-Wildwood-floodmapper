@@ -14,7 +14,7 @@ const OBSERVED_15MIN = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observe
 const OBSERVED_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed_archive_index.json"), "utf8"));
 const LEWES_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "lewes_archive_index.json"), "utf8"));
 const TOP_TIDES = JSON.parse(fs.readFileSync(path.join(HERE, "..", "toptides.json"), "utf8"));
-const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v17");
+const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v29");
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
@@ -39,18 +39,20 @@ const context = vm.createContext({
   MINOR_FLOOD_FT: 3.25,
   MODERATE_FLOOD_FT: 4.25,
   MAJOR_FLOOD_FT: 5.25,
-  LOW_STAGE_VERTICAL_PENALTY_FT: 1.25,
-  VERTICAL_PENALTY_EXPONENTIAL_DECAY_RATE: 1.5,
-  MAX_LOCAL_DEPTH_PENALTY_FRACTION: 0.75,
+  MINOR_VERTICAL_PENALTY_FT: 0.75,
+  MODERATE_VERTICAL_PENALTY_FT: 0.25,
+  MAJOR_VERTICAL_PENALTY_FT: 0,
 });
 for (const name of (
   [
     "roundToCatalogPrecision",
     "floorToCatalogStep",
     "getOverlayStage",
+    "normalizeHydraulicPhase",
     "getVerticalBathtubPenalty",
     "getPenalizedConnectedDepth",
     "getDepthQueryDisplayDepth",
+    "formatDepthQueryValue",
     "stageToCode",
   ]
 )) {
@@ -72,8 +74,11 @@ assert.equal(context.getOverlayStage(3.999), 3.9);
 assert.equal(context.stageToCode(context.getOverlayStage(3.94)), "p0390");
 assert.equal(context.stageToCode(context.getOverlayStage(3.95)), "p0390");
 assert.match(SOURCE, /const STAGE_STEP = 0\.1;/);
-assert.equal(context.getVerticalBathtubPenalty(3.25), 1.25);
+assert.equal(context.getVerticalBathtubPenalty(3.25), 0.75);
+assert.equal(context.getVerticalBathtubPenalty(4.25), 0.25);
 assert.equal(context.getVerticalBathtubPenalty(5.25), 0);
+assert.equal(context.formatDepthQueryValue(0.1), "0.0-0.1ft");
+assert.equal(context.formatDepthQueryValue(0.10001), "0.10 ft");
 
 let playbackIntervalMinutes = 15;
 const playbackContext = vm.createContext({
@@ -91,6 +96,9 @@ playbackIntervalMinutes = 1440;
 assert.equal(playbackContext.getPlaybackFrameDurationMs(), 950);
 assert.match(extractFunction("preloadAroundHour"), /currentOverlayMode/);
 assert.doesNotMatch(extractFunction("preloadAroundHour"), /\["depth", "dynamic"\]/);
+assert.match(extractFunction("preloadAroundHour"), /requestIdleCallback/);
+assert.match(extractFunction("preloadAroundHour"), /distance <= 12/);
+assert.doesNotMatch(extractFunction("setTimelineIntervalMinutes"), /clearFloodLayer\(\)/);
 assert.match(extractFunction("testImageUrl"), /imageExistsCache\.set\(url, request\)[\s\S]+await request/);
 assert.match(extractFunction("getOverlayRecord"), /overlayRecordCache\.set\(key, request\)[\s\S]+await request/);
 assert.match(extractFunction("setFloodLayer"), /await new Promise[\s\S]+markInitialFloodFrameReady\(\)/);
@@ -109,7 +117,7 @@ assert.match(extractFunction("fitMapTitleBadgeToViewport"), /dataset\.viewportCo
 assert.match(SOURCE, /id="north-wildwood-title-viewport-containment"/);
 assert.match(SOURCE, /font-size:var\(--nww-title-font-size/);
 
-const changingDepthSample = { elevation: 2, connectionStage: 1 };
+const changingDepthSample = { elevation: 2, connectionStage: 1, developedFlag: true };
 const lowWaterDepth = context.getDepthQueryDisplayDepth(changingDepthSample, 3.25);
 const highWaterDepth = context.getDepthQueryDisplayDepth(changingDepthSample, 5.25);
 assert.ok(
@@ -152,17 +160,18 @@ assert.match(SOURCE, /id="satelliteToggle"/);
 assert.match(SOURCE, /World_Imagery\/MapServer\/tile/);
 assert.match(SOURCE, /payload\.valueType === "int16-le"/);
 assert.match(SOURCE, /depthQueryPngPath/);
+assert.match(SOURCE, /developedQueryPngPath/);
 assert.doesNotMatch(SOURCE, /depthZoneQueryPngPath/);
 assert.match(SOURCE, /function loadDepthQueryPng\(/);
 assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
 assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 50/);
 assert.match(SOURCE, /Number\(stageValue\) > 14/);
-assert.match(SOURCE, /\/assets\/hydraulic-v17\//);
-assert.match(SOURCE, /20260812-connected-bathtub-v17/);
-assert.match(SOURCE, /"modelKind": "connectivity-first depth-penalized bathtub"/);
-assert.match(SOURCE, /"phaseInvariant": true/);
-assert.doesNotMatch(SOURCE, /\/v28\//);
+assert.match(SOURCE, /\/assets\/hydraulic-v29\//);
+assert.match(SOURCE, /20260815-conditional-connectivity-v29/);
+assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
+assert.match(SOURCE, /"phaseInvariant": false/);
+assert.match(SOURCE, /\/v29\//);
 assert.doesNotMatch(SOURCE, /historic_1962_five_tides/);
 assert.match(SOURCE, /id="boundaryToggle"[^>]+role="switch"[^>]+aria-checked="true"/);
 assert.match(SOURCE, />Simulation Extent</i);
@@ -482,8 +491,8 @@ for (const family of ["DepthPNGs", "StagePNGs"]) {
       phase
     );
     const files = fs.readdirSync(directory).filter(name => name.endsWith(".png")).sort();
-    assert.equal(files.length, 120, `${family}/${phase || "slack"} must contain the 14.05–20.00 ft extension`);
-    assert.match(files[0], /p1405\.png$/);
+    assert.equal(files.length, 201, `${family}/${phase || "slack"} must contain the complete 0.0–20.0 ft catalog`);
+    assert.match(files[0], /p0000\.png$/);
     assert.match(files.at(-1), /p2000\.png$/);
   }
 }
@@ -497,8 +506,8 @@ assert.ok(fs.statSync(path.join(
   BUNDLED_HYDRAULIC_ROOT,
   "COGs",
   "North Wildwood",
-  "NorthWildwoodHydraulicStates.json.png"
-)).size > 3_000_000);
+  "NorthWildwoodDevelopedMask5ft.png"
+)).size > 1_000);
 
 const selectedRangeContext = vm.createContext({
   Date,

@@ -1,12 +1,12 @@
 # North Wildwood Floodmapper
 
-## Stone Harbor-style connected bathtub
+## Phase-aware conditional connectivity
 
 The dashboard keeps its later gauge archives, return-interval storms, exports,
 mobile layout, and parcel tools, but its flood surface has been restored to the
-original Stone Harbor-style connected-bathtub contract. It floors the selected
-water level to a reusable 0.1-ft NAVD88 frame and pulls one PNG; it does not
-run a new simulation for each tide cycle.
+new one-foot conditional-connectivity contract. It floors the selected water
+level to a reusable 0.1-ft NAVD88 frame and selects a filling, slack, or
+draining PNG; it does not run a new simulation in the browser.
 
 This repository is the complete North Wildwood counterpart to the Stone Harbor
 Floodmapper. It uses the Great Channel at Stone Harbor gauge as the live and
@@ -74,10 +74,10 @@ long recession tail in the supplied profile.
 
 The flood-depth catalog extends through 20.00 ft NAVD88, covering every
 published NACCS station 11283 target in this set without a display cap.
-The existing 0.00–14.00 ft images remain CDN-hosted. The 14.05–20.00 ft
-extension and its compact point-query/state files are bundled under
-`assets/hydraulic-v17/`, so the deployed site does not depend on a separate
-credentialed asset release.
+The complete 0.00–20.00 ft catalog uses the established Bunny filename
+convention (`NorthWildwoodDepthp0000.png` through
+`NorthWildwoodDepthp2000.png`) under versioned v29 filling, slack, and draining
+directories.
 
 These are stationary screening scenarios: no future sea-level-rise increment
 or trend detrending is applied. Rebuild the committed payload from the official
@@ -90,41 +90,52 @@ python3 tools/test_return_intervals.py
 
 ## One-foot hydraulic model
 
-The source DEM is resampled bilinearly to a one-foot grid in EPSG:6527, with
-vertical units in NAVD88 feet. The model then:
+The 2019 South Jersey five-foot LiDAR raster is resampled to a one-foot
+computational grid in EPSG:6527 with bounded cubic convolution. Cubic values
+are clipped to the finite extrema of their local 5x5 source neighborhood,
+preserving curved terrain while preventing interpolation overshoot from
+inventing pits or ridges. The one-foot spacing does not imply one-foot source
+measurement accuracy. The model then:
 
 1. Rasterizes the user-drawn bulkhead centerline with GDAL, expands it ten
    one-foot cells on both sides (21 cells nominal width), and stitches that
    wall into a new DEM at 7.5 ft NAVD88 before graph construction.
-2. Finds four-neighbour components at or below 1.0 ft NAVD88. A component is a
-   source block only when it contains at least 101 cells and intersects a
-   supplied source-block polygon. Corner-only contact does not count.
+2. Finds every four-neighbour component whose unrounded conditioned DEM cells
+   are at or below 2.00 ft NAVD88. Every component with at least 101 cells is a
+   source block; hand-drawn polygons cannot add or remove source cells.
 3. Computes each cell's minimum equilibrium connection stage through 20.0 ft.
    Storm drains are disabled in this model version: they are neither
    connectivity seeds nor underground exchange paths.
 4. Marks a cell connected when its conditioned ground elevation and its exact
    four-neighbour source-connection threshold are both below the full selected
    gauge stage. A corner connection can never make a cell blue.
-5. Penalizes the resulting connected depth to avoid overstating low-level
-   flooding. The maximum penalty is 1.25 ft through minor flood, then follows
-   a normalized exponential decay that reaches exactly zero at major flood.
-   The applied penalty is capped at 75 percent of each cell's raw depth, so a
-   connected wet cell retains at least 25 percent of its depth and remains
-   shallow bright blue instead of being misclassified as green.
+5. Applies a developed-land-only polynomial offset through the minor
+   `(3.25, 0.75)`, moderate `(4.25, 0.25)`, and major `(5.25, 0.00)` NAVD88
+   stage/penalty anchors. On filling and slack frames the negative offset makes
+   the excluded connected band green uncertainty. On draining frames the same
+   offset is positive, retaining already routed water to represent recession
+   lag without adding inflow. The NJDEP 2015 `TYPE15 = URBAN` mask prevents
+   either adjustment on marshes, beaches, water, forest, and agriculture.
 
-The solve produces reusable assets from 0.0–20.0 ft NAVD88 at 0.1-foot
-intervals. It is intentionally static: `filling`, `slack`, and `draining`
-assets are identical for the same gauge level. Hourly and 15-minute application
-updates floor the selected level to the nearest 0.1-foot asset. Fifteen-minute
-playback uses four shorter frame intervals per hour, preserving the same
-simulated-time speed as hourly playback.
+The solve produces 201 stages from 0.0–20.0 ft NAVD88 at 0.1-foot intervals for
+each of `filling`, `slack`, and `draining`. Hourly and 15-minute updates floor
+the selected level to the same stage catalog. Interpolated 15-minute rows
+derive phase from their own neighboring stages rather than copying an hourly
+phase, so flooding starts and ends at the same physical time. The visible
+frame and nearest neighbors load first; farther frames warm sequentially during
+browser idle time.
 
 The main builders are:
 
 ```bash
+python3 tools/resample_north_wildwood_dem_1ft.py \
+  --input /path/to/North_Wildwood_2019_South_Jersey_5ft_NAVD88.tif \
+  --output /path/to/NorthWildwoodDEM_1ft_NAVD88.tif
+
 python3 tools/prepare_north_wildwood_hydraulic_features.py \
   --zip /path/to/north_wildwood_features_shp.zip \
   --dem /path/to/NorthWildwoodDEM_1ft_NAVD88.tif \
+  --developed /path/to/NorthWildwoodNJDEPLandUse2015Urban.geojson \
   --output /path/to/feature-inputs
 
 g++ -O3 -std=c++17 \
@@ -133,8 +144,8 @@ g++ -O3 -std=c++17 \
 
 ./north_wildwood_hydraulic_graph \
   --dem /path/to/NorthWildwoodDEM_Bulkhead21Cell_1ft_NAVD88.tif \
-  --source /path/to/source_blocks_1ft.tif \
   --hard /path/to/bulkheads_21cell_1ft.tif \
+  --developed /path/to/developed_urban_1ft.tif \
   --output /path/to/graph
 
 python3 tools/simulate_north_wildwood_hydraulics.py \
@@ -144,6 +155,7 @@ python3 tools/simulate_north_wildwood_hydraulics.py \
 
 python3 tools/validate_north_wildwood_hydraulic_features.py \
   --graph /path/to/graph \
+  --dem /path/to/NorthWildwoodDEM_Bulkhead21Cell_1ft_NAVD88.tif \
   --centerline /path/to/bulkheads_centerline_1ft.tif \
   --states /path/to/assets/COGs/North\ Wildwood/NorthWildwoodHydraulicStates.json.png
 
@@ -156,28 +168,30 @@ The feature validator fails if the centerline is not expanded by at least ten
 cells in all four cardinal directions, any bulkhead cell is below 7.5 ft
 NAVD88, any supplied bulkhead cell is mixed into a terrain node, any edge
 crosses a bulkhead below 7.5 ft NAVD88, a storm-drain cell enters the graph, or
-the three phase arrays differ, or the declared vertical penalty is wrong.
+the source raster differs from the literal 2.00-ft/101-cell rule, or the
+declared developed-only polynomial penalty is wrong.
 
 The feature-preparation step records the source ZIP hash, validates the
 one-foot grid, and requires the expected 1 hard-structure feature, 6 ignored
-drain points, 6 source polygons, 11,200 centerline pixels, and 254,212
-manual-source pixels. It records the expanded wall pixel count and conditioned
-DEM provenance in the generated manifest.
+drain points, 11,200 centerline pixels, and the official developed-land layer.
+The six legacy source polygons and their 254,212 cells remain recorded only as
+input provenance. The generated source field is entirely terrain-derived.
 
 The renderer uses the new depth key: shallow water is bright cyan and deeper
-water grades to dark navy. Green is reserved for terrain that is below the
-selected tide but is genuinely not side-connected to a qualified source at
-that tide. As its final step, the renderer labels the five-foot water mask with
-four-neighbour connectivity and removes every blue component that does not
-touch a qualified source. It smooths depth values over roughly ten feet only
+water grades to dark navy. Green is reserved for the developed-land connected
+band excluded by the rising/slack polynomial offset. The renderer labels each
+phase-adjusted five-foot water mask with four-neighbour connectivity and
+removes every blue component that does not touch a qualified source. It smooths
+depth values over roughly ten feet only
 inside that immutable water mask, so lidar noise cannot create stippled colors
-or new water. The render validator checks all 1,203 depth/stage pairs and rejects
-any isolated pixel, mismatched mask, corner-only connection, or blue component
-without a source.
+or new water. The render validator checks all 1,206 PNGs and rejects any
+isolated pixel, mismatched depth/stage mask, corner-only connection, blue
+component without a source, misplaced green uncertainty, or incorrect
+drainage-retention pixel.
 
 ## Clickable depth
 
-`NorthWildwoodHydraulicQueryWGS84.cog.tif` is a six-band, one-foot COG carrying:
+`NorthWildwoodHydraulicQueryWGS84.cog.tif` is an optional seven-band audit COG carrying:
 
 1. conditioned ground elevation;
 2. hydraulic zone ID;
@@ -185,17 +199,17 @@ without a source.
 4. source-block flag;
 5. 21-cell, 7.5-foot bulkhead flag;
 6. disabled storm-drain flag (always zero).
+7. NJDEP 2015 `TYPE15 = URBAN` developed-land flag.
 
-The phase-invariant state package is a gzip-compressed, two-byte centifeet audit
-lookup. `NorthWildwoodHydraulicQuery5ft.png` is the routine browser lookup. Its
+The state package is a gzip-compressed, two-byte centifeet unadjusted
+connectivity audit. `NorthWildwoodHydraulicQuery5ft.png` is the routine browser lookup. Its
 red/green channels carry the conditioned elevation in tenths of a foot and its
 blue channel carries the first four-neighbour connection stage. It is aligned
 pixel-for-pixel with the displayed five-foot flood PNGs, so one ordinary PNG
 download replaces the large range requests that could make COG clicks fail
-intermittently. The nearest-neighbour, uncompressed query COG remains a
-retrying fallback. A click combines the packed query cell with full-stage
-source connectivity and the bounded local depth penalty, then reports only the
-modeled water depth.
+intermittently. `NorthWildwoodDevelopedMask5ft.png` is aligned with that query
+so browser clicks apply the phase offset only in developed cells. A positive
+modeled depth at or below 0.10 ft is shown as `0.0-0.1ft`.
 
 ## Forecast and observed archives
 
