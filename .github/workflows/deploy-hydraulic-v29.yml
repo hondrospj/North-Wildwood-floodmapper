@@ -2,13 +2,6 @@ name: Deploy North Wildwood hydraulic v29
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/deploy-hydraulic-v29.yml
-      - assets/hydraulic-v29/**
-      - tools/upload_north_wildwood_bunny_v29.py
 
 permissions:
   contents: read
