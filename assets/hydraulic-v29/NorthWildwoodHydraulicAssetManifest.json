@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-conditional-connectivity-assets-v1",
-  "generatedUtc": "2026-08-15T18:12:09Z",
+  "generatedUtc": "2026-08-15T18:32:27Z",
   "modelKind": "phase-aware developed-land conditional connectivity",
   "phaseInvariant": false,
   "verticalPenalty": {
@@ -74,7 +74,7 @@
     ],
     "roadCorridor": {
       "path": "NorthWildwoodRoadCorridor5ft.tif",
-      "roadPixels": 333731,
+      "roadPixels": 333729,
       "source": "OpenStreetMap contributors via Overpass API",
       "sourceFile": "north_wildwood_osm_highways_20260815.json",
       "filter": "public primary/secondary/tertiary/residential/unclassified/living_street plus named public service streets; excludes footways, paths, tracks, parking aisles, driveways, private ways"
@@ -82,7 +82,7 @@
     "phases": {
       "filling": {
         "stageCount": 201,
-        "pngBytes": 30929940,
+        "pngBytes": 30922732,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -118,12 +118,14 @@
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 950703,
+        "developedUncertaintyPixelInstances": 953915,
         "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 20452,
-        "detachedComponentsJoinedByFeeders": 1096,
-        "detachedComponentsRoadUnreachable": 1459,
-        "maximumVisibleFeederLengthPixels": 1335,
+        "visibleFeederPixelInstances": 23794,
+        "detachedComponentsJoinedByFeeders": 883,
+        "detachedComponentsRoadUnreachable": 1672,
+        "maximumVisibleFeederLengthPixels": 2083,
+        "maximumVisibleFeederRouteCrestFt": 5.199999809265137,
+        "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
         "visibleFeederWidthFt": 15,
         "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
       },

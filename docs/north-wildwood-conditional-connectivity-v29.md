@@ -1,4 +1,4 @@
-# North Wildwood road-constrained conditional-connectivity v32
+# North Wildwood lowest-road conditional-connectivity v33
 
 Generated and validated on 2026-08-15.
 
@@ -20,7 +20,7 @@ Generated and validated on 2026-08-15.
   agriculture, and barren land (including beaches) receive no penalty.
 - Public roads: 398 current OpenStreetMap motor-vehicle road ways were buffered
   by classification or tagged width onto the aligned 5 ft display grid. The
-  333,731-cell mask excludes footways, paths, tracks, parking aisles,
+  333,729-cell mask excludes footways, paths, tracks, parking aisles,
   driveways, and private ways.
 
 The original 5 ft measurements remain the accuracy support of the interpolated
@@ -72,13 +72,21 @@ eligible one-foot source connection paints the display cell, preserving narrow
 shared-side feeder paths at a visible 15-foot width. This replaces the old
 center-cell sample and coarse-grid relabel that could erase a valid connection.
 If the developed penalty would visually sever a lower connected basin during
-filling, the renderer searches the eligible public-road graph for the shortest
-source-connected route. The feeder is clipped to both that road corridor and
-the unadjusted hydraulic mask. A road-unreachable basin stays green rather
-than receiving a synthetic path across a parcel, building, marsh, beach, or
-parking lot. Every filling/slack blue component must therefore touch a
-qualified source pixel. Draining may retain isolated blue puddles as the
-explicit developed-area recession lag.
+filling, the reusable renderer begins at an adjusted-wet cell from the literal
+qualified source mask, searches the eligible public-road graph, minimizes the
+highest ground elevation encountered, and then minimizes length among routes
+with the same controlling crest. The feeder is clipped to both that road
+corridor and the unadjusted hydraulic mask, with one display-cell dilation
+producing a corridor up to three cells (15 ft) wide. A road-unreachable basin
+stays green rather than receiving a synthetic path across a parcel, building,
+marsh, beach, or parking lot. Every filling/slack blue component must therefore
+touch a qualified source pixel. Draining may retain isolated blue puddles as
+the explicit developed-area recession lag.
+
+The routing module accepts aligned source, baseline, penalty-adjusted,
+elevation, and road arrays. It contains no North Wildwood dimensions, CRS,
+threshold, or penalty constants, so another town can use the same logic after
+building its own qualified source and aligned road corridor.
 
 ## Published asset contract
 
@@ -107,20 +115,22 @@ The production validation passed all of the following:
 - every green cell is either disconnected terrain below the selected stage or
   the developed filling exclusion band;
 - every draining-only retained cell is developed land; and
-- all 20,452 feeder pixel-instances are inside the 333,731-cell public-road
+- all 23,794 feeder pixel-instances are inside the 333,729-cell public-road
   mask, with zero off-road feeder pixels across all 603 frames;
-- 950,703 developed green uncertainty pixel-instances in the filling family,
-  zero penalty-held pixels at slack/high tide, 1,096 road-reachable detached
-  components joined, 1,459 road-unreachable components conservatively left
+- 953,915 developed green uncertainty pixel-instances in the filling family,
+  zero penalty-held pixels at slack/high tide, 883 road-reachable detached
+  components joined, 1,672 road-unreachable components conservatively left
   green, and 1,715,671 recession-retained pixel-instances were independently
   reproduced by the validator.
 
 At the reported Aug. 21, 2025 6:00 PM frame, 6.55 ft MLLW floors to the
-`p0380` NAVD88 filling image. It contains 905,333 blue pixels and 74,625 green
+`p0380` NAVD88 filling image. It contains 905,070 blue pixels and 74,888 green
 diagnostic pixels. Browser review at Delaware Avenue and the west-side street
 grid confirms that preserved feeders follow the visible road network rather
-than the v31 right-angle paths across blocks.
+than the v31 right-angle paths across blocks. The same-stage route audit shows
+that its feeders start from the qualified source, use a maximum road crest no
+higher than the selected stage, and contain no off-road cells.
 
-The Bunny upload helper targets versioned `v32` paths and verifies public
+The Bunny upload helper targets versioned `v33` paths and verifies public
 checksums and CORS. The repository also contains the complete local catalog
 so the dashboard does not depend on an upload being present.

@@ -76,7 +76,7 @@ The flood-depth catalog extends through 20.00 ft NAVD88, covering every
 published NACCS station 11283 target in this set without a display cap.
 The complete 0.00–20.00 ft catalog uses the established Bunny filename
 convention (`NorthWildwoodDepthp0000.png` through
-`NorthWildwoodDepthp2000.png`) under versioned v32 filling, slack, and draining
+`NorthWildwoodDepthp2000.png`) under versioned v33 filling, slack, and draining
 directories.
 
 These are stationary screening scenarios: no future sea-level-rise increment
@@ -199,8 +199,13 @@ the renderer may preserve a feeder up to 15 feet wide, but every synthetic
 feeder pixel is clipped to an aligned public motor-vehicle road corridor and
 the unadjusted hydraulic mask. The road mask is derived from OpenStreetMap
 centerlines and excludes footways, paths, tracks, parking aisles, driveways,
-and private ways. A basin without a continuous eligible road route remains
-green uncertainty; the renderer never draws a cross-parcel substitute.
+and private ways. Routes begin only at the already-qualified terrain source
+(2.00 ft NAVD88 and 101 cells for North Wildwood), minimize the highest road
+elevation encountered, and then minimize length among equally low routes. A
+basin without a continuous eligible road route remains green uncertainty; the
+renderer never draws a cross-parcel substitute. The routing function accepts
+aligned arrays and is reusable without town-specific dimensions, CRS, source
+threshold, or penalty coefficients.
 The renderer labels each phase-adjusted mask from the original shared-side
 connection stage. It smooths
 depth values over roughly ten feet only

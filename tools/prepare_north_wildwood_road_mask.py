@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Build the five-foot public-road corridor mask used by visible feeders.
+"""Build an aligned public-road corridor mask used by visible feeders.
 
 The input is an Overpass JSON response containing OSM highway ways. Only
 public motor-vehicle roads are retained. Footways, paths, tracks, parking
 aisles, driveways, and private/service-only ways are deliberately excluded.
+The output CRS, extent, pixel size, and dimensions are inferred from the DEM,
+so the same builder can be used for another town.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from osgeo import gdal, ogr, osr
 
 gdal.UseExceptions()
 
-RENDER_STRIDE = 5
+DEFAULT_RENDER_STRIDE = 5
 PUBLIC_ROAD_CLASSES = {
     "primary",
     "primary_link",
@@ -53,6 +55,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--overpass", type=Path, required=True)
     parser.add_argument("--dem", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--render-stride",
+        type=int,
+        default=DEFAULT_RENDER_STRIDE,
+        help="Number of source DEM cells per output road-mask cell",
+    )
     return parser.parse_args()
 
 
@@ -87,8 +95,8 @@ def is_public_road(tags: dict[str, str]) -> bool:
         return True
     if highway != "service":
         return False
-    # Retain only named public service streets/alleys. This keeps real roads
-    # such as Hoffman Canal Avenue without admitting driveways and parking lots.
+    # Retain named public service streets/alleys without admitting driveways
+    # and parking lots.
     return bool(tags.get("name")) and tags.get("service", "") not in EXCLUDED_SERVICE
 
 
@@ -101,29 +109,37 @@ def spatial_reference(epsg: int) -> osr.SpatialReference:
 
 def main() -> None:
     args = parse_args()
+    if args.render_stride < 1:
+        raise ValueError("--render-stride must be positive")
     payload = json.loads(args.overpass.read_text(encoding="utf-8"))
-    source_reference = spatial_reference(4326)
-    target_reference = spatial_reference(6527)
-    transform = osr.CoordinateTransformation(source_reference, target_reference)
 
     dem = gdal.Open(str(args.dem))
     if dem is None:
         raise FileNotFoundError(args.dem)
-    if dem.RasterXSize % RENDER_STRIDE or dem.RasterYSize % RENDER_STRIDE:
+    if (
+        dem.RasterXSize % args.render_stride
+        or dem.RasterYSize % args.render_stride
+    ):
         raise RuntimeError("DEM dimensions are not divisible by the render stride")
     dem_transform = dem.GetGeoTransform()
     output_transform = (
         dem_transform[0],
-        dem_transform[1] * RENDER_STRIDE,
+        dem_transform[1] * args.render_stride,
         dem_transform[2],
         dem_transform[3],
         dem_transform[4],
-        dem_transform[5] * RENDER_STRIDE,
+        dem_transform[5] * args.render_stride,
     )
-    output_width = dem.RasterXSize // RENDER_STRIDE
-    output_height = dem.RasterYSize // RENDER_STRIDE
+    output_width = dem.RasterXSize // args.render_stride
+    output_height = dem.RasterYSize // args.render_stride
     projection = dem.GetProjection()
     dem = None
+    source_reference = spatial_reference(4326)
+    target_reference = osr.SpatialReference()
+    target_reference.ImportFromWkt(projection)
+    target_reference.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    transform = osr.CoordinateTransformation(source_reference, target_reference)
+    target_units_per_foot = 0.3048 / target_reference.GetLinearUnits()
 
     memory_driver = ogr.GetDriverByName("Memory")
     vector = memory_driver.CreateDataSource("public-road-corridors")
@@ -139,7 +155,10 @@ def main() -> None:
         for point in geometry:
             line.AddPoint_2D(float(point["lon"]), float(point["lat"]))
         line.Transform(transform)
-        corridor = line.Buffer(road_width_ft(tags) / 2.0, 8)
+        corridor = line.Buffer(
+            road_width_ft(tags) * target_units_per_foot / 2.0,
+            8,
+        )
         if corridor is None or corridor.IsEmpty():
             continue
         feature = ogr.Feature(layer.GetLayerDefn())
@@ -149,8 +168,8 @@ def main() -> None:
         highway = tags["highway"]
         retained_by_class[highway] = retained_by_class.get(highway, 0) + 1
 
-    if retained < 300:
-        raise RuntimeError(f"Only {retained} public road ways survived filtering")
+    if retained == 0:
+        raise RuntimeError("No public road ways survived filtering")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     driver = gdal.GetDriverByName("GTiff")
@@ -170,8 +189,8 @@ def main() -> None:
     gdal.RasterizeLayer(raster, [1], layer, burn_values=[1])
     road = band.ReadAsArray().astype(bool)
     road_pixels = int(np.count_nonzero(road))
-    if road_pixels < 100_000:
-        raise RuntimeError(f"Road mask is unexpectedly sparse: {road_pixels:,} pixels")
+    if road_pixels == 0:
+        raise RuntimeError("Road mask is empty")
     band.SetDescription("openstreetmap_public_motor_vehicle_road_corridor")
     raster.SetMetadata(
         {
@@ -186,7 +205,7 @@ def main() -> None:
                 "living_street plus named public service streets; excludes "
                 "footways, paths, tracks, parking aisles, driveways, private ways"
             ),
-            "RENDER_CELL_SIZE_FT": str(RENDER_STRIDE),
+            "RENDER_STRIDE_SOURCE_CELLS": str(args.render_stride),
             "ROAD_PIXEL_COUNT": str(road_pixels),
             "RETAINED_WAY_COUNT": str(retained),
         }
@@ -202,7 +221,7 @@ def main() -> None:
                 "output": str(args.output),
                 "width": output_width,
                 "height": output_height,
-                "renderCellSizeFt": RENDER_STRIDE,
+                "renderStrideSourceCells": args.render_stride,
                 "retainedWays": retained,
                 "retainedByClass": retained_by_class,
                 "roadPixels": road_pixels,

@@ -8,11 +8,12 @@ import json
 from pathlib import Path
 
 import numpy as np
+from conditional_connectivity_routes import (
+    connect_penalty_basins_by_lowest_road_route,
+)
 from osgeo import gdal
 from PIL import Image
-from scipy.ndimage import binary_dilation, label as ndimage_label
-from scipy.sparse import coo_matrix
-from scipy.sparse.csgraph import dijkstra
+from scipy.ndimage import label as ndimage_label
 
 
 WIDTH = 10_930
@@ -28,9 +29,6 @@ FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
     ),
     dtype=np.uint8,
 )
-VISIBLE_FEEDER_WIDTH_STRUCTURE = FOUR_NEIGHBOUR_STRUCTURE
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--graph", type=Path, required=True)
@@ -185,116 +183,17 @@ def add_visible_source_feeders(
     baseline: np.ndarray,
     source: np.ndarray,
     road: np.ndarray,
+    ground: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Reproduce the renderer's public-road-only feeder construction."""
-    if road.shape != adjusted.shape:
-        raise AssertionError("Road mask and render mask dimensions differ")
-    labels, component_count = ndimage_label(
+    """Reproduce the renderer's portable lowest-road feeder construction."""
+    flooded, feeder, _ = connect_penalty_basins_by_lowest_road_route(
         adjusted,
-        structure=FOUR_NEIGHBOUR_STRUCTURE,
+        baseline,
+        source,
+        road,
+        ground,
+        feeder_half_width_cells=1,
     )
-    if component_count == 0:
-        return adjusted, np.zeros(adjusted.shape, dtype=bool)
-    source_labels = np.unique(labels[adjusted & source])
-    source_labels = source_labels[source_labels > 0]
-    detached = np.setdiff1d(
-        np.arange(1, component_count + 1, dtype=np.int32),
-        source_labels,
-        assume_unique=True,
-    )
-    if detached.size == 0:
-        return adjusted, np.zeros(adjusted.shape, dtype=bool)
-
-    source_lookup = np.zeros(component_count + 1, dtype=bool)
-    source_lookup[source_labels] = True
-    routed_source = adjusted & source_lookup[labels]
-    route_domain = baseline & road
-    route_origin = route_domain & (
-        routed_source
-        | binary_dilation(routed_source, structure=FOUR_NEIGHBOUR_STRUCTURE)
-    )
-    paths = np.zeros(adjusted.shape, dtype=bool)
-    if np.any(route_origin):
-        node_at = np.full(route_domain.shape, -1, dtype=np.int32)
-        road_positions = np.flatnonzero(route_domain)
-        node_at.ravel()[road_positions] = np.arange(
-            road_positions.size,
-            dtype=np.int32,
-        )
-        horizontal = route_domain[:, :-1] & route_domain[:, 1:]
-        vertical = route_domain[:-1, :] & route_domain[1:, :]
-        left_nodes = node_at[:, :-1][horizontal]
-        right_nodes = node_at[:, 1:][horizontal]
-        upper_nodes = node_at[:-1, :][vertical]
-        lower_nodes = node_at[1:, :][vertical]
-        rows = np.concatenate(
-            (left_nodes, right_nodes, upper_nodes, lower_nodes)
-        )
-        columns = np.concatenate(
-            (right_nodes, left_nodes, lower_nodes, upper_nodes)
-        )
-        graph = coo_matrix(
-            (np.ones(rows.size, dtype=np.uint8), (rows, columns)),
-            shape=(road_positions.size, road_positions.size),
-        ).tocsr()
-        distances, predecessors, _ = dijkstra(
-            graph,
-            directed=False,
-            indices=node_at[route_origin],
-            unweighted=True,
-            min_only=True,
-            return_predecessors=True,
-        )
-        detached_lookup = np.zeros(component_count + 1, dtype=bool)
-        detached_lookup[detached] = True
-        target_nodes: list[np.ndarray] = []
-        target_labels: list[np.ndarray] = []
-        for route_view, label_view, node_view in (
-            (route_domain, labels, node_at),
-            (route_domain[:-1, :], labels[1:, :], node_at[:-1, :]),
-            (route_domain[1:, :], labels[:-1, :], node_at[1:, :]),
-            (route_domain[:, :-1], labels[:, 1:], node_at[:, :-1]),
-            (route_domain[:, 1:], labels[:, :-1], node_at[:, 1:]),
-        ):
-            touches_detached = route_view & detached_lookup[label_view]
-            if np.any(touches_detached):
-                target_nodes.append(node_view[touches_detached])
-                target_labels.append(label_view[touches_detached])
-        if target_nodes:
-            candidate_nodes = np.concatenate(target_nodes)
-            candidate_labels = np.concatenate(target_labels)
-            reachable = np.isfinite(distances[candidate_nodes])
-            candidate_nodes = candidate_nodes[reachable]
-            candidate_labels = candidate_labels[reachable]
-            if candidate_nodes.size:
-                ordering = np.lexsort(
-                    (distances[candidate_nodes], candidate_labels)
-                )
-                ordered_labels = candidate_labels[ordering]
-                first_for_label = np.concatenate(
-                    (
-                        np.asarray([True]),
-                        ordered_labels[1:] != ordered_labels[:-1],
-                    )
-                )
-                endpoints = candidate_nodes[ordering][first_for_label]
-                path_nodes = np.zeros(road_positions.size, dtype=bool)
-                for endpoint in endpoints:
-                    node = int(endpoint)
-                    while node >= 0 and not path_nodes[node]:
-                        path_nodes[node] = True
-                        node = int(predecessors[node])
-                paths.ravel()[road_positions[path_nodes]] = True
-    feeder = (
-        binary_dilation(paths, structure=VISIBLE_FEEDER_WIDTH_STRUCTURE)
-        & road
-        & baseline
-        & ~adjusted
-    )
-    if np.any(feeder & ~road):
-        raise AssertionError("A visible feeder escaped the public-road mask")
-    flooded = retain_source_connected(adjusted | feeder, source)
-    feeder &= flooded
     return flooded, feeder
 
 
@@ -425,6 +324,7 @@ def main() -> None:
                     baseline,
                     source,
                     road,
+                    ground,
                 )
                 if np.any(feeder & ~road):
                     raise AssertionError(

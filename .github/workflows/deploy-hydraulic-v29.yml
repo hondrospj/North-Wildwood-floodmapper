@@ -1,13 +1,20 @@
-name: Deploy North Wildwood hydraulic v32
+name: Deploy North Wildwood hydraulic v33
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-hydraulic-v29.yml"
+      - "assets/hydraulic-v29/**"
+      - "tools/upload_north_wildwood_bunny_v29.py"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: north-wildwood-hydraulic-v32-bunny
+  group: north-wildwood-hydraulic-v33-bunny
   cancel-in-progress: false
 
 jobs:
@@ -36,7 +43,7 @@ jobs:
             exit 1
           fi
 
-      - name: Upload and verify v32 assets
+      - name: Upload and verify v33 assets
         env:
           BUNNY_STORAGE_PASSWORD: ${{ secrets.BUNNY_STORAGE_PASSWORD }}
           BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}

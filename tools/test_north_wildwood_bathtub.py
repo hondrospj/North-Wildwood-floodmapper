@@ -112,7 +112,7 @@ def main() -> None:
     baseline = adjusted.copy()
     baseline[4, 3:12] = True
     source = np.zeros_like(adjusted)
-    source[4, 1] = True
+    source[4, 2] = True
     road = np.zeros_like(adjusted)
     road[4, :] = True
     flooded, feeder, feeder_diagnostics = model.add_visible_source_feeders(
@@ -142,6 +142,39 @@ def main() -> None:
         raise AssertionError("Feeder crossed a break in the road mask")
     if feeder_diagnostics["detachedComponentsRoadUnreachable"] != 1:
         raise AssertionError("Road-unreachable component count is incorrect")
+
+    # A longer low road must beat a shorter high road. This makes feeder
+    # selection hydraulic (minimum controlling crest), not merely geometric.
+    adjusted = np.zeros((9, 15), dtype=bool)
+    adjusted[3:6, 1:4] = True
+    adjusted[3:6, 11:14] = True
+    road = np.zeros_like(adjusted)
+    road[4, 3:12] = True  # short, high route
+    road[2, 3:12] = True  # longer, low route
+    road[2:5, 3] = True
+    road[2:5, 11] = True
+    baseline = adjusted | road
+    source = np.zeros_like(adjusted)
+    source[4, 2] = True
+    ground = np.full(adjusted.shape, 10.0, dtype=np.float32)
+    ground[road] = 2.5
+    ground[4, 4:11] = 4.0
+    flooded, feeder, feeder_diagnostics = model.add_visible_source_feeders(
+        adjusted,
+        baseline,
+        source,
+        road,
+        ground,
+    )
+    if not np.any(feeder[2, 5:10]):
+        raise AssertionError("Lowest-road route was not selected")
+    if feeder[4, 7]:
+        raise AssertionError("Shorter high-road route incorrectly won")
+    if not np.isclose(
+        feeder_diagnostics["maximumFeederRouteCrestFt"],
+        2.5,
+    ):
+        raise AssertionError("Lowest-route crest diagnostic is incorrect")
     print("North Wildwood phase-aware conditional-connectivity checks passed")
 
 

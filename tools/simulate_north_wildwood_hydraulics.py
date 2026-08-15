@@ -27,6 +27,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+from conditional_connectivity_routes import (
+    connect_penalty_basins_by_lowest_road_route,
+)
 try:
     from osgeo import gdal
 except ModuleNotFoundError:  # Unit checks do not open or write rasters.
@@ -41,14 +44,10 @@ try:
         gaussian_filter,
         label as ndimage_label,
     )
-    from scipy.sparse import coo_matrix
-    from scipy.sparse.csgraph import dijkstra
 except ModuleNotFoundError:  # Unit checks do not render images.
     binary_dilation = None
     gaussian_filter = None
     ndimage_label = None
-    coo_matrix = None
-    dijkstra = None
 
 
 if gdal is not None:
@@ -700,9 +699,6 @@ FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
     ),
     dtype=np.uint8,
 )
-VISIBLE_FEEDER_WIDTH_STRUCTURE = FOUR_NEIGHBOUR_STRUCTURE
-
-
 def pool_source_to_render_grid(source: np.ndarray) -> np.ndarray:
     """Preserve any one-foot source cell inside each five-foot render pixel."""
     if source.shape != (HEIGHT, WIDTH):
@@ -887,181 +883,21 @@ def add_visible_source_feeders(
     baseline_flooded: np.ndarray,
     source: np.ndarray,
     road_corridor: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, dict[str, int]]:
-    """Join adjusted blue basins to a source using public roads only.
-
-    A developed-land penalty can turn a few cells along an otherwise valid
-    source route green, leaving a lower adjusted-blue basin looking detached.
-    A four-neighbour wave records geodesic distance only through public-road
-    pixels that are also in the unadjusted connected mask. Detached basins that
-    cannot be reached from source-connected water by that road network remain
-    green uncertainty instead of receiving a synthetic cross-parcel path.
-    """
-    if road_corridor.shape != adjusted_flooded.shape:
-        raise ValueError(
-            f"Road mask shape {road_corridor.shape} does not match render mask "
-            f"{adjusted_flooded.shape}"
-        )
-    labels, component_count = ndimage_label(
+    ground_elevation: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, dict[str, int | float | str]]:
+    """Apply the reusable lowest-crest public-road feeder algorithm."""
+    if ground_elevation is None:
+        # Small unit callers from older versions did not supply terrain. Equal
+        # ground makes the portable algorithm fall back to shortest road length.
+        ground_elevation = np.zeros(adjusted_flooded.shape, dtype=np.float32)
+    return connect_penalty_basins_by_lowest_road_route(
         adjusted_flooded,
-        structure=FOUR_NEIGHBOUR_STRUCTURE,
-    )
-    if component_count == 0:
-        empty = np.zeros(adjusted_flooded.shape, dtype=bool)
-        return adjusted_flooded, empty, {
-            "detachedComponentsJoined": 0,
-            "detachedComponentsRoadUnreachable": 0,
-            "feederPixels": 0,
-            "maximumFeederLengthPixels": 0,
-        }
-
-    source_labels = np.unique(labels[adjusted_flooded & source])
-    source_labels = source_labels[source_labels > 0]
-    all_labels = np.arange(1, component_count + 1, dtype=np.int32)
-    detached_labels = np.setdiff1d(all_labels, source_labels, assume_unique=True)
-    if detached_labels.size == 0:
-        empty = np.zeros(adjusted_flooded.shape, dtype=bool)
-        return adjusted_flooded, empty, {
-            "detachedComponentsJoined": 0,
-            "detachedComponentsRoadUnreachable": 0,
-            "feederPixels": 0,
-            "maximumFeederLengthPixels": 0,
-        }
-
-    source_lookup = np.zeros(component_count + 1, dtype=bool)
-    source_lookup[source_labels] = True
-    routed_source = adjusted_flooded & source_lookup[labels]
-    if not np.any(routed_source):
-        raise RuntimeError("Adjusted flood mask has no visible source component")
-
-    route_domain = baseline_flooded & road_corridor
-    # A feeder may begin where a public-road cell overlaps or shares a side
-    # with source-connected water. Every pixel subsequently painted is still
-    # clipped back to the public-road corridor.
-    route_origin = route_domain & (
-        routed_source
-        | binary_dilation(routed_source, structure=FOUR_NEIGHBOUR_STRUCTURE)
-    )
-    paths = np.zeros(adjusted_flooded.shape, dtype=bool)
-    maximum_length = 0
-    if np.any(route_origin):
-        # Compress the active road pixels into a sparse four-neighbour graph.
-        # SciPy's compiled multi-source shortest path replaces thousands of
-        # whole-image dilation passes while preserving the exact grid route.
-        node_at = np.full(route_domain.shape, -1, dtype=np.int32)
-        road_positions = np.flatnonzero(route_domain)
-        node_at.ravel()[road_positions] = np.arange(
-            road_positions.size,
-            dtype=np.int32,
-        )
-        horizontal = route_domain[:, :-1] & route_domain[:, 1:]
-        vertical = route_domain[:-1, :] & route_domain[1:, :]
-        left_nodes = node_at[:, :-1][horizontal]
-        right_nodes = node_at[:, 1:][horizontal]
-        upper_nodes = node_at[:-1, :][vertical]
-        lower_nodes = node_at[1:, :][vertical]
-        graph_rows = np.concatenate(
-            (left_nodes, right_nodes, upper_nodes, lower_nodes)
-        )
-        graph_columns = np.concatenate(
-            (right_nodes, left_nodes, lower_nodes, upper_nodes)
-        )
-        graph = coo_matrix(
-            (
-                np.ones(graph_rows.size, dtype=np.uint8),
-                (graph_rows, graph_columns),
-            ),
-            shape=(road_positions.size, road_positions.size),
-        ).tocsr()
-        origin_nodes = node_at[route_origin]
-        distances, predecessors, _ = dijkstra(
-            graph,
-            directed=False,
-            indices=origin_nodes,
-            unweighted=True,
-            min_only=True,
-            return_predecessors=True,
-        )
-
-        detached_lookup = np.zeros(component_count + 1, dtype=bool)
-        detached_lookup[detached_labels] = True
-        target_nodes: list[np.ndarray] = []
-        target_labels: list[np.ndarray] = []
-        # Record active road cells that overlap or share a side with each
-        # detached basin. The nearest reachable road cell becomes its endpoint.
-        for route_view, label_view, node_view in (
-            (route_domain, labels, node_at),
-            (route_domain[:-1, :], labels[1:, :], node_at[:-1, :]),
-            (route_domain[1:, :], labels[:-1, :], node_at[1:, :]),
-            (route_domain[:, :-1], labels[:, 1:], node_at[:, :-1]),
-            (route_domain[:, 1:], labels[:, :-1], node_at[:, 1:]),
-        ):
-            touches_detached = route_view & detached_lookup[label_view]
-            if np.any(touches_detached):
-                target_nodes.append(node_view[touches_detached])
-                target_labels.append(label_view[touches_detached])
-        if target_nodes:
-            candidate_nodes = np.concatenate(target_nodes)
-            candidate_labels = np.concatenate(target_labels)
-            reachable = np.isfinite(distances[candidate_nodes])
-            candidate_nodes = candidate_nodes[reachable]
-            candidate_labels = candidate_labels[reachable]
-            if candidate_nodes.size:
-                ordering = np.lexsort(
-                    (distances[candidate_nodes], candidate_labels)
-                )
-                ordered_labels = candidate_labels[ordering]
-                first_for_label = np.concatenate(
-                    (
-                        np.asarray([True]),
-                        ordered_labels[1:] != ordered_labels[:-1],
-                    )
-                )
-                endpoint_nodes = candidate_nodes[ordering][first_for_label]
-                maximum_length = int(
-                    np.max(distances[endpoint_nodes], initial=0.0)
-                )
-                path_nodes = np.zeros(road_positions.size, dtype=bool)
-                for endpoint in endpoint_nodes:
-                    node = int(endpoint)
-                    while node >= 0 and not path_nodes[node]:
-                        path_nodes[node] = True
-                        node = int(predecessors[node])
-                paths.ravel()[road_positions[path_nodes]] = True
-
-    # Expand to at most three five-foot cells, then clip to both the public-road
-    # corridor and the unadjusted source-connected hydraulic mask.
-    feeder = (
-        binary_dilation(paths, structure=VISIBLE_FEEDER_WIDTH_STRUCTURE)
-        & road_corridor
-        & baseline_flooded
-        & ~adjusted_flooded
-    )
-    if np.any(feeder & ~road_corridor):
-        raise RuntimeError("A visible feeder escaped the public-road corridor")
-    # Road-unreachable detached basins remain uncertainty. This guarantees
-    # every visible filling/slack blue component still reaches a source without
-    # painting an off-road connector.
-    flooded, _, _, _ = retain_source_connected_water(
-        adjusted_flooded | feeder,
+        baseline_flooded,
         source,
+        road_corridor,
+        ground_elevation,
+        feeder_half_width_cells=1,
     )
-    feeder &= flooded
-    joined_labels = np.unique(labels[flooded & adjusted_flooded])
-    joined_labels = joined_labels[joined_labels > 0]
-    joined_detached = np.intersect1d(
-        joined_labels,
-        detached_labels,
-        assume_unique=False,
-    )
-    return flooded, feeder, {
-        "detachedComponentsJoined": int(joined_detached.size),
-        "detachedComponentsRoadUnreachable": int(
-            detached_labels.size - joined_detached.size
-        ),
-        "feederPixels": int(np.count_nonzero(feeder)),
-        "maximumFeederLengthPixels": maximum_length,
-    }
 
 
 def render_assets(
@@ -1164,6 +1000,7 @@ def render_assets(
         detached_components_joined = 0
         detached_components_road_unreachable = 0
         maximum_feeder_length = 0
+        maximum_feeder_route_crest = 0.0
         for stage_index, stage in enumerate(STAGES_FT):
             stage_value = float(stage)
             baseline_flooded = valid & (activation <= stage_value + 1e-9)
@@ -1220,6 +1057,7 @@ def render_assets(
                     baseline_flooded,
                     source,
                     road_corridor,
+                    ground,
                 )
                 feeder_pixels += feeder_diagnostics["feederPixels"]
                 detached_components_joined += feeder_diagnostics[
@@ -1231,6 +1069,10 @@ def render_assets(
                 maximum_feeder_length = max(
                     maximum_feeder_length,
                     feeder_diagnostics["maximumFeederLengthPixels"],
+                )
+                maximum_feeder_route_crest = max(
+                    maximum_feeder_route_crest,
+                    feeder_diagnostics["maximumFeederRouteCrestFt"],
                 )
                 penalized = baseline_flooded & ~flooded
                 uncertainty_pixels += int(np.count_nonzero(penalized))
@@ -1340,6 +1182,10 @@ def render_assets(
                 detached_components_road_unreachable
             ),
             "maximumVisibleFeederLengthPixels": maximum_feeder_length,
+            "maximumVisibleFeederRouteCrestFt": maximum_feeder_route_crest,
+            "visibleFeederRouteCriterion": (
+                "minimum road-route ground crest, then minimum length"
+            ),
             "visibleFeederWidthFt": 15,
             "renderConnectivity": (
                 "all 25 one-foot cells pooled into each five-foot pixel; "
@@ -1633,8 +1479,6 @@ def main() -> None:
         or binary_dilation is None
         or gaussian_filter is None
         or ndimage_label is None
-        or coo_matrix is None
-        or dijkstra is None
     ):
         raise RuntimeError(
             "GDAL, Pillow, and SciPy are required to build hydraulic assets"
