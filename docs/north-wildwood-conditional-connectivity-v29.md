@@ -1,4 +1,4 @@
-# North Wildwood lowest-road conditional-connectivity v33
+# North Wildwood lowest-road conditional-connectivity v34
 
 Generated and validated on 2026-08-15.
 
@@ -57,9 +57,12 @@ three exact stage/penalty anchors are `(3.25, 0.75)`, `(4.25, 0.25)`, and
   suppress a lower connected basin beyond it.
 - Slack/high tide: the offset is zero, rapidly releasing the rising
   uncertainty as high tide arrives.
-- Draining: developed cells use `adjusted stage = gauge stage + P`. This
+- Draining: developed cells use `adjusted stage = gauge stage + 0.25P`. This
   retains previously routed water to represent lagged recession; it does not
-  introduce a new source or inflow.
+  introduce a new source or inflow. The maximum hold is 0.1875 ft below minor
+  flood and 0.0625 ft at moderate flood. The first lower 15-minute sample is
+  classified as draining when the following sample confirms the falling tide,
+  eliminating the one-frame slack/green flash at the crest transition.
 - Undeveloped cells always use the unadjusted gauge stage.
 
 Green is also used in every phase for terrain below the selected gauge stage
@@ -120,7 +123,7 @@ The production validation passed all of the following:
 - 953,915 developed green uncertainty pixel-instances in the filling family,
   zero penalty-held pixels at slack/high tide, 883 road-reachable detached
   components joined, 1,672 road-unreachable components conservatively left
-  green, and 1,715,671 recession-retained pixel-instances were independently
+  green, and 140,116 recession-retained pixel-instances were independently
   reproduced by the validator.
 
 At the reported Aug. 21, 2025 6:00 PM frame, 6.55 ft MLLW floors to the
@@ -131,6 +134,6 @@ than the v31 right-angle paths across blocks. The same-stage route audit shows
 that its feeders start from the qualified source, use a maximum road crest no
 higher than the selected stage, and contain no off-road cells.
 
-The Bunny upload helper targets versioned `v33` paths and verifies public
+The Bunny upload helper targets versioned `v34` paths and verifies public
 checksums and CORS. The repository also contains the complete local catalog
 so the dashboard does not depend on an upload being present.

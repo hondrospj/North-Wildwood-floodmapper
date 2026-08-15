@@ -78,6 +78,7 @@ MAJOR_NAVD88_FT = 5.25
 MINOR_VERTICAL_PENALTY_FT = 0.75
 MODERATE_VERTICAL_PENALTY_FT = 0.25
 MAJOR_VERTICAL_PENALTY_FT = 0.0
+DRAINING_VERTICAL_PENALTY_SCALE = 0.25
 
 DEPTH_BREAKS_FT = np.asarray([0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00])
 DEPTH_COLORS = [
@@ -188,8 +189,13 @@ def phase_adjusted_stage_ft(
     """Apply rising suppression, crest release, and draining retention."""
     stage = float(stage_ft)
     penalty = vertical_penalty_ft(stage)
-    direction = 1.0 if phase == "draining" else -1.0 if phase == "filling" else 0.0
-    return stage + np.asarray(developed, dtype=np.float64) * direction * penalty
+    if phase == "draining":
+        adjustment = penalty * DRAINING_VERTICAL_PENALTY_SCALE
+    elif phase == "filling":
+        adjustment = -penalty
+    else:
+        adjustment = 0.0
+    return stage + np.asarray(developed, dtype=np.float64) * adjustment
 
 
 def vertical_penalty_metadata() -> dict:
@@ -203,10 +209,14 @@ def vertical_penalty_metadata() -> dict:
         "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
         "belowMinorTreatment": "clamped to 0.75 ft",
         "aboveMajorTreatment": "clamped to 0.00 ft",
+        "drainingScale": DRAINING_VERTICAL_PENALTY_SCALE,
         "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
         "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
         "slack": "zero offset so the rising penalty rapidly wears off at high tide",
-        "draining": "positive offset retains prior routed water; it is not new inflow",
+        "draining": (
+            "quarter-strength positive offset retains prior routed water; "
+            "it is not new inflow"
+        ),
         "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land",
     }
 
@@ -642,8 +652,8 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
         "forcing": {
             "phaseTreatment": "developed-only raster adjustment; audit state arrays are unadjusted",
             "filling": "negative polynomial offset with green uncertainty band",
-            "slack": "negative polynomial offset with green uncertainty band",
-            "draining": "positive polynomial recession-retention offset",
+            "slack": "zero offset at the tide crest",
+            "draining": "quarter-strength positive polynomial recession-retention offset",
         },
         "physics": {
             "modelKind": "phase-aware developed-land conditional connectivity",
@@ -1024,7 +1034,9 @@ def render_assets(
             )
             penalty = vertical_penalty_ft(stage_value)
             if phase == "draining":
-                adjusted_developed_stage = stage_value + penalty
+                adjusted_developed_stage = (
+                    stage_value + penalty * DRAINING_VERTICAL_PENALTY_SCALE
+                )
                 developed_flooded = (
                     activation_developed <= adjusted_developed_stage + 1e-9
                 )
@@ -1486,13 +1498,6 @@ def main() -> None:
     args = parse_args()
     if args.filling_only and args.draining_only:
         raise ValueError("Choose at most one of --filling-only and --draining-only")
-    if args.draining_only:
-        raise ValueError(
-            "--draining-only is unavailable because the developed-land mask "
-            "must be validated across all three phase catalogs"
-        )
-    if args.draining_only and args.reuse_complete_state:
-        raise ValueError("--draining-only and --reuse-complete-state are mutually exclusive")
     graph_dir = args.graph.resolve()
     road_mask_path = (
         args.road_mask.resolve()
@@ -1557,7 +1562,9 @@ def main() -> None:
         / "North Wildwood"
         / "NorthWildwoodHydraulicStates.json.png"
     )
-    reusable_static_state = state_path if args.draining_only else None
+    reusable_static_state = (
+        state_path if args.draining_only and not args.reuse_complete_state else None
+    )
     reusable_complete_state = state_path if args.reuse_complete_state else None
     required_state = reusable_complete_state or reusable_static_state
     if required_state is not None and not required_state.is_file():
@@ -1570,6 +1577,8 @@ def main() -> None:
             reusable_complete_state,
             int(graph_manifest["zoneCount"]) + 1,
         )
+        diagnostics["verticalPenalty"] = vertical_penalty_metadata()
+        write_state_asset(state_path, phases, graph_manifest, diagnostics)
         print(f"Reused all hydraulic states: {reusable_complete_state}")
     else:
         zones = load_zones(graph_dir / "zones.csv")
@@ -1633,6 +1642,9 @@ def main() -> None:
                     "pngBytes": sum(path.stat().st_size for path in paths),
                 }
             render_manifest["phases"] = phase_counts
+            for phase_record in phase_counts.values():
+                if "modelKind" in phase_record:
+                    phase_record["verticalPenalty"] = vertical_penalty_metadata()
     elif previous_render_manifest is not None:
         render_manifest = previous_render_manifest
     query_path = (

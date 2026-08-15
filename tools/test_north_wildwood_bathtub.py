@@ -76,7 +76,7 @@ def main() -> None:
     )
     if not np.allclose(rising, [0.0, 0.25]):
         raise AssertionError(f"Unexpected rising depths: {rising}")
-    if not np.allclose(draining, [0.50, 0.25]):
+    if not np.allclose(draining, [0.3125, 0.25]):
         raise AssertionError(f"Unexpected recession-retention depths: {draining}")
     if not np.allclose(slack, [0.25, 0.25]):
         raise AssertionError(f"Unexpected high-tide release depths: {slack}")
@@ -85,7 +85,7 @@ def main() -> None:
     ):
         raise AssertionError("The developed-land penalty did not wear off at slack tide")
     if not np.isclose(
-        model.phase_adjusted_stage_ft(stage, "draining", True), 4.50
+        model.phase_adjusted_stage_ft(stage, "draining", True), 4.3125
     ):
         raise AssertionError("The developed-land drainage lag has the wrong sign")
 

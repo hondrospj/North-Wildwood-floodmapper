@@ -21,6 +21,7 @@ HEIGHT = 14_120
 RENDER_STRIDE = 5
 RENDER_WIDTH = WIDTH // RENDER_STRIDE
 RENDER_HEIGHT = HEIGHT // RENDER_STRIDE
+DRAINING_VERTICAL_PENALTY_SCALE = 0.25
 FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
     (
         (0, 1, 0),
@@ -300,7 +301,9 @@ def main() -> None:
             baseline = valid & (activation <= stage + 1e-9)
             adjustment = vertical_penalty(stage)
             if phase == "draining":
-                developed_stage = stage + adjustment
+                developed_stage = (
+                    stage + adjustment * DRAINING_VERTICAL_PENALTY_SCALE
+                )
                 developed_blue = (
                     activation_developed <= developed_stage + 1e-9
                 )

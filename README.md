@@ -76,7 +76,7 @@ The flood-depth catalog extends through 20.00 ft NAVD88, covering every
 published NACCS station 11283 target in this set without a display cap.
 The complete 0.00–20.00 ft catalog uses the established Bunny filename
 convention (`NorthWildwoodDepthp0000.png` through
-`NorthWildwoodDepthp2000.png`) under versioned v33 filling, slack, and draining
+`NorthWildwoodDepthp2000.png`) under versioned v34 filling, slack, and draining
 directories.
 
 These are stationary screening scenarios: no future sea-level-rise increment
@@ -117,9 +117,12 @@ measurement accuracy. The model then:
    an entire lower connected basin. The offset is zero at slack/high tide so
    the rising uncertainty rapidly wears off. Terrain below the selected stage
    that has no qualified source connection is also green in every phase. On
-   draining frames the same
-   offset is positive, retaining already routed water to represent recession
-   lag without adding inflow. The NJDEP 2015 `TYPE15 = URBAN` mask prevents
+   draining frames one quarter of that offset is positive, retaining already
+   routed water to represent a shorter recession lag without adding inflow.
+   The maximum draining hold is 0.1875 ft and the moderate-stage hold is
+   0.0625 ft. The first confirmed falling 15-minute frame enters this reduced
+   draining state immediately so the crest transition cannot flash green.
+   The NJDEP 2015 `TYPE15 = URBAN` mask prevents
    either adjustment on marshes, beaches, water, forest, and agriculture.
 
 The solve produces 201 stages from 0.0–20.0 ft NAVD88 at 0.1-foot intervals for

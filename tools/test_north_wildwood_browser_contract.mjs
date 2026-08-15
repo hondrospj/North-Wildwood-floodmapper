@@ -42,6 +42,7 @@ const context = vm.createContext({
   MINOR_VERTICAL_PENALTY_FT: 0.75,
   MODERATE_VERTICAL_PENALTY_FT: 0.25,
   MAJOR_VERTICAL_PENALTY_FT: 0,
+  DRAINING_VERTICAL_PENALTY_SCALE: 0.25,
 });
 for (const name of (
   [
@@ -150,8 +151,36 @@ assert.equal(
 );
 assert.equal(
   context.getPenalizedConnectedDepth(4.25, 4.0, true, "draining").depth,
-  0.5,
+  0.3125,
   "The positive drainage adjustment must retain developed water"
+);
+
+const phaseTransitionRows = [
+  { stage: 3.89 },
+  { stage: 3.90 },
+  { stage: 3.88 },
+  { stage: 3.77 },
+];
+const phaseContext = vm.createContext({
+  Number,
+  currentSeriesHours: phaseTransitionRows,
+  normalizeHydraulicPhase: context.normalizeHydraulicPhase,
+  getStageValue: entry => entry?.stage,
+  findClosestEntryIndex: () => -1,
+});
+vm.runInContext(
+  `${extractFunction("getHydraulicPhaseForEntry")}; globalThis.getHydraulicPhaseForEntry = getHydraulicPhaseForEntry;`,
+  phaseContext
+);
+assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[1], 1, phaseTransitionRows),
+  "slack",
+  "The crest must remain slack"
+);
+assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[2], 2, phaseTransitionRows),
+  "draining",
+  "The first confirmed lower frame must begin drainage without a slack flash"
 );
 
 let previousPenalty = Infinity;
@@ -193,10 +222,10 @@ assert.match(SOURCE, /connectionCode - 50/);
 assert.match(SOURCE, /\/assets\/hydraulic-v29\//);
 assert.match(extractFunction("getOverlayCandidates"), /floodmapperv1\.b-cdn\.net/);
 assert.match(extractFunction("getOverlayCandidates"), /Number\(rightIsCdn\) - Number\(leftIsCdn\)/);
-assert.match(SOURCE, /20260815-lowest-road-feeders-v33/);
+assert.match(SOURCE, /20260815-reduced-drainage-v34/);
 assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
 assert.match(SOURCE, /"phaseInvariant": false/);
-assert.match(SOURCE, /\/v33\//);
+assert.match(SOURCE, /\/v34\//);
 assert.match(extractFunction("getDepthQueryDisplayDepth"), /connectionStageLimit/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /TOP_TIDE_DISPLAY_COUNT/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /ensureObservedArchiveForDate/);

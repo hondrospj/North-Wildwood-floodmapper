@@ -14742,6 +14742,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     const MINOR_VERTICAL_PENALTY_FT = 0.75;
     const MODERATE_VERTICAL_PENALTY_FT = 0.25;
     const MAJOR_VERTICAL_PENALTY_FT = 0;
+    const DRAINING_VERTICAL_PENALTY_SCALE = 0.25;
 
     function formatOffsetWithSign(value, digits = 2) {
       const n = Number(value) || 0;
@@ -17056,7 +17057,7 @@ function setDatumHelpOpen(isOpen) {
       const appliedPenalty = developed ? polynomialPenalty : 0;
       const normalizedPhase = normalizeHydraulicPhase(phase);
       const adjustment = normalizedPhase === "draining"
-        ? appliedPenalty
+        ? appliedPenalty * DRAINING_VERTICAL_PENALTY_SCALE
         : normalizedPhase === "filling"
           ? -appliedPenalty
           : 0;
@@ -17143,7 +17144,10 @@ function setDatumHelpOpen(isOpen) {
       const epsilon = 0.025;
 
       if (Number.isFinite(before) && Number.isFinite(after) && before > epsilon && after <= epsilon) return "slack";
-      if (Number.isFinite(before) && Number.isFinite(after) && before >= -epsilon && after < -epsilon) return "slack";
+      // Start recession retention on the first lower sample when the next
+      // sample confirms a falling tide. Keeping this frame at slack caused a
+      // one-frame green flash before the draining catalog appeared.
+      if (Number.isFinite(before) && Number.isFinite(after) && before < 0 && after < -epsilon) return "draining";
       if (Number.isFinite(before) && Number.isFinite(after) && before < -epsilon && after >= -epsilon) return "slack";
       if (Number.isFinite(before) && Number.isFinite(after) && before <= epsilon && after > epsilon) return "slack";
       const delta = Number.isFinite(after) && (!Number.isFinite(before) || Math.abs(after) >= Math.abs(before)) ? after : before;
@@ -34074,53 +34078,53 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260815-lowest-road-feeders-v33",
-      "dynamic": "20260815-lowest-road-feeders-v33",
-      "hydraulic": "20260815-lowest-road-feeders-v33"
+      "depth": "20260815-reduced-drainage-v34",
+      "dynamic": "20260815-reduced-drainage-v34",
+      "hydraulic": "20260815-reduced-drainage-v34"
     },
     "modelKind": "phase-aware developed-land conditional connectivity",
     "phaseInvariant": false,
-    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260815-lowest-road-feeders-v33",
-    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260815-lowest-road-feeders-v33",
+    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260815-reduced-drainage-v34",
+    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260815-reduced-drainage-v34",
     "depthQueryCogPath": null,
     "physicsForecastPointerPath": null,
     "physicsForecastCyclePointerTemplatePath": null,
-    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260815-lowest-road-feeders-v33",
+    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260815-reduced-drainage-v34",
     "depthRoots": [
       "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
-      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v33/"
+      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v34/"
     ],
     "dynamicRoots": [
       "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
-      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v33/"
+      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v34/"
     ],
     "phaseRoots": {
       "depth": {
         "filling": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/filling/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v33/filling/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v34/filling/"
         ],
         "slack": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v33/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v34/"
         ],
         "draining": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/draining/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v33/draining/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v34/draining/"
         ]
       },
       "dynamic": {
         "filling": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/filling/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v33/filling/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v34/filling/"
         ],
         "slack": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v33/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v34/"
         ],
         "draining": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/draining/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v33/draining/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v34/draining/"
         ]
       }
     }
