@@ -43,6 +43,8 @@ const context = vm.createContext({
   MODERATE_VERTICAL_PENALTY_FT: 0.25,
   MAJOR_VERTICAL_PENALTY_FT: 0,
   DRAINING_VERTICAL_PENALTY_SCALE: 0.25,
+  DISTANCE_PENALTY_END_NAVD88_FT: 4.75,
+  SOURCE_DISTANCE_FULL_PENALTY_FT: 1500,
 });
 for (const name of (
   [
@@ -52,6 +54,8 @@ for (const name of (
     "normalizeHydraulicPhase",
     "getHydraulicStatePhase",
     "getVerticalBathtubPenalty",
+    "getDistancePenaltyStageScale",
+    "getSourceDistancePenaltyFactor",
     "getPenalizedConnectedDepth",
     "getDepthQueryDisplayDepth",
     "formatDepthQueryValue",
@@ -79,6 +83,12 @@ assert.match(SOURCE, /const STAGE_STEP = 0\.1;/);
 assert.equal(context.getVerticalBathtubPenalty(3.25), 0.75);
 assert.equal(context.getVerticalBathtubPenalty(4.25), 0.25);
 assert.equal(context.getVerticalBathtubPenalty(5.25), 0);
+assert.equal(context.getDistancePenaltyStageScale(4.25), 1);
+assert.equal(context.getDistancePenaltyStageScale(4.5), 0.5);
+assert.equal(context.getDistancePenaltyStageScale(4.75), 0);
+assert.equal(context.getSourceDistancePenaltyFactor(0), 0);
+assert.equal(context.getSourceDistancePenaltyFactor(750), 0.5);
+assert.equal(context.getSourceDistancePenaltyFactor(1500), 1);
 assert.equal(context.formatDepthQueryValue(0.1), "0.0-0.1ft");
 assert.equal(context.formatDepthQueryValue(0.10001), "0.10 ft");
 
@@ -170,6 +180,16 @@ assert.equal(
   context.getPenalizedConnectedDepth(4.25, 4.0, true, "draining").depth,
   0.3125,
   "The positive drainage adjustment must retain developed water"
+);
+assert.equal(
+  context.getPenalizedConnectedDepth(4.25, 4.0, true, "filling", 0).depth,
+  0.25,
+  "Only the original source block may have zero travel-distance loss"
+);
+assert.equal(
+  context.getPenalizedConnectedDepth(4.75, 4.5, true, "filling", 1500).depth,
+  0.25,
+  "The distance loss must be gone 0.5 ft into moderate flooding"
 );
 
 const phaseTransitionRows = [
@@ -267,6 +287,7 @@ assert.match(SOURCE, /World_Imagery\/MapServer\/tile/);
 assert.match(SOURCE, /payload\.valueType === "int16-le"/);
 assert.match(SOURCE, /depthQueryPngPath/);
 assert.match(SOURCE, /developedQueryPngPath/);
+assert.match(SOURCE, /sourceDistanceFt/);
 assert.doesNotMatch(SOURCE, /depthZoneQueryPngPath/);
 assert.match(SOURCE, /function loadDepthQueryPng\(/);
 assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
@@ -277,13 +298,13 @@ assert.match(extractFunction("getOverlayCandidates"), /const orderedRoots = \[\.
 assert.doesNotMatch(extractFunction("getOverlayCandidates"), /\.sort\(/);
 assert.ok(
   SOURCE.indexOf('"./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/"') <
-    SOURCE.indexOf('"https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v35/"'),
-  "The complete bundled catalog must precede the unavailable Bunny v35 catalog",
+    SOURCE.indexOf('"https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v36/"'),
+  "The complete bundled catalog must precede the unavailable Bunny v36 catalog",
 );
-assert.match(SOURCE, /20260815-crest-release-v35/);
+assert.match(SOURCE, /20260815-source-distance-v36/);
 assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
 assert.match(SOURCE, /"phaseInvariant": false/);
-assert.match(SOURCE, /\/v35\//);
+assert.match(SOURCE, /\/v36\//);
 assert.match(extractFunction("getDepthQueryDisplayDepth"), /connectionStageLimit/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /TOP_TIDE_DISPLAY_COUNT/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /ensureObservedArchiveForDate/);

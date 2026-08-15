@@ -1,4 +1,4 @@
-name: Deploy North Wildwood hydraulic v35
+name: Deploy North Wildwood hydraulic v36
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: north-wildwood-hydraulic-v35-bunny
+  group: north-wildwood-hydraulic-v36-bunny
   cancel-in-progress: false
 
 jobs:
@@ -43,7 +43,7 @@ jobs:
             exit 1
           fi
 
-      - name: Upload and verify v35 assets
+      - name: Upload and verify v36 assets
         env:
           BUNNY_STORAGE_PASSWORD: ${{ secrets.BUNNY_STORAGE_PASSWORD }}
           BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}

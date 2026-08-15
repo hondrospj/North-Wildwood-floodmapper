@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 from conditional_connectivity_routes import (
     connect_penalty_basins_by_lowest_road_route,
-    release_penalty_area_by_lowest_front,
+    source_block_geodesic_distance,
 )
 from osgeo import gdal
 from PIL import Image
@@ -23,6 +23,8 @@ RENDER_STRIDE = 5
 RENDER_WIDTH = WIDTH // RENDER_STRIDE
 RENDER_HEIGHT = HEIGHT // RENDER_STRIDE
 DRAINING_VERTICAL_PENALTY_SCALE = 0.25
+DISTANCE_PENALTY_END_NAVD88_FT = 4.75
+SOURCE_DISTANCE_FULL_PENALTY_FT = 1_500.0
 FILLING_PENALTY_SCALES = {
     "filling": 1.0,
     "crest-release-44": 0.5625,
@@ -33,6 +35,11 @@ CREST_RELEASE_PROGRESS = {
     "crest-release-44": 0.4375,
     "crest-release-75": 0.75,
     "crest-release-94": 0.9375,
+}
+PHASE_PREDECESSOR = {
+    "crest-release-44": "filling",
+    "crest-release-75": "crest-release-44",
+    "crest-release-94": "crest-release-75",
 }
 PHASE_DIRECTORIES = {
     "filling": "filling",
@@ -187,6 +194,15 @@ def vertical_penalty(stage: float) -> float:
     return 0.125 * x * x - 0.625 * x + 0.75
 
 
+def distance_penalty_stage_scale(stage: float) -> float:
+    if stage <= 4.25:
+        return 1.0
+    if stage >= DISTANCE_PENALTY_END_NAVD88_FT:
+        return 0.0
+    remaining = (DISTANCE_PENALTY_END_NAVD88_FT - stage) / 0.5
+    return remaining * remaining * (3.0 - 2.0 * remaining)
+
+
 def retain_source_connected(mask: np.ndarray, source: np.ndarray) -> np.ndarray:
     labels, component_count = ndimage_label(mask, structure=FOUR_NEIGHBOUR_STRUCTURE)
     if not component_count:
@@ -251,6 +267,18 @@ def main() -> None:
     activation_undeveloped = (
         summary["activation100_undeveloped"].astype(np.float64) / 100.0
     )
+    source_distance_ft, source_distance_diagnostics = (
+        source_block_geodesic_distance(
+            source,
+            valid & (activation <= DISTANCE_PENALTY_END_NAVD88_FT + 1e-9),
+            cell_size_ft=RENDER_STRIDE,
+        )
+    )
+    source_distance_factor = np.clip(
+        source_distance_ft.astype(np.float64) / SOURCE_DISTANCE_FULL_PENALTY_FT,
+        0.0,
+        1.0,
+    )
     records = []
     maximum_components = 0
     maximum_blue_pixels = 0
@@ -269,7 +297,7 @@ def main() -> None:
             raise AssertionError(
                 f"Expected 201 {phase} depth PNGs, found {len(depth_paths)}"
             )
-        previous_release_stage_expected = None
+        previous_stage_expected = None
         for depth_path in depth_paths:
             code = depth_path.stem.removeprefix("NorthWildwoodDepth")
             stage_path = stage_dir / f"NorthWildwoodStage{code}.png"
@@ -320,7 +348,6 @@ def main() -> None:
             stage = sign * int(code[1:]) / 100.0
             baseline = valid & (activation <= stage + 1e-9)
             adjustment = vertical_penalty(stage)
-            release_progress = CREST_RELEASE_PROGRESS.get(phase)
             if phase == "draining":
                 developed_stage = (
                     stage + adjustment * DRAINING_VERTICAL_PENALTY_SCALE
@@ -328,9 +355,12 @@ def main() -> None:
                 developed_blue = (
                     activation_developed <= developed_stage + 1e-9
                 )
-            elif release_progress is None:
+            elif phase in FILLING_PENALTY_SCALES:
                 phase_adjustment = (
-                    adjustment * FILLING_PENALTY_SCALES.get(phase, 0.0)
+                    adjustment
+                    * distance_penalty_stage_scale(stage)
+                    * FILLING_PENALTY_SCALES[phase]
+                    * source_distance_factor
                 )
                 developed_stage = stage - phase_adjustment
                 developed_blue = (
@@ -338,66 +368,11 @@ def main() -> None:
                     & (ground_developed <= developed_stage + 1e-9)
                 )
             else:
-                filling_developed = (
-                    (activation_developed <= stage + 1e-9)
-                    & (ground_developed <= stage - adjustment + 1e-9)
-                )
-                slack_developed = (
+                developed_stage = stage
+                developed_blue = (
                     (activation_developed <= stage + 1e-9)
                     & (ground_developed <= stage + 1e-9)
                 )
-                undeveloped = activation_undeveloped <= stage + 1e-9
-                filling_adjusted = valid & (
-                    filling_developed | undeveloped
-                )
-                slack_adjusted = valid & (slack_developed | undeveloped)
-                filling_blue, filling_feeder = add_visible_source_feeders(
-                    filling_adjusted,
-                    baseline,
-                    source,
-                    road,
-                    ground,
-                )
-                slack_blue, slack_feeder = add_visible_source_feeders(
-                    slack_adjusted,
-                    baseline,
-                    source,
-                    road,
-                    ground,
-                )
-                required_flooded = (
-                    previous_release_stage_expected.copy()
-                    if previous_release_stage_expected is not None
-                    else np.zeros(filling_blue.shape, dtype=bool)
-                )
-                release_order = tuple(CREST_RELEASE_PROGRESS)
-                release_index = release_order.index(phase)
-                if release_index > 0:
-                    prior_phase = release_order[release_index - 1]
-                    prior_relative = PHASE_DIRECTORIES[prior_phase]
-                    prior_path = (
-                        assets
-                        / "DepthPNGs"
-                        / "North Wildwood"
-                        / prior_relative
-                        / f"NorthWildwoodDepth{code}.png"
-                    )
-                    prior_codes = np.asarray(Image.open(prior_path))
-                    required_flooded |= (
-                        (prior_codes >= 1) & (prior_codes <= 11)
-                    )
-                expected_blue, _, _ = release_penalty_area_by_lowest_front(
-                    filling_blue,
-                    slack_blue,
-                    source,
-                    ground,
-                    release_progress,
-                    priority_corridor=slack_feeder,
-                    required_flooded=required_flooded,
-                )
-                previous_release_stage_expected = expected_blue.copy()
-                feeder = (filling_feeder | slack_feeder) & expected_blue
-                adjusted_blue = expected_blue
             if phase == "draining":
                 adjusted_blue = valid & (
                     developed_blue
@@ -405,7 +380,7 @@ def main() -> None:
                 )
                 expected_blue = adjusted_blue
                 feeder = np.zeros(expected_blue.shape, dtype=bool)
-            elif release_progress is None:
+            else:
                 adjusted_blue = valid & (
                     developed_blue
                     | (activation_undeveloped <= stage + 1e-9)
@@ -417,6 +392,35 @@ def main() -> None:
                     road,
                     ground,
                 )
+                required_blue = (
+                    np.zeros(expected_blue.shape, dtype=bool)
+                    if previous_stage_expected is None
+                    else previous_stage_expected
+                )
+                predecessor = PHASE_PREDECESSOR.get(phase)
+                if predecessor is not None:
+                    predecessor_relative = PHASE_DIRECTORIES[predecessor]
+                    predecessor_path = (
+                        assets
+                        / "DepthPNGs"
+                        / "North Wildwood"
+                        / predecessor_relative
+                        / f"NorthWildwoodDepth{code}.png"
+                    )
+                    predecessor_codes = np.asarray(Image.open(predecessor_path))
+                    predecessor_blue = (
+                        (predecessor_codes >= 1) & (predecessor_codes <= 11)
+                    )
+                    required_blue = required_blue | predecessor_blue
+                preserved_feeder = required_blue & baseline & ~expected_blue
+                if np.any(preserved_feeder & ~road):
+                    raise AssertionError(
+                        f"Temporal nesting preserved off-road water in "
+                        f"{phase} {code}"
+                    )
+                expected_blue |= preserved_feeder
+                feeder |= preserved_feeder
+                previous_stage_expected = expected_blue.copy()
                 if np.any(feeder & ~road):
                     raise AssertionError(
                         f"Off-road visible feeder in {phase} {code}"
@@ -469,6 +473,8 @@ def main() -> None:
                 "roadCorridorPixels": int(np.count_nonzero(road)),
                 "maximumComponentsInAnyFrame": maximum_components,
                 "maximumBluePixelsInAnyFrame": maximum_blue_pixels,
+                "sourceDistance": source_distance_diagnostics,
+                "sourceDistanceFullPenaltyFt": SOURCE_DISTANCE_FULL_PENALTY_FT,
                 "phases": records,
             },
             indent=2,

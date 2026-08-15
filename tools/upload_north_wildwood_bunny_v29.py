@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upload and verify the North Wildwood one-hour crest-release v35 tree."""
+"""Upload and verify the North Wildwood source-distance penalty v36 tree."""
 
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ ROOT = Path(__file__).resolve().parents[1] / "assets" / "hydraulic-v29"
 ZONE = "floodmapperv1"
 STORAGE_ROOT = f"https://storage.bunnycdn.com/{ZONE}"
 CDN_ROOT = "https://floodmapperv1.b-cdn.net"
-CACHE_VERSION = "20260815-crest-release-v35"
-ATLAS_VERSION = "v35"
+CACHE_VERSION = "20260815-source-distance-v36"
+ATLAS_VERSION = "v36"
 FAMILIES = (
     "filling",
     "crest-release-44",
@@ -243,7 +243,7 @@ def main() -> None:
         "cacheVersion": CACHE_VERSION,
         "verification": verification,
     }
-    report_path = Path("/tmp/north-wildwood-bunny-v35-upload.json")
+    report_path = Path("/tmp/north-wildwood-bunny-v36-upload.json")
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({key: value for key, value in report.items() if key != "verification"}, indent=2))
 
