@@ -76,7 +76,7 @@ The flood-depth catalog extends through 20.00 ft NAVD88, covering every
 published NACCS station 11283 target in this set without a display cap.
 The complete 0.00–20.00 ft catalog uses the established Bunny filename
 convention (`NorthWildwoodDepthp0000.png` through
-`NorthWildwoodDepthp2000.png`) under versioned v35 filling, three crest-release,
+`NorthWildwoodDepthp2000.png`) under versioned v36 filling, three crest-release,
 slack, and draining directories.
 
 These are stationary screening scenarios: no future sea-level-rise increment
@@ -113,13 +113,17 @@ measurement accuracy. The model then:
    `(3.25, 0.75)`, moderate `(4.25, 0.25)`, and major `(5.25, 0.00)` NAVD88
    stage/penalty anchors. Connectivity is always evaluated at the full gauge
    stage; on filling frames the negative offset is applied only to local
-   developed ground. This prevents one penalized route crest from suppressing
-   an entire lower connected basin. During the final hour before a confirmed
-   local crest, a transferable nearest-front rule releases 44%, 75%, and 94%
-   of the penalty-held connected area, followed by 100% at slack/high tide.
-   Shared-side travel distance from existing water controls the front; road
-   corridor and lower ground break ties. This spreads a flat connected basin across the approaching high tide
-   instead of exposing it in one frame. Terrain below the selected stage
+   developed ground. Its magnitude increases linearly with cumulative
+   four-neighbour travel from the immutable qualified source-block cells,
+   reaching the full polynomial value at 1,500 ft. Feeder cells, previously
+   flooded streets, and penalty areas never become new distance origins, so
+   the complete road-feeder route remains part of the distance. The distance
+   multiplier is fully active through minor flooding, tapers smoothly over the
+   first 0.5 ft of moderate flooding, and is zero at and above 4.75 ft NAVD88.
+   During the final hour before a confirmed local crest, 44%, 75%, and 94% of
+   this fixed distance-based depth reduction wears off, followed by 100% at
+   slack/high tide. This creates a graduated source-to-neighborhood depth field
+   without measuring from the advancing water edge. Terrain below the selected stage
    that has no qualified source connection is also green in every phase. On
    draining frames one quarter of that offset is positive, retaining already
    routed water to represent a shorter recession lag without adding inflow.
@@ -132,8 +136,8 @@ measurement accuracy. The model then:
 The solve produces 201 stages from 0.0–20.0 ft NAVD88 at 0.1-foot intervals for
 `filling`, `crest-release-44`, `crest-release-75`,
 `crest-release-94`, `slack`, and `draining`. The three release families
-advance the nearest connected front through 44%, 75%, and 94% of the
-penalty-held area, using lower ground as the tie-breaker. Hourly and 15-minute
+remove 44%, 75%, and 94% of the depth loss while keeping the original-source
+distance raster unchanged. Hourly and 15-minute
 updates floor the selected level to the same stage catalog. Crest release is based on
 elapsed time, not array position, so shared hourly and quarter-hour timestamps
 select the same hydraulic state. Interpolated 15-minute rows derive phase from

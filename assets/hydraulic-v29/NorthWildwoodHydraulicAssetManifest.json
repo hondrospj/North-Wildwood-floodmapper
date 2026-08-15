@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-conditional-connectivity-assets-v1",
-  "generatedUtc": "2026-08-15T20:05:28Z",
+  "generatedUtc": "2026-08-15T21:32:25Z",
   "modelKind": "phase-aware developed-land conditional connectivity",
   "phaseInvariant": false,
   "verticalPenalty": {
@@ -25,20 +25,28 @@
     "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
     "belowMinorTreatment": "clamped to 0.75 ft",
     "aboveMajorTreatment": "clamped to 0.00 ft",
+    "distancePenaltyEndNavd88Ft": 4.75,
+    "sourceDistanceFullPenaltyFt": 1500.0,
+    "sourceDistance": {
+      "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
+      "method": "four-neighbour geodesic travel over the connected domain",
+      "response": "linear from zero at source to full penalty at 1500 ft"
+    },
+    "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
     "drainingScale": 0.25,
     "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
     "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
     "crestRelease": {
       "durationMinutes": 60,
-      "quarterHourReleasedAreaFractions": [
+      "quarterHourPenaltyWearOffFractions": [
         0.0,
         0.4375,
         0.75,
         0.9375,
         1.0
       ],
-      "description": "the penalty-held connected area advances from existing water as an ease-out spatial front over the four 15-minute steps before a confirmed local crest",
-      "ordering": "geodesic nearest connected front, then road corridor and lowest ground"
+      "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
+      "distanceInvariant": true
     },
     "slack": "zero offset after the one-hour high-tide release",
     "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
@@ -95,7 +103,7 @@
     "phases": {
       "filling": {
         "stageCount": 201,
-        "pngBytes": 30922732,
+        "pngBytes": 31018151,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -120,20 +128,28 @@
           "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
           "belowMinorTreatment": "clamped to 0.75 ft",
           "aboveMajorTreatment": "clamped to 0.00 ft",
+          "distancePenaltyEndNavd88Ft": 4.75,
+          "sourceDistanceFullPenaltyFt": 1500.0,
+          "sourceDistance": {
+            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
+            "method": "four-neighbour geodesic travel over the connected domain",
+            "response": "linear from zero at source to full penalty at 1500 ft"
+          },
+          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
           "drainingScale": 0.25,
           "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
           "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
           "crestRelease": {
             "durationMinutes": 60,
-            "quarterHourReleasedAreaFractions": [
+            "quarterHourPenaltyWearOffFractions": [
               0.0,
               0.4375,
               0.75,
               0.9375,
               1.0
             ],
-            "description": "the penalty-held connected area advances from existing water as an ease-out spatial front over the four 15-minute steps before a confirmed local crest",
-            "ordering": "geodesic nearest connected front, then road corridor and lowest ground"
+            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
+            "distanceInvariant": true
           },
           "slack": "zero offset after the one-hour high-tide release",
           "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
@@ -144,13 +160,25 @@
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 953915,
+        "developedUncertaintyPixelInstances": 899281,
         "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 23794,
-        "detachedComponentsJoinedByFeeders": 883,
-        "detachedComponentsRoadUnreachable": 1672,
-        "maximumVisibleFeederLengthPixels": 2083,
-        "maximumVisibleFeederRouteCrestFt": 5.199999809265137,
+        "visibleFeederPixelInstances": 22832,
+        "detachedComponentsJoinedByFeeders": 836,
+        "detachedComponentsRoadUnreachable": 2145,
+        "maximumVisibleFeederLengthPixels": 4294,
+        "maximumVisibleFeederRouteCrestFt": 11.800000190734863,
+        "crestReleasePenaltyWearOffFraction": null,
+        "sourceDistance": {
+          "method": "four-neighbour geodesic distance from immutable qualified source blocks",
+          "sourcePixels": 739398,
+          "traversablePixels": 1232439,
+          "reachablePixels": 1232439,
+          "unreachableTraversablePixels": 0,
+          "cellSizeFt": 5.0,
+          "maximumDistanceFt": 4235.0
+        },
+        "sourceDistanceFullPenaltyFt": 1500.0,
+        "distancePenaltyEndNavd88Ft": 4.75,
         "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
         "visibleFeederWidthFt": 15,
         "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
@@ -194,20 +222,28 @@
           "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
           "belowMinorTreatment": "clamped to 0.75 ft",
           "aboveMajorTreatment": "clamped to 0.00 ft",
+          "distancePenaltyEndNavd88Ft": 4.75,
+          "sourceDistanceFullPenaltyFt": 1500.0,
+          "sourceDistance": {
+            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
+            "method": "four-neighbour geodesic travel over the connected domain",
+            "response": "linear from zero at source to full penalty at 1500 ft"
+          },
+          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
           "drainingScale": 0.25,
           "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
           "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
           "crestRelease": {
             "durationMinutes": 60,
-            "quarterHourReleasedAreaFractions": [
+            "quarterHourPenaltyWearOffFractions": [
               0.0,
               0.4375,
               0.75,
               0.9375,
               1.0
             ],
-            "description": "the penalty-held connected area advances from existing water as an ease-out spatial front over the four 15-minute steps before a confirmed local crest",
-            "ordering": "geodesic nearest connected front, then road corridor and lowest ground"
+            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
+            "distanceInvariant": true
           },
           "slack": "zero offset after the one-hour high-tide release",
           "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
@@ -241,20 +277,28 @@
           "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
           "belowMinorTreatment": "clamped to 0.75 ft",
           "aboveMajorTreatment": "clamped to 0.00 ft",
+          "distancePenaltyEndNavd88Ft": 4.75,
+          "sourceDistanceFullPenaltyFt": 1500.0,
+          "sourceDistance": {
+            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
+            "method": "four-neighbour geodesic travel over the connected domain",
+            "response": "linear from zero at source to full penalty at 1500 ft"
+          },
+          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
           "drainingScale": 0.25,
           "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
           "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
           "crestRelease": {
             "durationMinutes": 60,
-            "quarterHourReleasedAreaFractions": [
+            "quarterHourPenaltyWearOffFractions": [
               0.0,
               0.4375,
               0.75,
               0.9375,
               1.0
             ],
-            "description": "the penalty-held connected area advances from existing water as an ease-out spatial front over the four 15-minute steps before a confirmed local crest",
-            "ordering": "geodesic nearest connected front, then road corridor and lowest ground"
+            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
+            "distanceInvariant": true
           },
           "slack": "zero offset after the one-hour high-tide release",
           "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
@@ -278,7 +322,7 @@
       },
       "crest-release-44": {
         "stageCount": 201,
-        "pngBytes": 30822381,
+        "pngBytes": 31022300,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -303,20 +347,28 @@
           "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
           "belowMinorTreatment": "clamped to 0.75 ft",
           "aboveMajorTreatment": "clamped to 0.00 ft",
+          "distancePenaltyEndNavd88Ft": 4.75,
+          "sourceDistanceFullPenaltyFt": 1500.0,
+          "sourceDistance": {
+            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
+            "method": "four-neighbour geodesic travel over the connected domain",
+            "response": "linear from zero at source to full penalty at 1500 ft"
+          },
+          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
           "drainingScale": 0.25,
           "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
           "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
           "crestRelease": {
             "durationMinutes": 60,
-            "quarterHourReleasedAreaFractions": [
+            "quarterHourPenaltyWearOffFractions": [
               0.0,
               0.4375,
               0.75,
               0.9375,
               1.0
             ],
-            "description": "the penalty-held connected area advances from existing water as an ease-out spatial front over the four 15-minute steps before a confirmed local crest",
-            "ordering": "geodesic nearest connected front, then road corridor and lowest ground"
+            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
+            "distanceInvariant": true
           },
           "slack": "zero offset after the one-hour high-tide release",
           "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
@@ -327,24 +379,32 @@
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 536577,
+        "developedUncertaintyPixelInstances": 783740,
         "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 23794,
-        "detachedComponentsJoinedByFeeders": 0,
-        "detachedComponentsRoadUnreachable": 0,
-        "maximumVisibleFeederLengthPixels": 0,
-        "maximumVisibleFeederRouteCrestFt": 0.0,
-        "crestReleaseAreaFraction": 0.4375,
-        "crestReleaseCandidatePixelInstances": 953915,
-        "crestReleaseTargetPixelInstances": 417338,
-        "crestReleaseActualPixelInstances": 417338,
+        "visibleFeederPixelInstances": 17597,
+        "detachedComponentsJoinedByFeeders": 685,
+        "detachedComponentsRoadUnreachable": 2190,
+        "maximumVisibleFeederLengthPixels": 4294,
+        "maximumVisibleFeederRouteCrestFt": 11.800000190734863,
+        "crestReleasePenaltyWearOffFraction": 0.4375,
+        "sourceDistance": {
+          "method": "four-neighbour geodesic distance from immutable qualified source blocks",
+          "sourcePixels": 739398,
+          "traversablePixels": 1232439,
+          "reachablePixels": 1232439,
+          "unreachableTraversablePixels": 0,
+          "cellSizeFt": 5.0,
+          "maximumDistanceFt": 4235.0
+        },
+        "sourceDistanceFullPenaltyFt": 1500.0,
+        "distancePenaltyEndNavd88Ft": 4.75,
         "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
         "visibleFeederWidthFt": 15,
         "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
       },
       "crest-release-75": {
         "stageCount": 201,
-        "pngBytes": 30730004,
+        "pngBytes": 31013487,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -369,20 +429,28 @@
           "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
           "belowMinorTreatment": "clamped to 0.75 ft",
           "aboveMajorTreatment": "clamped to 0.00 ft",
+          "distancePenaltyEndNavd88Ft": 4.75,
+          "sourceDistanceFullPenaltyFt": 1500.0,
+          "sourceDistance": {
+            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
+            "method": "four-neighbour geodesic travel over the connected domain",
+            "response": "linear from zero at source to full penalty at 1500 ft"
+          },
+          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
           "drainingScale": 0.25,
           "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
           "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
           "crestRelease": {
             "durationMinutes": 60,
-            "quarterHourReleasedAreaFractions": [
+            "quarterHourPenaltyWearOffFractions": [
               0.0,
               0.4375,
               0.75,
               0.9375,
               1.0
             ],
-            "description": "the penalty-held connected area advances from existing water as an ease-out spatial front over the four 15-minute steps before a confirmed local crest",
-            "ordering": "geodesic nearest connected front, then road corridor and lowest ground"
+            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
+            "distanceInvariant": true
           },
           "slack": "zero offset after the one-hour high-tide release",
           "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
@@ -393,24 +461,32 @@
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 238481,
+        "developedUncertaintyPixelInstances": 711620,
         "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 23794,
-        "detachedComponentsJoinedByFeeders": 0,
-        "detachedComponentsRoadUnreachable": 0,
-        "maximumVisibleFeederLengthPixels": 0,
-        "maximumVisibleFeederRouteCrestFt": 0.0,
-        "crestReleaseAreaFraction": 0.75,
-        "crestReleaseCandidatePixelInstances": 953915,
-        "crestReleaseTargetPixelInstances": 715434,
-        "crestReleaseActualPixelInstances": 715434,
+        "visibleFeederPixelInstances": 11773,
+        "detachedComponentsJoinedByFeeders": 486,
+        "detachedComponentsRoadUnreachable": 2181,
+        "maximumVisibleFeederLengthPixels": 4294,
+        "maximumVisibleFeederRouteCrestFt": 11.800000190734863,
+        "crestReleasePenaltyWearOffFraction": 0.75,
+        "sourceDistance": {
+          "method": "four-neighbour geodesic distance from immutable qualified source blocks",
+          "sourcePixels": 739398,
+          "traversablePixels": 1232439,
+          "reachablePixels": 1232439,
+          "unreachableTraversablePixels": 0,
+          "cellSizeFt": 5.0,
+          "maximumDistanceFt": 4235.0
+        },
+        "sourceDistanceFullPenaltyFt": 1500.0,
+        "distancePenaltyEndNavd88Ft": 4.75,
         "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
         "visibleFeederWidthFt": 15,
         "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
       },
       "crest-release-94": {
         "stageCount": 201,
-        "pngBytes": 30667744,
+        "pngBytes": 31005882,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -435,20 +511,28 @@
           "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
           "belowMinorTreatment": "clamped to 0.75 ft",
           "aboveMajorTreatment": "clamped to 0.00 ft",
+          "distancePenaltyEndNavd88Ft": 4.75,
+          "sourceDistanceFullPenaltyFt": 1500.0,
+          "sourceDistance": {
+            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
+            "method": "four-neighbour geodesic travel over the connected domain",
+            "response": "linear from zero at source to full penalty at 1500 ft"
+          },
+          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
           "drainingScale": 0.25,
           "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
           "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
           "crestRelease": {
             "durationMinutes": 60,
-            "quarterHourReleasedAreaFractions": [
+            "quarterHourPenaltyWearOffFractions": [
               0.0,
               0.4375,
               0.75,
               0.9375,
               1.0
             ],
-            "description": "the penalty-held connected area advances from existing water as an ease-out spatial front over the four 15-minute steps before a confirmed local crest",
-            "ordering": "geodesic nearest connected front, then road corridor and lowest ground"
+            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
+            "distanceInvariant": true
           },
           "slack": "zero offset after the one-hour high-tide release",
           "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
@@ -459,17 +543,25 @@
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 59617,
+        "developedUncertaintyPixelInstances": 705520,
         "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 23794,
-        "detachedComponentsJoinedByFeeders": 0,
-        "detachedComponentsRoadUnreachable": 0,
-        "maximumVisibleFeederLengthPixels": 0,
-        "maximumVisibleFeederRouteCrestFt": 0.0,
-        "crestReleaseAreaFraction": 0.9375,
-        "crestReleaseCandidatePixelInstances": 953915,
-        "crestReleaseTargetPixelInstances": 894298,
-        "crestReleaseActualPixelInstances": 894298,
+        "visibleFeederPixelInstances": 11006,
+        "detachedComponentsJoinedByFeeders": 461,
+        "detachedComponentsRoadUnreachable": 2154,
+        "maximumVisibleFeederLengthPixels": 4294,
+        "maximumVisibleFeederRouteCrestFt": 11.800000190734863,
+        "crestReleasePenaltyWearOffFraction": 0.9375,
+        "sourceDistance": {
+          "method": "four-neighbour geodesic distance from immutable qualified source blocks",
+          "sourcePixels": 739398,
+          "traversablePixels": 1232439,
+          "reachablePixels": 1232439,
+          "unreachableTraversablePixels": 0,
+          "cellSizeFt": 5.0,
+          "maximumDistanceFt": 4235.0
+        },
+        "sourceDistanceFullPenaltyFt": 1500.0,
+        "distancePenaltyEndNavd88Ft": 4.75,
         "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
         "visibleFeederWidthFt": 15,
         "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
@@ -1533,20 +1625,28 @@
       "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
       "belowMinorTreatment": "clamped to 0.75 ft",
       "aboveMajorTreatment": "clamped to 0.00 ft",
+      "distancePenaltyEndNavd88Ft": 4.75,
+      "sourceDistanceFullPenaltyFt": 1500.0,
+      "sourceDistance": {
+        "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
+        "method": "four-neighbour geodesic travel over the connected domain",
+        "response": "linear from zero at source to full penalty at 1500 ft"
+      },
+      "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
       "drainingScale": 0.25,
       "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
       "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
       "crestRelease": {
         "durationMinutes": 60,
-        "quarterHourReleasedAreaFractions": [
+        "quarterHourPenaltyWearOffFractions": [
           0.0,
           0.4375,
           0.75,
           0.9375,
           1.0
         ],
-        "description": "the penalty-held connected area advances from existing water as an ease-out spatial front over the four 15-minute steps before a confirmed local crest",
-        "ordering": "geodesic nearest connected front, then road corridor and lowest ground"
+        "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
+        "distanceInvariant": true
       },
       "slack": "zero offset after the one-hour high-tide release",
       "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
@@ -1569,13 +1669,18 @@
   },
   "developedQueryPng": "COGs/North Wildwood/NorthWildwoodDevelopedMask5ft.png",
   "developedQuery": {
-    "schema": "north-wildwood-developed-query-v1",
+    "schema": "north-wildwood-developed-source-distance-query-v2",
     "width": 2186,
     "height": 2824,
     "renderCellSizeFt": 5,
     "classification": "developed when at least 13 of 25 one-foot cells are NJDEP TYPE15 URBAN",
+    "channels": {
+      "redGreen": "four-neighbour geodesic distance in whole feet from immutable qualified source-block cells; unsigned big-endian; 65535 is unreachable",
+      "blue": "255 developed; 0 undeveloped",
+      "alpha": "255"
+    },
     "developedPixels": 1948272,
-    "bytes": 22514
+    "bytes": 195794
   },
   "hydraulicStates": "COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png"
 }
