@@ -1,16 +1,42 @@
 {
   "parcelCount": 6747,
   "skippedParcelCount": 0,
-  "highTidePeakCount": 12857,
+  "highTidePeakCount": 12896,
   "independentTidesPerYear": 705.0,
   "historicStartDate": "2007-10-01",
-  "historicEndDate": "2026-07-26",
-  "cdfBytes": 1001773,
-  "parcelGeoJsonBytes": 5426763,
+  "historicEndDate": "2026-08-15",
+  "cdfBytes": 1328449,
+  "parcelGeoJsonBytes": 7491627,
   "parcelBoundaryPngBytes": 799006,
   "floodDefinition": {
     "comparison": "strictlyGreaterThan",
     "minimumDepthFt": 0.1,
     "elevationRule": "highest original five-foot DEM cell whose center intersects the parcel"
+  },
+  "nsi2026": {
+    "inputRecordCount": 5150,
+    "municipalRecordCount": 3937,
+    "uniqueFootprintCount": 3843,
+    "modeledStructureCount": 3843,
+    "collapsedStackedRecordCount": 94,
+    "skippedNoFoundationHeightCount": 0,
+    "skippedNoLocalDemCount": 0,
+    "modeledFirstFloorRangeNavd88Ft": [
+      1.16,
+      18.6
+    ],
+    "foundationTypeCounts": {
+      "B": 157,
+      "C": 1193,
+      "I": 1551,
+      "P": 310,
+      "S": 514,
+      "W": 118
+    },
+    "matchedParcelCount": 3699,
+    "matchedResidentialParcelCount": 3561,
+    "unmatchedStructureCount": 0,
+    "structureGeoJsonBytes": 2746111,
+    "generatedUtc": "2026-08-16T20:52:33Z"
   }
 }

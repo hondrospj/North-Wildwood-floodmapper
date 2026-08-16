@@ -42,9 +42,6 @@ const context = vm.createContext({
   MINOR_VERTICAL_PENALTY_FT: 0.75,
   MODERATE_VERTICAL_PENALTY_FT: 0.25,
   MAJOR_VERTICAL_PENALTY_FT: 0,
-  DRAINING_VERTICAL_PENALTY_SCALE: 0.25,
-  DISTANCE_PENALTY_END_NAVD88_FT: 4.75,
-  SOURCE_DISTANCE_FULL_PENALTY_FT: 1500,
 });
 for (const name of (
   [
@@ -54,8 +51,7 @@ for (const name of (
     "normalizeHydraulicPhase",
     "getHydraulicStatePhase",
     "getVerticalBathtubPenalty",
-    "getDistancePenaltyStageScale",
-    "getSourceDistancePenaltyFactor",
+    "getPenaltyRemainingFraction",
     "getPenalizedConnectedDepth",
     "getDepthQueryDisplayDepth",
     "formatDepthQueryValue",
@@ -81,14 +77,13 @@ assert.equal(context.stageToCode(context.getOverlayStage(3.94)), "p0390");
 assert.equal(context.stageToCode(context.getOverlayStage(3.95)), "p0390");
 assert.match(SOURCE, /const STAGE_STEP = 0\.1;/);
 assert.equal(context.getVerticalBathtubPenalty(3.25), 0.75);
+assert.equal(context.getVerticalBathtubPenalty(3.24), 0);
 assert.equal(context.getVerticalBathtubPenalty(4.25), 0.25);
 assert.equal(context.getVerticalBathtubPenalty(5.25), 0);
-assert.equal(context.getDistancePenaltyStageScale(4.25), 1);
-assert.equal(context.getDistancePenaltyStageScale(4.5), 0.5);
-assert.equal(context.getDistancePenaltyStageScale(4.75), 0);
-assert.equal(context.getSourceDistancePenaltyFactor(0), 0);
-assert.equal(context.getSourceDistancePenaltyFactor(750), 0.5);
-assert.equal(context.getSourceDistancePenaltyFactor(1500), 1);
+assert.equal(context.getPenaltyRemainingFraction(3.75, "draining-release-15"), 2 / 3);
+assert.equal(context.getPenaltyRemainingFraction(3.75, "draining-release-30"), 1 / 3);
+assert.equal(context.getPenaltyRemainingFraction(4.75, "draining-release-15"), 1 / 2);
+assert.equal(context.getPenaltyRemainingFraction(4.75, "draining-release-30"), 0);
 assert.equal(context.formatDepthQueryValue(0.1), "0.0-0.1ft");
 assert.equal(context.formatDepthQueryValue(0.10001), "0.10 ft");
 
@@ -157,39 +152,39 @@ assert.equal(
 );
 assert.equal(
   context.getPenalizedConnectedDepth(4.25, 4.0, true, "slack").depth,
+  0,
+  "The penalty must remain in force at slack/high tide"
+);
+assert.equal(
+  context.getPenalizedConnectedDepth(4.25, 4.0, true, "draining-release-15").depth,
   0.25,
-  "The penalty must wear off at slack/high tide"
+  "Admitted post-crest water must equal the outside/source stage"
 );
 assert.equal(
-  context.getPenalizedConnectedDepth(4.25, 4.0, true, "crest-release-44").depth,
-  0.109375,
-  "The first crest-release family must expose 44% of the penalty-held area"
+  context.getPenaltyRemainingFraction(4.25, "draining-release-15"),
+  0.5,
+  "Moderate flooding must retain half its admission penalty after 15 minutes"
 );
 assert.equal(
-  context.getPenalizedConnectedDepth(4.25, 4.0, true, "crest-release-75").depth,
-  0.1875,
-  "The second crest-release family must expose 75% of the penalty-held area"
+  context.getPenaltyRemainingFraction(4.25, "draining-release-30"),
+  0,
+  "Moderate flooding must fill normally after 30 minutes"
 );
-assert.equal(
-  context.getPenalizedConnectedDepth(4.25, 4.0, true, "crest-release-94").depth,
-  0.234375,
-  "The final crest-release family must expose 94% of the penalty-held area"
-);
-assert.equal(context.getHydraulicStatePhase("crest-release-75"), "filling");
+assert.equal(context.getHydraulicStatePhase("draining-release-15"), "draining");
 assert.equal(
   context.getPenalizedConnectedDepth(4.25, 4.0, true, "draining").depth,
-  0.3125,
-  "The positive drainage adjustment must retain developed water"
+  0.25,
+  "Normal drainage must use the outside/source water stage"
 );
 assert.equal(
   context.getPenalizedConnectedDepth(4.25, 4.0, true, "filling", 0).depth,
-  0.25,
-  "Only the original source block may have zero travel-distance loss"
+  0,
+  "The site-specific filling penalty must not vary with source distance"
 );
 assert.equal(
-  context.getPenalizedConnectedDepth(4.75, 4.5, true, "filling", 1500).depth,
+  context.getPenalizedConnectedDepth(5.25, 5.0, true, "filling").depth,
   0.25,
-  "The distance loss must be gone 0.5 ft into moderate flooding"
+  "Normal filling must resume at major stage"
 );
 
 const phaseTransitionRows = [
@@ -200,9 +195,14 @@ const phaseTransitionRows = [
   { stage: 3.90, timelineIntervalMinutes: 15, hydraulicPhase: "slack" },
   { stage: 3.88, timelineIntervalMinutes: 15, hydraulicPhase: "slack" },
   { stage: 3.77, timelineIntervalMinutes: 15, hydraulicPhase: "draining" },
+  { stage: 3.65, timelineIntervalMinutes: 15, hydraulicPhase: "draining" },
 ];
 const phaseContext = vm.createContext({
   Number,
+  Math,
+  MINOR_FLOOD_FT: 3.25,
+  MODERATE_FLOOD_FT: 4.25,
+  MAJOR_FLOOD_FT: 5.25,
   currentSeriesHours: phaseTransitionRows,
   normalizeHydraulicPhase: context.normalizeHydraulicPhase,
   getStageValue: entry => entry?.stage,
@@ -215,19 +215,19 @@ vm.runInContext(
 assert.equal(
   phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[0], 0, phaseTransitionRows),
   "filling",
-  "The filling penalty must remain full one hour before the crest"
+  "The filling penalty must remain full before the crest"
 );
 assert.equal(
   phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[1], 1, phaseTransitionRows),
-  "crest-release-44"
+  "filling"
 );
 assert.equal(
   phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[2], 2, phaseTransitionRows),
-  "crest-release-75"
+  "filling"
 );
 assert.equal(
   phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[3], 3, phaseTransitionRows),
-  "crest-release-94"
+  "slack"
 );
 assert.equal(
   phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[4], 4, phaseTransitionRows),
@@ -236,8 +236,18 @@ assert.equal(
 );
 assert.equal(
   phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[5], 5, phaseTransitionRows),
+  "draining-release-15",
+  "A minor crest must retain two-thirds of its penalty after 15 minutes"
+);
+assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[6], 6, phaseTransitionRows),
+  "draining-release-30",
+  "A minor crest must retain one-third of its penalty after 30 minutes"
+);
+assert.equal(
+  phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[7], 7, phaseTransitionRows),
   "draining",
-  "The first confirmed lower frame must begin drainage without a slack flash"
+  "A minor crest must fill normally after 45 minutes"
 );
 
 const hourlyPhaseRows = [
@@ -298,13 +308,13 @@ assert.match(extractFunction("getOverlayCandidates"), /const orderedRoots = \[\.
 assert.doesNotMatch(extractFunction("getOverlayCandidates"), /\.sort\(/);
 assert.ok(
   SOURCE.indexOf('"./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/"') <
-    SOURCE.indexOf('"https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v36/"'),
-  "The complete bundled catalog must precede the unavailable Bunny v36 catalog",
+    SOURCE.indexOf('"https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"'),
+  "The complete bundled catalog must precede the matching Bunny v37 catalog",
 );
-assert.match(SOURCE, /20260815-source-distance-v36/);
+assert.match(SOURCE, /20260816-drainage-v37/);
 assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
 assert.match(SOURCE, /"phaseInvariant": false/);
-assert.match(SOURCE, /\/v36\//);
+assert.match(SOURCE, /\/v37\//);
 assert.match(extractFunction("getDepthQueryDisplayDepth"), /connectionStageLimit/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /TOP_TIDE_DISPLAY_COUNT/);
 assert.match(extractFunction("scheduleHistoricalTopTideWarmup"), /ensureObservedArchiveForDate/);
@@ -446,7 +456,17 @@ assert.match(SOURCE, /function styleEsriBuildingForeground\(/);
 assert.match(SOURCE, /makeEsriBuildingForegroundLayer\("buildingsPane"\)/);
 assert.doesNotMatch(SOURCE, /Buildings are above the water/);
 assert.doesNotMatch(SOURCE, /recorded high-tide floods?/);
-assert.match(SOURCE, /<span>floods<\/span>/);
+assert.match(SOURCE, /modeled floor exceedances/);
+assert.match(SOURCE, /id="nsiStructuresToggle"/);
+assert.match(SOURCE, /north-wildwood-nsi-2026-first-floor-v1/);
+assert.match(SOURCE, /function getNsiStructureImpactStyle\(/);
+assert.match(SOURCE, /function buildNsiStructurePopup\(/);
+assert.match(SOURCE, /function findNsiStructureFeatureForLocation\(/);
+assert.match(SOURCE, /getPane\("structuresPane"\)\.style\.zIndex = 625/);
+assert.match(SOURCE, /L\.canvas\(\{ pane: "structuresPane"/);
+assert.match(extractFunction("findProjectionElevationIndex"), /nsi2026ModelElevationIndex/);
+assert.match(extractFunction("renderHour"), /updateNsiStructureImpactLayer\(\)/);
+assert.match(extractFunction("openPersistentFloodPopup"), /desktopRightRailWidth \+ 30/);
 assert.match(SOURCE, /getPane\("buildingsPane"\)\.style\.zIndex = 620/);
 assert.match(SOURCE, /getPane\("popupPane"\)\.style\.zIndex = 800/);
 assert.match(SOURCE, /autoClose: false/);

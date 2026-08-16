@@ -132,6 +132,7 @@ def connect_penalty_basins_by_lowest_road_route(
     qualified_source: np.ndarray,
     public_road_corridor: np.ndarray,
     ground_elevation: np.ndarray,
+    penalized_uncertainty: np.ndarray | None = None,
     feeder_half_width_cells: int = 1,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, int | float | str]]:
     """Connect penalty-separated basins by their lowest eligible road route.
@@ -142,10 +143,12 @@ def connect_penalty_basins_by_lowest_road_route(
     minimizes path length among equal-crest alternatives. This is a physical
     lowest-route criterion, not an unconstrained geometric shortcut.
 
-    Only road pixels inside ``baseline_flooded`` may be painted. A detached
-    basin without such a source-to-road-to-basin route is removed from visible
-    blue and remains penalty-held uncertainty. The default half-width of one
-    display cell produces a feeder up to three display cells wide.
+    Only road pixels inside the explicitly supplied penalty-held uncertainty
+    mask may be painted. This prevents the visualization from converting a
+    disconnected marsh/beach cell into water. A detached basin without such a
+    source-to-road-to-basin route is removed from visible blue and remains
+    penalty-held uncertainty. The default half-width of one display cell
+    produces a feeder up to three display cells wide.
     """
     _require_aligned(
         adjusted_flooded,
@@ -162,6 +165,16 @@ def connect_penalty_basins_by_lowest_road_route(
     source = np.asarray(qualified_source, dtype=bool)
     roads = np.asarray(public_road_corridor, dtype=bool)
     ground = np.asarray(ground_elevation, dtype=np.float32)
+    paintable = (
+        baseline & ~adjusted
+        if penalized_uncertainty is None
+        else np.asarray(penalized_uncertainty, dtype=bool)
+    )
+    _require_aligned(adjusted, paintable)
+    if np.any(paintable & (~baseline | adjusted)):
+        raise ValueError(
+            "Penalty-held feeder mask must be inside baseline and outside adjusted water"
+        )
     empty = np.zeros(adjusted.shape, dtype=bool)
 
     labels, component_count = ndimage_label(
@@ -317,7 +330,7 @@ def connect_penalty_basins_by_lowest_road_route(
             widened_paths,
             structure=FOUR_NEIGHBOUR_STRUCTURE,
         )
-    feeder = widened_paths & roads & baseline & ~adjusted
+    feeder = widened_paths & roads & paintable
     if np.any(feeder & ~roads):
         raise RuntimeError("A lowest-route feeder escaped the public-road corridor")
 

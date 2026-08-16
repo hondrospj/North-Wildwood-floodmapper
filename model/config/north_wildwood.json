@@ -27,6 +27,8 @@
   },
   "terrain": {
     "localDem": "model/data/local/NorthWildwoodDEM_Bulkhead21Cell_1ft_NAVD88.tif",
+    "nsi2026Structures": "assets/nsi-2026/NorthWildwoodNSI2026Structures.geojson",
+    "nsi2026TerrainTreatment": "not burned; structure-impact thresholds only",
     "localBulkheadMask": "model/data/local/NorthWildwoodBulkheads.tif",
     "localDemCrs": "EPSG:6527",
     "localDemHorizontalUnits": "US survey feet",

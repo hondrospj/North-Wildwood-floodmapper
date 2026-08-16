@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upload and verify the North Wildwood source-distance penalty v36 tree."""
+"""Upload and verify the North Wildwood bare-earth drainage v37 tree."""
 
 from __future__ import annotations
 
@@ -21,14 +21,13 @@ ROOT = Path(__file__).resolve().parents[1] / "assets" / "hydraulic-v29"
 ZONE = "floodmapperv1"
 STORAGE_ROOT = f"https://storage.bunnycdn.com/{ZONE}"
 CDN_ROOT = "https://floodmapperv1.b-cdn.net"
-CACHE_VERSION = "20260815-source-distance-v36"
-ATLAS_VERSION = "v36"
+CACHE_VERSION = "20260816-drainage-v37"
+ATLAS_VERSION = "v37"
 FAMILIES = (
     "filling",
-    "crest-release-44",
-    "crest-release-75",
-    "crest-release-94",
     "",
+    "draining-release-15",
+    "draining-release-30",
     "draining",
 )
 
@@ -45,11 +44,20 @@ def upload_records() -> list[tuple[Path, str]]:
     records: list[tuple[Path, str]] = []
     for overlay in ("DepthPNGs", "StagePNGs"):
         directory = ROOT / overlay / "North Wildwood"
-        for path in sorted(directory.rglob("*.png")):
-            relative = path.relative_to(directory).as_posix()
-            records.append(
-                (path, f"{overlay}/North Wildwood/{ATLAS_VERSION}/{relative}")
-            )
+        prefix = "NorthWildwoodDepth" if overlay == "DepthPNGs" else "NorthWildwoodStage"
+        for family in FAMILIES:
+            family_directory = directory / family
+            relative_directory = f"{family}/" if family else ""
+            for stage_tenths in range(201):
+                code = f"p{stage_tenths * 10:04d}"
+                name = f"{prefix}{code}.png"
+                records.append(
+                    (
+                        family_directory / name,
+                        f"{overlay}/North Wildwood/{ATLAS_VERSION}/"
+                        f"{relative_directory}{name}",
+                    )
+                )
 
     cog_directory = ROOT / "COGs" / "North Wildwood"
     for name in (
@@ -69,8 +77,11 @@ def upload_records() -> list[tuple[Path, str]]:
     missing = [str(path) for path, _ in records if not path.is_file()]
     if missing:
         raise FileNotFoundError("Missing Bunny assets:\n" + "\n".join(missing))
-    if len(records) != 2_416:
-        raise RuntimeError(f"Expected 2,416 Bunny assets, found {len(records):,}")
+    expected_count = 2 * len(FAMILIES) * 201 + 4
+    if len(records) != expected_count:
+        raise RuntimeError(
+            f"Expected {expected_count:,} Bunny assets, found {len(records):,}"
+        )
     return records
 
 
@@ -243,7 +254,7 @@ def main() -> None:
         "cacheVersion": CACHE_VERSION,
         "verification": verification,
     }
-    report_path = Path("/tmp/north-wildwood-bunny-v36-upload.json")
+    report_path = Path("/tmp/north-wildwood-bunny-v37-upload.json")
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({key: value for key, value in report.items() if key != "verification"}, indent=2))
 
