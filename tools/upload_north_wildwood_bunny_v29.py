@@ -44,11 +44,20 @@ def upload_records() -> list[tuple[Path, str]]:
     records: list[tuple[Path, str]] = []
     for overlay in ("DepthPNGs", "StagePNGs"):
         directory = ROOT / overlay / "North Wildwood"
-        for path in sorted(directory.rglob("*.png")):
-            relative = path.relative_to(directory).as_posix()
-            records.append(
-                (path, f"{overlay}/North Wildwood/{ATLAS_VERSION}/{relative}")
-            )
+        prefix = "NorthWildwoodDepth" if overlay == "DepthPNGs" else "NorthWildwoodStage"
+        for family in FAMILIES:
+            family_directory = directory / family
+            relative_directory = f"{family}/" if family else ""
+            for stage_tenths in range(201):
+                code = f"p{stage_tenths * 10:04d}"
+                name = f"{prefix}{code}.png"
+                records.append(
+                    (
+                        family_directory / name,
+                        f"{overlay}/North Wildwood/{ATLAS_VERSION}/"
+                        f"{relative_directory}{name}",
+                    )
+                )
 
     cog_directory = ROOT / "COGs" / "North Wildwood"
     for name in (
@@ -68,8 +77,11 @@ def upload_records() -> list[tuple[Path, str]]:
     missing = [str(path) for path, _ in records if not path.is_file()]
     if missing:
         raise FileNotFoundError("Missing Bunny assets:\n" + "\n".join(missing))
-    if len(records) != 2_416:
-        raise RuntimeError(f"Expected 2,416 Bunny assets, found {len(records):,}")
+    expected_count = 2 * len(FAMILIES) * 201 + 4
+    if len(records) != expected_count:
+        raise RuntimeError(
+            f"Expected {expected_count:,} Bunny assets, found {len(records):,}"
+        )
     return records
 
 
