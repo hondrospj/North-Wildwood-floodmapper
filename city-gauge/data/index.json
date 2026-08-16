@@ -1,0 +1,128 @@
+{
+  "schema": "north-wildwood-city-gauge-index-v1",
+  "generatedAt": "2026-08-16T23:51:03.531Z",
+  "sensor": {
+    "id": 1005,
+    "name": "North Wildwood Tide",
+    "unit": "ft",
+    "latitude": 39.007469,
+    "longitude": -74.798737,
+    "datum": null
+  },
+  "source": {
+    "owner": "City of North Wildwood",
+    "system": "Datawise municipal weather station",
+    "endpoint": "http://173.15.136.30/datawise/DashBoards/getSingleSensorData.php",
+    "retrievedAt": "2026-08-16T23:48:37.168Z"
+  },
+  "coverage": {
+    "firstTimestamp": "2017-09-01 08:58:00",
+    "lastTimestamp": "2026-08-16 19:49:02",
+    "recordCount": 1311346,
+    "usableRecordCount": 1311346,
+    "flaggedRecordCount": 0,
+    "duplicateTimestampRows": 39
+  },
+  "years": [
+    {
+      "year": 2017,
+      "path": "data/2017.json",
+      "firstTimestamp": "2017-09-01 08:58:00",
+      "lastTimestamp": "2017-12-31 23:57:03",
+      "recordCount": 50953,
+      "usableRecordCount": 50953,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 11
+    },
+    {
+      "year": 2018,
+      "path": "data/2018.json",
+      "firstTimestamp": "2018-01-01 00:01:03",
+      "lastTimestamp": "2018-12-31 23:57:05",
+      "recordCount": 151893,
+      "usableRecordCount": 151893,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 1
+    },
+    {
+      "year": 2019,
+      "path": "data/2019.json",
+      "firstTimestamp": "2019-01-01 00:01:05",
+      "lastTimestamp": "2019-12-31 23:59:16",
+      "recordCount": 143428,
+      "usableRecordCount": 143428,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 0
+    },
+    {
+      "year": 2020,
+      "path": "data/2020.json",
+      "firstTimestamp": "2020-01-01 00:03:16",
+      "lastTimestamp": "2020-12-31 23:58:23",
+      "recordCount": 150421,
+      "usableRecordCount": 150421,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 23
+    },
+    {
+      "year": 2021,
+      "path": "data/2021.json",
+      "firstTimestamp": "2021-01-01 00:02:23",
+      "lastTimestamp": "2021-12-31 23:59:22",
+      "recordCount": 156145,
+      "usableRecordCount": 156145,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 0
+    },
+    {
+      "year": 2022,
+      "path": "data/2022.json",
+      "firstTimestamp": "2022-01-01 00:03:22",
+      "lastTimestamp": "2022-12-31 23:56:13",
+      "recordCount": 155793,
+      "usableRecordCount": 155793,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 1
+    },
+    {
+      "year": 2023,
+      "path": "data/2023.json",
+      "firstTimestamp": "2023-01-01 00:00:13",
+      "lastTimestamp": "2023-12-31 23:57:02",
+      "recordCount": 152838,
+      "usableRecordCount": 152838,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 1
+    },
+    {
+      "year": 2024,
+      "path": "data/2024.json",
+      "firstTimestamp": "2024-01-01 00:01:02",
+      "lastTimestamp": "2024-12-31 23:57:24",
+      "recordCount": 151489,
+      "usableRecordCount": 151489,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 1
+    },
+    {
+      "year": 2025,
+      "path": "data/2025.json",
+      "firstTimestamp": "2025-01-01 00:01:24",
+      "lastTimestamp": "2025-12-31 23:58:15",
+      "recordCount": 141231,
+      "usableRecordCount": 141231,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 1
+    },
+    {
+      "year": 2026,
+      "path": "data/2026.json",
+      "firstTimestamp": "2026-01-01 00:00:15",
+      "lastTimestamp": "2026-08-16 19:49:02",
+      "recordCount": 57155,
+      "usableRecordCount": 57155,
+      "flaggedRecordCount": 0,
+      "duplicateTimestampRows": 0
+    }
+  ]
+}
