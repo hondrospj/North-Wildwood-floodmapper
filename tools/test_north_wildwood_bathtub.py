@@ -28,7 +28,7 @@ class FakeSolver:
 
 def main() -> None:
     expected = {
-        3.00: 0.75,
+        3.00: 0.00,
         3.25: 0.75,
         4.25: 0.25,
         5.25: 0.00,
@@ -68,26 +68,34 @@ def main() -> None:
     rising = model.penalized_connected_depth_ft(
         stage, ground, developed, "filling"
     )
-    draining = model.penalized_connected_depth_ft(
-        stage, ground, developed, "draining"
+    release_15 = model.penalized_connected_depth_ft(
+        stage, ground, developed, "draining-release-15"
     )
     slack = model.penalized_connected_depth_ft(
         stage, ground, developed, "slack"
     )
     if not np.allclose(rising, [0.0, 0.25]):
         raise AssertionError(f"Unexpected rising depths: {rising}")
-    if not np.allclose(draining, [0.3125, 0.25]):
-        raise AssertionError(f"Unexpected recession-retention depths: {draining}")
-    if not np.allclose(slack, [0.25, 0.25]):
-        raise AssertionError(f"Unexpected high-tide release depths: {slack}")
+    if not np.allclose(release_15, [0.25, 0.25]):
+        raise AssertionError(f"Post-crest blue water is not at source stage: {release_15}")
+    if not np.allclose(slack, [0.0, 0.25]):
+        raise AssertionError(f"Unexpected high-tide penalty depths: {slack}")
     if not np.isclose(
-        model.phase_adjusted_stage_ft(stage, "slack", True), 4.25
+        model.phase_adjusted_stage_ft(stage, "slack", True), 4.0
     ):
-        raise AssertionError("The developed-land penalty did not wear off at slack tide")
+        raise AssertionError("The developed-land penalty must remain at high tide")
     if not np.isclose(
-        model.phase_adjusted_stage_ft(stage, "draining", True), 4.3125
+        model.phase_adjusted_stage_ft(stage, "draining", True), 4.25
     ):
-        raise AssertionError("The developed-land drainage lag has the wrong sign")
+        raise AssertionError("Normal drainage must not alter the outside water stage")
+    if not np.isclose(model.penalty_remaining_fraction(3.75, "draining-release-15"), 2 / 3):
+        raise AssertionError("Minor +15-minute release fraction is wrong")
+    if not np.isclose(model.penalty_remaining_fraction(3.75, "draining-release-30"), 1 / 3):
+        raise AssertionError("Minor +30-minute release fraction is wrong")
+    if not np.isclose(model.penalty_remaining_fraction(4.75, "draining-release-15"), 0.5):
+        raise AssertionError("Moderate +15-minute release fraction is wrong")
+    if model.penalty_remaining_fraction(4.75, "draining-release-30") != 0:
+        raise AssertionError("Moderate penalty did not wear off in 30 minutes")
 
     phases, diagnostics = model.simulate(FakeSolver())
     if not np.array_equal(phases["filling"], phases["slack"]):
@@ -132,23 +140,13 @@ def main() -> None:
         raise AssertionError("Source-distance field declares the wrong origin")
 
     near_depth = model.penalized_connected_depth_ft(
-        4.25,
-        4.0,
-        True,
-        "filling",
-        source_distance_ft=0.0,
+        4.25, 4.0, True, "filling", source_distance_ft=0.0
     )
     far_depth = model.penalized_connected_depth_ft(
-        4.25,
-        4.0,
-        True,
-        "filling",
-        source_distance_ft=model.SOURCE_DISTANCE_FULL_PENALTY_FT,
+        4.25, 4.0, True, "filling", source_distance_ft=10_000.0
     )
-    if not near_depth > far_depth:
-        raise AssertionError("Flood depth does not decrease with source travel")
-    if model.distance_penalty_stage_scale(4.75) != 0:
-        raise AssertionError("Distance penalty persists beyond the requested stage")
+    if not np.isclose(near_depth, far_depth):
+        raise AssertionError("The site-specific penalty incorrectly varies with distance")
 
     # Visible feeders must follow the supplied public-road corridor exactly.
     adjusted = np.zeros((9, 15), dtype=bool)
@@ -172,6 +170,20 @@ def main() -> None:
         raise AssertionError("Road-reachable detached basin was not joined")
     if feeder_diagnostics["detachedComponentsJoined"] != 1:
         raise AssertionError("Road-reachable component count is incorrect")
+
+    # A road cell that is baseline-wet but not explicitly penalty-held models
+    # disconnected marsh/beach uncertainty and may never be painted blue.
+    penalty_green = baseline & ~adjusted
+    penalty_green[4, 7] = False
+    flooded, feeder, _ = model.add_visible_source_feeders(
+        adjusted,
+        baseline,
+        source,
+        road,
+        penalized_uncertainty=penalty_green,
+    )
+    if feeder[4, 7] or np.any(flooded[3:6, 11:14]):
+        raise AssertionError("Feeder converted non-penalty uncertainty to blue")
 
     broken_road = road.copy()
     broken_road[4, 7] = False

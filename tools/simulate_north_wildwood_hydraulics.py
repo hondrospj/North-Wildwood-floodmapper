@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Build North Wildwood's phase-aware conditional-connectivity assets.
+"""Build North Wildwood's phase-aware filling and drainage assets.
 
-The conditioned one-foot DEM and its four-neighbour connection-stage raster
-remain the hydraulic constraints. Connectivity is evaluated at the selected
-gauge stage. In NJDEP-developed land only, a quadratic penalty marks the
-shallower rising-tide local-ground band green (uncertain), wears off at slack
-tide, and becomes a positive recession offset retaining already-routed water
-during draining. Wetlands, water, and
-barren beach land receive neither adjustment. The polynomial is anchored at
-0.75 ft at minor, 0.25 ft at moderate, and 0.00 ft at major flood.
+The bulkhead-conditioned one-foot bare-earth DEM and its four-neighbour
+connection-stage raster remain the hydraulic constraints. In NJDEP-developed
+land only, a quadratic stage penalty holds the shallower connected band green
+at and above minor flood. The penalty is absent below minor and at/above major,
+and never applies to marsh, beach, water, or other undeveloped land.
 
-Filling, three spatial crest-release, slack, and draining assets are
-intentionally different. Storm drains remain disabled, and the 21-cell,
-7.5-ft NAVD88 bulkhead remains stitched into the DEM before connection stages
-are computed.
+At high tide the developed-land penalty remains in place. It then wears off in
+45 minutes for a minor event, 30 minutes for a moderate event, and immediately
+for a major event. Every blue post-crest cell uses the unadjusted gauge water
+surface, so inland and source-block water elevations remain equal. This is an
+empirical filling/drainage approximation, not a dynamic-flow solver. NSI 2026
+first-floor elevations remain structure-impact thresholds and are deliberately
+not part of the hydraulic terrain.
 """
 
 from __future__ import annotations
@@ -80,35 +80,19 @@ MAJOR_NAVD88_FT = 5.25
 MINOR_VERTICAL_PENALTY_FT = 0.75
 MODERATE_VERTICAL_PENALTY_FT = 0.25
 MAJOR_VERTICAL_PENALTY_FT = 0.0
-DRAINING_VERTICAL_PENALTY_SCALE = 0.25
-DISTANCE_PENALTY_END_NAVD88_FT = MODERATE_NAVD88_FT + 0.5
-SOURCE_DISTANCE_FULL_PENALTY_FT = 1_500.0
-FILLING_PENALTY_SCALES = {
-    "filling": 1.0,
-    "crest-release-44": 0.5625,
-    "crest-release-75": 0.25,
-    "crest-release-94": 0.0625,
-}
-CREST_RELEASE_PROGRESS = {
-    "crest-release-44": 0.4375,
-    "crest-release-75": 0.75,
-    "crest-release-94": 0.9375,
-}
 PHASE_DIRECTORIES = {
     "filling": "filling",
-    "crest-release-44": "crest-release-44",
-    "crest-release-75": "crest-release-75",
-    "crest-release-94": "crest-release-94",
     "slack": "",
+    "draining-release-15": "draining-release-15",
+    "draining-release-30": "draining-release-30",
     "draining": "draining",
 }
-CREST_RELEASE_PHASES = tuple(
-    phase for phase in PHASE_DIRECTORIES if phase.startswith("crest-release-")
+DRAINING_RELEASE_PHASES = tuple(
+    phase for phase in PHASE_DIRECTORIES if phase.startswith("draining-release-")
 )
 PHASE_PREDECESSOR = {
-    "crest-release-44": "filling",
-    "crest-release-75": "crest-release-44",
-    "crest-release-94": "crest-release-75",
+    "draining-release-15": "slack",
+    "draining-release-30": "draining-release-15",
 }
 
 DEPTH_BREAKS_FT = np.asarray([0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00])
@@ -168,11 +152,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--crest-release-only",
+        "--draining-release-only",
         action="store_true",
         help=(
-            "Reuse the complete state package and build only the three "
-            "quarter-hour crest-release families"
+            "Reuse the complete state package and build only the two "
+            "post-high-tide release families"
         ),
     )
     parser.add_argument(
@@ -210,8 +194,8 @@ def stage_code(stage_ft: float) -> str:
 def vertical_penalty_ft(stage_ft: float) -> float:
     """Return the three-anchor quadratic adjustment in NAVD88 feet."""
     stage = float(stage_ft)
-    if stage <= MINOR_NAVD88_FT:
-        return MINOR_VERTICAL_PENALTY_FT
+    if stage < MINOR_NAVD88_FT:
+        return 0.0
     if stage >= MAJOR_NAVD88_FT:
         return MAJOR_VERTICAL_PENALTY_FT
     # With x measured in feet above minor flood, the unique quadratic through
@@ -220,31 +204,18 @@ def vertical_penalty_ft(stage_ft: float) -> float:
     return max(0.0, 0.125 * x * x - 0.625 * x + 0.75)
 
 
-def distance_penalty_stage_scale(stage_ft: float) -> float:
-    """Limit distance loss to minor and the first 0.5 ft of moderate flooding."""
+def penalty_remaining_fraction(stage_ft: float, phase: str) -> float:
+    """Return the locally calibrated fraction remaining after high tide."""
     stage = float(stage_ft)
-    if stage <= MODERATE_NAVD88_FT:
-        return 1.0
-    if stage >= DISTANCE_PENALTY_END_NAVD88_FT:
+    if vertical_penalty_ft(stage) <= 0.0 or phase == "draining":
         return 0.0
-    remaining = (
-        DISTANCE_PENALTY_END_NAVD88_FT - stage
-    ) / (DISTANCE_PENALTY_END_NAVD88_FT - MODERATE_NAVD88_FT)
-    # Smoothstep avoids a slope discontinuity at either end of the taper.
-    return remaining * remaining * (3.0 - 2.0 * remaining)
-
-
-def source_distance_penalty_factor(
-    source_distance_ft: np.ndarray | float,
-) -> np.ndarray:
-    """Increase the depth reduction linearly with original-source travel."""
-    distance = np.asarray(source_distance_ft, dtype=np.float64)
-    finite_distance = np.where(np.isfinite(distance), distance, np.inf)
-    return np.clip(
-        finite_distance / SOURCE_DISTANCE_FULL_PENALTY_FT,
-        0.0,
-        1.0,
-    )
+    if phase in ("filling", "slack"):
+        return 1.0
+    if phase == "draining-release-15":
+        return 2.0 / 3.0 if stage < MODERATE_NAVD88_FT else 0.5
+    if phase == "draining-release-30":
+        return 1.0 / 3.0 if stage < MODERATE_NAVD88_FT else 0.0
+    raise ValueError(f"Unsupported hydraulic phase: {phase}")
 
 
 def phase_adjusted_stage_ft(
@@ -253,25 +224,13 @@ def phase_adjusted_stage_ft(
     developed: np.ndarray | bool,
     source_distance_ft: np.ndarray | float | None = None,
 ) -> np.ndarray:
-    """Apply source-distance loss, crest wear-off, and draining retention."""
+    """Apply the developed-land admission penalty for a catalog phase."""
+    del source_distance_ft  # Kept for backward-compatible point-query callers.
     stage = float(stage_ft)
-    penalty = vertical_penalty_ft(stage)
-    if phase == "draining":
-        adjustment = penalty * DRAINING_VERTICAL_PENALTY_SCALE
-    elif phase in FILLING_PENALTY_SCALES:
-        distance_factor = (
-            1.0
-            if source_distance_ft is None
-            else source_distance_penalty_factor(source_distance_ft)
-        )
-        adjustment = (
-            -penalty
-            * distance_penalty_stage_scale(stage)
-            * FILLING_PENALTY_SCALES[phase]
-            * distance_factor
-        )
-    else:
-        adjustment = 0.0
+    adjustment = -vertical_penalty_ft(stage) * penalty_remaining_fraction(
+        stage,
+        phase,
+    )
     return stage + np.asarray(developed, dtype=np.float64) * adjustment
 
 
@@ -284,39 +243,22 @@ def vertical_penalty_metadata() -> dict:
         ],
         "curve": "quadratic through all three anchors",
         "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-        "belowMinorTreatment": "clamped to 0.75 ft",
-        "aboveMajorTreatment": "clamped to 0.00 ft",
-        "distancePenaltyEndNavd88Ft": DISTANCE_PENALTY_END_NAVD88_FT,
-        "sourceDistanceFullPenaltyFt": SOURCE_DISTANCE_FULL_PENALTY_FT,
-        "sourceDistance": {
-            "origin": (
-                "immutable qualified 2.00-ft NAVD88 source-block cells only; "
-                "visible feeders and newly flooded cells never reset distance"
-            ),
-            "method": "four-neighbour geodesic travel over the connected domain",
-            "response": "linear from zero at source to full penalty at 1500 ft",
-        },
-        "stageApplicability": (
-            "full through minor flooding, smooth taper through the first "
-            "0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88"
-        ),
-        "drainingScale": DRAINING_VERTICAL_PENALTY_SCALE,
+        "belowMinorTreatment": "zero penalty; no green uncertainty",
+        "aboveMajorTreatment": "zero penalty (therefore also normal one foot above major)",
+        "stageApplicability": "minor inclusive through major exclusive",
         "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-        "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-        "crestRelease": {
-            "durationMinutes": 60,
-            "quarterHourPenaltyWearOffFractions": [0.0, 0.4375, 0.75, 0.9375, 1.0],
-            "description": (
-                "the static original-source distance loss wears off over the "
-                "four 15-minute steps before a confirmed local crest"
-            ),
-            "distanceInvariant": True,
+        "filling": "full negative admission offset; excluded connected band is green uncertainty",
+        "highTide": "full stage penalty remains at the crest",
+        "drainageRelease": {
+            "minorDurationMinutes": 45,
+            "moderateDurationMinutes": 30,
+            "majorDurationMinutes": 0,
+            "minorRemainingFractionsAtMinutes": {"0": 1.0, "15": 2.0 / 3.0, "30": 1.0 / 3.0, "45": 0.0},
+            "moderateRemainingFractionsAtMinutes": {"0": 1.0, "15": 0.5, "30": 0.0},
+            "majorRemainingFractionsAtMinutes": {"0": 0.0},
         },
-        "slack": "zero offset after the one-hour high-tide release",
-        "draining": (
-            "quarter-strength positive offset retains prior routed water; "
-            "it is not new inflow"
-        ),
+        "postCrestWaterSurface": "full gauge stage for every blue cell; equal to source-block water surface",
+        "draining": "zero admission penalty; no positive recession offset",
         "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land",
     }
 
@@ -335,9 +277,14 @@ def penalized_connected_depth_ft(
         developed,
         source_distance_ft,
     )
+    water_surface = (
+        float(stage_ft)
+        if str(phase).startswith("draining")
+        else adjusted_stage
+    )
     return np.maximum(
         0.0,
-        adjusted_stage - np.asarray(ground_ft, dtype=np.float64),
+        water_surface - np.asarray(ground_ft, dtype=np.float64),
     )
 
 
@@ -758,8 +705,8 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
         "forcing": {
             "phaseTreatment": "developed-only raster adjustment; audit state arrays are unadjusted",
             "filling": "negative polynomial offset with green uncertainty band",
-            "slack": "zero offset at the tide crest",
-            "draining": "quarter-strength positive polynomial recession-retention offset",
+            "slack": "full filling penalty at the tide crest",
+            "draining": "timed admission-penalty release; blue-cell surface equals gauge stage",
         },
         "physics": {
             "modelKind": "phase-aware developed-land conditional connectivity",
@@ -776,8 +723,11 @@ def state_metadata(graph_manifest: dict, diagnostics: dict) -> dict:
             "bulkheadTerrainTreatment": (
                 "stitched into the one-foot DEM with GDAL before graph construction"
             ),
+            "nsi2026FirstFloorTerrainTreatment": (
+                "not burned; structure-impact thresholds only"
+            ),
             "waterSurface": (
-                "cell-specific phase-adjusted surface in developed land only"
+                "post-crest blue cells equal the full source-block/gauge stage"
             ),
         },
         "diagnostics": diagnostics,
@@ -975,15 +925,12 @@ def build_render_cell_summaries(graph_dir: Path) -> dict[str, np.ndarray]:
 def build_source_distance_grid(
     render_summary: dict[str, np.ndarray],
 ) -> tuple[np.ndarray, dict[str, int | float | str]]:
-    """Build one immutable source-block distance field for every phase."""
+    """Retain the legacy source-distance query channel for compatibility."""
     maximum = np.iinfo(np.int16).max
     valid = render_summary["minimum_ground10"] != maximum
-    activation = (
-        render_summary["minimum_activation100"].astype(np.float64) / 100.0
-    )
     return source_block_geodesic_distance(
         render_summary["source"],
-        valid & (activation <= DISTANCE_PENALTY_END_NAVD88_FT + 1e-9),
+        valid,
         cell_size_ft=RENDER_STRIDE,
     )
 
@@ -1016,6 +963,7 @@ def add_visible_source_feeders(
     source: np.ndarray,
     road_corridor: np.ndarray,
     ground_elevation: np.ndarray | None = None,
+    penalized_uncertainty: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, int | float | str]]:
     """Apply the reusable lowest-crest public-road feeder algorithm."""
     if ground_elevation is None:
@@ -1028,6 +976,7 @@ def add_visible_source_feeders(
         source,
         road_corridor,
         ground_elevation,
+        penalized_uncertainty=penalized_uncertainty,
         feeder_half_width_cells=1,
     )
 
@@ -1126,7 +1075,6 @@ def render_assets(
             "cellSizeFt": float(RENDER_STRIDE),
             "maximumDistanceFt": float(source_distance_ft[reachable].max()),
         }
-    source_distance_factor = source_distance_penalty_factor(source_distance_ft)
     counts = {}
 
     selected_phase_dirs = (
@@ -1145,13 +1093,13 @@ def render_assets(
         maximum_retained_components = 0
         uncertainty_pixels = 0
         disconnected_pixels = 0
-        recession_retained_pixels = 0
         feeder_pixels = 0
         detached_components_joined = 0
         detached_components_road_unreachable = 0
         maximum_feeder_length = 0
         maximum_feeder_route_crest = 0.0
         previous_stage_flooded = None
+        previous_phase_penalty = 0.0
         for stage_index, stage in enumerate(STAGES_FT):
             stage_value = float(stage)
             code = stage_code(stage_value)
@@ -1175,133 +1123,119 @@ def render_assets(
                 retained_components,
             )
             penalty = vertical_penalty_ft(stage_value)
-            if phase == "draining":
-                adjusted_developed_stage = (
-                    stage_value + penalty * DRAINING_VERTICAL_PENALTY_SCALE
-                )
-                developed_flooded = (
-                    activation_developed <= adjusted_developed_stage + 1e-9
-                )
-            elif phase in FILLING_PENALTY_SCALES:
-                # Connectivity is evaluated at the real gauge stage. The
-                # depth reduction is based on immutable travel distance from
-                # the qualified source blocks. Existing water and visible
-                # feeders never reset that distance. The same field is merely
-                # attenuated as the confirmed high tide approaches.
-                phase_penalty = (
-                    penalty
-                    * distance_penalty_stage_scale(stage_value)
-                    * FILLING_PENALTY_SCALES[phase]
-                    * source_distance_factor
-                )
-                adjusted_developed_stage = stage_value - phase_penalty
-                developed_flooded = (
-                    (activation_developed <= stage_value + 1e-9)
-                    & (ground_developed <= adjusted_developed_stage + 1e-9)
-                )
-            else:
-                adjusted_developed_stage = stage_value
-                developed_flooded = (
-                    (activation_developed <= stage_value + 1e-9)
-                    & (ground_developed <= stage_value + 1e-9)
-                )
+            remaining_fraction = penalty_remaining_fraction(stage_value, phase)
+            phase_penalty = penalty * remaining_fraction
+            adjusted_developed_stage = stage_value - phase_penalty
+            developed_eligible = activation_developed <= stage_value + 1e-9
+            developed_flooded = developed_eligible & (
+                ground_developed <= adjusted_developed_stage + 1e-9
+            )
             undeveloped_flooded = (
                 activation_undeveloped <= stage_value + 1e-9
             )
             adjusted_flooded = valid & (developed_flooded | undeveloped_flooded)
+            penalized_uncertainty = (
+                valid
+                & developed_eligible
+                & ~adjusted_flooded
+                & (phase_penalty > 0.0)
+            )
             terrain_wet = valid & (ground < stage_value - 0.005)
             disconnected = terrain_wet & ~baseline_flooded
             disconnected_pixels += int(np.count_nonzero(disconnected))
-            if phase == "draining":
-                retained_lag = adjusted_flooded & ~baseline_flooded
-                flooded = adjusted_flooded
-                recession_retained_pixels += int(np.count_nonzero(retained_lag))
-            else:
-                flooded, feeder, feeder_diagnostics = add_visible_source_feeders(
-                    adjusted_flooded,
-                    baseline_flooded,
-                    source,
-                    road_corridor,
-                    ground,
+            flooded, feeder, feeder_diagnostics = add_visible_source_feeders(
+                adjusted_flooded,
+                baseline_flooded,
+                source,
+                road_corridor,
+                ground,
+                penalized_uncertainty,
+            )
+            # Preserve a previously selected lowest-road feeder at higher
+            # stages and across the two post-crest release steps, but never
+            # paint disconnected marsh/beach uncertainty or an off-road cell.
+            required_flooded = (
+                np.zeros(flooded.shape, dtype=bool)
+                if (
+                    previous_stage_flooded is None
+                    or (previous_phase_penalty <= 0.0 and phase_penalty > 0.0)
                 )
-            if phase != "draining":
-                # Preserve source-connected water already admitted at the
-                # preceding stage and, for crest-release families, at the
-                # preceding phase for this exact stage. This is only a
-                # temporal nesting rule: neither mask is ever used as a new
-                # distance origin. The graduated penalty remains anchored to
-                # the immutable qualified 2-ft source blocks above.
-                required_flooded = (
-                    np.zeros(flooded.shape, dtype=bool)
-                    if previous_stage_flooded is None
-                    else previous_stage_flooded
+                else previous_stage_flooded
+            )
+            predecessor = PHASE_PREDECESSOR.get(phase)
+            if predecessor is not None:
+                predecessor_directory = phase_dirs[predecessor]
+                predecessor_path = (
+                    output_root
+                    / "DepthPNGs"
+                    / "North Wildwood"
+                    / predecessor_directory
+                    / f"NorthWildwoodDepth{code}.png"
                 )
-                predecessor = PHASE_PREDECESSOR.get(phase)
-                if predecessor is not None:
-                    predecessor_directory = phase_dirs[predecessor]
-                    predecessor_path = (
-                        output_root
-                        / "DepthPNGs"
-                        / "North Wildwood"
-                        / predecessor_directory
-                        / f"NorthWildwoodDepth{code}.png"
+                if not predecessor_path.is_file():
+                    raise FileNotFoundError(
+                        "Drainage-release nesting requires predecessor asset "
+                        f"{predecessor_path}"
                     )
-                    if not predecessor_path.is_file():
-                        raise FileNotFoundError(
-                            "Crest-release nesting requires predecessor asset "
-                            f"{predecessor_path}"
-                        )
-                    predecessor_codes = np.asarray(Image.open(predecessor_path))
-                    predecessor_flooded = (
-                        (predecessor_codes >= 1) & (predecessor_codes <= 11)
-                    )
-                    required_flooded = required_flooded | predecessor_flooded
-                preserved_feeder = required_flooded & baseline_flooded & ~flooded
-                if np.any(preserved_feeder & ~road_corridor):
-                    raise RuntimeError(
-                        f"Temporal nesting attempted to preserve off-road water "
-                        f"in {phase} {code}"
-                    )
-                flooded |= preserved_feeder
-                feeder |= preserved_feeder
-                previous_stage_flooded = flooded.copy()
-                feeder_pixels += int(np.count_nonzero(feeder))
-                detached_components_joined += feeder_diagnostics[
-                    "detachedComponentsJoined"
-                ]
-                detached_components_road_unreachable += feeder_diagnostics[
-                    "detachedComponentsRoadUnreachable"
-                ]
-                maximum_feeder_length = max(
-                    maximum_feeder_length,
-                    feeder_diagnostics["maximumFeederLengthPixels"],
+                predecessor_codes = np.asarray(Image.open(predecessor_path))
+                predecessor_flooded = (
+                    (predecessor_codes >= 1) & (predecessor_codes <= 11)
                 )
-                maximum_feeder_route_crest = max(
-                    maximum_feeder_route_crest,
-                    feeder_diagnostics["maximumFeederRouteCrestFt"],
-                )
-                penalized = baseline_flooded & ~flooded
-                uncertainty_pixels += int(np.count_nonzero(penalized))
+                required_flooded |= predecessor_flooded
+            preserved_feeder = (
+                required_flooded
+                & penalized_uncertainty
+                & road_corridor
+                & ~flooded
+            )
+            flooded |= preserved_feeder
+            feeder |= preserved_feeder
+            previous_stage_flooded = flooded.copy()
+            previous_phase_penalty = phase_penalty
+            feeder_pixels += int(np.count_nonzero(feeder))
+            detached_components_joined += feeder_diagnostics[
+                "detachedComponentsJoined"
+            ]
+            detached_components_road_unreachable += feeder_diagnostics[
+                "detachedComponentsRoadUnreachable"
+            ]
+            maximum_feeder_length = max(
+                maximum_feeder_length,
+                feeder_diagnostics["maximumFeederLengthPixels"],
+            )
+            maximum_feeder_route_crest = max(
+                maximum_feeder_route_crest,
+                feeder_diagnostics["maximumFeederRouteCrestFt"],
+            )
+            penalized = penalized_uncertainty & ~flooded
+            uncertainty_pixels += int(np.count_nonzero(penalized))
             # Green is a diagnostic state, not a declaration of dry land: it
             # includes terrain below the gauge stage that is disconnected as
             # well as the developed-land band held back by the polynomial.
-            green = ~flooded & (disconnected | (baseline_flooded & ~flooded))
-
-            depth = np.maximum(
-                np.where(
-                    developed_flooded,
-                    adjusted_developed_stage - ground_developed,
-                    0.0,
-                ),
-                np.where(
-                    undeveloped_flooded,
-                    stage_value - ground_undeveloped,
-                    0.0,
-                ),
-            ).astype(
-                np.float32,
-                copy=False,
+            green = (
+                np.zeros(flooded.shape, dtype=bool)
+                if stage_value < MINOR_NAVD88_FT
+                else ~flooded & (disconnected | penalized)
             )
+
+            if phase.startswith("draining"):
+                depth = np.where(flooded, stage_value - ground, 0.0).astype(
+                    np.float32,
+                    copy=False,
+                )
+            else:
+                depth = np.maximum(
+                    np.where(
+                        developed_flooded,
+                        adjusted_developed_stage - ground_developed,
+                        0.0,
+                    ),
+                    np.where(
+                        undeveloped_flooded,
+                        stage_value - ground_undeveloped,
+                        0.0,
+                    ),
+                ).astype(np.float32, copy=False)
             if np.any(flooded):
                 # Smooth only the depth values inside the immutable connected
                 # water mask. This removes 5-ft palette stippling caused by
@@ -1323,6 +1257,9 @@ def render_assets(
                     where=wet_weight > 1e-6,
                 )
                 depth = np.where(flooded, smoothed_depth, depth)
+            # A visible feeder represents the leading trickle through the
+            # selected road corridor, not the full five-foot cell depth.
+            depth[feeder] = 0.05
             depth_codes = np.zeros(zone.shape, dtype=np.uint8)
             depth_codes[green] = 12
             if np.any(flooded):
@@ -1337,14 +1274,9 @@ def render_assets(
                     np.where(developed_flooded, activation_developed, np.inf),
                     np.where(undeveloped_flooded, activation_undeveloped, np.inf),
                 )
-                if phase != "draining":
-                    # Feeder pixels inherit their unadjusted hydraulic
-                    # activation so their stage color remains meaningful.
-                    local_activation = np.where(
-                        feeder,
-                        activation,
-                        local_activation,
-                    )
+                # Feeder pixels inherit their unadjusted hydraulic activation
+                # so their stage color remains meaningful.
+                local_activation = np.where(feeder, activation, local_activation)
                 stage_codes[flooded] = np.where(
                     local_activation[flooded] < MINOR_NAVD88_FT,
                     1,
@@ -1380,7 +1312,7 @@ def render_assets(
             "maximumRetainedSourceComponents": maximum_retained_components,
             "disconnectedGreenPixelInstances": disconnected_pixels,
             "developedUncertaintyPixelInstances": uncertainty_pixels,
-            "developedRecessionRetainedPixelInstances": recession_retained_pixels,
+            "postCrestBlueWaterSurface": "full gauge/source-block stage",
             "visibleFeederPixelInstances": feeder_pixels,
             "detachedComponentsJoinedByFeeders": detached_components_joined,
             "detachedComponentsRoadUnreachable": (
@@ -1388,10 +1320,8 @@ def render_assets(
             ),
             "maximumVisibleFeederLengthPixels": maximum_feeder_length,
             "maximumVisibleFeederRouteCrestFt": maximum_feeder_route_crest,
-            "crestReleasePenaltyWearOffFraction": CREST_RELEASE_PROGRESS.get(phase),
-            "sourceDistance": source_distance_diagnostics,
-            "sourceDistanceFullPenaltyFt": SOURCE_DISTANCE_FULL_PENALTY_FT,
-            "distancePenaltyEndNavd88Ft": DISTANCE_PENALTY_END_NAVD88_FT,
+            "penaltyRemainingFractionAtMinor": penalty_remaining_fraction(3.5, phase),
+            "penaltyRemainingFractionAtModerate": penalty_remaining_fraction(4.5, phase),
             "visibleFeederRouteCriterion": (
                 "minimum road-route ground crest, then minimum length"
             ),
@@ -1721,12 +1651,12 @@ def main() -> None:
     partial_render_flags = (
         args.filling_only,
         args.draining_only,
-        args.crest_release_only,
+        args.draining_release_only,
     )
     if sum(bool(flag) for flag in partial_render_flags) > 1:
         raise ValueError(
             "Choose at most one of --filling-only, --draining-only, and "
-            "--crest-release-only"
+            "--draining-release-only"
         )
     graph_dir = args.graph.resolve()
     road_mask_path = (
@@ -1743,7 +1673,7 @@ def main() -> None:
     if (
         args.draining_only
         or args.filling_only
-        or args.crest_release_only
+        or args.draining_release_only
         or args.skip_render
     ) and asset_manifest_path.is_file():
         previous_asset_manifest = json.loads(
@@ -1853,8 +1783,8 @@ def main() -> None:
                 if args.draining_only
                 else ("filling",)
                 if args.filling_only
-                else CREST_RELEASE_PHASES
-                if args.crest_release_only
+                else DRAINING_RELEASE_PHASES
+                if args.draining_release_only
                 else None
             ),
             render_summary=render_summary,

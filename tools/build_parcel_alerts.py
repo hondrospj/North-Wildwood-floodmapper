@@ -56,7 +56,7 @@ SCENARIO_LABELS = {
     "intermediateHigh": "Intermediate High",
     "high": "High",
 }
-ELEVATION_GRID_FT = np.round(np.arange(0.0, 14.0 + 0.05, 0.1), 1)
+ELEVATION_GRID_FT = np.round(np.arange(0.0, 20.0 + 0.05, 0.1), 1)
 YEARS = list(range(CURRENT_YEAR, 2101))
 EXPECTED_HIGH_TIDES_PER_YEAR = 705.0
 MINIMUM_FLOOD_DEPTH_FT = 0.1

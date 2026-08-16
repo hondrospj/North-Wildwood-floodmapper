@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-conditional-connectivity-assets-v1",
-  "generatedUtc": "2026-08-15T21:32:25Z",
+  "generatedUtc": "2026-08-16T21:46:16Z",
   "modelKind": "phase-aware developed-land conditional connectivity",
   "phaseInvariant": false,
   "verticalPenalty": {
@@ -23,33 +23,33 @@
     ],
     "curve": "quadratic through all three anchors",
     "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-    "belowMinorTreatment": "clamped to 0.75 ft",
-    "aboveMajorTreatment": "clamped to 0.00 ft",
-    "distancePenaltyEndNavd88Ft": 4.75,
-    "sourceDistanceFullPenaltyFt": 1500.0,
-    "sourceDistance": {
-      "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
-      "method": "four-neighbour geodesic travel over the connected domain",
-      "response": "linear from zero at source to full penalty at 1500 ft"
-    },
-    "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
-    "drainingScale": 0.25,
+    "belowMinorTreatment": "zero penalty; no green uncertainty",
+    "aboveMajorTreatment": "zero penalty (therefore also normal one foot above major)",
+    "stageApplicability": "minor inclusive through major exclusive",
     "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-    "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-    "crestRelease": {
-      "durationMinutes": 60,
-      "quarterHourPenaltyWearOffFractions": [
-        0.0,
-        0.4375,
-        0.75,
-        0.9375,
-        1.0
-      ],
-      "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
-      "distanceInvariant": true
+    "filling": "full negative admission offset; excluded connected band is green uncertainty",
+    "highTide": "full stage penalty remains at the crest",
+    "drainageRelease": {
+      "minorDurationMinutes": 45,
+      "moderateDurationMinutes": 30,
+      "majorDurationMinutes": 0,
+      "minorRemainingFractionsAtMinutes": {
+        "0": 1.0,
+        "15": 0.6666666666666666,
+        "30": 0.3333333333333333,
+        "45": 0.0
+      },
+      "moderateRemainingFractionsAtMinutes": {
+        "0": 1.0,
+        "15": 0.5,
+        "30": 0.0
+      },
+      "majorRemainingFractionsAtMinutes": {
+        "0": 0.0
+      }
     },
-    "slack": "zero offset after the one-hour high-tide release",
-    "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
+    "postCrestWaterSurface": "full gauge stage for every blue cell; equal to source-block water surface",
+    "draining": "zero admission penalty; no positive recession offset",
     "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
   },
   "graph": {
@@ -65,6 +65,8 @@
     "bulkheadNominalWidthCells": 21,
     "bulkheadPixelCount": 174993,
     "bulkheadTerrainTreatment": "stitched into input DEM with GDAL before graph construction",
+    "terrainKind": "bulkhead-conditioned bare earth; structures are not hydraulic walls",
+    "nsi2026FirstFloorTerrainTreatment": "not burned; structure-impact thresholds only",
     "stormDrains": "disabled; not connectivity seeds and no exchange flow",
     "modelMaximumNavd88Ft": 20.0,
     "controlVolumeSizeFt": 25,
@@ -103,7 +105,7 @@
     "phases": {
       "filling": {
         "stageCount": 201,
-        "pngBytes": 31018151,
+        "pngBytes": 30840037,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -126,33 +128,33 @@
           ],
           "curve": "quadratic through all three anchors",
           "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-          "belowMinorTreatment": "clamped to 0.75 ft",
-          "aboveMajorTreatment": "clamped to 0.00 ft",
-          "distancePenaltyEndNavd88Ft": 4.75,
-          "sourceDistanceFullPenaltyFt": 1500.0,
-          "sourceDistance": {
-            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
-            "method": "four-neighbour geodesic travel over the connected domain",
-            "response": "linear from zero at source to full penalty at 1500 ft"
-          },
-          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
-          "drainingScale": 0.25,
+          "belowMinorTreatment": "zero penalty; no green uncertainty",
+          "aboveMajorTreatment": "zero penalty (therefore also normal one foot above major)",
+          "stageApplicability": "minor inclusive through major exclusive",
           "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-          "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-          "crestRelease": {
-            "durationMinutes": 60,
-            "quarterHourPenaltyWearOffFractions": [
-              0.0,
-              0.4375,
-              0.75,
-              0.9375,
-              1.0
-            ],
-            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
-            "distanceInvariant": true
+          "filling": "full negative admission offset; excluded connected band is green uncertainty",
+          "highTide": "full stage penalty remains at the crest",
+          "drainageRelease": {
+            "minorDurationMinutes": 45,
+            "moderateDurationMinutes": 30,
+            "majorDurationMinutes": 0,
+            "minorRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.6666666666666666,
+              "30": 0.3333333333333333,
+              "45": 0.0
+            },
+            "moderateRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.5,
+              "30": 0.0
+            },
+            "majorRemainingFractionsAtMinutes": {
+              "0": 0.0
+            }
           },
-          "slack": "zero offset after the one-hour high-tide release",
-          "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
+          "postCrestWaterSurface": "full gauge stage for every blue cell; equal to source-block water surface",
+          "draining": "zero admission penalty; no positive recession offset",
           "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
         },
         "connectivity": "four-neighbour render components touching a qualified source",
@@ -160,99 +162,94 @@
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 899281,
-        "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 22832,
-        "detachedComponentsJoinedByFeeders": 836,
-        "detachedComponentsRoadUnreachable": 2145,
-        "maximumVisibleFeederLengthPixels": 4294,
-        "maximumVisibleFeederRouteCrestFt": 11.800000190734863,
-        "crestReleasePenaltyWearOffFraction": null,
-        "sourceDistance": {
-          "method": "four-neighbour geodesic distance from immutable qualified source blocks",
-          "sourcePixels": 739398,
-          "traversablePixels": 1232439,
-          "reachablePixels": 1232439,
-          "unreachableTraversablePixels": 0,
-          "cellSizeFt": 5.0,
-          "maximumDistanceFt": 4235.0
-        },
-        "sourceDistanceFullPenaltyFt": 1500.0,
-        "distancePenaltyEndNavd88Ft": 4.75,
+        "developedUncertaintyPixelInstances": 831162,
+        "postCrestBlueWaterSurface": "full gauge/source-block stage",
+        "visibleFeederPixelInstances": 27730,
+        "detachedComponentsJoinedByFeeders": 881,
+        "detachedComponentsRoadUnreachable": 1660,
+        "maximumVisibleFeederLengthPixels": 2083,
+        "maximumVisibleFeederRouteCrestFt": 5.199999809265137,
+        "penaltyRemainingFractionAtMinor": 1.0,
+        "penaltyRemainingFractionAtModerate": 1.0,
         "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
         "visibleFeederWidthFt": 15,
         "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
       },
       "slack": {
         "stageCount": 201,
-        "pngBytes": 30653723,
+        "pngBytes": 30840037,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
+        "verticalPenalty": {
+          "anchors": [
+            {
+              "threshold": "minor",
+              "stageNavd88Ft": 3.25,
+              "penaltyFt": 0.75
+            },
+            {
+              "threshold": "moderate",
+              "stageNavd88Ft": 4.25,
+              "penaltyFt": 0.25
+            },
+            {
+              "threshold": "major",
+              "stageNavd88Ft": 5.25,
+              "penaltyFt": 0.0
+            }
+          ],
+          "curve": "quadratic through all three anchors",
+          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
+          "belowMinorTreatment": "zero penalty; no green uncertainty",
+          "aboveMajorTreatment": "zero penalty (therefore also normal one foot above major)",
+          "stageApplicability": "minor inclusive through major exclusive",
+          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
+          "filling": "full negative admission offset; excluded connected band is green uncertainty",
+          "highTide": "full stage penalty remains at the crest",
+          "drainageRelease": {
+            "minorDurationMinutes": 45,
+            "moderateDurationMinutes": 30,
+            "majorDurationMinutes": 0,
+            "minorRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.6666666666666666,
+              "30": 0.3333333333333333,
+              "45": 0.0
+            },
+            "moderateRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.5,
+              "30": 0.0
+            },
+            "majorRemainingFractionsAtMinutes": {
+              "0": 0.0
+            }
+          },
+          "postCrestWaterSurface": "full gauge stage for every blue cell; equal to source-block water surface",
+          "draining": "zero admission penalty; no positive recession offset",
+          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
+        },
         "connectivity": "four-neighbour render components touching a qualified source",
         "disconnectedBluePixelsRemoved": 0,
         "maximumUnfilteredComponents": 95,
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 0,
-        "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 0,
-        "detachedComponentsJoinedByFeeders": 0,
-        "maximumVisibleFeederLengthPixels": 0,
+        "developedUncertaintyPixelInstances": 831162,
+        "postCrestBlueWaterSurface": "full gauge/source-block stage",
+        "visibleFeederPixelInstances": 27730,
+        "detachedComponentsJoinedByFeeders": 881,
+        "detachedComponentsRoadUnreachable": 1660,
+        "maximumVisibleFeederLengthPixels": 2083,
+        "maximumVisibleFeederRouteCrestFt": 5.199999809265137,
+        "penaltyRemainingFractionAtMinor": 1.0,
+        "penaltyRemainingFractionAtModerate": 1.0,
+        "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
         "visibleFeederWidthFt": 15,
-        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; sub-pixel feeder paths preserved at 15-foot visible width",
-        "verticalPenalty": {
-          "anchors": [
-            {
-              "threshold": "minor",
-              "stageNavd88Ft": 3.25,
-              "penaltyFt": 0.75
-            },
-            {
-              "threshold": "moderate",
-              "stageNavd88Ft": 4.25,
-              "penaltyFt": 0.25
-            },
-            {
-              "threshold": "major",
-              "stageNavd88Ft": 5.25,
-              "penaltyFt": 0.0
-            }
-          ],
-          "curve": "quadratic through all three anchors",
-          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-          "belowMinorTreatment": "clamped to 0.75 ft",
-          "aboveMajorTreatment": "clamped to 0.00 ft",
-          "distancePenaltyEndNavd88Ft": 4.75,
-          "sourceDistanceFullPenaltyFt": 1500.0,
-          "sourceDistance": {
-            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
-            "method": "four-neighbour geodesic travel over the connected domain",
-            "response": "linear from zero at source to full penalty at 1500 ft"
-          },
-          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
-          "drainingScale": 0.25,
-          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-          "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-          "crestRelease": {
-            "durationMinutes": 60,
-            "quarterHourPenaltyWearOffFractions": [
-              0.0,
-              0.4375,
-              0.75,
-              0.9375,
-              1.0
-            ],
-            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
-            "distanceInvariant": true
-          },
-          "slack": "zero offset after the one-hour high-tide release",
-          "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
-          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
-        }
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
       },
-      "draining": {
+      "draining-release-15": {
         "stageCount": 201,
-        "pngBytes": 30659349,
+        "pngBytes": 30813197,
         "modelKind": "phase-aware developed-land conditional connectivity",
         "phaseInvariant": false,
         "verticalPenalty": {
@@ -275,33 +272,177 @@
           ],
           "curve": "quadratic through all three anchors",
           "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-          "belowMinorTreatment": "clamped to 0.75 ft",
-          "aboveMajorTreatment": "clamped to 0.00 ft",
-          "distancePenaltyEndNavd88Ft": 4.75,
-          "sourceDistanceFullPenaltyFt": 1500.0,
-          "sourceDistance": {
-            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
-            "method": "four-neighbour geodesic travel over the connected domain",
-            "response": "linear from zero at source to full penalty at 1500 ft"
-          },
-          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
-          "drainingScale": 0.25,
+          "belowMinorTreatment": "zero penalty; no green uncertainty",
+          "aboveMajorTreatment": "zero penalty (therefore also normal one foot above major)",
+          "stageApplicability": "minor inclusive through major exclusive",
           "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-          "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-          "crestRelease": {
-            "durationMinutes": 60,
-            "quarterHourPenaltyWearOffFractions": [
-              0.0,
-              0.4375,
-              0.75,
-              0.9375,
-              1.0
-            ],
-            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
-            "distanceInvariant": true
+          "filling": "full negative admission offset; excluded connected band is green uncertainty",
+          "highTide": "full stage penalty remains at the crest",
+          "drainageRelease": {
+            "minorDurationMinutes": 45,
+            "moderateDurationMinutes": 30,
+            "majorDurationMinutes": 0,
+            "minorRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.6666666666666666,
+              "30": 0.3333333333333333,
+              "45": 0.0
+            },
+            "moderateRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.5,
+              "30": 0.0
+            },
+            "majorRemainingFractionsAtMinutes": {
+              "0": 0.0
+            }
           },
-          "slack": "zero offset after the one-hour high-tide release",
-          "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
+          "postCrestWaterSurface": "full gauge stage for every blue cell; equal to source-block water surface",
+          "draining": "zero admission penalty; no positive recession offset",
+          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
+        },
+        "connectivity": "four-neighbour render components touching a qualified source",
+        "disconnectedBluePixelsRemoved": 0,
+        "maximumUnfilteredComponents": 95,
+        "maximumRetainedSourceComponents": 95,
+        "disconnectedGreenPixelInstances": 1773510,
+        "developedUncertaintyPixelInstances": 594342,
+        "postCrestBlueWaterSurface": "full gauge/source-block stage",
+        "visibleFeederPixelInstances": 22553,
+        "detachedComponentsJoinedByFeeders": 726,
+        "detachedComponentsRoadUnreachable": 1609,
+        "maximumVisibleFeederLengthPixels": 2083,
+        "maximumVisibleFeederRouteCrestFt": 5.199999809265137,
+        "penaltyRemainingFractionAtMinor": 0.6666666666666666,
+        "penaltyRemainingFractionAtModerate": 0.5,
+        "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
+        "visibleFeederWidthFt": 15,
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
+      },
+      "draining-release-30": {
+        "stageCount": 201,
+        "pngBytes": 30677129,
+        "modelKind": "phase-aware developed-land conditional connectivity",
+        "phaseInvariant": false,
+        "verticalPenalty": {
+          "anchors": [
+            {
+              "threshold": "minor",
+              "stageNavd88Ft": 3.25,
+              "penaltyFt": 0.75
+            },
+            {
+              "threshold": "moderate",
+              "stageNavd88Ft": 4.25,
+              "penaltyFt": 0.25
+            },
+            {
+              "threshold": "major",
+              "stageNavd88Ft": 5.25,
+              "penaltyFt": 0.0
+            }
+          ],
+          "curve": "quadratic through all three anchors",
+          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
+          "belowMinorTreatment": "zero penalty; no green uncertainty",
+          "aboveMajorTreatment": "zero penalty (therefore also normal one foot above major)",
+          "stageApplicability": "minor inclusive through major exclusive",
+          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
+          "filling": "full negative admission offset; excluded connected band is green uncertainty",
+          "highTide": "full stage penalty remains at the crest",
+          "drainageRelease": {
+            "minorDurationMinutes": 45,
+            "moderateDurationMinutes": 30,
+            "majorDurationMinutes": 0,
+            "minorRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.6666666666666666,
+              "30": 0.3333333333333333,
+              "45": 0.0
+            },
+            "moderateRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.5,
+              "30": 0.0
+            },
+            "majorRemainingFractionsAtMinutes": {
+              "0": 0.0
+            }
+          },
+          "postCrestWaterSurface": "full gauge stage for every blue cell; equal to source-block water surface",
+          "draining": "zero admission penalty; no positive recession offset",
+          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
+        },
+        "connectivity": "four-neighbour render components touching a qualified source",
+        "disconnectedBluePixelsRemoved": 0,
+        "maximumUnfilteredComponents": 95,
+        "maximumRetainedSourceComponents": 95,
+        "disconnectedGreenPixelInstances": 1773510,
+        "developedUncertaintyPixelInstances": 198222,
+        "postCrestBlueWaterSurface": "full gauge/source-block stage",
+        "visibleFeederPixelInstances": 11345,
+        "detachedComponentsJoinedByFeeders": 310,
+        "detachedComponentsRoadUnreachable": 644,
+        "maximumVisibleFeederLengthPixels": 1893,
+        "maximumVisibleFeederRouteCrestFt": 4.199999809265137,
+        "penaltyRemainingFractionAtMinor": 0.3333333333333333,
+        "penaltyRemainingFractionAtModerate": 0.0,
+        "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
+        "visibleFeederWidthFt": 15,
+        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
+      },
+      "draining": {
+        "stageCount": 201,
+        "pngBytes": 30600607,
+        "modelKind": "phase-aware developed-land conditional connectivity",
+        "phaseInvariant": false,
+        "verticalPenalty": {
+          "anchors": [
+            {
+              "threshold": "minor",
+              "stageNavd88Ft": 3.25,
+              "penaltyFt": 0.75
+            },
+            {
+              "threshold": "moderate",
+              "stageNavd88Ft": 4.25,
+              "penaltyFt": 0.25
+            },
+            {
+              "threshold": "major",
+              "stageNavd88Ft": 5.25,
+              "penaltyFt": 0.0
+            }
+          ],
+          "curve": "quadratic through all three anchors",
+          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
+          "belowMinorTreatment": "zero penalty; no green uncertainty",
+          "aboveMajorTreatment": "zero penalty (therefore also normal one foot above major)",
+          "stageApplicability": "minor inclusive through major exclusive",
+          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
+          "filling": "full negative admission offset; excluded connected band is green uncertainty",
+          "highTide": "full stage penalty remains at the crest",
+          "drainageRelease": {
+            "minorDurationMinutes": 45,
+            "moderateDurationMinutes": 30,
+            "majorDurationMinutes": 0,
+            "minorRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.6666666666666666,
+              "30": 0.3333333333333333,
+              "45": 0.0
+            },
+            "moderateRemainingFractionsAtMinutes": {
+              "0": 1.0,
+              "15": 0.5,
+              "30": 0.0
+            },
+            "majorRemainingFractionsAtMinutes": {
+              "0": 0.0
+            }
+          },
+          "postCrestWaterSurface": "full gauge stage for every blue cell; equal to source-block water surface",
+          "draining": "zero admission penalty; no positive recession offset",
           "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
         },
         "connectivity": "four-neighbour render components touching a qualified source",
@@ -310,258 +451,14 @@
         "maximumRetainedSourceComponents": 95,
         "disconnectedGreenPixelInstances": 1773510,
         "developedUncertaintyPixelInstances": 0,
-        "developedRecessionRetainedPixelInstances": 140116,
+        "postCrestBlueWaterSurface": "full gauge/source-block stage",
         "visibleFeederPixelInstances": 0,
         "detachedComponentsJoinedByFeeders": 0,
         "detachedComponentsRoadUnreachable": 0,
         "maximumVisibleFeederLengthPixels": 0,
         "maximumVisibleFeederRouteCrestFt": 0.0,
-        "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
-        "visibleFeederWidthFt": 15,
-        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
-      },
-      "crest-release-44": {
-        "stageCount": 201,
-        "pngBytes": 31022300,
-        "modelKind": "phase-aware developed-land conditional connectivity",
-        "phaseInvariant": false,
-        "verticalPenalty": {
-          "anchors": [
-            {
-              "threshold": "minor",
-              "stageNavd88Ft": 3.25,
-              "penaltyFt": 0.75
-            },
-            {
-              "threshold": "moderate",
-              "stageNavd88Ft": 4.25,
-              "penaltyFt": 0.25
-            },
-            {
-              "threshold": "major",
-              "stageNavd88Ft": 5.25,
-              "penaltyFt": 0.0
-            }
-          ],
-          "curve": "quadratic through all three anchors",
-          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-          "belowMinorTreatment": "clamped to 0.75 ft",
-          "aboveMajorTreatment": "clamped to 0.00 ft",
-          "distancePenaltyEndNavd88Ft": 4.75,
-          "sourceDistanceFullPenaltyFt": 1500.0,
-          "sourceDistance": {
-            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
-            "method": "four-neighbour geodesic travel over the connected domain",
-            "response": "linear from zero at source to full penalty at 1500 ft"
-          },
-          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
-          "drainingScale": 0.25,
-          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-          "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-          "crestRelease": {
-            "durationMinutes": 60,
-            "quarterHourPenaltyWearOffFractions": [
-              0.0,
-              0.4375,
-              0.75,
-              0.9375,
-              1.0
-            ],
-            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
-            "distanceInvariant": true
-          },
-          "slack": "zero offset after the one-hour high-tide release",
-          "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
-          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
-        },
-        "connectivity": "four-neighbour render components touching a qualified source",
-        "disconnectedBluePixelsRemoved": 0,
-        "maximumUnfilteredComponents": 95,
-        "maximumRetainedSourceComponents": 95,
-        "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 783740,
-        "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 17597,
-        "detachedComponentsJoinedByFeeders": 685,
-        "detachedComponentsRoadUnreachable": 2190,
-        "maximumVisibleFeederLengthPixels": 4294,
-        "maximumVisibleFeederRouteCrestFt": 11.800000190734863,
-        "crestReleasePenaltyWearOffFraction": 0.4375,
-        "sourceDistance": {
-          "method": "four-neighbour geodesic distance from immutable qualified source blocks",
-          "sourcePixels": 739398,
-          "traversablePixels": 1232439,
-          "reachablePixels": 1232439,
-          "unreachableTraversablePixels": 0,
-          "cellSizeFt": 5.0,
-          "maximumDistanceFt": 4235.0
-        },
-        "sourceDistanceFullPenaltyFt": 1500.0,
-        "distancePenaltyEndNavd88Ft": 4.75,
-        "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
-        "visibleFeederWidthFt": 15,
-        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
-      },
-      "crest-release-75": {
-        "stageCount": 201,
-        "pngBytes": 31013487,
-        "modelKind": "phase-aware developed-land conditional connectivity",
-        "phaseInvariant": false,
-        "verticalPenalty": {
-          "anchors": [
-            {
-              "threshold": "minor",
-              "stageNavd88Ft": 3.25,
-              "penaltyFt": 0.75
-            },
-            {
-              "threshold": "moderate",
-              "stageNavd88Ft": 4.25,
-              "penaltyFt": 0.25
-            },
-            {
-              "threshold": "major",
-              "stageNavd88Ft": 5.25,
-              "penaltyFt": 0.0
-            }
-          ],
-          "curve": "quadratic through all three anchors",
-          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-          "belowMinorTreatment": "clamped to 0.75 ft",
-          "aboveMajorTreatment": "clamped to 0.00 ft",
-          "distancePenaltyEndNavd88Ft": 4.75,
-          "sourceDistanceFullPenaltyFt": 1500.0,
-          "sourceDistance": {
-            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
-            "method": "four-neighbour geodesic travel over the connected domain",
-            "response": "linear from zero at source to full penalty at 1500 ft"
-          },
-          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
-          "drainingScale": 0.25,
-          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-          "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-          "crestRelease": {
-            "durationMinutes": 60,
-            "quarterHourPenaltyWearOffFractions": [
-              0.0,
-              0.4375,
-              0.75,
-              0.9375,
-              1.0
-            ],
-            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
-            "distanceInvariant": true
-          },
-          "slack": "zero offset after the one-hour high-tide release",
-          "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
-          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
-        },
-        "connectivity": "four-neighbour render components touching a qualified source",
-        "disconnectedBluePixelsRemoved": 0,
-        "maximumUnfilteredComponents": 95,
-        "maximumRetainedSourceComponents": 95,
-        "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 711620,
-        "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 11773,
-        "detachedComponentsJoinedByFeeders": 486,
-        "detachedComponentsRoadUnreachable": 2181,
-        "maximumVisibleFeederLengthPixels": 4294,
-        "maximumVisibleFeederRouteCrestFt": 11.800000190734863,
-        "crestReleasePenaltyWearOffFraction": 0.75,
-        "sourceDistance": {
-          "method": "four-neighbour geodesic distance from immutable qualified source blocks",
-          "sourcePixels": 739398,
-          "traversablePixels": 1232439,
-          "reachablePixels": 1232439,
-          "unreachableTraversablePixels": 0,
-          "cellSizeFt": 5.0,
-          "maximumDistanceFt": 4235.0
-        },
-        "sourceDistanceFullPenaltyFt": 1500.0,
-        "distancePenaltyEndNavd88Ft": 4.75,
-        "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
-        "visibleFeederWidthFt": 15,
-        "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
-      },
-      "crest-release-94": {
-        "stageCount": 201,
-        "pngBytes": 31005882,
-        "modelKind": "phase-aware developed-land conditional connectivity",
-        "phaseInvariant": false,
-        "verticalPenalty": {
-          "anchors": [
-            {
-              "threshold": "minor",
-              "stageNavd88Ft": 3.25,
-              "penaltyFt": 0.75
-            },
-            {
-              "threshold": "moderate",
-              "stageNavd88Ft": 4.25,
-              "penaltyFt": 0.25
-            },
-            {
-              "threshold": "major",
-              "stageNavd88Ft": 5.25,
-              "penaltyFt": 0.0
-            }
-          ],
-          "curve": "quadratic through all three anchors",
-          "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-          "belowMinorTreatment": "clamped to 0.75 ft",
-          "aboveMajorTreatment": "clamped to 0.00 ft",
-          "distancePenaltyEndNavd88Ft": 4.75,
-          "sourceDistanceFullPenaltyFt": 1500.0,
-          "sourceDistance": {
-            "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
-            "method": "four-neighbour geodesic travel over the connected domain",
-            "response": "linear from zero at source to full penalty at 1500 ft"
-          },
-          "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
-          "drainingScale": 0.25,
-          "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-          "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-          "crestRelease": {
-            "durationMinutes": 60,
-            "quarterHourPenaltyWearOffFractions": [
-              0.0,
-              0.4375,
-              0.75,
-              0.9375,
-              1.0
-            ],
-            "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
-            "distanceInvariant": true
-          },
-          "slack": "zero offset after the one-hour high-tide release",
-          "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
-          "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
-        },
-        "connectivity": "four-neighbour render components touching a qualified source",
-        "disconnectedBluePixelsRemoved": 0,
-        "maximumUnfilteredComponents": 95,
-        "maximumRetainedSourceComponents": 95,
-        "disconnectedGreenPixelInstances": 1773510,
-        "developedUncertaintyPixelInstances": 705520,
-        "developedRecessionRetainedPixelInstances": 0,
-        "visibleFeederPixelInstances": 11006,
-        "detachedComponentsJoinedByFeeders": 461,
-        "detachedComponentsRoadUnreachable": 2154,
-        "maximumVisibleFeederLengthPixels": 4294,
-        "maximumVisibleFeederRouteCrestFt": 11.800000190734863,
-        "crestReleasePenaltyWearOffFraction": 0.9375,
-        "sourceDistance": {
-          "method": "four-neighbour geodesic distance from immutable qualified source blocks",
-          "sourcePixels": 739398,
-          "traversablePixels": 1232439,
-          "reachablePixels": 1232439,
-          "unreachableTraversablePixels": 0,
-          "cellSizeFt": 5.0,
-          "maximumDistanceFt": 4235.0
-        },
-        "sourceDistanceFullPenaltyFt": 1500.0,
-        "distancePenaltyEndNavd88Ft": 4.75,
+        "penaltyRemainingFractionAtMinor": 0.0,
+        "penaltyRemainingFractionAtModerate": 0.0,
         "visibleFeederRouteCriterion": "minimum road-route ground crest, then minimum length",
         "visibleFeederWidthFt": 15,
         "renderConnectivity": "all 25 one-foot cells pooled into each five-foot pixel; visible feeder paths restricted to aligned public-road corridors and clipped to the hydraulic baseline"
@@ -581,10 +478,9 @@
   "navd88OffsetFromMllwFt": -2.75,
   "phases": [
     "filling",
-    "crest-release-44",
-    "crest-release-75",
-    "crest-release-94",
     "slack",
+    "draining-release-15",
+    "draining-release-30",
     "draining"
   ],
   "statePhases": [
@@ -599,167 +495,167 @@
     "stageDiagnostics": [
       {
         "stageNavd88Ft": 0.0,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.0
       },
       {
         "stageNavd88Ft": 0.1,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.1
       },
       {
         "stageNavd88Ft": 0.2,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.2
       },
       {
         "stageNavd88Ft": 0.3,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.3
       },
       {
         "stageNavd88Ft": 0.4,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.4
       },
       {
         "stageNavd88Ft": 0.5,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.5
       },
       {
         "stageNavd88Ft": 0.6,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.6
       },
       {
         "stageNavd88Ft": 0.7,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.7
       },
       {
         "stageNavd88Ft": 0.8,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.8
       },
       {
         "stageNavd88Ft": 0.9,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 0.9
       },
       {
         "stageNavd88Ft": 1.0,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.0
       },
       {
         "stageNavd88Ft": 1.1,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.1
       },
       {
         "stageNavd88Ft": 1.2,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.2
       },
       {
         "stageNavd88Ft": 1.3,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.3
       },
       {
         "stageNavd88Ft": 1.4,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.4
       },
       {
         "stageNavd88Ft": 1.5,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.5
       },
       {
         "stageNavd88Ft": 1.6,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.6
       },
       {
         "stageNavd88Ft": 1.7,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.7
       },
       {
         "stageNavd88Ft": 1.8,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.8
       },
       {
         "stageNavd88Ft": 1.9,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 1.9
       },
       {
         "stageNavd88Ft": 2.0,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.0
       },
       {
         "stageNavd88Ft": 2.1,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.1
       },
       {
         "stageNavd88Ft": 2.2,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.2
       },
       {
         "stageNavd88Ft": 2.3,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.3
       },
       {
         "stageNavd88Ft": 2.4,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.4
       },
       {
         "stageNavd88Ft": 2.5,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.5
       },
       {
         "stageNavd88Ft": 2.6,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.6
       },
       {
         "stageNavd88Ft": 2.7,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.7
       },
       {
         "stageNavd88Ft": 2.8,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.8
       },
       {
         "stageNavd88Ft": 2.9,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 2.9
       },
       {
         "stageNavd88Ft": 3.0,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 3.0
       },
       {
         "stageNavd88Ft": 3.1,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 3.1
       },
       {
         "stageNavd88Ft": 3.2,
-        "developedLandPolynomialPenaltyFt": 0.75,
+        "developedLandPolynomialPenaltyFt": 0.0,
         "connectivityStageNavd88Ft": 3.2
       },
       {
@@ -1623,33 +1519,33 @@
       ],
       "curve": "quadratic through all three anchors",
       "polynomial": "0.125*x^2 - 0.625*x + 0.75; x = stage - minor",
-      "belowMinorTreatment": "clamped to 0.75 ft",
-      "aboveMajorTreatment": "clamped to 0.00 ft",
-      "distancePenaltyEndNavd88Ft": 4.75,
-      "sourceDistanceFullPenaltyFt": 1500.0,
-      "sourceDistance": {
-        "origin": "immutable qualified 2.00-ft NAVD88 source-block cells only; visible feeders and newly flooded cells never reset distance",
-        "method": "four-neighbour geodesic travel over the connected domain",
-        "response": "linear from zero at source to full penalty at 1500 ft"
-      },
-      "stageApplicability": "full through minor flooding, smooth taper through the first 0.5 ft of moderate flooding, zero at and above 4.75 ft NAVD88",
-      "drainingScale": 0.25,
+      "belowMinorTreatment": "zero penalty; no green uncertainty",
+      "aboveMajorTreatment": "zero penalty (therefore also normal one foot above major)",
+      "stageApplicability": "minor inclusive through major exclusive",
       "spatialMask": "NJDEP Land Use 2015 TYPE15 = URBAN only",
-      "filling": "negative local-ground offset after connectivity; excluded band is green uncertainty",
-      "crestRelease": {
-        "durationMinutes": 60,
-        "quarterHourPenaltyWearOffFractions": [
-          0.0,
-          0.4375,
-          0.75,
-          0.9375,
-          1.0
-        ],
-        "description": "the static original-source distance loss wears off over the four 15-minute steps before a confirmed local crest",
-        "distanceInvariant": true
+      "filling": "full negative admission offset; excluded connected band is green uncertainty",
+      "highTide": "full stage penalty remains at the crest",
+      "drainageRelease": {
+        "minorDurationMinutes": 45,
+        "moderateDurationMinutes": 30,
+        "majorDurationMinutes": 0,
+        "minorRemainingFractionsAtMinutes": {
+          "0": 1.0,
+          "15": 0.6666666666666666,
+          "30": 0.3333333333333333,
+          "45": 0.0
+        },
+        "moderateRemainingFractionsAtMinutes": {
+          "0": 1.0,
+          "15": 0.5,
+          "30": 0.0
+        },
+        "majorRemainingFractionsAtMinutes": {
+          "0": 0.0
+        }
       },
-      "slack": "zero offset after the one-hour high-tide release",
-      "draining": "quarter-strength positive offset retains prior routed water; it is not new inflow",
+      "postCrestWaterSurface": "full gauge stage for every blue cell; equal to source-block water surface",
+      "draining": "zero admission penalty; no positive recession offset",
       "undeveloped": "zero offset on wetlands, water, beaches, and other non-urban land"
     }
   },
@@ -1680,7 +1576,7 @@
       "alpha": "255"
     },
     "developedPixels": 1948272,
-    "bytes": 195794
+    "bytes": 129618
   },
   "hydraulicStates": "COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png"
 }

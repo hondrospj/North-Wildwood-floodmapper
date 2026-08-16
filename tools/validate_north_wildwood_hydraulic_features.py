@@ -96,6 +96,12 @@ def main() -> None:
         raise AssertionError("Graph does not require a source plus 100 other cells")
     if manifest.get("sourceConnectivity") != "four-neighbour/shared-side only":
         raise AssertionError("Graph does not declare four-neighbour source connectivity")
+    if "bare earth" not in str(manifest.get("terrainKind", "")):
+        raise AssertionError("Graph does not declare bulkhead-conditioned bare earth")
+    if manifest.get("nsi2026FirstFloorTerrainTreatment") != (
+        "not burned; structure-impact thresholds only"
+    ):
+        raise AssertionError("Graph incorrectly treats NSI floors as hydraulic terrain")
 
     hard_zone_ids: set[int] = set()
     grate_zone_count = 0
@@ -262,6 +268,10 @@ def main() -> None:
         raise AssertionError("State package does not declare the 7.5-ft bulkhead")
     if int(physics.get("bulkheadNominalWidthCells", 0)) != 21:
         raise AssertionError("State package does not declare a 21-cell bulkhead")
+    if physics.get("nsi2026FirstFloorTerrainTreatment") != (
+        "not burned; structure-impact thresholds only"
+    ):
+        raise AssertionError("State package incorrectly burns NSI floors into terrain")
     penalty = physics.get("verticalPenalty") or {}
     anchors = penalty.get("anchors") or []
     expected_anchors = ((3.25, 0.75), (4.25, 0.25), (5.25, 0.0))
@@ -276,35 +286,21 @@ def main() -> None:
         raise AssertionError("State package has the wrong penalty curve")
     if "TYPE15 = URBAN" not in str(penalty.get("spatialMask", "")):
         raise AssertionError("State package does not constrain the penalty to developed land")
-    if "positive offset" not in str(penalty.get("draining", "")):
-        raise AssertionError("State package does not declare drainage retention")
-    if not math.isclose(
-        float(penalty.get("distancePenaltyEndNavd88Ft", math.nan)),
-        4.75,
-    ):
-        raise AssertionError("Distance penalty does not end 0.5 ft into moderate flooding")
-    if not math.isclose(
-        float(penalty.get("sourceDistanceFullPenaltyFt", math.nan)),
-        1500.0,
-    ):
-        raise AssertionError("State package has the wrong source-distance scale")
-    source_distance = penalty.get("sourceDistance") or {}
-    if "source-block cells only" not in str(source_distance.get("origin", "")):
-        raise AssertionError("Distance is not anchored exclusively to source blocks")
-    if "never reset distance" not in str(source_distance.get("origin", "")):
-        raise AssertionError("Water or feeder cells may incorrectly reset distance")
-    crest_release = penalty.get("crestRelease") or {}
-    if int(crest_release.get("durationMinutes", 0)) != 60:
-        raise AssertionError("State package does not declare a one-hour crest release")
-    release_fractions = crest_release.get("quarterHourPenaltyWearOffFractions") or []
-    expected_release_fractions = (0.0, 0.4375, 0.75, 0.9375, 1.0)
-    if len(release_fractions) != len(expected_release_fractions) or any(
-        not math.isclose(float(actual), expected)
-        for actual, expected in zip(release_fractions, expected_release_fractions)
-    ):
-        raise AssertionError("State package has the wrong crest-release progression")
-    if crest_release.get("distanceInvariant") is not True:
-        raise AssertionError("Crest wear-off changes the original-source distance field")
+    if "zero admission penalty" not in str(penalty.get("draining", "")):
+        raise AssertionError("State package invents a drainage-stage offset")
+    if penalty.get("belowMinorTreatment") != "zero penalty; no green uncertainty":
+        raise AssertionError("Below-minor filling is not normal")
+    release = penalty.get("drainageRelease") or {}
+    expected_durations = {
+        "minorDurationMinutes": 45,
+        "moderateDurationMinutes": 30,
+        "majorDurationMinutes": 0,
+    }
+    for key, expected in expected_durations.items():
+        if int(release.get(key, -1)) != expected:
+            raise AssertionError(f"State package has wrong {key}")
+    if "equal to source-block" not in str(penalty.get("postCrestWaterSurface", "")):
+        raise AssertionError("Post-crest inland/source water surfaces are not equal")
 
     # State connectivity is evaluated at the full gauge stage. The compact
     # state format stores centifeet, so a wet zone at 3.0 ft must encode the

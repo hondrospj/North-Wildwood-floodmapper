@@ -60,9 +60,35 @@ function phaseForIndex(rows, index, getter = row => row?.navd88StageFt) {
   const after = Number.isFinite(next) ? next - current : NaN;
   const epsilon = 0.025;
   if (Number.isFinite(before) && Number.isFinite(after) && before > epsilon && after <= epsilon) return "slack";
-  if (Number.isFinite(before) && Number.isFinite(after) && before >= -epsilon && after < -epsilon) return "slack";
+  if (Number.isFinite(before) && Number.isFinite(after) && before >= 0 && after < -epsilon) return "slack";
   if (Number.isFinite(before) && Number.isFinite(after) && before < -epsilon && after >= -epsilon) return "slack";
   if (Number.isFinite(before) && Number.isFinite(after) && before <= epsilon && after > epsilon) return "slack";
+  const explicitMinutes = Number(rows[index]?.timelineIntervalMinutes);
+  const frameMinutes = Number.isFinite(explicitMinutes) && explicitMinutes > 0 ? explicitMinutes : 60;
+  const falling = (Number.isFinite(before) && before < -epsilon) ||
+    (Number.isFinite(after) && after < -epsilon && Number.isFinite(before) && before < 0);
+  if (falling) {
+    const searchStart = Math.max(0, index - Math.max(2, Math.ceil(45 / frameMinutes) + 2));
+    let crestIndex = index;
+    let crestStage = current;
+    for (let candidate = searchStart; candidate <= index; candidate += 1) {
+      const candidateStage = Number(getter(rows[candidate]));
+      if (!Number.isFinite(candidateStage)) continue;
+      if (candidateStage > crestStage + 1e-9 ||
+          (Math.abs(candidateStage - crestStage) <= 1e-9 && candidate > crestIndex)) {
+        crestStage = candidateStage;
+        crestIndex = candidate;
+      }
+    }
+    const minutesSinceCrest = (index - crestIndex) * frameMinutes;
+    if (crestStage < THRESHOLDS_NAVD88.minorLow || crestStage >= THRESHOLDS_NAVD88.majorLow) return "draining";
+    if (crestStage >= THRESHOLDS_NAVD88.moderateLow) {
+      return minutesSinceCrest <= 15 ? "draining-release-15" : "draining";
+    }
+    if (minutesSinceCrest <= 15) return "draining-release-15";
+    if (minutesSinceCrest <= 30) return "draining-release-30";
+    return "draining";
+  }
   const delta = Number.isFinite(after) && (!Number.isFinite(before) || Math.abs(after) >= Math.abs(before)) ? after : before;
   if (Number.isFinite(delta) && delta > epsilon) return "filling";
   if (Number.isFinite(delta) && delta < -epsilon) return "draining";
@@ -108,8 +134,8 @@ function updateForecast() {
   payload.hydraulicModel = {
     timeStepMinutes: 15,
     phaseField: "hydraulicPhase",
-    phases: ["filling", "crest-release-44", "crest-release-75", "crest-release-94", "slack", "draining"],
-    note: "The browser applies a time-based one-hour crest release while selecting precomputed one-foot-grid hydraulic states; the expensive terrain solve is not repeated hourly."
+    phases: ["filling", "slack", "draining-release-15", "draining-release-30", "draining"],
+    note: "The browser applies calibrated 45/30/0-minute post-crest penalty release for minor/moderate/major flooding while selecting precomputed bare-earth hydraulic states."
   };
   payload.hours = forecasts.mean?.hours || payload.hours;
   writeJson("forecast.json", payload);

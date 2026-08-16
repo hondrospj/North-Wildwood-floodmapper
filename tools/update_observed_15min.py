@@ -137,12 +137,63 @@ def hydraulic_phase_for_index(rows: list[dict], index: int) -> str:
     if math.isfinite(before) and math.isfinite(after):
         if before > epsilon and after <= epsilon:
             return "slack"
-        if before >= -epsilon and after < -epsilon:
+        if before >= 0 and after < -epsilon:
             return "slack"
         if before < -epsilon and after >= -epsilon:
             return "slack"
         if before <= epsilon and after > epsilon:
             return "slack"
+    explicit_minutes = rows[index].get("timelineIntervalMinutes")
+    frame_minutes = (
+        float(explicit_minutes)
+        if isinstance(explicit_minutes, (int, float)) and explicit_minutes > 0
+        else 60.0
+    )
+    falling = (
+        math.isfinite(before) and before < -epsilon
+    ) or (
+        math.isfinite(after)
+        and after < -epsilon
+        and math.isfinite(before)
+        and before < 0
+    )
+    if falling:
+        lookback = max(2, math.ceil(45.0 / frame_minutes) + 2)
+        search_start = max(0, index - lookback)
+        crest_index = index
+        crest_stage = current
+        for candidate in range(search_start, index + 1):
+            candidate_stage = float(
+                rows[candidate].get("navd88StageFt", math.nan)
+            )
+            if not math.isfinite(candidate_stage):
+                continue
+            if (
+                candidate_stage > crest_stage + 1e-9
+                or (
+                    abs(candidate_stage - crest_stage) <= 1e-9
+                    and candidate > crest_index
+                )
+            ):
+                crest_stage = candidate_stage
+                crest_index = candidate
+        minutes_since_crest = (index - crest_index) * frame_minutes
+        if (
+            crest_stage < THRESHOLDS_NAVD88["minorLow"]
+            or crest_stage >= THRESHOLDS_NAVD88["majorLow"]
+        ):
+            return "draining"
+        if crest_stage >= THRESHOLDS_NAVD88["moderateLow"]:
+            return (
+                "draining-release-15"
+                if minutes_since_crest <= 15
+                else "draining"
+            )
+        if minutes_since_crest <= 15:
+            return "draining-release-15"
+        if minutes_since_crest <= 30:
+            return "draining-release-30"
+        return "draining"
     delta = (
         after
         if math.isfinite(after)

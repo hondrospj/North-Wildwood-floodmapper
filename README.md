@@ -5,14 +5,16 @@
 The dashboard keeps its later gauge archives, return-interval storms, exports,
 mobile layout, and parcel tools, but its flood surface has been restored to the
 new one-foot conditional-connectivity contract. It floors the selected water
-level to a reusable 0.1-ft NAVD88 frame and selects a filling, slack, or
-draining PNG; it does not run a new simulation in the browser.
+level to a reusable 0.1-ft NAVD88 frame and selects a filling, high-tide,
+post-crest release, or normal-draining PNG; it does not run a new simulation
+in the browser.
 
 This repository is the complete North Wildwood counterpart to the Stone Harbor
 Floodmapper. It uses the Great Channel at Stone Harbor gauge as the live and
 historical water-level forcing source, then applies North Wildwood's datum
-conversion, flood thresholds, terrain, DEM-integrated bulkheads, parcels, and
-a source-connected bathtub model.
+conversion, flood thresholds, bulkhead-conditioned bare-earth terrain, NSI
+2026 structure-impact thresholds, parcels, and a source-connected filling and
+drainage surrogate.
 
 ## Water-level contract
 
@@ -76,8 +78,8 @@ The flood-depth catalog extends through 20.00 ft NAVD88, covering every
 published NACCS station 11283 target in this set without a display cap.
 The complete 0.00–20.00 ft catalog uses the established Bunny filename
 convention (`NorthWildwoodDepthp0000.png` through
-`NorthWildwoodDepthp2000.png`) under versioned v36 filling, three crest-release,
-slack, and draining directories.
+`NorthWildwoodDepthp2000.png`) under versioned v37 filling, high-tide,
+15-minute release, 30-minute release, and normal-draining directories.
 
 These are stationary screening scenarios: no future sea-level-rise increment
 or trend detrending is applied. Rebuild the committed payload from the official
@@ -111,42 +113,34 @@ measurement accuracy. The model then:
    gauge stage. A corner connection can never make a cell blue.
 5. Applies a developed-land-only polynomial offset through the minor
    `(3.25, 0.75)`, moderate `(4.25, 0.25)`, and major `(5.25, 0.00)` NAVD88
-   stage/penalty anchors. Connectivity is always evaluated at the full gauge
-   stage; on filling frames the negative offset is applied only to local
-   developed ground. Its magnitude increases linearly with cumulative
-   four-neighbour travel from the immutable qualified source-block cells,
-   reaching the full polynomial value at 1,500 ft. Feeder cells, previously
-   flooded streets, and penalty areas never become new distance origins, so
-   the complete road-feeder route remains part of the distance. The distance
-   multiplier is fully active through minor flooding, tapers smoothly over the
-   first 0.5 ft of moderate flooding, and is zero at and above 4.75 ft NAVD88.
-   During the final hour before a confirmed local crest, 44%, 75%, and 94% of
-   this fixed distance-based depth reduction wears off, followed by 100% at
-   slack/high tide. This creates a graduated source-to-neighborhood depth field
-   without measuring from the advancing water edge. Terrain below the selected stage
-   that has no qualified source connection is also green in every phase. On
-   draining frames one quarter of that offset is positive, retaining already
-   routed water to represent a shorter recession lag without adding inflow.
-   The maximum draining hold is 0.1875 ft and the moderate-stage hold is
-   0.0625 ft. The first confirmed falling 15-minute frame enters this reduced
-   draining state immediately so the crest transition cannot flash green.
-   The NJDEP 2015 `TYPE15 = URBAN` mask prevents
-   either adjustment on marshes, beaches, water, forest, and agriculture.
+   stage/penalty anchors. The penalty is exactly zero below minor and at or
+   above major; therefore no green uncertainty is shown below minor and normal
+   filling has resumed by one foot above major. Between the anchors the unique
+   quadratic is `0.125x² - 0.625x + 0.75`, where `x` is feet above minor.
+   Connectivity is always evaluated at the full gauge stage; the penalty only
+   holds back the shallow connected developed-ground band. It is uniform
+   across the city's developed mask and does not vary with source distance.
+   The NJDEP 2015 `TYPE15 = URBAN` mask prevents any penalty on marshes,
+   beaches, water, forest, and agriculture.
+6. Keeps the full penalty at the local high tide, then removes it linearly in
+   quarter-hour steps over 45 minutes for a minor crest, 30 minutes for a
+   moderate crest, and zero minutes for a major crest. There is no positive
+   draining offset. Any post-crest cell that is blue uses the full selected
+   gauge stage as its water surface, equal to the outside/source-block water
+   surface. The penalty controls admission only; it never raises inland water.
 
 The solve produces 201 stages from 0.0–20.0 ft NAVD88 at 0.1-foot intervals for
-`filling`, `crest-release-44`, `crest-release-75`,
-`crest-release-94`, `slack`, and `draining`. The three release families
-remove 44%, 75%, and 94% of the depth loss while keeping the original-source
-distance raster unchanged. Hourly and 15-minute
-updates floor the selected level to the same stage catalog. Crest release is based on
-elapsed time, not array position, so shared hourly and quarter-hour timestamps
-select the same hydraulic state. Interpolated 15-minute rows derive phase from
-their own neighboring stages rather than copying an hourly phase, so flooding
-starts and ends at the same physical time. The visible frame and nearest
-neighbors load first; farther frames warm sequentially during browser idle
-time.
+`filling`, `slack`, `draining-release-15`, `draining-release-30`, and
+`draining`. Minor remaining-penalty fractions are 1, 2/3, 1/3, and 0 at 0,
+15, 30, and 45 minutes after high tide; moderate fractions are 1, 1/2, and 0
+at 0, 15, and 30 minutes; major is 0 immediately. Hourly and 15-minute updates
+floor the selected level to the same stage catalog. Release is based on elapsed
+time since the latest confirmed crest, not array position. The visible frame
+and nearest neighbors load first; farther frames warm sequentially during
+browser idle time.
 
-The main builders are:
+Build the parcel and NSI impact assets described under **Parcel House Alerts**
+independently from the hydraulic terrain. The main hydraulic builders are:
 
 ```bash
 python3 tools/resample_north_wildwood_dem_1ft.py \
@@ -197,7 +191,9 @@ cells in all four cardinal directions, any bulkhead cell is below 7.5 ft
 NAVD88, any supplied bulkhead cell is mixed into a terrain node, any edge
 crosses a bulkhead below 7.5 ft NAVD88, a storm-drain cell enters the graph, or
 the source raster differs from the literal 2.00-ft/101-cell rule, or the
-declared developed-only polynomial penalty is wrong.
+declared developed-only polynomial penalty is wrong. It also requires both the
+graph and state package to state explicitly that NSI floors are not hydraulic
+terrain.
 
 The feature-preparation step records the source ZIP hash, validates the
 one-foot grid, and requires the expected 1 hard-structure feature, 6 ignored
@@ -213,7 +209,9 @@ display pixel pools all 25 underlying one-foot cells instead of sampling only
 its center. Where the rising penalty visually separates a connected low basin,
 the renderer may preserve a feeder up to 15 feet wide, but every synthetic
 feeder pixel is clipped to an aligned public motor-vehicle road corridor and
-the unadjusted hydraulic mask. The road mask is derived from OpenStreetMap
+the penalty-held developed uncertainty mask. A disconnected marsh/beach cell
+can never be converted to blue. Every feeder is rendered at 0.05 ft, inside the
+displayed 0.00–0.10-ft depth bin. The road mask is derived from OpenStreetMap
 centerlines and excludes footways, paths, tracks, parking aisles, driveways,
 and private ways. Routes begin only at the already-qualified terrain source
 (2.00 ft NAVD88 and 101 cells for North Wildwood), minimize the highest road
@@ -226,13 +224,11 @@ The renderer labels each phase-adjusted mask from the original shared-side
 connection stage. It smooths
 depth values over roughly ten feet only
 inside that immutable water mask, so lidar noise cannot create stippled colors
-or new water. The render validator checks all 1,206 PNGs and rejects any
-mismatched depth/stage mask, corner-only filling/slack connection, blue
-filling/slack component without a source, misplaced green
-disconnected/penalty state, or incorrect drainage-retention pixel. Isolated
-draining water is permitted only where the developed-land recession lag
-explicitly predicts it. The same validator rejects any feeder pixel outside
-the public-road corridor.
+or new water. The render validator checks all 2,010 PNGs and rejects any
+mismatched depth/stage mask, corner-only connection, blue component without a
+source, green cell below minor, misplaced green disconnected/penalty state, or
+feeder outside the 0.00–0.10-ft bin. It also rejects any feeder pixel outside
+the public-road corridor or the explicit developed penalty band.
 
 ## Clickable depth
 
@@ -271,7 +267,8 @@ modeled depth at or below 0.10 ft is shown as `0.0-0.1ft`.
 
 The interface includes 15-minute, hourly, and daily playback; top-ten historic
 tides; guided help; address lookup; map and GIF export; mobile controls; parcel
-boundaries; House Alerts; and clickable depth.
+boundaries; House Alerts; USACE NSI 2026 modeled first-floor impacts; and
+clickable depth.
 
 To rebuild and verify the browser-optimized tide archive:
 
@@ -283,11 +280,40 @@ python3 tools/test_observed_archive_shards.py
 ## Parcel House Alerts
 
 `tools/build_parcel_alerts.py` uses the official NJ composite MOD-IV layer for
-North Wildwood municipality `0507`. Each parcel uses the highest center of an
-intersecting cell from the original five-foot DEM grid. The historical count
-comes from independent Stone Harbor high-tide peaks separated by at least six
-hours. A parcel is counted as flooded only when water depth is strictly greater
-than 0.10 ft at that highest parcel cell; a depth equal to 0.10 ft is excluded.
+North Wildwood municipality `0507`. Its parcel-ground fallback uses the highest
+center of an intersecting cell from the original five-foot DEM grid. The
+historical count comes from independent Stone Harbor high-tide peaks separated
+by at least six hours. A threshold is exceeded only when water is strictly more
+than 0.10 ft above it; a depth equal to 0.10 ft is excluded.
+
+`tools/build_nsi_2026_structures.py` adds the USACE National Structure Inventory
+2026 Base layer. It clips the API response to the official NJGIS municipal
+boundary, collapses stacked NSI records to one point per building footprint,
+samples the mapper's local 2019 bare-earth LiDAR ground at that point, and
+calculates:
+
+```text
+modeled first floor (ft NAVD88)
+  = local mapper ground (ft NAVD88) + NSI found_ht (ft above ground)
+```
+
+This intentionally replaces only NSI's nationally sourced 10-meter ground
+value, not NSI's modeled foundation height. For a parcel with more than one
+matched footprint, the profile uses the lowest residential first-floor
+threshold, or the lowest threshold of any occupancy when no residential record
+exists. The original parcel-ground fields remain in the asset as an explicit
+fallback.
+
+NSI first-floor thresholds are deliberately not burned into the DEM. They are
+used only for structure and parcel impact screening. The hydraulic graph,
+packed point-query grid, and all five phase catalogs use the
+bulkhead-conditioned bare-earth surface. This avoids treating buildings as
+solid terrain walls—especially the open space beneath pile and pier
+foundations—and keeps the drainage surrogate aligned with its stated purpose.
+The rectangles are modeled approximations, not source footprint polygons,
+surveys, elevation certificates, or regulatory products. The structure-impact
+dots, historical exceedance counts, and parcel projections continue to use the
+same modeled first-floor thresholds.
 
 The same Stone Harbor series is fitted from equally weighted monthly means and
 rebased to January 1, 2026. The projection model includes that existing local
@@ -296,14 +322,28 @@ and High Cape May relative sea-level scenarios. Every NOAA median curve is
 fitted quadratically and rebased to zero in 2026. A continuous Gaussian-kernel
 exceedance CDF and two-sided 95% calendar-year block-bootstrap interval are
 evaluated for every curve, year from 2026–2100, and 0.1-foot elevation step
-from 0.0–14.0 ft NAVD88.
+from 0.0–20.0 ft NAVD88. The upper bound matches the hydraulic stage catalog
+and covers the full 1.2–18.6 ft range of the committed NSI floor thresholds.
 
 ```bash
 python3 tools/build_parcel_alerts.py \
   --dem /path/to/NorthWildwoodDEM_1ft_NAVD88.tif \
   --observed observed15min.json \
   --output /path/to/parcel-assets
+
+python3 tools/build_nsi_2026_structures.py \
+  --dem /path/to/NorthWildwoodDEM_1ft_NAVD88.tif \
+  --output assets/nsi-2026 \
+  --parcels assets/parcel-history-v2/NorthWildwoodParcels.geojson \
+  --cdf assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json
 ```
+
+The NSI builder queries the official North Wildwood boundary's small bounding
+box from the public API, then performs the exact municipal polygon clip locally.
+This avoids a current API error on the municipality's detailed coastline while
+preserving the exact city selection. `--nsi` and `--boundary` accept cached
+GeoJSON for reproducible offline rebuilds. Run it after rebuilding parcels so
+the modeled floor fields are not overwritten.
 
 To refresh only the projection file using a cached NOAA 2022 response:
 
@@ -316,16 +356,21 @@ python3 tools/build_parcel_alerts.py \
   --refresh-existing-parcels
 ```
 
-Parcel results are screening estimates, not surveys, insurance
-determinations, legal boundaries, or structure-specific engineering analyses.
+Parcel and NSI results are screening estimates, not surveys, elevation
+certificates, insurance determinations, legal boundaries, or structure-specific
+engineering analyses. USACE describes NSI Base as a nationally consistent
+modeled inventory rather than structure-by-structure verification; an
+individual foundation type, height, occupancy, or point location can be wrong.
 
 The Buildings switch repeats the exact Esri OSM vector-tile building geometry
-from the basemap in a transparent foreground pane above the floodwater. A
-building click or matched address opens the parcel prompt and loads the
-projection dataset only after the user chooses **See Flood History And
-Projections**. Initial startup similarly renders the forecast hour nearest the
-current time first; observed archives, historical tides, boundary data, and
-other secondary data warm in the background.
+from the basemap in a transparent foreground pane above the floodwater. The
+**NSI floor impacts** switch lazily loads 3,843 modeled footprint points: red
+means the selected water level is more than 0.10 ft above the modeled floor,
+gold is within 0.5 ft, and cyan is below it. A building click or matched address
+opens the parcel prompt and loads the projection dataset only after the user
+chooses **See Flood History And Projections**. Initial startup similarly renders
+the forecast hour nearest the current time first; observed archives, historical
+tides, boundary data, and other secondary data warm in the background.
 
 ## Bunny layout
 

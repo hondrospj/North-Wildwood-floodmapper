@@ -22,31 +22,15 @@ HEIGHT = 14_120
 RENDER_STRIDE = 5
 RENDER_WIDTH = WIDTH // RENDER_STRIDE
 RENDER_HEIGHT = HEIGHT // RENDER_STRIDE
-DRAINING_VERTICAL_PENALTY_SCALE = 0.25
-DISTANCE_PENALTY_END_NAVD88_FT = 4.75
-SOURCE_DISTANCE_FULL_PENALTY_FT = 1_500.0
-FILLING_PENALTY_SCALES = {
-    "filling": 1.0,
-    "crest-release-44": 0.5625,
-    "crest-release-75": 0.25,
-    "crest-release-94": 0.0625,
-}
-CREST_RELEASE_PROGRESS = {
-    "crest-release-44": 0.4375,
-    "crest-release-75": 0.75,
-    "crest-release-94": 0.9375,
-}
 PHASE_PREDECESSOR = {
-    "crest-release-44": "filling",
-    "crest-release-75": "crest-release-44",
-    "crest-release-94": "crest-release-75",
+    "draining-release-15": "slack",
+    "draining-release-30": "draining-release-15",
 }
 PHASE_DIRECTORIES = {
     "filling": "filling",
-    "crest-release-44": "crest-release-44",
-    "crest-release-75": "crest-release-75",
-    "crest-release-94": "crest-release-94",
     "slack": "",
+    "draining-release-15": "draining-release-15",
+    "draining-release-30": "draining-release-30",
     "draining": "draining",
 }
 FOUR_NEIGHBOUR_STRUCTURE = np.asarray(
@@ -186,21 +170,24 @@ def build_render_summaries(graph: Path) -> dict[str, np.ndarray]:
 
 
 def vertical_penalty(stage: float) -> float:
-    if stage <= 3.25:
-        return 0.75
+    if stage < 3.25:
+        return 0.0
     if stage >= 5.25:
         return 0.0
     x = stage - 3.25
     return 0.125 * x * x - 0.625 * x + 0.75
 
 
-def distance_penalty_stage_scale(stage: float) -> float:
-    if stage <= 4.25:
-        return 1.0
-    if stage >= DISTANCE_PENALTY_END_NAVD88_FT:
+def penalty_remaining_fraction(stage: float, phase: str) -> float:
+    if vertical_penalty(stage) <= 0 or phase == "draining":
         return 0.0
-    remaining = (DISTANCE_PENALTY_END_NAVD88_FT - stage) / 0.5
-    return remaining * remaining * (3.0 - 2.0 * remaining)
+    if phase in ("filling", "slack"):
+        return 1.0
+    if phase == "draining-release-15":
+        return 2.0 / 3.0 if stage < 4.25 else 0.5
+    if phase == "draining-release-30":
+        return 1.0 / 3.0 if stage < 4.25 else 0.0
+    raise ValueError(phase)
 
 
 def retain_source_connected(mask: np.ndarray, source: np.ndarray) -> np.ndarray:
@@ -221,6 +208,7 @@ def add_visible_source_feeders(
     source: np.ndarray,
     road: np.ndarray,
     ground: np.ndarray,
+    penalized_uncertainty: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Reproduce the renderer's portable lowest-road feeder construction."""
     flooded, feeder, _ = connect_penalty_basins_by_lowest_road_route(
@@ -229,6 +217,7 @@ def add_visible_source_feeders(
         source,
         road,
         ground,
+        penalized_uncertainty=penalized_uncertainty,
         feeder_half_width_cells=1,
     )
     return flooded, feeder
@@ -270,14 +259,9 @@ def main() -> None:
     source_distance_ft, source_distance_diagnostics = (
         source_block_geodesic_distance(
             source,
-            valid & (activation <= DISTANCE_PENALTY_END_NAVD88_FT + 1e-9),
+            valid,
             cell_size_ft=RENDER_STRIDE,
         )
-    )
-    source_distance_factor = np.clip(
-        source_distance_ft.astype(np.float64) / SOURCE_DISTANCE_FULL_PENALTY_FT,
-        0.0,
-        1.0,
     )
     records = []
     maximum_components = 0
@@ -286,7 +270,6 @@ def main() -> None:
     isolated_source_pixel_instances = 0
     uncertainty_pixel_instances = 0
     disconnected_pixel_instances = 0
-    recession_retained_pixel_instances = 0
     feeder_pixel_instances = 0
 
     for phase, relative in PHASE_DIRECTORIES.items():
@@ -298,6 +281,7 @@ def main() -> None:
                 f"Expected 201 {phase} depth PNGs, found {len(depth_paths)}"
             )
         previous_stage_expected = None
+        previous_phase_adjustment = 0.0
         for depth_path in depth_paths:
             code = depth_path.stem.removeprefix("NorthWildwoodDepth")
             stage_path = stage_dir / f"NorthWildwoodStage{code}.png"
@@ -335,7 +319,7 @@ def main() -> None:
                 )
                 source_labels = np.unique(labels[depth_blue & source])
                 source_labels = source_labels[source_labels > 0]
-                if phase != "draining" and source_labels.size != component_count:
+                if source_labels.size != component_count:
                     missing = sorted(
                         set(range(1, component_count + 1))
                         - set(int(value) for value in source_labels)
@@ -348,86 +332,79 @@ def main() -> None:
             stage = sign * int(code[1:]) / 100.0
             baseline = valid & (activation <= stage + 1e-9)
             adjustment = vertical_penalty(stage)
-            if phase == "draining":
-                developed_stage = (
-                    stage + adjustment * DRAINING_VERTICAL_PENALTY_SCALE
-                )
-                developed_blue = (
-                    activation_developed <= developed_stage + 1e-9
-                )
-            elif phase in FILLING_PENALTY_SCALES:
-                phase_adjustment = (
-                    adjustment
-                    * distance_penalty_stage_scale(stage)
-                    * FILLING_PENALTY_SCALES[phase]
-                    * source_distance_factor
-                )
-                developed_stage = stage - phase_adjustment
-                developed_blue = (
-                    (activation_developed <= stage + 1e-9)
-                    & (ground_developed <= developed_stage + 1e-9)
-                )
-            else:
-                developed_stage = stage
-                developed_blue = (
-                    (activation_developed <= stage + 1e-9)
-                    & (ground_developed <= stage + 1e-9)
-                )
-            if phase == "draining":
-                adjusted_blue = valid & (
-                    developed_blue
-                    | (activation_undeveloped <= stage + 1e-9)
-                )
-                expected_blue = adjusted_blue
-                feeder = np.zeros(expected_blue.shape, dtype=bool)
-            else:
-                adjusted_blue = valid & (
-                    developed_blue
-                    | (activation_undeveloped <= stage + 1e-9)
-                )
-                expected_blue, feeder = add_visible_source_feeders(
-                    adjusted_blue,
-                    baseline,
-                    source,
-                    road,
-                    ground,
-                )
-                required_blue = (
-                    np.zeros(expected_blue.shape, dtype=bool)
-                    if previous_stage_expected is None
-                    else previous_stage_expected
-                )
-                predecessor = PHASE_PREDECESSOR.get(phase)
-                if predecessor is not None:
-                    predecessor_relative = PHASE_DIRECTORIES[predecessor]
-                    predecessor_path = (
-                        assets
-                        / "DepthPNGs"
-                        / "North Wildwood"
-                        / predecessor_relative
-                        / f"NorthWildwoodDepth{code}.png"
+            phase_adjustment = adjustment * penalty_remaining_fraction(stage, phase)
+            developed_stage = stage - phase_adjustment
+            developed_eligible = activation_developed <= stage + 1e-9
+            developed_blue = developed_eligible & (
+                ground_developed <= developed_stage + 1e-9
+            )
+            adjusted_blue = valid & (
+                developed_blue
+                | (activation_undeveloped <= stage + 1e-9)
+            )
+            penalized_uncertainty = (
+                valid
+                & developed_eligible
+                & ~adjusted_blue
+                & (phase_adjustment > 0)
+            )
+            expected_blue, feeder = add_visible_source_feeders(
+                adjusted_blue,
+                baseline,
+                source,
+                road,
+                ground,
+                penalized_uncertainty,
+            )
+            required_blue = (
+                np.zeros(expected_blue.shape, dtype=bool)
+                if (
+                    previous_stage_expected is None
+                    or (
+                        previous_phase_adjustment <= 0.0
+                        and phase_adjustment > 0.0
                     )
-                    predecessor_codes = np.asarray(Image.open(predecessor_path))
-                    predecessor_blue = (
-                        (predecessor_codes >= 1) & (predecessor_codes <= 11)
-                    )
-                    required_blue = required_blue | predecessor_blue
-                preserved_feeder = required_blue & baseline & ~expected_blue
-                if np.any(preserved_feeder & ~road):
-                    raise AssertionError(
-                        f"Temporal nesting preserved off-road water in "
-                        f"{phase} {code}"
-                    )
-                expected_blue |= preserved_feeder
-                feeder |= preserved_feeder
-                previous_stage_expected = expected_blue.copy()
-                if np.any(feeder & ~road):
-                    raise AssertionError(
-                        f"Off-road visible feeder in {phase} {code}"
-                    )
+                )
+                else previous_stage_expected
+            )
+            predecessor = PHASE_PREDECESSOR.get(phase)
+            if predecessor is not None:
+                predecessor_relative = PHASE_DIRECTORIES[predecessor]
+                predecessor_path = (
+                    assets
+                    / "DepthPNGs"
+                    / "North Wildwood"
+                    / predecessor_relative
+                    / f"NorthWildwoodDepth{code}.png"
+                )
+                predecessor_codes = np.asarray(Image.open(predecessor_path))
+                predecessor_blue = (
+                    (predecessor_codes >= 1) & (predecessor_codes <= 11)
+                )
+                required_blue |= predecessor_blue
+            preserved_feeder = (
+                required_blue
+                & penalized_uncertainty
+                & road
+                & ~expected_blue
+            )
+            expected_blue |= preserved_feeder
+            feeder |= preserved_feeder
+            previous_stage_expected = expected_blue.copy()
+            previous_phase_adjustment = phase_adjustment
+            if np.any(feeder & ~road):
+                raise AssertionError(f"Off-road visible feeder in {phase} {code}")
+            if np.any(feeder & ~penalized_uncertainty):
+                raise AssertionError(
+                    f"Visible feeder painted non-penalty uncertainty in {phase} {code}"
+                )
             disconnected = valid & (ground < stage - 0.005) & ~baseline
-            penalized = baseline & ~expected_blue
-            expected_green = ~expected_blue & (disconnected | penalized)
+            penalized = penalized_uncertainty & ~expected_blue
+            expected_green = (
+                np.zeros(expected_blue.shape, dtype=bool)
+                if stage < 3.25
+                else ~expected_blue & (disconnected | penalized)
+            )
             if not np.array_equal(depth_blue, expected_blue):
                 raise AssertionError(
                     f"Rendered blue mask differs from the developed-land "
@@ -438,14 +415,13 @@ def main() -> None:
                     f"Rendered green diagnostic mask differs from the "
                     f"disconnected/penalized mask in {phase} {code}"
                 )
-            disconnected_pixel_instances += int(np.count_nonzero(disconnected))
-            if phase != "draining":
-                uncertainty_pixel_instances += int(np.count_nonzero(penalized))
-                feeder_pixel_instances += int(np.count_nonzero(feeder))
-            if phase == "draining":
-                recession_retained_pixel_instances += int(
-                    np.count_nonzero(expected_blue & ~baseline)
+            if np.any(depth_codes[feeder] != 1):
+                raise AssertionError(
+                    f"Visible feeder is not in the 0.00-0.10-ft bin in {phase} {code}"
                 )
+            disconnected_pixel_instances += int(np.count_nonzero(disconnected))
+            uncertainty_pixel_instances += int(np.count_nonzero(penalized))
+            feeder_pixel_instances += int(np.count_nonzero(feeder))
             maximum_components = max(maximum_components, int(component_count))
             maximum_blue_pixels = max(
                 maximum_blue_pixels,
@@ -458,23 +434,18 @@ def main() -> None:
             {
                 "status": "passed",
                 "connectivity": "four-neighbour/shared-side only",
-                "sourceRequirement": (
-                    "every filling/release/slack blue component intersects a "
-                    "qualified source; draining may retain isolated "
-                    "developed-land lag"
-                ),
+                "sourceRequirement": "every blue component intersects a qualified source",
                 "minimumBlueComponentPixels": minimum_blue_component_pixels,
                 "isolatedSourcePixelInstances": isolated_source_pixel_instances,
                 "disconnectedGreenPixelInstances": disconnected_pixel_instances,
                 "developedUncertaintyPixelInstances": uncertainty_pixel_instances,
-                "developedRecessionRetainedPixelInstances": recession_retained_pixel_instances,
+                "postCrestBlueWaterSurface": "full source-block/gauge stage",
                 "visibleFeederPixelInstances": feeder_pixel_instances,
                 "offRoadVisibleFeederPixelInstances": 0,
                 "roadCorridorPixels": int(np.count_nonzero(road)),
                 "maximumComponentsInAnyFrame": maximum_components,
                 "maximumBluePixelsInAnyFrame": maximum_blue_pixels,
                 "sourceDistance": source_distance_diagnostics,
-                "sourceDistanceFullPenaltyFt": SOURCE_DISTANCE_FULL_PENALTY_FT,
                 "phases": records,
             },
             indent=2,

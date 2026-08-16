@@ -30,9 +30,9 @@ def synthetic_slr_payload() -> dict:
     return {"SlrProjections": rows}
 
 
-assert len(model.ELEVATION_GRID_FT) == 141
+assert len(model.ELEVATION_GRID_FT) == 201
 assert model.ELEVATION_GRID_FT[0] == 0.0
-assert model.ELEVATION_GRID_FT[-1] == 14.0
+assert model.ELEVATION_GRID_FT[-1] == 20.0
 assert all(
     math.isclose(float(right - left), 0.1, abs_tol=1e-9)
     for left, right in zip(model.ELEVATION_GRID_FT, model.ELEVATION_GRID_FT[1:])

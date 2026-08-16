@@ -14245,6 +14245,12 @@ html.win-compact-ui #timelineDock #hourSlider{
                 <div class="layer-name">Parcels</div>
               </div>
             </div>
+            <div class="layer-item">
+              <div id="nsiStructuresToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show USACE NSI 2026 modeled first-floor impacts"></div>
+              <div class="layer-meta">
+                <div class="layer-name">NSI floor impacts</div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -14586,7 +14592,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     .shorely-flood-popup .leaflet-popup-content{margin:16px 18px 17px}
     .shorely-flood-popup .leaflet-popup-tip{background:#08101f;border:1px solid rgba(125,249,255,.2)}
     .shorely-flood-popup .leaflet-popup-close-button{top:5px!important;right:7px!important;width:30px!important;height:30px!important;color:#d8f9ff!important;font-size:23px!important}
-    .shorely-flood-popup .depth-query-popup,.shorely-flood-popup .house-alert-popup,.shorely-flood-popup .town-address-popup{color:#edf7ff}
+    .shorely-flood-popup .depth-query-popup,.shorely-flood-popup .house-alert-popup,.shorely-flood-popup .town-address-popup,.shorely-flood-popup .nsi-structure-popup{color:#edf7ff}
     .shorely-flood-popup .depth-query-popup h3{color:#c9d8ee}
     .shorely-flood-popup .depth-query-value{color:#7df9ff}
     .house-alert-popup{min-width:min(300px,calc(100vw - 92px));max-width:340px;color:#edf7ff}
@@ -14594,8 +14600,17 @@ html.win-compact-ui #timelineDock #hourSlider{
     .house-alert-popup h3{margin:0 30px 4px 0;color:#fff;font-size:18px;line-height:1.15}
     .house-alert-summary{display:flex;align-items:baseline;gap:7px;margin-bottom:13px;padding:11px 12px;border:1px solid rgba(125,249,255,.18);border-radius:13px;background:rgba(14,116,144,.15)}
     .house-alert-summary strong{color:#fff;font-size:27px;line-height:1}.house-alert-summary span{color:#c7d7ec;font-size:12px;font-weight:800}
+    .house-alert-elevation{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:8px 0 7px;color:#a9bad3;font-size:10px;font-weight:800}
+    .house-alert-elevation strong{color:#7df9ff;font-size:13px;white-space:nowrap}
+    .house-alert-popup .house-alert-note,.nsi-structure-popup .house-alert-note{margin:0 0 11px;color:#9fb2ca;font-size:9px;line-height:1.35}
     .house-alert-cta{width:100%;min-height:42px;border:1px solid rgba(125,249,255,.42);border-radius:12px;background:rgba(125,249,255,.09);color:#d9fdff;font-size:12px;font-weight:950;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 9px 22px rgba(2,6,23,.2)}
     .house-alert-cta:hover,.house-alert-cta:focus-visible{border-color:#7df9ff;background:rgba(125,249,255,.15);color:#fff}
+    .nsi-structure-popup{min-width:min(270px,calc(100vw - 92px));max-width:330px}
+    .nsi-structure-popup .house-alert-kicker{display:block;margin-bottom:4px;color:#7df9ff;font-size:10px;font-weight:950;letter-spacing:.09em;text-transform:uppercase}
+    .nsi-structure-popup h3{margin:0 30px 9px 0;color:#fff;font-size:17px;line-height:1.15}
+    .nsi-structure-grid{display:grid;grid-template-columns:1fr auto;gap:5px 12px;margin-bottom:10px;padding:10px 11px;border:1px solid rgba(125,249,255,.17);border-radius:12px;background:rgba(14,116,144,.12);color:#a9bad3;font-size:10px}
+    .nsi-structure-grid strong{color:#fff;text-align:right}
+    .nsi-impact-status{margin-bottom:8px;padding:7px 9px;border-radius:9px;background:rgba(15,31,54,.82);color:#d8e5f5;font-size:10px;font-weight:850;line-height:1.3}
     .map-click-mode-control{position:fixed;z-index:780;top:max(72px,calc(env(safe-area-inset-top) + 64px));left:50%;display:grid;grid-template-columns:auto auto auto;align-items:center;gap:4px;padding:5px;border:1px solid rgba(125,249,255,.26);border-radius:14px;background:rgba(8,15,31,.94);box-shadow:0 14px 38px rgba(2,6,23,.42),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(14px);transform:translateX(-50%);white-space:nowrap}
     .map-click-mode-control[hidden]{display:none!important}
     .map-click-mode-label{padding:0 5px 0 7px;color:#8fa5bf;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
@@ -14669,6 +14684,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     let PARCELS_URL = "";
     let HOUSE_ALERT_CDF_URL = "";
     let PARCEL_BOUNDARY_PNG_URL = "";
+    let NSI_STRUCTURES_URL = "";
 
     function withFreshJsonUrl(url) {
       const fresh = new URL(url, window.location.href);
@@ -14742,9 +14758,6 @@ html.win-compact-ui #timelineDock #hourSlider{
     const MINOR_VERTICAL_PENALTY_FT = 0.75;
     const MODERATE_VERTICAL_PENALTY_FT = 0.25;
     const MAJOR_VERTICAL_PENALTY_FT = 0;
-    const DRAINING_VERTICAL_PENALTY_SCALE = 0.25;
-    const DISTANCE_PENALTY_END_NAVD88_FT = 4.75;
-    const SOURCE_DISTANCE_FULL_PENALTY_FT = 1500;
 
     function formatOffsetWithSign(value, digits = 2) {
       const n = Number(value) || 0;
@@ -14915,6 +14928,9 @@ html.win-compact-ui #timelineDock #hourSlider{
       PARCELS_URL = new URL(config.parcels?.geojsonPath || "", APP_BASE).href;
       HOUSE_ALERT_CDF_URL = new URL(config.parcels?.houseAlertCdfPath || "", APP_BASE).href;
       PARCEL_BOUNDARY_PNG_URL = new URL(config.parcels?.boundaryPngPath || "", APP_BASE).href;
+      NSI_STRUCTURES_URL = config.structures?.nsi2026GeojsonPath
+        ? new URL(config.structures.nsi2026GeojsonPath, APP_BASE).href
+        : "";
       MUNICIPAL_BOUNDARY_QUERY_URL = config.boundary?.queryUrl || "";
       MUNICIPAL_BOUNDARY_OUTFIELDS = config.boundary?.outFields || "";
 
@@ -15216,10 +15232,14 @@ function cloneStyleObject(value) {
     let roadsLayer = null;
     let buildingsLayer = null;
     let parcelsLayer = null;
+    let nsiStructuresLayer = null;
     let parcelFeatures = [];
+    let nsiStructureFeatures = [];
     let houseAlertCdfData = null;
     let houseAlertCdfPromise = null;
     let parcelLoadPromise = null;
+    let nsiStructureLoadPromise = null;
+    let nsiStructureRenderer = null;
     let depthQueryGridPromise = null;
     let developedQueryGridPromise = null;
     let depthQueryImagePromise = null;
@@ -17036,7 +17056,7 @@ function setDatumHelpOpen(isOpen) {
     function getVerticalBathtubPenalty(stageValue) {
       const stage = Number(stageValue);
       if (!Number.isFinite(stage)) return null;
-      if (stage <= MINOR_FLOOD_FT) return MINOR_VERTICAL_PENALTY_FT;
+      if (stage < MINOR_FLOOD_FT) return 0;
       if (stage >= MAJOR_FLOOD_FT) return MAJOR_VERTICAL_PENALTY_FT;
       const x0 = MINOR_FLOOD_FT;
       const x1 = MODERATE_FLOOD_FT;
@@ -17051,56 +17071,45 @@ function setDatumHelpOpen(isOpen) {
       );
     }
 
-    function getDistancePenaltyStageScale(stageValue) {
+    function getPenaltyRemainingFraction(stageValue, phase = "slack") {
       const stage = Number(stageValue);
-      if (!Number.isFinite(stage)) return null;
-      if (stage <= MODERATE_FLOOD_FT) return 1;
-      if (stage >= DISTANCE_PENALTY_END_NAVD88_FT) return 0;
-      const remaining = (DISTANCE_PENALTY_END_NAVD88_FT - stage) /
-        (DISTANCE_PENALTY_END_NAVD88_FT - MODERATE_FLOOD_FT);
-      return remaining * remaining * (3 - 2 * remaining);
+      const normalizedPhase = normalizeHydraulicPhase(phase);
+      const penalty = getVerticalBathtubPenalty(stage);
+      if (!Number.isFinite(penalty) || penalty <= 0 || normalizedPhase === "draining") return 0;
+      if (normalizedPhase === "filling" || normalizedPhase === "slack") return 1;
+      if (normalizedPhase === "draining-release-15") {
+        return stage < MODERATE_FLOOD_FT ? 2 / 3 : 1 / 2;
+      }
+      if (normalizedPhase === "draining-release-30") {
+        return stage < MODERATE_FLOOD_FT ? 1 / 3 : 0;
+      }
+      return 0;
     }
 
-    function getSourceDistancePenaltyFactor(sourceDistanceFt) {
-      const distance = Number(sourceDistanceFt);
-      if (!Number.isFinite(distance)) return 1;
-      return Math.max(0, Math.min(1, distance / SOURCE_DISTANCE_FULL_PENALTY_FT));
-    }
-
-    function getPenalizedConnectedDepth(stageValue, groundValue, developed = true, phase = "slack", sourceDistanceFt = SOURCE_DISTANCE_FULL_PENALTY_FT) {
+    function getPenalizedConnectedDepth(stageValue, groundValue, developed = true, phase = "slack", sourceDistanceFt = null) {
       const stage = Number(stageValue);
       const ground = Number(groundValue);
       const polynomialPenalty = getVerticalBathtubPenalty(stage);
       if (!Number.isFinite(stage) || !Number.isFinite(ground) || !Number.isFinite(polynomialPenalty)) return null;
       const appliedPenalty = developed ? polynomialPenalty : 0;
       const normalizedPhase = normalizeHydraulicPhase(phase);
-      const fillingScale = normalizedPhase === "filling"
-        ? 1
-        : normalizedPhase === "crest-release-44"
-          ? 0.5625
-          : normalizedPhase === "crest-release-75"
-            ? 0.25
-            : normalizedPhase === "crest-release-94"
-              ? 0.0625
-              : 0;
-      const distanceStageScale = getDistancePenaltyStageScale(stage);
-      const sourceDistanceFactor = getSourceDistancePenaltyFactor(sourceDistanceFt);
-      const adjustment = normalizedPhase === "draining"
-        ? appliedPenalty * DRAINING_VERTICAL_PENALTY_SCALE
-        : -appliedPenalty * fillingScale * distanceStageScale * sourceDistanceFactor;
+      const penaltyRemainingFraction = getPenaltyRemainingFraction(stage, normalizedPhase);
+      const adjustment = -appliedPenalty * penaltyRemainingFraction;
       const adjustedStage = stage + adjustment;
+      const postCrest = normalizedPhase.startsWith("draining");
+      const waterSurface = postCrest ? stage : adjustedStage;
       const rawDepth = Math.max(0, stage - ground);
-      const depth = Math.max(0, adjustedStage - ground);
+      const depth = Math.max(0, waterSurface - ground);
       return {
         rawDepth,
         polynomialPenalty,
         appliedPenalty,
-        distanceStageScale,
-        sourceDistanceFactor,
+        penaltyRemainingFraction,
+        sourceDistanceFt,
         adjustment,
         adjustedStage,
         depth,
-        localWaterSurface: ground + depth
+        localWaterSurface: waterSurface
       };
     }
 
@@ -17155,10 +17164,9 @@ function setDatumHelpOpen(isOpen) {
       const phase = String(value || "").toLowerCase();
       const supported = new Set([
         "filling",
-        "crest-release-44",
-        "crest-release-75",
-        "crest-release-94",
         "slack",
+        "draining-release-15",
+        "draining-release-30",
         "draining"
       ]);
       return supported.has(phase) ? phase : "slack";
@@ -17166,7 +17174,7 @@ function setDatumHelpOpen(isOpen) {
 
     function getHydraulicStatePhase(value) {
       const phase = normalizeHydraulicPhase(value);
-      return phase.startsWith("crest-release-") ? "filling" : phase;
+      return phase.startsWith("draining-release-") ? "draining" : phase;
     }
 
     function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {
@@ -17185,57 +17193,44 @@ function setDatumHelpOpen(isOpen) {
       const after = Number.isFinite(next) && Number.isFinite(current) ? next - current : null;
       const epsilon = 0.025;
 
-      // Start recession retention on the first lower sample when the next
-      // sample confirms a falling tide. Keeping this frame at slack caused a
-      // one-frame green flash before the draining catalog appeared.
-      if (Number.isFinite(before) && Number.isFinite(after) && before < 0 && after < -epsilon) return "draining";
+      if (Number.isFinite(before) && Number.isFinite(after) && before > epsilon && after <= epsilon) return "slack";
+      if (Number.isFinite(before) && Number.isFinite(after) && before >= 0 && after < -epsilon) return "slack";
       if (Number.isFinite(before) && Number.isFinite(after) && before < -epsilon && after >= -epsilon) return "slack";
       if (Number.isFinite(before) && Number.isFinite(after) && before <= epsilon && after > epsilon) return "slack";
 
-      // A full filling-to-slack penalty release can expose a large connected
-      // basin in a single 15-minute frame. Look no more than one hour ahead
-      // for a locally confirmed crest and release the developed-land penalty
-      // at 15-minute quarter steps. The interval is time-based so hourly and
-      // quarter-hour views select the same family at shared timestamps.
+      // Once the series is falling, recover the latest local high tide and
+      // release the admission penalty using North Wildwood's calibrated
+      // 45/30/0-minute minor/moderate/major durations.
       const explicitMinutes = Number(entry?.timelineIntervalMinutes);
       const frameMinutes = Number.isFinite(explicitMinutes) && explicitMinutes > 0
         ? explicitMinutes
         : entry?.observationInterval === "15min"
           ? 15
           : 60;
-      const releaseFrames = Math.max(1, Math.ceil(60 / frameMinutes));
-      const releaseEnd = Math.min(rows.length - 1, resolvedIndex + releaseFrames);
-      let crestIndex = -1;
-      let crestStage = -Infinity;
-      for (let candidate = resolvedIndex; candidate <= releaseEnd; candidate += 1) {
-        const candidateStage = getStageValue(rows[candidate]);
-        if (!Number.isFinite(candidateStage)) continue;
-        if (candidateStage > crestStage + 1e-9 || Math.abs(candidateStage - crestStage) <= 1e-9) {
-          crestStage = candidateStage;
-          crestIndex = candidate;
-        }
-      }
-      let crestConfirmed = false;
-      if (crestIndex >= resolvedIndex && Number.isFinite(crestStage)) {
-        const confirmationEnd = Math.min(rows.length - 1, crestIndex + 2);
-        for (let candidate = crestIndex + 1; candidate <= confirmationEnd; candidate += 1) {
+      const falling = (Number.isFinite(before) && before < -epsilon) ||
+        (Number.isFinite(after) && after < -epsilon && Number.isFinite(before) && before < 0);
+      if (falling) {
+        const lookbackFrames = Math.max(2, Math.ceil(45 / frameMinutes) + 2);
+        const searchStart = Math.max(0, resolvedIndex - lookbackFrames);
+        let crestIndex = resolvedIndex;
+        let crestStage = current;
+        for (let candidate = searchStart; candidate <= resolvedIndex; candidate += 1) {
           const candidateStage = getStageValue(rows[candidate]);
           if (!Number.isFinite(candidateStage)) continue;
-          if (candidateStage > crestStage + epsilon) {
-            crestConfirmed = false;
-            break;
+          if (candidateStage > crestStage + 1e-9 ||
+              (Math.abs(candidateStage - crestStage) <= 1e-9 && candidate > crestIndex)) {
+            crestStage = candidateStage;
+            crestIndex = candidate;
           }
-          if (candidateStage < crestStage - epsilon) crestConfirmed = true;
         }
-      }
-      if (crestConfirmed) {
-        const minutesToCrest = Math.max(0, (crestIndex - resolvedIndex) * frameMinutes);
-        if (minutesToCrest <= 0) return "slack";
-        if (minutesToCrest < 60) {
-          if (minutesToCrest <= 15) return "crest-release-94";
-          if (minutesToCrest <= 30) return "crest-release-75";
-          return "crest-release-44";
+        const minutesSinceCrest = Math.max(0, (resolvedIndex - crestIndex) * frameMinutes);
+        if (crestStage < MINOR_FLOOD_FT || crestStage >= MAJOR_FLOOD_FT) return "draining";
+        if (crestStage >= MODERATE_FLOOD_FT) {
+          return minutesSinceCrest <= 15 ? "draining-release-15" : "draining";
         }
+        if (minutesSinceCrest <= 15) return "draining-release-15";
+        if (minutesSinceCrest <= 30) return "draining-release-30";
+        return "draining";
       }
 
       const delta = Number.isFinite(after) && (!Number.isFinite(before) || Math.abs(after) >= Math.abs(before)) ? after : before;
@@ -17258,9 +17253,8 @@ function setDatumHelpOpen(isOpen) {
       const normalizedPhase = normalizeHydraulicPhase(phase);
       const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedPhase] || [];
       const roots = phaseRoots.length ? phaseRoots : (OVERLAY_ROOTS[mode] || []);
-      // Preserve configured priority. The bundled v36 catalog is first while
-      // the matching Bunny version is unavailable, avoiding a 404 before
-      // every distinct historic stage/phase frame.
+      // Preserve configured priority. The bundled bare-earth drainage v37
+      // catalog is authoritative; Bunny v37 is a future same-version fallback.
       const orderedRoots = [...roots];
       const filenames = getOverlayFilenameCandidates(mode, stageValue);
       return orderedRoots.flatMap(root => filenames.map(name => {
@@ -18043,6 +18037,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       map.createPane("floodPane");
       map.createPane("parcelsPane");
       map.createPane("buildingsPane");
+      map.createPane("structuresPane");
       map.createPane("roadsPane");
       map.createPane("maskPane");
       map.getPane("basemapGrayPane").style.zIndex = 180;
@@ -18052,6 +18047,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       map.getPane("floodPane").style.zIndex = 500;
       map.getPane("parcelsPane").style.zIndex = 610;
       map.getPane("buildingsPane").style.zIndex = 620;
+      map.getPane("structuresPane").style.zIndex = 625;
       map.getPane("roadsPane").style.zIndex = 710;
       map.getPane("maskPane").style.zIndex = 630;
       map.getPane("popupPane").style.zIndex = 800;
@@ -18151,7 +18147,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     function parcelInfoInteractionEnabled() {
       return Boolean(
         document.getElementById("parcelsToggle")?.classList.contains("on") ||
-        document.getElementById("buildingsToggle")?.classList.contains("on")
+        document.getElementById("buildingsToggle")?.classList.contains("on") ||
+        document.getElementById("nsiStructuresToggle")?.classList.contains("on")
       );
     }
 
@@ -18163,7 +18160,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       control.hidden = !parcelInfoInteractionEnabled();
       buildingButton.textContent = document.getElementById("buildingsToggle")?.classList.contains("on")
         ? "Building info"
-        : "Parcel info";
+        : document.getElementById("nsiStructuresToggle")?.classList.contains("on")
+          ? "Floor info"
+          : "Parcel info";
       buildingButton.classList.toggle("active", mapClickMode === "building");
       depthButton.classList.toggle("active", mapClickMode === "depth");
       buildingButton.setAttribute("aria-pressed", String(mapClickMode === "building"));
@@ -22838,6 +22837,7 @@ function formatSelectedObservedDate(dateStr) {
       updatePersistentDepthQueryPopup({ useRenderedFlood: false });
       renderSelectionMeta(entry, rawStage, displayStage);
       renderTimelineMeta(entry);
+      updateNsiStructureImpactLayer();
 
       const slider = document.getElementById("hourSlider");
       slider.value = String(index);
@@ -23935,6 +23935,9 @@ function startPlayback() {
       }
       const mobilePopup = window.matchMedia("(max-width: 900px), (max-height: 560px)").matches;
       const compactLandscapePopup = mobilePopup && window.innerHeight <= 560 && window.innerWidth > window.innerHeight;
+      const desktopRightRailWidth = mobilePopup
+        ? 0
+        : Math.ceil(document.getElementById("rightRail")?.getBoundingClientRect().width || 0);
       const isHouseAlertPopup = String(html).includes("house-alert-popup");
       const requestedPopupWidth = compactLandscapePopup && isHouseAlertPopup ? 520 : maxWidth;
       const viewportPopupWidth = mobilePopup
@@ -23952,7 +23955,7 @@ function startPlayback() {
         autoPanPaddingTopLeft: mobilePopup ? L.point(10, 126) : L.point(16, 16),
         autoPanPaddingBottomRight: mobilePopup
           ? L.point(10, Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shorely-mobile-timeline-height")) + 16 || 140)
-          : L.point(16, 16)
+          : L.point(desktopRightRailWidth + 30, 16)
       })
         .setLatLng(latlng)
         .setContent(html)
@@ -23971,13 +23974,26 @@ function startPlayback() {
 
     function buildHouseAlertPopup(feature) {
       const p = feature?.properties || {};
-      const historic = Number(p.historicFloodEventCount);
+      const firstFloor = Number(p.nsi2026ModeledFirstFloorNavd88Ft);
+      const hasModeledFloor = Number.isFinite(firstFloor);
+      const historic = Number(hasModeledFloor
+        ? p.nsi2026HistoricFirstFloorExceedanceCount
+        : p.historicFloodEventCount);
       const count = Number.isFinite(historic) ? historic.toLocaleString() : "—";
       const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
       return '<div class="house-alert-popup">' +
         '<span class="house-alert-kicker">Building flood profile</span>' +
         '<h3>' + address + '</h3>' +
-        '<div class="house-alert-summary"><strong>' + count + '</strong><span>floods</span></div>' +
+        (hasModeledFloor
+          ? '<div class="house-alert-elevation"><span>Modeled first floor</span><strong>' + firstFloor.toFixed(1) + ' ft NAVD88</strong></div>'
+          : '<div class="house-alert-elevation"><span>Parcel ground</span><strong>' + Number(p.elevationNavd88Ft).toFixed(1) + ' ft NAVD88</strong></div>') +
+        '<div class="house-alert-summary"><strong>' + count + '</strong><span>' +
+          (hasModeledFloor ? 'modeled floor exceedances' : 'parcel-ground floods') + '</span></div>' +
+        '<div class="house-alert-note">' +
+          (hasModeledFloor
+            ? 'USACE NSI 2026 modeled foundation height plus local 2019 LiDAR ground. Screening estimate—not a survey or elevation certificate.'
+            : 'No NSI structure was matched to this parcel; this fallback uses the parcel ground screening elevation.') +
+        '</div>' +
         '<button class="house-alert-cta" type="button">See Flood History And Projections</button>' +
         '</div>';
     }
@@ -24022,9 +24038,16 @@ function startPlayback() {
 
     function findProjectionElevationIndex(feature, data) {
       const grid = Array.isArray(data?.elevationGridFtNavd88) ? data.elevationGridFtNavd88 : [];
-      const preferred = Number(feature?.properties?.modelElevationIndex);
+      const preferred = Number(
+        feature?.properties?.nsi2026ModelElevationIndex ?? feature?.properties?.modelElevationIndex
+      );
       if (Number.isInteger(preferred) && preferred >= 0 && preferred < grid.length) return preferred;
-      const elevation = Number(feature?.properties?.modelElevationNavd88Ft ?? feature?.properties?.elevationNavd88Ft);
+      const elevation = Number(
+        feature?.properties?.nsi2026ModelElevationNavd88Ft ??
+        feature?.properties?.nsi2026ModeledFirstFloorNavd88Ft ??
+        feature?.properties?.modelElevationNavd88Ft ??
+        feature?.properties?.elevationNavd88Ft
+      );
       let bestIndex = 0;
       let bestDifference = Infinity;
       grid.forEach((candidate, index) => {
@@ -24085,7 +24108,11 @@ function startPlayback() {
       const p = feature?.properties || {};
       const years = Array.isArray(data.years) ? data.years : [];
       const elevationIndex = findProjectionElevationIndex(feature, data);
-      const historic = Number(p.historicFloodEventCount);
+      const firstFloor = Number(p.nsi2026ModeledFirstFloorNavd88Ft);
+      const hasModeledFloor = Number.isFinite(firstFloor);
+      const historic = Number(hasModeledFloor
+        ? p.nsi2026HistoricFirstFloorExceedanceCount
+        : p.historicFloodEventCount);
       const defaultYearIndex = Math.max(0, years.indexOf(2050));
       const scenarioKey = data.annualFloodEventCount?.[selectedFloodProjectionScenario]
         ? selectedFloodProjectionScenario
@@ -24101,12 +24128,16 @@ function startPlayback() {
         <div class="flood-history-summary">
           <div class="flood-summary-item">
             <strong>${Number.isFinite(historic) ? historic.toLocaleString() : "—"}</strong>
-            <span>floods</span>
+            <span>${hasModeledFloor ? "modeled floor exceedances" : "parcel-ground floods"}</span>
+          </div>
+          <div class="flood-summary-item">
+            <strong>${hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} ft</strong>
+            <span>${hasModeledFloor ? "modeled first floor NAVD88" : "parcel ground NAVD88"}</span>
           </div>
         </div>
         <section class="flood-history-section">
           <div class="flood-history-section-head">
-            <div><h3>Projected floods per year</h3><p>Shaded area shows the 95% range</p></div>
+            <div><h3>${hasModeledFloor ? "Projected first-floor exceedances per year" : "Projected parcel-ground floods per year"}</h3><p>Shaded area shows the 95% range</p></div>
             <label class="flood-scenario-field">
               Scenario
               <select id="floodProjectionScenarioSelect" class="flood-scenario-select" aria-label="Sea level projection curve">
@@ -24127,6 +24158,9 @@ function startPlayback() {
             </div>
           </div>
         </section>
+        <p class="house-alert-note">${hasModeledFloor
+          ? "First floor = local 2019 bare-earth LiDAR ground + the USACE NSI 2026 modeled foundation height. NSI attributes are screening estimates and may be wrong for an individual structure."
+          : "No NSI structure was matched to this parcel, so this profile uses the parcel ground screening elevation."}</p>
       `;
 
       const updateSelectedYear = index => {
@@ -24180,6 +24214,144 @@ function startPlayback() {
       document.addEventListener("keydown", event => {
         if (event.key === "Escape" && backdrop && !backdrop.hidden) closeFloodHistoryPane();
       });
+    }
+
+    function getSelectedStageNavd88() {
+      const entry = currentSeriesHours[currentHourIndex];
+      const stage = Number(getStageValue(entry));
+      return Number.isFinite(stage) ? stage : null;
+    }
+
+    function getNsiStructureImpactStyle(properties, stage = getSelectedStageNavd88()) {
+      const firstFloor = Number(properties?.modeledFirstFloorNavd88Ft);
+      if (!Number.isFinite(firstFloor) || !Number.isFinite(stage)) {
+        return { radius: 2.7, color: "#94a3b8", weight: 0.7, opacity: 0.8, fillColor: "#64748b", fillOpacity: 0.42 };
+      }
+      const waterAboveFloor = stage - firstFloor;
+      if (waterAboveFloor > 0.1) {
+        return { radius: 4.3, color: "#fff1f2", weight: 1.1, opacity: 0.95, fillColor: "#fb7185", fillOpacity: 0.95 };
+      }
+      if (waterAboveFloor >= -0.5) {
+        return { radius: 3.6, color: "#fff7d6", weight: 1.0, opacity: 0.95, fillColor: "#fbbf24", fillOpacity: 0.88 };
+      }
+      return { radius: 2.7, color: "#d9fdff", weight: 0.7, opacity: 0.72, fillColor: "#22d3ee", fillOpacity: 0.48 };
+    }
+
+    function formatNsiImpactStatus(properties, stage = getSelectedStageNavd88()) {
+      const firstFloor = Number(properties?.modeledFirstFloorNavd88Ft);
+      if (!Number.isFinite(firstFloor) || !Number.isFinite(stage)) return "Select a valid water level to compare with this modeled floor.";
+      const difference = stage - firstFloor;
+      if (difference > 0.1) return `Selected water is ${difference.toFixed(1)} ft above the modeled first floor.`;
+      if (difference >= -0.1) return "Selected water is within 0.1 ft of the modeled first floor.";
+      return `Selected water is ${Math.abs(difference).toFixed(1)} ft below the modeled first floor.`;
+    }
+
+    function buildNsiStructurePopup(feature) {
+      const p = feature?.properties || {};
+      const firstFloor = Number(p.modeledFirstFloorNavd88Ft);
+      const localGround = Number(p.localGroundNavd88Ft);
+      const foundationHeight = Number(p.foundationHeightFt);
+      const address = escapeTownAddressHtml(p.address || "Modeled North Wildwood structure");
+      const foundation = escapeTownAddressHtml(p.foundationTypeName || p.foundationType || "Unknown");
+      const occupancy = escapeTownAddressHtml(p.occupancyType || p.damageCategory || "Unclassified");
+      return '<div class="nsi-structure-popup">' +
+        '<span class="house-alert-kicker">USACE NSI 2026 estimate</span>' +
+        '<h3>' + address + '</h3>' +
+        '<div class="nsi-structure-grid">' +
+          '<span>Modeled first floor</span><strong>' + (Number.isFinite(firstFloor) ? firstFloor.toFixed(1) + ' ft NAVD88' : '—') + '</strong>' +
+          '<span>Local LiDAR ground</span><strong>' + (Number.isFinite(localGround) ? localGround.toFixed(1) + ' ft NAVD88' : '—') + '</strong>' +
+          '<span>Modeled foundation</span><strong>' + (Number.isFinite(foundationHeight) ? foundationHeight.toFixed(1) + ' ft • ' : '') + foundation + '</strong>' +
+          '<span>Occupancy class</span><strong>' + occupancy + '</strong>' +
+        '</div>' +
+        '<div class="nsi-impact-status">' + escapeTownAddressHtml(formatNsiImpactStatus(p)) + '</div>' +
+        '<div class="house-alert-note">The first-floor threshold combines the mapper’s local 2019 bare-earth LiDAR ground with NSI’s modeled foundation height. It does not modify hydraulic terrain and is not a survey or elevation certificate.</div>' +
+        '</div>';
+    }
+
+    function updateNsiStructureImpactLayer() {
+      if (!nsiStructuresLayer) return;
+      const stage = getSelectedStageNavd88();
+      nsiStructuresLayer.eachLayer(layer => {
+        if (layer?.feature?.properties && typeof layer.setStyle === "function") {
+          layer.setStyle(getNsiStructureImpactStyle(layer.feature.properties, stage));
+        }
+      });
+    }
+
+    function findNsiStructureFeatureForLocation(lat, lon, maximumDistanceMeters = 24) {
+      let nearest = null;
+      let nearestDistance = Infinity;
+      const longitudeScale = Math.cos(Number(lat) * Math.PI / 180);
+      nsiStructureFeatures.forEach(feature => {
+        const coordinates = feature?.geometry?.coordinates || [];
+        const dLat = Number(coordinates[1]) - Number(lat);
+        const dLon = (Number(coordinates[0]) - Number(lon)) * longitudeScale;
+        const meters = Math.hypot(dLat, dLon) * 111320;
+        if (Number.isFinite(meters) && meters < nearestDistance) {
+          nearestDistance = meters;
+          nearest = feature;
+        }
+      });
+      return nearestDistance <= maximumDistanceMeters ? nearest : null;
+    }
+
+    async function ensureNsiStructureAssets() {
+      if (nsiStructuresLayer) return nsiStructuresLayer;
+      if (!NSI_STRUCTURES_URL) throw new Error("USACE NSI 2026 structures are not configured.");
+      if (!nsiStructureLoadPromise) {
+        nsiStructureLoadPromise = fetchJson(NSI_STRUCTURES_URL, { cache: "force-cache" })
+          .then(payload => {
+            if (payload?.metadata?.schema !== "north-wildwood-nsi-2026-first-floor-v1") {
+              throw new Error("The USACE NSI 2026 structure asset needs to be refreshed.");
+            }
+            nsiStructureFeatures = Array.isArray(payload.features) ? payload.features : [];
+            nsiStructureRenderer = nsiStructureRenderer || L.canvas({ pane: "structuresPane", padding: 0.5, tolerance: 7 });
+            nsiStructuresLayer = L.geoJSON(payload, {
+              pane: "structuresPane",
+              renderer: nsiStructureRenderer,
+              pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+                ...getNsiStructureImpactStyle(feature?.properties),
+                pane: "structuresPane",
+                renderer: nsiStructureRenderer,
+                bubblingMouseEvents: false,
+                interactive: true
+              }),
+              onEachFeature: (feature, layer) => {
+                layer.on("click", event => {
+                  if (event?.originalEvent) event.originalEvent._parcelHandled = true;
+                  openPersistentFloodPopup(event.latlng, buildNsiStructurePopup(feature), 360);
+                });
+              }
+            });
+            return nsiStructuresLayer;
+          })
+          .catch(error => {
+            nsiStructureLoadPromise = null;
+            throw error;
+          });
+      }
+      return nsiStructureLoadPromise;
+    }
+
+    async function setNsiStructuresEnabled(enabled) {
+      const shouldEnable = Boolean(enabled);
+      const toggle = document.getElementById("nsiStructuresToggle");
+      if (toggle) {
+        toggle.classList.toggle("on", shouldEnable);
+        toggle.setAttribute("aria-checked", String(shouldEnable));
+      }
+      if (!map) ensureMap();
+      if (!shouldEnable) {
+        if (nsiStructuresLayer && map.hasLayer(nsiStructuresLayer)) map.removeLayer(nsiStructuresLayer);
+        updateMapClickModeControl();
+        toast("");
+        return;
+      }
+      const layer = await ensureNsiStructureAssets();
+      updateNsiStructureImpactLayer();
+      if (!map.hasLayer(layer)) layer.addTo(map);
+      setMapClickMode("building", { closePopup: false });
+      toast("USACE NSI 2026 modeled first-floor impacts: red exceeds the floor, gold is within 0.5 ft, cyan is below. Screening estimates only.");
     }
 
     async function ensureParcelAssets() {
@@ -24790,6 +24962,22 @@ function startPlayback() {
       if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
       try {
         if (mapClickMode === "building" && parcelInfoInteractionEnabled()) {
+          const nsiEnabled = document.getElementById("nsiStructuresToggle")?.classList.contains("on");
+          if (nsiEnabled) {
+            const structureFeature = findNsiStructureFeatureForLocation(event.latlng.lat, event.latlng.lng);
+            if (structureFeature) {
+              openPersistentFloodPopup(event.latlng, buildNsiStructurePopup(structureFeature), 360);
+              return;
+            }
+          }
+          const parcelLayerEnabled = Boolean(
+            document.getElementById("parcelsToggle")?.classList.contains("on") ||
+            document.getElementById("buildingsToggle")?.classList.contains("on")
+          );
+          if (!parcelLayerEnabled) {
+            toast("Tap a highlighted NSI structure point or choose Water depth.");
+            return;
+          }
           const parcelFeature = await findParcelFeatureForLocation(
             event.latlng.lat,
             event.latlng.lng,
@@ -24889,6 +25077,21 @@ function startPlayback() {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           toggleParcels();
+        }
+      });
+      const nsiStructuresToggle = document.getElementById("nsiStructuresToggle");
+      const toggleNsiStructures = () => {
+        const enabled = !nsiStructuresToggle?.classList.contains("on");
+        setNsiStructuresEnabled(enabled).catch(error => {
+          setNsiStructuresEnabled(false).catch(() => {});
+          toast(error?.message || "USACE NSI 2026 structures could not be loaded.");
+        });
+      };
+      nsiStructuresToggle?.addEventListener("click", toggleNsiStructures);
+      nsiStructuresToggle?.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleNsiStructures();
         }
       });
     }
@@ -34168,85 +34371,80 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260815-source-distance-v36",
-      "dynamic": "20260815-source-distance-v36",
-      "hydraulic": "20260815-source-distance-v36"
+      "depth": "20260816-drainage-v37",
+      "dynamic": "20260816-drainage-v37",
+      "hydraulic": "20260816-drainage-v37"
     },
     "modelKind": "phase-aware developed-land conditional connectivity",
     "phaseInvariant": false,
-    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260815-source-distance-v36",
-    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260815-source-distance-v36",
+    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260816-drainage-v37",
+    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260816-drainage-v37",
     "depthQueryCogPath": null,
     "physicsForecastPointerPath": null,
     "physicsForecastCyclePointerTemplatePath": null,
-    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260815-source-distance-v36",
+    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260816-drainage-v37",
     "depthRoots": [
       "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
-      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v36/"
+      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"
     ],
     "dynamicRoots": [
       "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
-      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v36/"
+      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/"
     ],
     "phaseRoots": {
       "depth": {
         "filling": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/filling/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v36/filling/"
-        ],
-        "crest-release-44": [
-          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/crest-release-44/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v36/crest-release-44/"
-        ],
-        "crest-release-75": [
-          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/crest-release-75/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v36/crest-release-75/"
-        ],
-        "crest-release-94": [
-          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/crest-release-94/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v36/crest-release-94/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/filling/"
         ],
         "slack": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v36/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"
+        ],
+        "draining-release-15": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/draining-release-15/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/draining-release-15/"
+        ],
+        "draining-release-30": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/draining-release-30/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/draining-release-30/"
         ],
         "draining": [
           "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/draining/",
-          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v36/draining/"
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/draining/"
         ]
       },
       "dynamic": {
         "filling": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/filling/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v36/filling/"
-        ],
-        "crest-release-44": [
-          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/crest-release-44/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v36/crest-release-44/"
-        ],
-        "crest-release-75": [
-          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/crest-release-75/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v36/crest-release-75/"
-        ],
-        "crest-release-94": [
-          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/crest-release-94/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v36/crest-release-94/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/filling/"
         ],
         "slack": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v36/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/"
+        ],
+        "draining-release-15": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/draining-release-15/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/draining-release-15/"
+        ],
+        "draining-release-30": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/draining-release-30/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/draining-release-30/"
         ],
         "draining": [
           "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/draining/",
-          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v36/draining/"
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/draining/"
         ]
       }
     }
   },
   "parcels": {
     "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1",
-    "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260726-depth-threshold-v4",
-    "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260726-depth-threshold-v4"
+    "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260816-nsi-2026-floor-v1",
+    "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260816-nsi-2026-floor-v1"
+  },
+  "structures": {
+    "nsi2026GeojsonPath": "./assets/nsi-2026/NorthWildwoodNSI2026Structures.geojson?v=20260816-nsi-floor-impact-v2"
   },
   "addressLookup": {
     "title": "Find a North Wildwood Address",

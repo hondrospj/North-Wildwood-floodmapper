@@ -4,9 +4,10 @@
 // blocks follow the literal four-neighbour rule: every <=2.0 ft component must
 // contain its seed plus at least 100 other cells (101 cells total). No hand-
 // drawn polygon is allowed to add or remove source cells.
-// The 21-cell bulkhead is already stitched into the supplied DEM at 7.5 ft
-// NAVD88 by GDAL. This builder verifies, but never silently changes, that
-// terrain. Storm-drain exchange is disabled for this model version.
+// The 21-cell bulkhead is already stitched into the supplied bare-earth DEM at
+// 7.5 ft NAVD88 by GDAL. This builder verifies, but never silently changes,
+// that terrain. NSI 2026 first-floor elevations remain structure-impact
+// thresholds rather than hydraulic walls. Storm-drain exchange is disabled.
 
 #include "gdal_priv.h"
 #include "cpl_conv.h"
@@ -580,6 +581,8 @@ void write_manifest(
          << "  \"bulkheadNominalWidthCells\": 21,\n"
          << "  \"bulkheadPixelCount\": " << hard_count << ",\n"
          << "  \"bulkheadTerrainTreatment\": \"stitched into input DEM with GDAL before graph construction\",\n"
+         << "  \"terrainKind\": \"bulkhead-conditioned bare earth; structures are not hydraulic walls\",\n"
+         << "  \"nsi2026FirstFloorTerrainTreatment\": \"not burned; structure-impact thresholds only\",\n"
          << "  \"stormDrains\": \"disabled; not connectivity seeds and no exchange flow\",\n"
          << "  \"modelMaximumNavd88Ft\": 20.0,\n"
          << "  \"controlVolumeSizeFt\": " << CONTROL_VOLUME_SIZE_FT << ",\n"
@@ -637,7 +640,7 @@ int main(int argc, char** argv) {
     write_geotiff(
         inputs.output / "NorthWildwoodConditionedElevation10.tif",
         elevation10.data(), info, GDT_Int16, NODATA_ELEV,
-        "input_dem_with_gdal_stitched_twenty_one_cell_bulkhead_navd88_decifeet");
+        "bulkhead_conditioned_bare_earth_dem_navd88_decifeet");
     write_geotiff(
         inputs.output / "NorthWildwoodConnectionStage10.tif",
         connection10.data(), info, GDT_Int16, NO_CONNECTION,
