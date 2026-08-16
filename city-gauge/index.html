@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Explore every recovered reading from North Wildwood municipal tide sensor 1005 and query high tides.">
+  <title>North Wildwood City Gauge Archive</title>
+  <style>
+    :root{--ink:#0b2130;--blue:#0d5b7b;--line:#cbd8dc;--soft:#edf4f4;--paper:#f5f8f7;--muted:#607179;--white:#fff;--green:#27835b}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:var(--paper);font-family:Arial,Helvetica,sans-serif}button,input,select{font:inherit}button,a,input,select{-webkit-tap-highlight-color:transparent}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(13,91,123,.25);outline-offset:2px}
+    header{position:sticky;z-index:20;top:0;height:74px;padding:0 clamp(20px,5vw,72px);border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;background:rgba(245,248,247,.95);backdrop-filter:blur(12px)}
+    .brand{display:flex;align-items:center;gap:12px;width:max-content;color:inherit;text-decoration:none;font-weight:800}.mark{display:grid;place-items:center;width:34px;height:34px;color:#fff;background:var(--ink);font-size:11px;letter-spacing:.1em}nav{display:flex;gap:28px}nav a{color:inherit;text-decoration:none;font-size:12px;font-weight:750}.source{justify-self:end;color:inherit;text-decoration:none;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}.source:before{content:"";display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px #dcefe5}
+    .hero{padding:72px clamp(20px,5vw,72px) 56px;display:grid;grid-template-columns:1.2fr .8fr;gap:8vw;align-items:end}.eyebrow{margin:0 0 17px;color:var(--blue);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font:400 clamp(54px,7vw,102px)/.91 Georgia,serif;letter-spacing:-.06em}.lede{margin:0;color:#53656d;font-size:17px;line-height:1.6}.metrics{margin-top:28px;padding-top:21px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.metrics div{display:flex;flex-direction:column;gap:4px}.metrics b{font:400 20px Georgia,serif}.metrics span{color:var(--muted);font-size:9px;letter-spacing:.07em;text-transform:uppercase}
+    .explorer{margin:0 clamp(16px,5vw,72px) 86px;display:grid;grid-template-columns:minmax(265px,320px) minmax(0,1fr);border:1px solid var(--line);background:#fff;box-shadow:0 20px 55px rgba(11,33,48,.08);scroll-margin-top:90px}.controls{padding:28px;border-right:1px solid var(--line);background:var(--soft)}.heading{display:flex;align-items:center;gap:11px;margin-bottom:30px}.step{display:grid;place-items:center;width:28px;height:28px;border:1px solid #92a5ac;border-radius:50%;font-size:10px}.heading h2,.chart-head h2{margin:0;font:400 23px Georgia,serif}label{display:block;margin-top:20px;color:#53656d;font-size:11px;font-weight:750;letter-spacing:.04em}input,select{width:100%;margin-top:8px;padding:11px;border:1px solid #b7c6cb;border-radius:0;color:var(--ink);background:#fff}.quick,.presets{margin-top:10px;display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #b7c6cb}.quick button,.presets button{border:0;border-right:1px solid #b7c6cb;padding:9px 4px;background:rgba(255,255,255,.55);cursor:pointer;font-size:10px;font-weight:750}.quick button:last-child,.presets button:last-child{border-right:0}.quick button:hover,.presets button:hover{background:#fff}.primary,.download{border:0;padding:14px 15px;display:flex;align-items:center;justify-content:space-between;color:#fff;background:var(--ink);font-weight:750;cursor:pointer}.primary{width:100%;margin-top:25px}.primary:hover,.download:hover{background:#0d4661}button:disabled{cursor:not-allowed;opacity:.5}.note{margin-top:30px;padding-top:18px;border-top:1px solid #c8d5d8;color:var(--muted);font-size:11px;line-height:1.5}.note b{display:block;margin-bottom:2px;color:var(--ink)}.error{margin:14px 0 0;padding:10px;border-left:2px solid #b53b41;color:#883238;background:#fae9e9;font-size:11px;line-height:1.45}
+    .chart-panel{min-width:0;display:flex;flex-direction:column}.chart-head{min-height:100px;padding:22px 28px;display:flex;align-items:center;justify-content:space-between;gap:15px;border-bottom:1px solid var(--line)}.chart-head p{margin:0 0 6px;color:var(--blue);font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.badge{padding:7px 9px;border:1px solid #c2d0d4;color:var(--blue);background:#f5f9f9;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.plot{position:relative;min-height:400px}.plot canvas{display:block;width:100%;height:400px;touch-action:pan-y}.empty,.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);background:#fff;font-size:13px}.loading{z-index:4;background:rgba(255,255,255,.9)}.loading[hidden],.empty[hidden]{display:none}.stats{min-height:66px;padding:12px 28px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:center;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.05em}.stats span{display:flex;flex-direction:column;gap:3px}.stats b{color:var(--ink);font:400 17px Georgia,serif;letter-spacing:0;text-transform:none}
+    .section{padding:82px clamp(18px,5vw,72px);scroll-margin-top:56px}.section.alt{border-top:1px solid var(--line);background:#eaf1f1}.section-title{display:flex;align-items:center;gap:12px}.section-title h2{margin:0;font:400 clamp(36px,4vw,54px) Georgia,serif;letter-spacing:-.03em}.section-title .eyebrow{margin-bottom:4px}.grid{margin-top:38px;display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:clamp(28px,5vw,68px);align-items:start}.query-copy{margin:0 0 28px;color:#57686f;font-size:13px;line-height:1.65}.presets{grid-template-columns:repeat(4,1fr)}.count{margin-top:32px;padding:22px 0;border-top:1px solid #c4d1d4;border-bottom:1px solid #c4d1d4;display:flex;flex-direction:column}.count b{font:400 52px Georgia,serif}.count span{margin-top:5px;color:var(--muted);font-size:9px;letter-spacing:.09em;text-transform:uppercase}.card{min-width:0;border:1px solid var(--line);background:#fff;box-shadow:0 14px 40px rgba(11,33,48,.06)}.card-head{min-height:68px;padding:12px 17px 12px 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.card-head h3{margin:0;font:400 20px Georgia,serif}.card-head label{margin:0;display:flex;align-items:center;gap:8px}.card-head select{width:auto;margin:0;padding:7px}
+    .table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}th{padding:12px 15px;color:#65767d;background:#f5f8f7;text-align:left;font-size:9px;letter-spacing:.09em;text-transform:uppercase}td{height:47px;padding:9px 15px;border-top:1px solid #e2e9eb}tbody tr:hover{background:#f6faf9}.num{font:400 14px Georgia,serif}.rownum{color:#87959a}.pill{display:inline-block;padding:5px 7px;color:#315f72;background:#e5f0f3;font-size:8px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.dot{display:inline-block;width:7px;height:7px;margin-right:7px;border-radius:50%;background:var(--green)}.dot.flagged{background:#c45c50}.empty-row{height:120px;color:var(--muted);text-align:center;white-space:normal}.pager{min-height:56px;padding:0 17px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:10px}.pager div{display:flex;align-items:center;gap:10px}.pager button{width:30px;height:30px;border:1px solid #c2d0d4;color:var(--ink);background:#fff;cursor:pointer}.pager button:hover:not(:disabled){color:#fff;background:var(--ink)}.data-head{display:flex;align-items:center;justify-content:space-between;gap:22px}.data-card{margin-top:38px}
+    footer{padding:54px clamp(22px,5vw,72px);border-top:1px solid #324854;display:grid;grid-template-columns:.8fr 1.1fr 1.2fr;gap:5vw;color:#d2dfe2;background:var(--ink);font-size:11px;line-height:1.55}footer p{margin:10px 0 0;color:#9bb0b8}.provenance{display:grid;gap:11px}.provenance p{margin:0}.provenance b{display:block;color:#fff;font-size:9px;letter-spacing:.09em;text-transform:uppercase}
+    @media(max-width:900px){.hero{grid-template-columns:1fr}.explorer{grid-template-columns:1fr}.controls{border-right:0;border-bottom:1px solid var(--line)}.grid{grid-template-columns:1fr}.high-controls{max-width:470px}footer{grid-template-columns:1fr 1fr}.caveat{grid-column:1/-1}}@media(max-width:600px){header{height:64px;padding-inline:18px;grid-template-columns:1fr auto}nav{display:none}.source{font-size:0}.hero{padding:46px 20px 36px}h1{font-size:51px}.lede{font-size:15px}.metrics{grid-template-columns:1fr 1fr}.metrics div:last-child{display:none}.explorer{margin-inline:10px}.controls{padding:24px 19px}.chart-head{align-items:flex-start;flex-direction:column;padding-inline:19px}.stats{grid-template-columns:repeat(2,1fr);padding-inline:18px}.section{padding:64px 18px}.data-head{align-items:flex-start;flex-direction:column}.download{width:100%}.pager{gap:10px;align-items:flex-start;flex-direction:column;padding-block:13px}footer{grid-template-columns:1fr}.caveat{grid-column:auto}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  </style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="#top"><span class="mark">NW</span><span>City Gauge</span></a>
+    <nav aria-label="Page sections"><a href="#explore">Explore</a><a href="#high-tides">High tides</a><a href="#records">Records</a></nav>
+    <a class="source" href="https://github.com/hondrospj/North-Wildwood-floodmapper/tree/main/city-gauge">GitHub archive</a>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div><p class="eyebrow">North Wildwood municipal tide station</p><h1>The city gauge.<br>Every reading.</h1></div>
+      <div><p class="lede">Explore the actual North Wildwood tide sensor—not a proxy. Every record returned by municipal sensor 1005 is preserved, including repeated timestamps.</p><div class="metrics"><div><b id="span">2017–present</b><span>recovered span</span></div><div><b id="total">Loading…</b><span>returned records</span></div><div><b>1005</b><span>city sensor</span></div></div></div>
+    </section>
+
+    <section class="explorer" id="explore">
+      <aside class="controls">
+        <div class="heading"><span class="step">01</span><h2>Choose a window</h2></div>
+        <label>Start date<input id="start" type="date"></label>
+        <label>End date<input id="end" type="date"></label>
+        <div class="quick"><button data-days="7">7 days</button><button data-days="31">31 days</button><button data-days="all">All data</button></div>
+        <button class="primary" id="load">Load exact records <span>→</span></button>
+        <p class="error" id="error" hidden></p>
+        <div class="note"><b>North Wildwood only</b>Municipal tide sensor 1005 at 39.007469, −74.798737. No Stone Harbor records are used.</div>
+      </aside>
+      <div class="chart-panel">
+        <div class="chart-head"><div><p>Loaded range</p><h2 id="range">Waiting for archive…</h2></div><div><span class="badge">Every returned point</span> <span class="badge">Raw sensor feet</span></div></div>
+        <div class="plot"><canvas id="chart" role="img" aria-label="North Wildwood municipal tide readings"></canvas><div class="empty" id="empty" hidden>No city-gauge records were returned in this window.</div><div class="loading" id="loading">Loading the municipal archive…</div></div>
+        <div class="stats"><span><b id="shown">—</b>records</span><span><b id="minimum">—</b>minimum</span><span><b id="maximum">—</b>maximum</span><span><b id="gaps">—</b>gaps over 30 min</span></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="high-tides">
+      <div class="section-title"><span class="step">02</span><div><p class="eyebrow">Peak finder</p><h2>Query the high tides</h2></div></div>
+      <div class="grid">
+        <div class="high-controls">
+          <p class="query-copy">Find local peaks in the city record. The separation setting groups nearby fluctuations and keeps the highest reading in each tide window.</p>
+          <label>Minimum raw sensor height (ft)<input id="threshold" type="number" step=".05" value="0.00"></label>
+          <div class="presets"><button data-height="-20">All</button><button data-height="0">≥ 0 ft</button><button data-height="2">≥ 2 ft</button><button data-height="3">≥ 3 ft</button></div>
+          <label>Minimum separation<select id="separation"><option value="4">4 hours</option><option value="6" selected>6 hours</option><option value="8">8 hours</option><option value="12">12 hours</option></select></label>
+          <div class="count"><b id="high-count">0</b><span>matching high tides</span></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Detected peaks</h3><label>Sort<select id="sort"><option value="height">Highest first</option><option value="time">Oldest first</option></select></label></div>
+          <div class="table-wrap"><table><thead><tr><th>Date</th><th>Local time</th><th>Raw height</th><th>Source</th></tr></thead><tbody id="high-body"></tbody></table></div>
+          <div class="pager" id="high-pager"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="records">
+      <div class="data-head"><div class="section-title"><span class="step">03</span><div><p class="eyebrow">Raw municipal values</p><h2>Browse every record</h2></div></div><button class="download" id="csv">Download selected CSV <span>↓</span></button></div>
+      <div class="card data-card"><div class="table-wrap"><table><thead><tr><th>#</th><th>Date</th><th>Local time</th><th>Water level</th><th>Sensor</th><th>Status</th></tr></thead><tbody id="record-body"></tbody></table></div><div class="pager" id="record-pager"></div></div>
+    </section>
+  </main>
+
+  <footer>
+    <div><a class="brand" href="#top"><span class="mark">NW</span><span>City Gauge</span></a><p>The recovered municipal tide record for North Wildwood sensor 1005.</p></div>
+    <div class="provenance"><p><b>Gauge source</b>North Wildwood Tide, municipal sensor 1005</p><p><b>Recovered coverage</b><span id="coverage">Loading…</span></p><p><b>Archive refreshed</b><span id="refreshed">Loading…</span></p></div>
+    <p class="caveat">The municipal source labels values only as feet and does not identify a vertical datum, so this app does not relabel them NAVD88 or MLLW. It preserves every record returned by the city archive, including repeated timestamps. No Stone Harbor readings are included.</p>
+  </footer>
+
+  <script>
+    "use strict";
+    const GAP_MS=30*60*1000,state={index:null,cache:new Map(),points:[],highs:[],recordPage:0,highPage:0};
+    const $=id=>document.getElementById(id),fmt=new Intl.NumberFormat("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    function shiftDate(iso,days){const d=new Date(iso+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)}
+    function dateLabel(timestamp){return new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",year:"numeric",timeZone:"UTC"}).format(new Date(timestamp.slice(0,10)+"T12:00:00Z"))}
+    function timeLabel(timestamp){const [h,m,s]=timestamp.slice(11).split(":"),n=Number(h);return `${n%12||12}:${m}:${s} ${n>=12?"PM":"AM"}`}
+    function epoch(timestamp){const [d,t]=timestamp.split(" "),[y,m,day]=d.split("-").map(Number),[h,min,s]=t.split(":").map(Number),march=new Date(Date.UTC(y,2,1)).getUTCDay(),nov=new Date(Date.UTC(y,10,1)).getUTCDay(),dstStart=Date.UTC(y,2,8+(7-march)%7,2),dstEnd=Date.UTC(y,10,1+(7-nov)%7,2),wall=Date.UTC(y,m-1,day,h,min,s);return wall+(wall>=dstStart&&wall<dstEnd?4:5)*3600000}
+    function usable(v){return Number.isFinite(v)&&v>-20&&v<20}
+    function years(start,end){const a=Number(start.slice(0,4)),b=Number(end.slice(0,4));return Array.from({length:b-a+1},(_,i)=>a+i)}
+    function rangeLabel(a,b){return a===b?dateLabel(a+" 12:00:00"):dateLabel(a+" 12:00:00")+" – "+dateLabel(b+" 12:00:00")}
+    async function loadRange(){
+      const start=$("start").value,end=$("end").value;if(!start||!end||start>end){showError("Choose a valid date range.");return}
+      $("loading").hidden=false;$("load").disabled=true;showError("");
+      try{
+        const shards=await Promise.all(years(start,end).map(async y=>{if(state.cache.has(y))return state.cache.get(y);const r=await fetch("./data/"+y+".json");if(!r.ok)throw new Error("Archive returned "+r.status+" for "+y);const data=await r.json();state.cache.set(y,data);return data}));
+        let seq=0;const points=[];for(const shard of shards)for(const [timestamp,value] of shard.readings){const d=timestamp.slice(0,10);if(d<start||d>end)continue;points.push({timestamp,value,time:epoch(timestamp),valid:usable(value),duplicate:false,seq:seq++})}
+        points.sort((a,b)=>a.time-b.time||a.seq-b.seq);for(let i=1;i<points.length;i++)if(points[i].timestamp===points[i-1].timestamp)points[i].duplicate=points[i-1].duplicate=true;
+        state.points=points;state.recordPage=state.highPage=0;$("range").textContent=rangeLabel(start,end);summarize();queryHighs();renderRecords();draw();$("empty").hidden=points.length>0;
+      }catch(error){showError(error.message||"The city archive could not be loaded.")}finally{$("loading").hidden=true;$("load").disabled=false}
+    }
+    function showError(message){$("error").textContent=message;$("error").hidden=!message}
+    function summarize(){let min=Infinity,max=-Infinity,gaps=0,previous=null;for(const p of state.points){if(!p.valid)continue;min=Math.min(min,p.value);max=Math.max(max,p.value);if(previous&&p.time-previous.time>GAP_MS)gaps++;previous=p}$("shown").textContent=state.points.length.toLocaleString();$("minimum").textContent=min===Infinity?"—":fmt.format(min)+" ft";$("maximum").textContent=max===-Infinity?"—":fmt.format(max)+" ft";$("gaps").textContent=gaps.toLocaleString()}
+    function queryHighs(){
+      const points=state.points.filter(p=>p.valid),candidates=[];for(let i=1;i<points.length-1;i++){const a=points[i-1],b=points[i],c=points[i+1];if(b.time-a.time>GAP_MS||c.time-b.time>GAP_MS)continue;if(b.value>a.value&&b.value>=c.value)candidates.push(b)}
+      const threshold=Number($("threshold").value)||0,separation=Number($("separation").value)*3600000,highs=[];let cluster=null;for(const c of candidates){if(!cluster){cluster=c;continue}if(c.time-cluster.time<separation){if(c.value>cluster.value)cluster=c}else{if(cluster.value>=threshold)highs.push(cluster);cluster=c}}if(cluster&&cluster.value>=threshold)highs.push(cluster);
+      highs.sort((a,b)=>$("sort").value==="height"?b.value-a.value:a.time-b.time);state.highs=highs;$("high-count").textContent=highs.length.toLocaleString();renderHighs()
+    }
+    function rowEmpty(cols,text){return `<tr><td class="empty-row" colspan="${cols}">${text}</td></tr>`}
+    function renderHighs(){const size=25,start=state.highPage*size,rows=state.highs.slice(start,start+size);$("high-body").innerHTML=rows.length?rows.map(p=>`<tr><td>${dateLabel(p.timestamp)}</td><td>${timeLabel(p.timestamp)}</td><td class="num">${fmt.format(p.value)} ft</td><td><span class="pill">Sensor 1005</span></td></tr>`).join(""):rowEmpty(4,"No high tides meet this threshold in the selected range.");renderPager("high-pager",state.highs.length,state.highPage,size,page=>{state.highPage=page;renderHighs()})}
+    function renderRecords(){const size=100,start=state.recordPage*size,rows=state.points.slice(start,start+size);$("record-body").innerHTML=rows.length?rows.map((p,i)=>`<tr><td class="rownum">${(start+i+1).toLocaleString()}</td><td>${dateLabel(p.timestamp)}</td><td>${timeLabel(p.timestamp)}</td><td class="num">${p.valid?fmt.format(p.value)+" ft":p.value}</td><td>1005</td><td><span class="dot ${p.valid?"":"flagged"}"></span>${p.valid?"Returned":"Flagged"}${p.duplicate?" · duplicate time":""}</td></tr>`).join(""):rowEmpty(6,"No records in this window.");renderPager("record-pager",state.points.length,state.recordPage,size,page=>{state.recordPage=page;renderRecords()})}
+    function renderPager(id,total,page,size,setPage){const pages=Math.max(1,Math.ceil(total/size)),from=total?page*size+1:0,to=Math.min(total,(page+1)*size),el=$(id);el.innerHTML=`<span>${total?from.toLocaleString()+"–"+to.toLocaleString()+" of "+total.toLocaleString():"0 results"}</span><div><button aria-label="Previous page" ${page===0?"disabled":""}>←</button><span>Page ${Math.min(page+1,pages)} / ${pages.toLocaleString()}</span><button aria-label="Next page" ${page>=pages-1?"disabled":""}>→</button></div>`;const buttons=el.querySelectorAll("button");buttons[0].onclick=()=>setPage(Math.max(0,page-1));buttons[1].onclick=()=>setPage(Math.min(pages-1,page+1))}
+    function draw(){
+      const canvas=$("chart"),box=canvas.parentElement.getBoundingClientRect(),w=Math.max(320,box.width),h=400,dpr=devicePixelRatio||1;canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.width=w+"px";canvas.style.height=h+"px";const c=canvas.getContext("2d");c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);if(!state.points.length)return;
+      const valid=state.points.filter(p=>p.valid),values=valid.map(p=>p.value),rawMin=Math.min(...values),rawMax=Math.max(...values),pad=Math.max(.25,(rawMax-rawMin)*.1),min=Math.floor((rawMin-pad)*2)/2,max=Math.ceil((rawMax+pad)*2)/2,m={t:24,r:22,b:40,l:54},pw=w-m.l-m.r,ph=h-m.t-m.b,t0=state.points[0].time,t1=state.points.at(-1).time,x=t=>m.l+(t-t0)/Math.max(1,t1-t0)*pw,y=v=>m.t+(max-v)/Math.max(.01,max-min)*ph;
+      c.font="11px Arial";c.textBaseline="middle";c.strokeStyle="#e1e8ea";c.fillStyle="#6b7b82";for(let i=0;i<=5;i++){const v=min+(max-min)*i/5,yy=y(v);c.beginPath();c.moveTo(m.l,yy);c.lineTo(w-m.r,yy);c.stroke();c.textAlign="right";c.fillText(v.toFixed(1)+"′",m.l-9,yy)}
+      c.textAlign="center";for(let i=0;i<=4;i++){const t=t0+(t1-t0)*i/4,xx=x(t);c.beginPath();c.moveTo(xx,m.t);c.lineTo(xx,h-m.b);c.stroke();c.fillText(new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",timeZone:"America/New_York"}).format(new Date(t)),xx,h-16)}
+      c.strokeStyle="#0d5b7b";c.lineWidth=state.points.length>10000?.7:1.5;c.lineJoin="round";c.beginPath();let active=false,previous=null;for(const p of state.points){if(!p.valid||(previous!==null&&p.time-previous>GAP_MS))active=false;if(p.valid){if(!active){c.moveTo(x(p.time),y(p.value));active=true}else c.lineTo(x(p.time),y(p.value));previous=p.time}}c.stroke()
+    }
+    function downloadCsv(){const lines=["record,timestamp_local,water_level_ft,sensor_id,status,duplicate_timestamp",...state.points.map((p,i)=>[i+1,p.timestamp,p.value,1005,p.valid?"returned":"flagged",p.duplicate?"yes":"no"].join(","))],blob=new Blob([lines.join("\n")],{type:"text/csv"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`north-wildwood-city-gauge_${$("start").value}_${$("end").value}.csv`;a.click();URL.revokeObjectURL(url)}
+    async function init(){
+      try{const r=await fetch("./data/index.json");if(!r.ok)throw new Error("The archive is still being generated.");state.index=await r.json();const first=state.index.coverage.firstTimestamp.slice(0,10),last=state.index.coverage.lastTimestamp.slice(0,10);$("start").min=$("end").min=first;$("start").max=$("end").max=last;$("end").value=last;$("start").value=shiftDate(last,-6);$("total").textContent=state.index.coverage.recordCount.toLocaleString();$("span").textContent=first.slice(0,4)+"–"+last.slice(0,4);$("coverage").textContent=dateLabel(state.index.coverage.firstTimestamp)+" through "+dateLabel(state.index.coverage.lastTimestamp);$("refreshed").textContent=dateLabel(state.index.generatedAt.slice(0,10)+" 12:00:00");await loadRange()}catch(error){$("loading").hidden=true;showError(error.message)}
+    }
+    $("load").onclick=loadRange;document.querySelectorAll("[data-days]").forEach(button=>button.onclick=()=>{$("start").value=button.dataset.days==="all"?state.index.coverage.firstTimestamp.slice(0,10):shiftDate($("end").value,1-Number(button.dataset.days))});document.querySelectorAll("[data-height]").forEach(button=>button.onclick=()=>{$("threshold").value=Number(button.dataset.height).toFixed(2);state.highPage=0;queryHighs()});["threshold","separation","sort"].forEach(id=>$(id).addEventListener("change",()=>{state.highPage=0;queryHighs()}));$("csv").onclick=downloadCsv;addEventListener("resize",()=>requestAnimationFrame(draw));init();
+  </script>
+</body>
+</html>
