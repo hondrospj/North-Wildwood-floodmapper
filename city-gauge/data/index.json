@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-city-gauge-index-v1",
-  "generatedAt": "2026-08-16T23:51:03.531Z",
+  "generatedAt": "2026-08-17T00:31:48.331Z",
   "sensor": {
     "id": 1005,
     "name": "North Wildwood Tide",
@@ -13,15 +13,121 @@
     "owner": "City of North Wildwood",
     "system": "Datawise municipal weather station",
     "endpoint": "http://173.15.136.30/datawise/DashBoards/getSingleSensorData.php",
-    "retrievedAt": "2026-08-16T23:48:37.168Z"
+    "retrievedAt": "2026-08-17T00:29:15.557Z"
   },
   "coverage": {
     "firstTimestamp": "2017-09-01 08:58:00",
-    "lastTimestamp": "2026-08-16 19:49:02",
-    "recordCount": 1311346,
-    "usableRecordCount": 1311346,
+    "lastTimestamp": "2026-08-16 20:31:02",
+    "recordCount": 1311360,
+    "usableRecordCount": 1311360,
     "flaggedRecordCount": 0,
     "duplicateTimestampRows": 39
+  },
+  "annualFlooding": {
+    "unit": "ft MLLW",
+    "thresholds": {
+      "minor": 3.25,
+      "moderate": 4.25,
+      "major": 5.25
+    },
+    "eventDefinition": {
+      "method": "Local tide peaks grouped into distinct tide windows",
+      "separationHours": 6,
+      "maximumGapMinutes": 30,
+      "classification": "Each event is counted once at the highest category reached"
+    },
+    "years": [
+      {
+        "year": 2017,
+        "coverage": "partial",
+        "minor": 40,
+        "moderate": 114,
+        "major": 66,
+        "total": 220,
+        "annualMaximum": 7.22
+      },
+      {
+        "year": 2018,
+        "coverage": "complete",
+        "minor": 146,
+        "moderate": 322,
+        "major": 201,
+        "total": 669,
+        "annualMaximum": 7.86
+      },
+      {
+        "year": 2019,
+        "coverage": "complete",
+        "minor": 123,
+        "moderate": 286,
+        "major": 216,
+        "total": 625,
+        "annualMaximum": 7.4
+      },
+      {
+        "year": 2020,
+        "coverage": "complete",
+        "minor": 129,
+        "moderate": 331,
+        "major": 203,
+        "total": 663,
+        "annualMaximum": 7.17
+      },
+      {
+        "year": 2021,
+        "coverage": "complete",
+        "minor": 140,
+        "moderate": 306,
+        "major": 239,
+        "total": 685,
+        "annualMaximum": 7.46
+      },
+      {
+        "year": 2022,
+        "coverage": "complete",
+        "minor": 187,
+        "moderate": 354,
+        "major": 137,
+        "total": 678,
+        "annualMaximum": 7.44
+      },
+      {
+        "year": 2023,
+        "coverage": "complete",
+        "minor": 144,
+        "moderate": 306,
+        "major": 188,
+        "total": 638,
+        "annualMaximum": 7.08
+      },
+      {
+        "year": 2024,
+        "coverage": "complete",
+        "minor": 161,
+        "moderate": 300,
+        "major": 210,
+        "total": 671,
+        "annualMaximum": 14.17
+      },
+      {
+        "year": 2025,
+        "coverage": "complete",
+        "minor": 161,
+        "moderate": 272,
+        "major": 163,
+        "total": 596,
+        "annualMaximum": 7.77
+      },
+      {
+        "year": 2026,
+        "coverage": "partial",
+        "minor": 52,
+        "moderate": 29,
+        "major": 8,
+        "total": 89,
+        "annualMaximum": 5.9
+      }
+    ]
   },
   "years": [
     {
@@ -118,9 +224,9 @@
       "year": 2026,
       "path": "data/2026.json",
       "firstTimestamp": "2026-01-01 00:00:15",
-      "lastTimestamp": "2026-08-16 19:49:02",
-      "recordCount": 57155,
-      "usableRecordCount": 57155,
+      "lastTimestamp": "2026-08-16 20:31:02",
+      "recordCount": 57169,
+      "usableRecordCount": 57169,
       "flaggedRecordCount": 0,
       "duplicateTimestampRows": 0
     }
