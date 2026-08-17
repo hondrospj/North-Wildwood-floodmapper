@@ -1552,16 +1552,24 @@
   "queryCog": null,
   "packedQueryPng": "COGs/North Wildwood/NorthWildwoodHydraulicQuery5ft.png",
   "packedQuery": {
-    "schema": "north-wildwood-packed-depth-query-v2",
+    "schema": "north-wildwood-packed-depth-query-v3",
     "width": 2186,
     "height": 2824,
     "renderCellSizeFt": 5,
     "channels": {
-      "redGreen": "conditioned elevation in tenths NAVD88; unsigned big-endian value minus 32768; zero is nodata",
-      "blue": "first four-neighbour connection stage in tenths NAVD88 plus 50; values below -5 ft are clamped to -5 ft; 255 means not connected through 20 ft",
+      "redGreen": "minimum conditioned elevation across the 25 one-foot cells in each five-foot render pixel, in tenths NAVD88; unsigned big-endian value minus 32768; zero is nodata",
+      "blue": "minimum render activation stage across the 25 one-foot cells in tenths NAVD88 plus 50; values below -5 ft are clamped to -5 ft; 255 means not connected through 20 ft",
       "alpha": "255"
     },
-    "bytes": 1093637
+    "bytes": 1458823
+  },
+  "eventHistoryDrainage": {
+    "timelineBasis": "canonical 15-minute history; hourly frames are exact samples of that history",
+    "retentionRule": "a previously admitted flood pixel remains wet on recession only while the current outside/source water surface remains above its pooled minimum ground elevation",
+    "waterSurface": "the current outside/source stage; retained pixels never preserve the crest depth",
+    "minorReleaseMinutes": 45,
+    "moderateReleaseMinutes": 30,
+    "majorReleaseMinutes": 0
   },
   "developedQueryPng": "COGs/North Wildwood/NorthWildwoodDevelopedMask5ft.png",
   "developedQuery": {

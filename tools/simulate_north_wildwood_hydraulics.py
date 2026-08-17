@@ -1515,21 +1515,19 @@ def build_query_cog(graph_dir: Path, dem_path: Path, destination: Path) -> None:
 
 
 def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
-    """Pack the five-foot ground/connection lookup into a browser-native PNG."""
-    elevation10 = np.memmap(
-        graph_dir / "elevation10.raw",
-        dtype="<i2",
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
-    connection10 = np.memmap(
-        graph_dir / "connection10.raw",
-        dtype="<i2",
-        mode="r",
-        shape=(HEIGHT, WIDTH),
-    )[RENDER_STRIDE // 2 :: RENDER_STRIDE, RENDER_STRIDE // 2 :: RENDER_STRIDE]
+    """Pack the exact five-foot render-cell lookup into a browser-native PNG.
 
-    valid = elevation10 != np.iinfo(np.int16).min
+    A display pixel represents 25 one-foot graph cells.  Use the same pooled
+    minimum ground and activation values as the raster renderer so browser-side
+    drainage retention cannot disagree with the published PNG underlay.
+    """
+    render_summary = build_render_cell_summaries(graph_dir)
+    elevation10 = render_summary["minimum_ground10"]
+    activation100 = render_summary["minimum_activation100"]
+    maximum_ground = np.iinfo(np.int16).max
+    maximum_activation = np.iinfo(np.int32).max
+
+    valid = elevation10 != maximum_ground
     unsigned_elevation = np.zeros(elevation10.shape, dtype=np.uint16)
     unsigned_elevation[valid] = (
         elevation10[valid].astype(np.int32) + 32768
@@ -1541,6 +1539,12 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
     packed[..., 2] = 255
     # One byte covers -5.0 through 20.4 ft in tenths. Connection stages below
     # -5 ft are equivalent here because the published depth catalog starts at 0.
+    connection10 = np.rint(activation100.astype(np.float64) / 10.0)
+    connection10 = np.where(
+        activation100 == maximum_activation,
+        maximum_activation,
+        connection10,
+    ).astype(np.int32)
     packed_connection10 = np.maximum(connection10, -50)
     encodable_connection = (
         valid
@@ -1560,19 +1564,20 @@ def build_packed_query_png(graph_dir: Path, destination: Path) -> dict:
         compress_level=7,
     )
     metadata = {
-        "schema": "north-wildwood-packed-depth-query-v2",
+        "schema": "north-wildwood-packed-depth-query-v3",
         "width": int(packed.shape[1]),
         "height": int(packed.shape[0]),
         "renderCellSizeFt": RENDER_STRIDE,
         "channels": {
             "redGreen": (
-                "conditioned elevation in tenths NAVD88; unsigned big-endian "
-                "value minus 32768; zero is nodata"
+                "minimum conditioned elevation across the 25 one-foot cells "
+                "in each five-foot render pixel, in tenths NAVD88; unsigned "
+                "big-endian value minus 32768; zero is nodata"
             ),
             "blue": (
-                "first four-neighbour connection stage in tenths NAVD88 plus "
-                "50; values below -5 ft are clamped to -5 ft; 255 means not "
-                "connected through 20 ft"
+                "minimum render activation stage across the 25 one-foot cells "
+                "in tenths NAVD88 plus 50; values below -5 ft are clamped to "
+                "-5 ft; 255 means not connected through 20 ft"
             ),
             "alpha": "255",
         },

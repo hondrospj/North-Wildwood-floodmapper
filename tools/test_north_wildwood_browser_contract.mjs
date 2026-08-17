@@ -15,6 +15,10 @@ const OBSERVED_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observe
 const LEWES_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "lewes_archive_index.json"), "utf8"));
 const TOP_TIDES = JSON.parse(fs.readFileSync(path.join(HERE, "..", "toptides.json"), "utf8"));
 const BUNDLED_HYDRAULIC_ROOT = path.join(HERE, "..", "assets", "hydraulic-v29");
+const HYDRAULIC_ASSET_MANIFEST = JSON.parse(fs.readFileSync(
+  path.join(BUNDLED_HYDRAULIC_ROOT, "NorthWildwoodHydraulicAssetManifest.json"),
+  "utf8"
+));
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
@@ -188,18 +192,19 @@ assert.equal(
 );
 
 const phaseTransitionRows = [
-  { stage: 3.65, timelineIntervalMinutes: 15, hydraulicPhase: "filling" },
-  { stage: 3.74, timelineIntervalMinutes: 15, hydraulicPhase: "filling" },
-  { stage: 3.83, timelineIntervalMinutes: 15, hydraulicPhase: "filling" },
-  { stage: 3.89, timelineIntervalMinutes: 15, hydraulicPhase: "slack" },
-  { stage: 3.90, timelineIntervalMinutes: 15, hydraulicPhase: "slack" },
-  { stage: 3.88, timelineIntervalMinutes: 15, hydraulicPhase: "slack" },
-  { stage: 3.77, timelineIntervalMinutes: 15, hydraulicPhase: "draining" },
-  { stage: 3.65, timelineIntervalMinutes: 15, hydraulicPhase: "draining" },
+  { stage: 3.65, timeUtc: "2024-09-19T13:30:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.74, timeUtc: "2024-09-19T13:45:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.83, timeUtc: "2024-09-19T14:00:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.89, timeUtc: "2024-09-19T14:15:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.90, timeUtc: "2024-09-19T14:30:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.88, timeUtc: "2024-09-19T14:45:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.77, timeUtc: "2024-09-19T15:00:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.65, timeUtc: "2024-09-19T15:15:00Z", timelineIntervalMinutes: 15 },
 ];
 const phaseContext = vm.createContext({
   Number,
   Math,
+  Date,
   MINOR_FLOOD_FT: 3.25,
   MODERATE_FLOOD_FT: 4.25,
   MAJOR_FLOOD_FT: 5.25,
@@ -207,11 +212,22 @@ const phaseContext = vm.createContext({
   normalizeHydraulicPhase: context.normalizeHydraulicPhase,
   getStageValue: entry => entry?.stage,
   findClosestEntryIndex: () => -1,
+  entryTimeMs: entry => Date.parse(entry?.timeUtc || entry?.hydraulicCrestTimeUtc || ""),
+  getEntryESTDate: entry => new Date(entry.timeUtc),
+  getNyParts: date => ({ minute: String(date.getUTCMinutes()) }),
+  getTimelineIntervalMinutes: () => 15,
 });
-vm.runInContext(
-  `${extractFunction("getHydraulicPhaseForEntry")}; globalThis.getHydraulicPhaseForEntry = getHydraulicPhaseForEntry;`,
-  phaseContext
-);
+for (const name of [
+  "getHydraulicFrameMinutes",
+  "findHydraulicCrestIndex",
+  "getHydraulicElapsedMinutes",
+  "inferHydraulicPhaseForIndex",
+  "annotateHydraulicSeries",
+  "getHydraulicPhaseForEntry",
+  "sampleCanonicalHydraulicSeries",
+]) {
+  vm.runInContext(`${extractFunction(name)}; globalThis.${name} = ${name};`, phaseContext);
+}
 assert.equal(
   phaseContext.getHydraulicPhaseForEntry(phaseTransitionRows[0], 0, phaseTransitionRows),
   "filling",
@@ -266,6 +282,67 @@ assert.equal(
   "Hourly and quarter-hour views must both use slack at crest"
 );
 
+const canonicalPhaseRows = phaseContext.annotateHydraulicSeries(phaseTransitionRows);
+const canonicalHourlyRows = phaseContext.sampleCanonicalHydraulicSeries(canonicalPhaseRows, 60);
+assert.equal(canonicalHourlyRows.length, 2, "Hourly view must sample the canonical quarter-hour timeline");
+assert.equal(canonicalHourlyRows[0].stage, 3.83);
+assert.equal(canonicalHourlyRows[0].hydraulicPhase, "filling");
+assert.equal(canonicalHourlyRows[1].stage, 3.77);
+assert.equal(
+  canonicalHourlyRows[1].hydraulicPhase,
+  "draining-release-30",
+  "The 11:00 hourly frame must retain the 10:30 quarter-hour crest and its 30-minute drainage state"
+);
+assert.equal(canonicalHourlyRows[1].hydraulicCrestTimeUtc, "2024-09-19T14:30:00.000Z");
+
+const longRecessionRows = [
+  { stage: 4.2, timeUtc: "2024-09-19T12:00:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.0, timeUtc: "2024-09-19T13:00:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.5, timeUtc: "2024-09-19T14:00:00Z", timelineIntervalMinutes: 15 },
+  { stage: 3.9, timeUtc: "2024-09-19T14:30:00Z", timelineIntervalMinutes: 15 },
+  { stage: 2.8, timeUtc: "2024-09-19T17:00:00Z", timelineIntervalMinutes: 15 },
+];
+assert.equal(
+  phaseContext.findHydraulicCrestIndex(longRecessionRows, 4),
+  3,
+  "A long recession must keep its own local crest without borrowing a higher prior tide"
+);
+
+const drainagePixelContext = vm.createContext({
+  Math,
+  Number,
+  Uint8Array,
+  MINOR_FLOOD_FT: 3.25,
+  MODERATE_FLOOD_FT: 4.25,
+  MAJOR_FLOOD_FT: 5.25,
+  DRAINAGE_DEPTH_BREAKS_FT: [0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00],
+  DRAINAGE_DEPTH_COLORS: [
+    [125, 249, 255], [93, 231, 255], [56, 211, 255], [27, 183, 245],
+    [22, 140, 235], [21, 107, 224], [24, 83, 198], [23, 62, 168],
+    [19, 47, 132], [11, 30, 91], [5, 14, 51]
+  ],
+  DRAINAGE_STAGE_COLORS: [[244, 167, 66], [231, 76, 60], [125, 60, 152]],
+});
+for (const name of [
+  "isDisconnectedRasterPixel",
+  "isWetRasterPixel",
+  "getDrainageDepthColor",
+  "getDrainageStageColor",
+  "applyDrainageRetentionPixels",
+]) {
+  vm.runInContext(`${extractFunction(name)}; globalThis.${name} = ${name};`, drainagePixelContext);
+}
+const currentPixels = new Uint8Array([99, 212, 113, 225, 99, 212, 113, 225]);
+const historicalPixels = new Uint8Array([125, 249, 255, 225, 125, 249, 255, 225]);
+const queryPixels = new Uint8Array([128, 30, 0, 255, 128, 40, 0, 255]);
+assert.equal(
+  drainagePixelContext.applyDrainageRetentionPixels(currentPixels, [historicalPixels], queryPixels, 3.7, "depth"),
+  1,
+  "Only previously wetted cells still below the outside water surface may be retained"
+);
+assert.deepEqual(Array.from(currentPixels.slice(0, 4)), [27, 183, 245, 225]);
+assert.deepEqual(Array.from(currentPixels.slice(4, 8)), [99, 212, 113, 225]);
+
 let previousPenalty = Infinity;
 for (let stage = 3.25; stage <= 5.25 + 1e-9; stage += 0.1) {
   const penalty = context.getVerticalBathtubPenalty(stage);
@@ -311,7 +388,17 @@ assert.ok(
     SOURCE.indexOf('"https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"'),
   "The complete bundled catalog must precede the matching Bunny v37 catalog",
 );
-assert.match(SOURCE, /20260816-drainage-v37/);
+assert.match(SOURCE, /20260816-drainage-v38/);
+assert.match(SOURCE, /sampledFromCanonical15MinuteHistory/);
+assert.match(SOURCE, /isHistoryAwareDrainageComposite/);
+assert.match(extractFunction("preloadExportFrameAssets"), /getHydraulicOverlayRecord/);
+assert.match(extractFunction("addFastCompositeGifFrames"), /getHydraulicOverlayRecord/);
+assert.equal(HYDRAULIC_ASSET_MANIFEST.packedQuery.schema, "north-wildwood-packed-depth-query-v3");
+assert.equal(
+  HYDRAULIC_ASSET_MANIFEST.packedQuery.bytes,
+  fs.statSync(path.join(BUNDLED_HYDRAULIC_ROOT, "COGs", "North Wildwood", "NorthWildwoodHydraulicQuery5ft.png")).size
+);
+assert.match(HYDRAULIC_ASSET_MANIFEST.eventHistoryDrainage.timelineBasis, /canonical 15-minute history/);
 assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
 assert.match(SOURCE, /"phaseInvariant": false/);
 assert.match(SOURCE, /\/v37\//);
