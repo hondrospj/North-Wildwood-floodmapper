@@ -1,0 +1,376 @@
+{
+  "schema": "north-wildwood-stone-harbor-comparison-index-v2",
+  "generatedAt": "2026-08-17T00:56:01.108Z",
+  "datum": "NAVD88",
+  "differenceDefinition": "North Wildwood minus Stone Harbor",
+  "sources": {
+    "northWildwood": {
+      "stationId": "1005",
+      "name": "North Wildwood City Gauge",
+      "sourceDatum": "MLLW",
+      "navd88OffsetFromMllwFt": -2.75,
+      "recordCount": 50953
+    },
+    "stoneHarbor": {
+      "stationId": "01411360",
+      "parameterCode": "72279",
+      "name": "USGS Great Channel at Stone Harbor",
+      "datum": "NAVD88",
+      "sourceResolutionMinutes": 6
+    }
+  },
+  "method": "Both gauges linearly interpolated to common UTC quarter-hour anchors; gaps over 30 minutes excluded",
+  "coverage": {
+    "firstTimestampUtc": "2017-09-01T13:00:00.000Z",
+    "lastTimestampUtc": "2026-08-17T00:30:00.000Z"
+  },
+  "stats": {
+    "pairCount": 293692,
+    "meanDifferenceFt": -0.242,
+    "medianDifferenceFt": -0.19,
+    "meanAbsoluteDifferenceFt": 0.309,
+    "rmseFt": 0.645,
+    "p05DifferenceFt": -0.49,
+    "p95DifferenceFt": 0.01,
+    "correlation": 0.9354
+  },
+  "peaks": {
+    "matchedPeakCount": 5929,
+    "medianPeakHeightDifferenceFt": -0.22,
+    "meanPeakHeightDifferenceFt": -0.262,
+    "medianStoneHarborLagMinutes": 0,
+    "meanStoneHarborLagMinutes": 0.5
+  },
+  "years": [
+    {
+      "year": 2017,
+      "path": "comparison/2017.json",
+      "status": "aligned",
+      "stats": {
+        "pairCount": 11486,
+        "meanDifferenceFt": -0.075,
+        "medianDifferenceFt": -0.063,
+        "meanAbsoluteDifferenceFt": 0.081,
+        "rmseFt": 0.105,
+        "p05DifferenceFt": -0.214,
+        "p95DifferenceFt": 0.021,
+        "correlation": 0.999
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.999,
+        "pairCount": 11486
+      },
+      "peaks": {
+        "matchedPeakCount": 232,
+        "medianPeakHeightDifferenceFt": -0.08,
+        "meanPeakHeightDifferenceFt": -0.085,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": -0.1
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 0,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2017-09-01T13:00:00.000Z",
+      "lastTimestampUtc": "2018-01-01T04:45:00.000Z"
+    },
+    {
+      "year": 2018,
+      "path": "comparison/2018.json",
+      "status": "aligned",
+      "stats": {
+        "pairCount": 34285,
+        "meanDifferenceFt": -0.024,
+        "medianDifferenceFt": -0.066,
+        "meanAbsoluteDifferenceFt": 0.151,
+        "rmseFt": 0.517,
+        "p05DifferenceFt": -0.254,
+        "p95DifferenceFt": 0.042,
+        "correlation": 0.9499
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.9499,
+        "pairCount": 34285
+      },
+      "peaks": {
+        "matchedPeakCount": 687,
+        "medianPeakHeightDifferenceFt": -0.09,
+        "meanPeakHeightDifferenceFt": -0.096,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": -0.5
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 0,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2018-01-01T05:15:00.000Z",
+      "lastTimestampUtc": "2019-01-01T04:45:00.000Z"
+    },
+    {
+      "year": 2019,
+      "path": "comparison/2019.json",
+      "status": "aligned",
+      "stats": {
+        "pairCount": 31620,
+        "meanDifferenceFt": -0.09,
+        "medianDifferenceFt": -0.075,
+        "meanAbsoluteDifferenceFt": 0.096,
+        "rmseFt": 0.123,
+        "p05DifferenceFt": -0.259,
+        "p95DifferenceFt": 0.019,
+        "correlation": 0.9987
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.9987,
+        "pairCount": 31620
+      },
+      "peaks": {
+        "matchedPeakCount": 639,
+        "medianPeakHeightDifferenceFt": -0.1,
+        "meanPeakHeightDifferenceFt": -0.094,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": 0.2
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 0,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2019-01-01T05:15:00.000Z",
+      "lastTimestampUtc": "2020-01-01T04:45:00.000Z"
+    },
+    {
+      "year": 2020,
+      "path": "comparison/2020.json",
+      "status": "aligned",
+      "stats": {
+        "pairCount": 33484,
+        "meanDifferenceFt": -0.091,
+        "medianDifferenceFt": -0.08,
+        "meanAbsoluteDifferenceFt": 0.094,
+        "rmseFt": 0.119,
+        "p05DifferenceFt": -0.244,
+        "p95DifferenceFt": 0.007,
+        "correlation": 0.9989
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.9989,
+        "pairCount": 33484
+      },
+      "peaks": {
+        "matchedPeakCount": 674,
+        "medianPeakHeightDifferenceFt": -0.1,
+        "meanPeakHeightDifferenceFt": -0.101,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": 0
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 0,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2020-01-01T05:15:00.000Z",
+      "lastTimestampUtc": "2021-01-01T04:45:00.000Z"
+    },
+    {
+      "year": 2021,
+      "path": "comparison/2021.json",
+      "status": "aligned",
+      "stats": {
+        "pairCount": 34714,
+        "meanDifferenceFt": 0,
+        "medianDifferenceFt": -0.195,
+        "meanAbsoluteDifferenceFt": 0.359,
+        "rmseFt": 0.505,
+        "p05DifferenceFt": -0.356,
+        "p95DifferenceFt": 1.231,
+        "correlation": 0.9514
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.9514,
+        "pairCount": 34714
+      },
+      "peaks": {
+        "matchedPeakCount": 701,
+        "medianPeakHeightDifferenceFt": -0.22,
+        "meanPeakHeightDifferenceFt": -0.008,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": 0.6
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 1,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2021-01-01T05:15:00.000Z",
+      "lastTimestampUtc": "2022-01-01T04:45:00.000Z"
+    },
+    {
+      "year": 2022,
+      "path": "comparison/2022.json",
+      "status": "aligned",
+      "stats": {
+        "pairCount": 35030,
+        "meanDifferenceFt": -0.236,
+        "medianDifferenceFt": -0.219,
+        "meanAbsoluteDifferenceFt": 0.236,
+        "rmseFt": 0.25,
+        "p05DifferenceFt": -0.405,
+        "p95DifferenceFt": -0.131,
+        "correlation": 0.9987
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.9987,
+        "pairCount": 35030
+      },
+      "peaks": {
+        "matchedPeakCount": 709,
+        "medianPeakHeightDifferenceFt": -0.24,
+        "meanPeakHeightDifferenceFt": -0.242,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": 1.6
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 1,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2022-01-01T05:15:00.000Z",
+      "lastTimestampUtc": "2023-01-01T04:45:00.000Z"
+    },
+    {
+      "year": 2023,
+      "path": "comparison/2023.json",
+      "status": "aligned",
+      "stats": {
+        "pairCount": 34078,
+        "meanDifferenceFt": -0.396,
+        "medianDifferenceFt": -0.23,
+        "meanAbsoluteDifferenceFt": 0.396,
+        "rmseFt": 0.647,
+        "p05DifferenceFt": -1.985,
+        "p95DifferenceFt": -0.14,
+        "correlation": 0.9497
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.9497,
+        "pairCount": 34078
+      },
+      "peaks": {
+        "matchedPeakCount": 690,
+        "medianPeakHeightDifferenceFt": -0.25,
+        "meanPeakHeightDifferenceFt": -0.4,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": 1.2
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 0,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2023-01-01T05:15:00.000Z",
+      "lastTimestampUtc": "2024-01-01T04:45:00.000Z"
+    },
+    {
+      "year": 2024,
+      "path": "comparison/2024.json",
+      "status": "aligned",
+      "stats": {
+        "pairCount": 33838,
+        "meanDifferenceFt": -0.242,
+        "medianDifferenceFt": -0.227,
+        "meanAbsoluteDifferenceFt": 0.242,
+        "rmseFt": 0.261,
+        "p05DifferenceFt": -0.401,
+        "p95DifferenceFt": -0.143,
+        "correlation": 0.9981
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.9981,
+        "pairCount": 33838
+      },
+      "peaks": {
+        "matchedPeakCount": 686,
+        "medianPeakHeightDifferenceFt": -0.25,
+        "meanPeakHeightDifferenceFt": -0.248,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": 0.9
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 40,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2024-01-01T05:15:00.000Z",
+      "lastTimestampUtc": "2025-01-01T04:45:00.000Z"
+    },
+    {
+      "year": 2025,
+      "path": "comparison/2025.json",
+      "status": "aligned",
+      "stats": {
+        "pairCount": 31904,
+        "meanDifferenceFt": -0.247,
+        "medianDifferenceFt": -0.233,
+        "meanAbsoluteDifferenceFt": 0.247,
+        "rmseFt": 0.259,
+        "p05DifferenceFt": -0.403,
+        "p95DifferenceFt": -0.148,
+        "correlation": 0.9989
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.9989,
+        "pairCount": 31904
+      },
+      "peaks": {
+        "matchedPeakCount": 648,
+        "medianPeakHeightDifferenceFt": -0.26,
+        "meanPeakHeightDifferenceFt": -0.257,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": 1.4
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 0,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2025-01-01T05:15:00.000Z",
+      "lastTimestampUtc": "2026-01-01T04:45:00.000Z"
+    },
+    {
+      "year": 2026,
+      "path": "comparison/2026.json",
+      "status": "review",
+      "stats": {
+        "pairCount": 13253,
+        "meanDifferenceFt": -1.908,
+        "medianDifferenceFt": -3.083,
+        "meanAbsoluteDifferenceFt": 2.104,
+        "rmseFt": 2.488,
+        "p05DifferenceFt": -3.311,
+        "p95DifferenceFt": -0.05,
+        "correlation": 0.6341
+      },
+      "lag": {
+        "stoneHarborLagMinutes": 0,
+        "correlation": 0.6341,
+        "pairCount": 13253
+      },
+      "peaks": {
+        "matchedPeakCount": 263,
+        "medianPeakHeightDifferenceFt": -3.14,
+        "meanPeakHeightDifferenceFt": -2.087,
+        "medianStoneHarborLagMinutes": 0,
+        "meanStoneHarborLagMinutes": -2.3
+      },
+      "quality": {
+        "northWildwoodIsolatedSpikesExcluded": 0,
+        "isolatedSpikeThresholdFt": 3
+      },
+      "firstTimestampUtc": "2026-01-01T05:15:00.000Z",
+      "lastTimestampUtc": "2026-08-17T00:30:00.000Z"
+    }
+  ]
+}
