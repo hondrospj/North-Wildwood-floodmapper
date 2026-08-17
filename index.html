@@ -15247,6 +15247,8 @@ function cloneStyleObject(value) {
     let physicsForecastManifests = {};
     let physicsQueryImageCache = new Map();
     let renderedFloodPixelCache = null;
+    let drainageRasterImageCache = new Map();
+    let drainageCompositeCache = new Map();
     let overlayPreloadGeneration = 0;
     let historicalTopTideWarmupScheduled = false;
     let historicalTopTideWarmupGeneration = 0;
@@ -15433,7 +15435,7 @@ function cloneStyleObject(value) {
     function getPhysicsForecastDisplaySeries() {
       const manifest = getActivePhysicsManifest();
       if (!physicsForecastApplies() || !manifest) return null;
-      const allFrames = manifest.frames.map(physicsFrameToForecastEntry);
+      const allFrames = annotateHydraulicSeries(manifest.frames.map(physicsFrameToForecastEntry));
       const interval = getTimelineIntervalMinutes();
       if (interval === 15) return allFrames;
       if (interval === 60) {
@@ -15735,7 +15737,7 @@ function cloneStyleObject(value) {
     }
 
     function buildReturnIntervalDisplaySeries(entries = currentRawSeriesHours) {
-      const source = Array.isArray(entries) ? entries : [];
+      const source = annotateHydraulicSeries(Array.isArray(entries) ? entries : []);
       if (getTimelineIntervalMinutes() === 1440) {
         const halfWindow = Number(returnIntervalData?.windowHours || 84) / 2;
         const bestByStormDay = new Map();
@@ -15784,7 +15786,7 @@ function cloneStyleObject(value) {
       }
 
       clearExportAvailabilityCache();
-      currentRawSeriesHours = record.series15min;
+      currentRawSeriesHours = annotateHydraulicSeries(record.series15min);
       currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);
       currentDataMode = "return-interval";
       currentViewType = "return-interval";
@@ -15984,7 +15986,7 @@ function parseStoredLocalNyToDate(timeEST) {
 
     function buildObservedDayDisplaySeries(dayRecord, dateStr) {
       if (dayRecord?.isHistoricalCrestOnly) {
-        return getObservedSourceHoursForDay(dayRecord)
+        return annotateHydraulicSeries(getObservedSourceHoursForDay(dayRecord)
           .filter(entry => Number.isFinite(getStageValue(entry)))
           .map(entry => ({
             ...entry,
@@ -15993,58 +15995,15 @@ function parseStoredLocalNyToDate(timeEST) {
             topTideDateOnly: true,
             isHistoricalTopTide: true,
             isHistoricalCrestOnly: true
-          }));
+          })));
       }
       if (getTimelineIntervalMinutes() === 1440) {
         return buildObservedDailyMaximumSeries(dateStr.slice(0, 7));
       }
-      if (getTimelineIntervalMinutes() === 15) {
-        return buildObservedQuarterHourDisplaySeries(dayRecord, dateStr);
-      }
-
-      const hours = getObservedSourceHoursForDay(dayRecord);
-      const sourceResolutionMinutes = detectSeriesResolutionMinutes(hours);
-      const byHour = new Map();
-
-      hours.forEach((entry, idx) => {
-        const hourIndex = getStoredEntryHourIndex(entry);
-        if (hourIndex == null) return;
-        const existing = byHour.get(hourIndex);
-        const existingStage = existing ? getStageValue(existing.entry) : null;
-        const nextStage = getStageValue(entry);
-        if (!existing || (!Number.isFinite(existingStage) && Number.isFinite(nextStage))) {
-          byHour.set(hourIndex, { entry, idx });
-        }
-      });
-
-      const fullArchiveDay = hours.length >= 20 && (!sourceResolutionMinutes || sourceResolutionMinutes >= 45);
-      const out = [];
-      for (let hourIndex = 0; hourIndex < 24; hourIndex++) {
-        const resolved = getObservedArchiveEntryByDateHour(dateStr, hourIndex);
-        if (resolved && Number.isFinite(getStageValue(resolved.entry))) {
-          out.push(normalizeObservedDayHourEntry(resolved.entry, dateStr, hourIndex, resolved.sourceIndex ?? hourIndex, sourceResolutionMinutes, {
-            forceArchiveHourTime: true
-          }));
-          continue;
-        }
-
-        if (fullArchiveDay && hours[hourIndex] && Number.isFinite(getStageValue(hours[hourIndex]))) {
-          out.push(normalizeObservedDayHourEntry(hours[hourIndex], dateStr, hourIndex, hourIndex, sourceResolutionMinutes, {
-            forceArchiveHourTime: true
-          }));
-          continue;
-        }
-
-        const item = byHour.get(hourIndex);
-        if (item && Number.isFinite(getStageValue(item.entry))) {
-          out.push(normalizeObservedDayHourEntry(item.entry, dateStr, hourIndex, item.idx, sourceResolutionMinutes, {
-            forceArchiveHourTime: true
-          }));
-        } else {
-          out.push(makeObservedMissingDayHourEntry(dateStr, hourIndex, { sourceResolutionMinutes }));
-        }
-      }
-      return out;
+      return sampleCanonicalHydraulicSeries(
+        buildObservedCanonicalSeries(dayRecord, dateStr),
+        getTimelineIntervalMinutes()
+      );
     }
 
     const GAUGE_OUTAGE_THRESHOLD_HOURS = 12;
@@ -16388,18 +16347,18 @@ function parseStoredLocalNyToDate(timeEST) {
       if (getTimelineIntervalMinutes() === 1440) {
         return buildDailyMaximumSeries(source, { kind: "forecast" });
       }
-      if (getTimelineIntervalMinutes() !== 15) {
-        return source.map(entry => ({
-          ...entry,
-          timelineIntervalMinutes: 60,
-          observationInterval: entry.observationInterval || "1hour"
-        }));
-      }
-      return buildQuarterHourTimelineSeries(source, {
+      return sampleCanonicalHydraulicSeries(
+        buildForecastCanonicalSeries(source),
+        getTimelineIntervalMinutes()
+      );
+    }
+
+    function buildForecastCanonicalSeries(entries = []) {
+      return annotateHydraulicSeries(buildQuarterHourTimelineSeries(entries, {
         kind: "forecast",
         fillMissingSlots: false,
         maxGapMinutes: 75
-      });
+      }));
     }
 
     function buildDailyMaximumSeries(entries = [], options = {}) {
@@ -16744,6 +16703,10 @@ function parseStoredLocalNyToDate(timeEST) {
     }
 
     function buildObservedQuarterHourDisplaySeries(dayRecord, dateStr) {
+      return buildObservedCanonicalSeries(dayRecord, dateStr);
+    }
+
+    function buildObservedCanonicalSeries(dayRecord, dateStr) {
       const source = getObservedSourceHoursForDay(dayRecord);
       const start = parseStoredLocalNyToDate(`${dateStr}T00:00`);
       const end = parseStoredLocalNyToDate(`${dateStr}T23:45`);
@@ -16758,14 +16721,39 @@ function parseStoredLocalNyToDate(timeEST) {
         maxGapMinutes: GAUGE_OUTAGE_THRESHOLD_HOURS * 60
       });
 
-      return series.map((entry, idx) => ({
+      return annotateHydraulicSeries(series.map((entry, idx) => ({
         ...entry,
         observedDate: dateStr,
         quarterHourIndex: idx,
         classification: dayRecord?.classification || entry.classification || "none",
         peakNAVD88: dayRecord?.peakNAVD88 ?? entry.peakNAVD88,
         sourceResolutionMinutes
-      }));
+      })));
+    }
+
+    function sampleCanonicalHydraulicSeries(entries = [], intervalMinutes = getTimelineIntervalMinutes()) {
+      const canonical = Array.isArray(entries) ? entries : [];
+      if (intervalMinutes === 15) {
+        return canonical.map(entry => ({
+          ...entry,
+          timelineIntervalMinutes: 15,
+          observationInterval: "15min"
+        }));
+      }
+      if (intervalMinutes !== 60) return canonical.slice();
+
+      return canonical
+        .filter(entry => {
+          const date = getEntryESTDate(entry);
+          const parts = date ? getNyParts(date) : null;
+          return parts && Number(parts.minute) === 0;
+        })
+        .map(entry => ({
+          ...entry,
+          timelineIntervalMinutes: 60,
+          observationInterval: "1hour",
+          sampledFromCanonical15MinuteHistory: true
+        }));
     }
 
 function setDatumHelpOpen(isOpen) {
@@ -17177,13 +17165,56 @@ function setDatumHelpOpen(isOpen) {
       return phase.startsWith("draining-release-") ? "draining" : phase;
     }
 
-    function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {
-      const explicitPhase = entry?.hydraulicPhase
-        ? normalizeHydraulicPhase(entry.hydraulicPhase)
-        : null;
+    function getHydraulicFrameMinutes(entry, fallback = 15) {
+      const explicitMinutes = Number(entry?.timelineIntervalMinutes);
+      if (Number.isFinite(explicitMinutes) && explicitMinutes > 0) return explicitMinutes;
+      if (entry?.observationInterval === "15min") return 15;
+      if (entry?.observationInterval === "1hour") return 60;
+      return fallback;
+    }
+
+    function findHydraulicCrestIndex(series = [], resolvedIndex = 0) {
       const rows = Array.isArray(series) ? series : [];
-      let resolvedIndex = Number.isInteger(index) ? index : rows.indexOf(entry);
-      if (resolvedIndex < 0 && entry) resolvedIndex = findClosestEntryIndex(rows, entry);
+      if (!rows.length) return -1;
+      const safeIndex = Math.max(0, Math.min(Number(resolvedIndex) || 0, rows.length - 1));
+      const currentTime = entryTimeMs(rows[safeIndex]);
+      const maximumLookbackMinutes = 8 * 60;
+      const separatingDropFt = 0.4;
+      let crestIndex = safeIndex;
+      let crestStage = getStageValue(rows[safeIndex]);
+
+      for (let candidate = safeIndex - 1; candidate >= 0; candidate -= 1) {
+        const candidateTime = entryTimeMs(rows[candidate]);
+        if (Number.isFinite(currentTime) && Number.isFinite(candidateTime) &&
+            currentTime - candidateTime > maximumLookbackMinutes * 60 * 1000) break;
+        if (!Number.isFinite(currentTime) && safeIndex - candidate > 32) break;
+        const candidateStage = getStageValue(rows[candidate]);
+        if (!Number.isFinite(candidateStage)) continue;
+        if (!Number.isFinite(crestStage) || candidateStage > crestStage + 1e-9 ||
+            (Math.abs(candidateStage - crestStage) <= 1e-9 && candidate > crestIndex)) {
+          crestStage = candidateStage;
+          crestIndex = candidate;
+        } else if (candidate < crestIndex && candidateStage < crestStage - separatingDropFt) {
+          // This is the pre-crest trough. Stop before an earlier, potentially
+          // higher tide can replace the active event's local high water.
+          break;
+        }
+      }
+      return crestIndex;
+    }
+
+    function getHydraulicElapsedMinutes(rows, crestIndex, resolvedIndex) {
+      const crestTime = entryTimeMs(rows[crestIndex]);
+      const currentTime = entryTimeMs(rows[resolvedIndex]);
+      if (Number.isFinite(crestTime) && Number.isFinite(currentTime)) {
+        return Math.max(0, (currentTime - crestTime) / 60000);
+      }
+      return Math.max(0, resolvedIndex - crestIndex) * getHydraulicFrameMinutes(rows[resolvedIndex]);
+    }
+
+    function inferHydraulicPhaseForIndex(series = [], index = 0) {
+      const rows = Array.isArray(series) ? series : [];
+      const resolvedIndex = Math.max(0, Math.min(Number(index) || 0, rows.length - 1));
       if (resolvedIndex < 0) return "slack";
 
       const current = getStageValue(rows[resolvedIndex]);
@@ -17195,35 +17226,20 @@ function setDatumHelpOpen(isOpen) {
 
       if (Number.isFinite(before) && Number.isFinite(after) && before > epsilon && after <= epsilon) return "slack";
       if (Number.isFinite(before) && Number.isFinite(after) && before >= 0 && after < -epsilon) return "slack";
-      if (Number.isFinite(before) && Number.isFinite(after) && before < -epsilon && after >= -epsilon) return "slack";
-      if (Number.isFinite(before) && Number.isFinite(after) && before <= epsilon && after > epsilon) return "slack";
+      if (Number.isFinite(before) && Number.isFinite(after) && before < -epsilon && after >= -epsilon) return "draining";
+      if (Number.isFinite(before) && Number.isFinite(after) && before <= epsilon && after > epsilon) {
+        return before < 0 ? "draining" : "slack";
+      }
 
       // Once the series is falling, recover the latest local high tide and
       // release the admission penalty using North Wildwood's calibrated
       // 45/30/0-minute minor/moderate/major durations.
-      const explicitMinutes = Number(entry?.timelineIntervalMinutes);
-      const frameMinutes = Number.isFinite(explicitMinutes) && explicitMinutes > 0
-        ? explicitMinutes
-        : entry?.observationInterval === "15min"
-          ? 15
-          : 60;
       const falling = (Number.isFinite(before) && before < -epsilon) ||
         (Number.isFinite(after) && after < -epsilon && Number.isFinite(before) && before < 0);
       if (falling) {
-        const lookbackFrames = Math.max(2, Math.ceil(45 / frameMinutes) + 2);
-        const searchStart = Math.max(0, resolvedIndex - lookbackFrames);
-        let crestIndex = resolvedIndex;
-        let crestStage = current;
-        for (let candidate = searchStart; candidate <= resolvedIndex; candidate += 1) {
-          const candidateStage = getStageValue(rows[candidate]);
-          if (!Number.isFinite(candidateStage)) continue;
-          if (candidateStage > crestStage + 1e-9 ||
-              (Math.abs(candidateStage - crestStage) <= 1e-9 && candidate > crestIndex)) {
-            crestStage = candidateStage;
-            crestIndex = candidate;
-          }
-        }
-        const minutesSinceCrest = Math.max(0, (resolvedIndex - crestIndex) * frameMinutes);
+        const crestIndex = findHydraulicCrestIndex(rows, resolvedIndex);
+        const crestStage = getStageValue(rows[crestIndex]);
+        const minutesSinceCrest = getHydraulicElapsedMinutes(rows, crestIndex, resolvedIndex);
         if (crestStage < MINOR_FLOOD_FT || crestStage >= MAJOR_FLOOD_FT) return "draining";
         if (crestStage >= MODERATE_FLOOD_FT) {
           return minutesSinceCrest <= 15 ? "draining-release-15" : "draining";
@@ -17236,7 +17252,47 @@ function setDatumHelpOpen(isOpen) {
       const delta = Number.isFinite(after) && (!Number.isFinite(before) || Math.abs(after) >= Math.abs(before)) ? after : before;
       if (Number.isFinite(delta) && delta > epsilon) return "filling";
       if (Number.isFinite(delta) && delta < -epsilon) return "draining";
-      return explicitPhase || "slack";
+      return "slack";
+    }
+
+    function annotateHydraulicSeries(series = []) {
+      const rows = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      const phases = rows.map((entry, index) => (
+        Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : "slack"
+      ));
+      return rows.map((entry, index) => {
+        const phase = phases[index];
+        const annotated = {
+          ...entry,
+          hydraulicPhase: phase,
+          hydraulicPhaseCanonical: true
+        };
+        if (!phase.startsWith("draining")) return annotated;
+        const crestIndex = findHydraulicCrestIndex(rows, index);
+        const crestEntry = rows[crestIndex];
+        return {
+          ...annotated,
+          hydraulicCrestIndex: crestIndex,
+          hydraulicCrestTimeUtc: Number.isFinite(entryTimeMs(crestEntry))
+            ? new Date(entryTimeMs(crestEntry)).toISOString()
+            : null,
+          hydraulicCrestStageFt: getStageValue(crestEntry),
+          hydraulicElapsedMinutes: getHydraulicElapsedMinutes(rows, crestIndex, index)
+        };
+      });
+    }
+
+    function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {
+      if (entry?.hydraulicPhaseCanonical && entry?.hydraulicPhase) {
+        return normalizeHydraulicPhase(entry.hydraulicPhase);
+      }
+      const rows = Array.isArray(series) ? series : [];
+      let resolvedIndex = Number.isInteger(index) ? index : rows.indexOf(entry);
+      if (resolvedIndex < 0 && entry) resolvedIndex = findClosestEntryIndex(rows, entry);
+      if (resolvedIndex < 0) return entry?.hydraulicPhase
+        ? normalizeHydraulicPhase(entry.hydraulicPhase)
+        : "slack";
+      return inferHydraulicPhaseForIndex(rows, resolvedIndex);
     }
 
     function getOverlayFilename(mode, stageValue) {
@@ -17447,6 +17503,206 @@ function setDatumHelpOpen(isOpen) {
         overlayRecordCache.delete(key);
         throw error;
       }
+    }
+
+    const DRAINAGE_DEPTH_BREAKS_FT = [0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00];
+    const DRAINAGE_DEPTH_COLORS = [
+      [125, 249, 255], [93, 231, 255], [56, 211, 255], [27, 183, 245],
+      [22, 140, 235], [21, 107, 224], [24, 83, 198], [23, 62, 168],
+      [19, 47, 132], [11, 30, 91], [5, 14, 51]
+    ];
+    const DRAINAGE_STAGE_COLORS = [
+      [244, 167, 66], [231, 76, 60], [125, 60, 152]
+    ];
+    const DRAINAGE_RASTER_IMAGE_CACHE_LIMIT = 18;
+    const DRAINAGE_COMPOSITE_CACHE_LIMIT = 48;
+
+    function isDisconnectedRasterPixel(values, offset) {
+      return values[offset + 3] > 0 &&
+        Math.abs(values[offset] - 99) <= 4 &&
+        Math.abs(values[offset + 1] - 212) <= 4 &&
+        Math.abs(values[offset + 2] - 113) <= 4;
+    }
+
+    function isWetRasterPixel(values, offset) {
+      return values[offset + 3] > 0 && !isDisconnectedRasterPixel(values, offset);
+    }
+
+    function getDrainageDepthColor(depthFt) {
+      for (let index = 0; index < DRAINAGE_DEPTH_BREAKS_FT.length; index += 1) {
+        if (depthFt < DRAINAGE_DEPTH_BREAKS_FT[index]) return DRAINAGE_DEPTH_COLORS[index];
+      }
+      return DRAINAGE_DEPTH_COLORS[DRAINAGE_DEPTH_COLORS.length - 1];
+    }
+
+    function getDrainageStageColor(stageFt) {
+      if (stageFt >= MAJOR_FLOOD_FT) return DRAINAGE_STAGE_COLORS[2];
+      if (stageFt >= MODERATE_FLOOD_FT) return DRAINAGE_STAGE_COLORS[1];
+      return DRAINAGE_STAGE_COLORS[0];
+    }
+
+    function applyDrainageRetentionPixels(currentPixels, historicalPixelSets, queryPixels, stageFt, mode) {
+      const pixelCount = Math.floor(currentPixels.length / 4);
+      if (!pixelCount || !queryPixels || queryPixels.length !== currentPixels.length) return 0;
+      const retained = new Uint8Array(pixelCount);
+      for (const historyPixels of historicalPixelSets || []) {
+        if (!historyPixels || historyPixels.length !== currentPixels.length) continue;
+        for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
+          if (!retained[pixel] && isWetRasterPixel(historyPixels, offset)) retained[pixel] = 1;
+        }
+      }
+
+      const retainedStageRgb = getDrainageStageColor(stageFt);
+      let added = 0;
+      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
+        if (!retained[pixel] || isWetRasterPixel(currentPixels, offset)) continue;
+        const encodedGround = queryPixels[offset] * 256 + queryPixels[offset + 1];
+        if (!encodedGround) continue;
+        const groundFt = (encodedGround - 32768) / 10;
+        const depthFt = Number(stageFt) - groundFt;
+        if (!(depthFt > 0.005)) continue;
+        const color = mode === "depth" ? getDrainageDepthColor(depthFt) : retainedStageRgb;
+        currentPixels[offset] = color[0];
+        currentPixels[offset + 1] = color[1];
+        currentPixels[offset + 2] = color[2];
+        currentPixels[offset + 3] = 225;
+        added += 1;
+      }
+      return added;
+    }
+
+    function getDrainageRetentionMilestones(entry, series = currentRawSeriesHours) {
+      const phase = getHydraulicPhaseForEntry(entry, null, series);
+      const crestStage = Number(entry?.hydraulicCrestStageFt);
+      const currentTime = entryTimeMs(entry);
+      const crestTime = Date.parse(entry?.hydraulicCrestTimeUtc || "");
+      if (!phase.startsWith("draining") || !Number.isFinite(crestStage) ||
+          crestStage < MINOR_FLOOD_FT || !Number.isFinite(currentTime) || !Number.isFinite(crestTime)) return [];
+
+      const rows = (Array.isArray(series) ? series : [])
+        .filter(row => {
+          const time = entryTimeMs(row);
+          return Number.isFinite(time) && time >= crestTime && time < currentTime && Number.isFinite(getStageValue(row));
+        });
+      const selected = new Map();
+      for (const row of rows) {
+        const rowPhase = getHydraulicPhaseForEntry(row, null, series);
+        if (rowPhase === "filling") continue;
+        const existing = selected.get(rowPhase);
+        if (!existing || getStageValue(row) > getStageValue(existing)) selected.set(rowPhase, row);
+      }
+      return Array.from(selected.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+    }
+
+    function getDrainageRasterImage(url) {
+      if (!url) return Promise.resolve(null);
+      if (drainageRasterImageCache.has(url)) return drainageRasterImageCache.get(url);
+      const promise = new Promise(resolve => {
+        const image = new Image();
+        image.crossOrigin = "anonymous";
+        image.decoding = "async";
+        image.onload = () => resolve(image);
+        image.onerror = () => resolve(null);
+        image.src = url;
+      });
+      drainageRasterImageCache.set(url, promise);
+      while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {
+        drainageRasterImageCache.delete(drainageRasterImageCache.keys().next().value);
+      }
+      return promise;
+    }
+
+    function canvasToDrainageObjectUrl(canvas) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+          if (!blob) reject(new Error("Could not encode the retained drainage raster."));
+          else resolve(URL.createObjectURL(blob));
+        }, "image/png");
+      });
+    }
+
+    function cacheDrainageComposite(key, record) {
+      drainageCompositeCache.set(key, record);
+      while (drainageCompositeCache.size > DRAINAGE_COMPOSITE_CACHE_LIMIT) {
+        const oldestKey = drainageCompositeCache.keys().next().value;
+        const oldest = drainageCompositeCache.get(oldestKey);
+        if (oldest?.url?.startsWith("blob:")) URL.revokeObjectURL(oldest.url);
+        drainageCompositeCache.delete(oldestKey);
+      }
+      return record;
+    }
+
+    async function getHydraulicOverlayRecord(mode, stageValue, phase, entry = null, series = currentRawSeriesHours) {
+      const baseRecord = await getOverlayRecord(mode, stageValue, phase);
+      if (!baseRecord || !entry) return baseRecord;
+      const milestones = getDrainageRetentionMilestones(entry, series);
+      if (!milestones.length) return baseRecord;
+
+      const key = [
+        mode,
+        stageToCode(stageValue),
+        normalizeHydraulicPhase(phase),
+        entryTimeMs(entry),
+        ...milestones.map(item => `${entryTimeMs(item)}:${normalizeHydraulicPhase(item.hydraulicPhase)}:${stageToCode(getOverlayStage(getStageValue(item)))}`)
+      ].join("|");
+      if (drainageCompositeCache.has(key)) return drainageCompositeCache.get(key);
+
+      const request = (async () => {
+        const historicalRecords = (await Promise.all(milestones.map(item => {
+          const itemStage = getOverlayStage(getStageValue(item));
+          return itemStage == null
+            ? Promise.resolve(null)
+            : getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));
+        }))).filter(Boolean);
+        if (!historicalRecords.length) return baseRecord;
+
+        const [baseImage, queryGrid, ...historyImages] = await Promise.all([
+          getDrainageRasterImage(baseRecord.url),
+          getDepthQueryGrid(),
+          ...historicalRecords.map(record => getDrainageRasterImage(record.url))
+        ]);
+        if (!baseImage || !queryGrid || historyImages.some(image => !image)) return baseRecord;
+        if (baseImage.naturalWidth !== queryGrid.width || baseImage.naturalHeight !== queryGrid.height) {
+          console.warn("Drainage retention skipped because the packed query grid does not match the flood raster.");
+          return baseRecord;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = baseImage.naturalWidth;
+        canvas.height = baseImage.naturalHeight;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) return baseRecord;
+        context.drawImage(baseImage, 0, 0);
+        const currentImageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const historicalPixelSets = historyImages.map(image => {
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0);
+          return context.getImageData(0, 0, canvas.width, canvas.height).data;
+        });
+        const addedPixelCount = applyDrainageRetentionPixels(
+          currentImageData.data,
+          historicalPixelSets,
+          queryGrid.values,
+          stageValue,
+          mode
+        );
+        if (!addedPixelCount) return baseRecord;
+        context.putImageData(currentImageData, 0, 0);
+        const url = await canvasToDrainageObjectUrl(canvas);
+        return {
+          ...baseRecord,
+          url,
+          isHistoryAwareDrainageComposite: true,
+          retainedPixelCount: addedPixelCount
+        };
+      })().catch(error => {
+        console.warn("Could not build the history-aware drainage raster; using the static phase raster.", error);
+        return baseRecord;
+      });
+
+      drainageCompositeCache.set(key, request);
+      const record = await request;
+      return cacheDrainageComposite(key, record);
     }
 
     function preloadAroundHour(index) {
@@ -20641,7 +20897,7 @@ function updateExportSegmentedUI() {
       if (!exportMap.hasLayer(exportBoundaryMask)) exportBoundaryMask.addTo(exportMap);
     }
 
-    async function setExportFloodLayer(mode, stageValue, phase = "slack", entry = null) {
+    async function setExportFloodLayer(mode, stageValue, phase = "slack", entry = null, series = currentRawSeriesHours) {
       ensureExportMap();
       const physicsRecord = getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode);
       let overlayUrl = "";
@@ -20653,7 +20909,7 @@ function updateExportSegmentedUI() {
         }
         floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
       } else {
-        const match = await getOverlayRecord(mode, stageValue, phase);
+        const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
         if (!match) {
           throw new Error(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
         }
@@ -20745,7 +21001,7 @@ function updateExportSegmentedUI() {
       }
 
       const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
-      await setExportFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, item.entry);
+      await setExportFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, item.entry, item.series || currentRawSeriesHours);
       mapInstance.invalidateSize(false);
       await waitForExportMapReady(isFirstFrame ? 70 : 10);
       await waitForStableRender();
@@ -20968,6 +21224,12 @@ async function runExportLimited(items, limit, worker) {
       return Math.min(EXPORT_GIF_MAX_WORKERS, Math.max(2, cores - 1));
     }
 
+function getExportHydraulicAssetKey(item, phase, displayStage) {
+      const history = getDrainageRetentionMilestones(item?.entry, item?.series || currentRawSeriesHours);
+      const historyKey = history.length ? entryTimeMs(item?.entry) : "static";
+      return `${phase}:${stageToCode(displayStage)}:${historyKey}`;
+    }
+
 function getUniqueExportStages(frameItems) {
       const byKey = new Map();
       for (const item of (Array.isArray(frameItems) ? frameItems : [])) {
@@ -20975,8 +21237,8 @@ function getUniqueExportStages(frameItems) {
         const displayStage = getOverlayStage(rawStage);
         if (displayStage == null) continue;
         const phase = getHydraulicPhaseForEntry(item?.entry, item?.index, item?.series || currentSeriesHours);
-        const key = `${phase}:${stageToCode(displayStage)}`;
-        if (!byKey.has(key)) byKey.set(key, { stage: displayStage, phase });
+        const key = getExportHydraulicAssetKey(item, phase, displayStage);
+        if (!byKey.has(key)) byKey.set(key, { stage: displayStage, phase, item });
       }
       return Array.from(byKey.entries()).map(([key, value]) => ({ key, ...value }));
     }
@@ -20988,10 +21250,19 @@ function getUniqueExportStages(frameItems) {
 
       const lookup = new Map();
       let firstUrl = null;
+      const preloadConcurrency = uniqueStages.some(({ item }) => (
+        getDrainageRetentionMilestones(item?.entry, item?.series || currentRawSeriesHours).length
+      )) ? 1 : EXPORT_PRELOAD_CONCURRENCY;
 
-      await runExportLimited(uniqueStages, EXPORT_PRELOAD_CONCURRENCY, async ({ key, stage, phase }, idx) => {
+      await runExportLimited(uniqueStages, preloadConcurrency, async ({ key, stage, phase, item }, idx) => {
         throwIfExportCancelled();
-        const record = await getOverlayRecord(currentOverlayMode, stage, phase);
+        const record = await getHydraulicOverlayRecord(
+          currentOverlayMode,
+          stage,
+          phase,
+          item?.entry,
+          item?.series || currentRawSeriesHours
+        );
         if (!record?.url) return;
         if (!firstUrl) firstUrl = record.url;
         const img = await getExportImageElement(record.url);
@@ -21229,10 +21500,16 @@ function getUniqueExportStages(frameItems) {
         const displayStage = getOverlayStage(rawStage);
         if (displayStage != null) {
           const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
-          const stageKey = `${hydraulicPhase}:${stageToCode(displayStage)}`;
+          const stageKey = getExportHydraulicAssetKey(item, hydraulicPhase, displayStage);
           let overlayImg = overlayImageLookup?.get(stageKey) || null;
           if (!overlayImg) {
-            const record = await getOverlayRecord(currentOverlayMode, displayStage, hydraulicPhase);
+            const record = await getHydraulicOverlayRecord(
+              currentOverlayMode,
+              displayStage,
+              hydraulicPhase,
+              item.entry,
+              item.series || currentRawSeriesHours
+            );
             overlayImg = record?.url ? await getExportImageElement(record.url) : null;
             throwIfExportCancelled();
           }
@@ -22261,7 +22538,10 @@ function formatSelectedObservedDate(dateStr) {
         });
         if (overlaps) continue;
 
-        const daySeries = buildObservedDayDisplaySeries(dayRecord, dateKey);
+        const canonicalSeries = buildObservedCanonicalSeries(dayRecord, dateKey);
+        const daySeries = getTimelineIntervalMinutes() === 1440
+          ? buildObservedDailyMaximumSeries(dateKey.slice(0, 7))
+          : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());
         if (!daySeries.some(item => Number.isFinite(getStageValue(item)))) continue;
         const dailyEventIndex = getTimelineIntervalMinutes() === 1440
           ? daySeries.findIndex(item => item?.observedDate === dateKey)
@@ -22290,6 +22570,7 @@ function formatSelectedObservedDate(dateStr) {
           title: formatTopTideDateLabelFromDateKey(dateKey),
           subtitle: "",
           series: daySeries,
+          canonicalSeries,
           peakLocalIndex,
           sourceType: "modern",
           sourceArea: "stone-harbor",
@@ -22330,11 +22611,7 @@ function formatSelectedObservedDate(dateStr) {
       const officialStage = getStageValue(crestEntry);
       if (!cloned.length || !Number.isFinite(officialStage)) return cloned;
 
-      const eventDate = String(crestEntry?.observedDate || "");
-      const eventDayIndex = cloned.findIndex(entry => String(entry?.observedDate || "") === eventDate);
-      const targetIndex = getTimelineIntervalMinutes() === 1440 && eventDayIndex >= 0
-        ? eventDayIndex
-        : getPeakHourIndex(cloned);
+      const targetIndex = getPeakHourIndex(cloned);
       if (targetIndex < 0 || targetIndex >= cloned.length) return cloned;
 
       const sourcePeak = getStageValue(cloned[targetIndex]);
@@ -22342,7 +22619,7 @@ function formatSelectedObservedDate(dateStr) {
       if (!Number.isFinite(sourcePeak) || !Number.isFinite(targetTime)) return cloned;
 
       const delta = officialStage - sourcePeak;
-      const halfWindowHours = getTimelineIntervalMinutes() === 1440 ? 1 : 6;
+      const halfWindowHours = 6;
       cloned.forEach((entry, index) => {
         const stage = getStageValue(entry);
         const time = entryTimeMs(entry);
@@ -22391,18 +22668,29 @@ function formatSelectedObservedDate(dateStr) {
           const canUseLewesSurrogate = Boolean(
             dayRecord && dayRecord.isLewesSurrogate && dateKey < String(observedData?.lewesCutoffDate || "2007-10-01")
           );
-          let series = (canUseStoneHarborArchive || canUseLewesSurrogate)
-            ? buildObservedDayDisplaySeries(dayRecord, dateKey)
+          let canonicalSeries = (canUseStoneHarborArchive || canUseLewesSurrogate)
+            ? buildObservedCanonicalSeries(dayRecord, dateKey)
             : [];
-          const gaugeOutageHours = getLongestGaugeOutageHours(series);
+          const gaugeOutageHours = getLongestGaugeOutageHours(canonicalSeries);
           const forceCrestOnly = gaugeOutageHours > GAUGE_OUTAGE_THRESHOLD_HOURS;
-          if (forceCrestOnly) series = [];
-          if (series.length > 1) {
-            series = canUseLewesSurrogate
-              ? fitLewesSurrogateTideToCrest(series, entry)
-              : injectOfficialStoneHarborCrest(series, entry);
+          if (forceCrestOnly) canonicalSeries = [];
+          if (canonicalSeries.length > 1) {
+            canonicalSeries = canUseLewesSurrogate
+              ? fitLewesSurrogateTideToCrest(canonicalSeries, entry)
+              : injectOfficialStoneHarborCrest(canonicalSeries, entry);
+            canonicalSeries = annotateHydraulicSeries(canonicalSeries);
           }
-          const replayable = series.length > 1 && series.some(item => Number.isFinite(getStageValue(item)));
+          const replayable = canonicalSeries.length > 1 && canonicalSeries.some(item => Number.isFinite(getStageValue(item)));
+          const series = !replayable
+            ? []
+            : getTimelineIntervalMinutes() === 1440
+              ? [{
+                  ...canonicalSeries[getPeakHourIndex(canonicalSeries)],
+                  observationInterval: "daily",
+                  timelineIntervalMinutes: 1440,
+                  isDailyMaximum: true
+                }]
+              : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());
           const dailyEventIndex = replayable && getTimelineIntervalMinutes() === 1440
             ? series.findIndex(item => item?.observedDate === dateKey)
             : -1;
@@ -22416,6 +22704,7 @@ function formatSelectedObservedDate(dateStr) {
             title: formatTopTideDateLabelFromEntry(entry),
             subtitle: entry.sourceStationShort || "USGS crest",
             series: replayable ? series : [{ ...entry, topTideHourIndex: 0, observationInterval: "crest" }],
+            canonicalSeries: replayable ? canonicalSeries : [],
             peakLocalIndex,
             sourceType: replayable ? (canUseLewesSurrogate ? "lewes-surrogate-crest" : "archive-crest") : "historical",
             sourceArea: entry.sourceArea,
@@ -22674,11 +22963,11 @@ function formatSelectedObservedDate(dateStr) {
       requestAnimationFrame(fitSnapshotTimeText);
     }
 
-    async function setFloodLayer(mode, stageValue, phase, token) {
+    async function setFloodLayer(mode, stageValue, phase, token, entry = null, series = currentRawSeriesHours) {
       toast("");
       ensureMap();
 
-      const match = await getOverlayRecord(mode, stageValue, phase);
+      const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
       if (token !== lastRenderToken) return;
 
       if (!match) {
@@ -22876,7 +23165,7 @@ function formatSelectedObservedDate(dateStr) {
 
       const token = ++lastRenderToken;
       if (physicsAsset) await setPhysicsFloodLayer(physicsAsset, token);
-      else await setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token);
+      else await setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours);
       preloadAroundHour(index);
     }
 
@@ -22910,10 +23199,12 @@ function formatSelectedObservedDate(dateStr) {
       clearExportAvailabilityCache();
       const physicsSeries = getPhysicsForecastDisplaySeries();
       if (physicsSeries) {
-        currentRawSeriesHours = getActivePhysicsManifest().frames.map(physicsFrameToForecastEntry);
+        currentRawSeriesHours = annotateHydraulicSeries(
+          getActivePhysicsManifest().frames.map(physicsFrameToForecastEntry)
+        );
         currentSeriesHours = physicsSeries;
       } else {
-        currentRawSeriesHours = getActiveForecastHours();
+        currentRawSeriesHours = buildForecastCanonicalSeries(getActiveForecastHours());
         currentSeriesHours = buildForecastDisplaySeries(currentRawSeriesHours);
       }
       currentViewType = "forecast";
@@ -23388,11 +23679,10 @@ function populateCalendarSelectors() {
       currentMonthKey = dateStr.slice(0, 7);
       topTideEvents = buildTopTideEvents();
       const rankedEvent = topTideEvents.find(event => event?.dateKey === dateStr) || null;
-      const rankedSeries = rankedEvent && Array.isArray(rankedEvent.series) && rankedEvent.series.length
-        ? rankedEvent.series.map((entry, idx) => ({ ...entry, topTideHourIndex: idx }))
-        : null;
-      currentRawSeriesHours = rankedSeries || getObservedSourceHoursForDay(dayRecord);
-      currentSeriesHours = rankedSeries || buildObservedDayDisplaySeries(dayRecord, dateStr);
+      currentRawSeriesHours = buildObservedCanonicalSeries(dayRecord, dateStr);
+      currentSeriesHours = getTimelineIntervalMinutes() === 1440
+        ? buildObservedDailyMaximumSeries(dateStr.slice(0, 7))
+        : sampleCanonicalHydraulicSeries(currentRawSeriesHours, getTimelineIntervalMinutes());
       currentViewType = "observed-day";
       currentTopTideIndex = null;
       currentSelectedLabel = dateStr;
@@ -23457,8 +23747,11 @@ function populateCalendarSelectors() {
       if (selectedObservedDate) currentMonthKey = selectedObservedDate.slice(0, 7);
 
       const eventSeries = (event.series && event.series.length ? event.series : [event.entry]);
-      const isCrestOnly = event.sourceType === "historical" || eventSeries.length <= 1;
-      currentRawSeriesHours = eventSeries.map((entry, idx) => ({
+      const eventCanonicalSeries = event.canonicalSeries && event.canonicalSeries.length
+        ? event.canonicalSeries
+        : eventSeries;
+      const isCrestOnly = event.sourceType === "historical" || eventCanonicalSeries.length <= 1;
+      currentRawSeriesHours = eventCanonicalSeries.map((entry, idx) => ({
         ...entry,
         topTideHourIndex: idx,
         topTideDateOnly: isCrestOnly,
@@ -23466,14 +23759,28 @@ function populateCalendarSelectors() {
         observationInterval: isCrestOnly ? "crest" : (entry.observationInterval || "1hour"),
         isHistoricalTopTide: isCrestOnly && Boolean(entry.isHistoricalTopTide || event.sourceType === "historical")
       }));
-      currentSeriesHours = isCrestOnly ? currentRawSeriesHours.slice(0, 1) : currentRawSeriesHours;
+      if (isCrestOnly) {
+        currentSeriesHours = currentRawSeriesHours.slice(0, 1);
+      } else if (getTimelineIntervalMinutes() === 1440) {
+        currentSeriesHours = [{
+          ...currentRawSeriesHours[getPeakHourIndex(currentRawSeriesHours)],
+          observationInterval: "daily",
+          timelineIntervalMinutes: 1440,
+          isDailyMaximum: true
+        }];
+      } else {
+        currentSeriesHours = sampleCanonicalHydraulicSeries(
+          currentRawSeriesHours,
+          getTimelineIntervalMinutes()
+        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));
+      }
 
       syncSliderBounds();
       currentHourIndex = isCrestOnly
         ? 0
         : preferredEntry
           ? findClosestMeasuredEntryIndex(currentSeriesHours, preferredEntry)
-          : Math.max(0, Math.min(event.peakLocalIndex || 0, currentSeriesHours.length - 1));
+          : getPeakHourIndex(currentSeriesHours);
       document.getElementById("hourSlider").value = String(currentHourIndex);
 
       await renderCalendar();
@@ -34371,18 +34678,18 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260816-drainage-v37",
-      "dynamic": "20260816-drainage-v37",
-      "hydraulic": "20260816-drainage-v37"
+      "depth": "20260816-drainage-v38",
+      "dynamic": "20260816-drainage-v38",
+      "hydraulic": "20260816-drainage-v38"
     },
     "modelKind": "phase-aware developed-land conditional connectivity",
     "phaseInvariant": false,
-    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260816-drainage-v37",
-    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260816-drainage-v37",
+    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260816-drainage-v38",
+    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260816-drainage-v38",
     "depthQueryCogPath": null,
     "physicsForecastPointerPath": null,
     "physicsForecastCyclePointerTemplatePath": null,
-    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260816-drainage-v37",
+    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260816-drainage-v38",
     "depthRoots": [
       "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
       "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"
