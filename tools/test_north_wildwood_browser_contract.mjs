@@ -125,6 +125,7 @@ for (const name of [
   "getFillingStageFraction",
   "isDevelopedRasterPixel",
   "isFillingTransitionCandidate",
+  "isShallowFillingTransitionPixel",
   "buildFillingTransitionQueue",
   "applyFillingTransitionPixels",
 ]) {
@@ -174,6 +175,42 @@ assert.deepEqual(Array.from(lowerTransitionPixels.slice(12, 16)), greenPixel);
 assert.deepEqual(Array.from(lowerTransitionPixels.slice(16, 20)), greenPixel);
 assert.deepEqual(Array.from(lowerTransitionPixels.slice(20, 24)), greenPixel,
   "Undeveloped disconnected cells must never be admitted by the developed-road transition");
+
+// A wide source boundary must not consume the fractional-stage budget before
+// the shallow feeder reaches the interior basin. The old global seed-first
+// queue painted four boundary cells and left this vertical route disconnected.
+const feederWidth = 7;
+const feederHeight = 5;
+const feederPixelCount = feederWidth * feederHeight;
+const feederLowerPixels = new Uint8ClampedArray(feederPixelCount * 4);
+const feederUpperPixels = new Uint8ClampedArray(feederPixelCount * 4);
+const feederDevelopedPixels = new Uint8ClampedArray(feederPixelCount * 4);
+for (let pixel = 0; pixel < feederPixelCount; pixel += 1) {
+  feederLowerPixels.set(pixel < feederWidth ? shallowPixel : greenPixel, pixel * 4);
+  feederUpperPixels.set(greenPixel, pixel * 4);
+  feederDevelopedPixels.set([0, 0, 255, 255], pixel * 4);
+}
+for (let x = 0; x < feederWidth; x += 1) {
+  feederUpperPixels.set(shallowPixel, (feederWidth + x) * 4);
+}
+for (let y = 2; y < feederHeight; y += 1) {
+  feederUpperPixels.set(shallowPixel, (y * feederWidth + 3) * 4);
+}
+assert.equal(fillingContext.applyFillingTransitionPixels(
+  feederLowerPixels,
+  feederUpperPixels,
+  feederDevelopedPixels,
+  feederWidth,
+  feederHeight,
+  3.74,
+  3.7,
+  "depth"
+), 5);
+for (let y = 1; y < feederHeight; y += 1) {
+  const offset = (y * feederWidth + 3) * 4;
+  assert.deepEqual(Array.from(feederLowerPixels.slice(offset, offset + 4)), shallowPixel,
+    "The source-to-interior feeder must be completed before its boundary widens");
+}
 
 let playbackIntervalMinutes = 15;
 const playbackContext = vm.createContext({
