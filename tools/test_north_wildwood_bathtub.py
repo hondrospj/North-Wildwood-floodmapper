@@ -200,6 +200,41 @@ def main() -> None:
     if feeder_diagnostics["detachedComponentsRoadUnreachable"] != 1:
         raise AssertionError("Road-unreachable component count is incorrect")
 
+    # A flooded road can already belong to the source-connected water body
+    # through an off-road route. Its green public-road inlet still needs a thin
+    # visible feeder; testing only detached whole-water components misses this
+    # exact map failure.
+    adjusted = np.zeros((9, 15), dtype=bool)
+    adjusted[3:6, 1:4] = True
+    adjusted[3:6, 11:14] = True
+    adjusted[1, 2:13] = True
+    adjusted[1:4, 2] = True
+    adjusted[1:4, 12] = True
+    adjusted[1:4, 5] = True
+    source = np.zeros_like(adjusted)
+    source[4, 2] = True
+    road = np.zeros_like(adjusted)
+    road[4, 5:12] = True
+    baseline = adjusted | road
+    penalty_green = baseline & ~adjusted
+    flooded, feeder, feeder_diagnostics = model.add_visible_source_feeders(
+        adjusted,
+        baseline,
+        source,
+        road,
+        penalized_uncertainty=penalty_green,
+    )
+    if not np.all(feeder[4, 5:11]):
+        raise AssertionError(
+            "Source-connected street omitted its green inlet feeder"
+        )
+    if np.any(feeder & ~road):
+        raise AssertionError("Source-connected road-gap feeder left the road")
+    if feeder_diagnostics["detachedComponentsJoined"] != 0:
+        raise AssertionError("Synthetic road inlet was incorrectly detached")
+    if feeder_diagnostics["sourceConnectedRoadGapsBridged"] < 1:
+        raise AssertionError("Source-connected road gap was not bridged")
+
     # A longer low road must beat a shorter high road. This makes feeder
     # selection hydraulic (minimum controlling crest), not merely geometric.
     adjusted = np.zeros((9, 15), dtype=bool)
