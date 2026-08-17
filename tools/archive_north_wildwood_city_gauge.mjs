@@ -7,14 +7,31 @@ const currentYear = new Date().getUTCFullYear();
 const years = Array.from({ length: currentYear - 2017 + 1 }, (_, index) => 2017 + index);
 const gapMs = 30 * 60 * 1000;
 const eventSeparationMs = 6 * 60 * 60 * 1000;
+const isolatedSpikeThresholdFt = 3;
+const northNavd88OffsetFromMllwFt = -2.75;
 const floodThresholds = {
   minor: 3.25,
   moderate: 4.25,
   major: 5.25,
 };
 
+function toNavd88(mllwFeet) {
+  return mllwFeet + northNavd88OffsetFromMllwFt;
+}
+
 function isUsableValue(value) {
   return Number.isFinite(value) && value > -20 && value < 20;
+}
+
+function isIsolatedSpike(previous, current, next, previousTime, currentTime, nextTime) {
+  if (![previous, current, next].every((row) => isUsableValue(row[1]))) return false;
+  if (currentTime - previousTime > gapMs || nextTime - currentTime > gapMs) return false;
+  const fromPrevious = current[1] - previous[1];
+  const fromNext = current[1] - next[1];
+  return (
+    (fromPrevious >= isolatedSpikeThresholdFt && fromNext >= isolatedSpikeThresholdFt) ||
+    (fromPrevious <= -isolatedSpikeThresholdFt && fromNext <= -isolatedSpikeThresholdFt)
+  );
 }
 
 function parseReadings(xml) {
@@ -50,6 +67,7 @@ function findFloodEvents(payloads) {
       isUsableValue(previous[1]) &&
       isUsableValue(current[1]) &&
       isUsableValue(next[1]) &&
+      !isIsolatedSpike(previous, current, next, previousTime, currentTime, nextTime) &&
       currentTime - previousTime <= gapMs &&
       nextTime - currentTime <= gapMs &&
       current[1] > previous[1] &&
@@ -57,7 +75,8 @@ function findFloodEvents(payloads) {
     ) {
       candidates.push({
         timestamp: current[0],
-        value: current[1],
+        value: toNavd88(current[1]),
+        sourceValueMllw: current[1],
         time: currentTime,
       });
     }
@@ -92,7 +111,9 @@ function buildAnnualFlooding(payloads) {
   }
 
   return {
-    unit: "ft MLLW",
+    unit: "ft NAVD88",
+    sourceDatum: "MLLW",
+    navd88OffsetFromMllwFt: northNavd88OffsetFromMllwFt,
     thresholds: floodThresholds,
     eventDefinition: {
       method: "Local tide peaks grouped into distinct tide windows",
@@ -109,9 +130,26 @@ function buildAnnualFlooding(payloads) {
         else counts.minor += 1;
       }
       let annualMaximum = null;
-      for (const [, value] of payload.readings) {
-        if (isUsableValue(value) && (annualMaximum === null || value > annualMaximum)) {
-          annualMaximum = value;
+      let isolatedSpikeCount = 0;
+      for (let index = 0; index < payload.readings.length; index += 1) {
+        const [, value] = payload.readings[index];
+        const previous = payload.readings[index - 1];
+        const next = payload.readings[index + 1];
+        const spike = previous && next && isIsolatedSpike(
+          previous,
+          payload.readings[index],
+          next,
+          readingTime(previous[0]),
+          readingTime(payload.readings[index][0]),
+          readingTime(next[0]),
+        );
+        if (spike) {
+          isolatedSpikeCount += 1;
+          continue;
+        }
+        const navd88 = toNavd88(value);
+        if (isUsableValue(value) && (annualMaximum === null || navd88 > annualMaximum)) {
+          annualMaximum = navd88;
         }
       }
       return {
@@ -125,6 +163,7 @@ function buildAnnualFlooding(payloads) {
         major: counts.major,
         total: events.length,
         annualMaximum,
+        isolatedSpikeCount,
       };
     }),
   };
@@ -153,13 +192,16 @@ async function fetchYear(year) {
       unit: "ft",
       latitude: 39.007469,
       longitude: -74.798737,
-      datum: null,
+      datum: "MLLW",
+      displayDatum: "NAVD88",
+      navd88OffsetFromMllwFt: northNavd88OffsetFromMllwFt,
     },
     source: {
       owner: "City of North Wildwood",
       system: "Datawise municipal weather station",
       endpoint,
       retrievedAt: new Date().toISOString(),
+      datumConversionSource: "https://ready.northwildwood.com/wp-content/uploads/2021/02/2021-OEM-NGVD88-MLLW-reference-1.pdf",
     },
     year,
     firstTimestamp: readings[0]?.[0] ?? null,
@@ -192,7 +234,18 @@ async function worker() {
 
 if (process.argv.includes("--from-existing")) {
   for (const year of years) {
-    payloads.push(JSON.parse(await fs.readFile(path.join(outputDir, `${year}.json`), "utf8")));
+    const payload = JSON.parse(await fs.readFile(path.join(outputDir, `${year}.json`), "utf8"));
+    payload.sensor = {
+      ...payload.sensor,
+      datum: "MLLW",
+      displayDatum: "NAVD88",
+      navd88OffsetFromMllwFt: northNavd88OffsetFromMllwFt,
+    };
+    payload.source = {
+      ...payload.source,
+      datumConversionSource: "https://ready.northwildwood.com/wp-content/uploads/2021/02/2021-OEM-NGVD88-MLLW-reference-1.pdf",
+    };
+    payloads.push(payload);
   }
 } else {
   await Promise.all([worker(), worker()]);

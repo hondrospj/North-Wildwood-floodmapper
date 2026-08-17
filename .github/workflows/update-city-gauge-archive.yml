@@ -8,6 +8,7 @@ on:
     paths:
       - .github/workflows/update-city-gauge-archive.yml
       - tools/archive_north_wildwood_city_gauge.mjs
+      - tools/build_north_wildwood_stone_harbor_comparison.mjs
 
 permissions:
   contents: write
@@ -19,7 +20,7 @@ concurrency:
 jobs:
   archive:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,11 +30,13 @@ jobs:
           node-version: 22
       - name: Retrieve every municipal tide record
         run: node tools/archive_north_wildwood_city_gauge.mjs
+      - name: Align with Stone Harbor in NAVD88
+        run: node tools/build_north_wildwood_stone_harbor_comparison.mjs
       - name: Commit the refreshed archive
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add city-gauge/data
+          git add city-gauge/data city-gauge/comparison
           if git diff --cached --quiet; then
             echo "Archive is already current."
             exit 0
