@@ -17561,24 +17561,34 @@ function setDatumHelpOpen(isOpen) {
         isDevelopedRasterPixel(developedPixels, offset);
     }
 
+    function isShallowFillingTransitionPixel(depthPixels, pixel) {
+      if (!depthPixels) return false;
+      const offset = pixel * 4;
+      const shallow = DRAINAGE_DEPTH_COLORS[0];
+      return depthPixels[offset + 3] > 0 &&
+        Math.abs(depthPixels[offset] - shallow[0]) <= 4 &&
+        Math.abs(depthPixels[offset + 1] - shallow[1]) <= 4 &&
+        Math.abs(depthPixels[offset + 2] - shallow[2]) <= 4;
+    }
+
     function buildFillingTransitionQueue(
       lowerPixels,
       upperPixels,
       developedPixels,
       width,
-      height
+      height,
+      depthPixels = upperPixels
     ) {
       const pixelCount = width * height;
       const candidateState = new Uint8Array(pixelCount);
-      const queue = [];
+      const shallowState = new Uint8Array(pixelCount);
       // The upper catalog raster is the authority for where the next tenth
-      // may flood. Restrict the in-between front to developed pixels, seed it
-      // from water already blue in the lower raster, and traverse by sides.
-      // BFS order then gives a deterministic, connected reveal for any raw
-      // tide between the two catalog levels without inventing marsh flooding.
+      // may flood. Restrict the in-between front to developed pixels and never
+      // invent water outside that authoritative mask.
       for (let pixel = 0; pixel < pixelCount; pixel += 1) {
         if (isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel)) {
           candidateState[pixel] = 1;
+          if (isShallowFillingTransitionPixel(depthPixels, pixel)) shallowState[pixel] = 1;
         }
       }
       const hasLowerWetNeighbour = pixel => {
@@ -17589,13 +17599,8 @@ function setDatumHelpOpen(isOpen) {
           (y > 0 && isWetRasterPixel(lowerPixels, (pixel - width) * 4)) ||
           (y + 1 < height && isWetRasterPixel(lowerPixels, (pixel + width) * 4));
       };
-      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-        if (candidateState[pixel] !== 1 || !hasLowerWetNeighbour(pixel)) continue;
-        candidateState[pixel] = 2;
-        queue.push(pixel);
-      }
-      for (let head = 0; head < queue.length; head += 1) {
-        const pixel = queue[head];
+
+      const neighboursOf = pixel => {
         const x = pixel % width;
         const y = Math.floor(pixel / width);
         const neighbours = [];
@@ -17603,11 +17608,103 @@ function setDatumHelpOpen(isOpen) {
         if (x + 1 < width) neighbours.push(pixel + 1);
         if (y > 0) neighbours.push(pixel - width);
         if (y + 1 < height) neighbours.push(pixel + width);
-        for (const neighbour of neighbours) {
+        return neighbours;
+      };
+
+      // Feeder cells are deliberately encoded by the hydraulic generator as
+      // the 0.00-0.10 ft depth class. Reveal each source-connected shallow
+      // component before widening the surrounding basin. This preserves the
+      // visible source-to-basin trickle at fractional tenth-foot stages.
+      const shallowVisited = new Uint8Array(pixelCount);
+      const shallowComponents = [];
+      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+        if (shallowState[pixel] !== 1 || shallowVisited[pixel]) continue;
+        const members = [];
+        const componentQueue = [pixel];
+        let seed = -1;
+        shallowVisited[pixel] = 1;
+        for (let head = 0; head < componentQueue.length; head += 1) {
+          const current = componentQueue[head];
+          members.push(current);
+          if (seed < 0 && hasLowerWetNeighbour(current)) seed = current;
+          for (const neighbour of neighboursOf(current)) {
+            if (shallowState[neighbour] !== 1 || shallowVisited[neighbour]) continue;
+            shallowVisited[neighbour] = 1;
+            componentQueue.push(neighbour);
+          }
+        }
+        if (seed < 0) continue;
+
+        // Trace one shortest source-to-interior spine through the component.
+        // The upper depth raster already encodes the generator's feeder as
+        // shallow water, so this reaches the end of that feeder before area
+        // is spent widening its edges.
+        const memberSet = new Set(members);
+        const seeds = members.filter(hasLowerWetNeighbour);
+        const ordered = seeds.slice();
+        const predecessor = new Map(seeds.map(current => [current, -1]));
+        const distance = new Map(seeds.map(current => [current, 1]));
+        let farthest = seed;
+        for (let head = 0; head < ordered.length; head += 1) {
+          const current = ordered[head];
+          const currentDistance = distance.get(current);
+          if (currentDistance > distance.get(farthest) ||
+              (currentDistance === distance.get(farthest) && current < farthest)) {
+            farthest = current;
+          }
+          for (const neighbour of neighboursOf(current)) {
+            if (!memberSet.has(neighbour) || predecessor.has(neighbour)) continue;
+            predecessor.set(neighbour, current);
+            distance.set(neighbour, currentDistance + 1);
+            ordered.push(neighbour);
+          }
+        }
+        const spine = [];
+        for (let current = farthest; current >= 0; current = predecessor.get(current)) {
+          spine.push(current);
+        }
+        spine.reverse();
+        shallowComponents.push({ first: pixel, size: members.length, ordered, spine });
+      }
+
+      shallowComponents.sort((left, right) =>
+        right.size - left.size || left.first - right.first
+      );
+      const queue = [];
+      const queued = new Set();
+      for (const component of shallowComponents) {
+        for (const pixel of component.spine) {
+          queue.push(pixel);
+          queued.add(pixel);
+        }
+      }
+      for (const component of shallowComponents) {
+        for (const pixel of component.ordered) {
+          if (queued.has(pixel)) continue;
+          queue.push(pixel);
+          queued.add(pixel);
+        }
+      }
+
+      // Then expand through every remaining eligible pixel by sides. Filtering
+      // the shallow prefix out of this ordinary BFS keeps the result monotonic
+      // while preserving the same final upper-stage footprint.
+      const expansionQueue = [];
+      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+        if (candidateState[pixel] !== 1 || !hasLowerWetNeighbour(pixel)) continue;
+        candidateState[pixel] = 2;
+        expansionQueue.push(pixel);
+      }
+      for (let head = 0; head < expansionQueue.length; head += 1) {
+        const pixel = expansionQueue[head];
+        for (const neighbour of neighboursOf(pixel)) {
           if (candidateState[neighbour] !== 1) continue;
           candidateState[neighbour] = 2;
-          queue.push(neighbour);
+          expansionQueue.push(neighbour);
         }
+      }
+      for (const pixel of expansionQueue) {
+        if (!queued.has(pixel)) queue.push(pixel);
       }
       return queue;
     }
@@ -17620,7 +17717,8 @@ function setDatumHelpOpen(isOpen) {
       height,
       rawStageFt,
       lowerStageFt,
-      mode
+      mode,
+      depthPixels = upperPixels
     ) {
       if (!lowerPixels || !upperPixels || lowerPixels.length !== upperPixels.length ||
           !developedPixels || developedPixels.length !== lowerPixels.length ||
@@ -17632,7 +17730,8 @@ function setDatumHelpOpen(isOpen) {
         upperPixels,
         developedPixels,
         width,
-        height
+        height,
+        depthPixels
       );
       const transitionStageRgb = getDrainageStageColor(rawStageFt);
       const added = Math.min(
@@ -17778,17 +17877,23 @@ function setDatumHelpOpen(isOpen) {
       if (fillingCompositeCache.has(key)) return fillingCompositeCache.get(key);
 
       const request = (async () => {
-        const upperRecord = await getOverlayRecord(mode, upperStageFt, normalizedPhase);
-        if (!upperRecord) return lowerRecord;
-        const [lowerImage, upperImage, developedGrid] = await Promise.all([
+        const upperRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase);
+        const depthRequest = mode === "depth"
+          ? upperRequest
+          : getOverlayRecord("depth", upperStageFt, normalizedPhase);
+        const [upperRecord, depthRecord] = await Promise.all([upperRequest, depthRequest]);
+        if (!upperRecord || !depthRecord) return lowerRecord;
+        const [lowerImage, upperImage, depthImage, developedGrid] = await Promise.all([
           getDrainageRasterImage(lowerRecord.url),
           getDrainageRasterImage(upperRecord.url),
+          getDrainageRasterImage(depthRecord.url),
           getDevelopedQueryGrid()
         ]);
-        if (!lowerImage || !upperImage || !developedGrid) return lowerRecord;
+        if (!lowerImage || !upperImage || !depthImage || !developedGrid) return lowerRecord;
         const width = lowerImage.naturalWidth;
         const height = lowerImage.naturalHeight;
         if (upperImage.naturalWidth !== width || upperImage.naturalHeight !== height ||
+            depthImage.naturalWidth !== width || depthImage.naturalHeight !== height ||
             developedGrid.width !== width || developedGrid.height !== height) {
           console.warn("Filling interpolation skipped because its raster grids do not match.");
           return lowerRecord;
@@ -17804,6 +17909,12 @@ function setDatumHelpOpen(isOpen) {
         context.clearRect(0, 0, width, height);
         context.drawImage(upperImage, 0, 0);
         const upperPixels = context.getImageData(0, 0, width, height).data;
+        let depthPixels = upperPixels;
+        if (depthImage !== upperImage) {
+          context.clearRect(0, 0, width, height);
+          context.drawImage(depthImage, 0, 0);
+          depthPixels = context.getImageData(0, 0, width, height).data;
+        }
         const addedPixelCount = applyFillingTransitionPixels(
           lowerImageData.data,
           upperPixels,
@@ -17812,7 +17923,8 @@ function setDatumHelpOpen(isOpen) {
           height,
           rawStageFt,
           lowerStageFt,
-          mode
+          mode,
+          depthPixels
         );
         if (!addedPixelCount) return lowerRecord;
         context.putImageData(lowerImageData, 0, 0);
