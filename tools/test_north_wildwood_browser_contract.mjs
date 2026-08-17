@@ -509,7 +509,7 @@ assert.ok(
     SOURCE.indexOf('"https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"'),
   "The complete bundled catalog must precede the matching Bunny v37 catalog",
 );
-assert.match(SOURCE, /20260816-drainage-v38/);
+assert.match(SOURCE, /20260816-road-feeder-v39/);
 assert.match(SOURCE, /sampledFromCanonical15MinuteHistory/);
 assert.match(SOURCE, /isHistoryAwareDrainageComposite/);
 assert.match(extractFunction("preloadExportFrameAssets"), /getHydraulicOverlayRecord/);
