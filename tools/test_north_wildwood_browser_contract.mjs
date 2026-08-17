@@ -91,6 +91,90 @@ assert.equal(context.getPenaltyRemainingFraction(4.75, "draining-release-30"), 0
 assert.equal(context.formatDepthQueryValue(0.1), "0.0-0.1ft");
 assert.equal(context.formatDepthQueryValue(0.10001), "0.10 ft");
 
+const fillingContext = vm.createContext({
+  Math,
+  Number,
+  Boolean,
+  Infinity,
+  Uint8ClampedArray,
+  Uint32Array,
+  STAGE_STEP: 0.1,
+  MINOR_FLOOD_FT: 3.25,
+  MODERATE_FLOOD_FT: 4.25,
+  MAJOR_FLOOD_FT: 5.25,
+  MINOR_VERTICAL_PENALTY_FT: 0.75,
+  MODERATE_VERTICAL_PENALTY_FT: 0.25,
+  MAJOR_VERTICAL_PENALTY_FT: 0,
+  DRAINAGE_DEPTH_BREAKS_FT: [0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00],
+  DRAINAGE_DEPTH_COLORS: [
+    [125, 249, 255], [93, 231, 255], [56, 211, 255], [27, 183, 245],
+    [22, 140, 235], [21, 107, 224], [24, 83, 198], [23, 62, 168],
+    [19, 47, 132], [11, 30, 91], [5, 14, 51]
+  ],
+  DRAINAGE_STAGE_COLORS: [[244, 167, 66], [231, 76, 60], [125, 60, 152]],
+});
+for (const name of [
+  "normalizeHydraulicPhase",
+  "getVerticalBathtubPenalty",
+  "getPenaltyRemainingFraction",
+  "getPenalizedConnectedDepth",
+  "isDisconnectedRasterPixel",
+  "isWetRasterPixel",
+  "getDrainageDepthColor",
+  "getDrainageStageColor",
+  "getFillingStageFraction",
+  "isDevelopedRasterPixel",
+  "isFillingTransitionCandidate",
+  "buildFillingTransitionQueue",
+  "applyFillingTransitionPixels",
+]) {
+  vm.runInContext(`${extractFunction(name)}; globalThis.${name} = ${name};`, fillingContext);
+}
+assert.ok(Math.abs(fillingContext.getFillingStageFraction(3.74, 3.7) - 0.4) < 1e-9);
+assert.equal(fillingContext.getFillingStageFraction(3.69, 3.7), 0);
+assert.equal(fillingContext.getFillingStageFraction(3.81, 3.7), 1);
+
+const greenPixel = [99, 212, 113, 205];
+const shallowPixel = [125, 249, 255, 225];
+const lowerTransitionPixels = new Uint8ClampedArray([
+  ...shallowPixel,
+  ...greenPixel,
+  0, 0, 0, 0,
+  ...greenPixel,
+  ...greenPixel,
+  ...greenPixel,
+]);
+const upperTransitionPixels = new Uint8ClampedArray(Array.from(
+  { length: 6 },
+  () => shallowPixel
+).flat());
+const developedTransitionPixels = new Uint8ClampedArray([
+  0, 5, 0, 255,
+  0, 10, 255, 255,
+  0, 20, 255, 255,
+  0, 30, 255, 255,
+  0, 40, 255, 255,
+  0, 50, 0, 255,
+]);
+assert.equal(fillingContext.applyFillingTransitionPixels(
+  lowerTransitionPixels,
+  upperTransitionPixels,
+  developedTransitionPixels,
+  6,
+  1,
+  3.74,
+  3.7,
+  "depth"
+), 2, "Only the two nearest developed pathway pixels should advance");
+assert.deepEqual(Array.from(lowerTransitionPixels.slice(0, 4)), shallowPixel);
+assert.deepEqual(Array.from(lowerTransitionPixels.slice(4, 8)), shallowPixel);
+assert.deepEqual(Array.from(lowerTransitionPixels.slice(8, 12)), shallowPixel,
+  "A transparent developed cell in the connected transition path should advance shallowly");
+assert.deepEqual(Array.from(lowerTransitionPixels.slice(12, 16)), greenPixel);
+assert.deepEqual(Array.from(lowerTransitionPixels.slice(16, 20)), greenPixel);
+assert.deepEqual(Array.from(lowerTransitionPixels.slice(20, 24)), greenPixel,
+  "Undeveloped disconnected cells must never be admitted by the developed-road transition");
+
 let playbackIntervalMinutes = 15;
 const playbackContext = vm.createContext({
   getTimelineIntervalMinutes: () => playbackIntervalMinutes,
