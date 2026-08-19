@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-  <title>North Wildwood Tidal Flood Dashboard</title>
+  <title>North Wildwood Floodmapper</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <script>
     (function(){
@@ -13983,7 +13983,7 @@ html.win-compact-ui #timelineDock #hourSlider{
   <div id="app">
     <div id="mapTitleBadge" class="shorely-title-badge" aria-hidden="true">
       <img id="mapTitleLogo" class="shorely-title-logo shorely-title-logo-town" src="" alt="" loading="eager" decoding="async" style="display:none;" />
-      <span id="mapTitleText" class="shorely-title-text">North Wildwood Tidal Flood Dashboard</span>
+      <span id="mapTitleText" class="shorely-title-text">North Wildwood Floodmapper</span>
       <img id="mapTitlePartnerLogo" class="shorely-title-logo shorely-title-logo-shorelysafe" src="" alt="" loading="eager" decoding="async" style="display:none;" />
     </div>
     <aside id="leftPanel">
@@ -14291,7 +14291,7 @@ html.win-compact-ui #timelineDock #hourSlider{
           <div id="townAddressStatus" class="town-address-status" role="status" aria-live="polite"></div>
         </section>
 
-        <button id="mapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-rail" type="button">Take The Floodmapper Tour</button>
+        <button id="mapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-rail" type="button">Take The North Wildwood Floodmapper Tour</button>
 </aside>
 
       <div id="topTidesModal" class="top-tides-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="topTidesModalTitle">
@@ -16984,7 +16984,7 @@ function setDatumHelpOpen(isOpen) {
             <div class="depth-legend-gradient" aria-hidden="true"></div>
           </div>
           <div class="depth-legend-uncertainty-note">
-            <span><strong>Green</strong> = unconnected or penalty-held</span>
+            <span><strong>Green</strong></span>
             <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain green areas" title="Explain green areas">?</button>
           </div>
         `;
@@ -21146,7 +21146,7 @@ function updateExportSegmentedUI() {
                 <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "Unconnected / Held"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
               </div>
             </div>
-            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green</strong> means unconnected or penalty-held."}</div>
+            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : ""}</div>
           </div>
         `
         : source.innerHTML;
@@ -26322,7 +26322,7 @@ function startPlayback() {
 
     const MAPPER_TUTORIAL_STEPS = [
       {
-        title: "Welcome to Floodmapper 2.0",
+        title: "Welcome to North Wildwood Floodmapper 2.0",
         target: "#mapTitleBadge",
         body: "<p>This map turns water levels into a street-level picture of potential flooding. You can explore the next several days, replay measured events, click the map for modeled depth, inspect parcels, and export what you see.</p><p><strong>Every mapped depth is referenced to the selected water level and the ground-elevation model.</strong></p>"
       },
@@ -34929,10 +34929,10 @@ function bunnyCdnUrl(path) {
 }
 
 TOWN_CONFIG = {
-  "pageTitle": "North Wildwood Tidal Flood Dashboard",
-  "mapTitle": "North Wildwood Tidal Flood Dashboard",
+  "pageTitle": "North Wildwood Floodmapper",
+  "mapTitle": "North Wildwood Floodmapper",
   "brandTitleLine1": "North Wildwood",
-  "brandTitleLine2": "Tidal Flood Dashboard",
+  "brandTitleLine2": "Floodmapper",
   "data": {
     "forecastPath": "./forecast.json",
     "observedPath": "./observed.json",

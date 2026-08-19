@@ -587,7 +587,7 @@ assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
 assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
 assert.match(SOURCE, /linear-gradient\(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%/);
-assert.match(SOURCE, /<strong>Green<\/strong> = unconnected or penalty-held/);
+assert.match(SOURCE, /<span><strong>Green<\/strong></span>/);
 assert.match(SOURCE, /<span>Unconnected \/ Held<\/span>/);
 assert.match(extractFunction("renderLegend"), /physics-daily-maximum-active/);
 assert.match(extractFunction("renderLegend"), /Daily Max/);
