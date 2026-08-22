@@ -123,9 +123,11 @@ for (const name of [
   "getDrainageDepthColor",
   "getDrainageStageColor",
   "getFillingStageFraction",
+  "getFillingTransitionBlend",
   "isDevelopedRasterPixel",
   "isFillingTransitionCandidate",
   "isShallowFillingTransitionPixel",
+  "getFillingTransitionPixelDepth",
   "buildFillingTransitionQueue",
   "applyFillingTransitionPixels",
 ]) {
@@ -134,9 +136,21 @@ for (const name of [
 assert.ok(Math.abs(fillingContext.getFillingStageFraction(3.74, 3.7) - 0.4) < 1e-9);
 assert.equal(fillingContext.getFillingStageFraction(3.69, 3.7), 0);
 assert.equal(fillingContext.getFillingStageFraction(3.81, 3.7), 1);
+assert.ok(Math.abs(fillingContext.getFillingTransitionBlend(0.4) - 0.896) < 1e-12);
+assert.equal(fillingContext.getFillingTransitionBlend(0.5), 1);
 
 const greenPixel = [99, 212, 113, 205];
 const shallowPixel = [125, 249, 255, 225];
+const mediumPixel = [27, 183, 245, 225];
+const packedQueryPixel = (groundFt, connectionStageFt) => {
+  const encodedGround = Math.round(groundFt * 10) + 32768;
+  return [
+    Math.floor(encodedGround / 256),
+    encodedGround % 256,
+    Math.round(connectionStageFt * 10) + 50,
+    255,
+  ];
+};
 const lowerTransitionPixels = new Uint8ClampedArray([
   ...shallowPixel,
   ...greenPixel,
@@ -145,10 +159,14 @@ const lowerTransitionPixels = new Uint8ClampedArray([
   ...greenPixel,
   ...greenPixel,
 ]);
-const upperTransitionPixels = new Uint8ClampedArray(Array.from(
-  { length: 6 },
-  () => shallowPixel
-).flat());
+const upperTransitionPixels = new Uint8ClampedArray([
+  ...shallowPixel,
+  ...mediumPixel,
+  ...mediumPixel,
+  ...mediumPixel,
+  ...shallowPixel,
+  ...shallowPixel,
+]);
 const developedTransitionPixels = new Uint8ClampedArray([
   0, 5, 0, 255,
   0, 10, 255, 255,
@@ -156,6 +174,14 @@ const developedTransitionPixels = new Uint8ClampedArray([
   0, 30, 255, 255,
   0, 40, 255, 255,
   0, 50, 0, 255,
+]);
+const queryTransitionPixels = new Uint8ClampedArray([
+  ...packedQueryPixel(3.0, 3.0),
+  ...packedQueryPixel(3.1, 3.7),
+  ...packedQueryPixel(3.2, 3.7),
+  ...packedQueryPixel(3.3, 3.7),
+  ...packedQueryPixel(3.0, 3.7),
+  ...packedQueryPixel(3.0, 3.7),
 ]);
 assert.equal(fillingContext.applyFillingTransitionPixels(
   lowerTransitionPixels,
@@ -165,30 +191,36 @@ assert.equal(fillingContext.applyFillingTransitionPixels(
   1,
   3.74,
   3.7,
-  "depth"
-), 2, "Only the two nearest developed pathway pixels should advance");
+  "depth",
+  upperTransitionPixels,
+  queryTransitionPixels
+), 3, "Every physically ready developed pixel should advance together");
 assert.deepEqual(Array.from(lowerTransitionPixels.slice(0, 4)), shallowPixel);
-assert.deepEqual(Array.from(lowerTransitionPixels.slice(4, 8)), shallowPixel);
-assert.deepEqual(Array.from(lowerTransitionPixels.slice(8, 12)), shallowPixel,
-  "A transparent developed cell in the connected transition path should advance shallowly");
+const blendedTransitionPixel = [34, 186, 231, 223];
+const blendedTransparentPixel = [27, 183, 245, 202];
+assert.deepEqual(Array.from(lowerTransitionPixels.slice(4, 8)), blendedTransitionPixel);
+assert.deepEqual(Array.from(lowerTransitionPixels.slice(8, 12)), blendedTransparentPixel,
+  "A ready transparent developed cell should fade in without dark RGB contamination");
 assert.deepEqual(Array.from(lowerTransitionPixels.slice(12, 16)), greenPixel);
-assert.deepEqual(Array.from(lowerTransitionPixels.slice(16, 20)), greenPixel);
+assert.deepEqual(Array.from(lowerTransitionPixels.slice(16, 20)), blendedTransitionPixel,
+  "A shallow routed feeder must blend with the surface instead of drawing separately");
 assert.deepEqual(Array.from(lowerTransitionPixels.slice(20, 24)), greenPixel,
   "Undeveloped disconnected cells must never be admitted by the developed-road transition");
 
-// A wide source boundary must not consume the fractional-stage budget before
-// the shallow feeder reaches the interior basin. The old global seed-first
-// queue painted four boundary cells and left this vertical route disconnected.
+// Shallow routed paths and their surrounding surface must use one temporal
+// blend instead of a spatial wipe that exposes an isolated one-pixel line.
 const feederWidth = 7;
 const feederHeight = 5;
 const feederPixelCount = feederWidth * feederHeight;
 const feederLowerPixels = new Uint8ClampedArray(feederPixelCount * 4);
 const feederUpperPixels = new Uint8ClampedArray(feederPixelCount * 4);
 const feederDevelopedPixels = new Uint8ClampedArray(feederPixelCount * 4);
+const feederQueryPixels = new Uint8ClampedArray(feederPixelCount * 4);
 for (let pixel = 0; pixel < feederPixelCount; pixel += 1) {
   feederLowerPixels.set(pixel < feederWidth ? shallowPixel : greenPixel, pixel * 4);
   feederUpperPixels.set(greenPixel, pixel * 4);
   feederDevelopedPixels.set([0, 0, 255, 255], pixel * 4);
+  feederQueryPixels.set(packedQueryPixel(3.0, 3.7), pixel * 4);
 }
 for (let x = 0; x < feederWidth; x += 1) {
   feederUpperPixels.set(shallowPixel, (feederWidth + x) * 4);
@@ -204,12 +236,14 @@ assert.equal(fillingContext.applyFillingTransitionPixels(
   feederHeight,
   3.74,
   3.7,
-  "depth"
-), 5);
+  "depth",
+  feederUpperPixels,
+  feederQueryPixels
+), 10, "The full eligible feeder component and basin edge should advance together");
 for (let y = 1; y < feederHeight; y += 1) {
   const offset = (y * feederWidth + 3) * 4;
-  assert.deepEqual(Array.from(feederLowerPixels.slice(offset, offset + 4)), shallowPixel,
-    "The source-to-interior feeder must be completed before its boundary widens");
+  assert.deepEqual(Array.from(feederLowerPixels.slice(offset, offset + 4)), blendedTransitionPixel,
+    "Every feeder pixel should use the same temporal blend");
 }
 
 let playbackIntervalMinutes = 15;
@@ -587,8 +621,10 @@ assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
 assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
 assert.match(SOURCE, /linear-gradient\(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%/);
-assert.match(SOURCE, /<strong>Green<\/strong> = unconnected or penalty-held/);
-assert.match(SOURCE, /<span>Unconnected \/ Held<\/span>/);
+assert.match(SOURCE, /<strong>Green<\/strong> = not yet connected/);
+assert.match(SOURCE, /<span>Not Yet Connected<\/span>/);
+assert.doesNotMatch(SOURCE, /penalty-held/i);
+assert.match(extractFunction("fitExportMapToSelectedExtent"), /fitBounds\(map\.getBounds\(\)/);
 assert.match(extractFunction("renderLegend"), /physics-daily-maximum-active/);
 assert.match(extractFunction("renderLegend"), /Daily Max/);
 assert.match(extractFunction("renderLegend"), /Physics daily max/);

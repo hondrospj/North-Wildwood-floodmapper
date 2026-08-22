@@ -16810,7 +16810,7 @@ function setDatumHelpOpen(isOpen) {
         title: "Flood Depth Key",
         body: `
           <p>Light blue is shallow water. Darker blue is deeper water.</p>
-          <p>Green marks terrain below the selected water level that is not connected to a qualified tidal source, plus developed-area cells held back by the conservative filling penalty. The penalty is not applied to marshes or beaches. During drainage, lag-retained street water is blue.</p>
+          <p>Green marks terrain below the selected water level that is not yet connected to a qualified tidal source under the current filling conditions. Marshes and beaches are never changed just to complete a street route. During drainage, lag-retained street water is blue.</p>
         `
       },
       stageLegend: {
@@ -16979,12 +16979,12 @@ function setDatumHelpOpen(isOpen) {
               : "<strong>Physics frame</strong> shows cells wet by this time"}</span>
           </div>
         ` : `
-          <div class="depth-legend-scale" aria-label="Green disconnected or penalty-held areas followed by connected modeled flood depth from shallow to deep">
-            <div class="depth-legend-labels"><span>Unconnected / Held</span><span>Shallow</span><span>Deep</span></div>
+          <div class="depth-legend-scale" aria-label="Green not-yet-connected areas followed by connected modeled flood depth from shallow to deep">
+            <div class="depth-legend-labels"><span>Not Yet Connected</span><span>Shallow</span><span>Deep</span></div>
             <div class="depth-legend-gradient" aria-hidden="true"></div>
           </div>
           <div class="depth-legend-uncertainty-note">
-            <span><strong>Green</strong> = unconnected or penalty-held</span>
+            <span><strong>Green</strong> = not yet connected</span>
             <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain green areas" title="Explain green areas">?</button>
           </div>
         `;
@@ -17550,6 +17550,17 @@ function setDatumHelpOpen(isOpen) {
       return Math.max(0, Math.min(1, (raw - lower) / STAGE_STEP));
     }
 
+    function getFillingTransitionBlend(stageFraction) {
+      const fraction = Math.max(0, Math.min(1, Number(stageFraction) || 0));
+      // Ease the whole newly connected surface in together. A spatial wipe
+      // exposes the one-pixel routing skeleton first, which reads as long
+      // lines and leaves large pure-green gaps between catalog stages. Treat
+      // each catalog tenth as representing values that round to that tenth,
+      // so the upper frame is fully established at the half-tenth boundary.
+      const nearestFrameProgress = Math.min(1, fraction * 2);
+      return nearestFrameProgress * nearestFrameProgress * (3 - 2 * nearestFrameProgress);
+    }
+
     function isDevelopedRasterPixel(developedPixels, offset) {
       return Boolean(developedPixels && developedPixels[offset + 2] >= 128);
     }
@@ -17569,6 +17580,25 @@ function setDatumHelpOpen(isOpen) {
         Math.abs(depthPixels[offset] - shallow[0]) <= 4 &&
         Math.abs(depthPixels[offset + 1] - shallow[1]) <= 4 &&
         Math.abs(depthPixels[offset + 2] - shallow[2]) <= 4;
+    }
+
+    function getFillingTransitionPixelDepth(queryPixels, developedPixels, pixel, rawStageFt) {
+      if (!queryPixels || !developedPixels || queryPixels.length !== developedPixels.length) return null;
+      const offset = pixel * 4;
+      const encodedGround = queryPixels[offset] * 256 + queryPixels[offset + 1];
+      if (!encodedGround) return null;
+      const groundFt = (encodedGround - 32768) / 10;
+      const connectionCode = queryPixels[offset + 2];
+      const stageFt = Number(rawStageFt);
+      // The upper catalog raster already limits this interpolation to cells
+      // that connect during the current tenth-foot interval. Do not compare
+      // its quantized connection code to the in-between gauge value or the
+      // whole surface remains green until the next catalog frame.
+      if (!Number.isFinite(stageFt) || connectionCode === 255) return null;
+      const developed = isDevelopedRasterPixel(developedPixels, offset);
+      const adjustedStageFt = stageFt - (developed ? getVerticalBathtubPenalty(stageFt) : 0);
+      if (groundFt > adjustedStageFt + 1e-9) return null;
+      return Math.max(0.005, stageFt - groundFt);
     }
 
     function buildFillingTransitionQueue(
@@ -17718,35 +17748,45 @@ function setDatumHelpOpen(isOpen) {
       rawStageFt,
       lowerStageFt,
       mode,
-      depthPixels = upperPixels
+      depthPixels = upperPixels,
+      queryPixels = null
     ) {
       if (!lowerPixels || !upperPixels || lowerPixels.length !== upperPixels.length ||
           !developedPixels || developedPixels.length !== lowerPixels.length ||
+          !queryPixels || queryPixels.length !== lowerPixels.length ||
           width * height * 4 !== lowerPixels.length) return 0;
       const fraction = getFillingStageFraction(rawStageFt, lowerStageFt);
       if (!(fraction > 0)) return 0;
-      const transitionQueue = buildFillingTransitionQueue(
-        lowerPixels,
-        upperPixels,
-        developedPixels,
-        width,
-        height,
-        depthPixels
-      );
+      const blend = getFillingTransitionBlend(fraction);
       const transitionStageRgb = getDrainageStageColor(rawStageFt);
-      const added = Math.min(
-        transitionQueue.length,
-        Math.max(1, Math.ceil(transitionQueue.length * fraction))
-      );
-      for (let index = 0; index < added; index += 1) {
-        const offset = transitionQueue[index] * 4;
+      let added = 0;
+      const pixelCount = width * height;
+      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+        if (!isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel)) continue;
+        const depthFt = getFillingTransitionPixelDepth(
+          queryPixels,
+          developedPixels,
+          pixel,
+          rawStageFt
+        );
+        if (!Number.isFinite(depthFt)) continue;
+        const offset = pixel * 4;
         const color = mode === "depth"
-          ? getDrainageDepthColor(0.05)
+          ? getDrainageDepthColor(depthFt)
           : transitionStageRgb;
-        lowerPixels[offset] = color[0];
-        lowerPixels[offset + 1] = color[1];
-        lowerPixels[offset + 2] = color[2];
-        lowerPixels[offset + 3] = 225;
+        const sourceAlpha = lowerPixels[offset + 3];
+        if (sourceAlpha > 0) {
+          lowerPixels[offset] = Math.round(lowerPixels[offset] * (1 - blend) + color[0] * blend);
+          lowerPixels[offset + 1] = Math.round(lowerPixels[offset + 1] * (1 - blend) + color[1] * blend);
+          lowerPixels[offset + 2] = Math.round(lowerPixels[offset + 2] * (1 - blend) + color[2] * blend);
+          lowerPixels[offset + 3] = Math.round(sourceAlpha * (1 - blend) + 225 * blend);
+        } else {
+          lowerPixels[offset] = color[0];
+          lowerPixels[offset + 1] = color[1];
+          lowerPixels[offset + 2] = color[2];
+          lowerPixels[offset + 3] = Math.round(225 * blend);
+        }
+        added += 1;
       }
       return added;
     }
@@ -17883,18 +17923,20 @@ function setDatumHelpOpen(isOpen) {
           : getOverlayRecord("depth", upperStageFt, normalizedPhase);
         const [upperRecord, depthRecord] = await Promise.all([upperRequest, depthRequest]);
         if (!upperRecord || !depthRecord) return lowerRecord;
-        const [lowerImage, upperImage, depthImage, developedGrid] = await Promise.all([
+        const [lowerImage, upperImage, depthImage, developedGrid, queryGrid] = await Promise.all([
           getDrainageRasterImage(lowerRecord.url),
           getDrainageRasterImage(upperRecord.url),
           getDrainageRasterImage(depthRecord.url),
-          getDevelopedQueryGrid()
+          getDevelopedQueryGrid(),
+          getDepthQueryGrid()
         ]);
-        if (!lowerImage || !upperImage || !depthImage || !developedGrid) return lowerRecord;
+        if (!lowerImage || !upperImage || !depthImage || !developedGrid || !queryGrid) return lowerRecord;
         const width = lowerImage.naturalWidth;
         const height = lowerImage.naturalHeight;
         if (upperImage.naturalWidth !== width || upperImage.naturalHeight !== height ||
             depthImage.naturalWidth !== width || depthImage.naturalHeight !== height ||
-            developedGrid.width !== width || developedGrid.height !== height) {
+            developedGrid.width !== width || developedGrid.height !== height ||
+            queryGrid.width !== width || queryGrid.height !== height) {
           console.warn("Filling interpolation skipped because its raster grids do not match.");
           return lowerRecord;
         }
@@ -17924,7 +17966,8 @@ function setDatumHelpOpen(isOpen) {
           rawStageFt,
           lowerStageFt,
           mode,
-          depthPixels
+          depthPixels,
+          queryGrid.values
         );
         if (!addedPixelCount) return lowerRecord;
         context.putImageData(lowerImageData, 0, 0);
@@ -19525,9 +19568,12 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (!mapInstance) return;
       const mode = getDownloadExtentValue();
 
-      if (mode === "current" && map && typeof map.getCenter === "function" && typeof map.getZoom === "function") {
+      if (mode === "current" && map && typeof map.getBounds === "function") {
         try {
-          mapInstance.setView(map.getCenter(), map.getZoom(), { animate: false });
+          // Preserve the geographic viewport, not the Leaflet zoom number.
+          // Reusing the zoom on a larger export canvas zoomed dramatically
+          // out and made the town occupy only a corner of 4K exports.
+          mapInstance.fitBounds(map.getBounds(), { padding: [0, 0], animate: false });
           return;
         } catch (e) {
         }
@@ -21140,13 +21186,13 @@ function updateExportSegmentedUI() {
             <div class="export-depth-key-heading">
               <strong>Flood Depth</strong>
             </div>
-            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Green disconnected or penalty-held areas followed by connected modeled flood depth from shallow to deep"}">
+            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Green not-yet-connected areas followed by connected modeled flood depth from shallow to deep"}">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
               <div class="export-depth-key-ends" aria-hidden="true">
-                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "Unconnected / Held"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
+                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "Not Yet Connected"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
               </div>
             </div>
-            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green</strong> means unconnected or penalty-held."}</div>
+            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green</strong> means not yet connected."}</div>
           </div>
         `
         : source.innerHTML;
