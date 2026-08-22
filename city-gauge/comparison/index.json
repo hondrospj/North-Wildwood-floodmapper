@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-stone-harbor-comparison-index-v2",
-  "generatedAt": "2026-08-17T00:56:01.108Z",
+  "generatedAt": "2026-08-22T15:04:53.202Z",
   "datum": "NAVD88",
   "differenceDefinition": "North Wildwood minus Stone Harbor",
   "sources": {
@@ -22,22 +22,22 @@
   "method": "Both gauges linearly interpolated to common UTC quarter-hour anchors; gaps over 30 minutes excluded",
   "coverage": {
     "firstTimestampUtc": "2017-09-01T13:00:00.000Z",
-    "lastTimestampUtc": "2026-08-17T00:30:00.000Z"
+    "lastTimestampUtc": "2026-08-20T23:30:00.000Z"
   },
   "stats": {
-    "pairCount": 293692,
-    "meanDifferenceFt": -0.242,
+    "pairCount": 294072,
+    "meanDifferenceFt": -0.245,
     "medianDifferenceFt": -0.19,
-    "meanAbsoluteDifferenceFt": 0.309,
-    "rmseFt": 0.645,
-    "p05DifferenceFt": -0.49,
+    "meanAbsoluteDifferenceFt": 0.313,
+    "rmseFt": 0.655,
+    "p05DifferenceFt": -0.51,
     "p95DifferenceFt": 0.01,
-    "correlation": 0.9354
+    "correlation": 0.9335
   },
   "peaks": {
-    "matchedPeakCount": 5929,
+    "matchedPeakCount": 5937,
     "medianPeakHeightDifferenceFt": -0.22,
-    "meanPeakHeightDifferenceFt": -0.262,
+    "meanPeakHeightDifferenceFt": -0.266,
     "medianStoneHarborLagMinutes": 0,
     "meanStoneHarborLagMinutes": 0.5
   },
@@ -344,33 +344,33 @@
       "path": "comparison/2026.json",
       "status": "review",
       "stats": {
-        "pairCount": 13253,
-        "meanDifferenceFt": -1.908,
-        "medianDifferenceFt": -3.083,
-        "meanAbsoluteDifferenceFt": 2.104,
-        "rmseFt": 2.488,
-        "p05DifferenceFt": -3.311,
-        "p95DifferenceFt": -0.05,
-        "correlation": 0.6341
+        "pairCount": 13633,
+        "meanDifferenceFt": -1.944,
+        "medianDifferenceFt": -3.088,
+        "meanAbsoluteDifferenceFt": 2.134,
+        "rmseFt": 2.509,
+        "p05DifferenceFt": -3.309,
+        "p95DifferenceFt": -0.074,
+        "correlation": 0.6338
       },
       "lag": {
         "stoneHarborLagMinutes": 0,
-        "correlation": 0.6341,
-        "pairCount": 13253
+        "correlation": 0.6338,
+        "pairCount": 13633
       },
       "peaks": {
-        "matchedPeakCount": 263,
+        "matchedPeakCount": 271,
         "medianPeakHeightDifferenceFt": -3.14,
-        "meanPeakHeightDifferenceFt": -2.087,
+        "meanPeakHeightDifferenceFt": -2.12,
         "medianStoneHarborLagMinutes": 0,
-        "meanStoneHarborLagMinutes": -2.3
+        "meanStoneHarborLagMinutes": -2.2
       },
       "quality": {
         "northWildwoodIsolatedSpikesExcluded": 0,
         "isolatedSpikeThresholdFt": 3
       },
       "firstTimestampUtc": "2026-01-01T05:15:00.000Z",
-      "lastTimestampUtc": "2026-08-17T00:30:00.000Z"
+      "lastTimestampUtc": "2026-08-20T23:30:00.000Z"
     }
   ]
 }
