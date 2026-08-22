@@ -14267,11 +14267,11 @@ html.win-compact-ui #timelineDock #hourSlider{
         <section id="downloadCard" class="rail-card download-card download-launch-card">
           <div class="rail-head">
             <div>
-              <h3>Export as GIF/PNG</h3>
+              <h3>Create Shareable Map</h3>
             </div>
           </div>
-          <div id="downloadLaunchMeta" class="download-launch-meta">Export a range of times out to 84 hours.</div>
-          <button id="openDownloadModalBtn" class="download-launch-btn active" type="button" aria-expanded="false" aria-controls="downloadModal">Open export panel</button>
+          <div id="downloadLaunchMeta" class="download-launch-meta">Create an animation or high-resolution image sequence with North Wildwood centered.</div>
+          <button id="openDownloadModalBtn" class="download-launch-btn active" type="button" aria-expanded="false" aria-controls="downloadModal">Create export</button>
         </section>
 
         <section id="townAddressCard" class="rail-card town-address-card" aria-label="address lookup">
@@ -14384,23 +14384,23 @@ html.win-compact-ui #timelineDock #hourSlider{
   <div id="downloadModal" class="download-modal" hidden>
     <div class="download-modal-card" role="dialog" aria-modal="true" aria-labelledby="downloadModalTitle">
       <div class="download-modal-head">
-        <h3 id="downloadModalTitle">Export map</h3>
+        <h3 id="downloadModalTitle">Create shareable flood map</h3>
         <div class="download-modal-head-actions">
           <button id="downloadResetBtn" class="download-reset-btn" type="button" aria-label="Reset export inputs to default">Reset</button>
           <button id="downloadModalCloseBtn" class="datum-modal-close centered-close-control" type="button" aria-label="Close export window">×</button>
         </div>
       </div>
-      <p id="downloadModalSub" class="download-modal-sub">Choose a start and end date/time, up to 84 hours apart.</p>
+      <p id="downloadModalSub" class="download-modal-sub">Choose the timing, layout, and framing. Social 4:5 keeps North Wildwood large and readable.</p>
       <div class="download-grid">
         <label class="download-field">
-          Format
-          <div id="downloadFormatControl" class="export-segmented" role="tablist" aria-label="Export format">
-            <button id="exportFormatGifBtn" type="button" class="active" data-format="gif" aria-pressed="true">GIF</button>
-            <button id="exportFormatPngBtn" type="button" data-format="png" aria-pressed="false">PNG</button>
+          File type
+          <div id="downloadFormatControl" class="export-segmented" role="tablist" aria-label="Export file type">
+            <button id="exportFormatGifBtn" type="button" class="active" data-format="gif" aria-pressed="true">Animated GIF</button>
+            <button id="exportFormatPngBtn" type="button" data-format="png" aria-pressed="false">PNG Frames</button>
           </div>
         </label>
         <label class="download-field">
-          Values to export
+          Frame interval
           <div id="downloadIntervalControl" class="export-segmented" role="tablist" aria-label="Export time interval" style="--seg-cols:3">
             <button id="exportIntervalHourlyBtn" type="button" class="active" data-export-interval="hourly" aria-pressed="true">Hourly</button>
             <button id="exportIntervalQuarterBtn" type="button" data-export-interval="15min" aria-pressed="false">15-Min</button>
@@ -14408,12 +14408,21 @@ html.win-compact-ui #timelineDock #hourSlider{
           </div>
         </label>
         <label class="download-field">
-          Aspect ratio
-          <div id="downloadAspectControl" class="export-segmented" role="tablist" aria-label="Export aspect ratio" style="--seg-cols:3">
-            <button id="exportAspectLandscapeBtn" type="button" class="active" data-aspect="16:9" aria-pressed="true">16:9</button>
-            <button id="exportAspectPortraitBtn" type="button" data-aspect="9:16" aria-pressed="false">9:16</button>
-            <button id="exportAspectSquareBtn" type="button" data-aspect="1:1" aria-pressed="false">1:1</button>
+          Layout
+          <div id="downloadAspectControl" class="export-segmented" role="tablist" aria-label="Export layout" style="--seg-cols:4">
+            <button id="exportAspectSocialBtn" type="button" class="active" data-aspect="4:5" aria-pressed="true">Social 4:5</button>
+            <button id="exportAspectLandscapeBtn" type="button" data-aspect="16:9" aria-pressed="false">Wide 16:9</button>
+            <button id="exportAspectPortraitBtn" type="button" data-aspect="9:16" aria-pressed="false">Story 9:16</button>
+            <button id="exportAspectSquareBtn" type="button" data-aspect="1:1" aria-pressed="false">Square 1:1</button>
           </div>
+        </label>
+        <label class="download-field">
+          Map framing
+          <div id="downloadExtentControl" class="export-segmented" role="tablist" aria-label="Export map framing">
+            <button id="exportExtentTownBtn" type="button" class="active" data-extent="town" aria-pressed="true">Fill North Wildwood</button>
+            <button id="exportExtentCurrentBtn" type="button" data-extent="current" aria-pressed="false">Current View</button>
+          </div>
+          <span class="export-extent-help"><span><strong>Fill North Wildwood</strong> removes excess surrounding area so the flood map stays readable when shared.</span><button id="adjustExportViewBtn" class="export-adjust-view-btn" type="button">Adjust map</button></span>
         </label>
         <label id="gifSpeedField" class="download-field">
           GIF speed
@@ -14459,12 +14468,12 @@ html.win-compact-ui #timelineDock #hourSlider{
         <input id="downloadScopeSelect" type="hidden" value="range" />
             <input id="downloadFormatSelect" type="hidden" value="gif" />
             <input id="downloadIntervalSelect" type="hidden" value="hourly" />
-            <input id="downloadAspectSelect" type="hidden" value="16:9" />
-            <input id="downloadExtentSelect" type="hidden" value="current" />
+            <input id="downloadAspectSelect" type="hidden" value="4:5" />
+            <input id="downloadExtentSelect" type="hidden" value="town" />
             <input id="downloadSpeedSelect" type="hidden" value="normal" />
             <div id="downloadSummary" class="download-summary" hidden aria-hidden="true"></div>
         <div class="download-actions">
-          <button id="downloadBtn" class="download-btn active" type="button"><span class="download-btn-spinner" aria-hidden="true"></span><span id="downloadBtnLabel">Download</span></button>
+          <button id="downloadBtn" class="download-btn active" type="button"><span class="download-btn-spinner" aria-hidden="true"></span><span id="downloadBtnLabel">Download GIF</span></button>
         </div>
         <div id="downloadStatus" class="download-status" aria-live="polite"></div>
       </div>
@@ -14728,9 +14737,10 @@ html.win-compact-ui #timelineDock #hourSlider{
     const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
     const GIF_WORKER_CDN_URL = "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js";
     const EXPORT_GIF_ASPECTS = {
-      "16:9": { value: "16:9", width: 1920, height: 1080, label: "16:9" },
-      "9:16": { value: "9:16", width: 1080, height: 1920, label: "9:16" },
-      "1:1": { value: "1:1", width: 1200, height: 1200, label: "1:1" }
+      "4:5": { value: "4:5", width: 1080, height: 1350, pngWidth: 2160, pngHeight: 2700, label: "Social 4:5" },
+      "16:9": { value: "16:9", width: 1920, height: 1080, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
+      "9:16": { value: "9:16", width: 1080, height: 1920, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
+      "1:1": { value: "1:1", width: 1200, height: 1200, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }
     };
     const FAST_GIF_EXPORT = true;
     const EXPORT_PRELOAD_CONCURRENCY = 16;
@@ -16866,10 +16876,19 @@ function setDatumHelpOpen(isOpen) {
         syncDownloadRangeInputs(true);
         updateDownloadSummary();
         requestAnimationFrame(() => {
-          const focusTarget = currentDataMode === "return-interval"
-            ? document.getElementById("downloadStartTimeSelect")
-            : document.getElementById("downloadStartDateText");
-          focusTarget?.focus();
+          const modalCard = modal.querySelector(".download-modal-card");
+          if (modalCard) modalCard.scrollTop = 0;
+          const compactTouchLayout = window.matchMedia("(max-width: 900px), (max-height: 560px) and (pointer: coarse)").matches;
+          const focusTarget = compactTouchLayout
+            ? document.getElementById("downloadModalCloseBtn")
+            : currentDataMode === "return-interval"
+              ? document.getElementById("downloadStartTimeSelect")
+              : document.getElementById("downloadStartDateText");
+          try {
+            focusTarget?.focus({ preventScroll: true });
+          } catch (_) {
+            focusTarget?.focus();
+          }
         });
       }
     }
@@ -16881,13 +16900,13 @@ function setDatumHelpOpen(isOpen) {
       const modeledHours = Number(returnIntervalData?.windowHours || 24);
       if (launchMeta) {
         launchMeta.textContent = modeled
-          ? `Export the full ${modeledHours}-hour modeled storm.`
-          : `Export a range of times out to ${EXPORT_RANGE_MAX_HOURS} hours.`;
+          ? `Create a shareable animation of the full ${modeledHours}-hour modeled storm.`
+          : `Create an animation or high-resolution image sequence with North Wildwood centered.`;
       }
       if (modalSub) {
         modalSub.textContent = modeled
-          ? `Choose a start and end time within this ${modeledHours}-hour modeled storm.`
-          : `Choose a start and end date/time, up to ${EXPORT_RANGE_MAX_HOURS} hours apart.`;
+          ? `Choose a time range within this ${modeledHours}-hour storm. Social 4:5 keeps North Wildwood large and readable.`
+          : `Choose timing, layout, and framing for up to ${EXPORT_RANGE_MAX_HOURS} hours. Social 4:5 keeps North Wildwood large and readable.`;
       }
     }
 
@@ -19490,16 +19509,19 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     function getDownloadAspectValue() {
       const hiddenAspect = document.getElementById("downloadAspectSelect");
       const activeAspectButton = document.querySelector("#downloadAspectControl button[data-aspect].active");
-      const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || "16:9";
-      const normalized = EXPORT_GIF_ASPECTS[raw] ? raw : "16:9";
+      const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || "4:5";
+      const normalized = EXPORT_GIF_ASPECTS[raw] ? raw : "4:5";
       if (hiddenAspect && hiddenAspect.value !== normalized) hiddenAspect.value = normalized;
       return normalized;
     }
 
     function getDownloadExtentValue() {
       const hiddenExtent = document.getElementById("downloadExtentSelect");
-      if (hiddenExtent && hiddenExtent.value !== "current") hiddenExtent.value = "current";
-      return "current";
+      const activeExtentButton = document.querySelector("#downloadExtentControl button[data-extent].active");
+      const raw = hiddenExtent?.value || activeExtentButton?.dataset?.extent || "town";
+      const normalized = raw === "current" ? "current" : "town";
+      if (hiddenExtent && hiddenExtent.value !== normalized) hiddenExtent.value = normalized;
+      return normalized;
     }
 
     function getCurrentForecastExportRange() {
@@ -19568,6 +19590,22 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (!mapInstance) return;
       const mode = getDownloadExtentValue();
 
+      if (mode === "town") {
+        const townBounds = getBoundaryDrivenOverlayBounds();
+        if (townBounds && (!townBounds.isValid || townBounds.isValid())) {
+          const aspect = getExportAspectConfig();
+          const verticalLayout = aspect.value === "4:5" || aspect.value === "9:16";
+          const topPadding = verticalLayout ? Math.round(Math.min(300, aspect.height * 0.12)) : 150;
+          const sidePadding = Math.round(Math.min(90, aspect.width * 0.035));
+          mapInstance.fitBounds(townBounds, {
+            paddingTopLeft: [sidePadding, topPadding],
+            paddingBottomRight: [sidePadding, Math.round(sidePadding * 1.25)],
+            animate: false
+          });
+          return;
+        }
+      }
+
       if (mode === "current" && map && typeof map.getBounds === "function") {
         try {
           // Preserve the geographic viewport, not the Leaflet zoom number.
@@ -19599,7 +19637,14 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
 
     function getExportAspectConfig(aspect = null) {
-      return EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS["16:9"];
+      const base = EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS["4:5"];
+      if (getDownloadFormatValue() !== "png") return base;
+      return {
+        ...base,
+        width: base.pngWidth || base.width,
+        height: base.pngHeight || base.height,
+        resolutionLabel: `${base.pngWidth || base.width} × ${base.pngHeight || base.height}`
+      };
     }
 
     function applyExportStageAspect(aspect = null) {
@@ -20662,8 +20707,10 @@ function updateDownloadSummary() {
       const scope = getDownloadScopeValue();
       const format = getDownloadFormatValue();
       const formatLabel = format.toUpperCase();
-      const aspectLabel = getExportAspectConfig().label;
-      const extentLabel = "Current View";
+      const aspectConfig = getExportAspectConfig();
+      const aspectLabel = aspectConfig.label;
+      const resolutionLabel = format === "png" ? `, ${aspectConfig.resolutionLabel}` : "";
+      const extentLabel = getDownloadExtentValue() === "town" ? "Fill North Wildwood" : "Current View";
       const speed = EXPORT_GIF_SPEEDS[getDownloadSpeedValue()]?.label || "Normal";
       const interval = getDownloadIntervalConfig();
       const frameLimit = getDownloadFrameLimit();
@@ -20671,19 +20718,19 @@ function updateDownloadSummary() {
       if (format === "png") {
         const selectedItems = getSelectedPngFrameItems();
         if (selectedItems.length) {
-          summary.textContent = `PNG (${aspectLabel}, ${extentLabel}) export of ${selectedItems.length} selected frame${selectedItems.length === 1 ? "" : "s"}.`;
+          summary.textContent = `PNG (${aspectLabel}${resolutionLabel}, ${extentLabel}) export of ${selectedItems.length} selected frame${selectedItems.length === 1 ? "" : "s"}.`;
           return;
         }
         if (scope === "range") {
           const range = getDownloadRangeRequest();
           const count = range ? Math.min(getDownloadRangeSummaryFrameCount(range), frameLimit) : 0;
           summary.textContent = count
-            ? `PNG (${aspectLabel}, ${interval.label}, ${extentLabel}) export of ${count} frame${count === 1 ? "" : "s"}.`
+            ? `PNG (${aspectLabel}${resolutionLabel}, ${interval.label}, ${extentLabel}) export of ${count} frame${count === 1 ? "" : "s"}.`
             : "No frames are available for export.";
           return;
         }
         const item = getDownloadFrameItemFromEntry(getDownloadCurrentEntry(), currentHourIndex);
-        summary.textContent = item ? `PNG (${aspectLabel}, ${extentLabel}) export at ${formatHourEntryTime(item.entry)}.` : "No frames are available for export.";
+        summary.textContent = item ? `PNG (${aspectLabel}${resolutionLabel}, ${extentLabel}) export at ${formatHourEntryTime(item.entry)}.` : "No frames are available for export.";
         return;
       }
 
@@ -20752,6 +20799,10 @@ function updateExportSegmentedUI() {
       });
       const speedField = document.getElementById("gifSpeedField");
       if (speedField) speedField.hidden = formatValue !== "gif";
+      const btnLabel = document.getElementById("downloadBtnLabel");
+      if (btnLabel && !exportInProgress) {
+        btnLabel.textContent = formatValue === "png" ? "Download PNG Frames" : "Download GIF";
+      }
     }
 
     function resetExportPanelToDefaults() {
@@ -20764,16 +20815,16 @@ function updateExportSegmentedUI() {
 
       setHidden("downloadFormatSelect", "gif");
       setHidden("downloadIntervalSelect", "hourly");
-      setHidden("downloadAspectSelect", "16:9");
+      setHidden("downloadAspectSelect", "4:5");
       setHidden("downloadSpeedSelect", "normal");
       setHidden("downloadScopeSelect", "range");
-      setHidden("downloadExtentSelect", "current");
+      setHidden("downloadExtentSelect", "town");
 
       closeExportDateOrderPopup();
       setDownloadStatus("", false);
       updateExportSegmentedUI();
       syncDownloadRangeInputs(true);
-      applyExportStageAspect("16:9");
+      applyExportStageAspect("4:5");
       updateDownloadSummary();
       setTimeout(() => document.getElementById("downloadResetBtn")?.blur(), 0);
     }
@@ -20812,7 +20863,9 @@ function updateExportSegmentedUI() {
         btn.classList.toggle("is-busy", isBusy);
       }
       if (btnLabel) {
-        btnLabel.textContent = isBusy ? "Exporting..." : "Download";
+        btnLabel.textContent = isBusy
+          ? "Creating export..."
+          : getDownloadFormatValue() === "png" ? "Download PNG Frames" : "Download GIF";
       }
       if (progressCloseBtn) {
         progressCloseBtn.disabled = false;
@@ -26882,6 +26935,7 @@ function startPlayback() {
           if (!input) return;
           input.value = btn.dataset.format || "gif";
           if (!exportInProgress) setDownloadStatus("", false);
+          applyExportStageAspect(getDownloadAspectValue());
           updateExportSegmentedUI();
           scheduleExportTimePickerRender(true);
           updateDownloadSummary();
@@ -26913,7 +26967,7 @@ function startPlayback() {
           event.preventDefault();
           const input = document.getElementById("downloadAspectSelect");
           if (!input) return;
-          input.value = btn.dataset.aspect || "16:9";
+          input.value = btn.dataset.aspect || "4:5";
           if (!exportInProgress) setDownloadStatus("", false);
           applyExportStageAspect(input.value);
           updateExportSegmentedUI();
@@ -26933,7 +26987,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
           event.preventDefault();
           const input = document.getElementById("downloadExtentSelect");
           if (!input) return;
-          input.value = btn.dataset.extent || "current";
+          input.value = btn.dataset.extent || "town";
           if (!exportInProgress) setDownloadStatus("", false);
           updateExportSegmentedUI();
           updateDownloadSummary();
@@ -37424,6 +37478,42 @@ html body #mapTitleBadge #mapTitleLogo{
     height:22px !important;
   }
 
+  .export-stage-frame[data-export-aspect="4:5"] .export-stage-logo-strip{
+    min-height:88px !important;
+    max-width:270px !important;
+  }
+  .export-stage-frame[data-export-aspect="4:5"] .export-stage-logo{
+    max-width:224px !important;
+    max-height:66px !important;
+  }
+  .export-stage-frame[data-export-aspect="4:5"] .export-stage-timestamp{
+    top:122px !important;
+    left:18px !important;
+    right:370px !important;
+    min-width:0 !important;
+    max-width:none !important;
+    padding:17px 22px 19px !important;
+    font-size:50px !important;
+  }
+  .export-stage-frame[data-export-aspect="4:5"] .export-stage-legend[data-export-legend-mode="depth"]{
+    top:122px !important;
+    right:22px !important;
+    width:320px !important;
+    padding:20px 20px 18px !important;
+  }
+  .export-stage-frame[data-export-aspect="4:5"] .export-depth-key-heading strong{
+    font-size:27px !important;
+  }
+  .export-stage-frame[data-export-aspect="4:5"] .export-depth-key-gradient{
+    height:22px !important;
+  }
+  .export-stage-frame[data-export-aspect="4:5"] .export-depth-key-ends{
+    font-size:12px !important;
+  }
+  .export-stage-frame[data-export-aspect="4:5"] .export-depth-key-note{
+    font-size:13px !important;
+  }
+
   .export-stage-frame[data-export-aspect="9:16"] .export-stage-timestamp{
     top:122px !important;
     left:18px !important;
@@ -37707,6 +37797,51 @@ html body #mapTitleBadge #mapTitleLogo{
   html body #mapTitleBadge .shorely-title-logo-shorelysafe{
     min-width:0 !important;
     max-width:var(--nww-title-logo-max, 150px) !important;
+  }
+</style>
+<style id="north-wildwood-export-device-layout">
+  /* Keep every export choice reachable and tappable on phones and tablets. */
+  #downloadModal .export-segmented button{
+    min-width:0 !important;
+    white-space:normal !important;
+    line-height:1.12 !important;
+  }
+
+  @media (max-width:720px){
+    #downloadModal #downloadAspectControl{
+      grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    }
+    #downloadModal #downloadAspectControl button,
+    #downloadModal #downloadExtentControl button,
+    #downloadModal #downloadFormatControl button{
+      min-height:48px !important;
+      padding:8px 7px !important;
+      font-size:12px !important;
+    }
+    #downloadModal .export-extent-help{
+      grid-template-columns:1fr !important;
+      gap:8px !important;
+      padding:10px !important;
+      font-size:12px !important;
+    }
+    #downloadModal .export-adjust-view-btn{
+      width:100% !important;
+      min-height:44px !important;
+      font-size:12px !important;
+    }
+  }
+
+  @media (min-width:721px) and (max-width:1100px) and (pointer:coarse){
+    #downloadModal .download-modal-card{
+      width:min(760px, calc(100vw - 40px)) !important;
+      max-height:calc(100dvh - 40px) !important;
+    }
+    #downloadModal #downloadAspectControl button,
+    #downloadModal #downloadExtentControl button,
+    #downloadModal #downloadFormatControl button{
+      min-height:46px !important;
+      font-size:13px !important;
+    }
   }
 </style>
 </body>
