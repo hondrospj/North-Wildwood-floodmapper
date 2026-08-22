@@ -56,7 +56,8 @@ assert.deepEqual(Array.from(targetPixels.slice(12, 20)), Array(8).fill(0));
 
 assert.match(extractFunction("getHydraulicOverlayRecord"), /mode === "dynamic"[\s\S]+getBathtubStageOverlayRecord/);
 assert.doesNotMatch(extractFunction("getBathtubStageOverlayRecord"), /connection|developed|penalty|phase/i);
-assert.match(source, /North Wildwood Coastal Flood Mapper/);
+assert.match(source, /North Wildwood Flood Mapper/);
+assert.doesNotMatch(source, /North Wildwood Coastal Flood Mapper/);
 assert.doesNotMatch(source, /id="legendCollapseBtn"/);
 assert.match(source, /id="legendHelpBtn"[^>]*>\?<\/button>/);
 assert.match(extractFunction("syncMobileControlsLayout"), /\{ mobileRailMount, closeBtn \}/);
