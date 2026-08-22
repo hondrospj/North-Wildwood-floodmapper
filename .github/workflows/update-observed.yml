@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/update-observed.yml
       - tools/update_observed_15min.py
+      - tools/merge_north_wildwood_city_gauge.py
       - tools/update_historic_crests.py
       - tools/build_observed_archive_shards.py
   schedule:
@@ -17,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: north-wildwood-data-updates-v2
+  group: north-wildwood-data-updates-v3
   cancel-in-progress: false
 
 jobs:
@@ -36,8 +37,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Update 15-minute and hourly archives
-        run: python3 tools/update_observed_15min.py --update-hourly
+      - name: Update the Stone Harbor fallback layer
+        run: python3 tools/update_observed_15min.py --output stone_harbor_observed15min.json --no-update-hourly
+
+      - name: Apply the North Wildwood city gauge as the primary layer
+        run: python3 tools/merge_north_wildwood_city_gauge.py
 
       - name: Update official USGS historic crests
         run: python3 tools/update_historic_crests.py
@@ -48,13 +52,13 @@ jobs:
       - name: Commit archive updates
         shell: bash
         run: |
-          if git diff --quiet -- observed.json observed15min.json toptides.json observed_archive_index.json lewes_archive_index.json observed_archive; then
+          if git diff --quiet -- stone_harbor_observed15min.json observed.json observed15min.json toptides.json observed_archive_index.json lewes_archive_index.json observed_archive; then
             echo "Observed archives and historic crests are already current."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add observed.json observed15min.json toptides.json observed_archive_index.json lewes_archive_index.json observed_archive
+          git add stone_harbor_observed15min.json observed.json observed15min.json toptides.json observed_archive_index.json lewes_archive_index.json observed_archive
           git commit -m "Update North Wildwood observed archives"
           for attempt in 1 2 3 4 5; do
             git pull --rebase --autostash origin main

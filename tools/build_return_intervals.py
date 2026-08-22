@@ -2,11 +2,13 @@
 """Build synthetic North Wildwood return-interval storm hydrographs.
 
 For the 1, 2, 5, 10, 20, 50, and 100-year intervals, the target still-water
-level is a 2:1 USGS-to-NACCS weighted blend of:
+level is a 2:1 local-gauge-to-NACCS weighted blend of:
 
 1. the 2015 NACCS mean water level at save point 11283; and
-2. a Stone Harbor USGS frequency estimate fitted to annual maxima assembled
-   from the historic crest-stage and continuous records at site 01411360.
+2. a local frequency estimate fitted to annual maxima assembled from the
+   historic Stone Harbor crest-stage record and the city-primary continuous
+   archive (North Wildwood sensor 1005 from September 2017, with Stone Harbor
+   as the earlier and gap-fallback source).
 
 The 200, 500, 1,000, 2,000, 5,000, and 10,000-year targets use the published
 2015 NACCS station 11283 levels directly; no USGS extrapolation or averaging is
@@ -263,7 +265,11 @@ def continuous_annual_maxima(path: Path) -> dict[int, dict]:
             "waterYear": year,
             "heightNavd88Ft": height,
             "date": event_date.isoformat(),
-            "source": "usgs-continuous-15min",
+            "source": (
+                "north-wildwood-city-primary-composite-15min"
+                if int(day.get("n") or 0) > 0
+                else "usgs-continuous-15min"
+            ),
         }
         if year not in maxima or height > maxima[year]["heightNavd88Ft"]:
             maxima[year] = record
@@ -302,8 +308,8 @@ def combine_usgs_maxima(
     jonas_maximum: dict,
 ) -> list[dict]:
     # observed15min.json deliberately rescales Jonas to the documented North
-    # Wildwood crest for replay. Restore the unmodified Stone Harbor gauge
-    # maximum before fitting the Stone Harbor frequency curve.
+    # Wildwood crest for replay. Jonas predates the city archive, so restore
+    # the unmodified Stone Harbor maximum before fitting the local curve.
     continuous_maxima[jonas_maximum["waterYear"]] = jonas_maximum
 
     combined: dict[int, dict] = {}
@@ -563,7 +569,7 @@ def build(args: argparse.Namespace) -> dict:
         )
 
     return {
-        "schema": "north-wildwood-return-intervals-v3",
+        "schema": "north-wildwood-return-intervals-v4",
         "generatedAtUtc": datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat()
@@ -587,11 +593,12 @@ def build(args: argparse.Namespace) -> dict:
             ),
             "usgs": (
                 "GEV distribution fitted by L-moments to one maximum per available "
-                "water year from the USGS Stone Harbor crest-stage and continuous "
-                "records; return-level CDF F=exp(-1/T)"
+                "water year from Stone Harbor historic crest-stage records and the "
+                "North Wildwood city-primary continuous archive; return-level CDF "
+                "F=exp(-1/T)"
             ),
             "targetSelection": (
-                "Two parts Stone Harbor USGS to one part NACCS for matching "
+                "Two parts local historic/continuous gauge record to one part NACCS for matching "
                 "1-100-year return levels; published NACCS station 11283 "
                 "level used directly for 200-10,000 years"
             ),
@@ -623,6 +630,10 @@ def build(args: argparse.Namespace) -> dict:
                 "site": USGS_SITE_ID,
                 "parameterCd": USGS_PARAMETER_CD,
                 "archive": str(args.observed),
+                "primarySite": "1005",
+                "primaryGauge": "North Wildwood municipal tide gauge",
+                "primaryCoverageStarts": "2017-09-01T12:58:00Z",
+                "fallbackSite": USGS_SITE_ID,
                 "rawJonasUrl": USGS_JONAS_URL,
             },
             "noaaHarmonicTide": {
@@ -673,7 +684,7 @@ def parse_args() -> argparse.Namespace:
         "--observed",
         type=Path,
         default=Path("observed15min.json"),
-        help="Existing compact USGS Stone Harbor continuous archive",
+        help="Existing compact city-primary continuous archive with Stone Harbor fallback",
     )
     parser.add_argument(
         "--output",

@@ -139,7 +139,7 @@ def split_contiguous(times: list[int], levels: list[float]) -> list[tuple[np.nda
     return segments
 
 
-def fit_stone_harbor_trend(times: list[int], levels: list[float]) -> tuple[float, dict]:
+def fit_local_gauge_trend(times: list[int], levels: list[float]) -> tuple[float, dict]:
     """Fit the existing local trend to equally weighted monthly means."""
     daily: dict[str, list[float]] = defaultdict(list)
     for stamp, level in zip(times, levels):
@@ -160,13 +160,13 @@ def fit_stone_harbor_trend(times: list[int], levels: list[float]) -> tuple[float
         xs.append(year + (month_number - 0.5) / 12.0)
         ys.append(float(np.mean(values)))
     if len(xs) < 24:
-        raise RuntimeError("At least 24 Stone Harbor monthly means are required to fit the observed trend")
+        raise RuntimeError("At least 24 local-gauge monthly means are required to fit the observed trend")
 
     slope, intercept = np.polyfit(np.asarray(xs), np.asarray(ys), 1)
     fitted = np.asarray(xs) * slope + intercept
     residual = np.asarray(ys) - fitted
     return float(slope), {
-        "method": "ordinary least squares on equally weighted monthly means from the Stone Harbor 15-minute archive",
+        "method": "ordinary least squares on equally weighted monthly means from the city-primary 15-minute archive",
         "monthlyMeanCount": len(xs),
         "firstMonth": min(monthly),
         "lastMonth": max(monthly),
@@ -422,21 +422,22 @@ def build_cdf_payload(
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "currentYear": CURRENT_YEAR,
         "site": {
-            "name": "Great Channel at Stone Harbor",
+            "name": "North Wildwood city gauge with Stone Harbor fallback",
+            "cityGaugeId": "1005",
             "usgsId": "01411360",
             "noaaScenarioStationId": "8536110",
             "noaaScenarioStationName": "Cape May",
         },
         "sources": {
-            "observed": "USGS NWIS parameter 72279, regularized to 15-minute anchors",
+            "observed": "North Wildwood municipal sensor 1005 where usable, with USGS 01411360 as the earlier and gap-fallback source; regularized to 15-minute anchors",
             "seaLevelScenarios": "NOAA CO-OPS 2022 Interagency Sea Level Report station projections",
             "scenarioReportYear": 2022,
-            "localObservedTrend": "Great Channel at Stone Harbor monthly means from the same 15-minute archive",
+            "localObservedTrend": "city-primary monthly means from the same 15-minute archive",
         },
         "observedArchive": {"startDate": observed_payload.get("archiveStartDate"), "endDate": observed_payload.get("archiveEndDate")},
         "method": {
-            "historic": "independent Stone Harbor high-tide peaks separated by at least six hours; a parcel floods only when depth is strictly greater than 0.1 foot above the parcel's highest intersecting original five-foot DEM cell",
-            "baselineRebase": f"each observed Stone Harbor peak adjusted to 1 January {CURRENT_YEAR} using the fitted local observed trend",
+            "historic": "independent city-primary composite high-tide peaks separated by at least six hours; a parcel floods only when depth is strictly greater than 0.1 foot above the parcel's highest intersecting original five-foot DEM cell",
+            "baselineRebase": f"each observed local-gauge peak adjusted to 1 January {CURRENT_YEAR} using the fitted local observed trend",
             "seaLevelCurves": f"quadratic least-squares fits to each NOAA 2022 median scenario, evaluated annually and rebased to zero in {CURRENT_YEAR}; the observed local trend remains linear",
             "cdf": "continuous Gaussian-kernel CDF fitted to present-year-rebased independent high-tide peaks",
             "uncertainty": "two-sided 95 percent calendar-year block-bootstrap percentile interval for the fitted exceedance probability at every elevation, year, and curve",
@@ -762,7 +763,7 @@ def build(args: argparse.Namespace) -> dict:
         if args.slr
         else fetch_json(NOAA_SLR_URL)
     )
-    annual_trend_ft, trend_metadata = fit_stone_harbor_trend(observed_times, observed_levels)
+    annual_trend_ft, trend_metadata = fit_local_gauge_trend(observed_times, observed_levels)
     events, rebased_peaks = extract_high_tide_events(observed_times, observed_levels, annual_trend_ft)
     if not rebased_peaks:
         raise RuntimeError("No independent high-tide events could be extracted")

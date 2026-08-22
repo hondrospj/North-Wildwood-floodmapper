@@ -37,7 +37,7 @@ def parse_utc(value: str) -> datetime:
 
 
 def main() -> None:
-    if PAYLOAD["schema"] != "north-wildwood-return-intervals-v3":
+    if PAYLOAD["schema"] != "north-wildwood-return-intervals-v4":
         raise AssertionError("Unexpected return-interval schema")
     if PAYLOAD["returnIntervalsYears"] != EXPECTED_INTERVALS:
         raise AssertionError("Return intervals do not match NACCS through 10,000 years")
@@ -62,6 +62,12 @@ def main() -> None:
         raise AssertionError("Frequency fit used the replay-calibrated Jonas value instead of raw USGS")
     if jonas["source"] != "usgs-continuous-raw":
         raise AssertionError("Raw USGS Jonas provenance is missing")
+    post_city = [row for row in maxima if row["waterYear"] >= 2018]
+    if not post_city or any(
+        row["source"] != "north-wildwood-city-primary-composite-15min"
+        for row in post_city
+    ):
+        raise AssertionError("Post-2017 frequency maxima did not use the city-primary archive")
 
     records = PAYLOAD["intervals"]
     if [record["years"] for record in records] != EXPECTED_INTERVALS:

@@ -10,11 +10,12 @@ post-crest release, or normal-draining PNG; it does not run a new simulation
 in the browser.
 
 This repository is the complete North Wildwood counterpart to the Stone Harbor
-Floodmapper. It uses the Great Channel at Stone Harbor gauge as the live and
-historical water-level forcing source, then applies North Wildwood's datum
-conversion, flood thresholds, bulkhead-conditioned bare-earth terrain, NSI
-2026 structure-impact thresholds, parcels, and a source-connected filling and
-drainage surrogate.
+Floodmapper. Its observed archive uses the City of North Wildwood tide gauge
+wherever that municipal record is usable, beginning September 1, 2017, with
+Great Channel at Stone Harbor retained before then and as a gap fallback. The
+mapper applies North Wildwood's datum conversion, flood thresholds,
+bulkhead-conditioned bare-earth terrain, NSI 2026 structure-impact thresholds,
+parcels, and a source-connected filling and drainage surrogate.
 
 ## Water-level contract
 
@@ -24,13 +25,17 @@ drainage surrogate.
 | Moderate | 4.25 ft | 7.00 ft |
 | Major | 5.25 ft | 8.00 ft |
 
-`NAVD88 = MLLW - 2.75 ft`. Forecast and observed water levels come from the
-Stone Harbor gauge. Hurricane Sandy's Stone Harbor gauge outage is filled only
-for event replay with NOAA Lewes verified tide shape, time-aligned and scaled
-to the official 6.73 ft NAVD88 / 9.48 ft MLLW crest. Winter Storm Jonas is
-calibrated to the documented North Wildwood crest of 6.69 ft NAVD88 / 9.44 ft
-MLLW while preserving the Stone Harbor 15-minute tide shape. Both events expose
-complete 15-minute replays and derived hourly values.
+`NAVD88 = MLLW - 2.75 ft`. Forecast guidance continues to use Stone Harbor.
+Observed playback uses North Wildwood municipal sensor `1005` as the primary
+source from its first usable record at 8:58 AM EDT on September 1, 2017
+(`2017-09-01T12:58:00Z`); Stone Harbor USGS site `01411360` supplies earlier
+anchors and municipal-gauge gaps.
+Hurricane Sandy's Stone Harbor gauge outage is filled only for event replay
+with NOAA Lewes verified tide shape, time-aligned and scaled to the official
+6.73 ft NAVD88 / 9.48 ft MLLW crest. Winter Storm Jonas predates the city
+archive and is calibrated to the documented North Wildwood crest of 6.69 ft
+NAVD88 / 9.44 ft MLLW while preserving the Stone Harbor 15-minute tide shape.
+Both events expose complete 15-minute replays and derived hourly values.
 
 ## Return-interval storms
 
@@ -39,15 +44,15 @@ The **Return Intervals** data source supplies synthetic 24-hour storms at every
 frequency calculations are performed in feet NAVD88; MLLW is only a display
 conversion using the mapper's existing `+2.75 ft` contract.
 
-| Return interval | NACCS 11283 | Stone Harbor USGS fit | Mapper target | Target method |
+| Return interval | NACCS 11283 | Local gauge fit | Mapper target | Target method |
 | ---: | ---: | ---: | ---: | :--- |
-| 1 year | 4.2165 ft | 4.3793 ft | 4.3250 ft | 2:1 USGS-weighted blend |
-| 2 years | 5.4460 ft | 4.8525 ft | 5.0503 ft | 2:1 USGS-weighted blend |
-| 5 years | 6.6425 ft | 5.3869 ft | 5.8054 ft | 2:1 USGS-weighted blend |
-| 10 years | 7.3436 ft | 5.7320 ft | 6.2692 ft | 2:1 USGS-weighted blend |
-| 20 years | 8.0468 ft | 6.0331 ft | 6.7043 ft | 2:1 USGS-weighted blend |
-| 50 years | 9.5326 ft | 6.3731 ft | 7.4263 ft | 2:1 USGS-weighted blend |
-| 100 years | 10.7608 ft | 6.5927 ft | 7.9821 ft | 2:1 USGS-weighted blend |
+| 1 year | 4.2165 ft | 4.3500 ft | 4.3055 ft | 2:1 local-gauge-weighted blend |
+| 2 years | 5.4460 ft | 4.8145 ft | 5.0250 ft | 2:1 local-gauge-weighted blend |
+| 5 years | 6.6425 ft | 5.3507 ft | 5.7813 ft | 2:1 local-gauge-weighted blend |
+| 10 years | 7.3436 ft | 5.7045 ft | 6.2509 ft | 2:1 local-gauge-weighted blend |
+| 20 years | 8.0468 ft | 6.0192 ft | 6.6951 ft | 2:1 local-gauge-weighted blend |
+| 50 years | 9.5326 ft | 6.3824 ft | 7.4324 ft | 2:1 local-gauge-weighted blend |
+| 100 years | 10.7608 ft | 6.6220 ft | 8.0016 ft | 2:1 local-gauge-weighted blend |
 | 200 years | 11.9254 ft | — | 11.9254 ft | NACCS only |
 | 500 years | 13.4856 ft | — | 13.4856 ft | NACCS only |
 | 1,000 years | 14.7033 ft | — | 14.7033 ft | NACCS only |
@@ -55,16 +60,17 @@ conversion using the mapper's existing `+2.75 ft` contract.
 | 5,000 years | 17.5026 ft | — | 17.5026 ft | NACCS only |
 | 10,000 years | 18.6306 ft | — | 18.6306 ft | NACCS only |
 
-The Stone Harbor estimate is a GEV distribution fitted by L-moments to one
-maximum per available complete water year from USGS site `01411360`. The
-combined crest-stage and continuous record contains 60 water years from
-1965–2025; water year 1981 is unavailable. The fit uses the point-process
-return-level convention `F = exp(-1/T)`, which gives a finite one-year level.
-The raw 6.22-ft NAVD88 USGS Jonas crest is used in this statistical series,
-not the mapper's separate 6.69-ft North Wildwood replay calibration.
+The local estimate is a GEV distribution fitted by L-moments to one maximum
+per available complete water year. It combines Stone Harbor's long historic
+crest-stage record with the city-primary continuous archive from September
+2017 onward. The combined record contains 60 water years from 1965–2025;
+water year 1981 is unavailable. The fit uses the point-process return-level
+convention `F = exp(-1/T)`, which gives a finite one-year level. The raw
+6.22-ft NAVD88 USGS Jonas crest is used in this statistical series, not the
+mapper's separate 6.69-ft North Wildwood replay calibration.
 
-The 1–100-year targets use two parts local USGS gauge history to one part
-NACCS. The 200–10,000-year targets use the published NACCS station values
+The 1–100-year targets use two parts local historic/continuous gauge record to
+one part NACCS. The 200–10,000-year targets use the published NACCS values
 directly. NOAA station
 `8535581` Stone Harbor harmonic predictions provide the astronomical tide. The
 user-supplied asymmetric Cape May surge-ratio curve is digitized,
@@ -256,11 +262,15 @@ modeled depth at or below 0.10 ft is shown as `0.0-0.1ft`.
 
 - `.github/workflows/update-forecast.yml` retrieves hourly PETSS/NOAA guidance,
   applies the -2.75 ft offset, and assigns the matching static stage asset.
-- `.github/workflows/update-observed.yml` maintains USGS site `01411360`,
-  parameter `72279`, on exact 15-minute anchors plus the hourly calendar
-  archive and official historic crest list. It also rebuilds lightweight daily
-  indexes and source/year shards in `observed_archive/`, so the browser renders
-  the calendar first and downloads only the selected year.
+- `.github/workflows/update-observed.yml` maintains a clean fallback layer from
+  USGS site `01411360`, parameter `72279`, then overlays the North Wildwood city
+  gauge on exact 15-minute anchors. The city source wins whenever it has a
+  usable interpolation bracket of 30 minutes or less. Stone Harbor supplies
+  earlier dates and remaining gaps.
+- `.github/workflows/update-city-gauge-archive.yml` refreshes the municipal
+  archive daily, reapplies that source priority, and rebuilds the hourly
+  calendar plus browser-optimized daily indexes and source/year shards in
+  `observed_archive/`.
 - `.github/workflows/update-lewes-archive.yml` maintains the verified pre-2007
   Lewes surrogate used only when the Stone Harbor continuous record does not
   exist.
@@ -282,9 +292,10 @@ python3 tools/test_observed_archive_shards.py
 `tools/build_parcel_alerts.py` uses the official NJ composite MOD-IV layer for
 North Wildwood municipality `0507`. Its parcel-ground fallback uses the highest
 center of an intersecting cell from the original five-foot DEM grid. The
-historical count comes from independent Stone Harbor high-tide peaks separated
-by at least six hours. A threshold is exceeded only when water is strictly more
-than 0.10 ft above it; a depth equal to 0.10 ft is excluded.
+historical count comes from independent high-tide peaks in the city-primary
+observed archive, separated by at least six hours. A threshold is exceeded only
+when water is strictly more than 0.10 ft above it; a depth equal to 0.10 ft is
+excluded.
 
 `tools/build_nsi_2026_structures.py` adds the USACE National Structure Inventory
 2026 Base layer. It clips the API response to the official NJGIS municipal
@@ -315,7 +326,7 @@ surveys, elevation certificates, or regulatory products. The structure-impact
 dots, historical exceedance counts, and parcel projections continue to use the
 same modeled first-floor thresholds.
 
-The same Stone Harbor series is fitted from equally weighted monthly means and
+The same city-primary series is fitted from equally weighted monthly means and
 rebased to January 1, 2026. The projection model includes that existing local
 trend plus NOAA's 2022 Low, Intermediate Low, Intermediate, Intermediate High,
 and High Cape May relative sea-level scenarios. Every NOAA median curve is

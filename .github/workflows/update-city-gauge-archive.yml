@@ -2,6 +2,8 @@ name: Update North Wildwood city gauge archive
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "12 6 * * *"
   push:
     branches:
       - main
@@ -9,12 +11,14 @@ on:
       - .github/workflows/update-city-gauge-archive.yml
       - tools/archive_north_wildwood_city_gauge.mjs
       - tools/build_north_wildwood_stone_harbor_comparison.mjs
+      - tools/merge_north_wildwood_city_gauge.py
+      - tools/build_observed_archive_shards.py
 
 permissions:
   contents: write
 
 concurrency:
-  group: north-wildwood-city-gauge-archive
+  group: north-wildwood-data-updates-v3
   cancel-in-progress: false
 
 jobs:
@@ -28,15 +32,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Retrieve every municipal tide record
         run: node tools/archive_north_wildwood_city_gauge.mjs
       - name: Align with Stone Harbor in NAVD88
         run: node tools/build_north_wildwood_stone_harbor_comparison.mjs
+      - name: Apply the city gauge to the public observed archive
+        run: python3 tools/merge_north_wildwood_city_gauge.py
+      - name: Rebuild browser-optimized archive indexes and year shards
+        run: python3 tools/build_observed_archive_shards.py
       - name: Commit the refreshed archive
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add city-gauge/data city-gauge/comparison
+          git add city-gauge/data city-gauge/comparison observed.json observed15min.json observed_archive_index.json observed_archive/stone-harbor
           if git diff --cached --quiet; then
             echo "Archive is already current."
             exit 0

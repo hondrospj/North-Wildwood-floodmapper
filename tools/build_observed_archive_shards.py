@@ -37,6 +37,18 @@ def write_compact_json(path: Path, payload: dict[str, Any]) -> None:
     )
 
 
+def composite_source_metadata(source: dict[str, Any]) -> dict[str, Any]:
+    keys = (
+        "sourceResolutionMinutesByGauge",
+        "sourcePriority",
+        "cityGaugeCoverage",
+    )
+    metadata = {key: source[key] for key in keys if source.get(key) is not None}
+    if source.get("fallbackSite") is not None:
+        metadata["fallbackStationId"] = source["fallbackSite"]
+    return metadata
+
+
 def build_index(source: dict[str, Any], source_key: str, path_template: str) -> dict[str, Any]:
     days = [
         {
@@ -47,7 +59,7 @@ def build_index(source: dict[str, Any], source_key: str, path_template: str) -> 
         for day in source.get("days", [])
         if day.get("d")
     ]
-    return {
+    result = {
         "schema": "north-wildwood-observed-day-index-v1",
         "source": source_key,
         "gaugeName": source.get("gaugeName") or source.get("stationName"),
@@ -66,6 +78,8 @@ def build_index(source: dict[str, Any], source_key: str, path_template: str) -> 
         "shardPathTemplate": path_template,
         "days": days,
     }
+    result.update(composite_source_metadata(source))
+    return result
 
 
 def build_year_shards(
@@ -82,19 +96,40 @@ def build_year_shards(
     written: list[Path] = []
     for year, days in sorted(grouped.items()):
         path = shard_dir / source_key / f"{year}.json"
+        city_coverage = source.get("cityGaugeCoverage") or {}
+        city_start_year = str(city_coverage.get("firstTimestamp") or "")[:4]
+        before_city_coverage = bool(
+            source.get("fallbackSite")
+            and city_start_year.isdigit()
+            and int(year) < int(city_start_year)
+        )
+        resolution_by_gauge = source.get("sourceResolutionMinutesByGauge") or {}
         payload = {
             "schema": "north-wildwood-observed-year-v1",
             "source": source_key,
             "year": int(year),
-            "stationId": source.get("site") or source.get("stationId"),
-            "stationName": source.get("gaugeName") or source.get("stationName"),
+            "stationId": (
+                source.get("fallbackSite")
+                if before_city_coverage
+                else source.get("site") or source.get("stationId")
+            ),
+            "stationName": (
+                "Stone Harbor"
+                if before_city_coverage
+                else source.get("gaugeName") or source.get("stationName")
+            ),
             "datum": source.get("datum", "NAVD88"),
             "timeZone": source.get("timeZone", "America/New_York"),
             "intervalMinutes": source.get("intervalMinutes"),
-            "sourceResolutionMinutes": source.get("sourceResolutionMinutes")
-            or source.get("intervalMinutes"),
+            "sourceResolutionMinutes": (
+                resolution_by_gauge.get("stoneHarbor")
+                if before_city_coverage
+                else source.get("sourceResolutionMinutes") or source.get("intervalMinutes")
+            ),
             "days": days,
         }
+        if not before_city_coverage:
+            payload.update(composite_source_metadata(source))
         write_compact_json(path, payload)
         written.append(path)
     return written
