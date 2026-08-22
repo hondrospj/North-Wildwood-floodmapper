@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-  <title>North Wildwood Tidal Flood Dashboard</title>
+  <title>North Wildwood Coastal Flood Mapper</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <script>
     (function(){
@@ -13983,7 +13983,7 @@ html.win-compact-ui #timelineDock #hourSlider{
   <div id="app">
     <div id="mapTitleBadge" class="shorely-title-badge" aria-hidden="true">
       <img id="mapTitleLogo" class="shorely-title-logo shorely-title-logo-town" src="" alt="" loading="eager" decoding="async" style="display:none;" />
-      <span id="mapTitleText" class="shorely-title-text">North Wildwood Tidal Flood Dashboard</span>
+      <span id="mapTitleText" class="shorely-title-text">North Wildwood Coastal Flood Mapper</span>
       <img id="mapTitlePartnerLogo" class="shorely-title-logo shorely-title-logo-shorelysafe" src="" alt="" loading="eager" decoding="async" style="display:none;" />
     </div>
     <aside id="leftPanel">
@@ -14103,7 +14103,6 @@ html.win-compact-ui #timelineDock #hourSlider{
             </div>
             <div class="legend-header-actions">
               <button id="legendHelpBtn" class="help-btn legend-help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain current map key">?</button>
-              <button id="legendCollapseBtn" class="help-btn legend-collapse-btn" type="button" aria-expanded="true" aria-controls="legendBody" title="Collapse map key">−</button>
             </div>
           </div>
           <div id="legendBody" class="legend-body">
@@ -14264,14 +14263,8 @@ html.win-compact-ui #timelineDock #hourSlider{
 
         </section>
 
-        <section id="downloadCard" class="rail-card download-card download-launch-card">
-          <div class="rail-head">
-            <div>
-              <h3>Create Shareable Map</h3>
-            </div>
-          </div>
-          <div id="downloadLaunchMeta" class="download-launch-meta">Create an animation or high-resolution image sequence with North Wildwood centered.</div>
-          <button id="openDownloadModalBtn" class="download-launch-btn active" type="button" aria-expanded="false" aria-controls="downloadModal">Create export</button>
+        <section id="downloadCard" class="rail-card download-card download-launch-card" aria-label="Export Map">
+          <button id="openDownloadModalBtn" class="download-launch-btn active" type="button" aria-expanded="false" aria-controls="downloadModal">Export Map</button>
         </section>
 
         <section id="townAddressCard" class="rail-card town-address-card" aria-label="address lookup">
@@ -15260,6 +15253,7 @@ function cloneStyleObject(value) {
     let drainageRasterImageCache = new Map();
     let fillingCompositeCache = new Map();
     let drainageCompositeCache = new Map();
+    let bathtubStageOverlayCache = new Map();
     let overlayPreloadGeneration = 0;
     let historicalTopTideWarmupScheduled = false;
     let historicalTopTideWarmupGeneration = 0;
@@ -16820,12 +16814,13 @@ function setDatumHelpOpen(isOpen) {
         title: "Flood Depth Key",
         body: `
           <p>Light blue is shallow water. Darker blue is deeper water.</p>
-          <p>Green marks terrain below the selected water level that is not yet connected to a qualified tidal source under the current filling conditions. Marshes and beaches are never changed just to complete a street route. During drainage, lag-retained street water is blue.</p>
+          <p><strong>Uncertainty</strong> marks terrain below the selected water level that the connected flood model does not classify as flooded under the current filling conditions. Marshes and beaches are never changed just to complete a street route. During drainage, lag-retained street water is blue.</p>
         `
       },
       stageLegend: {
         title: "Flood Stages Key",
         body: `
+          <p>Flood Stages is a direct bathtub view: terrain at or below the selected water level is filled without connectivity, development-penalty, or drainage rules.</p>
           <ul>
             <li><strong>Minor:</strong> low roads and public areas may flood.</li>
             <li><strong>Moderate:</strong> roads and some buildings may flood. Evacuations may be needed.</li>
@@ -16974,7 +16969,7 @@ function setDatumHelpOpen(isOpen) {
           ? "Flood Depth Key"
           : "Flood Stages Key";
         if (window.innerWidth > 900) {
-          const compactLegendHeight = currentOverlayMode === "depth" ? "94px" : "54px";
+          const compactLegendHeight = currentOverlayMode === "depth" ? "94px" : "68px";
           legendDock.style.setProperty("height", compactLegendHeight, "important");
           legendDock.style.setProperty("min-height", compactLegendHeight, "important");
           legendDock.style.setProperty("max-height", compactLegendHeight, "important");
@@ -16998,13 +16993,13 @@ function setDatumHelpOpen(isOpen) {
               : "<strong>Physics frame</strong> shows cells wet by this time"}</span>
           </div>
         ` : `
-          <div class="depth-legend-scale" aria-label="Green not-yet-connected areas followed by connected modeled flood depth from shallow to deep">
-            <div class="depth-legend-labels"><span>Not Yet Connected</span><span>Shallow</span><span>Deep</span></div>
+          <div class="depth-legend-scale" aria-label="Uncertainty areas followed by connected modeled flood depth from shallow to deep">
+            <div class="depth-legend-labels"><span>Uncertainty</span><span>Shallow</span><span>Deep</span></div>
             <div class="depth-legend-gradient" aria-hidden="true"></div>
           </div>
           <div class="depth-legend-uncertainty-note">
-            <span><strong>Green</strong> = not yet connected</span>
-            <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain green areas" title="Explain green areas">?</button>
+            <span><strong>Green</strong> = uncertainty</span>
+            <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain uncertainty areas" title="Explain uncertainty areas">?</button>
           </div>
         `;
         list.querySelector("[data-legend-help='uncertainty']")?.addEventListener("click", event => {
@@ -17018,7 +17013,7 @@ function setDatumHelpOpen(isOpen) {
         const row = document.createElement("div");
         row.className = "legend-row";
         const helpButtonHtml = item.helpKey === "uncertainty"
-          ? `<button class="legend-help-btn" type="button" data-legend-help="uncertainty" aria-label="Explain green areas" title="Explain green areas">?</button>`
+          ? `<button class="legend-help-btn" type="button" data-legend-help="uncertainty" aria-label="Explain uncertainty areas" title="Explain uncertainty areas">?</button>`
           : "";
 
         let labelText = item.label;
@@ -17890,6 +17885,78 @@ function setDatumHelpOpen(isOpen) {
       });
     }
 
+    function cacheBathtubStageOverlay(key, record) {
+      bathtubStageOverlayCache.set(key, record);
+      while (bathtubStageOverlayCache.size > 48) {
+        const oldestKey = bathtubStageOverlayCache.keys().next().value;
+        const oldest = bathtubStageOverlayCache.get(oldestKey);
+        if (oldest?.url?.startsWith("blob:")) URL.revokeObjectURL(oldest.url);
+        bathtubStageOverlayCache.delete(oldestKey);
+      }
+      return record;
+    }
+
+    function applyBathtubStagePixels(source, target, stageValue) {
+      const stage = Number(stageValue);
+      if (!source || !target || source.length !== target.length || !Number.isFinite(stage)) return 0;
+      let wetPixels = 0;
+      for (let offset = 0; offset < source.length; offset += 4) {
+        const encodedGround = source[offset] * 256 + source[offset + 1];
+        if (!encodedGround) continue;
+        const groundFt = (encodedGround - 32768) / 10;
+        if (!(groundFt < stage - 0.005)) continue;
+        const color = groundFt < MINOR_FLOOD_FT
+          ? DRAINAGE_STAGE_COLORS[0]
+          : groundFt < MODERATE_FLOOD_FT
+            ? DRAINAGE_STAGE_COLORS[1]
+            : DRAINAGE_STAGE_COLORS[2];
+        target[offset] = color[0];
+        target[offset + 1] = color[1];
+        target[offset + 2] = color[2];
+        target[offset + 3] = 225;
+        wetPixels += 1;
+      }
+      return wetPixels;
+    }
+
+    async function getBathtubStageOverlayRecord(stageValue) {
+      const stage = Number(stageValue);
+      if (!Number.isFinite(stage)) return null;
+      const key = stageToCode(stage);
+      if (bathtubStageOverlayCache.has(key)) return bathtubStageOverlayCache.get(key);
+
+      const request = (async () => {
+        const queryGrid = await getDepthQueryGrid();
+        if (!queryGrid?.values || !queryGrid.width || !queryGrid.height) return null;
+        const canvas = document.createElement("canvas");
+        canvas.width = queryGrid.width;
+        canvas.height = queryGrid.height;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) return null;
+        const imageData = context.createImageData(canvas.width, canvas.height);
+        const source = queryGrid.values;
+        const target = imageData.data;
+        applyBathtubStagePixels(source, target, stage);
+        context.putImageData(imageData, 0, 0);
+        return {
+          url: await canvasToDrainageObjectUrl(canvas),
+          filename: `NorthWildwoodBathtubStage${key}.png`,
+          isBathtubStage: true
+        };
+      })().catch(error => {
+        bathtubStageOverlayCache.delete(key);
+        console.warn("Could not build the bathtub flood-stage raster.", error);
+        return null;
+      });
+      bathtubStageOverlayCache.set(key, request);
+      const record = await request;
+      if (!record) {
+        bathtubStageOverlayCache.delete(key);
+        return null;
+      }
+      return cacheBathtubStageOverlay(key, record);
+    }
+
     function cacheDrainageComposite(key, record) {
       drainageCompositeCache.set(key, record);
       while (drainageCompositeCache.size > DRAINAGE_COMPOSITE_CACHE_LIMIT) {
@@ -18009,6 +18076,7 @@ function setDatumHelpOpen(isOpen) {
     }
 
     async function getHydraulicOverlayRecord(mode, stageValue, phase, entry = null, series = currentRawSeriesHours) {
+      if (mode === "dynamic") return getBathtubStageOverlayRecord(stageValue);
       let baseRecord = await getOverlayRecord(mode, stageValue, phase);
       if (!baseRecord || !entry) return baseRecord;
       baseRecord = await getFillingInterpolatedOverlayRecord(
@@ -18108,7 +18176,10 @@ function setDatumHelpOpen(isOpen) {
         const key = `${currentOverlayMode}:${phase}:${stageToCode(stage)}`;
         if (queued.has(key)) return Promise.resolve(null);
         queued.add(key);
-        return getOverlayRecord(currentOverlayMode, stage, phase).then(record => {
+        const recordRequest = currentOverlayMode === "dynamic"
+          ? getBathtubStageOverlayRecord(stage)
+          : getOverlayRecord(currentOverlayMode, stage, phase);
+        return recordRequest.then(record => {
           if (generation !== overlayPreloadGeneration) return null;
           return record?.url ? preloadImage(record.url, priority) : null;
         });
@@ -18139,6 +18210,15 @@ function setDatumHelpOpen(isOpen) {
       }
     }
 
+    function scheduleOverlayCatalogWarmup(index) {
+      const start = () => preloadAroundHour(index);
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(start, { timeout: 900 });
+      } else {
+        window.setTimeout(start, 160);
+      }
+    }
+
     function scheduleHistoricalTopTideWarmup() {
       if (historicalTopTideWarmupScheduled || !topTideEvents.length) return;
       historicalTopTideWarmupScheduled = true;
@@ -18154,10 +18234,8 @@ function setDatumHelpOpen(isOpen) {
           tasks.push(ensureObservedArchiveForDate(dateKey).catch(() => null));
         }
         if (stage != null) {
-          for (const mode of ["depth", "dynamic"]) {
-            const url = getOverlayCandidates(mode, stage, "slack")[0];
-            if (url) tasks.push(preloadImage(url, "low"));
-          }
+          const url = getOverlayCandidates("depth", stage, "slack")[0];
+          if (url) tasks.push(preloadImage(url, "low"));
         }
         await Promise.all(tasks);
       };
@@ -21239,18 +21317,18 @@ function updateExportSegmentedUI() {
             <div class="export-depth-key-heading">
               <strong>Flood Depth</strong>
             </div>
-            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Green not-yet-connected areas followed by connected modeled flood depth from shallow to deep"}">
+            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Uncertainty areas followed by connected modeled flood depth from shallow to deep"}">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
               <div class="export-depth-key-ends" aria-hidden="true">
-                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "Not Yet Connected"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
+                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "Uncertainty"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
               </div>
             </div>
-            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green</strong> means not yet connected."}</div>
+            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green</strong> means uncertainty."}</div>
           </div>
         `
         : source.innerHTML;
 
-      target.querySelectorAll("button, .help-btn, #legendHelpBtn, #legendCollapseBtn").forEach(el => el.remove());
+      target.querySelectorAll("button, .help-btn, #legendHelpBtn").forEach(el => el.remove());
       target.classList.remove("legend-collapsed", "legend-expanded", "legend-floating-user");
       target.removeAttribute("style");
       target.style.background = "#1b2536";
@@ -23387,7 +23465,9 @@ function formatSelectedObservedDate(dateStr) {
       toast("");
       ensureMap();
 
-      const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
+      const match = document.body.dataset.initialFloodFrame === "loading" && mode === "depth"
+        ? await getOverlayRecord(mode, stageValue, phase)
+        : await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
       if (token !== lastRenderToken) return;
 
       if (!match) {
@@ -23453,6 +23533,9 @@ function formatSelectedObservedDate(dateStr) {
           if (!mapHasFit && floodLatLngBounds) {
             const townBounds = getBoundaryDrivenOverlayBounds();
             map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
+            if (document.body.classList.contains("mobile-optimized")) {
+              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
+            }
             mapHasFit = true;
           }
           markInitialFloodFrameReady();
@@ -23513,6 +23596,9 @@ function formatSelectedObservedDate(dateStr) {
           if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
           if (!mapHasFit) {
             map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
+            if (document.body.classList.contains("mobile-optimized")) {
+              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
+            }
             mapHasFit = true;
           }
           markInitialFloodFrameReady();
@@ -23561,7 +23647,8 @@ function formatSelectedObservedDate(dateStr) {
         return;
       }
 
-      const physicsAsset = getPhysicsAssetForEntry(entry);
+      const initialFramePending = document.body.dataset.initialFloodFrame === "loading";
+      const physicsAsset = currentOverlayMode === "depth" ? getPhysicsAssetForEntry(entry) : null;
       const physicsUiWasActive = document.body.classList.contains("physics-forecast-active");
       const physicsUiIsActive = Boolean(physicsAsset);
       const physicsDailyUiWasActive = document.body.classList.contains("physics-daily-maximum-active");
@@ -23586,7 +23673,8 @@ function formatSelectedObservedDate(dateStr) {
       const token = ++lastRenderToken;
       if (physicsAsset) await setPhysicsFloodLayer(physicsAsset, token);
       else await setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours);
-      preloadAroundHour(index);
+      if (initialFramePending) scheduleOverlayCatalogWarmup(index);
+      else preloadAroundHour(index);
     }
 
     function updateSliderProgress() {
@@ -23610,7 +23698,7 @@ function formatSelectedObservedDate(dateStr) {
       if (!forecastData || options.forceRefresh) {
         forecastData = await fetchJson(withFreshJsonUrl(FORECAST_URL));
       }
-      if (!Object.keys(physicsForecastManifests).length || options.forceRefresh) {
+      if (!options.deferPhysicsCatalog && (!Object.keys(physicsForecastManifests).length || options.forceRefresh)) {
         await loadPhysicsForecast(Boolean(options.forceRefresh)).catch(error => {
           console.warn("Physics forecast is not published yet; using the phase-aware atlas.", error);
           physicsForecastManifests = {};
@@ -24373,6 +24461,38 @@ function populateCalendarSelectors() {
       }
     }
 
+    function waitForInitialFramePaint() {
+      return new Promise(resolve => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        window.setTimeout(finish, 160);
+        window.requestAnimationFrame(() => window.requestAnimationFrame(finish));
+      });
+    }
+
+    function scheduleForecastCatalogWarmup() {
+      const start = async () => {
+        if (document.body.dataset.initialFloodFrame !== "ready") return;
+        document.body.dataset.forecastCatalog = "loading";
+        try {
+          await loadPhysicsForecast(false);
+          document.body.dataset.forecastCatalog = "ready";
+        } catch (error) {
+          document.body.dataset.forecastCatalog = "unavailable";
+          console.warn("Forecast catalog will load when it is next requested.", error);
+        }
+      };
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(start, { timeout: 1200 });
+      } else {
+        window.setTimeout(start, 220);
+      }
+    }
+
     async function reloadAll() {
       stopPlayback();
       clearFloodLayer();
@@ -24380,6 +24500,10 @@ function populateCalendarSelectors() {
       imageExistsCache = new Map();
       physicsForecastManifests = {};
       physicsQueryImageCache = new Map();
+      bathtubStageOverlayCache.forEach(record => {
+        if (record?.url?.startsWith("blob:")) URL.revokeObjectURL(record.url);
+      });
+      bathtubStageOverlayCache = new Map();
       forecastData = null;
       returnIntervalData = null;
       observed15MinuteData = null;
@@ -24405,13 +24529,15 @@ function populateCalendarSelectors() {
       currentViewType = "forecast";
       updateDataModeButtons();
       renderTopTides();
-      await loadForecast(null, { selectCurrent: true, forceRefresh: true });
+      await loadForecast(null, { selectCurrent: true, forceRefresh: true, deferPhysicsCatalog: true });
       try {
         await renderHour(currentHourIndex);
       } finally {
         if (document.body.dataset.initialFloodFrame === "loading") markInitialFloodFrameFailed();
+        await waitForInitialFramePaint();
         activateDeferredMapLayers();
       }
+      scheduleForecastCatalogWarmup();
       scheduleBackgroundDataWarmup();
     }
 
@@ -25894,11 +26020,11 @@ function startPlayback() {
       const app = document.getElementById("app");
       if (!leftPanel || !rightRail || !app) return;
 
-      const { mobileRailMount } = ensureMobileControlShell();
+      const { mobileRailMount, closeBtn } = ensureMobileControlShell();
 
       if (isMobile) {
         document.body.classList.add("mobile-optimized");
-        const mobileCloseBtn = document.getElementById("mobileControlsClose");
+        const mobileCloseBtn = document.getElementById("mobileControlsClose") || closeBtn;
         if (mobileCloseBtn && mobileCloseBtn.parentNode !== leftPanel) {
           leftPanel.insertBefore(mobileCloseBtn, leftPanel.firstChild);
         }
@@ -25983,17 +26109,6 @@ function startPlayback() {
         header.style.cursor = "default";
         header.removeAttribute("aria-grabbed");
       }
-    }
-
-    function setLegendCollapsed(collapsed) {
-      const legendDock = document.getElementById("legendDock");
-      const btn = document.getElementById("legendCollapseBtn");
-      if (!legendDock || !btn) return;
-      legendDock.classList.toggle("legend-collapsed", collapsed);
-      legendDock.classList.toggle("legend-expanded", !collapsed);
-      btn.textContent = collapsed ? "+" : "−";
-      btn.setAttribute("aria-expanded", String(!collapsed));
-      btn.setAttribute("title", collapsed ? "Expand map key" : "Collapse map key");
     }
 
     function wireMobileLegendBehavior() {
@@ -26725,13 +26840,6 @@ function startPlayback() {
           reloadAll().catch(err => toast(err.message));
         });
       }
-
-      document.getElementById("legendCollapseBtn")?.addEventListener("click", event => {
-        event.preventDefault();
-        event.stopPropagation();
-        const legendDock = document.getElementById("legendDock");
-        setLegendCollapsed(!legendDock?.classList.contains("legend-collapsed"));
-      });
 
       document.getElementById("prevMonthBtn").addEventListener("click", () => {
         const idx = observedMonthKeys.indexOf(currentMonthKey);
@@ -35029,10 +35137,10 @@ function bunnyCdnUrl(path) {
 }
 
 TOWN_CONFIG = {
-  "pageTitle": "North Wildwood Tidal Flood Dashboard",
-  "mapTitle": "North Wildwood Tidal Flood Dashboard",
+  "pageTitle": "North Wildwood Coastal Flood Mapper",
+  "mapTitle": "North Wildwood Coastal Flood Mapper",
   "brandTitleLine1": "North Wildwood",
-  "brandTitleLine2": "Tidal Flood Dashboard",
+  "brandTitleLine2": "Coastal Flood Mapper",
   "data": {
     "forecastPath": "./forecast.json",
     "observedPath": "./observed.json",
@@ -37841,6 +37949,142 @@ html body #mapTitleBadge #mapTitleLogo{
     #downloadModal #downloadFormatControl button{
       min-height:46px !important;
       font-size:13px !important;
+    }
+  }
+</style>
+<style id="north-wildwood-requested-key-and-export-polish">
+  #downloadCard.download-launch-card{
+    padding:0 !important;
+    overflow:hidden !important;
+  }
+  #downloadCard #openDownloadModalBtn{
+    width:100% !important;
+    min-height:48px !important;
+    margin:0 !important;
+    border:0 !important;
+    border-radius:inherit !important;
+    font-size:15px !important;
+    font-weight:900 !important;
+  }
+
+  html body #leftPanel #legendDock[data-legend-mode="dynamic"] .legend-title,
+  #legendDock[data-legend-mode="dynamic"] .legend-title{
+    font-size:18px !important;
+    line-height:1.08 !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="dynamic"] .legend-list,
+  #legendDock[data-legend-mode="dynamic"] .legend-list{
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    gap:8px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="dynamic"] .legend-row,
+  #legendDock[data-legend-mode="dynamic"] .legend-row{
+    grid-template-columns:13px minmax(0,1fr) !important;
+    gap:6px !important;
+    font-size:14px !important;
+    line-height:1.1 !important;
+    overflow:visible !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="dynamic"] .legend-label,
+  #legendDock[data-legend-mode="dynamic"] .legend-label{
+    overflow:visible !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="dynamic"] .legend-swatch,
+  #legendDock[data-legend-mode="dynamic"] .legend-swatch{
+    width:12px !important;
+    height:12px !important;
+  }
+
+  body.mobile-optimized #legendDock .legend-header-actions,
+  body.mobile-optimized.mobile-legend-open #legendDock .legend-header-actions{
+    display:flex !important;
+  }
+  body.mobile-optimized #legendDock .legend-help-btn,
+  body.mobile-optimized.mobile-legend-open #legendDock .legend-help-btn{
+    display:inline-grid !important;
+    place-items:center !important;
+    width:28px !important;
+    min-width:28px !important;
+    height:28px !important;
+    min-height:28px !important;
+    font-size:15px !important;
+  }
+  body.mobile-optimized #legendDock[data-legend-mode="dynamic"] .legend-title,
+  body.mobile-optimized.mobile-legend-open #legendDock[data-legend-mode="dynamic"] .legend-title{
+    font-size:16px !important;
+  }
+  body.mobile-optimized #legendDock[data-legend-mode="dynamic"] .legend-row,
+  body.mobile-optimized.mobile-legend-open #legendDock[data-legend-mode="dynamic"] .legend-row{
+    font-size:13px !important;
+  }
+
+  @media (max-width:860px), (max-height:560px) and (pointer:coarse){
+    html body.mobile-optimized #legendDock[data-legend-mode="dynamic"],
+    html body.mobile-optimized #timelineDock #legendDock[data-legend-mode="dynamic"],
+    html body.mobile-optimized #mapWrap #legendDock[data-legend-mode="dynamic"]{
+      display:block !important;
+      visibility:visible !important;
+      opacity:1 !important;
+      position:fixed !important;
+      top:108px !important;
+      left:max(8px,env(safe-area-inset-left,0px)) !important;
+      right:auto !important;
+      bottom:auto !important;
+      width:min(282px,calc(100vw - 96px)) !important;
+      min-width:0 !important;
+      max-width:min(282px,calc(100vw - 96px)) !important;
+      height:78px !important;
+      min-height:78px !important;
+      max-height:78px !important;
+      padding:9px 10px !important;
+      overflow:hidden !important;
+      z-index:4400 !important;
+    }
+    html body.mobile-optimized #legendDock[data-legend-mode="dynamic"] .legend-header{
+      display:flex !important;
+      align-items:center !important;
+      justify-content:space-between !important;
+      min-height:28px !important;
+      margin:0 0 6px !important;
+    }
+    html body.mobile-optimized #legendDock[data-legend-mode="dynamic"] .legend-header-text,
+    html body.mobile-optimized #legendDock[data-legend-mode="dynamic"] .legend-title{
+      display:block !important;
+      visibility:visible !important;
+      opacity:1 !important;
+      margin:0 !important;
+      color:#fff !important;
+      font-size:16px !important;
+      line-height:1 !important;
+    }
+    html body.mobile-optimized #legendDock[data-legend-mode="dynamic"] .legend-body,
+    html body.mobile-optimized #legendDock[data-legend-mode="dynamic"] .legend-list{
+      display:flex !important;
+      visibility:visible !important;
+      opacity:1 !important;
+      gap:7px !important;
+      margin:0 !important;
+      padding:0 !important;
+    }
+    html body.mobile-optimized #legendDock[data-legend-mode="dynamic"] .legend-row{
+      display:flex !important;
+      visibility:visible !important;
+      opacity:1 !important;
+      flex:1 1 0 !important;
+      min-width:0 !important;
+      gap:5px !important;
+      align-items:center !important;
+      color:#fff !important;
+      font-size:12px !important;
+      line-height:1 !important;
+      white-space:nowrap !important;
+      overflow:visible !important;
+    }
+    html body.mobile-optimized #legendDock[data-legend-mode="dynamic"] .legend-label{
+      display:block !important;
+      min-width:0 !important;
+      overflow:visible !important;
+      white-space:nowrap !important;
     }
   }
 </style>

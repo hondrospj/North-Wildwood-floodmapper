@@ -23,7 +23,9 @@ function extractFunction(name) {
   throw new Error(`Unterminated browser function ${name}`);
 }
 
-assert.match(source, /<h3>Create Shareable Map<\/h3>/);
+assert.match(source, /id="openDownloadModalBtn"[^>]*>Export Map<\/button>/);
+assert.doesNotMatch(source, /<h3>Create Shareable Map<\/h3>/);
+assert.doesNotMatch(source, /id="downloadLaunchMeta"/);
 assert.match(source, /<h3 id="downloadModalTitle">Create shareable flood map<\/h3>/);
 assert.match(source, /data-aspect="4:5"[^>]+>Social 4:5<\/button>/);
 assert.match(source, /data-extent="town"[^>]+>Fill North Wildwood<\/button>/);

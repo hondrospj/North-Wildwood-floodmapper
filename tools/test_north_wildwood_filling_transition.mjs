@@ -115,8 +115,9 @@ assert.equal(
   "Missing packed-query data must fall back without inventing a transition line",
 );
 
-assert.match(SOURCE, /<strong>Green<\/strong> = not yet connected/);
-assert.match(SOURCE, /<span>Not Yet Connected<\/span>/);
+assert.match(SOURCE, /<strong>Green<\/strong> = uncertainty/);
+assert.match(SOURCE, /<span>Uncertainty<\/span>/);
+assert.doesNotMatch(SOURCE, /Not Yet Connected/i);
 assert.doesNotMatch(SOURCE, /penalty-held/i);
 
 console.log("North Wildwood smooth filling transition checks passed");
