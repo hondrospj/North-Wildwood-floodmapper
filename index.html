@@ -1341,6 +1341,137 @@
       transform:translateY(-50%);
     }
 
+    #map3d .nw-simple-control{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:9px;
+      width:92px;
+      margin:0;
+      overflow:visible;
+      border:0;
+      border-radius:0;
+      background:transparent;
+      box-shadow:none;
+      color:#4285c5;
+      font-family:Arial,sans-serif;
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action:none;
+      isolation:isolate;
+      pointer-events:auto;
+      filter:drop-shadow(0 2px 4px rgba(0,0,0,.42));
+    }
+    #map3d .nw-simple-control button{
+      -webkit-appearance:none !important;
+      appearance:none !important;
+      display:grid !important;
+      place-items:center !important;
+      min-width:0 !important;
+      min-height:0 !important;
+      margin:0 !important;
+      padding:0 !important;
+      border:1px solid #cfcfcf;
+      background:linear-gradient(#fff,#e9e9e9);
+      color:#4285c5;
+      font-family:Arial,sans-serif !important;
+      font-weight:800 !important;
+      line-height:1 !important;
+      text-indent:0 !important;
+      cursor:pointer;
+      touch-action:manipulation;
+      box-sizing:border-box !important;
+    }
+    #map3d .nw-simple-control button:hover{ filter:brightness(1.07); }
+    #map3d .nw-simple-control button:focus-visible,
+    #map3d .nw-direction-wheel:focus-visible{
+      outline:3px solid rgba(96,165,250,.96);
+      outline-offset:3px;
+    }
+    #map3d .nw-direction-wheel{
+      position:relative;
+      width:88px;
+      height:88px;
+      border:4px solid #b7b7b7;
+      border-radius:50%;
+      background:radial-gradient(circle at 50% 46%,#555 0 23%,#343434 24% 68%,#282828 69% 100%);
+      box-shadow:inset 0 0 0 3px rgba(255,255,255,.18),0 1px 4px rgba(0,0,0,.52);
+      cursor:grab;
+      touch-action:none;
+      box-sizing:border-box;
+    }
+    #map3d .nw-direction-wheel.is-active{ cursor:grabbing; }
+    #map3d .nw-wheel-cardinal{
+      position:absolute;
+      z-index:1;
+      width:18px;
+      height:18px;
+      color:#fff;
+      font:900 10px/18px Arial,sans-serif;
+      text-align:center;
+      text-shadow:0 1px 2px #000;
+      pointer-events:none;
+    }
+    #map3d .nw-wheel-n{ top:2px; left:50%; margin-left:-9px; }
+    #map3d .nw-wheel-e{ top:50%; right:2px; margin-top:-9px; }
+    #map3d .nw-wheel-s{ bottom:2px; left:50%; margin-left:-9px; }
+    #map3d .nw-wheel-w{ top:50%; left:2px; margin-top:-9px; }
+    #map3d .nw-wheel-knob{
+      position:absolute;
+      z-index:2;
+      top:50%;
+      left:50%;
+      display:grid;
+      place-items:center;
+      width:32px;
+      height:32px;
+      margin:-16px 0 0 -16px;
+      border:2px solid #d6d6d6;
+      border-radius:50%;
+      background:linear-gradient(#fff,#e5e5e5);
+      box-shadow:0 1px 4px rgba(0,0,0,.44);
+      color:#4285c5;
+      transform:translate(var(--nw-wheel-x,0px),var(--nw-wheel-y,0px));
+      transition:transform .11s ease-out;
+      pointer-events:none;
+      box-sizing:border-box;
+    }
+    #map3d .nw-direction-wheel.is-active .nw-wheel-knob{ transition:none; }
+    #map3d .nw-wheel-knob::before{
+      content:"";
+      width:10px;
+      height:10px;
+      border:3px solid currentColor;
+      border-radius:50%;
+      box-sizing:border-box;
+    }
+    #map3d .nw-simple-view{
+      width:54px !important;
+      height:34px !important;
+      border-radius:17px !important;
+      font-size:12px !important;
+      letter-spacing:.04em;
+      box-shadow:0 1px 3px rgba(0,0,0,.36);
+    }
+    #map3d .nw-simple-zoom{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      width:36px;
+      border-radius:9px;
+      overflow:hidden;
+      box-shadow:0 1px 3px rgba(0,0,0,.36);
+    }
+    #map3d .nw-simple-zoom-button{
+      width:36px !important;
+      height:34px !important;
+      border-radius:0 !important;
+      font-size:22px !important;
+      box-shadow:none !important;
+    }
+    #map3d .nw-simple-zoom-in{ border-bottom:0 !important; }
+    #map3d .nw-simple-zoom-out{ border-top-color:#ddd !important; }
+
     #rightRail .layers-card{ position:relative; }
     .nw-map-credits-rail{
       position:absolute;
@@ -1414,6 +1545,14 @@
         height:342px;
         transform:scale(.72);
         transform-origin:top right;
+      }
+      #map3d .nw-simple-control{
+        width:80px;
+        gap:8px;
+      }
+      #map3d .nw-direction-wheel{
+        width:78px;
+        height:78px;
       }
     }
 
@@ -35719,7 +35858,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v16"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v17"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
