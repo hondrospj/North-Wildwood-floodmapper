@@ -62,7 +62,7 @@
     container.setAttribute("aria-label", "Google Earth-style 3D map navigation");
     container.innerHTML = [
       '<div class="nw-earth-look" role="group" aria-label="Look and rotate controls">',
-      '  <button class="nw-earth-north" type="button" aria-label="Face north" title="Face north">N</button>',
+      '  <button class="nw-earth-north" type="button" aria-label="Face north" title="Face north"><span aria-hidden="true">N</span></button>',
       '  <span class="nw-earth-ring-dots nw-earth-ring-dots-left" aria-hidden="true">••</span>',
       '  <span class="nw-earth-ring-dots nw-earth-ring-dots-right" aria-hidden="true">••</span>',
       '  <span class="nw-earth-ring-dots nw-earth-ring-dots-bottom" aria-hidden="true">••</span>',
@@ -82,9 +82,9 @@
       '  <button class="nw-earth-nav-arrow nw-earth-pan-down" type="button" aria-label="Pan down" title="Pan down"><span></span></button>',
       '</div>',
       '<div class="nw-earth-zoom" role="group" aria-label="Zoom controls">',
-      '  <button class="nw-earth-zoom-button nw-earth-zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>',
+      '  <button class="nw-earth-zoom-button nw-earth-zoom-in" type="button" aria-label="Zoom in" title="Zoom in"><span aria-hidden="true">+</span></button>',
       '  <div class="nw-earth-zoom-track"><span class="nw-earth-zoom-thumb" aria-hidden="true">−</span><input class="nw-earth-zoom-range" type="range" min="11" max="22" step="0.1" value="12" aria-label="Zoom level"></div>',
-      '  <button class="nw-earth-zoom-button nw-earth-zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>',
+      '  <button class="nw-earth-zoom-button nw-earth-zoom-out" type="button" aria-label="Zoom out" title="Zoom out"><span aria-hidden="true">−</span></button>',
       '</div>'
     ].join("");
     this.container = container;
@@ -96,43 +96,59 @@
       container.addEventListener(name, stop);
     });
 
+    function moveTo(camera, duration) {
+      controlMap.stop();
+      controlMap.easeTo(Object.assign({ duration: duration || 220 }, camera));
+    }
+    function boundedZoom(delta) {
+      var minZoom = Number(self.zoomSlider.min);
+      var maxZoom = Number(self.zoomSlider.max);
+      var target = Math.max(minZoom, Math.min(maxZoom, controlMap.getZoom() + delta));
+      moveTo({ zoom: target }, 220);
+    }
     container.querySelector(".nw-earth-zoom-in").addEventListener("click", function () {
-      controlMap.zoomIn({ duration: 260 });
+      boundedZoom(1);
     });
     container.querySelector(".nw-earth-zoom-out").addEventListener("click", function () {
-      controlMap.zoomOut({ duration: 260 });
+      boundedZoom(-1);
     });
     this.zoomSlider.addEventListener("input", function () {
-      controlMap.jumpTo({ zoom: Number(self.zoomSlider.value) });
+      var value = Number(self.zoomSlider.value);
+      if (Number.isFinite(value)) controlMap.jumpTo({ zoom: value });
     });
     this.viewButton.addEventListener("click", function () {
       var is3d = controlMap.getPitch() > 10;
-      controlMap.easeTo({ pitch: is3d ? 0 : INITIAL_PITCH, duration: 520 });
+      moveTo({ pitch: is3d ? 0 : INITIAL_PITCH }, 420);
     });
     container.querySelector(".nw-earth-north").addEventListener("click", function () {
-      controlMap.easeTo({ bearing: 0, duration: 350 });
+      moveTo({ bearing: 0 }, 300);
     });
     container.querySelector(".nw-earth-look-left").addEventListener("click", function () {
-      controlMap.easeTo({ bearing: controlMap.getBearing() - 12, duration: 180 });
+      moveTo({ bearing: controlMap.getBearing() - 12 }, 160);
     });
     container.querySelector(".nw-earth-look-right").addEventListener("click", function () {
-      controlMap.easeTo({ bearing: controlMap.getBearing() + 12, duration: 180 });
+      moveTo({ bearing: controlMap.getBearing() + 12 }, 160);
     });
     container.querySelector(".nw-earth-look-up").addEventListener("click", function () {
-      controlMap.easeTo({ pitch: Math.min(85, controlMap.getPitch() + 10), duration: 180 });
+      moveTo({ pitch: Math.min(85, controlMap.getPitch() + 10) }, 160);
     });
     container.querySelector(".nw-earth-look-down").addEventListener("click", function () {
-      controlMap.easeTo({ pitch: Math.max(0, controlMap.getPitch() - 10), duration: 180 });
+      moveTo({ pitch: Math.max(0, controlMap.getPitch() - 10) }, 160);
     });
-    container.querySelector(".nw-earth-pan-up").addEventListener("click", function () { controlMap.panBy([0, -90], { duration: 220 }); });
-    container.querySelector(".nw-earth-pan-down").addEventListener("click", function () { controlMap.panBy([0, 90], { duration: 220 }); });
-    container.querySelector(".nw-earth-pan-left").addEventListener("click", function () { controlMap.panBy([-90, 0], { duration: 220 }); });
-    container.querySelector(".nw-earth-pan-right").addEventListener("click", function () { controlMap.panBy([90, 0], { duration: 220 }); });
+    function panBy(offset) {
+      controlMap.stop();
+      controlMap.panBy(offset, { duration: 180 });
+    }
+    container.querySelector(".nw-earth-pan-up").addEventListener("click", function () { panBy([0, -90]); });
+    container.querySelector(".nw-earth-pan-down").addEventListener("click", function () { panBy([0, 90]); });
+    container.querySelector(".nw-earth-pan-left").addEventListener("click", function () { panBy([-90, 0]); });
+    container.querySelector(".nw-earth-pan-right").addEventListener("click", function () { panBy([90, 0]); });
 
     this.sync = function () {
       var is3d = controlMap.getPitch() > 10;
-      self.container.style.setProperty("--nw-zoom-top", (6 + ((22 - controlMap.getZoom()) / 11) * 80) + "px");
-      self.zoomSlider.value = String(controlMap.getZoom());
+      var zoom = Math.max(11, Math.min(22, controlMap.getZoom()));
+      self.container.style.setProperty("--nw-zoom-top", (6 + ((22 - zoom) / 11) * 80) + "px");
+      self.zoomSlider.value = String(zoom);
       self.viewButton.setAttribute("aria-pressed", is3d ? "true" : "false");
       self.viewButton.setAttribute("aria-label", is3d ? "Switch to 2D view" : "Switch to 3D view");
       self.viewButton.setAttribute("title", is3d ? "Switch to 2D view" : "Switch to 3D view");
