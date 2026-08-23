@@ -24,6 +24,54 @@ def _neighbour_count(mask: np.ndarray) -> np.ndarray:
     return count
 
 
+def _square_dilate(mask: np.ndarray, radius: int) -> np.ndarray:
+    source = np.asarray(mask, dtype=bool)
+    if radius <= 0:
+        return source.copy()
+    padded = np.pad(source, radius, mode="constant", constant_values=False)
+    result = np.zeros(source.shape, dtype=bool)
+    height, width = source.shape
+    for dy in range(2 * radius + 1):
+        for dx in range(2 * radius + 1):
+            result |= padded[dy : dy + height, dx : dx + width]
+    return result
+
+
+def _square_erode(mask: np.ndarray, radius: int) -> np.ndarray:
+    source = np.asarray(mask, dtype=bool)
+    if radius <= 0:
+        return source.copy()
+    padded = np.pad(source, radius, mode="constant", constant_values=False)
+    result = np.ones(source.shape, dtype=bool)
+    height, width = source.shape
+    for dy in range(2 * radius + 1):
+        for dx in range(2 * radius + 1):
+            result &= padded[dy : dy + height, dx : dx + width]
+    return result
+
+
+def repair_narrow_seams(
+    footprint: np.ndarray,
+    eligible: np.ndarray | None,
+    radius_pixels: int = 0,
+) -> tuple[np.ndarray, int]:
+    """Close narrow raster cracks without expanding the outer footprint.
+
+    Binary closing is idempotent and only contributes pixels allowed by the
+    caller's current-stage eligibility mask.  Unioning the original footprint
+    protects wet cells that touch the raster boundary from erosion.
+    """
+    source = np.asarray(footprint, dtype=bool)
+    if eligible is None or radius_pixels <= 0 or not np.any(source):
+        return source.copy(), 0
+    allowed = np.asarray(eligible, dtype=bool)
+    if allowed.shape != source.shape:
+        raise ValueError("Footprint and seam eligibility masks must align")
+    closed = _square_erode(_square_dilate(source, radius_pixels), radius_pixels)
+    repaired = source | (closed & allowed)
+    return repaired, int(np.count_nonzero(repaired & ~source))
+
+
 def _small_enclosed_components(
     target: np.ndarray,
     enclosure: np.ndarray,
@@ -172,6 +220,8 @@ class HydraulicMaskDiagnostics:
     frames: int = 0
     filling_pixels_preserved: int = 0
     draining_pixels_rejected: int = 0
+    lookahead_pixels_admitted: int = 0
+    narrow_seam_pixels_repaired: int = 0
     enclosed_hole_pixels_repaired: int = 0
 
 
@@ -185,10 +235,17 @@ class HydraulicMaskSequence:
     number of tidal cycles.
     """
 
-    def __init__(self, max_hole_pixels: int = 0) -> None:
+    def __init__(
+        self,
+        max_hole_pixels: int = 0,
+        max_seam_width_pixels: int = 0,
+    ) -> None:
         if max_hole_pixels < 0:
             raise ValueError("max_hole_pixels cannot be negative")
+        if max_seam_width_pixels < 0:
+            raise ValueError("max_seam_width_pixels cannot be negative")
         self.max_hole_pixels = int(max_hole_pixels)
+        self.max_seam_width_pixels = int(max_seam_width_pixels)
         self.previous: np.ndarray | None = None
         self.last_motion: str | None = None
         self.diagnostics = HydraulicMaskDiagnostics()
@@ -203,10 +260,16 @@ class HydraulicMaskSequence:
         candidate_wet: np.ndarray,
         phase: str | None,
         eligible: np.ndarray | None = None,
+        lookahead_wet: np.ndarray | None = None,
     ) -> np.ndarray:
         candidate = np.asarray(candidate_wet, dtype=bool)
         if candidate.ndim != 2:
             raise ValueError("Hydraulic masks must be two-dimensional")
+        candidate, repaired_seams = repair_narrow_seams(
+            candidate,
+            eligible,
+            self.max_seam_width_pixels,
+        )
         candidate, repaired_before = repair_small_enclosed_holes(
             candidate,
             eligible,
@@ -216,6 +279,30 @@ class HydraulicMaskSequence:
         effective_motion = (
             self.last_motion if motion == "slack" and self.last_motion else motion
         )
+
+        # A caller may provide the immediately following catalog frame to
+        # resolve sub-step stages.  Admit only cells that the next hydraulic
+        # solution marks wet *and* the caller's current-stage physics marks
+        # eligible.  One lookahead is sufficient, so source-frame reads are
+        # capped at 2x and no synthetic hydraulic state is invented.
+        if lookahead_wet is not None and effective_motion == "filling":
+            if eligible is None:
+                raise ValueError("Lookahead admission requires an eligibility mask")
+            lookahead = np.asarray(lookahead_wet, dtype=bool)
+            allowed = np.asarray(eligible, dtype=bool)
+            if lookahead.shape != candidate.shape or allowed.shape != candidate.shape:
+                raise ValueError("Candidate, lookahead, and eligibility masks must align")
+            admitted = lookahead & allowed & ~candidate
+            candidate |= admitted
+            self.diagnostics.lookahead_pixels_admitted += int(
+                np.count_nonzero(admitted)
+            )
+            candidate, bracket_seams = repair_narrow_seams(
+                candidate,
+                eligible,
+                self.max_seam_width_pixels,
+            )
+            repaired_seams += bracket_seams
 
         if self.previous is None:
             stable = candidate
@@ -260,6 +347,7 @@ class HydraulicMaskSequence:
         self.diagnostics.enclosed_hole_pixels_repaired += (
             repaired_before + repaired_after
         )
+        self.diagnostics.narrow_seam_pixels_repaired += repaired_seams
         return stable
 
 

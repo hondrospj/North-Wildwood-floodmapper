@@ -9,6 +9,7 @@ from hydraulic_mask_sequence import (
     HydraulicMaskSequence,
     assert_temporal_invariant,
     repair_small_enclosed_holes,
+    repair_narrow_seams,
 )
 
 
@@ -37,6 +38,25 @@ def main() -> None:
     if blocked_count or blocked_repair[3, 4]:
         raise AssertionError("Hole repair crossed an ineligible hydraulic cell")
 
+    seam = np.ones((9, 11), dtype=bool)
+    seam[2:7, 5] = False
+    seam_eligible = np.ones(seam.shape, dtype=bool)
+    seam_repaired, seam_count = repair_narrow_seams(
+        seam,
+        seam_eligible,
+        radius_pixels=1,
+    )
+    if seam_count != 5 or not np.all(seam_repaired[2:7, 5]):
+        raise AssertionError("A narrow eligible raster seam was not closed")
+    seam_eligible[4, 5] = False
+    seam_blocked, _ = repair_narrow_seams(
+        seam,
+        seam_eligible,
+        radius_pixels=1,
+    )
+    if seam_blocked[4, 5]:
+        raise AssertionError("Narrow-seam repair crossed an ineligible cell")
+
     sequence = HydraulicMaskSequence(max_hole_pixels=1)
     rising_1 = sequence.update(first, "filling", eligible)
     rising_candidate = rising_1.copy()
@@ -46,6 +66,24 @@ def main() -> None:
     assert_temporal_invariant(rising_1, rising_2, "filling")
     if not np.all(rising_2[rising_1]):
         raise AssertionError("Filling did not preserve the prior wet footprint")
+
+    bracket_sequence = HydraulicMaskSequence(max_hole_pixels=0)
+    bracket_current = np.zeros((4, 5), dtype=bool)
+    bracket_current[2, 1] = True
+    bracket_next = bracket_current.copy()
+    bracket_next[2, 2:4] = True
+    bracket_eligible = np.ones(bracket_current.shape, dtype=bool)
+    bracket_eligible[2, 3] = False
+    bracket = bracket_sequence.update(
+        bracket_current,
+        "filling",
+        bracket_eligible,
+        lookahead_wet=bracket_next,
+    )
+    if not bracket[2, 2] or bracket[2, 3]:
+        raise AssertionError("Two-frame bracketing ignored current-stage eligibility")
+    if bracket_sequence.diagnostics.lookahead_pixels_admitted != 1:
+        raise AssertionError("Lookahead admission diagnostics are incorrect")
 
     crest_candidate = rising_2.copy()
     crest_candidate[3, 3] = False
@@ -81,6 +119,10 @@ def main() -> None:
             "drainingPixelsRejected": (
                 sequence.diagnostics.draining_pixels_rejected
             ),
+            "lookaheadPixelsAdmitted": (
+                bracket_sequence.diagnostics.lookahead_pixels_admitted
+            ),
+            "narrowSeamPixelsRepaired": seam_count,
             "holePixelsRepaired": (
                 sequence.diagnostics.enclosed_hole_pixels_repaired
             ),
