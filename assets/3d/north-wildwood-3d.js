@@ -6,6 +6,8 @@
   var DEFAULT_PITCH = 0;
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
+  var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
+  var MAPLIBRE_JS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js";
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
   var ESRI_VECTOR_TILES = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf";
   var TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejson.json";
@@ -16,6 +18,7 @@
   var glPopup = null;
   var buildingData = null;
   var buildingDataPromise = null;
+  var mapLibreRuntimePromise = null;
   var syncingFromLeaflet = false;
   var syncingFrom3d = false;
   var buildingCursorHandlersWired = false;
@@ -24,6 +27,54 @@
     var status = document.getElementById("map3dStatus");
     if (status) status.textContent = text || "3D terrain ×4";
     updateDiagnostics();
+  }
+
+  function loadMapLibreRuntime() {
+    if (window.maplibregl && typeof window.maplibregl.Map === "function") {
+      return Promise.resolve(window.maplibregl);
+    }
+    if (mapLibreRuntimePromise) return mapLibreRuntimePromise;
+
+    mapLibreRuntimePromise = Promise.all([
+      new Promise(function (resolve, reject) {
+        var existing = document.getElementById("nwMapLibreCss");
+        if (existing) {
+          resolve();
+          return;
+        }
+        var link = document.createElement("link");
+        link.id = "nwMapLibreCss";
+        link.rel = "stylesheet";
+        link.href = MAPLIBRE_CSS_URL;
+        link.onload = resolve;
+        link.onerror = function () { reject(new Error("The 3D map styles could not be loaded.")); };
+        document.head.appendChild(link);
+      }),
+      new Promise(function (resolve, reject) {
+        var existing = document.getElementById("nwMapLibreScript");
+        if (existing) {
+          if (window.maplibregl && typeof window.maplibregl.Map === "function") resolve();
+          else existing.addEventListener("load", resolve, { once: true });
+          return;
+        }
+        var script = document.createElement("script");
+        script.id = "nwMapLibreScript";
+        script.src = MAPLIBRE_JS_URL;
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = function () { reject(new Error("The 3D map renderer could not be loaded.")); };
+        document.head.appendChild(script);
+      })
+    ]).then(function () {
+      if (!window.maplibregl || typeof window.maplibregl.Map !== "function") {
+        throw new Error("This browser does not support the 3D map renderer.");
+      }
+      return window.maplibregl;
+    }).catch(function (error) {
+      mapLibreRuntimePromise = null;
+      throw error;
+    });
+    return mapLibreRuntimePromise;
   }
 
   function updateDiagnostics() {
@@ -673,9 +724,7 @@
     if (glMap) return glMap;
     if (glMapPromise) return glMapPromise;
     glMapPromise = (async function () {
-      if (!window.maplibregl || typeof maplibregl.Map !== "function") {
-        throw new Error("This browser does not support the 3D map renderer.");
-      }
+      await loadMapLibreRuntime();
       var container = document.getElementById("map3d");
       if (!container) throw new Error("The 3D map container is unavailable.");
       var style = await load3dStyle();
@@ -753,12 +802,34 @@
     return glMapPromise;
   }
 
-  var originalEnsureMap = ensureMap;
-  ensureMap = function () {
-    var result = originalEnsureMap.apply(this, arguments);
-    ensure3dMap();
-    return result;
-  };
+  function install3dLauncher() {
+    if (document.getElementById("nw3dLauncher")) return;
+    var host = document.getElementById("mapWrap") || document.body;
+    var launcher = document.createElement("button");
+    launcher.id = "nw3dLauncher";
+    launcher.type = "button";
+    launcher.setAttribute("aria-label", "Open 3D terrain view");
+    launcher.setAttribute("title", "Open 3D terrain view");
+    launcher.innerHTML = '<svg viewBox="0 0 32 20" aria-hidden="true"><path d="M2 10s5-8 14-8 14 8 14 8-5 8-14 8S2 10 2 10Z"></path><circle cx="16" cy="10" r="4"></circle></svg><span class="nw-3d-launcher-label">3D</span>';
+    launcher.addEventListener("click", async function () {
+      if (launcher.getAttribute("aria-busy") === "true") return;
+      launcher.setAttribute("aria-busy", "true");
+      launcher.querySelector(".nw-3d-launcher-label").textContent = "Loading";
+      var nextMap = await ensure3dMap();
+      if (nextMap) {
+        nextMap.stop();
+        nextMap.easeTo({ pitch: THREE_D_PITCH, duration: 420 });
+        return;
+      }
+      launcher.setAttribute("aria-busy", "false");
+      launcher.querySelector(".nw-3d-launcher-label").textContent = "3D";
+      toast("3D terrain could not load. The 2D map is still available.");
+    });
+    host.appendChild(launcher);
+    document.body.dataset.map3d = "idle";
+  }
+
+  install3dLauncher();
 
   var originalSetBuildingsEnabled = setBuildingsEnabled;
   setBuildingsEnabled = async function (enabled) {
