@@ -999,29 +999,34 @@
     }
 
     #map3d .nw-earth-control{
-      position:relative;
-      width:118px;
-      height:126px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      width:auto;
+      height:44px;
       margin:0;
-      color:#fff;
+      overflow:visible;
+      border-radius:0;
+      background:transparent;
+      box-shadow:none;
+      color:#5f6368;
       font-family:Arial, sans-serif;
       user-select:none;
       -webkit-user-select:none;
       touch-action:none;
-      filter:drop-shadow(0 4px 9px rgba(2,6,23,.38));
+      filter:drop-shadow(0 2px 5px rgba(0,0,0,.26));
     }
 
     #map3d .nw-earth-compass{
-      position:absolute;
-      top:0;
-      right:0;
-      width:58px;
-      height:58px;
+      position:relative;
+      flex:0 0 44px;
+      width:44px;
+      height:44px;
       margin:0;
-      border:1px solid rgba(255,255,255,.18);
+      border:0;
       border-radius:50%;
-      background:rgba(48,49,52,.94);
-      box-shadow:inset 0 0 0 1px rgba(0,0,0,.16);
+      background:rgba(245,245,245,.94);
+      box-shadow:0 1px 3px rgba(0,0,0,.28);
       cursor:grab;
       outline:none;
     }
@@ -1034,21 +1039,13 @@
       outline-offset:2px;
     }
 
-    #map3d .nw-earth-compass-orbit{
-      position:absolute;
-      inset:6px;
-      border:1px solid rgba(255,255,255,.22);
-      border-radius:50%;
-      pointer-events:none;
-    }
-
     #map3d .nw-earth-compass-needle{
       position:absolute;
-      top:7px;
-      bottom:7px;
+      top:6px;
+      bottom:6px;
       left:50%;
-      width:14px;
-      margin-left:-7px;
+      width:12px;
+      margin-left:-6px;
       transform-origin:50% 50%;
       pointer-events:none;
     }
@@ -1059,86 +1056,128 @@
       left:1px;
       width:0;
       height:0;
-      border-left:6px solid transparent;
-      border-right:6px solid transparent;
+      border-left:5px solid transparent;
+      border-right:5px solid transparent;
     }
 
     #map3d .nw-earth-compass-north{
       top:0;
-      border-bottom:20px solid #ea4335;
+      border-bottom:15px solid #d93025;
     }
 
     #map3d .nw-earth-compass-south{
       bottom:0;
-      border-top:20px solid #f1f3f4;
+      border-top:15px solid #9aa0a6;
     }
 
     #map3d .nw-earth-compass-center{
       position:absolute;
       top:50%;
       left:50%;
-      width:10px;
-      height:10px;
-      margin:-5px 0 0 -5px;
-      border:2px solid #fff;
+      width:8px;
+      height:8px;
+      margin:-4px 0 0 -4px;
+      border:1px solid #fff;
       border-radius:50%;
-      background:#5f6368;
+      background:#6f7378;
       box-sizing:border-box;
       pointer-events:none;
     }
 
     #map3d .nw-earth-3d{
-      position:absolute;
-      right:6px;
-      bottom:8px;
-      width:48px;
-      height:48px;
+      flex:0 0 44px;
+      width:44px;
+      height:44px;
       padding:0;
-      border:1px solid rgba(255,255,255,.18);
+      border:0;
       border-radius:50% !important;
-      background:rgba(48,49,52,.94);
-      color:#fff;
-      font:700 14px/48px Arial, sans-serif;
+      background:rgba(245,245,245,.94);
+      color:#5f6368;
+      font:600 15px/44px Arial, sans-serif;
       text-align:center;
       cursor:pointer;
       box-sizing:border-box;
+      box-shadow:0 1px 3px rgba(0,0,0,.28);
     }
-    #map3d .nw-earth-3d:hover{ background:rgba(60,64,67,.98); }
+    #map3d .nw-earth-3d:hover,
+    #map3d .nw-earth-compass:hover{ background:rgba(255,255,255,.98); }
 
     #map3d .nw-earth-zoom{
-      position:absolute;
-      left:0;
-      bottom:8px;
       display:flex;
       align-items:center;
       justify-content:center;
-      width:64px;
-      height:38px;
+      flex:0 0 82px;
+      width:82px;
+      height:40px;
       margin:0;
       overflow:hidden;
-      border:1px solid rgba(255,255,255,.18);
-      border-radius:6px;
-      background:rgba(48,49,52,.94);
+      border:0;
+      border-radius:20px;
+      background:rgba(245,245,245,.94);
+      box-shadow:0 1px 3px rgba(0,0,0,.28);
       box-sizing:border-box;
     }
 
     #map3d .nw-earth-step{
-      width:31px;
-      height:36px;
+      width:40px;
+      height:40px;
       padding:0;
       border:0;
       background:transparent;
-      color:#fff;
-      font:400 25px/36px Arial, sans-serif;
+      color:#5f6368;
+      font:400 24px/40px Arial, sans-serif;
       cursor:pointer;
     }
-    #map3d .nw-earth-step:hover{ background:rgba(255,255,255,.10); }
+    #map3d .nw-earth-step:hover{ background:rgba(255,255,255,.82); }
 
     #map3d .nw-earth-zoom-divider{
       width:1px;
-      height:22px;
-      background:rgba(255,255,255,.24);
+      height:24px;
+      background:rgba(95,99,104,.24);
       pointer-events:none;
+    }
+
+    #map3d .nw-map-credits{
+      position:relative;
+      overflow:visible;
+      border-radius:14px;
+      background:transparent;
+      box-shadow:none;
+    }
+    #map3d .nw-map-credits-button{
+      display:block;
+      width:28px;
+      height:28px;
+      margin:0;
+      padding:0;
+      border:0;
+      border-radius:50% !important;
+      background:rgba(255,255,255,.92);
+      color:#111;
+      font:700 18px/28px Georgia, serif;
+      box-shadow:0 1px 3px rgba(0,0,0,.24);
+      cursor:pointer;
+    }
+    #map3d .nw-map-credits-panel{
+      position:absolute;
+      right:0;
+      bottom:34px;
+      width:max-content;
+      max-width:min(760px, calc(100vw - 32px));
+      padding:5px 10px;
+      border-radius:13px;
+      background:rgba(255,255,255,.94);
+      color:#222;
+      font:12px/1.3 Arial, sans-serif;
+      white-space:normal;
+      box-shadow:0 1px 4px rgba(0,0,0,.24);
+    }
+    #map3d .nw-map-credits-panel[hidden]{
+      display:none !important;
+    }
+    #map3d .nw-map-credits-panel a{
+      color:#222;
+      text-decoration:none;
     }
 
     #map3d .maplibregl-popup-content{
@@ -1161,23 +1200,20 @@
 
     @media (max-width:900px),(max-height:560px){
       #map3d .maplibregl-ctrl-top-right{
-        top:max(126px, calc(env(safe-area-inset-top) + 118px));
+        top:max(178px, calc(env(safe-area-inset-top) + 170px));
         right:max(8px, env(safe-area-inset-right));
       }
       #map3d .maplibregl-ctrl-bottom-right{
         right:max(8px, env(safe-area-inset-right));
-        bottom:calc(var(--shorely-mobile-timeline-height, 124px) + 12px);
+        bottom:calc(var(--shorely-mobile-timeline-height, 124px) + 44px);
       }
       #map3dStatus{ display:none !important; }
       #map3d .nw-earth-control{
-        width:68px;
-        height:160px;
-        transform:scale(.92);
+        width:auto;
+        height:44px;
+        transform:scale(.88);
         transform-origin:top right;
       }
-      #map3d .nw-earth-compass{ top:0; right:5px; }
-      #map3d .nw-earth-3d{ right:10px; bottom:48px; }
-      #map3d .nw-earth-zoom{ left:2px; bottom:0; }
     }
 
     .leaflet-image-layer{
@@ -35471,7 +35507,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v4"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v9"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";

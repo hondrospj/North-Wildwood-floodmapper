@@ -47,6 +47,7 @@
     this.map = null;
     this.container = null;
     this.compassNeedle = null;
+    this.viewButton = null;
     this.sync = null;
   }
 
@@ -57,12 +58,11 @@
     container.className = "maplibregl-ctrl nw-earth-control";
     container.setAttribute("aria-label", "3D map navigation");
     container.innerHTML = [
+      '<button class="nw-earth-3d" type="button" aria-label="Switch to 2D view" aria-pressed="true" title="Switch to 2D view">3D</button>',
       '<div class="nw-earth-compass" role="slider" tabindex="0" aria-label="Rotate map" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0" title="Drag to rotate; click to face north">',
-      '  <span class="nw-earth-compass-orbit" aria-hidden="true"></span>',
       '  <span class="nw-earth-compass-needle" aria-hidden="true"><span class="nw-earth-compass-north"></span><span class="nw-earth-compass-south"></span></span>',
       '  <span class="nw-earth-compass-center" aria-hidden="true"></span>',
       '</div>',
-      '<button class="nw-earth-3d" type="button" aria-label="Restore 3D view" title="Restore 3D view">3D</button>',
       '<div class="nw-earth-zoom" role="group" aria-label="Zoom controls">',
       '  <button class="nw-earth-step nw-earth-zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>',
       '  <span class="nw-earth-zoom-divider" aria-hidden="true"></span>',
@@ -71,6 +71,7 @@
     ].join("");
     this.container = container;
     this.compassNeedle = container.querySelector(".nw-earth-compass-needle");
+    this.viewButton = container.querySelector(".nw-earth-3d");
     var compass = container.querySelector(".nw-earth-compass");
 
     function stop(event) { event.stopPropagation(); }
@@ -84,8 +85,9 @@
     container.querySelector(".nw-earth-zoom-out").addEventListener("click", function () {
       controlMap.zoomOut({ duration: 260 });
     });
-    container.querySelector(".nw-earth-3d").addEventListener("click", function () {
-      controlMap.easeTo({ pitch: INITIAL_PITCH, duration: 420 });
+    this.viewButton.addEventListener("click", function () {
+      var is3d = controlMap.getPitch() > 10;
+      controlMap.easeTo({ pitch: is3d ? 0 : INITIAL_PITCH, duration: 520 });
     });
 
     var compassDragged = false;
@@ -126,11 +128,16 @@
 
     this.sync = function () {
       var bearing = controlMap.getBearing();
+      var is3d = controlMap.getPitch() > 10;
       self.compassNeedle.style.transform = "rotate(" + (-bearing) + "deg)";
       compass.setAttribute("aria-valuenow", String(Math.round(bearing)));
+      self.viewButton.setAttribute("aria-pressed", is3d ? "true" : "false");
+      self.viewButton.setAttribute("aria-label", is3d ? "Switch to 2D view" : "Switch to 3D view");
+      self.viewButton.setAttribute("title", is3d ? "Switch to 2D view" : "Switch to 3D view");
       updateDiagnostics();
     };
     controlMap.on("rotate", this.sync);
+    controlMap.on("pitch", this.sync);
     this.sync();
     return container;
   };
@@ -138,9 +145,40 @@
   GoogleEarth3dControl.prototype.onRemove = function () {
     if (this.map && this.sync) {
       this.map.off("rotate", this.sync);
+      this.map.off("pitch", this.sync);
     }
     if (this.container && this.container.parentNode) this.container.parentNode.removeChild(this.container);
     this.map = null;
+  };
+
+  function MapCreditsControl(credits) {
+    this.credits = credits;
+    this.container = null;
+  }
+
+  MapCreditsControl.prototype.onAdd = function () {
+    var container = document.createElement("div");
+    container.className = "maplibregl-ctrl nw-map-credits";
+    container.innerHTML = [
+      '<button class="nw-map-credits-button" type="button" aria-label="Show map credits" aria-expanded="false" title="Show map credits">i</button>',
+      '<div class="nw-map-credits-panel" hidden>', this.credits.join(" | "), '</div>'
+    ].join("");
+    var button = container.querySelector(".nw-map-credits-button");
+    var panel = container.querySelector(".nw-map-credits-panel");
+    button.addEventListener("click", function () {
+      var willOpen = panel.hidden;
+      panel.hidden = !willOpen;
+      button.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      button.setAttribute("aria-label", willOpen ? "Hide map credits" : "Show map credits");
+      button.setAttribute("title", willOpen ? "Hide map credits" : "Show map credits");
+    });
+    this.container = container;
+    return container;
+  };
+
+  MapCreditsControl.prototype.onRemove = function () {
+    if (this.container && this.container.parentNode) this.container.parentNode.removeChild(this.container);
+    this.container = null;
   };
 
   function layerVisible(toggleId, defaultValue) {
@@ -653,9 +691,16 @@
         pitchWithRotate: true,
         touchPitch: true,
         antialias: true,
+        attributionControl: false,
         canvasContextAttributes: { antialias: true }
       });
       glMap.addControl(new GoogleEarth3dControl(), "top-right");
+      var mapCredits = Object.keys(style.sources || {}).map(function (sourceId) {
+        return style.sources[sourceId] && style.sources[sourceId].attribution;
+      }).filter(function (credit, index, allCredits) {
+        return Boolean(credit) && allCredits.indexOf(credit) === index;
+      });
+      glMap.addControl(new MapCreditsControl(mapCredits), "bottom-right");
       glMap.on("error", function (event) {
         console.warn("North Wildwood 3D renderer warning.", event && event.error ? event.error : event);
       });
