@@ -87,6 +87,8 @@
       pitch: glMap ? Number(glMap.getPitch().toFixed(2)) : null,
       bearing: glMap ? Number(glMap.getBearing().toFixed(2)) : null,
       zoom: glMap ? Number(glMap.getZoom().toFixed(3)) : null,
+      centerLng: glMap ? Number(glMap.getCenter().lng.toFixed(7)) : null,
+      centerLat: glMap ? Number(glMap.getCenter().lat.toFixed(7)) : null,
       terrainSource: glMap && glMap.getTerrain ? glMap.getTerrain() : null,
       buildingCount: buildingData && buildingData.features ? buildingData.features.length : 0,
       buildingsVisible: Boolean(glMap && glMap.getLayer("nw-3d-buildings") &&
@@ -102,49 +104,37 @@
     this.map = null;
     this.container = null;
     this.viewButton = null;
-    this.zoomSlider = null;
     this.sync = null;
+    this.panFrame = 0;
   }
 
   GoogleEarth3dControl.prototype.onAdd = function (controlMap) {
     var self = this;
     this.map = controlMap;
     var container = document.createElement("div");
-    container.className = "maplibregl-ctrl nw-earth-control";
-    container.setAttribute("aria-label", "Google Earth-style 3D map navigation");
+    container.className = "maplibregl-ctrl nw-simple-control";
+    container.setAttribute("aria-label", "3D map navigation");
     container.innerHTML = [
-      '<div class="nw-earth-look" role="group" aria-label="Look and rotate controls">',
-      '  <button class="nw-earth-north" type="button" aria-label="Face north" title="Face north"><span aria-hidden="true">N</span></button>',
-      '  <span class="nw-earth-ring-dots nw-earth-ring-dots-left" aria-hidden="true">••</span>',
-      '  <span class="nw-earth-ring-dots nw-earth-ring-dots-right" aria-hidden="true">••</span>',
-      '  <span class="nw-earth-ring-dots nw-earth-ring-dots-bottom" aria-hidden="true">••</span>',
-      '  <div class="nw-earth-look-surface">',
-      '    <button class="nw-earth-nav-arrow nw-earth-look-up" type="button" aria-label="Tilt farther into 3D" title="Tilt farther into 3D"><span></span></button>',
-      '    <button class="nw-earth-nav-arrow nw-earth-look-left" type="button" aria-label="Rotate left" title="Rotate left"><span></span></button>',
-      '    <button class="nw-earth-eye" type="button" aria-label="Switch to 3D view" aria-pressed="false" title="Switch to 3D view"><svg viewBox="0 0 32 20" aria-hidden="true"><path d="M2 10s5-8 14-8 14 8 14 8-5 8-14 8S2 10 2 10Z"></path><circle cx="16" cy="10" r="4"></circle></svg></button>',
-      '    <button class="nw-earth-nav-arrow nw-earth-look-right" type="button" aria-label="Rotate right" title="Rotate right"><span></span></button>',
-      '    <button class="nw-earth-nav-arrow nw-earth-look-down" type="button" aria-label="Tilt toward 2D" title="Tilt toward 2D"><span></span></button>',
-      '  </div>',
+      '<div class="nw-direction-wheel" role="application" tabindex="0" aria-label="Direction wheel. Drag toward north, east, south, west, or any direction between to move the map.">',
+      '  <span class="nw-wheel-cardinal nw-wheel-n" aria-hidden="true">N</span>',
+      '  <span class="nw-wheel-cardinal nw-wheel-e" aria-hidden="true">E</span>',
+      '  <span class="nw-wheel-cardinal nw-wheel-s" aria-hidden="true">S</span>',
+      '  <span class="nw-wheel-cardinal nw-wheel-w" aria-hidden="true">W</span>',
+      '  <span class="nw-wheel-knob" aria-hidden="true"></span>',
       '</div>',
-      '<div class="nw-earth-pan" role="group" aria-label="Pan controls">',
-      '  <button class="nw-earth-nav-arrow nw-earth-pan-up" type="button" aria-label="Pan up" title="Pan up"><span></span></button>',
-      '  <button class="nw-earth-nav-arrow nw-earth-pan-left" type="button" aria-label="Pan left" title="Pan left"><span></span></button>',
-      '  <span class="nw-earth-hand" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M10.5 14V8.5a2 2 0 0 1 4 0V13 6.5a2 2 0 0 1 4 0V13 8a2 2 0 0 1 4 0v6-3a2 2 0 0 1 4 0v7.2c0 6.4-4.1 10.3-10.3 10.3h-1.4c-3.2 0-5.4-1.4-7.2-4l-3.7-5.3a2.3 2.3 0 0 1 3.6-2.8l3 3.2V14Z"></path></svg></span>',
-      '  <button class="nw-earth-nav-arrow nw-earth-pan-right" type="button" aria-label="Pan right" title="Pan right"><span></span></button>',
-      '  <button class="nw-earth-nav-arrow nw-earth-pan-down" type="button" aria-label="Pan down" title="Pan down"><span></span></button>',
-      '</div>',
-      '<div class="nw-earth-zoom" role="group" aria-label="Zoom controls">',
-      '  <button class="nw-earth-zoom-button nw-earth-zoom-in" type="button" aria-label="Zoom in" title="Zoom in"><span aria-hidden="true">+</span></button>',
-      '  <div class="nw-earth-zoom-track"><span class="nw-earth-zoom-thumb" aria-hidden="true">−</span><input class="nw-earth-zoom-range" type="range" min="11" max="22" step="0.1" value="12" aria-label="Zoom level"></div>',
-      '  <button class="nw-earth-zoom-button nw-earth-zoom-out" type="button" aria-label="Zoom out" title="Zoom out"><span aria-hidden="true">−</span></button>',
+      '<button class="nw-simple-view" type="button" aria-label="Switch to 3D view" aria-pressed="false" title="Switch to 3D view"><span class="nw-simple-view-label">3D</span></button>',
+      '<div class="nw-simple-zoom" role="group" aria-label="Zoom controls">',
+      '  <button class="nw-simple-zoom-button nw-simple-zoom-in" type="button" aria-label="Zoom in" title="Zoom in"><span aria-hidden="true">+</span></button>',
+      '  <button class="nw-simple-zoom-button nw-simple-zoom-out" type="button" aria-label="Zoom out" title="Zoom out"><span aria-hidden="true">−</span></button>',
       '</div>'
     ].join("");
     this.container = container;
-    this.viewButton = container.querySelector(".nw-earth-eye");
-    this.zoomSlider = container.querySelector(".nw-earth-zoom-range");
+    this.viewButton = container.querySelector(".nw-simple-view");
+    var viewLabel = container.querySelector(".nw-simple-view-label");
+    var wheel = container.querySelector(".nw-direction-wheel");
 
     function stop(event) { event.stopPropagation(); }
-    ["click", "dblclick", "mousedown", "touchstart", "wheel"].forEach(function (name) {
+    ["click", "dblclick", "mousedown", "touchstart", "pointerdown", "wheel", "contextmenu"].forEach(function (name) {
       container.addEventListener(name, stop);
     });
 
@@ -153,71 +143,139 @@
       controlMap.easeTo(Object.assign({ duration: duration || 220 }, camera));
     }
     function boundedZoom(delta) {
-      var minZoom = Number(self.zoomSlider.min);
-      var maxZoom = Number(self.zoomSlider.max);
-      var target = Math.max(minZoom, Math.min(maxZoom, controlMap.getZoom() + delta));
+      var target = Math.max(11, Math.min(22, controlMap.getZoom() + delta));
       moveTo({ zoom: target }, 220);
     }
-    container.querySelector(".nw-earth-zoom-in").addEventListener("click", function () {
+    container.querySelector(".nw-simple-zoom-in").addEventListener("click", function () {
       boundedZoom(1);
     });
-    container.querySelector(".nw-earth-zoom-out").addEventListener("click", function () {
+    container.querySelector(".nw-simple-zoom-out").addEventListener("click", function () {
       boundedZoom(-1);
-    });
-    this.zoomSlider.addEventListener("input", function () {
-      var value = Number(self.zoomSlider.value);
-      if (Number.isFinite(value)) controlMap.jumpTo({ zoom: value });
     });
     this.viewButton.addEventListener("click", function () {
       var is3d = controlMap.getPitch() > 10;
       moveTo({ pitch: is3d ? 0 : THREE_D_PITCH }, 420);
     });
-    container.querySelector(".nw-earth-north").addEventListener("click", function () {
-      moveTo({ bearing: 0 }, 300);
-    });
-    container.querySelector(".nw-earth-look-left").addEventListener("click", function () {
-      moveTo({ bearing: controlMap.getBearing() - 12 }, 160);
-    });
-    container.querySelector(".nw-earth-look-right").addEventListener("click", function () {
-      moveTo({ bearing: controlMap.getBearing() + 12 }, 160);
-    });
-    container.querySelector(".nw-earth-look-up").addEventListener("click", function () {
-      moveTo({ pitch: Math.min(85, controlMap.getPitch() + 10) }, 160);
-    });
-    container.querySelector(".nw-earth-look-down").addEventListener("click", function () {
-      moveTo({ pitch: Math.max(0, controlMap.getPitch() - 10) }, 160);
-    });
-    function panBy(offset) {
+
+    var activePointer = null;
+    var directionX = 0;
+    var directionY = 0;
+    var directionStrength = 0;
+
+    function panBy(offset, duration) {
       controlMap.stop();
-      controlMap.panBy(offset, { duration: 180 });
+      controlMap.panBy(offset, { duration: duration || 0 });
     }
-    container.querySelector(".nw-earth-pan-up").addEventListener("click", function () { panBy([0, -90]); });
-    container.querySelector(".nw-earth-pan-down").addEventListener("click", function () { panBy([0, 90]); });
-    container.querySelector(".nw-earth-pan-left").addEventListener("click", function () { panBy([-90, 0]); });
-    container.querySelector(".nw-earth-pan-right").addEventListener("click", function () { panBy([90, 0]); });
+    function updateWheel(clientX, clientY) {
+      var rect = wheel.getBoundingClientRect();
+      var dx = clientX - (rect.left + rect.width / 2);
+      var dy = clientY - (rect.top + rect.height / 2);
+      var distance = Math.sqrt(dx * dx + dy * dy);
+      var maxRadius = Math.max(18, rect.width * .30);
+      var scale = distance > maxRadius ? maxRadius / distance : 1;
+      var knobX = dx * scale;
+      var knobY = dy * scale;
+      wheel.style.setProperty("--nw-wheel-x", knobX.toFixed(2) + "px");
+      wheel.style.setProperty("--nw-wheel-y", knobY.toFixed(2) + "px");
+      directionStrength = Math.min(1, distance / maxRadius);
+      if (distance > 0) {
+        directionX = dx / distance;
+        directionY = dy / distance;
+      } else {
+        directionX = 0;
+        directionY = 0;
+      }
+      wheel.dataset.directionX = directionX.toFixed(4);
+      wheel.dataset.directionY = directionY.toFixed(4);
+      wheel.dataset.directionStrength = directionStrength.toFixed(4);
+    }
+    function panContinuously() {
+      if (activePointer === null) return;
+      if (directionStrength > .08) {
+        var speed = 2 + directionStrength * 7;
+        controlMap.panBy([directionX * speed, directionY * speed], { duration: 0 });
+      }
+      self.panFrame = window.requestAnimationFrame(panContinuously);
+    }
+    function releaseWheel(event) {
+      if (activePointer === null || (event && event.pointerId !== activePointer)) return;
+      try {
+        if (event && wheel.hasPointerCapture && wheel.hasPointerCapture(activePointer)) {
+          wheel.releasePointerCapture(activePointer);
+        }
+      } catch (_) {}
+      activePointer = null;
+      directionX = 0;
+      directionY = 0;
+      directionStrength = 0;
+      wheel.classList.remove("is-active");
+      wheel.style.setProperty("--nw-wheel-x", "0px");
+      wheel.style.setProperty("--nw-wheel-y", "0px");
+      if (self.panFrame) window.cancelAnimationFrame(self.panFrame);
+      self.panFrame = 0;
+    }
+    wheel.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
+      controlMap.stop();
+      activePointer = event.pointerId;
+      try { wheel.setPointerCapture(activePointer); } catch (_) {}
+      wheel.classList.add("is-active");
+      updateWheel(event.clientX, event.clientY);
+      if (directionStrength > .08) panBy([directionX * 9, directionY * 9], 0);
+      if (self.panFrame) window.cancelAnimationFrame(self.panFrame);
+      self.panFrame = window.requestAnimationFrame(panContinuously);
+    });
+    wheel.addEventListener("pointermove", function (event) {
+      if (event.pointerId === activePointer) updateWheel(event.clientX, event.clientY);
+    });
+    wheel.addEventListener("pointerup", releaseWheel);
+    wheel.addEventListener("pointercancel", releaseWheel);
+    wheel.addEventListener("lostpointercapture", releaseWheel);
+    wheel.addEventListener("click", function (event) {
+      updateWheel(event.clientX, event.clientY);
+      if (directionStrength > .08) panBy([directionX * 72, directionY * 72], 160);
+      directionX = 0;
+      directionY = 0;
+      directionStrength = 0;
+      wheel.style.setProperty("--nw-wheel-x", "0px");
+      wheel.style.setProperty("--nw-wheel-y", "0px");
+    });
+    wheel.addEventListener("keydown", function (event) {
+      var offsets = {
+        ArrowUp: [0, -90],
+        ArrowRight: [90, 0],
+        ArrowDown: [0, 90],
+        ArrowLeft: [-90, 0]
+      };
+      if (!offsets[event.key]) return;
+      event.preventDefault();
+      panBy(offsets[event.key], 160);
+    });
 
     this.sync = function () {
       var is3d = controlMap.getPitch() > 10;
-      var zoom = Math.max(11, Math.min(22, controlMap.getZoom()));
-      self.container.style.setProperty("--nw-zoom-top", (6 + ((22 - zoom) / 11) * 80) + "px");
-      self.zoomSlider.value = String(zoom);
       self.viewButton.setAttribute("aria-pressed", is3d ? "true" : "false");
       self.viewButton.setAttribute("aria-label", is3d ? "Switch to 2D view" : "Switch to 3D view");
       self.viewButton.setAttribute("title", is3d ? "Switch to 2D view" : "Switch to 3D view");
+      viewLabel.textContent = is3d ? "2D" : "3D";
       updateDiagnostics();
     };
     controlMap.on("rotate", this.sync);
     controlMap.on("pitch", this.sync);
     controlMap.on("zoom", this.sync);
+    controlMap.on("moveend", this.sync);
     this.sync();
     return container;
   };
 
   GoogleEarth3dControl.prototype.onRemove = function () {
+    if (this.panFrame) window.cancelAnimationFrame(this.panFrame);
+    this.panFrame = 0;
     if (this.map && this.sync) {
       this.map.off("rotate", this.sync);
       this.map.off("pitch", this.sync);
       this.map.off("zoom", this.sync);
+      this.map.off("moveend", this.sync);
     }
     if (this.container && this.container.parentNode) this.container.parentNode.removeChild(this.container);
     this.map = null;
@@ -741,13 +799,16 @@
         bearing: DEFAULT_BEARING,
         maxPitch: 85,
         scrollZoom: true,
-        dragRotate: true,
-        pitchWithRotate: true,
-        touchPitch: true,
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchPitch: false,
         antialias: true,
         attributionControl: false,
         canvasContextAttributes: { antialias: true }
       });
+      if (glMap.touchZoomRotate && typeof glMap.touchZoomRotate.disableRotation === "function") {
+        glMap.touchZoomRotate.disableRotation();
+      }
       glMap.addControl(new GoogleEarth3dControl(), "top-right");
       glMap.on("error", function (event) {
         console.warn("North Wildwood 3D renderer warning.", event && event.error ? event.error : event);
