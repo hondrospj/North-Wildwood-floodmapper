@@ -46,11 +46,7 @@
   function GoogleEarth3dControl() {
     this.map = null;
     this.container = null;
-    this.compassRing = null;
-    this.zoomSlider = null;
-    this.zoomThumb = null;
-    this.tiltSlider = null;
-    this.tiltThumb = null;
+    this.compassNeedle = null;
     this.sync = null;
   }
 
@@ -61,33 +57,20 @@
     container.className = "maplibregl-ctrl nw-earth-control";
     container.setAttribute("aria-label", "3D map navigation");
     container.innerHTML = [
-      '<div class="nw-earth-compass" role="slider" tabindex="0" aria-label="Rotate map" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0" title="Drag to rotate; double-click to face north">',
-      '  <span class="nw-earth-compass-ring"></span>',
-      '  <span class="nw-earth-compass-n">N</span>',
-      '  <span class="nw-earth-turn left">↶</span><span class="nw-earth-turn right">↷</span>',
-      '  <span class="nw-earth-compass-center">3D</span>',
+      '<div class="nw-earth-compass" role="slider" tabindex="0" aria-label="Rotate map" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0" title="Drag to rotate; click to face north">',
+      '  <span class="nw-earth-compass-orbit" aria-hidden="true"></span>',
+      '  <span class="nw-earth-compass-needle" aria-hidden="true"><span class="nw-earth-compass-north"></span><span class="nw-earth-compass-south"></span></span>',
+      '  <span class="nw-earth-compass-center" aria-hidden="true"></span>',
       '</div>',
-      '<div class="nw-earth-tilt" title="Drag to tilt the 3D view">',
-      '  <span class="nw-earth-tilt-icon" aria-hidden="true">▱</span>',
-      '  <div class="nw-earth-slider" role="slider" tabindex="0" aria-label="Tilt 3D view" aria-valuemin="0" aria-valuemax="85" aria-valuenow="60">',
-      '    <span class="nw-earth-slider-track"></span><span class="nw-earth-slider-thumb"></span>',
-      '  </div>',
-      '  <span class="nw-earth-tilt-icon" aria-hidden="true">◩</span>',
-      '</div>',
-      '<div class="nw-earth-zoom">',
-      '  <button class="nw-earth-step nw-earth-zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>',
-      '  <div class="nw-earth-slider" role="slider" tabindex="0" aria-label="Zoom map" aria-valuemin="11" aria-valuemax="22" aria-valuenow="16">',
-      '    <span class="nw-earth-slider-track"></span><span class="nw-earth-slider-thumb"></span>',
-      '  </div>',
+      '<button class="nw-earth-3d" type="button" aria-label="Restore 3D view" title="Restore 3D view">3D</button>',
+      '<div class="nw-earth-zoom" role="group" aria-label="Zoom controls">',
       '  <button class="nw-earth-step nw-earth-zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>',
+      '  <span class="nw-earth-zoom-divider" aria-hidden="true"></span>',
+      '  <button class="nw-earth-step nw-earth-zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>',
       '</div>'
     ].join("");
     this.container = container;
-    this.compassRing = container.querySelector(".nw-earth-compass-ring");
-    this.zoomSlider = container.querySelector(".nw-earth-zoom .nw-earth-slider");
-    this.zoomThumb = this.zoomSlider.querySelector(".nw-earth-slider-thumb");
-    this.tiltSlider = container.querySelector(".nw-earth-tilt .nw-earth-slider");
-    this.tiltThumb = this.tiltSlider.querySelector(".nw-earth-slider-thumb");
+    this.compassNeedle = container.querySelector(".nw-earth-compass-needle");
     var compass = container.querySelector(".nw-earth-compass");
 
     function stop(event) { event.stopPropagation(); }
@@ -101,42 +84,9 @@
     container.querySelector(".nw-earth-zoom-out").addEventListener("click", function () {
       controlMap.zoomOut({ duration: 260 });
     });
-
-    function bindSlider(element, vertical, min, max, getValue, setValue) {
-      function setFromPointer(event) {
-        var bounds = element.getBoundingClientRect();
-        var ratio = vertical
-          ? 1 - ((event.clientY - bounds.top - 8) / Math.max(1, bounds.height - 16))
-          : (event.clientX - bounds.left - 7) / Math.max(1, bounds.width - 14);
-        ratio = Math.max(0, Math.min(1, ratio));
-        setValue(min + ((max - min) * ratio));
-      }
-      element.addEventListener("pointerdown", function (event) {
-        event.preventDefault();
-        element.setPointerCapture(event.pointerId);
-        setFromPointer(event);
-      });
-      element.addEventListener("pointermove", function (event) {
-        if (!element.hasPointerCapture(event.pointerId)) return;
-        event.preventDefault();
-        setFromPointer(event);
-      });
-      element.addEventListener("keydown", function (event) {
-        var step = vertical ? 0.5 : 5;
-        var direction = (event.key === "ArrowUp" || event.key === "ArrowRight") ? 1
-          : ((event.key === "ArrowDown" || event.key === "ArrowLeft") ? -1 : 0);
-        if (!direction) return;
-        event.preventDefault();
-        setValue(Math.max(min, Math.min(max, getValue() + (step * direction))));
-      });
-    }
-
-    bindSlider(this.zoomSlider, true, 11, MAP_MAX_ZOOM,
-      function () { return controlMap.getZoom(); },
-      function (value) { controlMap.jumpTo({ zoom: value }); });
-    bindSlider(this.tiltSlider, false, 0, 85,
-      function () { return controlMap.getPitch(); },
-      function (value) { controlMap.jumpTo({ pitch: value }); });
+    container.querySelector(".nw-earth-3d").addEventListener("click", function () {
+      controlMap.easeTo({ pitch: INITIAL_PITCH, duration: 420 });
+    });
 
     var compassDragged = false;
     function rotateFromPointer(event) {
@@ -176,18 +126,10 @@
 
     this.sync = function () {
       var bearing = controlMap.getBearing();
-      var pitch = controlMap.getPitch();
-      var zoom = controlMap.getZoom();
-      self.compassRing.style.transform = "rotate(" + (-bearing) + "deg)";
+      self.compassNeedle.style.transform = "rotate(" + (-bearing) + "deg)";
       compass.setAttribute("aria-valuenow", String(Math.round(bearing)));
-      self.zoomSlider.setAttribute("aria-valuenow", zoom.toFixed(1));
-      self.zoomThumb.style.top = (8 + ((MAP_MAX_ZOOM - zoom) / (MAP_MAX_ZOOM - 11)) * 82) + "px";
-      self.tiltSlider.setAttribute("aria-valuenow", String(Math.round(pitch)));
-      self.tiltThumb.style.left = (((pitch / 85) * 11)) + "px";
       updateDiagnostics();
     };
-    controlMap.on("zoom", this.sync);
-    controlMap.on("pitch", this.sync);
     controlMap.on("rotate", this.sync);
     this.sync();
     return container;
@@ -195,8 +137,6 @@
 
   GoogleEarth3dControl.prototype.onRemove = function () {
     if (this.map && this.sync) {
-      this.map.off("zoom", this.sync);
-      this.map.off("pitch", this.sync);
       this.map.off("rotate", this.sync);
     }
     if (this.container && this.container.parentNode) this.container.parentNode.removeChild(this.container);
@@ -716,7 +656,6 @@
         canvasContextAttributes: { antialias: true }
       });
       glMap.addControl(new GoogleEarth3dControl(), "top-right");
-      glMap.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: "metric" }), "bottom-right");
       glMap.on("error", function (event) {
         console.warn("North Wildwood 3D renderer warning.", event && event.error ? event.error : event);
       });
