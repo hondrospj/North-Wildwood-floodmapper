@@ -12,6 +12,7 @@ from conditional_connectivity_routes import (
     connect_penalty_basins_by_lowest_road_route,
     source_block_geodesic_distance,
 )
+from hydraulic_mask_sequence import HydraulicMaskSequence
 from osgeo import gdal
 from PIL import Image
 from scipy.ndimage import label as ndimage_label
@@ -282,6 +283,7 @@ def main() -> None:
             )
         previous_stage_expected = None
         previous_phase_adjustment = 0.0
+        catalog_sequence = HydraulicMaskSequence(max_hole_pixels=4)
         for depth_path in depth_paths:
             code = depth_path.stem.removeprefix("NorthWildwoodDepth")
             stage_path = stage_dir / f"NorthWildwoodStage{code}.png"
@@ -390,6 +392,18 @@ def main() -> None:
             )
             expected_blue |= preserved_feeder
             feeder |= preserved_feeder
+            repair_eligible = valid & (
+                (
+                    np.isfinite(ground_developed)
+                    & (ground_developed <= developed_stage + 1e-9)
+                )
+                | (activation_undeveloped <= stage + 1e-9)
+            )
+            expected_blue = catalog_sequence.update(
+                expected_blue,
+                "filling",
+                repair_eligible,
+            )
             previous_stage_expected = expected_blue.copy()
             previous_phase_adjustment = phase_adjustment
             if np.any(feeder & ~road):

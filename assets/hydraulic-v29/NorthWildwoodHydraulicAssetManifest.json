@@ -1,8 +1,46 @@
 {
   "schema": "north-wildwood-conditional-connectivity-assets-v1",
-  "generatedUtc": "2026-08-16T21:46:16Z",
+  "generatedUtc": "2026-08-23T00:00:39Z",
   "modelKind": "phase-aware developed-land conditional connectivity",
   "phaseInvariant": false,
+  "temporalMaskStabilization": {
+    "algorithm": "site-neutral monotonic candidate-mask state machine",
+    "fillingInvariant": "each higher-stage catalog mask is a superset of the prior mask",
+    "drainingInvariant": "runtime mask is restricted to the prior and crest footprints",
+    "smallHoleRepair": "eligible enclosed render-grid components of at most four pixels only",
+    "catalogFramesBefore": 201,
+    "catalogFramesAfter": 201,
+    "outputFramesAdded": 0,
+    "frameMultiplier": 1.0,
+    "catalogFamiliesUpdated": [
+      "filling",
+      "slack",
+      "draining-release-15",
+      "draining-release-30"
+    ],
+    "catalogFamilyDiagnostics": {
+      "filling": {
+        "changedFrames": 15,
+        "changedPixels": 24855
+      },
+      "slack": {
+        "changedFrames": 15,
+        "changedPixels": 24855
+      },
+      "draining-release-15": {
+        "changedFrames": 11,
+        "changedPixels": 15889
+      },
+      "draining-release-30": {
+        "changedFrames": 9,
+        "changedPixels": 3626
+      },
+      "draining": {
+        "changedFrames": 0,
+        "changedPixels": 0
+      }
+    }
+  },
   "verticalPenalty": {
     "anchors": [
       {

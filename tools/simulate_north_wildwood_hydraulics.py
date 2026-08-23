@@ -32,6 +32,7 @@ from conditional_connectivity_routes import (
     connect_penalty_basins_by_lowest_road_route,
     source_block_geodesic_distance,
 )
+from hydraulic_mask_sequence import HydraulicMaskSequence
 try:
     from osgeo import gdal
 except ModuleNotFoundError:  # Unit checks do not open or write rasters.
@@ -1100,6 +1101,10 @@ def render_assets(
         maximum_feeder_route_crest = 0.0
         previous_stage_flooded = None
         previous_phase_penalty = 0.0
+        # Static catalogs are always rendered from low to high stage.  Make
+        # each family nested in that order; event playback later intersects
+        # those candidates with prior state when the tide is draining.
+        catalog_sequence = HydraulicMaskSequence(max_hole_pixels=4)
         for stage_index, stage in enumerate(STAGES_FT):
             stage_value = float(stage)
             code = stage_code(stage_value)
@@ -1190,6 +1195,23 @@ def render_assets(
             )
             flooded |= preserved_feeder
             feeder |= preserved_feeder
+            candidate_flooded = flooded.copy()
+            repair_eligible = valid & (
+                (
+                    np.isfinite(ground_developed)
+                    & (ground_developed <= adjusted_developed_stage + 1e-9)
+                )
+                | (
+                    np.isfinite(ground_undeveloped)
+                    & (ground_undeveloped <= stage_value + 1e-9)
+                )
+            )
+            flooded = catalog_sequence.update(
+                flooded,
+                "filling",
+                repair_eligible,
+            )
+            stabilized_added = flooded & ~candidate_flooded
             previous_stage_flooded = flooded.copy()
             previous_phase_penalty = phase_penalty
             feeder_pixels += int(np.count_nonzero(feeder))
@@ -1236,6 +1258,13 @@ def render_assets(
                         0.0,
                     ),
                 ).astype(np.float32, copy=False)
+                # The penalty delays admission of dry cells; it must not
+                # dewater a cell that was already admitted at a lower stage.
+                # Those history-preserved cells follow the rising gauge.
+                depth[stabilized_added] = np.maximum(
+                    stage_value - ground[stabilized_added],
+                    0.0,
+                )
             if np.any(flooded):
                 # Smooth only the depth values inside the immutable connected
                 # water mask. This removes 5-ft palette stippling caused by
@@ -1277,6 +1306,11 @@ def render_assets(
                 # Feeder pixels inherit their unadjusted hydraulic activation
                 # so their stage color remains meaningful.
                 local_activation = np.where(feeder, activation, local_activation)
+                local_activation = np.where(
+                    stabilized_added,
+                    activation,
+                    local_activation,
+                )
                 stage_codes[flooded] = np.where(
                     local_activation[flooded] < MINOR_NAVD88_FT,
                     1,
@@ -1331,6 +1365,17 @@ def render_assets(
                 "visible feeder paths restricted to aligned public-road "
                 "corridors and clipped to the hydraulic baseline"
             ),
+            "temporalMaskStabilization": {
+                "catalogDirection": "low-to-high stage",
+                "outputFramesAdded": 0,
+                "fillingPixelsPreserved": (
+                    catalog_sequence.diagnostics.filling_pixels_preserved
+                ),
+                "enclosedHolePixelsRepaired": (
+                    catalog_sequence.diagnostics.enclosed_hole_pixels_repaired
+                ),
+                "maximumEnclosedHolePixels": catalog_sequence.max_hole_pixels,
+            },
         }
 
     world_path = output_root / "NorthWildwoodOverlay5ft.pgw"

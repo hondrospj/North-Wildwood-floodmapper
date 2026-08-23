@@ -498,6 +498,31 @@ assert.equal(
 assert.deepEqual(Array.from(currentPixels.slice(0, 4)), [27, 183, 245, 225]);
 assert.deepEqual(Array.from(currentPixels.slice(4, 8)), [99, 212, 113, 225]);
 
+const postCrestPixels = new Uint8Array([
+  27, 183, 245, 225,
+  27, 183, 245, 225,
+]);
+const crestFootprintPixels = new Uint8Array([
+  125, 249, 255, 225,
+  99, 212, 113, 205,
+]);
+assert.equal(
+  drainagePixelContext.applyDrainageRetentionPixels(
+    postCrestPixels,
+    [crestFootprintPixels],
+    queryPixels,
+    3.7,
+    "depth"
+  ),
+  1,
+  "A falling limb must reject water that was not in the crest footprint"
+);
+assert.deepEqual(
+  Array.from(postCrestPixels.slice(4, 8)),
+  [99, 212, 113, 205],
+  "Rejected post-crest water should retain the crest uncertainty state"
+);
+
 let previousPenalty = Infinity;
 for (let stage = 3.25; stage <= 5.25 + 1e-9; stage += 0.1) {
   const penalty = context.getVerticalBathtubPenalty(stage);
@@ -543,7 +568,7 @@ assert.ok(
     SOURCE.indexOf('"https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"'),
   "The complete bundled catalog must precede the matching Bunny v37 catalog",
 );
-assert.match(SOURCE, /20260816-road-feeder-v39/);
+assert.match(SOURCE, /20260822-mask-stabilizer-v40/);
 assert.match(SOURCE, /sampledFromCanonical15MinuteHistory/);
 assert.match(SOURCE, /isHistoryAwareDrainageComposite/);
 assert.match(extractFunction("preloadExportFrameAssets"), /getHydraulicOverlayRecord/);

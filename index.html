@@ -17860,16 +17860,39 @@ function setDatumHelpOpen(isOpen) {
     function applyDrainageRetentionPixels(currentPixels, historicalPixelSets, queryPixels, stageFt, mode) {
       const pixelCount = Math.floor(currentPixels.length / 4);
       if (!pixelCount || !queryPixels || queryPixels.length !== currentPixels.length) return 0;
+      const history = (historicalPixelSets || []).filter(
+        values => values && values.length === currentPixels.length
+      );
+      if (!history.length) return 0;
+      // The first history raster is the crest footprint. A falling limb may
+      // retain water from that footprint, but it must never admit a pixel that
+      // was not wet at crest merely because a phase penalty was released.
+      const crestPixels = history[0];
+      let modified = 0;
+      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
+        if (!isWetRasterPixel(currentPixels, offset) || isWetRasterPixel(crestPixels, offset)) continue;
+        if (crestPixels[offset + 3] > 0) {
+          currentPixels[offset] = crestPixels[offset];
+          currentPixels[offset + 1] = crestPixels[offset + 1];
+          currentPixels[offset + 2] = crestPixels[offset + 2];
+          currentPixels[offset + 3] = crestPixels[offset + 3];
+        } else {
+          currentPixels[offset] = 0;
+          currentPixels[offset + 1] = 0;
+          currentPixels[offset + 2] = 0;
+          currentPixels[offset + 3] = 0;
+        }
+        modified += 1;
+      }
       const retained = new Uint8Array(pixelCount);
-      for (const historyPixels of historicalPixelSets || []) {
-        if (!historyPixels || historyPixels.length !== currentPixels.length) continue;
+      for (const historyPixels of history) {
         for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
-          if (!retained[pixel] && isWetRasterPixel(historyPixels, offset)) retained[pixel] = 1;
+          if (!retained[pixel] && isWetRasterPixel(crestPixels, offset) &&
+              isWetRasterPixel(historyPixels, offset)) retained[pixel] = 1;
         }
       }
 
       const retainedStageRgb = getDrainageStageColor(stageFt);
-      let added = 0;
       for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
         if (!retained[pixel] || isWetRasterPixel(currentPixels, offset)) continue;
         const encodedGround = queryPixels[offset] * 256 + queryPixels[offset + 1];
@@ -17882,9 +17905,9 @@ function setDatumHelpOpen(isOpen) {
         currentPixels[offset + 1] = color[1];
         currentPixels[offset + 2] = color[2];
         currentPixels[offset + 3] = 225;
-        added += 1;
+        modified += 1;
       }
-      return added;
+      return modified;
     }
 
     function getDrainageRetentionMilestones(entry, series = currentRawSeriesHours) {
@@ -35294,18 +35317,18 @@ TOWN_CONFIG = {
       "east": -74.7805143
     },
     "cacheVersions": {
-      "depth": "20260816-road-feeder-v39",
-      "dynamic": "20260816-road-feeder-v39",
-      "hydraulic": "20260816-road-feeder-v39"
+      "depth": "20260822-mask-stabilizer-v40",
+      "dynamic": "20260822-mask-stabilizer-v40",
+      "hydraulic": "20260822-mask-stabilizer-v40"
     },
     "modelKind": "phase-aware developed-land conditional connectivity",
     "phaseInvariant": false,
-    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260816-road-feeder-v39",
-    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260816-road-feeder-v39",
+    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260822-mask-stabilizer-v40",
+    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260822-mask-stabilizer-v40",
     "depthQueryCogPath": null,
     "physicsForecastPointerPath": null,
     "physicsForecastCyclePointerTemplatePath": null,
-    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260816-road-feeder-v39",
+    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260822-mask-stabilizer-v40",
     "depthRoots": [
       "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
       "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"
