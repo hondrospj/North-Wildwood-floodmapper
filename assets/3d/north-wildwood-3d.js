@@ -3,8 +3,9 @@
 
   var TERRAIN_EXAGGERATION = 4;
   var MAP_MAX_ZOOM = 22;
-  var INITIAL_PITCH = 60;
-  var INITIAL_BEARING = -20;
+  var DEFAULT_PITCH = 0;
+  var DEFAULT_BEARING = 0;
+  var THREE_D_PITCH = 60;
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
   var ESRI_VECTOR_TILES = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf";
   var TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejson.json";
@@ -69,7 +70,7 @@
       '  <div class="nw-earth-look-surface">',
       '    <button class="nw-earth-nav-arrow nw-earth-look-up" type="button" aria-label="Tilt farther into 3D" title="Tilt farther into 3D"><span></span></button>',
       '    <button class="nw-earth-nav-arrow nw-earth-look-left" type="button" aria-label="Rotate left" title="Rotate left"><span></span></button>',
-      '    <button class="nw-earth-eye" type="button" aria-label="Switch to 2D view" aria-pressed="true" title="Switch to 2D view"><svg viewBox="0 0 32 20" aria-hidden="true"><path d="M2 10s5-8 14-8 14 8 14 8-5 8-14 8S2 10 2 10Z"></path><circle cx="16" cy="10" r="4"></circle></svg></button>',
+      '    <button class="nw-earth-eye" type="button" aria-label="Switch to 3D view" aria-pressed="false" title="Switch to 3D view"><svg viewBox="0 0 32 20" aria-hidden="true"><path d="M2 10s5-8 14-8 14 8 14 8-5 8-14 8S2 10 2 10Z"></path><circle cx="16" cy="10" r="4"></circle></svg></button>',
       '    <button class="nw-earth-nav-arrow nw-earth-look-right" type="button" aria-label="Rotate right" title="Rotate right"><span></span></button>',
       '    <button class="nw-earth-nav-arrow nw-earth-look-down" type="button" aria-label="Tilt toward 2D" title="Tilt toward 2D"><span></span></button>',
       '  </div>',
@@ -118,7 +119,7 @@
     });
     this.viewButton.addEventListener("click", function () {
       var is3d = controlMap.getPitch() > 10;
-      moveTo({ pitch: is3d ? 0 : INITIAL_PITCH }, 420);
+      moveTo({ pitch: is3d ? 0 : THREE_D_PITCH }, 420);
     });
     container.querySelector(".nw-earth-north").addEventListener("click", function () {
       moveTo({ bearing: 0 }, 300);
@@ -687,8 +688,8 @@
         zoom: Math.min(MAP_MAX_ZOOM, leafletZoom),
         minZoom: 11,
         maxZoom: MAP_MAX_ZOOM,
-        pitch: INITIAL_PITCH,
-        bearing: INITIAL_BEARING,
+        pitch: DEFAULT_PITCH,
+        bearing: DEFAULT_BEARING,
         maxPitch: 85,
         scrollZoom: true,
         dragRotate: true,
@@ -734,7 +735,7 @@
       document.body.dataset.map3d = "ready";
       document.body.dataset.terrainExaggeration = String(TERRAIN_EXAGGERATION);
       document.body.dataset.map3dMaxZoom = String(MAP_MAX_ZOOM);
-      document.body.dataset.map3dPitch = String(INITIAL_PITCH);
+      document.body.dataset.map3dPitch = String(glMap.getPitch());
       updateDiagnostics();
       suspendLeafletVisualLayers();
       requestAnimationFrame(function () { glMap.resize(); });
