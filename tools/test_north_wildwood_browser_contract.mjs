@@ -514,14 +514,29 @@ assert.equal(
     3.7,
     "depth"
   ),
-  1,
-  "A falling limb must reject water that was not in the crest footprint"
+  0,
+  "The full crest hydraulic footprint includes both confirmed and uncertainty pixels"
 );
 assert.deepEqual(
   Array.from(postCrestPixels.slice(4, 8)),
-  [99, 212, 113, 205],
-  "Rejected post-crest water should retain the crest uncertainty state"
+  [27, 183, 245, 225],
+  "A draining confirmed pixel must never downgrade to green uncertainty"
 );
+
+const outsideCrestPixels = new Uint8Array([27, 183, 245, 225]);
+const emptyCrestPixels = new Uint8Array([0, 0, 0, 0]);
+assert.equal(
+  drainagePixelContext.applyDrainageRetentionPixels(
+    outsideCrestPixels,
+    [emptyCrestPixels],
+    queryPixels.slice(0, 4),
+    3.7,
+    "depth"
+  ),
+  1,
+  "A falling limb must reject confirmed water outside the entire crest footprint"
+);
+assert.deepEqual(Array.from(outsideCrestPixels), [0, 0, 0, 0]);
 
 let previousPenalty = Infinity;
 for (let stage = 3.25; stage <= 5.25 + 1e-9; stage += 0.1) {

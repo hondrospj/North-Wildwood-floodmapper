@@ -17866,28 +17866,23 @@ function setDatumHelpOpen(isOpen) {
       if (!history.length) return 0;
       // The first history raster is the crest footprint. A falling limb may
       // retain water from that footprint, but it must never admit a pixel that
-      // was not wet at crest merely because a phase penalty was released.
+      // was not present at crest merely because a phase penalty was released.
+      // A confirmed blue pixel over the full crest footprint stays blue; it
+      // may become shallower or disappear, but it never downgrades to green.
       const crestPixels = history[0];
       let modified = 0;
       for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
-        if (!isWetRasterPixel(currentPixels, offset) || isWetRasterPixel(crestPixels, offset)) continue;
-        if (crestPixels[offset + 3] > 0) {
-          currentPixels[offset] = crestPixels[offset];
-          currentPixels[offset + 1] = crestPixels[offset + 1];
-          currentPixels[offset + 2] = crestPixels[offset + 2];
-          currentPixels[offset + 3] = crestPixels[offset + 3];
-        } else {
-          currentPixels[offset] = 0;
-          currentPixels[offset + 1] = 0;
-          currentPixels[offset + 2] = 0;
-          currentPixels[offset + 3] = 0;
-        }
+        if (!isWetRasterPixel(currentPixels, offset) || crestPixels[offset + 3] > 0) continue;
+        currentPixels[offset] = 0;
+        currentPixels[offset + 1] = 0;
+        currentPixels[offset + 2] = 0;
+        currentPixels[offset + 3] = 0;
         modified += 1;
       }
       const retained = new Uint8Array(pixelCount);
       for (const historyPixels of history) {
         for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
-          if (!retained[pixel] && isWetRasterPixel(crestPixels, offset) &&
+          if (!retained[pixel] && crestPixels[offset + 3] > 0 &&
               isWetRasterPixel(historyPixels, offset)) retained[pixel] = 1;
         }
       }
