@@ -15,6 +15,7 @@
     })();
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
 
   <style>
 
@@ -938,6 +939,115 @@
       width:100%;
       height:100%;
       background:#050b16;
+    }
+
+    #map3d{
+      position:absolute;
+      inset:0;
+      z-index:1;
+      width:100%;
+      height:100%;
+      opacity:0;
+      pointer-events:none;
+      background:#050b16;
+      transition:opacity .18s ease;
+    }
+
+    body.map-3d-ready #map{
+      opacity:0;
+      pointer-events:none;
+    }
+
+    body.map-3d-ready #map .leaflet-control-container{
+      display:none;
+    }
+
+    body.map-3d-ready #map3d{
+      opacity:1;
+      pointer-events:auto;
+    }
+
+    #map3dStatus{
+      display:none;
+      position:absolute;
+      z-index:1450;
+      top:116px;
+      right:calc(var(--pj-right-rail-fit-width) + 44px);
+      padding:7px 10px;
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:10px;
+      background:rgba(11,18,32,.88);
+      box-shadow:0 10px 24px rgba(15,23,42,.22);
+      color:#eaf0ff;
+      font-size:10px;
+      font-weight:850;
+      letter-spacing:.02em;
+      pointer-events:none;
+      backdrop-filter:blur(10px);
+    }
+
+    body.map-3d-ready #map3dStatus{ display:block; }
+
+    #map3d .maplibregl-ctrl-top-right{
+      top:16px;
+      right:calc(var(--pj-right-rail-fit-width) + 44px);
+    }
+
+    #map3d .maplibregl-ctrl-bottom-right{
+      right:calc(var(--pj-right-rail-fit-width) + 28px);
+      bottom:var(--pj-equal-bottom-reserve, 188px);
+    }
+
+    #map3d .maplibregl-ctrl-group{
+      overflow:hidden;
+      border-radius:17px;
+      background:#fff;
+      box-shadow:0 16px 32px rgba(15,23,42,.20);
+    }
+
+    #map3d .maplibregl-ctrl-group button{
+      width:43px;
+      height:43px;
+    }
+
+    #map3d .maplibregl-ctrl-scale{
+      border-color:#0f172a;
+      background:rgba(255,255,255,.88);
+      color:#0f172a;
+      font-weight:800;
+    }
+
+    #map3d .maplibregl-popup-content{
+      padding:0;
+      border-radius:16px;
+      background:#0b1220;
+      color:#eaf0ff;
+      box-shadow:0 18px 48px rgba(2,6,23,.42);
+    }
+
+    #map3d .maplibregl-popup-close-button{
+      z-index:2;
+      width:32px;
+      height:32px;
+      color:#fff;
+      font-size:22px;
+    }
+
+    #map3d .maplibregl-popup-tip{ border-top-color:#0b1220; }
+
+    @media (max-width:900px),(max-height:560px){
+      #map3d .maplibregl-ctrl-top-right{
+        top:max(66px, calc(env(safe-area-inset-top) + 58px));
+        right:max(8px, env(safe-area-inset-right));
+      }
+      #map3d .maplibregl-ctrl-bottom-right{
+        right:max(8px, env(safe-area-inset-right));
+        bottom:calc(var(--shorely-mobile-timeline-height, 124px) + 12px);
+      }
+      #map3dStatus{
+        top:max(204px, calc(env(safe-area-inset-top) + 196px));
+        right:max(8px, env(safe-area-inset-right));
+      }
     }
 
     .leaflet-image-layer{
@@ -14195,6 +14305,9 @@ html.win-compact-ui #timelineDock #hourSlider{
     </aside>
 <main id="mapWrap">
       <div id="map"></div>
+      <div id="map3d" aria-label="Interactive 3D North Wildwood flood map"></div>
+      <div id="map3dStatus" role="status">3D terrain ×4</div>
+      <output id="map3dDiagnostics" hidden aria-hidden="true"></output>
       <div id="mapClickModeControl" class="map-click-mode-control" role="group" aria-label="Choose what happens when you tap the map" hidden>
         <span class="map-click-mode-label">Tap map for</span>
         <button id="mapClickBuildingBtn" type="button" data-map-click-mode="building" aria-label="Building info" aria-pressed="true">Building info</button>
@@ -14660,6 +14773,7 @@ html.win-compact-ui #timelineDock #hourSlider{
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js"></script>
   <script src="https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
 
   <script>
     const APP_BASE = new URL(".", window.location.href);
@@ -18818,7 +18932,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       map = L.map("map", {
         zoomControl: false,
         minZoom: 11,
-        maxZoom: 19,
+        maxZoom: 22,
         zoomSnap: 1,
         zoomDelta: 1,
         preferCanvas: true
@@ -35227,6 +35341,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
+<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v3"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
