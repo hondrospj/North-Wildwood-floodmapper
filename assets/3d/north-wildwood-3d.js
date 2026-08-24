@@ -1228,10 +1228,12 @@
       // loading screen still covers the canvas, then return to true 2D.
       mapInstance.jumpTo({ pitch: THREE_D_PITCH, bearing: DEFAULT_BEARING });
       await waitFor3dMapIdle(mapInstance, 45000);
-      // A 45-degree, top-down view has the largest tile footprint needed by
-      // the compass wheel. Warming it here prevents the first wheel drag from
-      // compiling the rotated render path and fetching corner tiles on screen.
+      // Warm both the diagonal and quarter-turn top-down footprints. A wide
+      // viewport can need a different row of terrain tiles at 90 degrees than
+      // at 45 degrees, which otherwise stalls the first east/west wheel drag.
       mapInstance.jumpTo({ pitch: DEFAULT_PITCH, bearing: 45 });
+      await waitFor3dMapIdle(mapInstance, 45000);
+      mapInstance.jumpTo({ pitch: DEFAULT_PITCH, bearing: 90 });
       await waitFor3dMapIdle(mapInstance, 45000);
     } finally {
       mapInstance.jumpTo(originalCamera);
@@ -1244,6 +1246,7 @@
       setBasemapBuildingExtrusionsEnabled(buildingsEnabled);
     }
     await waitFor3dMapIdle(mapInstance, 45000);
+    document.body.dataset.map3dBearingWarmupAngles = "0,45,90";
     document.body.dataset.map3dBearingWarmup = "ready";
     document.body.dataset.map3dCameraWarmup = "ready";
     syncPersistentNavControl();
