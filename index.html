@@ -1034,26 +1034,11 @@
     }
     html body.map-3d-ready #nw3dLauncher{ display:none !important; }
 
-    #map3d .maplibregl-ctrl-top-right{
-      top:72px;
-      right:calc(var(--pj-right-rail-fit-width) + 44px);
-    }
-
     html body #nwDefaultNavControl{
       position:absolute;
       z-index:1450;
       top:72px;
       right:calc(var(--pj-right-rail-fit-width) + 44px);
-    }
-    html body.map-3d-ready #nwDefaultNavControl{ display:none !important; }
-    /* Do not expose MapLibre's replacement controls until lazy 3D startup has fully resolved. */
-    html body #map3d .nw-simple-control{
-      visibility:hidden !important;
-      pointer-events:none !important;
-    }
-    html body.map-3d-ready #map3d .nw-simple-control{
-      visibility:visible !important;
-      pointer-events:auto !important;
     }
     html body #map .leaflet-control-zoom{ display:none !important; }
 
@@ -1475,6 +1460,10 @@
       border-color:#4285c5 !important;
       box-shadow:0 1px 3px rgba(0,0,0,.36),0 0 0 2px rgba(66,133,197,.92);
     }
+    html body #nwDefaultNavControl.is-mode-transitioning .nw-simple-view{
+      cursor:progress;
+      opacity:.88;
+    }
     html body .nw-simple-zoom{
       display:flex;
       flex-direction:column;
@@ -1557,10 +1546,6 @@
         font-size:11px !important;
       }
       html body #nw3dLauncher svg{ width:29px; height:19px; }
-      #map3d .maplibregl-ctrl-top-right{
-        top:max(104px, calc(env(safe-area-inset-top) + 96px));
-        right:max(2px, env(safe-area-inset-right));
-      }
       html body #nwDefaultNavControl{
         top:max(104px, calc(env(safe-area-inset-top) + 96px));
         right:max(2px, env(safe-area-inset-right));
@@ -35884,7 +35869,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v20"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v21"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
