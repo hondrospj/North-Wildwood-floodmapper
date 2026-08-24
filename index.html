@@ -1037,10 +1037,16 @@
     html body #nwDefaultNavControl{
       position:absolute;
       z-index:1450;
-      top:72px;
-      right:calc(var(--pj-right-rail-fit-width) + 44px);
+      top:16px;
+      right:calc(var(--pj-right-rail-fit-width) + 28px);
     }
     html body #map .leaflet-control-zoom{ display:none !important; }
+
+    @media (min-width:901px) and (max-width:1450px) and (min-height:561px){
+      html body #nwDefaultNavControl{
+        top:96px;
+      }
+    }
 
     #map3d .nw-earth-control{
       display:flex;
@@ -1547,7 +1553,7 @@
       }
       html body #nw3dLauncher svg{ width:29px; height:19px; }
       html body #nwDefaultNavControl{
-        top:max(104px, calc(env(safe-area-inset-top) + 96px));
+        top:max(66px, calc(env(safe-area-inset-top) + 54px));
         right:max(2px, env(safe-area-inset-right));
       }
       #map3dStatus{ display:none !important; }
@@ -1569,6 +1575,13 @@
 
     .leaflet-image-layer{
       image-rendering:auto;
+    }
+    .leaflet-flood-pane{
+      isolation:isolate;
+    }
+    .leaflet-flood-pane .leaflet-image-layer{
+      -webkit-backface-visibility:hidden;
+      backface-visibility:hidden;
     }
 
     .grayscale-tiles{
@@ -14916,9 +14929,9 @@ html.win-compact-ui #timelineDock #hourSlider{
               </div>
             </div>
             <div class="layer-item">
-              <div id="nsiStructuresToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show estimated first-floor flood impacts"></div>
+              <div id="nsiStructuresToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show crawlspace and garage impacts"></div>
               <div class="layer-meta">
-                <div class="layer-name">First-floor flood impacts</div>
+                <div class="layer-name">Crawlspace/Garage Impacts</div>
               </div>
             </div>
           </div>
@@ -19040,68 +19053,22 @@ function setDatumHelpOpen(isOpen) {
       };
     }
 
-    function unitSquareHomography(points) {
-      if (!Array.isArray(points) || points.length !== 4) return null;
-      const [p0, p1, p2, p3] = points;
-      const dx1 = p1.x - p2.x;
-      const dx2 = p3.x - p2.x;
-      const dx3 = p0.x - p1.x + p2.x - p3.x;
-      const dy1 = p1.y - p2.y;
-      const dy2 = p3.y - p2.y;
-      const dy3 = p0.y - p1.y + p2.y - p3.y;
-      const denominator = (dx1 * dy2) - (dx2 * dy1);
-      let g = 0;
-      let h = 0;
-      if (Math.abs(dx3) > 1e-12 || Math.abs(dy3) > 1e-12) {
-        if (Math.abs(denominator) < 1e-12) return null;
-        g = ((dx3 * dy2) - (dx2 * dy3)) / denominator;
-        h = ((dx1 * dy3) - (dx3 * dy1)) / denominator;
-      }
-      return {
-        a: p1.x - p0.x + (g * p1.x),
-        b: p3.x - p0.x + (h * p3.x),
-        c: p0.x,
-        d: p1.y - p0.y + (g * p1.y),
-        e: p3.y - p0.y + (h * p3.y),
-        f: p0.y,
-        g,
-        h
-      };
-    }
-
-    function invertHomography(matrix) {
-      if (!matrix) return null;
-      const { a, b, c, d, e, f, g, h } = matrix;
-      const i00 = e - (f * h);
-      const i01 = (c * h) - b;
-      const i02 = (b * f) - (c * e);
-      const i10 = (f * g) - d;
-      const i11 = a - (c * g);
-      const i12 = (c * d) - (a * f);
-      const i20 = (d * h) - (e * g);
-      const i21 = (b * g) - (a * h);
-      const i22 = (a * e) - (b * d);
-      const determinant = (a * i00) + (b * i10) + (c * i20);
-      if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-12) return null;
-      const scale = 1 / determinant;
-      return [
-        i00 * scale, i01 * scale, i02 * scale,
-        i10 * scale, i11 * scale, i12 * scale,
-        i20 * scale, i21 * scale, i22 * scale
-      ];
-    }
-
     function latLngToWorldFileUv(lat, lng) {
       const corners = getConfiguredWorldFileCornersLatLng();
       if (!corners) return null;
       const projectedCorners = corners.map(corner => L.CRS.EPSG3857.project(corner));
-      const inverse = invertHomography(unitSquareHomography(projectedCorners));
-      if (!inverse) return null;
+      const [northWest, northEast, , southWest] = projectedCorners;
+      const acrossX = northEast.x - northWest.x;
+      const acrossY = northEast.y - northWest.y;
+      const downX = southWest.x - northWest.x;
+      const downY = southWest.y - northWest.y;
+      const determinant = (acrossX * downY) - (acrossY * downX);
+      if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-12) return null;
       const point = L.CRS.EPSG3857.project(L.latLng(Number(lat), Number(lng)));
-      const denominator = (inverse[6] * point.x) + (inverse[7] * point.y) + inverse[8];
-      if (!Number.isFinite(denominator) || Math.abs(denominator) < 1e-12) return null;
-      const u = ((inverse[0] * point.x) + (inverse[1] * point.y) + inverse[2]) / denominator;
-      const v = ((inverse[3] * point.x) + (inverse[4] * point.y) + inverse[5]) / denominator;
+      const relativeX = point.x - northWest.x;
+      const relativeY = point.y - northWest.y;
+      const u = ((relativeX * downY) - (relativeY * downX)) / determinant;
+      const v = ((acrossX * relativeY) - (acrossY * relativeX)) / determinant;
       return Number.isFinite(u) && Number.isFinite(v) ? { u, v } : null;
     }
 
@@ -19132,20 +19099,22 @@ function setDatumHelpOpen(isOpen) {
 
       _applyWorldFileTransform(points) {
         if (!this._image || !points) return;
-        const matrix = unitSquareHomography(points);
-        if (!matrix) return;
+        const [northWest, northEast, , southWest] = points;
         const width = this._pixelWidth;
         const height = this._pixelHeight;
+        const scaleX = (northEast.x - northWest.x) / width;
+        const shearY = (northEast.y - northWest.y) / width;
+        const shearX = (southWest.x - northWest.x) / height;
+        const scaleY = (southWest.y - northWest.y) / height;
         this._image.style.width = `${width}px`;
         this._image.style.height = `${height}px`;
         this._image.style.left = "0";
         this._image.style.top = "0";
         this._image.style.transformOrigin = "0 0";
-        this._image.style.transform = `matrix3d(${[
-          matrix.a / width, matrix.d / width, 0, matrix.g / width,
-          matrix.b / height, matrix.e / height, 0, matrix.h / height,
-          0, 0, 1, 0,
-          matrix.c, matrix.f, 0, 1
+        // A world file is affine. Keeping the raster in Leaflet's normal 2D
+        // compositor plane prevents pan/zoom flashes and z-order inversions.
+        this._image.style.transform = `matrix(${[
+          scaleX, shearY, shearX, scaleY, northWest.x, northWest.y
         ].join(",")})`;
       },
 
@@ -26198,7 +26167,7 @@ function startPlayback() {
       updateNsiStructureImpactLayer();
       if (!map.hasLayer(layer)) layer.addTo(map);
       setMapClickMode("building", { closePopup: false });
-      toast("First-floor impacts: red is above, gold is close, cyan is below.");
+      toast("Crawlspace/Garage impacts: red is above, gold is close, cyan is below.");
     }
 
     async function ensureParcelAssets() {
@@ -36124,7 +36093,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260824-nw-3d-v33"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260824-nw-3d-v34"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";

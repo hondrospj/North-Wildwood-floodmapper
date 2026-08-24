@@ -23,6 +23,7 @@
   var mapStylePromise = null;
   var floodPlaneLayer = null;
   var floodRemovalTimer = null;
+  var basemapBuildingExtrusionLayerIds = [];
   var syncingFromLeaflet = false;
   var syncingFrom3d = false;
   var syncingModeTransition = false;
@@ -305,6 +306,7 @@
       positionLocation: -1,
       textureLocation: -1,
       textureReady: false,
+      visible: Boolean(initial.visible),
       textureLoadPromise: Promise.resolve(false),
       imageToken: 0,
       url: initial.url || "",
@@ -389,6 +391,10 @@
             gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+            // Trilinear minification removes the block stair-stepping that was
+            // visible around wet/dry boundaries when the user zoomed out.
+            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
             self.textureReady = true;
             document.body.dataset.map3dFloodTexture = "ready";
             if (self.map) self.map.triggerRepaint();
@@ -427,12 +433,17 @@
         if (this.map) this.map.triggerRepaint();
       },
 
+      setVisible: function (value) {
+        this.visible = Boolean(value);
+        if (this.map) this.map.triggerRepaint();
+      },
+
       whenReady: function () {
         return this.textureLoadPromise || Promise.resolve(this.textureReady);
       },
 
       render: function (gl, args) {
-        if (!this.textureReady || !this.program || !this.buffer || !this.texture) return;
+        if (!this.visible || !this.textureReady || !this.program || !this.buffer || !this.texture) return;
         var matrix = args && args.defaultProjectionData && args.defaultProjectionData.mainMatrix
           ? args.defaultProjectionData.mainMatrix
           : args && args.projectionMatrix
@@ -454,6 +465,11 @@
         // Read terrain/building depth without replacing it: water remains flat,
         // clips correctly at raised surfaces, and translucent lower walls stay
         // visible instead of whole buildings disappearing below the plane.
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL);
+        gl.disable(gl.CULL_FACE);
         gl.depthMask(false);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         gl.depthMask(true);
@@ -473,6 +489,18 @@
     };
   }
 
+  function syncFloodPresentationMode() {
+    if (!glMap || !glStyleReady) return;
+    var pitched = glMap.getPitch() > 10;
+    if (glMap.getLayer("nw-flood-drape")) {
+      glMap.setLayoutProperty("nw-flood-drape", "visibility", visibility(!pitched));
+    }
+    if (floodPlaneLayer && typeof floodPlaneLayer.setVisible === "function") {
+      floodPlaneLayer.setVisible(pitched);
+    }
+    document.body.dataset.map3dFloodRenderer = pitched ? "flat-depth-plane" : "stable-image-layer";
+  }
+
   function syncFloodLayer3d() {
     if (!glMap || !glStyleReady) return;
     var url = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
@@ -484,6 +512,7 @@
       floodRemovalTimer = window.setTimeout(function () {
         var activeUrl = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
         if (activeUrl) return;
+        removeLayerAndSource("nw-flood-drape", "nw-flood-drape-source");
         removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
         floodPlaneLayer = null;
         document.body.dataset.map3dFloodTexture = "empty";
@@ -495,14 +524,28 @@
       floodRemovalTimer = null;
     }
     var stageNavd88 = Number(getSelectedStageNavd88());
+    var pitched = glMap.getPitch() > 10;
     var options = {
       url: url,
       coordinates: coordinates,
       opacity: overlayOpacity,
+      visible: pitched,
       altitudeMeters: Number.isFinite(stageNavd88)
         ? stageNavd88 * 0.3048 * TERRAIN_EXAGGERATION
         : 0
     };
+    // Top-down mode uses MapLibre's native image source, which remains in one
+    // stable style layer while the camera pans or rotates. The preloaded flat
+    // depth plane is reserved for pitched 3D, where water must meet terrain
+    // and building walls instead of stretching over the DEM.
+    updateImageLayer({
+      sourceId: "nw-flood-drape-source",
+      layerId: "nw-flood-drape",
+      url: url,
+      coordinates: coordinates,
+      opacity: overlayOpacity,
+      visible: !pitched
+    });
     if (glMap.getSource("nw-flood-source")) removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
     if (!glMap.getLayer("nw-flood-overlay")) {
       floodPlaneLayer = createFlatFloodPlane(options);
@@ -510,6 +553,7 @@
     } else if (floodPlaneLayer && typeof floodPlaneLayer.update === "function") {
       floodPlaneLayer.update(options);
     }
+    syncFloodPresentationMode();
     document.body.dataset.map3dFloodSurface = "flat-water-overlay";
     document.body.dataset.map3dFloodDepthMode = "independent";
     document.body.dataset.map3dFloodGeometry = currentFloodLayer && currentFloodLayer._worldFileAffine
@@ -721,6 +765,7 @@
     if (!glMap || !glStyleReady) return;
     var syncOptions = options || {};
     var enabled = layerVisible("buildingsToggle", false);
+    setBasemapBuildingExtrusionsEnabled(enabled);
     if (!enabled && !syncOptions.preload && !glMap.getSource("nw-buildings-source")) {
       setStatus("3D terrain ×4");
       return;
@@ -784,6 +829,7 @@
     if (!glMap.getLayer("nw-3d-buildings")) return;
     glMap.setLayoutProperty("nw-building-outlines", "visibility", visibility(enabled));
     glMap.setLayoutProperty("nw-3d-buildings", "visibility", visibility(enabled));
+    setBasemapBuildingExtrusionsEnabled(enabled);
     setStatus(enabled
       ? "3D terrain ×4 • " + Number(buildingData.features.length).toLocaleString("en-US") + " buildings"
       : "3D terrain ×4");
@@ -862,6 +908,58 @@
     updateDiagnostics();
   }
 
+  function setBasemapBuildingExtrusionsEnabled(enabled) {
+    if (!glMap) return;
+    basemapBuildingExtrusionLayerIds.forEach(function (layerId) {
+      if (glMap.getLayer(layerId)) {
+        glMap.setLayoutProperty(layerId, "visibility", visibility(enabled));
+      }
+    });
+  }
+
+  function installBasemapBuildingExtrusions() {
+    if (!glMap || basemapBuildingExtrusionLayerIds.length) return;
+    var sourceLayers = ["Daylight building", "OSM building", "OSM major building"];
+    var styleLayers = (glMap.getStyle().layers || []).filter(function (layer) {
+      return layer.type === "fill" && sourceLayers.indexOf(layer["source-layer"]) >= 0;
+    });
+    styleLayers.forEach(function (layer, index) {
+      var layerId = "nw-basemap-building-extrusion-" + index;
+      var fallbackLayer = {
+        id: layerId,
+        type: "fill-extrusion",
+        source: layer.source,
+        "source-layer": layer["source-layer"],
+        minzoom: Math.max(14, Number(layer.minzoom) || 14),
+        layout: { visibility: visibility(layerVisible("buildingsToggle", false)) },
+        paint: {
+          "fill-extrusion-color": "#ddd7cb",
+          // Fill footprints omitted from the static height asset with a
+          // conservative one-story extrusion. The screened NSI/OSM buildings
+          // render on top, so this fallback never invents a tall structure.
+          "fill-extrusion-height": [
+            "case",
+            ["has", "height"],
+            ["max", 3.6, ["min", 30, ["to-number", ["get", "height"], 3.9]]],
+            ["has", "building:levels"],
+            ["max", 3.6, ["min", 19.5, ["+", 1.2, ["*", 3.05, ["to-number", ["get", "building:levels"], 1]]]]],
+            3.9
+          ],
+          "fill-extrusion-base": 0,
+          "fill-extrusion-opacity": 0.98,
+          "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
+          "fill-extrusion-vertical-gradient": true
+        }
+      };
+      if (Number.isFinite(Number(layer.maxzoom))) fallbackLayer.maxzoom = Number(layer.maxzoom);
+      if (layer.filter) fallbackLayer.filter = layer.filter;
+      glMap.addLayer(fallbackLayer, glMap.getLayer("nw-boundary-mask") ? "nw-boundary-mask" : undefined);
+      basemapBuildingExtrusionLayerIds.push(layerId);
+    });
+    document.body.dataset.buildings3dFallbackLayers = String(basemapBuildingExtrusionLayerIds.length);
+    document.body.dataset.buildings3dCoverage = "live-vector-footprint-fallback";
+  }
+
   function addCore3dLayers() {
     glMap.addSource("nw-terrain", {
       type: "raster-dem",
@@ -908,6 +1006,8 @@
         }
       });
     }
+
+    installBasemapBuildingExtrusions();
 
     glMap.addSource("nw-road-labels-source", {
       type: "raster",
@@ -1022,6 +1122,7 @@
       ["pitch", "rotate", "zoom"].forEach(function (eventName) {
         glMap.on(eventName, schedulePersistentNavControlSync);
       });
+      glMap.on("pitch", syncFloodPresentationMode);
       glMap.on("moveend", syncPersistentNavControl);
       syncPersistentNavControl();
       glMap.on("error", function (event) {
@@ -1114,6 +1215,7 @@
     };
     var buildingsEnabled = layerVisible("buildingsToggle", false);
     var hasBuildings = Boolean(mapInstance.getLayer("nw-3d-buildings"));
+    setBasemapBuildingExtrusionsEnabled(true);
     if (hasBuildings) {
       mapInstance.setLayoutProperty("nw-building-outlines", "visibility", "visible");
       mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", "visible");
@@ -1133,6 +1235,7 @@
         mapInstance.setLayoutProperty("nw-building-outlines", "visibility", visibility(buildingsEnabled));
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(buildingsEnabled));
       }
+      setBasemapBuildingExtrusionsEnabled(buildingsEnabled);
     }
     await waitFor3dMapIdle(mapInstance, 45000);
     document.body.dataset.map3dCameraWarmup = "ready";
@@ -1177,7 +1280,7 @@
     control.className = "nw-simple-control";
     control.setAttribute("aria-label", "Map navigation");
     control.innerHTML = [
-      '<div class="nw-direction-wheel" role="application" tabindex="0" aria-label="Viewpoint wheel. Choose north, east, south, west, or any direction between to rotate the 3D viewing angle.">',
+      '<div class="nw-direction-wheel" role="application" tabindex="0" aria-label="Viewpoint wheel. Choose north, east, south, west, or any direction between to rotate the map viewing direction.">',
       '  <span class="nw-wheel-cardinal nw-wheel-n" aria-hidden="true">N</span>',
       '  <span class="nw-wheel-cardinal nw-wheel-e" aria-hidden="true">E</span>',
       '  <span class="nw-wheel-cardinal nw-wheel-s" aria-hidden="true">S</span>',
@@ -1258,6 +1361,7 @@
       // The pitched renderer has already been warmed behind the loader. An
       // atomic camera update avoids a costly multi-frame terrain rebuild.
       glMap.jumpTo(camera);
+      syncFloodPresentationMode();
       if (modeTransitionTimer) window.clearTimeout(modeTransitionTimer);
       modeTransitionTimer = window.setTimeout(finishModeTransition, 120);
       requestAnimationFrame(function () {
@@ -1312,20 +1416,18 @@
       toast("3D terrain could not load. The 2D map is still available.");
     }
 
-    function applyViewpoint(bearing, duration) {
+    async function applyViewpoint(bearing, duration) {
       if (!Number.isFinite(bearing)) return;
       pendingBearing = bearing;
       if (!map3dReady()) {
-        activate3d(bearing);
-        return;
+        var nextMap = await ensure3dMap();
+        if (!nextMap) return;
       }
-      if (!actual3dMode() || launcher.getAttribute("aria-busy") === "true") {
-        if (launcher.getAttribute("aria-busy") !== "true") transitionMode(true, bearing);
-        return;
-      }
+      if (launcher.getAttribute("aria-busy") === "true") return;
       glMap.stop();
       if (duration) glMap.easeTo({ bearing: bearing, duration: duration });
       else glMap.jumpTo({ bearing: bearing });
+      syncPersistentNavControl();
     }
 
     launcher.addEventListener("click", function () {
@@ -1465,6 +1567,9 @@
   applyOverlayOpacity = function () {
     var result = originalApplyOverlayOpacity.apply(this, arguments);
     if (floodPlaneLayer && typeof floodPlaneLayer.setOpacity === "function") floodPlaneLayer.setOpacity(overlayOpacity);
+    if (glMap && glMap.getLayer("nw-flood-drape")) {
+      glMap.setPaintProperty("nw-flood-drape", "raster-opacity", overlayOpacity);
+    }
     return result;
   };
 
