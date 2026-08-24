@@ -513,6 +513,19 @@
     document.body.dataset.map3dFloodRenderer = pitched ? "flat-overlay-plane" : "stable-image-layer";
   }
 
+  function placeFloodBelowBuildingDepthPass() {
+    if (!glMap || !glMap.getLayer("nw-flood-overlay")) return;
+    var buildingLayerIds = basemapBuildingExtrusionLayerIds.concat([
+      "nw-building-outlines",
+      "nw-3d-buildings"
+    ]);
+    var firstBuildingLayer = (glMap.getStyle().layers || []).find(function (layer) {
+      return buildingLayerIds.indexOf(layer.id) >= 0;
+    });
+    if (firstBuildingLayer) glMap.moveLayer("nw-flood-overlay", firstBuildingLayer.id);
+    document.body.dataset.map3dFloodBuildingOcclusion = firstBuildingLayer ? "opaque-depth-pass" : "not-required";
+  }
+
   function syncFloodLayer3d() {
     if (!glMap || !glStyleReady) return;
     var url = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
@@ -566,9 +579,7 @@
     } else if (floodPlaneLayer && typeof floodPlaneLayer.update === "function") {
       floodPlaneLayer.update(options);
     }
-    if (glMap.getLayer("nw-flood-overlay") && glMap.getLayer("nw-building-outlines")) {
-      glMap.moveLayer("nw-flood-overlay", "nw-building-outlines");
-    }
+    placeFloodBelowBuildingDepthPass();
     syncFloodPresentationMode();
     document.body.dataset.map3dFloodSurface = "flat-water-overlay";
     document.body.dataset.map3dFloodDepthMode = "independent";
@@ -823,7 +834,10 @@
           "fill-extrusion-color": "#ddd7cb",
           "fill-extrusion-height": ["to-number", ["get", "renderHeightM"], 3],
           "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 0.98,
+          // Fully opaque extrusions form a stable occlusion pass above the
+          // terrain-independent water plane. Fractional opacity is dithered by
+          // MapLibre and produced cyan stippling that shimmered on wall faces.
+          "fill-extrusion-opacity": 1,
           "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
           "fill-extrusion-vertical-gradient": true
         }
@@ -837,13 +851,10 @@
           glMap.getCanvas().style.cursor = "";
         });
       }
-      // Draw the flat water before the opaque buildings. Terrain depth clips
-      // the water first, then the building extrusion covers the water and the
-      // water naturally meets its walls. Keeping the translucent sheet out of
-      // the completed building depth pass prevents camera-dependent fighting.
-      if (glMap.getLayer("nw-flood-overlay") && glMap.getLayer("nw-building-outlines")) {
-        glMap.moveLayer("nw-flood-overlay", "nw-building-outlines");
-      }
+      // Draw water before every building source, including live-vector
+      // fallbacks. The opaque extrusion pass then masks the water cleanly at
+      // each wall instead of alpha-dithering cyan fragments through it.
+      placeFloodBelowBuildingDepthPass();
     }
     if (!glMap.getLayer("nw-3d-buildings")) return;
     glMap.setLayoutProperty("nw-building-outlines", "visibility", visibility(enabled));
@@ -912,7 +923,11 @@
     var changed = Math.abs(current.lng - center.lng) > 0.000001 ||
       Math.abs(current.lat - center.lat) > 0.000001 ||
       Math.abs(glMap.getZoom() - zoom) > 0.001;
-    if (!changed) return;
+    if (!changed) {
+      document.body.dataset.map3dLeafletSync = "skipped-bearing-only";
+      return;
+    }
+    document.body.dataset.map3dLeafletSync = "center-or-zoom";
     syncingFromLeaflet = true;
     glMap.jumpTo({ center: [center.lng, center.lat], zoom: Math.min(MAP_MAX_ZOOM, zoom) });
     syncingFromLeaflet = false;
@@ -921,8 +936,18 @@
   function sync3dViewToLeaflet() {
     if (!glMap || !map || syncingFromLeaflet || syncingModeTransition) return;
     var center = glMap.getCenter();
+    var leafletCenter = map.getCenter();
+    var targetZoom = Math.min(MAP_MAX_ZOOM, glMap.getZoom());
+    // Bearing and pitch have no Leaflet equivalent. Guard against any
+    // redundant move-end signal so a compass-only camera change can never
+    // force the hidden 2D PNG and Leaflet overlays to rebuild beneath WebGL.
+    var changed = !leafletCenter ||
+      Math.abs(Number(leafletCenter.lng) - Number(center.lng)) > 0.000001 ||
+      Math.abs(Number(leafletCenter.lat) - Number(center.lat)) > 0.000001 ||
+      Math.abs(Number(map.getZoom()) - targetZoom) > 0.001;
+    if (!changed) return;
     syncingFrom3d = true;
-    map.setView([center.lat, center.lng], Math.min(MAP_MAX_ZOOM, glMap.getZoom()), { animate: false });
+    map.setView([center.lat, center.lng], targetZoom, { animate: false });
     syncingFrom3d = false;
     updateDiagnostics();
   }
@@ -965,7 +990,7 @@
             3.9
           ],
           "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 0.98,
+          "fill-extrusion-opacity": 1,
           "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
           "fill-extrusion-vertical-gradient": true
         }
@@ -1241,32 +1266,50 @@
       mapInstance.setLayoutProperty("nw-building-outlines", "visibility", "visible");
       mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", "visible");
       mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 0);
-      mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 0.01);
+      // The loader covers this pass. Render the final opaque material now so
+      // the first visible compass gesture does not compile or populate a
+      // different extrusion path than the one that was warmed.
+      mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
     }
     try {
-      // Exercise the expensive pitched terrain and extrusion path while the
-      // loading screen still covers the canvas, then return to true 2D.
-      mapInstance.jumpTo({ pitch: THREE_D_PITCH, bearing: DEFAULT_BEARING });
-      await waitFor3dMapIdle(mapInstance, 45000);
-      // Warm both the diagonal and quarter-turn top-down footprints. A wide
-      // viewport can need a different row of terrain tiles at 90 degrees than
-      // at 45 degrees, which otherwise stalls the first east/west wheel drag.
-      mapInstance.jumpTo({ pitch: DEFAULT_PITCH, bearing: 45 });
-      await waitFor3dMapIdle(mapInstance, 45000);
-      mapInstance.jumpTo({ pitch: DEFAULT_PITCH, bearing: 90 });
-      await waitFor3dMapIdle(mapInstance, 45000);
+      // Exercise every distinct pitched cardinal footprint while the loading
+      // screen still covers the canvas. Previously only north-facing 3D was
+      // warmed; the first south/west compass sweep had to fetch terrain and
+      // rebuild extrusion buckets after the site was already interactive.
+      var overviewWarmZoom = Number(originalCamera.zoom);
+      var streetWarmZoom = Math.min(MAP_MAX_ZOOM, overviewWarmZoom + 5);
+      var warmCameras = [];
+      [overviewWarmZoom, streetWarmZoom].forEach(function (zoom) {
+        [0, 45, 90, 135, 180, 225, 270, 315].forEach(function (bearing) {
+          warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: zoom });
+        });
+      });
+      // Top-down diagonal and quarter-turn footprints keep NSEW rotation
+      // responsive without forcing the user into 3D.
+      warmCameras.push(
+        { pitch: DEFAULT_PITCH, bearing: 45, zoom: overviewWarmZoom },
+        { pitch: DEFAULT_PITCH, bearing: 90, zoom: overviewWarmZoom }
+      );
+      for (var warmIndex = 0; warmIndex < warmCameras.length; warmIndex += 1) {
+        mapInstance.jumpTo(warmCameras[warmIndex]);
+        await waitFor3dMapIdle(mapInstance, 45000);
+      }
     } finally {
       mapInstance.jumpTo(originalCamera);
       if (hasBuildings) {
         mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 1);
-        mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 0.98);
+        mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
         mapInstance.setLayoutProperty("nw-building-outlines", "visibility", visibility(buildingsEnabled));
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(buildingsEnabled));
       }
       setBasemapBuildingExtrusionsEnabled(buildingsEnabled);
     }
     await waitFor3dMapIdle(mapInstance, 45000);
-    document.body.dataset.map3dBearingWarmupAngles = "0,45,90";
+    document.body.dataset.map3dBearingWarmupAngles = "3d:0,45,90,135,180,225,270,315;2d:45,90";
+    document.body.dataset.map3dBearingWarmupZooms = [overviewWarmZoom, streetWarmZoom].map(function (zoom) {
+      return Number(zoom).toFixed(2);
+    }).join(",");
+    document.body.dataset.map3dWheelPreloaded = "true";
     document.body.dataset.map3dBearingWarmup = "ready";
     document.body.dataset.map3dCameraWarmup = "ready";
     syncPersistentNavControl();
@@ -1331,6 +1374,7 @@
     var queuedViewpointBearing = null;
     var queuedViewpointDuration = 0;
     var viewpointAnimationFrame = 0;
+    var lastPointerCameraUpdate = 0;
     var activePointer = null;
     var desired3dMode = false;
     var modeTransitionTimer = null;
@@ -1436,13 +1480,24 @@
       var selectedBearing = pendingPointerBearing;
       pendingPointerBearing = null;
       resetDefaultWheel();
-      // A pitched terrain camera rebuilds its depth surface whenever its
-      // matrix changes. Let the knob follow the pointer immediately, but
-      // commit one atomic map bearing on release instead of rebuilding the
-      // terrain for every pointer sample.
+      // Always commit the exact final bearing. Live previews are deliberately
+      // throttled below so this remains one bounded final camera update rather
+      // than a terrain rebuild for every raw pointer sample.
       if (commit && Number.isFinite(selectedBearing)) {
         applyViewpoint(selectedBearing, 0);
       }
+    }
+
+    function previewDefaultWheel(bearing) {
+      if (!Number.isFinite(bearing)) return;
+      var now = performance.now();
+      // Pitched terrain is the expensive path. Ten preview frames per second
+      // feel continuous while keeping the render queue bounded; top-down can
+      // update twice as often. Cardinal camera footprints are already warm.
+      var interval = actual3dMode() ? 96 : 48;
+      if (lastPointerCameraUpdate && now - lastPointerCameraUpdate < interval) return;
+      lastPointerCameraUpdate = now;
+      applyViewpoint(bearing, 0);
     }
 
     async function activate3d(requestedBearing) {
@@ -1528,13 +1583,16 @@
     wheel.addEventListener("pointerdown", function (event) {
       event.preventDefault();
       activePointer = event.pointerId;
+      lastPointerCameraUpdate = 0;
       wheel.classList.add("is-active");
       try { wheel.setPointerCapture(activePointer); } catch (_) {}
       pendingPointerBearing = updateDefaultWheel(event.clientX, event.clientY);
+      previewDefaultWheel(pendingPointerBearing);
     });
     wheel.addEventListener("pointermove", function (event) {
       if (event.pointerId !== activePointer) return;
       pendingPointerBearing = updateDefaultWheel(event.clientX, event.clientY);
+      previewDefaultWheel(pendingPointerBearing);
     });
     wheel.addEventListener("pointerup", function (event) { finishDefaultWheel(event, true); });
     wheel.addEventListener("pointercancel", function (event) { finishDefaultWheel(event, false); });
@@ -1551,7 +1609,9 @@
       applyViewpoint(bearings[event.key], 0);
     });
     host.appendChild(control);
-    control.dataset.wheelCameraUpdates = "commit-on-release";
+    control.dataset.wheelCameraUpdates = "throttled-live-preview";
+    control.dataset.wheelPreview3dMs = "96";
+    control.dataset.wheelPreview2dMs = "48";
     if (!document.body.dataset.map3d) document.body.dataset.map3d = "idle";
     syncPersistentNavControl();
   }
