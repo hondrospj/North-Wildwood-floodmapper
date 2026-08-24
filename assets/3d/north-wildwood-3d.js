@@ -977,10 +977,11 @@
         fadeDuration: 0,
         maxTileCacheZoomLevels: 8,
         // Cap Retina canvas density so a full-screen map does not attempt to
-        // redraw roughly four times as many pixels on every drag frame. A 1x
-        // map canvas remains clear while CSS controls retain native Retina
-        // sharpness, leaving headroom for terrain, flood, and buildings.
-        pixelRatio: Math.min(1, Number(window.devicePixelRatio) || 1),
+        // redraw roughly four times as many pixels on every drag frame. A
+        // 0.75x map canvas stays clear in motion while CSS controls retain
+        // native Retina sharpness, leaving headroom for terrain, flood, and
+        // buildings instead of checkerboarding the whole page.
+        pixelRatio: Math.min(0.75, Number(window.devicePixelRatio) || 1),
         // MapLibre's supported no-inertia path avoids an expensive terrain
         // glide after every pointer release and makes mode changes atomic.
         reduceMotion: true,
@@ -1031,7 +1032,7 @@
       document.body.dataset.map3d = "ready";
       document.body.dataset.terrainExaggeration = String(TERRAIN_EXAGGERATION);
       document.body.dataset.map3dMaxZoom = String(MAP_MAX_ZOOM);
-      document.body.dataset.map3dPixelRatio = String(Math.min(1, Number(window.devicePixelRatio) || 1));
+      document.body.dataset.map3dPixelRatio = String(Math.min(0.75, Number(window.devicePixelRatio) || 1));
       document.body.dataset.map3dPitch = String(glMap.getPitch());
       await syncBuildings3d({ preload: true });
       updateDiagnostics();
