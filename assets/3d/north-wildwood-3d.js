@@ -6,12 +6,6 @@
   var DEFAULT_PITCH = 0;
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
-  // Keep the visual water sheet a few real-world centimetres above its
-  // physical stage. At 4x terrain exaggeration, a mathematically coincident
-  // surface can alternate in front of and behind the DEM as the camera turns.
-  // This render-only epsilon prevents that depth fighting without changing
-  // any flood depth, threshold, popup, or exported value.
-  var WATER_SURFACE_EPSILON_METERS = 0.08;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
   var MAPLIBRE_JS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js";
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
@@ -298,10 +292,14 @@
     return {
       id: "nw-flood-overlay",
       type: "custom",
-      // Floodwater is a level plane, not terrain skin. The 3D rendering mode
-      // shares MapLibre's depth buffer so terrain and building walls intersect
-      // the plane naturally while the plane itself remains perfectly flat.
-      renderingMode: "3d",
+      // Floodwater is a level plane, not terrain skin. The PNG already contains
+      // the DEM/connectivity wet mask, so asking the live terrain depth buffer
+      // to clip it a second time makes the surface disappear for several frames
+      // whenever zoom changes the camera matrix. A 2D custom render mode still
+      // projects these true 3D Mercator vertices at their physical altitude,
+      // but composites the wet pixels independently of transient terrain depth.
+      // Opaque buildings are ordered after this layer and remain above it.
+      renderingMode: "2d",
       map: null,
       gl: null,
       program: null,
@@ -475,18 +473,15 @@
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.uniform1i(this.imageLocation, 0);
-        // MapLibre establishes its 3D depth/blend state for this custom layer.
-        // Read terrain/building depth without replacing it: water remains flat,
-        // clips correctly at raised surfaces, and translucent lower walls stay
-        // visible instead of whole buildings disappearing below the plane.
+        // The flood image has already been clipped against the DEM and hydraulic
+        // connectivity. Keep the GPU terrain depth test out of this pass so a
+        // zoom/pan/rotation cannot put the ready PNG behind newly rebuilt tiles.
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-        gl.enable(gl.DEPTH_TEST);
-        gl.depthFunc(gl.LEQUAL);
+        gl.disable(gl.DEPTH_TEST);
         gl.disable(gl.CULL_FACE);
         gl.depthMask(false);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
-        gl.depthMask(true);
         gl.bindVertexArray(null);
       },
 
@@ -515,7 +510,7 @@
     if (floodPlaneLayer && typeof floodPlaneLayer.setVisible === "function") {
       floodPlaneLayer.setVisible(pitched);
     }
-    document.body.dataset.map3dFloodRenderer = pitched ? "flat-depth-plane" : "stable-image-layer";
+    document.body.dataset.map3dFloodRenderer = pitched ? "flat-overlay-plane" : "stable-image-layer";
   }
 
   function syncFloodLayer3d() {
@@ -550,7 +545,7 @@
       coordinates: coordinates,
       opacity: overlayOpacity,
       visible: pitched,
-      altitudeMeters: physicalAltitudeMeters + WATER_SURFACE_EPSILON_METERS * TERRAIN_EXAGGERATION
+      altitudeMeters: physicalAltitudeMeters
     };
     // Top-down mode uses MapLibre's native image source, which remains in one
     // stable style layer while the camera pans or rotates. The preloaded flat
@@ -582,7 +577,7 @@
       : "axis-aligned";
     document.body.dataset.map3dFloodAltitudeMeters = options.altitudeMeters.toFixed(3);
     document.body.dataset.map3dFloodPhysicalAltitudeMeters = physicalAltitudeMeters.toFixed(3);
-    document.body.dataset.map3dFloodSurfaceEpsilonMeters = WATER_SURFACE_EPSILON_METERS.toFixed(3);
+    document.body.dataset.map3dFloodCompositing = "terrain-independent";
   }
 
   function syncSatellite3d() {
