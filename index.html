@@ -14637,7 +14637,6 @@ html.win-compact-ui #timelineDock #hourSlider{
       <h1>North Wildwood Flood Mapper</h1>
       <p id="nwLoaderStatus" class="nw-loader-status">Preparing forecast and map data…</p>
       <div class="nw-loader-progress" aria-hidden="true"><span id="nwLoaderProgress"></span></div>
-      <div class="nw-loader-foot">Street-level flood intelligence</div>
     </div>
   </div>
   <div id="topBanner">
@@ -14869,9 +14868,8 @@ html.win-compact-ui #timelineDock #hourSlider{
       <div id="map3dStatus" role="status">3D terrain ×4</div>
       <output id="map3dDiagnostics" hidden aria-hidden="true"></output>
       <div id="mapClickModeControl" class="map-click-mode-control" role="group" aria-label="Choose what happens when you tap the map" hidden>
-        <span class="map-click-mode-label">Tap map for</span>
-        <button id="mapClickBuildingBtn" type="button" data-map-click-mode="building" aria-label="Building information" aria-pressed="true">Info</button>
-        <button id="mapClickDepthBtn" type="button" data-map-click-mode="depth" aria-label="Water depth" aria-pressed="false">Depth</button>
+        <button id="mapClickBuildingBtn" type="button" data-map-click-mode="building" aria-label="Building Info" aria-pressed="true">Building Info</button>
+        <button id="mapClickDepthBtn" type="button" data-map-click-mode="depth" aria-label="Flood Depth" aria-pressed="false">Flood Depth</button>
       </div>
 <aside id="rightRail" class="map-floating">
         <section class="rail-card right-logo-card" aria-label="Client logo">
@@ -15286,7 +15284,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     .nsi-structure-grid{display:grid;grid-template-columns:1fr auto;gap:5px 12px;margin-bottom:10px;padding:10px 11px;border:1px solid rgba(125,249,255,.17);border-radius:12px;background:rgba(14,116,144,.12);color:#a9bad3;font-size:10px}
     .nsi-structure-grid strong{color:#fff;text-align:right}
     .nsi-impact-status{margin-bottom:8px;padding:7px 9px;border-radius:9px;background:rgba(15,31,54,.82);color:#d8e5f5;font-size:10px;font-weight:850;line-height:1.3}
-    .map-click-mode-control{position:fixed;z-index:780;top:max(72px,calc(env(safe-area-inset-top) + 64px));left:50%;display:grid;grid-template-columns:auto auto auto;align-items:center;gap:4px;padding:5px;border:1px solid rgba(125,249,255,.26);border-radius:14px;background:rgba(8,15,31,.94);box-shadow:0 14px 38px rgba(2,6,23,.42),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(14px);transform:translateX(-50%);white-space:nowrap}
+    .map-click-mode-control{position:fixed;z-index:780;top:max(72px,calc(env(safe-area-inset-top) + 64px));left:50%;display:grid;grid-template-columns:repeat(2,auto);align-items:center;gap:4px;padding:5px;border:1px solid rgba(125,249,255,.26);border-radius:14px;background:rgba(8,15,31,.94);box-shadow:0 14px 38px rgba(2,6,23,.42),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(14px);transform:translateX(-50%);white-space:nowrap}
     .map-click-mode-control[hidden]{display:none!important}
     .map-click-mode-label{padding:0 5px 0 7px;color:#8fa5bf;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
     .map-click-mode-control button{min-height:31px;padding:0 11px;border:1px solid transparent;border-radius:9px;background:transparent;color:#a9bad3;font-size:10px;font-weight:900;cursor:pointer}
@@ -19625,8 +19623,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       const depthButton = document.getElementById("mapClickDepthBtn");
       if (!control || !buildingButton || !depthButton) return;
       control.hidden = !parcelInfoInteractionEnabled();
-      buildingButton.textContent = "Info";
-      depthButton.textContent = "Depth";
+      buildingButton.textContent = "Building Info";
+      depthButton.textContent = "Flood Depth";
       buildingButton.classList.toggle("active", mapClickMode === "building");
       depthButton.classList.toggle("active", mapClickMode === "depth");
       buildingButton.setAttribute("aria-pressed", String(mapClickMode === "building"));
@@ -35916,7 +35914,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v24"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v25"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
@@ -37701,8 +37699,8 @@ html body #mapTitleBadge #mapTitleLogo{
       white-space:nowrap !important;
     }
 
-    html body.mobile-optimized #mapClickBuildingBtn::after{content:"Info"}
-    html body.mobile-optimized #mapClickDepthBtn::after{content:"Depth"}
+    html body.mobile-optimized #mapClickBuildingBtn::after{content:"Building Info"}
+    html body.mobile-optimized #mapClickDepthBtn::after{content:"Flood Depth"}
 
     html body.mobile-optimized #shorelyMobileSliderKey{
       left:64px !important;
@@ -39118,6 +39116,37 @@ html body #mapTitleBadge #mapTitleLogo{
     display:none !important;
     visibility:hidden !important;
     pointer-events:none !important;
+  }
+</style>
+<style id="north-wildwood-3d-compositor-stability-v1">
+  /* Live backdrop sampling over a moving WebGL canvas causes Chrome to
+     invalidate strips of fixed UI. The existing opaque panel colors remain;
+     only the expensive live blur is disabled once MapLibre owns the map. */
+  html body.map-3d-ready #app *,
+  html body.map-3d-ready #topBanner{
+    -webkit-backdrop-filter:none !important;
+    backdrop-filter:none !important;
+  }
+  html body.map-3d-ready #leftPanel,
+  html body.map-3d-ready #rightRail,
+  html body.map-3d-ready #timelineDock,
+  html body.map-3d-ready #timelineBubble,
+  html body.map-3d-ready #topBanner,
+  html body.map-3d-ready #mapTitleBadge,
+  html body.map-3d-ready #mapClickModeControl,
+  html body.map-3d-ready #nwDefaultNavControl{
+    isolation:isolate;
+    will-change:transform;
+    translate:0 0 1px;
+    -webkit-backface-visibility:hidden;
+    backface-visibility:hidden;
+  }
+  html body.map-3d-ready #map3d{
+    contain:strict;
+    isolation:isolate;
+    transform:translateZ(0);
+    -webkit-backface-visibility:hidden;
+    backface-visibility:hidden;
   }
 </style>
 </body>
