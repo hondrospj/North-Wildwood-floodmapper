@@ -1249,6 +1249,23 @@
     });
   }
 
+  function warm3dCameraFootprint(mapInstance, timeoutMs) {
+    return new Promise(function (resolve) {
+      var settled = false;
+      var timeout = window.setTimeout(function () { finish(false); }, Math.max(250, Number(timeoutMs) || 750));
+      function finish(loaded) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        mapInstance.off("idle", onIdle);
+        requestAnimationFrame(function () { resolve(Boolean(loaded)); });
+      }
+      function onIdle() { finish(true); }
+      mapInstance.once("idle", onIdle);
+      mapInstance.triggerRepaint();
+    });
+  }
+
   async function warm3dCamera(mapInstance) {
     if (document.body.dataset.map3dCameraWarmup === "ready") return;
     document.body.dataset.map3dCameraWarmup = "loading";
@@ -1290,9 +1307,17 @@
         { pitch: DEFAULT_PITCH, bearing: 45, zoom: overviewWarmZoom },
         { pitch: DEFAULT_PITCH, bearing: 90, zoom: overviewWarmZoom }
       );
+      var fullySettledWarmCameras = 0;
       for (var warmIndex = 0; warmIndex < warmCameras.length; warmIndex += 1) {
         mapInstance.jumpTo(warmCameras[warmIndex]);
-        await waitFor3dMapIdle(mapInstance, 45000);
+        // Enqueue and compile every footprint, but never let a cold DEM tile
+        // keep the whole site behind its loader. Pitched views get a slightly
+        // larger slice of the fixed warmup budget than top-down rotations.
+        var footprintSettled = await warm3dCameraFootprint(
+          mapInstance,
+          warmCameras[warmIndex].pitch > 10 ? 850 : 450
+        );
+        if (footprintSettled) fullySettledWarmCameras += 1;
       }
     } finally {
       mapInstance.jumpTo(originalCamera);
@@ -1307,6 +1332,8 @@
     await waitFor3dMapIdle(mapInstance, 45000);
     document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:45,90";
     document.body.dataset.map3dBearingWarmupZooms = Number(overviewWarmZoom).toFixed(2);
+    document.body.dataset.map3dBearingWarmupSettled = String(fullySettledWarmCameras) + "/" + String(warmCameras.length);
+    document.body.dataset.map3dBearingWarmupBudgetMs = "4300";
     document.body.dataset.map3dWheelPreloaded = "true";
     document.body.dataset.map3dBearingWarmup = "ready";
     document.body.dataset.map3dCameraWarmup = "ready";
