@@ -22,6 +22,7 @@
   var mapLibreRuntimePromise = null;
   var mapStylePromise = null;
   var floodPlaneLayer = null;
+  var floodRemovalTimer = null;
   var syncingFromLeaflet = false;
   var syncingFrom3d = false;
   var syncingModeTransition = false;
@@ -265,7 +266,9 @@
     return {
       id: "nw-flood-overlay",
       type: "custom",
-      renderingMode: "3d",
+      // Floodwater is a level surface, not terrain skin. A 2D custom layer keeps
+      // MapLibre's terrain depth buffer from hiding or warping the water plane.
+      renderingMode: "2d",
       map: null,
       gl: null,
       program: null,
@@ -276,6 +279,7 @@
       positionLocation: -1,
       textureLocation: -1,
       textureReady: false,
+      textureLoadPromise: Promise.resolve(false),
       imageToken: 0,
       url: initial.url || "",
       coordinates: initial.coordinates || null,
@@ -341,26 +345,40 @@
       },
 
       loadTexture: function (url) {
-        if (!this.gl || !url) return;
+        if (!this.gl || !url) return Promise.resolve(false);
         var self = this;
         var token = ++this.imageToken;
         var image = new Image();
         image.crossOrigin = "anonymous";
         image.decoding = "async";
-        image.onload = function () {
-          if (token !== self.imageToken || !self.gl || !self.texture) return;
-          var gl = self.gl;
-          gl.bindTexture(gl.TEXTURE_2D, self.texture);
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-          gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-          self.textureReady = true;
-          if (self.map) self.map.triggerRepaint();
-        };
-        image.onerror = function () {
-          if (token === self.imageToken) self.textureReady = false;
-        };
+        document.body.dataset.map3dFloodTexture = self.textureReady ? "updating" : "loading";
+        this.textureLoadPromise = new Promise(function (resolve) {
+          image.onload = function () {
+            if (token !== self.imageToken || !self.gl || !self.texture) {
+              resolve(false);
+              return;
+            }
+            var gl = self.gl;
+            gl.bindTexture(gl.TEXTURE_2D, self.texture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+            self.textureReady = true;
+            document.body.dataset.map3dFloodTexture = "ready";
+            if (self.map) self.map.triggerRepaint();
+            resolve(true);
+          };
+          image.onerror = function () {
+            if (token === self.imageToken) {
+              // Keep the last fully uploaded frame visible. A failed replacement
+              // must not flash a transparent map or destroy a valid flood frame.
+              document.body.dataset.map3dFloodTexture = self.textureReady ? "stale" : "unavailable";
+            }
+            resolve(false);
+          };
+        });
         image.src = url;
+        return this.textureLoadPromise;
       },
 
       update: function (next) {
@@ -371,7 +389,8 @@
         this.opacity = Math.max(0, Math.min(1, Number(next.opacity)));
         this.updateGeometry();
         if (this.url && this.url !== priorUrl) {
-          this.textureReady = false;
+          // The old texture remains on the GPU until the replacement is decoded
+          // and uploaded, preventing flashes during timeline and camera movement.
           this.loadTexture(this.url);
         }
         if (this.map) this.map.triggerRepaint();
@@ -380,6 +399,10 @@
       setOpacity: function (value) {
         this.opacity = Math.max(0, Math.min(1, Number(value)));
         if (this.map) this.map.triggerRepaint();
+      },
+
+      whenReady: function () {
+        return this.textureLoadPromise || Promise.resolve(this.textureReady);
       },
 
       render: function (gl, args) {
@@ -401,9 +424,15 @@
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.uniform1i(gl.getUniformLocation(this.program, "u_image"), 0);
+        var depthWasEnabled = gl.isEnabled(gl.DEPTH_TEST);
+        var depthWriteWasEnabled = gl.getParameter(gl.DEPTH_WRITEMASK);
+        gl.disable(gl.DEPTH_TEST);
+        gl.depthMask(false);
         gl.enable(gl.BLEND);
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
+        gl.depthMask(depthWriteWasEnabled);
+        if (depthWasEnabled) gl.enable(gl.DEPTH_TEST);
       },
 
       onRemove: function (_, gl) {
@@ -425,9 +454,21 @@
     var url = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
     var coordinates = coordinatesFromLeafletBounds(floodLatLngBounds);
     if (!url || !coordinates) {
-      removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
-      floodPlaneLayer = null;
+      if (floodRemovalTimer) window.clearTimeout(floodRemovalTimer);
+      // clearFloodLayer() is part of normal async frame replacement. Give the
+      // incoming frame time to arrive while the last complete texture remains.
+      floodRemovalTimer = window.setTimeout(function () {
+        var activeUrl = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
+        if (activeUrl) return;
+        removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
+        floodPlaneLayer = null;
+        document.body.dataset.map3dFloodTexture = "empty";
+      }, 2500);
       return;
+    }
+    if (floodRemovalTimer) {
+      window.clearTimeout(floodRemovalTimer);
+      floodRemovalTimer = null;
     }
     var stageNavd88 = Number(getSelectedStageNavd88());
     var options = {
@@ -445,7 +486,8 @@
     } else if (floodPlaneLayer && typeof floodPlaneLayer.update === "function") {
       floodPlaneLayer.update(options);
     }
-    document.body.dataset.map3dFloodSurface = "flat-water-plane";
+    document.body.dataset.map3dFloodSurface = "flat-water-overlay";
+    document.body.dataset.map3dFloodDepthMode = "independent";
     document.body.dataset.map3dFloodAltitudeMeters = options.altitudeMeters.toFixed(3);
   }
 
@@ -965,16 +1007,54 @@
     return glMapPromise;
   }
 
-  async function preload3dAssets() {
+  function waitFor3dMapIdle(mapInstance, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timeout = window.setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        mapInstance.off("idle", onIdle);
+        reject(new Error("The 3D terrain tiles did not finish loading in time."));
+      }, Number(timeoutMs) || 45000);
+      function onIdle() {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        // Let the browser present the idle frame before the site loader fades.
+        requestAnimationFrame(function () {
+          requestAnimationFrame(resolve);
+        });
+      }
+      mapInstance.once("idle", onIdle);
+      mapInstance.triggerRepaint();
+    });
+  }
+
+  async function preload3dAssets(options) {
+    var preloadOptions = options || {};
     await Promise.all([
       loadMapLibreRuntime(),
       load3dStyle(),
       loadBuildingData()
     ]);
     document.body.dataset.map3dPreloaded = "true";
+    if (preloadOptions.initialize) {
+      document.body.dataset.map3dFullyPreloaded = "loading";
+      var mapInstance = await ensure3dMap();
+      if (!mapInstance) throw new Error("The complete 3D map could not be preloaded.");
+      var floodReady = floodPlaneLayer && typeof floodPlaneLayer.whenReady === "function"
+        ? floodPlaneLayer.whenReady()
+        : Promise.resolve(true);
+      await Promise.all([
+        waitFor3dMapIdle(mapInstance, 45000),
+        floodReady
+      ]);
+      document.body.dataset.map3dFullyPreloaded = "ready";
+    }
     return {
       buildings: buildingData && buildingData.features ? buildingData.features.length : 0,
-      terrainExaggeration: TERRAIN_EXAGGERATION
+      terrainExaggeration: TERRAIN_EXAGGERATION,
+      initialized: Boolean(preloadOptions.initialize && glMap)
     };
   }
 
