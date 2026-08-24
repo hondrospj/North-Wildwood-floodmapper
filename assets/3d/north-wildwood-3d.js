@@ -27,7 +27,16 @@
   var syncingFrom3d = false;
   var syncingModeTransition = false;
   var buildingCursorHandlersWired = false;
+  var navControlSyncFrame = null;
   var syncPersistentNavControl = function () {};
+
+  function schedulePersistentNavControlSync() {
+    if (navControlSyncFrame !== null) return;
+    navControlSyncFrame = requestAnimationFrame(function () {
+      navControlSyncFrame = null;
+      syncPersistentNavControl();
+    });
+  }
 
   function setStatus(text) {
     var status = document.getElementById("map3dStatus");
@@ -301,7 +310,7 @@
           'uniform float u_opacity;\n' +
           'in vec2 v_texture;\n' +
           'out vec4 fragColor;\n' +
-          'void main(){ vec4 pixel = texture(u_image, v_texture); float alpha = pixel.a * u_opacity; if(alpha < 0.012) discard; fragColor = vec4(pixel.rgb, alpha); }';
+          'void main(){ vec4 pixel = texture(u_image, v_texture); float alpha = pixel.a * u_opacity; if(alpha < 0.012) discard; fragColor = vec4(pixel.rgb * alpha, alpha); }';
         var vertexShader = compileFloodPlaneShader(gl, gl.VERTEX_SHADER, vertexSource);
         var fragmentShader = compileFloodPlaneShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
         this.program = gl.createProgram();
@@ -424,15 +433,10 @@
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.uniform1i(gl.getUniformLocation(this.program, "u_image"), 0);
-        var depthWasEnabled = gl.isEnabled(gl.DEPTH_TEST);
-        var depthWriteWasEnabled = gl.getParameter(gl.DEPTH_WRITEMASK);
-        gl.disable(gl.DEPTH_TEST);
-        gl.depthMask(false);
-        gl.enable(gl.BLEND);
-        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        // MapLibre establishes the correct no-depth state for a 2D custom
+        // layer. Premultiplied output uses its native blend state and avoids
+        // invalidating the renderer state needed by following building layers.
         gl.drawArrays(gl.TRIANGLES, 0, 6);
-        gl.depthMask(depthWriteWasEnabled);
-        if (depthWasEnabled) gl.enable(gl.DEPTH_TEST);
       },
 
       onRemove: function (_, gl) {
@@ -692,16 +696,29 @@
     return buildingDataPromise;
   }
 
-  async function syncBuildings3d() {
+  async function syncBuildings3d(options) {
     if (!glMap || !glStyleReady) return;
+    var syncOptions = options || {};
     var enabled = layerVisible("buildingsToggle", false);
-    if (!enabled && !glMap.getSource("nw-buildings-source")) {
+    if (!enabled && !syncOptions.preload && !glMap.getSource("nw-buildings-source")) {
       setStatus("3D terrain ×4");
       return;
     }
     if (!glMap.getSource("nw-buildings-source")) {
       var payload = await loadBuildingData();
-      glMap.addSource("nw-buildings-source", { type: "geojson", data: payload, generateId: true });
+      glMap.addSource("nw-buildings-source", {
+        type: "geojson",
+        data: payload,
+        generateId: true,
+        // Overscale a bounded street-level tile set instead of retiling on
+        // every close zoom. Zoom 16 keeps the per-frame building batch small;
+        // the full buffer keeps neighboring extrusions present at tile edges.
+        maxzoom: 16,
+        buffer: 512,
+        tolerance: 0
+      });
+      document.body.dataset.buildings3dSourceMaxZoom = "16";
+      document.body.dataset.buildings3dSourceBuffer = "512";
       addLayerBelowMask({
         id: "nw-building-outlines",
         type: "line",
@@ -723,6 +740,7 @@
           "fill-extrusion-height": ["to-number", ["get", "renderHeightM"], 3],
           "fill-extrusion-base": 0,
           "fill-extrusion-opacity": 0.98,
+          "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
           "fill-extrusion-vertical-gradient": true
         }
       });
@@ -884,6 +902,16 @@
 
   function wire3dInteractions() {
     glMap.on("moveend", sync3dViewToLeaflet);
+    glMap.on("dragend", function () {
+      // MapLibre's inertial glide keeps redrawing terrain after the pointer is
+      // released. On this dense full-screen scene that starves Chrome's fixed
+      // UI layers and presents as strips of missing text/buildings. Preserve
+      // direct dragging but finish the camera on the release frame.
+      glMap.stop();
+      requestAnimationFrame(function () {
+        if (glMap) glMap.stop();
+      });
+    });
     glMap.on("click", async function (event) {
       var buildingsEnabled = layerVisible("buildingsToggle", false);
       if (buildingsEnabled && mapClickMode === "building" && glMap.getLayer("nw-3d-buildings")) {
@@ -941,16 +969,32 @@
         dragRotate: false,
         pitchWithRotate: false,
         touchPitch: false,
-        antialias: true,
+        // Multisample antialiasing doubles the cost of the terrain/building
+        // framebuffer on Retina displays and was the last source of visible
+        // checkerboarding during sustained pans. Normal map filtering keeps
+        // the scene clean without the multisampled offscreen surface.
+        antialias: false,
+        fadeDuration: 0,
+        maxTileCacheZoomLevels: 8,
+        // Cap Retina canvas density so a full-screen map does not attempt to
+        // redraw roughly four times as many pixels on every drag frame. A 1x
+        // map canvas remains clear while CSS controls retain native Retina
+        // sharpness, leaving headroom for terrain, flood, and buildings.
+        pixelRatio: Math.min(1, Number(window.devicePixelRatio) || 1),
+        // MapLibre's supported no-inertia path avoids an expensive terrain
+        // glide after every pointer release and makes mode changes atomic.
+        reduceMotion: true,
+        powerPreference: "high-performance",
         attributionControl: false,
-        canvasContextAttributes: { antialias: true }
+        canvasContextAttributes: { antialias: false }
       });
       if (glMap.touchZoomRotate && typeof glMap.touchZoomRotate.disableRotation === "function") {
         glMap.touchZoomRotate.disableRotation();
       }
-      ["pitch", "rotate", "zoom", "moveend"].forEach(function (eventName) {
-        glMap.on(eventName, syncPersistentNavControl);
+      ["pitch", "rotate", "zoom"].forEach(function (eventName) {
+        glMap.on(eventName, schedulePersistentNavControlSync);
       });
+      glMap.on("moveend", syncPersistentNavControl);
       syncPersistentNavControl();
       glMap.on("error", function (event) {
         console.warn("North Wildwood 3D renderer warning.", event && event.error ? event.error : event);
@@ -987,8 +1031,9 @@
       document.body.dataset.map3d = "ready";
       document.body.dataset.terrainExaggeration = String(TERRAIN_EXAGGERATION);
       document.body.dataset.map3dMaxZoom = String(MAP_MAX_ZOOM);
+      document.body.dataset.map3dPixelRatio = String(Math.min(1, Number(window.devicePixelRatio) || 1));
       document.body.dataset.map3dPitch = String(glMap.getPitch());
-      await syncBuildings3d();
+      await syncBuildings3d({ preload: true });
       updateDiagnostics();
       suspendLeafletVisualLayers();
       requestAnimationFrame(function () { glMap.resize(); });
@@ -1030,6 +1075,43 @@
     });
   }
 
+  async function warm3dCamera(mapInstance) {
+    if (document.body.dataset.map3dCameraWarmup === "ready") return;
+    document.body.dataset.map3dCameraWarmup = "loading";
+    var originalCamera = {
+      center: mapInstance.getCenter(),
+      zoom: mapInstance.getZoom(),
+      bearing: mapInstance.getBearing(),
+      pitch: DEFAULT_PITCH
+    };
+    var buildingsEnabled = layerVisible("buildingsToggle", false);
+    var hasBuildings = Boolean(mapInstance.getLayer("nw-3d-buildings"));
+    if (hasBuildings) {
+      mapInstance.setLayoutProperty("nw-building-outlines", "visibility", "visible");
+      mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", "visible");
+      mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 0);
+      mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 0.01);
+    }
+    try {
+      // Exercise the expensive pitched terrain and extrusion path while the
+      // loading screen still covers the canvas, then return to true 2D.
+      mapInstance.jumpTo({ pitch: THREE_D_PITCH, bearing: DEFAULT_BEARING });
+      await waitFor3dMapIdle(mapInstance, 45000);
+    } finally {
+      mapInstance.jumpTo(originalCamera);
+      if (hasBuildings) {
+        mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 1);
+        mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 0.98);
+        mapInstance.setLayoutProperty("nw-building-outlines", "visibility", visibility(buildingsEnabled));
+        mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(buildingsEnabled));
+      }
+    }
+    await waitFor3dMapIdle(mapInstance, 45000);
+    document.body.dataset.map3dCameraWarmup = "ready";
+    syncPersistentNavControl();
+    updateDiagnostics();
+  }
+
   async function preload3dAssets(options) {
     var preloadOptions = options || {};
     await Promise.all([
@@ -1049,6 +1131,7 @@
         waitFor3dMapIdle(mapInstance, 45000),
         floodReady
       ]);
+      await warm3dCamera(mapInstance);
       document.body.dataset.map3dFullyPreloaded = "ready";
     }
     return {
@@ -1120,7 +1203,6 @@
       control.dataset.viewMode = showing3d ? "3d" : "2d";
       document.body.dataset.mapViewMode = showing3d ? "3d" : "2d";
       if (glMap) document.body.dataset.map3dPitch = String(glMap.getPitch());
-      updateDiagnostics();
     };
 
     function finishModeTransition() {
@@ -1132,6 +1214,7 @@
         glMap.jumpTo({ bearing: pendingBearing });
       }
       syncPersistentNavControl();
+      updateDiagnostics();
     }
 
     function transitionMode(target3d, requestedBearing) {
@@ -1144,9 +1227,14 @@
       var camera = { pitch: desired3dMode ? THREE_D_PITCH : DEFAULT_PITCH };
       if (Number.isFinite(requestedBearing)) camera.bearing = requestedBearing;
       glMap.stop();
-      glMap.easeTo(Object.assign({ duration: 420 }, camera));
+      // The pitched renderer has already been warmed behind the loader. An
+      // atomic camera update avoids a costly multi-frame terrain rebuild.
+      glMap.jumpTo(camera);
       if (modeTransitionTimer) window.clearTimeout(modeTransitionTimer);
-      modeTransitionTimer = window.setTimeout(finishModeTransition, 500);
+      modeTransitionTimer = window.setTimeout(finishModeTransition, 120);
+      requestAnimationFrame(function () {
+        requestAnimationFrame(finishModeTransition);
+      });
     }
 
     function updateDefaultWheel(clientX, clientY) {
@@ -1222,14 +1310,14 @@
       if (launcher.getAttribute("aria-busy") === "true") return;
       if (map3dReady()) {
         glMap.stop();
-        glMap.easeTo({ zoom: Math.min(MAP_MAX_ZOOM, glMap.getZoom() + 1), duration: 220 });
+        glMap.jumpTo({ zoom: Math.min(MAP_MAX_ZOOM, glMap.getZoom() + 1) });
       } else if (map && typeof map.zoomIn === "function") map.zoomIn();
     });
     control.querySelector(".nw-simple-zoom-out").addEventListener("click", function () {
       if (launcher.getAttribute("aria-busy") === "true") return;
       if (map3dReady()) {
         glMap.stop();
-        glMap.easeTo({ zoom: Math.max(11, glMap.getZoom() - 1), duration: 220 });
+        glMap.jumpTo({ zoom: Math.max(11, glMap.getZoom() - 1) });
       } else if (map && typeof map.zoomOut === "function") map.zoomOut();
     });
     wheel.addEventListener("pointerdown", function (event) {
@@ -1250,7 +1338,7 @@
       var bearings = { ArrowUp: 180, ArrowRight: 270, ArrowDown: 0, ArrowLeft: 90 };
       if (!Object.prototype.hasOwnProperty.call(bearings, event.key)) return;
       event.preventDefault();
-      applyViewpoint(bearings[event.key], 260);
+      applyViewpoint(bearings[event.key], 0);
     });
     host.appendChild(control);
     if (!document.body.dataset.map3d) document.body.dataset.map3d = "idle";
