@@ -35916,7 +35916,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v23"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v24"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
@@ -36202,7 +36202,7 @@ async function preloadNorthWildwoodExperience(mainPromise) {
     ensureFloodProjectionData()
   ]);
   const preload3d = window.NORTH_WILDWOOD_3D?.preload
-    ? window.NORTH_WILDWOOD_3D.preload()
+    ? Promise.resolve(mainPromise).then(() => window.NORTH_WILDWOOD_3D.preload({ initialize: true }))
     : Promise.resolve();
   const preloadExportTools = Promise.allSettled([
     loadOptionalScript("html2canvas", () => typeof window.html2canvas === "function"),
@@ -36219,11 +36219,11 @@ async function preloadNorthWildwoodExperience(mainPromise) {
     track(preloadExportTools, 96, "Preparing export tools…"),
     track(preloadImages, 98, "Finishing the interface…")
   ]);
-  await Promise.race([
-    completePreload,
-    new Promise(resolve => window.setTimeout(resolve, 15000))
-  ]);
+  // Do not reveal a partially initialized mapper. This waits for the current
+  // flood frame, terrain tiles, structures, supporting data, and export tools.
+  await completePreload;
   window.clearInterval(progressTimer);
+  document.body.dataset.sitePreload = "complete";
   const minimumDelay = Math.max(0, 1100 - (performance.now() - startedAt));
   if (minimumDelay) await new Promise(resolve => window.setTimeout(resolve, minimumDelay));
   finishNorthWildwoodLoading("Floodmapper ready");
