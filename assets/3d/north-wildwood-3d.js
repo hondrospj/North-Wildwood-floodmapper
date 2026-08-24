@@ -15,10 +15,13 @@
 
   var glMap = null;
   var glMapPromise = null;
+  var glStyleReady = false;
   var glPopup = null;
   var buildingData = null;
   var buildingDataPromise = null;
   var mapLibreRuntimePromise = null;
+  var mapStylePromise = null;
+  var floodPlaneLayer = null;
   var syncingFromLeaflet = false;
   var syncingFrom3d = false;
   var syncingModeTransition = false;
@@ -97,7 +100,10 @@
         glMap.getLayoutProperty("nw-3d-buildings", "visibility") !== "none"),
       nsiOccupiedFloorCount: Array.isArray(nsiStructureFeatures) ? nsiStructureFeatures.length : 0,
       nsiOccupiedFloorsVisible: Boolean(glMap && glMap.getLayer("nw-nsi-points") &&
-        glMap.getLayoutProperty("nw-nsi-points", "visibility") !== "none")
+        glMap.getLayoutProperty("nw-nsi-points", "visibility") !== "none"),
+      floodSurface: document.body.dataset.map3dFloodSurface || null,
+      floodAltitudeMeters: Number(document.body.dataset.map3dFloodAltitudeMeters) || null,
+      buildingMaximumHeightFt: Number(document.body.dataset.buildings3dMaxHeightFt) || null
     };
     output.textContent = JSON.stringify(state);
   }
@@ -141,23 +147,38 @@
     }
   }
 
+  function cloneJson(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
   async function load3dStyle() {
-    var response = await fetch(ESRI_STYLE_URL, { cache: "force-cache" });
-    if (!response.ok) throw new Error("The 3D basemap style could not be loaded.");
-    var style = await response.json();
-    style.sprite = absoluteStyleAsset(style.sprite);
-    style.glyphs = absoluteStyleAsset(style.glyphs);
-    style.sources = style.sources || {};
-    style.sources.esri = {
-      type: "vector",
-      tiles: [ESRI_VECTOR_TILES],
-      minzoom: 0,
-      maxzoom: 22,
-      attribution: "&copy; OpenStreetMap contributors, Esri"
-    };
-    return typeof styleEsriBuildingBasemap === "function"
-      ? styleEsriBuildingBasemap(style)
-      : style;
+    if (!mapStylePromise) {
+      mapStylePromise = fetch(ESRI_STYLE_URL, { cache: "force-cache" })
+        .then(function (response) {
+          if (!response.ok) throw new Error("The 3D basemap style could not be loaded.");
+          return response.json();
+        })
+        .then(function (style) {
+          style.sprite = absoluteStyleAsset(style.sprite);
+          style.glyphs = absoluteStyleAsset(style.glyphs);
+          style.sources = style.sources || {};
+          style.sources.esri = {
+            type: "vector",
+            tiles: [ESRI_VECTOR_TILES],
+            minzoom: 0,
+            maxzoom: 22,
+            attribution: "&copy; OpenStreetMap contributors, Esri"
+          };
+          return typeof styleEsriBuildingBasemap === "function"
+            ? styleEsriBuildingBasemap(style)
+            : style;
+        })
+        .catch(function (error) {
+          mapStylePromise = null;
+          throw error;
+        });
+    }
+    return cloneJson(await mapStylePromise);
   }
 
   function coordinatesFromLeafletBounds(bounds) {
@@ -176,7 +197,7 @@
   }
 
   function removeLayerAndSource(layerId, sourceId) {
-    if (!glMap || !glMap.isStyleLoaded()) return;
+    if (!glMap || !glStyleReady) return;
     if (glMap.getLayer(layerId)) glMap.removeLayer(layerId);
     if (sourceId && glMap.getSource(sourceId)) glMap.removeSource(sourceId);
   }
@@ -200,7 +221,7 @@
   }
 
   function updateImageLayer(options) {
-    if (!glMap || !glMap.isStyleLoaded() || !options.url || !options.coordinates) return;
+    if (!glMap || !glStyleReady || !options.url || !options.coordinates) return;
     var source = glMap.getSource(options.sourceId);
     if (source && typeof source.updateImage === "function") {
       source.updateImage({ url: options.url, coordinates: options.coordinates });
@@ -227,31 +248,214 @@
     }
   }
 
+  function compileFloodPlaneShader(gl, type, source) {
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      var message = gl.getShaderInfoLog(shader) || "Unknown shader error";
+      gl.deleteShader(shader);
+      throw new Error("The flat-water shader could not compile: " + message);
+    }
+    return shader;
+  }
+
+  function createFlatFloodPlane(options) {
+    var initial = options || {};
+    return {
+      id: "nw-flood-overlay",
+      type: "custom",
+      renderingMode: "3d",
+      map: null,
+      gl: null,
+      program: null,
+      buffer: null,
+      texture: null,
+      matrixLocation: null,
+      opacityLocation: null,
+      positionLocation: -1,
+      textureLocation: -1,
+      textureReady: false,
+      imageToken: 0,
+      url: initial.url || "",
+      coordinates: initial.coordinates || null,
+      altitudeMeters: Number(initial.altitudeMeters) || 0,
+      opacity: Number.isFinite(Number(initial.opacity)) ? Number(initial.opacity) : 0.75,
+
+      onAdd: function (mapInstance, gl) {
+        this.map = mapInstance;
+        this.gl = gl;
+        var vertexSource = '#version 300 es\n' +
+          'uniform mat4 u_matrix;\n' +
+          'in vec3 a_position;\n' +
+          'in vec2 a_texture;\n' +
+          'out vec2 v_texture;\n' +
+          'void main(){ v_texture = a_texture; gl_Position = u_matrix * vec4(a_position, 1.0); }';
+        var fragmentSource = '#version 300 es\n' +
+          'precision highp float;\n' +
+          'uniform sampler2D u_image;\n' +
+          'uniform float u_opacity;\n' +
+          'in vec2 v_texture;\n' +
+          'out vec4 fragColor;\n' +
+          'void main(){ vec4 pixel = texture(u_image, v_texture); float alpha = pixel.a * u_opacity; if(alpha < 0.012) discard; fragColor = vec4(pixel.rgb, alpha); }';
+        var vertexShader = compileFloodPlaneShader(gl, gl.VERTEX_SHADER, vertexSource);
+        var fragmentShader = compileFloodPlaneShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+        this.program = gl.createProgram();
+        gl.attachShader(this.program, vertexShader);
+        gl.attachShader(this.program, fragmentShader);
+        gl.linkProgram(this.program);
+        gl.deleteShader(vertexShader);
+        gl.deleteShader(fragmentShader);
+        if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
+          throw new Error("The flat-water renderer could not link: " + (gl.getProgramInfoLog(this.program) || "Unknown program error"));
+        }
+        this.matrixLocation = gl.getUniformLocation(this.program, "u_matrix");
+        this.opacityLocation = gl.getUniformLocation(this.program, "u_opacity");
+        this.positionLocation = gl.getAttribLocation(this.program, "a_position");
+        this.textureLocation = gl.getAttribLocation(this.program, "a_texture");
+        this.buffer = gl.createBuffer();
+        this.texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        this.updateGeometry();
+        this.loadTexture(this.url);
+      },
+
+      updateGeometry: function () {
+        if (!this.gl || !Array.isArray(this.coordinates) || this.coordinates.length !== 4) return;
+        var points = this.coordinates.map(function (coordinate) {
+          return maplibregl.MercatorCoordinate.fromLngLat(
+            { lng: Number(coordinate[0]), lat: Number(coordinate[1]) },
+            Number(this.altitudeMeters) || 0
+          );
+        }, this);
+        var vertex = function (point, u, v) { return [point.x, point.y, point.z || 0, u, v]; };
+        var values = []
+          .concat(vertex(points[0], 0, 0), vertex(points[1], 1, 0), vertex(points[2], 1, 1))
+          .concat(vertex(points[0], 0, 0), vertex(points[2], 1, 1), vertex(points[3], 0, 1));
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(values), this.gl.STATIC_DRAW);
+      },
+
+      loadTexture: function (url) {
+        if (!this.gl || !url) return;
+        var self = this;
+        var token = ++this.imageToken;
+        var image = new Image();
+        image.crossOrigin = "anonymous";
+        image.decoding = "async";
+        image.onload = function () {
+          if (token !== self.imageToken || !self.gl || !self.texture) return;
+          var gl = self.gl;
+          gl.bindTexture(gl.TEXTURE_2D, self.texture);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+          gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+          self.textureReady = true;
+          if (self.map) self.map.triggerRepaint();
+        };
+        image.onerror = function () {
+          if (token === self.imageToken) self.textureReady = false;
+        };
+        image.src = url;
+      },
+
+      update: function (next) {
+        var priorUrl = this.url;
+        this.url = next.url || "";
+        this.coordinates = next.coordinates || null;
+        this.altitudeMeters = Number(next.altitudeMeters) || 0;
+        this.opacity = Math.max(0, Math.min(1, Number(next.opacity)));
+        this.updateGeometry();
+        if (this.url && this.url !== priorUrl) {
+          this.textureReady = false;
+          this.loadTexture(this.url);
+        }
+        if (this.map) this.map.triggerRepaint();
+      },
+
+      setOpacity: function (value) {
+        this.opacity = Math.max(0, Math.min(1, Number(value)));
+        if (this.map) this.map.triggerRepaint();
+      },
+
+      render: function (gl, args) {
+        if (!this.textureReady || !this.program || !this.buffer || !this.texture) return;
+        var matrix = args && args.defaultProjectionData && args.defaultProjectionData.mainMatrix
+          ? args.defaultProjectionData.mainMatrix
+          : args && args.projectionMatrix
+            ? args.projectionMatrix
+            : args;
+        if (!matrix) return;
+        gl.useProgram(this.program);
+        gl.uniformMatrix4fv(this.matrixLocation, false, matrix);
+        gl.uniform1f(this.opacityLocation, this.opacity);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.enableVertexAttribArray(this.positionLocation);
+        gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 20, 0);
+        gl.enableVertexAttribArray(this.textureLocation);
+        gl.vertexAttribPointer(this.textureLocation, 2, gl.FLOAT, false, 20, 12);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.uniform1i(gl.getUniformLocation(this.program, "u_image"), 0);
+        gl.enable(gl.BLEND);
+        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      },
+
+      onRemove: function (_, gl) {
+        this.imageToken += 1;
+        if (this.texture) gl.deleteTexture(this.texture);
+        if (this.buffer) gl.deleteBuffer(this.buffer);
+        if (this.program) gl.deleteProgram(this.program);
+        this.texture = null;
+        this.buffer = null;
+        this.program = null;
+        this.gl = null;
+        this.map = null;
+      }
+    };
+  }
+
   function syncFloodLayer3d() {
-    if (!glMap || !glMap.isStyleLoaded()) return;
+    if (!glMap || !glStyleReady) return;
     var url = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
     var coordinates = coordinatesFromLeafletBounds(floodLatLngBounds);
     if (!url || !coordinates) {
       removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
+      floodPlaneLayer = null;
       return;
     }
-    updateImageLayer({
-      sourceId: "nw-flood-source",
-      layerId: "nw-flood-overlay",
+    var stageNavd88 = Number(getSelectedStageNavd88());
+    var options = {
       url: url,
       coordinates: coordinates,
       opacity: overlayOpacity,
-      visible: true
-    });
+      altitudeMeters: Number.isFinite(stageNavd88)
+        ? stageNavd88 * 0.3048 * TERRAIN_EXAGGERATION
+        : 0
+    };
+    if (glMap.getSource("nw-flood-source")) removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
+    if (!glMap.getLayer("nw-flood-overlay")) {
+      floodPlaneLayer = createFlatFloodPlane(options);
+      addLayerBelowMask(floodPlaneLayer);
+    } else if (floodPlaneLayer && typeof floodPlaneLayer.update === "function") {
+      floodPlaneLayer.update(options);
+    }
+    document.body.dataset.map3dFloodSurface = "flat-water-plane";
+    document.body.dataset.map3dFloodAltitudeMeters = options.altitudeMeters.toFixed(3);
   }
 
   function syncSatellite3d() {
-    if (!glMap || !glMap.isStyleLoaded() || !glMap.getLayer("nw-satellite")) return;
+    if (!glMap || !glStyleReady || !glMap.getLayer("nw-satellite")) return;
     glMap.setLayoutProperty("nw-satellite", "visibility", visibility(layerVisible("satelliteToggle", false)));
   }
 
   function syncRoadLabels3d() {
-    if (!glMap || !glMap.isStyleLoaded() || !glMap.getLayer("nw-road-labels")) return;
+    if (!glMap || !glStyleReady || !glMap.getLayer("nw-road-labels")) return;
     glMap.setLayoutProperty("nw-road-labels", "visibility", visibility(layerVisible("roadsToggle", true)));
   }
 
@@ -293,7 +497,7 @@
   }
 
   function syncBoundary3d() {
-    if (!glMap || !glMap.isStyleLoaded()) return;
+    if (!glMap || !glStyleReady) return;
     var feature = boundaryGeoJson();
     if (!feature) return;
     var outlineSource = glMap.getSource("nw-boundary-source");
@@ -306,7 +510,7 @@
   }
 
   function syncParcels3d() {
-    if (!glMap || !glMap.isStyleLoaded()) return;
+    if (!glMap || !glStyleReady) return;
     var enabled = layerVisible("parcelsToggle", false);
     var coordinates = coordinatesFromLeafletBounds(floodLatLngBounds || getBoundaryDrivenOverlayBounds());
     if (!coordinates || !PARCEL_BOUNDARY_PNG_URL) return;
@@ -343,7 +547,7 @@
   }
 
   function syncNsi3d() {
-    if (!glMap || !glMap.isStyleLoaded()) return;
+    if (!glMap || !glStyleReady) return;
     var enabled = layerVisible("nsiStructuresToggle", false);
     if (!nsiStructureFeatures.length) {
       if (glMap.getLayer("nw-nsi-points")) glMap.setLayoutProperty("nw-nsi-points", "visibility", "none");
@@ -383,9 +587,60 @@
           if (payload && payload.metadata && payload.metadata.schema !== "north-wildwood-3d-buildings-v1") {
             throw new Error("The North Wildwood 3D building asset needs to be refreshed.");
           }
-          buildingData = payload;
-          document.body.dataset.buildings3dCount = String(payload && payload.features ? payload.features.length : 0);
-          return payload;
+          var sourceFeatures = Array.isArray(payload && payload.features) ? payload.features : [];
+          var excludedFallbacks = 0;
+          var excludedLooseMatches = 0;
+          var sanitizedFeatures = sourceFeatures.reduce(function (features, feature) {
+            var properties = feature && feature.properties ? feature.properties : {};
+            if (String(properties.geometrySource || "") === "NSI modeled square") {
+              excludedFallbacks += 1;
+              return features;
+            }
+            if (String(properties.geometryMatch || "") !== "point-in-footprint") {
+              excludedLooseMatches += 1;
+              return features;
+            }
+            var taggedHeight = String(properties.heightSource || "").indexOf("OpenStreetMap height") === 0
+              ? Number(properties.calculatedHeightM)
+              : NaN;
+            var rawStories = Number(properties.stories);
+            var stories = Number.isFinite(rawStories)
+              ? Math.max(1, Math.min(6, Math.round(rawStories)))
+              : 1;
+            var modeledHeight = stories * 3.05 + 1.2;
+            var renderHeightM = Number.isFinite(taggedHeight)
+              ? Math.max(3.2, Math.min(30, taggedHeight))
+              : Math.max(3.2, Math.min(19.5, modeledHeight));
+            features.push(Object.assign({}, feature, {
+              properties: Object.assign({}, properties, {
+                renderStories: stories,
+                renderHeightM: Number(renderHeightM.toFixed(2)),
+                renderHeightFt: Number((renderHeightM * 3.280839895).toFixed(1)),
+                renderHeightSource: Number.isFinite(taggedHeight)
+                  ? "OpenStreetMap tagged height"
+                  : "NSI story count, screened for local outliers",
+                groundReferenceSource: "2019 bare-earth LiDAR screening elevation"
+              })
+            }));
+            return features;
+          }, []);
+          buildingData = {
+            type: "FeatureCollection",
+            metadata: Object.assign({}, payload && payload.metadata, {
+              renderedFeatureCount: sanitizedFeatures.length,
+              excludedModeledSquares: excludedFallbacks,
+              excludedLooseMatches: excludedLooseMatches,
+              renderHeightModel: "OSM tagged height when available; otherwise 3.05 m per screened story plus 1.2 m roof. Crawlspace rise is not added to roof height."
+            }),
+            features: sanitizedFeatures
+          };
+          document.body.dataset.buildings3dCount = String(sanitizedFeatures.length);
+          document.body.dataset.buildings3dExcludedFallbacks = String(excludedFallbacks);
+          document.body.dataset.buildings3dExcludedLooseMatches = String(excludedLooseMatches);
+          document.body.dataset.buildings3dMaxHeightFt = String(sanitizedFeatures.reduce(function (maximum, feature) {
+            return Math.max(maximum, Number(feature.properties && feature.properties.renderHeightFt) || 0);
+          }, 0).toFixed(1));
+          return buildingData;
         })
         .catch(function (error) {
           buildingDataPromise = null;
@@ -396,7 +651,7 @@
   }
 
   async function syncBuildings3d() {
-    if (!glMap || !glMap.isStyleLoaded()) return;
+    if (!glMap || !glStyleReady) return;
     var enabled = layerVisible("buildingsToggle", false);
     if (!enabled && !glMap.getSource("nw-buildings-source")) {
       setStatus("3D terrain ×4");
@@ -423,7 +678,7 @@
         minzoom: 12,
         paint: {
           "fill-extrusion-color": "#ddd7cb",
-          "fill-extrusion-height": ["to-number", ["get", "calculatedHeightM"], 3],
+          "fill-extrusion-height": ["to-number", ["get", "renderHeightM"], 3],
           "fill-extrusion-base": 0,
           "fill-extrusion-opacity": 0.98,
           "fill-extrusion-vertical-gradient": true
@@ -449,24 +704,25 @@
 
   function buildBuildingPopupHtml(properties) {
     var p = properties || {};
-    var height = Number(p.calculatedHeightFt);
-    var stories = Number(p.stories);
-    var isTagged = String(p.heightSource || "").indexOf("OpenStreetMap height") === 0;
     var address = escapeTownAddressHtml(p.address || p.osmName || "North Wildwood building");
-    var source = escapeTownAddressHtml(p.heightSource || "USACE NSI height model");
-    var geometry = escapeTownAddressHtml(p.geometrySource || "Building footprint");
+    var crawlspaceDepth = Number(p.foundationHeightFt);
+    var firstFloor = Number(p.modeledFirstFloorNavd88Ft);
+    var stage = Number(getSelectedStageNavd88());
+    var difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : NaN;
+    var status = !Number.isFinite(difference)
+      ? "Choose a water level to compare."
+      : Math.abs(difference) <= 0.1
+        ? "Current water is at the estimated occupied floor."
+        : difference > 0
+          ? "Current water is " + difference.toFixed(1) + " ft above the estimated occupied floor."
+          : "Current water is " + Math.abs(difference).toFixed(1) + " ft below the estimated occupied floor.";
     return '<div class="nsi-structure-popup">' +
-      '<span class="house-alert-kicker">3D building height</span>' +
+      '<span class="house-alert-kicker">Building Info</span>' +
       '<h3>' + address + '</h3>' +
       '<div class="nsi-structure-grid">' +
-        '<span>Calculated height</span><strong>' + (Number.isFinite(height) ? height.toFixed(1) + ' ft' : '—') + '</strong>' +
-        '<span>Stories</span><strong>' + (Number.isFinite(stories) ? stories.toFixed(stories % 1 ? 1 : 0) : '—') + '</strong>' +
-        '<span>Height source</span><strong>' + source + '</strong>' +
-        '<span>Footprint source</span><strong>' + geometry + '</strong>' +
+        '<span>Estimated Crawlspace Depth</span><strong>' + (Number.isFinite(crawlspaceDepth) ? crawlspaceDepth.toFixed(1) + ' ft' : '—') + '</strong>' +
       '</div>' +
-      '<div class="house-alert-note">' + (isTagged
-        ? 'This height comes from an explicit OpenStreetMap height tag.'
-        : 'This is a screening estimate from USACE NSI foundation height and story count, using 3.05 m per story plus a 1.2 m roof allowance. It is not a survey.') + '</div>' +
+      '<div class="nsi-impact-status">' + escapeTownAddressHtml(status) + '</div>' +
       '</div>';
   }
 
@@ -586,11 +842,22 @@
 
   function wire3dInteractions() {
     glMap.on("moveend", sync3dViewToLeaflet);
-    glMap.on("click", function (event) {
+    glMap.on("click", async function (event) {
       var buildingsEnabled = layerVisible("buildingsToggle", false);
       if (buildingsEnabled && mapClickMode === "building" && glMap.getLayer("nw-3d-buildings")) {
         var rendered = glMap.queryRenderedFeatures(event.point, { layers: ["nw-3d-buildings"] });
         if (rendered.length) {
+          try {
+            var parcelFeature = await findParcelFeatureForLocation(
+              event.lngLat.lat,
+              event.lngLat.lng,
+              { allowNearest: false }
+            );
+            if (parcelFeature) {
+              openParcelFloodPrompt(parcelFeature, L.latLng(event.lngLat.lat, event.lngLat.lng));
+              return;
+            }
+          } catch (_) {}
           openPersistentFloodPopup(
             L.latLng(event.lngLat.lat, event.lngLat.lng),
             buildBuildingPopupHtml(rendered[0].properties),
@@ -650,6 +917,7 @@
         var timer = window.setTimeout(function () { reject(new Error("The 3D renderer timed out.")); }, 20000);
         glMap.once("load", function () {
           window.clearTimeout(timer);
+          glStyleReady = true;
           resolve();
         });
       });
@@ -673,18 +941,19 @@
       syncRoadLabels3d();
       syncParcels3d();
       syncNsi3d();
-      await syncBuildings3d();
       document.body.classList.add("map-3d-ready");
       document.body.dataset.map3d = "ready";
       document.body.dataset.terrainExaggeration = String(TERRAIN_EXAGGERATION);
       document.body.dataset.map3dMaxZoom = String(MAP_MAX_ZOOM);
       document.body.dataset.map3dPitch = String(glMap.getPitch());
+      await syncBuildings3d();
       updateDiagnostics();
       suspendLeafletVisualLayers();
       requestAnimationFrame(function () { glMap.resize(); });
       return glMap;
     })().catch(function (error) {
       document.body.dataset.map3d = "fallback";
+      glStyleReady = false;
       console.warn("The 3D map could not start; the 2D map remains available.", error);
       glMapPromise = null;
       if (glMap) {
@@ -694,6 +963,19 @@
       return null;
     });
     return glMapPromise;
+  }
+
+  async function preload3dAssets() {
+    await Promise.all([
+      loadMapLibreRuntime(),
+      load3dStyle(),
+      loadBuildingData()
+    ]);
+    document.body.dataset.map3dPreloaded = "true";
+    return {
+      buildings: buildingData && buildingData.features ? buildingData.features.length : 0,
+      terrainExaggeration: TERRAIN_EXAGGERATION
+    };
   }
 
   function install3dLauncher() {
@@ -986,9 +1268,7 @@
   var originalApplyOverlayOpacity = applyOverlayOpacity;
   applyOverlayOpacity = function () {
     var result = originalApplyOverlayOpacity.apply(this, arguments);
-    if (glMap && glMap.getLayer("nw-flood-overlay")) {
-      glMap.setPaintProperty("nw-flood-overlay", "raster-opacity", overlayOpacity);
-    }
+    if (floodPlaneLayer && typeof floodPlaneLayer.setOpacity === "function") floodPlaneLayer.setOpacity(overlayOpacity);
     return result;
   };
 
@@ -1031,6 +1311,7 @@
 
   window.NORTH_WILDWOOD_3D = {
     ensure: ensure3dMap,
+    preload: preload3dAssets,
     getMap: function () { return glMap; },
     getBuildingData: function () { return buildingData; },
     syncFlood: syncFloodLayer3d,

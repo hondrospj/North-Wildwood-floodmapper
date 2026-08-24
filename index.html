@@ -14595,8 +14595,51 @@ html.win-compact-ui #timelineDock #hourSlider{
   <style id="v2-export-visibility-fix">
     #gifSpeedField[hidden]{display:none !important}
   </style>
+  <style id="north-wildwood-loading-screen-v1">
+    body.nw-app-loading{overflow:hidden}
+    body.nw-app-loading #app,
+    body.nw-app-loading #topBanner{opacity:0;pointer-events:none}
+    body.nw-app-ready #app,
+    body.nw-app-ready #topBanner{animation:nwAppFadeIn .72s cubic-bezier(.2,.75,.25,1) both}
+    #nwSiteLoader{
+      position:fixed;inset:0;z-index:60000;display:grid;place-items:center;padding:24px;
+      overflow:hidden;background:
+        radial-gradient(circle at 50% 38%,rgba(29,145,210,.22),transparent 34%),
+        radial-gradient(circle at 18% 18%,rgba(96,165,250,.14),transparent 30%),
+        linear-gradient(145deg,#07101f 0%,#0b1930 52%,#07111f 100%);
+      color:#eaf0ff;opacity:1;visibility:visible;transition:opacity .62s ease,visibility .62s ease;
+    }
+    #nwSiteLoader::before,#nwSiteLoader::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+    #nwSiteLoader::before{width:min(74vw,760px);aspect-ratio:1;border:1px solid rgba(125,249,255,.09);box-shadow:0 0 90px rgba(29,145,210,.08);animation:nwLoaderOrbit 13s linear infinite}
+    #nwSiteLoader::after{width:min(52vw,520px);aspect-ratio:1;border:1px dashed rgba(96,165,250,.12);animation:nwLoaderOrbit 18s linear infinite reverse}
+    #nwSiteLoader.is-fading{opacity:0;visibility:hidden;pointer-events:none}
+    .nw-loader-card{position:relative;z-index:1;width:min(430px,calc(100vw - 40px));display:grid;justify-items:center;padding:34px 32px 29px;border:1px solid rgba(125,249,255,.24);border-radius:28px;background:rgba(8,15,31,.88);box-shadow:0 30px 100px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(20px);text-align:center}
+    .nw-loader-spinner{position:relative;width:76px;height:76px;margin-bottom:21px;border:3px solid rgba(125,249,255,.15);border-top-color:#7df9ff;border-right-color:#60a5fa;border-radius:50%;animation:nwLoaderSpin 1s linear infinite;box-shadow:0 0 34px rgba(125,249,255,.14)}
+    .nw-loader-spinner::before{content:"";position:absolute;inset:10px;border:2px solid rgba(96,165,250,.16);border-bottom-color:#60a5fa;border-radius:50%;animation:nwLoaderSpin .75s linear infinite reverse}
+    .nw-loader-spinner::after{content:"";position:absolute;inset:26px;border-radius:50%;background:#7df9ff;box-shadow:0 0 20px rgba(125,249,255,.72)}
+    .nw-loader-eyebrow{color:#7df9ff;font:900 10px/1 Inter,system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase}
+    .nw-loader-card h1{margin:9px 0 7px;color:#fff;font:950 clamp(23px,5vw,32px)/1.05 Inter,system-ui,sans-serif;letter-spacing:-.035em}
+    .nw-loader-status{min-height:19px;margin:0;color:#a9bad3;font:750 12px/1.45 Inter,system-ui,sans-serif}
+    .nw-loader-progress{width:100%;height:5px;margin-top:22px;overflow:hidden;border-radius:99px;background:rgba(148,163,184,.16);box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+    #nwLoaderProgress{display:block;width:7%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#168ceb,#7df9ff);box-shadow:0 0 15px rgba(125,249,255,.55);transition:width .32s ease}
+    .nw-loader-foot{margin-top:10px;color:#7187a2;font:700 9px/1 Inter,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+    @keyframes nwLoaderSpin{to{transform:rotate(360deg)}}
+    @keyframes nwLoaderOrbit{to{transform:rotate(360deg)}}
+    @keyframes nwAppFadeIn{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:none}}
+    @media (prefers-reduced-motion:reduce){#nwSiteLoader::before,#nwSiteLoader::after,.nw-loader-spinner,.nw-loader-spinner::before{animation-duration:1ms;animation-iteration-count:1}body.nw-app-ready #app,body.nw-app-ready #topBanner{animation:none}}
+  </style>
 </head>
-<body>
+<body class="nw-app-loading">
+  <div id="nwSiteLoader" role="status" aria-live="polite" aria-label="Loading North Wildwood Flood Mapper">
+    <div class="nw-loader-card">
+      <div class="nw-loader-spinner" aria-hidden="true"></div>
+      <div class="nw-loader-eyebrow">ShorelySafe</div>
+      <h1>North Wildwood Flood Mapper</h1>
+      <p id="nwLoaderStatus" class="nw-loader-status">Preparing forecast and map data…</p>
+      <div class="nw-loader-progress" aria-hidden="true"><span id="nwLoaderProgress"></span></div>
+      <div class="nw-loader-foot">Street-level flood intelligence</div>
+    </div>
+  </div>
   <div id="topBanner">
     <div class="banner-text">
       <div class="banner-eyebrow">Flood alert</div>
@@ -14827,8 +14870,8 @@ html.win-compact-ui #timelineDock #hourSlider{
       <output id="map3dDiagnostics" hidden aria-hidden="true"></output>
       <div id="mapClickModeControl" class="map-click-mode-control" role="group" aria-label="Choose what happens when you tap the map" hidden>
         <span class="map-click-mode-label">Tap map for</span>
-        <button id="mapClickBuildingBtn" type="button" data-map-click-mode="building" aria-label="Building info" aria-pressed="true">Building info</button>
-        <button id="mapClickDepthBtn" type="button" data-map-click-mode="depth" aria-label="Water depth" aria-pressed="false">Water depth</button>
+        <button id="mapClickBuildingBtn" type="button" data-map-click-mode="building" aria-label="Building information" aria-pressed="true">Info</button>
+        <button id="mapClickDepthBtn" type="button" data-map-click-mode="depth" aria-label="Water depth" aria-pressed="false">Depth</button>
       </div>
 <aside id="rightRail" class="map-floating">
         <section class="rail-card right-logo-card" aria-label="Client logo">
@@ -14875,9 +14918,9 @@ html.win-compact-ui #timelineDock #hourSlider{
               </div>
             </div>
             <div class="layer-item">
-              <div id="nsiStructuresToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show USACE NSI 2026 estimated first occupied-floor impacts"></div>
+              <div id="nsiStructuresToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show estimated first-floor flood impacts"></div>
               <div class="layer-meta">
-                <div class="layer-name">NSI occupied-floor impacts</div>
+                <div class="layer-name">First-floor flood impacts</div>
               </div>
             </div>
           </div>
@@ -19582,15 +19625,22 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       const depthButton = document.getElementById("mapClickDepthBtn");
       if (!control || !buildingButton || !depthButton) return;
       control.hidden = !parcelInfoInteractionEnabled();
-      buildingButton.textContent = document.getElementById("buildingsToggle")?.classList.contains("on")
-        ? "Building info"
-        : document.getElementById("nsiStructuresToggle")?.classList.contains("on")
-          ? "Floor info"
-          : "Parcel info";
+      buildingButton.textContent = "Info";
+      depthButton.textContent = "Depth";
       buildingButton.classList.toggle("active", mapClickMode === "building");
       depthButton.classList.toggle("active", mapClickMode === "depth");
       buildingButton.setAttribute("aria-pressed", String(mapClickMode === "building"));
       depthButton.setAttribute("aria-pressed", String(mapClickMode === "depth"));
+      if (!control.hidden) requestAnimationFrame(positionMapClickModeControl);
+    }
+
+    function positionMapClickModeControl() {
+      const control = document.getElementById("mapClickModeControl");
+      const title = document.getElementById("mapTitleBadge");
+      if (!control || !title || control.hidden) return;
+      const titleRect = title.getBoundingClientRect();
+      if (!Number.isFinite(titleRect.bottom) || titleRect.height < 2) return;
+      control.style.setProperty("--map-click-mode-top", `${Math.ceil(titleRect.bottom + 7)}px`);
     }
 
     function setMapClickMode(mode, options = {}) {
@@ -25562,26 +25612,25 @@ function startPlayback() {
     function buildHouseAlertPopup(feature) {
       const p = feature?.properties || {};
       const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
-      const hasModeledFloor = Number.isFinite(firstFloor);
-      const historic = Number(hasModeledFloor
-        ? p.nsi2026HistoricFirstFloorExceedanceCount
-        : p.historicFloodEventCount);
-      const count = Number.isFinite(historic) ? historic.toLocaleString() : "—";
+      const crawlspaceDepth = Number(p.foundationHeightFt ?? p.nsi2026FoundationHeightFt);
+      const stage = getSelectedStageNavd88();
+      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;
       const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
+      const waterStatus = difference == null
+        ? "Choose a water level to compare."
+        : Math.abs(difference) <= 0.1
+          ? "Current water is at the estimated occupied floor."
+          : difference > 0
+            ? `Current water is ${difference.toFixed(1)} ft above the estimated occupied floor.`
+            : `Current water is ${Math.abs(difference).toFixed(1)} ft below the estimated occupied floor.`;
       return '<div class="house-alert-popup">' +
-        '<span class="house-alert-kicker">Building flood profile</span>' +
+        '<span class="house-alert-kicker">Building Info</span>' +
         '<h3>' + address + '</h3>' +
-        (hasModeledFloor
-          ? '<div class="house-alert-elevation"><span>Estimated first occupied floor</span><strong>' + firstFloor.toFixed(1) + ' ft NAVD88</strong></div>'
-          : '<div class="house-alert-elevation"><span>Parcel ground</span><strong>' + Number(p.elevationNavd88Ft).toFixed(1) + ' ft NAVD88</strong></div>') +
-        '<div class="house-alert-summary"><strong>' + count + '</strong><span>' +
-          (hasModeledFloor ? 'estimated occupied-floor exceedances' : 'parcel-ground floods') + '</span></div>' +
-        '<div class="house-alert-note">' +
-          (hasModeledFloor
-            ? 'Local 2019 LiDAR ground plus NSI’s rise to the first residing/occupied floor. Crawlspace or basement describes what is below that floor, not the floor itself. Screening estimate—not a survey or elevation certificate.'
-            : 'No NSI structure was matched to this parcel; this fallback uses the parcel ground screening elevation.') +
-        '</div>' +
-        '<button class="house-alert-cta" type="button">See Flood History And Projections</button>' +
+        '<div class="nsi-structure-grid"><span>Estimated Crawlspace Depth</span><strong>' +
+          (Number.isFinite(crawlspaceDepth) ? crawlspaceDepth.toFixed(1) + ' ft' : 'Not available') +
+        '</strong></div>' +
+        '<div class="nsi-impact-status">' + escapeTownAddressHtml(waterStatus) + '</div>' +
+        '<button class="house-alert-cta" type="button">See Flood History &amp; Projections</button>' +
         '</div>';
     }
 
@@ -25837,33 +25886,25 @@ function startPlayback() {
 
     function formatNsiImpactStatus(properties, stage = getSelectedStageNavd88()) {
       const firstFloor = getNsiFirstOccupiedFloorNavd88(properties);
-      if (!Number.isFinite(firstFloor) || !Number.isFinite(stage)) return "Select a valid water level to compare with this estimated first occupied floor.";
+      if (!Number.isFinite(firstFloor) || !Number.isFinite(stage)) return "Choose a water level to compare.";
       const difference = stage - firstFloor;
-      if (difference > 0.1) return `Selected water is ${difference.toFixed(1)} ft above the estimated first occupied floor.`;
-      if (difference >= -0.1) return "Selected water is within 0.1 ft of the estimated first occupied floor.";
-      return `Selected water is ${Math.abs(difference).toFixed(1)} ft below the estimated first occupied floor.`;
+      if (difference > 0.1) return `Current water is ${difference.toFixed(1)} ft above the estimated first occupied floor.`;
+      if (difference >= -0.1) return "Current water is at the estimated first occupied floor.";
+      return `Current water is ${Math.abs(difference).toFixed(1)} ft below the estimated first occupied floor.`;
     }
 
     function buildNsiStructurePopup(feature) {
       const p = feature?.properties || {};
       const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
-      const localGround = Number(p.localGroundNavd88Ft);
-      const riseToOccupiedFloor = Number(p.foundationHeightFt);
       const address = escapeTownAddressHtml(p.address || "Modeled North Wildwood structure");
-      const foundation = escapeTownAddressHtml(p.foundationTypeName || p.foundationType || "Unknown");
-      const occupancy = escapeTownAddressHtml(p.occupancyType || p.damageCategory || "Unclassified");
       return '<div class="nsi-structure-popup">' +
-        '<span class="house-alert-kicker">USACE NSI 2026 estimate</span>' +
+        '<span class="house-alert-kicker">Estimated floor flooding</span>' +
         '<h3>' + address + '</h3>' +
         '<div class="nsi-structure-grid">' +
           '<span>Estimated first occupied floor</span><strong>' + (Number.isFinite(firstFloor) ? firstFloor.toFixed(1) + ' ft NAVD88' : '—') + '</strong>' +
-          '<span>Local LiDAR ground</span><strong>' + (Number.isFinite(localGround) ? localGround.toFixed(1) + ' ft NAVD88' : '—') + '</strong>' +
-          '<span>Rise to occupied floor</span><strong>' + (Number.isFinite(riseToOccupiedFloor) ? riseToOccupiedFloor.toFixed(1) + ' ft' : '—') + '</strong>' +
-          '<span>Foundation below floor</span><strong>' + foundation + '</strong>' +
-          '<span>Occupancy class</span><strong>' + occupancy + '</strong>' +
         '</div>' +
         '<div class="nsi-impact-status">' + escapeTownAddressHtml(formatNsiImpactStatus(p)) + '</div>' +
-        '<div class="house-alert-note">This threshold is the mapper’s local 2019 bare-earth LiDAR ground plus NSI’s rise to the first residing/occupied floor. “Crawlspace” describes the foundation below that floor; it is not counted as a floor. This remains an NSI screening estimate—not a survey or elevation certificate.</div>' +
+        '<div class="house-alert-note">Screening estimate.</div>' +
         '</div>';
     }
 
@@ -25950,7 +25991,7 @@ function startPlayback() {
       updateNsiStructureImpactLayer();
       if (!map.hasLayer(layer)) layer.addTo(map);
       setMapClickMode("building", { closePopup: false });
-      toast("USACE NSI 2026 estimated first occupied-floor impacts: red exceeds the occupied-floor threshold, gold is within 0.5 ft, cyan is below. Crawlspaces are not counted as floors. Screening estimates only.");
+      toast("First-floor impacts: red is above, gold is close, cyan is below.");
     }
 
     async function ensureParcelAssets() {
@@ -27282,7 +27323,7 @@ function startPlayback() {
 
     const MAPPER_TUTORIAL_STEPS = [
       {
-        title: "Welcome to Floodmapper 2.0",
+        title: "Welcome to the Floodmapper",
         target: "#mapTitleBadge",
         body: "<p>This map turns water levels into a street-level picture of potential flooding. You can explore the next several days, replay measured events, click the map for modeled depth, inspect parcels, and export what you see.</p><p><strong>Every mapped depth is referenced to the selected water level and the ground-elevation model.</strong></p>"
       },
@@ -28141,6 +28182,11 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       syncDownloadRangeInputs(true);
       updateDownloadSummary();
       scheduleMapTitleFit();
+      if (typeof ResizeObserver === "function") {
+        const titleModeObserver = new ResizeObserver(positionMapClickModeControl);
+        const titleBadge = document.getElementById("mapTitleBadge");
+        if (titleBadge) titleModeObserver.observe(titleBadge);
+      }
       window.addEventListener('resize', () => {
         if (map) {
           map.invalidateSize();
@@ -28151,6 +28197,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
         positionTimelineBubble();
         fitSnapshotTimeText();
         scheduleMapTitleFit();
+        positionMapClickModeControl();
       });
       requestAnimationFrame(() => {
         if (map) {
@@ -35869,7 +35916,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v22"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v23"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
@@ -36085,10 +36132,109 @@ TOWN_CONFIG = {
 
 applyTownConfig(TOWN_CONFIG);
 
-main().catch(err => {
+function setNorthWildwoodLoadingState(progress, message) {
+  const bar = document.getElementById("nwLoaderProgress");
+  const status = document.getElementById("nwLoaderStatus");
+  let acceptsMessage = !Number.isFinite(Number(progress));
+  if (bar && Number.isFinite(Number(progress))) {
+    const current = Number(bar.dataset.progress || 0);
+    const requested = Math.min(100, Number(progress));
+    const next = Math.max(current, requested);
+    acceptsMessage = requested >= current;
+    bar.dataset.progress = String(next);
+    bar.style.width = `${next}%`;
+  }
+  if (status && message && acceptsMessage) status.textContent = message;
+}
+
+function finishNorthWildwoodLoading(message) {
+  const loader = document.getElementById("nwSiteLoader");
+  setNorthWildwoodLoadingState(100, message || "Floodmapper ready");
+  window.setTimeout(() => {
+    document.body.classList.remove("nw-app-loading");
+    document.body.classList.add("nw-app-ready");
+    loader?.classList.add("is-fading");
+    loader?.setAttribute("aria-hidden", "true");
+    window.setTimeout(() => { if (loader) loader.hidden = true; }, 700);
+  }, 260);
+}
+
+async function preloadNorthWildwoodExperience(mainPromise) {
+  const startedAt = performance.now();
+  let simulatedProgress = 8;
+  const progressTimer = window.setInterval(() => {
+    simulatedProgress = Math.min(76, simulatedProgress + (simulatedProgress < 42 ? 3 : 1));
+    setNorthWildwoodLoadingState(simulatedProgress);
+  }, 240);
+
+  const track = (promise, progress, message) => Promise.resolve(promise)
+    .then(value => {
+      setNorthWildwoodLoadingState(progress, message);
+      return value;
+    })
+    .catch(error => {
+      console.warn("A preloaded Floodmapper resource will retry when needed.", error);
+      return null;
+    });
+
+  const configuredDataUrls = [
+    OBSERVED_URL,
+    OBSERVED_15MIN_URL,
+    OBSERVED_ARCHIVE_INDEX_URL,
+    TOP_TIDES_URL,
+    RETURN_INTERVALS_URL,
+    DEPTH_QUERY_PNG_URL,
+    HYDRAULIC_STATES_URL,
+    PARCEL_BOUNDARY_PNG_URL
+  ].filter(Boolean);
+  const warmConfiguredData = Promise.allSettled(configuredDataUrls.map(url =>
+    fetch(url, { cache: "force-cache" }).then(response => {
+      if (!response.ok) throw new Error(`Preload failed for ${url}`);
+      return response.arrayBuffer();
+    })
+  ));
+  const preloadImages = Promise.allSettled(
+    Array.from(document.images).filter(image => image.src).map(image => waitForImageElementReady(image))
+  );
+  const preloadFeatureData = Promise.allSettled([
+    ensureParcelAssets(),
+    ensureNsiStructureAssets(),
+    ensureFloodProjectionData()
+  ]);
+  const preload3d = window.NORTH_WILDWOOD_3D?.preload
+    ? window.NORTH_WILDWOOD_3D.preload()
+    : Promise.resolve();
+  const preloadExportTools = Promise.allSettled([
+    loadOptionalScript("html2canvas", () => typeof window.html2canvas === "function"),
+    loadOptionalScript("gif", () => typeof window.GIF === "function"),
+    loadOptionalScript("jszip", () => typeof window.JSZip === "function"),
+    loadOptionalScript("geotiff", () => Boolean(window.GeoTIFF?.fromUrl))
+  ]);
+
+  const completePreload = Promise.allSettled([
+    track(mainPromise, 54, "Drawing the current flood map…"),
+    track(warmConfiguredData, 68, "Preloading forecast and archive data…"),
+    track(preloadFeatureData, 82, "Preparing buildings and property detail…"),
+    track(preload3d, 91, "Preparing 3D terrain and structures…"),
+    track(preloadExportTools, 96, "Preparing export tools…"),
+    track(preloadImages, 98, "Finishing the interface…")
+  ]);
+  await Promise.race([
+    completePreload,
+    new Promise(resolve => window.setTimeout(resolve, 15000))
+  ]);
+  window.clearInterval(progressTimer);
+  const minimumDelay = Math.max(0, 1100 - (performance.now() - startedAt));
+  if (minimumDelay) await new Promise(resolve => window.setTimeout(resolve, minimumDelay));
+  finishNorthWildwoodLoading("Floodmapper ready");
+}
+
+const northWildwoodMainPromise = main().catch(err => {
   console.error(err);
   toast(err.message);
+  return null;
 });
+preloadNorthWildwoodExperience(northWildwoodMainPromise);
 </script>
 <style id="shorely-mobile-slider-polish">
 @media (max-width:900px), (max-height:560px){
@@ -37555,8 +37701,8 @@ html body #mapTitleBadge #mapTitleLogo{
       white-space:nowrap !important;
     }
 
-    html body.mobile-optimized #mapClickBuildingBtn::after{content:"Building"}
-    html body.mobile-optimized #mapClickDepthBtn::after{content:"Water depth"}
+    html body.mobile-optimized #mapClickBuildingBtn::after{content:"Info"}
+    html body.mobile-optimized #mapClickDepthBtn::after{content:"Depth"}
 
     html body.mobile-optimized #shorelyMobileSliderKey{
       left:64px !important;
@@ -38951,6 +39097,18 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 </style>
 <style id="north-wildwood-native-zoom-suppression-v1">
+  html body #mapClickModeControl.map-click-mode-control,
+  html body.mobile-optimized #mapClickModeControl.map-click-mode-control{
+    top:var(--map-click-mode-top,72px) !important;
+  }
+  html body .house-alert-popup .nsi-structure-grid,
+  html body .nsi-structure-popup .nsi-structure-grid{
+    margin:8px 0 !important;
+  }
+  html body .house-alert-popup .nsi-impact-status,
+  html body .nsi-structure-popup .nsi-impact-status{
+    margin:0 0 9px !important;
+  }
   html body #map.leaflet-container > .leaflet-control-container > .leaflet-top.leaflet-right{
     display:none !important;
     visibility:hidden !important;
