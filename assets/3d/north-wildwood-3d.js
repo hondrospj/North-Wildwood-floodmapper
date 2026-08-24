@@ -100,12 +100,20 @@
     output.textContent = JSON.stringify(state);
   }
 
+  function normalizeBearing(value) {
+    return ((Number(value) % 360) + 360) % 360;
+  }
+
+  function bearingFromViewpointVector(x, y) {
+    var viewpointBearing = Math.atan2(Number(x) || 0, -(Number(y) || 0)) * 180 / Math.PI;
+    return normalizeBearing(viewpointBearing + 180);
+  }
+
   function GoogleEarth3dControl() {
     this.map = null;
     this.container = null;
     this.viewButton = null;
     this.sync = null;
-    this.panFrame = 0;
   }
 
   GoogleEarth3dControl.prototype.onAdd = function (controlMap) {
@@ -115,7 +123,7 @@
     container.className = "maplibregl-ctrl nw-simple-control";
     container.setAttribute("aria-label", "3D map navigation");
     container.innerHTML = [
-      '<div class="nw-direction-wheel" role="application" tabindex="0" aria-label="Direction wheel. Drag toward north, east, south, west, or any direction between to move the map.">',
+      '<div class="nw-direction-wheel" role="application" tabindex="0" aria-label="Viewpoint wheel. Drag toward north, east, south, west, or any direction between to rotate the viewing angle.">',
       '  <span class="nw-wheel-cardinal nw-wheel-n" aria-hidden="true">N</span>',
       '  <span class="nw-wheel-cardinal nw-wheel-e" aria-hidden="true">E</span>',
       '  <span class="nw-wheel-cardinal nw-wheel-s" aria-hidden="true">S</span>',
@@ -162,10 +170,6 @@
     var directionY = 0;
     var directionStrength = 0;
 
-    function panBy(offset, duration) {
-      controlMap.stop();
-      controlMap.panBy(offset, { duration: duration || 0 });
-    }
     function updateWheel(clientX, clientY) {
       var rect = wheel.getBoundingClientRect();
       var dx = clientX - (rect.left + rect.width / 2);
@@ -189,13 +193,12 @@
       wheel.dataset.directionY = directionY.toFixed(4);
       wheel.dataset.directionStrength = directionStrength.toFixed(4);
     }
-    function panContinuously() {
-      if (activePointer === null) return;
-      if (directionStrength > .08) {
-        var speed = 2 + directionStrength * 7;
-        controlMap.panBy([directionX * speed, directionY * speed], { duration: 0 });
-      }
-      self.panFrame = window.requestAnimationFrame(panContinuously);
+    function rotateFromWheel(duration) {
+      if (directionStrength <= .08) return;
+      var bearing = bearingFromViewpointVector(directionX, directionY);
+      controlMap.stop();
+      if (duration) controlMap.easeTo({ bearing: bearing, duration: duration });
+      else controlMap.jumpTo({ bearing: bearing });
     }
     function releaseWheel(event) {
       if (activePointer === null || (event && event.pointerId !== activePointer)) return;
@@ -211,8 +214,6 @@
       wheel.classList.remove("is-active");
       wheel.style.setProperty("--nw-wheel-x", "0px");
       wheel.style.setProperty("--nw-wheel-y", "0px");
-      if (self.panFrame) window.cancelAnimationFrame(self.panFrame);
-      self.panFrame = 0;
     }
     wheel.addEventListener("pointerdown", function (event) {
       event.preventDefault();
@@ -221,19 +222,19 @@
       try { wheel.setPointerCapture(activePointer); } catch (_) {}
       wheel.classList.add("is-active");
       updateWheel(event.clientX, event.clientY);
-      if (directionStrength > .08) panBy([directionX * 9, directionY * 9], 0);
-      if (self.panFrame) window.cancelAnimationFrame(self.panFrame);
-      self.panFrame = window.requestAnimationFrame(panContinuously);
+      rotateFromWheel(0);
     });
     wheel.addEventListener("pointermove", function (event) {
-      if (event.pointerId === activePointer) updateWheel(event.clientX, event.clientY);
+      if (event.pointerId !== activePointer) return;
+      updateWheel(event.clientX, event.clientY);
+      rotateFromWheel(0);
     });
     wheel.addEventListener("pointerup", releaseWheel);
     wheel.addEventListener("pointercancel", releaseWheel);
     wheel.addEventListener("lostpointercapture", releaseWheel);
     wheel.addEventListener("click", function (event) {
       updateWheel(event.clientX, event.clientY);
-      if (directionStrength > .08) panBy([directionX * 72, directionY * 72], 160);
+      rotateFromWheel(240);
       directionX = 0;
       directionY = 0;
       directionStrength = 0;
@@ -241,15 +242,15 @@
       wheel.style.setProperty("--nw-wheel-y", "0px");
     });
     wheel.addEventListener("keydown", function (event) {
-      var offsets = {
-        ArrowUp: [0, -90],
-        ArrowRight: [90, 0],
-        ArrowDown: [0, 90],
-        ArrowLeft: [-90, 0]
+      var bearings = {
+        ArrowUp: 180,
+        ArrowRight: 270,
+        ArrowDown: 0,
+        ArrowLeft: 90
       };
-      if (!offsets[event.key]) return;
+      if (!Object.prototype.hasOwnProperty.call(bearings, event.key)) return;
       event.preventDefault();
-      panBy(offsets[event.key], 160);
+      moveTo({ bearing: bearings[event.key] }, 260);
     });
 
     this.sync = function () {
@@ -269,8 +270,6 @@
   };
 
   GoogleEarth3dControl.prototype.onRemove = function () {
-    if (this.panFrame) window.cancelAnimationFrame(this.panFrame);
-    this.panFrame = 0;
     if (this.map && this.sync) {
       this.map.off("rotate", this.sync);
       this.map.off("pitch", this.sync);
@@ -864,29 +863,99 @@
   }
 
   function install3dLauncher() {
-    if (document.getElementById("nw3dLauncher")) return;
+    if (document.getElementById("nwDefaultNavControl")) return;
     var host = document.getElementById("mapWrap") || document.body;
-    var launcher = document.createElement("button");
-    launcher.id = "nw3dLauncher";
-    launcher.type = "button";
-    launcher.setAttribute("aria-label", "Open 3D terrain view");
-    launcher.setAttribute("title", "Open 3D terrain view");
-    launcher.innerHTML = '<svg viewBox="0 0 32 20" aria-hidden="true"><path d="M2 10s5-8 14-8 14 8 14 8-5 8-14 8S2 10 2 10Z"></path><circle cx="16" cy="10" r="4"></circle></svg><span class="nw-3d-launcher-label">3D</span>';
-    launcher.addEventListener("click", async function () {
+    var control = document.createElement("div");
+    control.id = "nwDefaultNavControl";
+    control.className = "nw-simple-control";
+    control.setAttribute("aria-label", "Map navigation");
+    control.innerHTML = [
+      '<div class="nw-direction-wheel" role="application" tabindex="0" aria-label="Viewpoint wheel. Choose north, east, south, west, or any direction between to open that 3D viewing angle.">',
+      '  <span class="nw-wheel-cardinal nw-wheel-n" aria-hidden="true">N</span>',
+      '  <span class="nw-wheel-cardinal nw-wheel-e" aria-hidden="true">E</span>',
+      '  <span class="nw-wheel-cardinal nw-wheel-s" aria-hidden="true">S</span>',
+      '  <span class="nw-wheel-cardinal nw-wheel-w" aria-hidden="true">W</span>',
+      '  <span class="nw-wheel-knob" aria-hidden="true"></span>',
+      '</div>',
+      '<button class="nw-simple-view" type="button" aria-label="Open 3D terrain view" aria-pressed="false" title="Open 3D terrain view"><span class="nw-simple-view-label">3D</span></button>',
+      '<div class="nw-simple-zoom" role="group" aria-label="Zoom controls">',
+      '  <button class="nw-simple-zoom-button nw-simple-zoom-in" type="button" aria-label="Zoom in" title="Zoom in"><span aria-hidden="true">+</span></button>',
+      '  <button class="nw-simple-zoom-button nw-simple-zoom-out" type="button" aria-label="Zoom out" title="Zoom out"><span aria-hidden="true">−</span></button>',
+      '</div>'
+    ].join("");
+    var launcher = control.querySelector(".nw-simple-view");
+    var label = control.querySelector(".nw-simple-view-label");
+    var wheel = control.querySelector(".nw-direction-wheel");
+    var pendingBearing = null;
+
+    function updateDefaultWheel(clientX, clientY) {
+      var rect = wheel.getBoundingClientRect();
+      var dx = clientX - (rect.left + rect.width / 2);
+      var dy = clientY - (rect.top + rect.height / 2);
+      var distance = Math.sqrt(dx * dx + dy * dy);
+      var maxRadius = Math.max(18, rect.width * .30);
+      if (distance <= maxRadius * .08) return null;
+      var scale = distance > maxRadius ? maxRadius / distance : 1;
+      wheel.style.setProperty("--nw-wheel-x", (dx * scale).toFixed(2) + "px");
+      wheel.style.setProperty("--nw-wheel-y", (dy * scale).toFixed(2) + "px");
+      pendingBearing = bearingFromViewpointVector(dx / distance, dy / distance);
+      return pendingBearing;
+    }
+
+    function resetDefaultWheel() {
+      wheel.classList.remove("is-active");
+      wheel.style.setProperty("--nw-wheel-x", "0px");
+      wheel.style.setProperty("--nw-wheel-y", "0px");
+    }
+
+    async function activate3d(requestedBearing) {
+      if (Number.isFinite(requestedBearing)) pendingBearing = requestedBearing;
       if (launcher.getAttribute("aria-busy") === "true") return;
       launcher.setAttribute("aria-busy", "true");
-      launcher.querySelector(".nw-3d-launcher-label").textContent = "Loading";
+      label.textContent = "…";
       var nextMap = await ensure3dMap();
       if (nextMap) {
         nextMap.stop();
-        nextMap.easeTo({ pitch: THREE_D_PITCH, duration: 420 });
+        nextMap.easeTo({
+          pitch: THREE_D_PITCH,
+          bearing: Number.isFinite(pendingBearing) ? pendingBearing : 0,
+          duration: 420
+        });
         return;
       }
       launcher.setAttribute("aria-busy", "false");
-      launcher.querySelector(".nw-3d-launcher-label").textContent = "3D";
+      label.textContent = "3D";
+      resetDefaultWheel();
       toast("3D terrain could not load. The 2D map is still available.");
+    }
+
+    launcher.addEventListener("click", function () { activate3d(null); });
+    control.querySelector(".nw-simple-zoom-in").addEventListener("click", function () {
+      if (map && typeof map.zoomIn === "function") map.zoomIn();
     });
-    host.appendChild(launcher);
+    control.querySelector(".nw-simple-zoom-out").addEventListener("click", function () {
+      if (map && typeof map.zoomOut === "function") map.zoomOut();
+    });
+    wheel.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
+      wheel.classList.add("is-active");
+      try { wheel.setPointerCapture(event.pointerId); } catch (_) {}
+      activate3d(updateDefaultWheel(event.clientX, event.clientY));
+    });
+    wheel.addEventListener("pointermove", function (event) {
+      if (!wheel.classList.contains("is-active")) return;
+      updateDefaultWheel(event.clientX, event.clientY);
+    });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (name) {
+      wheel.addEventListener(name, resetDefaultWheel);
+    });
+    wheel.addEventListener("keydown", function (event) {
+      var bearings = { ArrowUp: 180, ArrowRight: 270, ArrowDown: 0, ArrowLeft: 90 };
+      if (!Object.prototype.hasOwnProperty.call(bearings, event.key)) return;
+      event.preventDefault();
+      activate3d(bearings[event.key]);
+    });
+    host.appendChild(control);
     document.body.dataset.map3d = "idle";
   }
 
