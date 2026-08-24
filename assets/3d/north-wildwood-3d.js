@@ -256,9 +256,9 @@
     this.sync = function () {
       var is3d = controlMap.getPitch() > 10;
       self.viewButton.setAttribute("aria-pressed", is3d ? "true" : "false");
-      self.viewButton.setAttribute("aria-label", is3d ? "Turn 3D view off" : "Turn 3D view on");
-      self.viewButton.setAttribute("title", is3d ? "Turn 3D view off" : "Turn 3D view on");
-      viewLabel.textContent = "3D";
+      self.viewButton.setAttribute("aria-label", is3d ? "Switch to 2D view" : "Switch to 3D view");
+      self.viewButton.setAttribute("title", is3d ? "Switch to 2D view" : "Switch to 3D view");
+      viewLabel.textContent = is3d ? "2D" : "3D";
       updateDiagnostics();
     };
     controlMap.on("rotate", this.sync);

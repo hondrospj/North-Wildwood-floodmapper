@@ -1046,6 +1046,15 @@
       right:calc(var(--pj-right-rail-fit-width) + 44px);
     }
     html body.map-3d-ready #nwDefaultNavControl{ display:none !important; }
+    /* Do not expose MapLibre's replacement controls until lazy 3D startup has fully resolved. */
+    html body #map3d .nw-simple-control{
+      visibility:hidden !important;
+      pointer-events:none !important;
+    }
+    html body.map-3d-ready #map3d .nw-simple-control{
+      visibility:visible !important;
+      pointer-events:auto !important;
+    }
     html body #map .leaflet-control-zoom{ display:none !important; }
 
     #map3d .nw-earth-control{
@@ -35875,7 +35884,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v19"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v20"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
