@@ -38,6 +38,14 @@
     });
   }
 
+  function threeDPitchForZoom(zoom) {
+    var level = Number(zoom);
+    if (!Number.isFinite(level) || level <= 18) return THREE_D_PITCH;
+    if (level >= 21) return 12;
+    if (level >= 20) return 20 + (12 - 20) * (level - 20);
+    return THREE_D_PITCH + (20 - THREE_D_PITCH) * ((level - 18) / 2);
+  }
+
   function setStatus(text) {
     var status = document.getElementById("map3dStatus");
     if (status) status.textContent = text || "3D terrain ×4";
@@ -903,6 +911,12 @@
 
   function wire3dInteractions() {
     glMap.on("moveend", sync3dViewToLeaflet);
+    glMap.on("zoomend", function () {
+      if (!glMap || glMap.getPitch() <= 10) return;
+      var safePitch = threeDPitchForZoom(glMap.getZoom());
+      if (Math.abs(glMap.getPitch() - safePitch) < 0.1) return;
+      glMap.jumpTo({ pitch: safePitch });
+    });
     glMap.on("dragend", function () {
       // MapLibre's inertial glide keeps redrawing terrain after the pointer is
       // released. On this dense full-screen scene that starves Chrome's fixed
@@ -1226,7 +1240,7 @@
       syncingModeTransition = true;
       setModeBusy(true);
       syncPersistentNavControl();
-      var camera = { pitch: desired3dMode ? THREE_D_PITCH : DEFAULT_PITCH };
+      var camera = { pitch: desired3dMode ? threeDPitchForZoom(glMap.getZoom()) : DEFAULT_PITCH };
       if (Number.isFinite(requestedBearing)) camera.bearing = requestedBearing;
       glMap.stop();
       // The pitched renderer has already been warmed behind the loader. An
@@ -1312,14 +1326,22 @@
       if (launcher.getAttribute("aria-busy") === "true") return;
       if (map3dReady()) {
         glMap.stop();
-        glMap.jumpTo({ zoom: Math.min(MAP_MAX_ZOOM, glMap.getZoom() + 1) });
+        var nextZoom = Math.min(MAP_MAX_ZOOM, glMap.getZoom() + 1);
+        glMap.jumpTo({
+          zoom: nextZoom,
+          pitch: actual3dMode() ? threeDPitchForZoom(nextZoom) : DEFAULT_PITCH
+        });
       } else if (map && typeof map.zoomIn === "function") map.zoomIn();
     });
     control.querySelector(".nw-simple-zoom-out").addEventListener("click", function () {
       if (launcher.getAttribute("aria-busy") === "true") return;
       if (map3dReady()) {
         glMap.stop();
-        glMap.jumpTo({ zoom: Math.max(11, glMap.getZoom() - 1) });
+        var nextZoom = Math.max(11, glMap.getZoom() - 1);
+        glMap.jumpTo({
+          zoom: nextZoom,
+          pitch: actual3dMode() ? threeDPitchForZoom(nextZoom) : DEFAULT_PITCH
+        });
       } else if (map && typeof map.zoomOut === "function") map.zoomOut();
     });
     wheel.addEventListener("pointerdown", function (event) {
