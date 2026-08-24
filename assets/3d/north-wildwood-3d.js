@@ -1277,12 +1277,12 @@
       // warmed; the first south/west compass sweep had to fetch terrain and
       // rebuild extrusion buckets after the site was already interactive.
       var overviewWarmZoom = Number(originalCamera.zoom);
-      var streetWarmZoom = Math.min(MAP_MAX_ZOOM, overviewWarmZoom + 5);
-      var warmCameras = [];
-      [overviewWarmZoom, streetWarmZoom].forEach(function (zoom) {
-        [0, 45, 90, 135, 180, 225, 270, 315].forEach(function (bearing) {
-          warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: zoom });
-        });
+      // Four pitched cardinal footprints overlap the in-between bearings at
+      // the initial wide view. Do not block the loader on street-zoom terrain:
+      // high-zoom DEM requests may stay active for tens of seconds on a cold
+      // cache even though the overview and compass are already usable.
+      var warmCameras = [0, 90, 180, 270].map(function (bearing) {
+        return { pitch: THREE_D_PITCH, bearing: bearing, zoom: overviewWarmZoom };
       });
       // Top-down diagonal and quarter-turn footprints keep NSEW rotation
       // responsive without forcing the user into 3D.
@@ -1305,10 +1305,8 @@
       setBasemapBuildingExtrusionsEnabled(buildingsEnabled);
     }
     await waitFor3dMapIdle(mapInstance, 45000);
-    document.body.dataset.map3dBearingWarmupAngles = "3d:0,45,90,135,180,225,270,315;2d:45,90";
-    document.body.dataset.map3dBearingWarmupZooms = [overviewWarmZoom, streetWarmZoom].map(function (zoom) {
-      return Number(zoom).toFixed(2);
-    }).join(",");
+    document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:45,90";
+    document.body.dataset.map3dBearingWarmupZooms = Number(overviewWarmZoom).toFixed(2);
     document.body.dataset.map3dWheelPreloaded = "true";
     document.body.dataset.map3dBearingWarmup = "ready";
     document.body.dataset.map3dCameraWarmup = "ready";
