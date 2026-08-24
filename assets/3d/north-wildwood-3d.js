@@ -6,6 +6,12 @@
   var DEFAULT_PITCH = 0;
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
+  // Keep the visual water sheet a few real-world centimetres above its
+  // physical stage. At 4x terrain exaggeration, a mathematically coincident
+  // surface can alternate in front of and behind the DEM as the camera turns.
+  // This render-only epsilon prevents that depth fighting without changing
+  // any flood depth, threshold, popup, or exported value.
+  var WATER_SURFACE_EPSILON_METERS = 0.08;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
   var MAPLIBRE_JS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js";
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
@@ -300,9 +306,11 @@
       gl: null,
       program: null,
       buffer: null,
+      vertexArray: null,
       texture: null,
       matrixLocation: null,
       opacityLocation: null,
+      imageLocation: null,
       positionLocation: -1,
       textureLocation: -1,
       textureReady: false,
@@ -318,6 +326,7 @@
         this.map = mapInstance;
         this.gl = gl;
         var vertexSource = '#version 300 es\n' +
+          'precision highp float;\n' +
           'uniform mat4 u_matrix;\n' +
           'in vec3 a_position;\n' +
           'in vec2 a_texture;\n' +
@@ -343,9 +352,18 @@
         }
         this.matrixLocation = gl.getUniformLocation(this.program, "u_matrix");
         this.opacityLocation = gl.getUniformLocation(this.program, "u_opacity");
+        this.imageLocation = gl.getUniformLocation(this.program, "u_image");
         this.positionLocation = gl.getAttribLocation(this.program, "a_position");
         this.textureLocation = gl.getAttribLocation(this.program, "a_texture");
         this.buffer = gl.createBuffer();
+        this.vertexArray = gl.createVertexArray();
+        gl.bindVertexArray(this.vertexArray);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.enableVertexAttribArray(this.positionLocation);
+        gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 20, 0);
+        gl.enableVertexAttribArray(this.textureLocation);
+        gl.vertexAttribPointer(this.textureLocation, 2, gl.FLOAT, false, 20, 12);
+        gl.bindVertexArray(null);
         this.texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -453,14 +471,10 @@
         gl.useProgram(this.program);
         gl.uniformMatrix4fv(this.matrixLocation, false, matrix);
         gl.uniform1f(this.opacityLocation, this.opacity);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.enableVertexAttribArray(this.positionLocation);
-        gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 20, 0);
-        gl.enableVertexAttribArray(this.textureLocation);
-        gl.vertexAttribPointer(this.textureLocation, 2, gl.FLOAT, false, 20, 12);
+        gl.bindVertexArray(this.vertexArray);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
-        gl.uniform1i(gl.getUniformLocation(this.program, "u_image"), 0);
+        gl.uniform1i(this.imageLocation, 0);
         // MapLibre establishes its 3D depth/blend state for this custom layer.
         // Read terrain/building depth without replacing it: water remains flat,
         // clips correctly at raised surfaces, and translucent lower walls stay
@@ -473,14 +487,17 @@
         gl.depthMask(false);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         gl.depthMask(true);
+        gl.bindVertexArray(null);
       },
 
       onRemove: function (_, gl) {
         this.imageToken += 1;
         if (this.texture) gl.deleteTexture(this.texture);
+        if (this.vertexArray) gl.deleteVertexArray(this.vertexArray);
         if (this.buffer) gl.deleteBuffer(this.buffer);
         if (this.program) gl.deleteProgram(this.program);
         this.texture = null;
+        this.vertexArray = null;
         this.buffer = null;
         this.program = null;
         this.gl = null;
@@ -525,14 +542,15 @@
     }
     var stageNavd88 = Number(getSelectedStageNavd88());
     var pitched = glMap.getPitch() > 10;
+    var physicalAltitudeMeters = Number.isFinite(stageNavd88)
+      ? stageNavd88 * 0.3048 * TERRAIN_EXAGGERATION
+      : 0;
     var options = {
       url: url,
       coordinates: coordinates,
       opacity: overlayOpacity,
       visible: pitched,
-      altitudeMeters: Number.isFinite(stageNavd88)
-        ? stageNavd88 * 0.3048 * TERRAIN_EXAGGERATION
-        : 0
+      altitudeMeters: physicalAltitudeMeters + WATER_SURFACE_EPSILON_METERS * TERRAIN_EXAGGERATION
     };
     // Top-down mode uses MapLibre's native image source, which remains in one
     // stable style layer while the camera pans or rotates. The preloaded flat
@@ -553,6 +571,9 @@
     } else if (floodPlaneLayer && typeof floodPlaneLayer.update === "function") {
       floodPlaneLayer.update(options);
     }
+    if (glMap.getLayer("nw-flood-overlay") && glMap.getLayer("nw-building-outlines")) {
+      glMap.moveLayer("nw-flood-overlay", "nw-building-outlines");
+    }
     syncFloodPresentationMode();
     document.body.dataset.map3dFloodSurface = "flat-water-overlay";
     document.body.dataset.map3dFloodDepthMode = "independent";
@@ -560,6 +581,8 @@
       ? "world-file-quadrilateral"
       : "axis-aligned";
     document.body.dataset.map3dFloodAltitudeMeters = options.altitudeMeters.toFixed(3);
+    document.body.dataset.map3dFloodPhysicalAltitudeMeters = physicalAltitudeMeters.toFixed(3);
+    document.body.dataset.map3dFloodSurfaceEpsilonMeters = WATER_SURFACE_EPSILON_METERS.toFixed(3);
   }
 
   function syncSatellite3d() {
@@ -819,11 +842,12 @@
           glMap.getCanvas().style.cursor = "";
         });
       }
-      // Water is translucent, so draw it after the opaque buildings while
-      // keeping it below the municipal mask. Its read-only depth test then
-      // reveals structures through submerged portions and meets their walls.
-      if (glMap.getLayer("nw-flood-overlay") && glMap.getLayer("nw-boundary-mask")) {
-        glMap.moveLayer("nw-flood-overlay", "nw-boundary-mask");
+      // Draw the flat water before the opaque buildings. Terrain depth clips
+      // the water first, then the building extrusion covers the water and the
+      // water naturally meets its walls. Keeping the translucent sheet out of
+      // the completed building depth pass prevents camera-dependent fighting.
+      if (glMap.getLayer("nw-flood-overlay") && glMap.getLayer("nw-building-outlines")) {
+        glMap.moveLayer("nw-flood-overlay", "nw-building-outlines");
       }
     }
     if (!glMap.getLayer("nw-3d-buildings")) return;
@@ -1102,6 +1126,7 @@
         // the scene clean without the multisampled offscreen surface.
         antialias: false,
         fadeDuration: 0,
+        refreshExpiredTiles: false,
         maxTileCacheZoomLevels: 8,
         // Cap Retina canvas density so a full-screen map does not attempt to
         // redraw roughly four times as many pixels on every drag frame. A
@@ -1307,6 +1332,7 @@
     var label = control.querySelector(".nw-simple-view-label");
     var wheel = control.querySelector(".nw-direction-wheel");
     var pendingBearing = null;
+    var pendingPointerBearing = null;
     var queuedViewpointBearing = null;
     var queuedViewpointDuration = 0;
     var viewpointAnimationFrame = 0;
@@ -1410,6 +1436,20 @@
       wheel.style.setProperty("--nw-wheel-y", "0px");
     }
 
+    function finishDefaultWheel(event, commit) {
+      if (activePointer === null || event.pointerId !== activePointer) return;
+      var selectedBearing = pendingPointerBearing;
+      pendingPointerBearing = null;
+      resetDefaultWheel();
+      // A pitched terrain camera rebuilds its depth surface whenever its
+      // matrix changes. Let the knob follow the pointer immediately, but
+      // commit one atomic map bearing on release instead of rebuilding the
+      // terrain for every pointer sample.
+      if (commit && Number.isFinite(selectedBearing)) {
+        applyViewpoint(selectedBearing, 0);
+      }
+    }
+
     async function activate3d(requestedBearing) {
       if (Number.isFinite(requestedBearing)) pendingBearing = requestedBearing;
       if (launcher.getAttribute("aria-busy") === "true") return;
@@ -1495,15 +1535,20 @@
       activePointer = event.pointerId;
       wheel.classList.add("is-active");
       try { wheel.setPointerCapture(activePointer); } catch (_) {}
-      applyViewpoint(updateDefaultWheel(event.clientX, event.clientY), 0);
+      pendingPointerBearing = updateDefaultWheel(event.clientX, event.clientY);
     });
     wheel.addEventListener("pointermove", function (event) {
       if (event.pointerId !== activePointer) return;
-      applyViewpoint(updateDefaultWheel(event.clientX, event.clientY), 0);
+      pendingPointerBearing = updateDefaultWheel(event.clientX, event.clientY);
     });
-    wheel.addEventListener("pointerup", resetDefaultWheel);
-    wheel.addEventListener("pointercancel", resetDefaultWheel);
-    wheel.addEventListener("lostpointercapture", resetDefaultWheel);
+    wheel.addEventListener("pointerup", function (event) { finishDefaultWheel(event, true); });
+    wheel.addEventListener("pointercancel", function (event) { finishDefaultWheel(event, false); });
+    wheel.addEventListener("lostpointercapture", function (event) {
+      if (activePointer !== null && event.pointerId === activePointer) {
+        pendingPointerBearing = null;
+        resetDefaultWheel();
+      }
+    });
     wheel.addEventListener("keydown", function (event) {
       var bearings = { ArrowUp: 180, ArrowRight: 270, ArrowDown: 0, ArrowLeft: 90 };
       if (!Object.prototype.hasOwnProperty.call(bearings, event.key)) return;
@@ -1511,6 +1556,7 @@
       applyViewpoint(bearings[event.key], 0);
     });
     host.appendChild(control);
+    control.dataset.wheelCameraUpdates = "commit-on-release";
     if (!document.body.dataset.map3d) document.body.dataset.map3d = "idle";
     syncPersistentNavControl();
   }
