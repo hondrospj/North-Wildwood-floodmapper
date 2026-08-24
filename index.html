@@ -1370,6 +1370,11 @@
       isolation:isolate;
       pointer-events:auto;
       filter:drop-shadow(0 2px 4px rgba(0,0,0,.42));
+      contain:layout style paint;
+      will-change:transform;
+      transform:translateZ(0);
+      -webkit-backface-visibility:hidden;
+      backface-visibility:hidden;
     }
     html body .nw-simple-control button{
       -webkit-appearance:none !important;
@@ -1408,6 +1413,11 @@
       cursor:grab;
       touch-action:none;
       box-sizing:border-box;
+      contain:layout paint;
+      will-change:transform;
+      transform:translateZ(0);
+      -webkit-backface-visibility:hidden;
+      backface-visibility:hidden;
     }
     html body .nw-direction-wheel.is-active{ cursor:grabbing; }
     html body .nw-wheel-cardinal{
@@ -1440,8 +1450,12 @@
       background:linear-gradient(#fff,#e5e5e5);
       box-shadow:0 1px 4px rgba(0,0,0,.44);
       color:#4285c5;
-      transform:translate(var(--nw-wheel-x,0px),var(--nw-wheel-y,0px));
+      transform:translate3d(var(--nw-wheel-x,0px),var(--nw-wheel-y,0px),0);
       transition:transform .11s ease-out;
+      will-change:transform;
+      -webkit-backface-visibility:hidden;
+      backface-visibility:hidden;
+      contain:paint;
       pointer-events:none;
       box-sizing:border-box;
     }
@@ -36093,7 +36107,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260824-nw-3d-v41"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260824-nw-3d-v42"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
