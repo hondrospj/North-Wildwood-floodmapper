@@ -1035,9 +1035,18 @@
     html body.map-3d-ready #nw3dLauncher{ display:none !important; }
 
     #map3d .maplibregl-ctrl-top-right{
-      top:104px;
+      top:72px;
       right:calc(var(--pj-right-rail-fit-width) + 44px);
     }
+
+    html body #nwDefaultNavControl{
+      position:absolute;
+      z-index:1450;
+      top:72px;
+      right:calc(var(--pj-right-rail-fit-width) + 44px);
+    }
+    html body.map-3d-ready #nwDefaultNavControl{ display:none !important; }
+    html body #map .leaflet-control-zoom{ display:none !important; }
 
     #map3d .nw-earth-control{
       display:flex;
@@ -1341,7 +1350,7 @@
       transform:translateY(-50%);
     }
 
-    #map3d .nw-simple-control{
+    html body .nw-simple-control{
       display:flex;
       flex-direction:column;
       align-items:center;
@@ -1362,7 +1371,7 @@
       pointer-events:auto;
       filter:drop-shadow(0 2px 4px rgba(0,0,0,.42));
     }
-    #map3d .nw-simple-control button{
+    html body .nw-simple-control button{
       -webkit-appearance:none !important;
       appearance:none !important;
       display:grid !important;
@@ -1382,13 +1391,13 @@
       touch-action:manipulation;
       box-sizing:border-box !important;
     }
-    #map3d .nw-simple-control button:hover{ filter:brightness(1.07); }
-    #map3d .nw-simple-control button:focus-visible,
-    #map3d .nw-direction-wheel:focus-visible{
+    html body .nw-simple-control button:hover{ filter:brightness(1.07); }
+    html body .nw-simple-control button:focus-visible,
+    html body .nw-direction-wheel:focus-visible{
       outline:3px solid rgba(96,165,250,.96);
       outline-offset:3px;
     }
-    #map3d .nw-direction-wheel{
+    html body .nw-direction-wheel{
       position:relative;
       width:88px;
       height:88px;
@@ -1400,8 +1409,8 @@
       touch-action:none;
       box-sizing:border-box;
     }
-    #map3d .nw-direction-wheel.is-active{ cursor:grabbing; }
-    #map3d .nw-wheel-cardinal{
+    html body .nw-direction-wheel.is-active{ cursor:grabbing; }
+    html body .nw-wheel-cardinal{
       position:absolute;
       z-index:1;
       width:18px;
@@ -1412,11 +1421,11 @@
       text-shadow:0 1px 2px #000;
       pointer-events:none;
     }
-    #map3d .nw-wheel-n{ top:2px; left:50%; margin-left:-9px; }
-    #map3d .nw-wheel-e{ top:50%; right:2px; margin-top:-9px; }
-    #map3d .nw-wheel-s{ bottom:2px; left:50%; margin-left:-9px; }
-    #map3d .nw-wheel-w{ top:50%; left:2px; margin-top:-9px; }
-    #map3d .nw-wheel-knob{
+    html body .nw-wheel-n{ top:2px; left:50%; margin-left:-9px; }
+    html body .nw-wheel-e{ top:50%; right:2px; margin-top:-9px; }
+    html body .nw-wheel-s{ bottom:2px; left:50%; margin-left:-9px; }
+    html body .nw-wheel-w{ top:50%; left:2px; margin-top:-9px; }
+    html body .nw-wheel-knob{
       position:absolute;
       z-index:2;
       top:50%;
@@ -1436,8 +1445,8 @@
       pointer-events:none;
       box-sizing:border-box;
     }
-    #map3d .nw-direction-wheel.is-active .nw-wheel-knob{ transition:none; }
-    #map3d .nw-wheel-knob::before{
+    html body .nw-direction-wheel.is-active .nw-wheel-knob{ transition:none; }
+    html body .nw-wheel-knob::before{
       content:"";
       width:10px;
       height:10px;
@@ -1445,7 +1454,7 @@
       border-radius:50%;
       box-sizing:border-box;
     }
-    #map3d .nw-simple-view{
+    html body .nw-simple-view{
       width:54px !important;
       height:34px !important;
       border-radius:17px !important;
@@ -1453,7 +1462,7 @@
       letter-spacing:.04em;
       box-shadow:0 1px 3px rgba(0,0,0,.36);
     }
-    #map3d .nw-simple-zoom{
+    html body .nw-simple-zoom{
       display:flex;
       flex-direction:column;
       align-items:center;
@@ -1462,15 +1471,15 @@
       overflow:hidden;
       box-shadow:0 1px 3px rgba(0,0,0,.36);
     }
-    #map3d .nw-simple-zoom-button{
+    html body .nw-simple-zoom-button{
       width:36px !important;
       height:34px !important;
       border-radius:0 !important;
       font-size:22px !important;
       box-shadow:none !important;
     }
-    #map3d .nw-simple-zoom-in{ border-bottom:0 !important; }
-    #map3d .nw-simple-zoom-out{ border-top-color:#ddd !important; }
+    html body .nw-simple-zoom-in{ border-bottom:0 !important; }
+    html body .nw-simple-zoom-out{ border-top-color:#ddd !important; }
 
     #rightRail .layers-card{ position:relative; }
     .nw-map-credits-rail{
@@ -1536,7 +1545,11 @@
       }
       html body #nw3dLauncher svg{ width:29px; height:19px; }
       #map3d .maplibregl-ctrl-top-right{
-        top:max(176px, calc(env(safe-area-inset-top) + 168px));
+        top:max(104px, calc(env(safe-area-inset-top) + 96px));
+        right:max(2px, env(safe-area-inset-right));
+      }
+      html body #nwDefaultNavControl{
+        top:max(104px, calc(env(safe-area-inset-top) + 96px));
         right:max(2px, env(safe-area-inset-right));
       }
       #map3dStatus{ display:none !important; }
@@ -1546,11 +1559,11 @@
         transform:scale(.72);
         transform-origin:top right;
       }
-      #map3d .nw-simple-control{
+      html body .nw-simple-control{
         width:80px;
         gap:8px;
       }
-      #map3d .nw-direction-wheel{
+      html body .nw-direction-wheel{
         width:78px;
         height:78px;
       }
@@ -35858,7 +35871,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v17"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260823-nw-3d-v18"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
