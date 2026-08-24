@@ -38,14 +38,6 @@
     });
   }
 
-  function threeDPitchForZoom(zoom) {
-    var level = Number(zoom);
-    if (!Number.isFinite(level) || level <= 18) return THREE_D_PITCH;
-    if (level >= 21) return 12;
-    if (level >= 20) return 20 + (12 - 20) * (level - 20);
-    return THREE_D_PITCH + (20 - THREE_D_PITCH) * ((level - 18) / 2);
-  }
-
   function setStatus(text) {
     var status = document.getElementById("map3dStatus");
     if (status) status.textContent = text || "3D terrain ×4";
@@ -443,8 +435,12 @@
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.uniform1i(gl.getUniformLocation(this.program, "u_image"), 0);
         // MapLibre establishes its 3D depth/blend state for this custom layer.
-        // Premultiplied output preserves that state for following buildings.
+        // Read terrain/building depth without replacing it: water remains flat,
+        // clips correctly at raised surfaces, and translucent lower walls stay
+        // visible instead of whole buildings disappearing below the plane.
+        gl.depthMask(false);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
+        gl.depthMask(true);
       },
 
       onRemove: function (_, gl) {
@@ -681,14 +677,14 @@
               renderedFeatureCount: sanitizedFeatures.length,
               excludedModeledSquares: excludedFallbacks,
               excludedLooseMatches: 0,
-              renderHeightModel: "OSM tagged height when available; otherwise 3.05 m per screened story plus 1.2 m roof. Crawlspace rise is not added to roof height. The renderer applies the same 4x vertical scale as terrain and water."
+              renderHeightModel: "OSM tagged height when available; otherwise 3.05 m per screened story plus 1.2 m roof. Crawlspace rise is not added to roof height. Buildings render at screened real height while terrain elevation remains 4x exaggerated."
             }),
             features: sanitizedFeatures
           };
           document.body.dataset.buildings3dCount = String(sanitizedFeatures.length);
           document.body.dataset.buildings3dExcludedFallbacks = String(excludedFallbacks);
           document.body.dataset.buildings3dExcludedLooseMatches = "0";
-          document.body.dataset.buildings3dVerticalScale = String(TERRAIN_EXAGGERATION);
+          document.body.dataset.buildings3dVerticalScale = "1";
           document.body.dataset.buildings3dMaxHeightFt = String(sanitizedFeatures.reduce(function (maximum, feature) {
             return Math.max(maximum, Number(feature.properties && feature.properties.renderHeightFt) || 0);
           }, 0).toFixed(1));
@@ -743,10 +739,7 @@
         minzoom: 12,
         paint: {
           "fill-extrusion-color": "#ddd7cb",
-          // Terrain and the flat flood plane both use 4x vertical elevation.
-          // Applying that same scale to building height preserves real-world
-          // water-to-roof relationships and keeps flooded walls visible.
-          "fill-extrusion-height": ["*", ["to-number", ["get", "renderHeightM"], 3], TERRAIN_EXAGGERATION],
+          "fill-extrusion-height": ["to-number", ["get", "renderHeightM"], 3],
           "fill-extrusion-base": 0,
           "fill-extrusion-opacity": 0.98,
           "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
@@ -761,6 +754,12 @@
         glMap.on("mouseleave", "nw-3d-buildings", function () {
           glMap.getCanvas().style.cursor = "";
         });
+      }
+      // Water is translucent, so draw it after the opaque buildings while
+      // keeping it below the municipal mask. Its read-only depth test then
+      // reveals structures through submerged portions and meets their walls.
+      if (glMap.getLayer("nw-flood-overlay") && glMap.getLayer("nw-boundary-mask")) {
+        glMap.moveLayer("nw-flood-overlay", "nw-boundary-mask");
       }
     }
     if (!glMap.getLayer("nw-3d-buildings")) return;
@@ -911,12 +910,6 @@
 
   function wire3dInteractions() {
     glMap.on("moveend", sync3dViewToLeaflet);
-    glMap.on("zoomend", function () {
-      if (!glMap || glMap.getPitch() <= 10) return;
-      var safePitch = threeDPitchForZoom(glMap.getZoom());
-      if (Math.abs(glMap.getPitch() - safePitch) < 0.1) return;
-      glMap.jumpTo({ pitch: safePitch });
-    });
     glMap.on("dragend", function () {
       // MapLibre's inertial glide keeps redrawing terrain after the pointer is
       // released. On this dense full-screen scene that starves Chrome's fixed
@@ -1240,7 +1233,7 @@
       syncingModeTransition = true;
       setModeBusy(true);
       syncPersistentNavControl();
-      var camera = { pitch: desired3dMode ? threeDPitchForZoom(glMap.getZoom()) : DEFAULT_PITCH };
+      var camera = { pitch: desired3dMode ? THREE_D_PITCH : DEFAULT_PITCH };
       if (Number.isFinite(requestedBearing)) camera.bearing = requestedBearing;
       glMap.stop();
       // The pitched renderer has already been warmed behind the loader. An
@@ -1326,22 +1319,14 @@
       if (launcher.getAttribute("aria-busy") === "true") return;
       if (map3dReady()) {
         glMap.stop();
-        var nextZoom = Math.min(MAP_MAX_ZOOM, glMap.getZoom() + 1);
-        glMap.jumpTo({
-          zoom: nextZoom,
-          pitch: actual3dMode() ? threeDPitchForZoom(nextZoom) : DEFAULT_PITCH
-        });
+        glMap.jumpTo({ zoom: Math.min(MAP_MAX_ZOOM, glMap.getZoom() + 1) });
       } else if (map && typeof map.zoomIn === "function") map.zoomIn();
     });
     control.querySelector(".nw-simple-zoom-out").addEventListener("click", function () {
       if (launcher.getAttribute("aria-busy") === "true") return;
       if (map3dReady()) {
         glMap.stop();
-        var nextZoom = Math.max(11, glMap.getZoom() - 1);
-        glMap.jumpTo({
-          zoom: nextZoom,
-          pitch: actual3dMode() ? threeDPitchForZoom(nextZoom) : DEFAULT_PITCH
-        });
+        glMap.jumpTo({ zoom: Math.max(11, glMap.getZoom() - 1) });
       } else if (map && typeof map.zoomOut === "function") map.zoomOut();
     });
     wheel.addEventListener("pointerdown", function (event) {
