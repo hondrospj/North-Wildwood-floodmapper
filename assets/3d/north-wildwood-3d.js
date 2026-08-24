@@ -1207,6 +1207,7 @@
   async function warm3dCamera(mapInstance) {
     if (document.body.dataset.map3dCameraWarmup === "ready") return;
     document.body.dataset.map3dCameraWarmup = "loading";
+    document.body.dataset.map3dBearingWarmup = "loading";
     var originalCamera = {
       center: mapInstance.getCenter(),
       zoom: mapInstance.getZoom(),
@@ -1227,6 +1228,11 @@
       // loading screen still covers the canvas, then return to true 2D.
       mapInstance.jumpTo({ pitch: THREE_D_PITCH, bearing: DEFAULT_BEARING });
       await waitFor3dMapIdle(mapInstance, 45000);
+      // A 45-degree, top-down view has the largest tile footprint needed by
+      // the compass wheel. Warming it here prevents the first wheel drag from
+      // compiling the rotated render path and fetching corner tiles on screen.
+      mapInstance.jumpTo({ pitch: DEFAULT_PITCH, bearing: 45 });
+      await waitFor3dMapIdle(mapInstance, 45000);
     } finally {
       mapInstance.jumpTo(originalCamera);
       if (hasBuildings) {
@@ -1238,6 +1244,7 @@
       setBasemapBuildingExtrusionsEnabled(buildingsEnabled);
     }
     await waitFor3dMapIdle(mapInstance, 45000);
+    document.body.dataset.map3dBearingWarmup = "ready";
     document.body.dataset.map3dCameraWarmup = "ready";
     syncPersistentNavControl();
     updateDiagnostics();
@@ -1297,6 +1304,9 @@
     var label = control.querySelector(".nw-simple-view-label");
     var wheel = control.querySelector(".nw-direction-wheel");
     var pendingBearing = null;
+    var queuedViewpointBearing = null;
+    var queuedViewpointDuration = 0;
+    var viewpointAnimationFrame = 0;
     var activePointer = null;
     var desired3dMode = false;
     var modeTransitionTimer = null;
@@ -1416,6 +1426,34 @@
       toast("3D terrain could not load. The 2D map is still available.");
     }
 
+    function flushQueuedViewpoint() {
+      viewpointAnimationFrame = 0;
+      var bearing = queuedViewpointBearing;
+      var duration = queuedViewpointDuration;
+      queuedViewpointBearing = null;
+      queuedViewpointDuration = 0;
+      if (!Number.isFinite(bearing) || !map3dReady()) return;
+      if (launcher.getAttribute("aria-busy") === "true") return;
+      if (duration) {
+        glMap.stop();
+        glMap.easeTo({ bearing: bearing, duration: duration });
+      } else {
+        glMap.jumpTo({ bearing: bearing });
+      }
+      document.body.dataset.map3dWheelFrame = String(
+        Number(document.body.dataset.map3dWheelFrame || 0) + 1
+      );
+      syncPersistentNavControl();
+    }
+
+    function queueViewpoint(bearing, duration) {
+      queuedViewpointBearing = bearing;
+      queuedViewpointDuration = Number(duration) || 0;
+      if (!viewpointAnimationFrame) {
+        viewpointAnimationFrame = requestAnimationFrame(flushQueuedViewpoint);
+      }
+    }
+
     async function applyViewpoint(bearing, duration) {
       if (!Number.isFinite(bearing)) return;
       pendingBearing = bearing;
@@ -1424,10 +1462,9 @@
         if (!nextMap) return;
       }
       if (launcher.getAttribute("aria-busy") === "true") return;
-      glMap.stop();
-      if (duration) glMap.easeTo({ bearing: bearing, duration: duration });
-      else glMap.jumpTo({ bearing: bearing });
-      syncPersistentNavControl();
+      // Pointer events can arrive much faster than the map can paint. Keep
+      // only the latest bearing and update the camera once per display frame.
+      queueViewpoint(bearing, duration);
     }
 
     launcher.addEventListener("click", function () {
