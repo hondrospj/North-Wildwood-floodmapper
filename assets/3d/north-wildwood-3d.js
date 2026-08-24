@@ -130,7 +130,7 @@
       '  <span class="nw-wheel-cardinal nw-wheel-w" aria-hidden="true">W</span>',
       '  <span class="nw-wheel-knob" aria-hidden="true"></span>',
       '</div>',
-      '<button class="nw-simple-view" type="button" aria-label="Switch to 3D view" aria-pressed="false" title="Switch to 3D view"><span class="nw-simple-view-label">3D</span></button>',
+      '<button class="nw-simple-view" type="button" aria-label="Turn 3D view on" aria-pressed="false" title="Turn 3D view on"><span class="nw-simple-view-label">3D</span></button>',
       '<div class="nw-simple-zoom" role="group" aria-label="Zoom controls">',
       '  <button class="nw-simple-zoom-button nw-simple-zoom-in" type="button" aria-label="Zoom in" title="Zoom in"><span aria-hidden="true">+</span></button>',
       '  <button class="nw-simple-zoom-button nw-simple-zoom-out" type="button" aria-label="Zoom out" title="Zoom out"><span aria-hidden="true">−</span></button>',
@@ -256,9 +256,9 @@
     this.sync = function () {
       var is3d = controlMap.getPitch() > 10;
       self.viewButton.setAttribute("aria-pressed", is3d ? "true" : "false");
-      self.viewButton.setAttribute("aria-label", is3d ? "Switch to 2D view" : "Switch to 3D view");
-      self.viewButton.setAttribute("title", is3d ? "Switch to 2D view" : "Switch to 3D view");
-      viewLabel.textContent = is3d ? "2D" : "3D";
+      self.viewButton.setAttribute("aria-label", is3d ? "Turn 3D view off" : "Turn 3D view on");
+      self.viewButton.setAttribute("title", is3d ? "Turn 3D view off" : "Turn 3D view on");
+      viewLabel.textContent = "3D";
       updateDiagnostics();
     };
     controlMap.on("rotate", this.sync);
@@ -877,7 +877,7 @@
       '  <span class="nw-wheel-cardinal nw-wheel-w" aria-hidden="true">W</span>',
       '  <span class="nw-wheel-knob" aria-hidden="true"></span>',
       '</div>',
-      '<button class="nw-simple-view" type="button" aria-label="Open 3D terrain view" aria-pressed="false" title="Open 3D terrain view"><span class="nw-simple-view-label">3D</span></button>',
+      '<button class="nw-simple-view" type="button" aria-label="Turn 3D view on" aria-pressed="false" title="Turn 3D view on"><span class="nw-simple-view-label">3D</span></button>',
       '<div class="nw-simple-zoom" role="group" aria-label="Zoom controls">',
       '  <button class="nw-simple-zoom-button nw-simple-zoom-in" type="button" aria-label="Zoom in" title="Zoom in"><span aria-hidden="true">+</span></button>',
       '  <button class="nw-simple-zoom-button nw-simple-zoom-out" type="button" aria-label="Zoom out" title="Zoom out"><span aria-hidden="true">−</span></button>',
