@@ -201,6 +201,22 @@
     ];
   }
 
+  function activeFloodCoordinates() {
+    if (typeof getActiveFloodOverlayCoordinates === "function") {
+      var configured = getActiveFloodOverlayCoordinates();
+      if (Array.isArray(configured) && configured.length === 4) return configured;
+    }
+    return coordinatesFromLeafletBounds(floodLatLngBounds);
+  }
+
+  function configuredWorldFileCoordinates() {
+    if (typeof getConfiguredWorldFileCoordinates === "function") {
+      var configured = getConfiguredWorldFileCoordinates();
+      if (Array.isArray(configured) && configured.length === 4) return configured;
+    }
+    return coordinatesFromLeafletBounds(floodLatLngBounds || getBoundaryDrivenOverlayBounds());
+  }
+
   function addLayerBelowMask(layer) {
     if (!glMap || glMap.getLayer(layer.id)) return;
     glMap.addLayer(layer, glMap.getLayer("nw-boundary-mask") ? "nw-boundary-mask" : undefined);
@@ -460,7 +476,7 @@
   function syncFloodLayer3d() {
     if (!glMap || !glStyleReady) return;
     var url = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
-    var coordinates = coordinatesFromLeafletBounds(floodLatLngBounds);
+    var coordinates = activeFloodCoordinates();
     if (!url || !coordinates) {
       if (floodRemovalTimer) window.clearTimeout(floodRemovalTimer);
       // clearFloodLayer() is part of normal async frame replacement. Give the
@@ -496,6 +512,9 @@
     }
     document.body.dataset.map3dFloodSurface = "flat-water-overlay";
     document.body.dataset.map3dFloodDepthMode = "independent";
+    document.body.dataset.map3dFloodGeometry = currentFloodLayer && currentFloodLayer._worldFileAffine
+      ? "world-file-quadrilateral"
+      : "axis-aligned";
     document.body.dataset.map3dFloodAltitudeMeters = options.altitudeMeters.toFixed(3);
   }
 
@@ -562,7 +581,7 @@
   function syncParcels3d() {
     if (!glMap || !glStyleReady) return;
     var enabled = layerVisible("parcelsToggle", false);
-    var coordinates = coordinatesFromLeafletBounds(floodLatLngBounds || getBoundaryDrivenOverlayBounds());
+    var coordinates = configuredWorldFileCoordinates();
     if (!coordinates || !PARCEL_BOUNDARY_PNG_URL) return;
     updateImageLayer({
       sourceId: "nw-parcel-source",

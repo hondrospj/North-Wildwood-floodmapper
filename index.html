@@ -16002,6 +16002,7 @@ function cloneStyleObject(value) {
     let currentFloodLayer = null;
     let pendingFloodLayer = null;
     let floodLatLngBounds = null;
+    let floodOverlayGeometryMode = "world-file";
     let mapHasFit = false;
     let deferredMapLayersStarted = false;
 
@@ -19003,6 +19004,191 @@ function setDatumHelpOpen(isOpen) {
         });
     }
 
+    // The hydraulic grid is north-up in EPSG:6527, not in Web Mercator. Keep
+    // all four transformed pixel-edge corners so Leaflet and MapLibre preserve
+    // the world file's rotation and projection convergence instead of forcing
+    // the raster into an axis-aligned WGS84 rectangle.
+    function getConfiguredWorldFileCornersLatLng() {
+      const configured = TOWN_CONFIG?.overlays?.worldFileCornersWgs84;
+      const values = Array.isArray(configured)
+        ? configured
+        : configured && typeof configured === "object"
+          ? [configured.northWest, configured.northEast, configured.southEast, configured.southWest]
+          : [];
+      if (values.length !== 4) return null;
+      const corners = values.map(value => {
+        const lat = Number(Array.isArray(value) ? value[0] : value?.lat);
+        const lng = Number(Array.isArray(value) ? value[1] : value?.lng ?? value?.lon);
+        return [lat, lng];
+      });
+      if (!corners.every(value => value.every(Number.isFinite))) return null;
+      return corners.map(value => L.latLng(value[0], value[1]));
+    }
+
+    function getConfiguredWorldFileCoordinates() {
+      const corners = getConfiguredWorldFileCornersLatLng();
+      return corners?.map(corner => [corner.lng, corner.lat]) || null;
+    }
+
+    function getWorldFileRasterSize() {
+      const configured = TOWN_CONFIG?.overlays?.worldFileRasterSize || {};
+      const width = Number(configured.width);
+      const height = Number(configured.height);
+      return {
+        width: Number.isFinite(width) && width > 0 ? width : 2186,
+        height: Number.isFinite(height) && height > 0 ? height : 2824
+      };
+    }
+
+    function unitSquareHomography(points) {
+      if (!Array.isArray(points) || points.length !== 4) return null;
+      const [p0, p1, p2, p3] = points;
+      const dx1 = p1.x - p2.x;
+      const dx2 = p3.x - p2.x;
+      const dx3 = p0.x - p1.x + p2.x - p3.x;
+      const dy1 = p1.y - p2.y;
+      const dy2 = p3.y - p2.y;
+      const dy3 = p0.y - p1.y + p2.y - p3.y;
+      const denominator = (dx1 * dy2) - (dx2 * dy1);
+      let g = 0;
+      let h = 0;
+      if (Math.abs(dx3) > 1e-12 || Math.abs(dy3) > 1e-12) {
+        if (Math.abs(denominator) < 1e-12) return null;
+        g = ((dx3 * dy2) - (dx2 * dy3)) / denominator;
+        h = ((dx1 * dy3) - (dx3 * dy1)) / denominator;
+      }
+      return {
+        a: p1.x - p0.x + (g * p1.x),
+        b: p3.x - p0.x + (h * p3.x),
+        c: p0.x,
+        d: p1.y - p0.y + (g * p1.y),
+        e: p3.y - p0.y + (h * p3.y),
+        f: p0.y,
+        g,
+        h
+      };
+    }
+
+    function invertHomography(matrix) {
+      if (!matrix) return null;
+      const { a, b, c, d, e, f, g, h } = matrix;
+      const i00 = e - (f * h);
+      const i01 = (c * h) - b;
+      const i02 = (b * f) - (c * e);
+      const i10 = (f * g) - d;
+      const i11 = a - (c * g);
+      const i12 = (c * d) - (a * f);
+      const i20 = (d * h) - (e * g);
+      const i21 = (b * g) - (a * h);
+      const i22 = (a * e) - (b * d);
+      const determinant = (a * i00) + (b * i10) + (c * i20);
+      if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-12) return null;
+      const scale = 1 / determinant;
+      return [
+        i00 * scale, i01 * scale, i02 * scale,
+        i10 * scale, i11 * scale, i12 * scale,
+        i20 * scale, i21 * scale, i22 * scale
+      ];
+    }
+
+    function latLngToWorldFileUv(lat, lng) {
+      const corners = getConfiguredWorldFileCornersLatLng();
+      if (!corners) return null;
+      const projectedCorners = corners.map(corner => L.CRS.EPSG3857.project(corner));
+      const inverse = invertHomography(unitSquareHomography(projectedCorners));
+      if (!inverse) return null;
+      const point = L.CRS.EPSG3857.project(L.latLng(Number(lat), Number(lng)));
+      const denominator = (inverse[6] * point.x) + (inverse[7] * point.y) + inverse[8];
+      if (!Number.isFinite(denominator) || Math.abs(denominator) < 1e-12) return null;
+      const u = ((inverse[0] * point.x) + (inverse[1] * point.y) + inverse[2]) / denominator;
+      const v = ((inverse[3] * point.x) + (inverse[4] * point.y) + inverse[5]) / denominator;
+      return Number.isFinite(u) && Number.isFinite(v) ? { u, v } : null;
+    }
+
+    function latLngToWorldFilePixel(lat, lng, width, height) {
+      const uv = latLngToWorldFileUv(lat, lng);
+      if (!uv || uv.u < 0 || uv.v < 0 || uv.u >= 1 || uv.v >= 1) return null;
+      const x = Math.floor(uv.u * Number(width));
+      const y = Math.floor(uv.v * Number(height));
+      return Number.isFinite(x) && Number.isFinite(y) ? { x, y, u: uv.u, v: uv.v } : null;
+    }
+
+    const WorldFileImageOverlay = L.ImageOverlay.extend({
+      initialize(url, corners, options = {}) {
+        this._worldFileCorners = corners.map(corner => L.latLng(corner));
+        this._worldFileAffine = true;
+        this._pixelWidth = Number(options.pixelWidth) || 2186;
+        this._pixelHeight = Number(options.pixelHeight) || 2824;
+        const bounds = L.latLngBounds(this._worldFileCorners);
+        L.ImageOverlay.prototype.initialize.call(this, url, bounds, options);
+      },
+
+      _worldFileLayerPoints(zoomEvent = null) {
+        if (!this._map) return null;
+        return this._worldFileCorners.map(corner => zoomEvent
+          ? this._map._latLngToNewLayerPoint(corner, zoomEvent.zoom, zoomEvent.center)
+          : this._map.latLngToLayerPoint(corner));
+      },
+
+      _applyWorldFileTransform(points) {
+        if (!this._image || !points) return;
+        const matrix = unitSquareHomography(points);
+        if (!matrix) return;
+        const width = this._pixelWidth;
+        const height = this._pixelHeight;
+        this._image.style.width = `${width}px`;
+        this._image.style.height = `${height}px`;
+        this._image.style.left = "0";
+        this._image.style.top = "0";
+        this._image.style.transformOrigin = "0 0";
+        this._image.style.transform = `matrix3d(${[
+          matrix.a / width, matrix.d / width, 0, matrix.g / width,
+          matrix.b / height, matrix.e / height, 0, matrix.h / height,
+          0, 0, 1, 0,
+          matrix.c, matrix.f, 0, 1
+        ].join(",")})`;
+      },
+
+      _reset() {
+        this._applyWorldFileTransform(this._worldFileLayerPoints());
+      },
+
+      _animateZoom(event) {
+        this._applyWorldFileTransform(this._worldFileLayerPoints(event));
+      }
+    });
+
+    function createWorldFileImageOverlay(url, options = {}) {
+      const corners = getConfiguredWorldFileCornersLatLng();
+      if (!corners) return null;
+      const rasterSize = getWorldFileRasterSize();
+      return new WorldFileImageOverlay(url, corners, {
+        ...options,
+        pixelWidth: rasterSize.width,
+        pixelHeight: rasterSize.height
+      });
+    }
+
+    function createHydraulicImageOverlay(url, options = {}) {
+      return createWorldFileImageOverlay(url, options) || L.imageOverlay(url, floodLatLngBounds, options);
+    }
+
+    function getActiveFloodOverlayCoordinates() {
+      const useWorldFile = currentFloodLayer?._worldFileAffine === true ||
+        (!currentFloodLayer && floodOverlayGeometryMode === "world-file");
+      if (useWorldFile) {
+        const coordinates = getConfiguredWorldFileCoordinates();
+        if (coordinates) return coordinates;
+      }
+      if (!floodLatLngBounds) return null;
+      return [
+        [floodLatLngBounds.getWest(), floodLatLngBounds.getNorth()],
+        [floodLatLngBounds.getEast(), floodLatLngBounds.getNorth()],
+        [floodLatLngBounds.getEast(), floodLatLngBounds.getSouth()],
+        [floodLatLngBounds.getWest(), floodLatLngBounds.getSouth()]
+      ];
+    }
+
     async function ensureOverlayBounds(sampleOverlayUrl) {
       const configured = TOWN_CONFIG?.overlays?.boundsWgs84 || {};
       const south = Number(configured.south);
@@ -19012,13 +19198,20 @@ function setDatumHelpOpen(isOpen) {
       const hasConfiguredBounds = [south, west, north, east].every(Number.isFinite)
         && south < north
         && west < east;
-      floodLatLngBounds = hasConfiguredBounds
-        ? L.latLngBounds([south, west], [north, east])
-        : getBoundaryDrivenOverlayBounds();
+      const worldFileCorners = getConfiguredWorldFileCornersLatLng();
+      floodLatLngBounds = worldFileCorners
+        ? L.latLngBounds(worldFileCorners)
+        : hasConfiguredBounds
+          ? L.latLngBounds([south, west], [north, east])
+          : getBoundaryDrivenOverlayBounds();
+      floodOverlayGeometryMode = worldFileCorners ? "world-file" : "axis-aligned";
+      document.body.dataset.floodRasterGeometry = worldFileCorners
+        ? "world-file-quadrilateral"
+        : "axis-aligned";
 
       return {
         url: sampleOverlayUrl || null,
-        mode: hasConfiguredBounds ? "configured-raster" : "boundary-fallback",
+        mode: worldFileCorners ? "world-file-quadrilateral" : hasConfiguredBounds ? "configured-raster" : "boundary-fallback",
         bounds: floodLatLngBounds
       };
     }
@@ -22043,9 +22236,8 @@ function updateExportSegmentedUI() {
       }
       if (!exportParcelsLayer) {
         await preloadImage(PARCEL_BOUNDARY_PNG_URL);
-        exportParcelsLayer = L.imageOverlay(
+        exportParcelsLayer = createHydraulicImageOverlay(
           PARCEL_BOUNDARY_PNG_URL,
-          floodLatLngBounds || getBoundaryDrivenOverlayBounds(),
           {
             pane: "parcelsPane",
             opacity: 0.78,
@@ -22161,6 +22353,7 @@ function updateExportSegmentedUI() {
           throw new Error("Physics forecast bounds are unavailable.");
         }
         floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
+        floodOverlayGeometryMode = "axis-aligned";
       } else {
         const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
         if (!match) {
@@ -22173,16 +22366,28 @@ function updateExportSegmentedUI() {
       if (exportFloodLayer && exportMap.hasLayer(exportFloodLayer)) {
         exportMap.removeLayer(exportFloodLayer);
       }
-      exportFloodLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {
-        opacity: overlayOpacity,
-        interactive: false,
-        crossOrigin: true,
-        zIndex: 500,
-        pane: "floodPane",
-        className: currentDataMode === "return-interval" && mode === "depth"
-          ? "return-interval-depth-overlay"
-          : ""
-      }).addTo(exportMap);
+      exportFloodLayer = physicsRecord?.url
+        ? L.imageOverlay(overlayUrl, floodLatLngBounds, {
+          opacity: overlayOpacity,
+          interactive: false,
+          crossOrigin: true,
+          zIndex: 500,
+          pane: "floodPane",
+          className: currentDataMode === "return-interval" && mode === "depth"
+            ? "return-interval-depth-overlay"
+            : ""
+        })
+        : createHydraulicImageOverlay(overlayUrl, {
+          opacity: overlayOpacity,
+          interactive: false,
+          crossOrigin: true,
+          zIndex: 500,
+          pane: "floodPane",
+          className: currentDataMode === "return-interval" && mode === "depth"
+            ? "return-interval-depth-overlay"
+            : ""
+        });
+      exportFloodLayer.addTo(exportMap);
       await new Promise(resolve => {
         exportFloodLayer.once("load", resolve);
         exportFloodLayer.once("error", resolve);
@@ -22662,6 +22867,10 @@ function getUniqueExportStages(frameItems) {
 
     function getExportOverlayRect(mapInstance) {
       if (!mapInstance || !floodLatLngBounds) return null;
+      // The fast compositor only supports axis-aligned image rectangles. A
+      // world-file raster is captured through Leaflet so its four-corner warp
+      // remains spatially correct in every exported frame.
+      if (exportFloodLayer?._worldFileAffine) return null;
       const scale = getExportCaptureScale();
       const nw = mapInstance.latLngToContainerPoint(floodLatLngBounds.getNorthWest());
       const se = mapInstance.latLngToContainerPoint(floodLatLngBounds.getSouthEast());
@@ -24260,9 +24469,8 @@ function formatSelectedObservedDate(dateStr) {
       }
 
       const previousLayer = currentFloodLayer;
-      const nextLayer = L.imageOverlay(
+      const nextLayer = createHydraulicImageOverlay(
         overlayUrl,
-        floodLatLngBounds,
         {
           opacity: 0,
           interactive: false,
@@ -24332,6 +24540,7 @@ function formatSelectedObservedDate(dateStr) {
       await preloadImage(overlayUrl);
       if (token !== lastRenderToken) return;
       floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
+      floodOverlayGeometryMode = "axis-aligned";
 
       if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
         map.removeLayer(pendingFloodLayer);
@@ -25997,8 +26206,7 @@ function startPlayback() {
       parcelLoadPromise = (async () => {
         const geojson = await fetchJson(PARCELS_URL, { cache: "force-cache" });
         parcelFeatures = Array.isArray(geojson?.features) ? geojson.features : [];
-        const parcelBounds = floodLatLngBounds || getBoundaryDrivenOverlayBounds();
-        parcelsLayer = L.imageOverlay(PARCEL_BOUNDARY_PNG_URL, parcelBounds, {
+        parcelsLayer = createHydraulicImageOverlay(PARCEL_BOUNDARY_PNG_URL, {
           pane: "parcelsPane",
           opacity: 0.78,
           interactive: false,
@@ -26257,13 +26465,9 @@ function startPlayback() {
         })
       ]);
       if (!grid || !floodLatLngBounds) return null;
-      const west = floodLatLngBounds.getWest();
-      const east = floodLatLngBounds.getEast();
-      const south = floodLatLngBounds.getSouth();
-      const north = floodLatLngBounds.getNorth();
-      const x = Math.floor(((lon - west) / (east - west)) * grid.width);
-      const y = Math.floor(((north - lat) / (north - south)) * grid.height);
-      if (x < 0 || y < 0 || x >= grid.width || y >= grid.height) return null;
+      const pixel = latLngToWorldFilePixel(lat, lon, grid.width, grid.height);
+      if (!pixel) return null;
+      const { x, y } = pixel;
       const offset = (y * grid.width + x) * 4;
       const encodedElevation = grid.values[offset] * 256 + grid.values[offset + 1];
       if (encodedElevation === 0) return null;
@@ -26492,13 +26696,19 @@ function startPlayback() {
             context
           };
         }
-        const west = floodLatLngBounds.getWest();
-        const east = floodLatLngBounds.getEast();
-        const south = floodLatLngBounds.getSouth();
-        const north = floodLatLngBounds.getNorth();
-        const x = Math.floor(((lon - west) / (east - west)) * image.naturalWidth);
-        const y = Math.floor(((north - lat) / (north - south)) * image.naturalHeight);
-        if (x < 0 || y < 0 || x >= image.naturalWidth || y >= image.naturalHeight) return null;
+        const pixel = currentFloodLayer?._worldFileAffine
+          ? latLngToWorldFilePixel(lat, lon, image.naturalWidth, image.naturalHeight)
+          : (() => {
+            const west = floodLatLngBounds.getWest();
+            const east = floodLatLngBounds.getEast();
+            const south = floodLatLngBounds.getSouth();
+            const north = floodLatLngBounds.getNorth();
+            const x = Math.floor(((lon - west) / (east - west)) * image.naturalWidth);
+            const y = Math.floor(((north - lat) / (north - south)) * image.naturalHeight);
+            return x >= 0 && y >= 0 && x < image.naturalWidth && y < image.naturalHeight ? { x, y } : null;
+          })();
+        if (!pixel) return null;
+        const { x, y } = pixel;
         const rgba = renderedFloodPixelCache.context.getImageData(x, y, 1, 1).data;
         const visible = rgba[3] > 0;
         const green = visible &&
@@ -35914,7 +36124,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260824-nw-3d-v32"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260824-nw-3d-v33"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
@@ -35998,6 +36208,16 @@ TOWN_CONFIG = {
       "west": -74.8191427,
       "north": 39.0263740,
       "east": -74.7805143
+    },
+    "worldFileRasterSize": {
+      "width": 2186,
+      "height": 2824
+    },
+    "worldFileCornersWgs84": {
+      "northWest": [39.026275100631, -74.819142704419],
+      "northEast": [39.026374017662, -74.780667213004],
+      "southEast": [38.987603225736, -74.780514043454],
+      "southWest": [38.987504444587, -74.818968538313]
     },
     "cacheVersions": {
       "depth": "20260822-mask-stabilizer-v40",
