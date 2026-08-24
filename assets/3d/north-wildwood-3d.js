@@ -11,7 +11,7 @@
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
   var ESRI_VECTOR_TILES = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf";
   var TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejson.json";
-  var BUILDINGS_3D_URL = new URL("./assets/3d/NorthWildwoodBuildings3D.geojson?v=20260823-nw-3d-v1", APP_BASE).href;
+  var BUILDINGS_3D_URL = new URL("./assets/3d/NorthWildwoodBuildings3D.geojson?v=20260823-nw-3d-v2", APP_BASE).href;
 
   var glMap = null;
   var glMapPromise = null;
@@ -275,9 +275,10 @@
     return {
       id: "nw-flood-overlay",
       type: "custom",
-      // Floodwater is a level surface, not terrain skin. A 2D custom layer keeps
-      // MapLibre's terrain depth buffer from hiding or warping the water plane.
-      renderingMode: "2d",
+      // Floodwater is a level plane, not terrain skin. The 3D rendering mode
+      // shares MapLibre's depth buffer so terrain and building walls intersect
+      // the plane naturally while the plane itself remains perfectly flat.
+      renderingMode: "3d",
       map: null,
       gl: null,
       program: null,
@@ -433,9 +434,8 @@
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.uniform1i(gl.getUniformLocation(this.program, "u_image"), 0);
-        // MapLibre establishes the correct no-depth state for a 2D custom
-        // layer. Premultiplied output uses its native blend state and avoids
-        // invalidating the renderer state needed by following building layers.
+        // MapLibre establishes its 3D depth/blend state for this custom layer.
+        // Premultiplied output preserves that state for following buildings.
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       },
 
@@ -630,20 +630,15 @@
           return response.json();
         })
         .then(function (payload) {
-          if (payload && payload.metadata && payload.metadata.schema !== "north-wildwood-3d-buildings-v1") {
+          if (payload && payload.metadata && payload.metadata.schema !== "north-wildwood-3d-buildings-v2") {
             throw new Error("The North Wildwood 3D building asset needs to be refreshed.");
           }
           var sourceFeatures = Array.isArray(payload && payload.features) ? payload.features : [];
           var excludedFallbacks = 0;
-          var excludedLooseMatches = 0;
           var sanitizedFeatures = sourceFeatures.reduce(function (features, feature) {
             var properties = feature && feature.properties ? feature.properties : {};
             if (String(properties.geometrySource || "") === "NSI modeled square") {
               excludedFallbacks += 1;
-              return features;
-            }
-            if (String(properties.geometryMatch || "") !== "point-in-footprint") {
-              excludedLooseMatches += 1;
               return features;
             }
             var taggedHeight = String(properties.heightSource || "").indexOf("OpenStreetMap height") === 0
@@ -664,8 +659,10 @@
                 renderHeightFt: Number((renderHeightM * 3.280839895).toFixed(1)),
                 renderHeightSource: Number.isFinite(taggedHeight)
                   ? "OpenStreetMap tagged height"
-                  : "NSI story count, screened for local outliers",
-                groundReferenceSource: "2019 bare-earth LiDAR screening elevation"
+                  : String(properties.geometryMatch || "") === "point-in-footprint"
+                    ? "NSI story count, screened for local outliers"
+                    : "Screened one-story vector-footprint default",
+                groundReferenceSource: properties.groundReferenceSource || "2019 bare-earth LiDAR terrain surface"
               })
             }));
             return features;
@@ -675,14 +672,15 @@
             metadata: Object.assign({}, payload && payload.metadata, {
               renderedFeatureCount: sanitizedFeatures.length,
               excludedModeledSquares: excludedFallbacks,
-              excludedLooseMatches: excludedLooseMatches,
-              renderHeightModel: "OSM tagged height when available; otherwise 3.05 m per screened story plus 1.2 m roof. Crawlspace rise is not added to roof height."
+              excludedLooseMatches: 0,
+              renderHeightModel: "OSM tagged height when available; otherwise 3.05 m per screened story plus 1.2 m roof. Crawlspace rise is not added to roof height. The renderer applies the same 4x vertical scale as terrain and water."
             }),
             features: sanitizedFeatures
           };
           document.body.dataset.buildings3dCount = String(sanitizedFeatures.length);
           document.body.dataset.buildings3dExcludedFallbacks = String(excludedFallbacks);
-          document.body.dataset.buildings3dExcludedLooseMatches = String(excludedLooseMatches);
+          document.body.dataset.buildings3dExcludedLooseMatches = "0";
+          document.body.dataset.buildings3dVerticalScale = String(TERRAIN_EXAGGERATION);
           document.body.dataset.buildings3dMaxHeightFt = String(sanitizedFeatures.reduce(function (maximum, feature) {
             return Math.max(maximum, Number(feature.properties && feature.properties.renderHeightFt) || 0);
           }, 0).toFixed(1));
@@ -737,7 +735,10 @@
         minzoom: 12,
         paint: {
           "fill-extrusion-color": "#ddd7cb",
-          "fill-extrusion-height": ["to-number", ["get", "renderHeightM"], 3],
+          // Terrain and the flat flood plane both use 4x vertical elevation.
+          // Applying that same scale to building height preserves real-world
+          // water-to-roof relationships and keeps flooded walls visible.
+          "fill-extrusion-height": ["*", ["to-number", ["get", "renderHeightM"], 3], TERRAIN_EXAGGERATION],
           "fill-extrusion-base": 0,
           "fill-extrusion-opacity": 0.98,
           "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
