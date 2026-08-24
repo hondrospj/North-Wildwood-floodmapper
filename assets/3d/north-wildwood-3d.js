@@ -310,6 +310,7 @@
       opacityLocation: null,
       imageLocation: null,
       positionLocation: -1,
+      positionLowLocation: -1,
       textureLocation: -1,
       textureReady: false,
       visible: Boolean(initial.visible),
@@ -326,10 +327,14 @@
         var vertexSource = '#version 300 es\n' +
           'precision highp float;\n' +
           'uniform mat4 u_matrix;\n' +
-          'in vec3 a_position;\n' +
+          'in vec3 a_position_high;\n' +
+          'in vec3 a_position_low;\n' +
           'in vec2 a_texture;\n' +
           'out vec2 v_texture;\n' +
-          'void main(){ v_texture = a_texture; gl_Position = u_matrix * vec4(a_position, 1.0); }';
+          'void main(){\n' +
+          '  v_texture = a_texture;\n' +
+          '  gl_Position = (u_matrix * vec4(a_position_high, 1.0)) + (u_matrix * vec4(a_position_low, 0.0));\n' +
+          '}';
         var fragmentSource = '#version 300 es\n' +
           'precision highp float;\n' +
           'uniform sampler2D u_image;\n' +
@@ -351,16 +356,19 @@
         this.matrixLocation = gl.getUniformLocation(this.program, "u_matrix");
         this.opacityLocation = gl.getUniformLocation(this.program, "u_opacity");
         this.imageLocation = gl.getUniformLocation(this.program, "u_image");
-        this.positionLocation = gl.getAttribLocation(this.program, "a_position");
+        this.positionLocation = gl.getAttribLocation(this.program, "a_position_high");
+        this.positionLowLocation = gl.getAttribLocation(this.program, "a_position_low");
         this.textureLocation = gl.getAttribLocation(this.program, "a_texture");
         this.buffer = gl.createBuffer();
         this.vertexArray = gl.createVertexArray();
         gl.bindVertexArray(this.vertexArray);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
         gl.enableVertexAttribArray(this.positionLocation);
-        gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 20, 0);
+        gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 32, 0);
+        gl.enableVertexAttribArray(this.positionLowLocation);
+        gl.vertexAttribPointer(this.positionLowLocation, 3, gl.FLOAT, false, 32, 12);
         gl.enableVertexAttribArray(this.textureLocation);
-        gl.vertexAttribPointer(this.textureLocation, 2, gl.FLOAT, false, 20, 12);
+        gl.vertexAttribPointer(this.textureLocation, 2, gl.FLOAT, false, 32, 24);
         gl.bindVertexArray(null);
         this.texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
@@ -380,12 +388,28 @@
             Number(this.altitudeMeters) || 0
           );
         }, this);
-        var vertex = function (point, u, v) { return [point.x, point.y, point.z || 0, u, v]; };
+        // Mercator x/y values are global fractions near 0.29. Keeping them in
+        // one Float32 loses sub-meter detail at street zooms, which made the
+        // flood quad slide by pixels while the basemap stayed fixed. Split
+        // each coordinate into high/low Float32 parts and transform both in
+        // the shader so the ready PNG remains locked to its world-file corners.
+        var split = function (value) {
+          var precise = Number(value) || 0;
+          var high = Math.fround(precise);
+          return [high, precise - high];
+        };
+        var vertex = function (point, u, v) {
+          var x = split(point.x);
+          var y = split(point.y);
+          var z = split(point.z || 0);
+          return [x[0], y[0], z[0], x[1], y[1], z[1], u, v];
+        };
         var values = []
           .concat(vertex(points[0], 0, 0), vertex(points[1], 1, 0), vertex(points[2], 1, 1))
           .concat(vertex(points[0], 0, 0), vertex(points[2], 1, 1), vertex(points[3], 0, 1));
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
         this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(values), this.gl.STATIC_DRAW);
+        document.body.dataset.map3dFloodPrecision = "high-low-split";
       },
 
       loadTexture: function (url) {
@@ -517,6 +541,7 @@
     if (!glMap || !glMap.getLayer("nw-flood-overlay")) return;
     var buildingLayerIds = basemapBuildingExtrusionLayerIds.concat([
       "nw-building-outlines",
+      "nw-3d-buildings-wet",
       "nw-3d-buildings"
     ]);
     var firstBuildingLayer = (glMap.getStyle().layers || []).find(function (layer) {
@@ -526,11 +551,62 @@
     document.body.dataset.map3dFloodBuildingOcclusion = firstBuildingLayer ? "opaque-depth-pass" : "not-required";
   }
 
+  function buildingFloodDepthFeetExpression(stageNavd88) {
+    var stage = stageNavd88 === null || typeof stageNavd88 === "undefined" ? NaN : Number(stageNavd88);
+    if (!Number.isFinite(stage)) return 0;
+    return ["max", 0, ["-", stage,
+      ["to-number", ["get", "visualGroundNavd88Ft"], stage]
+    ]];
+  }
+
+  function buildingWetHeightExpression(stageNavd88) {
+    var depthFeet = buildingFloodDepthFeetExpression(stageNavd88);
+    if (!Array.isArray(depthFeet)) return 0;
+    return ["min",
+      ["to-number", ["get", "renderHeightM"], 3],
+      ["*", depthFeet, 0.3048 * TERRAIN_EXAGGERATION]
+    ];
+  }
+
+  function buildingFloodColorExpression(stageNavd88) {
+    var depthFeet = buildingFloodDepthFeetExpression(stageNavd88);
+    if (!Array.isArray(depthFeet)) return "#7DF9FF";
+    return ["step", depthFeet,
+      "#7DF9FF",
+      1, "#5DE7FF",
+      2, "#38D3FF",
+      3, "#1BB7F5",
+      4, "#168CEB",
+      5, "#156BE0",
+      6, "#1853C6",
+      7, "#173EA8",
+      8, "#132F84",
+      9, "#0B1E5B",
+      10, "#050E33"
+    ];
+  }
+
+  function syncBuildingFloodBands3d(stageNavd88) {
+    if (!glMap || !glStyleReady) return;
+    var wetLayer = glMap.getLayer("nw-3d-buildings-wet");
+    var dryLayer = glMap.getLayer("nw-3d-buildings");
+    if (!wetLayer || !dryLayer) return;
+    var stage = stageNavd88 === null || typeof stageNavd88 === "undefined" ? NaN : Number(stageNavd88);
+    var selectedStage = Number.isFinite(stage) ? stage : null;
+    var wetHeight = buildingWetHeightExpression(selectedStage);
+    glMap.setPaintProperty("nw-3d-buildings-wet", "fill-extrusion-height", wetHeight);
+    glMap.setPaintProperty("nw-3d-buildings-wet", "fill-extrusion-color", buildingFloodColorExpression(selectedStage));
+    glMap.setPaintProperty("nw-3d-buildings", "fill-extrusion-base", wetHeight);
+    document.body.dataset.map3dBuildingWaterline = "split-extrusion";
+    document.body.dataset.map3dBuildingWaterStageNavd88Ft = selectedStage === null ? "none" : selectedStage.toFixed(3);
+  }
+
   function syncFloodLayer3d() {
     if (!glMap || !glStyleReady) return;
     var url = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
     var coordinates = activeFloodCoordinates();
     if (!url || !coordinates) {
+      syncBuildingFloodBands3d(null);
       if (floodRemovalTimer) window.clearTimeout(floodRemovalTimer);
       // clearFloodLayer() is part of normal async frame replacement. Give the
       // incoming frame time to arrive while the last complete texture remains.
@@ -580,6 +656,7 @@
       floodPlaneLayer.update(options);
     }
     placeFloodBelowBuildingDepthPass();
+    syncBuildingFloodBands3d(stageNavd88);
     syncFloodPresentationMode();
     document.body.dataset.map3dFloodSurface = "flat-water-overlay";
     document.body.dataset.map3dFloodDepthMode = "independent";
@@ -717,6 +794,119 @@
     updateDiagnostics();
   }
 
+  function buildingFeatureCenter(feature) {
+    var geometry = feature && feature.geometry;
+    var coordinates = geometry && geometry.coordinates;
+    if (!Array.isArray(coordinates)) return null;
+    var minimumLng = Infinity;
+    var minimumLat = Infinity;
+    var maximumLng = -Infinity;
+    var maximumLat = -Infinity;
+    function visit(value) {
+      if (!Array.isArray(value)) return;
+      if (value.length >= 2 && Number.isFinite(Number(value[0])) && Number.isFinite(Number(value[1]))) {
+        var lng = Number(value[0]);
+        var lat = Number(value[1]);
+        minimumLng = Math.min(minimumLng, lng);
+        maximumLng = Math.max(maximumLng, lng);
+        minimumLat = Math.min(minimumLat, lat);
+        maximumLat = Math.max(maximumLat, lat);
+        return;
+      }
+      value.forEach(visit);
+    }
+    visit(coordinates);
+    return Number.isFinite(minimumLng) && Number.isFinite(minimumLat)
+      ? [(minimumLng + maximumLng) / 2, (minimumLat + maximumLat) / 2]
+      : null;
+  }
+
+  function finiteBuildingNumber(value) {
+    if (value === null || typeof value === "undefined" || value === "" || typeof value === "boolean") return NaN;
+    var number = Number(value);
+    return Number.isFinite(number) ? number : NaN;
+  }
+
+  function prepareVisualBuildingGround(sourceFeatures) {
+    var cellSize = 0.001;
+    var known = [];
+    var centers = sourceFeatures.map(buildingFeatureCenter);
+    sourceFeatures.forEach(function (feature, index) {
+      var properties = feature && feature.properties ? feature.properties : {};
+      var localGround = finiteBuildingNumber(properties.localGroundNavd88Ft);
+      if (!Number.isFinite(localGround)) {
+        var firstFloor = finiteBuildingNumber(properties.modeledFirstFloorNavd88Ft);
+        var foundation = finiteBuildingNumber(properties.foundationHeightFt);
+        if (Number.isFinite(firstFloor) && Number.isFinite(foundation)) {
+          localGround = firstFloor - Math.max(0, foundation);
+        }
+      }
+      if (Number.isFinite(localGround) && centers[index]) {
+        known.push({ index: index, center: centers[index], ground: localGround });
+      }
+    });
+    var sortedGround = known.map(function (entry) { return entry.ground; }).sort(function (a, b) { return a - b; });
+    var medianGround = sortedGround.length
+      ? sortedGround[Math.floor(sortedGround.length / 2)]
+      : 5;
+    var grid = Object.create(null);
+    known.forEach(function (entry) {
+      var key = Math.floor(entry.center[0] / cellSize) + ":" + Math.floor(entry.center[1] / cellSize);
+      if (!grid[key]) grid[key] = [];
+      grid[key].push(entry);
+    });
+    var derivedCount = 0;
+    var medianCount = 0;
+    var result = sourceFeatures.map(function (feature, index) {
+      var properties = feature && feature.properties ? feature.properties : {};
+      var ground = finiteBuildingNumber(properties.localGroundNavd88Ft);
+      if (!Number.isFinite(ground)) {
+        var storedFloor = finiteBuildingNumber(properties.modeledFirstFloorNavd88Ft);
+        var storedFoundation = finiteBuildingNumber(properties.foundationHeightFt);
+        if (Number.isFinite(storedFloor) && Number.isFinite(storedFoundation)) {
+          ground = storedFloor - Math.max(0, storedFoundation);
+        }
+      }
+      if (Number.isFinite(ground)) {
+        return { value: ground, source: "2019 bare-earth LiDAR building reference" };
+      }
+      var center = centers[index];
+      var nearest = null;
+      if (center) {
+        var cellX = Math.floor(center[0] / cellSize);
+        var cellY = Math.floor(center[1] / cellSize);
+        for (var radius = 0; radius <= 12 && !nearest; radius += 1) {
+          var candidates = [];
+          for (var x = cellX - radius; x <= cellX + radius; x += 1) {
+            for (var y = cellY - radius; y <= cellY + radius; y += 1) {
+              if (radius > 0 && x > cellX - radius && x < cellX + radius && y > cellY - radius && y < cellY + radius) continue;
+              var entries = grid[x + ":" + y];
+              if (entries) candidates = candidates.concat(entries);
+            }
+          }
+          candidates.forEach(function (candidate) {
+            var dx = candidate.center[0] - center[0];
+            var dy = candidate.center[1] - center[1];
+            var distance = dx * dx + dy * dy;
+            if (!nearest || distance < nearest.distance) nearest = { distance: distance, ground: candidate.ground };
+          });
+        }
+      }
+      if (nearest) {
+        derivedCount += 1;
+        return { value: nearest.ground, source: "nearest 2019 bare-earth LiDAR building reference" };
+      }
+      medianCount += 1;
+      return { value: medianGround, source: "municipal 2019 bare-earth LiDAR building median" };
+    });
+    return {
+      values: result,
+      measuredCount: known.length,
+      derivedCount: derivedCount,
+      medianCount: medianCount
+    };
+  }
+
   async function loadBuildingData() {
     if (buildingData) return buildingData;
     if (!buildingDataPromise) {
@@ -730,8 +920,9 @@
             throw new Error("The North Wildwood 3D building asset needs to be refreshed.");
           }
           var sourceFeatures = Array.isArray(payload && payload.features) ? payload.features : [];
+          var visualGround = prepareVisualBuildingGround(sourceFeatures);
           var excludedFallbacks = 0;
-          var sanitizedFeatures = sourceFeatures.reduce(function (features, feature) {
+          var sanitizedFeatures = sourceFeatures.reduce(function (features, feature, sourceIndex) {
             var properties = feature && feature.properties ? feature.properties : {};
             if (String(properties.geometrySource || "") === "NSI modeled square") {
               excludedFallbacks += 1;
@@ -758,6 +949,8 @@
                   : String(properties.geometryMatch || "") === "point-in-footprint"
                     ? "NSI story count, screened for local outliers"
                     : "Screened one-story vector-footprint default",
+                visualGroundNavd88Ft: Number(visualGround.values[sourceIndex].value.toFixed(2)),
+                visualGroundSource: visualGround.values[sourceIndex].source,
                 groundReferenceSource: properties.groundReferenceSource || "2019 bare-earth LiDAR terrain surface"
               })
             }));
@@ -769,6 +962,9 @@
               renderedFeatureCount: sanitizedFeatures.length,
               excludedModeledSquares: excludedFallbacks,
               excludedLooseMatches: 0,
+              visualGroundMeasuredCount: visualGround.measuredCount,
+              visualGroundNearestDerivedCount: visualGround.derivedCount,
+              visualGroundMedianFallbackCount: visualGround.medianCount,
               renderHeightModel: "OSM tagged height when available; otherwise 3.05 m per screened story plus 1.2 m roof. Crawlspace rise is not added to roof height. Buildings render at screened real height while terrain elevation remains 4x exaggerated."
             }),
             features: sanitizedFeatures
@@ -776,6 +972,9 @@
           document.body.dataset.buildings3dCount = String(sanitizedFeatures.length);
           document.body.dataset.buildings3dExcludedFallbacks = String(excludedFallbacks);
           document.body.dataset.buildings3dExcludedLooseMatches = "0";
+          document.body.dataset.buildings3dGroundMeasured = String(visualGround.measuredCount);
+          document.body.dataset.buildings3dGroundNearestDerived = String(visualGround.derivedCount);
+          document.body.dataset.buildings3dGroundMedianFallback = String(visualGround.medianCount);
           document.body.dataset.buildings3dVerticalScale = "1";
           document.body.dataset.buildings3dMaxHeightFt = String(sanitizedFeatures.reduce(function (maximum, feature) {
             return Math.max(maximum, Number(feature.properties && feature.properties.renderHeightFt) || 0);
@@ -826,6 +1025,20 @@
         }
       });
       addLayerBelowMask({
+        id: "nw-3d-buildings-wet",
+        type: "fill-extrusion",
+        source: "nw-buildings-source",
+        minzoom: 12,
+        paint: {
+          "fill-extrusion-color": "#7DF9FF",
+          "fill-extrusion-height": 0,
+          "fill-extrusion-base": 0,
+          "fill-extrusion-opacity": 1,
+          "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
+          "fill-extrusion-vertical-gradient": false
+        }
+      });
+      addLayerBelowMask({
         id: "nw-3d-buildings",
         type: "fill-extrusion",
         source: "nw-buildings-source",
@@ -842,13 +1055,16 @@
           "fill-extrusion-vertical-gradient": true
         }
       });
+      syncBuildingFloodBands3d(getSelectedStageNavd88());
       if (!buildingCursorHandlersWired) {
         buildingCursorHandlersWired = true;
-        glMap.on("mouseenter", "nw-3d-buildings", function () {
-          if (layerVisible("buildingsToggle", false)) glMap.getCanvas().style.cursor = "pointer";
-        });
-        glMap.on("mouseleave", "nw-3d-buildings", function () {
-          glMap.getCanvas().style.cursor = "";
+        ["nw-3d-buildings-wet", "nw-3d-buildings"].forEach(function (layerId) {
+          glMap.on("mouseenter", layerId, function () {
+            if (layerVisible("buildingsToggle", false)) glMap.getCanvas().style.cursor = "pointer";
+          });
+          glMap.on("mouseleave", layerId, function () {
+            glMap.getCanvas().style.cursor = "";
+          });
         });
       }
       // Draw water before every building source, including live-vector
@@ -858,7 +1074,9 @@
     }
     if (!glMap.getLayer("nw-3d-buildings")) return;
     glMap.setLayoutProperty("nw-building-outlines", "visibility", visibility(enabled));
+    glMap.setLayoutProperty("nw-3d-buildings-wet", "visibility", visibility(enabled));
     glMap.setLayoutProperty("nw-3d-buildings", "visibility", visibility(enabled));
+    syncBuildingFloodBands3d(getSelectedStageNavd88());
     setBasemapBuildingExtrusionsEnabled(enabled);
     setStatus(enabled
       ? "3D terrain ×4 • " + Number(buildingData.features.length).toLocaleString("en-US") + " buildings"
@@ -1086,7 +1304,10 @@
     glMap.on("click", async function (event) {
       var buildingsEnabled = layerVisible("buildingsToggle", false);
       if (buildingsEnabled && mapClickMode === "building" && glMap.getLayer("nw-3d-buildings")) {
-        var rendered = glMap.queryRenderedFeatures(event.point, { layers: ["nw-3d-buildings"] });
+        var buildingQueryLayers = ["nw-3d-buildings", "nw-3d-buildings-wet"].filter(function (layerId) {
+          return Boolean(glMap.getLayer(layerId));
+        });
+        var rendered = glMap.queryRenderedFeatures(event.point, { layers: buildingQueryLayers });
         if (rendered.length) {
           try {
             var parcelFeature = await findParcelFeatureForLocation(
@@ -1281,12 +1502,14 @@
     setBasemapBuildingExtrusionsEnabled(true);
     if (hasBuildings) {
       mapInstance.setLayoutProperty("nw-building-outlines", "visibility", "visible");
+      mapInstance.setLayoutProperty("nw-3d-buildings-wet", "visibility", "visible");
       mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", "visible");
       mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 0);
       // The loader covers this pass. Render the final opaque material now so
       // the first visible compass gesture does not compile or populate a
       // different extrusion path than the one that was warmed.
       mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
+      mapInstance.setPaintProperty("nw-3d-buildings-wet", "fill-extrusion-opacity", 1);
     }
     try {
       // Exercise every distinct pitched cardinal footprint while the loading
@@ -1301,12 +1524,12 @@
       var warmCameras = [0, 90, 180, 270].map(function (bearing) {
         return { pitch: THREE_D_PITCH, bearing: bearing, zoom: overviewWarmZoom };
       });
-      // Top-down diagonal and quarter-turn footprints keep NSEW rotation
-      // responsive without forcing the user into 3D.
-      warmCameras.push(
-        { pitch: DEFAULT_PITCH, bearing: 45, zoom: overviewWarmZoom },
-        { pitch: DEFAULT_PITCH, bearing: 90, zoom: overviewWarmZoom }
-      );
+      // The wheel is usable in the default 2D view. Warm all four top-down
+      // quadrants too; warming only 45/90 left the first south/west gesture to
+      // build a fresh terrain/style footprint after the loader had faded.
+      [0, 90, 180, 270].forEach(function (bearing) {
+        warmCameras.push({ pitch: DEFAULT_PITCH, bearing: bearing, zoom: overviewWarmZoom });
+      });
       var fullySettledWarmCameras = 0;
       for (var warmIndex = 0; warmIndex < warmCameras.length; warmIndex += 1) {
         mapInstance.jumpTo(warmCameras[warmIndex]);
@@ -1315,7 +1538,7 @@
         // larger slice of the fixed warmup budget than top-down rotations.
         var footprintSettled = await warm3dCameraFootprint(
           mapInstance,
-          warmCameras[warmIndex].pitch > 10 ? 850 : 450
+          warmCameras[warmIndex].pitch > 10 ? 650 : 350
         );
         if (footprintSettled) fullySettledWarmCameras += 1;
       }
@@ -1324,16 +1547,18 @@
       if (hasBuildings) {
         mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 1);
         mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
+        mapInstance.setPaintProperty("nw-3d-buildings-wet", "fill-extrusion-opacity", 1);
         mapInstance.setLayoutProperty("nw-building-outlines", "visibility", visibility(buildingsEnabled));
+        mapInstance.setLayoutProperty("nw-3d-buildings-wet", "visibility", visibility(buildingsEnabled));
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(buildingsEnabled));
       }
       setBasemapBuildingExtrusionsEnabled(buildingsEnabled);
     }
     await waitFor3dMapIdle(mapInstance, 45000);
-    document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:45,90";
+    document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,90,180,270";
     document.body.dataset.map3dBearingWarmupZooms = Number(overviewWarmZoom).toFixed(2);
     document.body.dataset.map3dBearingWarmupSettled = String(fullySettledWarmCameras) + "/" + String(warmCameras.length);
-    document.body.dataset.map3dBearingWarmupBudgetMs = "4300";
+    document.body.dataset.map3dBearingWarmupBudgetMs = "4000";
     document.body.dataset.map3dWheelPreloaded = "true";
     document.body.dataset.map3dBearingWarmup = "ready";
     document.body.dataset.map3dCameraWarmup = "ready";
