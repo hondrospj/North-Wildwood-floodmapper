@@ -38952,5 +38952,17 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 </style>
+<style id="north-wildwood-native-zoom-suppression-v1">
+  html body #map.leaflet-container > .leaflet-control-container > .leaflet-top.leaflet-right{
+    display:none !important;
+    visibility:hidden !important;
+    pointer-events:none !important;
+  }
+  html body #map.leaflet-container > .leaflet-control-container > .leaflet-top.leaflet-right > .leaflet-control-zoom.leaflet-bar.leaflet-control{
+    display:none !important;
+    visibility:hidden !important;
+    pointer-events:none !important;
+  }
+</style>
 </body>
 </html>
