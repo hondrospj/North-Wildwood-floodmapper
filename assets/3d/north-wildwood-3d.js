@@ -21,6 +21,7 @@
   var mapLibreRuntimePromise = null;
   var syncingFromLeaflet = false;
   var syncingFrom3d = false;
+  var syncingModeTransition = false;
   var buildingCursorHandlersWired = false;
   var syncPersistentNavControl = function () {};
 
@@ -495,7 +496,7 @@
   }
 
   function syncLeafletViewTo3d() {
-    if (!glMap || !map || syncingFrom3d) return;
+    if (!glMap || !map || syncingFrom3d || syncingModeTransition) return;
     var center = map.getCenter();
     var zoom = map.getZoom();
     if (!center || !Number.isFinite(zoom)) return;
@@ -510,7 +511,7 @@
   }
 
   function sync3dViewToLeaflet() {
-    if (!glMap || !map || syncingFromLeaflet) return;
+    if (!glMap || !map || syncingFromLeaflet || syncingModeTransition) return;
     var center = glMap.getCenter();
     syncingFrom3d = true;
     map.setView([center.lat, center.lng], Math.min(MAP_MAX_ZOOM, glMap.getZoom()), { animate: false });
@@ -763,6 +764,7 @@
     function finishModeTransition() {
       if (modeTransitionTimer) window.clearTimeout(modeTransitionTimer);
       modeTransitionTimer = null;
+      syncingModeTransition = false;
       setModeBusy(false);
       if (desired3dMode && glMap && Number.isFinite(pendingBearing)) {
         glMap.jumpTo({ bearing: pendingBearing });
@@ -774,6 +776,7 @@
       if (!map3dReady()) return;
       desired3dMode = Boolean(target3d);
       if (Number.isFinite(requestedBearing)) pendingBearing = requestedBearing;
+      syncingModeTransition = true;
       setModeBusy(true);
       syncPersistentNavControl();
       var camera = { pitch: desired3dMode ? THREE_D_PITCH : DEFAULT_PITCH };
@@ -824,6 +827,7 @@
         return;
       }
       desired3dMode = false;
+      syncingModeTransition = false;
       setModeBusy(false);
       syncPersistentNavControl();
       resetDefaultWheel();
@@ -853,12 +857,14 @@
       else transitionMode(!actual3dMode());
     });
     control.querySelector(".nw-simple-zoom-in").addEventListener("click", function () {
+      if (launcher.getAttribute("aria-busy") === "true") return;
       if (map3dReady()) {
         glMap.stop();
         glMap.easeTo({ zoom: Math.min(MAP_MAX_ZOOM, glMap.getZoom() + 1), duration: 220 });
       } else if (map && typeof map.zoomIn === "function") map.zoomIn();
     });
     control.querySelector(".nw-simple-zoom-out").addEventListener("click", function () {
+      if (launcher.getAttribute("aria-busy") === "true") return;
       if (map3dReady()) {
         glMap.stop();
         glMap.easeTo({ zoom: Math.max(11, glMap.getZoom() - 1), duration: 220 });
