@@ -17711,6 +17711,7 @@ function setDatumHelpOpen(isOpen) {
       const note = document.getElementById("legendNote");
       const legendDock = document.getElementById("legendDock");
       const items = currentOverlayMode === "depth" ? DEPTH_LEGEND : DYNAMIC_LEGEND;
+      const depthLegendHasNote = currentOverlayMode === "depth" && physicsForecastApplies();
 
       title.textContent = currentOverlayMode === "depth" ? "Flood Depth" : "Flood Stages";
       sub.textContent = "";
@@ -17720,7 +17721,9 @@ function setDatumHelpOpen(isOpen) {
           ? "Flood Depth Key"
           : "Flood Stages Key";
         if (window.innerWidth > 900) {
-          const compactLegendHeight = currentOverlayMode === "depth" ? "94px" : "68px";
+          const compactLegendHeight = currentOverlayMode === "depth"
+            ? (depthLegendHasNote ? "94px" : "74px")
+            : "68px";
           legendDock.style.setProperty("height", compactLegendHeight, "important");
           legendDock.style.setProperty("min-height", compactLegendHeight, "important");
           legendDock.style.setProperty("max-height", compactLegendHeight, "important");
@@ -17730,7 +17733,7 @@ function setDatumHelpOpen(isOpen) {
 
       list.innerHTML = "";
       if (currentOverlayMode === "depth") {
-        const physicsActive = physicsForecastApplies();
+        const physicsActive = depthLegendHasNote;
         const physicsDailyMaximumActive = physicsActive &&
           document.body.classList.contains("physics-daily-maximum-active");
         list.innerHTML = physicsActive ? `
@@ -17747,10 +17750,6 @@ function setDatumHelpOpen(isOpen) {
           <div class="depth-legend-scale" aria-label="Uncertainty areas followed by connected modeled flood depth from shallow to deep">
             <div class="depth-legend-labels"><span>Uncertainty</span><span>Shallow</span><span>Deep</span></div>
             <div class="depth-legend-gradient" aria-hidden="true"></div>
-          </div>
-          <div class="depth-legend-uncertainty-note">
-            <span><strong>Green</strong> = uncertainty</span>
-            <button class="legend-help-btn depth-legend-help" type="button" data-legend-help="uncertainty" aria-label="Explain uncertainty areas" title="Explain uncertainty areas">?</button>
           </div>
         `;
         list.querySelector("[data-legend-help='uncertainty']")?.addEventListener("click", event => {
@@ -35480,7 +35479,9 @@ html body #timelineDock #hourSlider{
     var compactLegendViewport = window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches;
     if (legend && left && !compactLegendViewport && legend.parentElement !== left) left.appendChild(legend);
     if (legend && !compactLegendViewport) {
-      var activeLegendH = legend.dataset.legendMode === "dynamic" ? 54 : 94;
+      var depthLegendHasNote = legend.dataset.legendMode === "depth" &&
+        !!legend.querySelector(".depth-legend-uncertainty-note");
+      var activeLegendH = legend.dataset.legendMode === "dynamic" ? 54 : (depthLegendHasNote ? 94 : 74);
       setImportant(legend, "flex", "0 0 auto");
       setImportant(legend, "min-height", activeLegendH + "px");
       setImportant(legend, "height", activeLegendH + "px");
@@ -35489,7 +35490,9 @@ html body #timelineDock #hourSlider{
       setImportant(legend, "min-width", "0");
       setImportant(legend, "max-width", "100%");
       setImportant(legend, "margin", "0");
-      setImportant(legend, "padding", legend.dataset.legendMode === "dynamic" ? "4px 12px" : "4px 10px 6px");
+      setImportant(legend, "padding", legend.dataset.legendMode === "dynamic"
+        ? "4px 12px"
+        : (depthLegendHasNote ? "4px 10px 6px" : "5px 10px 6px"));
       setImportant(legend, "border-radius", "16px");
       setImportant(legend, "overflow", "visible");
       legend.dataset.userMoved = "1";
@@ -39371,6 +39374,81 @@ html body #mapTitleBadge #mapTitleLogo{
      layer during every 3D drag. */
   html body.map-3d-ready #map{
     display:none !important;
+  }
+</style>
+<style id="north-wildwood-depth-legend-v43">
+  /* Keep the depth key readable without dedicating a second row to a
+     redundant uncertainty sentence. The shared help affordance belongs in
+     the header for both depth and stage legends. */
+  html body:not(.physics-forecast-active) #legendDock[data-legend-mode="depth"]{
+    height:74px !important;
+    min-height:74px !important;
+    max-height:74px !important;
+    padding:5px 10px 6px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .legend-header{
+    height:24px !important;
+    min-height:24px !important;
+    margin:0 0 4px !important;
+    padding:0 !important;
+    align-items:center !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .legend-title{
+    font-size:18px !important;
+    line-height:22px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .legend-header-actions{
+    display:flex !important;
+    height:24px !important;
+    align-items:center !important;
+    justify-content:flex-end !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] #legendHelpBtn{
+    display:inline-grid !important;
+    place-items:center !important;
+    width:24px !important;
+    min-width:24px !important;
+    height:24px !important;
+    min-height:24px !important;
+    padding:0 !important;
+    font-size:13px !important;
+  }
+  html body #legendDock[data-legend-mode="depth"] #legendList{
+    grid-template-rows:30px 18px !important;
+    height:51px !important;
+    min-height:51px !important;
+  }
+  html body:not(.physics-forecast-active) #legendDock[data-legend-mode="depth"] #legendList{
+    grid-template-rows:30px !important;
+    height:30px !important;
+    min-height:30px !important;
+    gap:0 !important;
+  }
+  html body #legendDock[data-legend-mode="depth"] .depth-legend-scale{
+    height:30px !important;
+  }
+  html body #legendDock[data-legend-mode="depth"] .depth-legend-labels{
+    margin:0 2px 3px !important;
+    font-size:12px !important;
+    line-height:12px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="depth"] .depth-legend-gradient{
+    height:12px !important;
+  }
+  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+    html body.mobile-optimized:not(.physics-forecast-active) #legendDock[data-legend-mode="depth"]{
+      height:74px !important;
+      min-height:74px !important;
+      max-height:74px !important;
+    }
+    html body.mobile-optimized #leftPanel #legendDock[data-legend-mode="depth"] .legend-title{
+      font-size:16px !important;
+      line-height:20px !important;
+    }
+    html body.mobile-optimized #legendDock[data-legend-mode="depth"] .depth-legend-labels{
+      font-size:10px !important;
+      line-height:11px !important;
+    }
   }
 </style>
 </body>
