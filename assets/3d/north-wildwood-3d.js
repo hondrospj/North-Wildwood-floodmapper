@@ -534,8 +534,10 @@
         // let coplanar terrain/water samples alternate as the camera moved.
         gl.depthFunc(gl.LESS);
         gl.disable(gl.CULL_FACE);
-        // Terrain already owns the depth buffer. Water should be clipped by it
-        // without preventing the later opaque building pass from drawing.
+        // Terrain and the single opaque building pass already own the depth
+        // buffer. Draw the level water surface afterward without writing new
+        // depth: dry wall/roof fragments occlude it, while submerged wall
+        // fragments receive one clean translucent water composite.
         gl.depthMask(false);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         gl.bindVertexArray(null);
@@ -571,67 +573,37 @@
     document.body.dataset.map3dFloodRenderer = pitched ? "depth-locked-water-plane" : "stable-image-layer";
   }
 
-  function placeFloodBelowBuildingDepthPass() {
+  function placeFloodAfterBuildingDepthPass() {
     if (!glMap || !glMap.getLayer("nw-flood-overlay")) return;
-    var buildingLayerIds = contextBuildingExtrusionLayerIds.concat([
-      "nw-building-outlines",
-      "nw-3d-buildings-wet",
-      "nw-3d-buildings"
-    ]);
-    var firstBuildingLayer = (glMap.getStyle().layers || []).find(function (layer) {
-      return buildingLayerIds.indexOf(layer.id) >= 0;
+    var buildingLayerIds = contextBuildingExtrusionLayerIds.concat(["nw-3d-buildings"]);
+    var styleLayers = glMap.getStyle().layers || [];
+    var lastBuildingIndex = -1;
+    styleLayers.forEach(function (layer, index) {
+      if (buildingLayerIds.indexOf(layer.id) >= 0) lastBuildingIndex = Math.max(lastBuildingIndex, index);
     });
-    if (firstBuildingLayer) glMap.moveLayer("nw-flood-overlay", firstBuildingLayer.id);
-    document.body.dataset.map3dFloodBuildingOcclusion = firstBuildingLayer ? "opaque-depth-pass" : "not-required";
+    if (lastBuildingIndex < 0) {
+      document.body.dataset.map3dFloodBuildingOcclusion = "not-required";
+      return;
+    }
+    var nextLayer = styleLayers[lastBuildingIndex + 1];
+    if (!nextLayer) {
+      glMap.moveLayer("nw-flood-overlay");
+    } else if (nextLayer.id !== "nw-flood-overlay") {
+      glMap.moveLayer("nw-flood-overlay", nextLayer.id);
+    }
+    document.body.dataset.map3dFloodBuildingOcclusion = "single-extrusion-water-composite";
   }
 
-  function buildingFloodDepthFeetExpression(stageNavd88) {
-    var stage = stageNavd88 === null || typeof stageNavd88 === "undefined" ? NaN : Number(stageNavd88);
-    if (!Number.isFinite(stage)) return 0;
-    return ["max", 0, ["-", stage,
-      ["to-number", ["get", "visualGroundNavd88Ft"], stage]
-    ]];
-  }
-
-  function buildingWetHeightExpression(stageNavd88) {
-    var depthFeet = buildingFloodDepthFeetExpression(stageNavd88);
-    if (!Array.isArray(depthFeet)) return 0;
-    return ["min",
-      ["to-number", ["get", "renderHeightM"], 3],
-      ["*", depthFeet, 0.3048 * TERRAIN_EXAGGERATION]
-    ];
-  }
-
-  function buildingFloodColorExpression(stageNavd88) {
-    var depthFeet = buildingFloodDepthFeetExpression(stageNavd88);
-    if (!Array.isArray(depthFeet)) return "#7DF9FF";
-    return ["step", depthFeet,
-      "#7DF9FF",
-      1, "#5DE7FF",
-      2, "#38D3FF",
-      3, "#1BB7F5",
-      4, "#168CEB",
-      5, "#156BE0",
-      6, "#1853C6",
-      7, "#173EA8",
-      8, "#132F84",
-      9, "#0B1E5B",
-      10, "#050E33"
-    ];
-  }
-
-  function syncBuildingFloodBands3d(stageNavd88) {
+  function syncBuildingWaterComposite3d(stageNavd88) {
     if (!glMap || !glStyleReady) return;
-    var wetLayer = glMap.getLayer("nw-3d-buildings-wet");
-    var dryLayer = glMap.getLayer("nw-3d-buildings");
-    if (!wetLayer || !dryLayer) return;
+    if (!glMap.getLayer("nw-3d-buildings")) return;
     var stage = stageNavd88 === null || typeof stageNavd88 === "undefined" ? NaN : Number(stageNavd88);
     var selectedStage = Number.isFinite(stage) ? stage : null;
-    var wetHeight = buildingWetHeightExpression(selectedStage);
-    glMap.setPaintProperty("nw-3d-buildings-wet", "fill-extrusion-height", wetHeight);
-    glMap.setPaintProperty("nw-3d-buildings-wet", "fill-extrusion-color", buildingFloodColorExpression(selectedStage));
-    glMap.setPaintProperty("nw-3d-buildings", "fill-extrusion-base", wetHeight);
-    document.body.dataset.map3dBuildingWaterline = "split-extrusion";
+    // Keep one continuous opaque mesh per footprint. The former wet/dry pair
+    // shared a coplanar boundary and made MapLibre dither cyan/gray fragments
+    // across walls. The later water plane now supplies the submerged tint.
+    glMap.setPaintProperty("nw-3d-buildings", "fill-extrusion-base", 0);
+    document.body.dataset.map3dBuildingWaterline = "single-extrusion-depth-composite";
     document.body.dataset.map3dBuildingWaterStageNavd88Ft = selectedStage === null ? "none" : selectedStage.toFixed(3);
   }
 
@@ -640,7 +612,7 @@
     var url = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
     var coordinates = activeFloodCoordinates();
     if (!url || !coordinates) {
-      syncBuildingFloodBands3d(null);
+      syncBuildingWaterComposite3d(null);
       if (floodRemovalTimer) window.clearTimeout(floodRemovalTimer);
       // clearFloodLayer() is part of normal async frame replacement. Give the
       // incoming frame time to arrive while the last complete texture remains.
@@ -689,8 +661,8 @@
     } else if (floodPlaneLayer && typeof floodPlaneLayer.update === "function") {
       floodPlaneLayer.update(options);
     }
-    placeFloodBelowBuildingDepthPass();
-    syncBuildingFloodBands3d(stageNavd88);
+    placeFloodAfterBuildingDepthPass();
+    syncBuildingWaterComposite3d(stageNavd88);
     syncFloodPresentationMode();
     document.body.dataset.map3dFloodSurface = "flat-water-overlay";
     document.body.dataset.map3dFloodDepthMode = "independent";
@@ -1059,20 +1031,6 @@
         }
       });
       addLayerBelowMask({
-        id: "nw-3d-buildings-wet",
-        type: "fill-extrusion",
-        source: "nw-buildings-source",
-        minzoom: 12,
-        paint: {
-          "fill-extrusion-color": "#7DF9FF",
-          "fill-extrusion-height": 0,
-          "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 1,
-          "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
-          "fill-extrusion-vertical-gradient": false
-        }
-      });
-      addLayerBelowMask({
         id: "nw-3d-buildings",
         type: "fill-extrusion",
         source: "nw-buildings-source",
@@ -1081,37 +1039,34 @@
           "fill-extrusion-color": "#ddd7cb",
           "fill-extrusion-height": ["to-number", ["get", "renderHeightM"], 3],
           "fill-extrusion-base": 0,
-          // Fully opaque extrusions form a stable occlusion pass above the
-          // terrain-independent water plane. Fractional opacity is dithered by
-          // MapLibre and produced cyan stippling that shimmered on wall faces.
+          // One continuous opaque extrusion per footprint gives the water
+          // plane a deterministic depth surface. Splitting the same footprint
+          // into wet and dry solids creates coplanar seams on wall faces.
           "fill-extrusion-opacity": 1,
           "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
           "fill-extrusion-vertical-gradient": true
         }
       });
-      syncBuildingFloodBands3d(getSelectedStageNavd88());
+      syncBuildingWaterComposite3d(getSelectedStageNavd88());
       if (!buildingCursorHandlersWired) {
         buildingCursorHandlersWired = true;
-        ["nw-3d-buildings-wet", "nw-3d-buildings"].forEach(function (layerId) {
-          glMap.on("mouseenter", layerId, function () {
-            if (layerVisible("buildingsToggle", false)) glMap.getCanvas().style.cursor = "pointer";
-          });
-          glMap.on("mouseleave", layerId, function () {
-            glMap.getCanvas().style.cursor = "";
-          });
+        glMap.on("mouseenter", "nw-3d-buildings", function () {
+          if (layerVisible("buildingsToggle", false)) glMap.getCanvas().style.cursor = "pointer";
+        });
+        glMap.on("mouseleave", "nw-3d-buildings", function () {
+          glMap.getCanvas().style.cursor = "";
         });
       }
-      // Draw water before every building source, including live-vector
-      // fallbacks. The opaque extrusion pass then masks the water cleanly at
-      // each wall instead of alpha-dithering cyan fragments through it.
-      placeFloodBelowBuildingDepthPass();
+      // Draw water once after every opaque building source. Dry fragments win
+      // the depth test; submerged wall fragments receive the water texture.
+      placeFloodAfterBuildingDepthPass();
     }
     if (!glMap.getLayer("nw-3d-buildings")) return;
     glMap.setLayoutProperty("nw-building-outlines", "visibility", visibility(enabled));
-    glMap.setLayoutProperty("nw-3d-buildings-wet", "visibility", visibility(enabled));
     glMap.setLayoutProperty("nw-3d-buildings", "visibility", visibility(enabled));
     setContextBuildingExtrusionsEnabled(enabled);
-    syncBuildingFloodBands3d(getSelectedStageNavd88());
+    placeFloodAfterBuildingDepthPass();
+    syncBuildingWaterComposite3d(getSelectedStageNavd88());
     setStatus(enabled
       ? "3D terrain ×4 • " + Number(buildingData.features.length).toLocaleString("en-US") + " buildings"
       : "3D terrain ×4");
@@ -1357,7 +1312,7 @@
     glMap.on("click", async function (event) {
       var buildingsEnabled = layerVisible("buildingsToggle", false);
       if (buildingsEnabled && mapClickMode === "building" && glMap.getLayer("nw-3d-buildings")) {
-        var buildingQueryLayers = ["nw-3d-buildings", "nw-3d-buildings-wet"].filter(function (layerId) {
+        var buildingQueryLayers = ["nw-3d-buildings"].filter(function (layerId) {
           return Boolean(glMap.getLayer(layerId));
         });
         var rendered = glMap.queryRenderedFeatures(event.point, { layers: buildingQueryLayers });
@@ -1540,7 +1495,6 @@
     var hasBuildings = Boolean(mapInstance.getLayer("nw-3d-buildings"));
     if (hasBuildings) {
       mapInstance.setLayoutProperty("nw-building-outlines", "visibility", "visible");
-      mapInstance.setLayoutProperty("nw-3d-buildings-wet", "visibility", "visible");
       mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", "visible");
       setContextBuildingExtrusionsEnabled(true);
       mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 0);
@@ -1548,7 +1502,6 @@
       // the first visible compass gesture does not compile or populate a
       // different extrusion path than the one that was warmed.
       mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
-      mapInstance.setPaintProperty("nw-3d-buildings-wet", "fill-extrusion-opacity", 1);
     }
     try {
       // Exercise every distinct pitched cardinal footprint while the loading
@@ -1584,9 +1537,7 @@
       if (hasBuildings) {
         mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 1);
         mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
-        mapInstance.setPaintProperty("nw-3d-buildings-wet", "fill-extrusion-opacity", 1);
         mapInstance.setLayoutProperty("nw-building-outlines", "visibility", visibility(buildingsEnabled));
-        mapInstance.setLayoutProperty("nw-3d-buildings-wet", "visibility", visibility(buildingsEnabled));
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(buildingsEnabled));
         setContextBuildingExtrusionsEnabled(buildingsEnabled);
       }

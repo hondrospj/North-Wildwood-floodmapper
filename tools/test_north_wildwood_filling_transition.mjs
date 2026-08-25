@@ -115,8 +115,8 @@ assert.equal(
   "Missing packed-query data must fall back without inventing a transition line",
 );
 
-assert.match(SOURCE, /<strong>Green<\/strong> = uncertainty/);
-assert.match(SOURCE, /<span>Uncertainty<\/span>/);
+assert.match(SOURCE, /<div class="depth-legend-labels"><span>Uncertain<\/span><span>Shallow<\/span><span>Deep<\/span><\/div>/);
+assert.doesNotMatch(SOURCE, /<strong>Green<\/strong> = uncertainty/);
 assert.doesNotMatch(SOURCE, /Not Yet Connected/i);
 assert.doesNotMatch(SOURCE, /penalty-held/i);
 
