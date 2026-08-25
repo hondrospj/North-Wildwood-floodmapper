@@ -15881,6 +15881,18 @@ function cloneStyleObject(value) {
       const next = cloneStyleObject(style);
       if (!Array.isArray(next.layers)) return next;
 
+      // The default MapLibre light intensity produces extreme contrast
+      // between roof and wall faces. With thousands of aligned shore-town
+      // footprints, those dark wall faces collapse into long horizontal
+      // bands at overview scale. A soft viewport light preserves true 3D
+      // geometry and the existing material color without the stripe effect.
+      next.light = {
+        ...(next.light || {}),
+        anchor: "viewport",
+        color: "#ffffff",
+        intensity: 0.18
+      };
+
       next.layers = next.layers.map(layer => {
         const id = String(layer?.id || "").toLowerCase();
         const sourceLayer = String(layer?.["source-layer"] || "").toLowerCase();
@@ -36117,7 +36129,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v56"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v57"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";

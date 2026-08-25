@@ -26,7 +26,7 @@ assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
-  "./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v56",
+  "./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v57",
 ]);
 
 assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+gif[\s\S]+jszip[\s\S]+geotiff/);
