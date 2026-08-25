@@ -44,6 +44,15 @@ assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "single-com
 assert.match(THREE_D_SOURCE, /pixelRatio: 1/);
 assert.doesNotMatch(THREE_D_SOURCE, /installMapCreditsInLayers/);
 
+const unifiedBlueStyle = SOURCE.match(/<style id="north-wildwood-unified-ui-blue-v49">([\s\S]*?)<\/style>/)?.[1] || "";
+assert.ok(unifiedBlueStyle, "Missing the unified North Wildwood UI-blue stylesheet");
+assert.match(unifiedBlueStyle, /--nw-ui-blue:#60a5fa/);
+assert.match(unifiedBlueStyle, /--accent:var\(--nw-ui-blue\)/);
+assert.match(unifiedBlueStyle, /\.toggle\.on,[\s\S]*background:var\(--nw-ui-blue\) !important/);
+assert.match(unifiedBlueStyle, /#timelineDock \.playFab,[\s\S]*background:var\(--nw-ui-blue\) !important/);
+assert.match(unifiedBlueStyle, /\.nw-direction-wheel[\s\S]*border-color:var\(--nw-ui-blue\) !important/);
+assert.match(unifiedBlueStyle, /#hourSlider[\s\S]*var\(--nw-ui-blue\) 0%,var\(--nw-ui-blue\) var\(--timeline-progress\)/);
+
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `Missing browser function ${name}`);
