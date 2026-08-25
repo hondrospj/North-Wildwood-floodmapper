@@ -7,7 +7,11 @@
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
   var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;
-  var BUILDING_EXTRUSION_MIN_ZOOM = 14.25;
+  // At municipality-wide zooms, thousands of valid wall faces collapse into
+  // one- or two-pixel bands. Keep the clean Esri footprint fills at overview
+  // scale and begin real-height municipal extrusions only at neighborhood
+  // scale, where individual walls have enough screen area to render cleanly.
+  var BUILDING_EXTRUSION_MIN_ZOOM = 16.25;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
   var MAPLIBRE_JS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js";
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
@@ -608,7 +612,12 @@
   }
 
   function buildingsShouldRenderForCamera() {
-    return Boolean(glMap && layerVisible("buildingsToggle", false) && glMap.getPitch() > 10);
+    return Boolean(
+      glMap &&
+      layerVisible("buildingsToggle", false) &&
+      glMap.getPitch() > 10 &&
+      glMap.getZoom() >= BUILDING_EXTRUSION_MIN_ZOOM
+    );
   }
 
   function syncBuildingVisibilityForCamera() {
@@ -621,11 +630,15 @@
         glMap.setLayoutProperty(layerId, "visibility", targetVisibility);
       }
     });
+    var buildingsEnabled = layerVisible("buildingsToggle", false);
+    var pitched = glMap.getPitch() > 10;
     document.body.dataset.map3dBuildingVisibility = shouldRender
       ? "pitched-3d"
-      : layerVisible("buildingsToggle", false)
-        ? "hidden-in-2d"
-        : "disabled";
+      : buildingsEnabled && pitched
+        ? "overview-flat"
+        : buildingsEnabled
+          ? "hidden-in-2d"
+          : "disabled";
     return shouldRender;
   }
 
@@ -1584,6 +1597,10 @@
       // angle without making the user's first rotation build cold buckets.
       var initialWarmZoom = Number(originalCamera.zoom);
       var overviewWarmZoom = Math.max(11, initialWarmZoom - 1.25);
+      var buildingWarmZoom = Math.min(
+        MAP_MAX_ZOOM,
+        Math.max(initialWarmZoom, BUILDING_EXTRUSION_MIN_ZOOM + 0.25)
+      );
       var warmCameras = [];
       // Warm both the initial camera scale and the zoomed-out scale that
       // exposes the largest terrain footprint.
@@ -1591,6 +1608,12 @@
         [0, 90, 180, 270].forEach(function (bearing) {
           warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: warmZoom });
         });
+      });
+      // The overview cameras intentionally do not draw extrusion geometry.
+      // Warm the first real-height neighborhood buckets separately so zooming
+      // through the LOD boundary does not stall on the first building frame.
+      [0, 90, 180, 270].forEach(function (bearing) {
+        warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: buildingWarmZoom });
       });
       // At pitch zero, opposite bearings reuse the same footprint. The four
       // quarter-turn/diagonal shapes below therefore cover all 360 degrees.
@@ -1616,16 +1639,22 @@
       syncTerrainForView(originalCamera.pitch > 10);
       if (hasBuildings) {
         mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
-        var restoreBuildings = buildingsEnabled && originalCamera.pitch > 10;
+        var restoreBuildings = buildingsEnabled &&
+          originalCamera.pitch > 10 &&
+          originalCamera.zoom >= BUILDING_EXTRUSION_MIN_ZOOM;
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(restoreBuildings));
       }
     }
     await waitFor3dMapIdle(mapInstance, 45000);
     syncBuildingVisibilityForCamera();
     document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135";
-    document.body.dataset.map3dBearingWarmupZooms = Number(initialWarmZoom).toFixed(2) + "," + Number(overviewWarmZoom).toFixed(2);
+    document.body.dataset.map3dBearingWarmupZooms = [
+      initialWarmZoom,
+      overviewWarmZoom,
+      buildingWarmZoom
+    ].map(function (zoom) { return Number(zoom).toFixed(2); }).join(",");
     document.body.dataset.map3dBearingWarmupSettled = String(fullySettledWarmCameras) + "/" + String(warmCameras.length);
-    document.body.dataset.map3dBearingWarmupBudgetMs = "7000";
+    document.body.dataset.map3dBearingWarmupBudgetMs = "9600";
     document.body.dataset.map3dWheelPreloaded = "true";
     document.body.dataset.map3dBearingWarmup = "ready";
     document.body.dataset.map3dCameraWarmup = "ready";
