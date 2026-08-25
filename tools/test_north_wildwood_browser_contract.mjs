@@ -40,6 +40,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = "shared-3d-depth-buffer"/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v50/);
 assert.match(THREE_D_SOURCE, /map3dFloodPrecision = "camera-stable-local-origin"/);
 assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = "less-no-coplanar-fight"/);
 assert.match(THREE_D_SOURCE, /map3dFloodGlIsolation = "maplibre-guarded-no-readback"/);
