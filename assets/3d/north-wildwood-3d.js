@@ -7,6 +7,7 @@
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
   var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;
+  var BUILDING_OUTLINE_MIN_ZOOM = 15.5;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
   var MAPLIBRE_JS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js";
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
@@ -1066,11 +1067,14 @@
         id: "nw-building-outlines",
         type: "line",
         source: "nw-buildings-source",
-        minzoom: 12,
+        // Thousands of sub-pixel footprint strokes merge into long dark
+        // bands at municipality overview scales. Keep the solid roof meshes,
+        // but reserve individual footprint outlines for street-level views.
+        minzoom: BUILDING_OUTLINE_MIN_ZOOM,
         paint: {
           "line-color": "#b8ad9d",
           "line-opacity": 1,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.35, 18, 1.05, 22, 1.4]
+          "line-width": ["interpolate", ["linear"], ["zoom"], 15.5, 0.45, 18, 1.05, 22, 1.4]
         }
       });
       addLayerBelowMask({
@@ -1296,7 +1300,10 @@
         layout: { visibility: visibility(isTownBoundaryEnabled()) },
         paint: {
           "line-color": getComputedStyle(document.documentElement).getPropertyValue("--boundary-color").trim() || "#000000",
-          "line-width": 4.6,
+          // A constant 4.6 px stroke read as giant lines through the overview
+          // when the WebGL map was rotated. Scale the same black boundary from
+          // a quiet overview hairline to the original street-level weight.
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.75, 13, 1.35, 15, 2.1, 17, 3.2, 19, 4.6],
           "line-opacity": 1
         }
       });
@@ -1421,6 +1428,10 @@
         fadeDuration: 0,
         refreshExpiredTiles: false,
         maxTileCacheZoomLevels: 8,
+        // Retain every cardinal/diagonal footprint rendered behind the loader
+        // so the first wheel gesture does not synchronously fetch and rebuild
+        // the newly exposed vector, raster, and building tiles.
+        maxTileCacheSize: 384,
         // Render at one physical pixel per CSS pixel. The former 0.75 scale was
         // visibly resampled during camera movement, making the flood PNG and
         // thin building runs appear to wiggle or disappear at street scale.
@@ -1550,29 +1561,35 @@
     }
     try {
       // Exercise every distinct pitched cardinal footprint while the loading
-      // screen still covers the canvas. Previously only north-facing 3D was
-      // warmed; the first south/west compass sweep had to fetch terrain and
-      // rebuild extrusion buckets after the site was already interactive.
+      // screen still covers the canvas. Also warm diagonal top-down footprints:
+      // those are the largest 2D tile sets and cover every in-between wheel
+      // angle without making the user's first rotation build cold buckets.
       var initialWarmZoom = Number(originalCamera.zoom);
       var overviewWarmZoom = Math.max(11, initialWarmZoom - 1.25);
       var warmCameras = [];
       // Warm both the initial camera scale and the zoomed-out scale that
-      // exposes the largest terrain footprint. Top-down rotation no longer
-      // needs a DEM warmup because terrain is parked in 2D mode.
+      // exposes the largest terrain footprint.
       [initialWarmZoom, overviewWarmZoom].forEach(function (warmZoom) {
         [0, 90, 180, 270].forEach(function (bearing) {
           warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: warmZoom });
         });
       });
+      // At pitch zero, opposite bearings reuse the same footprint. The four
+      // quarter-turn/diagonal shapes below therefore cover all 360 degrees.
+      [0, 45, 90, 135].forEach(function (bearing) {
+        warmCameras.push({ pitch: DEFAULT_PITCH, bearing: bearing, zoom: overviewWarmZoom });
+      });
       var fullySettledWarmCameras = 0;
       for (var warmIndex = 0; warmIndex < warmCameras.length; warmIndex += 1) {
-        mapInstance.jumpTo(warmCameras[warmIndex]);
+        var warmCamera = warmCameras[warmIndex];
+        syncTerrainForView(warmCamera.pitch > 10);
+        mapInstance.jumpTo(warmCamera);
         // Enqueue and compile every footprint, but never let a cold DEM tile
         // keep the whole site behind its loader. Pitched views get a slightly
         // larger slice of the fixed warmup budget than top-down rotations.
         var footprintSettled = await warm3dCameraFootprint(
           mapInstance,
-          warmCameras[warmIndex].pitch > 10 ? 650 : 350
+          warmCamera.pitch > 10 ? 650 : 450
         );
         if (footprintSettled) fullySettledWarmCameras += 1;
       }
@@ -1588,10 +1605,10 @@
       }
     }
     await waitFor3dMapIdle(mapInstance, 45000);
-    document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270";
+    document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135";
     document.body.dataset.map3dBearingWarmupZooms = Number(initialWarmZoom).toFixed(2) + "," + Number(overviewWarmZoom).toFixed(2);
     document.body.dataset.map3dBearingWarmupSettled = String(fullySettledWarmCameras) + "/" + String(warmCameras.length);
-    document.body.dataset.map3dBearingWarmupBudgetMs = "5200";
+    document.body.dataset.map3dBearingWarmupBudgetMs = "7000";
     document.body.dataset.map3dWheelPreloaded = "true";
     document.body.dataset.map3dBearingWarmup = "ready";
     document.body.dataset.map3dCameraWarmup = "ready";
@@ -1811,6 +1828,7 @@
         Number(document.body.dataset.map3dWheelFrame || 0) + 1
       );
       syncPersistentNavControl();
+      updateDiagnostics();
     }
 
     function queueViewpoint(bearing, duration) {
@@ -1860,10 +1878,15 @@
       wheel.classList.add("is-active");
       try { wheel.setPointerCapture(activePointer); } catch (_) {}
       pendingPointerBearing = updateDefaultWheel(event.clientX, event.clientY);
+      if (Number.isFinite(pendingPointerBearing)) queueViewpoint(pendingPointerBearing, 0);
     });
     wheel.addEventListener("pointermove", function (event) {
       if (event.pointerId !== activePointer) return;
       pendingPointerBearing = updateDefaultWheel(event.clientX, event.clientY);
+      // Keep only the newest pointer sample. The map now follows the wheel at
+      // most once per animation frame while release still commits the exact
+      // final bearing.
+      if (Number.isFinite(pendingPointerBearing)) queueViewpoint(pendingPointerBearing, 0);
     });
     wheel.addEventListener("pointerup", function (event) { finishDefaultWheel(event, true); });
     wheel.addEventListener("pointercancel", function (event) { finishDefaultWheel(event, false); });
@@ -1880,9 +1903,9 @@
       applyViewpoint(bearings[event.key], 0);
     });
     host.appendChild(control);
-    control.dataset.wheelCameraUpdates = "single-commit";
-    control.dataset.wheelPreview3dMs = "0";
-    control.dataset.wheelPreview2dMs = "0";
+    control.dataset.wheelCameraUpdates = "raf-latest-plus-final-commit";
+    control.dataset.wheelPreview3dMs = "animation-frame";
+    control.dataset.wheelPreview2dMs = "animation-frame";
     if (!document.body.dataset.map3d) document.body.dataset.map3d = "idle";
     syncPersistentNavControl();
   }

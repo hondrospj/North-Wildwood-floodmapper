@@ -40,7 +40,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v52/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v53/);
 assert.match(THREE_D_SOURCE, /map3dFloodPrecision = "camera-stable-local-origin"/);
 assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = this\.useDepthTest/);
 assert.match(THREE_D_SOURCE, /map3dFloodGlIsolation = "maplibre-guarded-no-readback"/);
@@ -67,7 +67,11 @@ assert.doesNotMatch(
 );
 assert.match(flatFloodRender, /gl\.depthFunc\(gl\.LESS\)/);
 assert.match(flatFloodRender, /gl\.disable\(gl\.DEPTH_TEST\)/);
-assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "single-commit"/);
+assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "raf-latest-plus-final-commit"/);
+assert.match(THREE_D_SOURCE, /map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135"/);
+assert.match(THREE_D_SOURCE, /maxTileCacheSize: 384/);
+assert.match(THREE_D_SOURCE, /BUILDING_OUTLINE_MIN_ZOOM = 15\.5/);
+assert.match(THREE_D_SOURCE, /11, 0\.75, 13, 1\.35, 15, 2\.1, 17, 3\.2, 19, 4\.6/);
 assert.match(THREE_D_SOURCE, /pixelRatio: 1/);
 assert.doesNotMatch(THREE_D_SOURCE, /installMapCreditsInLayers/);
 
