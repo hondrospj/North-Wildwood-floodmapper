@@ -48,7 +48,17 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v55/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v56/);
+assert.match(
+  SOURCE,
+  /paint\["fill-outline-color"\] = "#d8d2c6"/,
+  "Basemap building fill edges must match the roof color at overview scale"
+);
+assert.match(
+  SOURCE,
+  /if \(layer\.type === "line"\) \{[\s\S]+visibility: "none"/,
+  "Basemap building outline layers must be hidden"
+);
 assert.match(
   THREE_D_SOURCE,
   /"line-width": \["interpolate", \["linear"\], \["zoom"\], 11, 0\.45, 13, 0\.7, 15, 0\.95, 17, 1\.25, 19, 1\.6\]/
@@ -87,8 +97,12 @@ assert.match(flatFloodRender, /gl\.disable\(gl\.DEPTH_TEST\)/);
 assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "raf-latest-plus-final-commit"/);
 assert.match(THREE_D_SOURCE, /map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135"/);
 assert.match(THREE_D_SOURCE, /maxTileCacheSize: 384/);
-assert.match(THREE_D_SOURCE, /BUILDING_OUTLINE_MIN_ZOOM = 15\.5/);
 assert.match(THREE_D_SOURCE, /minzoom: BUILDING_EXTRUSION_MIN_ZOOM/);
+assert.doesNotMatch(
+  THREE_D_SOURCE,
+  /nw-building-outlines/,
+  "A second custom outline pass produces dark seams across dense building runs"
+);
 assert.match(THREE_D_SOURCE, /pixelRatio: 1/);
 assert.doesNotMatch(THREE_D_SOURCE, /installMapCreditsInLayers/);
 
