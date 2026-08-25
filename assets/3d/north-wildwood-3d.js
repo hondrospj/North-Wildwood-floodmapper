@@ -298,8 +298,9 @@
       opacityLocation: null,
       imageLocation: null,
       positionLocation: -1,
-      positionLowLocation: -1,
       textureLocation: -1,
+      mercatorOrigin: null,
+      localProjectionMatrix: new Float32Array(16),
       textureReady: false,
       visible: Boolean(initial.visible),
       textureLoadPromise: Promise.resolve(false),
@@ -312,16 +313,20 @@
       onAdd: function (mapInstance, gl) {
         this.map = mapInstance;
         this.gl = gl;
+        var priorVertexArray = gl.getParameter(gl.VERTEX_ARRAY_BINDING);
+        var priorArrayBuffer = gl.getParameter(gl.ARRAY_BUFFER_BINDING);
+        var priorActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE);
+        gl.activeTexture(gl.TEXTURE0);
+        var priorTexture0 = gl.getParameter(gl.TEXTURE_BINDING_2D);
         var vertexSource = '#version 300 es\n' +
           'precision highp float;\n' +
           'uniform mat4 u_matrix;\n' +
-          'in vec3 a_position_high;\n' +
-          'in vec3 a_position_low;\n' +
+          'in vec3 a_position;\n' +
           'in vec2 a_texture;\n' +
           'out vec2 v_texture;\n' +
           'void main(){\n' +
           '  v_texture = a_texture;\n' +
-          '  gl_Position = (u_matrix * vec4(a_position_high, 1.0)) + (u_matrix * vec4(a_position_low, 0.0));\n' +
+          '  gl_Position = u_matrix * vec4(a_position, 1.0);\n' +
           '}';
         var fragmentSource = '#version 300 es\n' +
           'precision highp float;\n' +
@@ -344,20 +349,16 @@
         this.matrixLocation = gl.getUniformLocation(this.program, "u_matrix");
         this.opacityLocation = gl.getUniformLocation(this.program, "u_opacity");
         this.imageLocation = gl.getUniformLocation(this.program, "u_image");
-        this.positionLocation = gl.getAttribLocation(this.program, "a_position_high");
-        this.positionLowLocation = gl.getAttribLocation(this.program, "a_position_low");
+        this.positionLocation = gl.getAttribLocation(this.program, "a_position");
         this.textureLocation = gl.getAttribLocation(this.program, "a_texture");
         this.buffer = gl.createBuffer();
         this.vertexArray = gl.createVertexArray();
         gl.bindVertexArray(this.vertexArray);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
         gl.enableVertexAttribArray(this.positionLocation);
-        gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 32, 0);
-        gl.enableVertexAttribArray(this.positionLowLocation);
-        gl.vertexAttribPointer(this.positionLowLocation, 3, gl.FLOAT, false, 32, 12);
+        gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 20, 0);
         gl.enableVertexAttribArray(this.textureLocation);
-        gl.vertexAttribPointer(this.textureLocation, 2, gl.FLOAT, false, 32, 24);
-        gl.bindVertexArray(null);
+        gl.vertexAttribPointer(this.textureLocation, 2, gl.FLOAT, false, 20, 12);
         this.texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -366,6 +367,13 @@
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         this.updateGeometry();
         this.loadTexture(this.url);
+        // onAdd runs outside MapLibre's guarded custom render pass. Restore
+        // every binding we touched so the next terrain frame starts from the
+        // state MapLibre recorded in its own WebGL cache.
+        gl.bindTexture(gl.TEXTURE_2D, priorTexture0);
+        gl.activeTexture(priorActiveTexture);
+        gl.bindBuffer(gl.ARRAY_BUFFER, priorArrayBuffer);
+        gl.bindVertexArray(priorVertexArray);
       },
 
       updateGeometry: function () {
@@ -376,28 +384,27 @@
             Number(this.altitudeMeters) || 0
           );
         }, this);
-        // Mercator x/y values are global fractions near 0.29. Keeping them in
-        // one Float32 loses sub-meter detail at street zooms, which made the
-        // flood quad slide by pixels while the basemap stayed fixed. Split
-        // each coordinate into high/low Float32 parts and transform both in
-        // the shader so the ready PNG remains locked to its world-file corners.
-        var split = function (value) {
-          var precise = Number(value) || 0;
-          var high = Math.fround(precise);
-          return [high, precise - high];
+        // Store small camera-independent offsets around the quad's own center.
+        // Multiplying two large high/low world coordinates in the vertex shader
+        // still loses bits when the zoom matrix changes. A local origin keeps
+        // every vertex near zero and removes the sub-pixel PNG "wiggle".
+        this.mercatorOrigin = {
+          x: points.reduce(function (sum, point) { return sum + point.x; }, 0) / points.length,
+          y: points.reduce(function (sum, point) { return sum + point.y; }, 0) / points.length,
+          z: points.reduce(function (sum, point) { return sum + (point.z || 0); }, 0) / points.length
         };
+        var origin = this.mercatorOrigin;
         var vertex = function (point, u, v) {
-          var x = split(point.x);
-          var y = split(point.y);
-          var z = split(point.z || 0);
-          return [x[0], y[0], z[0], x[1], y[1], z[1], u, v];
+          return [point.x - origin.x, point.y - origin.y, (point.z || 0) - origin.z, u, v];
         };
         var values = []
           .concat(vertex(points[0], 0, 0), vertex(points[1], 1, 0), vertex(points[2], 1, 1))
           .concat(vertex(points[0], 0, 0), vertex(points[2], 1, 1), vertex(points[3], 0, 1));
+        var priorArrayBuffer = this.gl.getParameter(this.gl.ARRAY_BUFFER_BINDING);
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
         this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(values), this.gl.STATIC_DRAW);
-        document.body.dataset.map3dFloodPrecision = "high-low-split";
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, priorArrayBuffer);
+        document.body.dataset.map3dFloodPrecision = "camera-stable-local-origin";
       },
 
       loadTexture: function (url) {
@@ -415,14 +422,30 @@
               return;
             }
             var gl = self.gl;
-            gl.bindTexture(gl.TEXTURE_2D, self.texture);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-            // Trilinear minification removes the block stair-stepping that was
-            // visible around wet/dry boundaries when the user zoomed out.
-            gl.generateMipmap(gl.TEXTURE_2D);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+            // Image decoding completes outside the custom render callback.
+            // Preserve MapLibre's live bindings and pixel-store flags around
+            // this upload; leaking them desynchronizes its cached GL state and
+            // is visible as whole-frame flashing on the next camera movement.
+            var priorActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE);
+            var priorFlipY = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);
+            var priorPremultiplyAlpha = gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);
+            gl.activeTexture(gl.TEXTURE0);
+            var priorTexture0 = gl.getParameter(gl.TEXTURE_BINDING_2D);
+            try {
+              gl.bindTexture(gl.TEXTURE_2D, self.texture);
+              gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+              gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+              gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+              // Trilinear minification removes block stair-stepping without
+              // replacing the texture while the camera is moving.
+              gl.generateMipmap(gl.TEXTURE_2D);
+              gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+            } finally {
+              gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, priorFlipY);
+              gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, priorPremultiplyAlpha);
+              gl.bindTexture(gl.TEXTURE_2D, priorTexture0);
+              gl.activeTexture(priorActiveTexture);
+            }
             self.textureReady = true;
             document.body.dataset.map3dFloodTexture = "ready";
             if (self.map) self.map.triggerRepaint();
@@ -478,31 +501,46 @@
             ? args.projectionMatrix
             : args;
         if (!matrix) return;
+        if (!this.mercatorOrigin) return;
+        // Compose M * translate(origin) in JavaScript's double precision, then
+        // upload one camera-relative Float32 matrix. This avoids the large
+        // world-coordinate cancellation that made the flood texture shift
+        // between adjacent zoom frames.
+        var origin = this.mercatorOrigin;
+        var localMatrix = this.localProjectionMatrix;
+        for (var matrixIndex = 0; matrixIndex < 12; matrixIndex += 1) {
+          localMatrix[matrixIndex] = matrix[matrixIndex];
+        }
+        localMatrix[12] = matrix[0] * origin.x + matrix[4] * origin.y + matrix[8] * origin.z + matrix[12];
+        localMatrix[13] = matrix[1] * origin.x + matrix[5] * origin.y + matrix[9] * origin.z + matrix[13];
+        localMatrix[14] = matrix[2] * origin.x + matrix[6] * origin.y + matrix[10] * origin.z + matrix[14];
+        localMatrix[15] = matrix[3] * origin.x + matrix[7] * origin.y + matrix[11] * origin.z + matrix[15];
         gl.useProgram(this.program);
-        gl.uniformMatrix4fv(this.matrixLocation, false, matrix);
+        gl.uniformMatrix4fv(this.matrixLocation, false, localMatrix);
         gl.uniform1f(this.opacityLocation, this.opacity);
         gl.bindVertexArray(this.vertexArray);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.uniform1i(this.imageLocation, 0);
-        var depthTestWasEnabled = gl.isEnabled(gl.DEPTH_TEST);
-        var cullFaceWasEnabled = gl.isEnabled(gl.CULL_FACE);
-        var depthMaskWasEnabled = gl.getParameter(gl.DEPTH_WRITEMASK);
-        var priorDepthFunction = gl.getParameter(gl.DEPTH_FUNC);
+        // MapLibre brackets custom render callbacks with context.setDirty().
+        // Set every state this draw needs, then let that guard restore its
+        // cached defaults. Per-frame getParameter() readbacks force a GPU/CPU
+        // synchronization and were themselves a source of camera jank.
         gl.enable(gl.BLEND);
-        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendEquationSeparate(gl.FUNC_ADD, gl.FUNC_ADD);
+        gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         gl.enable(gl.DEPTH_TEST);
-        gl.depthFunc(gl.LEQUAL);
+        // Strict depth comparison makes the shoreline deterministic. LEQUAL
+        // let coplanar terrain/water samples alternate as the camera moved.
+        gl.depthFunc(gl.LESS);
         gl.disable(gl.CULL_FACE);
         // Terrain already owns the depth buffer. Water should be clipped by it
         // without preventing the later opaque building pass from drawing.
         gl.depthMask(false);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         gl.bindVertexArray(null);
-        gl.depthMask(depthMaskWasEnabled);
-        gl.depthFunc(priorDepthFunction);
-        if (!depthTestWasEnabled) gl.disable(gl.DEPTH_TEST);
-        if (cullFaceWasEnabled) gl.enable(gl.CULL_FACE);
+        document.body.dataset.map3dFloodGlIsolation = "maplibre-guarded-no-readback";
+        document.body.dataset.map3dFloodDepthFunction = "less-no-coplanar-fight";
       },
 
       onRemove: function (_, gl) {
