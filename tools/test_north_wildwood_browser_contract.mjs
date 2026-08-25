@@ -40,6 +40,19 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = "shared-3d-depth-buffer"/);
+assert.match(THREE_D_SOURCE, /map3dFloodPrecision = "camera-stable-local-origin"/);
+assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = "less-no-coplanar-fight"/);
+assert.match(THREE_D_SOURCE, /map3dFloodGlIsolation = "maplibre-guarded-no-readback"/);
+assert.match(THREE_D_SOURCE, /gl\.pixelStorei\(gl\.UNPACK_FLIP_Y_WEBGL, priorFlipY\)/);
+assert.match(THREE_D_SOURCE, /gl\.bindTexture\(gl\.TEXTURE_2D, priorTexture0\)/);
+const flatFloodRender = THREE_D_SOURCE.match(/render: function \(gl, args\) \{([\s\S]*?)\n      \},\n\n      onRemove:/)?.[1] || "";
+assert.ok(flatFloodRender, "Missing the flat-water custom render callback");
+assert.doesNotMatch(
+  flatFloodRender,
+  /gl\.getParameter\(/,
+  "Camera frames must not block on synchronous WebGL state readbacks"
+);
+assert.match(flatFloodRender, /gl\.depthFunc\(gl\.LESS\)/);
 assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "single-commit"/);
 assert.match(THREE_D_SOURCE, /pixelRatio: 1/);
 assert.doesNotMatch(THREE_D_SOURCE, /installMapCreditsInLayers/);
