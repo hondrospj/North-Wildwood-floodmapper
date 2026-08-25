@@ -592,6 +592,7 @@
     if (!glMap || !glStyleReady) return;
     var pitched = glMap.getPitch() > 10;
     var detailedDepth = usesDetailedFloodDepth();
+    syncBuildingVisibilityForCamera();
     if (glMap.getLayer("nw-flood-drape")) {
       glMap.setLayoutProperty("nw-flood-drape", "visibility", visibility(!pitched));
     }
@@ -605,6 +606,28 @@
     document.body.dataset.map3dFloodCompositing = detailedDepth
       ? "shared-3d-depth-buffer"
       : "overview-prebuilding-no-terrain-depth";
+  }
+
+  function buildingsShouldRenderForCamera() {
+    return Boolean(glMap && layerVisible("buildingsToggle", false) && glMap.getPitch() > 10);
+  }
+
+  function syncBuildingVisibilityForCamera() {
+    if (!glMap || !glMap.getLayer("nw-3d-buildings")) return false;
+    var shouldRender = buildingsShouldRenderForCamera();
+    var targetVisibility = visibility(shouldRender);
+    ["nw-building-outlines", "nw-3d-buildings"].forEach(function (layerId) {
+      if (!glMap.getLayer(layerId)) return;
+      if (glMap.getLayoutProperty(layerId, "visibility") !== targetVisibility) {
+        glMap.setLayoutProperty(layerId, "visibility", targetVisibility);
+      }
+    });
+    document.body.dataset.map3dBuildingVisibility = shouldRender
+      ? "pitched-3d"
+      : layerVisible("buildingsToggle", false)
+        ? "hidden-in-2d"
+        : "disabled";
+    return shouldRender;
   }
 
   function placeFloodForScaleDepthPass() {
@@ -1175,8 +1198,7 @@
       placeFloodForScaleDepthPass();
     }
     if (!glMap.getLayer("nw-3d-buildings")) return;
-    glMap.setLayoutProperty("nw-building-outlines", "visibility", visibility(enabled));
-    glMap.setLayoutProperty("nw-3d-buildings", "visibility", visibility(enabled));
+    syncBuildingVisibilityForCamera();
     placeFloodForScaleDepthPass();
     syncBuildingWaterComposite3d(getSelectedStageNavd88());
     setStatus(enabled
@@ -1609,11 +1631,13 @@
       if (hasBuildings) {
         mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 1);
         mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
-        mapInstance.setLayoutProperty("nw-building-outlines", "visibility", visibility(buildingsEnabled));
-        mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(buildingsEnabled));
+        var restoreBuildings = buildingsEnabled && originalCamera.pitch > 10;
+        mapInstance.setLayoutProperty("nw-building-outlines", "visibility", visibility(restoreBuildings));
+        mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(restoreBuildings));
       }
     }
     await waitFor3dMapIdle(mapInstance, 45000);
+    syncBuildingVisibilityForCamera();
     document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135";
     document.body.dataset.map3dBearingWarmupZooms = Number(initialWarmZoom).toFixed(2) + "," + Number(overviewWarmZoom).toFixed(2);
     document.body.dataset.map3dBearingWarmupSettled = String(fullySettledWarmCameras) + "/" + String(warmCameras.length);
