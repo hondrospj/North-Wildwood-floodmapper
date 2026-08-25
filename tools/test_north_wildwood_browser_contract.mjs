@@ -10,6 +10,11 @@ import path from "node:path";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SOURCE = fs.readFileSync(path.join(HERE, "..", "index.html"), "utf8");
+const THREE_D_SOURCE = fs.readFileSync(path.join(HERE, "..", "assets", "3d", "north-wildwood-3d.js"), "utf8");
+const THREE_D_BUILDINGS = JSON.parse(fs.readFileSync(
+  path.join(HERE, "..", "assets", "3d", "NorthWildwoodBuildings3D.geojson"),
+  "utf8"
+));
 const OBSERVED_15MIN = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed15min.json"), "utf8"));
 const OBSERVED_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "observed_archive_index.json"), "utf8"));
 const LEWES_INDEX = JSON.parse(fs.readFileSync(path.join(HERE, "..", "lewes_archive_index.json"), "utf8"));
@@ -19,6 +24,18 @@ const HYDRAULIC_ASSET_MANIFEST = JSON.parse(fs.readFileSync(
   path.join(BUNDLED_HYDRAULIC_ROOT, "NorthWildwoodHydraulicAssetManifest.json"),
   "utf8"
 ));
+
+assert.equal(
+  THREE_D_BUILDINGS.features.length,
+  THREE_D_BUILDINGS.metadata.sourceVectorFootprintCount,
+  "The bundled 3D asset should include every source vector footprint"
+);
+assert.match(THREE_D_SOURCE, /buildings3dCoverage = "complete-static-vector-footprints"/);
+assert.doesNotMatch(
+  THREE_D_SOURCE,
+  /nw-basemap-building-extrusion/,
+  "A second extrusion of the same live basemap footprints causes depth-buffer flicker"
+);
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
@@ -661,8 +678,8 @@ assert.match(SOURCE, /data-export-legend-mode="depth"/);
 assert.match(SOURCE, /class="export-depth-key-gradient"/);
 assert.match(SOURCE, /<strong>Flood Depth<\/strong>/);
 assert.match(SOURCE, /linear-gradient\(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%/);
-assert.match(SOURCE, /<strong>Green<\/strong> = uncertainty/);
-assert.match(SOURCE, /<span>Uncertainty<\/span>/);
+assert.doesNotMatch(SOURCE, /Green\s*=\s*uncertainty/i);
+assert.match(SOURCE, /<span>Uncertain<\/span>/);
 assert.doesNotMatch(SOURCE, /Not Yet Connected/i);
 assert.doesNotMatch(SOURCE, /penalty-held/i);
 assert.match(extractFunction("fitExportMapToSelectedExtent"), /fitBounds\(map\.getBounds\(\)/);
@@ -749,7 +766,7 @@ assert.match(SOURCE, /function styleEsriBuildingForeground\(/);
 assert.match(SOURCE, /makeEsriBuildingForegroundLayer\("buildingsPane"\)/);
 assert.doesNotMatch(SOURCE, /Buildings are above the water/);
 assert.doesNotMatch(SOURCE, /recorded high-tide floods?/);
-assert.match(SOURCE, /modeled floor exceedances/);
+assert.match(SOURCE, /Crawlspace\/Garage Impacts/);
 assert.match(SOURCE, /id="nsiStructuresToggle"/);
 assert.match(SOURCE, /north-wildwood-nsi-2026-first-floor-v1/);
 assert.match(SOURCE, /function getNsiStructureImpactStyle\(/);
@@ -765,7 +782,7 @@ assert.match(SOURCE, /getPane\("popupPane"\)\.style\.zIndex = 800/);
 assert.match(SOURCE, /autoClose: false/);
 assert.match(SOURCE, /closeOnClick: false/);
 assert.doesNotMatch(extractFunction("renderHour"), /closePopup/);
-assert.match(SOURCE, /See Flood History And Projections/);
+assert.match(SOURCE, /See Flood History &amp; Projections/);
 assert.match(SOURCE, /id="floodHistoryPane"/);
 assert.match(SOURCE, /\.flood-history-backdrop\{[^}]*place-items:center/);
 assert.match(SOURCE, /id="floodProjectionScenarioSelect"/);
@@ -781,8 +798,8 @@ assert.match(SOURCE, /north-wildwood-flood-history-projections-v4/);
 assert.match(SOURCE, /id="mapClickModeControl"/);
 assert.match(SOURCE, /data-map-click-mode="building"/);
 assert.match(SOURCE, /data-map-click-mode="depth"/);
-assert.match(SOURCE, /id="mapClickBuildingBtn"[^>]+aria-label="Building info"/);
-assert.match(SOURCE, /id="mapClickDepthBtn"[^>]+aria-label="Water depth"/);
+assert.match(SOURCE, /id="mapClickBuildingBtn"[^>]+aria-label="Building Info"/);
+assert.match(SOURCE, /id="mapClickDepthBtn"[^>]+aria-label="Flood Depth"/);
 assert.match(SOURCE, /mapClickMode === "building" && parcelInfoInteractionEnabled\(\)/);
 assert.match(SOURCE, /north-wildwood-physics-forecast-v1/);
 assert.match(SOURCE, /"physicsForecastPointerPath": null/);

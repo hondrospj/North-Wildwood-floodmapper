@@ -23,7 +23,6 @@
   var mapStylePromise = null;
   var floodPlaneLayer = null;
   var floodRemovalTimer = null;
-  var basemapBuildingExtrusionLayerIds = [];
   var syncingFromLeaflet = false;
   var syncingFrom3d = false;
   var syncingModeTransition = false;
@@ -539,11 +538,11 @@
 
   function placeFloodBelowBuildingDepthPass() {
     if (!glMap || !glMap.getLayer("nw-flood-overlay")) return;
-    var buildingLayerIds = basemapBuildingExtrusionLayerIds.concat([
+    var buildingLayerIds = [
       "nw-building-outlines",
       "nw-3d-buildings-wet",
       "nw-3d-buildings"
-    ]);
+    ];
     var firstBuildingLayer = (glMap.getStyle().layers || []).find(function (layer) {
       return buildingLayerIds.indexOf(layer.id) >= 0;
     });
@@ -993,7 +992,6 @@
     if (!glMap || !glStyleReady) return;
     var syncOptions = options || {};
     var enabled = layerVisible("buildingsToggle", false);
-    setBasemapBuildingExtrusionsEnabled(enabled);
     if (!enabled && !syncOptions.preload && !glMap.getSource("nw-buildings-source")) {
       setStatus("3D terrain ×4");
       return;
@@ -1077,7 +1075,6 @@
     glMap.setLayoutProperty("nw-3d-buildings-wet", "visibility", visibility(enabled));
     glMap.setLayoutProperty("nw-3d-buildings", "visibility", visibility(enabled));
     syncBuildingFloodBands3d(getSelectedStageNavd88());
-    setBasemapBuildingExtrusionsEnabled(enabled);
     setStatus(enabled
       ? "3D terrain ×4 • " + Number(buildingData.features.length).toLocaleString("en-US") + " buildings"
       : "3D terrain ×4");
@@ -1170,58 +1167,6 @@
     updateDiagnostics();
   }
 
-  function setBasemapBuildingExtrusionsEnabled(enabled) {
-    if (!glMap) return;
-    basemapBuildingExtrusionLayerIds.forEach(function (layerId) {
-      if (glMap.getLayer(layerId)) {
-        glMap.setLayoutProperty(layerId, "visibility", visibility(enabled));
-      }
-    });
-  }
-
-  function installBasemapBuildingExtrusions() {
-    if (!glMap || basemapBuildingExtrusionLayerIds.length) return;
-    var sourceLayers = ["Daylight building", "OSM building", "OSM major building"];
-    var styleLayers = (glMap.getStyle().layers || []).filter(function (layer) {
-      return layer.type === "fill" && sourceLayers.indexOf(layer["source-layer"]) >= 0;
-    });
-    styleLayers.forEach(function (layer, index) {
-      var layerId = "nw-basemap-building-extrusion-" + index;
-      var fallbackLayer = {
-        id: layerId,
-        type: "fill-extrusion",
-        source: layer.source,
-        "source-layer": layer["source-layer"],
-        minzoom: Math.max(14, Number(layer.minzoom) || 14),
-        layout: { visibility: visibility(layerVisible("buildingsToggle", false)) },
-        paint: {
-          "fill-extrusion-color": "#ddd7cb",
-          // Fill footprints omitted from the static height asset with a
-          // conservative one-story extrusion. The screened NSI/OSM buildings
-          // render on top, so this fallback never invents a tall structure.
-          "fill-extrusion-height": [
-            "case",
-            ["has", "height"],
-            ["max", 3.6, ["min", 30, ["to-number", ["get", "height"], 3.9]]],
-            ["has", "building:levels"],
-            ["max", 3.6, ["min", 19.5, ["+", 1.2, ["*", 3.05, ["to-number", ["get", "building:levels"], 1]]]]],
-            3.9
-          ],
-          "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 1,
-          "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
-          "fill-extrusion-vertical-gradient": true
-        }
-      };
-      if (Number.isFinite(Number(layer.maxzoom))) fallbackLayer.maxzoom = Number(layer.maxzoom);
-      if (layer.filter) fallbackLayer.filter = layer.filter;
-      glMap.addLayer(fallbackLayer, glMap.getLayer("nw-boundary-mask") ? "nw-boundary-mask" : undefined);
-      basemapBuildingExtrusionLayerIds.push(layerId);
-    });
-    document.body.dataset.buildings3dFallbackLayers = String(basemapBuildingExtrusionLayerIds.length);
-    document.body.dataset.buildings3dCoverage = "live-vector-footprint-fallback";
-  }
-
   function addCore3dLayers() {
     glMap.addSource("nw-terrain", {
       type: "raster-dem",
@@ -1269,7 +1214,12 @@
       });
     }
 
-    installBasemapBuildingExtrusions();
+    // NorthWildwoodBuildings3D.geojson is generated from every Esri
+    // Daylight/OSM building footprint in the municipality (5,160 features).
+    // Do not also extrude the live basemap footprints: those duplicate walls
+    // occupy the same depth pixels and flicker as the camera moves.
+    document.body.dataset.buildings3dFallbackLayers = "0";
+    document.body.dataset.buildings3dCoverage = "complete-static-vector-footprints";
 
     glMap.addSource("nw-road-labels-source", {
       type: "raster",
@@ -1499,7 +1449,6 @@
     };
     var buildingsEnabled = layerVisible("buildingsToggle", false);
     var hasBuildings = Boolean(mapInstance.getLayer("nw-3d-buildings"));
-    setBasemapBuildingExtrusionsEnabled(true);
     if (hasBuildings) {
       mapInstance.setLayoutProperty("nw-building-outlines", "visibility", "visible");
       mapInstance.setLayoutProperty("nw-3d-buildings-wet", "visibility", "visible");
@@ -1552,7 +1501,6 @@
         mapInstance.setLayoutProperty("nw-3d-buildings-wet", "visibility", visibility(buildingsEnabled));
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(buildingsEnabled));
       }
-      setBasemapBuildingExtrusionsEnabled(buildingsEnabled);
     }
     await waitFor3dMapIdle(mapInstance, 45000);
     document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,90,180,270";
