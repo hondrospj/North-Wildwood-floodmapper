@@ -25439,17 +25439,11 @@ function populateCalendarSelectors() {
     }
 
     function scheduleBackgroundDataWarmup() {
-      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-      const effectiveType = String(connection?.effectiveType || "").toLowerCase();
-      if (connection?.saveData || effectiveType.includes("2g")) return;
-      window.setTimeout(() => {
-        const start = () => warmBackgroundData();
-        if (typeof window.requestIdleCallback === "function") {
-          window.requestIdleCallback(start, { timeout: 5000 });
-        } else {
-          start();
-        }
-      }, 10000);
+      // Parsing the compact multi-year archive is CPU-heavy enough to freeze
+      // map navigation even when requestIdleCallback starts it. Load it when
+      // Past is selected instead of surprising the user with a 10-second
+      // post-startup stall.
+      document.body.dataset.backgroundDataWarmup = "on-demand";
     }
 
     function waitForInitialFramePaint() {
@@ -36129,7 +36123,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v59"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v60"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
@@ -36400,54 +36394,28 @@ async function preloadNorthWildwoodExperience(mainPromise) {
       return null;
     });
 
-  const configuredDataUrls = [
-    OBSERVED_URL,
-    OBSERVED_15MIN_URL,
-    OBSERVED_ARCHIVE_INDEX_URL,
-    TOP_TIDES_URL,
-    RETURN_INTERVALS_URL,
-    DEPTH_QUERY_PNG_URL,
-    HYDRAULIC_STATES_URL,
-    PARCEL_BOUNDARY_PNG_URL
-  ].filter(Boolean);
-  const warmConfiguredData = Promise.allSettled(configuredDataUrls.map(url =>
-    fetch(url, { cache: "force-cache" }).then(response => {
-      if (!response.ok) throw new Error(`Preload failed for ${url}`);
-      return response.arrayBuffer();
-    })
-  ));
   const preloadImages = Promise.allSettled(
     Array.from(document.images).filter(image => image.src).map(image => waitForImageElementReady(image))
   );
-  const preloadFeatureData = Promise.allSettled([
-    ensureParcelAssets(),
-    ensureNsiStructureAssets(),
-    ensureFloodProjectionData()
-  ]);
   const preload3d = window.NORTH_WILDWOOD_3D?.preload
-    ? Promise.resolve(mainPromise).then(() => window.NORTH_WILDWOOD_3D.preload({ initialize: true }))
+    ? Promise.resolve(mainPromise).then(() => window.NORTH_WILDWOOD_3D.preload({ initialize: true, warmCamera: "core" }))
     : Promise.resolve();
-  const preloadExportTools = Promise.allSettled([
-    loadOptionalScript("html2canvas", () => typeof window.html2canvas === "function"),
-    loadOptionalScript("gif", () => typeof window.GIF === "function"),
-    loadOptionalScript("jszip", () => typeof window.JSZip === "function"),
-    loadOptionalScript("geotiff", () => Boolean(window.GeoTIFF?.fromUrl))
-  ]);
 
   const completePreload = Promise.allSettled([
-    track(mainPromise, 54, "Drawing the current flood map…"),
-    track(warmConfiguredData, 68, "Preloading forecast and archive data…"),
-    track(preloadFeatureData, 82, "Preparing buildings and property detail…"),
-    track(preload3d, 91, "Preparing map navigation and 3D terrain…"),
-    track(preloadExportTools, 96, "Preparing export tools…"),
+    track(mainPromise, 68, "Drawing the current flood map…"),
+    track(preload3d, 96, "Preparing map navigation and 3D terrain…"),
     track(preloadImages, 98, "Finishing the interface…")
   ]);
-  // Do not reveal a partially initialized mapper. This waits for the current
-  // flood frame, terrain tiles, structures, supporting data, and export tools.
+  // Reveal only after the current flood, initialized renderer, and first-use
+  // compass views are ready. Large archives, parcel/NSI details, and export
+  // engines stay on demand instead of blocking and parsing during startup.
   await completePreload;
   window.clearInterval(progressTimer);
   document.body.dataset.sitePreload = "complete";
-  const minimumDelay = Math.max(0, 1100 - (performance.now() - startedAt));
+  document.body.dataset.sitePreloadBlockingPolicy = "initial-flood-renderer-cardinal-navigation";
+  document.body.dataset.sitePreloadAvoidedBytes = "observed-parcels-nsi-export-libraries";
+  document.body.dataset.map3dDeferredWarmup = "on-demand-no-background-camera-traversal";
+  const minimumDelay = Math.max(0, 800 - (performance.now() - startedAt));
   if (minimumDelay) await new Promise(resolve => window.setTimeout(resolve, minimumDelay));
   finishNorthWildwoodLoading("Floodmapper ready");
 }

@@ -26,7 +26,7 @@ assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
-  "./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v59",
+  "./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v60",
 ]);
 
 assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+gif[\s\S]+jszip[\s\S]+geotiff/);
@@ -34,12 +34,20 @@ assert.match(extractFunction("downloadCurrentSelection"), /await ensureExportLib
 assert.match(extractFunction("getDepthQueryImage"), /await ensureDepthQueryLibrary\(\)/);
 
 const backgroundWarmup = extractFunction("scheduleBackgroundDataWarmup");
-assert.match(backgroundWarmup, /saveData/);
-assert.match(backgroundWarmup, /effectiveType\.includes\("2g"\)/);
-assert.match(backgroundWarmup, /}, 10000\)/);
+assert.match(backgroundWarmup, /backgroundDataWarmup = "on-demand"/);
+assert.doesNotMatch(backgroundWarmup, /warmBackgroundData\(\)/);
 assert.doesNotMatch(extractFunction("warmBackgroundData"), /TOP_TIDES_URL/);
 
 const reloadAll = extractFunction("reloadAll");
 assert.match(reloadAll, /waitForInitialFramePaint\(\)[\s\S]+scheduleTopTidesListWarmup\(\)[\s\S]+scheduleBackgroundDataWarmup\(\)/);
+
+const startupPreload = extractFunction("preloadNorthWildwoodExperience");
+assert.match(startupPreload, /warmCamera: "core"/);
+assert.doesNotMatch(startupPreload, /OBSERVED_URL/);
+assert.doesNotMatch(startupPreload, /ensureParcelAssets\(\)/);
+assert.doesNotMatch(startupPreload, /ensureNsiStructureAssets\(\)/);
+assert.doesNotMatch(startupPreload, /loadOptionalScript\(/);
+assert.doesNotMatch(startupPreload, /scheduleNorthWildwood3dWarmup\(\)/);
+assert.match(startupPreload, /map3dDeferredWarmup = "on-demand-no-background-camera-traversal"/);
 
 console.log("North Wildwood startup performance checks passed");
