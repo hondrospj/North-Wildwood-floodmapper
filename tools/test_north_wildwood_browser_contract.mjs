@@ -48,7 +48,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v54/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v55/);
 assert.match(
   THREE_D_SOURCE,
   /"line-width": \["interpolate", \["linear"\], \["zoom"\], 11, 0\.45, 13, 0\.7, 15, 0\.95, 17, 1\.25, 19, 1\.6\]/
@@ -60,6 +60,10 @@ assert.match(THREE_D_SOURCE, /map3dBuildingWaterline = "single-extrusion-depth-c
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "single-extrusion-water-composite"/);
 assert.match(THREE_D_SOURCE, /FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15\.25/);
 assert.match(THREE_D_SOURCE, /BUILDING_EXTRUSION_MIN_ZOOM = 14\.25/);
+assert.match(THREE_D_SOURCE, /function buildingsShouldRenderForCamera\(\)/);
+assert.match(THREE_D_SOURCE, /layerVisible\("buildingsToggle", false\) && glMap\.getPitch\(\) > 10/);
+assert.match(THREE_D_SOURCE, /map3dBuildingVisibility = shouldRender[\s\S]+"hidden-in-2d"/);
+assert.match(THREE_D_SOURCE, /syncFloodPresentationMode\(\) \{[\s\S]+syncBuildingVisibilityForCamera\(\)/);
 assert.match(THREE_D_SOURCE, /function placeFloodForScaleDepthPass\(\)/);
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "overview-buildings-after-water"/);
 assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = this\.useDepthTest[\s\S]+overview-no-terrain-tile-depth/);
