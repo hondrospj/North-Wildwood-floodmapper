@@ -32,6 +32,8 @@ QUARTER_SECONDS = 15 * 60
 FETCH_CHUNK_DAYS = 90
 MAX_INTERPOLATION_GAP_SECONDS = 12 * 60 * 60
 MAX_ANCHOR_DISTANCE_SECONDS = 12 * 60 * 60
+MAX_SPIKE_NEIGHBOR_GAP_SECONDS = 30 * 60
+ISOLATED_SPIKE_THRESHOLD_FT = 3.0
 THRESHOLDS_NAVD88 = {"minorLow": 3.25, "moderateLow": 4.25, "majorLow": 5.25}
 THRESHOLDS_MLLW = {"minorLow": 6.00, "moderateLow": 7.00, "majorLow": 8.00}
 JONAS_DATE = date(2016, 1, 23)
@@ -81,7 +83,42 @@ def parse_usgs_values(payload: dict) -> list[tuple[int, float]]:
                 if not math.isfinite(level) or abs(level) >= 100:
                     continue
                 values_by_second[int(stamp.timestamp())] = level
-    return sorted(values_by_second.items())
+    return remove_isolated_spikes(sorted(values_by_second.items()))
+
+
+def remove_isolated_spikes(values: list[tuple[int, float]]) -> list[tuple[int, float]]:
+    """Drop a lone, physically impossible jump bracketed by normal readings.
+
+    USGS provisional data can briefly contain a bad sample that disappears
+    after review. A real tide cannot jump at least three feet and return by the
+    next six-minute reading, so exclude only points with close neighbors on
+    both sides that independently identify the same up- or down-spike.
+    """
+    cleaned: list[tuple[int, float]] = []
+    for index, current in enumerate(values):
+        if index == 0 or index + 1 == len(values):
+            cleaned.append(current)
+            continue
+        previous = values[index - 1]
+        following = values[index + 1]
+        close_neighbors = (
+            current[0] - previous[0] <= MAX_SPIKE_NEIGHBOR_GAP_SECONDS
+            and following[0] - current[0] <= MAX_SPIKE_NEIGHBOR_GAP_SECONDS
+        )
+        rise_from_previous = current[1] - previous[1]
+        rise_from_following = current[1] - following[1]
+        isolated_high = (
+            rise_from_previous >= ISOLATED_SPIKE_THRESHOLD_FT
+            and rise_from_following >= ISOLATED_SPIKE_THRESHOLD_FT
+        )
+        isolated_low = (
+            rise_from_previous <= -ISOLATED_SPIKE_THRESHOLD_FT
+            and rise_from_following <= -ISOLATED_SPIKE_THRESHOLD_FT
+        )
+        if close_neighbors and (isolated_high or isolated_low):
+            continue
+        cleaned.append(current)
+    return cleaned
 
 
 def day_utc_bounds(day: date) -> tuple[datetime, datetime]:
@@ -407,7 +444,7 @@ def build(args: argparse.Namespace) -> dict:
         "timeZone": LOCAL_TIME_ZONE,
         "intervalMinutes": 15,
         "sourceResolutionMinutes": 6,
-        "method": "linear interpolation of USGS IV observations to exact UTC 15-minute anchors across gaps up to 12 hours; longer outages remain unavailable",
+        "method": "isolated provisional spikes of at least 3 ft are rejected, then USGS IV observations are linearly interpolated to exact UTC 15-minute anchors across gaps up to 12 hours; longer outages remain unavailable",
         "encoding": {
             "d": "America/New_York civil date",
             "u": "UTC epoch second of first quarter-hour anchor",
