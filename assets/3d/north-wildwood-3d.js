@@ -7,6 +7,7 @@
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
   var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;
+  var BUILDING_EXTRUSION_MIN_ZOOM = 14.25;
   var BUILDING_OUTLINE_MIN_ZOOM = 15.5;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
   var MAPLIBRE_JS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js";
@@ -14,6 +15,7 @@
   var ESRI_VECTOR_TILES = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf";
   var TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejson.json";
   var BUILDINGS_3D_URL = new URL("./assets/3d/NorthWildwoodBuildings3D.geojson?v=20260823-nw-3d-v2", APP_BASE).href;
+  var MUNICIPAL_BOUNDARY_3D_URL = new URL("./Boundaries/North Wildwood.geojson", APP_BASE).href;
 
   var glMap = null;
   var glMapPromise = null;
@@ -29,7 +31,6 @@
   var syncingFrom3d = false;
   var syncingModeTransition = false;
   var buildingCursorHandlersWired = false;
-  var contextBuildingExtrusionLayerIds = [];
   var navControlSyncFrame = null;
   var syncPersistentNavControl = function () {};
 
@@ -608,7 +609,9 @@
 
   function placeFloodForScaleDepthPass() {
     if (!glMap || !glMap.getLayer("nw-flood-overlay")) return;
-    var buildingLayerIds = contextBuildingExtrusionLayerIds.concat(["nw-3d-buildings"]);
+    // Only the verified municipal GeoJSON is ever extruded. Basemap buildings
+    // outside North Wildwood remain flat map context when Buildings is on.
+    var buildingLayerIds = ["nw-3d-buildings"];
     var styleLayers = glMap.getStyle().layers || [];
     var firstBuildingIndex = -1;
     var lastBuildingIndex = -1;
@@ -957,22 +960,78 @@
     };
   }
 
+  function pointInsideRing(point, ring) {
+    var x = Number(point && point[0]);
+    var y = Number(point && point[1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Array.isArray(ring)) return false;
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+      var xi = Number(ring[i] && ring[i][0]);
+      var yi = Number(ring[i] && ring[i][1]);
+      var xj = Number(ring[j] && ring[j][0]);
+      var yj = Number(ring[j] && ring[j][1]);
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi) / (yj - yi)) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  function pointInsideMunicipalGeometry(point, geometry) {
+    if (!geometry) return false;
+    var polygons = geometry.type === "Polygon"
+      ? [geometry.coordinates]
+      : geometry.type === "MultiPolygon"
+        ? geometry.coordinates
+        : [];
+    return polygons.some(function (polygon) {
+      if (!Array.isArray(polygon) || !polygon.length || !pointInsideRing(point, polygon[0])) return false;
+      return !polygon.slice(1).some(function (hole) { return pointInsideRing(point, hole); });
+    });
+  }
+
+  function buildingInsideMunicipality(feature, boundaryFeature) {
+    var geometry = feature && feature.geometry;
+    var boundaryGeometry = boundaryFeature && boundaryFeature.geometry;
+    var coordinates = geometry && geometry.type === "Polygon"
+      ? geometry.coordinates.reduce(function (points, ring) { return points.concat(ring); }, [])
+      : geometry && geometry.type === "MultiPolygon"
+        ? geometry.coordinates.reduce(function (points, polygon) {
+            return points.concat(polygon.reduce(function (polygonPoints, ring) {
+              return polygonPoints.concat(ring);
+            }, []));
+          }, [])
+        : [];
+    return coordinates.length > 0 && coordinates.every(function (point) {
+      return pointInsideMunicipalGeometry(point, boundaryGeometry);
+    });
+  }
+
   async function loadBuildingData() {
     if (buildingData) return buildingData;
     if (!buildingDataPromise) {
-      buildingDataPromise = fetch(BUILDINGS_3D_URL, { cache: "force-cache" })
-        .then(function (response) {
+      buildingDataPromise = Promise.all([
+        fetch(BUILDINGS_3D_URL, { cache: "force-cache" }).then(function (response) {
           if (!response.ok) throw new Error("The North Wildwood 3D building asset could not be loaded.");
           return response.json();
+        }),
+        fetch(MUNICIPAL_BOUNDARY_3D_URL, { cache: "force-cache" }).then(function (response) {
+          if (!response.ok) throw new Error("The North Wildwood municipal boundary could not be loaded for 3D clipping.");
+          return response.json();
         })
-        .then(function (payload) {
+      ])
+        .then(function (resources) {
+          var payload = resources[0];
+          var boundaryFeature = resources[1];
           if (payload && payload.metadata && payload.metadata.schema !== "north-wildwood-3d-buildings-v2") {
             throw new Error("The North Wildwood 3D building asset needs to be refreshed.");
           }
           var sourceFeatures = Array.isArray(payload && payload.features) ? payload.features : [];
-          var visualGround = prepareVisualBuildingGround(sourceFeatures);
+          var municipalFeatures = sourceFeatures.filter(function (feature) {
+            return buildingInsideMunicipality(feature, boundaryFeature);
+          });
+          var excludedOutsideMunicipality = sourceFeatures.length - municipalFeatures.length;
+          var visualGround = prepareVisualBuildingGround(municipalFeatures);
           var excludedFallbacks = 0;
-          var sanitizedFeatures = sourceFeatures.reduce(function (features, feature, sourceIndex) {
+          var sanitizedFeatures = municipalFeatures.reduce(function (features, feature, sourceIndex) {
             var properties = feature && feature.properties ? feature.properties : {};
             if (String(properties.geometrySource || "") === "NSI modeled square") {
               excludedFallbacks += 1;
@@ -1010,6 +1069,7 @@
             type: "FeatureCollection",
             metadata: Object.assign({}, payload && payload.metadata, {
               renderedFeatureCount: sanitizedFeatures.length,
+              excludedOutsideMunicipality: excludedOutsideMunicipality,
               excludedModeledSquares: excludedFallbacks,
               excludedLooseMatches: 0,
               visualGroundMeasuredCount: visualGround.measuredCount,
@@ -1020,6 +1080,7 @@
             features: sanitizedFeatures
           };
           document.body.dataset.buildings3dCount = String(sanitizedFeatures.length);
+          document.body.dataset.buildings3dExcludedOutsideMunicipality = String(excludedOutsideMunicipality);
           document.body.dataset.buildings3dExcludedFallbacks = String(excludedFallbacks);
           document.body.dataset.buildings3dExcludedLooseMatches = "0";
           document.body.dataset.buildings3dGroundMeasured = String(visualGround.measuredCount);
@@ -1063,6 +1124,7 @@
       });
       document.body.dataset.buildings3dSourceMaxZoom = "18";
       document.body.dataset.buildings3dSourceBuffer = "256";
+      document.body.dataset.buildings3dMinZoom = String(BUILDING_EXTRUSION_MIN_ZOOM);
       addLayerBelowMask({
         id: "nw-building-outlines",
         type: "line",
@@ -1081,7 +1143,10 @@
         id: "nw-3d-buildings",
         type: "fill-extrusion",
         source: "nw-buildings-source",
-        minzoom: 12,
+        // Municipality-wide overview views compress thousands of otherwise
+        // valid side walls into dark seams. Begin extrusion at neighborhood
+        // scale, where each footprint has enough screen area to read cleanly.
+        minzoom: BUILDING_EXTRUSION_MIN_ZOOM,
         paint: {
           "fill-extrusion-color": "#ddd7cb",
           "fill-extrusion-height": ["to-number", ["get", "renderHeightM"], 3],
@@ -1112,7 +1177,6 @@
     if (!glMap.getLayer("nw-3d-buildings")) return;
     glMap.setLayoutProperty("nw-building-outlines", "visibility", visibility(enabled));
     glMap.setLayoutProperty("nw-3d-buildings", "visibility", visibility(enabled));
-    setContextBuildingExtrusionsEnabled(enabled);
     placeFloodForScaleDepthPass();
     syncBuildingWaterComposite3d(getSelectedStageNavd88());
     setStatus(enabled
@@ -1207,58 +1271,6 @@
     updateDiagnostics();
   }
 
-  function setContextBuildingExtrusionsEnabled(enabled) {
-    if (!glMap) return;
-    contextBuildingExtrusionLayerIds.forEach(function (layerId) {
-      if (glMap.getLayer(layerId)) glMap.setLayoutProperty(layerId, "visibility", visibility(enabled));
-    });
-  }
-
-  function installContextBuildingExtrusions() {
-    if (!glMap || contextBuildingExtrusionLayerIds.length) return;
-    var municipalFeature = boundaryGeoJson();
-    if (!municipalFeature) return;
-    var sourceLayers = ["Daylight building", "OSM building", "OSM major building"];
-    var outsideMunicipality = ["!", ["within", municipalFeature]];
-    var styleLayers = (glMap.getStyle().layers || []).filter(function (layer) {
-      return layer.type === "fill" && sourceLayers.indexOf(layer["source-layer"]) >= 0;
-    });
-    styleLayers.forEach(function (layer, index) {
-      var layerId = "nw-context-building-extrusion-" + index;
-      var sourceFilter = layer.filter ? layer.filter : true;
-      var contextLayer = {
-        id: layerId,
-        type: "fill-extrusion",
-        source: layer.source,
-        "source-layer": layer["source-layer"],
-        minzoom: Math.max(12, Number(layer.minzoom) || 12),
-        filter: ["all", sourceFilter, outsideMunicipality],
-        layout: { visibility: visibility(layerVisible("buildingsToggle", false)) },
-        paint: {
-          "fill-extrusion-color": "#ddd7cb",
-          "fill-extrusion-height": [
-            "case",
-            ["has", "height"],
-            ["max", 3.6, ["min", 30, ["to-number", ["get", "height"], 3.9]]],
-            ["has", "building:levels"],
-            ["max", 3.6, ["min", 19.5, ["+", 1.2, ["*", 3.05, ["to-number", ["get", "building:levels"], 1]]]]],
-            3.9
-          ],
-          "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 1,
-          "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
-          "fill-extrusion-vertical-gradient": true
-        }
-      };
-      if (Number.isFinite(Number(layer.maxzoom))) contextLayer.maxzoom = Number(layer.maxzoom);
-      glMap.addLayer(contextLayer, glMap.getLayer("nw-boundary-mask") ? "nw-boundary-mask" : undefined);
-      contextBuildingExtrusionLayerIds.push(layerId);
-    });
-    document.body.dataset.buildings3dFallbackLayers = "0";
-    document.body.dataset.buildings3dContextLayers = String(contextBuildingExtrusionLayerIds.length);
-    document.body.dataset.buildings3dCoverage = "complete-static-municipal-plus-live-context";
-  }
-
   function addCore3dLayers() {
     glMap.addSource("nw-terrain", {
       type: "raster-dem",
@@ -1300,21 +1312,20 @@
         layout: { visibility: visibility(isTownBoundaryEnabled()) },
         paint: {
           "line-color": getComputedStyle(document.documentElement).getPropertyValue("--boundary-color").trim() || "#000000",
-          // A constant 4.6 px stroke read as giant lines through the overview
-          // when the WebGL map was rotated. Scale the same black boundary from
-          // a quiet overview hairline to the original street-level weight.
-          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.75, 13, 1.35, 15, 2.1, 17, 3.2, 19, 4.6],
+          // Keep the simulation extent readable without letting it become a
+          // heavy band across the municipality at overview scales.
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 0.45, 13, 0.7, 15, 0.95, 17, 1.25, 19, 1.6],
           "line-opacity": 1
         }
       });
     }
 
-    // NorthWildwoodBuildings3D.geojson contains every vector footprint inside
-    // the municipality. A boundary-filtered live layer fills only surrounding
-    // context; it can never overlap or z-fight with the municipal asset.
+    // NorthWildwoodBuildings3D.geojson contains the verified municipal
+    // footprints. Do not extrude basemap context outside North Wildwood.
     document.body.dataset.buildings3dFallbackLayers = "0";
-    document.body.dataset.buildings3dCoverage = "complete-static-municipal-footprints";
-    installContextBuildingExtrusions();
+    document.body.dataset.buildings3dContextLayers = "0";
+    document.body.dataset.buildings3dCoverage = "north-wildwood-only";
+    document.body.dataset.buildings3dClippedToMunicipality = "true";
 
     glMap.addSource("nw-road-labels-source", {
       type: "raster",
@@ -1552,7 +1563,6 @@
     if (hasBuildings) {
       mapInstance.setLayoutProperty("nw-building-outlines", "visibility", "visible");
       mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", "visible");
-      setContextBuildingExtrusionsEnabled(true);
       mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 0);
       // The loader covers this pass. Render the final opaque material now so
       // the first visible compass gesture does not compile or populate a
@@ -1601,7 +1611,6 @@
         mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
         mapInstance.setLayoutProperty("nw-building-outlines", "visibility", visibility(buildingsEnabled));
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(buildingsEnabled));
-        setContextBuildingExtrusionsEnabled(buildingsEnabled);
       }
     }
     await waitFor3dMapIdle(mapInstance, 45000);
