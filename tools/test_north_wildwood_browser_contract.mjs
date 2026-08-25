@@ -30,9 +30,17 @@ assert.equal(
   THREE_D_BUILDINGS.metadata.sourceVectorFootprintCount,
   "The bundled 3D asset should include every source vector footprint"
 );
-assert.match(THREE_D_SOURCE, /buildings3dCoverage = "complete-static-municipal-plus-live-context"/);
-assert.match(THREE_D_SOURCE, /var outsideMunicipality = \["!", \["within", municipalFeature\]\]/);
-assert.match(THREE_D_SOURCE, /nw-context-building-extrusion-/);
+assert.match(THREE_D_SOURCE, /buildings3dCoverage = "north-wildwood-only"/);
+assert.match(THREE_D_SOURCE, /buildings3dClippedToMunicipality = "true"/);
+assert.match(THREE_D_SOURCE, /MUNICIPAL_BOUNDARY_3D_URL = new URL\("\.\/Boundaries\/North Wildwood\.geojson"/);
+assert.match(THREE_D_SOURCE, /function buildingInsideMunicipality\(feature, boundaryFeature\)/);
+assert.match(THREE_D_SOURCE, /sourceFeatures\.filter\(function \(feature\) \{[\s\S]+buildingInsideMunicipality\(feature, boundaryFeature\)/);
+assert.match(THREE_D_SOURCE, /buildings3dExcludedOutsideMunicipality/);
+assert.doesNotMatch(
+  THREE_D_SOURCE,
+  /nw-context-building-extrusion-/,
+  "Buildings mode must never extrude basemap context outside North Wildwood"
+);
 assert.doesNotMatch(
   THREE_D_SOURCE,
   /nw-basemap-building-extrusion/,
@@ -40,13 +48,18 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v53/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v54/);
+assert.match(
+  THREE_D_SOURCE,
+  /"line-width": \["interpolate", \["linear"\], \["zoom"\], 11, 0\.45, 13, 0\.7, 15, 0\.95, 17, 1\.25, 19, 1\.6\]/
+);
 assert.match(THREE_D_SOURCE, /map3dFloodPrecision = "camera-stable-local-origin"/);
 assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = this\.useDepthTest/);
 assert.match(THREE_D_SOURCE, /map3dFloodGlIsolation = "maplibre-guarded-no-readback"/);
 assert.match(THREE_D_SOURCE, /map3dBuildingWaterline = "single-extrusion-depth-composite"/);
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "single-extrusion-water-composite"/);
 assert.match(THREE_D_SOURCE, /FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15\.25/);
+assert.match(THREE_D_SOURCE, /BUILDING_EXTRUSION_MIN_ZOOM = 14\.25/);
 assert.match(THREE_D_SOURCE, /function placeFloodForScaleDepthPass\(\)/);
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "overview-buildings-after-water"/);
 assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = this\.useDepthTest[\s\S]+overview-no-terrain-tile-depth/);
@@ -71,7 +84,7 @@ assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "raf-latest
 assert.match(THREE_D_SOURCE, /map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135"/);
 assert.match(THREE_D_SOURCE, /maxTileCacheSize: 384/);
 assert.match(THREE_D_SOURCE, /BUILDING_OUTLINE_MIN_ZOOM = 15\.5/);
-assert.match(THREE_D_SOURCE, /11, 0\.75, 13, 1\.35, 15, 2\.1, 17, 3\.2, 19, 4\.6/);
+assert.match(THREE_D_SOURCE, /minzoom: BUILDING_EXTRUSION_MIN_ZOOM/);
 assert.match(THREE_D_SOURCE, /pixelRatio: 1/);
 assert.doesNotMatch(THREE_D_SOURCE, /installMapCreditsInLayers/);
 
