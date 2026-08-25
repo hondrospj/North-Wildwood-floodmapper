@@ -15903,12 +15903,20 @@ function cloneStyleObject(value) {
           if (layer.type === "fill") {
             paint["fill-color"] = "#d8d2c6";
             paint["fill-opacity"] = 0.98;
-            paint["fill-outline-color"] = "#c5bcae";
+            // Esri publishes a fill edge and a separate outline for every
+            // footprint. At overview scale the stacked edges collapse into
+            // the dark dashes and bands visible in dense building blocks.
+            // Preserve the established beige fill while neutralizing its edge.
+            paint["fill-outline-color"] = "#d8d2c6";
           }
           if (layer.type === "line") {
-            paint["line-color"] = "#c5bcae";
-            paint["line-opacity"] = 0.95;
-            paint["line-width"] = 1;
+            return {
+              ...layer,
+              layout: {
+                ...(layer.layout || {}),
+                visibility: "none"
+              }
+            };
           }
           return { ...layer, paint };
         }
@@ -36109,7 +36117,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v55"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260825-nw-3d-v56"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";

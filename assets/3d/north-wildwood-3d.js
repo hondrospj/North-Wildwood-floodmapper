@@ -8,7 +8,6 @@
   var THREE_D_PITCH = 60;
   var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;
   var BUILDING_EXTRUSION_MIN_ZOOM = 14.25;
-  var BUILDING_OUTLINE_MIN_ZOOM = 15.5;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
   var MAPLIBRE_JS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js";
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
@@ -616,7 +615,7 @@
     if (!glMap || !glMap.getLayer("nw-3d-buildings")) return false;
     var shouldRender = buildingsShouldRenderForCamera();
     var targetVisibility = visibility(shouldRender);
-    ["nw-building-outlines", "nw-3d-buildings"].forEach(function (layerId) {
+    ["nw-3d-buildings"].forEach(function (layerId) {
       if (!glMap.getLayer(layerId)) return;
       if (glMap.getLayoutProperty(layerId, "visibility") !== targetVisibility) {
         glMap.setLayoutProperty(layerId, "visibility", targetVisibility);
@@ -1149,20 +1148,6 @@
       document.body.dataset.buildings3dSourceBuffer = "256";
       document.body.dataset.buildings3dMinZoom = String(BUILDING_EXTRUSION_MIN_ZOOM);
       addLayerBelowMask({
-        id: "nw-building-outlines",
-        type: "line",
-        source: "nw-buildings-source",
-        // Thousands of sub-pixel footprint strokes merge into long dark
-        // bands at municipality overview scales. Keep the solid roof meshes,
-        // but reserve individual footprint outlines for street-level views.
-        minzoom: BUILDING_OUTLINE_MIN_ZOOM,
-        paint: {
-          "line-color": "#b8ad9d",
-          "line-opacity": 1,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 15.5, 0.45, 18, 1.05, 22, 1.4]
-        }
-      });
-      addLayerBelowMask({
         id: "nw-3d-buildings",
         type: "fill-extrusion",
         source: "nw-buildings-source",
@@ -1583,9 +1568,7 @@
     var buildingsEnabled = layerVisible("buildingsToggle", false);
     var hasBuildings = Boolean(mapInstance.getLayer("nw-3d-buildings"));
     if (hasBuildings) {
-      mapInstance.setLayoutProperty("nw-building-outlines", "visibility", "visible");
       mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", "visible");
-      mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 0);
       // The loader covers this pass. Render the final opaque material now so
       // the first visible compass gesture does not compile or populate a
       // different extrusion path than the one that was warmed.
@@ -1629,10 +1612,8 @@
       mapInstance.jumpTo(originalCamera);
       syncTerrainForView(originalCamera.pitch > 10);
       if (hasBuildings) {
-        mapInstance.setPaintProperty("nw-building-outlines", "line-opacity", 1);
         mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
         var restoreBuildings = buildingsEnabled && originalCamera.pitch > 10;
-        mapInstance.setLayoutProperty("nw-building-outlines", "visibility", visibility(restoreBuildings));
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(restoreBuildings));
       }
     }
