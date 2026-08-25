@@ -1164,7 +1164,10 @@
           // into wet and dry solids creates coplanar seams on wall faces.
           "fill-extrusion-opacity": 1,
           "fill-extrusion-opacity-transition": { duration: 0, delay: 0 },
-          "fill-extrusion-vertical-gradient": true
+          // The global soft light already provides enough face separation.
+          // Disabling MapLibre's height gradient prevents the lower rows of
+          // dense side walls from merging into overview-scale dark bands.
+          "fill-extrusion-vertical-gradient": false
         }
       });
       syncBuildingWaterComposite3d(getSelectedStageNavd88());

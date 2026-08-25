@@ -48,7 +48,8 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v56/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v57/);
+assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
   /paint\["fill-outline-color"\] = "#d8d2c6"/,
@@ -103,6 +104,7 @@ assert.doesNotMatch(
   /nw-building-outlines/,
   "A second custom outline pass produces dark seams across dense building runs"
 );
+assert.match(THREE_D_SOURCE, /"fill-extrusion-vertical-gradient": false/);
 assert.match(THREE_D_SOURCE, /pixelRatio: 1/);
 assert.doesNotMatch(THREE_D_SOURCE, /installMapCreditsInLayers/);
 
