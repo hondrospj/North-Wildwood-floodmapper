@@ -25812,13 +25812,15 @@ function startPlayback() {
           : difference > 0
             ? `Current water is ${difference.toFixed(1)} ft above the estimated occupied floor.`
             : `Current water is ${Math.abs(difference).toFixed(1)} ft below the estimated occupied floor.`;
-      return '<div class="house-alert-popup">' +
-        '<span class="house-alert-kicker">Building Info</span>' +
+      return '<div class="house-alert-popup building-info-card">' +
+        '<span class="house-alert-kicker">Building</span>' +
         '<h3>' + address + '</h3>' +
-        '<div class="nsi-structure-grid"><span>Estimated Crawlspace Depth</span><strong>' +
-          (Number.isFinite(crawlspaceDepth) ? crawlspaceDepth.toFixed(1) + ' ft' : 'Not available') +
-        '</strong></div>' +
-        '<div class="nsi-impact-status">' + escapeTownAddressHtml(waterStatus) + '</div>' +
+        '<div class="building-info-facts">' +
+          '<div><span>Crawlspace / garage depth</span><strong>' +
+            (Number.isFinite(crawlspaceDepth) ? crawlspaceDepth.toFixed(1) + ' ft' : 'Not available') +
+          '</strong></div>' +
+          '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +
+        '</div>' +
         '<button class="house-alert-cta" type="button">See Flood History &amp; Projections</button>' +
         '</div>';
     }
@@ -25830,7 +25832,7 @@ function startPlayback() {
         Number(p.centroidLat || p.analysisLat),
         Number(p.centroidLon || p.analysisLon)
       );
-      return openPersistentFloodPopup(popupLatLng, buildHouseAlertPopup(feature), 380);
+      return openPersistentFloodPopup(popupLatLng, buildHouseAlertPopup(feature), 460);
     }
 
     async function ensureFloodProjectionData() {
@@ -25952,19 +25954,19 @@ function startPlayback() {
       body.innerHTML = `
         <div class="flood-history-summary">
           <div class="flood-summary-item">
+            <span>${hasModeledFloor ? "Past floods above floor" : "Past floods at parcel"}</span>
             <strong>${Number.isFinite(historic) ? historic.toLocaleString() : "—"}</strong>
-            <span>${hasModeledFloor ? "estimated occupied-floor exceedances" : "parcel-ground floods"}</span>
           </div>
           <div class="flood-summary-item">
-            <strong>${hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} ft</strong>
-            <span>${hasModeledFloor ? "estimated first occupied floor NAVD88" : "parcel ground NAVD88"}</span>
+            <span>${hasModeledFloor ? "Estimated occupied floor" : "Parcel ground"}</span>
+            <strong>${hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} <small>ft NAVD88</small></strong>
           </div>
         </div>
         <section class="flood-history-section">
           <div class="flood-history-section-head">
-            <div><h3>${hasModeledFloor ? "Projected occupied-floor exceedances per year" : "Projected parcel-ground floods per year"}</h3><p>Shaded area shows the 95% range</p></div>
+            <div><h3>${hasModeledFloor ? "Future floods above floor" : "Future floods at parcel"}</h3><p>Expected events per year · range shown</p></div>
             <label class="flood-scenario-field">
-              Scenario
+              Sea-level scenario
               <select id="floodProjectionScenarioSelect" class="flood-scenario-select" aria-label="Sea level projection curve">
                 ${(data.scenarioOrder || Object.keys(data.annualFloodEventCount)).map(key => {
                   const item = FLOOD_PROJECTION_SCENARIOS[key] || { label: key };
@@ -25983,9 +25985,6 @@ function startPlayback() {
             </div>
           </div>
         </section>
-        <p class="house-alert-note">${hasModeledFloor
-          ? "Estimated first occupied floor = local 2019 bare-earth LiDAR ground + NSI’s rise to the first residing/occupied floor. Crawlspace or basement describes the foundation below that floor; it is not counted as a floor. NSI attributes may be wrong for an individual structure."
-          : "No NSI structure was matched to this parcel, so this profile uses the parcel ground screening elevation."}</p>
       `;
 
       const updateSelectedYear = index => {
@@ -36110,7 +36109,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260824-nw-3d-v43"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260824-nw-3d-v48"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
@@ -39451,6 +39450,332 @@ html body #mapTitleBadge #mapTitleLogo{
       font-size:10px !important;
       line-height:11px !important;
     }
+  }
+</style>
+<style id="north-wildwood-3d-ui-stability-v47">
+  /* A complete MapLibre frame should be the only live map surface. */
+  html body.map-3d-ready #map3d{
+    transition:none !important;
+    transform:none !important;
+    -webkit-backface-visibility:visible !important;
+    backface-visibility:visible !important;
+  }
+  html body.map-3d-ready #map3d canvas,
+  html body.map-3d-ready #map3d .maplibregl-canvas-container{
+    transform:none !important;
+    will-change:auto !important;
+    -webkit-backface-visibility:visible !important;
+    backface-visibility:visible !important;
+  }
+
+  /* Do not promote every fixed pane to a competing GPU texture. Opaque navy
+     surfaces retain the established palette and cannot reveal invalidated
+     WebGL strips while the 3D camera is moving. */
+  html body[data-map-view-mode="3d"] #leftPanel,
+  html body[data-map-view-mode="3d"] #rightRail,
+  html body[data-map-view-mode="3d"] #timelineDock,
+  html body[data-map-view-mode="3d"] #timelineBubble,
+  html body[data-map-view-mode="3d"] #topBanner,
+  html body[data-map-view-mode="3d"] #mapTitleBadge,
+  html body[data-map-view-mode="3d"] #mapClickModeControl,
+  html body[data-map-view-mode="3d"] #nwDefaultNavControl{
+    isolation:auto !important;
+    will-change:auto !important;
+    translate:none !important;
+    -webkit-backface-visibility:visible !important;
+    backface-visibility:visible !important;
+  }
+  html body[data-map-view-mode="3d"] #leftPanel,
+  html body[data-map-view-mode="3d"] #rightRail,
+  html body[data-map-view-mode="3d"] #timelineDock,
+  html body[data-map-view-mode="3d"] #timelineBubble,
+  html body[data-map-view-mode="3d"] #topBanner,
+  html body[data-map-view-mode="3d"] #nwDefaultNavControl{
+    transform:none !important;
+  }
+  html body[data-map-view-mode="3d"] #mapTitleBadge,
+  html body[data-map-view-mode="3d"] #mapClickModeControl{
+    transform:translateX(-50%) !important;
+  }
+  html body[data-map-view-mode="3d"] #leftPanel > .panel-card,
+  html body[data-map-view-mode="3d"] #rightRail > .rail-card,
+  html body[data-map-view-mode="3d"] #timelineDock,
+  html body[data-map-view-mode="3d"] #timelineBubble,
+  html body[data-map-view-mode="3d"] #mapTitleBadge,
+  html body[data-map-view-mode="3d"] #mapClickModeControl{
+    background:#0b1424 !important;
+  }
+
+  /* Navigation uses the same navy, blue, and cool-white scheme as the panes. */
+  html body .nw-simple-control{
+    color:#7db7ff !important;
+    filter:drop-shadow(0 7px 14px rgba(2,6,23,.34)) !important;
+    contain:layout style !important;
+    transform:none !important;
+    will-change:auto !important;
+  }
+  html body .nw-direction-wheel{
+    border-color:#334963 !important;
+    background:radial-gradient(circle at 50% 46%,#1d4d83 0 22%,#13233a 23% 69%,#0b1424 70% 100%) !important;
+    box-shadow:inset 0 0 0 3px rgba(125,183,255,.18),0 8px 20px rgba(2,6,23,.42) !important;
+    contain:layout paint !important;
+    transform:none !important;
+    will-change:auto !important;
+  }
+  html body .nw-wheel-cardinal{
+    color:#eaf2ff !important;
+    text-shadow:0 1px 3px rgba(0,0,0,.76) !important;
+  }
+  html body .nw-wheel-knob{
+    border-color:#8ec5ff !important;
+    background:#172a43 !important;
+    color:#63a8f5 !important;
+    box-shadow:0 3px 9px rgba(2,6,23,.48),inset 0 1px 0 rgba(255,255,255,.08) !important;
+  }
+  html body .nw-simple-control button{
+    border-color:#334963 !important;
+    background:#13233a !important;
+    color:#7db7ff !important;
+    box-shadow:0 6px 14px rgba(2,6,23,.32) !important;
+  }
+  html body .nw-simple-view[aria-pressed="true"]{
+    border-color:#60a5fa !important;
+    background:#18385f !important;
+    color:#eaf4ff !important;
+    box-shadow:0 0 0 2px rgba(96,165,250,.36),0 6px 14px rgba(2,6,23,.34) !important;
+  }
+  html body .nw-simple-zoom{
+    border:1px solid #334963 !important;
+    background:#13233a !important;
+    box-shadow:0 6px 14px rgba(2,6,23,.32) !important;
+  }
+  html body .nw-simple-zoom-button{
+    border:0 !important;
+    background:#13233a !important;
+    color:#7db7ff !important;
+    box-shadow:none !important;
+  }
+  html body .nw-simple-zoom-out{border-top:1px solid #334963 !important}
+
+  html body #nwMapCredits{display:none !important}
+  html body.persistent-flood-popup-open #mapClickModeControl{
+    display:none !important;
+  }
+
+  /* The primary timeline action is blue, including the play glyph. */
+  html body #timelineDock .playFab{
+    border-color:#7db7ff !important;
+    background:linear-gradient(180deg,#3b8df0,#2468bc) !important;
+    color:#fff !important;
+    box-shadow:0 7px 18px rgba(19,74,140,.34),inset 0 1px 0 rgba(255,255,255,.28) !important;
+  }
+  html body #timelineDock .playFab:hover:not(:disabled){
+    background:linear-gradient(180deg,#55a0f5,#2d76cf) !important;
+  }
+  html body #timelineDock #playBtn .playTriangle{
+    border-left-color:#fff !important;
+  }
+  html body #timelineDock #playBtn .pauseIcon::before,
+  html body #timelineDock #playBtn .pauseIcon::after{
+    background:#fff !important;
+  }
+
+  /* Larger, calmer building card. */
+  html body .shorely-flood-popup .leaflet-popup-content,
+  html body #map3d .maplibregl-popup-content{
+    margin:0 !important;
+    border:1px solid rgba(96,165,250,.34) !important;
+    border-radius:18px !important;
+    background:#0b1424 !important;
+  }
+  html body .building-info-card{
+    box-sizing:border-box;
+    width:min(420px,calc(100vw - 72px));
+    min-width:min(390px,calc(100vw - 72px));
+    max-width:420px;
+    padding:18px;
+  }
+  html body .building-info-card .house-alert-kicker{
+    margin:0 44px 5px 0 !important;
+    color:#7db7ff !important;
+    font-size:11px !important;
+    letter-spacing:.12em !important;
+  }
+  html body .building-info-card h3{
+    margin:0 44px 14px 0 !important;
+    color:#fff !important;
+    font-size:23px !important;
+    line-height:1.08 !important;
+  }
+  html body .building-info-facts{
+    display:grid;
+    gap:10px;
+    padding:12px 13px;
+    border:1px solid rgba(125,183,255,.18);
+    border-radius:13px;
+    background:#101e32;
+  }
+  html body .building-info-facts > div{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+  }
+  html body .building-info-facts span{
+    color:#a9bad3;
+    font-size:13px;
+    font-weight:750;
+  }
+  html body .building-info-facts strong{
+    color:#fff;
+    font-size:16px;
+    white-space:nowrap;
+  }
+  html body .building-info-facts p{
+    margin:0;
+    padding-top:10px;
+    border-top:1px solid rgba(148,163,184,.14);
+    color:#dce8f8;
+    font-size:13px;
+    font-weight:800;
+    line-height:1.35;
+  }
+  html body .building-info-card .house-alert-cta{
+    min-height:46px !important;
+    margin-top:12px;
+    border-color:rgba(96,165,250,.48) !important;
+    border-radius:12px !important;
+    background:#18385f !important;
+    color:#eef6ff !important;
+    font-size:13px !important;
+  }
+
+  /* Simpler, larger history dialog with two clear facts and one chart. */
+  html body .flood-history-pane{
+    width:min(840px,calc(100vw - 44px)) !important;
+    max-height:min(88dvh,780px) !important;
+    border-radius:22px !important;
+    background:#081323 !important;
+  }
+  html body .flood-history-head{
+    padding:20px 22px 17px !important;
+    background:#0b1628 !important;
+  }
+  html body .flood-history-head h2{font-size:25px !important}
+  html body .flood-history-head p{font-size:12px !important}
+  html body .flood-history-body{padding:18px 22px 22px !important}
+  html body .flood-history-summary{
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:12px !important;
+    padding:0 !important;
+    border:0 !important;
+    background:transparent !important;
+  }
+  html body .flood-summary-item{
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:flex-start !important;
+    gap:6px !important;
+    padding:15px 17px !important;
+    border:1px solid rgba(96,165,250,.22);
+    border-radius:14px;
+    background:#101e32;
+  }
+  html body .flood-summary-item span{
+    color:#9eb1ca !important;
+    font-size:12px !important;
+    font-weight:800 !important;
+    white-space:normal !important;
+  }
+  html body .flood-summary-item strong{
+    color:#fff !important;
+    font-size:31px !important;
+    line-height:1 !important;
+  }
+  html body .flood-summary-item strong small{
+    color:#9eb1ca;
+    font-size:12px;
+    font-weight:800;
+  }
+  html body .flood-history-section{
+    margin-top:12px !important;
+    padding:17px 18px 16px !important;
+    border-radius:16px !important;
+    background:#0d1a2e !important;
+  }
+  html body .flood-history-section h3{font-size:17px !important}
+  html body .flood-history-section-head p{font-size:11px !important}
+  html body .flood-scenario-field{flex-basis:220px !important;font-size:9px !important}
+  html body .flood-scenario-select{height:38px !important;font-size:12px !important}
+  html body .flood-projection-chart{height:255px !important}
+  html body .flood-chart-axis{font-size:11px !important}
+  html body .flood-year-control{grid-template-columns:minmax(0,1fr) 180px !important;gap:16px !important}
+  html body .flood-year-readout{padding:10px 12px !important}
+  html body .flood-year-readout span{font-size:11px !important}
+  html body .flood-year-readout strong{font-size:17px !important}
+  html body .flood-year-readout small{font-size:9px !important}
+
+  /* Flood-stage labels need to read as a primary key, not footnotes. */
+  html body #leftPanel #legendDock[data-legend-mode="dynamic"] .legend-row,
+  html body #legendDock[data-legend-mode="dynamic"] .legend-row{
+    grid-template-columns:15px minmax(0,1fr) !important;
+    gap:7px !important;
+    font-size:16px !important;
+    font-weight:850 !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="dynamic"] .legend-swatch,
+  html body #legendDock[data-legend-mode="dynamic"] .legend-swatch{
+    width:14px !important;
+    height:14px !important;
+  }
+  html body #leftPanel #legendDock[data-legend-mode="dynamic"] .legend-label,
+  html body #legendDock[data-legend-mode="dynamic"] .legend-label{
+    font-size:12.5px !important;
+    line-height:1.05 !important;
+  }
+
+  @media (min-width:901px) and (max-height:760px){
+    :root{
+      --pj-equal-card-h:72px;
+      --pj-equal-opacity-h:52px;
+    }
+    html body #leftPanel > .return-interval-card{
+      padding:6px 12px 7px !important;
+    }
+    html body #leftPanel > .return-interval-card .section-title{
+      margin-bottom:4px !important;
+    }
+    html body #leftPanel > .return-interval-card .return-interval-grid{
+      gap:3px 5px !important;
+    }
+    html body #leftPanel > .return-interval-card .return-interval-grid button{
+      min-height:26px !important;
+      height:26px !important;
+      padding:2px 3px !important;
+      font-size:9.5px !important;
+    }
+  }
+
+  @media (max-width:720px){
+    html body .building-info-card{
+      width:min(360px,calc(100vw - 54px));
+      min-width:min(320px,calc(100vw - 54px));
+      padding:15px;
+    }
+    html body .building-info-card h3{font-size:20px !important}
+    html body .flood-history-pane{
+      width:calc(100vw - 20px) !important;
+      max-height:calc(100dvh - 20px) !important;
+    }
+    html body .flood-history-head{padding:15px 16px 13px !important}
+    html body .flood-history-head h2{font-size:20px !important}
+    html body .flood-history-body{padding:13px 14px 16px !important}
+    html body .flood-history-summary{grid-template-columns:1fr !important}
+    html body .flood-history-section-head{align-items:stretch !important;flex-direction:column !important}
+    html body .flood-scenario-field{flex-basis:auto !important}
+    html body .flood-projection-chart{height:190px !important}
+    html body .flood-year-control{grid-template-columns:1fr !important}
   }
 </style>
 </body>
