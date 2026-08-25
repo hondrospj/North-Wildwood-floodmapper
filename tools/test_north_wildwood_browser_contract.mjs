@@ -48,7 +48,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v58/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v59/);
 assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
@@ -70,13 +70,19 @@ assert.match(THREE_D_SOURCE, /map3dFloodGlIsolation = "maplibre-guarded-no-readb
 assert.match(THREE_D_SOURCE, /map3dBuildingWaterline = "single-extrusion-depth-composite"/);
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "single-extrusion-water-composite"/);
 assert.match(THREE_D_SOURCE, /FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15\.25/);
-assert.match(THREE_D_SOURCE, /BUILDING_EXTRUSION_MIN_ZOOM = 16\.25/);
+assert.match(THREE_D_SOURCE, /BUILDING_MAX_CAMERA_ALTITUDE_METERS = 1000/);
+assert.match(THREE_D_SOURCE, /function cameraAltitudeAboveTerrainMeters\(\)/);
+assert.match(THREE_D_SOURCE, /altitudeCoordinate\.toAltitude\(\)/);
+assert.match(THREE_D_SOURCE, /new window\.maplibregl\.MercatorCoordinate\(position\.x, position\.y, position\.z\)/);
+assert.match(THREE_D_SOURCE, /getVerticalFieldOfView\(\)/);
+assert.match(THREE_D_SOURCE, /cameraToCenterPixels \* metersPerPixel \* Math\.cos\(pitchRadians\)/);
+assert.match(THREE_D_SOURCE, /function cameraIsWithinBuildingRange\(\)/);
 assert.match(THREE_D_SOURCE, /function buildingsShouldRenderForCamera\(\)/);
 assert.match(
   THREE_D_SOURCE,
-  /layerVisible\("buildingsToggle", false\)[\s\S]+glMap\.getPitch\(\) > 10[\s\S]+glMap\.getZoom\(\) >= BUILDING_EXTRUSION_MIN_ZOOM/
+  /layerVisible\("buildingsToggle", false\)[\s\S]+glMap\.getPitch\(\) > 10[\s\S]+cameraIsWithinBuildingRange\(\)/
 );
-assert.match(THREE_D_SOURCE, /map3dBuildingVisibility = shouldRender[\s\S]+"overview-flat"[\s\S]+"hidden-in-2d"/);
+assert.match(THREE_D_SOURCE, /map3dBuildingVisibility = shouldRender[\s\S]+"over-1000m-flat"[\s\S]+"hidden-in-2d"/);
 assert.match(THREE_D_SOURCE, /syncFloodPresentationMode\(\) \{[\s\S]+syncBuildingVisibilityForCamera\(\)/);
 assert.match(THREE_D_SOURCE, /function placeFloodForScaleDepthPass\(\)/);
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "overview-buildings-after-water"/);
@@ -100,11 +106,11 @@ assert.match(flatFloodRender, /gl\.depthFunc\(gl\.LESS\)/);
 assert.match(flatFloodRender, /gl\.disable\(gl\.DEPTH_TEST\)/);
 assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "raf-latest-plus-final-commit"/);
 assert.match(THREE_D_SOURCE, /map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135"/);
-assert.match(THREE_D_SOURCE, /BUILDING_EXTRUSION_MIN_ZOOM \+ 0\.25/);
+assert.match(THREE_D_SOURCE, /BUILDING_WARM_ZOOM = 17/);
 assert.match(THREE_D_SOURCE, /map3dBearingWarmupZooms = \[[\s\S]+buildingWarmZoom/);
 assert.match(THREE_D_SOURCE, /map3dBearingWarmupBudgetMs = "9600"/);
 assert.match(THREE_D_SOURCE, /maxTileCacheSize: 384/);
-assert.match(THREE_D_SOURCE, /minzoom: BUILDING_EXTRUSION_MIN_ZOOM/);
+assert.match(THREE_D_SOURCE, /minzoom: 11/);
 assert.doesNotMatch(
   THREE_D_SOURCE,
   /nw-building-outlines/,

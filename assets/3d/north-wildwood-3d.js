@@ -7,11 +7,14 @@
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
   var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;
-  // At municipality-wide zooms, thousands of valid wall faces collapse into
-  // one- or two-pixel bands. Keep the clean Esri footprint fills at overview
-  // scale and begin real-height municipal extrusions only at neighborhood
-  // scale, where individual walls have enough screen area to render cleanly.
-  var BUILDING_EXTRUSION_MIN_ZOOM = 16.25;
+  // Full real-height geometry remains available through a 1,000 m eye
+  // altitude. Beyond that distance, wall faces become subpixel bands rather
+  // than readable 3D structures, so the clean basemap footprints take over.
+  var BUILDING_MAX_CAMERA_ALTITUDE_METERS = 1000;
+  var BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM = 16.25;
+  var BUILDING_WARM_ZOOM = 17;
+  var WEB_MERCATOR_EARTH_CIRCUMFERENCE_METERS = 40075016.68557849;
+  var MAPLIBRE_TILE_SIZE = 512;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
   var MAPLIBRE_JS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js";
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
@@ -102,6 +105,7 @@
   function updateDiagnostics() {
     var output = document.getElementById("map3dDiagnostics");
     if (!output) return;
+    var cameraAltitudeMeters = glMap ? cameraAltitudeAboveTerrainMeters() : null;
     var state = {
       ready: document.body.classList.contains("map-3d-ready"),
       exaggeration: TERRAIN_EXAGGERATION,
@@ -109,6 +113,9 @@
       pitch: glMap ? Number(glMap.getPitch().toFixed(2)) : null,
       bearing: glMap ? Number(glMap.getBearing().toFixed(2)) : null,
       zoom: glMap ? Number(glMap.getZoom().toFixed(3)) : null,
+      cameraAltitudeMeters: cameraAltitudeMeters !== null
+        ? Number(cameraAltitudeMeters.toFixed(1))
+        : null,
       centerLng: glMap ? Number(glMap.getCenter().lng.toFixed(7)) : null,
       centerLat: glMap ? Number(glMap.getCenter().lat.toFixed(7)) : null,
       terrainSource: glMap && glMap.getTerrain ? glMap.getTerrain() : null,
@@ -591,6 +598,72 @@
     return Boolean(glMap && glMap.getPitch() > 10 && glMap.getZoom() >= FLOOD_DEPTH_DETAIL_MIN_ZOOM);
   }
 
+  function cameraAltitudeAboveTerrainMeters() {
+    if (!glMap) return null;
+    if (typeof glMap.getFreeCameraOptions === "function") {
+      var camera = glMap.getFreeCameraOptions();
+      var position = camera && camera.position;
+      if (position) {
+        // Some MapLibre bundles return an IMercatorCoordinate-shaped plain
+        // object rather than the class instance. Rehydrate it when needed.
+        var altitudeCoordinate = typeof position.toAltitude === "function"
+          ? position
+          : window.maplibregl && typeof window.maplibregl.MercatorCoordinate === "function"
+            ? new window.maplibregl.MercatorCoordinate(position.x, position.y, position.z)
+            : null;
+        if (altitudeCoordinate && typeof altitudeCoordinate.toAltitude === "function") {
+          var absoluteAltitude = Number(altitudeCoordinate.toAltitude());
+          if (Number.isFinite(absoluteAltitude)) {
+            var terrainElevation = 0;
+            if (typeof glMap.getCameraTargetElevation === "function") {
+              var targetElevation = Number(glMap.getCameraTargetElevation());
+              if (Number.isFinite(targetElevation)) terrainElevation = targetElevation;
+            }
+            return Math.max(0, absoluteAltitude - terrainElevation);
+          }
+        }
+      }
+    }
+
+    // MapLibre GL JS does not expose FreeCameraOptions in every release. Its
+    // public zoom, vertical-FOV, pitch, center latitude, and canvas height are
+    // sufficient to compute the same eye height above the camera target.
+    var canvas = glMap.getCanvas && glMap.getCanvas();
+    var viewportHeight = Number(canvas && canvas.clientHeight);
+    var fieldOfViewDegrees = typeof glMap.getVerticalFieldOfView === "function"
+      ? Number(glMap.getVerticalFieldOfView())
+      : 36.87;
+    var zoom = Number(glMap.getZoom());
+    var pitchRadians = Number(glMap.getPitch()) * Math.PI / 180;
+    var center = glMap.getCenter();
+    var latitudeRadians = Number(center.lat) * Math.PI / 180;
+    if (
+      !(viewportHeight > 0) ||
+      !(fieldOfViewDegrees > 0 && fieldOfViewDegrees < 180) ||
+      !Number.isFinite(zoom) ||
+      !Number.isFinite(pitchRadians) ||
+      !Number.isFinite(latitudeRadians)
+    ) return null;
+    var fieldOfViewRadians = fieldOfViewDegrees * Math.PI / 180;
+    var cameraToCenterPixels = (viewportHeight / 2) / Math.tan(fieldOfViewRadians / 2);
+    var metersPerPixel = WEB_MERCATOR_EARTH_CIRCUMFERENCE_METERS * Math.cos(latitudeRadians) /
+      (MAPLIBRE_TILE_SIZE * Math.pow(2, zoom));
+    return Math.max(0, cameraToCenterPixels * metersPerPixel * Math.cos(pitchRadians));
+  }
+
+  function cameraIsWithinBuildingRange() {
+    var altitudeMeters = cameraAltitudeAboveTerrainMeters();
+    document.body.dataset.map3dCameraAltitudeMeters = altitudeMeters === null
+      ? "unknown"
+      : altitudeMeters.toFixed(1);
+    // Older WebGL implementations without free-camera altitude support use a
+    // conservative zoom fallback. Supported MapLibre browsers use the exact
+    // 1,000 m eye-altitude contract, independent of screen dimensions.
+    return altitudeMeters === null
+      ? glMap.getZoom() >= BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM
+      : altitudeMeters <= BUILDING_MAX_CAMERA_ALTITUDE_METERS;
+  }
+
   function syncFloodPresentationMode() {
     if (!glMap || !glStyleReady) return;
     var pitched = glMap.getPitch() > 10;
@@ -616,7 +689,7 @@
       glMap &&
       layerVisible("buildingsToggle", false) &&
       glMap.getPitch() > 10 &&
-      glMap.getZoom() >= BUILDING_EXTRUSION_MIN_ZOOM
+      cameraIsWithinBuildingRange()
     );
   }
 
@@ -635,7 +708,7 @@
     document.body.dataset.map3dBuildingVisibility = shouldRender
       ? "pitched-3d"
       : buildingsEnabled && pitched
-        ? "overview-flat"
+        ? "over-1000m-flat"
         : buildingsEnabled
           ? "hidden-in-2d"
           : "disabled";
@@ -1159,15 +1232,14 @@
       });
       document.body.dataset.buildings3dSourceMaxZoom = "18";
       document.body.dataset.buildings3dSourceBuffer = "256";
-      document.body.dataset.buildings3dMinZoom = String(BUILDING_EXTRUSION_MIN_ZOOM);
+      document.body.dataset.buildings3dMaxCameraAltitudeMeters = String(BUILDING_MAX_CAMERA_ALTITUDE_METERS);
       addLayerBelowMask({
         id: "nw-3d-buildings",
         type: "fill-extrusion",
         source: "nw-buildings-source",
-        // Municipality-wide overview views compress thousands of otherwise
-        // valid side walls into dark seams. Begin extrusion at neighborhood
-        // scale, where each footprint has enough screen area to read cleanly.
-        minzoom: BUILDING_EXTRUSION_MIN_ZOOM,
+        // Visibility is governed by true camera altitude rather than a fixed
+        // zoom, so the 1,000 m cutoff behaves consistently on every viewport.
+        minzoom: 11,
         paint: {
           "fill-extrusion-color": "#ddd7cb",
           "fill-extrusion-height": ["to-number", ["get", "renderHeightM"], 3],
@@ -1597,10 +1669,7 @@
       // angle without making the user's first rotation build cold buckets.
       var initialWarmZoom = Number(originalCamera.zoom);
       var overviewWarmZoom = Math.max(11, initialWarmZoom - 1.25);
-      var buildingWarmZoom = Math.min(
-        MAP_MAX_ZOOM,
-        Math.max(initialWarmZoom, BUILDING_EXTRUSION_MIN_ZOOM + 0.25)
-      );
+      var buildingWarmZoom = Math.min(MAP_MAX_ZOOM, Math.max(initialWarmZoom, BUILDING_WARM_ZOOM));
       var warmCameras = [];
       // Warm both the initial camera scale and the zoomed-out scale that
       // exposes the largest terrain footprint.
@@ -1641,7 +1710,7 @@
         mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
         var restoreBuildings = buildingsEnabled &&
           originalCamera.pitch > 10 &&
-          originalCamera.zoom >= BUILDING_EXTRUSION_MIN_ZOOM;
+          cameraIsWithinBuildingRange();
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(restoreBuildings));
       }
     }
