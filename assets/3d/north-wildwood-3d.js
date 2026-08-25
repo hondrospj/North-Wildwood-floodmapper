@@ -6,6 +6,7 @@
   var DEFAULT_PITCH = 0;
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
+  var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
   var MAPLIBRE_JS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js";
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
@@ -303,6 +304,7 @@
       localProjectionMatrix: new Float32Array(16),
       textureReady: false,
       visible: Boolean(initial.visible),
+      useDepthTest: initial.useDepthTest !== false,
       textureLoadPromise: Promise.resolve(false),
       imageToken: 0,
       url: initial.url || "",
@@ -470,6 +472,7 @@
         this.coordinates = next.coordinates || null;
         this.altitudeMeters = Number(next.altitudeMeters) || 0;
         this.opacity = Math.max(0, Math.min(1, Number(next.opacity)));
+        this.useDepthTest = next.useDepthTest !== false;
         this.updateGeometry();
         if (this.url && this.url !== priorUrl) {
           // The old texture remains on the GPU until the replacement is decoded
@@ -486,6 +489,13 @@
 
       setVisible: function (value) {
         this.visible = Boolean(value);
+        if (this.map) this.map.triggerRepaint();
+      },
+
+      setDepthTest: function (value) {
+        var nextValue = Boolean(value);
+        if (this.useDepthTest === nextValue) return;
+        this.useDepthTest = nextValue;
         if (this.map) this.map.triggerRepaint();
       },
 
@@ -529,10 +539,19 @@
         gl.enable(gl.BLEND);
         gl.blendEquationSeparate(gl.FUNC_ADD, gl.FUNC_ADD);
         gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-        gl.enable(gl.DEPTH_TEST);
-        // Strict depth comparison makes the shoreline deterministic. LEQUAL
-        // let coplanar terrain/water samples alternate as the camera moved.
-        gl.depthFunc(gl.LESS);
+        if (this.useDepthTest) {
+          gl.enable(gl.DEPTH_TEST);
+          // Strict depth comparison makes the shoreline deterministic. LEQUAL
+          // let coplanar terrain/water samples alternate as the camera moved.
+          gl.depthFunc(gl.LESS);
+        } else {
+          // At municipality overview zooms, MapLibre's exaggerated DEM skirts
+          // are much wider than a street and write artificial tile-edge bands
+          // into the depth buffer. The flood PNG already contains the modeled
+          // wet/dry mask, so its overview pass must not be clipped by those
+          // synthetic terrain walls.
+          gl.disable(gl.DEPTH_TEST);
+        }
         gl.disable(gl.CULL_FACE);
         // Terrain and the single opaque building pass already own the depth
         // buffer. Draw the level water surface afterward without writing new
@@ -542,7 +561,9 @@
         gl.drawArrays(gl.TRIANGLES, 0, 6);
         gl.bindVertexArray(null);
         document.body.dataset.map3dFloodGlIsolation = "maplibre-guarded-no-readback";
-        document.body.dataset.map3dFloodDepthFunction = "less-no-coplanar-fight";
+        document.body.dataset.map3dFloodDepthFunction = this.useDepthTest
+          ? "less-no-coplanar-fight"
+          : "overview-no-terrain-tile-depth";
       },
 
       onRemove: function (_, gl) {
@@ -561,28 +582,50 @@
     };
   }
 
+  function usesDetailedFloodDepth() {
+    return Boolean(glMap && glMap.getPitch() > 10 && glMap.getZoom() >= FLOOD_DEPTH_DETAIL_MIN_ZOOM);
+  }
+
   function syncFloodPresentationMode() {
     if (!glMap || !glStyleReady) return;
     var pitched = glMap.getPitch() > 10;
+    var detailedDepth = usesDetailedFloodDepth();
     if (glMap.getLayer("nw-flood-drape")) {
       glMap.setLayoutProperty("nw-flood-drape", "visibility", visibility(!pitched));
     }
     if (floodPlaneLayer && typeof floodPlaneLayer.setVisible === "function") {
       floodPlaneLayer.setVisible(pitched);
+      floodPlaneLayer.setDepthTest(detailedDepth);
     }
+    placeFloodForScaleDepthPass();
     document.body.dataset.map3dFloodRenderer = pitched ? "depth-locked-water-plane" : "stable-image-layer";
+    document.body.dataset.map3dFloodScalePass = detailedDepth ? "street-depth" : "overview-stable";
+    document.body.dataset.map3dFloodCompositing = detailedDepth
+      ? "shared-3d-depth-buffer"
+      : "overview-prebuilding-no-terrain-depth";
   }
 
-  function placeFloodAfterBuildingDepthPass() {
+  function placeFloodForScaleDepthPass() {
     if (!glMap || !glMap.getLayer("nw-flood-overlay")) return;
     var buildingLayerIds = contextBuildingExtrusionLayerIds.concat(["nw-3d-buildings"]);
     var styleLayers = glMap.getStyle().layers || [];
+    var firstBuildingIndex = -1;
     var lastBuildingIndex = -1;
     styleLayers.forEach(function (layer, index) {
-      if (buildingLayerIds.indexOf(layer.id) >= 0) lastBuildingIndex = Math.max(lastBuildingIndex, index);
+      if (buildingLayerIds.indexOf(layer.id) < 0) return;
+      if (firstBuildingIndex < 0) firstBuildingIndex = index;
+      lastBuildingIndex = Math.max(lastBuildingIndex, index);
     });
     if (lastBuildingIndex < 0) {
       document.body.dataset.map3dFloodBuildingOcclusion = "not-required";
+      return;
+    }
+    if (!usesDetailedFloodDepth()) {
+      var firstBuildingLayer = styleLayers[firstBuildingIndex];
+      if (firstBuildingLayer && firstBuildingLayer.id !== "nw-flood-overlay") {
+        glMap.moveLayer("nw-flood-overlay", firstBuildingLayer.id);
+      }
+      document.body.dataset.map3dFloodBuildingOcclusion = "overview-buildings-after-water";
       return;
     }
     var nextLayer = styleLayers[lastBuildingIndex + 1];
@@ -640,6 +683,7 @@
       coordinates: coordinates,
       opacity: overlayOpacity,
       visible: pitched,
+      useDepthTest: usesDetailedFloodDepth(),
       altitudeMeters: physicalAltitudeMeters
     };
     // Top-down mode uses MapLibre's native image source, which remains in one
@@ -661,7 +705,7 @@
     } else if (floodPlaneLayer && typeof floodPlaneLayer.update === "function") {
       floodPlaneLayer.update(options);
     }
-    placeFloodAfterBuildingDepthPass();
+    placeFloodForScaleDepthPass();
     syncBuildingWaterComposite3d(stageNavd88);
     syncFloodPresentationMode();
     document.body.dataset.map3dFloodSurface = "flat-water-overlay";
@@ -671,7 +715,6 @@
       : "axis-aligned";
     document.body.dataset.map3dFloodAltitudeMeters = options.altitudeMeters.toFixed(3);
     document.body.dataset.map3dFloodPhysicalAltitudeMeters = physicalAltitudeMeters.toFixed(3);
-    document.body.dataset.map3dFloodCompositing = "shared-3d-depth-buffer";
   }
 
   function syncSatellite3d() {
@@ -1057,15 +1100,16 @@
           glMap.getCanvas().style.cursor = "";
         });
       }
-      // Draw water once after every opaque building source. Dry fragments win
-      // the depth test; submerged wall fragments receive the water texture.
-      placeFloodAfterBuildingDepthPass();
+      // At street scale, draw water after opaque buildings for submerged-wall
+      // depth. At overview scale, draw it first so roofs remain clean while
+      // terrain-tile skirts cannot cut bands through the flood surface.
+      placeFloodForScaleDepthPass();
     }
     if (!glMap.getLayer("nw-3d-buildings")) return;
     glMap.setLayoutProperty("nw-building-outlines", "visibility", visibility(enabled));
     glMap.setLayoutProperty("nw-3d-buildings", "visibility", visibility(enabled));
     setContextBuildingExtrusionsEnabled(enabled);
-    placeFloodAfterBuildingDepthPass();
+    placeFloodForScaleDepthPass();
     syncBuildingWaterComposite3d(getSelectedStageNavd88());
     setStatus(enabled
       ? "3D terrain ×4 • " + Number(buildingData.features.length).toLocaleString("en-US") + " buildings"
@@ -1395,6 +1439,7 @@
         glMap.on(eventName, schedulePersistentNavControlSync);
       });
       glMap.on("pitch", syncFloodPresentationMode);
+      glMap.on("zoom", syncFloodPresentationMode);
       glMap.on("moveend", syncPersistentNavControl);
       syncPersistentNavControl();
       glMap.on("error", function (event) {

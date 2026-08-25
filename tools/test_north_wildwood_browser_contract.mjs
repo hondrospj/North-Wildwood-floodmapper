@@ -39,14 +39,18 @@ assert.doesNotMatch(
   "A second extrusion of the same live basemap footprints causes depth-buffer flicker"
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
-assert.match(THREE_D_SOURCE, /map3dFloodCompositing = "shared-3d-depth-buffer"/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v51/);
+assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v52/);
 assert.match(THREE_D_SOURCE, /map3dFloodPrecision = "camera-stable-local-origin"/);
-assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = "less-no-coplanar-fight"/);
+assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = this\.useDepthTest/);
 assert.match(THREE_D_SOURCE, /map3dFloodGlIsolation = "maplibre-guarded-no-readback"/);
 assert.match(THREE_D_SOURCE, /map3dBuildingWaterline = "single-extrusion-depth-composite"/);
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "single-extrusion-water-composite"/);
-assert.match(THREE_D_SOURCE, /function placeFloodAfterBuildingDepthPass\(\)/);
+assert.match(THREE_D_SOURCE, /FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15\.25/);
+assert.match(THREE_D_SOURCE, /function placeFloodForScaleDepthPass\(\)/);
+assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "overview-buildings-after-water"/);
+assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = this\.useDepthTest[\s\S]+overview-no-terrain-tile-depth/);
+assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth[\s\S]+overview-prebuilding-no-terrain-depth/);
 assert.doesNotMatch(
   THREE_D_SOURCE,
   /nw-3d-buildings-wet/,
@@ -62,6 +66,7 @@ assert.doesNotMatch(
   "Camera frames must not block on synchronous WebGL state readbacks"
 );
 assert.match(flatFloodRender, /gl\.depthFunc\(gl\.LESS\)/);
+assert.match(flatFloodRender, /gl\.disable\(gl\.DEPTH_TEST\)/);
 assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "single-commit"/);
 assert.match(THREE_D_SOURCE, /pixelRatio: 1/);
 assert.doesNotMatch(THREE_D_SOURCE, /installMapCreditsInLayers/);
