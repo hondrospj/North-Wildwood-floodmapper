@@ -17748,7 +17748,7 @@ function setDatumHelpOpen(isOpen) {
           </div>
         ` : `
           <div class="depth-legend-scale" aria-label="Uncertainty areas followed by connected modeled flood depth from shallow to deep">
-            <div class="depth-legend-labels"><span>Uncertainty</span><span>Shallow</span><span>Deep</span></div>
+            <div class="depth-legend-labels"><span>Uncertain</span><span>Shallow</span><span>Deep</span></div>
             <div class="depth-legend-gradient" aria-hidden="true"></div>
           </div>
         `;
@@ -39428,6 +39428,8 @@ html body #mapTitleBadge #mapTitleLogo{
     height:30px !important;
   }
   html body #legendDock[data-legend-mode="depth"] .depth-legend-labels{
+    grid-template-columns:max-content minmax(0,1fr) auto !important;
+    column-gap:12px !important;
     margin:0 2px 3px !important;
     font-size:12px !important;
     line-height:12px !important;
