@@ -31,6 +31,8 @@
   var buildingDataPromise = null;
   var mapLibreRuntimePromise = null;
   var mapStylePromise = null;
+  var coreCameraWarmupPromise = null;
+  var deferredCameraWarmupPromise = null;
   var floodPlaneLayer = null;
   var floodRemovalTimer = null;
   var syncingFromLeaflet = false;
@@ -1643,10 +1645,26 @@
     });
   }
 
-  async function warm3dCamera(mapInstance) {
-    if (document.body.dataset.map3dCameraWarmup === "ready") return;
-    document.body.dataset.map3dCameraWarmup = "loading";
-    document.body.dataset.map3dBearingWarmup = "loading";
+  function waitForCameraWarmupIdle() {
+    return new Promise(function (resolve) {
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(resolve, { timeout: 1400 });
+      } else {
+        window.setTimeout(resolve, 180);
+      }
+    });
+  }
+
+  async function run3dCameraWarmup(mapInstance, phase) {
+    var coreOnly = phase === "core";
+    if (coreOnly) {
+      if (document.body.dataset.map3dCoreCameraWarmup === "ready") return;
+      document.body.dataset.map3dCoreCameraWarmup = "loading";
+    } else {
+      if (document.body.dataset.map3dCameraWarmup === "ready") return;
+      document.body.dataset.map3dCameraWarmup = "loading";
+      document.body.dataset.map3dBearingWarmup = "loading";
+    }
     var originalCamera = {
       center: mapInstance.getCenter(),
       zoom: mapInstance.getZoom(),
@@ -1663,34 +1681,40 @@
       mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
     }
     try {
-      // Exercise every distinct pitched cardinal footprint while the loading
-      // screen still covers the canvas. Also warm diagonal top-down footprints:
-      // those are the largest 2D tile sets and cover every in-between wheel
-      // angle without making the user's first rotation build cold buckets.
+      // The four initial-scale cardinal views are the only camera work allowed
+      // to hold the loading screen. They remove the first compass-use stall.
+      // Overview, building-detail, and diagonal 2D footprints are left to the
+      // user's real view. An explicit diagnostic warmup can still traverse
+      // them one browser-idle slice at a time without affecting normal startup.
       var initialWarmZoom = Number(originalCamera.zoom);
       var overviewWarmZoom = Math.max(11, initialWarmZoom - 1.25);
       var buildingWarmZoom = Math.min(MAP_MAX_ZOOM, Math.max(initialWarmZoom, BUILDING_WARM_ZOOM));
       var warmCameras = [];
-      // Warm both the initial camera scale and the zoomed-out scale that
-      // exposes the largest terrain footprint.
-      [initialWarmZoom, overviewWarmZoom].forEach(function (warmZoom) {
+      var coreAlreadyReady = document.body.dataset.map3dCoreCameraWarmup === "ready";
+      if (coreOnly || !coreAlreadyReady) {
         [0, 90, 180, 270].forEach(function (bearing) {
-          warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: warmZoom });
+          warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: initialWarmZoom });
         });
-      });
-      // The overview cameras intentionally do not draw extrusion geometry.
-      // Warm the first real-height neighborhood buckets separately so zooming
-      // through the LOD boundary does not stall on the first building frame.
-      [0, 90, 180, 270].forEach(function (bearing) {
-        warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: buildingWarmZoom });
-      });
-      // At pitch zero, opposite bearings reuse the same footprint. The four
-      // quarter-turn/diagonal shapes below therefore cover all 360 degrees.
-      [0, 45, 90, 135].forEach(function (bearing) {
-        warmCameras.push({ pitch: DEFAULT_PITCH, bearing: bearing, zoom: overviewWarmZoom });
-      });
+      }
+      if (!coreOnly) {
+        [0, 90, 180, 270].forEach(function (bearing) {
+          warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: overviewWarmZoom });
+        });
+        // The overview cameras intentionally do not draw extrusion geometry.
+        // Warm the first real-height neighborhood buckets separately so zooming
+        // through the 1,000 m LOD boundary does not compile them on demand.
+        [0, 90, 180, 270].forEach(function (bearing) {
+          warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: buildingWarmZoom });
+        });
+        // At pitch zero, opposite bearings reuse the same footprint. The four
+        // quarter-turn/diagonal shapes below cover all in-between wheel angles.
+        [0, 45, 90, 135].forEach(function (bearing) {
+          warmCameras.push({ pitch: DEFAULT_PITCH, bearing: bearing, zoom: overviewWarmZoom });
+        });
+      }
       var fullySettledWarmCameras = 0;
       for (var warmIndex = 0; warmIndex < warmCameras.length; warmIndex += 1) {
+        if (!coreOnly) await waitForCameraWarmupIdle();
         var warmCamera = warmCameras[warmIndex];
         syncTerrainForView(warmCamera.pitch > 10);
         mapInstance.jumpTo(warmCamera);
@@ -1699,7 +1723,7 @@
         // larger slice of the fixed warmup budget than top-down rotations.
         var footprintSettled = await warm3dCameraFootprint(
           mapInstance,
-          warmCamera.pitch > 10 ? 650 : 450
+          coreOnly ? 450 : warmCamera.pitch > 10 ? 550 : 350
         );
         if (footprintSettled) fullySettledWarmCameras += 1;
       }
@@ -1714,21 +1738,48 @@
         mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(restoreBuildings));
       }
     }
-    await waitFor3dMapIdle(mapInstance, 45000);
+    await warm3dCameraFootprint(mapInstance, coreOnly ? 450 : 800);
     syncBuildingVisibilityForCamera();
-    document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135";
-    document.body.dataset.map3dBearingWarmupZooms = [
-      initialWarmZoom,
-      overviewWarmZoom,
-      buildingWarmZoom
-    ].map(function (zoom) { return Number(zoom).toFixed(2); }).join(",");
-    document.body.dataset.map3dBearingWarmupSettled = String(fullySettledWarmCameras) + "/" + String(warmCameras.length);
-    document.body.dataset.map3dBearingWarmupBudgetMs = "9600";
-    document.body.dataset.map3dWheelPreloaded = "true";
-    document.body.dataset.map3dBearingWarmup = "ready";
-    document.body.dataset.map3dCameraWarmup = "ready";
+    if (coreOnly) {
+      document.body.dataset.map3dCoreBearingWarmupSettled = String(fullySettledWarmCameras) + "/4";
+      document.body.dataset.map3dCoreCameraWarmup = "ready";
+      document.body.dataset.map3dWheelPreloaded = "cardinal-ready";
+    } else {
+      var coreSettled = Number(String(document.body.dataset.map3dCoreBearingWarmupSettled || "0/4").split("/")[0]) || 0;
+      var totalWarmCameras = warmCameras.length + (coreAlreadyReady ? 4 : 0);
+      document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135";
+      document.body.dataset.map3dBearingWarmupZooms = [
+        initialWarmZoom,
+        overviewWarmZoom,
+        buildingWarmZoom
+      ].map(function (zoom) { return Number(zoom).toFixed(2); }).join(",");
+      document.body.dataset.map3dBearingWarmupSettled = String(fullySettledWarmCameras + coreSettled) + "/" + String(totalWarmCameras);
+      document.body.dataset.map3dBearingWarmupBudgetMs = "core-1800;idle-deferred-7400";
+      document.body.dataset.map3dWheelPreloaded = "true";
+      document.body.dataset.map3dBearingWarmup = "ready";
+      document.body.dataset.map3dCameraWarmup = "ready";
+    }
     syncPersistentNavControl();
     updateDiagnostics();
+  }
+
+  function warm3dCamera(mapInstance, phase) {
+    if (phase === "core") {
+      if (!coreCameraWarmupPromise) {
+        coreCameraWarmupPromise = run3dCameraWarmup(mapInstance, "core").catch(function (error) {
+          coreCameraWarmupPromise = null;
+          throw error;
+        });
+      }
+      return coreCameraWarmupPromise;
+    }
+    if (!deferredCameraWarmupPromise) {
+      deferredCameraWarmupPromise = run3dCameraWarmup(mapInstance, "deferred").catch(function (error) {
+        deferredCameraWarmupPromise = null;
+        throw error;
+      });
+    }
+    return deferredCameraWarmupPromise;
   }
 
   async function preload3dAssets(options) {
@@ -1750,8 +1801,13 @@
         waitFor3dMapIdle(mapInstance, 45000),
         floodReady
       ]);
-      await warm3dCamera(mapInstance);
-      document.body.dataset.map3dFullyPreloaded = "ready";
+      if (preloadOptions.warmCamera !== false) {
+        var warmupPhase = preloadOptions.warmCamera === "core" ? "core" : "deferred";
+        await warm3dCamera(mapInstance, warmupPhase);
+      }
+      document.body.dataset.map3dFullyPreloaded = preloadOptions.warmCamera === "core" || preloadOptions.warmCamera === false
+        ? "interactive"
+        : "ready";
     }
     return {
       buildings: buildingData && buildingData.features ? buildingData.features.length : 0,

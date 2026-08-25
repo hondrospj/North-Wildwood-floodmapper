@@ -48,7 +48,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v59/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v60/);
 assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
@@ -108,7 +108,9 @@ assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "raf-latest
 assert.match(THREE_D_SOURCE, /map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135"/);
 assert.match(THREE_D_SOURCE, /BUILDING_WARM_ZOOM = 17/);
 assert.match(THREE_D_SOURCE, /map3dBearingWarmupZooms = \[[\s\S]+buildingWarmZoom/);
-assert.match(THREE_D_SOURCE, /map3dBearingWarmupBudgetMs = "9600"/);
+assert.match(THREE_D_SOURCE, /map3dBearingWarmupBudgetMs = "core-1800;idle-deferred-7400"/);
+assert.match(THREE_D_SOURCE, /map3dCoreCameraWarmup = "ready"/);
+assert.match(THREE_D_SOURCE, /waitForCameraWarmupIdle\(\)/);
 assert.match(THREE_D_SOURCE, /maxTileCacheSize: 384/);
 assert.match(THREE_D_SOURCE, /minzoom: 11/);
 assert.doesNotMatch(
