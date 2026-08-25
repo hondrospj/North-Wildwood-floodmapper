@@ -30,12 +30,19 @@ assert.equal(
   THREE_D_BUILDINGS.metadata.sourceVectorFootprintCount,
   "The bundled 3D asset should include every source vector footprint"
 );
-assert.match(THREE_D_SOURCE, /buildings3dCoverage = "complete-static-vector-footprints"/);
+assert.match(THREE_D_SOURCE, /buildings3dCoverage = "complete-static-municipal-plus-live-context"/);
+assert.match(THREE_D_SOURCE, /var outsideMunicipality = \["!", \["within", municipalFeature\]\]/);
+assert.match(THREE_D_SOURCE, /nw-context-building-extrusion-/);
 assert.doesNotMatch(
   THREE_D_SOURCE,
   /nw-basemap-building-extrusion/,
   "A second extrusion of the same live basemap footprints causes depth-buffer flicker"
 );
+assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
+assert.match(THREE_D_SOURCE, /map3dFloodCompositing = "shared-3d-depth-buffer"/);
+assert.match(THREE_D_SOURCE, /control\.dataset\.wheelCameraUpdates = "single-commit"/);
+assert.match(THREE_D_SOURCE, /pixelRatio: 1/);
+assert.doesNotMatch(THREE_D_SOURCE, /installMapCreditsInLayers/);
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
@@ -783,6 +790,9 @@ assert.match(SOURCE, /autoClose: false/);
 assert.match(SOURCE, /closeOnClick: false/);
 assert.doesNotMatch(extractFunction("renderHour"), /closePopup/);
 assert.match(SOURCE, /See Flood History &amp; Projections/);
+assert.match(SOURCE, /Past floods above floor/);
+assert.match(SOURCE, /Future floods above floor/);
+assert.doesNotMatch(SOURCE, /Estimated first occupied floor = local 2019 bare-earth LiDAR ground/);
 assert.match(SOURCE, /id="floodHistoryPane"/);
 assert.match(SOURCE, /\.flood-history-backdrop\{[^}]*place-items:center/);
 assert.match(SOURCE, /id="floodProjectionScenarioSelect"/);
