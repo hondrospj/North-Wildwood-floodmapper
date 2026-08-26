@@ -25231,6 +25231,13 @@ function populateCalendarSelectors() {
       let event = topTideEvents[index];
       const requestedDate = event.dateKey || event.entry?.observedDate || null;
       if (requestedDate) {
+        const archiveSource = getObservedArchiveSourceForDate(requestedDate);
+        // Finish the compact Lewes day index before loading a pre-Stone Harbor
+        // record. Otherwise its idle refresh can replace the event catalog
+        // after this click has already captured the crest-only placeholder,
+        // leaving the first replay stuck at "Maximum extent" until the user
+        // changes the timeline interval.
+        if (archiveSource === "lewes") await ensureLewesArchiveIndex();
         const crestStage = getOverlayStage(event.peakStage);
         const crestAssetPromise = crestStage == null
           ? Promise.resolve(null)
