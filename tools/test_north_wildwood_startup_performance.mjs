@@ -38,6 +38,14 @@ assert.match(backgroundWarmup, /backgroundDataWarmup = "on-demand"/);
 assert.doesNotMatch(backgroundWarmup, /warmBackgroundData\(\)/);
 assert.doesNotMatch(extractFunction("warmBackgroundData"), /TOP_TIDES_URL/);
 
+const historicalTideLoader = extractFunction("loadHistoricalTopTides");
+assert.match(historicalTideLoader, /fetchJson\(TOP_TIDES_URL, \{ cache: "default" \}\)/);
+assert.doesNotMatch(historicalTideLoader, /withFreshJsonUrl/);
+
+const topTidesWarmup = extractFunction("scheduleTopTidesListWarmup");
+assert.match(topTidesWarmup, /start\(\)/);
+assert.doesNotMatch(topTidesWarmup, /setTimeout|requestIdleCallback/);
+
 const reloadAll = extractFunction("reloadAll");
 assert.match(reloadAll, /waitForInitialFramePaint\(\)[\s\S]+scheduleTopTidesListWarmup\(\)[\s\S]+scheduleBackgroundDataWarmup\(\)/);
 

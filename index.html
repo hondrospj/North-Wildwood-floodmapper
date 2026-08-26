@@ -23920,7 +23920,7 @@ function formatSelectedObservedDate(dateStr) {
     async function loadHistoricalTopTides() {
       if (historicTopTideEntries.length) return historicTopTideEntries;
       if (historicalTopTidesPromise) return historicalTopTidesPromise;
-      historicalTopTidesPromise = fetchJson(withFreshJsonUrl(TOP_TIDES_URL))
+      historicalTopTidesPromise = fetchJson(TOP_TIDES_URL, { cache: "default" })
         .then(data => {
           const rows = Array.isArray(data?.toptides) ? data.toptides : Array.isArray(data) ? data : [];
           historicTopTideEntries = rows.map(normalizeTopTidesJsonEntry).filter(Boolean);
@@ -25429,13 +25429,7 @@ function populateCalendarSelectors() {
           console.warn("Historical high-tide summary will retry when requested.", error);
         }
       };
-      window.setTimeout(() => {
-        if (typeof window.requestIdleCallback === "function") {
-          window.requestIdleCallback(start, { timeout: 2500 });
-        } else {
-          start();
-        }
-      }, 1200);
+      start();
     }
 
     function scheduleBackgroundDataWarmup() {
