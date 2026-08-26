@@ -1185,7 +1185,7 @@
               visualGroundMeasuredCount: visualGround.measuredCount,
               visualGroundNearestDerivedCount: visualGround.derivedCount,
               visualGroundMedianFallbackCount: visualGround.medianCount,
-              renderHeightModel: "OSM tagged height when available; otherwise 3.05 m per screened story plus 1.2 m roof. Crawlspace rise is not added to roof height. Buildings render at screened real height while terrain elevation remains 4x exaggerated."
+              renderHeightModel: "OSM tagged height when available; otherwise 3.05 m per screened story plus 1.2 m roof. Crawlspace rise is not added to roof height. Stored heights remain real; the 3D renderer applies the same 4x vertical exaggeration as terrain and floodwater."
             }),
             features: sanitizedFeatures
           };
@@ -1196,7 +1196,7 @@
           document.body.dataset.buildings3dGroundMeasured = String(visualGround.measuredCount);
           document.body.dataset.buildings3dGroundNearestDerived = String(visualGround.derivedCount);
           document.body.dataset.buildings3dGroundMedianFallback = String(visualGround.medianCount);
-          document.body.dataset.buildings3dVerticalScale = "1";
+          document.body.dataset.buildings3dVerticalScale = String(TERRAIN_EXAGGERATION);
           document.body.dataset.buildings3dMaxHeightFt = String(sanitizedFeatures.reduce(function (maximum, feature) {
             return Math.max(maximum, Number(feature.properties && feature.properties.renderHeightFt) || 0);
           }, 0).toFixed(1));
@@ -1244,7 +1244,12 @@
         minzoom: 11,
         paint: {
           "fill-extrusion-color": "#ddd7cb",
-          "fill-extrusion-height": ["to-number", ["get", "renderHeightM"], 3],
+          // renderHeightM remains the calculated real-world building height.
+          // Terrain elevation and the flat NAVD88 flood surface are both
+          // displayed at 4x. Apply that same visual scale to wall height so a
+          // real 5 ft water depth covers 5 ft of a real building, rather than
+          // consuming 20 ft of visible wall.
+          "fill-extrusion-height": ["*", ["to-number", ["get", "renderHeightM"], 3], TERRAIN_EXAGGERATION],
           "fill-extrusion-base": 0,
           // One continuous opaque extrusion per footprint gives the water
           // plane a deterministic depth surface. Splitting the same footprint
