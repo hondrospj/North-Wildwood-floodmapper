@@ -16065,6 +16065,7 @@ function cloneStyleObject(value) {
     const RETURN_INTERVAL_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
     let observedData = null;
     let observed15MinuteData = null;
+    let observedArchiveIndexTextPromise = null;
     let observed15MinuteDaysByDate = new Map();
     let lewesHourlyData = null;
     let lewesArchiveIndexData = null;
@@ -17269,13 +17270,30 @@ function parseStoredLocalNyToDate(timeEST) {
       clearExportAvailabilityCache();
     }
 
+    function preloadObservedArchiveIndexText() {
+      if (observedArchiveIndexTextPromise) return observedArchiveIndexTextPromise;
+      observedArchiveIndexTextPromise = fetch(OBSERVED_ARCHIVE_INDEX_URL, {
+        cache: "default",
+        headers: { "Accept": "application/geo+json, application/json" }
+      })
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status} for ${OBSERVED_ARCHIVE_INDEX_URL}`);
+          return response.text();
+        })
+        .catch(error => {
+          observedArchiveIndexTextPromise = null;
+          throw error;
+        });
+      return observedArchiveIndexTextPromise;
+    }
+
     async function ensureObserved15MinuteArchive() {
       if (observed15MinuteData) return observed15MinuteData;
       try {
-        observed15MinuteData = await fetchJson(OBSERVED_ARCHIVE_INDEX_URL);
+        observed15MinuteData = JSON.parse(await preloadObservedArchiveIndexText());
       } catch (indexError) {
         console.warn("Optimized observed archive index unavailable; using the compact archive.", indexError);
-        observed15MinuteData = await fetchJson(withFreshJsonUrl(OBSERVED_15MIN_URL));
+        observed15MinuteData = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
       }
       observed15MinuteDaysByDate = new Map(
         (observed15MinuteData?.days || [])
@@ -17287,7 +17305,7 @@ function parseStoredLocalNyToDate(timeEST) {
 
     async function ensureLewesHourlyArchive() {
       if (lewesHourlyData && Array.isArray(lewesHourlyData.days)) return lewesHourlyData;
-      lewesHourlyData = await fetchJson(withFreshJsonUrl(LEWES_HOURLY_URL));
+      lewesHourlyData = await fetchJson(LEWES_HOURLY_URL, { cache: "default" });
       return lewesHourlyData;
     }
 
@@ -17306,7 +17324,7 @@ function parseStoredLocalNyToDate(timeEST) {
     async function ensureLewesArchiveIndex() {
       if (lewesArchiveIndexData) return lewesArchiveIndexData;
       if (lewesArchiveIndexPromise) return lewesArchiveIndexPromise;
-      lewesArchiveIndexPromise = fetchJson(LEWES_ARCHIVE_INDEX_URL)
+      lewesArchiveIndexPromise = fetchJson(LEWES_ARCHIVE_INDEX_URL, { cache: "default" })
         .then(index => {
           lewesArchiveIndexData = index;
           lewesHourlyData = {
@@ -17391,7 +17409,7 @@ function parseStoredLocalNyToDate(timeEST) {
       if (observedArchiveLoadedYears.has(key)) return true;
       if (observedArchiveYearPromises.has(key)) return observedArchiveYearPromises.get(key);
       if (source === "stone-harbor") await ensureObserved15MinuteArchive();
-      const promise = fetchJson(getObservedArchiveShardUrl(source, year))
+      const promise = fetchJson(getObservedArchiveShardUrl(source, year), { cache: "default" })
         .then(payload => {
           addArchiveShardDays(payload, source);
           observedArchiveLoadedYears.add(key);
@@ -17402,7 +17420,7 @@ function parseStoredLocalNyToDate(timeEST) {
           observedArchiveYearPromises.delete(key);
           console.warn(`Optimized ${source} ${year} archive unavailable.`, error);
           if (source === "stone-harbor") {
-            const fallback = await fetchJson(withFreshJsonUrl(OBSERVED_15MIN_URL));
+            const fallback = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
             observed15MinuteData = fallback;
             addArchiveShardDays(fallback, source);
             observedArchiveLoadedYears.add(key);
@@ -24011,6 +24029,11 @@ function formatSelectedObservedDate(dateStr) {
         });
         if (overlaps) continue;
 
+        const hasLoadedSeries = observed15MinuteDaysByDate.has(dateKey)
+          || (Array.isArray(dayRecord.timelineRawHours) && dayRecord.timelineRawHours.length > 0)
+          || (Array.isArray(dayRecord.hours) && dayRecord.hours.length > 0);
+        if (!hasLoadedSeries) continue;
+
         const canonicalSeries = buildObservedCanonicalSeries(dayRecord, dateKey);
         const daySeries = getTimelineIntervalMinutes() === 1440
           ? buildObservedDailyMaximumSeries(dateKey.slice(0, 7))
@@ -24919,7 +24942,6 @@ function formatSelectedObservedDate(dateStr) {
       observedFlatHours = [];
       topTideEvents = buildTopTideEvents();
       renderTopTides();
-      scheduleHistoricalTopTideWarmup();
 
       if (!currentMonthKey) {
         currentMonthKey =
@@ -25204,6 +25226,7 @@ function populateCalendarSelectors() {
       currentBaseModeBeforeTopTide = currentDataMode;
       currentDataMode = "observed";
       updateDataModeButtons();
+      if (!observedData) await warmBackgroundData();
 
       let event = topTideEvents[index];
       const requestedDate = event.dateKey || event.entry?.observedDate || null;
@@ -25269,6 +25292,7 @@ function populateCalendarSelectors() {
       await renderCalendar();
       await renderHour(currentHourIndex);
       renderTopTides();
+      scheduleHistoricalTopTideWarmup();
     }
 
     async function setTimelineIntervalMinutes(minutes) {
@@ -25376,12 +25400,12 @@ function populateCalendarSelectors() {
       currentDataMode = "observed";
       updateDataModeButtons();
       await warmBackgroundData();
-      await loadObserved();
       await renderCalendar();
 
       const defaultDate = (currentViewType === "top-tide" ? null : selectedObservedDate) || getLatestObservedDate();
       if (defaultDate) {
         await loadObservedDay(defaultDate);
+        scheduleHistoricalTopTideWarmup();
       } else {
         toast("No observed dates were found in observed.json.");
       }
@@ -25433,11 +25457,11 @@ function populateCalendarSelectors() {
     }
 
     function scheduleBackgroundDataWarmup() {
-      // Parsing the compact multi-year archive is CPU-heavy enough to freeze
-      // map navigation even when requestIdleCallback starts it. Load it when
-      // Past is selected instead of surprising the user with a 10-second
-      // post-startup stall.
-      document.body.dataset.backgroundDataWarmup = "on-demand";
+      // Download the small calendar index while the forecast is visible, but
+      // leave JSON parsing and archive construction on demand. Past can then
+      // reuse the same in-flight response without delaying map interaction.
+      document.body.dataset.backgroundDataWarmup = "index-download-only";
+      preloadObservedArchiveIndexText().catch(() => null);
     }
 
     function waitForInitialFramePaint() {
