@@ -20,7 +20,7 @@
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
   var ESRI_VECTOR_TILES = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf";
   var TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejson.json";
-  var BUILDINGS_3D_URL = new URL("./assets/3d/NorthWildwoodBuildings3D.geojson?v=20260823-nw-3d-v2", APP_BASE).href;
+  var BUILDINGS_3D_URL = new URL("./assets/3d/NorthWildwoodBuildings3D.geojson?v=20260825-nw-3d-v61", APP_BASE).href;
   var MUNICIPAL_BOUNDARY_3D_URL = new URL("./Boundaries/North Wildwood.geojson", APP_BASE).href;
 
   var glMap = null;
@@ -1226,7 +1226,7 @@
         generateId: true,
         // Tile to street scale before overscaling. The old zoom-16 buckets
         // could cull whole runs of extrusions at an oblique tile boundary.
-        // Zoom 18 keeps the complete 5,160-footprint source present without
+        // Zoom 18 keeps the complete municipal footprint source present without
         // asking the worker to rebuild geometry at the final 100 m zooms.
         maxzoom: 18,
         buffer: 256,

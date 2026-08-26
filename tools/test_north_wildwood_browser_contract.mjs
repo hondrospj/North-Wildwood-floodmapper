@@ -30,6 +30,12 @@ assert.equal(
   THREE_D_BUILDINGS.metadata.sourceVectorFootprintCount,
   "The bundled 3D asset should include every source vector footprint"
 );
+assert.ok(
+  THREE_D_BUILDINGS.features.length >= 4600,
+  "The bundled North Wildwood asset must include the complete municipal building scan"
+);
+assert.match(THREE_D_BUILDINGS.metadata.municipalityFilter, /official North Wildwood boundary/);
+assert.match(THREE_D_BUILDINGS.metadata.geometrySources, /OSM major/);
 assert.match(THREE_D_SOURCE, /buildings3dCoverage = "north-wildwood-only"/);
 assert.match(THREE_D_SOURCE, /buildings3dClippedToMunicipality = "true"/);
 assert.match(THREE_D_SOURCE, /MUNICIPAL_BOUNDARY_3D_URL = new URL\("\.\/Boundaries\/North Wildwood\.geojson"/);
@@ -48,7 +54,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v60/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v61/);
 assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
