@@ -54,7 +54,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260825-nw-3d-v61/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260826-nw-3d-v62/);
 assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
@@ -74,6 +74,12 @@ assert.match(THREE_D_SOURCE, /map3dFloodPrecision = "camera-stable-local-origin"
 assert.match(THREE_D_SOURCE, /map3dFloodDepthFunction = this\.useDepthTest/);
 assert.match(THREE_D_SOURCE, /map3dFloodGlIsolation = "maplibre-guarded-no-readback"/);
 assert.match(THREE_D_SOURCE, /map3dBuildingWaterline = "single-extrusion-depth-composite"/);
+assert.match(
+  THREE_D_SOURCE,
+  /"fill-extrusion-height": \["\*", \["to-number", \["get", "renderHeightM"\], 3\], TERRAIN_EXAGGERATION\]/,
+  "Building walls must use the same vertical exaggeration as terrain and the flat flood surface"
+);
+assert.match(THREE_D_SOURCE, /buildings3dVerticalScale = String\(TERRAIN_EXAGGERATION\)/);
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "single-extrusion-water-composite"/);
 assert.match(THREE_D_SOURCE, /FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15\.25/);
 assert.match(THREE_D_SOURCE, /BUILDING_MAX_CAMERA_ALTITUDE_METERS = 1000/);
