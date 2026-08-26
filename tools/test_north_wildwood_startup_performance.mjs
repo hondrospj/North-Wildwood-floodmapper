@@ -61,6 +61,8 @@ assert.doesNotMatch(observedSwitch, /await warmBackgroundData\(\);\s*await loadO
 
 const topTideLoader = extractFunction("loadTopTideEvent");
 assert.match(topTideLoader, /if \(!observedData\) await warmBackgroundData\(\)/);
+assert.match(topTideLoader, /archiveSource === "lewes"\) await ensureLewesArchiveIndex\(\)/);
+assert.match(topTideLoader, /ensureLewesArchiveIndex\(\);[\s\S]+ensureObservedArchiveForDate\(requestedDate\)/);
 assert.match(topTideLoader, /await renderCalendar\(\);[\s\S]+scheduleHistoricalTopTideWarmup\(\)/);
 
 const modernTopTides = extractFunction("buildModernTopTideCandidates");
