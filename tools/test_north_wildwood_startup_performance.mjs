@@ -34,9 +34,38 @@ assert.match(extractFunction("downloadCurrentSelection"), /await ensureExportLib
 assert.match(extractFunction("getDepthQueryImage"), /await ensureDepthQueryLibrary\(\)/);
 
 const backgroundWarmup = extractFunction("scheduleBackgroundDataWarmup");
-assert.match(backgroundWarmup, /backgroundDataWarmup = "on-demand"/);
+assert.match(backgroundWarmup, /backgroundDataWarmup = "index-download-only"/);
+assert.match(backgroundWarmup, /preloadObservedArchiveIndexText\(\)/);
 assert.doesNotMatch(backgroundWarmup, /warmBackgroundData\(\)/);
 assert.doesNotMatch(extractFunction("warmBackgroundData"), /TOP_TIDES_URL/);
+
+const observedIndexPreload = extractFunction("preloadObservedArchiveIndexText");
+assert.match(observedIndexPreload, /cache: "default"/);
+assert.match(observedIndexPreload, /response\.text\(\)/);
+assert.doesNotMatch(observedIndexPreload, /response\.json\(\)|JSON\.parse/);
+
+for (const archiveLoader of [
+  "ensureObserved15MinuteArchive",
+  "ensureLewesHourlyArchive",
+  "ensureLewesArchiveIndex",
+  "ensureObservedArchiveYear",
+]) {
+  const loader = extractFunction(archiveLoader);
+  assert.match(loader, /cache: "default"/, `${archiveLoader} must reuse the historical browser cache`);
+  assert.doesNotMatch(loader, /withFreshJsonUrl/, `${archiveLoader} must not bypass the historical browser cache`);
+}
+
+const observedSwitch = extractFunction("switchDataMode");
+assert.match(observedSwitch, /await warmBackgroundData\(\);[\s\S]+await renderCalendar\(\)/);
+assert.doesNotMatch(observedSwitch, /await warmBackgroundData\(\);\s*await loadObserved\(\)/);
+
+const topTideLoader = extractFunction("loadTopTideEvent");
+assert.match(topTideLoader, /if \(!observedData\) await warmBackgroundData\(\)/);
+assert.match(topTideLoader, /await renderCalendar\(\);[\s\S]+scheduleHistoricalTopTideWarmup\(\)/);
+
+const modernTopTides = extractFunction("buildModernTopTideCandidates");
+assert.match(modernTopTides, /const hasLoadedSeries = observed15MinuteDaysByDate\.has\(dateKey\)/);
+assert.match(modernTopTides, /if \(!hasLoadedSeries\) continue;[\s\S]+buildObservedCanonicalSeries/);
 
 const historicalTideLoader = extractFunction("loadHistoricalTopTides");
 assert.match(historicalTideLoader, /fetchJson\(TOP_TIDES_URL, \{ cache: "default" \}\)/);
