@@ -14655,8 +14655,10 @@ html.win-compact-ui #timelineDock #hourSlider{
     @keyframes nwAppFadeIn{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:none}}
     @media (prefers-reduced-motion:reduce){#nwSiteLoader::before,#nwSiteLoader::after,.nw-loader-spinner,.nw-loader-spinner::before{animation-duration:1ms;animation-iteration-count:1}body.nw-app-ready #app,body.nw-app-ready #topBanner{animation:none}}
   </style>
+  <link rel="stylesheet" href="./assets/map-status.css" />
 </head>
 <body class="nw-app-loading">
+  <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
   <div id="nwSiteLoader" role="status" aria-live="polite" aria-label="Loading North Wildwood Flood Mapper">
     <div class="nw-loader-card">
       <div class="nw-loader-spinner" aria-hidden="true"></div>
@@ -15190,6 +15192,7 @@ html.win-compact-ui #timelineDock #hourSlider{
         <div>
           <h2 id="floodHistoryTitle">Flood History &amp; Projections</h2>
           <p id="floodHistoryAddress">Selected North Wildwood parcel</p>
+          <p id="floodHistoryProvenance" role="status"></p>
         </div>
         <button id="floodHistoryCloseBtn" class="flood-history-close centered-close-control" type="button" aria-label="Close flood history and projections">×</button>
       </header>
@@ -16260,6 +16263,13 @@ function cloneStyleObject(value) {
     let playbackPausedForConfirmation = false;
     let overlayOpacity = DEFAULT_OPACITY;
     let lastRenderToken = 0;
+    let selectionGeneration = 0;
+    let archiveGeneration = 0;
+    let floodFrameState = "unavailable";
+    let currentSelectionQualityNote = "";
+    let nwsAlertRefreshTimer = null;
+    let nwsAlertPromise = null;
+    let lastSuccessfulNwsAlerts = null;
     let imageExistsCache = new Map();
     let overlayRecordCache = new Map();
     let preloadPromiseCache = new Map();
@@ -16323,15 +16333,21 @@ function cloneStyleObject(value) {
     }
 
     async function fetchJson(url, options = {}) {
-      const response = await fetch(url, {
-        cache: "no-store",
-        headers: { "Accept": "application/geo+json, application/json" },
-        ...options
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} for ${url}`);
+      const { timeoutMs = 30000, ...requestOptions } = options;
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, {
+          cache: "no-store",
+          headers: { "Accept": "application/geo+json, application/json" },
+          signal: controller.signal,
+          ...requestOptions
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+        return await response.json();
+      } finally {
+        window.clearTimeout(timer);
       }
-      return response.json();
     }
 
     function setOpacityText() {
@@ -16347,13 +16363,16 @@ function cloneStyleObject(value) {
     }
 
     function normalizeStageValue(value) {
+      if (value == null || typeof value === "boolean" ||
+          (typeof value !== "number" && typeof value !== "string") ||
+          (typeof value === "string" && !value.trim())) return null;
       const n = Number(value);
       if (!Number.isFinite(n)) return null;
       return n;
     }
 
     function convertStageForDisplay(value) {
-      const n = Number(value);
+      const n = normalizeStageValue(value);
       if (!Number.isFinite(n)) return null;
       return n + (DATUM_OFFSETS[currentDatum] || 0);
     }
@@ -16554,8 +16573,11 @@ function cloneStyleObject(value) {
     }
 
     async function loadReturnInterval(preferredEntry = null, options = {}) {
+      const generation = options.generation ?? ++selectionGeneration;
       if (!returnIntervalData || options.forceRefresh) {
-        returnIntervalData = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
+        const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
+        if (generation !== selectionGeneration) return;
+        returnIntervalData = payload;
       }
       const record = getReturnIntervalRecord();
       if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {
@@ -17043,6 +17065,9 @@ function parseStoredLocalNyToDate(timeEST) {
         value: stage,
         sourceResolutionMinutes: options.sourceResolutionMinutes ?? detectSeriesResolutionMinutes(options.sourceEntries || []),
         isInterpolatedTimelineFrame: true,
+        isMeasuredQuarterHourArchive: false,
+        observationQuality: "interpolated",
+        interpolationSpanSeconds: (afterItem.t - beforeItem.t) / 1000,
         interpolationStartUtc: new Date(beforeItem.t).toISOString(),
         interpolationEndUtc: new Date(afterItem.t).toISOString()
       }, slotMs, intervalMinutes, options);
@@ -17272,7 +17297,7 @@ function parseStoredLocalNyToDate(timeEST) {
 
     function preloadObservedArchiveIndexText() {
       if (observedArchiveIndexTextPromise) return observedArchiveIndexTextPromise;
-      observedArchiveIndexTextPromise = fetch(OBSERVED_ARCHIVE_INDEX_URL, {
+      const request = fetch(OBSERVED_ARCHIVE_INDEX_URL, {
         cache: "default",
         headers: { "Accept": "application/geo+json, application/json" }
       })
@@ -17281,20 +17306,25 @@ function parseStoredLocalNyToDate(timeEST) {
           return response.text();
         })
         .catch(error => {
-          observedArchiveIndexTextPromise = null;
+          if (observedArchiveIndexTextPromise === request) observedArchiveIndexTextPromise = null;
           throw error;
         });
-      return observedArchiveIndexTextPromise;
+      observedArchiveIndexTextPromise = request;
+      return request;
     }
 
     async function ensureObserved15MinuteArchive() {
+      const generation = archiveGeneration;
+      let payload;
       if (observed15MinuteData) return observed15MinuteData;
       try {
-        observed15MinuteData = JSON.parse(await preloadObservedArchiveIndexText());
+        payload = JSON.parse(await preloadObservedArchiveIndexText());
       } catch (indexError) {
         console.warn("Optimized observed archive index unavailable; using the compact archive.", indexError);
-        observed15MinuteData = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
+        payload = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
       }
+      if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+      observed15MinuteData = payload;
       observed15MinuteDaysByDate = new Map(
         (observed15MinuteData?.days || [])
           .filter(day => Array.isArray(day?.v))
@@ -17305,7 +17335,10 @@ function parseStoredLocalNyToDate(timeEST) {
 
     async function ensureLewesHourlyArchive() {
       if (lewesHourlyData && Array.isArray(lewesHourlyData.days)) return lewesHourlyData;
-      lewesHourlyData = await fetchJson(LEWES_HOURLY_URL, { cache: "default" });
+      const generation = archiveGeneration;
+      const payload = await fetchJson(LEWES_HOURLY_URL, { cache: "default" });
+      if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+      lewesHourlyData = payload;
       return lewesHourlyData;
     }
 
@@ -17405,28 +17438,34 @@ function parseStoredLocalNyToDate(timeEST) {
     }
 
     async function ensureObservedArchiveYear(source, year) {
+      const generation = archiveGeneration;
       const key = `${source}:${year}`;
       if (observedArchiveLoadedYears.has(key)) return true;
       if (observedArchiveYearPromises.has(key)) return observedArchiveYearPromises.get(key);
       if (source === "stone-harbor") await ensureObserved15MinuteArchive();
+      if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
       const promise = fetchJson(getObservedArchiveShardUrl(source, year), { cache: "default" })
         .then(payload => {
+          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
           addArchiveShardDays(payload, source);
           observedArchiveLoadedYears.add(key);
           observedArchiveYearPromises.delete(key);
           return true;
         })
         .catch(async error => {
+          if (generation !== archiveGeneration) throw error;
           observedArchiveYearPromises.delete(key);
           console.warn(`Optimized ${source} ${year} archive unavailable.`, error);
           if (source === "stone-harbor") {
             const fallback = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
+            if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
             observed15MinuteData = fallback;
             addArchiveShardDays(fallback, source);
             observedArchiveLoadedYears.add(key);
             return true;
           }
           const fallback = await ensureLewesHourlyArchive();
+          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
           addArchiveShardDays(fallback, source);
           observedArchiveLoadedYears.add(key);
           return true;
@@ -17490,7 +17529,11 @@ function parseStoredLocalNyToDate(timeEST) {
         return setTimelineSlotFields({
           navd88StageFt: stage, stageFt: stage, value: stage,
           sourceResolutionMinutes: Number(observed15MinuteData?.sourceResolutionMinutes) || 6,
-          isMeasuredQuarterHourArchive: true,
+          sourceStationId: (day.s || "")[index] === "N" ? "1005" : "01411360",
+          observationQuality: (day.q || "")[index] || "unknown",
+          isMeasuredQuarterHourArchive: (day.q || "")[index] === "M",
+          isInterpolatedTimelineFrame: (day.q || "")[index] === "I",
+          interpolationSpanSeconds: Array.isArray(day.g) ? day.g[index] : null,
           isMissingObservedHour: !Number.isFinite(stage)
         }, timeMs, 15, { observedDate: day.d });
       });
@@ -17512,7 +17555,7 @@ function parseStoredLocalNyToDate(timeEST) {
         endMs: end ? end.getTime() : null,
         sourceResolutionMinutes,
         fillMissingSlots: true,
-        maxGapMinutes: GAUGE_OUTAGE_THRESHOLD_HOURS * 60
+        maxGapMinutes: 30
       });
 
       return annotateHydraulicSeries(series.map((entry, idx) => ({
@@ -17837,7 +17880,7 @@ function setDatumHelpOpen(isOpen) {
     }
 
     function getOverlayStage(value) {
-      const n = Number(value);
+      const n = normalizeStageValue(value);
       if (!Number.isFinite(n)) return null;
       const minimum = MIN_DEPTH_STAGE;
       const clamped = Math.max(minimum, Math.min(MAX_STAGE, n));
@@ -18175,10 +18218,12 @@ function setDatumHelpOpen(isOpen) {
         const img = new Image();
         let settled = false;
         let cancelTimer = null;
+        let timeoutTimer = null;
         const done = value => {
           if (settled) return;
           settled = true;
           if (cancelTimer) window.clearInterval(cancelTimer);
+          if (timeoutTimer) window.clearTimeout(timeoutTimer);
           resolve(value);
         };
         const cancelIfRequested = () => {
@@ -18194,12 +18239,15 @@ function setDatumHelpOpen(isOpen) {
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
         img.onload = () => done({ ok: true });
         img.onerror = () => done({ ok: false });
+        timeoutTimer = window.setTimeout(() => done({ ok: false }), 20000);
         img.src = url;
       });
       imageExistsCache.set(url, request);
       const result = await request;
-      if (result.cancelled) imageExistsCache.delete(url);
-      else imageExistsCache.set(url, result);
+      if (imageExistsCache.get(url) === request) {
+        if (!result.ok) imageExistsCache.delete(url);
+        else imageExistsCache.set(url, result);
+      }
       return result;
     }
 
@@ -18211,10 +18259,12 @@ function setDatumHelpOpen(isOpen) {
         const img = new Image();
         let settled = false;
         let cancelTimer = null;
+        let timeoutTimer = null;
         const done = value => {
           if (settled) return;
           settled = true;
           if (cancelTimer) window.clearInterval(cancelTimer);
+          if (timeoutTimer) window.clearTimeout(timeoutTimer);
           resolve(value);
         };
         const cancelIfRequested = () => {
@@ -18232,10 +18282,14 @@ function setDatumHelpOpen(isOpen) {
         img.fetchPriority = priority === "high" ? "high" : "low";
         img.onload = () => done(url);
         img.onerror = () => done(null);
+        timeoutTimer = window.setTimeout(() => done(null), 20000);
         img.src = url;
       });
 
       preloadPromiseCache.set(url, promise);
+      promise.then(result => {
+        if (!result && preloadPromiseCache.get(url) === promise) preloadPromiseCache.delete(url);
+      });
       return promise;
     }
 
@@ -18247,10 +18301,12 @@ function setDatumHelpOpen(isOpen) {
         const img = new Image();
         let settled = false;
         let cancelTimer = null;
+        let timeoutTimer = null;
         const done = value => {
           if (settled) return;
           settled = true;
           if (cancelTimer) window.clearInterval(cancelTimer);
+          if (timeoutTimer) window.clearTimeout(timeoutTimer);
           resolve(value);
         };
         const cancelIfRequested = () => {
@@ -18270,9 +18326,13 @@ function setDatumHelpOpen(isOpen) {
         img.crossOrigin = "anonymous";
         img.onload = () => done(img);
         img.onerror = () => done(null);
+        timeoutTimer = window.setTimeout(() => done(null), 20000);
         img.src = url;
       });
       exportImageElementCache.set(url, promise);
+      promise.then(result => {
+        if (!result && exportImageElementCache.get(url) === promise) exportImageElementCache.delete(url);
+      });
       return promise;
     }
 
@@ -18300,10 +18360,13 @@ function setDatumHelpOpen(isOpen) {
       try {
         const match = await request;
         throwIfExportCancelled();
-        overlayRecordCache.set(key, match);
+        if (overlayRecordCache.get(key) === request) {
+          if (match) overlayRecordCache.set(key, match);
+          else overlayRecordCache.delete(key);
+        }
         return match;
       } catch (error) {
-        overlayRecordCache.delete(key);
+        if (overlayRecordCache.get(key) === request) overlayRecordCache.delete(key);
         throw error;
       }
     }
@@ -18400,7 +18463,8 @@ function setDatumHelpOpen(isOpen) {
       const developed = isDevelopedRasterPixel(developedPixels, offset);
       const adjustedStageFt = stageFt - (developed ? getVerticalBathtubPenalty(stageFt) : 0);
       if (groundFt > adjustedStageFt + 1e-9) return null;
-      return Math.max(0.005, stageFt - groundFt);
+      // Use the same local water surface as the query and catalog depth model.
+      return Math.max(0.005, adjustedStageFt - groundFt);
     }
 
     function buildFillingTransitionQueue(
@@ -23164,6 +23228,10 @@ function getUniqueExportStages(frameItems) {
 
     async function downloadCurrentSelection() {
       if (exportInProgress) return;
+      if (getDownloadScopeValue() === "current" && floodFrameState !== "ready") {
+        setDownloadStatus("Wait for a valid flood map before exporting this selection.", true);
+        return;
+      }
       syncDownloadRangeInputs(false);
       const format = getDownloadFormatValue();
       const validation = validateDownloadRangeForExport();
@@ -23243,15 +23311,25 @@ function getUniqueExportStages(frameItems) {
       }
     }
 
+    function setFloodFrameStatus(message, state = "info") {
+      const status = document.getElementById("floodFrameStatus");
+      if (!status) return;
+      const timeline = document.getElementById("timelineDock");
+      const top = timeline?.getBoundingClientRect().top;
+      if (Number.isFinite(top)) status.style.setProperty("--flood-status-bottom", `${Math.max(24, window.innerHeight - top + 70)}px`);
+      status.textContent = message;
+      status.dataset.state = state;
+      status.hidden = !message;
+    }
+
     function clearFloodLayer() {
-      if (pendingFloodLayer && map && map.hasLayer(pendingFloodLayer)) {
-        map.removeLayer(pendingFloodLayer);
-        pendingFloodLayer = null;
-      }
-      if (currentFloodLayer && map) {
-        map.removeLayer(currentFloodLayer);
-        currentFloodLayer = null;
-      }
+      floodFrameState = "unavailable";
+      document.body.dataset.floodFrame = floodFrameState;
+      renderedFloodPixelCache = null;
+      if (pendingFloodLayer && map?.hasLayer(pendingFloodLayer)) map.removeLayer(pendingFloodLayer);
+      if (currentFloodLayer && map?.hasLayer(currentFloodLayer)) map.removeLayer(currentFloodLayer);
+      pendingFloodLayer = null;
+      currentFloodLayer = null;
     }
 
     function applyOverlayOpacity() {
@@ -24418,6 +24496,7 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     function renderSelectionMeta(entry, rawStage, displayStage) {
+      currentSelectionQualityNote = "";
       document.getElementById("timeText").textContent = formatSnapshotTime(entry);
       if (entry?.isMissingObservedHour || !Number.isFinite(rawStage)) {
         const gaugeInoperable = currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours);
@@ -24436,7 +24515,12 @@ function formatSelectedObservedDate(dateStr) {
               : entry?.observationInterval === "crest"
                 ? `USGS crest • ${getDatumLabel()}`
                 : `${classifyFloodStage(rawStage) === "none" ? "No flooding" : `${classifyFloodStage(rawStage).charAt(0).toUpperCase() + classifyFloodStage(rawStage).slice(1)} flooding`} • ${getDatumLabel()}`;
-        document.getElementById("stageSubText").textContent = stageSub;
+        const stationNote = entry?.sourceStationId === "01411360" && currentDataMode === "observed" ? "Stone Harbor fallback" : "";
+        const qualityNote = entry?.observationQuality === "I" || entry?.isInterpolatedTimelineFrame
+          ? "Interpolated" : entry?.observationQuality === "U" || entry?.observationQuality === "unknown"
+            ? "Sampling quality not recorded" : entry?.observationQuality === "C" ? "Calibrated storm replay" : "";
+        currentSelectionQualityNote = [stationNote, qualityNote].filter(Boolean).join(" • ");
+        document.getElementById("stageSubText").textContent = [stageSub, currentSelectionQualityNote].filter(Boolean).join(" • ");
       }
       updateSnapshotWaterLevelSeverity(rawStage);
       document.getElementById("selectedText").textContent = currentSelectedLabel;
@@ -24459,18 +24543,25 @@ function formatSelectedObservedDate(dateStr) {
 
       if (!match) {
         toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
+        clearFloodLayer();
         markInitialFloodFrameFailed();
         return;
       }
 
       const overlayUrl = match.url;
-      await preloadImage(overlayUrl);
+      const loaded = await preloadImage(overlayUrl);
       if (token !== lastRenderToken) return;
+      if (!loaded) {
+        clearFloodLayer();
+        markInitialFloodFrameFailed();
+        return false;
+      }
 
       try {
         await ensureOverlayBounds(overlayUrl);
       } catch (err) {
         toast(err.message);
+        clearFloodLayer();
         markInitialFloodFrameFailed();
         return;
       }
@@ -24498,7 +24589,7 @@ function formatSelectedObservedDate(dateStr) {
       );
 
       pendingFloodLayer = nextLayer;
-      await new Promise(resolve => {
+      return await new Promise(resolve => {
         nextLayer.once("load", () => {
           if (token !== lastRenderToken) {
             if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
@@ -24508,6 +24599,8 @@ function formatSelectedObservedDate(dateStr) {
 
           nextLayer.setOpacity(overlayOpacity);
           currentFloodLayer = nextLayer;
+          floodFrameState = "ready";
+          document.body.dataset.floodFrame = "ready";
           pendingFloodLayer = null;
 
           if (previousLayer && map.hasLayer(previousLayer)) {
@@ -24533,6 +24626,7 @@ function formatSelectedObservedDate(dateStr) {
             if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
             pendingFloodLayer = null;
             toast(`Leaflet could not draw ${match.filename}.`);
+            clearFloodLayer();
             markInitialFloodFrameFailed();
           }
           resolve(false);
@@ -24548,11 +24642,17 @@ function formatSelectedObservedDate(dateStr) {
       const overlayUrl = getPhysicsDisplayRecord(asset)?.url;
       const bounds = getActivePhysicsManifest()?.boundsWgs84;
       if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
+        clearFloodLayer();
         markInitialFloodFrameFailed();
         throw new Error("The selected physics frame is incomplete.");
       }
-      await preloadImage(overlayUrl);
+      const loaded = await preloadImage(overlayUrl);
       if (token !== lastRenderToken) return;
+      if (!loaded) {
+        clearFloodLayer();
+        markInitialFloodFrameFailed();
+        return false;
+      }
       floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
       floodOverlayGeometryMode = "axis-aligned";
 
@@ -24569,7 +24669,7 @@ function formatSelectedObservedDate(dateStr) {
         pane: "floodPane"
       });
       pendingFloodLayer = nextLayer;
-      await new Promise(resolve => {
+      return await new Promise(resolve => {
         nextLayer.once("load", () => {
           if (token !== lastRenderToken) {
             if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
@@ -24578,6 +24678,8 @@ function formatSelectedObservedDate(dateStr) {
           }
           nextLayer.setOpacity(overlayOpacity);
           currentFloodLayer = nextLayer;
+          floodFrameState = "ready";
+          document.body.dataset.floodFrame = "ready";
           pendingFloodLayer = null;
           renderedFloodPixelCache = null;
           if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
@@ -24596,6 +24698,7 @@ function formatSelectedObservedDate(dateStr) {
             if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
             pendingFloodLayer = null;
             toast("The current physics frame could not be drawn.");
+            clearFloodLayer();
             markInitialFloodFrameFailed();
           }
           resolve(false);
@@ -24611,6 +24714,11 @@ function formatSelectedObservedDate(dateStr) {
       if (!entry) return;
 
       currentHourIndex = index;
+      const token = ++lastRenderToken;
+      clearFloodLayer();
+      floodFrameState = "loading";
+      setFloodFrameStatus("Loading flood map…", "loading");
+      document.body.dataset.floodFrame = floodFrameState;
 
       const rawStage = getStageValue(entry);
       const displayStage = getOverlayStage(rawStage);
@@ -24631,6 +24739,7 @@ function formatSelectedObservedDate(dateStr) {
           : "No observed record for this time.");
         ++lastRenderToken;
         clearFloodLayer();
+        setFloodFrameStatus("Water-level data are unavailable for this time.", "error");
         return;
       }
 
@@ -24657,9 +24766,28 @@ function formatSelectedObservedDate(dateStr) {
         : buildNotes(rawStage, displayStage);
       toast(note);
 
-      const token = ++lastRenderToken;
-      if (physicsAsset) await setPhysicsFloodLayer(physicsAsset, token);
-      else await setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours);
+      try {
+        const ready = physicsAsset
+          ? await setPhysicsFloodLayer(physicsAsset, token)
+          : await setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours);
+        if (token !== lastRenderToken) return;
+        if (!ready) {
+          clearFloodLayer();
+          floodFrameState = "failed";
+          document.getElementById("stageSubText").textContent = "Flood map unavailable for this selection. Retry with Reload.";
+        }
+      } catch (error) {
+        if (token !== lastRenderToken) return;
+        clearFloodLayer();
+        floodFrameState = "failed";
+        document.getElementById("stageSubText").textContent = "Flood map unavailable for this selection. Retry with Reload.";
+        toast(error.message);
+        markInitialFloodFrameFailed();
+      }
+      document.body.dataset.floodFrame = floodFrameState;
+      if (floodFrameState !== "ready") toast("");
+      setFloodFrameStatus(floodFrameState === "ready" ? currentSelectionQualityNote
+        : "Flood map unavailable for this selection. Retry with Reload.", floodFrameState === "ready" ? "info" : "error");
       if (initialFramePending) scheduleOverlayCatalogWarmup(index);
       else preloadAroundHour(index);
     }
@@ -24682,8 +24810,11 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     async function loadForecast(preferredEntry = null, options = {}) {
+      const generation = options.generation ?? ++selectionGeneration;
       if (!forecastData || options.forceRefresh) {
-        forecastData = await fetchJson(withFreshJsonUrl(FORECAST_URL));
+        const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL));
+        if (generation !== selectionGeneration) return;
+        forecastData = payload;
       }
       if (!options.deferPhysicsCatalog && (!Object.keys(physicsForecastManifests).length || options.forceRefresh)) {
         await loadPhysicsForecast(Boolean(options.forceRefresh)).catch(error => {
@@ -24691,6 +24822,7 @@ function formatSelectedObservedDate(dateStr) {
           physicsForecastManifests = {};
         });
       }
+      if (generation !== selectionGeneration) return;
       clearExportAvailabilityCache();
       const physicsSeries = getPhysicsForecastDisplaySeries();
       if (physicsSeries) {
@@ -25160,7 +25292,9 @@ function populateCalendarSelectors() {
     }
 
     async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
+      const generation = ++selectionGeneration;
       await ensureObservedArchiveForDate(dateStr);
+      if (generation !== selectionGeneration) return;
       const dayRecord = getObservedDayRecord(dateStr);
       if (!dayRecord) throw new Error(`Observed day not found: ${dateStr}`);
 
@@ -25204,11 +25338,13 @@ function populateCalendarSelectors() {
       document.getElementById("hourSlider").value = String(currentHourIndex);
 
       await renderCalendar();
+      if (generation !== selectionGeneration) return;
       await renderHour(currentHourIndex);
       renderTopTides();
     }
 
     async function loadTopTideEvent(index, preferredEntry = null) {
+      const generation = ++selectionGeneration;
       if (!topTideEvents[index]) throw new Error("Top 10 flood crest not available.");
       stopPlayback();
 
@@ -25217,6 +25353,7 @@ function populateCalendarSelectors() {
       updateDataModeButtons();
       if (!observedData) await warmBackgroundData();
 
+      if (generation !== selectionGeneration) return;
       let event = topTideEvents[index];
       const requestedDate = event.dateKey || event.entry?.observedDate || null;
       if (requestedDate) {
@@ -25227,6 +25364,7 @@ function populateCalendarSelectors() {
         // leaving the first replay stuck at "Maximum extent" until the user
         // changes the timeline interval.
         if (archiveSource === "lewes") await ensureLewesArchiveIndex();
+        if (generation !== selectionGeneration) return;
         const crestStage = getOverlayStage(event.peakStage);
         const crestAssetPromise = crestStage == null
           ? Promise.resolve(null)
@@ -25237,6 +25375,7 @@ function populateCalendarSelectors() {
           ensureObservedArchiveForDate(requestedDate),
           crestAssetPromise,
         ]);
+        if (generation !== selectionGeneration) return;
         topTideEvents = buildTopTideEvents();
         event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;
       }
@@ -25370,13 +25509,17 @@ function populateCalendarSelectors() {
 
     async function switchDataMode(mode) {
       if (mode === currentDataMode && currentViewType !== "top-tide") return;
+      const generation = ++selectionGeneration;
+      ++lastRenderToken;
+      clearFloodLayer();
       stopPlayback();
       toast("");
 
       if (mode === "forecast") {
         currentDataMode = "forecast";
         updateDataModeButtons();
-        await loadForecast();
+        await loadForecast(null, { generation });
+        if (generation !== selectionGeneration) return;
         renderTopTides();
         await renderHour(currentHourIndex);
         return;
@@ -25387,7 +25530,8 @@ function populateCalendarSelectors() {
         currentViewType = "return-interval";
         updateDataModeButtons();
         clearFloodLayer();
-        await loadReturnInterval();
+        await loadReturnInterval(null, { generation });
+        if (generation !== selectionGeneration) return;
         renderTopTides();
         await renderHour(currentHourIndex);
         return;
@@ -25396,7 +25540,9 @@ function populateCalendarSelectors() {
       currentDataMode = "observed";
       updateDataModeButtons();
       await warmBackgroundData();
+      if (generation !== selectionGeneration) return;
       await renderCalendar();
+      if (generation !== selectionGeneration) return;
 
       const defaultDate = (currentViewType === "top-tide" ? null : selectedObservedDate) || getLatestObservedDate();
       if (defaultDate) {
@@ -25409,8 +25555,10 @@ function populateCalendarSelectors() {
 
     async function warmBackgroundData() {
       if (backgroundDataPromise) return backgroundDataPromise;
+      const generation = archiveGeneration;
       backgroundDataPromise = (async () => {
         const observedCompact = await ensureObserved15MinuteArchive().catch(() => null);
+        if (generation !== archiveGeneration) return null;
         observed15MinuteData = observedCompact;
         observed15MinuteDaysByDate = new Map(
           (observedCompact?.days || [])
@@ -25429,10 +25577,9 @@ function populateCalendarSelectors() {
           topTideEvents = buildTopTideEvents();
           renderTopTides();
         }
-        checkNwsAlerts().catch(() => {});
         return observedData;
       })().catch(error => {
-        backgroundDataPromise = null;
+        if (generation === archiveGeneration) backgroundDataPromise = null;
         console.warn("Background flood history loading will retry when requested.", error);
         return null;
       });
@@ -25493,10 +25640,19 @@ function populateCalendarSelectors() {
     }
 
     async function reloadAll() {
+      const generation = ++selectionGeneration;
+      checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
+      ++archiveGeneration;
+      ++lastRenderToken;
       stopPlayback();
       clearFloodLayer();
       toast("");
       imageExistsCache = new Map();
+      overlayRecordCache = new Map();
+      preloadPromiseCache = new Map();
+      exportImageElementCache = new Map();
+      houseAlertCdfData = null;
+      houseAlertCdfPromise = null;
       physicsForecastManifests = {};
       physicsQueryImageCache = new Map();
       bathtubStageOverlayCache.forEach(record => {
@@ -25506,6 +25662,7 @@ function populateCalendarSelectors() {
       forecastData = null;
       returnIntervalData = null;
       observed15MinuteData = null;
+      observedArchiveIndexTextPromise = null;
       observed15MinuteDaysByDate = new Map();
       lewesHourlyData = null;
       lewesArchiveIndexData = null;
@@ -25529,7 +25686,8 @@ function populateCalendarSelectors() {
       currentViewType = "forecast";
       updateDataModeButtons();
       renderTopTides();
-      await loadForecast(null, { selectCurrent: true, forceRefresh: true, deferPhysicsCatalog: true });
+      await loadForecast(null, { selectCurrent: true, forceRefresh: true, deferPhysicsCatalog: true, generation });
+      if (generation !== selectionGeneration) return;
       try {
         await renderHour(currentHourIndex);
       } finally {
@@ -25708,51 +25866,59 @@ function startPlayback() {
     }
 
     async function checkNwsAlerts() {
-      try {
+      if (nwsAlertPromise) return nwsAlertPromise;
+      nwsAlertPromise = (async () => {
         const zoneCodes = new Set((TOWN_CONFIG?.alerts?.zoneCodes || []).filter(Boolean).map(String));
+        let incomplete = false;
         if (NWS_POINT_URL) {
-          const point = await fetchJson(NWS_POINT_URL);
-          [
-            point?.properties?.forecastZone,
-            point?.properties?.county,
-            point?.properties?.fireWeatherZone
-          ].forEach(url => {
-            const code = String(url || "").split("/").pop();
-            if (code) zoneCodes.add(code);
-          });
-        }
-        if (!zoneCodes.size) return setBanner(false);
-
-        const allFeatures = [];
-        for (const zoneCode of zoneCodes) {
           try {
-            const alerts = await fetchJson(`https://api.weather.gov/alerts/active?zone=${encodeURIComponent(zoneCode)}`);
-            const features = Array.isArray(alerts?.features) ? alerts.features : [];
-            features.forEach(feature => allFeatures.push(feature));
-          } catch (err) {}
+            const point = await fetchJson(NWS_POINT_URL, { timeoutMs: 15000 });
+            [point?.properties?.forecastZone, point?.properties?.county].forEach(url => {
+              const code = String(url || "").split("/").pop();
+              if (code) zoneCodes.add(code);
+            });
+          } catch (error) { incomplete = true; }
         }
-
+        const allFeatures = [];
+        await Promise.all(Array.from(zoneCodes, async zoneCode => {
+          try {
+            const alerts = await fetchJson(`https://api.weather.gov/alerts/active?zone=${encodeURIComponent(zoneCode)}`,
+              { timeoutMs: 15000 });
+            if (!Array.isArray(alerts?.features)) throw new Error("Invalid alert response");
+            allFeatures.push(...alerts.features);
+          } catch (error) { incomplete = true; }
+        }));
         const seen = new Set();
         const floodAlerts = allFeatures.filter(feature => {
           const id = String(feature?.id || feature?.properties?.id || "");
           if (id && seen.has(id)) return false;
           if (id) seen.add(id);
-          const event = String(feature?.properties?.event || "").toLowerCase();
-          return /(coastal flood|storm surge|lakeshore flood|flood warning|flood watch|flood advisory)/.test(event);
+          return /(coastal flood|storm surge|lakeshore flood|flood warning|flood watch|flood advisory)/i.test(feature?.properties?.event || "");
         });
+        const unavailable = incomplete || !zoneCodes.size;
+        if (!unavailable) lastSuccessfulNwsAlerts = { features: floodAlerts, checkedAt: new Date().toISOString() };
+        const shown = floodAlerts.length ? floodAlerts : unavailable ? (lastSuccessfulNwsAlerts?.features || []) : [];
+        const state = unavailable ? (lastSuccessfulNwsAlerts ? "stale" : "unavailable") : shown.length ? "active" : "none";
+        document.body.dataset.nwsAlertState = state;
+        const primary = shown[0]?.properties || {};
+        const checked = lastSuccessfulNwsAlerts?.checkedAt;
+        const meta = unavailable
+          ? `Alert updates unavailable${checked ? "; last checked " + formatLocalBannerTime(checked) : ". Please check weather.gov"}`
+          : [primary.severity, primary.expires ? `Until ${formatLocalBannerTime(primary.expires)}` : ""].filter(Boolean).join(" • ");
+        setBanner(unavailable || shown.length > 0, primary.event || (unavailable ? "Flood alert status unavailable" : "No active flood alerts"), meta, shown.length);
+        const countLabel = document.getElementById("bannerCount");
+        if (unavailable && countLabel) countLabel.textContent = shown.length ? `${shown.length} last reported` : "Status unknown";
+        return state;
+      })().finally(() => { nwsAlertPromise = null; });
+      return nwsAlertPromise;
+    }
 
-        if (!floodAlerts.length) {
-          setBanner(false);
-          return;
-        }
-
-        const primary = floodAlerts[0]?.properties || {};
-        const title = primary.event || "Flood alert";
-        const meta = [primary.severity, primary.expires ? `Until ${formatLocalBannerTime(primary.expires)}` : ""].filter(Boolean).join(" • ");
-        setBanner(true, title, meta, floodAlerts.length);
-      } catch (err) {
-        setBanner(false);
-      }
+    function startNwsAlertRefresh() {
+      if (nwsAlertRefreshTimer !== null) window.clearInterval(nwsAlertRefreshTimer);
+      checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
+      nwsAlertRefreshTimer = window.setInterval(() => {
+        checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
+      }, 5 * 60 * 1000);
     }
 
     function formatExpectedFloodCount(value) {
@@ -26039,6 +26205,8 @@ function startPlayback() {
       const address = document.getElementById("floodHistoryAddress");
       if (!backdrop || !body) return;
       address.textContent = feature?.properties?.address || "Selected North Wildwood parcel";
+      const provenance = document.getElementById("floodHistoryProvenance");
+      if (provenance) provenance.textContent = "";
       body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");
@@ -26046,7 +26214,12 @@ function startPlayback() {
       document.getElementById("floodHistoryCloseBtn")?.focus();
       try {
         const data = await ensureFloodProjectionData();
-        if (selectedParcelFeature === feature && !backdrop.hidden) renderFloodHistoryProjection(feature, data);
+        if (selectedParcelFeature === feature && !backdrop.hidden) {
+          const notice = document.getElementById("floodHistoryProvenance");
+          const basis = data.site?.name || data.sources?.observed || "Archived model";
+          if (notice) notice.textContent = `Model basis: ${basis}. Observations through ${data.observedArchive?.endDate || "an unspecified date"}. Generated ${(data.generatedUtc || "unknown").slice(0, 10)}.${data.qualityPolicyVersion ? "" : " This older model predates the current observation quality review and is not recalculated from the selected tide archive."}`;
+          renderFloodHistoryProjection(feature, data);
+        }
       } catch (error) {
         body.innerHTML = `<div class="flood-history-error"><strong>This projection could not be loaded.</strong><br>${escapeTownAddressHtml(error?.message || "Please try again in a moment.")}</div>`;
       }
@@ -26070,7 +26243,7 @@ function startPlayback() {
 
     function getSelectedStageNavd88() {
       const entry = currentSeriesHours[currentHourIndex];
-      const stage = Number(getStageValue(entry));
+      const stage = normalizeStageValue(getStageValue(entry));
       return Number.isFinite(stage) ? stage : null;
     }
 
@@ -26724,7 +26897,11 @@ function startPlayback() {
           Math.abs(rgba[0] - 99) <= 3 &&
           Math.abs(rgba[1] - 212) <= 3 &&
           Math.abs(rgba[2] - 113) <= 3;
-        return { visible, green, flooded: visible && !green };
+        const depthBandIndex = currentOverlayMode === "depth" ? DRAINAGE_DEPTH_COLORS.findIndex(color =>
+          color.every((channel, index) => Math.abs(channel - rgba[index]) <= 3)) : -1;
+        const depthBandFt = depthBandIndex < 0 ? null : [depthBandIndex ? DRAINAGE_DEPTH_BREAKS_FT[depthBandIndex - 1] : 0,
+          DRAINAGE_DEPTH_BREAKS_FT[depthBandIndex] ?? Infinity];
+        return { visible, green, flooded: visible && !green, depthBandFt };
       } catch (error) {
         console.warn("Rendered flood-pixel sampling was unavailable.", error);
         renderedFloodPixelCache = null;
@@ -26734,11 +26911,13 @@ function startPlayback() {
 
     function getDepthQueryDisplayDepth(sample, stageValue, renderedFlood = null, phase = "slack") {
       if (!sample) return null;
-      const stage = Number(stageValue);
-      const overlayStage = Number.isFinite(stage) ? getOverlayStage(stage) : null;
+      const stage = normalizeStageValue(stageValue);
+      if (!Number.isFinite(stage)) return null;
+      const overlayStage = getOverlayStage(stage);
+      const depthStage = normalizeHydraulicPhase(phase) === "filling" ? stage : overlayStage;
       const developed = sample.developedFlag === true;
       const depthModel = getPenalizedConnectedDepth(
-        overlayStage,
+        depthStage,
         sample.elevation,
         developed,
         phase,
@@ -26755,8 +26934,10 @@ function startPlayback() {
         sample.connectionStage <= connectionStageLimit + 0.0001;
       const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
       const depth = connected && depthModel ? depthModel.depth : null;
-      if (renderedFlood?.flooded && Number.isFinite(depth) && depth <= 0.005) {
-        return 0.05;
+      // A visible pooled/feeder pixel is not evidence for an invented point depth.
+      if (renderedFlood?.flooded && (!Number.isFinite(depth) || depth <= 0.005)) {
+        // Only an actual shallow raster band supports the displayed 0–0.1 ft range.
+        return renderedFlood.depthBandFt?.[1] === 0.1 ? 0.05 : null;
       }
       return Number.isFinite(depth) ? depth : 0;
     }
@@ -26784,6 +26965,11 @@ function startPlayback() {
       const popup = persistentFloodPopup;
       if (!context || !popup || context.popup !== popup || !map?.hasLayer(popup)) return;
       const stage = getStageValue(currentSeriesHours[currentHourIndex]);
+      if (floodFrameState !== "ready") {
+        popup.setContent(buildDepthQueryPopupHtml(null));
+        popup.update();
+        return;
+      }
       const renderedFlood = options.useRenderedFlood === false
         ? null
         : sampleRenderedFloodPixel(context.latlng.lat, context.latlng.lng);
@@ -26807,7 +26993,8 @@ function startPlayback() {
         currentHourIndex,
         currentSeriesHours
       );
-      const depth = getDepthQueryDisplayDepth(sample, stage, renderedFlood, phase);
+      const depth = floodFrameState === "ready"
+        ? getDepthQueryDisplayDepth(sample, stage, renderedFlood, phase) : null;
       const popup = openPersistentFloodPopup(latlng, buildDepthQueryPopupHtml(depth), 300);
       if (sample) {
         persistentDepthQueryContext = { popup, latlng, sample };
@@ -28432,6 +28619,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
         fitSnapshotTimeText();
         scheduleMapTitleFit();
       });
+      startNwsAlertRefresh();
       await reloadAll();
       const warmBoundary = () => loadMunicipalBoundary().catch(() => {});
       if (typeof window.requestIdleCallback === "function") {
@@ -37117,12 +37305,7 @@ html body #mapTitleBadge #mapTitleLogo{
     var sliderHelp = document.getElementById("shorelyMobileSliderHelpBtn");
     var legendHelp = document.getElementById("shorelyMobileLegendHelpBtn");
     if (!mobile) {
-      if (leftPanel) {
-        var shortDesktop = window.innerWidth >= 901 && window.innerHeight <= 760;
-        setImportant(leftPanel, "overflow-x", "hidden");
-        setImportant(leftPanel, "overflow-y", shortDesktop ? "auto" : "hidden");
-        setImportant(leftPanel, "padding-bottom", shortDesktop ? "8px" : "0");
-      }
+      // Desktop sidebar scrolling is owned by applyStablePaneSizes().
       if (sliderKey) setImportant(sliderKey, "display", "none");
       if (sliderHelp) setImportant(sliderHelp, "display", "none");
       if (legendHelp) setImportant(legendHelp, "display", "none");
