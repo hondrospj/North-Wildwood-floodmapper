@@ -13,6 +13,7 @@ from merge_north_wildwood_city_gauge import (
     hourly_day_from_compact,
     load_city_readings,
     merge_compact_days,
+    rebuild_hourly,
     timestamp_second,
 )
 
@@ -22,6 +23,13 @@ def epoch(value: str) -> int:
 
 
 class CityGaugeMergeTests(unittest.TestCase):
+    def test_backfill_replaces_legacy_hours_before_city_coverage(self) -> None:
+        old = {"days": [{"date": "2010-01-01", "peakNAVD88": 9.0}]}
+        days = [{"d": "2010-01-01", "u": epoch("2010-01-01T05:00:00"), "v": [100, 125]}]
+        rebuilt = rebuild_hourly(old, days, epoch("2017-09-01T13:00:00"))
+        self.assertEqual(len(rebuilt), 1)
+        self.assertEqual(rebuilt[0]["peakNAVD88"], 1.25)
+
     def test_city_wall_time_is_converted_from_eastern_time(self) -> None:
         self.assertEqual(
             timestamp_second("2017-09-01 08:58:00"),

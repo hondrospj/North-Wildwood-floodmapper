@@ -279,15 +279,10 @@ def rebuild_hourly(
     merged_days: list[dict[str, Any]],
     first_city_second: int,
 ) -> list[dict[str, Any]]:
-    first_city_date = datetime.fromtimestamp(first_city_second, timezone.utc).astimezone(LOCAL_ZONE).date().isoformat()
-    day_map = {
-        str(day.get("date")): day
-        for day in existing.get("days", [])
-        if day.get("date") and str(day["date"]) < first_city_date
-    }
+    # A source backfill must also refresh the pre-city companion archive.
+    # Retaining legacy hourly days here would bypass the new sampling policy.
+    day_map = {}
     for day in merged_days:
-        if day["d"] < first_city_date:
-            continue
         hourly = hourly_day_from_compact(day)
         if hourly is not None:
             day_map[day["d"]] = hourly
