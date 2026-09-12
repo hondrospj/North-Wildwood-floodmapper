@@ -17,14 +17,8 @@ const JONAS_TARGET_MLLW_FT = 9.44;
 // interpolated to quarter-hours, shifted so the observed Lewes surge peak
 // coincides with the official Stone Harbor Sandy crest, then scaled about low
 // water to preserve the tide shape while matching 6.73 ft NAVD88.
-const SANDY_QUARTER_HOUR_NAVD88_HUNDREDTHS = [
-  506,481,465,439,410,388,353,327,300,298,290,283,289,266,257,255,
-  235,239,266,307,320,341,353,371,374,384,359,337,353,362,369,365,
-  372,366,373,390,410,459,464,467,447,423,399,370,330,314,289,380,
-  368,342,310,297,271,257,247,240,222,221,212,212,232,238,243,258,
-  276,295,318,341,365,378,411,441,455,484,520,555,574,613,629,649,
-  644,652,669,673,670,657,663,668,667,657,633,621,588,559,535,526
-];
+const STORM_REPLAYS = JSON.parse(fs.readFileSync(new URL("./storm_replays.json", import.meta.url), "utf8"));
+const SANDY_QUARTER_HOUR_NAVD88_HUNDREDTHS = STORM_REPLAYS[SANDY_DATE].valuesHundredthsNavd88;
 
 function readJson(name) {
   return JSON.parse(fs.readFileSync(path.join(REPO, name), "utf8"));
@@ -146,7 +140,11 @@ function updateObserved15Minute() {
   for (const day of payload.days || []) {
     if (day.d === SANDY_DATE) {
       day.v = SANDY_QUARTER_HOUR_NAVD88_HUNDREDTHS.slice();
-      day.s = "NOAA Lewes 8557380 verified tide shape aligned and scaled to the official 6.73 ft NAVD88 Stone Harbor Hurricane Sandy crest";
+      day.s = "L".repeat(day.v.length);
+      day.q = "C".repeat(day.v.length);
+      day.g = day.v.map(() => null);
+      const { valuesHundredthsNavd88, ...replay } = STORM_REPLAYS[SANDY_DATE];
+      day.replay = replay;
     }
     if (day.d === JONAS_DATE) {
       const feet = (day.v || []).map(value => value == null ? NaN : Number(value) / 100);

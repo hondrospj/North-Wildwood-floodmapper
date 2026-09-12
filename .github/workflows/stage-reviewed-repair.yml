@@ -1,85 +1,67 @@
-name: Stage reviewed FloodMapper repair
+name: Verify restored calibrated storm replay
 on:
   push:
     branches: [codex/audit-deployment-20260912]
 permissions:
   contents: write
 jobs:
-  stage:
+  replay:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
-          filter: blob:none
-          sparse-checkout: |
-            .publish_stage
-            tools
-            docs
-            city-gauge
-            observed_archive
-            assets/3d
-      - name: Materialize and verify reviewed Git blobs
-        shell: bash
+          node-version: '22'
+      - name: Apply the reviewed browser source patch
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import base64,hashlib,json,os,subprocess
-          root=Path('.publish_stage')
-          manifest=json.loads((root/'manifest.json').read_text())
-          raw=base64.b64decode(''.join(p.read_text() for p in sorted(root.glob('part*.txt'))))
-          assert hashlib.sha256(raw).hexdigest()==manifest['bundleSha256']
-          bundle=Path(os.environ['RUNNER_TEMP'])/'reviewed.bundle'
-          bundle.write_bytes(raw)
-          subprocess.run(['git','bundle','verify',str(bundle)],check=True)
-          subprocess.run(['git','fetch',str(bundle),'codex/floodmapper-audit-fixes'],check=True)
-          paths=[]
-          for row in manifest['files']:
-              path=Path(row['path'])
-              assert not path.is_absolute() and '..' not in path.parts and not str(path).startswith('.github/')
-              data=subprocess.check_output(['git','cat-file','blob',row['sha']])
-              assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==row['sha']
-              path.parent.mkdir(parents=True,exist_ok=True)
-              path.write_bytes(data)
-              paths.append(str(path))
-          subprocess.run(['git','add','--sparse','--',*paths],check=True)
-          subprocess.run(['git','diff','--cached','--check'],check=True)
-          PY
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Materialize verified repair assets for publication'
-          git push origin HEAD:codex/audit-deployment-20260912
-      - name: Backfill original sources and rebuild qualified observations
+          git apply --check .publish_stage/replay-index.patch
+          git apply .publish_stage/replay-index.patch
+          test "$(git hash-object index.html)" = "c3a43a1ab88c15c631b17cd460bf0fa8d14d136b"
+      - name: Rebuild the composite and every derived archive
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import hashlib,json
-          path=Path('index.html')
-          text=path.read_text()
-          assert text.count('20260826-nw-3d-v62')==1
-          path.write_text(text.replace('20260826-nw-3d-v62','20260912-audit-repair'))
-          for row in json.loads(Path('.publish_stage/phase-two.json').read_text()):
-              data=Path(row['path']).read_bytes()
-              assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==row['sha'],row['path']
-          PY
-          python3 tools/update_observed_15min.py --full --output stone_harbor_observed15min.json --no-update-hourly
-          node tools/archive_north_wildwood_city_gauge.mjs
-          node tools/build_north_wildwood_stone_harbor_comparison.mjs
           python3 tools/merge_north_wildwood_city_gauge.py
           python3 tools/validate_observed_contract.py
           python3 tools/build_observed_archive_shards.py
           python3 tools/test_north_wildwood_city_gauge_merge.py
           python3 tools/test_observed_archive_shards.py
-          python3 - <<'PY'
-          import json
-          from collections import Counter
-          archive=json.load(open('observed15min.json'))
-          counts=Counter(''.join(day['q'] for day in archive['days']))
-          assert counts['U']==0, counts
-          print('Backfilled sampling flags:',dict(counts))
-          PY
-          git add --sparse -- index.html stone_harbor_observed15min.json observed.json observed15min.json observed_archive_index.json observed_archive/stone-harbor city-gauge/data city-gauge/comparison
+      - name: Install scientific test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev python3-gdal python3-numpy python3-scipy python3-pil python3-rasterio clang
+      - name: Browser logic and committed asset contracts
+        run: |
+          node tools/check_inline_scripts.mjs
+          node tools/test_north_wildwood_browser_contract.mjs
+          node tools/test_north_wildwood_reliability.mjs
+          node tools/test_north_wildwood_3d_recovery.mjs
+          node tools/test_north_wildwood_filling_transition.mjs
+          node tools/test_north_wildwood_export_layout.mjs
+          node tools/test_north_wildwood_startup_performance.mjs
+      - name: Observation, projection, and model contracts
+        run: |
+          /usr/bin/python3 tools/validate_observed_contract.py
+          /usr/bin/python3 tools/test_observation_quality.py
+          /usr/bin/python3 tools/test_north_wildwood_city_gauge_merge.py
+          /usr/bin/python3 tools/test_update_observed_15min.py
+          /usr/bin/python3 tools/test_observed_archive_shards.py
+          /usr/bin/python3 tools/test_flood_history_projection_model.py
+          /usr/bin/python3 tools/test_return_intervals.py
+          /usr/bin/python3 tools/test_north_wildwood_bathtub.py
+          /usr/bin/python3 tools/test_hydraulic_mask_sequence.py
+          /usr/bin/python3 tools/test_hydraulic_graph_contract.py
+          /usr/bin/python3 model/tests/test_model_contract.py
+          /usr/bin/python3 model/tests/test_cache_and_arrival.py
+      - name: Browser layout regression
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node tools/test_north_wildwood_layout.mjs
+      - name: Publish verified assets to the staging branch
+        run: |
+          git add index.html observed15min.json observed.json observed_archive_index.json lewes_archive_index.json observed_archive
           git diff --cached --check
-          git commit -m 'Backfill original gauge sampling provenance after calibration review'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Restore calibrated Sandy replay with explicit source provenance'
           git push origin HEAD:codex/audit-deployment-20260912

@@ -1,0 +1,23 @@
+diff --git a/index.html b/index.html
+index 013e6b3..c3a43a1 100644
+--- a/index.html
++++ b/index.html
+@@ -17529,7 +17529,8 @@ function parseStoredLocalNyToDate(timeEST) {
+         return setTimelineSlotFields({
+           navd88StageFt: stage, stageFt: stage, value: stage,
+           sourceResolutionMinutes: Number(observed15MinuteData?.sourceResolutionMinutes) || 6,
+-          sourceStationId: (day.s || "")[index] === "N" ? "1005" : "01411360",
++          sourceStationId: (day.s || "")[index] === "N" ? "1005" : (day.s || "")[index] === "L" ? "8557380" : "01411360",
++          stormReplay: day.replay || null,
+           observationQuality: (day.q || "")[index] || "unknown",
+           isMeasuredQuarterHourArchive: (day.q || "")[index] === "M",
+           isInterpolatedTimelineFrame: (day.q || "")[index] === "I",
+@@ -24515,7 +24516,7 @@ function formatSelectedObservedDate(dateStr) {
+               : entry?.observationInterval === "crest"
+                 ? `USGS crest • ${getDatumLabel()}`
+                 : `${classifyFloodStage(rawStage) === "none" ? "No flooding" : `${classifyFloodStage(rawStage).charAt(0).toUpperCase() + classifyFloodStage(rawStage).slice(1)} flooding`} • ${getDatumLabel()}`;
+-        const stationNote = entry?.sourceStationId === "01411360" && currentDataMode === "observed" ? "Stone Harbor fallback" : "";
++        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === "01411360" ? "Stone Harbor fallback" : entry?.sourceStationId === "8557380" ? "Lewes tide shape" : "";
+         const qualityNote = entry?.observationQuality === "I" || entry?.isInterpolatedTimelineFrame
+           ? "Interpolated" : entry?.observationQuality === "U" || entry?.observationQuality === "unknown"
+             ? "Sampling quality not recorded" : entry?.observationQuality === "C" ? "Calibrated storm replay" : "";

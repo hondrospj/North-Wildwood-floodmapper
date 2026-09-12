@@ -1207,6 +1207,11 @@ for (const [date, targetHundredths, eventName, peakHour] of [
   assert.equal(day.v.length, 96, `${eventName} must contain 96 quarter-hour frames`);
   assert.equal(day.v.filter(Number.isFinite).length, 96, `${eventName} must not contain missing quarter-hour frames`);
   assert.equal(Math.max(...day.v), targetHundredths, `${eventName} peak calibration is wrong`);
+  assert.equal(day.q, "C".repeat(96), `${eventName} replay must not masquerade as measured observations`);
+  assert.equal(day.s, (date === "2012-10-29" ? "L" : "S").repeat(96));
+  const decodeContext = vm.createContext({ observed15MinuteData: {}, setTimelineSlotFields: row => row });
+  vm.runInContext(`${extractFunction("decodeObserved15MinuteDay")}; globalThis.decode = decodeObserved15MinuteDay;`, decodeContext);
+  assert.equal(decodeContext.decode(day)[0].sourceStationId, date === "2012-10-29" ? "8557380" : "01411360");
   const peakIndex = day.v.indexOf(targetHundredths);
   const archivePeakTime = `${String(Math.floor(peakIndex / 4)).padStart(2, "0")}:${String((peakIndex % 4) * 15).padStart(2, "0")}`;
   assert.equal(archivePeakTime, peakHour);

@@ -23,6 +23,27 @@ def epoch(value: str) -> int:
 
 
 class CityGaugeMergeTests(unittest.TestCase):
+    def test_raw_sandy_outage_retains_calibrated_replay(self) -> None:
+        raw = {"d": "2012-10-29", "u": epoch("2012-10-29T04:00:00"),
+               "v": [None] * 96, "q": "-" * 96, "s": "-" * 96, "g": [None] * 96}
+        days, counts = merge_compact_days({"days": [raw]}, [])
+        day = days[0]
+        self.assertEqual(raw["v"], [None] * 96)
+        self.assertEqual(day["p"], 673)
+        self.assertEqual(day["v"].index(673), 83)
+        self.assertEqual(day["q"], "C" * 96)
+        self.assertEqual(day["s"], "L" * 96)
+        self.assertEqual(day["g"], [None] * 96)
+        self.assertEqual(day["replay"]["crestStationId"], "01411360")
+        self.assertEqual(counts["calibratedReplayQuarterHours"], 96)
+        self.assertEqual(counts["stoneQuarterHoursOutsideCityCoverage"], 0)
+        self.assertEqual(counts["unavailableQuarterHours"], 0)
+        self.assertEqual(hourly_day_from_compact(day)["peakNAVD88"], 6.73)
+        self.assertEqual(merge_compact_days({"days": days}, [])[0], days)
+        from observation_quality import analytical_samples, POLICY_VERSION
+        with self.assertRaisesRegex(ValueError, "No quality-qualified observations"):
+            analytical_samples({"qualityPolicyVersion": POLICY_VERSION, "days": days})
+
     def test_backfill_replaces_legacy_hours_before_city_coverage(self) -> None:
         old = {"days": [{"date": "2010-01-01", "peakNAVD88": 9.0}]}
         days = [{"d": "2010-01-01", "u": epoch("2010-01-01T05:00:00"), "v": [100, 125]}]

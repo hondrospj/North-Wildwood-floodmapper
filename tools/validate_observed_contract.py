@@ -18,7 +18,8 @@ def validate(path: Path) -> dict:
                 if source!='-' or quality!='-':raise ValueError(f"Missing sample has a measured source on {day['d']}")
                 continue
             if not isinstance(value,(int,float)) or isinstance(value,bool) or not math.isfinite(value):raise ValueError('Nonfinite water level')
-            if source not in 'NS' or quality not in 'MICU':raise ValueError('Unknown observation provenance')
+            if source not in 'NSL' or quality not in 'MICU':raise ValueError('Unknown observation provenance')
+            if source=='L' and (quality!='C' or not day.get('replay')):raise ValueError('Lewes replay must retain its calibration provenance')
             if quality=='M' and span!=0:raise ValueError('Exact observation has an interpolation span')
             if quality=='I' and (span is None or not 0<span<=1800):raise ValueError('Interpolation exceeds the 30-minute policy')
             if source=='N':city_count+=1
