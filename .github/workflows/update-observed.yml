@@ -8,6 +8,7 @@ on:
       - .github/workflows/update-observed.yml
       - tools/update_observed_15min.py
       - tools/merge_north_wildwood_city_gauge.py
+      - tools/storm_replays.json
       - tools/observation_quality.py
       - tools/validate_observed_contract.py
       - assets/municipal-time.js

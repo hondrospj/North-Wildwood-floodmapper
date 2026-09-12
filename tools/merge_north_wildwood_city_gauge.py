@@ -36,6 +36,7 @@ from update_observed_15min import (
 
 CITY_SENSOR_ID = "1005"
 STONE_SITE_ID = "01411360"
+STORM_REPLAYS_PATH = Path(__file__).with_name("storm_replays.json")
 MAX_CITY_GAP_SECONDS = 30 * 60
 ISOLATED_SPIKE_THRESHOLD_FT = 3.0
 
@@ -172,11 +173,13 @@ def merge_compact_days(
     stone: dict[str, Any],
     city: list[tuple[int, float]],
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    replays = load_json(STORM_REPLAYS_PATH)
     seconds = [row[0] for row in city]
     values = [row[1] for row in city]
     first_second, last_second = (seconds[0], seconds[-1]) if seconds else (math.inf, -math.inf)
     counts = {
         "cityQuarterHours": 0,
+        "calibratedReplayQuarterHours": 0,
         "stoneFallbackQuarterHoursWithinCityCoverage": 0,
         "stoneQuarterHoursOutsideCityCoverage": 0,
         "unavailableQuarterHours": 0,
@@ -185,18 +188,30 @@ def merge_compact_days(
     merged_days: list[dict[str, Any]] = []
     for raw_day in stone.get("days", []):
         day = dict(raw_day)
+        replay = replays.get(day.get("d"))
+        if replay is not None:
+            # Preserve the documented crest replay when rebuilding a raw outage.
+            # It never enters measured/interpolated exposure or trend fitting.
+            replay_values = list(replay["valuesHundredthsNavd88"])
+            if len(replay_values) != len(day["v"]):
+                raise ValueError("Storm replay does not match the archive day length")
+            day.update(v=replay_values, q="C" * len(replay_values),
+                       s=replay["sourceCode"] * len(replay_values),
+                       g=[None] * len(replay_values),
+                       replay={k: v for k, v in replay.items() if k != "valuesHundredthsNavd88"})
+        raw_day = day
         day.pop("n", None)
         day.pop("f", None)
         merged_values = list(raw_day.get("v", []))
         quality_codes = [sample_quality(raw_day, i) if v is not None else "-" for i, v in enumerate(merged_values)]
-        sources = ["S" if v is not None else "-" for v in merged_values]
+        sources = [replay["sourceCode"] if replay else "S" if v is not None else "-" for v in merged_values]
         spans = list(raw_day.get("g", [None] * len(merged_values)))
         city_count = 0
         fallback_count = 0
         for index, stone_value in enumerate(merged_values):
             anchor = int(raw_day["u"]) + index * QUARTER_SECONDS
             city_value = None
-            if first_second <= anchor <= last_second:
+            if quality_codes[index] != "C" and first_second <= anchor <= last_second:
                 city_value = interpolate_city(anchor, seconds, values)
             if city_value is not None:
                 merged_values[index] = int(round(city_value * 100))
@@ -208,7 +223,9 @@ def merge_compact_days(
                 city_count += 1
                 counts["cityQuarterHours"] += 1
             elif stone_value is not None:
-                if first_second <= anchor <= last_second:
+                if quality_codes[index] == "C":
+                    counts["calibratedReplayQuarterHours"] += 1
+                elif first_second <= anchor <= last_second:
                     fallback_count += 1
                     counts["stoneFallbackQuarterHoursWithinCityCoverage"] += 1
                 else:
@@ -317,7 +334,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
                          "cityYears": {p.name: file_sha256(p) for p in sorted(args.city_dir.glob("[0-9][0-9][0-9][0-9].json"))},
                          "comparisonIndex": file_sha256(comparison_dir / "index.json") if (comparison_dir / "index.json").exists() else None,
                          "comparisonYears": {p.name: file_sha256(p) for p in sorted(comparison_dir.glob("[0-9][0-9][0-9][0-9].json"))},
-                         "qualityCode": {name: file_sha256(Path(__file__).with_name(name)) for name in ["observation_quality.py", "merge_north_wildwood_city_gauge.py", "update_observed_15min.py"]}},
+                         "qualityCode": {name: file_sha256(Path(__file__).with_name(name)) for name in ["observation_quality.py", "merge_north_wildwood_city_gauge.py", "update_observed_15min.py", "storm_replays.json"]}},
         "qualityPolicy": {"cityEligibility": "year and UTC-day comparison gates: >=48 paired quarters/day, absolute median difference <=0.75 ft, correlation >=0.9; ambiguous/unreviewed intervals excluded",
                           "fallback": "Stone Harbor station observations; no unreviewed local bias correction is applied",
                           "rawMunicipalArchive": "city-gauge/data; preserved unchanged"},
@@ -335,7 +352,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "Stone Harbor USGS 01411360 before city coverage and during city-gauge gaps",
         ],
         "cityGaugeCoverage": coverage,
-        "method": "North Wildwood municipal MLLW readings converted by -2.75 ft to NAVD88 and interpolated to exact UTC 15-minute anchors across gaps up to 30 minutes; Stone Harbor supplies remaining anchors; calibration-flagged/unreviewed city intervals and ambiguous wall times are excluded; per-sample quality and station are retained",
+        "method": "North Wildwood municipal MLLW readings converted by -2.75 ft to NAVD88 and interpolated to exact UTC 15-minute anchors across gaps up to 30 minutes; Stone Harbor supplies remaining anchors; calibration-flagged/unreviewed city intervals and ambiguous wall times are excluded; per-sample quality and station are retained; documented crest-calibrated storm replays are separately marked C",
         "encoding": {
             "d": "America/New_York civil date",
             "u": "UTC epoch second of first quarter-hour anchor",
@@ -345,8 +362,9 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "n": "quarter-hour anchors supplied by the North Wildwood city gauge",
             "f": "Stone Harbor fallback anchors inside usable city-gauge coverage",
             "q": "per sample: M measured, I interpolated <=30 minutes, C calibrated replay, U unknown legacy provenance, - missing",
-            "s": "per sample: N North Wildwood city, S Stone Harbor, - unavailable",
-            "g": "per-sample interpolation bracket in seconds; 0 measured; null unknown/unavailable",
+            "s": "per sample: N North Wildwood city, S Stone Harbor, L Lewes calibrated storm replay, - unavailable",
+            "g": "per-sample interpolation bracket in seconds; 0 measured; null replay/unknown/unavailable",
+            "replay": "documented source tide shape, crest target, and reconstruction method; C samples excluded from continuous analytics",
         },
         "archiveStartDate": merged_days[0]["d"] if merged_days else stone.get("archiveStartDate"),
         "archiveEndDate": merged_days[-1]["d"] if merged_days else stone.get("archiveEndDate"),
