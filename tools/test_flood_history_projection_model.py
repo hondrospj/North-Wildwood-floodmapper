@@ -75,4 +75,10 @@ assert upper95[0].shape == thresholds.shape
 assert fit["type"] == "continuous Gaussian-kernel CDF"
 assert fit["bootstrapReplicates"] == model.KDE_BOOTSTRAP_REPLICATES
 
+# Accepted water years, including nonadjacent years, are whole bootstrap blocks.
+water_events = [dict(event, waterYear=2020 if i < 2 else 2022) for i, event in enumerate(events)]
+_, _, _, water_fit = model.fit_continuous_exceedance_cdf(peaks, water_events, [thresholds])
+assert water_fit["bootstrapBlockCount"] == 2
+assert water_fit["uncertaintyMethod"].startswith("water-year")
+
 print("North Wildwood flood-history projection model checks passed.")

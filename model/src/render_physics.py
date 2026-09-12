@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from cache_contract import spatial_lookup_fingerprint
+
 import argparse
 import hashlib
 import json
@@ -316,15 +318,9 @@ def main() -> None:
         terrain_profile["crs"],
     )
 
-    index_cache = (
-        ROOT
-        / "model/cache"
-        / (
-            f"nearest_triangle_{triangle_count}_"
-            f"{row_slice.start}_{row_slice.stop}_"
-            f"{column_slice.start}_{column_slice.stop}.npy"
-        )
-    )
+    cache_key = spatial_lookup_fingerprint(centroid_coordinates, terrain_profile["transform"],
+                                           terrain_profile["crs"], row_slice, column_slice)
+    index_cache = ROOT / "model/cache" / f"nearest_triangle_{cache_key}.npy"
     if index_cache.is_file():
         nearest_triangle = np.load(index_cache, mmap_mode="r")
         if nearest_triangle.shape != render_shape:

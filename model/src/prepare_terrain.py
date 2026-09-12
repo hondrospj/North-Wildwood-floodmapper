@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from cache_contract import terrain_config_fingerprint
+
 import argparse
 import hashlib
 import json
@@ -267,6 +269,9 @@ def main() -> None:
     }
     terrain_manifest = {
         "schema": "north-wildwood-computational-terrain-v1",
+        "configSha256": terrain_config_fingerprint(config),
+        "builderSha256": sha256(Path(__file__)),
+        "tileFingerprints": [{"path": row["path"], "sha256": sha256(ROOT / row["path"])} for row in manifest["tiles"]],
         "modelCrs": destination_crs,
         "verticalDatum": config["verticalDatum"],
         "verticalUnits": config["verticalUnits"],

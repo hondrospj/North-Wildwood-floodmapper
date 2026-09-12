@@ -11,6 +11,7 @@
 
 #include "gdal_priv.h"
 #include "cpl_conv.h"
+#include "ogr_spatialref.h"
 
 #include <algorithm>
 #include <array>
@@ -164,6 +165,16 @@ std::vector<uint8_t> read_mask(
     GDALClose(dataset);
     throw std::runtime_error("Mask dimensions do not match DEM: " + path.string());
   }
+  double transform[6];
+  bool aligned = dataset->GetGeoTransform(transform) == CE_None;
+  for (int i = 0; aligned && i < 6; ++i) aligned = std::abs(transform[i] - info.geotransform[i]) < 1e-8;
+  OGRSpatialReference mask_srs(dataset->GetProjectionRef());
+  OGRSpatialReference dem_srs(info.projection.c_str());
+  aligned = aligned && !info.projection.empty() && !mask_srs.IsEmpty() && mask_srs.IsSame(&dem_srs);
+  if (!aligned) {
+    GDALClose(dataset);
+    throw std::runtime_error("Mask CRS/geotransform does not match DEM: " + path.string());
+  }
   const size_t count = static_cast<size_t>(info.width) * info.height;
   std::vector<uint8_t> values(count);
   if (dataset->GetRasterBand(1)->RasterIO(
@@ -172,8 +183,10 @@ std::vector<uint8_t> read_mask(
     GDALClose(dataset);
     throw std::runtime_error("Could not read mask " + path.string());
   }
+  int has_nodata = 0;
+  const double nodata = dataset->GetRasterBand(1)->GetNoDataValue(&has_nodata);
   GDALClose(dataset);
-  for (uint8_t& value : values) value = value ? 1 : 0;
+  for (uint8_t& value : values) value = (has_nodata && value == nodata) ? 0 : (value ? 1 : 0);
   return values;
 }
 
@@ -526,16 +539,17 @@ void write_edges(
     if (zone_a_raw < 0 || zone_b_raw < 0 || zone_a_raw == zone_b_raw) return;
     const uint32_t zone_a = std::min(zone_a_raw, zone_b_raw);
     const uint32_t zone_b = std::max(zone_a_raw, zone_b_raw);
-    if (zone_a >= (1u << 28) || zone_b >= (1u << 28)) {
+    if (zone_a >= (1u << 27) || zone_b >= (1u << 27)) {
       throw std::runtime_error("Too many zones for packed edge encoding");
     }
     const int16_t crest10 = std::clamp(
         std::max(elevation10[cell], elevation10[neighbour]),
         HIST_MIN10, HIST_MAX10);
-    const uint8_t crest_code = static_cast<uint8_t>(crest10 - HIST_MIN10);
+    static_assert(HIST_BINS <= 1024, "Edge crest code requires more than 10 bits");
+    const uint16_t crest_code = static_cast<uint16_t>(crest10 - HIST_MIN10);
     samples.push_back(
-        (static_cast<uint64_t>(zone_a) << 36) |
-        (static_cast<uint64_t>(zone_b) << 8) |
+        (static_cast<uint64_t>(zone_a) << 37) |
+        (static_cast<uint64_t>(zone_b) << 10) |
         crest_code);
   };
   for (int y = 0; y < height; ++y) {
@@ -553,9 +567,9 @@ void write_edges(
     size_t end = index + 1;
     while (end < samples.size() && samples[end] == samples[index]) ++end;
     const uint64_t key = samples[index];
-    const uint32_t zone_a = static_cast<uint32_t>(key >> 36);
-    const uint32_t zone_b = static_cast<uint32_t>((key >> 8) & ((1ull << 28) - 1));
-    const int16_t crest10 = static_cast<int16_t>((key & 0xff) + HIST_MIN10);
+    const uint32_t zone_a = static_cast<uint32_t>(key >> 37);
+    const uint32_t zone_b = static_cast<uint32_t>((key >> 10) & ((1ull << 27) - 1));
+    const int16_t crest10 = static_cast<int16_t>((key & 0x3ff) + HIST_MIN10);
     stream << zone_a << ',' << zone_b << ',' << crest10 << ',' << end - index << '\n';
     index = end;
   }

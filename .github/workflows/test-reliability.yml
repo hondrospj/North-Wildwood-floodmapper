@@ -1,0 +1,51 @@
+name: FloodMapper reliability checks
+on:
+  pull_request:
+    paths: ['index.html', 'assets/**/*.js', 'assets/**/*.css', 'city-gauge/index.html', 'tools/**', 'model/**', '.github/workflows/**']
+  push:
+    branches: [main]
+    paths: ['index.html', 'assets/**/*.js', 'assets/**/*.css', 'city-gauge/index.html', 'tools/**', 'model/**', '.github/workflows/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install scientific test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev python3-gdal python3-numpy python3-scipy python3-pil python3-rasterio clang
+      - name: Browser logic and committed asset contracts
+        run: |
+          node tools/check_inline_scripts.mjs
+          node tools/test_north_wildwood_browser_contract.mjs
+          node tools/test_north_wildwood_reliability.mjs
+          node tools/test_north_wildwood_3d_recovery.mjs
+          node tools/test_north_wildwood_filling_transition.mjs
+          node tools/test_north_wildwood_export_layout.mjs
+          node tools/test_north_wildwood_startup_performance.mjs
+      - name: Observation, projection, and model contracts
+        run: |
+          /usr/bin/python3 tools/validate_observed_contract.py
+          /usr/bin/python3 tools/test_observation_quality.py
+          /usr/bin/python3 tools/test_north_wildwood_city_gauge_merge.py
+          /usr/bin/python3 tools/test_update_observed_15min.py
+          /usr/bin/python3 tools/test_observed_archive_shards.py
+          /usr/bin/python3 tools/test_flood_history_projection_model.py
+          /usr/bin/python3 tools/test_return_intervals.py
+          /usr/bin/python3 tools/test_north_wildwood_bathtub.py
+          /usr/bin/python3 tools/test_hydraulic_mask_sequence.py
+          /usr/bin/python3 tools/test_hydraulic_graph_contract.py
+          /usr/bin/python3 model/tests/test_model_contract.py
+          /usr/bin/python3 model/tests/test_cache_and_arrival.py
+      - name: Browser layout regression
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node tools/test_north_wildwood_layout.mjs

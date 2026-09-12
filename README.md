@@ -11,11 +11,13 @@ in the browser.
 
 This repository is the complete North Wildwood counterpart to the Stone Harbor
 Floodmapper. Its observed archive uses the City of North Wildwood tide gauge
-wherever that municipal record is usable, beginning September 1, 2017, with
+wherever that municipal record passes the comparison and sampling-quality gates, beginning with the September 2017 archive, with
 Great Channel at Stone Harbor retained before then and as a gap fallback. The
 mapper applies North Wildwood's datum conversion, flood thresholds,
 bulkhead-conditioned bare-earth terrain, NSI 2026 structure-impact thresholds,
 parcels, and a source-connected filling and drainage surrogate.
+
+See [the reliability changes and data-quality policy](docs/2026-09-12-reliability-fixes.md) for sampling provenance, calibration screening, failure recovery, and rebuild requirements. Raw municipal observations remain unchanged.
 
 ## Water-level contract
 
@@ -60,10 +62,9 @@ conversion using the mapper's existing `+2.75 ft` contract.
 | 5,000 years | 17.5026 ft | — | 17.5026 ft | NACCS only |
 | 10,000 years | 18.6306 ft | — | 18.6306 ft | NACCS only |
 
-The local estimate is a GEV distribution fitted by L-moments to one maximum
-per available complete water year. It combines Stone Harbor's long historic
+The table above describes the previously published local GEV estimate fitted by L-moments to annual maxima. Its historical claim of complete continuous water years was not enforced by a coverage check. New builds require at least 99% qualified quarter-hour coverage and no gap longer than six hours for continuous annual maxima; official crest records retain separate provenance. It combines Stone Harbor's long historic
 crest-stage record with the city-primary continuous archive from September
-2017 onward. The combined record contains 60 water years from 1965–2025;
+2017 onward. The previously published record contains 60 water years from 1965–2025;
 water year 1981 is unavailable. The fit uses the point-process return-level
 convention `F = exp(-1/T)`, which gives a finite one-year level. The raw
 6.22-ft NAVD88 USGS Jonas crest is used in this statistical series, not the

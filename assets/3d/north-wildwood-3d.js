@@ -57,43 +57,42 @@
   }
 
   function loadMapLibreRuntime() {
-    if (window.maplibregl && typeof window.maplibregl.Map === "function") {
-      return Promise.resolve(window.maplibregl);
-    }
     if (mapLibreRuntimePromise) return mapLibreRuntimePromise;
-
-    mapLibreRuntimePromise = Promise.all([
-      new Promise(function (resolve, reject) {
-        var existing = document.getElementById("nwMapLibreCss");
-        if (existing) {
-          resolve();
-          return;
+    function dependency(id, tag, url) {
+      return new Promise(function (resolve, reject) {
+        var existing = document.getElementById(id);
+        if (existing && existing.dataset.loaded === "true") { resolve(); return; }
+        if (existing) existing.remove();
+        var element = document.createElement(tag);
+        element.id = id;
+        if (tag === "link") { element.rel = "stylesheet"; element.href = url; }
+        else { element.src = url; element.async = true; }
+        var timer = window.setTimeout(function () { finish(new Error("The 3D dependency timed out.")); }, 20000);
+        var settled = false;
+        function finish(error) {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          element.onload = null;
+          element.onerror = null;
+          if (error) { element.remove(); reject(error); }
+          else { element.dataset.loaded = "true"; resolve(); }
         }
-        var link = document.createElement("link");
-        link.id = "nwMapLibreCss";
-        link.rel = "stylesheet";
-        link.href = MAPLIBRE_CSS_URL;
-        link.onload = resolve;
-        link.onerror = function () { reject(new Error("The 3D map styles could not be loaded.")); };
-        document.head.appendChild(link);
-      }),
-      new Promise(function (resolve, reject) {
-        var existing = document.getElementById("nwMapLibreScript");
-        if (existing) {
-          if (window.maplibregl && typeof window.maplibregl.Map === "function") resolve();
-          else existing.addEventListener("load", resolve, { once: true });
-          return;
-        }
-        var script = document.createElement("script");
-        script.id = "nwMapLibreScript";
-        script.src = MAPLIBRE_JS_URL;
-        script.async = true;
-        script.onload = resolve;
-        script.onerror = function () { reject(new Error("The 3D map renderer could not be loaded.")); };
-        document.head.appendChild(script);
-      })
-    ]).then(function () {
+        element.onload = function () { finish(); };
+        element.onerror = function () { finish(new Error("The 3D dependency could not be loaded.")); };
+        document.head.appendChild(element);
+      });
+    }
+    mapLibreRuntimePromise = Promise.allSettled([
+      dependency("nwMapLibreCss", "link", MAPLIBRE_CSS_URL),
+      window.maplibregl && typeof window.maplibregl.Map === "function"
+        ? Promise.resolve() : dependency("nwMapLibreScript", "script", MAPLIBRE_JS_URL)
+    ]).then(function (results) {
+      var failure = results.find(function (result) { return result.status === "rejected"; });
+      if (failure) throw failure.reason;
       if (!window.maplibregl || typeof window.maplibregl.Map !== "function") {
+        var failed = document.getElementById("nwMapLibreScript");
+        if (failed) failed.remove();
         throw new Error("This browser does not support the 3D map renderer.");
       }
       return window.maplibregl;
@@ -771,23 +770,18 @@
     if (!url || !coordinates) {
       syncBuildingWaterComposite3d(null);
       if (floodRemovalTimer) window.clearTimeout(floodRemovalTimer);
-      // clearFloodLayer() is part of normal async frame replacement. Give the
-      // incoming frame time to arrive while the last complete texture remains.
-      floodRemovalTimer = window.setTimeout(function () {
-        var activeUrl = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
-        if (activeUrl) return;
-        removeLayerAndSource("nw-flood-drape", "nw-flood-drape-source");
-        removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
-        floodPlaneLayer = null;
-        document.body.dataset.map3dFloodTexture = "empty";
-      }, 2500);
+      // Selection metadata has already changed; a previous texture is stale.
+      removeLayerAndSource("nw-flood-drape", "nw-flood-drape-source");
+      removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
+      floodPlaneLayer = null;
+      document.body.dataset.map3dFloodTexture = "empty";
       return;
     }
     if (floodRemovalTimer) {
       window.clearTimeout(floodRemovalTimer);
       floodRemovalTimer = null;
     }
-    var stageNavd88 = Number(getSelectedStageNavd88());
+    var stageNavd88 = getSelectedStageNavd88();
     var pitched = glMap.getPitch() > 10;
     var physicalAltitudeMeters = Number.isFinite(stageNavd88)
       ? stageNavd88 * 0.3048 * TERRAIN_EXAGGERATION
@@ -1510,8 +1504,8 @@
   }
 
   async function ensure3dMap() {
-    if (glMap) return glMap;
     if (glMapPromise) return glMapPromise;
+    if (glMap && glStyleReady) return glMap;
     glMapPromise = (async function () {
       await loadMapLibreRuntime();
       var container = document.getElementById("map3d");
@@ -1585,18 +1579,19 @@
       syncRoadLabels3d();
       syncParcels3d();
       syncNsi3d();
+      await syncBuildings3d({ preload: true });
       document.body.classList.add("map-3d-ready");
       document.body.dataset.map3d = "ready";
       document.body.dataset.terrainExaggeration = String(TERRAIN_EXAGGERATION);
       document.body.dataset.map3dMaxZoom = String(MAP_MAX_ZOOM);
       document.body.dataset.map3dPixelRatio = "1";
       document.body.dataset.map3dPitch = String(glMap.getPitch());
-      await syncBuildings3d({ preload: true });
       updateDiagnostics();
       suspendLeafletVisualLayers();
       requestAnimationFrame(function () { glMap.resize(); });
       return glMap;
     })().catch(function (error) {
+      document.body.classList.remove("map-3d-ready");
       document.body.dataset.map3d = "fallback";
       glStyleReady = false;
       console.warn("The 3D map could not start; the 2D map remains available.", error);
@@ -1605,6 +1600,7 @@
         try { glMap.remove(); } catch (_) {}
         glMap = null;
       }
+      if (map) map.invalidateSize();
       return null;
     });
     return glMapPromise;

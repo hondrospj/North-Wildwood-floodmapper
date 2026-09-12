@@ -8,6 +8,9 @@ on:
       - .github/workflows/update-observed.yml
       - tools/update_observed_15min.py
       - tools/merge_north_wildwood_city_gauge.py
+      - tools/observation_quality.py
+      - tools/validate_observed_contract.py
+      - assets/municipal-time.js
       - tools/update_historic_crests.py
       - tools/build_observed_archive_shards.py
   schedule:
@@ -45,6 +48,9 @@ jobs:
 
       - name: Update official USGS historic crests
         run: python3 tools/update_historic_crests.py
+
+      - name: Validate observation quality and provenance
+        run: python3 tools/validate_observed_contract.py
 
       - name: Rebuild browser-optimized archive indexes and year shards
         run: python3 tools/build_observed_archive_shards.py

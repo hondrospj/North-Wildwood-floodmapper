@@ -175,7 +175,9 @@ def route_to_stage(
         crest_hold_hours=0.0,
         fall_rate_ft_per_hour=rise_rate_ft_per_hour,
     )
-    return float(route_event(event, bottleneck)["volume_ft3"][-1])
+    routed = route_event(event, bottleneck)
+    crest_index = int(np.argmax(routed["stage_ft"]))
+    return float(routed["volume_ft3"][crest_index])
 
 
 @lru_cache(maxsize=None)

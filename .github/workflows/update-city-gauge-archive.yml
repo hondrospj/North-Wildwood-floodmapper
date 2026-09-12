@@ -12,6 +12,9 @@ on:
       - tools/archive_north_wildwood_city_gauge.mjs
       - tools/build_north_wildwood_stone_harbor_comparison.mjs
       - tools/merge_north_wildwood_city_gauge.py
+      - tools/observation_quality.py
+      - tools/validate_observed_contract.py
+      - assets/municipal-time.js
       - tools/build_observed_archive_shards.py
 
 permissions:
@@ -41,6 +44,9 @@ jobs:
         run: node tools/build_north_wildwood_stone_harbor_comparison.mjs
       - name: Apply the city gauge to the public observed archive
         run: python3 tools/merge_north_wildwood_city_gauge.py
+      - name: Validate observation quality and provenance
+        run: python3 tools/validate_observed_contract.py
+
       - name: Rebuild browser-optimized archive indexes and year shards
         run: python3 tools/build_observed_archive_shards.py
       - name: Commit the refreshed archive

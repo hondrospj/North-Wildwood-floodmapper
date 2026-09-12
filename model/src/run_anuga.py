@@ -15,7 +15,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import anuga
+try:
+    import anuga
+except ModuleNotFoundError:
+    anuga = None
 import numpy as np
 import rasterio
 from scipy.ndimage import label, map_coordinates, maximum_filter
@@ -293,6 +296,8 @@ def main() -> None:
     x_length = xmax - xmin
     y_length = ymax - ymin
     mesh_type = args.mesh_type or domain_config["meshType"]
+    if anuga is None:
+        raise RuntimeError("Install the model ANUGA environment before running a simulation")
     mesh_factory = (
         anuga.rectangular_cross
         if mesh_type == "rectangularCross"
@@ -433,7 +438,8 @@ def main() -> None:
         speed = safe_speed(depth, x_momentum, y_momentum)
         wet = depth >= 0.01
         newly_wet = wet & ~previously_wet
-        arrival_time_seconds[newly_wet] = float(model_time)
+        first_arrival = wet & (arrival_time_seconds < 0)
+        arrival_time_seconds[first_arrival] = float(model_time)
         stage_frames[output_index, :] = stage.astype(np.float32)
         np.maximum(maximum_depth, depth, out=maximum_depth)
         np.maximum(maximum_speed, speed, out=maximum_speed)

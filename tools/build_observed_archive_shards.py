@@ -40,6 +40,9 @@ def write_compact_json(path: Path, payload: dict[str, Any]) -> None:
 def composite_source_metadata(source: dict[str, Any]) -> dict[str, Any]:
     keys = (
         "sourceResolutionMinutesByGauge",
+        "qualityPolicyVersion",
+        "qualityPolicy",
+        "sourceHashes",
         "sourcePriority",
         "cityGaugeCoverage",
     )
