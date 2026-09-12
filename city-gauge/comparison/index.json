@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-stone-harbor-comparison-index-v2",
-  "generatedAt": "2026-09-12T06:37:13.375Z",
+  "generatedAt": "2026-09-12T15:41:11.302Z",
   "datum": "NAVD88",
   "differenceDefinition": "North Wildwood minus Stone Harbor",
   "sources": {
@@ -25,17 +25,17 @@
     "lastTimestampUtc": "2026-08-20T23:30:00.000Z"
   },
   "stats": {
-    "pairCount": 294072,
+    "pairCount": 294036,
     "meanDifferenceFt": -0.245,
     "medianDifferenceFt": -0.19,
-    "meanAbsoluteDifferenceFt": 0.313,
+    "meanAbsoluteDifferenceFt": 0.312,
     "rmseFt": 0.655,
-    "p05DifferenceFt": -0.51,
+    "p05DifferenceFt": -0.5,
     "p95DifferenceFt": 0.01,
-    "correlation": 0.9335
+    "correlation": 0.9336
   },
   "peaks": {
-    "matchedPeakCount": 5937,
+    "matchedPeakCount": 5935,
     "medianPeakHeightDifferenceFt": -0.22,
     "meanPeakHeightDifferenceFt": -0.266,
     "medianStoneHarborLagMinutes": 0,
@@ -47,19 +47,19 @@
       "path": "comparison/2017.json",
       "status": "aligned",
       "stats": {
-        "pairCount": 11486,
+        "pairCount": 11482,
         "meanDifferenceFt": -0.075,
         "medianDifferenceFt": -0.063,
-        "meanAbsoluteDifferenceFt": 0.081,
-        "rmseFt": 0.105,
+        "meanAbsoluteDifferenceFt": 0.08,
+        "rmseFt": 0.103,
         "p05DifferenceFt": -0.214,
         "p95DifferenceFt": 0.021,
-        "correlation": 0.999
+        "correlation": 0.9991
       },
       "lag": {
         "stoneHarborLagMinutes": 0,
-        "correlation": 0.999,
-        "pairCount": 11486
+        "correlation": 0.9991,
+        "pairCount": 11482
       },
       "peaks": {
         "matchedPeakCount": 232,
@@ -80,7 +80,7 @@
       "path": "comparison/2018.json",
       "status": "aligned",
       "stats": {
-        "pairCount": 34285,
+        "pairCount": 34281,
         "meanDifferenceFt": -0.024,
         "medianDifferenceFt": -0.066,
         "meanAbsoluteDifferenceFt": 0.151,
@@ -92,7 +92,7 @@
       "lag": {
         "stoneHarborLagMinutes": 0,
         "correlation": 0.9499,
-        "pairCount": 34285
+        "pairCount": 34281
       },
       "peaks": {
         "matchedPeakCount": 687,
@@ -113,7 +113,7 @@
       "path": "comparison/2019.json",
       "status": "aligned",
       "stats": {
-        "pairCount": 31620,
+        "pairCount": 31616,
         "meanDifferenceFt": -0.09,
         "medianDifferenceFt": -0.075,
         "meanAbsoluteDifferenceFt": 0.096,
@@ -125,14 +125,14 @@
       "lag": {
         "stoneHarborLagMinutes": 0,
         "correlation": 0.9987,
-        "pairCount": 31620
+        "pairCount": 31616
       },
       "peaks": {
-        "matchedPeakCount": 639,
+        "matchedPeakCount": 638,
         "medianPeakHeightDifferenceFt": -0.1,
         "meanPeakHeightDifferenceFt": -0.094,
         "medianStoneHarborLagMinutes": 0,
-        "meanStoneHarborLagMinutes": 0.2
+        "meanStoneHarborLagMinutes": 0.1
       },
       "quality": {
         "northWildwoodIsolatedSpikesExcluded": 0,
@@ -146,11 +146,11 @@
       "path": "comparison/2020.json",
       "status": "aligned",
       "stats": {
-        "pairCount": 33484,
+        "pairCount": 33480,
         "meanDifferenceFt": -0.091,
         "medianDifferenceFt": -0.08,
         "meanAbsoluteDifferenceFt": 0.094,
-        "rmseFt": 0.119,
+        "rmseFt": 0.118,
         "p05DifferenceFt": -0.244,
         "p95DifferenceFt": 0.007,
         "correlation": 0.9989
@@ -158,7 +158,7 @@
       "lag": {
         "stoneHarborLagMinutes": 0,
         "correlation": 0.9989,
-        "pairCount": 33484
+        "pairCount": 33480
       },
       "peaks": {
         "matchedPeakCount": 674,
@@ -179,7 +179,7 @@
       "path": "comparison/2021.json",
       "status": "aligned",
       "stats": {
-        "pairCount": 34714,
+        "pairCount": 34710,
         "meanDifferenceFt": 0,
         "medianDifferenceFt": -0.195,
         "meanAbsoluteDifferenceFt": 0.359,
@@ -191,7 +191,7 @@
       "lag": {
         "stoneHarborLagMinutes": 0,
         "correlation": 0.9514,
-        "pairCount": 34714
+        "pairCount": 34710
       },
       "peaks": {
         "matchedPeakCount": 701,
@@ -212,19 +212,19 @@
       "path": "comparison/2022.json",
       "status": "aligned",
       "stats": {
-        "pairCount": 35030,
+        "pairCount": 35026,
         "meanDifferenceFt": -0.236,
         "medianDifferenceFt": -0.219,
         "meanAbsoluteDifferenceFt": 0.236,
         "rmseFt": 0.25,
         "p05DifferenceFt": -0.405,
-        "p95DifferenceFt": -0.131,
+        "p95DifferenceFt": -0.132,
         "correlation": 0.9987
       },
       "lag": {
         "stoneHarborLagMinutes": 0,
         "correlation": 0.9987,
-        "pairCount": 35030
+        "pairCount": 35026
       },
       "peaks": {
         "matchedPeakCount": 709,
@@ -245,26 +245,26 @@
       "path": "comparison/2023.json",
       "status": "aligned",
       "stats": {
-        "pairCount": 34078,
+        "pairCount": 34074,
         "meanDifferenceFt": -0.396,
         "medianDifferenceFt": -0.23,
         "meanAbsoluteDifferenceFt": 0.396,
-        "rmseFt": 0.647,
+        "rmseFt": 0.648,
         "p05DifferenceFt": -1.985,
-        "p95DifferenceFt": -0.14,
+        "p95DifferenceFt": -0.141,
         "correlation": 0.9497
       },
       "lag": {
         "stoneHarborLagMinutes": 0,
         "correlation": 0.9497,
-        "pairCount": 34078
+        "pairCount": 34074
       },
       "peaks": {
-        "matchedPeakCount": 690,
+        "matchedPeakCount": 689,
         "medianPeakHeightDifferenceFt": -0.25,
         "meanPeakHeightDifferenceFt": -0.4,
         "medianStoneHarborLagMinutes": 0,
-        "meanStoneHarborLagMinutes": 1.2
+        "meanStoneHarborLagMinutes": 1.1
       },
       "quality": {
         "northWildwoodIsolatedSpikesExcluded": 0,
@@ -278,19 +278,19 @@
       "path": "comparison/2024.json",
       "status": "aligned",
       "stats": {
-        "pairCount": 33838,
+        "pairCount": 33834,
         "meanDifferenceFt": -0.242,
         "medianDifferenceFt": -0.227,
         "meanAbsoluteDifferenceFt": 0.242,
         "rmseFt": 0.261,
-        "p05DifferenceFt": -0.401,
+        "p05DifferenceFt": -0.4,
         "p95DifferenceFt": -0.143,
         "correlation": 0.9981
       },
       "lag": {
         "stoneHarborLagMinutes": 0,
         "correlation": 0.9981,
-        "pairCount": 33838
+        "pairCount": 33834
       },
       "peaks": {
         "matchedPeakCount": 686,
@@ -311,7 +311,7 @@
       "path": "comparison/2025.json",
       "status": "aligned",
       "stats": {
-        "pairCount": 31904,
+        "pairCount": 31900,
         "meanDifferenceFt": -0.247,
         "medianDifferenceFt": -0.233,
         "meanAbsoluteDifferenceFt": 0.247,
@@ -323,7 +323,7 @@
       "lag": {
         "stoneHarborLagMinutes": 0,
         "correlation": 0.9989,
-        "pairCount": 31904
+        "pairCount": 31900
       },
       "peaks": {
         "matchedPeakCount": 648,
