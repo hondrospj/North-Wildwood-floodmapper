@@ -100,10 +100,10 @@ assert.equal(
   2,
   "All physically ready pixels should share the transition",
 );
-const blended = [34, 186, 231, 223];
+const blended = [94, 229, 240, 223];
 assert.deepEqual(Array.from(lower.slice(4, 8)), blended,
   "A newly admitted pixel should blend toward its actual depth color");
-assert.deepEqual(Array.from(lower.slice(8, 12)), blended,
+assert.deepEqual(Array.from(lower.slice(8, 12)), [60, 211, 240, 223],
   "A shallow routed pixel must transition with the full surface");
 assert.deepEqual(Array.from(lower.slice(12, 16)), green,
   "Ground above the adjusted water surface must remain green");

@@ -12,6 +12,11 @@ import urllib.request
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import calendar
+from observation_quality import (POLICY_VERSION, analytical_samples, file_sha256,
+                                 MIN_DAILY_COVERAGE, MIN_MONTHLY_DAY_COVERAGE, complete_water_year_samples)
 
 import numpy as np
 from osgeo import gdal, ogr, osr
@@ -109,19 +114,12 @@ def fetch_parcels() -> list[dict]:
     return features
 
 
-def decode_observed_archive(path: Path) -> tuple[list[int], list[float], dict]:
+def decode_observed_archive(path: Path, *, require_single_station: bool = False) -> tuple[list[int], list[float], dict]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    times: list[int] = []
-    levels: list[float] = []
-    for day in payload.get("days", []):
-        start = int(day["u"])
-        for index, encoded in enumerate(day.get("v", [])):
-            if encoded is None:
-                continue
-            times.append(start + index * 900)
-            levels.append(float(encoded) / 100.0)
-    order = np.argsort(np.asarray(times, dtype=np.int64))
-    return [times[i] for i in order], [levels[i] for i in order], payload
+    rows = analytical_samples(payload, require_single_station=require_single_station)
+    payload["sourceArchiveSha256"] = file_sha256(path)
+    payload["qualifiedStationIds"] = sorted({"1005" if row[2] == "N" else "01411360" for row in rows})
+    return [row[0] for row in rows], [row[1] for row in rows], payload
 
 
 def split_contiguous(times: list[int], levels: list[float]) -> list[tuple[np.ndarray, np.ndarray]]:
@@ -141,15 +139,18 @@ def split_contiguous(times: list[int], levels: list[float]) -> list[tuple[np.nda
 
 def fit_local_gauge_trend(times: list[int], levels: list[float]) -> tuple[float, dict]:
     """Fit the existing local trend to equally weighted monthly means."""
-    daily: dict[str, list[float]] = defaultdict(list)
+    if len(times) != len(levels):
+        raise ValueError("Trend timestamps and levels must align")
+    daily: dict[str, dict[int, float]] = defaultdict(dict)
     for stamp, level in zip(times, levels):
         day = datetime.fromtimestamp(stamp, timezone.utc).strftime("%Y-%m-%d")
-        daily[day].append(float(level))
+        if math.isfinite(float(level)):
+            daily[day][stamp] = float(level)
 
     monthly: dict[str, list[float]] = defaultdict(list)
     for day, values in daily.items():
-        if values:
-            monthly[day[:7]].append(float(np.mean(values)))
+        if len(values) >= math.ceil(96 * MIN_DAILY_COVERAGE):
+            monthly[day[:7]].append(float(np.mean(list(values.values()))))
 
     xs: list[float] = []
     ys: list[float] = []
@@ -157,6 +158,8 @@ def fit_local_gauge_trend(times: list[int], levels: list[float]) -> tuple[float,
         if not values:
             continue
         year, month_number = map(int, month.split("-"))
+        if len(values) < math.ceil(calendar.monthrange(year, month_number)[1] * MIN_MONTHLY_DAY_COVERAGE):
+            continue
         xs.append(year + (month_number - 0.5) / 12.0)
         ys.append(float(np.mean(values)))
     if len(xs) < 24:
@@ -166,10 +169,12 @@ def fit_local_gauge_trend(times: list[int], levels: list[float]) -> tuple[float,
     fitted = np.asarray(xs) * slope + intercept
     residual = np.asarray(ys) - fitted
     return float(slope), {
-        "method": "ordinary least squares on equally weighted monthly means from the city-primary 15-minute archive",
+        "method": "ordinary least squares on coverage-qualified monthly means from a homogeneous station archive",
         "monthlyMeanCount": len(xs),
-        "firstMonth": min(monthly),
-        "lastMonth": max(monthly),
+        "firstMonth": f"{int(xs[0]):04d}-{round((xs[0] % 1) * 12 + 0.5):02d}",
+        "lastMonth": f"{int(xs[-1]):04d}-{round((xs[-1] % 1) * 12 + 0.5):02d}",
+        "minimumDailyCoverage": MIN_DAILY_COVERAGE,
+        "minimumMonthlyDayCoverage": MIN_MONTHLY_DAY_COVERAGE,
         "slopeFtPerYear": round(float(slope), 8),
         "interceptFt": round(float(intercept), 6),
         "residualStandardErrorFt": round(float(np.std(residual, ddof=2)), 4),
@@ -186,12 +191,14 @@ def extract_high_tide_events(times: list[int], levels: list[float], annual_trend
             stamp = int(segment_times[index])
             level = float(segment_levels[index])
             year = datetime.fromtimestamp(stamp, timezone.utc).year
+            local_day = datetime.fromtimestamp(stamp, ZoneInfo("America/New_York"))
             years_to_base = (base_timestamp - stamp) / (365.2425 * 86400)
             rebased = level + annual_trend_ft * years_to_base
             events.append(
                 {
                     "timeUtc": datetime.fromtimestamp(stamp, timezone.utc).isoformat().replace("+00:00", "Z"),
                     "year": year,
+                    "waterYear": local_day.year + (local_day.month >= 10),
                     "navd88Ft": round(level, 3),
                     "rebasedNavd88Ft": rebased,
                 }
@@ -316,16 +323,17 @@ def fit_continuous_exceedance_cdf(
     )
 
     peak_blocks: dict[int, list[float]] = defaultdict(list)
+    block_field = "waterYear" if all("waterYear" in event for event in events) else "year"
     for event in events:
         rebased = event.get("rebasedNavd88Ft")
         if rebased is not None and math.isfinite(float(rebased)):
-            peak_blocks[int(event["year"])].append(float(rebased))
+            peak_blocks[int(event[block_field])].append(float(rebased))
     block_histograms = np.asarray(
         [np.histogram(values, bins=edges)[0] for _, values in sorted(peak_blocks.items())],
         dtype=np.float64,
     )
     if block_histograms.shape[0] < 2:
-        raise RuntimeError("At least two calendar-year blocks are required for CDF uncertainty")
+        raise RuntimeError("At least two eligible annual blocks are required for CDF uncertainty")
 
     rng = np.random.default_rng(KDE_BOOTSTRAP_SEED)
     block_weights = rng.multinomial(
@@ -367,7 +375,7 @@ def fit_continuous_exceedance_cdf(
         "bandwidthFt": round(bandwidth, 6),
         "evaluationGridStepFt": KDE_GRID_STEP_FT,
         "kernelTruncationStandardDeviations": KDE_KERNEL_TRUNCATION_SD,
-        "uncertaintyMethod": "calendar-year block bootstrap percentile interval",
+        "uncertaintyMethod": f"{'water-year' if block_field == 'waterYear' else 'calendar-year'} block bootstrap percentile interval",
         "bootstrapReplicates": KDE_BOOTSTRAP_REPLICATES,
         "bootstrapSeed": KDE_BOOTSTRAP_SEED,
         "bootstrapBlockCount": int(block_histograms.shape[0]),
@@ -383,7 +391,10 @@ def build_cdf_payload(
     trend_metadata: dict,
 ) -> dict:
     years_with_data = sorted({row["year"] for row in events})
-    if len(events) >= 2:
+    eligible_exposure = [row for row in observed_payload.get("qualifiedExposureByWaterYear", {}).values() if row["eligible"]]
+    if eligible_exposure:
+        observed_duration_years = sum(row["validQuarterHours"] for row in eligible_exposure) / (365.2425 * 96)
+    elif len(events) >= 2:
         first_event = datetime.fromisoformat(events[0]["timeUtc"].replace("Z", "+00:00"))
         last_event = datetime.fromisoformat(events[-1]["timeUtc"].replace("Z", "+00:00"))
         observed_duration_years = max(1.0, (last_event - first_event).total_seconds() / (365.2425 * 86400))
@@ -422,25 +433,29 @@ def build_cdf_payload(
         "generatedUtc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "currentYear": CURRENT_YEAR,
         "site": {
-            "name": "North Wildwood city gauge with Stone Harbor fallback",
+            "name": observed_payload.get("gaugeName") or ("Great Channel at Stone Harbor" if observed_payload.get("site") == "01411360" else "North Wildwood city gauge with Stone Harbor fallback"),
             "cityGaugeId": "1005",
             "usgsId": "01411360",
             "noaaScenarioStationId": "8536110",
             "noaaScenarioStationName": "Cape May",
         },
         "sources": {
-            "observed": "North Wildwood municipal sensor 1005 where usable, with USGS 01411360 as the earlier and gap-fallback source; regularized to 15-minute anchors",
+            "observed": observed_payload.get("method") or "Quality-qualified station observations regularized to 15-minute anchors",
             "seaLevelScenarios": "NOAA CO-OPS 2022 Interagency Sea Level Report station projections",
             "scenarioReportYear": 2022,
-            "localObservedTrend": "city-primary monthly means from the same 15-minute archive",
+            "localObservedTrend": "coverage-qualified monthly means from the separately identified homogeneous station archive",
         },
-        "observedArchive": {"startDate": observed_payload.get("archiveStartDate"), "endDate": observed_payload.get("archiveEndDate")},
+        "qualityPolicyVersion": POLICY_VERSION,
+        "observedArchive": {"startDate": observed_payload.get("archiveStartDate"), "endDate": observed_payload.get("archiveEndDate"),
+                            "sha256": observed_payload.get("sourceArchiveSha256"), "sourceHashes": observed_payload.get("sourceHashes"),
+                            "qualityPolicyVersion": observed_payload.get("qualityPolicyVersion"),
+                            "qualifiedExposureByWaterYear": observed_payload.get("qualifiedExposureByWaterYear")},
         "method": {
-            "historic": "independent city-primary composite high-tide peaks separated by at least six hours; a parcel floods only when depth is strictly greater than 0.1 foot above the parcel's highest intersecting original five-foot DEM cell",
+            "historic": "independent quality-qualified high-tide peaks separated by at least six hours; a parcel floods only when depth is strictly greater than 0.1 foot above the parcel's highest intersecting original five-foot DEM cell",
             "baselineRebase": f"each observed local-gauge peak adjusted to 1 January {CURRENT_YEAR} using the fitted local observed trend",
             "seaLevelCurves": f"quadratic least-squares fits to each NOAA 2022 median scenario, evaluated annually and rebased to zero in {CURRENT_YEAR}; the observed local trend remains linear",
             "cdf": "continuous Gaussian-kernel CDF fitted to present-year-rebased independent high-tide peaks",
-            "uncertainty": "two-sided 95 percent calendar-year block-bootstrap percentile interval for the fitted exceedance probability at every elevation, year, and curve",
+            "uncertainty": "two-sided 95 percent " + cdf_fit_metadata["uncertaintyMethod"] + " for the fitted exceedance probability at every elevation, year, and curve",
             "future": "continuous fitted CDF probability of water level being strictly greater than parcel elevation plus 0.1 foot, with its 95 percent bounds multiplied by 705 expected astronomical high tides per year",
         },
         "floodDefinition": {
@@ -453,6 +468,7 @@ def build_cdf_payload(
         "observedTrendFit": trend_metadata,
         "highTidePeakCount": len(events),
         "calendarYearCount": len(years_with_data),
+        "qualifiedWaterYearCount": len(eligible_exposure),
         "observedDurationYears": round(observed_duration_years, 3),
         "detectedIndependentTidesPerObservedYear": round(detected_tides_per_year, 3),
         "independentTidesPerYear": tides_per_year,
@@ -758,12 +774,25 @@ def build(args: argparse.Namespace) -> dict:
     output_dir = args.output.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     observed_times, observed_levels, observed_payload = decode_observed_archive(args.observed.resolve())
+    trend_path = (getattr(args, "trend_observed", None) or args.observed).resolve()
+    trend_times, trend_levels, trend_payload = decode_observed_archive(trend_path, require_single_station=True)
+    annual_trend_ft, trend_metadata = fit_local_gauge_trend(trend_times, trend_levels)
+    trend_metadata["sourceArchiveSha256"] = file_sha256(trend_path)
+    trend_metadata["stationId"] = trend_payload["qualifiedStationIds"][0]
+    if annual_trend_ft <= 0:
+        raise ValueError("Nonpositive relative sea-level trend requires calibration/coverage review; no projection artifacts were written")
+    qualified_rows, exposure = complete_water_year_samples(
+        [(stamp, level, "qualified") for stamp, level in zip(observed_times, observed_levels)])
+    observed_times = [row[0] for row in qualified_rows]
+    observed_levels = [row[1] for row in qualified_rows]
+    observed_payload["qualifiedExposureByWaterYear"] = exposure
+    observed_payload["archiveStartDate"] = datetime.fromtimestamp(observed_times[0], timezone.utc).date().isoformat()
+    observed_payload["archiveEndDate"] = datetime.fromtimestamp(observed_times[-1], timezone.utc).date().isoformat()
     slr_payload = (
         json.loads(args.slr.resolve().read_text(encoding="utf-8"))
         if args.slr
         else fetch_json(NOAA_SLR_URL)
     )
-    annual_trend_ft, trend_metadata = fit_local_gauge_trend(observed_times, observed_levels)
     events, rebased_peaks = extract_high_tide_events(observed_times, observed_levels, annual_trend_ft)
     if not rebased_peaks:
         raise RuntimeError("No independent high-tide events could be extracted")
@@ -835,6 +864,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dem", type=Path)
     parser.add_argument("--observed", type=Path, default=Path("observed15min.json"))
+    parser.add_argument("--trend-observed", type=Path, help="Quality-qualified homogeneous station archive for the sea-level trend; defaults to --observed, which must then be single-station")
     parser.add_argument("--slr", type=Path, help="Optional cached NOAA 2022 SLR projection payload")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cdf-only", action="store_true", help="Regenerate only the projection CDF asset")

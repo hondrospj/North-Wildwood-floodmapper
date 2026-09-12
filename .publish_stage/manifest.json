@@ -1,0 +1,159 @@
+{
+  "bundleSha256": "ccf6a7ee5afaa93afb699285079912033de9a870cc93a6b3f3c2089584ad7588",
+  "files": [
+    {
+      "path": "index.html",
+      "sha": "319e4b790e6c436ed1d927d7d594cd0d4ca4db66",
+      "mode": "100644",
+      "bytes": 1419689,
+      "compressedLength": 309500
+    },
+    {
+      "path": "observed.json",
+      "sha": "07f454074a9cd8705b92ea172b294fcbe2e76bbf",
+      "mode": "100644",
+      "bytes": 53775009,
+      "compressedLength": 4262476
+    },
+    {
+      "path": "observed15min.json",
+      "sha": "3e494bfccc90f8bfcc7072419a9a595cac75fb31",
+      "mode": "100644",
+      "bytes": 7707668,
+      "compressedLength": 1584284
+    },
+    {
+      "path": "observed_archive/stone-harbor/2008.json",
+      "sha": "8b75d32bab202815e255e40483918c8a7ae299a7",
+      "mode": "100644",
+      "bytes": 418776,
+      "compressedLength": 79000
+    },
+    {
+      "path": "observed_archive/stone-harbor/2009.json",
+      "sha": "3f1736e2300e956034b9152b31bc8354982ad902",
+      "mode": "100644",
+      "bytes": 419493,
+      "compressedLength": 74196
+    },
+    {
+      "path": "observed_archive/stone-harbor/2010.json",
+      "sha": "498cd870e018bbe372f56f1bbfc26a3ea265f1da",
+      "mode": "100644",
+      "bytes": 417526,
+      "compressedLength": 78744
+    },
+    {
+      "path": "observed_archive/stone-harbor/2011.json",
+      "sha": "1682c880ee3ca977034118d25b43c36d75186e71",
+      "mode": "100644",
+      "bytes": 419066,
+      "compressedLength": 78644
+    },
+    {
+      "path": "observed_archive/stone-harbor/2012.json",
+      "sha": "c9fb888945d4602737c33e4216b5c2d787ef434f",
+      "mode": "100644",
+      "bytes": 419561,
+      "compressedLength": 79784
+    },
+    {
+      "path": "observed_archive/stone-harbor/2013.json",
+      "sha": "1ef2e1abca40e643df772473874f96cabbd93523",
+      "mode": "100644",
+      "bytes": 425309,
+      "compressedLength": 66140
+    },
+    {
+      "path": "observed_archive/stone-harbor/2014.json",
+      "sha": "7a0126e526a95afcd974908f6be46f5443de9da9",
+      "mode": "100644",
+      "bytes": 418772,
+      "compressedLength": 78416
+    },
+    {
+      "path": "observed_archive/stone-harbor/2015.json",
+      "sha": "f12e298ad70accf484c16d34a660477cb80999b3",
+      "mode": "100644",
+      "bytes": 420361,
+      "compressedLength": 76928
+    },
+    {
+      "path": "observed_archive/stone-harbor/2016.json",
+      "sha": "04c6016f7e1d3b86e02b20c574b0873ddc9c2cc5",
+      "mode": "100644",
+      "bytes": 419337,
+      "compressedLength": 80652
+    },
+    {
+      "path": "observed_archive/stone-harbor/2017.json",
+      "sha": "d7c772791f7390e9ff9845c0783e24db778da77a",
+      "mode": "100644",
+      "bytes": 411460,
+      "compressedLength": 88656
+    },
+    {
+      "path": "observed_archive/stone-harbor/2018.json",
+      "sha": "58be5afd34a7103ec2b4633a30693470c49e95fb",
+      "mode": "100644",
+      "bytes": 393099,
+      "compressedLength": 97052
+    },
+    {
+      "path": "observed_archive/stone-harbor/2019.json",
+      "sha": "059dd114cbea4c2cc82b7b2c4b4883a65c7a1eba",
+      "mode": "100644",
+      "bytes": 394096,
+      "compressedLength": 96360
+    },
+    {
+      "path": "observed_archive/stone-harbor/2020.json",
+      "sha": "c5032377602a4e64187b078e0c9b7d5fed73c5ab",
+      "mode": "100644",
+      "bytes": 393628,
+      "compressedLength": 97064
+    },
+    {
+      "path": "observed_archive/stone-harbor/2021.json",
+      "sha": "1a6f3ee612bc4959a64ea23738c94fc5ae55f730",
+      "mode": "100644",
+      "bytes": 396144,
+      "compressedLength": 95156
+    },
+    {
+      "path": "observed_archive/stone-harbor/2022.json",
+      "sha": "2dec1e6cd4bf797e4e03319b5ceb6f777f381165",
+      "mode": "100644",
+      "bytes": 391374,
+      "compressedLength": 97524
+    },
+    {
+      "path": "observed_archive/stone-harbor/2023.json",
+      "sha": "9a1c670cd46e5753da46a6bc76b494c74566a42c",
+      "mode": "100644",
+      "bytes": 393210,
+      "compressedLength": 95028
+    },
+    {
+      "path": "observed_archive/stone-harbor/2024.json",
+      "sha": "f371259ab50467f76beea096bec60e098e106cc7",
+      "mode": "100644",
+      "bytes": 392201,
+      "compressedLength": 96564
+    },
+    {
+      "path": "observed_archive/stone-harbor/2025.json",
+      "sha": "014c9b6d41252eec4785056235e7b4edca5d68e4",
+      "mode": "100644",
+      "bytes": 394420,
+      "compressedLength": 96936
+    },
+    {
+      "path": "observed_archive/stone-harbor/2026.json",
+      "sha": "edcf1bf41055ee16d2e6f7d5e6a165ddf9b51679",
+      "mode": "100644",
+      "bytes": 293827,
+      "compressedLength": 58920
+    }
+  ]
+}

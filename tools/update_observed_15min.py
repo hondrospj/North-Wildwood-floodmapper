@@ -21,6 +21,8 @@ from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from observation_quality import POLICY_VERSION, MAX_INTERPOLATION_GAP_SECONDS
+
 
 SITE_ID = "01411360"
 PARAMETER_CD = "72279"
@@ -30,8 +32,7 @@ ARCHIVE_START_DATE = date(2007, 10, 1)
 NAVD88_OFFSET_FROM_MLLW_FT = -2.75
 QUARTER_SECONDS = 15 * 60
 FETCH_CHUNK_DAYS = 90
-MAX_INTERPOLATION_GAP_SECONDS = 12 * 60 * 60
-MAX_ANCHOR_DISTANCE_SECONDS = 12 * 60 * 60
+MAX_ANCHOR_DISTANCE_SECONDS = MAX_INTERPOLATION_GAP_SECONDS
 MAX_SPIKE_NEIGHBOR_GAP_SECONDS = 30 * 60
 ISOLATED_SPIKE_THRESHOLD_FT = 3.0
 THRESHOLDS_NAVD88 = {"minorLow": 3.25, "moderateLow": 4.25, "majorLow": 5.25}
@@ -279,8 +280,14 @@ def build_compact_day(day: date, source: list[tuple[int, float]]) -> tuple[dict,
     source_values = [row[1] for row in source]
     quarter_values: list[int | None] = []
     float_values: list[float] = []
+    quality_codes = []
+    spans = []
     for anchor in range(start_second, end_second, QUARTER_SECONDS):
         value = interpolate_at(anchor, source_seconds, source_values)
+        position = bisect.bisect_left(source_seconds, anchor)
+        exact = position < len(source_seconds) and source_seconds[position] == anchor
+        quality_codes.append("-" if value is None else "M" if exact else "I")
+        spans.append(None if value is None else 0 if exact else source_seconds[position] - source_seconds[position-1])
         if value is None:
             quarter_values.append(None)
         else:
@@ -300,10 +307,14 @@ def build_compact_day(day: date, source: list[tuple[int, float]]) -> tuple[dict,
         "d": day.isoformat(),
         "u": start_second,
         "v": quarter_values,
+        "q": "".join(quality_codes),
+        "g": spans,
+        "s": "S" * len(quarter_values),
         "p": int(round(peak * 100)) if peak is not None else None,
         "c": classify_peak(peak),
     }
     if day == JONAS_DATE and peak is not None:
+        compact["q"] = "".join("C" if v is not None else "-" for v in quarter_values)
         compact["j"] = "North Wildwood crest calibrated to 9.44 ft MLLW / 6.69 ft NAVD88"
 
     if not float_values:
@@ -437,6 +448,7 @@ def build(args: argparse.Namespace) -> dict:
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     payload = {
         "schema": "north-wildwood-observed-15min-v1",
+        "qualityPolicyVersion": POLICY_VERSION,
         "gaugeName": "Stone Harbor",
         "site": SITE_ID,
         "parameterCd": PARAMETER_CD,
@@ -444,13 +456,16 @@ def build(args: argparse.Namespace) -> dict:
         "timeZone": LOCAL_TIME_ZONE,
         "intervalMinutes": 15,
         "sourceResolutionMinutes": 6,
-        "method": "isolated provisional spikes of at least 3 ft are rejected, then USGS IV observations are linearly interpolated to exact UTC 15-minute anchors across gaps up to 12 hours; longer outages remain unavailable",
+        "method": "isolated provisional spikes of at least 3 ft are rejected, then USGS IV observations are linearly interpolated to exact UTC 15-minute anchors across gaps up to 30 minutes; longer outages remain unavailable; legacy days without a quality mask remain analytically unqualified until a --full backfill",
         "encoding": {
             "d": "America/New_York civil date",
             "u": "UTC epoch second of first quarter-hour anchor",
             "v": "NAVD88 feet multiplied by 100; null means unavailable; subsequent entries are 900 seconds apart",
             "p": "daily maximum NAVD88 feet multiplied by 100",
             "c": "daily flood classification",
+            "q": "per sample: M measured, I interpolated <=30 minutes, C calibrated replay, U unknown legacy provenance, - missing",
+            "g": "per-sample interpolation bracket in seconds; 0 measured; null unavailable or unknown",
+            "s": "per sample: S Stone Harbor",
         },
         "archiveStartDate": sorted_days[0]["d"] if sorted_days else start_date.isoformat(),
         "archiveEndDate": sorted_days[-1]["d"] if sorted_days else end_date.isoformat(),

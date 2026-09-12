@@ -18,6 +18,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from cache_contract import terrain_manifest_matches
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -88,7 +89,12 @@ def terrain_is_ready(config: dict[str, Any]) -> bool:
         ROOT / config["terrain"]["bulkheadMask"],
         ROOT / "model/cache/terrain_manifest.json",
     ]
-    return all(path.is_file() and path.stat().st_size > 0 for path in required)
+    if not all(path.is_file() and path.stat().st_size > 0 for path in required):
+        return False
+    try:
+        return terrain_manifest_matches(ROOT, config, read_json(required[-1]))
+    except (OSError, ValueError, KeyError):
+        return False
 
 
 def discard_old_local_cycles(current_cycle: str) -> list[str]:
@@ -231,7 +237,7 @@ def main() -> None:
         atomic_json(status_path, status)
 
     try:
-        if not terrain_is_ready(config):
+        if args.force or not terrain_is_ready(config):
             record_step(
                 "Download authoritative NOAA terrain inputs",
                 [sys.executable, "model/src/download_topobathy.py", "--config", str(config_path)],

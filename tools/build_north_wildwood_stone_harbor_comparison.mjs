@@ -1,3 +1,4 @@
+import "../assets/municipal-time.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -11,19 +12,9 @@ const northOffsetFt = -2.75;
 const quarterMs = 15 * 60 * 1000;
 const maxInterpolationGapMs = 30 * 60 * 1000;
 const isolatedSpikeThresholdFt = 3;
-const schema = "north-wildwood-stone-harbor-comparison-year-v2";
+const schema = "north-wildwood-stone-harbor-comparison-year-v3";
 
-function epoch(timestamp) {
-  const [date, time] = timestamp.split(" ");
-  const [year, month, day] = date.split("-").map(Number);
-  const [hour, minute, second] = time.split(":").map(Number);
-  const marchDay = new Date(Date.UTC(year, 2, 1)).getUTCDay();
-  const novemberDay = new Date(Date.UTC(year, 10, 1)).getUTCDay();
-  const dstStart = Date.UTC(year, 2, 8 + (7 - marchDay) % 7, 2);
-  const dstEnd = Date.UTC(year, 10, 1 + (7 - novemberDay) % 7, 2);
-  const wall = Date.UTC(year, month - 1, day, hour, minute, second);
-  return wall + (wall >= dstStart && wall < dstEnd ? 4 : 5) * 3_600_000;
-}
+const epoch = globalThis.NorthWildwoodTime.municipalEpoch;
 
 function deduplicate(rows) {
   const values = new Map();

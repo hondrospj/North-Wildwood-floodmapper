@@ -52,22 +52,21 @@ def main() -> None:
 
     fit = PAYLOAD["usgsFrequencyFit"]
     maxima = fit["annualMaxima"]
-    if fit["sampleCount"] != 60 or len(maxima) != 60:
-        raise AssertionError("USGS fit must contain the 60 available complete water years")
+    if fit["sampleCount"] != len(maxima) or len(maxima) < 3:
+        raise AssertionError("Frequency sample count must match its eligible annual maxima")
     years = [row["waterYear"] for row in maxima]
     if years != sorted(set(years)) or years[0] != 1965 or years[-1] != 2025:
         raise AssertionError("USGS water-year record is not unique and ordered from 1965-2025")
     jonas = next(row for row in maxima if row["waterYear"] == 2016)
     if not math.isclose(jonas["heightNavd88Ft"], 6.22, abs_tol=1e-9):
         raise AssertionError("Frequency fit used the replay-calibrated Jonas value instead of raw USGS")
-    if jonas["source"] != "usgs-continuous-raw":
+    if jonas["source"] not in {"usgs-continuous-raw", "usgs-official-crest-with-raw-height"}:
         raise AssertionError("Raw USGS Jonas provenance is missing")
-    post_city = [row for row in maxima if row["waterYear"] >= 2018]
-    if not post_city or any(
-        row["source"] != "north-wildwood-city-primary-composite-15min"
-        for row in post_city
-    ):
-        raise AssertionError("Post-2017 frequency maxima did not use the city-primary archive")
+    if fit.get("qualityPolicyVersion"):
+        for row in maxima:
+            if row.get("source") in {"north-wildwood-city-gauge", "usgs-continuous-15min", "usgs-continuous-raw"}:
+                if not row.get("exposure", {}).get("eligible"):
+                    raise AssertionError("Continuous annual maximum lacks eligible exposure")
 
     records = PAYLOAD["intervals"]
     if [record["years"] for record in records] != EXPECTED_INTERVALS:

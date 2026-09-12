@@ -38,6 +38,8 @@ import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
+from observation_quality import POLICY_VERSION, analytical_samples, annual_exposure, file_sha256
 
 
 NACCS_STATION_ID = 11283
@@ -250,29 +252,25 @@ def parse_usgs_peak_rows(text: str) -> dict[int, dict]:
 
 def continuous_annual_maxima(path: Path) -> dict[int, dict]:
     archive = json.loads(path.read_text(encoding="utf-8"))
-    maxima: dict[int, dict] = {}
-    for day in archive.get("days", []):
-        date_value = day.get("d")
-        values = [value for value in day.get("v", []) if value is not None]
-        if not date_value or not values:
+    rows = analytical_samples(archive)
+    by_year = {}
+    zone = ZoneInfo("America/New_York")
+    for stamp, level, station in rows:
+        year = water_year(datetime.fromtimestamp(stamp, zone).date())
+        if year <= ANALYSIS_END_WATER_YEAR:
+            by_year.setdefault(year, []).append((stamp, level, station))
+    maxima = {}
+    for year, samples in by_year.items():
+        exposure = annual_exposure(samples, year)
+        if not exposure["eligible"]:
             continue
-        event_date = date.fromisoformat(date_value)
-        year = water_year(event_date)
-        if year > ANALYSIS_END_WATER_YEAR:
-            continue
-        height = max(values) / 100.0
-        record = {
-            "waterYear": year,
-            "heightNavd88Ft": height,
-            "date": event_date.isoformat(),
-            "source": (
-                "north-wildwood-city-primary-composite-15min"
-                if int(day.get("n") or 0) > 0
-                else "usgs-continuous-15min"
-            ),
-        }
-        if year not in maxima or height > maxima[year]["heightNavd88Ft"]:
-            maxima[year] = record
+        stamp, height, station = max(samples, key=lambda row: row[1])
+        maxima[year] = {"waterYear": year, "heightNavd88Ft": height,
+                        "date": datetime.fromtimestamp(stamp, zone).date().isoformat(),
+                        "time": datetime.fromtimestamp(stamp, timezone.utc).isoformat(),
+                        "source": "north-wildwood-city-gauge" if station == "N" else "usgs-continuous-15min",
+                        "stationId": "1005" if station == "N" else "01411360",
+                        "exposure": exposure}
     return maxima
 
 
@@ -310,7 +308,11 @@ def combine_usgs_maxima(
     # observed15min.json deliberately rescales Jonas to the documented North
     # Wildwood crest for replay. Jonas predates the city archive, so restore
     # the unmodified Stone Harbor maximum before fitting the local curve.
-    continuous_maxima[jonas_maximum["waterYear"]] = jonas_maximum
+    if jonas_maximum["waterYear"] in continuous_maxima:
+        exposure = continuous_maxima[jonas_maximum["waterYear"]].get("exposure")
+        continuous_maxima[jonas_maximum["waterYear"]] = {**jonas_maximum, "exposure": exposure}
+    elif jonas_maximum["waterYear"] in crest_maxima:
+        crest_maxima = {**crest_maxima, jonas_maximum["waterYear"]: {**jonas_maximum, "source": "usgs-official-crest-with-raw-height"}}
 
     combined: dict[int, dict] = {}
     for records in (crest_maxima, continuous_maxima):
@@ -518,6 +520,8 @@ def build(args: argparse.Namespace) -> dict:
     naccs_values, naccs_station = parse_naccs(fetch_json(NACCS_QUERY_URL))
     crest_maxima = parse_usgs_peak_rows(fetch_text(USGS_PEAK_URL))
     continuous_maxima = continuous_annual_maxima(args.observed)
+    if not continuous_maxima:
+        raise ValueError("No complete, quality-qualified continuous water years; rebuild/review observations before publishing a new frequency fit")
     jonas_maximum = raw_jonas_maximum(fetch_json(USGS_JONAS_URL))
     annual_maxima = combine_usgs_maxima(
         crest_maxima, continuous_maxima, jonas_maximum
@@ -666,6 +670,8 @@ def build(args: argparse.Namespace) -> dict:
                 key: round(value, 10)
                 for key, value in fit.items()
             },
+            "qualityPolicyVersion": POLICY_VERSION,
+            "continuousArchiveSha256": file_sha256(args.observed),
             "annualMaxima": [
                 {
                     **row,
