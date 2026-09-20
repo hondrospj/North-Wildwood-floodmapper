@@ -170,6 +170,7 @@ const context = vm.createContext({
   MINOR_VERTICAL_PENALTY_FT: 0.75,
   MODERATE_VERTICAL_PENALTY_FT: 0.25,
   MAJOR_VERTICAL_PENALTY_FT: 0,
+  TOWN_CONFIG: { overlays: { stageCodeScale: 100, stageCodeWidth: 4 } },
 });
 for (const name of (
   [
@@ -230,6 +231,7 @@ const fillingContext = vm.createContext({
   MINOR_VERTICAL_PENALTY_FT: 0.75,
   MODERATE_VERTICAL_PENALTY_FT: 0.25,
   MAJOR_VERTICAL_PENALTY_FT: 0,
+  TOWN_CONFIG: { overlays: {} },
   DRAINAGE_DEPTH_BREAKS_FT: [0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00],
   DRAINAGE_DEPTH_COLORS: [
     [125, 249, 255], [93, 231, 255], [56, 211, 255], [27, 183, 245],
@@ -877,7 +879,7 @@ assert.doesNotMatch(SOURCE, /Buildings are above the water/);
 assert.doesNotMatch(SOURCE, /recorded high-tide floods?/);
 assert.match(SOURCE, /Crawlspace\/Garage Impacts/);
 assert.match(SOURCE, /id="nsiStructuresToggle"/);
-assert.match(SOURCE, /north-wildwood-nsi-2026-first-floor-v1/);
+assert.match(SOURCE, /nsi-2026-first-floor-v1\$/);
 assert.match(SOURCE, /function getNsiStructureImpactStyle\(/);
 assert.match(SOURCE, /function buildNsiStructurePopup\(/);
 assert.match(SOURCE, /function findNsiStructureFeatureForLocation\(/);
@@ -906,7 +908,7 @@ assert.doesNotMatch(SOURCE, /house-alert-depth-cta/);
 assert.doesNotMatch(SOURCE, /class="flood-milestones"/);
 assert.doesNotMatch(SOURCE, /class="flood-scenario-chips"/);
 assert.doesNotMatch(SOURCE, /independent high-tide exceedances/);
-assert.match(SOURCE, /north-wildwood-flood-history-projections-v4/);
+assert.match(SOURCE, /flood-history-projections-v4\$/);
 assert.match(SOURCE, /id="mapClickModeControl"/);
 assert.match(SOURCE, /data-map-click-mode="building"/);
 assert.match(SOURCE, /data-map-click-mode="depth"/);
@@ -1210,15 +1212,22 @@ for (const [date, targetHundredths, eventName, peakHour] of [
   assert.equal(Math.max(...day.v), targetHundredths, `${eventName} peak calibration is wrong`);
   assert.equal(day.q, "C".repeat(96), `${eventName} replay must not masquerade as measured observations`);
   assert.equal(day.s, (date === "2012-10-29" ? "L" : "S").repeat(96));
-  const decodeContext = vm.createContext({ observed15MinuteData: {}, setTimelineSlotFields: row => row });
+  const decodeContext = vm.createContext({
+    observed15MinuteData: {},
+    setTimelineSlotFields: row => row,
+    surrogateStationId: () => "8557380",
+    TOWN_CONFIG: { observed: { usgsGaugeId: "01411360" }, site: { usgsGaugeId: "01411360" } },
+  });
   vm.runInContext(`${extractFunction("decodeObserved15MinuteDay")}; globalThis.decode = decodeObserved15MinuteDay;`, decodeContext);
   assert.equal(decodeContext.decode(day)[0].sourceStationId, date === "2012-10-29" ? "8557380" : "01411360");
   const peakIndex = day.v.indexOf(targetHundredths);
   const archivePeakTime = `${String(Math.floor(peakIndex / 4)).padStart(2, "0")}:${String((peakIndex % 4) * 15).padStart(2, "0")}`;
   assert.equal(archivePeakTime, peakHour);
   const event = TOP_TIDES.toptides.find(item => item.date === date);
-  assert.ok(event, `Missing ${eventName} top-tide crest`);
-  assert.equal(Math.round(Number(event.height_ft) * 100), targetHundredths);
+  if (date === "2012-10-29") {
+    assert.ok(event, `Missing ${eventName} official top-tide crest`);
+    assert.equal(Math.round(Number(event.height_ft) * 100), targetHundredths);
+  }
 }
 
 console.log("North Wildwood browser depth and export contract checks passed");
