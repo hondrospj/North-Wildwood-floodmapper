@@ -1,7 +1,39 @@
 {
-  "schema": "nj-floodmapper-v2-config",
-  "repo": "North-Wildwood-floodmapper",
-  "releaseVersion": "20260920-nj-universal-v2",
+  "pageTitle": "North Wildwood Flood Mapper",
+  "mapTitle": "North Wildwood Flood Mapper",
+  "brandTitleLine1": "North Wildwood",
+  "brandTitleLine2": "Flood Mapper",
+  "data": {
+    "forecastPath": "./forecast.json",
+    "observedPath": "./observed.json",
+    "observed15MinPath": "./observed15min.json",
+    "observedArchiveIndexPath": "./observed_archive_index.json",
+    "lewesArchiveIndexPath": "./lewes_archive_index.json",
+    "lewesHourlyPath": "./lewes_hourly.json",
+    "topTidesPath": "./toptides.json",
+    "returnIntervalsPath": "./return_intervals.json",
+    "surrogateArchiveIndexPath": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_archive_index.json",
+    "surrogateHourlyPath": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_hourly.json",
+    "canonicalDailyPath": "./canonical_daily_v2.json",
+    "returnLevelsPath": "./return_interval_levels_v2.json"
+  },
+  "bunny": {
+    "storageZoneId": "5907481",
+    "cdnBaseUrl": "https://floodmapperv1.b-cdn.net"
+  },
+  "assets": {
+    "titleLogoPath": null,
+    "titleLogoAlt": "",
+    "partnerLogoPath": "https://floodmapperv1.b-cdn.net/Logos/ShorelySafe.jpg",
+    "partnerLogoFallbackPath": "https://floodmapperv1.b-cdn.net/Logos/ShorelySafe.jpg",
+    "partnerLogoAlt": "ShorelySafe",
+    "rightRailLogoPath": "https://floodmapperv1.b-cdn.net/Logos/ShorelySafe.jpg",
+    "rightRailLogoAlt": "ShorelySafe"
+  },
+  "links": {
+    "partnerUrl": "https://cupajoe.live",
+    "partnerAriaLabel": "Visit cupajoe.live"
+  },
   "site": {
     "name": "North Wildwood",
     "municipalityName": "North Wildwood",
@@ -11,32 +43,13 @@
     "petssGaugeId": "8535581",
     "gaugeName": "Stone Harbor"
   },
-  "observed": {
-    "usgsGaugeId": "01411360",
-    "usgsParameterCd": "72279",
-    "primaryArchiveStartDate": "2007-10-01",
-    "sourcePrecedence": [
-      "primary-usgs-continuous",
-      "bias-corrected-noaa-historical-fill",
-      "official-usgs-storm-tide-crest-override"
-    ],
-    "surrogate": {
-      "enabled": true,
-      "key": "lewes",
-      "stationId": "8557380",
-      "stationName": "Lewes, Delaware",
-      "stationShort": "Lewes",
-      "hostRepo": "Stone-Harbor-Borough-floodmapper",
-      "indexPath": "lewes_archive_index.json",
-      "hourlyPath": "lewes_hourly.json",
-      "shardPath": "observed_archive/lewes/{year}.json",
-      "indexUrl": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_archive_index.json",
-      "hourlyUrl": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_hourly.json",
-      "shardPathTemplate": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/observed_archive/lewes/{year}.json",
-      "biasCorrectionFt": 0.066,
-      "calibrationPairKey": "01411360:lewes"
-    },
-    "crestStationId": "01411360"
+  "datums": {
+    "helpText": "Changing the reference changes the number shown, not the mapped flood area.",
+    "navd88OffsetFromMllwFt": -2.75,
+    "offsets": {
+      "navd88": 0,
+      "mllw": 2.75
+    }
   },
   "thresholds": {
     "navd88": {
@@ -50,16 +63,6 @@
       "major": 8
     }
   },
-  "datums": {
-    "helpText": "Changing the reference changes the number shown, not the mapped flood area.",
-    "navd88OffsetFromMllwFt": -2.75,
-    "offsets": {
-      "navd88": 0,
-      "mllw": 2.75
-    }
-  },
-  "terrain": null,
-  "pipelineFile": "gauge_pipeline_v2.json",
   "overlays": {
     "depthPngPrefix": "NorthWildwoodDepth",
     "stagePngPrefix": "NorthWildwoodStage",
@@ -158,5 +161,98 @@
         ]
       }
     }
-  }
+  },
+  "parcels": {
+    "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1",
+    "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260816-nsi-2026-floor-v1",
+    "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260816-nsi-2026-floor-v1"
+  },
+  "structures": {
+    "nsi2026GeojsonPath": "./assets/nsi-2026/NorthWildwoodNSI2026Structures.geojson?v=20260816-nsi-floor-impact-v2",
+    "buildings3dPath": "./assets/3d/NorthWildwoodBuildings3D.geojson?v=20260825-nw-3d-v61"
+  },
+  "addressLookup": {
+    "title": "Find a North Wildwood Address",
+    "displayName": "North Wildwood",
+    "city": "North Wildwood",
+    "state": "NJ",
+    "stateName": "New Jersey",
+    "countryCode": "us",
+    "sourceCountry": "USA",
+    "postalCode": "",
+    "placeholder": "Example: 123 Main St",
+    "buttonText": "Search North Wildwood",
+    "bbox": {
+      "west": -74.8190324,
+      "south": 38.9875662,
+      "east": -74.7806391,
+      "north": 39.0263239
+    },
+    "geocodeCenter": {
+      "lat": 39.006945,
+      "lon": -74.7998357
+    },
+    "searchDistanceMeters": 9000
+  },
+  "alerts": {
+    "zoneCodes": []
+  },
+  "exportSlug": "North-Wildwood-floodmapper",
+  "boundary": {
+    "boundaryUrl": "Boundaries/North Wildwood.geojson",
+    "bunnyBoundaryPath": "Boundaries/North Wildwood.geojson",
+    "queryUrl": "https://services2.arcgis.com/XVOqAjTOJ5P6ngMu/arcgis/rest/services/NJ_Municipalities_3857/FeatureServer/0/query",
+    "outFields": "NAME,COUNTY,MUN,MUN_LABEL,MUN_TYPE,GNIS_NAME",
+    "queryCandidates": [
+      "MUN_LABEL = 'North Wildwood City'",
+      "NAME = 'North Wildwood'"
+    ]
+  },
+  "map": {
+    "center": {
+      "lat": 39.006945,
+      "lon": -74.7998357
+    }
+  },
+  "nwsPoint": {
+    "lat": 39.006945,
+    "lon": -74.7998357
+  },
+  "observed": {
+    "usgsGaugeId": "01411360",
+    "usgsParameterCd": "72279",
+    "primaryArchiveStartDate": "2007-10-01",
+    "sourcePrecedence": [
+      "primary-usgs-continuous",
+      "bias-corrected-noaa-historical-fill",
+      "official-usgs-storm-tide-crest-override"
+    ],
+    "surrogate": {
+      "enabled": true,
+      "key": "lewes",
+      "stationId": "8557380",
+      "stationName": "Lewes, Delaware",
+      "stationShort": "Lewes",
+      "hostRepo": "Stone-Harbor-Borough-floodmapper",
+      "indexPath": "lewes_archive_index.json",
+      "hourlyPath": "lewes_hourly.json",
+      "shardPath": "observed_archive/lewes/{year}.json",
+      "indexUrl": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_archive_index.json",
+      "hourlyUrl": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_hourly.json",
+      "shardPathTemplate": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/observed_archive/lewes/{year}.json",
+      "biasCorrectionFt": 0.066,
+      "calibrationPairKey": "01411360:lewes"
+    },
+    "crestStationId": "01411360"
+  },
+  "release": {
+    "reference": "North Wildwood Floodmapper V2",
+    "version": "20260920-nj-universal-v2",
+    "policy": "Primary USGS continuous record; bias-corrected regional NOAA record fills missing history; the nearest official USGS storm-tide crest overwrites the same date as absolute truth."
+  },
+  "schema": "nj-floodmapper-v2-config",
+  "repo": "North-Wildwood-floodmapper",
+  "releaseVersion": "20260920-nj-universal-v2",
+  "terrain": null,
+  "pipelineFile": "gauge_pipeline_v2.json"
 }
