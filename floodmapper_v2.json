@@ -160,7 +160,9 @@
           "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/draining/"
         ]
       }
-    }
+    },
+    "stageCodeScale": 100,
+    "stageCodeWidth": 4
   },
   "parcels": {
     "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1",
