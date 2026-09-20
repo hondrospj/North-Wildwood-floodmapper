@@ -38,7 +38,8 @@ assert.match(THREE_D_BUILDINGS.metadata.municipalityFilter, /official North Wild
 assert.match(THREE_D_BUILDINGS.metadata.geometrySources, /OSM major/);
 assert.match(THREE_D_SOURCE, /buildings3dCoverage = "north-wildwood-only"/);
 assert.match(THREE_D_SOURCE, /buildings3dClippedToMunicipality = "true"/);
-assert.match(THREE_D_SOURCE, /MUNICIPAL_BOUNDARY_3D_URL = new URL\("\.\/Boundaries\/North Wildwood\.geojson"/);
+assert.match(THREE_D_SOURCE, /MUNICIPAL_BOUNDARY_3D_URL = TOWN_CONFIG\?\.boundary\?\.boundaryUrl \? new URL\(TOWN_CONFIG\.boundary\.boundaryUrl, APP_BASE\)\.href : ""/);
+assert.match(SOURCE, /"boundaryUrl":"\.\/Boundaries\/North Wildwood\.geojson"/);
 assert.match(THREE_D_SOURCE, /function buildingInsideMunicipality\(feature, boundaryFeature\)/);
 assert.match(THREE_D_SOURCE, /sourceFeatures\.filter\(function \(feature\) \{[\s\S]+buildingInsideMunicipality\(feature, boundaryFeature\)/);
 assert.match(THREE_D_SOURCE, /buildings3dExcludedOutsideMunicipality/);

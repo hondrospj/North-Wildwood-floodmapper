@@ -59,5 +59,104 @@
     }
   },
   "terrain": null,
-  "pipelineFile": "gauge_pipeline_v2.json"
+  "pipelineFile": "gauge_pipeline_v2.json",
+  "overlays": {
+    "depthPngPrefix": "NorthWildwoodDepth",
+    "stagePngPrefix": "NorthWildwoodStage",
+    "boundsWgs84": {
+      "south": 38.9875038,
+      "west": -74.8191427,
+      "north": 39.026374,
+      "east": -74.7805143
+    },
+    "worldFileRasterSize": {
+      "width": 2186,
+      "height": 2824
+    },
+    "worldFileCornersWgs84": {
+      "northWest": [
+        39.026275100631,
+        -74.819142704419
+      ],
+      "northEast": [
+        39.026374017662,
+        -74.780667213004
+      ],
+      "southEast": [
+        38.987603225736,
+        -74.780514043454
+      ],
+      "southWest": [
+        38.987504444587,
+        -74.818968538313
+      ]
+    },
+    "cacheVersions": {
+      "depth": "20260822-mask-stabilizer-v40",
+      "dynamic": "20260822-mask-stabilizer-v40",
+      "hydraulic": "20260822-mask-stabilizer-v40"
+    },
+    "modelKind": "phase-aware developed-land conditional connectivity",
+    "phaseInvariant": false,
+    "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260822-mask-stabilizer-v40",
+    "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260822-mask-stabilizer-v40",
+    "depthQueryCogPath": null,
+    "physicsForecastPointerPath": null,
+    "physicsForecastCyclePointerTemplatePath": null,
+    "hydraulicStatesPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicStates.json.png?v=20260822-mask-stabilizer-v40",
+    "depthRoots": [
+      "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
+      "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"
+    ],
+    "dynamicRoots": [
+      "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
+      "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/"
+    ],
+    "phaseRoots": {
+      "depth": {
+        "filling": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/filling/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/filling/"
+        ],
+        "slack": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"
+        ],
+        "draining-release-15": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/draining-release-15/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/draining-release-15/"
+        ],
+        "draining-release-30": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/draining-release-30/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/draining-release-30/"
+        ],
+        "draining": [
+          "./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/draining/",
+          "https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/draining/"
+        ]
+      },
+      "dynamic": {
+        "filling": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/filling/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/filling/"
+        ],
+        "slack": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/"
+        ],
+        "draining-release-15": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/draining-release-15/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/draining-release-15/"
+        ],
+        "draining-release-30": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/draining-release-30/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/draining-release-30/"
+        ],
+        "draining": [
+          "./assets/hydraulic-v29/StagePNGs/North%20Wildwood/draining/",
+          "https://floodmapperv1.b-cdn.net/StagePNGs/North%20Wildwood/v37/draining/"
+        ]
+      }
+    }
+  }
 }
