@@ -1,0 +1,97 @@
+{
+  "schema": "nj-floodmapper-gauge-pipeline-v2",
+  "releaseVersion": "20260920-nj-universal-v2",
+  "town": "North Wildwood",
+  "repo": "North-Wildwood-floodmapper",
+  "sourcePrecedence": [
+    "primary-usgs-continuous",
+    "bias-corrected-noaa-historical-fill",
+    "official-usgs-storm-tide-crest-override"
+  ],
+  "primaryUsgs": {
+    "stationId": "01411360",
+    "stationName": "Stone Harbor"
+  },
+  "noaaHistoricalFill": {
+    "stationId": "8557380",
+    "stationName": "Lewes, Delaware",
+    "region": "lewes",
+    "biasCorrectionFt": 0.066,
+    "correctionApplication": "corrected NOAA NAVD88 = raw NOAA NAVD88 + biasCorrectionFt"
+  },
+  "officialUsgsCrestTruth": {
+    "stationId": "01411360",
+    "stationName": "Great Channel at Stone Harbor NJ"
+  },
+  "calibration": {
+    "schema": "noaa-to-usgs-daily-high-offset-v2",
+    "pairKey": "01411360:lewes",
+    "primaryUsgsGaugeId": "01411360",
+    "noaaRegion": "lewes",
+    "noaaStationId": "8557380",
+    "noaaStationName": "Lewes, Delaware",
+    "method": "constant robust vertical offset = median(USGS local-day peak NAVD88 - NOAA verified hourly local-day peak NAVD88), fit on complete calendar years 2021-2025; 3-IQR difference screen; leave-one-year-out validation",
+    "application": "correctedNoaaNavd88Ft = rawNoaaNavd88Ft + offsetFt",
+    "overlap": {
+      "startDate": "2021-01-01",
+      "endDate": "2025-12-31",
+      "rawDays": 1826,
+      "acceptedDays": 1815,
+      "excludedDays": 11
+    },
+    "offsetFt": 0.066,
+    "validation": {
+      "medianResidualFt": 0,
+      "maeFt": 0.0837,
+      "rmseFt": 0.108,
+      "folds": [
+        {
+          "year": 2021,
+          "samples": 363,
+          "trainingOffsetFt": 0.064,
+          "medianBiasFt": 0.012,
+          "maeFt": 0.0772,
+          "rmseFt": 0.0988
+        },
+        {
+          "year": 2022,
+          "samples": 361,
+          "trainingOffsetFt": 0.066,
+          "medianBiasFt": 0.003,
+          "maeFt": 0.0905,
+          "rmseFt": 0.1174
+        },
+        {
+          "year": 2023,
+          "samples": 363,
+          "trainingOffsetFt": 0.0745,
+          "medianBiasFt": -0.0335,
+          "maeFt": 0.0833,
+          "rmseFt": 0.1073
+        },
+        {
+          "year": 2024,
+          "samples": 364,
+          "trainingOffsetFt": 0.071,
+          "medianBiasFt": -0.0245,
+          "maeFt": 0.0842,
+          "rmseFt": 0.1066
+        },
+        {
+          "year": 2025,
+          "samples": 364,
+          "trainingOffsetFt": 0.059,
+          "medianBiasFt": 0.0415,
+          "maeFt": 0.0885,
+          "rmseFt": 0.1151
+        }
+      ]
+    },
+    "provenance": {
+      "usgsArchive": "../../2026-08-10/gene/work/gauge-archives/01411360.json",
+      "noaaArchive": "work/data/noaa-overlap/lewes.json",
+      "usgsSource": "https://waterdata.usgs.gov/monitoring-location/USGS-01411360/",
+      "noaaSource": "https://tidesandcurrents.noaa.gov/stationhome.html?id=8557380"
+    }
+  }
+}

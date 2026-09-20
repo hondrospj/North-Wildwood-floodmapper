@@ -20,8 +20,8 @@
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
   var ESRI_VECTOR_TILES = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf";
   var TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejson.json";
-  var BUILDINGS_3D_URL = new URL("./assets/3d/NorthWildwoodBuildings3D.geojson?v=20260825-nw-3d-v61", APP_BASE).href;
-  var MUNICIPAL_BOUNDARY_3D_URL = new URL("./Boundaries/North Wildwood.geojson", APP_BASE).href;
+  var BUILDINGS_3D_URL = TOWN_CONFIG?.structures?.buildings3dPath ? new URL(TOWN_CONFIG.structures.buildings3dPath, APP_BASE).href : "";
+  var MUNICIPAL_BOUNDARY_3D_URL = TOWN_CONFIG?.boundary?.boundaryUrl ? new URL(TOWN_CONFIG.boundary.boundaryUrl, APP_BASE).href : "";
 
   var glMap = null;
   var glMapPromise = null;
@@ -1113,20 +1113,20 @@
     if (buildingData) return buildingData;
     if (!buildingDataPromise) {
       buildingDataPromise = Promise.all([
-        fetch(BUILDINGS_3D_URL, { cache: "force-cache" }).then(function (response) {
-          if (!response.ok) throw new Error("The North Wildwood 3D building asset could not be loaded.");
+        BUILDINGS_3D_URL ? fetch(BUILDINGS_3D_URL, { cache: "force-cache" }).then(function (response) {
+          if (!response.ok) throw new Error("The configured 3D building asset could not be loaded.");
           return response.json();
-        }),
-        fetch(MUNICIPAL_BOUNDARY_3D_URL, { cache: "force-cache" }).then(function (response) {
-          if (!response.ok) throw new Error("The North Wildwood municipal boundary could not be loaded for 3D clipping.");
+        }).catch(function () { return { type: "FeatureCollection", features: [] }; }) : Promise.resolve({ type: "FeatureCollection", features: [] }),
+        MUNICIPAL_BOUNDARY_3D_URL ? fetch(MUNICIPAL_BOUNDARY_3D_URL, { cache: "force-cache" }).then(function (response) {
+          if (!response.ok) throw new Error("The municipal boundary could not be loaded for 3D clipping.");
           return response.json();
-        })
+        }) : Promise.resolve({ type: "FeatureCollection", features: [] })
       ])
         .then(function (resources) {
           var payload = resources[0];
           var boundaryFeature = resources[1];
-          if (payload && payload.metadata && payload.metadata.schema !== "north-wildwood-3d-buildings-v2") {
-            throw new Error("The North Wildwood 3D building asset needs to be refreshed.");
+          if (payload && payload.metadata && !String(payload.metadata.schema || "").includes("3d-buildings")) {
+            console.warn("The configured 3D building asset uses an unrecognized schema.");
           }
           var sourceFeatures = Array.isArray(payload && payload.features) ? payload.features : [];
           var municipalFeatures = sourceFeatures.filter(function (feature) {
