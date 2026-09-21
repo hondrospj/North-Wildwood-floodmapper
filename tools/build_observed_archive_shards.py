@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,37 @@ from typing import Any
 
 STONE_SOURCE = "stone-harbor"
 LEWES_SOURCE = "lewes"
+
+
+def build_primary_archive(primary: dict[str, Any], replays: dict[str, Any]) -> dict[str, Any]:
+    """Keep the USGS-first browser policy separate from municipal analytics.
+
+    Only explicitly documented crest reconstructions may replace a primary
+    day. Municipal continuous samples are never relabeled as USGS observations.
+    No sample values are calibrated or otherwise modified here.
+    """
+    days = {day["d"]: day for day in primary.get("days", []) if day.get("d")}
+    for day in replays.get("days", []):
+        replay = day.get("replay") or {}
+        values = day.get("v") or []
+        target = replay.get("targetNavd88Ft")
+        if not replay or not isinstance(target, (int, float)) or not math.isfinite(target):
+            continue
+        if replay.get("crestStationId") != str(primary.get("site")):
+            continue
+        if not values or len(day.get("q", "")) != len(values):
+            raise ValueError(f"Missing reconstruction provenance on {day.get('d')}")
+        if any(q != "C" for q, value in zip(day["q"], values) if value is not None):
+            raise ValueError(f"Unmarked reconstruction on {day.get('d')}")
+        finite = [value for value in values if value is not None]
+        if not finite or abs(max(finite) / 100 - target) > 0.011:
+            raise ValueError(f"Reconstruction crest mismatch on {day.get('d')}")
+        days[day["d"]] = day
+    return {
+        **primary,
+        "days": [days[key] for key in sorted(days)],
+        "browserSourcePolicy": "primary-usgs-with-explicit-crest-reconstructions",
+    }
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -58,6 +90,7 @@ def build_index(source: dict[str, Any], source_key: str, path_template: str) -> 
             "d": day["d"],
             "p": day.get("p"),
             "c": day.get("c", "none"),
+            **({"replay": day["replay"]} if day.get("replay") else {}),
         }
         for day in source.get("days", [])
         if day.get("d")
@@ -71,6 +104,8 @@ def build_index(source: dict[str, Any], source_key: str, path_template: str) -> 
         "timeZone": source.get("timeZone", "America/New_York"),
         "sourceResolutionMinutes": source.get("sourceResolutionMinutes")
         or source.get("intervalMinutes"),
+        "intervalMinutes": source.get("intervalMinutes"),
+        "browserSourcePolicy": source.get("browserSourcePolicy"),
         "archiveStartDate": source.get("archiveStartDate")
         or (days[0]["d"] if days else None),
         "archiveEndDate": source.get("archiveEndDate")
@@ -139,7 +174,7 @@ def build_year_shards(
 
 
 def build(args: argparse.Namespace) -> dict[str, Any]:
-    stone = load_json(args.stone_archive)
+    stone = build_primary_archive(load_json(args.stone_archive), load_json(args.replay_archive))
     lewes = load_json(args.lewes_archive)
 
     stone_index = build_index(
@@ -170,7 +205,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stone-archive", type=Path, default=Path("observed15min.json"))
+    parser.add_argument("--stone-archive", type=Path, default=Path("stone_harbor_observed15min.json"))
+    parser.add_argument("--replay-archive", type=Path, default=Path("observed15min.json"))
     parser.add_argument("--lewes-archive", type=Path, default=Path("lewes_hourly.json"))
     parser.add_argument("--stone-index", type=Path, default=Path("observed_archive_index.json"))
     parser.add_argument("--lewes-index", type=Path, default=Path("lewes_archive_index.json"))

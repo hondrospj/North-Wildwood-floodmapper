@@ -1,10 +1,10 @@
 name: FloodMapper reliability checks
 on:
   pull_request:
-    paths: ['index.html', 'assets/**/*.js', 'assets/**/*.css', 'city-gauge/index.html', 'tools/**', 'model/**', '.github/workflows/**']
+    paths: ['index.html', 'assets/**/*.js', 'assets/**/*.css', 'city-gauge/index.html', 'tools/**', 'model/**', '.github/workflows/**', '*observed*.json', '*archive_index.json', 'canonical_daily_v2.json', 'observed_archive/**']
   push:
     branches: [main]
-    paths: ['index.html', 'assets/**/*.js', 'assets/**/*.css', 'city-gauge/index.html', 'tools/**', 'model/**', '.github/workflows/**']
+    paths: ['index.html', 'assets/**/*.js', 'assets/**/*.css', 'city-gauge/index.html', 'tools/**', 'model/**', '.github/workflows/**', '*observed*.json', '*archive_index.json', 'canonical_daily_v2.json', 'observed_archive/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,6 +30,7 @@ jobs:
           node tools/test_north_wildwood_filling_transition.mjs
           node tools/test_north_wildwood_export_layout.mjs
           node tools/test_north_wildwood_startup_performance.mjs
+          node tools/test_north_wildwood_archive_contract.mjs
       - name: Observation, projection, and model contracts
         run: |
           /usr/bin/python3 tools/validate_observed_contract.py
@@ -49,3 +50,36 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
           node tools/test_north_wildwood_layout.mjs
+  full-app-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    env:
+      NWW_BROWSER: ${{ matrix.browser }}
+      NWW_TEST_URL: http://127.0.0.1:8765/index.html
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser runtime
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Real application, responsive and rapid-interaction regressions
+        shell: bash
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/floodmapper-preview.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid"' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8765/index.html >/dev/null; then break; fi
+            sleep 1
+          done
+          node tools/test_north_wildwood_audit_regressions.mjs
+          node tools/test_north_wildwood_responsive.mjs
+          node tools/test_north_wildwood_mobile_interactions.mjs
+          NWW_TOUCH=1 node tools/test_north_wildwood_mobile_interactions.mjs

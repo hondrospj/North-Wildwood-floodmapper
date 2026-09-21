@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from build_observed_archive_shards import build_primary_archive
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -20,6 +21,8 @@ def check_source(
     source: str,
 ) -> None:
     canonical = read_json(ROOT / canonical_path)
+    if source == "stone-harbor":
+        canonical = build_primary_archive(canonical, read_json(ROOT / "observed15min.json"))
     index = read_json(ROOT / index_path)
 
     if index.get("schema") != "north-wildwood-observed-day-index-v1":
@@ -62,11 +65,14 @@ def check_source(
         canonical_row = canonical_by_date[date_key]
         if row.get("p") != canonical_row.get("p") or row.get("c") != canonical_row.get("c"):
             raise AssertionError(f"{source} index metadata differs on {date_key}")
+        finite = [value for value in canonical_row["v"] if value is not None]
+        if row.get("p") != (max(finite) if finite else None):
+            raise AssertionError(f"{source} daily peak does not match replay samples on {date_key}")
 
 
 def main() -> None:
     check_source(
-        canonical_path="observed15min.json",
+        canonical_path="stone_harbor_observed15min.json",
         index_path="observed_archive_index.json",
         source="stone-harbor",
     )
@@ -75,6 +81,12 @@ def main() -> None:
         index_path="lewes_archive_index.json",
         source="lewes",
     )
+    primary = build_primary_archive(read_json(ROOT / "stone_harbor_observed15min.json"), read_json(ROOT / "observed15min.json"))
+    for day in primary["days"]:
+        if "N" in day.get("s", ""):
+            raise AssertionError(f"Municipal data mislabeled as primary USGS on {day['d']}")
+        if day.get("replay") and day["replay"]["crestStationId"] != "01411360":
+            raise AssertionError(f"Wrong crest source on {day['d']}")
     print("North Wildwood observed archive shard checks passed")
 
 

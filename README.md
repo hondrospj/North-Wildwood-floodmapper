@@ -28,10 +28,20 @@ See [the reliability changes and data-quality policy](docs/2026-09-12-reliabilit
 | Major | 5.25 ft | 8.00 ft |
 
 `NAVD88 = MLLW - 2.75 ft`. Forecast guidance continues to use Stone Harbor.
-Observed playback uses North Wildwood municipal sensor `1005` as the primary
-source from its first usable record at 8:58 AM EDT on September 1, 2017
-(`2017-09-01T12:58:00Z`); Stone Harbor USGS site `01411360` supplies earlier
-anchors and municipal-gauge gaps.
+Observed playback follows the USGS-first policy in `gauge_pipeline_v2.json`:
+Stone Harbor USGS site `01411360` supplies the primary 15-minute archive;
+verified NOAA Lewes hourly history supplies older coverage with the configured
+`+0.066 ft` correction. The browser calendar reconciles the fixed V2 daily
+release with the newer primary-USGS index before selecting a replay. Official
+crest overrides remain separate. The municipal composite (`observed15min.json`)
+is preserved for existing analytical products and the city-gauge page, but is
+not silently substituted for primary-gauge playback.
+`tools/build_observed_archive_shards.py` derives the browser's primary index and
+year shards from `stone_harbor_observed15min.json`, retaining only explicitly
+documented, crest-calibrated storm reconstructions from the composite.
+Hourly NOAA and quarter-hour USGS records have separate, cadence-validated
+caches. If no detailed observations exist, the app displays a single labeled
+daily peak with an unknown peak time, not an invented hourly observation.
 Hurricane Sandy's Stone Harbor gauge outage is filled only for event replay
 with NOAA Lewes verified tide shape, time-aligned and scaled to the official
 6.73 ft NAVD88 / 9.48 ft MLLW crest. Winter Storm Jonas predates the city

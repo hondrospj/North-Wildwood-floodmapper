@@ -1311,6 +1311,21 @@
     try { popup.remove(); } catch (_) {}
   }
 
+  var lastGlPopupHtml = "";
+  var addressMarker = null;
+  function setAddressMarker(latlng, label) {
+    if (addressMarker) addressMarker.remove();
+    addressMarker = null;
+    if (!latlng || !glMap) return;
+    var element = document.createElement("div");
+    element.className = "nw-address-marker";
+    element.setAttribute("role", "img");
+    element.setAttribute("aria-label", label || "Selected address");
+    element.title = label || "Selected address";
+    element.style.cssText = "width:22px;height:22px;border:3px solid white;border-radius:50%;background:#2563eb;box-shadow:0 0 0 3px #123459,0 3px 12px #0008;";
+    addressMarker = new maplibregl.Marker({ element: element }).setLngLat([Number(latlng.lng), Number(latlng.lat)]).addTo(glMap);
+  }
+
   function showGlPopup(latlng, html, maxWidth) {
     if (!glMap || !document.body.classList.contains("map-3d-ready")) return;
     closeGlPopup();
@@ -1323,6 +1338,7 @@
       .setLngLat([Number(latlng.lng), Number(latlng.lat)])
       .setHTML(html)
       .addTo(glMap);
+    lastGlPopupHtml = String(html || "");
     syncGlPopupLayout();
     glPopup.on("close", function () {
       glPopup = null;
@@ -1604,6 +1620,7 @@
       syncNsi3d();
       await syncBuildings3d({ preload: true });
       document.body.classList.add("map-3d-ready");
+      if (townAddressMarker) setAddressMarker(townAddressMarker.getLatLng(), townAddressMarker.options.title);
       document.body.dataset.map3d = "ready";
       document.body.dataset.terrainExaggeration = String(TERRAIN_EXAGGERATION);
       document.body.dataset.map3dMaxZoom = String(MAP_MAX_ZOOM);
@@ -2239,7 +2256,22 @@
   updatePersistentDepthQueryPopup = function () {
     var result = originalUpdatePersistentDepthQueryPopup.apply(this, arguments);
     if (glPopup && persistentFloodPopup && typeof persistentFloodPopup.getContent === "function") {
-      glPopup.setHTML(String(persistentFloodPopup.getContent() || ""));
+      var html = String(persistentFloodPopup.getContent() || "");
+      if (html !== lastGlPopupHtml) {
+        var content = glPopup.getElement().querySelector(".maplibregl-popup-content");
+        var scrollTop = content ? content.scrollTop : 0;
+        var focusedClose = document.activeElement?.classList.contains("maplibregl-popup-close-button");
+        var focusedCta = document.activeElement?.classList.contains("house-alert-cta");
+        glPopup.setHTML(html);
+        lastGlPopupHtml = html;
+        syncGlPopupLayout();
+        var updatedContent = glPopup.getElement().querySelector(".maplibregl-popup-content");
+        if (updatedContent) updatedContent.scrollTop = scrollTop;
+        if (focusedClose || focusedCta) {
+          glPopup.getElement().querySelector(focusedClose ? ".maplibregl-popup-close-button" : ".house-alert-cta")?.focus({ preventScroll: true });
+        }
+      }
+      syncGlPopupLayout();
     }
     return result;
   };
@@ -2248,6 +2280,7 @@
     ensure: ensure3dMap,
     preload: preload3dAssets,
     getMap: function () { return glMap; },
+    setAddressMarker: setAddressMarker,
     getBuildingData: function () { return buildingData; },
     syncFlood: syncFloodLayer3d,
     syncBuildings: syncBuildings3d,

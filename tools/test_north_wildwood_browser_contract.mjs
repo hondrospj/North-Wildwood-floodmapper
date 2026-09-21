@@ -55,7 +55,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260921-responsive/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260921-audit-fixes/);
 assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
@@ -791,7 +791,8 @@ assert.doesNotMatch(SOURCE, /Green\s*=\s*uncertainty/i);
 assert.match(SOURCE, /<span>Uncertain<\/span>/);
 assert.doesNotMatch(SOURCE, /Not Yet Connected/i);
 assert.doesNotMatch(SOURCE, /penalty-held/i);
-assert.match(extractFunction("fitExportMapToSelectedExtent"), /fitBounds\(map\.getBounds\(\)/);
+assert.match(extractFunction("fitExportMapToSelectedExtent"), /getActiveMapBounds\(\)/);
+assert.match(extractFunction("getActiveMapBounds"), /activeMap\.getBounds\(\)/);
 assert.match(extractFunction("fitExportMapToSelectedExtent"), /mode === "town"[\s\S]+getBoundaryDrivenOverlayBounds\(\)/);
 assert.match(extractFunction("fitExportMapToSelectedExtent"), /paddingTopLeft/);
 assert.match(SOURCE, /data-aspect="4:5"[^>]+>Social 4:5</);

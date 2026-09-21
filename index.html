@@ -15556,6 +15556,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     }
 
     function decodeSurrogateHundredths(value) {
+      if (value == null || value === "") return null;
       const raw = Number(value);
       return Number.isFinite(raw) ? raw / 100 + surrogateBiasCorrectionFt() : null;
     }
@@ -16127,6 +16128,9 @@ function cloneStyleObject(value) {
     let observed15MinuteData = null;
     let observedArchiveIndexTextPromise = null;
     let observed15MinuteDaysByDate = new Map();
+    // Distinct caches: identical dates do not imply identical gauge or cadence.
+    let lewesHourlyDaysByDate = new Map();
+    let observedArchiveUnavailableYears = new Set();
     let lewesHourlyData = null;
     let lewesArchiveIndexData = null;
     let lewesArchiveIndexPromise = null;
@@ -17046,25 +17050,31 @@ function parseStoredLocalNyToDate(timeEST) {
       return best.idx;
     }
 
+    function applyObservedCrestToSource(dayRecord, entries) {
+      if (!dayRecord?.officialCrestEntry || entries.length <= 1) return entries;
+      return dayRecord.isLewesSurrogate
+        ? fitLewesSurrogateTideToCrest(entries, dayRecord.officialCrestEntry)
+        : injectOfficialStoneHarborCrest(entries, dayRecord.officialCrestEntry);
+    }
+
     function getObservedSourceHoursForDay(dayRecord) {
-      if (dayRecord?.isLewesSurrogate) {
-        const dateStr = dayRecord?.date || dayRecord?.d;
-        const compact = dayRecord?.lewesCompactDay || (dateStr ? observed15MinuteDaysByDate.get(dateStr) : null);
-        if (compact) return decodeLewesHourlyDay({ ...dayRecord, lewesCompactDay: compact });
-      }
       const dateStr = dayRecord?.date || dayRecord?.d;
-      if (dateStr) {
+      if (dayRecord?.isLewesSurrogate) {
+        const compact = dayRecord?.lewesCompactDay || lewesHourlyDaysByDate.get(dateStr);
+        if (compact) return applyObservedCrestToSource(dayRecord, decodeLewesHourlyDay({ ...dayRecord, lewesCompactDay: compact }));
+      } else if (dateStr) {
         const quarterDay = observed15MinuteDaysByDate.get(dateStr);
-        if (quarterDay) return decodeObserved15MinuteDay(quarterDay);
+        if (quarterDay?.v?.some(value => value != null)) return applyObservedCrestToSource(dayRecord, decodeObserved15MinuteDay(quarterDay));
       }
       const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];
       if (dense.length) return dense;
-      const fallbackPeak = Number(dayRecord?.peakNAVD88);
+      const fallbackPeak = normalizeStageValue(dayRecord?.peakNAVD88);
       if (Number.isFinite(fallbackPeak) && dayRecord?.date) {
         return [{
-          observedDate: dayRecord.date, displayTimeEST: `${dayRecord.date}T12:00`,
+          observedDate: dayRecord.date,
           navd88StageFt: fallbackPeak, stageFt: fallbackPeak, value: fallbackPeak,
           observationInterval: "daily", timelineIntervalMinutes: 1440,
+          isDailyPeakOnly: true, peakTimeKnown: false,
           source: "canonical-daily-peak-fallback", pipelineSource: dayRecord.pipelineSource || ""
         }];
       }
@@ -17144,7 +17154,7 @@ function parseStoredLocalNyToDate(timeEST) {
       const stepMs = intervalMinutes * 60 * 1000;
       const valid = (Array.isArray(entries) ? entries : [])
         .map((entry, idx) => ({ entry, idx, t: entryTimeMs(entry) }))
-        .filter(item => Number.isFinite(item.t) && Number.isFinite(getStageValue(item.entry)))
+        .filter(item => !item.entry?.isDailyPeakOnly && Number.isFinite(item.t) && Number.isFinite(getStageValue(item.entry)))
         .sort((a, b) => a.t - b.t || a.idx - b.idx);
 
       const sourceResolutionMinutes = options.sourceResolutionMinutes ?? detectSeriesResolutionMinutes(entries);
@@ -17255,15 +17265,14 @@ function parseStoredLocalNyToDate(timeEST) {
       for (const day of getObservedDaysForMonth(monthKey)) {
         const dateKey = day?.date;
         if (!dateKey) continue;
-        const quarterDay = observed15MinuteDaysByDate.get(dateKey);
-        const entries = quarterDay ? decodeObserved15MinuteDay(quarterDay) : getObservedSourceHoursForDay(day);
+        const entries = getObservedSourceHoursForDay(day);
         const daily = buildDailyMaximumSeries(entries, { kind: "observed" })[0];
         if (daily) {
           out.push({ ...daily, observedDate: dateKey, peakNAVD88: getStageValue(daily) });
-        } else if (Number.isFinite(Number(day.peakNAVD88))) {
+        } else if (Number.isFinite(normalizeStageValue(day.peakNAVD88))) {
           out.push({
             navd88StageFt: Number(day.peakNAVD88), stageFt: Number(day.peakNAVD88), value: Number(day.peakNAVD88),
-            displayTimeEST: `${dateKey}T12:00`, observedDate: dateKey, observationInterval: "daily",
+            observedDate: dateKey, observationInterval: "daily", isDailyPeakOnly: true, peakTimeKnown: false,
             timelineIntervalMinutes: 1440, isDailyMaximum: true, peakNAVD88: Number(day.peakNAVD88)
           });
         }
@@ -17276,7 +17285,7 @@ function parseStoredLocalNyToDate(timeEST) {
       const rows = Array.isArray(payload?.days) ? payload.days : [];
       const days = rows.map(row => {
         const date = String(row?.[0] || "");
-        const peak = Number(row?.[1]);
+        const peak = normalizeStageValue(row?.[1]);
         const pipelineSource = String(row?.[2] || "");
         const peakNAVD88 = Number.isFinite(peak) ? peak / 100 : null;
         return {
@@ -17286,7 +17295,7 @@ function parseStoredLocalNyToDate(timeEST) {
           hours: [],
           pipelineSource,
           isCanonicalPipelineTruth: true,
-          isLewesSurrogate: pipelineSource === "N",
+          isLewesSurrogate: pipelineSource === "N" || (pipelineSource === "C" && surrogateEnabled() && date < primaryArchiveStartDate()),
           surrogateStationId: pipelineSource === "N" ? surrogateStationId() : null,
           surrogateStationName: pipelineSource === "N" ? surrogateStationName() : null
         };
@@ -17306,7 +17315,10 @@ function parseStoredLocalNyToDate(timeEST) {
 
     async function ensureCanonicalDailyArchive() {
       if (canonicalDailyData) return canonicalDailyData;
-      canonicalDailyData = await fetchJson(CANONICAL_DAILY_URL, { cache: "default" });
+      const generation = archiveGeneration;
+      const payload = await fetchJson(CANONICAL_DAILY_URL, { cache: "default" });
+      if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+      canonicalDailyData = payload;
       return canonicalDailyData;
     }
 
@@ -17358,6 +17370,11 @@ function parseStoredLocalNyToDate(timeEST) {
             hours: []
           }));
 
+      // The canonical daily release can predate later USGS observations.
+      // Reconcile the browser calendar with the primary replay index BEFORE
+      // any year is loaded, so navigation order cannot change source policy.
+      const primaryIndex = source === "stone-harbor" && String(index.stationId || index.site) === String(TOWN_CONFIG?.observed?.usgsGaugeId);
+
       if (!observedData) {
         observedData = buildObservedIndexFrom15MinuteArchive(
           source === "stone-harbor" ? index : { days: [] },
@@ -17370,17 +17387,24 @@ function parseStoredLocalNyToDate(timeEST) {
           const current = existing.get(day.date);
           if (current) {
             current.isHistoricalCrestOnly = false;
-            if (current.isCanonicalPipelineTruth) {
-              if (source === "lewes") {
-                current.isLewesSurrogate = true;
-                current.surrogateStationId = current.surrogateStationId || surrogateStationId();
-                current.surrogateStationName = current.surrogateStationName || surrogateStationName();
+            if (primaryIndex && Number.isFinite(normalizeStageValue(day.peakNAVD88))) {
+              current.canonicalPeakNAVD88 ??= current.peakNAVD88;
+              if (current.pipelineSource !== "C" && !current.officialCrestEntry) {
+                current.peakNAVD88 = day.peakNAVD88;
+                current.classification = classifyFloodStage(day.peakNAVD88);
+                current.pipelineSource = "U";
               }
+              current.isLewesSurrogate = false;
+              current.surrogateStationId = null;
+              current.surrogateStationName = null;
+              return;
+            }
+            if (current.isCanonicalPipelineTruth) {
               return;
             }
             current.classification = day.classification || current.classification || "none";
-            if (Number.isFinite(Number(day.peakNAVD88))) {
-              current.peakNAVD88 = Number.isFinite(Number(current.peakNAVD88))
+            if (Number.isFinite(normalizeStageValue(day.peakNAVD88))) {
+              current.peakNAVD88 = Number.isFinite(normalizeStageValue(current.peakNAVD88))
                 ? Math.max(Number(current.peakNAVD88), Number(day.peakNAVD88))
                 : Number(day.peakNAVD88);
             }
@@ -17432,17 +17456,18 @@ function parseStoredLocalNyToDate(timeEST) {
       if (observed15MinuteData) return observed15MinuteData;
       try {
         payload = JSON.parse(await preloadObservedArchiveIndexText());
+        if (String(payload.stationId || payload.site) !== String(TOWN_CONFIG?.observed?.usgsGaugeId)) {
+          throw new Error("The cached archive index does not use the primary USGS gauge.");
+        }
       } catch (indexError) {
         console.warn("Optimized observed archive index unavailable; using the compact archive.", indexError);
         payload = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
       }
       if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+      // The compact fallback must satisfy the same gauge/cadence contract as
+      // a year shard before it can populate the primary cache.
+      addArchiveShardDays(payload, "stone-harbor");
       observed15MinuteData = payload;
-      observed15MinuteDaysByDate = new Map(
-        (observed15MinuteData?.days || [])
-          .filter(day => Array.isArray(day?.v))
-          .map(day => [day.d, day])
-      );
       return observed15MinuteData;
     }
 
@@ -17472,8 +17497,10 @@ function parseStoredLocalNyToDate(timeEST) {
       if (!surrogateEnabled() || !LEWES_ARCHIVE_INDEX_URL) return null;
       if (lewesArchiveIndexData) return lewesArchiveIndexData;
       if (lewesArchiveIndexPromise) return lewesArchiveIndexPromise;
+      const generation = archiveGeneration;
       lewesArchiveIndexPromise = fetchJson(LEWES_ARCHIVE_INDEX_URL, { cache: "default" })
         .then(index => {
+          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
           lewesArchiveIndexData = index;
           lewesHourlyData = {
             stationId: index?.stationId || surrogateStationId(),
@@ -17485,6 +17512,7 @@ function parseStoredLocalNyToDate(timeEST) {
           return index;
         })
         .catch(error => {
+          if (generation !== archiveGeneration) return null;
           lewesArchiveIndexPromise = null;
           console.warn(`${surrogateStationShort()} archive day index will retry when requested.`, error);
           return null;
@@ -17506,6 +17534,7 @@ function parseStoredLocalNyToDate(timeEST) {
 
     function getObservedArchiveSourceForDate(dateStr) {
       const day = getObservedDayRecord(String(dateStr || ""));
+      if (surrogateEnabled() && String(dateStr || "") < primaryArchiveStartDate()) return "lewes";
       if (day?.pipelineSource === "N") return "lewes";
       if (day?.pipelineSource === "U" || day?.pipelineSource === "C") return "stone-harbor";
       const cutoff = primaryArchiveStartDate();
@@ -17517,14 +17546,35 @@ function parseStoredLocalNyToDate(timeEST) {
       const fallback = `./observed_archive/${source}/{year}.json`;
       const configuredTemplate = source === "lewes" ? configuredSurrogate().shardPathTemplate : "";
       const template = String(configuredTemplate || index?.shardPathTemplate || fallback);
-      return new URL(template.replace("{year}", String(year)), APP_BASE).href;
+      const url = new URL(template.replace("{year}", String(year)), APP_BASE);
+      if (source === "stone-harbor") url.searchParams.set("policy", "20260921-usgs-first");
+      return url.href;
     }
 
     function addArchiveShardDays(payload, source) {
+      const expectedInterval = source === "lewes" ? 60 : 15;
+      if (Number(payload?.intervalMinutes) !== expectedInterval) {
+        throw new Error(`Invalid ${source} archive interval; expected ${expectedInterval} minutes.`);
+      }
+      if (payload.source && payload.source !== source) throw new Error("Archive source mismatch.");
+      const expectedStation = source === "lewes" ? surrogateStationId() : String(TOWN_CONFIG?.observed?.usgsGaugeId);
+      if (String(payload.stationId || payload.site) !== expectedStation) throw new Error("Archive gauge mismatch.");
+      const cache = source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate;
       const days = Array.isArray(payload?.days) ? payload.days : [];
+      // Validate the whole response before committing any entries to a cache.
       days.forEach(day => {
-        if (!day?.d) return;
-        observed15MinuteDaysByDate.set(day.d, day);
+        if (!day?.d || !Array.isArray(day.v)) return;
+        const start = parseStoredLocalNyToDate(`${day.d}T00:00`);
+        const end = parseStoredLocalNyToDate(`${addDaysToDateKey(day.d, 1)}T00:00`);
+        const slots = start && end ? (end - start) / (expectedInterval * 60000) : 0;
+        if (day.v.length !== slots || Number(day.u) * 1000 !== start?.getTime()) {
+          throw new Error(`Invalid ${source} sample cadence for ${day.d}.`);
+        }
+        if (day.v.some(value => value !== null && !Number.isFinite(value))) throw new Error("Invalid archive sample.");
+      });
+      days.forEach(day => {
+        if (!day?.d || !Array.isArray(day.v)) return;
+        cache.set(day.d, day);
         if (!observedData) return;
         const existing = getObservedDayRecord(day.d);
         if (!existing) {
@@ -17537,12 +17587,7 @@ function parseStoredLocalNyToDate(timeEST) {
             surrogateStationId: source === "lewes" ? surrogateStationId() : null,
             surrogateStationName: source === "lewes" ? surrogateStationName() : null
           });
-        } else if (source === "lewes") {
-          existing.isHistoricalCrestOnly = false;
-          existing.isLewesSurrogate = true;
-          existing.surrogateStationId = existing.surrogateStationId || surrogateStationId();
-          existing.surrogateStationName = existing.surrogateStationName || surrogateStationName();
-        } else {
+        } else if (source !== "lewes" || existing.isLewesSurrogate) {
           existing.isHistoricalCrestOnly = false;
         }
       });
@@ -17557,34 +17602,42 @@ function parseStoredLocalNyToDate(timeEST) {
       const generation = archiveGeneration;
       const key = `${source}:${year}`;
       if (observedArchiveLoadedYears.has(key)) return true;
+      if (observedArchiveUnavailableYears.has(key)) return false;
       if (observedArchiveYearPromises.has(key)) return observedArchiveYearPromises.get(key);
       if (source === "stone-harbor") await ensureObserved15MinuteArchive();
+      const index = source === "lewes" ? await ensureLewesArchiveIndex() : observed15MinuteData;
       if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+      if (index?.days?.length && !index.days.some(day => String(day.d).startsWith(`${year}-`))) {
+        observedArchiveUnavailableYears.add(key);
+        return false;
+      }
+      const install = payload => {
+        if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+        const covered = payload?.days?.some(day => String(day.d).startsWith(`${year}-`) && Array.isArray(day.v));
+        if (!covered) throw new Error(`Archive does not cover ${source} ${year}.`);
+        addArchiveShardDays(payload, source);
+        observedArchiveLoadedYears.add(key);
+        return true;
+      };
       const promise = fetchJson(getObservedArchiveShardUrl(source, year), { cache: "default" })
-        .then(payload => {
-          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-          addArchiveShardDays(payload, source);
-          observedArchiveLoadedYears.add(key);
-          observedArchiveYearPromises.delete(key);
-          return true;
-        })
+        .then(install)
         .catch(async error => {
           if (generation !== archiveGeneration) throw error;
-          observedArchiveYearPromises.delete(key);
           console.warn(`Optimized ${source} ${year} archive unavailable.`, error);
-          if (source === "stone-harbor") {
-            const fallback = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
-            if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-            observed15MinuteData = fallback;
-            addArchiveShardDays(fallback, source);
-            observedArchiveLoadedYears.add(key);
-            return true;
+          try {
+            const fallback = source === "stone-harbor"
+              ? await fetchJson(OBSERVED_15MIN_URL, { cache: "default" })
+              : await ensureLewesHourlyArchive();
+            return install(fallback);
+          } catch (fallbackError) {
+            if (generation !== archiveGeneration) throw fallbackError;
+            // A network failure remains retryable. Never mark an uncovered
+            // year as loaded or silently borrow a different gauge's samples.
+            console.warn(`Detailed ${source} ${year} history unavailable; daily peaks only.`, fallbackError);
+            return false;
           }
-          const fallback = await ensureLewesHourlyArchive();
-          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-          addArchiveShardDays(fallback, source);
-          observedArchiveLoadedYears.add(key);
-          return true;
+        }).finally(() => {
+          if (observedArchiveYearPromises.get(key) === promise) observedArchiveYearPromises.delete(key);
         });
       observedArchiveYearPromises.set(key, promise);
       return promise;
@@ -17594,7 +17647,7 @@ function parseStoredLocalNyToDate(timeEST) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ""))) return false;
       const source = getObservedArchiveSourceForDate(dateStr);
       await ensureObservedArchiveYear(source, String(dateStr).slice(0, 4));
-      return true;
+      return (source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate).has(dateStr);
     }
 
     async function ensureObservedArchiveRange(startDate, endDate) {
@@ -17662,6 +17715,7 @@ function parseStoredLocalNyToDate(timeEST) {
 
     function buildObservedCanonicalSeries(dayRecord, dateStr) {
       const source = getObservedSourceHoursForDay(dayRecord);
+      if (source.length && source.every(entry => entry.isDailyPeakOnly)) return source;
       const start = parseStoredLocalNyToDate(`${dateStr}T00:00`);
       const end = parseStoredLocalNyToDate(`${dateStr}T23:45`);
       const sourceResolutionMinutes = detectSeriesResolutionMinutes(source);
@@ -17687,6 +17741,7 @@ function parseStoredLocalNyToDate(timeEST) {
 
     function sampleCanonicalHydraulicSeries(entries = [], intervalMinutes = getTimelineIntervalMinutes()) {
       const canonical = Array.isArray(entries) ? entries : [];
+      if (canonical.length && canonical.every(entry => entry.isDailyPeakOnly)) return canonical.slice();
       if (intervalMinutes === 15) {
         return canonical.map(entry => ({
           ...entry,
@@ -20851,6 +20906,17 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       return true;
     }
 
+    function getActiveMapBounds() {
+      const activeMap = window.NORTH_WILDWOOD_3D?.getMap?.();
+      const bounds = document.body.classList.contains("map-3d-ready") && activeMap
+        ? activeMap.getBounds() : map?.getBounds();
+      if (!bounds) return null;
+      const south = bounds.getSouth(), north = bounds.getNorth();
+      const west = bounds.getWest(), east = bounds.getEast();
+      if (![south, north, west, east].every(Number.isFinite) || north <= south || east <= west) return null;
+      return L.latLngBounds([[south, west], [north, east]]);
+    }
+
     function fitExportMapToSelectedExtent(mapInstance) {
       if (!mapInstance) return;
       const mode = getDownloadExtentValue();
@@ -20871,22 +20937,18 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         }
       }
 
-      if (mode === "current" && map && typeof map.getBounds === "function") {
-        try {
-          // Preserve the geographic viewport, not the Leaflet zoom number.
-          // Reusing the zoom on a larger export canvas zoomed dramatically
-          // out and made the town occupy only a corner of 4K exports.
-          mapInstance.fitBounds(map.getBounds(), { padding: [0, 0], animate: false });
-          return;
-        } catch (e) {
-        }
+      if (mode === "current") {
+        const visibleBounds = getActiveMapBounds();
+        if (!visibleBounds) throw new Error("The current map view is not ready. Please try again.");
+        mapInstance.fitBounds(visibleBounds, { padding: [0, 0], animate: false });
+        return;
       }
 
       let bounds = null;
       if (mode === "simulation" && floodLatLngBounds) {
         bounds = floodLatLngBounds;
-      } else if (map && typeof map.getBounds === "function") {
-        try { bounds = map.getBounds(); } catch (e) { bounds = null; }
+      } else if (map) {
+        bounds = getActiveMapBounds();
       }
 
       if ((!bounds || !bounds.isValid || !bounds.isValid()) && floodLatLngBounds) {
@@ -22647,6 +22709,7 @@ function updateExportSegmentedUI() {
     }
 
     function getExportFrameDateTimeText(entry) {
+      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} · Peak time unknown`;
       if (entry?.returnIntervalYears) {
         return getReturnIntervalStormLabel(entry.returnIntervalYears);
       }
@@ -22891,9 +22954,15 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
     }
 
     function buildExportRangeFrameItems(entries, range, intervalValue = getDownloadIntervalValue()) {
-      if (intervalValue === "15min") return buildQuarterHourRangeFrameItems(entries, range);
       if (intervalValue === "daily") return buildDailyMaximumRangeFrameItems(entries, range);
-      return buildHourlyRangeFrameItems(entries, range);
+      const timed = entries.filter(entry => !entry.isDailyPeakOnly);
+      const dailyOnly = buildDailyMaximumRangeFrameItems(entries.filter(entry => entry.isDailyPeakOnly), range);
+      const frames = intervalValue === "15min"
+        ? buildQuarterHourRangeFrameItems(timed, range)
+        : buildHourlyRangeFrameItems(timed, range);
+      // Unknown peak times must never become interpolation endpoints or gain
+      // an hourly/quarter-hour label merely because of the export selection.
+      return [...frames, ...dailyOnly].sort((a, b) => entryTimeMs(a.entry) - entryTimeMs(b.entry));
     }
 
 async function runExportLimited(items, limit, worker) {
@@ -23513,6 +23582,7 @@ function parseStoredESTToDate(timeEST) {
     }
 
     function formatHourEntryTime(entry) {
+      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry);
       const d = getEntryESTDate(entry);
@@ -23521,6 +23591,7 @@ function parseStoredESTToDate(timeEST) {
     }
 
     function formatHourEntryTimeCompact(entry) {
+      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
       const d = getEntryESTDate(entry);
@@ -23531,6 +23602,7 @@ function parseStoredESTToDate(timeEST) {
     }
 
     function formatSnapshotTime(entry) {
+      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry);
       const est = getEntryESTDate(entry);
@@ -23539,6 +23611,8 @@ function parseStoredESTToDate(timeEST) {
     }
 
 function getEntryESTDate(entry) {
+      // Calendar ordering anchor only, never an asserted observation timestamp.
+      if (entry?.isDailyPeakOnly) return parseStoredLocalNyToDate(`${entry.observedDate}T00:00`);
       const d = entry?.timeUtc
         ? new Date(entry.timeUtc)
         : entry?.displayTimeUtc
@@ -23555,6 +23629,7 @@ function getEntryESTDate(entry) {
     }
 
     function formatTimelineBubbleText(entry) {
+      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak only`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
       const est = getEntryESTDate(entry);
@@ -24316,6 +24391,8 @@ function formatSelectedObservedDate(dateStr) {
         officialCrestStageFt: officialStage,
         officialCrestSourceSite: crestEntry.sourceSite,
         sourceStationShort: crestEntry.sourceStationShort,
+        observationQuality: "C",
+        crestTimeEstimated: !crestEntry.crestTimeKnown,
         isOfficialCrestFrame: true
       };
       return cloned;
@@ -24351,6 +24428,8 @@ function formatSelectedObservedDate(dateStr) {
           sourceStationShort: surrogateStationShort(),
           surrogateForStoneHarbor: true,
           crestFitMethod: "raised-cosine-12-hour-tide-window",
+          observationQuality: "C",
+          crestTimeEstimated: !crestEntry.crestTimeKnown,
           fittedStoneHarborCrestStageFt: officialStage,
           isFittedCrestFrame: index === targetIndex
         };
@@ -24588,7 +24667,7 @@ function formatSelectedObservedDate(dateStr) {
       } else if (currentViewType === "return-interval") {
         label.textContent = `${getReturnIntervalLabel()} Flood • ${getTimelineIntervalLabel()}`;
       } else if (currentViewType === "observed-day") {
-        label.textContent = entry?.observationInterval === "crest" ? "Observed • USGS crest" : `Observed • ${getTimelineIntervalLabel()}`;
+        label.textContent = entry?.isDailyPeakOnly ? "Observed • Daily peak only" : entry?.observationInterval === "crest" ? "Observed • USGS crest" : `Observed • ${getTimelineIntervalLabel()}`;
       } else {
         label.textContent = "Top 10 Highest Floods";
       }
@@ -24636,6 +24715,7 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     function getSnapshotSubLabel(entry) {
+      if (entry?.isDailyPeakOnly) return "Daily peak only • detailed observations unavailable";
       if (currentViewType === "forecast") return getForecastScenarioPercentileLabel();
       if (currentViewType === "return-interval") return `Synthetic ${returnIntervalData?.windowHours || 84}-hour storm`;
       if (entry?.observationInterval === "crest" && currentSeriesHours.length <= 1) return "Maximum extent only";
@@ -24667,11 +24747,11 @@ function formatSelectedObservedDate(dateStr) {
               : entry?.observationInterval === "crest"
                 ? `USGS crest • ${getDatumLabel()}`
                 : `${classifyFloodStage(rawStage) === "none" ? "No flooding" : `${classifyFloodStage(rawStage).charAt(0).toUpperCase() + classifyFloodStage(rawStage).slice(1)} flooding`} • ${getDatumLabel()}`;
-        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? "Stone Harbor fallback" : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
+        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? "Stone Harbor USGS" : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
         const qualityNote = entry?.observationQuality === "I" || entry?.isInterpolatedTimelineFrame
           ? "Interpolated" : entry?.observationQuality === "U" || entry?.observationQuality === "unknown"
             ? "Sampling quality not recorded" : entry?.observationQuality === "C" ? "Calibrated storm replay" : "";
-        currentSelectionQualityNote = [stationNote, qualityNote].filter(Boolean).join(" • ");
+        currentSelectionQualityNote = [stationNote, qualityNote, entry?.crestTimeEstimated ? "Replay timing estimated from source tide" : "", entry?.isDailyPeakOnly ? "Daily peak only • peak time unknown" : ""].filter(Boolean).join(" • ");
         document.getElementById("stageSubText").textContent = [stageSub, currentSelectionQualityNote].filter(Boolean).join(" • ");
       }
       updateSnapshotWaterLevelSeverity(rawStage);
@@ -25724,12 +25804,8 @@ function populateCalendarSelectors() {
         ]);
         if (generation !== archiveGeneration) return null;
         observed15MinuteData = observedCompact;
-        observed15MinuteDaysByDate = new Map(
-          (observedCompact?.days || [])
-            .filter(day => Array.isArray(day?.v))
-            .map(day => [day.d, day])
-        );
         observedData = canonical ? buildObservedIndexFromCanonical(canonical) : (observedCompact ? buildObservedIndexFrom15MinuteArchive(observedCompact) : null);
+        if (observedCompact) mergeObservedArchiveIndex(observedCompact, "stone-harbor");
         observedDaysCache = null;
         observedMonthKeys = [];
         observedFlatHours = [];
@@ -25828,6 +25904,9 @@ function populateCalendarSelectors() {
       observed15MinuteData = null;
       observedArchiveIndexTextPromise = null;
       observed15MinuteDaysByDate = new Map();
+      lewesHourlyDaysByDate = new Map();
+      observedArchiveUnavailableYears = new Set();
+      canonicalDailyData = null;
       lewesHourlyData = null;
       lewesArchiveIndexData = null;
       lewesArchiveIndexPromise = null;
@@ -26190,7 +26269,9 @@ function startPlayback() {
         Number(p.centroidLat || p.analysisLat),
         Number(p.centroidLon || p.analysisLon)
       );
-      return openPersistentFloodPopup(popupLatLng, buildHouseAlertPopup(feature), 460);
+      const popup = openPersistentFloodPopup(popupLatLng, buildHouseAlertPopup(feature), 460);
+      persistentDepthQueryContext = { popup, kind: "building", feature };
+      return popup;
     }
 
     async function ensureFloodProjectionData() {
@@ -27133,6 +27214,11 @@ function startPlayback() {
       const context = persistentDepthQueryContext;
       const popup = persistentFloodPopup;
       if (!context || !popup || context.popup !== popup || !map?.hasLayer(popup)) return;
+      if (context.kind === "building") {
+        popup.setContent(buildHouseAlertPopup(context.feature));
+        popup.update();
+        return;
+      }
       const stage = getStageValue(currentSeriesHours[currentHourIndex]);
       if (floodFrameState !== "ready") {
         popup.setContent(buildDepthQueryPopupHtml(null));
@@ -27527,6 +27613,7 @@ function startPlayback() {
         map.removeLayer(townAddressMarker);
       }
       townAddressMarker = null;
+      window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);
       input?.focus();
     }
 
@@ -27876,6 +27963,11 @@ function startPlayback() {
         }
 
         map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });
+        window.NORTH_WILDWOOD_3D?.setAddressMarker?.(latLng, label);
+        if (document.body.classList.contains("mobile-optimized")) {
+          document.getElementById("townAddressInput")?.blur();
+          setMobileControlsOpen(false);
+        }
         if (parcelFeature) {
           openParcelFloodPrompt(parcelFeature, latLng);
         } else {
@@ -28822,6 +28914,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
         document.getElementById("returnIntervalCard"),
         document.querySelector(".overlay-card"),
         document.querySelector(".datum-card"),
+        document.querySelector(".opacity-card"),
         document.getElementById("calendarCard"),
         document.querySelector(".mobile-top-tides-card"),
         document.querySelector(".snapshot-card")
@@ -28888,29 +28981,10 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 
   function forceObservedMobileOrder(){
     if (!isMobileOptimized()) return;
-    var left = document.getElementById('leftPanel');
-    if (!left) return;
-    var mobileMount = document.getElementById('mobileRailMount');
-    var ordered = [
-      left.querySelector('.data-source-card'),
-      document.getElementById('returnIntervalCard'),
-      left.querySelector('.overlay-card'),
-      left.querySelector('.datum-card'),
-      document.getElementById('calendarCard'),
-      left.querySelector('.mobile-top-tides-card'),
-      left.querySelector('.snapshot-card')
-    ].filter(Boolean);
-    ordered.forEach(function(node){ left.appendChild(node); });
-    if (mobileMount && mobileMount.parentNode !== left) left.appendChild(mobileMount);
-    if (mobileMount) {
-      var exportCard = mobileMount.querySelector('#downloadCard, .download-launch-card, .download-card');
-      var addressCard = mobileMount.querySelector('#townAddressCard, .town-address-card');
-      if (exportCard) mobileMount.appendChild(exportCard);
-      if (addressCard) mobileMount.appendChild(addressCard);
-    }
-    var opacity = left.querySelector('.opacity-card');
-    var datum = left.querySelector('.datum-card');
-    if (opacity && datum && opacity.previousElementSibling !== datum) left.insertBefore(opacity, datum.nextSibling);
+    // Use the same idempotent order as the main layout controller. Repeated
+    // appendChild calls detach controls between pointerdown and pointerup;
+    // WebKit then suppresses their click even when they look stationary.
+    applyMobileObservedOrdering();
   }
 
   function fixCalendarPickerDialog(){
@@ -36532,7 +36606,8 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260921-responsive"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260921-audit-fixes"></script>
+<script defer src="./assets/modal-focus.js?v=20260921-audit-fixes"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
@@ -36555,14 +36630,14 @@ TOWN_CONFIG = {
   "data": {
     "forecastPath": "./forecast.json",
     "observedPath": "./observed.json",
-    "observed15MinPath": "./observed15min.json",
-    "observedArchiveIndexPath": "./observed_archive_index.json",
+    "observed15MinPath": "./stone_harbor_observed15min.json",
+    "observedArchiveIndexPath": "./observed_archive_index.json?policy=20260921-usgs-first",
     "lewesArchiveIndexPath": "./lewes_archive_index.json",
     "lewesHourlyPath": "./lewes_hourly.json",
     "topTidesPath": "./toptides.json",
     "returnIntervalsPath": "./return_intervals.json",
-    "surrogateArchiveIndexPath": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_archive_index.json",
-    "surrogateHourlyPath": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_hourly.json",
+    "surrogateArchiveIndexPath": "./lewes_archive_index.json",
+    "surrogateHourlyPath": "./lewes_hourly.json",
     "canonicalDailyPath": "./canonical_daily_v2.json",
     "returnLevelsPath": "./return_interval_levels_v2.json"
   },
@@ -36788,9 +36863,9 @@ TOWN_CONFIG = {
       "indexPath": "lewes_archive_index.json",
       "hourlyPath": "lewes_hourly.json",
       "shardPath": "observed_archive/lewes/{year}.json",
-      "indexUrl": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_archive_index.json",
-      "hourlyUrl": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/lewes_hourly.json",
-      "shardPathTemplate": "https://hondrospj.github.io/Stone-Harbor-Borough-floodmapper/observed_archive/lewes/{year}.json",
+      "indexUrl": "./lewes_archive_index.json",
+      "hourlyUrl": "./lewes_hourly.json",
+      "shardPathTemplate": "./observed_archive/lewes/{year}.json",
       "biasCorrectionFt": 0.066,
       "calibrationPairKey": "01411360:lewes"
     },
@@ -38709,8 +38784,9 @@ html body #mapTitleBadge #mapTitleLogo{
     background:linear-gradient(90deg,#63d471 0%,#63d471 18%,#18c8ff 18%,#00a6f2 34%,#1479df 50%,#1852bd 67%,#132f7d 83%,#041536 100%) !important;
   }
   .export-depth-key-ends{
-    display:grid !important;
-    grid-template-columns:22% minmax(0,1fr) auto !important;
+    display:flex !important;
+    justify-content:space-between !important;
+    gap:12px !important;
   }
   .export-depth-key-ends span:nth-child(2){justify-self:start}
   .export-depth-key-ends span:last-child{justify-self:end}
