@@ -1323,10 +1323,30 @@
       .setLngLat([Number(latlng.lng), Number(latlng.lat)])
       .setHTML(html)
       .addTo(glMap);
+    syncGlPopupLayout();
     glPopup.on("close", function () {
       glPopup = null;
       if (persistentFloodPopup && map && map.hasLayer(persistentFloodPopup)) map.removeLayer(persistentFloodPopup);
     });
+  }
+
+  function syncGlPopupLayout() {
+    if (!glPopup || !glMap) return;
+    var element = glPopup.getElement();
+    if (!element) return;
+    var compact = window.matchMedia("(max-width:900px), (max-height:560px)").matches;
+    element.classList.toggle("nw-mobile-popup", compact);
+    // MapLibre appends its close button after the card. Sticky positioning
+    // only keeps it visible when it starts before the scrollable contents.
+    if (compact) {
+      var content = element.querySelector(".maplibregl-popup-content");
+      var close = element.querySelector(".maplibregl-popup-close-button");
+      if (content && close && content.firstElementChild !== close) content.prepend(close);
+    }
+    // Map controls live outside MapLibre's stacking context. A compact popup
+    // needs its own scrollable surface above them, independent of map anchors.
+    var parent = compact ? document.body : glMap.getContainer();
+    if (element.parentElement !== parent) parent.appendChild(element);
   }
 
   function syncLeafletViewTo3d() {
@@ -1499,7 +1519,10 @@
         originalEvent: event.originalEvent || {}
       });
     });
-    window.addEventListener("resize", function () { if (glMap) glMap.resize(); }, { passive: true });
+    window.addEventListener("resize", function () {
+      if (glMap) glMap.resize();
+      syncGlPopupLayout();
+    }, { passive: true });
     if (map) map.on("moveend zoomend", syncLeafletViewTo3d);
   }
 
@@ -2205,6 +2228,10 @@
   openPersistentFloodPopup = function (latlng, html, maxWidth) {
     var popup = originalOpenPersistentFloodPopup.apply(this, arguments);
     showGlPopup(latlng, html, maxWidth);
+    var mirror = glPopup;
+    if (popup && mirror) popup.once("remove", function () {
+      if (glPopup === mirror) closeGlPopup();
+    });
     return popup;
   };
 

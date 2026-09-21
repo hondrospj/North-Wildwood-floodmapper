@@ -18,7 +18,7 @@
 
   <style>
 
-    @media (min-width:901px){
+    @media (min-width:901px) and (min-height:561px){
       :root{
         --pj-equal-left-width:356px;
         --pj-equal-right-width:260px;
@@ -61,14 +61,14 @@
       }
     }
 
-    @media (min-width:901px) and (max-width:1320px){
+    @media (min-width:901px) and (min-height:561px) and (max-width:1320px){
       :root{
         --pj-equal-left-width:340px;
         --pj-equal-right-width:244px;
       }
     }
 
-    @media (min-width:901px) and (max-width:1120px){
+    @media (min-width:901px) and (min-height:561px) and (max-width:1120px){
       :root{
         --pj-equal-left-width:320px;
         --pj-equal-right-width:228px;
@@ -77,7 +77,7 @@
       }
     }
 
-    @media (min-width:901px) and (max-height:940px){
+    @media (min-width:901px) and (min-height:561px) and (max-height:940px){
       :root{
         --pj-equal-bottom-reserve:128px;
         --pj-equal-card-h:82px;
@@ -3942,7 +3942,7 @@
       }
     }
 
-    @media (max-width: 860px){
+    @media (max-width: 900px){
       #topBanner{
         min-width:min(420px, calc(100vw - 16px));
         max-width:min(560px, calc(100vw - 16px));
@@ -4618,7 +4618,7 @@
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       html, body, #app, #mapWrap, #map{
         width:100vw;
         height:100dvh;
@@ -4833,7 +4833,7 @@
       }
     }
 
-    @media (max-width: 860px) and (orientation: landscape), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
       #mobileControlsToggle{
         top:calc(10px + env(safe-area-inset-top));
         bottom:auto;
@@ -4940,7 +4940,7 @@
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #legendDock{
         display:block !important;
         position:fixed !important;
@@ -5131,7 +5131,7 @@
       }
     }
 
-    @media (max-width: 860px) and (orientation: landscape), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
       body.mobile-optimized #legendDock{
         top:calc(6px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -5208,7 +5208,7 @@
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #legendDock{
         top:calc(8px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -5416,7 +5416,7 @@
       }
     }
 
-    @media (max-width: 860px) and (orientation: landscape), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
       body.mobile-optimized #legendDock{
         top:calc(6px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -5498,7 +5498,7 @@
     }
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #legendDock{
         top:calc(7px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -5784,7 +5784,7 @@
       }
     }
 
-    @media (max-width: 860px) and (orientation: landscape), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
       body.mobile-optimized #legendDock{
         min-width:116px !important;
         height:34px !important;
@@ -5864,7 +5864,7 @@
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #legendDock{
         height:44px !important;
         max-height:44px !important;
@@ -5967,7 +5967,7 @@
       }
     }
 
-    @media (max-width: 860px) and (orientation: landscape), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
       body.mobile-optimized #legendDock{
         height:38px !important;
         max-height:38px !important;
@@ -5995,7 +5995,7 @@
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #legendDock::before{
         background:linear-gradient(90deg,
           var(--depth-0) 0 14%,
@@ -6035,7 +6035,7 @@
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #legendDock[data-legend-mode="dynamic"]::before{
         background:linear-gradient(90deg,
           var(--minor) 0 34%,
@@ -6062,7 +6062,7 @@
       }
     }
 
-    @media (max-width: 860px) and (orientation: landscape), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
       #mobileControlsToggle{
         top:calc(42px + env(safe-area-inset-top)) !important;
         bottom:auto !important;
@@ -6077,7 +6077,7 @@
 
 
 
-    @media (max-width: 860px) and (orientation: portrait), (max-width: 430px) and (orientation: portrait){
+    @media (max-width: 900px) and (orientation: portrait), (max-width: 430px) and (orientation: portrait){
       #mobileControlsToggle,
       body.mobile-controls-open #mobileControlsToggle,
       body.mobile-legend-open #mobileControlsToggle{
@@ -6097,7 +6097,7 @@
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #legendDock{
         top:calc(8px + env(safe-area-inset-top)) !important;
         left:calc(9px + env(safe-area-inset-left)) !important;
@@ -6257,7 +6257,7 @@
       }
     }
 
-    @media (max-width: 860px) and (orientation: landscape), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
       body.mobile-optimized #legendDock{
         top:calc(7px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -6290,7 +6290,7 @@
       padding-left:0 !important;
     }
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       #playBtn.is-playing{
         font-size:18px !important;
       }
@@ -6549,7 +6549,7 @@
     }
 
 
-    @media (min-width: 901px){
+    @media (min-width: 901px) and (min-height:561px){
       #timelineDock{
         left:352px !important;
         right:16px !important;
@@ -6725,7 +6725,7 @@
 
 
 
-    @media (min-width: 901px){
+    @media (min-width: 901px) and (min-height:561px){
       :root{
         --shore-left-pane-width:320px;
         --shore-left-pane-left:16px;
@@ -8219,7 +8219,7 @@
 
 
 
-    @media (min-width: 901px){
+    @media (min-width: 901px) and (min-height:561px){
       html.os-windows,
       html.win-compact-ui{
         --win-left-width:320px;
@@ -8620,7 +8620,7 @@
       }
     }
 
-    @media (min-width: 901px) and (max-height: 760px){
+    @media (min-width: 901px) and (min-height:561px) and (max-height: 760px){
       html.os-windows,
       html.win-compact-ui{
         --win-ui-zoom:.78;
@@ -8814,7 +8814,7 @@
 
 
 
-    @media (min-width: 901px){
+    @media (min-width: 901px) and (min-height:561px){
       html.os-windows #legendDock.legend-card,
       html.win-compact-ui #legendDock.legend-card,
       html.os-windows #legendDock.map-floating.legend-card,
@@ -8918,7 +8918,7 @@
       margin-top:6px !important;
     }
 
-    @media (min-width: 901px){
+    @media (min-width: 901px) and (min-height:561px){
       #legendDock.legend-card,
       #legendDock.map-floating.legend-card,
       body.observed-mode #legendDock.legend-card,
@@ -9002,7 +9002,7 @@
       align-self:center !important;
     }
 
-    @media (min-width: 901px){
+    @media (min-width: 901px) and (min-height:561px){
       html.os-windows #legendDock.legend-card,
       html.win-compact-ui #legendDock.legend-card,
       html.os-windows #legendDock.map-floating.legend-card,
@@ -10213,7 +10213,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-width: 900px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       :root{
         --mobile-safe-top:env(safe-area-inset-top, 0px);
         --mobile-safe-right:env(safe-area-inset-right, 0px);
@@ -10453,7 +10453,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-width: 900px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       .download-modal.open{
         align-items:stretch !important;
         justify-content:center !important;
@@ -10688,7 +10688,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-height: 560px) and (orientation: landscape) and (pointer: coarse){
+    @media (max-height: 560px) and (orientation: landscape){
       body.mobile-optimized #leftPanel{
         top:calc(6px + env(safe-area-inset-top, 0px)) !important;
         bottom:calc(72px + env(safe-area-inset-bottom, 0px)) !important;
@@ -10735,7 +10735,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       :root{
         --pjm-safe-top:env(safe-area-inset-top, 0px);
         --pjm-safe-right:env(safe-area-inset-right, 0px);
@@ -11309,7 +11309,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-height: 560px) and (orientation: landscape) and (pointer: coarse){
+    @media (max-height: 560px) and (orientation: landscape){
       :root{
         --pjm-timeline-h:88px;
       }
@@ -11375,7 +11375,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #legendDock{
         display:grid !important;
         grid-template-columns:minmax(0, 1fr) 46px !important;
@@ -11641,7 +11641,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #timelineDock{
         position:fixed !important;
         overflow:hidden !important;
@@ -11844,7 +11844,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (max-width: 900px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #mobileDrawerBackdrop,
       body.mobile-optimized.mobile-controls-open #mobileDrawerBackdrop{
         position:fixed !important;
@@ -11919,7 +11919,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
       body.mobile-optimized #leftPanel{
         transform:translate3d(calc(-100% - 18px), 0, 0) !important;
       }
@@ -11931,7 +11931,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #mobileControlsToggle,
       body.mobile-optimized.mobile-controls-open #mobileControlsToggle,
       body.mobile-optimized.mobile-legend-open #mobileControlsToggle{
@@ -12070,7 +12070,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #mobileControlsToggle,
       body.mobile-optimized.mobile-controls-open #mobileControlsToggle,
       body.mobile-optimized.mobile-legend-open #mobileControlsToggle{
@@ -12145,7 +12145,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-@media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+@media (max-width: 900px), (max-height: 560px){
   body.mobile-optimized #timelineDock{
     overflow:visible !important;
   }
@@ -12215,7 +12215,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
   }
 }
 
-@media (max-width: 860px) and (orientation: landscape), (max-height: 560px) and (pointer: coarse){
+@media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
   body.mobile-optimized #timelineBubble{
     top:-26px !important;
     min-height:22px !important;
@@ -12247,7 +12247,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized #mobileControlsClose{
         display:none !important;
       }
@@ -12311,7 +12311,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (orientation: landscape) and (pointer: coarse), (max-height: 560px) and (pointer: coarse){
+    @media (orientation: landscape) and (pointer: coarse), (max-height: 560px){
       :root{
         --pjm-timeline-h:124px !important;
       }
@@ -12450,7 +12450,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-    @media (orientation: landscape) and (pointer: coarse) and (max-height: 620px){
+    @media (orientation: landscape) and (max-height: 620px){
       :root{
         --pj-long-safe-top:env(safe-area-inset-top, 0px);
         --pj-long-safe-right:env(safe-area-inset-right, 0px);
@@ -12942,7 +12942,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (orientation: landscape) and (pointer: coarse) and (max-height: 420px){
+    @media (orientation: landscape) and (max-height: 420px){
       :root{ --pj-long-pill-h:108px; }
 
       body.mobile-optimized #mapTitleBadge{
@@ -13060,7 +13060,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-    @media (orientation: landscape) and (pointer: coarse) and (max-height: 620px){
+    @media (orientation: landscape) and (max-height: 620px){
       :root{
         --pj-long-pill-h:118px;
       }
@@ -13284,7 +13284,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (orientation: landscape) and (pointer: coarse) and (max-height: 420px){
+    @media (orientation: landscape) and (max-height: 420px){
       :root{ --pj-long-pill-h:108px; }
 
       body.mobile-optimized #timelineDock,
@@ -13376,7 +13376,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (min-width: 861px) and (min-height: 561px){
+    @media (min-width: 901px) and (min-height: 561px){
       #leftPanel{
         top:16px !important;
         padding-top:0 !important;
@@ -13409,7 +13409,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized.mobile-controls-open #leftPanel > #mobileControlsClose{
         display:grid !important;
         visibility:visible !important;
@@ -13441,7 +13441,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       display:none;
     }
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       body.mobile-optimized.mobile-controls-open #mobileControlsToggle,
       body.mobile-optimized.mobile-controls-open.mobile-legend-open #mobileControlsToggle{
         opacity:0 !important;
@@ -13641,7 +13641,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       display:none !important;
     }
 
-    @media (max-width: 860px), (max-height: 560px) and (pointer: coarse){
+    @media (max-width: 900px), (max-height: 560px){
       #mapTitleBadge.shorely-title-badge{
         gap:7px !important;
         max-width:calc(100vw - 16px) !important;
@@ -13698,7 +13698,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-@media (min-width: 901px){
+@media (min-width: 901px) and (min-height:561px){
   #leftPanel,
   body.observed-mode #leftPanel,
   body.calendar-picker-open #leftPanel,
@@ -14050,7 +14050,7 @@ body .timeline-trackRow{
 }
 
 
-@media (max-width: 900px), (max-height: 560px) and (pointer: coarse){
+@media (max-width: 900px), (max-height: 560px){
   body.mobile-optimized #timelineDock #legendDock,
   body.mobile-optimized #timelineDock .legend-card{
     display:none !important;
@@ -14182,7 +14182,7 @@ body .timeline-trackRow{
 }
 
 
-@media (max-width: 900px), (max-height: 560px) and (pointer: coarse){
+@media (max-width: 900px), (max-height: 560px){
   body.mobile-optimized #leftPanel > .data-source-card{ order:1 !important; }
   body.mobile-optimized #leftPanel > #forecastScenarioCard{ order:2 !important; }
   body.mobile-optimized #leftPanel > .overlay-card{ order:10 !important; }
@@ -14416,7 +14416,7 @@ body .timeline-trackRow{
 
 
 
-@media (max-width: 900px), (max-height: 560px) and (pointer: coarse){
+@media (max-width: 900px), (max-height: 560px){
   body.mobile-optimized #timelineBubble,
   body.mobile-optimized #timelineBubble.timeline-bubble-stage-none,
   body.mobile-optimized #timelineBubble.timeline-bubble-stage-minor,
@@ -14570,7 +14570,7 @@ body .timeline-trackRow{
 }
 
 
-@media (max-width: 900px), (max-height: 560px) and (pointer: coarse){
+@media (max-width: 900px), (max-height: 560px){
   body.mobile-optimized #timelineDock #hourSlider{
     width:calc(100% - var(--pj-slider-thumb-size)) !important;
     max-width:calc(100% - var(--pj-slider-thumb-size)) !important;
@@ -15595,7 +15595,7 @@ html.win-compact-ui #timelineDock #hourSlider{
       if (!badge || !text) return;
 
       const viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-      const compact = window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches;
+      const compact = window.matchMedia("(max-width:900px), (max-height: 560px)").matches;
       let leftLimit = 12;
       let rightLimit = viewportWidth - 12;
 
@@ -15609,6 +15609,11 @@ html.win-compact-ui #timelineDock #hourSlider{
         }
         if (rightRect?.width && getComputedStyle(rightRail).display !== "none") {
           rightLimit = Math.min(rightLimit, rightRect.left - 14);
+        }
+        const navigation = document.getElementById("nwDefaultNavControl");
+        const navigationRect = navigation?.getBoundingClientRect();
+        if (navigationRect?.width && navigationRect.top < badge.getBoundingClientRect().bottom + 8) {
+          rightLimit = Math.min(rightLimit, navigationRect.left - 14);
         }
       }
 
@@ -17817,7 +17822,7 @@ function setDatumHelpOpen(isOpen) {
         requestAnimationFrame(() => {
           const modalCard = modal.querySelector(".download-modal-card");
           if (modalCard) modalCard.scrollTop = 0;
-          const compactTouchLayout = window.matchMedia("(max-width: 900px), (max-height: 560px) and (pointer: coarse)").matches;
+          const compactTouchLayout = window.matchMedia("(max-width: 900px), (max-height: 560px)").matches;
           const focusTarget = compactTouchLayout
             ? document.getElementById("downloadModalCloseBtn")
             : currentDataMode === "return-interval"
@@ -17913,7 +17918,7 @@ function setDatumHelpOpen(isOpen) {
         legendDock.dataset.previewText = currentOverlayMode === "depth"
           ? "Flood Depth Key"
           : "Flood Stages Key";
-        if (window.innerWidth > 900) {
+        if (window.matchMedia("(min-width:901px) and (min-height:561px)").matches) {
           const compactLegendHeight = currentOverlayMode === "depth"
             ? (depthLegendHasNote ? "94px" : "74px")
             : "68px";
@@ -19831,7 +19836,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
       const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
 
-      if (vw <= 900) {
+      if (vw <= 900 || vh <= 560) {
         [
           "left", "right", "top", "bottom", "width", "min-width", "max-width",
           "height", "max-height", "overflow", "overflow-y", "overflow-x",
@@ -19848,7 +19853,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       const cardH = shortDesktop ? 82 : (vw <= 1120 ? 88 : 92);
       const opacityH = shortDesktop ? 56 : 62;
       const legendH = shortDesktop ? 132 : (vw <= 1120 ? 138 : 144);
-      const bottomReserve = shortDesktop ? 128 : 188;
+      const bottomReserve = 188;
       const root = document.documentElement;
 
       root.style.setProperty("--left-panel-bottom", `${bottomReserve}px`);
@@ -24503,6 +24508,10 @@ function formatSelectedObservedDate(dateStr) {
     function setTopTidesModalOpen(open) {
       const modal = document.getElementById("topTidesModal");
       if (!modal) return;
+      if (modal.parentElement !== document.body) document.body.appendChild(modal);
+      if (open && document.body.classList.contains("mobile-optimized") && typeof setMobileControlsOpen === "function") {
+        setMobileControlsOpen(false);
+      }
       if (open) renderTopTidesModal();
       modal.hidden = !open;
       modal.classList.toggle("open", !!open);
@@ -25336,6 +25345,14 @@ function formatSelectedObservedDate(dateStr) {
       if (popover && popover.parentElement !== document.body) {
         document.body.appendChild(popover);
       }
+      const grid = popover?.querySelector(".calendar-popover-grid");
+      const close = document.getElementById("calendarPopoverCloseBtn");
+      if (grid && close && close.parentElement !== grid) grid.prepend(close);
+      if (grid) {
+        grid.setAttribute("role", "dialog");
+        grid.setAttribute("aria-modal", "true");
+        grid.setAttribute("aria-label", "Choose month");
+      }
       return popover;
     }
 
@@ -25354,6 +25371,7 @@ function formatSelectedObservedDate(dateStr) {
         popover.style.setProperty("bottom", "auto", "important");
         popover.style.setProperty("transform", "translate(-50%, -50%)", "important");
         popover.style.setProperty("z-index", "12000", "important");
+        document.getElementById("calendarPopoverCloseBtn")?.focus({ preventScroll: true });
       }
 
       document.body.classList.remove("calendar-picker-open");
@@ -26116,8 +26134,8 @@ function startPlayback() {
         autoClose: false,
         closeOnClick: false,
         closeButton: true,
-        keepInView: true,
-        autoPan: true,
+        keepInView: !document.body.classList.contains("map-3d-ready"),
+        autoPan: !document.body.classList.contains("map-3d-ready"),
         autoPanPaddingTopLeft: mobilePopup ? L.point(10, 126) : L.point(16, 16),
         autoPanPaddingBottomRight: mobilePopup
           ? L.point(10, Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shorely-mobile-timeline-height")) + 16 || 140)
@@ -27326,8 +27344,18 @@ function startPlayback() {
         closeBtn.id = "mobileControlsClose";
         closeBtn.type = "button";
         closeBtn.innerHTML = "&times;";
+        closeBtn.className = "centered-close-control";
         closeBtn.setAttribute("aria-label", "Close controls");
         closeBtn.setAttribute("title", "Close controls");
+      }
+      // Bind both the initial HTML button and any replacement made on resize.
+      if (closeBtn.dataset.mobileCloseWired !== "1") {
+        closeBtn.dataset.mobileCloseWired = "1";
+        closeBtn.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMobileControlsOpen(false);
+        });
       }
 
 
@@ -27355,17 +27383,22 @@ function startPlayback() {
     }
 
     function syncMobileControlsLayout() {
-      const isMobile = window.matchMedia("(max-width: 860px), (max-height: 560px) and (pointer: coarse)").matches;
+      const isMobile = window.matchMedia("(max-width: 900px), (max-height: 560px)").matches;
       const leftPanel = document.getElementById("leftPanel");
       const rightRail = document.getElementById("rightRail");
       const legendDock = document.getElementById("legendDock");
       const app = document.getElementById("app");
       if (!leftPanel || !rightRail || !app) return;
+      const wasMobile = document.body.classList.contains("mobile-optimized");
 
       const { mobileRailMount, closeBtn } = ensureMobileControlShell();
 
       if (isMobile) {
         document.body.classList.add("mobile-optimized");
+        if (!wasMobile) {
+          leftPanel.scrollTop = 0;
+          rightRail.scrollTop = 0;
+        }
         const mobileCloseBtn = document.getElementById("mobileControlsClose") || closeBtn;
         if (mobileCloseBtn && mobileCloseBtn.parentNode !== leftPanel) {
           leftPanel.insertBefore(mobileCloseBtn, leftPanel.firstChild);
@@ -27381,6 +27414,10 @@ function startPlayback() {
         document.body.classList.remove("mobile-optimized");
         document.body.classList.remove("mobile-legend-open");
         setMobileControlsOpen(false);
+        if (wasMobile) {
+          leftPanel.scrollTop = 0;
+          rightRail.scrollTop = 0;
+        }
 
         const mobileCloseBtn = document.getElementById("mobileControlsClose");
         if (mobileCloseBtn && mobileCloseBtn.parentNode === leftPanel) {
@@ -27410,17 +27447,10 @@ function startPlayback() {
     }
 
     function wireMobileControlShell() {
-      const { toggle, backdrop, closeBtn } = ensureMobileControlShell();
+      const { toggle, backdrop } = ensureMobileControlShell();
       toggle.addEventListener("click", () => {
         setMobileControlsOpen(!document.body.classList.contains("mobile-controls-open"));
       });
-      if (closeBtn) {
-        closeBtn.addEventListener("click", event => {
-          event.preventDefault();
-          event.stopPropagation();
-          setMobileControlsOpen(false);
-        });
-      }
       backdrop.addEventListener("click", () => setMobileControlsOpen(false));
       document.addEventListener("keydown", e => {
         if (e.key === "Escape") setMobileControlsOpen(false);
@@ -27982,7 +28012,8 @@ function startPlayback() {
         ? switchDataMode("forecast")
         : (mapperTutorialIndex === 3 && currentDataMode !== "observed" ? switchDataMode("observed") : Promise.resolve());
       const target = getVisibleTutorialTarget(step.target);
-      if (window.innerWidth <= 900 && target) {
+      const compactTutorial = window.matchMedia("(max-width:900px), (max-height:560px)").matches;
+      if (compactTutorial && target) {
         const needsDrawer = Boolean(target.closest("#leftPanel, #mobileRailMount"));
         setMobileControlsOpen(needsDrawer);
       }
@@ -27997,7 +28028,7 @@ function startPlayback() {
         try { await tutorialModePromise; } catch (err) {}
         const resolved = getVisibleTutorialTarget(step.target);
         const mobileBlockByStep = { 1: "start", 3: "end", 6: "end", 7: "start" };
-        const block = window.innerWidth <= 900 ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
+        const block = compactTutorial ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
         resolved?.scrollIntoView({ block, inline: "center", behavior: "auto" });
         window.setTimeout(positionMapperTutorial, 80);
         window.setTimeout(positionMapperTutorial, 320);
@@ -28170,6 +28201,8 @@ function startPlayback() {
 
         document.addEventListener("pointerdown", event => {
           if (playButton.contains(event.target)) return;
+          // The enlarged hit area must not intercept dialogs or other buttons.
+          if (!event.target?.closest?.("#timelineDock") || event.target.closest("button, input, select, a")) return;
           if (isInsidePlayButton(event)) activatePlay(event);
         }, { capture:true });
       }
@@ -28689,6 +28722,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 
       document.addEventListener("keydown", e => {
         if (currentDataMode !== "observed" || !currentSeriesHours.length) return;
+        if (e.target?.closest?.('[role="dialog"], #calendarPopover, #mapperTutorial')) return;
         const tag = String(document.activeElement?.tagName || "").toLowerCase();
         if (tag === "input" || tag === "select" || tag === "textarea") return;
         if (e.key === "ArrowRight") {
@@ -28795,7 +28829,9 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       let anchor = afterDataSource;
       order.forEach(node => {
         if (node.parentNode === leftPanel) {
-          leftPanel.insertBefore(node, anchor ? anchor.nextSibling : leftPanel.firstChild);
+          const next = anchor ? anchor.nextSibling : leftPanel.firstChild;
+          // Do not detach an already ordered card during a pointer gesture.
+          if (node !== next) leftPanel.insertBefore(node, next);
           anchor = node;
         }
       });
@@ -28834,7 +28870,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 <script>
 (function(){
   function isMobileOptimized(){
-    return window.matchMedia('(max-width: 900px), (max-height: 560px) and (pointer: coarse)').matches;
+    return window.matchMedia('(max-width: 900px), (max-height: 560px)').matches;
   }
 
   function moveLegendOutOfTimelineOnMobile(){
@@ -28883,20 +28919,13 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
     var close = document.getElementById('calendarPopoverCloseBtn');
     if (!popover || !grid) return;
     if (popover.parentElement !== document.body) document.body.appendChild(popover);
+    if (close && close.parentElement !== grid) grid.prepend(close);
     if (!popover.dataset.pjCloseWired) {
       popover.dataset.pjCloseWired = '1';
       popover.addEventListener('click', function(e){
         if (e.target === popover) {
           var btn = document.getElementById('calendarPopoverCloseBtn');
           if (btn) btn.click();
-          else popover.classList.remove('open');
-        }
-        var rect = grid.getBoundingClientRect();
-        var inFakeClose = e.clientX >= rect.right - 58 && e.clientX <= rect.right - 10 && e.clientY >= rect.top + 8 && e.clientY <= rect.top + 50;
-        if (inFakeClose) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (close) close.click();
           else popover.classList.remove('open');
         }
       }, true);
@@ -29029,7 +29058,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 }
 
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   #leftPanel{
     width:var(--pj-ui-left-width) !important;
     max-width:calc(100vw - 32px) !important;
@@ -29288,7 +29317,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 }
 
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   html.os-windows,
   html.win-compact-ui{
     --win-left-width:340px !important;
@@ -29732,7 +29761,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 }
 
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   #rightRail,
   body.observed-mode #rightRail,
   body.calendar-picker-open #rightRail,
@@ -29750,7 +29779,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 }
 
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   html.os-windows .leaflet-top.leaflet-right .leaflet-control-zoom,
   html.win-compact-ui .leaflet-top.leaflet-right .leaflet-control-zoom{
     margin-top:104px !important;
@@ -29782,7 +29811,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 }
 
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   body.mobile-optimized #mobileRailMount > #downloadCard,
   body.mobile-optimized #mobileRailMount > .download-launch-card,
   body.mobile-optimized #mobileRailMount > .download-card{
@@ -29878,7 +29907,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
   --pj-final-zoom-gap-from-rail:20px;
 }
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   #leftPanel,
   body.observed-mode #leftPanel,
   body.calendar-picker-open #leftPanel,
@@ -30062,7 +30091,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 }
 
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   .leaflet-top.leaflet-right .leaflet-control-zoom,
   html.os-mac .leaflet-top.leaflet-right .leaflet-control-zoom,
   html.os-windows .leaflet-top.leaflet-right .leaflet-control-zoom,
@@ -30084,7 +30113,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 }
 
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   html.os-windows,
   html.win-compact-ui{
     --win-left-width:var(--pj-final-left-width) !important;
@@ -30134,7 +30163,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 }
 
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   body.mobile-optimized #leftPanel,
   body.mobile-optimized #mobileRailMount{
     overflow-x:hidden !important;
@@ -30561,7 +30590,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
 }
 
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   #rightRail{
     overflow-y:auto !important;
     overflow-x:hidden !important;
@@ -30586,7 +30615,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
 
 <style>
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   :root{
     --pj-logo-rail-width-final:260px;
     --pj-logo-rail-right-final:16px;
@@ -30631,14 +30660,14 @@ html.win-compact-ui .leaflet-top.leaflet-right{
   }
 }
 
-@media (min-width:901px) and (max-width:1320px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px){
   :root{
     --pj-logo-rail-width-final:246px;
     --pj-zoom-logo-gap-final:12px;
   }
 }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   body.mobile-optimized .leaflet-top.leaflet-right{
     top:0 !important;
     right:0 !important;
@@ -30669,7 +30698,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
   --pj-equal-left-pane-width:var(--pj-final-left-width, 340px);
 }
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   #leftPanel,
   body.observed-mode #leftPanel,
   body:not(.observed-mode) #leftPanel,
@@ -30753,7 +30782,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
 <style>
 
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   :root{
     --pj-stable-left-width:356px;
     --pj-stable-right-width:260px;
@@ -31278,7 +31307,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
 }
 
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #leftPanel #legendDock .legend-title{
     font-size:15px !important;
   }
@@ -31343,7 +31372,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
       border-top-width:9px !important;
     }
 
-    @media (max-width:900px), (max-height:560px) and (pointer:coarse){
+    @media (max-width:900px), (max-height: 560px){
       html body #timelineDock,
       html body.observed-mode #timelineDock{
         padding-top:38px !important;
@@ -31385,7 +31414,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
   }
 
   function stableLayoutFix(){
-    if (window.matchMedia('(max-width: 900px), (max-height: 560px) and (pointer: coarse)').matches) return;
+    if (window.matchMedia('(max-width: 900px), (max-height: 560px)').matches) return;
     var left = document.getElementById('leftPanel');
     var legend = document.getElementById('legendDock');
     var datum = left ? left.querySelector('.datum-card') : null;
@@ -31630,7 +31659,7 @@ body.observed-mode #playBtn.is-playing{
   letter-spacing:.08em !important;
 }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   #timelineDock .timeline-controls{ min-height:54px !important; }
   #timelineDock .playFab,
   #playBtn,
@@ -31835,7 +31864,7 @@ html body #playBtn .pauseIcon::after{
 html body #playBtn .pauseIcon::before{ left:1px !important; }
 html body #playBtn .pauseIcon::after{ right:1px !important; }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #timelineDock .timeline-controls{
     min-height:44px !important;
     gap:7px !important;
@@ -32201,7 +32230,7 @@ html body #leftPanel #legendDock .legend-row.legend-row-boundary{
   display:none !important;
 }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #mapTitleBadge.shorely-title-badge{
     gap:7px !important;
     min-height:36px !important;
@@ -32346,7 +32375,7 @@ html body #mapTitleBadge .shorely-title-logo-shorelysafe{
   margin:0 !important;
 }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #rightRail .right-logo-card{
     min-height:76px !important;
     height:76px !important;
@@ -32416,7 +32445,7 @@ html body #mapTitleBadge .shorely-title-logo-shorelysafe{
 }
 
 
-@media (max-width: 900px), (max-height: 560px) and (pointer: coarse){
+@media (max-width: 900px), (max-height: 560px){
   html body #mapTitleBadge.shorely-title-badge{
     min-height:unset !important;
   }
@@ -32521,7 +32550,7 @@ html body #topBannerCloseBtn:active{
 }
 
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #topBanner,
   html body #topBanner.alert,
   html.os-mac body #topBanner.alert,
@@ -32725,7 +32754,7 @@ html body #topBannerCloseBtn:active{
 }
 
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #mapTitleBadge,
   html body #mapTitleBadge.shorely-title-badge{
     height:auto !important;
@@ -32851,7 +32880,7 @@ html.win-compact-ui body #timelineBubble::after{
 }
 
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #timelineDock,
   html body.observed-mode #timelineDock{
     padding-top:48px !important;
@@ -33052,7 +33081,7 @@ html.win-compact-ui body #timelineDock{
   overflow:visible !important;
 }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #timelineDock,
   html body.observed-mode #timelineDock{
     padding-top:40px !important;
@@ -33150,7 +33179,7 @@ html.win-compact-ui body #timelineDock{
   overflow:visible !important;
 }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #timelineBubble,
   html body.observed-mode #timelineBubble,
   html.os-mac body #timelineBubble,
@@ -33210,7 +33239,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   padding-right:8px !important;
 }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body #timelineBubble,
   html body.observed-mode #timelineBubble,
   html.os-mac body #timelineBubble,
@@ -33244,7 +33273,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
 
 <style>
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   :root{
     --pj-fixed-left-width:356px;
     --pj-fixed-right-width:260px;
@@ -33724,21 +33753,21 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 }
 
-@media (min-width:901px) and (max-width:1320px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px){
   :root{
     --pj-fixed-left-width:340px;
     --pj-fixed-right-width:244px;
   }
 }
 
-@media (min-width:901px) and (max-width:1120px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1120px){
   :root{
     --pj-fixed-left-width:320px;
     --pj-fixed-right-width:228px;
   }
 }
 
-@media (min-width:901px) and (max-height:760px){
+@media (min-width:901px) and (min-height:561px) and (max-height:760px){
   :root{
     --pj-fixed-bottom-reserve:166px;
     --pj-fixed-panel-gap:8px;
@@ -33787,7 +33816,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 
   function isDesktop(){
-    return Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) > 900;
+    return window.matchMedia("(min-width:901px) and (min-height:561px)").matches;
   }
 
   function sizes(){
@@ -33798,7 +33827,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
     return {
       left:left,
       right:right,
-      bottom:vh <= 760 ? 128 : 188,
+      bottom:188,
       gap:8
     };
   }
@@ -33833,7 +33862,17 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 
   function applySidePanes(){
-    if (!isDesktop()) return;
+    if (!isDesktop()) {
+      var compactRail = document.getElementById("rightRail");
+      if (compactRail) {
+        ["position","top","right","left","bottom","width","min-width","max-width",
+          "height","max-height","display","flex-direction","gap","overflow-y","overflow-x",
+          "box-sizing","scrollbar-gutter","transform","scale","zoom"].forEach(function(prop){
+          compactRail.style.removeProperty(prop);
+        });
+      }
+      return;
+    }
 
     var s = sizes();
     var root = document.documentElement;
@@ -34062,7 +34101,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
 
 <style>
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   :root{
     --pj-request-play-lane:64px;
     --pj-request-timeline-height:112px;
@@ -34428,7 +34467,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 }
 
-@media (min-width:901px) and (max-height:760px){
+@media (min-width:901px) and (min-height:561px) and (max-height:760px){
   :root{
     --pj-request-timeline-height:108px;
     --pj-fixed-bottom-reserve:184px;
@@ -34461,7 +34500,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   :root{
     --pj-request-play-lane:50px;
     --pj-request-timeline-height:108px;
@@ -34755,9 +34794,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
 
   function isCompactTimeline(){
     var v = viewport();
-    var coarse = false;
-    try { coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches; } catch(e) {}
-    return v.w <= 900 || (v.h <= 560 && coarse);
+    return v.w <= 900 || v.h <= 560;
   }
 
   function timelineMetrics(){
@@ -34782,6 +34819,13 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
     if (!dock) return;
 
     var m = timelineMetrics();
+    if (!m.compact) {
+      setImportant(dock, "left", "16px");
+      setImportant(dock, "right", "16px");
+      setImportant(dock, "bottom", "4px");
+      setImportant(dock, "width", "auto");
+      setImportant(dock, "max-width", "calc(100vw - 32px)");
+    }
     var lane = m.lane + "px";
     var contentWidth = "calc(100% - " + lane + ")";
     var top = dock.querySelector(".timeline-top");
@@ -35140,6 +35184,9 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   function run(){
     applyTimelinePlayLane();
     applyObservedPaneFit();
+    // Finish compact sizing in the same frame as the legacy lane sizing.
+    // Otherwise the two resize schedules briefly paint different layouts.
+    if (isCompactTimeline() && window.ShorelyMobileFollowup) window.ShorelyMobileFollowup.apply();
   }
 
   function schedule(){
@@ -35328,7 +35375,7 @@ html body #timelineDock #hourSlider{
 
 <style>
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   :root{
     --pj-equal-left-width:356px;
     --pj-equal-right-width:260px;
@@ -35622,14 +35669,14 @@ html body #timelineDock #hourSlider{
   }
 }
 
-@media (min-width:901px) and (max-width:1320px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px){
   :root{
     --pj-equal-left-width:340px;
     --pj-equal-right-width:244px;
   }
 }
 
-@media (min-width:901px) and (max-width:1120px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1120px){
   :root{
     --pj-equal-left-width:320px;
     --pj-equal-right-width:228px;
@@ -35638,7 +35685,7 @@ html body #timelineDock #hourSlider{
   }
 }
 
-@media (min-width:901px) and (max-height:940px){
+@media (min-width:901px) and (min-height:561px) and (max-height:940px){
   :root{
     --pj-equal-bottom-reserve:128px;
     --pj-equal-card-h:82px;
@@ -35766,7 +35813,7 @@ html body #timelineDock #hourSlider{
   }
 
   function applyStablePaneSizes(){
-    var desktop = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) > 900;
+    var desktop = window.matchMedia("(min-width:901px) and (min-height:561px)").matches;
     if (!desktop) {
       clearStableDesktopPaneSizes();
       return;
@@ -35781,7 +35828,7 @@ html body #timelineDock #hourSlider{
     var cardH = shortDesktop ? 82 : (viewportW <= 1120 ? 88 : 92);
     var opacityH = shortDesktop ? 56 : 62;
     var legendH = 64;
-    var bottomReserve = shortDesktop ? 128 : 188;
+    var bottomReserve = 188;
     var cardPadding = shortDesktop ? "7px 12px" : "8px 12px";
     var cardGap = shortDesktop ? "5px" : "6px";
     var opacityPadding = shortDesktop ? "7px 12px 8px" : "8px 12px 9px";
@@ -35847,7 +35894,7 @@ html body #timelineDock #hourSlider{
     });
 
     var legend = document.getElementById("legendDock");
-    var compactLegendViewport = window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches;
+    var compactLegendViewport = window.matchMedia("(max-width:900px), (max-height: 560px)").matches;
     if (legend && left && !compactLegendViewport && legend.parentElement !== left) left.appendChild(legend);
     if (legend && !compactLegendViewport) {
       var depthLegendHasNote = legend.dataset.legendMode === "depth" &&
@@ -35925,7 +35972,7 @@ html body #timelineDock #hourSlider{
 
   function stablePaneHasDrifted(left){
     if (!left) return false;
-    var desktop = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) > 900;
+    var desktop = window.matchMedia("(min-width:901px) and (min-height:561px)").matches;
     if (!desktop) return false;
     var cs = getComputedStyle(left);
     var r = left.getBoundingClientRect();
@@ -36243,7 +36290,7 @@ html.platform-mac-template body{
 }
 
 
-@media (min-width:901px){
+@media (min-width:901px) and (min-height:561px){
   html.platform-mac-template #leftPanel,
   html.platform-mac-template #rightRail,
   html.platform-mac-template #legendDock,
@@ -36302,7 +36349,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 }
 
 
-@media (max-width:860px), (max-height:560px) and (pointer:coarse){
+@media (max-width: 900px), (max-height: 560px){
 
   html.platform-mac-template body.mobile-optimized #legendDock{
     width:auto !important;
@@ -36427,12 +36474,16 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 
   function syncMobileLegendOffset(){
     queued = false;
+    // The final compact controller owns the second-row Controls position.
+    // Reapplying this older legend-relative offset made the button jump
+    // between pointer-down and pointer-up during rapid interactions.
+    if (window.ShorelyMobileFollowup) return;
     var body = document.body;
     var legend = document.getElementById("legendDock");
     var toggle = document.getElementById("mobileControlsToggle");
     if (!body || !legend || !toggle) return;
 
-    var isMobile = window.matchMedia("(max-width: 860px), (max-height: 560px) and (pointer: coarse)").matches;
+    var isMobile = window.matchMedia("(max-width: 900px), (max-height: 560px)").matches;
     if (!isMobile || !body.classList.contains("mobile-optimized")) {
       toggle.style.removeProperty("top");
       return;
@@ -36481,7 +36532,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260912-audit-repair"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260921-responsive"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
@@ -37242,7 +37293,7 @@ html body #mapTitleBadge #mapTitleLogo{
 }
 </style>
 <style id="stone-harbor-final-qa-layout-fixes">
-@media (min-width:901px) and (max-height:760px){
+@media (min-width:901px) and (min-height:561px) and (max-height:760px){
   html body:not(.mobile-optimized) #leftPanel{
     overflow-x:hidden !important;
     overflow-y:auto !important;
@@ -37261,7 +37312,7 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 }
 
-@media (max-width:900px), (max-height:560px) and (pointer:coarse){
+@media (max-width:900px), (max-height: 560px){
   html body.mobile-optimized #timelineDock .timeline-top,
   html body.mobile-optimized #timelineDock .timeline-controls{
     overflow:visible !important;
@@ -37504,6 +37555,7 @@ html body #mapTitleBadge #mapTitleLogo{
     var legendHelp = document.getElementById("shorelyMobileLegendHelpBtn");
     if (!mobile) {
       // Desktop sidebar scrolling is owned by applyStablePaneSizes().
+      setImportant(document.getElementById("mobileControlsToggle"), "display", "none");
       if (sliderKey) setImportant(sliderKey, "display", "none");
       if (sliderHelp) setImportant(sliderHelp, "display", "none");
       if (legendHelp) setImportant(legendHelp, "display", "none");
@@ -37514,7 +37566,7 @@ html body #mapTitleBadge #mapTitleLogo{
     var mobileTimelineHeight = compactLandscape ? 108 : 124;
     document.documentElement.style.setProperty("--shorely-mobile-timeline-height", mobileTimelineHeight + "px");
     document.documentElement.style.setProperty("--pj-request-timeline-height", mobileTimelineHeight + "px");
-    document.documentElement.style.setProperty("--shorely-mobile-drawer-bottom", (mobileTimelineHeight + 4) + "px");
+    document.documentElement.style.setProperty("--shorely-mobile-drawer-bottom", "calc(" + (mobileTimelineHeight + 4) + "px + env(safe-area-inset-bottom, 0px))");
 
     var originalKey = document.getElementById("timelineFloodKey");
     var toggle = document.getElementById("mobileControlsToggle");
@@ -37537,9 +37589,9 @@ html body #mapTitleBadge #mapTitleLogo{
 
     if (originalKey) setImportant(originalKey, "display", "none");
     if (timeline) {
-      setImportant(timeline, "left", "7px");
-      setImportant(timeline, "right", "7px");
-      setImportant(timeline, "bottom", "4px");
+      setImportant(timeline, "left", "max(7px, env(safe-area-inset-left, 0px))");
+      setImportant(timeline, "right", "max(7px, env(safe-area-inset-right, 0px))");
+      setImportant(timeline, "bottom", "calc(4px + env(safe-area-inset-bottom, 0px))");
       setImportant(timeline, "top", "auto");
       setImportant(timeline, "width", "auto");
       setImportant(timeline, "max-width", "calc(100vw - 14px)");
@@ -37698,14 +37750,8 @@ html body #mapTitleBadge #mapTitleLogo{
   document.addEventListener("keydown", function(event){
     if (event.key === "Escape") [20, 120, 260, 520].forEach(function(ms){ window.setTimeout(schedule, ms); });
   }, true);
-  ["pointerdown", "touchstart", "mousedown"].forEach(function(type){
-    document.addEventListener(type, function(event){
-      if (event.target && event.target.closest && event.target.closest("#mobileControlsToggle, #topTidesModal, .top-tide-more-btn, .top-tide-item, #topTidesModalCloseBtn")) {
-        apply();
-        [0, 40, 120, 260, 620].forEach(function(ms){ window.setTimeout(schedule, ms); });
-      }
-    }, true);
-  });
+  // Class/style observers and the post-click schedule keep this current.
+  // Never move a hit target synchronously at the start of a pointer gesture.
   window.CapeMayMobileFollowup = window.ShorelyMobileFollowup = { apply: apply, schedule: schedule };
 })();
 </script>
@@ -37808,7 +37854,7 @@ html body #mapTitleBadge #mapTitleLogo{
     html body.mobile-optimized.observed-mode #leftPanel > .mobile-top-tides-card{display:grid !important}
     .mapper-tutorial-card{width:calc(100vw - 28px) !important;max-height:min(46vh,420px) !important}
   }
-  @media (min-width:901px) and (max-height:760px){
+  @media (min-width:901px) and (min-height:561px) and (max-height:760px){
     #rightRail{bottom:128px !important;gap:4px !important}
     #rightRail .rail-card{padding:7px !important;border-radius:14px !important}
     #rightRail .rail-head{margin-bottom:3px !important}
@@ -38526,7 +38572,7 @@ html body #mapTitleBadge #mapTitleLogo{
     grid-column:2;
   }
 
-  @media (max-width:900px), (max-height:560px) and (pointer:coarse){
+  @media (max-width:900px), (max-height: 560px){
     html body.mobile-optimized #leftPanel .data-source-options button{
       min-height:34px !important;
       height:34px !important;
@@ -38676,7 +38722,7 @@ html body #mapTitleBadge #mapTitleLogo{
   }
   .export-depth-key-note strong{color:#83e58d;font-weight:950}
 
-  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+  @media (max-width:900px),(max-height: 560px){
     html body.mobile-optimized #legendDock[data-legend-mode="depth"]{
       height:94px !important;
       min-height:94px !important;
@@ -38768,7 +38814,7 @@ html body #mapTitleBadge #mapTitleLogo{
   var queued = false;
 
   function isCompactViewport(){
-    return window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches;
+    return window.matchMedia("(max-width:900px), (max-height: 560px)").matches;
   }
 
   function placeMobileLegend(){
@@ -38875,7 +38921,7 @@ html body #mapTitleBadge #mapTitleLogo{
     line-height:1.45 !important;
   }
 
-  @media (min-width:901px){
+  @media (min-width:901px) and (min-height:561px){
     html body:not(.mobile-optimized) #rightRail{
       padding-bottom:46px !important;
     }
@@ -38891,7 +38937,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 
-  @media (min-width:901px) and (max-height:760px){
+  @media (min-width:901px) and (min-height:561px) and (max-height:760px){
     html body:not(.mobile-optimized) #rightRail > .rail-card{
       padding:7px !important;
     }
@@ -38969,7 +39015,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 
-  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+  @media (max-width:900px),(max-height: 560px){
     html body.mobile-optimized.observed-mode #leftPanel,
     html body.mobile-optimized.observed-mode.mobile-controls-open #leftPanel{
       overflow-y:auto !important;
@@ -39137,7 +39183,7 @@ html body #mapTitleBadge #mapTitleLogo{
 </style>
 <style id="north-wildwood-sidebar-pane-qa-20260802">
   /* Keep both control rails readable as one consistent, ordered system. */
-  @media (min-width:901px){
+  @media (min-width:901px) and (min-height:561px){
     html body:not(.mobile-optimized) #leftPanel{
       gap:7px !important;
       padding:0 4px 8px 0 !important;
@@ -39186,7 +39232,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 
-  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+  @media (max-width:900px),(max-height: 560px){
     html body.mobile-optimized #leftPanel{
       gap:8px !important;
       overflow-y:auto !important;
@@ -39307,7 +39353,7 @@ html body #mapTitleBadge #mapTitleLogo{
     --centered-close-x-color:#d8f9ff;
   }
 
-  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+  @media (max-width:900px),(max-height: 560px){
     :is(.centered-close-control,.leaflet-popup-close-button){
       --centered-close-x-size:18px;
     }
@@ -39337,7 +39383,7 @@ html body #mapTitleBadge #mapTitleLogo{
     padding:0 28px !important;
   }
 
-  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+  @media (max-width:900px),(max-height: 560px){
     html body.mobile-optimized .shorely-flood-popup .leaflet-popup-close-button{
       --centered-close-x-size:14px;
       top:7px !important;
@@ -39503,7 +39549,7 @@ html body #mapTitleBadge #mapTitleLogo{
     font-size:13px !important;
   }
 
-  @media (max-width:860px), (max-height:560px) and (pointer:coarse){
+  @media (max-width: 900px), (max-height: 560px){
     html body.mobile-optimized #legendDock[data-legend-mode="dynamic"],
     html body.mobile-optimized #timelineDock #legendDock[data-legend-mode="dynamic"],
     html body.mobile-optimized #mapWrap #legendDock[data-legend-mode="dynamic"]{
@@ -39633,7 +39679,7 @@ html body #mapTitleBadge #mapTitleLogo{
   /* Preserve the roomy, one-column touch layout on phones. */
   @media (max-width:720px){
     #downloadModal .download-grid{
-      grid-template-columns:1fr !important;
+      grid-template-columns:minmax(0,1fr) !important;
     }
     #downloadModal .export-filetype-field,
     #downloadModal .export-interval-field,
@@ -39824,7 +39870,7 @@ html body #mapTitleBadge #mapTitleLogo{
   html body #leftPanel #legendDock[data-legend-mode="depth"] .depth-legend-gradient{
     height:12px !important;
   }
-  @media (max-width:900px),(max-height:560px) and (pointer:coarse){
+  @media (max-width:900px),(max-height: 560px){
     html body.mobile-optimized:not(.physics-forecast-active) #legendDock[data-legend-mode="depth"]{
       height:74px !important;
       min-height:74px !important;
@@ -40123,7 +40169,7 @@ html body #mapTitleBadge #mapTitleLogo{
     line-height:1.05 !important;
   }
 
-  @media (min-width:901px) and (max-height:760px){
+  @media (min-width:901px) and (min-height:561px) and (max-height:760px){
     :root{
       --pj-equal-card-h:72px;
       --pj-equal-opacity-h:52px;
@@ -40296,6 +40342,198 @@ html body #mapTitleBadge #mapTitleLogo{
   #exportStageFrame[data-export-aspect="9:16"] .export-stage-logo-strip{
     right:auto !important;
     max-width:calc(100% - 236px) !important;
+  }
+</style>
+<style id="north-wildwood-responsive-tightening-20260921">
+  html body > .maplibregl-popup.nw-mobile-popup{
+    position:fixed !important;
+    top:calc(112px + env(safe-area-inset-top, 0px)) !important;
+    left:50% !important;
+    right:auto !important;
+    bottom:auto !important;
+    width:min(380px, calc(100vw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))) !important;
+    max-width:calc(100vw - 24px) !important;
+    transform:translateX(-50%) !important;
+    z-index:6000 !important;
+  }
+  html body > .nw-mobile-popup .maplibregl-popup-tip{display:none}
+  html body > .nw-mobile-popup .maplibregl-popup-content{
+    width:100%;
+    max-height:calc(100dvh - 140px - var(--shorely-mobile-timeline-height, 124px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    padding:0;
+    overflow:auto;
+    overscroll-behavior:contain;
+    border:1px solid rgba(var(--nw-ui-blue-rgb),.34);
+    border-radius:18px;
+    background:#0b1424;
+    color:#eaf0ff;
+    box-shadow:0 18px 48px rgba(2,6,23,.42);
+  }
+  html body > .nw-mobile-popup .building-info-card{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+  }
+  html body > .nw-mobile-popup .maplibregl-popup-close-button{
+    position:sticky;
+    top:4px;
+    float:right;
+    margin:4px 4px -48px 0;
+    width:44px;
+    height:44px;
+    z-index:2;
+    border:0;
+    background:#13233a;
+    color:#eaf0ff;
+    font-size:24px;
+  }
+  html body > .nw-mobile-popup .depth-query-popup,
+  html body > .nw-mobile-popup .town-address-popup,
+  html body > .nw-mobile-popup .nsi-structure-popup:not(.building-info-card){
+    min-width:0;
+    padding:18px;
+    color:#eaf0ff;
+    overflow-wrap:anywhere;
+  }
+  html body > .nw-mobile-popup .depth-query-popup h3{margin-right:36px}
+  @media (max-height:420px){
+    html body > .maplibregl-popup.nw-mobile-popup{
+      top:calc(62px + env(safe-area-inset-top, 0px)) !important;
+    }
+    html body > .nw-mobile-popup .maplibregl-popup-content{
+      max-height:calc(100dvh - 82px - var(--shorely-mobile-timeline-height, 108px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    }
+  }
+  #calendarPopover .calendar-popover-grid::after{
+    content:none !important;
+  }
+  #calendarPopover #calendarPopoverCloseBtn{
+    position:absolute !important;
+    top:8px !important;
+    right:8px !important;
+    width:44px !important;
+    min-width:44px !important;
+    height:44px !important;
+    min-height:44px !important;
+    display:grid !important;
+    visibility:visible !important;
+    z-index:1;
+  }
+  #calendarPopover .calendar-popover-grid{
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+  }
+  /* Preserve centering when the map switches between flat and pitched views. */
+  html body #timelineDock #timelineBubble,
+  html body #topBanner#topBanner{
+    transform:translateX(-50%) !important;
+  }
+  #downloadModal .download-grid,
+  #downloadModal .download-grid > *,
+  #downloadModal .export-segmented,
+  #downloadModal .export-extent-help{
+    min-width:0 !important;
+  }
+  #downloadModal .download-status,
+  #downloadModal .export-data-range{
+    overflow-wrap:anywhere;
+  }
+  @media (max-width:430px){
+    #downloadModal .export-date-time-controls{
+      grid-template-columns:minmax(0,1fr);
+    }
+    #downloadModal .download-actions{
+      margin-left:0 !important;
+      margin-right:0 !important;
+      padding-left:0 !important;
+      padding-right:0 !important;
+    }
+  }
+  @media (max-width:900px), (max-height:560px){
+    html body.mobile-optimized #mapClickModeControl.map-click-mode-control{
+      transform:none !important;
+    }
+    html body.mobile-optimized #observedDateInput,
+    html body.mobile-optimized #townAddressInput,
+    html body.mobile-optimized #calendarPopover select,
+    html body.mobile-optimized .flood-scenario-select{
+      font-size:16px !important;
+    }
+    html body.mobile-optimized #rightRail{
+      display:none !important;
+    }
+    html body.mobile-optimized #mobileRailMount > .layers-card .layer-item{
+      grid-template-columns:auto minmax(0,1fr) !important;
+      min-height:54px !important;
+      height:auto !important;
+    }
+    html body.mobile-optimized #mobileRailMount > .layers-card .layer-meta{
+      min-width:0 !important;
+    }
+    html body.mobile-optimized #mobileRailMount > .layers-card .layer-name{
+      min-width:0 !important;
+      white-space:normal !important;
+      overflow-wrap:anywhere !important;
+      font-size:12px !important;
+      line-height:1.05 !important;
+    }
+    html body.mobile-optimized #mobileRailMount > #downloadCard.download-launch-card{
+      display:block !important;
+      min-height:48px !important;
+      height:48px !important;
+      max-height:48px !important;
+      padding:0 !important;
+      overflow:hidden !important;
+    }
+    html body.mobile-optimized #mobileRailMount > #downloadCard #openDownloadModalBtn{
+      min-height:48px !important;
+      height:48px !important;
+    }
+  }
+
+  /* A short landscape viewport cannot fit the compass, view switch, and
+     vertical zoom stack above the timeline. Keep every control reachable by
+     placing the view and zoom controls on one compact row. */
+  @media (orientation:landscape) and (max-height:420px){
+    html body.mobile-optimized #nwDefaultNavControl.nw-simple-control{
+      display:grid !important;
+      grid-template-columns:50px 64px !important;
+      grid-template-areas:"wheel wheel" "view zoom" !important;
+      align-items:center !important;
+      justify-items:end !important;
+      gap:5px 0 !important;
+      width:114px !important;
+      height:109px !important;
+    }
+    html body.mobile-optimized #nwDefaultNavControl .nw-direction-wheel{
+      grid-area:wheel !important;
+      justify-self:end !important;
+      width:70px !important;
+      height:70px !important;
+    }
+    html body.mobile-optimized #nwDefaultNavControl .nw-simple-view{
+      grid-area:view !important;
+      width:48px !important;
+      height:34px !important;
+      justify-self:start !important;
+    }
+    html body.mobile-optimized #nwDefaultNavControl .nw-simple-zoom{
+      grid-area:zoom !important;
+      flex-direction:row !important;
+      width:64px !important;
+      height:34px !important;
+    }
+    html body.mobile-optimized #nwDefaultNavControl .nw-simple-zoom-button{
+      width:32px !important;
+      height:34px !important;
+    }
+    html body.mobile-optimized #nwDefaultNavControl .nw-simple-zoom-in{
+      border-right:1px solid rgba(var(--nw-ui-blue-rgb),.58) !important;
+      border-bottom:0 !important;
+    }
+    html body.mobile-optimized #nwDefaultNavControl .nw-simple-zoom-out{
+      border-top:0 !important;
+    }
   }
 </style>
 </body>
