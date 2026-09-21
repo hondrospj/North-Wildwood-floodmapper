@@ -55,7 +55,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260921-audit-fixes/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260921-audit-depth-inches/);
 assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
@@ -184,6 +184,7 @@ for (const name of (
     "getPenaltyRemainingFraction",
     "getPenalizedConnectedDepth",
     "getDepthQueryDisplayDepth",
+    "formatWaterDepth",
     "formatDepthQueryValue",
     "stageToCode",
   ]
@@ -214,8 +215,8 @@ assert.equal(context.getPenaltyRemainingFraction(3.75, "draining-release-15"), 2
 assert.equal(context.getPenaltyRemainingFraction(3.75, "draining-release-30"), 1 / 3);
 assert.equal(context.getPenaltyRemainingFraction(4.75, "draining-release-15"), 1 / 2);
 assert.equal(context.getPenaltyRemainingFraction(4.75, "draining-release-30"), 0);
-assert.equal(context.formatDepthQueryValue(0.1), "0.0-0.1ft");
-assert.equal(context.formatDepthQueryValue(0.10001), "0.10 ft");
+assert.equal(context.formatDepthQueryValue(0.1), "0–1.2 in");
+assert.equal(context.formatDepthQueryValue(0.10001), "1.2 in");
 
 const fillingContext = vm.createContext({
   Math,
