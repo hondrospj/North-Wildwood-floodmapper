@@ -1,12 +1,16 @@
 {
   "schema": "experimental-petss-guidance-v1",
-  "generatedUtc": "2026-09-23T19:25:58.981372Z",
+  "generatedUtc": "2026-09-23T19:42:25.276022Z",
   "model": {
-    "version": "research-pooled-v1-20260923",
+    "version": "research-pooled-v2-90-exceedance-20260923",
     "official": false,
     "useForMapsOrAlerts": false,
+    "primaryResearchLine": "biasShifted90ExceedanceMllwFt",
     "pointFormula": "tide + lead_gain*(issued_mean-tide) + lead_offset_ft",
+    "biasShifted90ExceedanceFormula": "corrected_central + (issued_90_percent_exceedance - issued_mean)",
+    "biasShifted90ExceedanceMeaning": "Research shift of NOAA's low-end 90%-exceedance guidance; NOT an observation-calibrated 90% exceedance level",
     "lowerQuartileFormula": "corrected_central + lead_q25_offset_ft + 0.1*(issued_lower10-issued_mean)",
+    "lowerQuartileStatus": "Retained as a historical comparison, not the primary research line",
     "coefficients": [
       {
         "modelLeadHours": 12.0,
@@ -35,6 +39,21 @@
     ],
     "interpolation": "Linear between 12/24/48/72-hour anchors; unavailable outside the tested 12\u201372-hour model-lead range",
     "validation": "Ten directly observed NOAA gauges; 2021-2024 fit, 2025 and Jan-Aug 2026 test. NOT universal.",
+    "above6FtBacktest": {
+      "definition": "Hourly MLLW >6.0 ft; 10 observed gauges; forecast cases repeat tides across cycles and leads",
+      "2025": {
+        "issuedMeanMisses": 1552,
+        "issuedMeanFalseAlarms": 1357,
+        "biasShifted90ExceedanceMisses": 1835,
+        "biasShifted90ExceedanceFalseAlarms": 761
+      },
+      "2026JanAug": {
+        "issuedMeanMisses": 899,
+        "issuedMeanFalseAlarms": 692,
+        "biasShifted90ExceedanceMisses": 955,
+        "biasShifted90ExceedanceFalseAlarms": 455
+      }
+    },
     "pooledBacktest": {
       "2025": {
         "issuedMaeFt": 0.458,
@@ -52,7 +71,7 @@
       },
       "highThresholdDefinition": "Each station's training-period observed 99th percentile; counts repeat forecast cases, not storms"
     },
-    "warning": "Research-only. It increased high-water misses; estimated lower quartile is not site-calibrated and is not an exact ensemble-member percentile. Keep issued PETSS for maps and alerts."
+    "warning": "Research-only. The low-end line reduces false alarms but increases missed >6-ft tides. Issued NOAA 90%-exceedance guidance was not observed-calibrated to 90% at all sites; the bias-shifted line has no 90% probability guarantee. Keep issued PETSS for maps and alerts."
   },
   "zones": [
     {
@@ -60,7 +79,7 @@
       "stationId": "8535581",
       "petssCycleUtc": "2026-09-23T12:00:00Z",
       "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/petss.20260923/petss.t12z.csv.tar.gz",
-      "cycleAgeHours": 7.43,
+      "cycleAgeHours": 7.71,
       "status": "experimental",
       "hours": [
         {
@@ -102,6 +121,8 @@
           "astronomicalTideMllwFt": 4.41,
           "correctedCentralMllwFt": 6.477,
           "issuedLower10MllwFt": 7.05,
+          "issued90ExceedanceMllwFt": 7.05,
+          "biasShifted90ExceedanceMllwFt": 6.377,
           "estimatedLowerQuartileMllwFt": 6.265
         },
         {
@@ -113,6 +134,8 @@
           "astronomicalTideMllwFt": 3.743,
           "correctedCentralMllwFt": 5.846,
           "issuedLower10MllwFt": 6.36,
+          "issued90ExceedanceMllwFt": 6.36,
+          "biasShifted90ExceedanceMllwFt": 5.646,
           "estimatedLowerQuartileMllwFt": 5.623
         },
         {
@@ -124,6 +147,8 @@
           "astronomicalTideMllwFt": 2.903,
           "correctedCentralMllwFt": 4.983,
           "issuedLower10MllwFt": 5.51,
+          "issued90ExceedanceMllwFt": 5.51,
+          "biasShifted90ExceedanceMllwFt": 4.783,
           "estimatedLowerQuartileMllwFt": 4.759
         },
         {
@@ -135,6 +160,8 @@
           "astronomicalTideMllwFt": 2.006,
           "correctedCentralMllwFt": 4.061,
           "issuedLower10MllwFt": 4.6,
+          "issued90ExceedanceMllwFt": 4.6,
+          "biasShifted90ExceedanceMllwFt": 3.861,
           "estimatedLowerQuartileMllwFt": 3.835
         },
         {
@@ -146,6 +173,8 @@
           "astronomicalTideMllwFt": 1.208,
           "correctedCentralMllwFt": 3.304,
           "issuedLower10MllwFt": 3.79,
+          "issued90ExceedanceMllwFt": 3.79,
+          "biasShifted90ExceedanceMllwFt": 3.004,
           "estimatedLowerQuartileMllwFt": 3.068
         },
         {
@@ -157,6 +186,8 @@
           "astronomicalTideMllwFt": 0.812,
           "correctedCentralMllwFt": 2.882,
           "issuedLower10MllwFt": 3.38,
+          "issued90ExceedanceMllwFt": 3.38,
+          "biasShifted90ExceedanceMllwFt": 2.582,
           "estimatedLowerQuartileMllwFt": 2.644
         },
         {
@@ -168,6 +199,8 @@
           "astronomicalTideMllwFt": 0.995,
           "correctedCentralMllwFt": 3.046,
           "issuedLower10MllwFt": 3.56,
+          "issued90ExceedanceMllwFt": 3.56,
+          "biasShifted90ExceedanceMllwFt": 2.746,
           "estimatedLowerQuartileMllwFt": 2.807
         },
         {
@@ -179,6 +212,8 @@
           "astronomicalTideMllwFt": 1.605,
           "correctedCentralMllwFt": 3.575,
           "issuedLower10MllwFt": 4.17,
+          "issued90ExceedanceMllwFt": 4.17,
+          "biasShifted90ExceedanceMllwFt": 3.375,
           "estimatedLowerQuartileMllwFt": 3.345
         },
         {
@@ -190,6 +225,8 @@
           "astronomicalTideMllwFt": 2.407,
           "correctedCentralMllwFt": 4.36,
           "issuedLower10MllwFt": 4.97,
+          "issued90ExceedanceMllwFt": 4.97,
+          "biasShifted90ExceedanceMllwFt": 4.16,
           "estimatedLowerQuartileMllwFt": 4.128
         },
         {
@@ -201,6 +238,8 @@
           "astronomicalTideMllwFt": 3.264,
           "correctedCentralMllwFt": 5.203,
           "issuedLower10MllwFt": 5.83,
+          "issued90ExceedanceMllwFt": 5.83,
+          "biasShifted90ExceedanceMllwFt": 5.003,
           "estimatedLowerQuartileMllwFt": 4.969
         },
         {
@@ -212,6 +251,8 @@
           "astronomicalTideMllwFt": 3.98,
           "correctedCentralMllwFt": 5.899,
           "issuedLower10MllwFt": 6.54,
+          "issued90ExceedanceMllwFt": 6.54,
+          "biasShifted90ExceedanceMllwFt": 5.699,
           "estimatedLowerQuartileMllwFt": 5.664
         },
         {
@@ -223,6 +264,8 @@
           "astronomicalTideMllwFt": 4.307,
           "correctedCentralMllwFt": 6.211,
           "issuedLower10MllwFt": 6.87,
+          "issued90ExceedanceMllwFt": 6.87,
+          "biasShifted90ExceedanceMllwFt": 6.011,
           "estimatedLowerQuartileMllwFt": 5.976
         },
         {
@@ -234,6 +277,8 @@
           "astronomicalTideMllwFt": 4.126,
           "correctedCentralMllwFt": 6.015,
           "issuedLower10MllwFt": 6.69,
+          "issued90ExceedanceMllwFt": 6.69,
+          "biasShifted90ExceedanceMllwFt": 5.815,
           "estimatedLowerQuartileMllwFt": 5.778
         },
         {
@@ -245,6 +290,8 @@
           "astronomicalTideMllwFt": 3.526,
           "correctedCentralMllwFt": 5.412,
           "issuedLower10MllwFt": 5.99,
+          "issued90ExceedanceMllwFt": 5.99,
+          "biasShifted90ExceedanceMllwFt": 5.112,
           "estimatedLowerQuartileMllwFt": 5.165
         },
         {
@@ -256,6 +303,8 @@
           "astronomicalTideMllwFt": 2.715,
           "correctedCentralMllwFt": 4.598,
           "issuedLower10MllwFt": 5.18,
+          "issued90ExceedanceMllwFt": 5.18,
+          "biasShifted90ExceedanceMllwFt": 4.298,
           "estimatedLowerQuartileMllwFt": 4.351
         },
         {
@@ -267,6 +316,8 @@
           "astronomicalTideMllwFt": 1.871,
           "correctedCentralMllwFt": 3.754,
           "issuedLower10MllwFt": 4.34,
+          "issued90ExceedanceMllwFt": 4.34,
+          "biasShifted90ExceedanceMllwFt": 3.454,
           "estimatedLowerQuartileMllwFt": 3.506
         },
         {
@@ -278,6 +329,8 @@
           "astronomicalTideMllwFt": 1.122,
           "correctedCentralMllwFt": 2.942,
           "issuedLower10MllwFt": 3.59,
+          "issued90ExceedanceMllwFt": 3.59,
+          "biasShifted90ExceedanceMllwFt": 2.742,
           "estimatedLowerQuartileMllwFt": 2.704
         },
         {
@@ -289,6 +342,8 @@
           "astronomicalTideMllwFt": 0.707,
           "correctedCentralMllwFt": 2.521,
           "issuedLower10MllwFt": 3.17,
+          "issued90ExceedanceMllwFt": 3.17,
+          "biasShifted90ExceedanceMllwFt": 2.321,
           "estimatedLowerQuartileMllwFt": 2.283
         },
         {
@@ -300,6 +355,8 @@
           "astronomicalTideMllwFt": 0.865,
           "correctedCentralMllwFt": 2.678,
           "issuedLower10MllwFt": 3.33,
+          "issued90ExceedanceMllwFt": 3.33,
+          "biasShifted90ExceedanceMllwFt": 2.478,
           "estimatedLowerQuartileMllwFt": 2.44
         },
         {
@@ -311,6 +368,8 @@
           "astronomicalTideMllwFt": 1.529,
           "correctedCentralMllwFt": 3.337,
           "issuedLower10MllwFt": 3.99,
+          "issued90ExceedanceMllwFt": 3.99,
+          "biasShifted90ExceedanceMllwFt": 3.137,
           "estimatedLowerQuartileMllwFt": 3.098
         },
         {
@@ -322,6 +381,8 @@
           "astronomicalTideMllwFt": 2.426,
           "correctedCentralMllwFt": 4.292,
           "issuedLower10MllwFt": 4.89,
+          "issued90ExceedanceMllwFt": 4.89,
+          "biasShifted90ExceedanceMllwFt": 3.992,
           "estimatedLowerQuartileMllwFt": 4.043
         },
         {
@@ -333,6 +394,8 @@
           "astronomicalTideMllwFt": 3.372,
           "correctedCentralMllwFt": 5.237,
           "issuedLower10MllwFt": 5.84,
+          "issued90ExceedanceMllwFt": 5.84,
+          "biasShifted90ExceedanceMllwFt": 4.937,
           "estimatedLowerQuartileMllwFt": 4.989
         },
         {
@@ -344,6 +407,8 @@
           "astronomicalTideMllwFt": 4.218,
           "correctedCentralMllwFt": 6.077,
           "issuedLower10MllwFt": 6.68,
+          "issued90ExceedanceMllwFt": 6.68,
+          "biasShifted90ExceedanceMllwFt": 5.777,
           "estimatedLowerQuartileMllwFt": 5.828
         },
         {
@@ -355,6 +420,8 @@
           "astronomicalTideMllwFt": 4.74,
           "correctedCentralMllwFt": 6.595,
           "issuedLower10MllwFt": 7.2,
+          "issued90ExceedanceMllwFt": 7.2,
+          "biasShifted90ExceedanceMllwFt": 6.295,
           "estimatedLowerQuartileMllwFt": 6.346
         },
         {
@@ -366,6 +433,8 @@
           "astronomicalTideMllwFt": 4.77,
           "correctedCentralMllwFt": 6.622,
           "issuedLower10MllwFt": 7.23,
+          "issued90ExceedanceMllwFt": 7.23,
+          "biasShifted90ExceedanceMllwFt": 6.322,
           "estimatedLowerQuartileMllwFt": 6.373
         },
         {
@@ -377,6 +446,8 @@
           "astronomicalTideMllwFt": 4.311,
           "correctedCentralMllwFt": 6.165,
           "issuedLower10MllwFt": 6.78,
+          "issued90ExceedanceMllwFt": 6.78,
+          "biasShifted90ExceedanceMllwFt": 5.865,
           "estimatedLowerQuartileMllwFt": 5.916
         },
         {
@@ -388,6 +459,8 @@
           "astronomicalTideMllwFt": 3.514,
           "correctedCentralMllwFt": 5.422,
           "issuedLower10MllwFt": 5.98,
+          "issued90ExceedanceMllwFt": 5.98,
+          "biasShifted90ExceedanceMllwFt": 5.022,
           "estimatedLowerQuartileMllwFt": 5.162
         },
         {
@@ -399,6 +472,8 @@
           "astronomicalTideMllwFt": 2.566,
           "correctedCentralMllwFt": 4.469,
           "issuedLower10MllwFt": 5.03,
+          "issued90ExceedanceMllwFt": 5.03,
+          "biasShifted90ExceedanceMllwFt": 4.069,
           "estimatedLowerQuartileMllwFt": 4.21
         },
         {
@@ -410,6 +485,8 @@
           "astronomicalTideMllwFt": 1.606,
           "correctedCentralMllwFt": 3.506,
           "issuedLower10MllwFt": 4.17,
+          "issued90ExceedanceMllwFt": 4.17,
+          "biasShifted90ExceedanceMllwFt": 3.206,
           "estimatedLowerQuartileMllwFt": 3.257
         },
         {
@@ -421,6 +498,8 @@
           "astronomicalTideMllwFt": 0.845,
           "correctedCentralMllwFt": 2.743,
           "issuedLower10MllwFt": 3.41,
+          "issued90ExceedanceMllwFt": 3.41,
+          "biasShifted90ExceedanceMllwFt": 2.443,
           "estimatedLowerQuartileMllwFt": 2.493
         },
         {
@@ -432,6 +511,8 @@
           "astronomicalTideMllwFt": 0.6,
           "correctedCentralMllwFt": 2.492,
           "issuedLower10MllwFt": 3.16,
+          "issued90ExceedanceMllwFt": 3.16,
+          "biasShifted90ExceedanceMllwFt": 2.192,
           "estimatedLowerQuartileMllwFt": 2.242
         },
         {
@@ -443,6 +524,8 @@
           "astronomicalTideMllwFt": 0.991,
           "correctedCentralMllwFt": 2.885,
           "issuedLower10MllwFt": 3.56,
+          "issued90ExceedanceMllwFt": 3.56,
+          "biasShifted90ExceedanceMllwFt": 2.585,
           "estimatedLowerQuartileMllwFt": 2.635
         },
         {
@@ -454,6 +537,8 @@
           "astronomicalTideMllwFt": 1.799,
           "correctedCentralMllwFt": 3.686,
           "issuedLower10MllwFt": 4.26,
+          "issued90ExceedanceMllwFt": 4.26,
+          "biasShifted90ExceedanceMllwFt": 3.286,
           "estimatedLowerQuartileMllwFt": 3.426
         },
         {
@@ -465,6 +550,8 @@
           "astronomicalTideMllwFt": 2.761,
           "correctedCentralMllwFt": 4.707,
           "issuedLower10MllwFt": 5.23,
+          "issued90ExceedanceMllwFt": 5.23,
+          "biasShifted90ExceedanceMllwFt": 4.207,
           "estimatedLowerQuartileMllwFt": 4.436
         },
         {
@@ -476,6 +563,8 @@
           "astronomicalTideMllwFt": 3.695,
           "correctedCentralMllwFt": 5.635,
           "issuedLower10MllwFt": 6.16,
+          "issued90ExceedanceMllwFt": 6.16,
+          "biasShifted90ExceedanceMllwFt": 5.135,
           "estimatedLowerQuartileMllwFt": 5.365
         },
         {
@@ -487,6 +576,8 @@
           "astronomicalTideMllwFt": 4.376,
           "correctedCentralMllwFt": 6.312,
           "issuedLower10MllwFt": 6.84,
+          "issued90ExceedanceMllwFt": 6.84,
+          "biasShifted90ExceedanceMllwFt": 5.812,
           "estimatedLowerQuartileMllwFt": 6.042
         },
         {
@@ -498,6 +589,8 @@
           "astronomicalTideMllwFt": 4.588,
           "correctedCentralMllwFt": 6.52,
           "issuedLower10MllwFt": 7.05,
+          "issued90ExceedanceMllwFt": 7.05,
+          "biasShifted90ExceedanceMllwFt": 6.02,
           "estimatedLowerQuartileMllwFt": 6.249
         },
         {
@@ -509,6 +602,8 @@
           "astronomicalTideMllwFt": 4.273,
           "correctedCentralMllwFt": 6.207,
           "issuedLower10MllwFt": 6.74,
+          "issued90ExceedanceMllwFt": 6.74,
+          "biasShifted90ExceedanceMllwFt": 5.707,
           "estimatedLowerQuartileMllwFt": 5.936
         },
         {
@@ -520,6 +615,8 @@
           "astronomicalTideMllwFt": 3.544,
           "correctedCentralMllwFt": 5.476,
           "issuedLower10MllwFt": 6.01,
+          "issued90ExceedanceMllwFt": 6.01,
+          "biasShifted90ExceedanceMllwFt": 4.976,
           "estimatedLowerQuartileMllwFt": 5.205
         },
         {
@@ -531,6 +628,8 @@
           "astronomicalTideMllwFt": 2.614,
           "correctedCentralMllwFt": 4.545,
           "issuedLower10MllwFt": 5.08,
+          "issued90ExceedanceMllwFt": 5.08,
+          "biasShifted90ExceedanceMllwFt": 4.045,
           "estimatedLowerQuartileMllwFt": 4.273
         },
         {
@@ -542,6 +641,8 @@
           "astronomicalTideMllwFt": 1.664,
           "correctedCentralMllwFt": 3.651,
           "issuedLower10MllwFt": 4.13,
+          "issued90ExceedanceMllwFt": 4.13,
+          "biasShifted90ExceedanceMllwFt": 3.051,
           "estimatedLowerQuartileMllwFt": 3.368
         },
         {
@@ -553,6 +654,8 @@
           "astronomicalTideMllwFt": 0.862,
           "correctedCentralMllwFt": 2.849,
           "issuedLower10MllwFt": 3.33,
+          "issued90ExceedanceMllwFt": 3.33,
+          "biasShifted90ExceedanceMllwFt": 2.249,
           "estimatedLowerQuartileMllwFt": 2.566
         },
         {
@@ -564,6 +667,8 @@
           "astronomicalTideMllwFt": 0.49,
           "correctedCentralMllwFt": 2.528,
           "issuedLower10MllwFt": 3.05,
+          "issued90ExceedanceMllwFt": 3.05,
+          "biasShifted90ExceedanceMllwFt": 1.928,
           "estimatedLowerQuartileMllwFt": 2.245
         },
         {
@@ -575,6 +680,8 @@
           "astronomicalTideMllwFt": 0.772,
           "correctedCentralMllwFt": 2.813,
           "issuedLower10MllwFt": 3.44,
+          "issued90ExceedanceMllwFt": 3.44,
+          "biasShifted90ExceedanceMllwFt": 2.313,
           "estimatedLowerQuartileMllwFt": 2.539
         },
         {
@@ -586,6 +693,8 @@
           "astronomicalTideMllwFt": 1.582,
           "correctedCentralMllwFt": 3.622,
           "issuedLower10MllwFt": 4.25,
+          "issued90ExceedanceMllwFt": 4.25,
+          "biasShifted90ExceedanceMllwFt": 3.122,
           "estimatedLowerQuartileMllwFt": 3.348
         },
         {
@@ -597,6 +706,8 @@
           "astronomicalTideMllwFt": 2.605,
           "correctedCentralMllwFt": 4.699,
           "issuedLower10MllwFt": 5.27,
+          "issued90ExceedanceMllwFt": 5.27,
+          "biasShifted90ExceedanceMllwFt": 4.099,
           "estimatedLowerQuartileMllwFt": 4.414
         },
         {
@@ -608,6 +719,8 @@
           "astronomicalTideMllwFt": 3.618,
           "correctedCentralMllwFt": 5.709,
           "issuedLower10MllwFt": 6.28,
+          "issued90ExceedanceMllwFt": 6.28,
+          "biasShifted90ExceedanceMllwFt": 5.109,
           "estimatedLowerQuartileMllwFt": 5.424
         },
         {
@@ -619,6 +732,8 @@
           "astronomicalTideMllwFt": 4.431,
           "correctedCentralMllwFt": 6.525,
           "issuedLower10MllwFt": 7.1,
+          "issued90ExceedanceMllwFt": 7.1,
+          "biasShifted90ExceedanceMllwFt": 5.925,
           "estimatedLowerQuartileMllwFt": 6.239
         },
         {
@@ -630,6 +745,8 @@
           "astronomicalTideMllwFt": 4.833,
           "correctedCentralMllwFt": 6.924,
           "issuedLower10MllwFt": 7.5,
+          "issued90ExceedanceMllwFt": 7.5,
+          "biasShifted90ExceedanceMllwFt": 6.324,
           "estimatedLowerQuartileMllwFt": 6.638
         },
         {
@@ -641,6 +758,8 @@
           "astronomicalTideMllwFt": 4.706,
           "correctedCentralMllwFt": 6.851,
           "issuedLower10MllwFt": 7.47,
+          "issued90ExceedanceMllwFt": 7.47,
+          "biasShifted90ExceedanceMllwFt": 6.251,
           "estimatedLowerQuartileMllwFt": 6.564
         },
         {
@@ -652,6 +771,8 @@
           "astronomicalTideMllwFt": 4.094,
           "correctedCentralMllwFt": 6.238,
           "issuedLower10MllwFt": 6.86,
+          "issued90ExceedanceMllwFt": 6.86,
+          "biasShifted90ExceedanceMllwFt": 5.638,
           "estimatedLowerQuartileMllwFt": 5.952
         },
         {
@@ -663,6 +784,8 @@
           "astronomicalTideMllwFt": 3.171,
           "correctedCentralMllwFt": 5.316,
           "issuedLower10MllwFt": 5.94,
+          "issued90ExceedanceMllwFt": 5.94,
+          "biasShifted90ExceedanceMllwFt": 4.716,
           "estimatedLowerQuartileMllwFt": 5.029
         },
         {
@@ -674,6 +797,8 @@
           "astronomicalTideMllwFt": 2.142,
           "correctedCentralMllwFt": 4.341,
           "issuedLower10MllwFt": 4.91,
+          "issued90ExceedanceMllwFt": 4.91,
+          "biasShifted90ExceedanceMllwFt": 3.641,
           "estimatedLowerQuartileMllwFt": 4.044
         },
         {
@@ -685,6 +810,8 @@
           "astronomicalTideMllwFt": 1.176,
           "correctedCentralMllwFt": 3.372,
           "issuedLower10MllwFt": 3.94,
+          "issued90ExceedanceMllwFt": 3.94,
+          "biasShifted90ExceedanceMllwFt": 2.672,
           "estimatedLowerQuartileMllwFt": 3.074
         },
         {
@@ -696,6 +823,8 @@
           "astronomicalTideMllwFt": 0.522,
           "correctedCentralMllwFt": 2.719,
           "issuedLower10MllwFt": 3.29,
+          "issued90ExceedanceMllwFt": 3.29,
+          "biasShifted90ExceedanceMllwFt": 2.019,
           "estimatedLowerQuartileMllwFt": 2.42
         },
         {
@@ -707,6 +836,8 @@
           "astronomicalTideMllwFt": 0.496,
           "correctedCentralMllwFt": 2.689,
           "issuedLower10MllwFt": 3.26,
+          "issued90ExceedanceMllwFt": 3.26,
+          "biasShifted90ExceedanceMllwFt": 1.989,
           "estimatedLowerQuartileMllwFt": 2.39
         },
         {
@@ -718,6 +849,8 @@
           "astronomicalTideMllwFt": 1.137,
           "correctedCentralMllwFt": 3.328,
           "issuedLower10MllwFt": 3.9,
+          "issued90ExceedanceMllwFt": 3.9,
+          "biasShifted90ExceedanceMllwFt": 2.628,
           "estimatedLowerQuartileMllwFt": 3.029
         },
         {
@@ -729,6 +862,8 @@
           "astronomicalTideMllwFt": 2.149,
           "correctedCentralMllwFt": 4.282,
           "issuedLower10MllwFt": 4.91,
+          "issued90ExceedanceMllwFt": 4.91,
+          "biasShifted90ExceedanceMllwFt": 3.682,
           "estimatedLowerQuartileMllwFt": 3.992
         },
         {
@@ -740,6 +875,8 @@
           "astronomicalTideMllwFt": 3.225,
           "correctedCentralMllwFt": 5.359,
           "issuedLower10MllwFt": 5.99,
+          "issued90ExceedanceMllwFt": 5.99,
+          "biasShifted90ExceedanceMllwFt": 4.759,
           "estimatedLowerQuartileMllwFt": 5.069
         },
         {
@@ -751,6 +888,8 @@
           "astronomicalTideMllwFt": 4.158,
           "correctedCentralMllwFt": 6.289,
           "issuedLower10MllwFt": 6.92,
+          "issued90ExceedanceMllwFt": 6.92,
+          "biasShifted90ExceedanceMllwFt": 5.689,
           "estimatedLowerQuartileMllwFt": 5.998
         },
         {
@@ -762,6 +901,8 @@
           "astronomicalTideMllwFt": 4.741,
           "correctedCentralMllwFt": 6.818,
           "issuedLower10MllwFt": 7.51,
+          "issued90ExceedanceMllwFt": 7.51,
+          "biasShifted90ExceedanceMllwFt": 6.318,
           "estimatedLowerQuartileMllwFt": 6.537
         },
         {
