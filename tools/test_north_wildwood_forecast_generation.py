@@ -34,13 +34,14 @@ def rebuild(source):
 if __name__ == '__main__':
     source = json.loads((ROOT / 'forecast.json').read_text())
     result = rebuild(source)
-    assert result['scenarioVersion'] == 'p01-p10-p25-minus-025-v1'
+    assert result['scenarioVersion'] == 'mean-anchors-min-minus-2in-max-p25-v2'
     assert result['scenarioAdjustmentFt'] == -0.25
+    assert result['minimumOffsetFt'] == -2 / 12
     assert result['forecasts'] == source['forecasts'], 'Raw NOAA products must stay intact'
     lower = {h['timeUtc']: h['rawPetssValue'] for h in source['forecasts']['lowEnd']['hours']}
     center = {h['timeUtc']: h['rawPetssValue'] for h in source['forecasts']['mean']['hours']}
     ratios = {k: NormalDist().inv_cdf(p) / NormalDist().inv_cdf(.1)
-              for k, p in [('lowEnd', .01), ('mean', .1), ('highEnd', .25)]}
+              for k, p in [('mean', .1), ('highEnd', .25)]}
     total = 0
     for key, ratio in ratios.items():
         for h in result['scenarioForecasts'][key]['hours']:
@@ -59,10 +60,20 @@ if __name__ == '__main__':
             clamped = max(-2, min(20, h['navd88StageFt']))
             assert abs(float(h['matchedStageKey']) - math.floor((clamped + 1e-9) / .1) * .1) < 1e-8
             total += 1
-    for rows in zip(*(result['scenarioForecasts'][k]['hours'] for k in ['lowEnd', 'mean', 'highEnd'])):
-        assert rows[0]['navd88StageFt'] <= rows[2]['navd88StageFt']
-        if 'tideAnchorId' not in rows[1]:
-            assert rows[0]['navd88StageFt'] <= rows[1]['navd88StageFt'] <= rows[2]['navd88StageFt']
+    for minimum, mean, maximum in zip(*(result['scenarioForecasts'][k]['hours'] for k in ['lowEnd', 'mean', 'highEnd'])):
+        assert minimum['timeUtc'] == mean['timeUtc'] == maximum['timeUtc']
+        for field in ['mllwStageFt', 'navd88StageFt', 'twlMllwFt', 'sourceStageFt']:
+            assert abs((mean[field] - minimum[field]) * 12 - 2) < 1e-9, (field, mean, minimum)
+        assert minimum['minimumOffsetFt'] == -2 / 12
+        assert minimum['product'] == 'mean_minus_2in'
+        assert minimum['percentile'] == ''
+        assert minimum['isEstimatedPercentile'] is False
+        clamped = max(-2, min(20, minimum['navd88StageFt']))
+        assert abs(float(minimum['matchedStageKey']) - math.floor((clamped + 1e-9) / .1) * .1) < 1e-8
+        assert minimum['navd88StageFt'] < mean['navd88StageFt']
+        if 'tideAnchorId' not in mean:
+            assert mean['navd88StageFt'] <= maximum['navd88StageFt']
+        total += 1
     assert rebuild(result)['scenarioForecasts'] == result['scenarioForecasts'], 'Repeated jobs must not compound the adjustment'
     assert result['scenarioForecasts'] == source['scenarioForecasts'], 'Published scenarios must match scheduled generation'
-    print(f'Passed all {total} scenario-hours, datum conversion, unchanged scenario ordering outside the Mean anchors, raster keys, and no double adjustment')
+    print(f'Passed all {total} scenario-hours, exact two-inch Minimum gap, datum conversion, raster keys, and no double adjustment')

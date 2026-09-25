@@ -47,7 +47,7 @@ jobs:
           import urllib.request
           from datetime import datetime, timedelta, timezone
           from pathlib import Path
-          from tools.north_wildwood_tide_anchors import ANCHOR_VERSION, collect_source_hours, anchor_mean_curve
+          from tools.north_wildwood_tide_anchors import ANCHOR_VERSION, MINIMUM_OFFSET_FT, collect_source_hours, anchor_mean_curve, minimum_below_mean
 
           TOWN_NAME = "North Wildwood"
           IS_SPLIT = False
@@ -234,14 +234,12 @@ jobs:
               return out
 
           def remap_percentiles(raw, zone):
-              """Build adjusted p01/p10/p25 settings; retain NOAA bias in the source TWL."""
+              """Build Mean and Maximum bases; Minimum is derived after anchoring."""
               from statistics import NormalDist
               z10 = abs(NormalDist().inv_cdf(0.10))
-              ratios = {"lowEnd": abs(NormalDist().inv_cdf(0.01)) / z10,
-                        "mean": 1.0,
+              ratios = {"mean": 1.0,
                         "highEnd": abs(NormalDist().inv_cdf(0.25)) / z10}
-              labels = {"lowEnd": ("Minimum", "Estimated 1st percentile", "adjusted_p01"),
-                        "mean": ("Mean", "10th percentile", "adjusted_p10"),
+              labels = {"mean": ("Mean", "10th percentile", "adjusted_p10"),
                         "highEnd": ("Maximum", "Estimated 25th percentile", "adjusted_p25")}
               by_key = {key: {row["timeUtc"]: row for row in rows} for key, rows in raw.items()}
               common = sorted(set(by_key["mean"]) & set(by_key["lowEnd"]) & set(by_key["highEnd"]))
@@ -362,15 +360,16 @@ jobs:
               anchor_source = collect_source_hours(products["lowEnd"], anchor_source_hours)
               mean_tide_anchors = anchor_mean_curve(scenario_rows["mean"], anchor_source,
                                                    zone["navd88OffsetFromMllwFt"], stage_key)
+              scenario_rows["lowEnd"] = minimum_below_mean(scenario_rows["mean"], stage_key)
               scenario_definitions = {
-                  "lowEnd": ("Minimum", "Estimated 1st percentile", "adjusted_p01"),
+                  "lowEnd": ("Minimum", "", "mean_minus_2in"),
                   "mean": ("Mean", "10th percentile", "adjusted_p10"),
                   "highEnd": ("Maximum", "Estimated 25th percentile", "adjusted_p25"),
               }
               scenario_options = {key: {"label": label, "percentile": percentile, "product": product}
                                   for key, (label, percentile, product) in scenario_definitions.items()}
-              scenario_forecasts = {key: {**scenario_options[key], "hours": annotate_hydraulic_phases(rows)}
-                                    for key, rows in scenario_rows.items()}
+              scenario_forecasts = {key: {**scenario_options[key], "hours": annotate_hydraulic_phases(scenario_rows[key])}
+                                    for key in scenario_options}
               return {
                   "zoneId": zone["id"],
                   "zoneName": zone["zoneName"],
@@ -403,12 +402,13 @@ jobs:
                   "forecastOptions": options,
                   "scenarioOptions": scenario_options,
                   "scenarioForecasts": scenario_forecasts,
-                  "scenarioVersion": "p01-p10-p25-minus-025-v1",
+                  "scenarioVersion": "mean-anchors-min-minus-2in-max-p25-v2",
                   "scenarioAdjustmentFt": -0.25,
-                  "scenarioMethod": "Non-exceedance p01/p10/p25 with -0.25 ft applied once to each. p10 uses NOAA TWL90p directly; p01 is extrapolated and p25 interpolated using the existing normal lower-tail approximation from TWL and TWL90p. NOAA bias is retained. Raw NOAA forecasts are preserved separately.",
+                  "minimumOffsetFt": MINIMUM_OFFSET_FT,
+                  "scenarioMethod": "Mean uses NOAA TWL90p minus 0.25 ft before dated tide anchoring. Minimum is exactly two inches below the final Mean in both datums. Maximum retains the existing normal lower-tail p25 estimate minus 0.25 ft. NOAA bias is retained and raw NOAA forecasts are preserved separately.",
                   "meanTideAnchorVersion": ANCHOR_VERSION,
                   "meanTideAnchors": mean_tide_anchors,
-                  "meanTideAnchorMethod": "Dated manual Mean-only crests in feet MLLW. Each rise and fall is scaled about its adjacent low tide; peak times and low tides are preserved. Minimum and Maximum remain unchanged and can cross the manually adjusted Mean.",
+                  "meanTideAnchorMethod": "Dated manual Mean crests in feet MLLW. Each rise and fall is scaled about its adjacent low tide; peak times and low tides are preserved. Minimum follows two inches below the anchored Mean. Maximum is unchanged.",
                   "tideAnchorSourceHours": anchor_source,
                   "products": product_meta,
                   "forecasts": forecasts,

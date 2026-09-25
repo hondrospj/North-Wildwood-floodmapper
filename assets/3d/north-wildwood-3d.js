@@ -12,7 +12,6 @@
   // than readable 3D structures, so the clean basemap footprints take over.
   var BUILDING_MAX_CAMERA_ALTITUDE_METERS = 1000;
   var BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM = 16.25;
-  var BUILDING_WARM_ZOOM = 17;
   var WEB_MERCATOR_EARTH_CIRCUMFERENCE_METERS = 40075016.68557849;
   var MAPLIBRE_TILE_SIZE = 512;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
@@ -31,8 +30,6 @@
   var buildingDataPromise = null;
   var mapLibreRuntimePromise = null;
   var mapStylePromise = null;
-  var coreCameraWarmupPromise = null;
-  var deferredCameraWarmupPromise = null;
   var floodPlaneLayer = null;
   var floodRemovalTimer = null;
   var syncingFromLeaflet = false;
@@ -1409,7 +1406,7 @@
       url: TERRAIN_TILEJSON_URL,
       tileSize: 512
     });
-    glMap.setTerrain({ source: "nw-terrain", exaggeration: TERRAIN_EXAGGERATION });
+    syncTerrainForView(glMap.getPitch() > 10);
 
     glMap.addSource("nw-satellite-source", {
       type: "raster",
@@ -1575,9 +1572,8 @@
         fadeDuration: 0,
         refreshExpiredTiles: false,
         maxTileCacheZoomLevels: mobileRenderer ? 3 : 8,
-        // Retain every cardinal/diagonal footprint rendered behind the loader
-        // so the first wheel gesture does not synchronously fetch and rebuild
-        // the newly exposed vector, raster, and building tiles.
+        // Cache views reached through navigation without moving the camera
+        // automatically to load other compass directions.
         maxTileCacheSize: mobileRenderer ? 64 : 384,
         // Render at one physical pixel per CSS pixel. The former 0.75 scale was
         // visibly resampled during camera movement, making the flood PNG and
@@ -1670,160 +1666,6 @@
     });
   }
 
-  function warm3dCameraFootprint(mapInstance, timeoutMs) {
-    return new Promise(function (resolve) {
-      var settled = false;
-      var timeout = window.setTimeout(function () { finish(false); }, Math.max(250, Number(timeoutMs) || 750));
-      function finish(loaded) {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timeout);
-        mapInstance.off("idle", onIdle);
-        requestAnimationFrame(function () { resolve(Boolean(loaded)); });
-      }
-      function onIdle() { finish(true); }
-      mapInstance.once("idle", onIdle);
-      mapInstance.triggerRepaint();
-    });
-  }
-
-  function waitForCameraWarmupIdle() {
-    return new Promise(function (resolve) {
-      if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(resolve, { timeout: 1400 });
-      } else {
-        window.setTimeout(resolve, 180);
-      }
-    });
-  }
-
-  async function run3dCameraWarmup(mapInstance, phase) {
-    var coreOnly = phase === "core";
-    if (coreOnly) {
-      if (document.body.dataset.map3dCoreCameraWarmup === "ready") return;
-      document.body.dataset.map3dCoreCameraWarmup = "loading";
-    } else {
-      if (document.body.dataset.map3dCameraWarmup === "ready") return;
-      document.body.dataset.map3dCameraWarmup = "loading";
-      document.body.dataset.map3dBearingWarmup = "loading";
-    }
-    var originalCamera = {
-      center: mapInstance.getCenter(),
-      zoom: mapInstance.getZoom(),
-      bearing: mapInstance.getBearing(),
-      pitch: mapInstance.getPitch()
-    };
-    var buildingsEnabled = layerVisible("buildingsToggle", false);
-    var hasBuildings = Boolean(mapInstance.getLayer("nw-3d-buildings"));
-    if (hasBuildings) {
-      mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", "visible");
-      // The loader covers this pass. Render the final opaque material now so
-      // the first visible compass gesture does not compile or populate a
-      // different extrusion path than the one that was warmed.
-      mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
-    }
-    try {
-      // The four initial-scale cardinal views are the only camera work allowed
-      // to hold the loading screen. They remove the first compass-use stall.
-      // Overview, building-detail, and diagonal 2D footprints are left to the
-      // user's real view. An explicit diagnostic warmup can still traverse
-      // them one browser-idle slice at a time without affecting normal startup.
-      var initialWarmZoom = Number(originalCamera.zoom);
-      var overviewWarmZoom = Math.max(11, initialWarmZoom - 1.25);
-      var buildingWarmZoom = Math.min(MAP_MAX_ZOOM, Math.max(initialWarmZoom, BUILDING_WARM_ZOOM));
-      var warmCameras = [];
-      var coreAlreadyReady = document.body.dataset.map3dCoreCameraWarmup === "ready";
-      if (coreOnly || !coreAlreadyReady) {
-        [0, 90, 180, 270].forEach(function (bearing) {
-          warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: initialWarmZoom });
-        });
-      }
-      if (!coreOnly) {
-        [0, 90, 180, 270].forEach(function (bearing) {
-          warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: overviewWarmZoom });
-        });
-        // The overview cameras intentionally do not draw extrusion geometry.
-        // Warm the first real-height neighborhood buckets separately so zooming
-        // through the 1,000 m LOD boundary does not compile them on demand.
-        [0, 90, 180, 270].forEach(function (bearing) {
-          warmCameras.push({ pitch: THREE_D_PITCH, bearing: bearing, zoom: buildingWarmZoom });
-        });
-        // At pitch zero, opposite bearings reuse the same footprint. The four
-        // quarter-turn/diagonal shapes below cover all in-between wheel angles.
-        [0, 45, 90, 135].forEach(function (bearing) {
-          warmCameras.push({ pitch: DEFAULT_PITCH, bearing: bearing, zoom: overviewWarmZoom });
-        });
-      }
-      var fullySettledWarmCameras = 0;
-      for (var warmIndex = 0; warmIndex < warmCameras.length; warmIndex += 1) {
-        if (!coreOnly) await waitForCameraWarmupIdle();
-        var warmCamera = warmCameras[warmIndex];
-        syncTerrainForView(warmCamera.pitch > 10);
-        mapInstance.jumpTo(warmCamera);
-        // Enqueue and compile every footprint, but never let a cold DEM tile
-        // keep the whole site behind its loader. Pitched views get a slightly
-        // larger slice of the fixed warmup budget than top-down rotations.
-        var footprintSettled = await warm3dCameraFootprint(
-          mapInstance,
-          coreOnly ? 450 : warmCamera.pitch > 10 ? 550 : 350
-        );
-        if (footprintSettled) fullySettledWarmCameras += 1;
-      }
-    } finally {
-      mapInstance.jumpTo(originalCamera);
-      syncTerrainForView(originalCamera.pitch > 10);
-      if (hasBuildings) {
-        mapInstance.setPaintProperty("nw-3d-buildings", "fill-extrusion-opacity", 1);
-        var restoreBuildings = buildingsEnabled &&
-          originalCamera.pitch > 10 &&
-          cameraIsWithinBuildingRange();
-        mapInstance.setLayoutProperty("nw-3d-buildings", "visibility", visibility(restoreBuildings));
-      }
-    }
-    await warm3dCameraFootprint(mapInstance, coreOnly ? 450 : 800);
-    syncBuildingVisibilityForCamera();
-    if (coreOnly) {
-      document.body.dataset.map3dCoreBearingWarmupSettled = String(fullySettledWarmCameras) + "/4";
-      document.body.dataset.map3dCoreCameraWarmup = "ready";
-      document.body.dataset.map3dWheelPreloaded = "cardinal-ready";
-    } else {
-      var coreSettled = Number(String(document.body.dataset.map3dCoreBearingWarmupSettled || "0/4").split("/")[0]) || 0;
-      var totalWarmCameras = warmCameras.length + (coreAlreadyReady ? 4 : 0);
-      document.body.dataset.map3dBearingWarmupAngles = "3d:0,90,180,270;2d:0,45,90,135";
-      document.body.dataset.map3dBearingWarmupZooms = [
-        initialWarmZoom,
-        overviewWarmZoom,
-        buildingWarmZoom
-      ].map(function (zoom) { return Number(zoom).toFixed(2); }).join(",");
-      document.body.dataset.map3dBearingWarmupSettled = String(fullySettledWarmCameras + coreSettled) + "/" + String(totalWarmCameras);
-      document.body.dataset.map3dBearingWarmupBudgetMs = "core-1800;idle-deferred-7400";
-      document.body.dataset.map3dWheelPreloaded = "true";
-      document.body.dataset.map3dBearingWarmup = "ready";
-      document.body.dataset.map3dCameraWarmup = "ready";
-    }
-    syncPersistentNavControl();
-    updateDiagnostics();
-  }
-
-  function warm3dCamera(mapInstance, phase) {
-    if (phase === "core") {
-      if (!coreCameraWarmupPromise) {
-        coreCameraWarmupPromise = run3dCameraWarmup(mapInstance, "core").catch(function (error) {
-          coreCameraWarmupPromise = null;
-          throw error;
-        });
-      }
-      return coreCameraWarmupPromise;
-    }
-    if (!deferredCameraWarmupPromise) {
-      deferredCameraWarmupPromise = run3dCameraWarmup(mapInstance, "deferred").catch(function (error) {
-        deferredCameraWarmupPromise = null;
-        throw error;
-      });
-    }
-    return deferredCameraWarmupPromise;
-  }
-
   async function preload3dAssets(options) {
     var preloadOptions = options || {};
     await Promise.all([
@@ -1843,13 +1685,10 @@
         waitFor3dMapIdle(mapInstance, 45000),
         floodReady
       ]);
-      if (preloadOptions.warmCamera !== false) {
-        var warmupPhase = preloadOptions.warmCamera === "core" ? "core" : "deferred";
-        await warm3dCamera(mapInstance, warmupPhase);
-      }
-      document.body.dataset.map3dFullyPreloaded = preloadOptions.warmCamera === "core" || preloadOptions.warmCamera === false
-        ? "interactive"
-        : "ready";
+      // Preloading must never move the visible camera or restore an older
+      // viewpoint over a compass gesture made while assets were loading.
+      document.body.dataset.map3dCameraPreload = "current-view-only";
+      document.body.dataset.map3dFullyPreloaded = "interactive";
     }
     return {
       buildings: buildingData && buildingData.features ? buildingData.features.length : 0,
@@ -1952,8 +1791,8 @@
       // the expensive DEM rebuild from compass rotation without changing the
       // default top-down view. The terrain source stays loaded for instant 3D.
       syncTerrainForView(desired3dMode);
-      // The pitched renderer has already been warmed behind the loader. An
-      // atomic camera update avoids a costly multi-frame terrain rebuild.
+      // Apply the user's requested view in one update instead of animating
+      // through intermediate pitches and rebuilding terrain on every frame.
       glMap.jumpTo(camera);
       syncFloodPresentationMode();
       if (modeTransitionTimer) window.clearTimeout(modeTransitionTimer);

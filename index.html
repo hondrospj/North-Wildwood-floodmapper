@@ -16505,7 +16505,7 @@ function cloneStyleObject(value) {
 
     function getForecastScenarioHours(data = forecastData, scenario = currentForecastScenario) {
       // Consume the adjusted series once; never fall back to an older scenario set.
-      if (data?.scenarioVersion !== "p01-p10-p25-minus-025-v1" || data.scenarioAdjustmentFt !== -0.25) return [];
+      if (data?.scenarioVersion !== "mean-anchors-min-minus-2in-max-p25-v2" || data.scenarioAdjustmentFt !== -0.25 || Math.abs(data.minimumOffsetFt + 2 / 12) > 1e-9 || !Number.isFinite(data.minimumOffsetFt)) return [];
       const scenarioRecord = data.scenarioForecasts?.[scenario];
       return Array.isArray(scenarioRecord?.hours) ? scenarioRecord.hours : [];
     }
@@ -17772,7 +17772,7 @@ function setDatumHelpOpen(isOpen) {
       forecastType: {
         title: "Forecast type",
         body: `
-          <p>Choose Minimum, Mean, or Maximum to compare forecast scenarios based on NOAA PETSS guidance. Maximum is the highest of these settings, not the highest water level possible.</p>
+          <p>Choose Minimum, Mean, or Maximum to compare forecast scenarios based on NOAA PETSS guidance. Maximum shows the upper water-depth estimate for this forecast.</p>
         `
       },
       overlay: {
@@ -36632,8 +36632,8 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 })();
 </script>
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20260924-fleet-mobile-cache"></script>
-<script defer src="./assets/modal-focus.js?v=20260921-audit-fixes"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20260925-stationary-startup"></script>
+<script defer src="./assets/modal-focus.js?v=20260925-drawer-focus"></script>
 <script>
 const BUNNY_STORAGE_ZONE_ID = "5907481";
 const BUNNY_CDN_BASE_URL = "https://floodmapperv1.b-cdn.net";
@@ -36914,7 +36914,7 @@ async function preloadNorthWildwoodExperience(mainPromise) {
   // Keep mobile startup within Safari's memory budget; initialize 3D on demand.
   const defer3dOnMobile = window.matchMedia("(pointer: coarse), (max-width: 900px)").matches;
   const preload3d = !defer3dOnMobile && window.NORTH_WILDWOOD_3D?.preload
-    ? Promise.resolve(mainPromise).then(() => window.NORTH_WILDWOOD_3D.preload({ initialize: true, warmCamera: "core" }))
+    ? Promise.resolve(mainPromise).then(() => window.NORTH_WILDWOOD_3D.preload({ initialize: true }))
     : Promise.resolve();
 
   const preloadTasks = [mainPromise];
@@ -36928,7 +36928,7 @@ async function preloadNorthWildwoodExperience(mainPromise) {
   document.body.dataset.sitePreload = "complete";
   document.body.dataset.sitePreloadBlockingPolicy = defer3dOnMobile
     ? "initial-flood-renderer-3d-on-demand"
-    : "initial-flood-renderer-cardinal-navigation";
+    : "initial-flood-renderer-fixed-view";
   document.body.dataset.sitePreloadAvoidedBytes = "observed-parcels-nsi-export-libraries";
   document.body.dataset.map3dDeferredWarmup = "on-demand-no-background-camera-traversal";
   document.body.classList.add("nw-app-ready");

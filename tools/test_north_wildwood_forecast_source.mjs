@@ -17,6 +17,7 @@ const first=select()[0],raw=forecast.forecasts.lowEnd.hours.find(h=>h.timeUtc===
 assert.ok(Math.abs(first.mllwStageFt-(raw.rawPetssValue-.25+(first.tideAnchorAdjustmentFt??0)))<=.005001);
 assert.equal(select()[0].mllwStageFt,first.mllwStageFt,'Repeated reads must not subtract again');
 for(const missing of [null,{}, {...forecast,scenarioVersion:undefined},
+  {...forecast,minimumOffsetFt:undefined},{...forecast,minimumOffsetFt:0},
   {...forecast,scenarioAdjustmentFt:0}, {...forecast,scenarioForecasts:{}},
   {...forecast,scenarioForecasts:{mean:{hours:null}}}]) {
   assert.equal(select(missing,'mean').length,0,'Older or missing settings must not silently substitute another curve');

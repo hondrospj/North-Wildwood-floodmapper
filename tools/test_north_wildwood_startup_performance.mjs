@@ -2,13 +2,15 @@
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import vm from "node:vm";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = fs.readFileSync(path.join(here, "..", "index.html"), "utf8");
 
-function extractFunction(name) {
+function extractFunction(name, sourceText = source) {
+  const source = sourceText;
   const start = source.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `Missing browser function ${name}`);
   const bodyStart = source.indexOf("{", start);
@@ -26,7 +28,7 @@ assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
-  "./assets/3d/north-wildwood-3d.js?v=20260924-fleet-mobile-cache",
+  "./assets/3d/north-wildwood-3d.js?v=20260925-stationary-startup",
   "assets/avalon-mobile.js?v=20260923-2",
 ]);
 
@@ -82,12 +84,40 @@ const reloadAll = extractFunction("reloadAll");
 assert.match(reloadAll, /waitForInitialFramePaint\(\)[\s\S]+scheduleTopTidesListWarmup\(\)[\s\S]+scheduleBackgroundDataWarmup\(\)/);
 
 const startupPreload = extractFunction("preloadNorthWildwoodExperience");
-assert.match(startupPreload, /warmCamera: "core"/);
+assert.doesNotMatch(startupPreload, /warmCamera/);
+assert.match(startupPreload, /initial-flood-renderer-fixed-view/);
 assert.doesNotMatch(startupPreload, /OBSERVED_URL/);
 assert.doesNotMatch(startupPreload, /ensureParcelAssets\(\)/);
 assert.doesNotMatch(startupPreload, /ensureNsiStructureAssets\(\)/);
 assert.doesNotMatch(startupPreload, /loadOptionalScript\(/);
 assert.doesNotMatch(startupPreload, /scheduleNorthWildwood3dWarmup\(\)/);
 assert.match(startupPreload, /map3dDeferredWarmup = "on-demand-no-background-camera-traversal"/);
+
+const rendererSource = fs.readFileSync(path.join(here, "..", "assets/3d/north-wildwood-3d.js"), "utf8");
+const preloadRenderer = extractFunction("preload3dAssets", rendererSource);
+assert.doesNotMatch(rendererSource, /warm3dCamera|warmCameras/);
+for (const warmCamera of [undefined, false, "core", "deferred"]) {
+  const cameraCalls = [];
+  const camera = { bearing: 0, pitch: 0, zoom: 14 };
+  const mapInstance = { jumpTo: value => cameraCalls.push(value) };
+  const context = {
+    document: { body: { dataset: {} } },
+    glMap: mapInstance,
+    buildingData: { features: [] },
+    TERRAIN_EXAGGERATION: 4,
+    loadMapLibreRuntime: async () => {}, load3dStyle: async () => {}, loadBuildingData: async () => {},
+    ensure3dMap: async () => mapInstance,
+    floodPlaneLayer: { whenReady: async () => true },
+    // Simulate a real user choosing a view while initialization is finishing.
+    waitFor3dMapIdle: async () => { Object.assign(camera, { bearing: 73, pitch: 60, zoom: 15 }); },
+    warm3dCamera: async () => { cameraCalls.push("automatic traversal"); },
+  };
+  vm.createContext(context);
+  vm.runInContext(`async ${preloadRenderer}`, context);
+  await context.preload3dAssets({ initialize: true, warmCamera });
+  assert.deepEqual(cameraCalls, [], "Preloading must not traverse or restore camera positions");
+  assert.deepEqual(camera, { bearing: 73, pitch: 60, zoom: 15 }, "Keep the user's view during loading");
+  assert.equal(context.document.body.dataset.map3dFullyPreloaded, "interactive");
+}
 
 console.log("North Wildwood startup performance checks passed");

@@ -107,7 +107,7 @@
     for (let element = dialog; element && element !== document.body; element = element.parentElement) {
       if (targets.has(element)) continue;
       targets.add(element);
-      observer.observe(element, { attributes: true, attributeFilter: ["hidden", "class", "aria-hidden", "style"] });
+      observer.observe(element, { attributes: true, attributeFilter: ["hidden", "class", "aria-hidden", "style", "role", "aria-modal"] });
     }
   }
   document.querySelectorAll(selector).forEach(watchDialog);

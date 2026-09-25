@@ -1,15 +1,18 @@
-"""Dated, Mean-only tide anchors; raw NOAA products remain untouched."""
+"""Dated Mean tide anchors and a Minimum offset; raw NOAA stays untouched."""
 import math
 
-ANCHOR_VERSION = "north-wildwood-20260925-26-mean-v1"
+ANCHOR_VERSION = "north-wildwood-20260925-26-three-tides-v2"
+MINIMUM_OFFSET_FT = -2.0 / 12.0
 TROUGH_WINDOWS = (
     ("2026-09-25T12:00:00Z", "2026-09-25T20:00:00Z"),
     ("2026-09-26T03:00:00Z", "2026-09-26T09:00:00Z"),
     ("2026-09-26T16:00:00Z", "2026-09-26T23:00:00Z"),
+    ("2026-09-27T04:00:00Z", "2026-09-27T10:00:00Z"),
 )
 ANCHORS = (
     ("friday-evening-20260925", 7.6, "2026-09-25T21:00:00Z", "2026-09-26T02:00:00Z"),
     ("saturday-morning-20260926", 7.9, "2026-09-26T10:00:00Z", "2026-09-26T15:00:00Z"),
+    ("saturday-evening-20260926", 7.5, "2026-09-26T23:00:00Z", "2026-09-27T04:00:00Z"),
 )
 
 
@@ -85,3 +88,22 @@ def anchor_mean_curve(mean_hours, source_hours, datum_offset, stage_key):
                         "sourceStageFt": navd88, "navd88StageFt": navd88,
                         "matchedStageKey": matched, "wasClamped": clamped})
     return plans
+
+
+def minimum_below_mean(mean_hours, stage_key):
+    """Derive Minimum after anchoring; keep the two-inch gap in both datums."""
+    minimum = []
+    for mean in mean_hours:
+        navd88 = mean["navd88StageFt"] + MINIMUM_OFFSET_FT
+        mllw = mean["mllwStageFt"] + MINIMUM_OFFSET_FT
+        matched, clamped = stage_key(navd88)
+        row = dict(mean)
+        row.update({"scenario": "lowEnd", "product": "mean_minus_2in", "percentile": "",
+                    "isEstimatedPercentile": False, "minimumOffsetFt": MINIMUM_OFFSET_FT,
+                    "meanReferenceMllwFt": mean["mllwStageFt"],
+                    "meanReferenceNavd88Ft": mean["navd88StageFt"],
+                    "estimatedTwlMllwFt": mllw, "mllwStageFt": mllw, "twlMllwFt": mllw,
+                    "sourceStageFt": navd88, "navd88StageFt": navd88,
+                    "matchedStageKey": matched, "wasClamped": clamped})
+        minimum.append(row)
+    return minimum

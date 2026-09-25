@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from test_north_wildwood_forecast_generation import generator
-from north_wildwood_tide_anchors import anchor_mean_curve, collect_source_hours
+from north_wildwood_tide_anchors import anchor_mean_curve, collect_source_hours, minimum_below_mean
 
 g = generator()
 zone = g['ZONES'][0]
@@ -26,9 +26,10 @@ before = scenarios(fixture)
 after = copy.deepcopy(before)
 plans = fit(after['mean'], fixture)
 assert fixture == source_before
-assert after['lowEnd'] == before['lowEnd'] and after['highEnd'] == before['highEnd']
+assert after['highEnd'] == before['highEnd']
 assert [(p['peakTimeUtc'], p['targetMllwFt']) for p in plans] == [
-    ('2026-09-26T00:00:00Z', 7.6), ('2026-09-26T13:00:00Z', 7.9)]
+    ('2026-09-26T00:00:00Z', 7.6), ('2026-09-26T13:00:00Z', 7.9),
+    ('2026-09-27T01:00:00Z', 7.5)]
 old_by_time = {h['timeUtc']: h for h in before['mean']}
 for p in plans:
     lobe = [h for h in after['mean'] if p['leftTimeUtc'] <= h['timeUtc'] <= p['rightTimeUtc']]
@@ -52,6 +53,15 @@ for h in after['mean']:
 once = copy.deepcopy(after['mean'])
 fit(after['mean'], fixture)
 assert after['mean'] == once, 'Repeated fitting must not compound the anchor'
+minimum = minimum_below_mean(after['mean'], g['stage_key'])
+for low, mean in zip(minimum, after['mean']):
+    for field in ['mllwStageFt', 'navd88StageFt']:
+        assert abs((mean[field] - low[field]) * 12 - 2) < 1e-9
+for left, right, low_left, low_right in zip(after['mean'], after['mean'][1:], minimum, minimum[1:]):
+    for fraction in [.25, .5, .75]:
+        mean_value = left['navd88StageFt'] + fraction * (right['navd88StageFt'] - left['navd88StageFt'])
+        low_value = low_left['navd88StageFt'] + fraction * (low_right['navd88StageFt'] - low_left['navd88StageFt'])
+        assert abs((mean_value - low_value) * 12 - 2) < 1e-9
 
 # A newer model cycle moves the source levels, but retains the requested crests.
 new_source = [{**h, 'rawPetssValue': h['rawPetssValue'] + .3} for h in fixture]
@@ -61,7 +71,7 @@ for p in new_plans:
     assert max(h['mllwStageFt'] for h in new_mean if p['leftTimeUtc'] <= h['timeUtc'] <= p['rightTimeUtc']) == p['targetMllwFt']
 
 # A later forecast horizon must not turn its first remaining row into a new peak.
-for start in ['2026-09-25T20:00:00Z', '2026-09-26T02:00:00Z', '2026-09-26T14:00:00Z']:
+for start in ['2026-09-25T20:00:00Z', '2026-09-26T02:00:00Z', '2026-09-26T14:00:00Z', '2026-09-27T03:00:00Z']:
     remaining = [h for h in fixture if h['timeUtc'] >= start]
     context = collect_source_hours(remaining, fixture)
     mean = scenarios(remaining)['mean']
@@ -69,7 +79,7 @@ for start in ['2026-09-25T20:00:00Z', '2026-09-26T02:00:00Z', '2026-09-26T14:00:
     assert mean == [h for h in once if h['timeUtc'] >= start]
 
 # No recurring Friday/Saturday override, and no extrapolation onto later tides.
-for days in [1, 7, 365]:
+for days in [2, 7, 365]:
     future = [{**h, 'timeUtc': (datetime.fromisoformat(h['timeUtc'].replace('Z', '+00:00')) + timedelta(days=days)).isoformat().replace('+00:00', 'Z')}
               for h in fixture if h['timeUtc'] >= '2026-09-26T00:00:00Z']
     mean = scenarios(future)['mean']
@@ -85,4 +95,4 @@ try:
 except ValueError as error:
     assert 'Missing source trough' in str(error)
 
-print('Passed exact Mean peaks, unchanged other scenarios/tides, trough continuity, limb direction, quarter-hour bounds, datums, raster keys, idempotency, new cycles, advancing horizons, and dated expiration')
+print('Passed three exact Mean peaks, two-inch Minimum gap, unchanged Maximum/other tides, trough continuity, limb direction, quarter-hour bounds, datums, raster keys, idempotency, new cycles, advancing horizons, and dated expiration')
