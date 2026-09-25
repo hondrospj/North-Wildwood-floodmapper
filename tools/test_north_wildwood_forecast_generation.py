@@ -62,10 +62,11 @@ if __name__ == '__main__':
             total += 1
     for minimum, mean, maximum in zip(*(result['scenarioForecasts'][k]['hours'] for k in ['lowEnd', 'mean', 'highEnd'])):
         assert minimum['timeUtc'] == mean['timeUtc'] == maximum['timeUtc']
+        expected_gap = 2 / 12 - minimum.get('minimumTideAnchorAdjustmentFt', 0)
         for field in ['mllwStageFt', 'navd88StageFt', 'twlMllwFt', 'sourceStageFt']:
-            assert abs((mean[field] - minimum[field]) * 12 - 2) < 1e-9, (field, mean, minimum)
-        assert minimum['minimumOffsetFt'] == -2 / 12
-        assert minimum['product'] == 'mean_minus_2in'
+            assert abs(mean[field] - minimum[field] - expected_gap) < 1e-9, (field, mean, minimum)
+        assert abs(minimum['minimumOffsetFt'] + expected_gap) < 1e-9
+        assert minimum['product'] == ('mean_minus_2in_with_tide_anchor' if 'minimumTideAnchorId' in minimum else 'mean_minus_2in')
         assert minimum['percentile'] == ''
         assert minimum['isEstimatedPercentile'] is False
         clamped = max(-2, min(20, minimum['navd88StageFt']))
@@ -76,4 +77,4 @@ if __name__ == '__main__':
         total += 1
     assert rebuild(result)['scenarioForecasts'] == result['scenarioForecasts'], 'Repeated jobs must not compound the adjustment'
     assert result['scenarioForecasts'] == source['scenarioForecasts'], 'Published scenarios must match scheduled generation'
-    print(f'Passed all {total} scenario-hours, exact two-inch Minimum gap, datum conversion, raster keys, and no double adjustment')
+    print(f'Passed all {total} scenario-hours, Minimum gap and dated override, datum conversion, raster keys, and no double adjustment')

@@ -47,7 +47,7 @@ jobs:
           import urllib.request
           from datetime import datetime, timedelta, timezone
           from pathlib import Path
-          from tools.north_wildwood_tide_anchors import ANCHOR_VERSION, MINIMUM_OFFSET_FT, collect_source_hours, anchor_mean_curve, minimum_below_mean
+          from tools.north_wildwood_tide_anchors import ANCHOR_VERSION, MINIMUM_OFFSET_FT, MINIMUM_TIDE_TARGETS, collect_source_hours, anchor_mean_curve, minimum_below_mean
 
           TOWN_NAME = "North Wildwood"
           IS_SPLIT = False
@@ -360,7 +360,7 @@ jobs:
               anchor_source = collect_source_hours(products["lowEnd"], anchor_source_hours)
               mean_tide_anchors = anchor_mean_curve(scenario_rows["mean"], anchor_source,
                                                    zone["navd88OffsetFromMllwFt"], stage_key)
-              scenario_rows["lowEnd"] = minimum_below_mean(scenario_rows["mean"], stage_key)
+              scenario_rows["lowEnd"] = minimum_below_mean(scenario_rows["mean"], stage_key, mean_tide_anchors)
               scenario_definitions = {
                   "lowEnd": ("Minimum", "", "mean_minus_2in"),
                   "mean": ("Mean", "10th percentile", "adjusted_p10"),
@@ -405,10 +405,11 @@ jobs:
                   "scenarioVersion": "mean-anchors-min-minus-2in-max-p25-v2",
                   "scenarioAdjustmentFt": -0.25,
                   "minimumOffsetFt": MINIMUM_OFFSET_FT,
-                  "scenarioMethod": "Mean uses NOAA TWL90p minus 0.25 ft before dated tide anchoring. Minimum is exactly two inches below the final Mean in both datums. Maximum retains the existing normal lower-tail p25 estimate minus 0.25 ft. NOAA bias is retained and raw NOAA forecasts are preserved separately.",
+                  "minimumTideTargetsMLLW": MINIMUM_TIDE_TARGETS,
+                  "scenarioMethod": "Mean uses NOAA TWL90p minus 0.25 ft before dated tide anchoring. Minimum is two inches below the final Mean, except for explicitly dated Minimum tide anchors fitted between unchanged low tides. Maximum retains the existing normal lower-tail p25 estimate minus 0.25 ft. NOAA bias is retained and raw NOAA forecasts are preserved separately.",
                   "meanTideAnchorVersion": ANCHOR_VERSION,
                   "meanTideAnchors": mean_tide_anchors,
-                  "meanTideAnchorMethod": "Dated manual Mean crests in feet MLLW. Each rise and fall is scaled about its adjacent low tide; peak times and low tides are preserved. Minimum follows two inches below the anchored Mean. Maximum is unchanged.",
+                  "meanTideAnchorMethod": "Dated manual Mean crests in feet MLLW. Each rise and fall is scaled about its adjacent low tide; peak times and low tides are preserved. Minimum follows two inches below Mean except its dated tide overrides. Maximum is unchanged.",
                   "tideAnchorSourceHours": anchor_source,
                   "products": product_meta,
                   "forecasts": forecasts,

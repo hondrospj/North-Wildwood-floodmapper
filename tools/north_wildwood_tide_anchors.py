@@ -3,6 +3,7 @@ import math
 
 ANCHOR_VERSION = "north-wildwood-20260925-26-three-tides-v2"
 MINIMUM_OFFSET_FT = -2.0 / 12.0
+MINIMUM_TIDE_TARGETS = {"friday-evening-20260925": 7.2}
 TROUGH_WINDOWS = (
     ("2026-09-25T12:00:00Z", "2026-09-25T20:00:00Z"),
     ("2026-09-26T03:00:00Z", "2026-09-26T09:00:00Z"),
@@ -90,8 +91,8 @@ def anchor_mean_curve(mean_hours, source_hours, datum_offset, stage_key):
     return plans
 
 
-def minimum_below_mean(mean_hours, stage_key):
-    """Derive Minimum after anchoring; keep the two-inch gap in both datums."""
+def minimum_below_mean(mean_hours, stage_key, mean_anchors=()):
+    """Derive the normal two-inch gap, then fit any dated Minimum crest."""
     minimum = []
     for mean in mean_hours:
         navd88 = mean["navd88StageFt"] + MINIMUM_OFFSET_FT
@@ -106,4 +107,34 @@ def minimum_below_mean(mean_hours, stage_key):
                     "sourceStageFt": navd88, "navd88StageFt": navd88,
                     "matchedStageKey": matched, "wasClamped": clamped})
         minimum.append(row)
+    for plan in mean_anchors:
+        target = MINIMUM_TIDE_TARGETS.get(plan["id"])
+        if target is None:
+            continue
+        original_peak = plan["targetMllwFt"] + MINIMUM_OFFSET_FT
+        for row in minimum:
+            stamp = row["timeUtc"]
+            if not plan["leftTimeUtc"] <= stamp <= plan["rightTimeUtc"]:
+                continue
+            side = "left" if stamp <= plan["peakTimeUtc"] else "right"
+            trough = round(plan[side + "MllwFt"] + 1e-9, 2) + MINIMUM_OFFSET_FT
+            if target <= trough:
+                raise ValueError("Minimum tide target must exceed its low tides")
+            original = row["mllwStageFt"]
+            fraction = (original - trough) / (original_peak - trough)
+            if not -1e-9 <= fraction <= 1 + 1e-9:
+                raise ValueError("Minimum leaves its dated tidal limb bounds")
+            value = trough + fraction * (target - trough)
+            datum_offset = row["meanReferenceNavd88Ft"] - row["meanReferenceMllwFt"]
+            navd88 = value + datum_offset
+            matched, clamped = stage_key(navd88)
+            row.update({"minimumTideAnchorId": plan["id"],
+                        "minimumTideTargetMllwFt": target,
+                        "preAnchorMinimumMllwFt": original,
+                        "minimumTideAnchorAdjustmentFt": value - original,
+                        "minimumOffsetFt": value - row["meanReferenceMllwFt"],
+                        "product": "mean_minus_2in_with_tide_anchor",
+                        "estimatedTwlMllwFt": value, "mllwStageFt": value, "twlMllwFt": value,
+                        "sourceStageFt": navd88, "navd88StageFt": navd88,
+                        "matchedStageKey": matched, "wasClamped": clamped})
     return minimum

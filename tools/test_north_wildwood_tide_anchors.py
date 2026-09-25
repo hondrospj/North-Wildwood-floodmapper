@@ -63,6 +63,25 @@ for left, right, low_left, low_right in zip(after['mean'], after['mean'][1:], mi
         low_value = low_left['navd88StageFt'] + fraction * (low_right['navd88StageFt'] - low_left['navd88StageFt'])
         assert abs((mean_value - low_value) * 12 - 2) < 1e-9
 
+# Tonight's explicit Minimum crest overrides the normal offset only on that lobe.
+anchored_minimum = minimum_below_mean(after['mean'], g['stage_key'], plans)
+friday = plans[0]
+friday_lobe = [h for h in anchored_minimum if friday['leftTimeUtc'] <= h['timeUtc'] <= friday['rightTimeUtc']]
+minimum_peak = max(friday_lobe, key=lambda h: h['mllwStageFt'])
+assert minimum_peak['mllwStageFt'] == 7.2
+assert minimum_peak['timeUtc'] == friday['peakTimeUtc']
+assert abs(minimum_peak['navd88StageFt'] - 4.45) < 1e-9
+for original, changed, mean in zip(minimum, anchored_minimum, after['mean']):
+    assert changed['navd88StageFt'] < mean['navd88StageFt']
+    if changed['timeUtc'] in [friday['leftTimeUtc'], friday['rightTimeUtc']]:
+        assert abs(original['mllwStageFt'] - changed['mllwStageFt']) < 1e-9
+    if not friday['leftTimeUtc'] <= changed['timeUtc'] <= friday['rightTimeUtc']:
+        assert changed == original
+for left, right in zip(friday_lobe, friday_lobe[1:]):
+    for fraction in [.25, .5, .75]:
+        assert left['mllwStageFt'] + fraction * (right['mllwStageFt'] - left['mllwStageFt']) <= 7.2
+assert minimum_below_mean(after['mean'], g['stage_key'], plans) == anchored_minimum
+
 # A newer model cycle moves the source levels, but retains the requested crests.
 new_source = [{**h, 'rawPetssValue': h['rawPetssValue'] + .3} for h in fixture]
 new_mean = scenarios(new_source)['mean']
@@ -75,8 +94,9 @@ for start in ['2026-09-25T20:00:00Z', '2026-09-26T02:00:00Z', '2026-09-26T14:00:
     remaining = [h for h in fixture if h['timeUtc'] >= start]
     context = collect_source_hours(remaining, fixture)
     mean = scenarios(remaining)['mean']
-    fit(mean, context)
+    remaining_plans = fit(mean, context)
     assert mean == [h for h in once if h['timeUtc'] >= start]
+    assert minimum_below_mean(mean, g['stage_key'], remaining_plans) == [h for h in anchored_minimum if h['timeUtc'] >= start]
 
 # No recurring Friday/Saturday override, and no extrapolation onto later tides.
 for days in [2, 7, 365]:
@@ -95,4 +115,4 @@ try:
 except ValueError as error:
     assert 'Missing source trough' in str(error)
 
-print('Passed three exact Mean peaks, two-inch Minimum gap, unchanged Maximum/other tides, trough continuity, limb direction, quarter-hour bounds, datums, raster keys, idempotency, new cycles, advancing horizons, and dated expiration')
+print('Passed three Mean peaks, tonight Minimum 7.20 ft, otherwise two-inch gap, unchanged Maximum/other tides, trough continuity, limb direction, quarter-hour bounds, datums, raster keys, idempotency, new cycles, advancing horizons, and dated expiration')
