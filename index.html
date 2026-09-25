@@ -23517,7 +23517,7 @@ function getUniqueExportStages(frameItems) {
     }
 
     function setFloodFrameStatus(message, state = "info") {
-      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated").join(" • ");
+      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== "Stone Harbor USGS").join(" • ");
       const status = document.getElementById("floodFrameStatus");
       if (!status) return;
       const timeline = document.getElementById("timelineDock");
