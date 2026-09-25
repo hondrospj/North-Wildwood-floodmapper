@@ -25,6 +25,8 @@ jobs:
         run: |
           node tools/check_inline_scripts.mjs
           node tools/test_north_wildwood_forecast_source.mjs
+          python3 tools/test_north_wildwood_forecast_generation.py
+          node tools/test_north_wildwood_raster_lifetime.mjs
           node tools/test_north_wildwood_browser_contract.mjs
           node tools/test_north_wildwood_reliability.mjs
           node tools/test_north_wildwood_3d_recovery.mjs

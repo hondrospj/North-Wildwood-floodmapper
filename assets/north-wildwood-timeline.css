@@ -117,4 +117,20 @@
       width:88px !important; min-width:88px !important; max-width:88px !important;
     }
   }
+  html[data-nww-avalon-timeline] body #mapTitlePartnerLogo,
+  html[data-nww-avalon-timeline] body #rightRailLogo,
+  html[data-nww-avalon-timeline] body #exportPartnerLogo,
+  html[data-nww-avalon-timeline] body #topBanner { display:none !important; }
+  html[data-nww-avalon-timeline] body #toastCloseBtn {
+    --centered-close-x-color:#78350f !important;
+    --centered-close-x-size:18px !important;
+    width:44px !important; min-width:44px !important; max-width:44px !important;
+    height:44px !important; min-height:44px !important; max-height:44px !important;
+    border:1px solid #92400e !important; background:#fef3c7 !important;
+    flex:0 0 44px !important; touch-action:manipulation !important;
+  }
+  html[data-nww-avalon-timeline] body #toastCloseBtn:focus-visible {
+    outline:3px solid #78350f !important; outline-offset:2px !important;
+  }
+
 }

@@ -4,7 +4,7 @@
 <head>
 <style>@layer shorelysafe-unified, avalon-mobile;</style>
 <link rel="stylesheet" href="assets/avalon-mobile.css?v=20260923-2">
-<link rel="stylesheet" href="assets/north-wildwood-timeline.css?v=20260925-1">
+<link rel="stylesheet" href="assets/north-wildwood-timeline.css?v=20260925-2">
 <script>document.documentElement.classList.add("avalon-mobile-ui");</script>
 
 <meta charset="utf-8" />
@@ -14677,11 +14677,11 @@ html.win-compact-ui #timelineDock #hourSlider{
             <h2>Forecast Type</h2>
             <button id="forecastTypeHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain forecast type">?</button>
           </div>
-          <span id="forecastScenarioPill" class="pill">Forecast</span>
+          <span id="forecastScenarioPill" class="pill">Mean</span>
         </div>
         <div class="button-grid-3">
           <button id="forecastLowBtn" type="button" data-scenario="lowEnd">Minimum</button>
-          <button id="forecastMeanBtn" class="active" type="button" data-scenario="mean">Forecast</button>
+          <button id="forecastMeanBtn" class="active" type="button" data-scenario="mean">Mean</button>
           <button id="forecastHighBtn" type="button" data-scenario="highEnd">Maximum</button>
         </div>
       </section>
@@ -16096,9 +16096,9 @@ function cloneStyleObject(value) {
     let forecastData = null;
     let currentForecastScenario = "mean";
     const FORECAST_SCENARIOS = {
-      lowEnd: { label: "Minimum", percentile: "Estimated 1st percentile", buttonId: "forecastLowBtn" },
-      mean: { label: "Forecast", percentile: "NOAA forecast", buttonId: "forecastMeanBtn" },
-      highEnd: { label: "Maximum", percentile: "Estimated 50th percentile", buttonId: "forecastHighBtn" }
+      lowEnd: { label: "Minimum", percentile: "", buttonId: "forecastLowBtn" },
+      mean: { label: "Mean", percentile: "", buttonId: "forecastMeanBtn" },
+      highEnd: { label: "Maximum", percentile: "", buttonId: "forecastHighBtn" }
     };
     let returnIntervalData = null;
     let currentReturnIntervalYears = 10;
@@ -16366,6 +16366,12 @@ function cloneStyleObject(value) {
     function setBanner(active, title = "", meta = "", count = 0) {
       const banner = document.getElementById("topBanner");
       if (!banner) return;
+      if (TOWN_CONFIG?.alerts?.enabled === false) {
+        banner.classList.remove("alert");
+        banner.hidden = true;
+        banner.setAttribute("aria-hidden", "true");
+        return;
+      }
       if (!active) floodBannerDismissed = false;
       banner.classList.toggle("alert", Boolean(active) && !floodBannerDismissed);
       document.getElementById("bannerTitle").textContent = title || "No active flood alerts";
@@ -16498,18 +16504,10 @@ function cloneStyleObject(value) {
     }
 
     function getForecastScenarioHours(data = forecastData, scenario = currentForecastScenario) {
-      if (!data) return [];
-      // NOAA TWL90p already contains NOAA's bias. Never substitute a derived curve.
-      if (scenario === "mean") {
-        const noaaRecord = data.forecasts?.lowEnd;
-        return noaaRecord?.product === "e90" && Array.isArray(noaaRecord.hours)
-          ? noaaRecord.hours
-          : [];
-      }
+      // Consume the adjusted series once; never fall back to an older scenario set.
+      if (data?.scenarioVersion !== "p01-p10-p25-minus-025-v1" || data.scenarioAdjustmentFt !== -0.25) return [];
       const scenarioRecord = data.scenarioForecasts?.[scenario];
-      if (Array.isArray(scenarioRecord?.hours)) return scenarioRecord.hours;
-      
-      return [];
+      return Array.isArray(scenarioRecord?.hours) ? scenarioRecord.hours : [];
     }
 
     function getActiveForecastHours() {
@@ -17774,7 +17772,7 @@ function setDatumHelpOpen(isOpen) {
       forecastType: {
         title: "Forecast type",
         body: `
-          <p>Forecast uses NOAA PETSS guidance. Minimum and Maximum show alternative scenarios. Maximum is the highest of these settings, not the highest water level possible.</p>
+          <p>Choose Minimum, Mean, or Maximum to compare forecast scenarios based on NOAA PETSS guidance. Maximum is the highest of these settings, not the highest water level possible.</p>
         `
       },
       overlay: {
@@ -18444,6 +18442,7 @@ function setDatumHelpOpen(isOpen) {
       if (!url) return Promise.resolve(null);
       if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);
 
+      const releaseRaster = retainRasterObjectUrl(url);
       const promise = new Promise(resolve => {
         const img = new Image();
         let settled = false;
@@ -18452,6 +18451,7 @@ function setDatumHelpOpen(isOpen) {
         const done = value => {
           if (settled) return;
           settled = true;
+          releaseRaster();
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
           resolve(value);
@@ -18492,6 +18492,7 @@ function setDatumHelpOpen(isOpen) {
         exportImageElementCache.set(url, cached);
         return cached;
       }
+      const releaseRaster = retainRasterObjectUrl(url);
       const promise = new Promise(resolve => {
         const img = new Image();
         let settled = false;
@@ -18500,6 +18501,7 @@ function setDatumHelpOpen(isOpen) {
         const done = value => {
           if (settled) return;
           settled = true;
+          releaseRaster();
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
           resolve(value);
@@ -18929,12 +18931,13 @@ function setDatumHelpOpen(isOpen) {
     function getDrainageRasterImage(url) {
       if (!url) return Promise.resolve(null);
       if (drainageRasterImageCache.has(url)) return drainageRasterImageCache.get(url);
+      const releaseRaster = retainRasterObjectUrl(url);
       const promise = new Promise(resolve => {
         const image = new Image();
         image.crossOrigin = "anonymous";
         image.decoding = "async";
-        image.onload = () => resolve(image);
-        image.onerror = () => resolve(null);
+        image.onload = () => { releaseRaster(); resolve(image); };
+        image.onerror = () => { releaseRaster(); resolve(null); };
         image.src = url;
       });
       drainageRasterImageCache.set(url, promise);
@@ -18953,12 +18956,53 @@ function setDatumHelpOpen(isOpen) {
       });
     }
 
+    // A cache eviction must not revoke an image still used by a renderer or decoder.
+    const rasterObjectUrlUsers = new Map();
+    const retiredRasterObjectUrls = new Set();
+    let rasterObjectUrlCleanupTimer = null;
+
+    function scheduleRasterObjectUrlCleanup() {
+      if (rasterObjectUrlCleanupTimer !== null || !retiredRasterObjectUrls.size) return;
+      // Let promise continuations hand a generated image to the next consumer.
+      rasterObjectUrlCleanupTimer = window.setTimeout(() => {
+        rasterObjectUrlCleanupTimer = null;
+        for (const url of retiredRasterObjectUrls) {
+          if (rasterObjectUrlUsers.has(url) || currentFloodLayer?._url === url || pendingFloodLayer?._url === url) continue;
+          URL.revokeObjectURL(url);
+          retiredRasterObjectUrls.delete(url);
+          preloadPromiseCache.delete(url);
+          drainageRasterImageCache.delete(url);
+          exportImageElementCache.delete(url);
+        }
+      }, 0);
+    }
+
+    function retainRasterObjectUrl(url) {
+      if (!url?.startsWith("blob:")) return () => {};
+      rasterObjectUrlUsers.set(url, (rasterObjectUrlUsers.get(url) || 0) + 1);
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        const remaining = (rasterObjectUrlUsers.get(url) || 1) - 1;
+        if (remaining) rasterObjectUrlUsers.set(url, remaining);
+        else rasterObjectUrlUsers.delete(url);
+        scheduleRasterObjectUrlCleanup();
+      };
+    }
+
+    function retireRasterObjectUrl(url) {
+      if (!url?.startsWith("blob:")) return;
+      retiredRasterObjectUrls.add(url);
+      scheduleRasterObjectUrlCleanup();
+    }
+
     function cacheBathtubStageOverlay(key, record) {
       bathtubStageOverlayCache.set(key, record);
       while (bathtubStageOverlayCache.size > 48) {
         const oldestKey = bathtubStageOverlayCache.keys().next().value;
         const oldest = bathtubStageOverlayCache.get(oldestKey);
-        if (oldest?.url?.startsWith("blob:")) URL.revokeObjectURL(oldest.url);
+        retireRasterObjectUrl(oldest?.url);
         bathtubStageOverlayCache.delete(oldestKey);
       }
       return record;
@@ -19030,7 +19074,7 @@ function setDatumHelpOpen(isOpen) {
       while (drainageCompositeCache.size > DRAINAGE_COMPOSITE_CACHE_LIMIT) {
         const oldestKey = drainageCompositeCache.keys().next().value;
         const oldest = drainageCompositeCache.get(oldestKey);
-        if (oldest?.url?.startsWith("blob:")) URL.revokeObjectURL(oldest.url);
+        retireRasterObjectUrl(oldest?.url);
         drainageCompositeCache.delete(oldestKey);
       }
       return record;
@@ -19041,7 +19085,7 @@ function setDatumHelpOpen(isOpen) {
       while (fillingCompositeCache.size > FILLING_COMPOSITE_CACHE_LIMIT) {
         const oldestKey = fillingCompositeCache.keys().next().value;
         const oldest = fillingCompositeCache.get(oldestKey);
-        if (oldest?.url?.startsWith("blob:")) URL.revokeObjectURL(oldest.url);
+        retireRasterObjectUrl(oldest?.url);
         fillingCompositeCache.delete(oldestKey);
       }
       return record;
@@ -19144,84 +19188,90 @@ function setDatumHelpOpen(isOpen) {
     }
 
     async function getHydraulicOverlayRecord(mode, stageValue, phase, entry = null, series = currentRawSeriesHours) {
-      if (mode === "dynamic") return getBathtubStageOverlayRecord(stageValue);
-      let baseRecord = await getOverlayRecord(mode, stageValue, phase);
-      if (!baseRecord || !entry) return baseRecord;
-      baseRecord = await getFillingInterpolatedOverlayRecord(
-        mode,
-        stageValue,
-        phase,
-        entry,
-        baseRecord
-      );
-      const milestones = getDrainageRetentionMilestones(entry, series);
-      if (!milestones.length) return baseRecord;
-
-      const key = [
-        mode,
-        stageToCode(stageValue),
-        normalizeHydraulicPhase(phase),
-        entryTimeMs(entry),
-        ...milestones.map(item => `${entryTimeMs(item)}:${normalizeHydraulicPhase(item.hydraulicPhase)}:${stageToCode(getOverlayStage(getStageValue(item)))}`)
-      ].join("|");
-      if (drainageCompositeCache.has(key)) return drainageCompositeCache.get(key);
-
-      const request = (async () => {
-        const historicalRecords = (await Promise.all(milestones.map(item => {
-          const itemStage = getOverlayStage(getStageValue(item));
-          return itemStage == null
-            ? Promise.resolve(null)
-            : getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));
-        }))).filter(Boolean);
-        if (!historicalRecords.length) return baseRecord;
-
-        const [baseImage, queryGrid, ...historyImages] = await Promise.all([
-          getDrainageRasterImage(baseRecord.url),
-          getDepthQueryGrid(),
-          ...historicalRecords.map(record => getDrainageRasterImage(record.url))
-        ]);
-        if (!baseImage || !queryGrid || historyImages.some(image => !image)) return baseRecord;
-        if (baseImage.naturalWidth !== queryGrid.width || baseImage.naturalHeight !== queryGrid.height) {
-          console.warn("Drainage retention skipped because the packed query grid does not match the flood raster.");
-          return baseRecord;
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = baseImage.naturalWidth;
-        canvas.height = baseImage.naturalHeight;
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-        if (!context) return baseRecord;
-        context.drawImage(baseImage, 0, 0);
-        const currentImageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const historicalPixelSets = historyImages.map(image => {
-          context.clearRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(image, 0, 0);
-          return context.getImageData(0, 0, canvas.width, canvas.height).data;
-        });
-        const addedPixelCount = applyDrainageRetentionPixels(
-          currentImageData.data,
-          historicalPixelSets,
-          queryGrid.values,
+      let releaseRaster = null;
+      try {
+        if (mode === "dynamic") return getBathtubStageOverlayRecord(stageValue);
+        let baseRecord = await getOverlayRecord(mode, stageValue, phase);
+        if (!baseRecord || !entry) return baseRecord;
+        baseRecord = await getFillingInterpolatedOverlayRecord(
+          mode,
           stageValue,
-          mode
+          phase,
+          entry,
+          baseRecord
         );
-        if (!addedPixelCount) return baseRecord;
-        context.putImageData(currentImageData, 0, 0);
-        const url = await canvasToDrainageObjectUrl(canvas);
-        return {
-          ...baseRecord,
-          url,
-          isHistoryAwareDrainageComposite: true,
-          retainedPixelCount: addedPixelCount
-        };
-      })().catch(error => {
-        console.warn("Could not build the history-aware drainage raster; using the static phase raster.", error);
-        return baseRecord;
-      });
+        releaseRaster = retainRasterObjectUrl(baseRecord?.url);
+        const milestones = getDrainageRetentionMilestones(entry, series);
+        if (!milestones.length) return baseRecord;
 
-      drainageCompositeCache.set(key, request);
-      const record = await request;
-      return cacheDrainageComposite(key, record);
+        const key = [
+          mode,
+          stageToCode(stageValue),
+          normalizeHydraulicPhase(phase),
+          entryTimeMs(entry),
+          ...milestones.map(item => `${entryTimeMs(item)}:${normalizeHydraulicPhase(item.hydraulicPhase)}:${stageToCode(getOverlayStage(getStageValue(item)))}`)
+        ].join("|");
+        if (drainageCompositeCache.has(key)) return drainageCompositeCache.get(key);
+
+        const request = (async () => {
+          const historicalRecords = (await Promise.all(milestones.map(item => {
+            const itemStage = getOverlayStage(getStageValue(item));
+            return itemStage == null
+              ? Promise.resolve(null)
+              : getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));
+          }))).filter(Boolean);
+          if (!historicalRecords.length) return baseRecord;
+
+          const [baseImage, queryGrid, ...historyImages] = await Promise.all([
+            getDrainageRasterImage(baseRecord.url),
+            getDepthQueryGrid(),
+            ...historicalRecords.map(record => getDrainageRasterImage(record.url))
+          ]);
+          if (!baseImage || !queryGrid || historyImages.some(image => !image)) return baseRecord;
+          if (baseImage.naturalWidth !== queryGrid.width || baseImage.naturalHeight !== queryGrid.height) {
+            console.warn("Drainage retention skipped because the packed query grid does not match the flood raster.");
+            return baseRecord;
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = baseImage.naturalWidth;
+          canvas.height = baseImage.naturalHeight;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          if (!context) return baseRecord;
+          context.drawImage(baseImage, 0, 0);
+          const currentImageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const historicalPixelSets = historyImages.map(image => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, 0);
+            return context.getImageData(0, 0, canvas.width, canvas.height).data;
+          });
+          const addedPixelCount = applyDrainageRetentionPixels(
+            currentImageData.data,
+            historicalPixelSets,
+            queryGrid.values,
+            stageValue,
+            mode
+          );
+          if (!addedPixelCount) return baseRecord;
+          context.putImageData(currentImageData, 0, 0);
+          const url = await canvasToDrainageObjectUrl(canvas);
+          return {
+            ...baseRecord,
+            url,
+            isHistoryAwareDrainageComposite: true,
+            retainedPixelCount: addedPixelCount
+          };
+        })().catch(error => {
+          console.warn("Could not build the history-aware drainage raster; using the static phase raster.", error);
+          return baseRecord;
+        });
+
+        drainageCompositeCache.set(key, request);
+        const record = await request;
+        return cacheDrainageComposite(key, record);
+      } finally {
+        releaseRaster?.();
+      }
     }
 
     function preloadAroundHour(index) {
@@ -23467,6 +23517,7 @@ function getUniqueExportStages(frameItems) {
     }
 
     function setFloodFrameStatus(message, state = "info") {
+      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated").join(" • ");
       const status = document.getElementById("floodFrameStatus");
       if (!status) return;
       const timeline = document.getElementById("timelineDock");
@@ -23485,6 +23536,7 @@ function getUniqueExportStages(frameItems) {
       if (currentFloodLayer && map?.hasLayer(currentFloodLayer)) map.removeLayer(currentFloodLayer);
       pendingFloodLayer = null;
       currentFloodLayer = null;
+      scheduleRasterObjectUrlCleanup();
     }
 
     function applyOverlayOpacity() {
@@ -24701,107 +24753,113 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     async function setFloodLayer(mode, stageValue, phase, token, entry = null, series = currentRawSeriesHours) {
-      toast("");
-      ensureMap();
-
-      const match = document.body.dataset.initialFloodFrame === "loading" && mode === "depth"
-        ? await getOverlayRecord(mode, stageValue, phase)
-        : await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
-      if (token !== lastRenderToken) return;
-
-      if (!match) {
-        toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
-        clearFloodLayer();
-        markInitialFloodFrameFailed();
-        return;
-      }
-
-      const overlayUrl = match.url;
-      const loaded = await preloadImage(overlayUrl);
-      if (token !== lastRenderToken) return;
-      if (!loaded) {
-        clearFloodLayer();
-        markInitialFloodFrameFailed();
-        return false;
-      }
-
+      let releaseRaster = null;
       try {
-        await ensureOverlayBounds(overlayUrl);
-      } catch (err) {
-        toast(err.message);
-        clearFloodLayer();
-        markInitialFloodFrameFailed();
-        return;
-      }
+        toast("");
+        ensureMap();
 
-      if (token !== lastRenderToken) return;
+        const match = document.body.dataset.initialFloodFrame === "loading" && mode === "depth"
+          ? await getOverlayRecord(mode, stageValue, phase)
+          : await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
+        if (token !== lastRenderToken) return;
 
-      if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
-        map.removeLayer(pendingFloodLayer);
-        pendingFloodLayer = null;
-      }
-
-      const previousLayer = currentFloodLayer;
-      const nextLayer = createHydraulicImageOverlay(
-        overlayUrl,
-        {
-          opacity: 0,
-          interactive: false,
-          crossOrigin: true,
-          zIndex: 500,
-          pane: "floodPane",
-          className: currentDataMode === "return-interval" && mode === "depth"
-            ? "return-interval-depth-overlay"
-            : ""
+        if (!match) {
+          toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
+          clearFloodLayer();
+          markInitialFloodFrameFailed();
+          return;
         }
-      );
 
-      pendingFloodLayer = nextLayer;
-      return await new Promise(resolve => {
-        nextLayer.once("load", () => {
-          if (token !== lastRenderToken) {
-            if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-            resolve(false);
-            return;
-          }
+        const overlayUrl = match.url;
+        releaseRaster = retainRasterObjectUrl(overlayUrl);
+        const loaded = await preloadImage(overlayUrl);
+        if (token !== lastRenderToken) return;
+        if (!loaded) {
+          clearFloodLayer();
+          markInitialFloodFrameFailed();
+          return false;
+        }
 
-          nextLayer.setOpacity(overlayOpacity);
-          currentFloodLayer = nextLayer;
-          floodFrameState = "ready";
-          document.body.dataset.floodFrame = "ready";
+        try {
+          await ensureOverlayBounds(overlayUrl);
+        } catch (err) {
+          toast(err.message);
+          clearFloodLayer();
+          markInitialFloodFrameFailed();
+          return;
+        }
+
+        if (token !== lastRenderToken) return;
+
+        if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
+          map.removeLayer(pendingFloodLayer);
           pendingFloodLayer = null;
+        }
 
-          if (previousLayer && map.hasLayer(previousLayer)) {
-            map.removeLayer(previousLayer);
+        const previousLayer = currentFloodLayer;
+        const nextLayer = createHydraulicImageOverlay(
+          overlayUrl,
+          {
+            opacity: 0,
+            interactive: false,
+            crossOrigin: true,
+            zIndex: 500,
+            pane: "floodPane",
+            className: currentDataMode === "return-interval" && mode === "depth"
+              ? "return-interval-depth-overlay"
+              : ""
           }
+        );
 
-          updatePersistentDepthQueryPopup();
-
-          if (!mapHasFit && floodLatLngBounds) {
-            const townBounds = getBoundaryDrivenOverlayBounds();
-            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
-            if (document.body.classList.contains("mobile-optimized")) {
-              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
+        pendingFloodLayer = nextLayer;
+        return await new Promise(resolve => {
+          nextLayer.once("load", () => {
+            if (token !== lastRenderToken) {
+              if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
+              resolve(false);
+              return;
             }
-            mapHasFit = true;
-          }
-          markInitialFloodFrameReady();
-          resolve(true);
-        });
 
-        nextLayer.once("error", () => {
-          if (token === lastRenderToken) {
-            if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
+            nextLayer.setOpacity(overlayOpacity);
+            currentFloodLayer = nextLayer;
+            floodFrameState = "ready";
+            document.body.dataset.floodFrame = "ready";
             pendingFloodLayer = null;
-            toast(`Leaflet could not draw ${match.filename}.`);
-            clearFloodLayer();
-            markInitialFloodFrameFailed();
-          }
-          resolve(false);
-        });
 
-        nextLayer.addTo(map);
-      });
+            if (previousLayer && map.hasLayer(previousLayer)) {
+              map.removeLayer(previousLayer);
+            }
+
+            updatePersistentDepthQueryPopup();
+
+            if (!mapHasFit && floodLatLngBounds) {
+              const townBounds = getBoundaryDrivenOverlayBounds();
+              map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
+              if (document.body.classList.contains("mobile-optimized")) {
+                map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
+              }
+              mapHasFit = true;
+            }
+            markInitialFloodFrameReady();
+            resolve(true);
+          });
+
+          nextLayer.once("error", () => {
+            if (token === lastRenderToken) {
+              if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
+              pendingFloodLayer = null;
+              toast(`Leaflet could not draw ${match.filename}.`);
+              clearFloodLayer();
+              markInitialFloodFrameFailed();
+            }
+            resolve(false);
+          });
+
+          nextLayer.addTo(map);
+        });
+      } finally {
+        releaseRaster?.();
+      }
     }
 
     async function setPhysicsFloodLayer(asset, token) {
@@ -26047,6 +26105,11 @@ function startPlayback() {
     }
 
     async function checkNwsAlerts() {
+      if (TOWN_CONFIG?.alerts?.enabled === false) {
+        setBanner(false);
+        document.body.dataset.nwsAlertState = "disabled";
+        return "disabled";
+      }
       if (nwsAlertPromise) return nwsAlertPromise;
       nwsAlertPromise = (async () => {
         const zoneCodes = new Set((TOWN_CONFIG?.alerts?.zoneCodes || []).filter(Boolean).map(String));
@@ -26096,6 +26159,8 @@ function startPlayback() {
 
     function startNwsAlertRefresh() {
       if (nwsAlertRefreshTimer !== null) window.clearInterval(nwsAlertRefreshTimer);
+      nwsAlertRefreshTimer = null;
+      if (TOWN_CONFIG?.alerts?.enabled === false) { setBanner(false); return; }
       checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
       nwsAlertRefreshTimer = window.setInterval(() => {
         checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
@@ -36609,11 +36674,11 @@ TOWN_CONFIG = {
   "assets": {
     "titleLogoPath": null,
     "titleLogoAlt": "",
-    "partnerLogoPath": "https://floodmapperv1.b-cdn.net/Logos/ShorelySafe.jpg",
-    "partnerLogoFallbackPath": "https://floodmapperv1.b-cdn.net/Logos/ShorelySafe.jpg",
-    "partnerLogoAlt": "ShorelySafe",
-    "rightRailLogoPath": "https://floodmapperv1.b-cdn.net/Logos/ShorelySafe.jpg",
-    "rightRailLogoAlt": "ShorelySafe"
+    "partnerLogoPath": null,
+    "partnerLogoFallbackPath": null,
+    "partnerLogoAlt": "",
+    "rightRailLogoPath": null,
+    "rightRailLogoAlt": ""
   },
   "links": {
     "partnerUrl": "https://cupajoe.live",
@@ -36782,6 +36847,7 @@ TOWN_CONFIG = {
     "searchDistanceMeters": 9000
   },
   "alerts": {
+    "enabled": false,
     "zoneCodes": []
   },
   "exportSlug": "North-Wildwood-floodmapper",

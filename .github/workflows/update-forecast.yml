@@ -232,15 +232,15 @@ jobs:
               return out
 
           def remap_percentiles(raw, zone):
-              """Derive estimated p01/p25/p50 settings from PETSS station TWL/TWL90p."""
+              """Build adjusted p01/p10/p25 settings; retain NOAA bias in the source TWL."""
               from statistics import NormalDist
               z10 = abs(NormalDist().inv_cdf(0.10))
               ratios = {"lowEnd": abs(NormalDist().inv_cdf(0.01)) / z10,
-                        "mean": abs(NormalDist().inv_cdf(0.25)) / z10,
-                        "highEnd": 0.0}
-              labels = {"lowEnd": ("Minimum", "Estimated 1st percentile", "estimated_p01"),
-                        "mean": ("Mean", "Estimated 25th percentile", "estimated_p25"),
-                        "highEnd": ("Maximum", "Estimated 50th percentile", "estimated_p50")}
+                        "mean": 1.0,
+                        "highEnd": abs(NormalDist().inv_cdf(0.25)) / z10}
+              labels = {"lowEnd": ("Minimum", "Estimated 1st percentile", "adjusted_p01"),
+                        "mean": ("Mean", "10th percentile", "adjusted_p10"),
+                        "highEnd": ("Maximum", "Estimated 25th percentile", "adjusted_p25")}
               by_key = {key: {row["timeUtc"]: row for row in rows} for key, rows in raw.items()}
               common = sorted(set(by_key["mean"]) & set(by_key["lowEnd"]) & set(by_key["highEnd"]))
               remapped = {key: [] for key in labels}
@@ -251,17 +251,19 @@ jobs:
                   upper = by_key["highEnd"][time_utc]["rawPetssValue"]
                   spread = max(0.0, center - lower)
                   for key, ratio in ratios.items():
-                      value = center - ratio * spread
+                      unadjusted = lower if key == "mean" else center - ratio * spread
+                      value = unadjusted - 0.25
                       navd88 = round2(value + zone["navd88OffsetFromMllwFt"])
                       matched, clamped = stage_key(navd88)
                       _, percentile, product = labels[key]
                       row = dict(base)
                       row.update({"scenario": key, "product": product, "percentile": percentile,
                                   "estimatedTwlMllwFt": round3(value), "sourceStageFt": navd88,
+                                  "unadjustedTwlMllwFt": round3(unadjusted), "scenarioAdjustmentFt": -0.25,
                                   "navd88StageFt": navd88, "mllwStageFt": round2(value),
                                   "twlMllwFt": round2(value), "surgeFt": None,
                                   "matchedStageKey": matched, "wasClamped": clamped,
-                                  "isEstimatedPercentile": True,
+                                  "isEstimatedPercentile": key != "mean",
                                   "sourceMeanTwlMllwFt": center,
                                   "sourceTwl90pMllwFt": lower,
                                   "sourceTwl10pMllwFt": upper})
@@ -352,13 +354,13 @@ jobs:
               mean_hours = forecasts["mean"]["hours"]
               scenario_rows = remap_percentiles(products, zone)
               scenario_definitions = {
-                  "lowEnd": ("Minimum", "Estimated 1st percentile", "estimated_p01"),
-                  "mean": ("Mean", "Estimated 25th percentile", "estimated_p25"),
-                  "highEnd": ("Maximum", "Estimated 50th percentile", "estimated_p50"),
+                  "lowEnd": ("Minimum", "Estimated 1st percentile", "adjusted_p01"),
+                  "mean": ("Mean", "10th percentile", "adjusted_p10"),
+                  "highEnd": ("Maximum", "Estimated 25th percentile", "adjusted_p25"),
               }
               scenario_options = {key: {"label": label, "percentile": percentile, "product": product}
                                   for key, (label, percentile, product) in scenario_definitions.items()}
-              scenario_forecasts = {key: {**scenario_options[key], "hours": rows}
+              scenario_forecasts = {key: {**scenario_options[key], "hours": annotate_hydraulic_phases(rows)}
                                     for key, rows in scenario_rows.items()}
               return {
                   "zoneId": zone["id"],
@@ -392,7 +394,9 @@ jobs:
                   "forecastOptions": options,
                   "scenarioOptions": scenario_options,
                   "scenarioForecasts": scenario_forecasts,
-                  "scenarioMethod": "Estimated non-exceedance percentiles from TWL and TWL90p assuming a normal lower-tail shape; p25 interpolated, p01 extrapolated, p50 approximated by ensemble mean. Not published NOAA percentile products or absolute bounds.",
+                  "scenarioVersion": "p01-p10-p25-minus-025-v1",
+                  "scenarioAdjustmentFt": -0.25,
+                  "scenarioMethod": "Non-exceedance p01/p10/p25 with -0.25 ft applied once to each. p10 uses NOAA TWL90p directly; p01 is extrapolated and p25 interpolated using the existing normal lower-tail approximation from TWL and TWL90p. NOAA bias is retained. Raw NOAA forecasts are preserved separately.",
                   "products": product_meta,
                   "forecasts": forecasts,
                   "hours": mean_hours,
