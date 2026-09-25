@@ -4,7 +4,7 @@
 <head>
 <style>@layer shorelysafe-unified, avalon-mobile;</style>
 <link rel="stylesheet" href="assets/avalon-mobile.css?v=20260923-2">
-<link rel="stylesheet" href="assets/north-wildwood-timeline.css?v=20260925-2">
+<link rel="stylesheet" href="assets/north-wildwood-timeline.css?v=20260925-mobile-day-slider">
 <script>document.documentElement.classList.add("avalon-mobile-ui");</script>
 
 <meta charset="utf-8" />
@@ -14991,6 +14991,7 @@ html.win-compact-ui #timelineDock #hourSlider{
           <input id="hourSlider" type="range" min="0" max="0" value="0" step="1" />
           <div id="timelineEnd" class="timeline-scale">--</div>
         </div>
+        <div id="timelineTimeBounds" aria-hidden="true"><span id="timelineFirstTime"></span><span id="timelineLastTime"></span></div>
         <div hidden>
           <div id="timelineLabel"></div>
           <div id="timelineValue"></div>
@@ -18154,11 +18155,11 @@ function setDatumHelpOpen(isOpen) {
       return getDepthTimelineColor(rawStage);
     }
 
-    function buildTimelineGroupGradient(startIndex, endIndex) {
+    function buildTimelineGroupGradient(startIndex, endIndex, sampleCenters = false) {
       const entries = currentSeriesHours.slice(startIndex, endIndex + 1);
       if (!entries.length) return "";
-      const firstEdge = Math.max(0, startIndex - 0.5);
-      const lastEdge = Math.min(currentSeriesHours.length - 1, endIndex + 0.5);
+      const firstEdge = sampleCenters ? startIndex : Math.max(0, startIndex - 0.5);
+      const lastEdge = sampleCenters ? endIndex : Math.min(currentSeriesHours.length - 1, endIndex + 0.5);
       const span = lastEdge - firstEdge;
       if (span <= 0) return `linear-gradient(90deg, ${getTimelineHourColor(entries[0])}, ${getTimelineHourColor(entries[0])})`;
       const stops = [];
@@ -23662,8 +23663,9 @@ function getEntryESTDate(entry) {
       const bubble = document.getElementById("timelineBubble");
       if (!dock || !slider || !bubble || !currentSeriesHours.length) return;
 
-      const max = Math.max(1, currentSeriesHours.length - 1);
-      const pct = currentHourIndex / max;
+      const min = Number(slider.min) || 0;
+      const max = Number(slider.max) || 0;
+      const pct = max > min ? (currentHourIndex - min) / (max - min) : 0.5;
       const dockRect = dock.getBoundingClientRect();
       const sliderRect = slider.getBoundingClientRect();
       const thumbSize = parseFloat(getComputedStyle(slider).getPropertyValue("--nww-thumb-size")) || 16;
@@ -23726,7 +23728,7 @@ function getEntryESTDate(entry) {
         const firstEdge = Math.max(0, group.start - 0.5);
         const lastEdge = Math.min(currentSeriesHours.length - 1, group.end + 0.5);
         btn.style.flex = `${Math.max(0.5, lastEdge - firstEdge)} 1 0`;
-        const tideGradient = gaugeInoperable ? null : buildTimelineGroupGradient(group.start, group.end);
+        const tideGradient = gaugeInoperable ? null : buildTimelineGroupGradient(group.start, group.end, isMobileTimeline());
         if (tideGradient) {
           btn.style.backgroundImage = `linear-gradient(180deg, rgba(10,18,32,.18), rgba(10,18,32,.18)), ${tideGradient}`;
         } else if (gaugeInoperable) {
@@ -24625,6 +24627,7 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     function renderTimelineMeta(currentEntry = null) {
+      syncSliderBounds();
       const timelineValue = document.getElementById("timelineValue");
       const timelineMeta = document.getElementById("timelineMeta");
       const timelineStart = document.getElementById("timelineStart");
@@ -25026,14 +25029,43 @@ function formatSelectedObservedDate(dateStr) {
       const value = Number(slider.value) || 0;
       const percent = max > min ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0;
       slider.style.setProperty("--timeline-progress", percent.toFixed(3) + "%");
-      const gradient = buildTimelineGroupGradient(0, currentSeriesHours.length - 1);
+      const gradient = buildTimelineGroupGradient(min, max, true);
       slider.style.setProperty("--nww-stage-gradient", gradient || "linear-gradient(#94a3b8,#94a3b8)");
+    }
+
+    function isMobileTimeline() {
+      return window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches;
+    }
+
+    function getTimelineSliderBounds() {
+      const last = Math.max(0, currentSeriesHours.length - 1);
+      const selected = Math.max(0, Math.min(currentHourIndex, last));
+      let start = 0, end = last;
+      // The phone shows one day. Give that day's hours the whole touch track;
+      // retain global indices so rendering, playback, and exports stay in sync.
+      if (isMobileTimeline() && currentSeriesHours.length) {
+        start = end = selected;
+        while (start > 0 && sameEntryESTDay(currentSeriesHours[start - 1], currentSeriesHours[selected])) start--;
+        while (end < last && sameEntryESTDay(currentSeriesHours[end + 1], currentSeriesHours[selected])) end++;
+      }
+      return { start, end, selected };
     }
 
     function syncSliderBounds() {
       const slider = document.getElementById("hourSlider");
-      slider.max = String(Math.max(0, currentSeriesHours.length - 1));
-      slider.value = String(Math.min(currentHourIndex, currentSeriesHours.length - 1));
+      if (!slider) return;
+      const { start, end, selected } = getTimelineSliderBounds();
+      document.getElementById("timelineDock").dataset.singleTimelineTime = String(start === end);
+      slider.min = String(start);
+      slider.max = String(end);
+      slider.value = String(selected);
+      for (const [id, index] of [["timelineFirstTime", start], ["timelineLastTime", end]]) {
+        const label = document.getElementById(id);
+        const date = getEntryESTDate(currentSeriesHours[index]);
+        if (label) label.textContent = date
+          ? new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York", hour:"numeric", minute:"2-digit"}).format(date).replace(":00", "")
+          : "";
+      }
       updateSliderProgress();
     }
 
@@ -28193,6 +28225,11 @@ function startPlayback() {
     }
 
     function wireEvents() {
+      window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").addEventListener("change", () => {
+        syncSliderBounds();
+        renderTimelineDays();
+        positionTimelineBubble();
+      });
       document.getElementById("topBannerCloseBtn")?.addEventListener("click", clearTopBanner);
       document.getElementById("toastCloseBtn")?.addEventListener("click", () => toast(""));
       document.getElementById("exportProgressCloseBtn")?.addEventListener("click", cancelCurrentExport);

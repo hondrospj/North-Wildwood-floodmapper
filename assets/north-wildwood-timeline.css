@@ -51,10 +51,18 @@
     height:24px !important; min-height:24px !important; max-height:24px !important;
     padding:0 !important; margin:0 !important; border:0 !important; transform:none !important;
     background:var(--nww-stage-gradient,linear-gradient(#94a3b8,#94a3b8)) center / calc(100% - 26px) 5px no-repeat !important;
+    touch-action:none !important;
+  }
+  html[data-nww-avalon-timeline] body #timelineDock #hourSlider::-webkit-slider-runnable-track {
+    height:5px !important; border:0 !important; background:transparent !important; box-shadow:none !important;
+  }
+  html[data-nww-avalon-timeline] body #timelineDock #hourSlider::-moz-range-track,
+  html[data-nww-avalon-timeline] body #timelineDock #hourSlider::-moz-range-progress {
+    height:5px !important; border:0 !important; background:transparent !important; box-shadow:none !important;
   }
   html[data-nww-avalon-timeline] body #timelineDock #hourSlider::-webkit-slider-thumb {
     box-sizing:border-box !important; width:26px !important; height:26px !important;
-    margin-top:-9.5px !important; border:2px solid white !important; background:#2563eb !important;
+    margin-top:-10.5px !important; border:2px solid white !important; background:#2563eb !important;
   }
   html[data-nww-avalon-timeline] body #timelineDock #hourSlider::-moz-range-thumb {
     box-sizing:border-box !important; width:26px !important; height:26px !important;
@@ -63,10 +71,11 @@
   html[data-nww-avalon-timeline] body #timelineDock #timelineStart,
   html[data-nww-avalon-timeline] body #timelineDock #timelineEnd,
   html[data-nww-avalon-timeline] body #timelineDock #pjBlueSliderExactTrackLine { display:none !important; }
+  html[data-nww-avalon-timeline] body #timelineDock #timelineTimeBounds { display:none !important; }
   @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html[data-nww-avalon-timeline] body #timelineDock {
       left:8px !important; right:8px !important; bottom:calc(8px + env(safe-area-inset-bottom)) !important;
-      height:160px !important; min-height:160px !important; max-height:160px !important;
+      height:188px !important; min-height:188px !important; max-height:188px !important;
       background:#152132 !important;
     }
     html[data-nww-avalon-timeline] body #timelineDock #playBtn {
@@ -100,16 +109,32 @@
     html[data-nww-avalon-timeline] body #timelineDock #timelinePreviousDay { top:58px !important; left:8px !important; right:auto !important; }
     html[data-nww-avalon-timeline] body #timelineDock #timelineNextDay { top:58px !important; left:auto !important; right:8px !important; }
     html[data-nww-avalon-timeline] body #timelineDock #timelineFloodKey {
-      top:104px !important; left:8px !important; right:8px !important;
-      height:12px !important; min-height:12px !important; max-height:12px !important; gap:8px !important;
+      top:108px !important; left:8px !important; right:8px !important;
+      height:14px !important; min-height:14px !important; max-height:14px !important; gap:8px !important;
     }
     html[data-nww-avalon-timeline] body #timelineDock #timelineFloodKey .timeline-key-label { font-size:9px !important; line-height:12px !important; }
     html[data-nww-avalon-timeline] body #timelineDock #timelineFloodKey .timeline-key-swatch { width:7px !important; height:7px !important; flex-basis:7px !important; }
     html[data-nww-avalon-timeline] body #timelineDock .timeline-trackRow {
-      top:108px !important; left:8px !important; right:8px !important;
+      top:122px !important; left:8px !important; right:8px !important;
       height:44px !important; min-height:44px !important; max-height:44px !important;
     }
     html[data-nww-avalon-timeline] body #timelineDock #hourSlider { height:44px !important; min-height:44px !important; max-height:44px !important; }
+    html[data-nww-avalon-timeline] body #timelineDock #timelineTimeBounds {
+      position:absolute !important; top:166px !important; left:21px !important; right:21px !important;
+      display:flex !important; justify-content:space-between !important; height:14px !important;
+      color:#cbd5e1 !important; font-size:10px !important; line-height:14px !important;
+      pointer-events:none !important;
+    }
+    /* A daily peak has no hours to scrub; the day arrows remain available. */
+    html[data-nww-avalon-timeline] body #timelineDock[data-single-timeline-time="true"] {
+      height:132px !important; min-height:132px !important; max-height:132px !important;
+    }
+    html[data-nww-avalon-timeline] body #timelineDock[data-single-timeline-time="true"] .timeline-trackRow,
+    html[data-nww-avalon-timeline] body #timelineDock[data-single-timeline-time="true"] #timelineTimeBounds { display:none !important; }
+  }
+  @media (max-width:360px) {
+    html[data-nww-avalon-timeline] body #timelineDock #timelineBubble .timeline-bubble-current,
+    html[data-nww-avalon-timeline] body #timelineDock #timelineBubble .timeline-bubble-stage { font-size:13px !important; }
   }
   @media (max-width:600px) {
     html[data-nww-avalon-timeline] body:not(.mobile-legend-open) #legendDock {
