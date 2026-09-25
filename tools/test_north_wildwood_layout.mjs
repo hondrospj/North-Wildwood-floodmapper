@@ -12,7 +12,7 @@ try {
   const page=await browser.newPage({viewport:{width:1440,height:1000}});await page.route('**/*',r=>r.abort());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setContent(html,{waitUntil:'domcontentloaded'});
-  await page.evaluate(()=>{document.body.className='';document.getElementById('nwSiteLoader').remove();window.auditCount=0;window.auditStyles=[];new MutationObserver(rows=>{window.auditCount+=rows.length;window.auditStyles.push(getComputedStyle(document.getElementById('leftPanel')).overflowY)}).observe(document.getElementById('leftPanel'),{attributes:true,attributeFilter:['style']});});
+  await page.evaluate(()=>{document.body.className='';window.auditCount=0;window.auditStyles=[];new MutationObserver(rows=>{window.auditCount+=rows.length;window.auditStyles.push(getComputedStyle(document.getElementById('leftPanel')).overflowY)}).observe(document.getElementById('leftPanel'),{attributes:true,attributeFilter:['style']});});
   for(const content of selected)await page.addScriptTag({content});
   await page.waitForTimeout(9000);
   await page.evaluate(()=>{window.auditCount=0;window.auditStyles=[];});await page.waitForTimeout(1200);

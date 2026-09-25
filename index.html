@@ -1,9 +1,10 @@
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-nww-avalon-timeline>
 <head>
-<style>@layer avalon-mobile;</style>
+<style>@layer shorelysafe-unified, avalon-mobile;</style>
 <link rel="stylesheet" href="assets/avalon-mobile.css?v=20260923-2">
+<link rel="stylesheet" href="assets/north-wildwood-timeline.css?v=20260925-1">
 <script>document.documentElement.classList.add("avalon-mobile-ui");</script>
 
 <meta charset="utf-8" />
@@ -14634,52 +14635,10 @@ html.win-compact-ui #timelineDock #hourSlider{
   <style id="v2-export-visibility-fix">
     #gifSpeedField[hidden]{display:none !important}
   </style>
-  <style id="north-wildwood-loading-screen-v1">
-    body.nw-app-loading{overflow:hidden}
-    body.nw-app-loading #app,
-    body.nw-app-loading #topBanner{opacity:0;pointer-events:none}
-    body.nw-app-ready #app,
-    body.nw-app-ready #topBanner{animation:nwAppFadeIn .72s cubic-bezier(.2,.75,.25,1) both}
-    #nwSiteLoader{
-      position:fixed;inset:0;z-index:60000;display:grid;place-items:center;padding:24px;
-      overflow:hidden;background:
-        radial-gradient(circle at 50% 38%,rgba(29,145,210,.22),transparent 34%),
-        radial-gradient(circle at 18% 18%,rgba(96,165,250,.14),transparent 30%),
-        linear-gradient(145deg,#07101f 0%,#0b1930 52%,#07111f 100%);
-      color:#eaf0ff;opacity:1;visibility:visible;transition:opacity .62s ease,visibility .62s ease;
-    }
-    #nwSiteLoader::before,#nwSiteLoader::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
-    #nwSiteLoader::before{width:min(74vw,760px);aspect-ratio:1;border:1px solid rgba(125,249,255,.09);box-shadow:0 0 90px rgba(29,145,210,.08);animation:nwLoaderOrbit 13s linear infinite}
-    #nwSiteLoader::after{width:min(52vw,520px);aspect-ratio:1;border:1px dashed rgba(96,165,250,.12);animation:nwLoaderOrbit 18s linear infinite reverse}
-    #nwSiteLoader.is-fading{opacity:0;visibility:hidden;pointer-events:none}
-    .nw-loader-card{position:relative;z-index:1;width:min(430px,calc(100vw - 40px));display:grid;justify-items:center;padding:34px 32px 29px;border:1px solid rgba(125,249,255,.24);border-radius:28px;background:rgba(8,15,31,.88);box-shadow:0 30px 100px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(20px);text-align:center}
-    .nw-loader-spinner{position:relative;width:76px;height:76px;margin-bottom:21px;border:3px solid rgba(125,249,255,.15);border-top-color:#7df9ff;border-right-color:#60a5fa;border-radius:50%;animation:nwLoaderSpin 1s linear infinite;box-shadow:0 0 34px rgba(125,249,255,.14)}
-    .nw-loader-spinner::before{content:"";position:absolute;inset:10px;border:2px solid rgba(96,165,250,.16);border-bottom-color:#60a5fa;border-radius:50%;animation:nwLoaderSpin .75s linear infinite reverse}
-    .nw-loader-spinner::after{content:"";position:absolute;inset:26px;border-radius:50%;background:#7df9ff;box-shadow:0 0 20px rgba(125,249,255,.72)}
-    .nw-loader-eyebrow{color:#7df9ff;font:900 10px/1 Inter,system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase}
-    .nw-loader-card h1{margin:9px 0 7px;color:#fff;font:950 clamp(23px,5vw,32px)/1.05 Inter,system-ui,sans-serif;letter-spacing:-.035em}
-    .nw-loader-status{min-height:19px;margin:0;color:#a9bad3;font:750 12px/1.45 Inter,system-ui,sans-serif}
-    .nw-loader-progress{width:100%;height:5px;margin-top:22px;overflow:hidden;border-radius:99px;background:rgba(148,163,184,.16);box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
-    #nwLoaderProgress{display:block;width:7%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#168ceb,#7df9ff);box-shadow:0 0 15px rgba(125,249,255,.55);transition:width .32s ease}
-    .nw-loader-foot{margin-top:10px;color:#7187a2;font:700 9px/1 Inter,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase}
-    @keyframes nwLoaderSpin{to{transform:rotate(360deg)}}
-    @keyframes nwLoaderOrbit{to{transform:rotate(360deg)}}
-    @keyframes nwAppFadeIn{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:none}}
-    @media (prefers-reduced-motion:reduce){#nwSiteLoader::before,#nwSiteLoader::after,.nw-loader-spinner,.nw-loader-spinner::before{animation-duration:1ms;animation-iteration-count:1}body.nw-app-ready #app,body.nw-app-ready #topBanner{animation:none}}
-  </style>
   <link rel="stylesheet" href="./assets/map-status.css" />
 </head>
-<body class="nw-app-loading">
+<body>
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
-  <div id="nwSiteLoader" role="status" aria-live="polite" aria-label="Loading North Wildwood Flood Mapper">
-    <div class="nw-loader-card">
-      <div class="nw-loader-spinner" aria-hidden="true"></div>
-      <div class="nw-loader-eyebrow">ShorelySafe</div>
-      <h1>North Wildwood Flood Mapper</h1>
-      <p id="nwLoaderStatus" class="nw-loader-status">Preparing forecast and map data…</p>
-      <div class="nw-loader-progress" aria-hidden="true"><span id="nwLoaderProgress"></span></div>
-    </div>
-  </div>
   <div id="topBanner">
     <div class="banner-text">
       <div class="banner-eyebrow">Flood alert <span id="bannerCount">0 active</span></div>
@@ -14718,11 +14677,11 @@ html.win-compact-ui #timelineDock #hourSlider{
             <h2>Forecast Type</h2>
             <button id="forecastTypeHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain forecast type">?</button>
           </div>
-          <span id="forecastScenarioPill" class="pill">Mean</span>
+          <span id="forecastScenarioPill" class="pill">Forecast</span>
         </div>
         <div class="button-grid-3">
           <button id="forecastLowBtn" type="button" data-scenario="lowEnd">Minimum</button>
-          <button id="forecastMeanBtn" class="active" type="button" data-scenario="mean">Mean</button>
+          <button id="forecastMeanBtn" class="active" type="button" data-scenario="mean">Forecast</button>
           <button id="forecastHighBtn" type="button" data-scenario="highEnd">Maximum</button>
         </div>
       </section>
@@ -16138,7 +16097,7 @@ function cloneStyleObject(value) {
     let currentForecastScenario = "mean";
     const FORECAST_SCENARIOS = {
       lowEnd: { label: "Minimum", percentile: "Estimated 1st percentile", buttonId: "forecastLowBtn" },
-      mean: { label: "Mean", percentile: "Estimated 25th percentile", buttonId: "forecastMeanBtn" },
+      mean: { label: "Forecast", percentile: "NOAA forecast", buttonId: "forecastMeanBtn" },
       highEnd: { label: "Maximum", percentile: "Estimated 50th percentile", buttonId: "forecastHighBtn" }
     };
     let returnIntervalData = null;
@@ -16540,6 +16499,13 @@ function cloneStyleObject(value) {
 
     function getForecastScenarioHours(data = forecastData, scenario = currentForecastScenario) {
       if (!data) return [];
+      // NOAA TWL90p already contains NOAA's bias. Never substitute a derived curve.
+      if (scenario === "mean") {
+        const noaaRecord = data.forecasts?.lowEnd;
+        return noaaRecord?.product === "e90" && Array.isArray(noaaRecord.hours)
+          ? noaaRecord.hours
+          : [];
+      }
       const scenarioRecord = data.scenarioForecasts?.[scenario];
       if (Array.isArray(scenarioRecord?.hours)) return scenarioRecord.hours;
       
@@ -17808,7 +17774,7 @@ function setDatumHelpOpen(isOpen) {
       forecastType: {
         title: "Forecast type",
         body: `
-          <p>These settings are estimates derived from NOAA PETSS station guidance: Minimum is the 1st percentile, Mean is the 25th, and Maximum is the 50th. They are not published NOAA percentiles. “Maximum” is the highest of these three settings, not the highest water level possible.</p>
+          <p>Forecast uses NOAA PETSS guidance. Minimum and Maximum show alternative scenarios. Maximum is the highest of these settings, not the highest water level possible.</p>
         `
       },
       overlay: {
@@ -18193,12 +18159,15 @@ function setDatumHelpOpen(isOpen) {
     function buildTimelineGroupGradient(startIndex, endIndex) {
       const entries = currentSeriesHours.slice(startIndex, endIndex + 1);
       if (!entries.length) return "";
-      const count = entries.length;
+      const firstEdge = Math.max(0, startIndex - 0.5);
+      const lastEdge = Math.min(currentSeriesHours.length - 1, endIndex + 0.5);
+      const span = lastEdge - firstEdge;
+      if (span <= 0) return `linear-gradient(90deg, ${getTimelineHourColor(entries[0])}, ${getTimelineHourColor(entries[0])})`;
       const stops = [];
       entries.forEach((entry, idx) => {
-        const color = getTimelineHourColor(entry);
-        const startPct = (idx / count) * 100;
-        const endPct = ((idx + 1) / count) * 100;
+        const color = getStageValue(entry) == null ? "#94a3b8" : getTimelineHourColor(entry);
+        const startPct = 100 * (Math.max(firstEdge, startIndex + idx - 0.5) - firstEdge) / span;
+        const endPct = 100 * (Math.min(lastEdge, startIndex + idx + 0.5) - firstEdge) / span;
         stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
       });
       return `linear-gradient(90deg, ${stops.join(", ")})`;
@@ -23645,7 +23614,7 @@ function getEntryESTDate(entry) {
       const pct = currentHourIndex / max;
       const dockRect = dock.getBoundingClientRect();
       const sliderRect = slider.getBoundingClientRect();
-      const thumbSize = 16;
+      const thumbSize = parseFloat(getComputedStyle(slider).getPropertyValue("--nww-thumb-size")) || 16;
       const usableWidth = Math.max(0, sliderRect.width - thumbSize);
       const x = (sliderRect.left - dockRect.left) + (thumbSize / 2) + (pct * usableWidth);
       const bubbleHalf = Math.max(72, (bubble.offsetWidth / 2) + 8);
@@ -23702,7 +23671,9 @@ function getEntryESTDate(entry) {
           btn.setAttribute("aria-label", `Gauge inoperable for more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} hours`);
           btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable North Wildwood or Stone Harbor gauge level`;
         }
-        btn.style.flex = `${Math.max(1, group.hours)} 1 0`;
+        const firstEdge = Math.max(0, group.start - 0.5);
+        const lastEdge = Math.min(currentSeriesHours.length - 1, group.end + 0.5);
+        btn.style.flex = `${Math.max(0.5, lastEdge - firstEdge)} 1 0`;
         const tideGradient = gaugeInoperable ? null : buildTimelineGroupGradient(group.start, group.end);
         if (tideGradient) {
           btn.style.backgroundImage = `linear-gradient(180deg, rgba(10,18,32,.18), rgba(10,18,32,.18)), ${tideGradient}`;
@@ -24914,7 +24885,7 @@ function formatSelectedObservedDate(dateStr) {
       const token = ++lastRenderToken;
       clearFloodLayer();
       floodFrameState = "loading";
-      setFloodFrameStatus("Loading flood map…", "loading");
+      setFloodFrameStatus("", "loading");
       document.body.dataset.floodFrame = floodFrameState;
 
       const rawStage = getStageValue(entry);
@@ -24997,6 +24968,8 @@ function formatSelectedObservedDate(dateStr) {
       const value = Number(slider.value) || 0;
       const percent = max > min ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0;
       slider.style.setProperty("--timeline-progress", percent.toFixed(3) + "%");
+      const gradient = buildTimelineGroupGradient(0, currentSeriesHours.length - 1);
+      slider.style.setProperty("--nww-stage-gradient", gradient || "linear-gradient(#94a3b8,#94a3b8)");
     }
 
     function syncSliderBounds() {
@@ -34874,6 +34847,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 
   function applyTimelinePlayLane(){
+    if (document.documentElement.hasAttribute("data-nww-avalon-timeline")) return;
     if (document.documentElement.classList.contains("avalon-mobile-ui") && isCompactTimeline()) return;
     var dock = document.getElementById("timelineDock");
     if (!dock) return;
@@ -36867,51 +36841,7 @@ TOWN_CONFIG = {
 
 applyTownConfig(TOWN_CONFIG);
 
-function setNorthWildwoodLoadingState(progress, message) {
-  const bar = document.getElementById("nwLoaderProgress");
-  const status = document.getElementById("nwLoaderStatus");
-  let acceptsMessage = !Number.isFinite(Number(progress));
-  if (bar && Number.isFinite(Number(progress))) {
-    const current = Number(bar.dataset.progress || 0);
-    const requested = Math.min(100, Number(progress));
-    const next = Math.max(current, requested);
-    acceptsMessage = requested >= current;
-    bar.dataset.progress = String(next);
-    bar.style.width = `${next}%`;
-  }
-  if (status && message && acceptsMessage) status.textContent = message;
-}
-
-function finishNorthWildwoodLoading(message) {
-  const loader = document.getElementById("nwSiteLoader");
-  setNorthWildwoodLoadingState(100, message || "Floodmapper ready");
-  window.setTimeout(() => {
-    document.body.classList.remove("nw-app-loading");
-    document.body.classList.add("nw-app-ready");
-    loader?.classList.add("is-fading");
-    loader?.setAttribute("aria-hidden", "true");
-    window.setTimeout(() => { if (loader) loader.hidden = true; }, 700);
-  }, 260);
-}
-
 async function preloadNorthWildwoodExperience(mainPromise) {
-  const startedAt = performance.now();
-  let simulatedProgress = 8;
-  const progressTimer = window.setInterval(() => {
-    simulatedProgress = Math.min(76, simulatedProgress + (simulatedProgress < 42 ? 3 : 1));
-    setNorthWildwoodLoadingState(simulatedProgress);
-  }, 240);
-
-  const track = (promise, progress, message) => Promise.resolve(promise)
-    .then(value => {
-      setNorthWildwoodLoadingState(progress, message);
-      return value;
-    })
-    .catch(error => {
-      console.warn("A preloaded Floodmapper resource will retry when needed.", error);
-      return null;
-    });
-
   const preloadImages = Promise.allSettled(
     Array.from(document.images).filter(image => image.src).map(image => waitForImageElementReady(image))
   );
@@ -36921,24 +36851,21 @@ async function preloadNorthWildwoodExperience(mainPromise) {
     ? Promise.resolve(mainPromise).then(() => window.NORTH_WILDWOOD_3D.preload({ initialize: true, warmCamera: "core" }))
     : Promise.resolve();
 
-  const preloadTasks = [track(mainPromise, 68, "Drawing the current flood map…")];
+  const preloadTasks = [mainPromise];
   if (!defer3dOnMobile) {
-    preloadTasks.push(track(preload3d, 96, "Preparing map navigation and 3D terrain…"));
+    preloadTasks.push(preload3d);
   }
-  preloadTasks.push(track(Promise.resolve(mainPromise).then(() => preloadImages), 98, "Finishing the interface…"));
+  preloadTasks.push(Promise.resolve(mainPromise).then(() => preloadImages));
   const completePreload = Promise.allSettled(preloadTasks);
   // Reveal mobile after the 2D flood map is ready; initialize 3D on demand.
   await completePreload;
-  window.clearInterval(progressTimer);
   document.body.dataset.sitePreload = "complete";
   document.body.dataset.sitePreloadBlockingPolicy = defer3dOnMobile
     ? "initial-flood-renderer-3d-on-demand"
     : "initial-flood-renderer-cardinal-navigation";
   document.body.dataset.sitePreloadAvoidedBytes = "observed-parcels-nsi-export-libraries";
   document.body.dataset.map3dDeferredWarmup = "on-demand-no-background-camera-traversal";
-  const minimumDelay = Math.max(0, 800 - (performance.now() - startedAt));
-  if (minimumDelay) await new Promise(resolve => window.setTimeout(resolve, minimumDelay));
-  finishNorthWildwoodLoading("Floodmapper ready");
+  document.body.classList.add("nw-app-ready");
 }
 
 const northWildwoodMainPromise = main().catch(err => {
