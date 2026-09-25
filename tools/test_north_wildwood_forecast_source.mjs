@@ -14,7 +14,7 @@ for(const key of ['lowEnd','mean','highEnd']) {
   assert.ok(select(forecast,key).length>12);
 }
 const first=select()[0],raw=forecast.forecasts.lowEnd.hours.find(h=>h.timeUtc===first.timeUtc);
-assert.ok(Math.abs(first.mllwStageFt-(raw.rawPetssValue-.25))<=.005001);
+assert.ok(Math.abs(first.mllwStageFt-(raw.rawPetssValue-.25+(first.tideAnchorAdjustmentFt??0)))<=.005001);
 assert.equal(select()[0].mllwStageFt,first.mllwStageFt,'Repeated reads must not subtract again');
 for(const missing of [null,{}, {...forecast,scenarioVersion:undefined},
   {...forecast,scenarioAdjustmentFt:0}, {...forecast,scenarioForecasts:{}},

@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/update-forecast.yml
+      - tools/north_wildwood_tide_anchors.py
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
@@ -46,6 +47,7 @@ jobs:
           import urllib.request
           from datetime import datetime, timedelta, timezone
           from pathlib import Path
+          from tools.north_wildwood_tide_anchors import ANCHOR_VERSION, collect_source_hours, anchor_mean_curve
 
           TOWN_NAME = "North Wildwood"
           IS_SPLIT = False
@@ -311,6 +313,9 @@ jobs:
 
           def build_zone_forecast(zone, now_utc):
               last_error = None
+              previous_context = []
+              if OUT_PATH.exists():
+                  previous_context = json.loads(OUT_PATH.read_text()).get("tideAnchorSourceHours", [])
               for cycle in recent_cycles(now_utc):
                   try:
                       url = petss_station_csv_url(cycle)
@@ -319,13 +324,14 @@ jobs:
                       parsed = parse_station_csv(text, zone)
                       start = max(cycle["cycleUtc"], now_utc)
                       aligned = align_products(parsed, start)
-                      return payload_for_zone(zone, cycle, url, member, aligned, now_utc)
+                      anchor_source = collect_source_hours(parsed["lowEnd"], previous_context)
+                      return payload_for_zone(zone, cycle, url, member, aligned, now_utc, anchor_source)
                   except Exception as exc:
                       last_error = exc
                       print(f"Rejected {zone['id']} cycle: {exc}")
               raise RuntimeError(f"No usable PETSS forecast for {zone['id']} {zone['petssGaugeId']}: {last_error}")
 
-          def payload_for_zone(zone, cycle, source_url, member, products, issued_dt):
+          def payload_for_zone(zone, cycle, source_url, member, products, issued_dt, anchor_source_hours=()):
               definitions = {
                   "mean": ("Mean", "Mean", "mean"),
                   "lowEnd": ("Low End", "90p / e90", "e90"),
@@ -353,6 +359,9 @@ jobs:
                   }
               mean_hours = forecasts["mean"]["hours"]
               scenario_rows = remap_percentiles(products, zone)
+              anchor_source = collect_source_hours(products["lowEnd"], anchor_source_hours)
+              mean_tide_anchors = anchor_mean_curve(scenario_rows["mean"], anchor_source,
+                                                   zone["navd88OffsetFromMllwFt"], stage_key)
               scenario_definitions = {
                   "lowEnd": ("Minimum", "Estimated 1st percentile", "adjusted_p01"),
                   "mean": ("Mean", "10th percentile", "adjusted_p10"),
@@ -397,6 +406,10 @@ jobs:
                   "scenarioVersion": "p01-p10-p25-minus-025-v1",
                   "scenarioAdjustmentFt": -0.25,
                   "scenarioMethod": "Non-exceedance p01/p10/p25 with -0.25 ft applied once to each. p10 uses NOAA TWL90p directly; p01 is extrapolated and p25 interpolated using the existing normal lower-tail approximation from TWL and TWL90p. NOAA bias is retained. Raw NOAA forecasts are preserved separately.",
+                  "meanTideAnchorVersion": ANCHOR_VERSION,
+                  "meanTideAnchors": mean_tide_anchors,
+                  "meanTideAnchorMethod": "Dated manual Mean-only crests in feet MLLW. Each rise and fall is scaled about its adjacent low tide; peak times and low tides are preserved. Minimum and Maximum remain unchanged and can cross the manually adjusted Mean.",
+                  "tideAnchorSourceHours": anchor_source,
                   "products": product_meta,
                   "forecasts": forecasts,
                   "hours": mean_hours,

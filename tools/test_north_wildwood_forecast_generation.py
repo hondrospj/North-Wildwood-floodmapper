@@ -6,9 +6,11 @@ import copy
 import json
 import math
 import re
+import sys
 import textwrap
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 def generator():
     workflow = (ROOT / '.github/workflows/update-forecast.yml').read_text()
@@ -23,7 +25,8 @@ def rebuild(source):
     result = g['payload_for_zone'](g['ZONES'][0],
         {'cycleUtc': datetime.fromisoformat(source['petssCycleUtc'].replace('Z', '+00:00'))},
         source['sourceUrl'], source['sourceMember'], products,
-        datetime.fromisoformat(source['issuedUtc'].replace('Z', '+00:00')))
+        datetime.fromisoformat(source['issuedUtc'].replace('Z', '+00:00')),
+        source.get('tideAnchorSourceHours', []))
     result.pop('zoneId', None)
     result.pop('zoneName', None)
     return result
@@ -43,7 +46,9 @@ if __name__ == '__main__':
         for h in result['scenarioForecasts'][key]['hours']:
             stamp = h['timeUtc']
             unadjusted = lower[stamp] if key == 'mean' else center[stamp] - ratio * max(0, center[stamp] - lower[stamp])
-            adjusted = unadjusted - .25
+            adjusted = unadjusted - .25 + h.get('tideAnchorAdjustmentFt', 0)
+            if key != 'mean':
+                assert 'tideAnchorAdjustmentFt' not in h, 'Only Mean may be anchored'
             assert abs(h['mllwStageFt'] - adjusted) <= .005001
             assert abs(h['navd88StageFt'] - (adjusted + source['navd88OffsetFromMllwFt'])) <= .005001
             assert h['sourceStageFt'] == h['navd88StageFt']
@@ -55,7 +60,9 @@ if __name__ == '__main__':
             assert abs(float(h['matchedStageKey']) - math.floor((clamped + 1e-9) / .1) * .1) < 1e-8
             total += 1
     for rows in zip(*(result['scenarioForecasts'][k]['hours'] for k in ['lowEnd', 'mean', 'highEnd'])):
-        assert rows[0]['navd88StageFt'] <= rows[1]['navd88StageFt'] <= rows[2]['navd88StageFt']
+        assert rows[0]['navd88StageFt'] <= rows[2]['navd88StageFt']
+        if 'tideAnchorId' not in rows[1]:
+            assert rows[0]['navd88StageFt'] <= rows[1]['navd88StageFt'] <= rows[2]['navd88StageFt']
     assert rebuild(result)['scenarioForecasts'] == result['scenarioForecasts'], 'Repeated jobs must not compound the adjustment'
     assert result['scenarioForecasts'] == source['scenarioForecasts'], 'Published scenarios must match scheduled generation'
-    print(f'Passed all {total} scenario-hours, datum conversion, scenario ordering, raster keys, and no double adjustment')
+    print(f'Passed all {total} scenario-hours, datum conversion, unchanged scenario ordering outside the Mean anchors, raster keys, and no double adjustment')
