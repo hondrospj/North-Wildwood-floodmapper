@@ -33,8 +33,8 @@ def collect_source_hours(raw_hours, previous_context=()):
 def anchor_mean_curve(mean_hours, source_hours, datum_offset, stage_key):
     """Scale each tidal limb about its trough, retaining timing and shape.
 
-    The source context contains raw TWL90p with no local bias correction.
-    Positive affine limb scaling preserves
+    The source context contains raw TWL90p; the -0.25 ft forecast adjustment
+    is applied once before fitting. Positive affine limb scaling preserves
     the hourly rise/fall shape, reaches the requested crest exactly, and
     joins the unchanged curve at both troughs without a water-level jump.
     """
@@ -42,7 +42,7 @@ def anchor_mean_curve(mean_hours, source_hours, datum_offset, stage_key):
     if not any(TROUGH_WINDOWS[0][0] <= h["timeUtc"] <= TROUGH_WINDOWS[-1][1]
                for h in mean_hours):
         return plans
-    baseline = [{"timeUtc": h["timeUtc"], "value": h["rawPetssValue"]}
+    baseline = [{"timeUtc": h["timeUtc"], "value": h["rawPetssValue"] - 0.25}
                 for h in source_hours]
     for index, (anchor_id, target, peak_start, peak_end) in enumerate(ANCHORS):
         left_window, right_window = TROUGH_WINDOWS[index:index + 2]
@@ -72,7 +72,7 @@ def anchor_mean_curve(mean_hours, source_hours, datum_offset, stage_key):
             if not left["timeUtc"] <= stamp <= right["timeUtc"]:
                 continue
             # Start from the raw source on every call, never a previously fitted value.
-            original = row["sourceTwl90pMllwFt"]
+            original = row["sourceTwl90pMllwFt"] - 0.25
             trough = left if stamp <= peak["timeUtc"] else right
             fraction = (original - trough["value"]) / (peak["value"] - trough["value"])
             if not -1e-9 <= fraction <= 1 + 1e-9:
