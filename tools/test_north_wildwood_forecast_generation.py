@@ -1,4 +1,4 @@
-"""Check scheduled generation against raw NOAA values, including one adjustment."""
+"""Check scheduled generation against raw NOAA values without local bias."""
 from pathlib import Path
 from statistics import NormalDist
 from datetime import datetime
@@ -34,8 +34,8 @@ def rebuild(source):
 if __name__ == '__main__':
     source = json.loads((ROOT / 'forecast.json').read_text())
     result = rebuild(source)
-    assert result['scenarioVersion'] == 'mean-anchors-min-minus-2in-max-p25-v2'
-    assert result['scenarioAdjustmentFt'] == -0.25
+    assert result['scenarioVersion'] == 'mean-anchors-min-minus-2in-max-p25-v3'
+    assert result['scenarioAdjustmentFt'] == 0
     assert result['minimumOffsetFt'] == -2 / 12
     assert result['forecasts'] == source['forecasts'], 'Raw NOAA products must stay intact'
     lower = {h['timeUtc']: h['rawPetssValue'] for h in source['forecasts']['lowEnd']['hours']}
@@ -47,14 +47,14 @@ if __name__ == '__main__':
         for h in result['scenarioForecasts'][key]['hours']:
             stamp = h['timeUtc']
             unadjusted = lower[stamp] if key == 'mean' else center[stamp] - ratio * max(0, center[stamp] - lower[stamp])
-            adjusted = unadjusted - .25 + h.get('tideAnchorAdjustmentFt', 0)
+            adjusted = unadjusted + h.get('tideAnchorAdjustmentFt', 0)
             if key != 'mean':
                 assert 'tideAnchorAdjustmentFt' not in h, 'Only Mean may be anchored'
             assert abs(h['mllwStageFt'] - adjusted) <= .005001
             assert abs(h['navd88StageFt'] - (adjusted + source['navd88OffsetFromMllwFt'])) <= .005001
             assert h['sourceStageFt'] == h['navd88StageFt']
             assert h['twlMllwFt'] == h['mllwStageFt']
-            assert h['scenarioAdjustmentFt'] == -.25
+            assert h['scenarioAdjustmentFt'] == 0
             assert abs(h['unadjustedTwlMllwFt'] - unadjusted) <= .000501
             assert h['isEstimatedPercentile'] == (key != 'mean')
             clamped = max(-2, min(20, h['navd88StageFt']))
