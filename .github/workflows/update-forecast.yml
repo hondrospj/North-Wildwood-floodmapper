@@ -252,14 +252,14 @@ jobs:
                   spread = max(0.0, center - lower)
                   for key, ratio in ratios.items():
                       unadjusted = lower if key == "mean" else center - ratio * spread
-                      value = unadjusted - 0.25
+                      value = unadjusted
                       navd88 = round2(value + zone["navd88OffsetFromMllwFt"])
                       matched, clamped = stage_key(navd88)
                       _, percentile, product = labels[key]
                       row = dict(base)
                       row.update({"scenario": key, "product": product, "percentile": percentile,
                                   "estimatedTwlMllwFt": round3(value), "sourceStageFt": navd88,
-                                  "unadjustedTwlMllwFt": round3(unadjusted), "scenarioAdjustmentFt": -0.25,
+                                  "unadjustedTwlMllwFt": round3(unadjusted), "scenarioAdjustmentFt": 0,
                                   "navd88StageFt": navd88, "mllwStageFt": round2(value),
                                   "twlMllwFt": round2(value), "surgeFt": None,
                                   "matchedStageKey": matched, "wasClamped": clamped,
@@ -402,11 +402,11 @@ jobs:
                   "forecastOptions": options,
                   "scenarioOptions": scenario_options,
                   "scenarioForecasts": scenario_forecasts,
-                  "scenarioVersion": "mean-anchors-min-minus-2in-max-p25-v4",
-                  "scenarioAdjustmentFt": -0.25,
+                  "scenarioVersion": "mean-anchors-min-minus-2in-max-p25-v5",
+                  "scenarioAdjustmentFt": 0,
                   "minimumOffsetFt": MINIMUM_OFFSET_FT,
                   "minimumTideTargetsMLLW": MINIMUM_TIDE_TARGETS,
-                  "scenarioMethod": "Mean uses NOAA TWL90p minus 0.25 ft before dated tide anchoring. Minimum is two inches below the final Mean, except for explicitly dated Minimum tide anchors fitted between unchanged low tides. Maximum retains the existing normal lower-tail p25 estimate minus 0.25 ft. The local forecast reduction is applied once per cycle; raw NOAA forecasts are preserved separately.",
+                  "scenarioMethod": "Mean uses NOAA TWL90p without a local subtraction before dated tide anchoring. Minimum is two inches below the final Mean, except for explicitly dated Minimum tide anchors fitted between unchanged low tides. Maximum retains the existing normal lower-tail p25 estimate without a local subtraction; raw NOAA forecasts are preserved separately.",
                   "meanTideAnchorVersion": ANCHOR_VERSION,
                   "meanTideAnchors": mean_tide_anchors,
                   "meanTideAnchorMethod": "Dated manual Mean crests in feet MLLW. Each rise and fall is scaled about its adjacent low tide; peak times and low tides are preserved. Minimum follows two inches below Mean except its dated tide overrides. Maximum is unchanged.",
