@@ -1,6 +1,6 @@
 {
   "schema": "experimental-petss-guidance-v1",
-  "generatedUtc": "2026-09-26T16:29:08.071171Z",
+  "generatedUtc": "2026-09-26T16:56:20.381900Z",
   "model": {
     "version": "research-pooled-v2-90-exceedance-20260923",
     "official": false,
@@ -79,7 +79,7 @@
       "stationId": "8535581",
       "petssCycleUtc": "2026-09-26T06:00:00Z",
       "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/petss.20260926/petss.t06z.csv.tar.gz",
-      "cycleAgeHours": 10.49,
+      "cycleAgeHours": 10.94,
       "status": "experimental",
       "hours": [
         {
