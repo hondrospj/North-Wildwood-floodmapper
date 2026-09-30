@@ -32,7 +32,7 @@ assert.deepEqual(parserBlockingScripts, [
   "assets/avalon-mobile.js?v=20260923-2",
 ]);
 
-assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+gif[\s\S]+jszip[\s\S]+geotiff/);
+assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+jszip[\s\S]+geotiff/);
 assert.match(extractFunction("downloadCurrentSelection"), /await ensureExportLibraries\(format, frameItems\.length\)/);
 assert.match(extractFunction("getDepthQueryImage"), /await ensureDepthQueryLibrary\(\)/);
 
@@ -121,3 +121,7 @@ for (const warmCamera of [undefined, false, "core", "deferred"]) {
 }
 
 console.log("North Wildwood startup performance checks passed");
+
+assert.match(source, /GIF_WORKER_CDN_URL = "https:\/\/cdn\.jsdelivr\.net\/npm\/gif\.js\.optimized@1\.0\.1\/dist\/gif\.worker\.js"/);
+assert.match(source, /function createStreamingGifEncoder\(/);
+assert.doesNotMatch(source, /loadOptionalScript\("gif"/);

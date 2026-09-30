@@ -710,8 +710,9 @@ assert.ok(
 assert.match(SOURCE, /20260822-mask-stabilizer-v40/);
 assert.match(SOURCE, /sampledFromCanonical15MinuteHistory/);
 assert.match(SOURCE, /isHistoryAwareDrainageComposite/);
-assert.match(extractFunction("preloadExportFrameAssets"), /getHydraulicOverlayRecord/);
-assert.match(extractFunction("addFastCompositeGifFrames"), /getHydraulicOverlayRecord/);
+assert.match(extractFunction("getExportFrameImage"), /getHydraulicOverlayRecord/);
+assert.match(extractFunction("addFastCompositeGifFrames"), /await getExportFrameImage\(item\)/);
+assert.match(extractFunction("addFastCompositeGifFrames"), /await gif\.addFrame\(/);
 assert.equal(HYDRAULIC_ASSET_MANIFEST.packedQuery.schema, "north-wildwood-packed-depth-query-v3");
 assert.equal(
   HYDRAULIC_ASSET_MANIFEST.packedQuery.bytes,
@@ -1179,6 +1180,9 @@ const modeledExportContext = vm.createContext({
   currentSeriesHours: modeledFrames,
   selectedObservedDate: "",
   entryTimeMs: entry => entry.date.getTime(),
+  annotateHydraulicSeries: rows => rows.map(row => ({ ...row })),
+  findClosestEntryIndex: (rows, entry) => rows.findIndex(row => row.date.getTime() === entry.date.getTime()),
+  getStageValue: entry => entry.stage ?? 0,
 });
 for (const name of [
   "getReturnIntervalExportEntries",
