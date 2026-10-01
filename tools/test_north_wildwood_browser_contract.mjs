@@ -55,7 +55,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20260925-stationary-startup/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=20261001-building-config/);
 assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
@@ -1233,3 +1233,4 @@ for (const [date, targetHundredths, eventName, peakHour] of [
 }
 
 console.log("North Wildwood browser depth and export contract checks passed");
+

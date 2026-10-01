@@ -19,8 +19,6 @@
   var ESRI_STYLE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json";
   var ESRI_VECTOR_TILES = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf";
   var TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejson.json";
-  var BUILDINGS_3D_URL = TOWN_CONFIG?.structures?.buildings3dPath ? new URL(TOWN_CONFIG.structures.buildings3dPath, APP_BASE).href : "";
-  var MUNICIPAL_BOUNDARY_3D_URL = TOWN_CONFIG?.boundary?.boundaryUrl ? new URL(TOWN_CONFIG.boundary.boundaryUrl, APP_BASE).href : "";
 
   var glMap = null;
   var glMapPromise = null;
@@ -662,6 +660,20 @@
       : altitudeMeters <= BUILDING_MAX_CAMERA_ALTITUDE_METERS;
   }
 
+  function focusEnabledBuildings3d() {
+    if (!glMap || !layerVisible("buildingsToggle", false) || glMap.getPitch() <= 10 || cameraIsWithinBuildingRange()) return;
+    var altitudeMeters = cameraAltitudeAboveTerrainMeters();
+    var targetZoom = altitudeMeters === null
+      ? Math.max(glMap.getZoom(), BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM)
+      : glMap.getZoom() + Math.log2(altitudeMeters / (BUILDING_MAX_CAMERA_ALTITUDE_METERS * 0.85));
+    // An explicit Buildings/3D selection should show the requested walls.
+    // Lower the camera once, keeping the user's center and bearing. Manual
+    // zooming afterwards still uses the existing 1,000 m visibility cutoff.
+    // Leaflet mirrors whole zoom levels; rounding up prevents a mobile panel
+    // resize from snapping the camera back above the visibility cutoff.
+    glMap.jumpTo({ zoom: Math.min(MAP_MAX_ZOOM, Math.ceil(targetZoom)) });
+  }
+
   function syncFloodPresentationMode() {
     if (!glMap || !glStyleReady) return;
     var pitched = glMap.getPitch() > 10;
@@ -1109,11 +1121,16 @@
   async function loadBuildingData() {
     if (buildingData) return buildingData;
     if (!buildingDataPromise) {
+      // This script loads before applyTownConfig. Resolve the asset paths when
+      // loading starts, after the town settings are available, instead of
+      // permanently capturing empty URLs during script initialization.
+      var BUILDINGS_3D_URL = TOWN_CONFIG?.structures?.buildings3dPath ? new URL(TOWN_CONFIG.structures.buildings3dPath, APP_BASE).href : "";
+      var MUNICIPAL_BOUNDARY_3D_URL = TOWN_CONFIG?.boundary?.boundaryUrl ? new URL(TOWN_CONFIG.boundary.boundaryUrl, APP_BASE).href : "";
       buildingDataPromise = Promise.all([
         BUILDINGS_3D_URL ? fetch(BUILDINGS_3D_URL, { cache: "force-cache" }).then(function (response) {
           if (!response.ok) throw new Error("The configured 3D building asset could not be loaded.");
           return response.json();
-        }).catch(function () { return { type: "FeatureCollection", features: [] }; }) : Promise.resolve({ type: "FeatureCollection", features: [] }),
+        }) : Promise.resolve({ type: "FeatureCollection", features: [] }),
         MUNICIPAL_BOUNDARY_3D_URL ? fetch(MUNICIPAL_BOUNDARY_3D_URL, { cache: "force-cache" }).then(function (response) {
           if (!response.ok) throw new Error("The municipal boundary could not be loaded for 3D clipping.");
           return response.json();
@@ -1773,6 +1790,7 @@
       if (desired3dMode && glMap && Number.isFinite(pendingBearing)) {
         glMap.jumpTo({ bearing: pendingBearing });
       }
+      sync3dViewToLeaflet();
       syncPersistentNavControl();
       updateDiagnostics();
     }
@@ -1794,6 +1812,7 @@
       // Apply the user's requested view in one update instead of animating
       // through intermediate pitches and rebuilding terrain on every frame.
       glMap.jumpTo(camera);
+      if (desired3dMode) focusEnabledBuildings3d();
       syncFloodPresentationMode();
       if (modeTransitionTimer) window.clearTimeout(modeTransitionTimer);
       modeTransitionTimer = window.setTimeout(finishModeTransition, 120);
@@ -1979,6 +1998,7 @@
       updateMapClickModeControl();
       toast("");
       await syncBuildings3d();
+      if (shouldEnable) focusEnabledBuildings3d();
       suspendLeafletVisualLayers();
       return;
     }
