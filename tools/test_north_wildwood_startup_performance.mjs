@@ -29,6 +29,7 @@ assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
   "./assets/3d/north-wildwood-3d.js?v=20261001-building-config",
+  "./assets/road-impacts.js?v=20261001-road-impacts",
   "assets/avalon-mobile.js?v=20260923-2",
 ]);
 
@@ -125,4 +126,3 @@ console.log("North Wildwood startup performance checks passed");
 assert.match(source, /GIF_WORKER_CDN_URL = "https:\/\/cdn\.jsdelivr\.net\/npm\/gif\.js\.optimized@1\.0\.1\/dist\/gif\.worker\.js"/);
 assert.match(source, /function createStreamingGifEncoder\(/);
 assert.doesNotMatch(source, /loadOptionalScript\("gif"/);
-
