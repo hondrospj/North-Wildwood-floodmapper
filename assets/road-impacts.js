@@ -4,6 +4,7 @@
   const EMPTY = { type: "FeatureCollection", features: [] };
   const COLOR = "#ef4444";
   const ROAD_STEP_METERS = 5;
+  const MIN_DEPTH_FT = 0.5;
   let enabled = false;
   let revision = 0;
   let dataVersion = 0;
@@ -109,15 +110,20 @@
     if (enabled) setStatus("Updating road impacts…");
   }
 
-  function wetSampler(image, layer) {
+  function readRaster(image) {
     const canvas = document.createElement("canvas");
     canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
     const context = canvas.getContext("2d", { willReadFrequently: true });
     context.drawImage(image, 0, 0);
     const values = context.getImageData(0, 0, canvas.width, canvas.height).data;
     const width = canvas.width, height = canvas.height;
-    const bounds = layer.getBounds?.() || floodLatLngBounds;
     canvas.width = canvas.height = 0;
+    return { values, width, height };
+  }
+
+  function wetSampler(image, layer) {
+    const { values, width, height } = readRaster(image);
+    const bounds = layer.getBounds?.() || floodLatLngBounds;
     return coordinate => {
       const lat = coordinate[1], lon = coordinate[0];
       const pixel = layer._worldFileAffine
@@ -129,10 +135,40 @@
     };
   }
 
+  async function depthSampler(entry, stage, phase) {
+    // Match the data used by renderHour; Flood Stages uses the routed stage model.
+    const asset = currentOverlayMode === "depth" ? getPhysicsAssetForEntry(entry) : null;
+    if (asset) {
+      const bounds = getActivePhysicsManifest()?.boundsWgs84;
+      if (!asset.query?.url || !Array.isArray(bounds) || bounds.length !== 2) throw new Error("Road water depths are unavailable.");
+      const [[south, west], [north, east]] = bounds;
+      if (![south, west, north, east].every(Number.isFinite) || north <= south || east <= west) throw new Error("Road water-depth bounds are invalid.");
+      const { values, width, height } = readRaster(await preloadPhysicsQueryImage(asset.query));
+      return coordinate => {
+        const x = Math.floor((coordinate[0] - west) / (east - west) * width);
+        const y = Math.floor((north - coordinate[1]) / (north - south) * height);
+        if (x < 0 || y < 0 || x >= width || y >= height) return false;
+        const offset = (y * width + x) * 4;
+        const depthM = (values[offset] * 256 + values[offset + 1]) / 1000;
+        return values[offset + 2] === 1 && depthM > MIN_DEPTH_FT * 0.3048;
+      };
+    }
+    if (!await getDepthQueryGrid()) throw new Error("Road water depths are unavailable.");
+    return async coordinate => {
+      const sample = await sampleDepthModel(coordinate[1], coordinate[0]);
+      const depthFt = getDepthQueryDisplayDepth(sample, stage, { flooded: true }, phase);
+      // Tolerance excludes an exact half foot after floating-point subtraction.
+      return Number.isFinite(depthFt) && depthFt > MIN_DEPTH_FT + 1e-9;
+    };
+  }
+
   async function refresh() {
     if (!enabled) return;
     const request = ++revision;
     const frameToken = lastRenderToken;
+    const entry = currentSeriesHours[currentHourIndex];
+    const stage = getSelectedStageNavd88();
+    const phase = getHydraulicPhaseForEntry(entry, currentHourIndex, currentSeriesHours);
     const layer = currentFloodLayer;
     const image = layer?.getElement?.();
     if (floodFrameState !== "ready" || !image?.complete || !image.naturalWidth) {
@@ -146,6 +182,8 @@
       const roads = await loadRoads();
       if (!enabled || request !== revision || frameToken !== lastRenderToken) return;
       const isWet = wetSampler(image, layer);
+      const exceedsDepth = await depthSampler(entry, stage, phase);
+      if (!enabled || request !== revision || frameToken !== lastRenderToken) return;
       const features = [];
       for (let roadIndex = 0; roadIndex < roads.length; roadIndex += 1) {
         if (roadIndex % 30 === 0) {
@@ -161,14 +199,14 @@
         for (let index = 1; index < road.coordinates.length; index += 1) {
           const a = road.coordinates[index - 1], b = road.coordinates[index];
           const midpoint = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-          if (isWet(midpoint)) { if (!run.length) run.push(a); run.push(b); }
+          if (isWet(midpoint) && await exceedsDepth(midpoint)) { if (!run.length) run.push(a); run.push(b); }
           else finish();
         }
         finish();
       }
       if (!enabled || request !== revision || frameToken !== lastRenderToken) return;
       publishData({ type: "FeatureCollection", features });
-      setStatus(features.length ? "Modeled flooded road sections" : "No modeled road flooding at this time.");
+      setStatus(features.length ? "Modeled road water depth > 0.5 ft" : "No road sections above 0.5 ft at this time.");
       document.body.dataset.roadImpactsState = "ready";
     } catch (error) {
       if (!enabled || request !== revision) return;

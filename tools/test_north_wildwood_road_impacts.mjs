@@ -4,10 +4,13 @@ import vm from 'node:vm';
 
 const source=fs.readFileSync(new URL('../assets/road-impacts.js',import.meta.url),'utf8');
 const roads={type:'FeatureCollection',features:[{type:'Feature',properties:{name:'Test Road'},geometry:{type:'LineString',coordinates:[[0,.5],[.001,.5]]}}]};
-function fixture(fetchResponse){
+function fixture(fetchResponse,{physics=false}={}){
   const values=new Uint8ClampedArray(20*4);
   for(let x=5;x<16;x++)values.set([27,183,245,255],x*4);
   values.set([99,212,113,255],10*4); // Disconnected/uncertain land is not flooding.
+  const depths=new Array(20).fill(.75);
+  const physicsValues=new Uint8ClampedArray(20*4);
+  for(let x=0;x<20;x++)physicsValues.set([0,229,1,255],x*4);
   const layers=new Set(),panes=new Map(),elements=new Map();
   const classSet=new Set();
   const element=()=>({classList:{toggle:()=>{}},setAttribute(){},addEventListener(name,handler){this[name]=handler;},hidden:true});
@@ -16,6 +19,7 @@ function fixture(fetchResponse){
   const map={hasLayer:layer=>layers.has(layer),removeLayer:layer=>layers.delete(layer),getPane:name=>panes.get(name),createPane:name=>panes.set(name,{style:{}})};
   const bounds={getWest:()=>0,getEast:()=>.001,getSouth:()=>0,getNorth:()=>1};
   const image={complete:true,naturalWidth:20,naturalHeight:1};
+  const physicsImage={...image,values:physicsValues};
   const frame={getElement:()=>image,getBounds:()=>bounds};
   let leaf;
   const glSources=new Map(),glLayers=new Map();
@@ -23,7 +27,17 @@ function fixture(fetchResponse){
   let fetchCount=0;
   const ctx={URL,console,Uint8ClampedArray,APP_BASE:new URL('https://example.test/north-wildwood/'),map,
     currentFloodLayer:frame,floodFrameState:'ready',lastRenderToken:1,floodLatLngBounds:bounds,
-    document:{body:{dataset:{},classList:{contains:name=>classSet.has(name)}},getElementById:id=>elements.get(id),createElement:()=>({width:0,height:0,getContext:()=>({drawImage(){},getImageData:()=>({data:values})})})},
+    currentSeriesHours:[{stage:2}],currentHourIndex:0,currentOverlayMode:'depth',
+    getSelectedStageNavd88:()=>2,getHydraulicPhaseForEntry:()=> 'filling',
+    getPhysicsAssetForEntry:()=>physics?{query:{url:'https://example.test/query.png'}}:null,
+    getActivePhysicsManifest:()=>({boundsWgs84:[[0,0],[1,.001]]}),
+    preloadPhysicsQueryImage:async()=>physicsImage,getDepthQueryGrid:async()=>({}),
+    sampleDepthModel:async(lat,lon)=>({depthFt:depths[Math.floor(lon/.001*20)]}),
+    getDepthQueryDisplayDepth(sample,stage,renderedFlood,phase){assert.equal(stage,2);assert.equal(phase,'filling');assert.equal(renderedFlood.flooded,true);return sample?.depthFt;},
+    document:{body:{dataset:{},classList:{contains:name=>classSet.has(name)}},getElementById:id=>elements.get(id),createElement:()=>{
+      let raster=values;
+      return {width:0,height:0,getContext:()=>({drawImage(image){raster=image.values||values;},getImageData:()=>({data:raster})})};
+    }},
     fetch:async()=>{fetchCount++;return fetchResponse?fetchResponse(fetchCount):{ok:true,json:async()=>roads};},
     requestAnimationFrame:callback=>setTimeout(callback,0),
     MutationObserver:class{constructor(callback){observer=callback;}observe(){}},
@@ -34,7 +48,7 @@ function fixture(fetchResponse){
     async renderHour(){ctx.lastRenderToken++;ctx.clearFloodLayer();values.fill(0);ctx.currentFloodLayer=frame;ctx.floodFrameState='ready';}
   };
   vm.createContext(ctx);vm.runInContext(source,ctx);
-  return {ctx,api:ctx.window.NORTH_WILDWOOD_ROAD_IMPACTS,fetchCount:()=>fetchCount,leaf:()=>leaf,elements,
+  return {ctx,api:ctx.window.NORTH_WILDWOOD_ROAD_IMPACTS,fetchCount:()=>fetchCount,leaf:()=>leaf,elements,depths,physicsValues,
     activateGl(){classSet.add('map-3d-ready');observer();},glSources,glLayers};
 }
 
@@ -59,6 +73,44 @@ assert.equal(test.api.state().sections,0,'A dry replacement flood frame must rem
 test.ctx.clearFloodLayer();
 assert.equal(test.glSources.get('nw-road-impacts-source').data.features.length,0);
 
+const threshold=fixture();
+threshold.depths.fill(.49);
+await threshold.api.setEnabled(true);
+assert.equal(threshold.api.state().sections,0,'Water below half a foot must be excluded');
+threshold.depths.fill(.5);
+await threshold.api.refresh();
+assert.equal(threshold.api.state().sections,0,'Water at exactly half a foot must be excluded');
+threshold.depths.fill(.5000000000000002);
+await threshold.api.refresh();
+assert.equal(threshold.api.state().sections,0,'Floating-point subtraction must not include exactly half a foot');
+threshold.depths.fill(.5001);
+await threshold.api.refresh();
+assert.equal(threshold.api.state().sections,2,'Water above half a foot must be included, still split around disconnected land');
+assert.match(threshold.elements.get('roadImpactsStatus').textContent,/> 0\.5 ft/);
+
+const physics=fixture(null,{physics:true});
+for(let x=0;x<20;x++)physics.physicsValues.set([0,152,1,255],x*4);
+await physics.api.setEnabled(true);
+assert.equal(physics.api.state().sections,0,'152 mm is below half a foot');
+for(let x=0;x<20;x++)physics.physicsValues.set([0,153,1,255],x*4);
+await physics.api.refresh();
+assert.equal(physics.api.state().sections,2,'153 mm is above half a foot');
+for(let x=0;x<20;x++)physics.physicsValues[x*4+2]=0;
+await physics.api.refresh();
+assert.equal(physics.api.state().sections,0,'A physics query cell must also be wet');
+physics.ctx.currentOverlayMode='dynamic';
+physics.depths.fill(.5);
+await physics.api.refresh();
+assert.equal(physics.api.state().sections,0,'Flood Stages must use the routed depth model rather than the physics query');
+physics.depths.fill(.5001);
+await physics.api.refresh();
+assert.equal(physics.api.state().sections,2);
+
+const unavailable=fixture();
+unavailable.ctx.getDepthQueryGrid=async()=>null;
+await unavailable.api.setEnabled(true);
+assert.equal(unavailable.ctx.document.body.dataset.roadImpactsState,'failed','Missing depth data must not fall back to highlighting every wet road');
+
 let release;
 const pending=fixture(()=>new Promise(resolve=>{release=resolve;}));
 const enable=pending.api.setEnabled(true);
@@ -73,4 +125,4 @@ assert.equal(retry.ctx.document.body.dataset.roadImpactsState,'failed');
 await retry.api.setEnabled(true);
 assert.equal(retry.fetchCount(),2);
 assert.equal(retry.api.state().sections,2);
-console.log('Road Impacts lazy loading, flood mask, Leaflet/3D visibility, keyboard, frame replacement, cancellation, and retry checks passed');
+console.log('Road Impacts strict half-foot cutoff, physics/routed depths, lazy loading, flood mask, Leaflet/3D visibility, keyboard, frame replacement, cancellation, and retry checks passed');

@@ -14903,7 +14903,7 @@ html.win-compact-ui #timelineDock #hourSlider{
               </div>
             </div>
             <div class="layer-item">
-              <div id="roadImpactsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show road impacts" title="Highlight modeled flooding on roads at the selected time"></div>
+              <div id="roadImpactsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show road impacts" title="Highlight roads with more than 0.5 ft of modeled water at the selected time"></div>
               <div class="layer-meta">
                 <div class="layer-name">Road Impacts</div>
               </div>
@@ -14927,7 +14927,7 @@ html.win-compact-ui #timelineDock #hourSlider{
               </div>
             </div>
           </div>
-          <div id="roadImpactsKey" hidden><span class="road-impacts-swatch" aria-hidden="true"></span><span id="roadImpactsStatus" role="status">Modeled flooded road sections</span></div>
+          <div id="roadImpactsKey" hidden><span class="road-impacts-swatch" aria-hidden="true"></span><span id="roadImpactsStatus" role="status">Modeled road water depth > 0.5 ft</span></div>
         </section>
 
         <section class="rail-card top-tides-card">
@@ -36785,7 +36785,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 </script>
 
 <script src="./assets/3d/north-wildwood-3d.js?v=20261001-building-config"></script>
-<script src="./assets/road-impacts.js?v=20261001-road-impacts"></script>
+<script src="./assets/road-impacts.js?v=20261001-road-impacts-half-foot"></script>
 <style id="north-wildwood-road-impacts">
   html body:not(.mobile-optimized) #rightRail > section.rail-card.layers-card,
   html body.mobile-optimized #mobileRailMount > section.rail-card.layers-card{height:auto !important;max-height:none !important}
