@@ -14927,7 +14927,6 @@ html.win-compact-ui #timelineDock #hourSlider{
               </div>
             </div>
           </div>
-          <div id="roadImpactsKey" hidden><span class="road-impacts-swatch" aria-hidden="true"></span><span id="roadImpactsStatus" role="status">Modeled road water depth > 0.5 ft</span></div>
         </section>
 
         <section class="rail-card top-tides-card">
@@ -14990,6 +14989,12 @@ html.win-compact-ui #timelineDock #hourSlider{
           <span class="timeline-key-item"><span class="timeline-key-swatch minor-flood" aria-hidden="true"></span><span class="timeline-key-label">Minor</span></span>
           <span class="timeline-key-item"><span class="timeline-key-swatch moderate-flood" aria-hidden="true"></span><span class="timeline-key-label">Moderate</span></span>
           <span class="timeline-key-item"><span class="timeline-key-swatch major-flood" aria-hidden="true"></span><span class="timeline-key-label">Major</span></span>
+          <div id="roadImpactsKey" hidden aria-label="Road Impacts: modeled water depth greater than 0.5 feet">
+            <span class="road-impacts-swatch" aria-hidden="true"></span>
+            <span class="road-impacts-label">Road Impacts: water &gt; 0.5 ft</span>
+            <span class="road-impacts-label-mobile">Roads &gt; 0.5 ft</span>
+            <span id="roadImpactsStatus" class="road-impacts-status" role="status">Modeled road water depth &gt; 0.5 ft</span>
+          </div>
         </div>
         <div id="timelineDayTabs" class="timeline-days"></div>
         <div class="timeline-trackRow">
@@ -36789,9 +36794,21 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 <style id="north-wildwood-road-impacts">
   html body:not(.mobile-optimized) #rightRail > section.rail-card.layers-card,
   html body.mobile-optimized #mobileRailMount > section.rail-card.layers-card{height:auto !important;max-height:none !important}
-  #roadImpactsKey{display:flex;align-items:center;gap:6px;margin-top:8px;color:#cbd5e1;font-size:12px;line-height:1.3}
-  #roadImpactsKey[hidden]{display:none !important}
+  #timelineFloodKey #roadImpactsKey{display:inline-flex;align-items:center;gap:6px;margin:0;color:#eaf0ff;font-size:11.5px;line-height:1;white-space:nowrap}
+  #timelineFloodKey #roadImpactsKey[hidden]{display:none !important}
   .road-impacts-swatch{width:18px;height:4px;flex:0 0 18px;border-radius:2px;background:#ef4444;box-shadow:0 0 0 1px #ffffff}
+  .road-impacts-label-mobile{display:none}
+  .road-impacts-status{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+  @layer shorelysafe-unified {
+  html body.mobile-optimized[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey{display:flex !important;gap:clamp(2px,.8vw,4px) !important}
+  html body.mobile-optimized[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey .timeline-key-item,
+  html body.mobile-optimized[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey .timeline-key-label,
+  html body.mobile-optimized #timelineDock #timelineFloodKey #roadImpactsKey{font-size:clamp(8px,2.2vw,9px) !important;gap:3px !important}
+  }
+  html body.mobile-optimized #timelineDock #timelineFloodKey #roadImpactsKey .road-impacts-swatch{width:12px;flex-basis:12px;height:3px}
+  html body.mobile-optimized #roadImpactsKey .road-impacts-label{display:none}
+  html body.mobile-optimized #roadImpactsKey .road-impacts-label-mobile{display:inline}
+
 </style>
 <script defer src="./assets/modal-focus.js?v=20260925-drawer-focus"></script>
 <script>
