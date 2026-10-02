@@ -244,8 +244,12 @@
     return result;
   };
   new MutationObserver(syncLayers).observe(document.body, { attributes: true, attributeFilter: ["class"] });
-  document.body.dataset.roadImpactsEnabled = "false";
-  document.body.dataset.roadImpactsState = "disabled";
+  // Reset the toggle, key, and overlays together on every fresh load.
+  setEnabled(false);
+  window.addEventListener("pageshow", event => {
+    // Back/forward navigation can restore an already-enabled page from memory.
+    if (event.persisted) setEnabled(false);
+  });
   window.NORTH_WILDWOOD_ROAD_IMPACTS = {
     setEnabled, refresh,
     state: () => ({ enabled, sections: renderedData.features.length, data: renderedData })

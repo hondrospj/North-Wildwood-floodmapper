@@ -36824,7 +36824,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 </script>
 
 <script src="./assets/3d/north-wildwood-3d.js?v=20261001-building-config&roads=20261002-soft-gray"></script>
-<script src="./assets/road-impacts.js?v=20261001-road-impacts-half-foot"></script>
+<script src="./assets/road-impacts.js?v=20261002-road-impacts-default-off"></script>
 <style id="north-wildwood-road-impacts">
   html body:not(.mobile-optimized) #rightRail > section.rail-card.layers-card,
   html body.mobile-optimized #mobileRailMount > section.rail-card.layers-card{height:auto !important;max-height:none !important}
@@ -36834,6 +36834,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
   .road-impacts-label-mobile{display:none}
   .road-impacts-status{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
   @layer shorelysafe-unified {
+  html body #timelineDock #roadImpactsKey[hidden]{display:none !important}
   html body.mobile-optimized[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey{display:flex !important;gap:clamp(2px,.8vw,4px) !important}
   html body.mobile-optimized[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey .timeline-key-item,
   html body.mobile-optimized[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey .timeline-key-label,

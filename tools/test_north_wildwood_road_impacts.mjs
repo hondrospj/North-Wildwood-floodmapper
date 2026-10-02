@@ -4,7 +4,7 @@ import vm from 'node:vm';
 
 const source=fs.readFileSync(new URL('../assets/road-impacts.js',import.meta.url),'utf8');
 const roads={type:'FeatureCollection',features:[{type:'Feature',properties:{name:'Test Road'},geometry:{type:'LineString',coordinates:[[0,.5],[.001,.5]]}}]};
-function fixture(fetchResponse,{physics=false}={}){
+function fixture(fetchResponse,{physics=false,restoredUi=false}={}){
   const values=new Uint8ClampedArray(20*4);
   for(let x=5;x<16;x++)values.set([27,183,245,255],x*4);
   values.set([99,212,113,255],10*4); // Disconnected/uncertain land is not flooding.
@@ -13,8 +13,14 @@ function fixture(fetchResponse,{physics=false}={}){
   for(let x=0;x<20;x++)physicsValues.set([0,229,1,255],x*4);
   const layers=new Set(),panes=new Map(),elements=new Map();
   const classSet=new Set();
-  const element=()=>({classList:{toggle:()=>{}},setAttribute(){},addEventListener(name,handler){this[name]=handler;},hidden:true});
+  const element=()=>{
+    const classes=new Set(),attributes=new Map();
+    return {classList:{toggle(name,on){if(on)classes.add(name);else classes.delete(name);},contains:name=>classes.has(name)},
+      setAttribute(name,value){attributes.set(name,value);},getAttribute:name=>attributes.get(name),
+      addEventListener(name,handler){this[name]=handler;},hidden:true};
+  };
   for(const id of ['roadImpactsToggle','roadImpactsStatus','roadImpactsKey'])elements.set(id,element());
+  if(restoredUi){elements.get('roadImpactsToggle').classList.toggle('on',true);elements.get('roadImpactsToggle').setAttribute('aria-checked','true');elements.get('roadImpactsKey').hidden=false;}
   let observer;
   const map={hasLayer:layer=>layers.has(layer),removeLayer:layer=>layers.delete(layer),getPane:name=>panes.get(name),createPane:name=>panes.set(name,{style:{}})};
   const bounds={getWest:()=>0,getEast:()=>.001,getSouth:()=>0,getNorth:()=>1};
@@ -42,7 +48,7 @@ function fixture(fetchResponse,{physics=false}={}){
     requestAnimationFrame:callback=>setTimeout(callback,0),
     MutationObserver:class{constructor(callback){observer=callback;}observe(){}},
     L:{canvas:()=>({}),geoJSON(data){leaf={data,clearLayers(){this.data={type:'FeatureCollection',features:[]};},addData(data){this.data=data;},addTo(){layers.add(this);return this;}};return leaf;}},
-    window:{NORTH_WILDWOOD_3D:{getMap:()=>gl}},
+    window:{NORTH_WILDWOOD_3D:{getMap:()=>gl},addEventListener(name,handler){this[name]=handler;}},
     isWetRasterPixel:(v,o)=>v[o+3]>0&&!(v[o]===99&&v[o+1]===212&&v[o+2]===113),
     clearFloodLayer(){ctx.currentFloodLayer=null;ctx.floodFrameState='unavailable';},
     async renderHour(){ctx.lastRenderToken++;ctx.clearFloodLayer();values.fill(0);ctx.currentFloodLayer=frame;ctx.floodFrameState='ready';}
@@ -54,6 +60,15 @@ function fixture(fetchResponse,{physics=false}={}){
 
 const test=fixture();
 assert.equal(test.fetchCount(),0,'Disabled Road Impacts must not fetch road data at startup');
+assert.equal(test.api.state().enabled,false);
+assert.equal(test.elements.get('roadImpactsToggle').getAttribute('aria-checked'),'false');
+assert.equal(test.elements.get('roadImpactsToggle').classList.contains('on'),false);
+assert.equal(test.elements.get('roadImpactsKey').hidden,true);
+const restoredUi=fixture(null,{restoredUi:true});
+assert.equal(restoredUi.fetchCount(),0,'Resetting restored controls must not load road data');
+assert.equal(restoredUi.elements.get('roadImpactsToggle').getAttribute('aria-checked'),'false');
+assert.equal(restoredUi.elements.get('roadImpactsToggle').classList.contains('on'),false);
+assert.equal(restoredUi.elements.get('roadImpactsKey').hidden,true,'Startup must hide a restored visible key');
 await test.api.setEnabled(true);
 assert.equal(test.fetchCount(),1);
 assert.equal(test.api.state().sections,2,'Wet runs should split around disconnected land');
@@ -61,6 +76,14 @@ assert.equal(test.leaf().data.features.length,2,'The first Leaflet update must c
 test.activateGl();
 assert.equal(test.glLayers.get('nw-road-impacts').layout.visibility,'visible');
 assert.equal(test.glSources.get('nw-road-impacts-source').data.features.length,2);
+test.ctx.window.pageshow({persisted:false});
+assert.equal(test.api.state().enabled,true,'The initial pageshow event must preserve a user action made during loading');
+test.ctx.window.pageshow({persisted:true});
+assert.equal(test.api.state().enabled,false,'Restoring a page from browser memory must turn Road Impacts off');
+assert.equal(test.api.state().sections,0);
+assert.equal(test.elements.get('roadImpactsKey').hidden,true);
+assert.equal(test.glLayers.get('nw-road-impacts').layout.visibility,'none');
+await test.api.setEnabled(true);
 let prevented=false;
 test.elements.get('roadImpactsToggle').keydown({key:' ',preventDefault(){prevented=true;}});
 assert.ok(prevented);
@@ -125,4 +148,4 @@ assert.equal(retry.ctx.document.body.dataset.roadImpactsState,'failed');
 await retry.api.setEnabled(true);
 assert.equal(retry.fetchCount(),2);
 assert.equal(retry.api.state().sections,2);
-console.log('Road Impacts strict half-foot cutoff, physics/routed depths, lazy loading, flood mask, Leaflet/3D visibility, keyboard, frame replacement, cancellation, and retry checks passed');
+console.log('Road Impacts default-off startup/restoration, strict half-foot cutoff, physics/routed depths, lazy loading, flood mask, Leaflet/3D visibility, keyboard, frame replacement, cancellation, and retry checks passed');
