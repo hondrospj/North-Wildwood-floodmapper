@@ -1,6 +1,6 @@
 
 <!doctype html>
-<html lang="en" data-nww-avalon-timeline>
+<html lang="en" data-nww-avalon-timeline data-nww-mobile-layout>
 <head>
 <!-- Keep optional work outside the initial flood-map loading path. -->
 <link rel="preconnect" href="https://unpkg.com" crossorigin>
@@ -14686,6 +14686,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     #gifSpeedField[hidden]{display:none !important}
   </style>
   <link rel="stylesheet" href="./assets/map-status.css" />
+<link rel="stylesheet" href="assets/north-wildwood-mobile.css?v=20261003-1">
 </head>
 <body>
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
@@ -28323,6 +28324,7 @@ function startPlayback() {
     let mapperTutorialResizeHandler = null;
 
     function getVisibleTutorialTarget(selector) {
+      document.dispatchEvent(new CustomEvent("nww:reveal-control", {detail:selector}));
       return Array.from(document.querySelectorAll(selector)).find(element => {
         const rect = element.getBoundingClientRect();
         const style = getComputedStyle(element);
@@ -39153,7 +39155,8 @@ html body #mapTitleBadge #mapTitleLogo{
       ["flex","min-height","height","max-height","width","min-width","max-width","margin","padding","border-radius","overflow"].forEach(function(prop){
         legend.style.removeProperty(prop);
       });
-      if (legend.parentElement !== mapWrap) mapWrap.appendChild(legend);
+      const legendHost = document.documentElement.hasAttribute("data-nww-mobile-layout") ? document.body : mapWrap;
+      if (legend.parentElement !== legendHost) legendHost.appendChild(legend);
     } else if (legend.parentElement !== leftPanel) {
       leftPanel.appendChild(legend);
     }
@@ -41134,6 +41137,17 @@ html body #mapTitleBadge #mapTitleLogo{
       restore(document.getElementById('mobileControlsClose'));
       lastCompact = compact;
     }
+    // Mobile geometry is owned by north-wildwood-mobile.css; retain this fitter for desktop.
+    if (compact && document.documentElement.hasAttribute('data-nww-mobile-layout')) {
+      if (switched) {
+        // Restoring desktop-owned styles can bring back stale pixel coordinates.
+        for (const element of [title, legend, left, document.getElementById('mapTitleText')]) {
+          if (!element) continue;
+          for (const property of ['inset','top','right','bottom','left','width','min-width','max-width','height','min-height','max-height','transform','font-size','padding','overflow','overflow-y','display']) element.style.removeProperty(property);
+        }
+      }
+      return;
+    }
     if (compact) {
       fitShortLandscapeNavigation(shortLandscape);
       // Reset desktop title coordinates retained by older mapper title fitters.
@@ -41467,5 +41481,6 @@ html body #mapTitleBadge #mapTitleLogo{
     border-radius:18px !important;
   }
 </style>
+<script src="assets/north-wildwood-mobile.js?v=20261003-1"></script>
 </body>
 </html>
