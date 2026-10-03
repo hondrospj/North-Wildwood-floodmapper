@@ -13,6 +13,8 @@ function context(names, stubs = {}) {
     Uint8Array, Uint8ClampedArray, MIN_STAGE:-4, MIN_DEPTH_STAGE:0, MAX_STAGE:20, STAGE_STEP:0.1,
     MINOR_FLOOD_FT:3.25, MODERATE_FLOOD_FT:4.25, MAJOR_FLOOD_FT:5.25,
     MINOR_VERTICAL_PENALTY_FT:0.75, MODERATE_VERTICAL_PENALTY_FT:0.25, MAJOR_VERTICAL_PENALTY_FT:0,
+    // Object-URL ownership and cache eviction have a separate raster lifetime suite.
+    retainRasterObjectUrl:()=>()=>{}, scheduleRasterObjectUrlCleanup(){}, RASTER_IMAGE_CACHE_LIMIT:4,
     TOWN_CONFIG:{overlays:{}},
     ...stubs});
   for (const name of [...new Set(["normalizeStageValue", ...names])]) vm.runInContext(extract(name), ctx);
