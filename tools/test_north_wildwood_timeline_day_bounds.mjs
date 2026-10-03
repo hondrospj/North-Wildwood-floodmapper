@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const nyDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 const sameDay=(a,b)=>nyDay.format(new Date(a.timeUtc))===nyDay.format(new Date(b.timeUtc));
-const context=vm.createContext({currentSeriesHours:[],currentHourIndex:0,mobile:true,
+const context=vm.createContext({currentSeriesHours:[],currentHourIndex:0,mobile:true,timelineBoundsCache:null,
  isMobileTimeline:()=>context.mobile,sameEntryESTDay:sameDay,
  getStageValue:e=>e?.level??1,getTimelineHourColor:e=>e.color||'green'});
 for(const name of ['getTimelineSliderBounds','buildTimelineGroupGradient']) {

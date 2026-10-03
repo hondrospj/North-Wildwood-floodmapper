@@ -14686,7 +14686,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     #gifSpeedField[hidden]{display:none !important}
   </style>
   <link rel="stylesheet" href="./assets/map-status.css" />
-<link rel="stylesheet" href="assets/north-wildwood-mobile.css?v=20261003-slider">
+<link rel="stylesheet" href="assets/north-wildwood-mobile.css?v=20261003-slider2">
 </head>
 <body>
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
@@ -15047,13 +15047,13 @@ html.win-compact-ui #timelineDock #hourSlider{
             <span id="roadImpactsStatus" class="road-impacts-status" role="status">Modeled road water depth &gt; 0.5 ft</span>
           </div>
         </div>
-        <div id="timelineDayTabs" class="timeline-days"></div>
+        <button id="timelineStepBack" class="timeline-step" type="button" aria-label="Previous time" disabled>−1h</button>
+        <button id="timelineStepForward" class="timeline-step" type="button" aria-label="Next time" disabled>+1h</button>
+        <div id="timelineDayTabs" class="timeline-days" aria-label="Available days"></div>
         <div class="timeline-trackRow">
           <div id="timelineStart" class="timeline-end">--</div>
           <div id="pjBlueSliderExactTrackLine" aria-hidden="true"></div>
-          <button id="timelineStepBack" class="timeline-step" type="button" aria-label="Previous time" disabled>−1h</button>
           <input id="hourSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Flood forecast time" />
-          <button id="timelineStepForward" class="timeline-step" type="button" aria-label="Next time" disabled>+1h</button>
           <div id="timelineEnd" class="timeline-scale">--</div>
         </div>
         <div id="timelineTimeBounds" aria-hidden="true"><span id="timelineFirstTime"></span><span id="timelineMiddleTime"></span><span id="timelineLastTime"></span></div>
@@ -23829,13 +23829,19 @@ function getEntryESTDate(entry) {
     }
 
     function formatTimelineBubbleText(entry) {
-      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak only`;
+      if (entry?.isDailyPeakOnly) return isMobileTimeline() ? "Daily peak only" : `${formatSelectedObservedDate(entry.observedDate)} • Daily peak only`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
       const est = getEntryESTDate(entry);
       if (!est) return "--";
       const parts = getNyParts(est);
       if (!parts) return "--";
+      if (isMobileTimeline()) {
+        const time = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/New_York", hour: "numeric", minute: "2-digit", timeZoneName: "short"
+        }).format(est).replace(":00", "");
+        return `<span class="timeline-sr-date">${formatTimelineDayLabel(entry)} · </span>${time}`;
+      }
       const minuteText = parts.minute === "00" ? "" : `:${parts.minute}`;
       return `${parts.weekday} ${Number(parts.day)} · ${parts.hour}${minuteText} ${parts.dayPeriod || ""}`.replace(/\s+/g, " ").trim();
     }
@@ -23906,6 +23912,42 @@ function getEntryESTDate(entry) {
       fitTextToSingleLine(timeEl, observed ? 17 : 20, 11.5);
     }
 
+    function getTimelineClockMinutes(entry) {
+      if (entry?.isDailyPeakOnly || entry?.topTideDateOnly) return null;
+      if (entry?.returnIntervalYears) return ((Number(entry.offsetHours) * 60 % 1440) + 1440) % 1440;
+      const date = getEntryESTDate(entry);
+      const parts = date && getNyParts(date);
+      if (!parts) return null;
+      const hour = Number(parts.hour) % 12 + (parts.dayPeriod === "PM" ? 12 : 0);
+      return hour * 60 + Number(parts.minute);
+    }
+
+    function getTimelineDaySelection(start, end) {
+      // Compare the same local clock time across days, clamping partial days
+      // to their nearest available sample. Daily maxima keep their own peak.
+      if (currentHourIndex >= start && currentHourIndex <= end) return currentHourIndex;
+      const minute = getTimelineClockMinutes(currentSeriesHours[currentHourIndex]);
+      if (minute == null || !Number.isFinite(minute)) return start;
+      let selected = start, distance = Infinity;
+      for (let index = start; index <= end; index++) {
+        const candidate = getTimelineClockMinutes(currentSeriesHours[index]);
+        if (candidate == null || !Number.isFinite(candidate)) continue;
+        const delta = Math.abs(candidate - minute);
+        if (delta < distance) { selected = index; distance = delta; }
+      }
+      return selected;
+    }
+
+    function revealTimelineDay(button, wrap) {
+      if (!button || !isMobileTimeline()) return;
+      requestAnimationFrame(() => {
+        // Scroll only the day strip, never the map or page.
+        if (button.offsetLeft < wrap.scrollLeft || button.offsetLeft + button.offsetWidth > wrap.scrollLeft + wrap.clientWidth) {
+          wrap.scrollLeft = button.offsetLeft - (wrap.clientWidth - button.offsetWidth) / 2;
+        }
+      });
+    }
+
     let timelineDayCache = null;
     function renderTimelineDays() {
       const wrap = document.getElementById("timelineDayTabs");
@@ -23917,6 +23959,7 @@ function getEntryESTDate(entry) {
           if (button.classList.contains("active") !== active) {
             button.classList.toggle("active", active);
             button.setAttribute("aria-current", String(active));
+            if (active) revealTimelineDay(button, wrap);
           }
         }
         return;
@@ -23956,6 +23999,7 @@ function getEntryESTDate(entry) {
         btn.style.flex = `${Math.max(0.5, lastEdge - firstEdge)} 1 0`;
         const tideGradient = gaugeInoperable ? null : buildTimelineGroupGradient(group.start, group.end, isMobileTimeline());
         if (tideGradient) {
+          btn.style.setProperty("--timeline-day-gradient", tideGradient);
           btn.style.backgroundImage = `linear-gradient(180deg, rgba(10,18,32,.18), rgba(10,18,32,.18)), ${tideGradient}`;
         } else if (gaugeInoperable) {
           btn.style.backgroundImage = "none";
@@ -23966,9 +24010,10 @@ function getEntryESTDate(entry) {
         timelineDayCache.groups.push({button: btn, start: group.start, end: group.end});
         btn.addEventListener("click", () => {
           stopPlayback();
-          renderHour(group.start).catch(err => toast(err.message));
+          renderHour(getTimelineDaySelection(group.start, group.end)).catch(err => toast(err.message));
         });
         wrap.appendChild(btn);
+        if (active) revealTimelineDay(btn, wrap);
       });
     }
 
@@ -25300,6 +25345,7 @@ function formatSelectedObservedDate(dateStr) {
       return window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches;
     }
 
+    let timelineBoundsCache = null;
     function getTimelineSliderBounds() {
       const last = Math.max(0, currentSeriesHours.length - 1);
       const selected = Math.max(0, Math.min(currentHourIndex, last));
@@ -25307,13 +25353,20 @@ function formatSelectedObservedDate(dateStr) {
       // The phone shows one day. Give that day's hours the whole touch track;
       // retain global indices so rendering, playback, and exports stay in sync.
       if (isMobileTimeline() && currentSeriesHours.length) {
-        start = end = selected;
-        while (start > 0 && sameEntryESTDay(currentSeriesHours[start - 1], currentSeriesHours[selected])) start--;
-        while (end < last && sameEntryESTDay(currentSeriesHours[end + 1], currentSeriesHours[selected])) end++;
+        if (timelineBoundsCache?.series === currentSeriesHours && selected >= timelineBoundsCache.start && selected <= timelineBoundsCache.end) {
+          ({start, end} = timelineBoundsCache);
+        } else {
+          start = end = selected;
+          while (start > 0 && sameEntryESTDay(currentSeriesHours[start - 1], currentSeriesHours[selected])) start--;
+          while (end < last && sameEntryESTDay(currentSeriesHours[end + 1], currentSeriesHours[selected])) end++;
+          timelineBoundsCache = {series: currentSeriesHours, start, end};
+        }
       }
       return { start, end, selected };
     }
 
+    const timelineScaleTimeFormatter = new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York", hour:"numeric", minute:"2-digit"});
+    let timelineScaleCache = null;
     function syncSliderBounds() {
       const slider = document.getElementById("hourSlider");
       if (!slider) return;
@@ -25322,18 +25375,19 @@ function formatSelectedObservedDate(dateStr) {
       slider.min = String(start);
       slider.max = String(end);
       slider.value = String(selected);
-      const middle = Math.round((start + end) / 2);
-      for (const [id, index] of [["timelineFirstTime", start], ["timelineMiddleTime", middle], ["timelineLastTime", end]]) {
-        const label = document.getElementById(id);
-        const date = getEntryESTDate(currentSeriesHours[index]);
-        if (label) label.textContent = date
-          ? new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York", hour:"numeric", minute:"2-digit"}).format(date).replace(":00", "")
-          : "";
-      }
-      const midLabel = document.getElementById("timelineMiddleTime");
-      if (midLabel) {
-        midLabel.style.left = `${end > start ? 100 * (middle - start) / (end - start) : 50}%`;
-        midLabel.hidden = end - start < 3;
+      if (timelineScaleCache?.series !== currentSeriesHours || timelineScaleCache.start !== start || timelineScaleCache.end !== end) {
+        const middle = Math.round((start + end) / 2);
+        for (const [id, index] of [["timelineFirstTime", start], ["timelineMiddleTime", middle], ["timelineLastTime", end]]) {
+          const label = document.getElementById(id);
+          const date = getEntryESTDate(currentSeriesHours[index]);
+          if (label) label.textContent = date ? timelineScaleTimeFormatter.format(date).replace(":00", "") : "";
+        }
+        const midLabel = document.getElementById("timelineMiddleTime");
+        if (midLabel) {
+          midLabel.style.left = `${end > start ? 100 * (middle - start) / (end - start) : 50}%`;
+          midLabel.hidden = end - start < 3;
+        }
+        timelineScaleCache = {series: currentSeriesHours, start, end};
       }
       const minutes = getTimelineIntervalMinutes();
       const stepLabel = minutes === 1440 ? "1d" : minutes === 60 ? "1h" : `${minutes}m`;
@@ -28521,8 +28575,7 @@ function startPlayback() {
 
     function wireEvents() {
       window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").addEventListener("change", () => {
-        syncSliderBounds();
-        renderTimelineDays();
+        renderTimelineMeta();
         positionTimelineBubble();
       });
       document.getElementById("topBannerCloseBtn")?.addEventListener("click", clearTopBanner);
