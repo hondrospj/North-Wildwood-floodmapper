@@ -16109,6 +16109,8 @@ function cloneStyleObject(value) {
     let houseAlertCdfPromise = null;
     let parcelLoadPromise = null;
     let nsiStructureLoadPromise = null;
+    let parcelLayerGeneration = 0;
+    let nsiLayerGeneration = 0;
     let nsiStructureRenderer = null;
     let depthQueryGridPromise = null;
     let developedQueryGridPromise = null;
@@ -16128,6 +16130,7 @@ function cloneStyleObject(value) {
     let cityBoundaryMask = null;
     let cityBoundaryGuide = null;
     let townAddressMarker = null;
+    let townAddressSearchGeneration = 0;
     let persistentFloodPopup = null;
     let persistentDepthQueryContext = null;
     let selectedParcelFeature = null;
@@ -25960,25 +25963,12 @@ function populateCalendarSelectors() {
     }
 
     async function switchOverlayMode(mode) {
-      const forceForecastForImpact = mode === "dynamic" && currentDataMode === "observed";
-      if (mode === currentOverlayMode && !forceForecastForImpact) return;
+      if (mode === currentOverlayMode) return;
 
       stopPlayback();
       toast("");
       currentOverlayMode = mode;
       updateModeButtons();
-
-      if (forceForecastForImpact) {
-        currentDataMode = "forecast";
-        currentViewType = "forecast";
-        currentTopTideIndex = null;
-        updateDataModeButtons();
-        clearFloodLayer();
-        await loadForecast();
-        renderTopTides();
-        await renderHour(currentHourIndex);
-        return;
-      }
 
       await renderHour(currentHourIndex);
     }
@@ -26855,6 +26845,7 @@ function startPlayback() {
     }
 
     async function setNsiStructuresEnabled(enabled) {
+      const generation = ++nsiLayerGeneration;
       const shouldEnable = Boolean(enabled);
       const toggle = document.getElementById("nsiStructuresToggle");
       if (toggle) {
@@ -26868,7 +26859,14 @@ function startPlayback() {
         toast("");
         return;
       }
-      const layer = await ensureNsiStructureAssets();
+      let layer;
+      try {
+        layer = await ensureNsiStructureAssets();
+      } catch (error) {
+        if (generation !== nsiLayerGeneration) return;
+        throw error;
+      }
+      if (generation !== nsiLayerGeneration) return;
       updateNsiStructureImpactLayer();
       if (!map.hasLayer(layer)) layer.addTo(map);
       setMapClickMode("building", { closePopup: false });
@@ -26896,19 +26894,28 @@ function startPlayback() {
     }
 
     async function setParcelsEnabled(enabled) {
+      const generation = ++parcelLayerGeneration;
+      const shouldEnable = Boolean(enabled);
       const toggle = document.getElementById("parcelsToggle");
       if (toggle) {
-        toggle.classList.toggle("on", Boolean(enabled));
-        toggle.setAttribute("aria-checked", String(Boolean(enabled)));
+        toggle.classList.toggle("on", shouldEnable);
+        toggle.setAttribute("aria-checked", String(shouldEnable));
       }
       if (!map) ensureMap();
-      if (!enabled) {
+      if (!shouldEnable) {
         if (parcelsLayer && map.hasLayer(parcelsLayer)) map.removeLayer(parcelsLayer);
         updateMapClickModeControl();
         toast("");
         return;
       }
-      const layer = await ensureParcelAssets();
+      let layer;
+      try {
+        layer = await ensureParcelAssets();
+      } catch (error) {
+        if (generation !== parcelLayerGeneration) return;
+        throw error;
+      }
+      if (generation !== parcelLayerGeneration) return;
       if (!map.hasLayer(layer)) layer.addTo(map);
       setMapClickMode("building", { closePopup: false });
       toast("");
@@ -27868,6 +27875,9 @@ function startPlayback() {
     }
 
     function clearTownAddressLookup() {
+      ++townAddressSearchGeneration;
+      const button = document.getElementById("townAddressSearchBtn");
+      if (button) button.disabled = false;
       const input = document.getElementById("townAddressInput");
       if (input) input.value = "";
       setTownAddressStatus("");
@@ -28177,15 +28187,17 @@ function startPlayback() {
     }
 
     async function searchTownAddress(rawValue) {
+      const generation = ++townAddressSearchGeneration;
+      const button = document.getElementById("townAddressSearchBtn");
       const clean = normalizeTownAddressQuery(rawValue);
       const townName = getTownAddressDisplayName();
       if (!clean) {
+        if (button) button.disabled = false;
         setTownAddressStatus(`Enter a ${townName} address or street first.`, "error");
         return;
       }
       if (!map) ensureMap();
 
-      const button = document.getElementById("townAddressSearchBtn");
       if (button) button.disabled = true;
       setTownAddressStatus(`Finding the closest ${townName} match…`);
 
@@ -28194,6 +28206,7 @@ function startPlayback() {
           fetchArcgisTownCandidates(clean),
           fetchNominatimTownCandidates(clean)
         ]);
+        if (generation !== townAddressSearchGeneration) return;
         const candidates = candidateSets.flatMap(result => result.status === "fulfilled" && Array.isArray(result.value) ? result.value : []);
         const match = pickBestTownAddressCandidate(candidates, clean);
         if (!match) {
@@ -28206,13 +28219,16 @@ function startPlayback() {
         let parcelFeature = null;
         try {
           parcelFeature = await findParcelFeatureForLocation(match.lat, match.lon);
+          if (generation !== townAddressSearchGeneration) return;
           if (parcelFeature) {
             await setBuildingsEnabled(true);
           }
         } catch (parcelErr) {
+          if (generation !== townAddressSearchGeneration) return;
           console.warn("House Alert parcel match was unavailable.", parcelErr);
         }
 
+        if (generation !== townAddressSearchGeneration) return;
         if (townAddressMarker && map.hasLayer(townAddressMarker)) {
           townAddressMarker.setLatLng(latLng);
           townAddressMarker.setIcon(getShorelySafeAddressIcon());
@@ -28241,9 +28257,10 @@ function startPlayback() {
         }
         setTownAddressStatus(parcelFeature ? `Building flood profile found: ${label}` : `Closest match: ${label}`, "success");
       } catch (err) {
+        if (generation !== townAddressSearchGeneration) return;
         setTownAddressStatus(err && err.message ? err.message : "Address lookup failed. Please try again.", "error");
       } finally {
-        if (button) button.disabled = false;
+        if (generation === townAddressSearchGeneration && button) button.disabled = false;
       }
     }
 
