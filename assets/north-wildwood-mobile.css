@@ -174,3 +174,53 @@
     html[data-nww-mobile-layout] body.mobile-legend-open #legendDock { right:auto !important; width:min(430px,calc(100vw - 24px)) !important; max-height:calc(100dvh - 80px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important; }
   }
 }
+
+/* Precise time scrubbing keeps the same footprint and desktop palette. */
+@layer shorelysafe-unified {
+  html[data-nww-mobile-layout] body #timelineDock .timeline-step { display:none !important; }
+  html[data-nww-mobile-layout] body #timelineDock #hourSlider:focus-visible { outline:2px solid var(--nw-ui-blue) !important; outline-offset:3px !important; border-radius:8px !important; }
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
+    html[data-nww-mobile-layout] body #timelineDock .timeline-trackRow {
+      display:grid !important; grid-template-columns:44px minmax(0,1fr) 44px !important; align-items:center !important; gap:6px !important;
+    }
+    html[data-nww-mobile-layout] body #timelineDock .timeline-step {
+      position:static !important; display:grid !important; place-items:center !important;
+      width:44px !important; min-width:44px !important; max-width:44px !important;
+      height:44px !important; min-height:44px !important; max-height:44px !important;
+      padding:0 !important; margin:0 !important; border-radius:10px !important;
+      color:var(--text) !important; background:rgba(255,255,255,.05) !important; border:1px solid var(--line) !important;
+      font:700 13px/1 system-ui !important; font-variant-numeric:tabular-nums !important;
+      touch-action:manipulation !important; user-select:none !important; transform:none !important;
+    }
+    html[data-nww-mobile-layout] body #timelineDock .timeline-step:disabled { opacity:.35 !important; cursor:default !important; }
+    html[data-nww-mobile-layout] body #timelineDock .timeline-step:active:not(:disabled) { background:var(--accent-soft) !important; border-color:var(--nw-ui-blue) !important; }
+    html[data-nww-mobile-layout] body #timelineDock .timeline-step:focus-visible { outline:2px solid var(--nw-ui-blue) !important; outline-offset:2px !important; }
+    html[data-nww-mobile-layout] body #timelineDock #hourSlider {
+      --nww-thumb-size:30px;
+      grid-column:2 !important; grid-row:1 !important;
+      background-size:calc(100% - 30px) 8px !important; cursor:ew-resize !important;
+    }
+    html[data-nww-mobile-layout] body #timelineDock #hourSlider::-webkit-slider-runnable-track { height:8px !important; }
+    html[data-nww-mobile-layout] body #timelineDock #hourSlider::-moz-range-track,
+    html[data-nww-mobile-layout] body #timelineDock #hourSlider::-moz-range-progress { height:8px !important; }
+    html[data-nww-mobile-layout] body #timelineDock #hourSlider::-webkit-slider-thumb {
+      width:30px !important; height:30px !important; margin-top:-11px !important;
+      box-shadow:0 0 0 4px rgba(96,165,250,.14) !important;
+    }
+    html[data-nww-mobile-layout] body #timelineDock #hourSlider::-moz-range-thumb {
+      width:30px !important; height:30px !important; box-shadow:0 0 0 4px rgba(96,165,250,.14) !important;
+    }
+    html[data-nww-mobile-layout] body #timelineDock #timelineTimeBounds {
+      display:block !important; left:73px !important; right:73px !important; font-size:11px !important;
+    }
+    html[data-nww-mobile-layout] body #timelineDock #timelineTimeBounds span { position:absolute; white-space:nowrap; }
+    html[data-nww-mobile-layout] body #timelineDock #timelineFirstTime { left:0; transform:translateX(-50%); }
+    html[data-nww-mobile-layout] body #timelineDock #timelineMiddleTime { transform:translateX(-50%); }
+    html[data-nww-mobile-layout] body #timelineDock #timelineLastTime { right:0; transform:translateX(50%); }
+    html[data-nww-mobile-layout] body #timelineDock #timelineTimeBounds span::before {
+      content:''; position:absolute; left:50%; top:-8px; height:4px; width:1px; background:var(--muted); opacity:.6;
+    }
+    html[data-nww-mobile-layout] body #timelineDock[data-single-timeline-time="true"] .timeline-trackRow,
+    html[data-nww-mobile-layout] body #timelineDock[data-single-timeline-time="true"] #timelineTimeBounds { display:none !important; }
+  }
+}

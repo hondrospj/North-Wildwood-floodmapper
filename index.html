@@ -14686,7 +14686,7 @@ html.win-compact-ui #timelineDock #hourSlider{
     #gifSpeedField[hidden]{display:none !important}
   </style>
   <link rel="stylesheet" href="./assets/map-status.css" />
-<link rel="stylesheet" href="assets/north-wildwood-mobile.css?v=20261003-2">
+<link rel="stylesheet" href="assets/north-wildwood-mobile.css?v=20261003-slider">
 </head>
 <body>
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
@@ -15051,10 +15051,12 @@ html.win-compact-ui #timelineDock #hourSlider{
         <div class="timeline-trackRow">
           <div id="timelineStart" class="timeline-end">--</div>
           <div id="pjBlueSliderExactTrackLine" aria-hidden="true"></div>
-          <input id="hourSlider" type="range" min="0" max="0" value="0" step="1" />
+          <button id="timelineStepBack" class="timeline-step" type="button" aria-label="Previous time" disabled>−1h</button>
+          <input id="hourSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Flood forecast time" />
+          <button id="timelineStepForward" class="timeline-step" type="button" aria-label="Next time" disabled>+1h</button>
           <div id="timelineEnd" class="timeline-scale">--</div>
         </div>
-        <div id="timelineTimeBounds" aria-hidden="true"><span id="timelineFirstTime"></span><span id="timelineLastTime"></span></div>
+        <div id="timelineTimeBounds" aria-hidden="true"><span id="timelineFirstTime"></span><span id="timelineMiddleTime"></span><span id="timelineLastTime"></span></div>
         <div hidden>
           <div id="timelineLabel"></div>
           <div id="timelineValue"></div>
@@ -23904,10 +23906,23 @@ function getEntryESTDate(entry) {
       fitTextToSingleLine(timeEl, observed ? 17 : 20, 11.5);
     }
 
+    let timelineDayCache = null;
     function renderTimelineDays() {
       const wrap = document.getElementById("timelineDayTabs");
       if (!wrap) return;
+      const cacheKey = `${currentDataMode}:${currentOverlayMode}:${isMobileTimeline()}`;
+      if (timelineDayCache?.series === currentSeriesHours && timelineDayCache.key === cacheKey) {
+        for (const {button, start, end} of timelineDayCache.groups) {
+          const active = currentHourIndex >= start && currentHourIndex <= end;
+          if (button.classList.contains("active") !== active) {
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-current", String(active));
+          }
+        }
+        return;
+      }
       wrap.innerHTML = "";
+      timelineDayCache = {series: currentSeriesHours, key: cacheKey, groups: []};
       if (!currentSeriesHours.length) return;
 
       const groups = [];
@@ -23945,7 +23960,10 @@ function getEntryESTDate(entry) {
         } else if (gaugeInoperable) {
           btn.style.backgroundImage = "none";
         }
-        if (currentHourIndex >= group.start && currentHourIndex <= group.end) btn.classList.add("active");
+        const active = currentHourIndex >= group.start && currentHourIndex <= group.end;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-current", String(active));
+        timelineDayCache.groups.push({button: btn, start: group.start, end: group.end});
         btn.addEventListener("click", () => {
           stopPlayback();
           renderHour(group.start).catch(err => toast(err.message));
@@ -25148,6 +25166,7 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     async function renderHour(index) {
+      cancelTimelineSelection();
       if (!currentSeriesHours.length) return;
 
       const entry = currentSeriesHours[index];
@@ -25232,6 +25251,35 @@ function formatSelectedObservedDate(dateStr) {
       else preloadAroundHour(index);
     }
 
+    // Coalesce drag events into one render per animation frame. A final change
+    // flushes immediately; any other navigation cancels the queued selection.
+    let timelineSelectionFrame = 0;
+    let pendingTimelineSelection = null;
+    function cancelTimelineSelection() {
+      if (timelineSelectionFrame) cancelAnimationFrame(timelineSelectionFrame);
+      timelineSelectionFrame = 0;
+      pendingTimelineSelection = null;
+    }
+    function flushTimelineSelection() {
+      const pending = pendingTimelineSelection;
+      cancelTimelineSelection();
+      if (!pending || pending.series !== currentSeriesHours || pending.index === currentHourIndex) return;
+      renderHour(pending.index).catch(error => toast(error.message));
+    }
+    function queueTimelineSelection(index, commit = false) {
+      const selected = Math.max(0, Math.min(currentSeriesHours.length - 1, Math.round(index)));
+      if (!currentSeriesHours.length || !Number.isFinite(selected)) return;
+      pendingTimelineSelection = {index: selected, series: currentSeriesHours};
+      if (commit) flushTimelineSelection();
+      else if (!timelineSelectionFrame) timelineSelectionFrame = requestAnimationFrame(flushTimelineSelection);
+    }
+    function stepTimeline(direction) {
+      stopPlayback();
+      const selected = pendingTimelineSelection?.index ?? currentHourIndex;
+      queueTimelineSelection(selected + direction, true);
+    }
+
+    let timelineGradientCache = null;
     function updateSliderProgress() {
       const slider = document.getElementById("hourSlider");
       if (!slider) return;
@@ -25240,8 +25288,12 @@ function formatSelectedObservedDate(dateStr) {
       const value = Number(slider.value) || 0;
       const percent = max > min ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0;
       slider.style.setProperty("--timeline-progress", percent.toFixed(3) + "%");
-      const gradient = buildTimelineGroupGradient(min, max, true);
-      slider.style.setProperty("--nww-stage-gradient", gradient || "linear-gradient(#94a3b8,#94a3b8)");
+      const key = `${min}:${max}:${currentOverlayMode}`;
+      if (timelineGradientCache?.series !== currentSeriesHours || timelineGradientCache.key !== key) {
+        const gradient = buildTimelineGroupGradient(min, max, true);
+        slider.style.setProperty("--nww-stage-gradient", gradient || "linear-gradient(#94a3b8,#94a3b8)");
+        timelineGradientCache = {series: currentSeriesHours, key};
+      }
     }
 
     function isMobileTimeline() {
@@ -25270,12 +25322,29 @@ function formatSelectedObservedDate(dateStr) {
       slider.min = String(start);
       slider.max = String(end);
       slider.value = String(selected);
-      for (const [id, index] of [["timelineFirstTime", start], ["timelineLastTime", end]]) {
+      const middle = Math.round((start + end) / 2);
+      for (const [id, index] of [["timelineFirstTime", start], ["timelineMiddleTime", middle], ["timelineLastTime", end]]) {
         const label = document.getElementById(id);
         const date = getEntryESTDate(currentSeriesHours[index]);
         if (label) label.textContent = date
           ? new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York", hour:"numeric", minute:"2-digit"}).format(date).replace(":00", "")
           : "";
+      }
+      const midLabel = document.getElementById("timelineMiddleTime");
+      if (midLabel) {
+        midLabel.style.left = `${end > start ? 100 * (middle - start) / (end - start) : 50}%`;
+        midLabel.hidden = end - start < 3;
+      }
+      const minutes = getTimelineIntervalMinutes();
+      const stepLabel = minutes === 1440 ? "1d" : minutes === 60 ? "1h" : `${minutes}m`;
+      for (const [id, direction] of [["timelineStepBack", -1], ["timelineStepForward", 1]]) {
+        const button = document.getElementById(id);
+        if (!button) continue;
+        button.disabled = !currentSeriesHours.length || selected + direction < 0 || selected + direction >= currentSeriesHours.length;
+        button.textContent = `${direction < 0 ? "−" : "+"}${stepLabel}`;
+        const target = currentSeriesHours[selected + direction];
+        button.setAttribute("aria-label", `${direction < 0 ? "Previous" : "Next"} time${target ? ": " + formatHourEntryTime(target) : " unavailable"}`);
+        button.title = button.getAttribute("aria-label");
       }
       updateSliderProgress();
     }
@@ -28460,10 +28529,20 @@ function startPlayback() {
       document.getElementById("toastCloseBtn")?.addEventListener("click", () => toast(""));
       document.getElementById("exportProgressCloseBtn")?.addEventListener("click", cancelCurrentExport);
 
-      document.getElementById("hourSlider").addEventListener("input", async e => {
+      const timeSlider = document.getElementById("hourSlider");
+      timeSlider.addEventListener("input", event => {
         stopPlayback();
-        await renderHour(Number(e.target.value));
+        queueTimelineSelection(Number(event.target.value));
       });
+      timeSlider.addEventListener("change", event => queueTimelineSelection(Number(event.target.value), true));
+      timeSlider.addEventListener("keydown", event => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        // Step continuously across midnight even though the phone rail shows one day.
+        event.preventDefault();
+        stepTimeline(event.key === "ArrowLeft" ? -1 : 1);
+      });
+      document.getElementById("timelineStepBack")?.addEventListener("click", () => stepTimeline(-1));
+      document.getElementById("timelineStepForward")?.addEventListener("click", () => stepTimeline(1));
 
       document.getElementById("intervalHourBtn")?.addEventListener("click", () => {
         setTimelineIntervalMinutes(60).catch(err => toast(err.message));
