@@ -45,7 +45,7 @@
     if (open && !wasOpen) {
       document.body.classList.remove('mobile-legend-open');
       panel.setAttribute('aria-labelledby', 'nwwControlsTitle');
-      tabs.find(tab => tab.getAttribute('aria-selected') === 'true')?.focus({preventScroll:true});
+      if (!document.body.classList.contains('tutorial-active')) tabs.find(tab => tab.getAttribute('aria-selected') === 'true')?.focus({preventScroll:true});
     } else if (!open && wasOpen) {
       panel.removeAttribute('aria-labelledby');
       if (mobile.matches && !document.querySelector('#mapperTutorial:not([hidden]),.download-modal.open,.datum-modal.open,#infoModal.open')) toggle?.focus({preventScroll:true});
