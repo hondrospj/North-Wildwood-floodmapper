@@ -14,6 +14,14 @@ function check(ok,label,details){checks.push(label);if(!ok)failures.push({label,
 async function settled(page){await page.waitForTimeout(900);}
 async function activate(page,selector){
   const control=page.locator(selector);
+  // Mobile controls now have sections; navigate just as a user would.
+  const group=await control.evaluate(el=>el.closest('[data-nww-group]')?.dataset.nwwGroup);
+  if(group&&await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open'))){
+    const tab=page.locator(`#nwwMobileControlHeader [data-group="${group}"]`);
+    if(await tab.getAttribute('aria-selected')!=='true'){
+      if(touchPages.has(page))await tab.tap();else await tab.click();
+    }
+  }
   try{if(touchPages.has(page))await control.tap();else await control.click();}
   catch(error){
     console.error('Control failure',selector,await control.evaluate(el=>{

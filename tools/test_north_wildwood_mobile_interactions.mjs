@@ -9,7 +9,15 @@ const page=await browser.newPage({viewport:{width:320,height:568},hasTouch:touch
 const errors=[];
 page.on('pageerror',error=>errors.push(error.message));
 page.setDefaultTimeout(15000);
-async function activate(selector){await page.locator(selector)[touch?'tap':'click']();}
+async function activate(selector){
+  const control=page.locator(selector);
+  const group=await control.evaluate(el=>el.closest('[data-nww-group]')?.dataset.nwwGroup);
+  if(group&&await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open'))){
+    const tab=page.locator(`#nwwMobileControlHeader [data-group="${group}"]`);
+    if(await tab.getAttribute('aria-selected')!=='true')await tab[touch?'tap':'click']();
+  }
+  await control[touch?'tap':'click']();
+}
 try{
   await page.goto(process.env.NWW_TEST_URL || 'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready'),{},{timeout:90000});
