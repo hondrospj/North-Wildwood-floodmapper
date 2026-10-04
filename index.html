@@ -17191,6 +17191,10 @@ function parseStoredLocalNyToDate(timeEST) {
         sourceResolutionMinutes: options.sourceResolutionMinutes ?? detectSeriesResolutionMinutes(options.sourceEntries || []),
         isInterpolatedTimelineFrame: true,
         isMeasuredQuarterHourArchive: false,
+        isMissingObservedHour: false,
+        isMissingTimelineFrame: false,
+        isFittedCrestFrame: false,
+        isOfficialCrestFrame: false,
         observationQuality: "interpolated",
         interpolationSpanSeconds: (afterItem.t - beforeItem.t) / 1000,
         interpolationStartUtc: new Date(beforeItem.t).toISOString(),
@@ -17696,6 +17700,13 @@ function parseStoredLocalNyToDate(timeEST) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ""))) return false;
       const source = getObservedArchiveSourceForDate(dateStr);
       await ensureObservedArchiveYear(source, String(dateStr).slice(0, 4));
+      // The final three quarter-hours need the next measured hourly endpoint.
+      // Usually it is in the same shard; December 31 also needs the next year.
+      const nextDate = addDaysToDateKey(dateStr, 1);
+      if (source === "lewes" && nextDate.slice(0, 4) !== dateStr.slice(0, 4)
+          && getObservedArchiveSourceForDate(nextDate) === source) {
+        await ensureObservedArchiveYear(source, nextDate.slice(0, 4));
+      }
       return (source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate).has(dateStr);
     }
 
@@ -17763,10 +17774,22 @@ function parseStoredLocalNyToDate(timeEST) {
     }
 
     function buildObservedCanonicalSeries(dayRecord, dateStr) {
-      const source = getObservedSourceHoursForDay(dayRecord);
+      let source = getObservedSourceHoursForDay(dayRecord);
       if (source.length && source.every(entry => entry.isDailyPeakOnly)) return source;
       const start = parseStoredLocalNyToDate(`${dateStr}T00:00`);
       const end = parseStoredLocalNyToDate(`${dateStr}T23:45`);
+      if (dayRecord?.isLewesSurrogate) {
+        const nextDate = addDaysToDateKey(dateStr, 1);
+        const nextDay = getObservedDayRecord(nextDate);
+        const midnight = parseStoredLocalNyToDate(`${nextDate}T00:00`);
+        // Use a real, loaded sample from the same gauge. Never extrapolate
+        // past the last reading or turn a date-only crest into a timed sample.
+        if (nextDay?.isLewesSurrogate && midnight) {
+          source = source.concat(getObservedSourceHoursForDay(nextDay).filter(entry =>
+            !entry.isDailyPeakOnly && entryTimeMs(entry) === midnight.getTime()
+          ));
+        }
+      }
       const sourceResolutionMinutes = detectSeriesResolutionMinutes(source);
       const series = buildQuarterHourTimelineSeries(source, {
         kind: "observed",
@@ -17775,7 +17798,9 @@ function parseStoredLocalNyToDate(timeEST) {
         endMs: end ? end.getTime() : null,
         sourceResolutionMinutes,
         fillMissingSlots: true,
-        maxGapMinutes: 30
+        // Lewes archive samples are hourly; the primary archive is 15-minute.
+        // Allow adjacent hourly readings, but keep missing hourly readings blank.
+        maxGapMinutes: dayRecord?.isLewesSurrogate ? 60 : 30
       });
 
       return annotateHydraulicSeries(series.map((entry, idx) => ({
