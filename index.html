@@ -17725,6 +17725,7 @@ function parseStoredLocalNyToDate(timeEST) {
         const [source, year] = key.split(":");
         return ensureObservedArchiveYear(source, year);
       }));
+      await ensureObservedArchiveForDate(finalKey);
     }
 
     function decodeLewesHourlyDay(dayRecord) {
