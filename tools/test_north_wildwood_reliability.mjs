@@ -46,8 +46,15 @@ const old=cache.getOverlayRecord("depth",5);cache.overlayRecordCache=new Map();r
 assert.equal(cache.overlayRecordCache.size,0,"Old requests must not repopulate Reload's new cache");
 for (const name of ["testImageUrl","preloadImage","getExportImageElement"]) {
   let available=false, requested=0;
-  class FakeImage { set src(value) { requested++; queueMicrotask(()=>available?this.onload?.():this.onerror?.()); } }
-  const images=context([name],{Image:FakeImage,window:{setTimeout,clearTimeout,setInterval,clearInterval},
+  class FakeImage {
+    constructor(){ this.complete=false; this.naturalWidth=0; }
+    async decode(){}
+    set src(value) { requested++; queueMicrotask(()=>{
+      if(!available){ this.onerror?.(); return; }
+      this.complete=true; this.naturalWidth=64; this.onload?.();
+    }); }
+  }
+  const images=context(name==="preloadImage"?["decodeFloodFrameImage",name]:[name],{Image:FakeImage,window:{setTimeout,clearTimeout,setInterval,clearInterval},
     imageExistsCache:new Map(),preloadPromiseCache:new Map(),exportImageElementCache:new Map(),
     exportCancelRequested:false,exportInProgress:false});
   await images[name]("test.png");available=true;
