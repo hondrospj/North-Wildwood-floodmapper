@@ -14687,6 +14687,7 @@ html.win-compact-ui #timelineDock #hourSlider{
   </style>
   <link rel="stylesheet" href="./assets/map-status.css" />
 <link rel="stylesheet" href="assets/north-wildwood-mobile.css?v=20261003-slider2">
+<link rel="stylesheet" href="assets/webcams.css?v=20261008-1">
 </head>
 <body>
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
@@ -14975,6 +14976,13 @@ html.win-compact-ui #timelineDock #hourSlider{
               <div id="nsiStructuresToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show crawlspace and garage impacts"></div>
               <div class="layer-meta">
                 <div class="layer-name">Crawlspace/Garage Impacts</div>
+              </div>
+            </div>
+            <div class="layer-item" data-html2canvas-ignore="true">
+              <div id="webcamsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show cameras"></div>
+              <div class="layer-meta">
+                <div class="layer-name">Cameras</div>
+                <button id="webcamsBrowse" type="button" aria-controls="webcamPanel" aria-expanded="false" hidden>View cameras</button>
               </div>
             </div>
           </div>
@@ -41640,5 +41648,6 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 </style>
 <script defer src="assets/north-wildwood-mobile.js?v=20261003-2"></script>
+<script defer src="assets/webcams.js?v=20261008-1"></script>
 </body>
 </html>
