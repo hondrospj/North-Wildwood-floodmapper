@@ -48,7 +48,10 @@
   @media (min-width:901px) and (min-height:561px) {
     html {
       --nww-left-width:356px;
-      --nww-right-width:260px;
+      --nww-right-width:288px;
+    }
+    html body[data-shorelysafe-ui]:not(.mobile-optimized) #nwDefaultNavControl {
+      right:calc(var(--nww-right-width) + 28px) !important;
     }
     /* Reveal the title once its available lane, including the compass, is known. */
     html body[data-shorelysafe-ui] #mapTitleBadge:not([data-viewport-contained]) {
@@ -279,15 +282,15 @@
     }
   }
   @media (min-width:901px) and (max-width:1320px) and (min-height:561px) {
-    html { --nww-left-width:340px; --nww-right-width:244px; }
+    html { --nww-left-width:340px; --nww-right-width:272px; }
   }
   @media (min-width:901px) and (max-width:1120px) and (min-height:561px) {
-    html { --nww-left-width:320px; --nww-right-width:228px; }
+    html { --nww-left-width:320px; --nww-right-width:256px; }
   }
   @media (min-width:901px) and (min-height:561px) and (max-height:800px) {
     html body[data-shorelysafe-ui] #leftPanel {
-      --nww-control-padding:8px;
-      --nww-control-gap:6px;
+      --nww-control-padding:6px;
+      --nww-control-gap:4px;
       --nww-control-button:36px;
       --nww-control-slider:16px;
     }
