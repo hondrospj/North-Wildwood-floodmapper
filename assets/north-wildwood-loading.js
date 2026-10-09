@@ -6,6 +6,12 @@
     if (!loader || !app) return;
     let finished = false;
     let deadline;
+    const startedAt = performance.now();
+    let simulatedProgress = 8;
+    const progressTimer = setInterval(() => {
+      simulatedProgress = Math.min(76, simulatedProgress + (simulatedProgress < 42 ? 3 : 1));
+      setNorthWildwoodLoadingState(simulatedProgress);
+    }, 240);
     const background = new Map();
     const observer = new MutationObserver(checkReady);
     app.setAttribute('aria-busy', 'true');
@@ -18,11 +24,21 @@
         element.inert = true;
       }
     }
-    function finish(reason) {
-      if (finished) return;
-      finished = true;
-      clearTimeout(deadline);
-      observer.disconnect();
+    function setNorthWildwoodLoadingState(progress, message) {
+      const bar = document.getElementById('nwLoaderProgress');
+      const status = document.getElementById('nwLoaderStatus');
+      let acceptsMessage = !Number.isFinite(Number(progress));
+      if (bar && Number.isFinite(Number(progress))) {
+        const current = Number(bar.dataset.progress || 0);
+        const requested = Math.min(100, Number(progress));
+        const next = Math.max(current, requested);
+        acceptsMessage = requested >= current;
+        bar.dataset.progress = String(next);
+        bar.style.width = `${next}%`;
+      }
+      if (status && message && acceptsMessage) status.textContent = message;
+    }
+    function reveal(reason) {
       document.body.dataset.siteLoader = reason;
       document.body.classList.remove('nw-app-loading');
       for (const [element, inert] of background) element.inert = inert;
@@ -31,16 +47,34 @@
       loader.setAttribute('aria-hidden', 'true');
       const hide = () => { loader.hidden = true; };
       if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) hide();
+      else setTimeout(hide, 700);
+    }
+    function finish(reason) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(deadline);
+      clearInterval(progressTimer);
+      observer.disconnect();
+      if (reason === 'timeout') { reveal(reason); return; }
+      setNorthWildwoodLoadingState(100, 'Floodmapper ready');
+      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) reveal(reason);
       else {
-        loader.addEventListener('transitionend', hide, {once:true});
-        setTimeout(hide, 250);
+        // Preserve the original minimum display, completion pause and fade.
+        const remaining = Math.max(0, 800 - (performance.now() - startedAt));
+        setTimeout(() => reveal(reason), remaining + 260);
       }
     }
     function checkReady() {
       if (document.body.classList.contains('nw-app-ready')) finish('complete');
-      else if (!finished) isolateControls();
+      else if (!finished) {
+        isolateControls();
+        if (document.body.dataset.initialFloodFrame === 'ready') {
+          setNorthWildwoodLoadingState(68, 'Drawing the current flood map…');
+        }
+      }
     }
-    observer.observe(document.body, {attributes:true, attributeFilter:['class']});
+    isolateControls();
+    observer.observe(document.body, {attributes:true, attributeFilter:['class', 'data-initial-flood-frame']});
     // Release the interface even if an external library or request never finishes.
     deadline = setTimeout(() => finish('timeout'), 20000);
     checkReady();

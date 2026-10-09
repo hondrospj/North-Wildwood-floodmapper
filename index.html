@@ -7,8 +7,8 @@
 <style id="shorelysafe-fleet-layer">@layer shorelysafe-unified, shorelysafe-pane-fit, shorely-fleet-ui, avalon-mobile;</style>
 <!-- Shorely Safe browser-tab branding -->
 <link rel="icon" type="image/png" href="./assets/shorelysafe-favicon-20261008.png" />
-<link rel="stylesheet" href="assets/north-wildwood-loading.css?v=20261009-1">
-<script defer src="assets/north-wildwood-loading.js?v=20261009-1"></script>
+<link rel="stylesheet" href="assets/north-wildwood-loading.css?v=20261009-original-2">
+<script defer src="assets/north-wildwood-loading.js?v=20261009-original-2"></script>
 
 <!-- Keep optional work outside the initial flood-map loading path. -->
 <link rel="preconnect" href="https://unpkg.com" crossorigin>
@@ -24259,7 +24259,7 @@ html body #mapTitleBadge #mapTitleLogo{
       <div class="nw-loader-spinner" aria-hidden="true"></div>
       <div class="nw-loader-eyebrow">ShorelySafe</div>
       <h1>North Wildwood Flood Mapper</h1>
-      <p class="nw-loader-status">Preparing forecast and map data…</p>
+      <p id="nwLoaderStatus" class="nw-loader-status">Preparing forecast and map data…</p>
       <div class="nw-loader-progress" aria-hidden="true"><span id="nwLoaderProgress"></span></div>
     </div>
   </div>
