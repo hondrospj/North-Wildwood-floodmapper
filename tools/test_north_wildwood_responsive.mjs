@@ -9,7 +9,7 @@ const failures=[],checks=[];
 const touchPages=new WeakSet();
 const url=process.env.NWW_TEST_URL || 'http://127.0.0.1:8765/index.html';
 const parcel=JSON.parse(fs.readFileSync(new URL('../assets/parcel-history-v2/NorthWildwoodParcels.geojson',import.meta.url),'utf8')).features[0];
-const sizes=[[1512,945],[1321,800],[1200,800],[1121,768],[1024,768],[901,768],[900,768],[861,768],[860,768],[768,1024],[430,932],[390,844],[360,800],[320,568],[1512,600],[1024,561],[1024,560],[932,430],[667,375],[568,320],[1512,945]];
+const sizes=[[1512,945],[1321,800],[1200,800],[1200,500],[1121,768],[1024,768],[901,768],[900,768],[861,768],[860,768],[768,1024],[430,932],[390,844],[360,800],[320,568],[1512,600],[1024,561],[1024,560],[932,430],[667,375],[568,320],[1512,945]];
 function check(ok,label,details){checks.push(label);if(!ok)failures.push({label,details});}
 async function settled(page){await page.waitForTimeout(900);}
 async function activate(page,selector){
@@ -56,12 +56,15 @@ try {
         const visible=el=>el&&el.getBoundingClientRect().width>0&&getComputedStyle(el).visibility!=='hidden'&&getComputedStyle(el).display!=='none';
         const rect=id=>{const e=document.getElementById(id);if(!visible(e))return null;const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,w:r.width,h:r.height};};
         const overlap=(a,b)=>a&&b&&Math.min(a.right,b.right)-Math.max(a.x,b.x)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.y,b.y)>1;
-        return {compact:document.body.classList.contains('mobile-optimized'),rootOverflow:document.documentElement.scrollWidth>innerWidth+1,toggle:visible(document.getElementById('mobileControlsToggle')),rail:visible(document.getElementById('rightRail')),titleNavOverlap:overlap(rect('mapTitleBadge'),rect('nwDefaultNavControl')),sidebarTimestampOverlap:overlap(rect('leftPanel'),rect('timelineBubble')),bubble:rect('timelineBubble'),nav:rect('nwDefaultNavControl'),timeline:rect('timelineDock'),title:rect('mapTitleBadge')};
+        return {legendParent:document.getElementById('legendDock')?.parentElement?.id||document.getElementById('legendDock')?.parentElement?.tagName,keyVisible:visible(document.getElementById('timelineFloodKey')),navTimelineOverlap:overlap(rect('nwDefaultNavControl'),rect('timelineDock')),compact:document.body.classList.contains('mobile-optimized'),rootOverflow:document.documentElement.scrollWidth>innerWidth+1,toggle:visible(document.getElementById('mobileControlsToggle')),rail:visible(document.getElementById('rightRail')),titleNavOverlap:overlap(rect('mapTitleBadge'),rect('nwDefaultNavControl')),sidebarTimestampOverlap:overlap(rect('leftPanel'),rect('timelineBubble')),bubble:rect('timelineBubble'),nav:rect('nwDefaultNavControl'),timeline:rect('timelineDock'),title:rect('mapTitleBadge')};
       });
-      const compact=width<=900||height<=560;const prefix=`${touch?'touch':'mouse'} ${width}x${height}`;
+      const compact=width<=900||(touch&&height<=560);const prefix=`${touch?'touch':'mouse'} ${width}x${height}`;
       check(state.compact===compact,`${prefix} breakpoint`,state);
       check(!state.rootOverflow,`${prefix} root containment`,state);
       check(!state.titleNavOverlap,`${prefix} title/navigation separation`,state);
+      check(!state.navTimelineOverlap,`${prefix} navigation/timeline separation`,state);
+      check(state.keyVisible,`${prefix} flood category key visible`,state);
+      check(state.legendParent===(compact?'BODY':'leftPanel'),`${prefix} single legend placement`,state);
       check(state.toggle===compact&&state.rail===!compact,`${prefix} correct controls`,state);
       if(!compact)check(!state.sidebarTimestampOverlap,`${prefix} sidebar/timestamp separation`,state);
       for(const id of ['mapTitleBadge','timelineDock','timelineBubble','nwDefaultNavControl'])await contained(page,'#'+id,`${prefix} ${id} fits`);

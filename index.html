@@ -1,8 +1,10 @@
 
 <!doctype html>
-<html lang="en" data-nww-avalon-timeline data-nww-mobile-layout>
+<!-- The app owns timeline metadata and legend placement; skip the hosting legacy controller. -->
+<html lang="en" data-nww-avalon-timeline data-nww-mobile-layout data-ss-ui-ready="app">
 <head>
-<style id="shorelysafe-fleet-layer">@layer shorely-fleet-ui;</style>
+<!-- Keep the same layer order on GitHub Pages and CupaJoe. -->
+<style id="shorelysafe-fleet-layer">@layer shorelysafe-unified, shorelysafe-pane-fit, shorely-fleet-ui, avalon-mobile;</style>
 <!-- Shorely Safe browser-tab branding -->
 <link rel="icon" type="image/png" href="./assets/shorelysafe-favicon-20261008.png" />
 
@@ -66,9 +68,8 @@
   }
 </style>
 
-<style>@layer shorelysafe-unified, avalon-mobile;</style>
 <link rel="stylesheet" href="assets/avalon-mobile.css?v=20260923-2">
-<link rel="stylesheet" href="assets/north-wildwood-timeline.css?v=20260925-mobile-day-slider">
+<link rel="stylesheet" href="assets/north-wildwood-timeline.css?v=20261009-conflicts-1">
 <script>document.documentElement.classList.add("avalon-mobile-ui");</script>
 
 <meta charset="utf-8" />
@@ -83,16 +84,17 @@
       root.style.removeProperty("--win-ui-zoom");
     })();
 
-    // Shared responsive breakpoint used by startup cache sizing and controls.
+    // Shared by every layout controller. CSS uses the same condition.
+    const floodmapperLayoutMedia = window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)");
     function isCompactFloodmapperLayout() {
-      return window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches;
+      return floodmapperLayoutMedia.matches;
     }
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
 
-    @media (min-width:901px) and (min-height:561px){
+    @media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
       :root{
         --pj-equal-left-width:356px;
         --pj-equal-right-width:260px;
@@ -135,14 +137,14 @@
       }
     }
 
-    @media (min-width:901px) and (min-height:561px) and (max-width:1320px){
+    @media (min-width:901px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) {
       :root{
         --pj-equal-left-width:340px;
         --pj-equal-right-width:244px;
       }
     }
 
-    @media (min-width:901px) and (min-height:561px) and (max-width:1120px){
+    @media (min-width:901px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) {
       :root{
         --pj-equal-left-width:320px;
         --pj-equal-right-width:228px;
@@ -151,7 +153,7 @@
       }
     }
 
-    @media (min-width:901px) and (min-height:561px) and (max-height:940px){
+    @media (min-width:901px) and (min-height:561px) and (max-height:940px), (min-width:901px) and (pointer:fine) and (max-height:940px), (min-width:901px) and (pointer:none) and (max-height:940px) {
       :root{
         --pj-equal-bottom-reserve:128px;
         --pj-equal-card-h:82px;
@@ -1119,7 +1121,7 @@
     }
     html body #map .leaflet-control-zoom{ display:none !important; }
 
-    @media (min-width:901px) and (max-width:1450px) and (min-height:561px){
+    @media (min-width:901px) and (max-width:1450px) and (min-height:561px), (min-width:901px) and (max-width:1450px) and (pointer:fine), (min-width:901px) and (max-width:1450px) and (pointer:none) {
       html body #nwDefaultNavControl{
         top:96px;
       }
@@ -1631,7 +1633,7 @@
 
     #map3d .maplibregl-popup-tip{ border-top-color:#0b1220; }
 
-    @media (max-width:900px),(max-height:560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       html body #nw3dLauncher{
         top:max(176px, calc(env(safe-area-inset-top) + 168px));
         right:max(7px, env(safe-area-inset-right));
@@ -2427,7 +2429,7 @@
       font-size:11px;
     }
 
-    @media (max-width: 760px){
+    @media (max-width:760px){
       .download-modal-card{ width:min(620px, calc(100vw - 32px)); }
       .export-datetime-row{ grid-template-columns:1fr; }
     }
@@ -2674,7 +2676,7 @@
       box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
     }
 
-    @media (max-width: 720px){
+    @media (max-width:720px){
       .export-datetime-row{ grid-template-columns:1fr; }
       .export-wheel-grid{ grid-template-columns:repeat(4, minmax(0, 1fr)); }
       .export-manual-input{ font-size:24px; min-height:54px; padding:0 18px; }
@@ -3274,7 +3276,7 @@
     }
 
 
-    @media (max-width: 900px){
+    @media (max-width:900px){
       .download-range-grid{
         grid-template-columns:1fr;
       }
@@ -4014,7 +4016,7 @@
       }
     }
 
-    @media (max-width: 900px){
+    @media (max-width:900px){
       #topBanner{
         min-width:min(420px, calc(100vw - 16px));
         max-width:min(560px, calc(100vw - 16px));
@@ -4062,7 +4064,7 @@
       }
     }
 
-    @media (max-width: 720px){
+    @media (max-width:720px){
       #topBanner{
         min-width:calc(100vw - 14px);
         max-width:calc(100vw - 14px);
@@ -4214,7 +4216,7 @@
       }
     }
 
-    @media (max-width: 420px){
+    @media (max-width:420px){
       h1{
         font-size:clamp(20px, 9vw, 30px);
       }
@@ -4260,7 +4262,7 @@
       display:contents;
     }
 
-    @media (max-width: 760px){
+    @media (max-width:760px){
       html,
       body,
       #app,
@@ -4690,7 +4692,7 @@
 
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       html, body, #app, #mapWrap, #map{
         width:100vw;
         height:100dvh;
@@ -4905,7 +4907,7 @@
       }
     }
 
-    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer:coarse) {
       #mobileControlsToggle{
         top:calc(10px + env(safe-area-inset-top));
         bottom:auto;
@@ -5012,7 +5014,7 @@
 
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         display:block !important;
         position:fixed !important;
@@ -5187,7 +5189,7 @@
       }
     }
 
-    @media (max-width: 430px) and (orientation: portrait){
+    @media (max-width:430px) and (orientation:portrait){
       body.mobile-optimized #legendDock{
         width:min(204px, calc(100vw - 72px)) !important;
         max-height:126px;
@@ -5203,7 +5205,7 @@
       }
     }
 
-    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         top:calc(6px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -5278,9 +5280,7 @@
     }
 
 
-
-
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         top:calc(8px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -5466,7 +5466,7 @@
       }
     }
 
-    @media (max-width: 430px) and (orientation: portrait){
+    @media (max-width:430px) and (orientation:portrait){
       body.mobile-optimized #legendDock{
         width:min(180px, calc(100vw - 88px)) !important;
         max-height:84px !important;
@@ -5488,7 +5488,7 @@
       }
     }
 
-    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         top:calc(6px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -5570,7 +5570,7 @@
     }
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         top:calc(7px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -5820,7 +5820,7 @@
       }
     }
 
-    @media (max-width: 430px) and (orientation: portrait){
+    @media (max-width:430px) and (orientation:portrait){
       body.mobile-optimized #legendDock{
         min-width:120px !important;
         height:36px !important;
@@ -5856,7 +5856,7 @@
       }
     }
 
-    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         min-width:116px !important;
         height:34px !important;
@@ -5934,9 +5934,7 @@
     }
 
 
-
-
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         height:44px !important;
         max-height:44px !important;
@@ -6010,7 +6008,7 @@
       }
     }
 
-    @media (max-width: 430px) and (orientation: portrait){
+    @media (max-width:430px) and (orientation:portrait){
       body.mobile-optimized #legendDock{
         min-width:148px !important;
         height:42px !important;
@@ -6039,7 +6037,7 @@
       }
     }
 
-    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         height:38px !important;
         max-height:38px !important;
@@ -6067,7 +6065,7 @@
 
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock::before{
         background:linear-gradient(90deg,
           var(--depth-0) 0 14%,
@@ -6105,9 +6103,7 @@
     }
 
 
-
-
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock[data-legend-mode="dynamic"]::before{
         background:linear-gradient(90deg,
           var(--minor) 0 34%,
@@ -6124,7 +6120,7 @@
       }
     }
 
-    @media (max-width: 430px) and (orientation: portrait){
+    @media (max-width:430px) and (orientation:portrait){
       #mobileControlsToggle{
         bottom:calc(126px + env(safe-area-inset-bottom)) !important;
       }
@@ -6134,7 +6130,7 @@
       }
     }
 
-    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer:coarse) {
       #mobileControlsToggle{
         top:calc(42px + env(safe-area-inset-top)) !important;
         bottom:auto !important;
@@ -6145,8 +6141,6 @@
         bottom:auto !important;
       }
     }
-
-
 
 
     @media (max-width: 900px) and (orientation: portrait), (max-width: 430px) and (orientation: portrait){
@@ -6169,7 +6163,7 @@
 
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         top:calc(8px + env(safe-area-inset-top)) !important;
         left:calc(9px + env(safe-area-inset-left)) !important;
@@ -6298,7 +6292,7 @@
       }
     }
 
-    @media (max-width: 430px) and (orientation: portrait){
+    @media (max-width:430px) and (orientation:portrait){
       body.mobile-optimized #legendDock{
         min-width:172px !important;
         height:43px !important;
@@ -6329,7 +6323,7 @@
       }
     }
 
-    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         top:calc(7px + env(safe-area-inset-top)) !important;
         left:calc(8px + env(safe-area-inset-left)) !important;
@@ -6353,8 +6347,6 @@
     }
 
 
-
-
     #playBtn.is-playing{
       color:#1d4ed8 !important;
       font-size:20px !important;
@@ -6362,13 +6354,11 @@
       padding-left:0 !important;
     }
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       #playBtn.is-playing{
         font-size:18px !important;
       }
     }
-
-
 
 
     @media (min-width: 761px) and (max-height: 920px){
@@ -6610,10 +6600,6 @@
     }
 
 
-
-
-
-
     #leftPanel,
     body.observed-mode #leftPanel{
       bottom:16px !important;
@@ -6621,7 +6607,7 @@
     }
 
 
-    @media (min-width: 901px) and (min-height:561px){
+    @media (min-width: 901px) and (min-height:561px), (min-width: 901px) and (pointer:fine), (min-width: 901px) and (pointer:none) {
       #timelineDock{
         left:352px !important;
         right:16px !important;
@@ -6634,7 +6620,7 @@
     }
 
 
-    @media (max-width: 900px){
+    @media (max-width:900px){
       #timelineDock,
       body.observed-mode #timelineDock{
         left:16px !important;
@@ -6785,7 +6771,7 @@
     }
 
 
-    @media (max-width: 900px){
+    @media (max-width:900px){
       #rightRail #legendDock.legend-card{
         position:relative !important;
         width:100% !important;
@@ -6793,11 +6779,7 @@
     }
 
 
-
-
-
-
-    @media (min-width: 901px) and (min-height:561px){
+    @media (min-width: 901px) and (min-height:561px), (min-width: 901px) and (pointer:fine), (min-width: 901px) and (pointer:none) {
       :root{
         --shore-left-pane-width:320px;
         --shore-left-pane-left:16px;
@@ -7307,8 +7289,6 @@
     }
 
 
-
-
     #mapTitleBadge{
       position:fixed;
       top:18px;
@@ -7456,7 +7436,7 @@
       }
     }
 
-    @media (max-width: 900px){
+    @media (max-width:900px){
       #mapTitleBadge{
         display:none !important;
       }
@@ -7532,9 +7512,6 @@
         display:none !important;
       }
     }
-
-
-
 
 
     #timelineDock,
@@ -7831,8 +7808,6 @@
     }
 
 
-
-
     .datum-card .section-title{
       display:flex !important;
       align-items:center !important;
@@ -8028,8 +8003,6 @@
       opacity:1 !important;
       background:inherit !important;
     }
-
-
 
 
     html body #calendarPopover,
@@ -8291,7 +8264,7 @@
 
 
 
-    @media (min-width: 901px) and (min-height:561px){
+    @media (min-width: 901px) and (min-height:561px), (min-width: 901px) and (pointer:fine), (min-width: 901px) and (pointer:none) {
       html.os-windows,
       html.win-compact-ui{
         --win-left-width:320px;
@@ -8692,16 +8665,13 @@
       }
     }
 
-    @media (min-width: 901px) and (min-height:561px) and (max-height: 760px){
+    @media (min-width: 901px) and (min-height:561px) and (max-height: 760px), (min-width: 901px) and (pointer:fine) and (max-height: 760px), (min-width: 901px) and (pointer:none) and (max-height: 760px) {
       html.os-windows,
       html.win-compact-ui{
         --win-ui-zoom:.78;
         --win-bottom-y:104px;
       }
     }
-
-
-
 
 
     #playBtn{
@@ -8795,7 +8765,7 @@
       padding-bottom:10px !important;
     }
 
-    @media (max-width: 900px){
+    @media (max-width:900px){
       #legendDock.legend-card,
       #legendDock.map-floating.legend-card,
       body.observed-mode #legendDock.legend-card,
@@ -8805,8 +8775,6 @@
         min-width:0 !important;
       }
     }
-
-
 
 
     #timelineDock,
@@ -8886,7 +8854,7 @@
 
 
 
-    @media (min-width: 901px) and (min-height:561px){
+    @media (min-width: 901px) and (min-height:561px), (min-width: 901px) and (pointer:fine), (min-width: 901px) and (pointer:none) {
       html.os-windows #legendDock.legend-card,
       html.win-compact-ui #legendDock.legend-card,
       html.os-windows #legendDock.map-floating.legend-card,
@@ -8918,8 +8886,6 @@
         opacity:1 !important;
       }
     }
-
-
 
 
     body.observed-mode #leftPanel{
@@ -8990,7 +8956,7 @@
       margin-top:6px !important;
     }
 
-    @media (min-width: 901px) and (min-height:561px){
+    @media (min-width: 901px) and (min-height:561px), (min-width: 901px) and (pointer:fine), (min-width: 901px) and (pointer:none) {
       #legendDock.legend-card,
       #legendDock.map-floating.legend-card,
       body.observed-mode #legendDock.legend-card,
@@ -9074,7 +9040,7 @@
       align-self:center !important;
     }
 
-    @media (min-width: 901px) and (min-height:561px){
+    @media (min-width: 901px) and (min-height:561px), (min-width: 901px) and (pointer:fine), (min-width: 901px) and (pointer:none) {
       html.os-windows #legendDock.legend-card,
       html.win-compact-ui #legendDock.legend-card,
       html.os-windows #legendDock.map-floating.legend-card,
@@ -9088,9 +9054,6 @@
         max-width:156px !important;
       }
     }
-
-
-
 
 
     #legendDock.legend-card,
@@ -9156,15 +9119,13 @@
       padding-bottom:1px !important;
     }
 
-    @media (max-width: 900px){
+    @media (max-width:900px){
       #legendDock .legend-body{
         overflow-y:auto !important;
         overflow-x:hidden !important;
         max-height:min(70vh, 620px) !important;
       }
     }
-
-
 
 
     #legendDock.legend-card,
@@ -9212,9 +9173,6 @@
       line-height:1.12 !important;
       padding-bottom:0 !important;
     }
-
-
-
 
 
     #rightRail,
@@ -10167,8 +10125,6 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-
-
     .export-calendar-day.in-range,
     .export-calendar-day.range-start,
     .export-calendar-day.range-end,
@@ -10202,8 +10158,6 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       border-color:#fecaca !important;
       box-shadow:0 0 0 2px rgba(248,113,113,.18), 0 0 14px rgba(248,113,113,.22) !important;
     }
-
-
 
 
     .export-calendar-panel .export-manual-input{
@@ -10285,7 +10239,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       :root{
         --mobile-safe-top:env(safe-area-inset-top, 0px);
         --mobile-safe-right:env(safe-area-inset-right, 0px);
@@ -10513,7 +10467,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-width: 360px) and (orientation: portrait){
+    @media (max-width:360px) and (orientation:portrait){
       body.mobile-optimized #legendDock{
         display:none !important;
       }
@@ -10525,7 +10479,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       .download-modal.open{
         align-items:stretch !important;
         justify-content:center !important;
@@ -10760,7 +10714,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-height: 560px) and (orientation: landscape){
+    @media (max-height: 560px) and (orientation: landscape) and (pointer:coarse) {
       body.mobile-optimized #leftPanel{
         top:calc(6px + env(safe-area-inset-top, 0px)) !important;
         bottom:calc(72px + env(safe-area-inset-bottom, 0px)) !important;
@@ -10805,9 +10759,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-
-
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       :root{
         --pjm-safe-top:env(safe-area-inset-top, 0px);
         --pjm-safe-right:env(safe-area-inset-right, 0px);
@@ -11381,7 +11333,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-height: 560px) and (orientation: landscape){
+    @media (max-height: 560px) and (orientation: landscape) and (pointer:coarse) {
       :root{
         --pjm-timeline-h:88px;
       }
@@ -11447,7 +11399,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #legendDock{
         display:grid !important;
         grid-template-columns:minmax(0, 1fr) 46px !important;
@@ -11713,7 +11665,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #timelineDock{
         position:fixed !important;
         overflow:hidden !important;
@@ -11916,7 +11868,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #mobileDrawerBackdrop,
       body.mobile-optimized.mobile-controls-open #mobileDrawerBackdrop{
         position:fixed !important;
@@ -11991,7 +11943,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
+    @media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer:coarse) {
       body.mobile-optimized #leftPanel{
         transform:translate3d(calc(-100% - 18px), 0, 0) !important;
       }
@@ -12003,7 +11955,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #mobileControlsToggle,
       body.mobile-optimized.mobile-controls-open #mobileControlsToggle,
       body.mobile-optimized.mobile-legend-open #mobileControlsToggle{
@@ -12142,7 +12094,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #mobileControlsToggle,
       body.mobile-optimized.mobile-controls-open #mobileControlsToggle,
       body.mobile-optimized.mobile-legend-open #mobileControlsToggle{
@@ -12217,7 +12169,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-@media (max-width: 900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   body.mobile-optimized #timelineDock{
     overflow:visible !important;
   }
@@ -12287,7 +12239,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
   }
 }
 
-@media (max-width: 900px) and (orientation: landscape), (max-height: 560px){
+@media (max-width: 900px) and (orientation: landscape), (max-height: 560px) and (pointer:coarse) {
   body.mobile-optimized #timelineBubble{
     top:-26px !important;
     min-height:22px !important;
@@ -12319,7 +12271,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
 
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized #mobileControlsClose{
         display:none !important;
       }
@@ -12383,7 +12335,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (orientation: landscape) and (pointer: coarse), (max-height: 560px){
+    @media (orientation: landscape) and (pointer: coarse), (max-height: 560px) and (pointer:coarse) {
       :root{
         --pjm-timeline-h:124px !important;
       }
@@ -12517,9 +12469,6 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
         z-index:9999 !important;
       }
     }
-
-
-
 
 
     @media (orientation: landscape) and (max-height: 620px){
@@ -13014,7 +12963,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (orientation: landscape) and (max-height: 420px){
+    @media (orientation:landscape) and (max-height:420px){
       :root{ --pj-long-pill-h:108px; }
 
       body.mobile-optimized #mapTitleBadge{
@@ -13356,7 +13305,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-    @media (orientation: landscape) and (max-height: 420px){
+    @media (orientation:landscape) and (max-height:420px){
       :root{ --pj-long-pill-h:108px; }
 
       body.mobile-optimized #timelineDock,
@@ -13448,7 +13397,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (min-width: 901px) and (min-height: 561px){
+    @media (min-width: 901px) and (min-height: 561px), (min-width: 901px) and (pointer:fine), (min-width: 901px) and (pointer:none) {
       #leftPanel{
         top:16px !important;
         padding-top:0 !important;
@@ -13481,7 +13430,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized.mobile-controls-open #leftPanel > #mobileControlsClose{
         display:grid !important;
         visibility:visible !important;
@@ -13508,7 +13457,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       display:none;
     }
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       body.mobile-optimized.mobile-controls-open #mobileControlsToggle,
       body.mobile-optimized.mobile-controls-open.mobile-legend-open #mobileControlsToggle{
         opacity:0 !important;
@@ -13708,7 +13657,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       display:none !important;
     }
 
-    @media (max-width: 900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       #mapTitleBadge.shorely-title-badge{
         gap:7px !important;
         max-width:calc(100vw - 16px) !important;
@@ -13763,9 +13712,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     }
 
 
-
-
-@media (min-width: 901px) and (min-height:561px){
+@media (min-width: 901px) and (min-height:561px), (min-width: 901px) and (pointer:fine), (min-width: 901px) and (pointer:none) {
   #leftPanel,
   body.observed-mode #leftPanel,
   body.calendar-picker-open #leftPanel,
@@ -14049,7 +13996,7 @@ body.observed-mode.calendar-picker-open #calendarGoBtn{
   background:rgba(96,165,250,.22) !important;
   border-color:rgba(191,219,254,.58) !important;
 }
-@media (max-width: 430px){
+@media (max-width:430px){
   #calendarPopover .calendar-popover-grid{
     width:calc(100vw - 24px) !important;
     max-width:calc(100vw - 24px) !important;
@@ -14117,7 +14064,7 @@ body .timeline-trackRow{
 }
 
 
-@media (max-width: 900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   body.mobile-optimized #timelineDock #legendDock,
   body.mobile-optimized #timelineDock .legend-card{
     display:none !important;
@@ -14249,7 +14196,7 @@ body .timeline-trackRow{
 }
 
 
-@media (max-width: 900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   body.mobile-optimized #leftPanel > .data-source-card{ order:1 !important; }
   body.mobile-optimized #leftPanel > #forecastScenarioCard{ order:2 !important; }
   body.mobile-optimized #leftPanel > .overlay-card{ order:10 !important; }
@@ -14483,7 +14430,7 @@ body .timeline-trackRow{
 
 
 
-@media (max-width: 900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   body.mobile-optimized #timelineBubble,
   body.mobile-optimized #timelineBubble.timeline-bubble-stage-none,
   body.mobile-optimized #timelineBubble.timeline-bubble-stage-minor,
@@ -14637,7 +14584,7 @@ body .timeline-trackRow{
 }
 
 
-@media (max-width: 900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   body.mobile-optimized #timelineDock #hourSlider{
     width:calc(100% - var(--pj-slider-thumb-size)) !important;
     max-width:calc(100% - var(--pj-slider-thumb-size)) !important;
@@ -14662,7 +14609,7 @@ body .timeline-trackRow{
   }
 }
 
-@media (max-width: 360px){
+@media (max-width:360px){
   body.mobile-optimized .timeline-interval-toggle{
     width:84px !important;
     min-width:84px !important;
@@ -14681,9 +14628,6 @@ html.win-compact-ui #timelineDock #hourSlider{
   margin-right:var(--pj-slider-thumb-half) !important;
 }
 </style>
-
-
-
 
 
   <style id="v2-export-visibility-fix">
@@ -14728,9 +14672,9 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 @media print { .webcam-map-marker, #webcamPanel { display:none !important; } }
 
 </style>
-<link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261009-2">
-<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261009-5">
-<link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261009-2">
+<link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261009-conflicts-1">
+<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261009-conflicts-1">
+<link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261009-conflicts-1">
 <!-- Load the complete layout before rendering any controls. -->
 <style id="floodmapper-2-controls">
     .mapper-tutorial-launch{
@@ -14832,7 +14776,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
     .flood-year-control{display:grid;grid-template-columns:minmax(0,1fr) 145px;gap:11px;align-items:center;margin-top:5px}.flood-year-control input{width:100%;accent-color:var(--scenario-color,#7df9ff)}
     .flood-year-readout{display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:baseline;padding:7px 9px;border:1px solid rgba(125,249,255,.16);border-radius:10px;background:rgba(2,6,23,.34);text-align:right}.flood-year-readout span{color:#7df9ff;font-size:9px;font-weight:900}.flood-year-readout strong{color:#fff;font-size:14px}.flood-year-readout small{grid-column:1/-1;color:#91a5bd;font-size:8px}
     .flood-history-error{padding:16px;border:1px solid rgba(251,113,133,.3);border-radius:14px;background:rgba(159,18,57,.12);color:#fecdd3;font-size:11px;line-height:1.5}
-    @media (max-width:900px),(max-height:560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       .map-click-mode-control{top:max(58px,calc(env(safe-area-inset-top) + 54px));width:max-content;max-width:calc(100vw - 20px);padding:4px;border-radius:13px}
       .map-click-mode-label{display:none}.map-click-mode-control button{min-height:34px;padding:0 13px;font-size:10px}
       .timeline-interval-toggle{width:168px !important;min-width:168px !important}
@@ -14870,7 +14814,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
   box-sizing:border-box !important;
 }
 
-@media (max-width: 900px){
+@media (max-width:900px){
   :root{ --pj-all-slider-row-inset:22px; }
 }
 
@@ -14888,7 +14832,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 }
 
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   #leftPanel{
     width:var(--pj-ui-left-width) !important;
     max-width:calc(100vw - 32px) !important;
@@ -15147,7 +15091,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 }
 
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   html.os-windows,
   html.win-compact-ui{
     --win-left-width:340px !important;
@@ -15586,7 +15530,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 }
 
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   #rightRail,
   body.observed-mode #rightRail,
   body.calendar-picker-open #rightRail,
@@ -15604,7 +15548,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 }
 
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   html.os-windows .leaflet-top.leaflet-right .leaflet-control-zoom,
   html.win-compact-ui .leaflet-top.leaflet-right .leaflet-control-zoom{
     margin-top:104px !important;
@@ -15636,7 +15580,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 }
 
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   body.mobile-optimized #mobileRailMount > #downloadCard,
   body.mobile-optimized #mobileRailMount > .download-launch-card,
   body.mobile-optimized #mobileRailMount > .download-card{
@@ -15676,7 +15620,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
   --pj-final-zoom-gap-from-rail:20px;
 }
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   #leftPanel,
   body.observed-mode #leftPanel,
   body.calendar-picker-open #leftPanel,
@@ -15860,7 +15804,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 }
 
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   .leaflet-top.leaflet-right .leaflet-control-zoom,
   html.os-mac .leaflet-top.leaflet-right .leaflet-control-zoom,
   html.os-windows .leaflet-top.leaflet-right .leaflet-control-zoom,
@@ -15882,7 +15826,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 }
 
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   html.os-windows,
   html.win-compact-ui{
     --win-left-width:var(--pj-final-left-width) !important;
@@ -15932,7 +15876,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 }
 
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   body.mobile-optimized #leftPanel,
   body.mobile-optimized #mobileRailMount{
     overflow-x:hidden !important;
@@ -16354,7 +16298,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
 }
 
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   #rightRail{
     overflow-y:auto !important;
     overflow-x:hidden !important;
@@ -16374,7 +16318,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
 </style>
 <style>
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   :root{
     --pj-logo-rail-width-final:260px;
     --pj-logo-rail-right-final:16px;
@@ -16419,14 +16363,14 @@ html.win-compact-ui .leaflet-top.leaflet-right{
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1320px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) {
   :root{
     --pj-logo-rail-width-final:246px;
     --pj-zoom-logo-gap-final:12px;
   }
 }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   body.mobile-optimized .leaflet-top.leaflet-right{
     top:0 !important;
     right:0 !important;
@@ -16453,7 +16397,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
   --pj-equal-left-pane-width:var(--pj-final-left-width, 340px);
 }
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   #leftPanel,
   body.observed-mode #leftPanel,
   body:not(.observed-mode) #leftPanel,
@@ -16530,7 +16474,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
 <style>
 
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   :root{
     --pj-stable-left-width:356px;
     --pj-stable-right-width:260px;
@@ -17055,7 +16999,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
 }
 
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #leftPanel #legendDock .legend-title{
     font-size:15px !important;
   }
@@ -17120,7 +17064,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
       border-top-width:9px !important;
     }
 
-    @media (max-width:900px), (max-height: 560px){
+    @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
       html body #timelineDock,
       html body.observed-mode #timelineDock{
         padding-top:38px !important;
@@ -17311,7 +17255,7 @@ body.observed-mode #playBtn.is-playing{
   letter-spacing:.08em !important;
 }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   #timelineDock .timeline-controls{ min-height:54px !important; }
   #timelineDock .playFab,
   #playBtn,
@@ -17511,7 +17455,7 @@ html body #playBtn .pauseIcon::after{
 html body #playBtn .pauseIcon::before{ left:1px !important; }
 html body #playBtn .pauseIcon::after{ right:1px !important; }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #timelineDock .timeline-controls{
     min-height:44px !important;
     gap:7px !important;
@@ -17872,7 +17816,7 @@ html body #leftPanel #legendDock .legend-row.legend-row-boundary{
   display:none !important;
 }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #mapTitleBadge.shorely-title-badge{
     gap:7px !important;
     min-height:36px !important;
@@ -17998,7 +17942,7 @@ html body #mapTitleBadge .shorely-title-logo-shorelysafe{
   margin:0 !important;
 }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #rightRail .right-logo-card{
     min-height:76px !important;
     height:76px !important;
@@ -18015,7 +17959,7 @@ html body #mapTitleBadge .shorely-title-logo-shorelysafe{
 </style>
 <style>
 
-@media (min-width: 901px) and (min-height: 561px){
+@media (min-width: 901px) and (min-height: 561px), (min-width: 901px) and (pointer:fine), (min-width: 901px) and (pointer:none) {
   html body #mapTitleBadge.shorely-title-badge,
   html body.forecast-mode #mapTitleBadge.shorely-title-badge,
   html body.observed-mode #mapTitleBadge.shorely-title-badge{
@@ -18065,7 +18009,7 @@ html body #mapTitleBadge .shorely-title-logo-shorelysafe{
 }
 
 
-@media (max-width: 900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #mapTitleBadge.shorely-title-badge{
     min-height:unset !important;
   }
@@ -18084,7 +18028,7 @@ html body.observed-mode #mapTitleBadge.shorely-title-badge{
   -webkit-backdrop-filter:blur(16px) !important;
 }
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   html body #mapTitleBadge,
   html body #mapTitleBadge.shorely-title-badge,
   html body.forecast-mode #mapTitleBadge.shorely-title-badge,
@@ -18167,7 +18111,7 @@ html body #topBannerCloseBtn:active{
 }
 
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #topBanner,
   html body #topBanner.alert,
   html.os-mac body #topBanner.alert,
@@ -18208,7 +18152,7 @@ html body #topBannerCloseBtn:active{
 </style>
 <style>
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   html body #mapTitleBadge,
   html body #mapTitleBadge.shorely-title-badge,
   html body.forecast-mode #mapTitleBadge.shorely-title-badge,
@@ -18306,7 +18250,7 @@ html body #topBannerCloseBtn:active{
 }
 
 
-@media (min-width:901px) and (max-width:1280px) and (min-height:561px){
+@media (min-width:901px) and (max-width:1280px) and (min-height:561px), (min-width:901px) and (max-width:1280px) and (pointer:fine), (min-width:901px) and (max-width:1280px) and (pointer:none) {
   html body #mapTitleBadge,
   html body #mapTitleBadge.shorely-title-badge,
   html body.forecast-mode #mapTitleBadge.shorely-title-badge,
@@ -18344,7 +18288,7 @@ html body #topBannerCloseBtn:active{
 }
 
 
-@media (min-width:901px) and (max-width:1080px) and (min-height:561px){
+@media (min-width:901px) and (max-width:1080px) and (min-height:561px), (min-width:901px) and (max-width:1080px) and (pointer:fine), (min-width:901px) and (max-width:1080px) and (pointer:none) {
   html body #mapTitleBadge,
   html body #mapTitleBadge.shorely-title-badge,
   html body.forecast-mode #mapTitleBadge.shorely-title-badge,
@@ -18368,7 +18312,7 @@ html body #topBannerCloseBtn:active{
 }
 
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #mapTitleBadge,
   html body #mapTitleBadge.shorely-title-badge{
     height:auto !important;
@@ -18491,7 +18435,7 @@ html.win-compact-ui body #timelineBubble::after{
 }
 
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #timelineDock,
   html body.observed-mode #timelineDock{
     padding-top:48px !important;
@@ -18639,7 +18583,7 @@ html.win-compact-ui body #timelineDock{
   overflow:visible !important;
 }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #timelineDock,
   html body.observed-mode #timelineDock{
     padding-top:40px !important;
@@ -18735,7 +18679,7 @@ html.win-compact-ui body #timelineDock{
   overflow:visible !important;
 }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #timelineBubble,
   html body.observed-mode #timelineBubble,
   html.os-mac body #timelineBubble,
@@ -18794,7 +18738,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   padding-right:8px !important;
 }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body #timelineBubble,
   html body.observed-mode #timelineBubble,
   html.os-mac body #timelineBubble,
@@ -18826,7 +18770,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
 </style>
 <style>
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   :root{
     --pj-fixed-left-width:356px;
     --pj-fixed-right-width:260px;
@@ -19306,21 +19250,21 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1320px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) {
   :root{
     --pj-fixed-left-width:340px;
     --pj-fixed-right-width:244px;
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1120px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) {
   :root{
     --pj-fixed-left-width:320px;
     --pj-fixed-right-width:228px;
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-height:760px){
+@media (min-width:901px) and (min-height:561px) and (max-height:760px), (min-width:901px) and (pointer:fine) and (max-height:760px), (min-width:901px) and (pointer:none) and (max-height:760px) {
   :root{
     --pj-fixed-bottom-reserve:166px;
     --pj-fixed-panel-gap:8px;
@@ -19355,7 +19299,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
 </style>
 <style>
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   :root{
     --pj-request-play-lane:64px;
     --pj-request-timeline-height:112px;
@@ -19721,7 +19665,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-height:760px){
+@media (min-width:901px) and (min-height:561px) and (max-height:760px), (min-width:901px) and (pointer:fine) and (max-height:760px), (min-width:901px) and (pointer:none) and (max-height:760px) {
   :root{
     --pj-request-timeline-height:108px;
     --pj-fixed-bottom-reserve:184px;
@@ -19754,7 +19698,7 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   :root{
     --pj-request-play-lane:50px;
     --pj-request-timeline-height:108px;
@@ -20071,7 +20015,7 @@ html body #timelineDock #hourSlider{
 </style>
 <style>
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   :root{
     --pj-equal-left-width:356px;
     --pj-equal-right-width:260px;
@@ -20364,14 +20308,14 @@ html body #timelineDock #hourSlider{
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1320px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) {
   :root{
     --pj-equal-left-width:340px;
     --pj-equal-right-width:244px;
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1120px){
+@media (min-width:901px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) {
   :root{
     --pj-equal-left-width:320px;
     --pj-equal-right-width:228px;
@@ -20380,7 +20324,7 @@ html body #timelineDock #hourSlider{
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-height:940px){
+@media (min-width:901px) and (min-height:561px) and (max-height:940px), (min-width:901px) and (pointer:fine) and (max-height:940px), (min-width:901px) and (pointer:none) and (max-height:940px) {
   :root{
     --pj-equal-bottom-reserve:128px;
     --pj-equal-card-h:82px;
@@ -20716,7 +20660,7 @@ html.platform-mac-template body{
 }
 
 
-@media (min-width:901px) and (min-height:561px){
+@media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
   html.platform-mac-template #leftPanel,
   html.platform-mac-template #rightRail,
   html.platform-mac-template #legendDock,
@@ -20775,7 +20719,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 }
 
 
-@media (max-width: 900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
 
   html.platform-mac-template body.mobile-optimized #legendDock{
     width:auto !important;
@@ -20911,7 +20855,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 
 </style>
 <style id="shorely-mobile-slider-polish">
-@media (max-width:900px), (max-height:560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   :root{
     --shorely-mobile-timeline-height:94px !important;
     --pj-request-timeline-height:94px !important;
@@ -21071,7 +21015,7 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
 }
 </style>
 <style id="shorely-mobile-slider-key-correction">
-@media (max-width:900px), (max-height:560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body.mobile-optimized #shorelyMobileSliderKey{
     position:absolute !important;
     top:13px !important;
@@ -21186,7 +21130,7 @@ html body #mapTitleBadge #mapTitleLogo{
   display:none;
 }
 
-@media (max-width:900px), (max-height:560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body.mobile-optimized #mapTitleBadge #mapTitleLogo{
     width:34px !important;
     height:34px !important;
@@ -21320,7 +21264,7 @@ html body #mapTitleBadge #mapTitleLogo{
 }
 </style>
 <style id="stone-harbor-final-qa-layout-fixes">
-@media (min-width:901px) and (min-height:561px) and (max-height:760px){
+@media (min-width:901px) and (min-height:561px) and (max-height:760px), (min-width:901px) and (pointer:fine) and (max-height:760px), (min-width:901px) and (pointer:none) and (max-height:760px) {
   html body:not(.mobile-optimized) #leftPanel{
     overflow-x:hidden !important;
     overflow-y:auto !important;
@@ -21339,7 +21283,7 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 }
 
-@media (max-width:900px), (max-height: 560px){
+@media (max-width:900px), (max-height:560px) and (pointer:coarse) {
   html body.mobile-optimized #timelineDock .timeline-top,
   html body.mobile-optimized #timelineDock .timeline-controls{
     overflow:visible !important;
@@ -21415,7 +21359,7 @@ html body #mapTitleBadge #mapTitleLogo{
 
   .mapper-tutorial-card{width:min(390px,calc(100vw - 28px)) !important;max-height:min(520px,calc(100vh - 28px)) !important}
 
-  @media (max-width:900px),(max-height:560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #leftPanel .timeline-resolution-card{display:flex !important;width:100% !important;min-height:62px !important;height:auto !important;padding:7px 12px !important;overflow:visible !important;box-sizing:border-box !important}
     html body.mobile-optimized #leftPanel .timeline-resolution-card .timeline-interval-toggle{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr)) !important;width:100% !important;min-width:0 !important;max-width:none !important;height:32px !important}
     html body.mobile-optimized #leftPanel .timeline-resolution-card .timeline-interval-toggle button{width:100% !important;min-width:0 !important;height:26px !important;min-height:26px !important;padding:0 3px !important;font-size:9.5px !important}
@@ -21444,7 +21388,7 @@ html body #mapTitleBadge #mapTitleLogo{
     html body.mobile-optimized.observed-mode #leftPanel > .mobile-top-tides-card{display:grid !important}
     .mapper-tutorial-card{width:calc(100vw - 28px) !important;max-height:min(46vh,420px) !important}
   }
-  @media (min-width:901px) and (min-height:561px) and (max-height:760px){
+  @media (min-width:901px) and (min-height:561px) and (max-height:760px), (min-width:901px) and (pointer:fine) and (max-height:760px), (min-width:901px) and (pointer:none) and (max-height:760px) {
     #rightRail{bottom:128px !important;gap:4px !important}
     #rightRail .rail-card{padding:7px !important;border-radius:14px !important}
     #rightRail .rail-head{margin-bottom:3px !important}
@@ -21570,7 +21514,7 @@ html body #mapTitleBadge #mapTitleLogo{
     color:#ffffff !important;
   }
 
-  @media (max-width:900px),(max-height:560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #leftPanel #timelineIntervalCard,
     html body.mobile-optimized.observed-mode #leftPanel #timelineIntervalCard,
     html body.mobile-optimized.forecast-mode #leftPanel #timelineIntervalCard{
@@ -21598,7 +21542,7 @@ html body #mapTitleBadge #mapTitleLogo{
       letter-spacing:0 !important;
     }
   }
-  @media (min-width:600px) and (max-height:560px){
+  @media (min-width:600px) and (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #timelineDock .timeline-trackRow{position:relative !important;top:-11px !important}
   }
 </style>
@@ -21729,7 +21673,7 @@ html body #mapTitleBadge #mapTitleLogo{
     font-size:11px !important;
   }
 
-  @media (max-width:900px),(max-height:560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #timelineDock #timelineFloodKey{
       display:none !important;
     }
@@ -21880,7 +21824,7 @@ html body #mapTitleBadge #mapTitleLogo{
    * - map-tap mode and Controls share the second row when Buildings/Parcels are on;
    * - the timeline key never runs underneath its help button.
    */
-  @media (max-width:900px), (max-height:560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #mobileControlsToggle{
       top:max(64px, calc(env(safe-area-inset-top, 0px) + 64px)) !important;
     }
@@ -22047,7 +21991,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 
-  @media (min-width:600px) and (max-height:560px) and (orientation:landscape){
+  @media (min-width:600px) and (max-height:560px) and (orientation:landscape) and (pointer:coarse) {
     html body.mobile-optimized .shorely-flood-popup .leaflet-popup-content{
       margin:10px 12px 11px !important;
     }
@@ -22162,7 +22106,7 @@ html body #mapTitleBadge #mapTitleLogo{
     grid-column:2;
   }
 
-  @media (max-width:900px), (max-height: 560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #leftPanel .data-source-options button{
       min-height:34px !important;
       height:34px !important;
@@ -22313,7 +22257,7 @@ html body #mapTitleBadge #mapTitleLogo{
   }
   .export-depth-key-note strong{color:#83e58d;font-weight:950}
 
-  @media (max-width:900px),(max-height: 560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #legendDock[data-legend-mode="depth"]{
       height:94px !important;
       min-height:94px !important;
@@ -22388,7 +22332,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 
-  @media (min-width:600px) and (max-height:560px) and (orientation:landscape){
+  @media (min-width:600px) and (max-height:560px) and (orientation:landscape) and (pointer:coarse) {
     html body.mobile-optimized #mapWrap > #legendDock[data-legend-mode="depth"]{
       top:62px !important;
       width:250px !important;
@@ -22461,7 +22405,7 @@ html body #mapTitleBadge #mapTitleLogo{
     line-height:1.45 !important;
   }
 
-  @media (min-width:901px) and (min-height:561px){
+  @media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
     html body:not(.mobile-optimized) #rightRail{
       padding-bottom:46px !important;
     }
@@ -22477,7 +22421,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 
-  @media (min-width:901px) and (min-height:561px) and (max-height:760px){
+  @media (min-width:901px) and (min-height:561px) and (max-height:760px), (min-width:901px) and (pointer:fine) and (max-height:760px), (min-width:901px) and (pointer:none) and (max-height:760px) {
     html body:not(.mobile-optimized) #rightRail > .rail-card{
       padding:7px !important;
     }
@@ -22555,7 +22499,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 
-  @media (max-width:900px),(max-height: 560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized.observed-mode #leftPanel,
     html body.mobile-optimized.observed-mode.mobile-controls-open #leftPanel{
       overflow-y:auto !important;
@@ -22723,7 +22667,7 @@ html body #mapTitleBadge #mapTitleLogo{
 </style>
 <style id="north-wildwood-sidebar-pane-qa-20260802">
   /* Keep both control rails readable as one consistent, ordered system. */
-  @media (min-width:901px) and (min-height:561px){
+  @media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
     html body:not(.mobile-optimized) #leftPanel{
       gap:7px !important;
       padding:0 4px 8px 0 !important;
@@ -22772,7 +22716,7 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 
-  @media (max-width:900px),(max-height: 560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #leftPanel{
       gap:8px !important;
       overflow-y:auto !important;
@@ -22893,7 +22837,7 @@ html body #mapTitleBadge #mapTitleLogo{
     --centered-close-x-color:#d8f9ff;
   }
 
-  @media (max-width:900px),(max-height: 560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     :is(.centered-close-control,.leaflet-popup-close-button){
       --centered-close-x-size:18px;
     }
@@ -22923,7 +22867,7 @@ html body #mapTitleBadge #mapTitleLogo{
     padding:0 28px !important;
   }
 
-  @media (max-width:900px),(max-height: 560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized .shorely-flood-popup .leaflet-popup-close-button{
       --centered-close-x-size:14px;
       top:7px !important;
@@ -23089,7 +23033,7 @@ html body #mapTitleBadge #mapTitleLogo{
     font-size:13px !important;
   }
 
-  @media (max-width: 900px), (max-height: 560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #legendDock[data-legend-mode="dynamic"],
     html body.mobile-optimized #timelineDock #legendDock[data-legend-mode="dynamic"],
     html body.mobile-optimized #mapWrap #legendDock[data-legend-mode="dynamic"]{
@@ -23161,7 +23105,7 @@ html body #mapTitleBadge #mapTitleLogo{
 </style>
 <style id="north-wildwood-compact-export-panel">
   /* Use the desktop dialog's width instead of stacking every short control. */
-  @media (min-width:721px) and (min-height:561px){
+  @media (min-width:721px) and (min-height:561px), (min-width:721px) and (pointer:fine), (min-width:721px) and (pointer:none) {
     #downloadModal.download-modal.open{
       align-items:center !important;
     }
@@ -23234,7 +23178,7 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 </style>
 <style id="north-wildwood-right-rail-polish-v2">
-  @media (min-width:901px) and (min-height:561px){
+  @media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
     html body:not(.mobile-optimized) #rightRail#rightRail{
       gap:8px !important;
       row-gap:8px !important;
@@ -23410,7 +23354,7 @@ html body #mapTitleBadge #mapTitleLogo{
   html body #leftPanel #legendDock[data-legend-mode="depth"] .depth-legend-gradient{
     height:12px !important;
   }
-  @media (max-width:900px),(max-height: 560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized:not(.physics-forecast-active) #legendDock[data-legend-mode="depth"]{
       height:74px !important;
       min-height:74px !important;
@@ -23709,7 +23653,7 @@ html body #mapTitleBadge #mapTitleLogo{
     line-height:1.05 !important;
   }
 
-  @media (min-width:901px) and (min-height:561px) and (max-height:760px){
+  @media (min-width:901px) and (min-height:561px) and (max-height:760px), (min-width:901px) and (pointer:fine) and (max-height:760px), (min-width:901px) and (pointer:none) and (max-height:760px) {
     :root{
       --pj-equal-card-h:72px;
       --pj-equal-opacity-h:52px;
@@ -23988,7 +23932,7 @@ html body #mapTitleBadge #mapTitleLogo{
       padding-right:0 !important;
     }
   }
-  @media (max-width:900px), (max-height:560px){
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     html body.mobile-optimized #mapClickModeControl.map-click-mode-control{
       transform:none !important;
     }
@@ -24266,7 +24210,7 @@ html body #mapTitleBadge #mapTitleLogo{
   body[data-shorelysafe-ui] :is(#downloadModal,#infoModal,#datumModal) .modal-card {
     border-radius:18px !important;background:var(--fleet-panel) !important;color:var(--fleet-text) !important;
   }
-  @media (min-width:901px) and (min-height:561px) {
+  @media (min-width:901px) and (min-height:561px), (min-width:901px) and (pointer:fine), (min-width:901px) and (pointer:none) {
     /* Keep the first slider thumb outside the play button's column. */
     body[data-shorelysafe-ui]:not(.mobile-optimized) #timelineDock .timeline-trackRow {
       box-sizing:border-box !important;min-width:0 !important;padding:0 !important;
@@ -24285,11 +24229,11 @@ html body #mapTitleBadge #mapTitleLogo{
       bottom:156px !important;max-height:calc(100dvh - 172px) !important;overflow-y:auto !important;
     }
   }
-  @media (min-width:901px) and (max-width:1199px) and (min-height:561px) {
+  @media (min-width:901px) and (max-width:1199px) and (min-height:561px), (min-width:901px) and (max-width:1199px) and (pointer:fine), (min-width:901px) and (max-width:1199px) and (pointer:none) {
     body[data-shorelysafe-ui]:not(.mobile-optimized) #leftPanel {width:286px !important;max-width:286px !important;}
     body[data-shorelysafe-ui]:not(.mobile-optimized) #rightRail {width:224px !important;}
   }
-  @media (max-width:900px),(max-height:560px) {
+  @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
     body[data-shorelysafe-ui].mobile-optimized #leftPanel {
       gap:8px !important;overflow-y:auto !important;overflow-x:hidden !important;
     }
@@ -25136,14 +25080,14 @@ html body #mapTitleBadge #mapTitleLogo{
     let mapTitleFitRaf = 0;
 
     function fitMapTitleBadgeToViewport() {
-      if (document.documentElement.classList.contains("avalon-mobile-ui") && window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches) return;
+      if (document.documentElement.classList.contains("avalon-mobile-ui") && isCompactFloodmapperLayout()) return;
       mapTitleFitRaf = 0;
       const badge = document.getElementById("mapTitleBadge");
       const text = document.getElementById("mapTitleText");
       if (!badge || !text) return;
 
       const viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-      const compact = window.matchMedia("(max-width:900px), (max-height: 560px)").matches;
+      const compact = isCompactFloodmapperLayout();
       let leftLimit = 12;
       let rightLimit = viewportWidth - 12;
 
@@ -27471,7 +27415,7 @@ function setDatumHelpOpen(isOpen) {
         requestAnimationFrame(() => {
           const modalCard = modal.querySelector(".download-modal-card");
           if (modalCard) modalCard.scrollTop = 0;
-          const compactTouchLayout = window.matchMedia("(max-width: 900px), (max-height: 560px)").matches;
+          const compactTouchLayout = isCompactFloodmapperLayout();
           const focusTarget = compactTouchLayout
             ? document.getElementById("downloadModalCloseBtn")
             : currentDataMode === "return-interval"
@@ -27553,15 +27497,18 @@ function setDatumHelpOpen(isOpen) {
 
     function renderLegend() {
       const list = document.getElementById("legendList");
-      // Avoid tearing down the key during unrelated map and boundary updates.
-      if (list.dataset.renderedLegendMode === currentOverlayMode && list.childElementCount) return;
-      list.dataset.renderedLegendMode = currentOverlayMode;
+      const depthLegendHasNote = currentOverlayMode === "depth" && physicsForecastApplies();
+      const physicsDailyMaximumActive = depthLegendHasNote &&
+        document.body.classList.contains("physics-daily-maximum-active");
+      const legendKey = `${currentOverlayMode}:${depthLegendHasNote}:${physicsDailyMaximumActive}`;
+      // Reuse unchanged markup without suppressing model or interval changes.
+      if (list.dataset.renderedLegendKey === legendKey && list.childElementCount) return;
+      list.dataset.renderedLegendKey = legendKey;
       const title = document.getElementById("legendTitle");
       const sub = document.getElementById("legendSub");
       const note = document.getElementById("legendNote");
       const legendDock = document.getElementById("legendDock");
       const items = currentOverlayMode === "depth" ? DEPTH_LEGEND : DYNAMIC_LEGEND;
-      const depthLegendHasNote = currentOverlayMode === "depth" && physicsForecastApplies();
 
       title.textContent = currentOverlayMode === "depth" ? "Flood Depth" : "Flood Stages";
       sub.textContent = "";
@@ -27576,8 +27523,6 @@ function setDatumHelpOpen(isOpen) {
       list.innerHTML = "";
       if (currentOverlayMode === "depth") {
         const physicsActive = depthLegendHasNote;
-        const physicsDailyMaximumActive = physicsActive &&
-          document.body.classList.contains("physics-daily-maximum-active");
         list.innerHTML = physicsActive ? `
           <div class="depth-legend-scale" aria-label="${physicsDailyMaximumActive ? "Modeled daily maximum flood depth" : "Modeled flood depth at the selected time"} from shallow to deep">
             <div class="depth-legend-labels"><span>${physicsDailyMaximumActive ? "Daily Max" : "Current Time"}</span><span>Shallow</span><span>Deep</span></div>
@@ -28088,7 +28033,7 @@ function setDatumHelpOpen(isOpen) {
     }
 
     // Retain encoded composites for replay; decoded raster caches stay small.
-    const FLOOD_COMPOSITE_CACHE_COMPACT = Boolean(window.matchMedia?.("(max-width: 900px), (max-height: 560px)")?.matches);
+    const FLOOD_COMPOSITE_CACHE_COMPACT = isCompactFloodmapperLayout();
     const FLOOD_COMPOSITE_CACHE_ENTRY_LIMIT = FLOOD_COMPOSITE_CACHE_COMPACT ? 16 : 48;
     const FLOOD_COMPOSITE_CACHE_BYTE_LIMIT = (FLOOD_COMPOSITE_CACHE_COMPACT ? 24 : 128) * 1024 * 1024;
     const floodCompositeBlobSizes = new Map();
@@ -29489,10 +29434,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         "calendar-picker-open"
       );
 
-      const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-      const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
-
-      if (vw <= 900 || vh <= 560) {
+      if (isCompactFloodmapperLayout()) {
         [
           "left", "right", "top", "bottom", "width", "min-width", "max-width",
           "height", "max-height", "overflow", "overflow-y", "overflow-x",
@@ -32821,14 +32763,6 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
     }
 
 
-
-
-
-
-
-
-
-
     async function withExportFrames(frameItems, onFrame, progressStart = 4, progressEnd = 82) {
       const total = Math.max(1, frameItems.length);
       exportFrameViewPrimed = false;
@@ -34412,13 +34346,6 @@ function formatSelectedObservedDate(dateStr) {
       modal.classList.toggle("open", !!open);
       modal.setAttribute("aria-hidden", open ? "false" : "true");
       document.body.classList.toggle("top-tides-modal-open", !!open);
-      if (window.ShorelyCompactMobileLayout && typeof window.ShorelyCompactMobileLayout.apply === "function") {
-        window.ShorelyCompactMobileLayout.apply();
-      }
-      if (window.CapeMayMobileFollowup && typeof window.CapeMayMobileFollowup.apply === "function") {
-        window.setTimeout(window.CapeMayMobileFollowup.apply, 0);
-        window.setTimeout(window.CapeMayMobileFollowup.apply, 120);
-      }
       if (open) document.getElementById("topTidesModalCloseBtn")?.focus();
     }
 
@@ -34473,6 +34400,7 @@ function formatSelectedObservedDate(dateStr) {
         label.textContent = "Replay";
         document.getElementById("timelineDock")?.classList.remove("top-tide-crest-only");
         if (bubble) bubble.textContent = "--";
+        updateTimelineAccessibility();
         return;
       }
 
@@ -34526,9 +34454,23 @@ function formatSelectedObservedDate(dateStr) {
           }
         }
       }
+      updateTimelineAccessibility();
       renderTimelineDays();
       updateDownloadSummary();
       requestAnimationFrame(positionTimelineBubble);
+    }
+
+    function updateTimelineAccessibility() {
+      const slider = document.getElementById("hourSlider");
+      const bubble = document.getElementById("timelineBubble");
+      if (!slider) return;
+      slider.setAttribute("aria-label", currentDataMode === "observed" ? "Observed flood time"
+        : currentDataMode === "return-interval" ? "Modeled flood time" : "Flood forecast time");
+      const parts = bubble ? [...bubble.querySelectorAll(".timeline-bubble-current,.timeline-bubble-stage")]
+        .map(part => part.textContent.trim()) : [];
+      const valueText = (parts.length ? parts.join(" ") : bubble?.textContent)?.replace(/\s+/g, " ").trim();
+      slider.setAttribute("aria-valuetext", valueText || "No time available");
+      slider.disabled = !currentSeriesHours.length || slider.min === slider.max;
     }
 
     function getSnapshotSubLabel(entry) {
@@ -34927,7 +34869,7 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     function isMobileTimeline() {
-      return window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").matches;
+      return isCompactFloodmapperLayout();
     }
 
     let timelineBoundsCache = null;
@@ -36137,7 +36079,7 @@ function startPlayback() {
       if (persistentFloodPopup && map.hasLayer(persistentFloodPopup)) {
         map.removeLayer(persistentFloodPopup);
       }
-      const mobilePopup = window.matchMedia("(max-width: 900px), (max-height: 560px)").matches;
+      const mobilePopup = isCompactFloodmapperLayout();
       const compactLandscapePopup = mobilePopup && window.innerHeight <= 560 && window.innerWidth > window.innerHeight;
       const desktopRightRailWidth = mobilePopup
         ? 0
@@ -37446,10 +37388,9 @@ function startPlayback() {
     }
 
     function syncMobileControlsLayout() {
-      const isMobile = window.matchMedia("(max-width: 900px), (max-height: 560px)").matches;
+      const isMobile = isCompactFloodmapperLayout();
       const leftPanel = document.getElementById("leftPanel");
       const rightRail = document.getElementById("rightRail");
-      const legendDock = document.getElementById("legendDock");
       const app = document.getElementById("app");
       if (!leftPanel || !rightRail || !app) return;
       const wasMobile = document.body.classList.contains("mobile-optimized");
@@ -37469,10 +37410,6 @@ function startPlayback() {
         if (!mobileRailMount.parentNode) leftPanel.appendChild(mobileRailMount);
         Array.from(rightRail.children).forEach(node => mobileRailMount.appendChild(node));
 
-        const timelineDock = document.getElementById("timelineDock");
-        if (legendDock && timelineDock && legendDock.parentNode !== timelineDock && legendDock.dataset.userMoved !== "1") {
-          timelineDock.appendChild(legendDock);
-        }
       } else {
         document.body.classList.remove("mobile-optimized");
         document.body.classList.remove("mobile-legend-open");
@@ -37491,22 +37428,9 @@ function startPlayback() {
           rightRail.appendChild(node);
         });
 
-        if (legendDock && legendDock.dataset.userMoved !== "1") {
-          legendDock.classList.remove("legend-floating-user", "legend-collapsed", "legend-expanded");
-          legendDock.style.left = "";
-          legendDock.style.top = "";
-          legendDock.style.right = "";
-          legendDock.style.bottom = "";
-          legendDock.style.width = "";
-          legendDock.style.maxWidth = "";
-
-          if (legendDock.parentNode !== app) {
-            app.appendChild(legendDock);
-          }
-        }
-
         if (mobileRailMount.parentNode) mobileRailMount.parentNode.removeChild(mobileRailMount);
       }
+      syncLegendPlacement();
     }
 
     function wireMobileControlShell() {
@@ -37527,35 +37451,20 @@ function startPlayback() {
       syncMobileControlsLayout();
     }
 
-    function wireLegendDragOnly() {
-      const legendDock = document.getElementById("legendDock");
-      const header = document.getElementById("legendHeader");
-      if (!legendDock) return;
-
-      legendDock.dataset.userMoved = isCompactFloodmapperLayout() ? "0" : "1";
-      legendDock.classList.remove("legend-floating-user", "legend-collapsed", "legend-expanded");
-      legendDock.style.left = "";
-      legendDock.style.top = "";
-      legendDock.style.right = "";
-      legendDock.style.bottom = "";
-      legendDock.style.width = "";
-      legendDock.style.maxWidth = "";
-      if (header) {
-        header.style.cursor = "default";
-        header.removeAttribute("aria-grabbed");
+    function syncLegendPlacement() {
+      const legend = document.getElementById("legendDock");
+      const panel = document.getElementById("leftPanel");
+      if (!legend || !panel) return;
+      legend.classList.add("panel-card", "compact-card", "left-lower-legend-card");
+      legend.classList.remove("map-floating", "legend-floating-user", "legend-collapsed", "legend-expanded");
+      if (isCompactFloodmapperLayout()) {
+        if (legend.parentElement !== document.body) document.body.appendChild(legend);
+      } else {
+        const interval = document.getElementById("timelineIntervalCard");
+        const next = interval?.parentElement === panel ? interval.nextSibling : null;
+        if (legend.parentElement !== panel || (next && next !== legend)) panel.insertBefore(legend, next);
       }
     }
-
-    function wireMobileLegendBehavior() {
-      const legendDock = document.getElementById("legendDock");
-      if (!legendDock || legendDock.dataset.mobileLegendWired === "1") return;
-      legendDock.dataset.mobileLegendWired = "1";
-      legendDock.setAttribute("aria-label", "Flood map legend");
-      legendDock.addEventListener("click", e => {
-        return;
-      });
-    }
-
 
     function escapeTownAddressHtml(value) {
       return String(value || "")
@@ -38092,7 +38001,7 @@ function startPlayback() {
         ? switchDataMode("forecast")
         : (mapperTutorialIndex === 3 && currentDataMode !== "observed" ? switchDataMode("observed") : Promise.resolve());
       const target = getVisibleTutorialTarget(step.target);
-      const compactTutorial = window.matchMedia("(max-width:900px), (max-height:560px)").matches;
+      const compactTutorial = isCompactFloodmapperLayout();
       if (compactTutorial && target) {
         const needsDrawer = Boolean(target.closest("#leftPanel, #mobileRailMount"));
         setMobileControlsOpen(needsDrawer);
@@ -38158,7 +38067,9 @@ function startPlayback() {
     }
 
     function wireEvents() {
-      window.matchMedia("(max-width:900px), (max-height:560px) and (pointer:coarse)").addEventListener("change", () => {
+      floodmapperLayoutMedia.addEventListener("change", () => {
+        syncMobileControlsLayout();
+        syncLeftPanelLayout();
         renderTimelineMeta();
         positionTimelineBubble();
       });
@@ -38862,9 +38773,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       wireTownAddressLookup();
       wireFloodHistoryPane();
       initWindowsCalendarDatebar();
-      wireLegendDragOnly();
       wireMobileControlShell();
-      wireMobileLegendBehavior();
       updateRoadLayerAppearance();
       updateExportSegmentedUI();
       syncDownloadRangeInputs(true);
@@ -38964,31 +38873,6 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 
 <script>
 (function(){
-  function isMobileOptimized(){
-    return window.matchMedia('(max-width: 900px), (max-height: 560px)').matches;
-  }
-
-  function moveLegendOutOfTimelineOnMobile(){
-    var legend = document.getElementById('legendDock');
-    var app = document.getElementById('app');
-    var timeline = document.getElementById('timelineDock');
-    if (!legend || !app || !isMobileOptimized()) return;
-    if (timeline && timeline.contains(legend)) {
-      app.insertBefore(legend, document.getElementById('mapWrap') || app.firstChild);
-    }
-    legend.classList.remove('legend-collapsed');
-    legend.classList.add('legend-expanded');
-    legend.dataset.userMoved = '0';
-  }
-
-  function forceObservedMobileOrder(){
-    if (!isMobileOptimized()) return;
-    // Use the same idempotent order as the main layout controller. Repeated
-    // appendChild calls detach controls between pointerdown and pointerup;
-    // WebKit then suppresses their click even when they look stationary.
-    applyMobileObservedOrdering();
-  }
-
   function fixCalendarPickerDialog(){
     var popover = document.getElementById('calendarPopover');
     var grid = popover && popover.querySelector('.calendar-popover-grid');
@@ -39007,772 +38891,9 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       }, true);
     }
   }
-
-  function enforceTimelineWidth(){
-    return;
-    var track = document.querySelector('.timeline-trackRow');
-    var slider = document.getElementById('hourSlider');
-    if (track) {
-      track.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
-      track.style.setProperty('width', '100%', 'important');
-    }
-    if (slider) {
-      slider.style.setProperty('width', '100%', 'important');
-      slider.style.setProperty('max-width', '100%', 'important');
-    }
-  }
-
-  function runPJFinalFixes(){
-    moveLegendOutOfTimelineOnMobile();
-    forceObservedMobileOrder();
-    fixCalendarPickerDialog();
-    enforceTimelineWidth();
-  }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    runPJFinalFixes();
-    setTimeout(runPJFinalFixes, 150);
-    setTimeout(runPJFinalFixes, 600);
-  });
-  window.addEventListener('resize', function(){ setTimeout(runPJFinalFixes, 60); });
-  document.addEventListener('click', function(e){
-    if (e.target && (e.target.id === 'observedDataBtn' || e.target.id === 'forecastDataBtn' || e.target.id === 'mobileControlsToggle')) {
-      setTimeout(runPJFinalFixes, 80);
-      setTimeout(runPJFinalFixes, 350);
-    }
-  }, true);
+  document.addEventListener("DOMContentLoaded", fixCalendarPickerDialog, { once: true });
 })();
 </script>
-
-
-
-<script>
-(function(){
-  "use strict";
-
-  function applyAllFloodmapperSliderRowInset(){
-    return;
-    try{
-      var dock = document.getElementById("timelineDock");
-      var row = dock && dock.querySelector(".timeline-trackRow");
-      var slider = document.getElementById("hourSlider");
-      if (!dock || !row || !slider) return;
-
-      row.style.setProperty("width", "calc(100% - (2 * var(--pj-all-slider-row-inset)))", "important");
-      row.style.setProperty("max-width", "calc(100% - (2 * var(--pj-all-slider-row-inset)))", "important");
-      row.style.setProperty("margin-left", "var(--pj-all-slider-row-inset)", "important");
-      row.style.setProperty("margin-right", "var(--pj-all-slider-row-inset)", "important");
-      row.style.setProperty("box-sizing", "border-box", "important");
-      row.style.setProperty("overflow", "visible", "important");
-
-      slider.style.setProperty("width", "100%", "important");
-      slider.style.setProperty("max-width", "100%", "important");
-      slider.style.setProperty("margin-left", "0", "important");
-      slider.style.setProperty("margin-right", "0", "important");
-      slider.style.setProperty("box-sizing", "border-box", "important");
-    }catch(e){
-      try{ console.warn("Slider row inset fix skipped:", e); }catch(_e){}
-    }
-  }
-
-  document.addEventListener("DOMContentLoaded", function(){
-    applyAllFloodmapperSliderRowInset();
-    setTimeout(applyAllFloodmapperSliderRowInset, 50);
-    setTimeout(applyAllFloodmapperSliderRowInset, 250);
-    setTimeout(applyAllFloodmapperSliderRowInset, 900);
-  });
-  window.addEventListener("load", applyAllFloodmapperSliderRowInset);
-  window.addEventListener("resize", function(){ setTimeout(applyAllFloodmapperSliderRowInset, 40); });
-  window.addEventListener("orientationchange", function(){ setTimeout(applyAllFloodmapperSliderRowInset, 150); });
-  document.addEventListener("input", function(e){
-    if (e && e.target && e.target.id === "hourSlider") applyAllFloodmapperSliderRowInset();
-  }, true);
-})();
-</script>
-
-
-
-
-
-
-
-
-
-
-
-
-<script>
-(function(){
-  function openExportModalFromCard(){
-    var modal = document.getElementById('downloadModal');
-    var btn = document.getElementById('openDownloadModalBtn');
-    if (!modal || !btn) return;
-
-
-    if (document.activeElement !== btn) {
-      btn.click();
-    } else {
-      modal.hidden = false;
-      modal.classList.add('open');
-      btn.setAttribute('aria-expanded', 'true');
-    }
-  }
-
-  function bindExportCardClick(){
-    var card = document.getElementById('downloadCard');
-    var btn = document.getElementById('openDownloadModalBtn');
-    if (!card || !btn || card.dataset.pjExportCardBound === '1') return;
-    card.dataset.pjExportCardBound = '1';
-    card.setAttribute('role', 'button');
-    card.setAttribute('tabindex', '0');
-    card.setAttribute('aria-label', 'Open export panel');
-
-    card.addEventListener('click', function(event){
-      var interactive = event.target.closest('button, a, input, select, textarea, label');
-      if (interactive && interactive !== btn) return;
-      if (event.target !== btn) {
-        event.preventDefault();
-        openExportModalFromCard();
-      }
-    });
-
-    card.addEventListener('keydown', function(event){
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        openExportModalFromCard();
-      }
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindExportCardClick);
-  } else {
-    bindExportCardClick();
-  }
-})();
-</script>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<script>
-
-(function(){
-  "use strict";
-
-  function stripTimelineBubbleEdges(){
-    try{
-      var bubble = document.getElementById("timelineBubble");
-      if (!bubble) return;
-      bubble.querySelectorAll(".timeline-bubble-edge").forEach(function(el){
-        el.remove();
-      });
-      var start = document.getElementById("timelineStart");
-      var end = document.getElementById("timelineEnd");
-      if (start){
-        start.textContent = "";
-        start.setAttribute("aria-hidden", "true");
-      }
-      if (end){
-        end.textContent = "";
-        end.setAttribute("aria-hidden", "true");
-      }
-    }catch(e){}
-  }
-
-  if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", stripTimelineBubbleEdges, {once:true});
-  } else {
-    stripTimelineBubbleEdges();
-  }
-
-  var bubbleObserver = null;
-  function watchBubble(){
-    try{
-      var bubble = document.getElementById("timelineBubble");
-      if (!bubble || bubbleObserver) return;
-      bubbleObserver = new MutationObserver(stripTimelineBubbleEdges);
-      bubbleObserver.observe(bubble, {childList:true, subtree:true});
-      stripTimelineBubbleEdges();
-    }catch(e){}
-  }
-
-  if (document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", watchBubble, {once:true});
-  } else {
-    watchBubble();
-  }
-  window.addEventListener("load", watchBubble);
-})();
-
-</script>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<script>
-(function(){
-  "use strict";
-
-  var raf = 0;
-
-  function setImportant(el, prop, value){
-    if (el) el.style.setProperty(prop, value, "important");
-  }
-
-  function removeProps(el, props){
-    if (!el) return;
-    props.forEach(function(prop){ el.style.removeProperty(prop); });
-  }
-
-  function viewport(){
-    return {
-      w:Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0),
-      h:Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0)
-    };
-  }
-
-  function isCompactTimeline(){
-    var v = viewport();
-    return v.w <= 900 || v.h <= 560;
-  }
-
-  function timelineMetrics(){
-    var compact = isCompactTimeline();
-    return {
-      compact:compact,
-      lane:compact ? 50 : 64,
-      pad:compact ? 10 : 20,
-      dockHeight:compact ? 112 : 114,
-      topBox:compact ? 38 : 48,
-      play:compact ? 34 : 42,
-      keyHeight:compact ? 18 : 20,
-      keyGap:compact ? 7 : 8,
-      dayHeight:compact ? 16 : 18,
-      dayGap:compact ? 8 : 10,
-      rowHeight:compact ? 22 : 24
-    };
-  }
-
-  function applyTimelinePlayLane(){
-    if (document.documentElement.hasAttribute("data-nww-avalon-timeline")) return;
-    if (document.documentElement.classList.contains("avalon-mobile-ui") && isCompactTimeline()) return;
-    var dock = document.getElementById("timelineDock");
-    if (!dock) return;
-
-    var m = timelineMetrics();
-    if (!m.compact) {
-      setImportant(dock, "left", "16px");
-      setImportant(dock, "right", "16px");
-      setImportant(dock, "bottom", "4px");
-      setImportant(dock, "width", "auto");
-      setImportant(dock, "max-width", "calc(100vw - 32px)");
-    }
-    var lane = m.lane + "px";
-    var contentWidth = "calc(100% - " + lane + ")";
-    var top = dock.querySelector(".timeline-top");
-    var controls = dock.querySelector(".timeline-controls");
-    var play = document.getElementById("playBtn");
-    var meta = document.getElementById("timelineMeta");
-    var key = document.getElementById("timelineFloodKey");
-    var days = document.getElementById("timelineDayTabs");
-    var row = dock.querySelector(".timeline-trackRow");
-    var slider = document.getElementById("hourSlider");
-    var bubble = document.getElementById("timelineBubble");
-    var line = document.getElementById("pjBlueSliderExactTrackLine");
-    var start = document.getElementById("timelineStart");
-    var end = document.getElementById("timelineEnd");
-
-    setImportant(dock, "height", m.dockHeight + "px");
-    setImportant(dock, "min-height", m.dockHeight + "px");
-    setImportant(dock, "max-height", m.dockHeight + "px");
-    setImportant(dock, "padding", (m.compact ? "10px 10px 10px" : "14px 20px 14px"));
-    setImportant(dock, "display", "block");
-    setImportant(dock, "overflow", "visible");
-    setImportant(dock, "box-sizing", "border-box");
-
-    if (top) {
-      setImportant(top, "position", "absolute");
-      setImportant(top, "top", "50%");
-      setImportant(top, "left", m.pad + "px");
-      setImportant(top, "right", "auto");
-      setImportant(top, "bottom", "auto");
-      setImportant(top, "width", m.topBox + "px");
-      setImportant(top, "min-width", m.topBox + "px");
-      setImportant(top, "max-width", m.topBox + "px");
-      setImportant(top, "height", m.topBox + "px");
-      setImportant(top, "min-height", m.topBox + "px");
-      setImportant(top, "max-height", m.topBox + "px");
-      setImportant(top, "margin", "0");
-      setImportant(top, "padding", "0");
-      setImportant(top, "display", "grid");
-      setImportant(top, "place-items", "center");
-      setImportant(top, "transform", "translateY(-50%)");
-      setImportant(top, "z-index", "18");
-    }
-
-    if (controls) {
-      setImportant(controls, "width", m.topBox + "px");
-      setImportant(controls, "min-width", m.topBox + "px");
-      setImportant(controls, "max-width", m.topBox + "px");
-      setImportant(controls, "height", m.topBox + "px");
-      setImportant(controls, "min-height", m.topBox + "px");
-      setImportant(controls, "max-height", m.topBox + "px");
-      setImportant(controls, "display", "grid");
-      setImportant(controls, "place-items", "center");
-      setImportant(controls, "gap", "0");
-      setImportant(controls, "margin", "0");
-      setImportant(controls, "padding", "0");
-    }
-
-    if (play) {
-      setImportant(play, "width", m.play + "px");
-      setImportant(play, "min-width", m.play + "px");
-      setImportant(play, "max-width", m.play + "px");
-      setImportant(play, "height", m.play + "px");
-      setImportant(play, "min-height", m.play + "px");
-      setImportant(play, "max-height", m.play + "px");
-      setImportant(play, "margin", "0");
-      setImportant(play, "flex", "0 0 " + m.play + "px");
-    }
-
-    if (meta) setImportant(meta, "display", "none");
-
-    if (key) {
-      setImportant(key, "position", "relative");
-      setImportant(key, "top", "auto");
-      setImportant(key, "right", "auto");
-      setImportant(key, "bottom", "auto");
-      setImportant(key, "left", "auto");
-      setImportant(key, "transform", "none");
-      setImportant(key, "width", contentWidth);
-      setImportant(key, "min-width", "0");
-      setImportant(key, "max-width", contentWidth);
-      setImportant(key, "height", m.keyHeight + "px");
-      setImportant(key, "min-height", m.keyHeight + "px");
-      setImportant(key, "max-height", m.keyHeight + "px");
-      setImportant(key, "margin", "0 0 " + m.keyGap + "px " + lane);
-      setImportant(key, "padding", "0");
-      setImportant(key, "box-sizing", "border-box");
-      setImportant(key, "z-index", "7");
-
-      if (m.compact) {
-        setImportant(key, "display", "grid");
-        setImportant(key, "grid-template-columns", "repeat(4, minmax(0, 1fr))");
-        setImportant(key, "align-items", "center");
-        setImportant(key, "justify-items", "center");
-        setImportant(key, "gap", "4px");
-        setImportant(key, "font-size", "0");
-        setImportant(key, "line-height", "1");
-        setImportant(key, "overflow", "hidden");
-      } else {
-        setImportant(key, "display", "flex");
-        setImportant(key, "align-items", "center");
-        setImportant(key, "justify-content", "center");
-        setImportant(key, "flex-wrap", "nowrap");
-        setImportant(key, "gap", "18px");
-        setImportant(key, "white-space", "nowrap");
-        setImportant(key, "overflow", "visible");
-      }
-    }
-
-    if (days) {
-      setImportant(days, "position", "relative");
-      setImportant(days, "top", "auto");
-      setImportant(days, "right", "auto");
-      setImportant(days, "bottom", "auto");
-      setImportant(days, "left", "auto");
-      setImportant(days, "transform", "none");
-      setImportant(days, "display", "flex");
-      setImportant(days, "width", contentWidth);
-      setImportant(days, "min-width", "0");
-      setImportant(days, "max-width", contentWidth);
-      setImportant(days, "height", m.dayHeight + "px");
-      setImportant(days, "min-height", m.dayHeight + "px");
-      setImportant(days, "max-height", m.dayHeight + "px");
-      setImportant(days, "margin", "0 0 " + m.dayGap + "px " + lane);
-      setImportant(days, "padding", "0");
-      setImportant(days, "box-sizing", "border-box");
-      setImportant(days, "overflow", "hidden");
-      setImportant(days, "z-index", "5");
-    }
-
-    if (row) {
-      setImportant(row, "position", "relative");
-      setImportant(row, "top", "auto");
-      setImportant(row, "right", "auto");
-      setImportant(row, "bottom", "auto");
-      setImportant(row, "left", "auto");
-      setImportant(row, "transform", "none");
-      setImportant(row, "display", "block");
-      setImportant(row, "width", contentWidth);
-      setImportant(row, "min-width", "0");
-      setImportant(row, "max-width", contentWidth);
-      setImportant(row, "height", m.rowHeight + "px");
-      setImportant(row, "min-height", m.rowHeight + "px");
-      setImportant(row, "max-height", m.rowHeight + "px");
-      setImportant(row, "margin", "0 0 0 " + lane);
-      setImportant(row, "padding", "0");
-      setImportant(row, "overflow", "visible");
-      setImportant(row, "box-sizing", "border-box");
-      setImportant(row, "z-index", "6");
-    }
-
-    [line, start, end].forEach(function(el){
-      if (!el) return;
-      setImportant(el, "display", "none");
-      setImportant(el, "visibility", "hidden");
-      setImportant(el, "width", "0");
-      setImportant(el, "height", "0");
-      el.setAttribute("aria-hidden", "true");
-    });
-
-    if (slider) {
-      setImportant(slider, "position", "relative");
-      setImportant(slider, "display", "block");
-      setImportant(slider, "top", "auto");
-      setImportant(slider, "right", "auto");
-      setImportant(slider, "bottom", "auto");
-      setImportant(slider, "left", "auto");
-      setImportant(slider, "width", "calc(100% - var(--pj-slider-thumb-size, 16px))");
-      setImportant(slider, "min-width", "0");
-      setImportant(slider, "max-width", "calc(100% - var(--pj-slider-thumb-size, 16px))");
-      setImportant(slider, "height", m.rowHeight + "px");
-      setImportant(slider, "min-height", m.rowHeight + "px");
-      setImportant(slider, "max-height", m.rowHeight + "px");
-      setImportant(slider, "margin", "0 var(--pj-slider-thumb-half, 8px)");
-      setImportant(slider, "padding", "0");
-      setImportant(slider, "box-sizing", "border-box");
-      setImportant(slider, "transition", "none");
-      setImportant(slider, "animation", "none");
-      setImportant(slider, "touch-action", "pan-x");
-      slider.removeAttribute("disabled");
-    }
-
-    if (bubble) {
-      setImportant(bubble, "transition", "none");
-      setImportant(bubble, "animation", "none");
-      setImportant(bubble, "pointer-events", "none");
-    }
-
-    if (typeof window.positionTimelineBubble === "function") {
-      requestAnimationFrame(window.positionTimelineBubble);
-    }
-  }
-
-  var observedRules = [
-    ["#leftPanel", {
-      "gap":"6px",
-      "padding-bottom":"0",
-      "overflow-y":"auto",
-      "overflow-x":"hidden",
-      "scrollbar-gutter":"auto",
-      "scrollbar-width":"none"
-    }],
-    ["#leftPanel > .data-source-card, #leftPanel > .overlay-card, #leftPanel > .datum-card", {
-      "padding":"8px 12px",
-      "border-radius":"16px"
-    }],
-    ["#leftPanel .section-title", {
-      "min-height":"21px",
-      "margin-bottom":"5px"
-    }],
-    ["#leftPanel .button-grid-2, #leftPanel .segmented-control", {
-      "gap":"6px"
-    }],
-    ["#leftPanel .button-grid-2 button, #leftPanel .segmented-control button", {
-      "min-height":"38px",
-      "height":"38px",
-      "padding":"6px 9px"
-    }],
-    ["#leftPanel > #calendarCard.calendar-card.active", {
-      "gap":"4px",
-      "padding":"7px 10px"
-    }],
-    ["#leftPanel .calendar-toolbar", {
-      "grid-template-columns":"30px minmax(0, 1fr) 30px",
-      "gap":"4px"
-    }],
-    ["#leftPanel .calendar-toolbar > button, #leftPanel .calendar-title-btn", {
-      "min-height":"28px",
-      "height":"28px",
-      "padding":"0 7px",
-      "border-radius":"10px"
-    }],
-    ["#leftPanel .calendar-head, #leftPanel .calendar-grid", {
-      "gap":"3px"
-    }],
-    ["#leftPanel .calendar-head div", {
-      "padding":"0",
-      "line-height":"1"
-    }],
-    ["#leftPanel .calendar-day", {
-      "min-height":"21px",
-      "height":"21px",
-      "max-height":"21px",
-      "padding":"0",
-      "border-radius":"8px",
-      "line-height":"1"
-    }],
-    ["#leftPanel .day-nav", {
-      "grid-template-columns":"30px minmax(0, 1fr) 30px",
-      "gap":"4px"
-    }],
-    ["#leftPanel .calendar-nav-btn, #leftPanel .day-nav-center", {
-      "min-height":"28px",
-      "height":"28px",
-      "padding":"0 7px",
-      "border-radius":"10px"
-    }],
-    ["#leftPanel .calendar-key", {
-      "gap":"5px",
-      "margin-top":"3px"
-    }],
-    ["#leftPanel .calendar-key-item", {
-      "min-height":"23px",
-      "height":"23px",
-      "padding":"0 6px",
-      "gap":"5px"
-    }],
-    ["#leftPanel > .opacity-card", {
-      "min-height":"54px",
-      "height":"54px",
-      "max-height":"54px",
-      "padding":"6px 12px 7px",
-      "gap":"3px"
-    }],
-    ["#leftPanel > .opacity-card .section-title", {
-      "min-height":"18px",
-      "margin":"0"
-    }],
-    ["#leftPanel > .opacity-card .control-row", {
-      "padding":"0 5px"
-    }],
-    ["#leftPanel > #legendDock, #leftPanel > #legendDock.legend-card", {
-      "padding":"8px 12px 9px",
-      "border-radius":"16px",
-      "overflow":"visible"
-    }],
-    ["#leftPanel #legendDock .legend-header", {
-      "margin":"0 0 5px",
-      "gap":"6px"
-    }],
-    ["#leftPanel #legendDock .legend-header-actions", {
-      "gap":"4px"
-    }],
-    ["#leftPanel #legendDock .legend-help-btn, #leftPanel #legendDock .legend-collapse-btn, #leftPanel #legendDock .legend-expand-btn", {
-      "width":"22px",
-      "min-width":"22px",
-      "height":"22px",
-      "min-height":"22px",
-      "line-height":"22px",
-      "padding":"0"
-    }],
-    ["#leftPanel #legendDock .legend-body", {
-      "padding":"0",
-      "margin":"0",
-      "max-height":"none",
-      "overflow":"visible"
-    }],
-    ["#leftPanel #legendDock .legend-list", {
-      "gap":"3px 10px"
-    }],
-    ["#leftPanel #legendDock .legend-row", {
-      "grid-template-columns":"10px minmax(0, 1fr)",
-      "gap":"6px",
-      "line-height":"1",
-      "min-height":"14px"
-    }],
-    ["#leftPanel #legendDock .legend-swatch", {
-      "width":"9px",
-      "height":"9px"
-    }]
-  ];
-
-  function eachRule(fn){
-    observedRules.forEach(function(pair){
-      document.querySelectorAll(pair[0]).forEach(function(el){
-        fn(el, pair[1]);
-      });
-    });
-  }
-
-  function applyObservedPaneFit(){
-
-    return;
-
-    var body = document.body;
-    var observed = body && body.classList.contains("observed-mode");
-
-    if (!observed) {
-      eachRule(function(el, styles){
-        removeProps(el, Object.keys(styles));
-      });
-      var left = document.getElementById("leftPanel");
-      if (left) {
-        setImportant(left, "overflow-y", "auto");
-        setImportant(left, "scrollbar-gutter", "stable");
-      }
-      return;
-    }
-
-    eachRule(function(el, styles){
-      Object.keys(styles).forEach(function(prop){
-        setImportant(el, prop, styles[prop]);
-      });
-    });
-  }
-
-  function run(){
-    applyTimelinePlayLane();
-    applyObservedPaneFit();
-    // Finish compact sizing in the same frame as the legacy lane sizing.
-    // Otherwise the two resize schedules briefly paint different layouts.
-    if (isCompactTimeline() && window.ShorelyMobileFollowup) window.ShorelyMobileFollowup.apply();
-  }
-
-  function schedule(){
-    if (raf) return;
-    raf = requestAnimationFrame(function(){
-      raf = 0;
-      run();
-    });
-  }
-
-  function boot(){
-    schedule();
-    [60, 140, 320, 700, 1200, 2100, 3350, 4300].forEach(function(ms){
-      window.setTimeout(schedule, ms);
-    });
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot, { once:true });
-  } else {
-    boot();
-  }
-
-  window.addEventListener("load", boot, { once:true });
-  window.addEventListener("resize", schedule, { passive:true });
-  window.addEventListener("orientationchange", schedule, { passive:true });
-  document.addEventListener("click", function(){
-    schedule();
-    window.setTimeout(schedule, 180);
-    window.setTimeout(schedule, 760);
-  }, true);
-  document.addEventListener("input", function(e){
-
-  }, true);
-
-  try {
-    var mo = new MutationObserver(schedule);
-    var observe = function(){
-      if (document.body) mo.observe(document.body, { attributes:true, attributeFilter:["class"] });
-    };
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", observe, { once:true });
-    else observe();
-  } catch(e) {}
-})();
-</script>
-
-
 
 
 <script>
@@ -39867,87 +38988,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 </script>
 
 
-
-
-
-
-
-
-
-
-
-
-
-<script>
-(function(){
-  "use strict";
-
-
-  if (document.documentElement.classList.contains("avalon-mobile-ui")) return;
-
-  var queued = false;
-
-  function syncMobileLegendOffset(){
-    queued = false;
-    // The final compact controller owns the second-row Controls position.
-    // Reapplying this older legend-relative offset made the button jump
-    // between pointer-down and pointer-up during rapid interactions.
-    if (window.ShorelyMobileFollowup) return;
-    var body = document.body;
-    var legend = document.getElementById("legendDock");
-    var toggle = document.getElementById("mobileControlsToggle");
-    if (!body || !legend || !toggle) return;
-
-    var isMobile = window.matchMedia("(max-width: 900px), (max-height: 560px)").matches;
-    if (!isMobile || !body.classList.contains("mobile-optimized")) {
-      toggle.style.removeProperty("top");
-      return;
-    }
-
-    var rect = legend.getBoundingClientRect();
-    if (!Number.isFinite(rect.bottom) || rect.height <= 0) return;
-    toggle.style.setProperty("top", Math.ceil(rect.bottom + 8) + "px", "important");
-    toggle.style.setProperty("bottom", "auto", "important");
-  }
-
-  function scheduleMobileLegendOffset(){
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(syncMobileLegendOffset);
-  }
-
-  function boot(){
-    scheduleMobileLegendOffset();
-    [60, 180, 420, 900].forEach(function(ms){ setTimeout(scheduleMobileLegendOffset, ms); });
-
-    try {
-      var bodyObserver = new MutationObserver(scheduleMobileLegendOffset);
-      bodyObserver.observe(document.body, { attributes:true, attributeFilter:["class"] });
-
-      var legend = document.getElementById("legendDock");
-      if (legend) {
-        var legendObserver = new MutationObserver(scheduleMobileLegendOffset);
-        legendObserver.observe(legend, { attributes:true, childList:true, subtree:true });
-      }
-    } catch(e) {}
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot, { once:true });
-  } else {
-    boot();
-  }
-  window.addEventListener("load", scheduleMobileLegendOffset, { once:true });
-  window.addEventListener("resize", scheduleMobileLegendOffset, { passive:true });
-  window.addEventListener("orientationchange", scheduleMobileLegendOffset, { passive:true });
-  document.addEventListener("click", function(){
-    scheduleMobileLegendOffset();
-    setTimeout(scheduleMobileLegendOffset, 80);
-  }, true);
-})();
-</script>
-
-<script src="./assets/3d/north-wildwood-3d.js?v=20261001-building-config&roads=20261002-soft-gray"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray"></script>
 <script src="./assets/road-impacts.js?v=20261002-road-impacts-default-off"></script>
 
 <script defer src="./assets/modal-focus.js?v=20260925-drawer-focus"></script>
@@ -40244,1045 +39285,10 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
 </script>
 
 
+<script src="assets/avalon-mobile.js?v=20261009-conflicts-1"></script>
+<script defer src="assets/north-wildwood-layout.js?v=20261009-1"></script>
 
-
-<script id="shorely-mobile-slider-key-correction-script">
-(function(){
-  "use strict";
-  if (document.documentElement.classList.contains("avalon-mobile-ui")) return;
-
-  var queued = false;
-  var observerStarted = false;
-
-  function isMobile(){
-    try {
-      return window.matchMedia("(max-width: 900px), (max-height: 560px)").matches;
-    } catch (e) {
-      return Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) <= 900;
-    }
-  }
-
-  function setImportant(el, prop, value){
-    if (!el) return;
-    el.style.setProperty(prop, value, "important");
-  }
-
-  function ensureSliderKey(timeline){
-    var key = document.getElementById("shorelyMobileSliderKey");
-    if (!timeline) return null;
-    if (!key) {
-      key = document.createElement("div");
-      key.id = "shorelyMobileSliderKey";
-      key.setAttribute("aria-label", "Flood category key");
-      key.innerHTML = [
-        '<span class="shorely-mobile-slider-key-item"><span class="shorely-mobile-slider-key-swatch no"></span>No Flooding</span>',
-        '<span class="shorely-mobile-slider-key-item"><span class="shorely-mobile-slider-key-swatch minor"></span>Minor</span>',
-        '<span class="shorely-mobile-slider-key-item"><span class="shorely-mobile-slider-key-swatch moderate"></span>Moderate</span>',
-        '<span class="shorely-mobile-slider-key-item"><span class="shorely-mobile-slider-key-swatch major"></span>Major</span>'
-      ].join("");
-      timeline.appendChild(key);
-    }
-    return key;
-  }
-
-  function getTownConfig(){
-    try {
-      return window.TOWN_CONFIG || TOWN_CONFIG || {};
-    } catch (e) {
-      return window.TOWN_CONFIG || {};
-    }
-  }
-
-  function ft(value){
-    var n = Number(value);
-    return Number.isFinite(n) ? n.toFixed(2).replace(/\.00$/, ".0") : "--";
-  }
-
-  function upperBound(value){
-    var n = Number(value);
-    return Number.isFinite(n) ? ft(n - 0.01) : "--";
-  }
-
-  function sliderHelpBody(){
-    var cfg = getTownConfig();
-    var mllw = (cfg.thresholds && cfg.thresholds.mllw) || { minor:6.2, moderate:7.2, major:8.2 };
-    var navd = (cfg.thresholds && cfg.thresholds.navd88) || { minor:3.43, moderate:4.43, major:5.43 };
-    return [
-      "<p>These colors show how serious flooding may be.</p>",
-      "<ul>",
-      "<li><strong>No Flooding:</strong> water is below the local flood level.</li>",
-      "<li><strong>Minor:</strong> low roads and public areas may flood. It starts at " + ft(mllw.minor) + " ft MLLW or " + ft(navd.minor) + " ft NAVD88.</li>",
-      "<li><strong>Moderate:</strong> roads and some buildings may flood. It starts at " + ft(mllw.moderate) + " ft MLLW or " + ft(navd.moderate) + " ft NAVD88.</li>",
-      "<li><strong>Major:</strong> many roads and buildings may flood. It starts at " + ft(mllw.major) + " ft MLLW or " + ft(navd.major) + " ft NAVD88.</li>",
-      "</ul>"
-    ].join("");
-  }
-
-  function openMobileInfo(title, body){
-    if (typeof window.setInfoModalOpen === "function") {
-      window.setInfoModalOpen(true, title, body);
-      return;
-    }
-    var modal = document.getElementById("infoModal");
-    var titleEl = document.getElementById("infoModalTitle");
-    var bodyEl = document.getElementById("infoModalBody");
-    if (!modal || !titleEl || !bodyEl) return;
-    titleEl.textContent = title;
-    bodyEl.innerHTML = body;
-    modal.hidden = false;
-    modal.classList.add("open");
-    modal.setAttribute("aria-hidden", "false");
-  }
-
-  function ensureSliderHelp(timeline){
-    if (!timeline) return null;
-    var btn = document.getElementById("shorelyMobileSliderHelpBtn");
-    if (!btn) {
-      btn = document.createElement("button");
-      btn.id = "shorelyMobileSliderHelpBtn";
-      btn.type = "button";
-      btn.textContent = "?";
-      btn.setAttribute("aria-label", "Explain flood stage ranges");
-      btn.setAttribute("title", "Explain flood stage ranges");
-      btn.addEventListener("click", function(event){
-        event.preventDefault();
-        event.stopPropagation();
-        openMobileInfo("Flood Stage Key", sliderHelpBody());
-      });
-      timeline.appendChild(btn);
-    } else if (btn.parentNode !== timeline) {
-      timeline.appendChild(btn);
-    }
-    return btn;
-  }
-
-  function ensureMobileLegendHelp(legend){
-    if (!legend) return null;
-    var btn = document.getElementById("shorelyMobileLegendHelpBtn");
-    if (!btn) {
-      btn = document.createElement("button");
-      btn.id = "shorelyMobileLegendHelpBtn";
-      btn.type = "button";
-      btn.textContent = "?";
-      btn.setAttribute("aria-label", "Explain current map key");
-      btn.setAttribute("title", "Explain current map key");
-      btn.addEventListener("click", function(event){
-        event.preventDefault();
-        event.stopPropagation();
-        var desktopHelp = document.getElementById("legendHelpBtn");
-        if (desktopHelp && desktopHelp !== btn) {
-          desktopHelp.click();
-        } else {
-          openMobileInfo("Flood Stages Key", sliderHelpBody());
-        }
-      });
-      legend.appendChild(btn);
-    } else if (btn.parentNode !== legend) {
-      legend.appendChild(btn);
-    }
-    return btn;
-  }
-
-  function compactLegend(legend){
-    if (!legend || !document.body.classList.contains("mobile-legend-open")) return;
-    setImportant(legend, "left", "50%");
-    setImportant(legend, "right", "auto");
-    setImportant(legend, "transform", "translateX(-50%)");
-    setImportant(legend, "width", "min(344px, calc(100vw - 18px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))");
-    setImportant(legend, "max-width", "calc(100vw - 18px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))");
-    setImportant(legend, "height", "auto");
-    setImportant(legend, "max-height", "min(38dvh, 190px)");
-    setImportant(legend, "overflow", "hidden");
-    setImportant(legend, "padding", "5px 10px 7px");
-
-    var list = legend.querySelector(".legend-list");
-    if (list) {
-      setImportant(list, "display", "grid");
-      setImportant(list, "grid-template-columns", "repeat(2, minmax(0, 1fr))");
-      setImportant(list, "gap", "3px 12px");
-    }
-
-    legend.querySelectorAll(".legend-row").forEach(function(row){
-      setImportant(row, "grid-template-columns", "8px minmax(0, 1fr)");
-      setImportant(row, "gap", "4px");
-      setImportant(row, "min-height", "11px");
-      setImportant(row, "font-size", "8.4px");
-      setImportant(row, "line-height", "1");
-      setImportant(row, "overflow", "visible");
-    });
-
-    legend.querySelectorAll(".legend-label").forEach(function(label){
-      setImportant(label, "font-size", "8.4px");
-      setImportant(label, "line-height", "1.02");
-      setImportant(label, "white-space", "nowrap");
-      setImportant(label, "overflow", "visible");
-    });
-
-    legend.querySelectorAll(".legend-swatch").forEach(function(swatch){
-      setImportant(swatch, "width", "8px");
-      setImportant(swatch, "height", "8px");
-      setImportant(swatch, "border-radius", "2px");
-    });
-
-    ensureMobileLegendHelp(legend);
-  }
-
-  function syncTimelineDayWeights(){
-    document.querySelectorAll("#timelineDayTabs .timeline-day").forEach(function(day){
-      var hours = Math.max(1, Number(day.dataset.timelineHours || 1));
-      var width = day.getBoundingClientRect ? day.getBoundingClientRect().width : day.offsetWidth;
-      var full = day.dataset.timelineLabelFull || day.textContent || "";
-      var short = day.dataset.timelineLabelShort || full;
-      var tiny = day.dataset.timelineLabelTiny || short;
-      var label = full;
-      if (width > 0 && width < 38) label = tiny;
-      else if (width > 0 && width < 58) label = short;
-      if (label && day.textContent !== label) day.textContent = label;
-      setImportant(day, "flex", hours + " 1 0");
-      setImportant(day, "min-width", "0");
-      setImportant(day, "max-width", "none");
-      setImportant(day, "white-space", "nowrap");
-      setImportant(day, "overflow", "hidden");
-      setImportant(day, "text-overflow", "clip");
-      setImportant(day, "padding", width > 0 && width < 38 ? "0 1px" : "0 3px");
-      setImportant(day, "font-size", width > 0 && width < 38 ? "10px" : (width > 0 && width < 58 ? "11px" : "13px"));
-    });
-  }
-
-  function syncTopTidesModalVisibility(){
-    var body = document.body;
-    var modalOpen = body && body.classList.contains("top-tides-modal-open");
-    var title = document.getElementById("mapTitleBadge");
-    var toggle = document.getElementById("mobileControlsToggle");
-    var legend = document.getElementById("legendDock");
-    var timeline = document.getElementById("timelineDock");
-    var zoomCorner = document.querySelector(".leaflet-top.leaflet-right");
-    [title, toggle, legend, zoomCorner].forEach(function(el){
-      if (!el) return;
-      setImportant(el, "visibility", modalOpen ? "hidden" : "visible");
-      setImportant(el, "opacity", modalOpen ? "0" : "1");
-      setImportant(el, "pointer-events", modalOpen ? "none" : "auto");
-    });
-    if (timeline && !modalOpen) {
-      setImportant(timeline, "display", "block");
-      setImportant(timeline, "visibility", "visible");
-      setImportant(timeline, "opacity", "1");
-      setImportant(timeline, "pointer-events", "auto");
-    }
-  }
-
-  function apply(){
-    queued = false;
-    var body = document.body;
-    if (!body) return;
-    var mobile = isMobile();
-    var timeline = document.getElementById("timelineDock");
-    var leftPanel = document.getElementById("leftPanel");
-    var sliderKey = document.getElementById("shorelyMobileSliderKey");
-    var sliderHelp = document.getElementById("shorelyMobileSliderHelpBtn");
-    var legendHelp = document.getElementById("shorelyMobileLegendHelpBtn");
-    if (!mobile) {
-      // Desktop sidebar scrolling is owned by applyStablePaneSizes().
-      setImportant(document.getElementById("mobileControlsToggle"), "display", "none");
-      if (sliderKey) setImportant(sliderKey, "display", "none");
-      if (sliderHelp) setImportant(sliderHelp, "display", "none");
-      if (legendHelp) setImportant(legendHelp, "display", "none");
-      return;
-    }
-
-    var compactLandscape = window.innerHeight <= 560 && window.innerWidth > window.innerHeight;
-    var mobileTimelineHeight = compactLandscape ? 108 : 124;
-    document.documentElement.style.setProperty("--shorely-mobile-timeline-height", mobileTimelineHeight + "px");
-    document.documentElement.style.setProperty("--pj-request-timeline-height", mobileTimelineHeight + "px");
-    document.documentElement.style.setProperty("--shorely-mobile-drawer-bottom", "calc(" + (mobileTimelineHeight + 4) + "px + env(safe-area-inset-bottom, 0px))");
-
-    var originalKey = document.getElementById("timelineFloodKey");
-    var toggle = document.getElementById("mobileControlsToggle");
-    var legend = document.getElementById("legendDock");
-    var origin = document.getElementById("shorelyLegendOriginPill");
-    var top = timeline && timeline.querySelector(".timeline-top");
-    var controls = timeline && timeline.querySelector(".timeline-controls");
-    var play = document.getElementById("playBtn");
-    var interval = document.getElementById("timelineIntervalToggle");
-    var days = document.getElementById("timelineDayTabs");
-    var track = timeline && timeline.querySelector(".timeline-trackRow");
-    var slider = document.getElementById("hourSlider");
-    var start = document.getElementById("timelineStart");
-    var end = document.getElementById("timelineEnd");
-    var key = ensureSliderKey(timeline);
-    var help = ensureSliderHelp(timeline);
-    var mobileLegendHelp = ensureMobileLegendHelp(legend);
-    var mapClickModeControl = document.getElementById("mapClickModeControl");
-    var mapClickModeVisible = !!(mapClickModeControl && !mapClickModeControl.hidden);
-
-    if (originalKey) setImportant(originalKey, "display", "none");
-    if (timeline) {
-      setImportant(timeline, "left", "max(7px, env(safe-area-inset-left, 0px))");
-      setImportant(timeline, "right", "max(7px, env(safe-area-inset-right, 0px))");
-      setImportant(timeline, "bottom", "calc(4px + env(safe-area-inset-bottom, 0px))");
-      setImportant(timeline, "top", "auto");
-      setImportant(timeline, "width", "auto");
-      setImportant(timeline, "max-width", "calc(100vw - 14px)");
-      setImportant(timeline, "transform", "none");
-      setImportant(timeline, "-webkit-transform", "none");
-      setImportant(timeline, "height", mobileTimelineHeight + "px");
-      setImportant(timeline, "min-height", mobileTimelineHeight + "px");
-      setImportant(timeline, "max-height", mobileTimelineHeight + "px");
-      setImportant(timeline, "padding", "12px 12px 12px");
-      setImportant(timeline, "overflow", "visible");
-    }
-    if (key) {
-      setImportant(key, "display", "flex");
-      setImportant(key, "top", compactLandscape ? "8px" : "13px");
-      setImportant(key, "left", window.innerWidth <= 360 ? "60px" : "64px");
-      setImportant(key, "right", "48px");
-      setImportant(key, "width", "auto");
-      setImportant(key, "max-width", "none");
-      setImportant(key, "height", "18px");
-    }
-    if (help) {
-      setImportant(help, "display", "inline-grid");
-      setImportant(help, "top", "8px");
-      setImportant(help, "right", "12px");
-    }
-    if (mobileLegendHelp) {
-      setImportant(mobileLegendHelp, "display", body.classList.contains("mobile-legend-open") ? "inline-grid" : "none");
-    }
-    if (top) {
-      setImportant(top, "left", "12px");
-      setImportant(top, "right", "auto");
-      setImportant(top, "top", "8px");
-      setImportant(top, "transform", "none");
-      setImportant(top, "width", "38px");
-      setImportant(top, "height", "38px");
-      setImportant(top, "z-index", "18");
-      setImportant(top, "overflow", "visible");
-    }
-    if (controls) {
-      setImportant(controls, "width", "38px");
-      setImportant(controls, "height", "38px");
-      setImportant(controls, "display", "grid");
-      setImportant(controls, "grid-template-columns", "38px");
-      setImportant(controls, "gap", "0");
-      setImportant(controls, "place-items", "center start");
-      setImportant(controls, "overflow", "visible");
-    }
-    if (play) {
-      setImportant(play, "width", "38px");
-      setImportant(play, "height", "38px");
-      setImportant(play, "min-width", "38px");
-      setImportant(play, "min-height", "38px");
-      setImportant(play, "max-width", "38px");
-      setImportant(play, "max-height", "38px");
-      setImportant(play, "flex", "0 0 38px");
-    }
-    if (interval && timeline && timeline.contains(interval)) {
-      setImportant(interval, "position", "static");
-      setImportant(interval, "transform", "none");
-      setImportant(interval, "width", "178px");
-      setImportant(interval, "min-width", "178px");
-      setImportant(interval, "max-width", "178px");
-      setImportant(interval, "height", "30px");
-      setImportant(interval, "grid-template-columns", "repeat(3, minmax(0, 1fr))");
-      setImportant(interval, "overflow", "visible");
-    }
-    if (days) {
-      setImportant(days, "width", "calc(100% - 24px)");
-      setImportant(days, "max-width", "calc(100% - 24px)");
-      setImportant(days, "height", "22px");
-      setImportant(days, "margin", "44px 12px 4px 12px");
-      syncTimelineDayWeights();
-    }
-    if (track) {
-      setImportant(track, "width", "calc(100% - 24px)");
-      setImportant(track, "max-width", "calc(100% - 24px)");
-      setImportant(track, "margin-left", "12px");
-      setImportant(track, "margin-right", "12px");
-      setImportant(track, "margin-top", compactLandscape ? "-9px" : "6px");
-      setImportant(track, "height", "28px");
-      setImportant(track, "grid-template-columns", "minmax(0, 1fr)");
-    }
-    if (start) {
-      setImportant(start, "display", "none");
-    }
-    if (end) {
-      setImportant(end, "display", "none");
-    }
-    if (slider) {
-      setImportant(slider, "width", "100%");
-      setImportant(slider, "max-width", "100%");
-      setImportant(slider, "margin", "0");
-    }
-
-    if (toggle) {
-      setImportant(toggle, "display", body.classList.contains("mobile-controls-open") ? "none" : "inline-grid");
-      setImportant(toggle, "position", "fixed");
-      setImportant(toggle, "left", mapClickModeVisible ? "auto" : "50%");
-      setImportant(toggle, "right", mapClickModeVisible ? "10px" : "auto");
-      setImportant(toggle, "bottom", "auto");
-      setImportant(toggle, "margin", "0");
-      setImportant(toggle, "transform", mapClickModeVisible ? "none" : "translateX(-50%)");
-      setImportant(toggle, "-webkit-transform", mapClickModeVisible ? "none" : "translateX(-50%)");
-      setImportant(toggle, "translate", "0 0");
-      setImportant(toggle, "top", "calc(64px + env(safe-area-inset-top, 0px))");
-      setImportant(toggle, "width", mapClickModeVisible || window.innerWidth <= 360 ? "104px" : "112px");
-      setImportant(toggle, "min-width", mapClickModeVisible || window.innerWidth <= 360 ? "104px" : "112px");
-      setImportant(toggle, "max-width", mapClickModeVisible || window.innerWidth <= 360 ? "104px" : "112px");
-      setImportant(toggle, "place-items", "center");
-      setImportant(toggle, "justify-content", "center");
-      setImportant(toggle, "align-items", "center");
-      setImportant(toggle, "text-align", "center");
-      setImportant(toggle, "overflow", "hidden");
-    }
-    if (origin) {
-      setImportant(origin, "background", "rgba(11,18,32,.97)");
-      setImportant(origin, "border-color", "rgba(191,219,254,.38)");
-    }
-    compactLegend(legend);
-    syncTopTidesModalVisibility();
-  }
-
-  function schedule(){
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(apply);
-  }
-
-  function boot(){
-    apply();
-    [40, 120, 260, 600, 1200, 2400].forEach(function(ms){ window.setTimeout(schedule, ms); });
-    if (observerStarted) return;
-    observerStarted = true;
-    try {
-      var observer = new MutationObserver(schedule);
-      observer.observe(document.documentElement, { attributes:true, attributeFilter:["class", "style"] });
-      if (document.body) observer.observe(document.body, { attributes:true, attributeFilter:["class", "style"] });
-      ["timelineDock", "timelineDayTabs", "timelineFloodKey", "mobileControlsToggle", "legendDock", "shorelyLegendOriginPill", "shorelyMobileSliderHelpBtn", "shorelyMobileLegendHelpBtn", "mapTitleBadge", "topTidesModal", "mapClickModeControl"].forEach(function(id){
-        var el = document.getElementById(id);
-        if (el) observer.observe(el, { attributes:true, attributeFilter:["class", "style"] });
-      });
-    } catch(e) {}
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot, { once:true });
-  } else {
-    boot();
-  }
-  window.addEventListener("load", boot, { once:true });
-  window.addEventListener("resize", schedule, { passive:true });
-  window.addEventListener("orientationchange", function(){ window.setTimeout(schedule, 80); }, { passive:true });
-  document.addEventListener("click", function(){
-    [20, 80, 180, 360, 700].forEach(function(ms){ window.setTimeout(schedule, ms); });
-  }, true);
-  document.addEventListener("keydown", function(event){
-    if (event.key === "Escape") [20, 120, 260, 520].forEach(function(ms){ window.setTimeout(schedule, ms); });
-  }, true);
-  // Class/style observers and the post-click schedule keep this current.
-  // Never move a hit target synchronously at the start of a pointer gesture.
-  window.CapeMayMobileFollowup = window.ShorelyMobileFollowup = { apply: apply, schedule: schedule };
-})();
-</script>
-
-
-
-
-
-
-
-<script>
-(function(){
-  "use strict";
-  var queued = false;
-
-  function isCompactViewport(){
-    return window.matchMedia("(max-width:900px), (max-height: 560px)").matches;
-  }
-
-  function placeMobileLegend(){
-    queued = false;
-    var legend = document.getElementById("legendDock");
-    var mapWrap = document.getElementById("mapWrap");
-    var leftPanel = document.getElementById("leftPanel");
-    if (!legend || !mapWrap || !leftPanel) return;
-    if (isCompactViewport()) {
-      ["flex","min-height","height","max-height","width","min-width","max-width","margin","padding","border-radius","overflow"].forEach(function(prop){
-        legend.style.removeProperty(prop);
-      });
-      const legendHost = document.documentElement.hasAttribute("data-nww-mobile-layout") ? document.body : mapWrap;
-      if (legend.parentElement !== legendHost) legendHost.appendChild(legend);
-    } else if (legend.parentElement !== leftPanel) {
-      leftPanel.appendChild(legend);
-    }
-  }
-
-  function scheduleMobileLegendPlacement(){
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(placeMobileLegend);
-  }
-
-  function boot(){
-    scheduleMobileLegendPlacement();
-    [80,220,650,1400].forEach(function(ms){
-      window.setTimeout(scheduleMobileLegendPlacement,ms);
-    });
-    try {
-      var observer = new MutationObserver(scheduleMobileLegendPlacement);
-      observer.observe(document.body,{attributes:true,attributeFilter:["class"]});
-    } catch(e) {}
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded",boot,{once:true});
-  } else {
-    boot();
-  }
-  window.addEventListener("resize",scheduleMobileLegendPlacement,{passive:true});
-  window.addEventListener("orientationchange",scheduleMobileLegendPlacement,{passive:true});
-})();
-</script>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<script src="assets/avalon-mobile.js?v=20261003-tour-modal"></script>
-<script id="shorelysafe-responsive-fit-v14">
-(function () {
-  'use strict';
-  const owned = new Map();
-  let legendOrigin = null;
-  let compactLegendWidth = null;
-  let pending = false;
-  let lastCompact = null;
-  let lastCompactWidth = null;
-  let shortLandscapeApplied = false;
-  const drawerLegend = /\/(avalon-test|highlands-beta|salem-beta)\/?$/.test(location.pathname);
-  function set(el, name, value) {
-    if (!el) return;
-    let props = owned.get(el);
-    if (!props) { props = new Map(); owned.set(el, props); }
-    if (!props.has(name)) props.set(name, [el.style.getPropertyValue(name), el.style.getPropertyPriority(name)]);
-    if (el.style.getPropertyValue(name) !== value || el.style.getPropertyPriority(name) !== 'important')
-      el.style.setProperty(name, value, 'important');
-  }
-  function restore(el) {
-    const props = owned.get(el);
-    if (!props) return;
-    for (const [name, [value, priority]] of props) {
-      if (value) el.style.setProperty(name, value, priority);
-      else el.style.removeProperty(name);
-    }
-    owned.delete(el);
-  }
-  function release(el, name) {
-    const props = owned.get(el);
-    if (!props?.has(name)) return;
-    const [value, priority] = props.get(name);
-    if (value) el.style.setProperty(name, value, priority);
-    else el.style.removeProperty(name);
-    props.delete(name);
-    if (!props.size) owned.delete(el);
-  }
-  function shown(el) {
-    if (!el) return false;
-    const s = getComputedStyle(el);
-    return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0' && el.getBoundingClientRect().width > 0;
-  }
-  function fitTitleContent(title, label, resetLabel = true) {
-    if (!shown(title)) return;
-    const overflow = () => {
-      const box = title.getBoundingClientRect();
-      const children = [...title.children].filter(shown).map(el => el.getBoundingClientRect());
-      if (!children.length) return Math.max(0, title.scrollWidth - title.clientWidth);
-      return Math.max(0, box.left - Math.min(...children.map(r => r.left))) +
-        Math.max(0, Math.max(...children.map(r => r.right)) - box.right) +
-        (label ? Math.max(0, label.scrollWidth - label.clientWidth) : 0);
-    };
-    if (label && resetLabel) restore(label);
-    if (overflow() <= 2) return;
-    if (label) {
-      set(title, 'gap', '4px');
-      for (let i = 0; i < 20 && overflow() > 2; i++) {
-        const size = parseFloat(getComputedStyle(label).fontSize) || 16;
-        if (size <= 11) break;
-        set(label, 'font-size', Math.max(11, size - 1) + 'px');
-      }
-      set(label, 'min-width', '0px');
-      set(label, 'overflow', 'hidden');
-      set(label, 'text-overflow', 'ellipsis');
-    } else {
-      for (let i = 0; i < 20 && overflow() > 2; i++) {
-        const size = parseFloat(getComputedStyle(title).fontSize) || 24;
-        if (size <= 12) break;
-        set(title, 'font-size', Math.max(12, size - 1) + 'px');
-      }
-    }
-    set(title, 'overflow', 'hidden');
-  }
-  function clearStaleMobileTimeline() {
-    const tabs = document.getElementById('timelineDayTabs');
-    const key = document.getElementById('timelineFloodKey');
-    const track = document.querySelector('#timelineDock .timeline-trackRow');
-    if (tabs?.style.getPropertyValue('position') !== 'relative' &&
-        key?.style.getPropertyValue('display') !== 'flex' &&
-        track?.style.getPropertyValue('position') !== 'relative') return;
-    for (const el of [
-      document.querySelector('#timelineDock .timeline-top'),
-      document.querySelector('#timelineDock .timeline-controls'),
-      key, tabs, track,
-      document.getElementById('hourSlider'),
-      document.getElementById('playBtn')
-    ]) if (el?.hasAttribute('style')) el.removeAttribute('style');
-  }
-  function ensureDrawerClose(left) {
-    const nativeClose = document.getElementById('mobileControlsClose');
-    if (nativeClose) {
-      set(nativeClose, 'z-index', '10000');
-      return;
-    }
-    let button = document.getElementById('shorelyResponsiveClose');
-    if (!button) {
-      button = document.createElement('button');
-      button.id = 'shorelyResponsiveClose';
-      button.type = 'button';
-      button.textContent = '×';
-      button.setAttribute('aria-label', 'Close controls');
-      button.addEventListener('click', () => {
-        document.getElementById('mobileControlsToggle')?.click();
-      });
-      left.prepend(button);
-    }
-    const styles = {
-      display: document.body.classList.contains('mobile-controls-open') ? 'grid' : 'none',
-      'place-items': 'center', position: 'sticky', top: '0px', 'z-index': '9000',
-      'align-self': 'flex-end', order: '-100', flex: '0 0 auto',
-      width: '36px', height: '36px', 'min-width': '36px',
-      margin: '0 0 8px auto', padding: '0px', 'border-radius': '10px',
-      border: '1px solid rgba(255,255,255,.2)', background: '#263449',
-      color: '#fff', 'font-size': '26px', 'line-height': '1', cursor: 'pointer'
-    };
-    for (const [name, value] of Object.entries(styles)) set(button, name, value);
-  }
-  function fitShortLandscapeNavigation(active) {
-    const source = document.getElementById('nwDefaultNavControl');
-    if (!source) return;
-    let compact = document.getElementById('shorelyCompactMapNav');
-    if (!compact) {
-      compact = document.createElement('div');
-      compact.id = 'shorelyCompactMapNav';
-      compact.setAttribute('aria-label', 'Map navigation');
-      for (const [text, label, selector] of [
-        ['+', 'Zoom in', '.nw-simple-zoom-in, .nw-earth-zoom-in'],
-        ['−', 'Zoom out', '.nw-simple-zoom-out, .nw-earth-zoom-out'],
-        ['2D', 'Switch map view', '.nw-simple-view']
-      ]) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = text;
-        button.setAttribute('aria-label', label);
-        button.addEventListener('click', () => source.querySelector(selector)?.click());
-        compact.appendChild(button);
-      }
-      document.body.appendChild(compact);
-    }
-    if (!active) { restore(source); restore(compact); for (const child of compact.children) restore(child); compact.style.display = 'none'; return; }
-    set(source, 'display', 'none');
-    for (const [name, value] of Object.entries({display:'grid',position:'fixed',top:'60px',right:'8px',width:'36px',gap:'3px','z-index':'2000','pointer-events':'auto'})) set(compact,name,value);
-    for (const button of compact.children) for (const [name, value] of Object.entries({width:'36px',height:'32px','min-width':'36px','min-height':'32px',padding:'0px',border:'1px solid rgba(164,205,255,.5)','border-radius':'8px',background:'#1d3c65',color:'#fff','font-size':'15px','font-weight':'800','line-height':'1',cursor:'pointer'})) set(button,name,value);
-  }
-  function fitLeafletNavigation(title, banner, timeline) {
-    const zoom = document.querySelector('.leaflet-top.leaflet-right .leaflet-control-zoom');
-    let compact = document.getElementById('shorelyCompactLeafletZoom');
-    if (!zoom) { if (compact) set(compact, 'display', 'none'); return; }
-    // Town layout setters rewrite top, margin and transform; translate remains independent.
-    release(zoom, 'translate');
-    release(zoom, 'opacity');
-    release(zoom, 'pointer-events');
-    if (!shown(zoom)) { if (compact) set(compact, 'display', 'none'); return; }
-    const landscape = innerWidth <= 900 && innerWidth > innerHeight && innerHeight <= 500;
-    if (landscape && !document.getElementById('nwDefaultNavControl')) {
-      const blockerBottom = Math.max(...[title, banner].filter(shown).map(el => el.getBoundingClientRect().bottom), 52);
-      const timelineTop = timeline?.getBoundingClientRect().top ?? innerHeight;
-      const top = Math.ceil(blockerBottom + 6);
-      if (top + 36 <= timelineTop - 5) {
-        if (!compact) {
-          compact = document.createElement('div');
-          compact.id = 'shorelyCompactLeafletZoom';
-          compact.setAttribute('aria-label', 'Map zoom');
-          for (const [symbol, label, selector] of [
-            ['+', 'Zoom in', '.leaflet-control-zoom-in'],
-            ['−', 'Zoom out', '.leaflet-control-zoom-out']
-          ]) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = symbol;
-            button.setAttribute('aria-label', label);
-            button.addEventListener('click', () => zoom.querySelector(selector)?.click());
-            compact.appendChild(button);
-          }
-          document.body.appendChild(compact);
-        }
-        for (const [name, value] of Object.entries({display:'flex',position:'fixed',top:top+'px',right:'8px',width:'78px',height:'34px',gap:'4px','z-index':'4000','pointer-events':'auto'})) set(compact,name,value);
-        for (const button of compact.children) for (const [name, value] of Object.entries({width:'37px',height:'34px','min-width':'37px','min-height':'34px',padding:'0px',border:'1px solid rgba(164,205,255,.5)','border-radius':'8px',background:'#1d3c65',color:'#fff','font-size':'19px','font-weight':'800','line-height':'1',cursor:'pointer'})) set(button,name,value);
-      } else if (compact) set(compact, 'display', 'none');
-      set(zoom, 'opacity', '0');
-      set(zoom, 'pointer-events', 'none');
-      return;
-    }
-    if (compact) set(compact, 'display', 'none');
-    const zr = zoom.getBoundingClientRect();
-    const rightPane = document.getElementById('rightRail');
-    const right = rightPane?.children.length && shown(rightPane) ? rightPane.getBoundingClientRect() : null;
-    const shiftX = right && zr.top < right.bottom - 6 && zr.bottom > right.top + 6 &&
-      zr.right > right.left - 8 && zr.left < right.right ? Math.floor(right.left - 8 - zr.right) : 0;
-    const candidateLeft = zr.left + shiftX;
-    const candidateRight = zr.right + shiftX;
-    let blockerBottom = 0;
-    for (const blocker of [title, banner]) {
-      if (!shown(blocker)) continue;
-      const r = blocker.getBoundingClientRect();
-      if (Math.min(r.right, candidateRight) - Math.max(r.left, candidateLeft) > 6 &&
-          Math.min(r.bottom, zr.bottom) - Math.max(r.top, zr.top) > 6)
-        blockerBottom = Math.max(blockerBottom, r.bottom);
-    }
-    const shiftY = blockerBottom ? Math.max(0, Math.ceil(blockerBottom + 8 - zr.top)) : 0;
-    const leftPane = document.getElementById('leftPanel');
-    const left = shown(leftPane) ? leftPane.getBoundingClientRect() : null;
-    const candidateBottom = zr.bottom + shiftY;
-    const crossesLeft = left && candidateRight > left.left + 6 && candidateLeft < left.right - 6 &&
-      candidateBottom > left.top + 6 && zr.top + shiftY < left.bottom - 6;
-    if (candidateLeft < 4 || candidateRight > innerWidth - 4 || crossesLeft ||
-        (timeline && candidateBottom > timeline.getBoundingClientRect().top - 4)) {
-      set(zoom, 'opacity', '0');
-      set(zoom, 'pointer-events', 'none');
-    } else if (shiftX || shiftY) set(zoom, 'translate', shiftX + 'px ' + shiftY + 'px');
-  }
-  function fit() {
-    pending = false;
-    const left = document.getElementById('leftPanel');
-    const right = document.getElementById('rightRail');
-    const timeline = document.getElementById('timelineDock');
-    const title = document.getElementById('mapTitleBadge');
-    const legend = document.getElementById('legendDock');
-    const banner = document.getElementById('topBanner');
-    if (!left || !right || !timeline || !title) return;
-    const compact = matchMedia('(max-width: 900px)').matches || document.body.classList.contains('mobile-optimized');
-    const switched = lastCompact !== compact;
-    const tabs = document.getElementById('timelineDayTabs');
-    const track = timeline.querySelector('.timeline-trackRow');
-    const play = document.getElementById('playBtn');
-    const slider = document.getElementById('hourSlider');
-    const toggle = document.getElementById('mobileControlsToggle');
-    const shortLandscape = compact && !!tabs && !!track && innerWidth > innerHeight && innerHeight <= 500 &&
-      getComputedStyle(tabs).position === 'absolute' && getComputedStyle(track).position === 'absolute';
-    if (!shortLandscape && shortLandscapeApplied) {
-      for (const el of [toggle,banner,timeline,tabs,track,slider,play]) restore(el);
-      shortLandscapeApplied = false;
-    }
-    const partnerLogo = document.getElementById('mapTitlePartnerLogo');
-    if (compact && innerWidth <= 360) set(partnerLogo, 'display', 'none');
-    else restore(partnerLogo);
-    if (switched) {
-      restore(title);
-      restore(document.getElementById('mapTitleText'));
-      restore(banner);
-      restore(banner?.querySelector('.banner-text'));
-      restore(legend);
-      restore(left);
-      restore(right);
-      restore(document.getElementById('mobileControlsClose'));
-      lastCompact = compact;
-    }
-    // Mobile geometry is owned by north-wildwood-mobile.css; retain this fitter for desktop.
-    if (compact && document.documentElement.hasAttribute('data-nww-mobile-layout')) {
-      if (switched) {
-        // Restoring desktop-owned styles can bring back stale pixel coordinates.
-        for (const element of [title, legend, left, document.getElementById('mapTitleText')]) {
-          if (!element) continue;
-          for (const property of ['inset','top','right','bottom','left','width','min-width','max-width','height','min-height','max-height','transform','font-size','padding','overflow','overflow-y','display']) element.style.removeProperty(property);
-        }
-      }
-      return;
-    }
-    if (compact) {
-      fitShortLandscapeNavigation(shortLandscape);
-      // Reset desktop title coordinates retained by older mapper title fitters.
-      set(title, 'left', 'calc(8px + env(safe-area-inset-left))');
-      set(title, 'right', 'calc(8px + env(safe-area-inset-right))');
-      set(title, 'width', 'auto');
-      set(title, 'min-width', '0px');
-      set(title, 'max-width', 'calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))');
-      set(title, 'transform', 'none');
-      if (!right.children.length) set(right, 'display', 'none');
-      else if (owned.get(right)?.has('display')) restore(right);
-      clearStaleMobileTimeline();
-      ensureDrawerClose(left);
-      set(timeline, 'left', 'calc(8px + env(safe-area-inset-left))');
-      set(timeline, 'right', 'calc(8px + env(safe-area-inset-right))');
-      set(timeline, 'width', 'auto');
-      set(timeline, 'min-width', '0px');
-      set(timeline, 'max-width', 'calc(100vw - 16px)');
-      set(timeline, 'transform', 'none');
-      if (document.body.classList.contains('mobile-controls-open') && shown(left)) {
-        const lr = left.getBoundingClientRect();
-        const tr = timeline.getBoundingClientRect();
-        if (tr.top > lr.top + 80) {
-          const room = Math.floor(tr.top - lr.top - 8);
-          set(left, 'bottom', Math.ceil(innerHeight - tr.top + 8) + 'px');
-          set(left, 'max-height', room + 'px');
-          set(left, 'min-height', '0px');
-          set(left, 'overflow-y', 'auto');
-          set(left, 'overscroll-behavior-y', 'contain');
-        }
-      }
-      if (drawerLegend && legend) {
-        if (!left.contains(legend)) {
-          if (!legendOrigin) legendOrigin = {parent:legend.parentNode,next:legend.nextSibling};
-          left.appendChild(legend);
-        }
-        set(legend, 'position', 'static');
-        set(legend, 'inset', 'auto');
-        set(legend, 'left', 'auto');
-        set(legend, 'right', 'auto');
-        set(legend, 'top', 'auto');
-        set(legend, 'bottom', 'auto');
-        set(legend, 'display', 'block');
-        set(legend, 'width', '100%');
-        set(legend, 'min-width', '0px');
-        set(legend, 'max-width', '100%');
-        set(legend, 'height', 'auto');
-        set(legend, 'max-height', 'none');
-        set(legend, 'transform', 'none');
-        set(legend, 'margin', '0px');
-        set(legend, 'flex', '0 0 auto');
-        set(legend, 'order', '20');
-        set(legend, 'overflow', 'visible');
-      } else if (legendOrigin && legend?.parentNode === left) legendOrigin.parent.insertBefore(legend, legendOrigin.next?.parentNode === legendOrigin.parent ? legendOrigin.next : null);
-      if (!drawerLegend && innerWidth > 360 && owned.get(legend)?.has('top')) restore(legend);
-      if (!drawerLegend && legend && shown(legend)) {
-        const r = legend.getBoundingClientRect();
-        if (compactLegendWidth === null && (r.right > innerWidth - 8 || r.left < 8)) compactLegendWidth = r.width;
-        if (compactLegendWidth !== null) {
-          const room = Math.max(120, Math.floor(innerWidth - Math.max(r.left, 8) - 8));
-          const width = Math.floor(Math.min(compactLegendWidth, room));
-          set(legend, 'max-width', width + 'px');
-          set(legend, 'width', width + 'px');
-          if (r.left < 8) set(legend, 'left', '8px');
-        }
-        if (innerWidth <= 360 && legend.getBoundingClientRect().right < document.getElementById('mobileControlsToggle')?.getBoundingClientRect().left)
-          set(legend, 'top', '60px');
-      } else if (!drawerLegend) restore(legend);
-      const compactLabel = document.getElementById('mapTitleText');
-      if (compactLabel) {
-        if (lastCompactWidth !== innerWidth) {
-          for (const name of ['max-width', 'overflow', 'text-overflow']) release(compactLabel, name);
-          lastCompactWidth = innerWidth;
-        }
-        set(compactLabel, 'font-size', (innerWidth <= 360 ? 13 : innerWidth <= 430 ? 15 : 17) + 'px');
-        set(compactLabel, 'white-space', 'nowrap');
-      }
-      fitTitleContent(title, compactLabel, false);
-      if (compactLabel && shown(toggle)) {
-        const overlapsToggle = () => {
-          const a = compactLabel.getBoundingClientRect();
-          const b = toggle.getBoundingClientRect();
-          return a.top < b.bottom - 2 && a.bottom > b.top + 2 &&
-            a.right > b.left - 8 && a.left < b.right - 8;
-        };
-        for (let i = 0; i < 8 && overlapsToggle(); i++) {
-          const size = parseFloat(getComputedStyle(compactLabel).fontSize) || 17;
-          if (size <= 11) break;
-          set(compactLabel, 'font-size', Math.max(11, size - 1) + 'px');
-        }
-        if (overlapsToggle()) {
-          const room = Math.max(40, Math.floor(toggle.getBoundingClientRect().left -
-            compactLabel.getBoundingClientRect().left - 10));
-          set(compactLabel, 'max-width', room + 'px');
-          set(compactLabel, 'overflow', 'hidden');
-          set(compactLabel, 'text-overflow', 'ellipsis');
-        }
-      }
-      if (banner && shown(banner) && shown(title)) {
-        const tb = title.getBoundingClientRect();
-        const bb = banner.getBoundingClientRect();
-        if ((bb.top < tb.bottom + 6 && bb.bottom > tb.top && bb.left < tb.right && bb.right > tb.left) || owned.get(banner)?.has('top'))
-          set(banner, 'top', Math.ceil(tb.bottom + 8) + 'px');
-      }
-      if (shortLandscape) {
-        set(toggle, 'left', 'auto');
-        set(toggle, 'right', '8px');
-        set(toggle, 'top', '8px');
-        set(toggle, 'width', '118px');
-        set(toggle, 'min-width', '118px');
-        set(toggle, 'max-width', '118px');
-        set(banner, 'top', '60px');
-        set(banner, 'left', '112px');
-        set(banner, 'right', '104px');
-        set(banner, 'width', 'auto');
-        set(banner, 'transform', 'none');
-        set(banner, 'max-width', 'none');
-        for (const name of ['height','min-height','max-height']) set(timeline, name, '122px');
-        set(timeline, 'padding', '5px 8px');
-        set(tabs, 'top', '52px');
-        for (const name of ['height','min-height','max-height']) set(tabs, name, '30px');
-        set(track, 'top', '86px');
-        for (const name of ['height','min-height','max-height']) set(track, name, '28px');
-        for (const name of ['height','min-height','max-height']) set(slider, name, '28px');
-        for (const name of ['height','min-height','max-height','width','min-width','max-width']) set(play, name, '34px');
-        shortLandscapeApplied = true;
-      }
-      fitLeafletNavigation(title, banner, timeline);
-      return;
-    }
-    fitShortLandscapeNavigation(false);
-    restore(timeline);
-    set(document.getElementById('shorelyResponsiveClose'), 'display', 'none');
-    if (compactLegendWidth !== null) { restore(legend); compactLegendWidth = null; }
-
-    const tr = timeline.getBoundingClientRect();
-    if (legend && shown(legend)) {
-      const lr = left.getBoundingClientRect();
-      const gr = legend.getBoundingClientRect();
-      const br = title.getBoundingClientRect();
-      const collidesWithTitle = gr.left < br.right - 8 && gr.right > br.left + 8 && gr.top < br.bottom - 8 && gr.bottom > br.top + 8;
-      const escapesLeft = left.contains(legend) && (gr.left < lr.left - 4 || gr.right > lr.right + 4);
-      const offscreenLegend = gr.top < 0 || gr.bottom > tr.top - 8 || gr.left < 8 || gr.right > innerWidth - 8;
-      if ((legendOrigin && legend.dataset.userMoved !== '1') || collidesWithTitle || escapesLeft || offscreenLegend) {
-        if (!left.contains(legend)) {
-          if (!legendOrigin) legendOrigin = {parent:legend.parentNode,next:legend.nextSibling};
-          left.appendChild(legend);
-        }
-        set(legend, 'position', 'static');
-        set(legend, 'inset', 'auto');
-        set(legend, 'left', 'auto');
-        set(legend, 'right', 'auto');
-        set(legend, 'top', 'auto');
-        set(legend, 'bottom', 'auto');
-        set(legend, 'width', '100%');
-        set(legend, 'max-width', '100%');
-        set(legend, 'transform', 'none');
-        set(legend, 'margin', '0px');
-        set(legend, 'flex', '0 0 auto');
-        set(legend, 'order', '20');
-      }
-    }
-    for (const pane of [left, right]) {
-      // CupaJoe owns the rail's timeline clearance. Do not alternate its
-      // max-height with a second, slightly different measurement every frame.
-      if (pane === right && document.documentElement.hasAttribute('data-ss-ui')) continue;
-      if (!shown(pane)) continue;
-      const r = pane.getBoundingClientRect();
-      const clearance = pane === right ? 12 : 8;
-      const room = Math.max(96, Math.floor(Math.min(innerHeight - 8, tr.top - clearance) - r.top));
-      set(pane, 'max-height', room + 'px');
-      set(pane, 'min-height', '0px');
-      set(pane, 'overflow', 'auto');
-      set(pane, 'overflow-x', 'hidden');
-      set(pane, 'overflow-y', 'auto');
-      set(pane, 'overscroll-behavior-y', 'contain');
-      set(pane, 'scrollbar-width', 'thin');
-      set(pane, 'scrollbar-color', '#91a8c9 #182234');
-      if (!pane.hasAttribute('tabindex')) pane.setAttribute('tabindex', '0');
-    }
-
-    // Use the app's title measurement, including the compass, as the sole owner.
-    fitMapTitleBadgeToViewport();
-    if (!shown(title)) { restore(title); restore(document.getElementById('mapTitleText')); fitLeafletNavigation(null, banner, timeline); return; }
-    const lr = shown(left) ? left.getBoundingClientRect() : null;
-    const rr = shown(right) && right.children.length ? right.getBoundingClientRect() : null;
-    const laneLeft = Math.max(8, lr ? lr.right + 12 : 8);
-    const laneRight = Math.min(innerWidth - 8, rr ? rr.left - 12 : innerWidth - 8);
-    const lane = Math.max(120, laneRight - laneLeft);
-    if (banner && shown(banner)) {
-      set(banner, 'left', Math.round((laneLeft + laneRight) / 2) + 'px');
-      set(banner, 'right', 'auto');
-      set(banner, 'transform', 'translateX(-50%)');
-      set(banner, 'box-sizing', 'border-box');
-      set(banner, 'width', 'max-content');
-      set(banner, 'min-width', '0px');
-      set(banner, 'max-width', Math.floor(lane) + 'px');
-      set(banner?.querySelector('.banner-text'), 'min-width', '0px');
-      const tb = title.getBoundingClientRect();
-      const bb = banner.getBoundingClientRect();
-      if (bb.top < tb.bottom + 8 && bb.bottom > tb.top)
-        set(banner, 'top', Math.ceil(tb.bottom + 8) + 'px');
-    }
-    const nav = document.getElementById('nwDefaultNavControl');
-    if (nav && banner && shown(nav) && shown(banner)) {
-      const nr = nav.getBoundingClientRect();
-      const br = banner.getBoundingClientRect();
-      if (nr.left < br.right - 8 && nr.right > br.left + 8 && nr.top < br.bottom - 8 && nr.bottom > br.top + 8)
-        set(nav, 'top', Math.ceil(br.bottom + 8) + 'px');
-    }
-    fitLeafletNavigation(title, banner, timeline);
-  }
-  function schedule() { if (!pending) { pending = true; requestAnimationFrame(fit); } }
-  function init() {
-    const nodes = ['leftPanel','rightRail','timelineDock','mapTitleBadge'].map(id => document.getElementById(id)).filter(Boolean);
-    if (nodes.length < 4) return;
-    addEventListener('resize', schedule, {passive:true});
-    addEventListener('orientationchange', schedule, {passive:true});
-    const ro = new ResizeObserver(schedule);
-    nodes.filter(el => el.id === 'timelineDock' || el.id === 'mapTitleBadge').forEach(el => ro.observe(el));
-    const lastClassValue = new WeakMap();
-    const mo = new MutationObserver(records => {
-      let layoutChanged = false;
-      for (const record of records) {
-        if (record.type !== 'attributes' || record.attributeName !== 'class') {
-          layoutChanged = true;
-          continue;
-        }
-        const value = record.target.getAttribute('class');
-        if (!lastClassValue.has(record.target) || lastClassValue.get(record.target) !== value) {
-          lastClassValue.set(record.target, value);
-          layoutChanged = true;
-        }
-      }
-      if (layoutChanged) schedule();
-    });
-    mo.observe(document.body, {attributes:true,attributeFilter:['class']});
-    // fit() writes styles on these panes; observing those writes loops every frame.
-    nodes.forEach(el => mo.observe(el, {attributes:true,attributeFilter:['class'],childList:el.id==='rightRail'}));
-    const legend = document.getElementById('legendDock');
-    if (legend) mo.observe(legend, {attributes:true,attributeFilter:['class']});
-    const banner = document.getElementById('topBanner');
-    if (banner) { ro.observe(banner); mo.observe(banner, {attributes:true,attributeFilter:['class']}); }
-    const leafletNavAnchor = document.querySelector('.leaflet-top.leaflet-right');
-    if (leafletNavAnchor) mo.observe(leafletNavAnchor, {attributes:true,attributeFilter:['style','class']});
-    const app = document.getElementById('app');
-    if (app) mo.observe(app, {childList:true});
-    mo.observe(document.getElementById('leftPanel'), {childList:true});
-    schedule();
-    setTimeout(schedule, 400);
-    setTimeout(schedule, 1800);
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});
-  else init();
-})();
-
-</script>
-
-<script defer src="assets/north-wildwood-mobile.js?v=20261003-2"></script>
+<script defer src="assets/north-wildwood-mobile.js?v=20261009-conflicts-1"></script>
 
 <script src="assets/export-area.js?v=20261008-2" id="floodmapper-export-area"></script>
 
@@ -41296,23 +39302,16 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
     if (heading) heading.textContent = 'Flood Data';
     const past = document.getElementById('observedDataBtn');
     if (past) past.textContent = 'Past';
-    const legend = document.getElementById('legendDock');
-    const compact = window.matchMedia('(max-width:900px), (max-height:560px)').matches;
-    if (legend && !compact && legend.parentElement !== panel) {
-      legend.classList.add('panel-card', 'compact-card', 'left-lower-legend-card');
-      legend.classList.remove('map-floating');
-      legend.dataset.userMoved = '1';
-      panel.appendChild(legend);
-    }
     const opacity = document.getElementById('opacitySlider');
     if (opacity && !opacity.hasAttribute('aria-label')) opacity.setAttribute('aria-label', 'Flood overlay opacity');
     const exportButton = document.getElementById('openDownloadModalBtn');
     if (exportButton) exportButton.textContent = 'Export Map';
-    const order = ['.data-source-card','#calendarCard','.return-interval-card','.overlay-card','.datum-card','.opacity-card','#timelineIntervalCard','#legendDock','.snapshot-card','.mobile-top-tides-card','#mobileRailMount'];
+    const order = ['.data-source-card','#calendarCard','.return-interval-card','.overlay-card','.datum-card','.opacity-card','#timelineIntervalCard','.snapshot-card','.mobile-top-tides-card','#mobileRailMount'];
     for (const selector of order) {
       const card = [...panel.children].find(child => child.matches(selector));
       if (card) panel.appendChild(card);
     }
+    syncLegendPlacement();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', normalizeMapperUi, {once:true});
   else normalizeMapperUi();

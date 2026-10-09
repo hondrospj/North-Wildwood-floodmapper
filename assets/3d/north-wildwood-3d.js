@@ -1364,7 +1364,7 @@
     if (!glPopup || !glMap) return;
     var element = glPopup.getElement();
     if (!element) return;
-    var compact = window.matchMedia("(max-width:900px), (max-height:560px)").matches;
+    var compact = isCompactFloodmapperLayout();
     element.classList.toggle("nw-mobile-popup", compact);
     // MapLibre appends its close button after the card. Sticky positioning
     // only keeps it visible when it starts before the scrollable contents.

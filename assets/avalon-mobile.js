@@ -1,6 +1,6 @@
 /* Shared Avalon phone layout for all ShorelySafe floodmappers. */
 (() => {
-  const media = matchMedia('(max-width:900px), (max-height:560px) and (pointer:coarse)');
+  const media = floodmapperLayoutMedia;
   const panel = document.getElementById('leftPanel');
   const app = document.getElementById('app');
   const legend = document.getElementById('legendDock');

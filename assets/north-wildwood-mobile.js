@@ -2,7 +2,7 @@
 (() => {
   const panel = document.getElementById('leftPanel');
   if (!panel) return;
-  const mobile = matchMedia('(max-width:900px), (max-height:560px) and (pointer:coarse)');
+  const mobile = floodmapperLayoutMedia;
   const groups = {
     forecast: '.data-source-card,#forecastScenarioCard,#returnIntervalCard,#timelineIntervalCard,#calendarCard',
     map: '.overlay-card,.datum-card,.opacity-card,.layers-card',
@@ -45,7 +45,14 @@
     if (open && !wasOpen) {
       document.body.classList.remove('mobile-legend-open');
       panel.setAttribute('aria-labelledby', 'nwwControlsTitle');
-      if (!document.body.classList.contains('tutorial-active')) tabs.find(tab => tab.getAttribute('aria-selected') === 'true')?.focus({preventScroll:true});
+      // The drawer controller clears inert in its scheduled layout pass.
+      requestAnimationFrame(() => {
+        if (document.body.classList.contains('mobile-controls-open') && !panel.inert &&
+            !document.body.classList.contains('tutorial-active') &&
+            !document.querySelector('#infoModal.open,#datumModal.open,#downloadModal.open,#topTidesModal.open')) {
+          tabs.find(tab => tab.getAttribute('aria-selected') === 'true')?.focus({preventScroll:true});
+        }
+      });
     } else if (!open && wasOpen) {
       panel.removeAttribute('aria-labelledby');
       if (mobile.matches && !document.querySelector('#mapperTutorial:not([hidden]),.download-modal.open,.datum-modal.open,#infoModal.open')) toggle?.focus({preventScroll:true});
