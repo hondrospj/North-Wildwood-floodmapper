@@ -14728,7 +14728,8 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 @media print { .webcam-map-marker, #webcamPanel { display:none !important; } }
 
 </style>
-<link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261009-1">
+<link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261009-2">
+<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261009-1">
 </head>
 <body data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261008-v1">
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
@@ -18091,15 +18092,7 @@ function setDatumHelpOpen(isOpen) {
         legendDock.dataset.previewText = currentOverlayMode === "depth"
           ? "Flood Depth Key"
           : "Flood Stages Key";
-        if (window.matchMedia("(min-width:901px) and (min-height:561px)").matches) {
-          const compactLegendHeight = currentOverlayMode === "depth"
-            ? (depthLegendHasNote ? "94px" : "74px")
-            : "68px";
-          legendDock.style.setProperty("height", compactLegendHeight, "important");
-          legendDock.style.setProperty("min-height", compactLegendHeight, "important");
-          legendDock.style.setProperty("max-height", compactLegendHeight, "important");
-          legendDock.style.setProperty("padding", "3px 10px", "important");
-        }
+        // Desktop legend sizing is content-driven in north-wildwood-controls.css.
       }
 
       list.innerHTML = "";
@@ -20062,7 +20055,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       panel.style.setProperty("display", "flex", "important");
       panel.style.setProperty("flex-direction", "column", "important");
       panel.style.setProperty("grid-template-columns", "none", "important");
-      panel.style.setProperty("gap", shortDesktop ? "4px" : "6px", "important");
+      panel.style.setProperty("gap", "6px", "important");
       panel.style.setProperty("padding", "0 4px 0 0", "important");
       panel.style.setProperty("overflow", "auto", "important");
       panel.style.setProperty("overflow-y", "auto", "important");
@@ -36473,11 +36466,6 @@ html body #timelineDock #hourSlider{
     var opacityH = shortDesktop ? 56 : 62;
     var legendH = 64;
     var bottomReserve = 188;
-    var cardPadding = shortDesktop ? "7px 12px" : "8px 12px";
-    var cardGap = shortDesktop ? "5px" : "6px";
-    var opacityPadding = shortDesktop ? "7px 12px 8px" : "8px 12px 9px";
-    var opacityGap = shortDesktop ? "3px" : "4px";
-    var legendPadding = shortDesktop ? "7px 12px 8px" : "8px 12px 9px";
     root.style.setProperty("--pj-equal-left-width", leftW + "px");
     root.style.setProperty("--pj-equal-right-width", rightW + "px");
     root.style.setProperty("--pj-equal-card-h", cardH + "px");
@@ -36496,7 +36484,7 @@ html body #timelineDock #hourSlider{
       setImportant(left, "max-width", leftW + "px");
       setImportant(left, "height", "auto");
       setImportant(left, "max-height", "calc(100vh - " + (16 + bottomReserve) + "px)");
-      setImportant(left, "gap", shortDesktop ? "4px" : "6px");
+      setImportant(left, "gap", "6px");
       setImportant(left, "padding", "0 4px 0 0");
       setImportant(left, "overflow", "auto");
       setImportant(left, "overflow-y", "auto");
@@ -36507,56 +36495,12 @@ html body #timelineDock #hourSlider{
       setImportant(left, "animation", "none");
     }
 
-    document.querySelectorAll("#leftPanel > .overlay-card, #leftPanel > .datum-card").forEach(function(card){
-      setImportant(card, "flex", "0 0 var(--pj-equal-card-h)");
-      setImportant(card, "min-height", "var(--pj-equal-card-h)");
-      setImportant(card, "height", "var(--pj-equal-card-h)");
-      setImportant(card, "max-height", "var(--pj-equal-card-h)");
-      setImportant(card, "width", "100%");
-      setImportant(card, "min-width", "0");
-      setImportant(card, "max-width", "100%");
-      setImportant(card, "margin", "0");
-      setImportant(card, "padding", cardPadding);
-      setImportant(card, "gap", cardGap);
-      setImportant(card, "border-radius", "16px");
-      setImportant(card, "overflow", "visible");
-    });
-
-    document.querySelectorAll("#leftPanel > .opacity-card").forEach(function(card){
-      setImportant(card, "flex", "0 0 var(--pj-equal-opacity-h)");
-      setImportant(card, "min-height", "var(--pj-equal-opacity-h)");
-      setImportant(card, "height", "var(--pj-equal-opacity-h)");
-      setImportant(card, "max-height", "var(--pj-equal-opacity-h)");
-      setImportant(card, "width", "100%");
-      setImportant(card, "min-width", "0");
-      setImportant(card, "max-width", "100%");
-      setImportant(card, "margin", "0");
-      setImportant(card, "padding", opacityPadding);
-      setImportant(card, "gap", opacityGap);
-      setImportant(card, "border-radius", "16px");
-      setImportant(card, "overflow", "visible");
-    });
+    // Card spacing and heights belong to north-wildwood-controls.css.
 
     var legend = document.getElementById("legendDock");
     var compactLegendViewport = window.matchMedia("(max-width:900px), (max-height: 560px)").matches;
     if (legend && left && !compactLegendViewport && legend.parentElement !== left) left.appendChild(legend);
     if (legend && !compactLegendViewport) {
-      var depthLegendHasNote = legend.dataset.legendMode === "depth" &&
-        !!legend.querySelector(".depth-legend-uncertainty-note");
-      var activeLegendH = legend.dataset.legendMode === "dynamic" ? 54 : (depthLegendHasNote ? 94 : 74);
-      setImportant(legend, "flex", "0 0 auto");
-      setImportant(legend, "min-height", activeLegendH + "px");
-      setImportant(legend, "height", activeLegendH + "px");
-      setImportant(legend, "max-height", activeLegendH + "px");
-      setImportant(legend, "width", "100%");
-      setImportant(legend, "min-width", "0");
-      setImportant(legend, "max-width", "100%");
-      setImportant(legend, "margin", "0");
-      setImportant(legend, "padding", legend.dataset.legendMode === "dynamic"
-        ? "4px 12px"
-        : (depthLegendHasNote ? "4px 10px 6px" : "5px 10px 6px"));
-      setImportant(legend, "border-radius", "16px");
-      setImportant(legend, "overflow", "visible");
       legend.dataset.userMoved = "1";
       legend.classList.add("left-lower-legend-card", "legend-card", "panel-card", "compact-card");
       legend.classList.remove("map-floating", "right-rail-legend-card", "legend-floating-user");

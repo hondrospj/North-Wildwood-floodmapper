@@ -1,6 +1,19 @@
-/* Keep layer labels clear of their switches in the rail and mobile drawer.
-   Share the hosting layer so these rules also win against its legacy !important rules. */
+/* CupaJoe injects this layer before the fleet and pane-fit layers. Retain the
+   label-first columns there as well as on the standalone GitHub Pages build. */
 @layer shorelysafe-unified {
+  html[data-ss-ui] body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount,#leftPanel) section.nww-layers-card.layers-card .layer-item {
+    grid-template-columns:minmax(0,1fr) 36px !important;
+  }
+  html[data-ss-ui] body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount,#leftPanel) section.nww-layers-card.layers-card .layer-name {
+    word-break:normal !important;
+    overflow-wrap:normal !important;
+  }
+}
+
+/* Keep layer labels clear of their switches in the rail and mobile drawer.
+   The fleet layer is declared first, so its !important rules outrank later
+   layers. Join it so these more specific selectors preserve the label-first layout. */
+@layer shorely-fleet-ui {
   html body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount,#leftPanel) section.nww-layers-card.layers-card {
     padding:12px !important;
   }
