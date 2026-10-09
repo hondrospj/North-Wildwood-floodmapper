@@ -2,6 +2,10 @@
    geometry remain in north-wildwood-mobile.css. The unified layer owns app UI
    on both standalone and hosted pages. */
 @layer shorelysafe-unified {
+  /* Forecast scenarios belong only to Forecast mode, including in the drawer. */
+  html body[data-shorelysafe-ui] #leftPanel #forecastScenarioCard[hidden] {
+    display:none !important;
+  }
   /* A scrollable rail must not clip its last button into a second pill shape.
      Card shadows otherwise accumulate in the gaps as a gray rectangular strip. */
   html body[data-shorelysafe-ui] #rightRail {
@@ -143,7 +147,7 @@
       --nww-control-slider:20px;
     }
 
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.overlay-card,.datum-card,.opacity-card,#timelineIntervalCard,#legendDock) {
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,.opacity-card,#timelineIntervalCard,#legendDock) {
       box-sizing:border-box !important;
       display:flex !important;
       flex-direction:column !important;
@@ -156,7 +160,7 @@
       overflow:visible !important;
     }
 
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.overlay-card,.datum-card,.opacity-card,#timelineIntervalCard) > .section-title,
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,.opacity-card,#timelineIntervalCard) > .section-title,
     html body[data-shorelysafe-ui] #leftPanel #legendHeader {
       display:flex !important;
       align-items:center !important;
@@ -213,7 +217,7 @@
       white-space:nowrap !important;
     }
 
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.segmented-control,#timelineIntervalToggle) {
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle) {
       display:grid !important;
       grid-template-columns:repeat(2,minmax(0,1fr)) !important;
       align-items:stretch !important;
@@ -231,11 +235,11 @@
       box-shadow:none !important;
       overflow:visible !important;
     }
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,#timelineIntervalCard) > :is(.data-source-options,#timelineIntervalToggle) {
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,#timelineIntervalCard) > :is(.data-source-options,.button-grid-3,#timelineIntervalToggle) {
       grid-template-columns:repeat(3,minmax(0,1fr)) !important;
     }
 
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.segmented-control,#timelineIntervalToggle) > button {
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle) > button {
       box-sizing:border-box !important;
       display:flex !important;
       align-items:center !important;
@@ -253,10 +257,10 @@
       font-weight:650 !important;
       line-height:1.2 !important;
     }
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.segmented-control,#timelineIntervalToggle) > button.active {
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle) > button.active {
       border-color:var(--fleet-accent) !important;
     }
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,#timelineIntervalCard) > :is(.data-source-options,#timelineIntervalToggle) > button {
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,#timelineIntervalCard) > :is(.data-source-options,.button-grid-3,#timelineIntervalToggle) > button {
       font-size:11.5px !important;
       white-space:nowrap !important;
     }

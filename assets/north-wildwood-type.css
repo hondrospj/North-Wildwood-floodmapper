@@ -94,7 +94,7 @@ html {
       padding:4px 6px !important;
     }
     html body[data-shorelysafe-ui] #leftPanel { --nww-control-button:44px; }
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.segmented-control,#timelineIntervalToggle) > button {
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle) > button {
       font-size:var(--nww-pane-font) !important;
       white-space:normal !important;
       overflow-wrap:normal !important;
@@ -109,7 +109,7 @@ html {
     }
   }
   @media (max-width:900px), (max-height:560px) and (pointer:coarse) {
-    html body[data-shorelysafe-ui] #leftPanel#leftPanel > :is(.data-source-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.segmented-control,#timelineIntervalToggle) > button {
+    html body[data-shorelysafe-ui] #leftPanel#leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,#timelineIntervalCard) > :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle) > button {
       height:auto !important;
       min-height:48px !important;
       padding:4px !important;
