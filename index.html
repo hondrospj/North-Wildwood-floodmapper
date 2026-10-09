@@ -14675,8 +14675,9 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 
 </style>
 <link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261009-conflicts-1">
-<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261009-forecast-options-1">
-<link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261009-forecast-options-1">
+<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261009-past-date-1">
+<link rel="stylesheet" href="assets/north-wildwood-calendar.css?v=20261009-1">
+<link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261009-past-date-1">
 <!-- Load the complete layout before rendering any controls. -->
 <style id="floodmapper-2-controls">
     .mapper-tutorial-launch{
@@ -24441,41 +24442,9 @@ html body #mapTitleBadge #mapTitleLogo{
 
       <section id="calendarCard" class="panel-card calendar-card">
         <div class="section-title">
-          <h2>Calendar</h2>
-          <span class="section-kicker">Observed</span>
+          <h2>Past Date</h2>
+          <button id="observedCalendarOpenBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="observedCalendarModal">Calendar</button>
         </div>
-
-        <div class="calendar-toolbar">
-          <button id="prevMonthBtn" type="button" aria-label="Previous month">‹</button>
-          <button id="calendarTitleBtn" class="calendar-title-btn" type="button">
-            <span id="monthLabel">--</span>
-            <span class="caret">▾</span>
-          </button>
-          <button id="nextMonthBtn" type="button" aria-label="Next month">›</button>
-        </div>
-
-        <div id="calendarPopover" class="calendar-popover">
-          <div class="calendar-popover-head">
-            <span>Choose month</span>
-            <button id="calendarPopoverCloseBtn" class="calendar-popover-close centered-close-control" type="button" aria-label="Close calendar month picker">×</button>
-          </div>
-          <div class="calendar-popover-grid">
-            <label>
-              Month
-              <select id="monthSelect"></select>
-            </label>
-            <label>
-              Year
-              <select id="yearSelect"></select>
-            </label>
-            <button id="calendarGoBtn" type="button">Go</button>
-          </div>
-        </div>
-
-        <div class="calendar-head">
-          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-        </div>
-        <div id="calendarGrid" class="calendar-grid"></div>
 
         <div class="day-nav">
           <button id="prevDayBtn" type="button" class="calendar-nav-btn" aria-label="Previous observed day">‹</button>
@@ -24483,11 +24452,6 @@ html body #mapTitleBadge #mapTitleLogo{
           <button id="nextDayBtn" type="button" class="calendar-nav-btn" aria-label="Next observed day">›</button>
         </div>
 
-        <div class="calendar-key" aria-label="Observed flood day key">
-          <div class="calendar-key-item minor"><span class="calendar-key-swatch"></span><span>Minor</span></div>
-          <div class="calendar-key-item moderate"><span class="calendar-key-swatch"></span><span>Moderate</span></div>
-          <div class="calendar-key-item major"><span class="calendar-key-swatch"></span><span>Major</span></div>
-        </div>
       </section>
     </aside>
 <main id="mapWrap">
@@ -24678,6 +24642,52 @@ html body #mapTitleBadge #mapTitleLogo{
         <span id="datumHelpTownLine">MLLW offset information is configured for this town.</span>
       </div>
     </div>
+  </div>
+
+  <div id="observedCalendarModal" class="nww-calendar-modal" hidden>
+    <section class="nww-calendar-dialog" role="dialog" aria-modal="true" aria-labelledby="observedCalendarTitle">
+      <div class="nww-calendar-heading">
+        <h2 id="observedCalendarTitle">Choose a past date</h2>
+        <button id="observedCalendarCloseBtn" type="button" aria-label="Close past date calendar">×</button>
+      </div>
+        <div class="calendar-toolbar">
+          <button id="prevMonthBtn" type="button" aria-label="Previous month">‹</button>
+          <button id="calendarTitleBtn" class="calendar-title-btn" type="button">
+            <span id="monthLabel">--</span>
+            <span class="caret">▾</span>
+          </button>
+          <button id="nextMonthBtn" type="button" aria-label="Next month">›</button>
+        </div>
+
+        <div id="calendarPopover" class="calendar-popover">
+          <div class="calendar-popover-head">
+            <span>Choose month</span>
+            <button id="calendarPopoverCloseBtn" class="calendar-popover-close centered-close-control" type="button" aria-label="Close calendar month picker">×</button>
+          </div>
+          <div class="calendar-popover-grid">
+            <label>
+              Month
+              <select id="monthSelect"></select>
+            </label>
+            <label>
+              Year
+              <select id="yearSelect"></select>
+            </label>
+            <button id="calendarGoBtn" type="button">Go</button>
+          </div>
+        </div>
+
+        <div class="calendar-head">
+          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+        </div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+
+        <div class="calendar-key" aria-label="Observed flood day key">
+          <div class="calendar-key-item minor"><span class="calendar-key-swatch"></span><span>Minor</span></div>
+          <div class="calendar-key-item moderate"><span class="calendar-key-swatch"></span><span>Moderate</span></div>
+          <div class="calendar-key-item major"><span class="calendar-key-swatch"></span><span>Major</span></div>
+        </div>
+    </section>
   </div>
 
   <div id="infoModal" class="datum-modal" hidden>
@@ -27496,6 +27506,12 @@ function setDatumHelpOpen(isOpen) {
       const returnCard = document.getElementById("returnIntervalCard");
       if (returnCard) returnCard.style.display = currentDataMode === "return-interval" ? "" : "none";
       document.getElementById("calendarCard").classList.toggle("active", currentDataMode === "observed");
+      if (currentDataMode !== "observed") setObservedCalendarOpen(false);
+      const panel = document.getElementById("leftPanel");
+      if (panel && panel.dataset.dataMode !== currentDataMode) {
+        panel.dataset.dataMode = currentDataMode;
+        panel.scrollTop = 0;
+      }
       document.body.classList.toggle("observed-mode", currentDataMode === "observed");
       document.body.classList.toggle("return-interval-mode", currentDataMode === "return-interval");
       updateForecastScenarioButtons();
@@ -35319,6 +35335,25 @@ function formatSelectedObservedDate(dateStr) {
       syncWindowsCalendarDatebar();
     }
 
+    function setObservedCalendarOpen(open) {
+      const modal = document.getElementById("observedCalendarModal");
+      const trigger = document.getElementById("observedCalendarOpenBtn");
+      if (!modal) return;
+      // The full calendar is outside the control rail, so opening it cannot
+      // move the datum, overlay, interval, or legend below the timeline.
+      if (modal.parentElement !== document.body) document.body.appendChild(modal);
+      if (!open && modal.hidden) return;
+      if (open && isCompactFloodmapperLayout()) setMobileControlsOpen(false);
+      if (!open) setCalendarPopoverOpen(false);
+      modal.hidden = !open;
+      trigger?.setAttribute("aria-expanded", String(open));
+      if (open) document.getElementById("observedCalendarCloseBtn")?.focus({ preventScroll: true });
+      else if (isCompactFloodmapperLayout()) requestAnimationFrame(() => {
+        // Wait for the modal focus controller to release background isolation.
+        if (modal.hidden) document.getElementById("mobileControlsToggle")?.focus({ preventScroll: true });
+      });
+    }
+
     function ensureCalendarPopoverIsBodyChild() {
       const popover = document.getElementById("calendarPopover");
       if (popover && popover.parentElement !== document.body) {
@@ -35417,6 +35452,7 @@ function populateCalendarSelectors() {
         if (selectedObservedDate === dateStr && currentViewType !== "top-tide") btn.classList.add("selected");
         btn.title = `${formatSelectedObservedDate(dateStr)} • ${cls}`;
         btn.addEventListener("click", () => {
+          setObservedCalendarOpen(false);
           loadObservedDay(dateStr).catch(err => toast(err.message));
         });
 
@@ -38330,6 +38366,7 @@ function startPlayback() {
           setDatumHelpOpen(false);
           setInfoModalOpen(false);
           setDownloadModalOpen(false);
+          if (!document.getElementById("calendarPopover")?.classList.contains("open")) setObservedCalendarOpen(false);
           setCalendarPopoverOpen(false);
           setTopTidesModalOpen(false);
           closeExportDateOrderPopup();
@@ -38349,6 +38386,12 @@ function startPlayback() {
       document.getElementById("nextDayBtn").addEventListener("click", () => {
         const date = getNeighborObservedDate(selectedObservedDate, 1);
         if (date) loadObservedDay(date).catch(err => toast(err.message));
+      });
+
+      document.getElementById("observedCalendarOpenBtn").addEventListener("click", () => setObservedCalendarOpen(true));
+      document.getElementById("observedCalendarCloseBtn").addEventListener("click", () => setObservedCalendarOpen(false));
+      document.getElementById("observedCalendarModal").addEventListener("click", event => {
+        if (event.target === event.currentTarget) setObservedCalendarOpen(false);
       });
 
       document.getElementById("calendarTitleBtn").addEventListener("click", event => {
@@ -38782,6 +38825,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       wireEvents();
       wireTownAddressLookup();
       wireFloodHistoryPane();
+      ensureCalendarPopoverIsBodyChild();
       initWindowsCalendarDatebar();
       wireMobileControlShell();
       updateRoadLayerAppearance();
@@ -38833,11 +38877,11 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       const afterDataSource = document.querySelector(".data-source-card");
       const order = [
         document.getElementById("forecastScenarioCard"),
+        document.getElementById("calendarCard"),
         document.getElementById("returnIntervalCard"),
         document.querySelector(".overlay-card"),
         document.querySelector(".datum-card"),
         document.querySelector(".opacity-card"),
-        document.getElementById("calendarCard"),
         document.querySelector(".mobile-top-tides-card"),
         document.querySelector(".snapshot-card")
       ].filter(Boolean);

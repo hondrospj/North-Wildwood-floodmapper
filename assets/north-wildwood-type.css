@@ -100,6 +100,15 @@ html {
       overflow-wrap:normal !important;
       word-break:normal !important;
     }
+    @media (max-height:800px) {
+      /* Short desktop windows keep the same text size with less empty padding. */
+      html body[data-shorelysafe-ui]:not(.mobile-optimized) #leftPanel {
+        --nww-control-padding:4px;
+        --nww-control-gap:3px;
+        --nww-control-button:36px;
+        gap:4px !important;
+      }
+    }
     html body[data-shorelysafe-ui] #leftPanel .section-title > .pill {
       font-size:var(--nww-pane-font) !important;
     }

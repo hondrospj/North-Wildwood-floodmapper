@@ -97,6 +97,13 @@
       gap:6px !important;
       padding:0 4px 0 0 !important;
       scrollbar-gutter:auto !important;
+      overflow-anchor:none !important;
+      overscroll-behavior:contain !important;
+    }
+    html body[data-shorelysafe-ui]:not(.mobile-optimized) #leftPanel > .data-source-card {
+      position:sticky !important;
+      top:0 !important;
+      z-index:3 !important;
     }
     html body[data-shorelysafe-ui]:not(.mobile-optimized) #rightRail {
       left:auto !important;
@@ -147,7 +154,7 @@
       --nww-control-slider:20px;
     }
 
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,.opacity-card,#timelineIntervalCard,#legendDock) {
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,.opacity-card,#timelineIntervalCard,#calendarCard,#legendDock):not([hidden]) {
       box-sizing:border-box !important;
       display:flex !important;
       flex-direction:column !important;
@@ -160,7 +167,7 @@
       overflow:visible !important;
     }
 
-    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,.opacity-card,#timelineIntervalCard) > .section-title,
+    html body[data-shorelysafe-ui] #leftPanel > :is(.data-source-card,.forecast-scenario-card,.overlay-card,.datum-card,.opacity-card,#timelineIntervalCard,#calendarCard) > .section-title,
     html body[data-shorelysafe-ui] #leftPanel #legendHeader {
       display:flex !important;
       align-items:center !important;
