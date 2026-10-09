@@ -44,6 +44,35 @@ html {
     grid-template-columns:2.2ch minmax(0,1fr) auto !important;
     gap:4px !important;
   }
+  /* Match other actions without the oversized circular plus badge. */
+  html body[data-shorelysafe-ui] :is(#leftPanel#leftPanel,#rightRail#rightRail,#mobileRailMount#mobileRailMount) .top-tide-more-btn {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:8px !important;
+    box-sizing:border-box !important;
+    height:auto !important;
+    min-height:40px !important;
+    padding:8px 12px !important;
+    border:1px solid var(--fleet-line) !important;
+    border-radius:10px !important;
+    background:rgba(255,255,255,.055) !important;
+    color:var(--fleet-text) !important;
+    font-weight:600 !important;
+    box-shadow:none !important;
+    transform:none !important;
+  }
+  html body[data-shorelysafe-ui] :is(#leftPanel#leftPanel,#rightRail#rightRail,#mobileRailMount#mobileRailMount) .top-tide-more-btn:hover:not(:disabled) {
+    border-color:var(--fleet-accent) !important;
+    background:rgba(96,165,250,.12) !important;
+  }
+  html body[data-shorelysafe-ui] .top-tide-more-icon {
+    display:block !important;
+    width:16px !important;
+    height:16px !important;
+    flex:0 0 16px !important;
+    color:var(--fleet-accent) !important;
+  }
   html body[data-shorelysafe-ui] :is(#leftPanel#leftPanel,#rightRail#rightRail,#mobileRailMount#mobileRailMount) .top-tide-main {
     white-space:normal !important;
     overflow-wrap:normal !important;
@@ -87,6 +116,7 @@ html {
       padding:4px !important;
       white-space:normal !important;
     }
+    html body[data-shorelysafe-ui] #leftPanel#leftPanel .top-tide-more-btn { min-height:44px !important; }
     html body[data-shorelysafe-ui] #leftPanel#leftPanel .town-address-input {
       font-size:16px !important;
     }
@@ -122,6 +152,35 @@ html {
     grid-template-columns:2.2ch minmax(0,1fr) auto !important;
     gap:4px !important;
   }
+  /* Match other actions without the oversized circular plus badge. */
+  html body[data-shorelysafe-ui] :is(#leftPanel#leftPanel,#rightRail#rightRail,#mobileRailMount#mobileRailMount) .top-tide-more-btn {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:8px !important;
+    box-sizing:border-box !important;
+    height:auto !important;
+    min-height:40px !important;
+    padding:8px 12px !important;
+    border:1px solid var(--fleet-line) !important;
+    border-radius:10px !important;
+    background:rgba(255,255,255,.055) !important;
+    color:var(--fleet-text) !important;
+    font-weight:600 !important;
+    box-shadow:none !important;
+    transform:none !important;
+  }
+  html body[data-shorelysafe-ui] :is(#leftPanel#leftPanel,#rightRail#rightRail,#mobileRailMount#mobileRailMount) .top-tide-more-btn:hover:not(:disabled) {
+    border-color:var(--fleet-accent) !important;
+    background:rgba(96,165,250,.12) !important;
+  }
+  html body[data-shorelysafe-ui] .top-tide-more-icon {
+    display:block !important;
+    width:16px !important;
+    height:16px !important;
+    flex:0 0 16px !important;
+    color:var(--fleet-accent) !important;
+  }
   html body[data-shorelysafe-ui] :is(#leftPanel#leftPanel,#rightRail#rightRail,#mobileRailMount#mobileRailMount) .top-tide-main {
     white-space:normal !important;
     overflow-wrap:normal !important;
@@ -165,6 +224,7 @@ html {
       padding:4px !important;
       white-space:normal !important;
     }
+    html body[data-shorelysafe-ui] #leftPanel#leftPanel .top-tide-more-btn { min-height:44px !important; }
     html body[data-shorelysafe-ui] #leftPanel#leftPanel .town-address-input {
       font-size:16px !important;
     }

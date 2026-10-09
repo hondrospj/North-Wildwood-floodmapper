@@ -111,7 +111,7 @@
     }
     /* Reserve the two flood rows and Show More button while archive data loads. */
     html body[data-shorelysafe-ui]:not(.mobile-optimized) #topTideList {
-      min-height:106px !important;
+      min-height:116px !important;
     }
     html body[data-shorelysafe-ui]:not(.mobile-optimized) #leftPanel #legendDock {
       position:static !important;

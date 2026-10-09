@@ -14729,8 +14729,8 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 
 </style>
 <link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261009-2">
-<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261009-4">
-<link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261009-1">
+<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261009-5">
+<link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261009-2">
 <!-- Load the complete layout before rendering any controls. -->
 <style id="floodmapper-2-controls">
     .mapper-tutorial-launch{
@@ -34444,7 +34444,7 @@ function formatSelectedObservedDate(dateStr) {
           const more = document.createElement("button");
           more.type = "button";
           more.className = "top-tide-more-btn";
-          more.innerHTML = `<span class="top-tide-more-plus">+</span><span>Show More</span>`;
+          more.innerHTML = `<svg class="top-tide-more-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg><span>Show more</span>`;
           more.addEventListener("click", () => setTopTidesModalOpen(true));
           wrap.appendChild(more);
         }
