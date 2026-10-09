@@ -14728,6 +14728,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 @media print { .webcam-map-marker, #webcamPanel { display:none !important; } }
 
 </style>
+<link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261009-1">
 </head>
 <body data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261008-v1">
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
@@ -14969,7 +14970,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
           </a>
         </section>
 
-        <section class="rail-card layers-card">
+        <section class="rail-card layers-card nww-layers-card">
           <div class="rail-head">
             <div>
               <h3>Layers</h3>
@@ -14991,7 +14992,7 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
             <div class="layer-item">
               <div id="roadImpactsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show road impacts" title="Highlight roads with more than 0.5 ft of modeled water at the selected time"></div>
               <div class="layer-meta">
-                <div class="layer-name">Road Impacts</div>
+                <div class="layer-name">Road impacts</div>
               </div>
             </div>
             <div class="layer-item">
@@ -15010,7 +15011,8 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
             <div class="layer-item">
               <div id="nsiStructuresToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show crawlspace and garage impacts"></div>
               <div class="layer-meta">
-                <div class="layer-name">Crawlspace/Garage Impacts</div>
+                <div class="layer-name">Structure impacts</div>
+                <div class="nww-layer-detail">Crawlspaces &amp; garages</div>
               </div>
             </div>
             <div class="layer-item shorelysafe-camera-item" data-html2canvas-ignore="true">
