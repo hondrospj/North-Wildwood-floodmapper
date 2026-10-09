@@ -43,16 +43,16 @@ html {
     grid-template-columns:2.2ch minmax(0,1fr) auto !important;
     gap:4px !important;
   }
-  /* Match other actions without the oversized circular plus badge. */
+  /* Keep the disclosure as compact as the flood rows above it. */
   html body[data-shorelysafe-ui] :is(#leftPanel#leftPanel,#rightRail#rightRail,#mobileRailMount#mobileRailMount) .top-tide-more-btn {
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
-    gap:8px !important;
+    gap:6px !important;
     box-sizing:border-box !important;
     height:auto !important;
-    min-height:40px !important;
-    padding:8px 12px !important;
+    min-height:34px !important;
+    padding:4px 10px !important;
     border:1px solid var(--fleet-line) !important;
     border-radius:10px !important;
     background:rgba(255,255,255,.055) !important;
@@ -67,9 +67,9 @@ html {
   }
   html body[data-shorelysafe-ui] .top-tide-more-icon {
     display:block !important;
-    width:16px !important;
-    height:16px !important;
-    flex:0 0 16px !important;
+    width:14px !important;
+    height:14px !important;
+    flex:0 0 14px !important;
     color:var(--fleet-accent) !important;
   }
   html body[data-shorelysafe-ui] :is(#leftPanel#leftPanel,#rightRail#rightRail,#mobileRailMount#mobileRailMount) .top-tide-main {
