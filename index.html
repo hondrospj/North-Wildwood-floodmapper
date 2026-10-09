@@ -14675,9 +14675,9 @@ body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .w
 
 </style>
 <link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261009-conflicts-1">
-<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261009-past-date-1">
+<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261009-clean-panels-1">
 <link rel="stylesheet" href="assets/north-wildwood-calendar.css?v=20261009-1">
-<link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261009-past-date-1">
+<link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261009-clean-panels-1">
 <!-- Load the complete layout before rendering any controls. -->
 <style id="floodmapper-2-controls">
     .mapper-tutorial-launch{
@@ -24287,7 +24287,7 @@ html body #mapTitleBadge #mapTitleLogo{
             <h2>Flood Data</h2>
             <button id="dataSourceHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain flood data">?</button>
           </div>
-          <span id="dataModePill" class="pill">Forecast</span>
+          <span id="dataModePill" class="nww-status-value" hidden>Forecast</span>
         </div>
         <div class="button-grid-2 data-source-options">
           <button id="forecastDataBtn" class="active" type="button">Forecast</button>
@@ -24302,7 +24302,7 @@ html body #mapTitleBadge #mapTitleLogo{
             <h2>Forecast Type</h2>
             <button id="forecastTypeHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain forecast type">?</button>
           </div>
-          <span id="forecastScenarioPill" class="pill">Mean</span>
+          <span id="forecastScenarioPill" class="nww-status-value" hidden>Mean</span>
         </div>
         <div class="button-grid-3">
           <button id="forecastLowBtn" type="button" data-scenario="lowEnd">Lower End</button>
@@ -24317,7 +24317,7 @@ html body #mapTitleBadge #mapTitleLogo{
             <h2>How Often?</h2>
             <button id="returnIntervalHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain modeled floods">?</button>
           </div>
-          <span id="returnIntervalPill" class="pill">Every 10 Years</span>
+          <span id="returnIntervalPill" class="nww-status-value" hidden>Every 10 Years</span>
         </div>
         <div class="return-interval-grid" role="group" aria-label="Choose a modeled flood">
           <button id="return1Btn" type="button" data-return-years="1" aria-label="Every year modeled flood">1</button>
@@ -24342,7 +24342,7 @@ html body #mapTitleBadge #mapTitleLogo{
             <h2>Overlay</h2>
             <button id="overlayHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain overlays">?</button>
           </div>
-          <span id="overlayModePill" class="pill">Flood Depth</span>
+          <span id="overlayModePill" class="nww-status-value" hidden>Flood Depth</span>
         </div>
         <div class="button-grid-2">
           <button id="depthModeBtn" class="active" type="button">Flood Depth</button>
@@ -24356,7 +24356,7 @@ html body #mapTitleBadge #mapTitleLogo{
             <h2>Datum</h2>
             <button id="datumHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="datumModal" title="Explain datum">?</button>
           </div>
-          <span id="datumPill" class="pill">MLLW</span>
+          <span id="datumPill" class="nww-status-value" hidden>MLLW</span>
         </div>
         <div class="segmented-control" role="tablist" aria-label="Vertical datum">
           <button id="datumMllwBtn" type="button" class="active" data-datum="mllw" aria-pressed="true">MLLW</button>
@@ -24367,10 +24367,10 @@ html body #mapTitleBadge #mapTitleLogo{
       <section class="panel-card compact-card opacity-card">
         <div class="section-title">
           <h2>Overlay opacity</h2>
-          <span id="opacityText" class="pill">75%</span>
         </div>
-        <div class="control-row">
-          <input id="opacitySlider" type="range" min="1" max="100" value="75" step="1" />
+        <div class="control-row opacity-control">
+          <input id="opacitySlider" type="range" min="1" max="100" value="75" step="1" aria-label="Flood overlay opacity" aria-valuetext="75 percent" />
+          <output id="opacityText" for="opacitySlider">75%</output>
         </div>
       </section>
 
@@ -25949,7 +25949,9 @@ function cloneStyleObject(value) {
     }
 
     function setOpacityText() {
-      document.getElementById("opacityText").textContent = `${Math.round(overlayOpacity * 100)}%`;
+      const percent = Math.round(overlayOpacity * 100);
+      document.getElementById("opacityText").textContent = `${percent}%`;
+      document.getElementById("opacitySlider").setAttribute("aria-valuetext", `${percent} percent`);
     }
 
     function getDatumLabel() {
@@ -27382,7 +27384,8 @@ function setDatumHelpOpen(isOpen) {
       stageLegend: {
         title: "Flood Stages Key",
         body: `
-          <p>Flood Stages is a direct bathtub view: terrain at or below the selected water level is filled without connectivity, development-penalty, or drainage rules.</p>
+          <p>Flood Stages colors terrain below the selected water level by its existing Minor, Moderate, or Major category.</p>
+          <p><strong>Green uncertainty areas</strong> are the same areas shown in Flood Depth for the selected time. They replace the stage color wherever Flood Depth marks uncertain flooding. Uncertainty is separate from flood severity; it is not a stage below Minor. Physics forecast frames do not provide this green uncertainty layer.</p>
           <ul>
             <li><strong>Minor:</strong> low roads and public areas may flood.</li>
             <li><strong>Moderate:</strong> roads and some buildings may flood. Evacuations may be needed.</li>
@@ -27523,10 +27526,11 @@ function setDatumHelpOpen(isOpen) {
 
     function renderLegend() {
       const list = document.getElementById("legendList");
-      const depthLegendHasNote = currentOverlayMode === "depth" && physicsForecastApplies();
+      const physicsActive = physicsForecastApplies();
+      const depthLegendHasNote = currentOverlayMode === "depth" && physicsActive;
       const physicsDailyMaximumActive = depthLegendHasNote &&
         document.body.classList.contains("physics-daily-maximum-active");
-      const legendKey = `${currentOverlayMode}:${depthLegendHasNote}:${physicsDailyMaximumActive}`;
+      const legendKey = `${currentOverlayMode}:${physicsActive}:${physicsDailyMaximumActive}`;
       // Reuse unchanged markup without suppressing model or interval changes.
       if (list.dataset.renderedLegendKey === legendKey && list.childElementCount) return;
       list.dataset.renderedLegendKey = legendKey;
@@ -27534,7 +27538,6 @@ function setDatumHelpOpen(isOpen) {
       const sub = document.getElementById("legendSub");
       const note = document.getElementById("legendNote");
       const legendDock = document.getElementById("legendDock");
-      const items = currentOverlayMode === "depth" ? DEPTH_LEGEND : DYNAMIC_LEGEND;
 
       title.textContent = currentOverlayMode === "depth" ? "Flood Depth" : "Flood Stages";
       sub.textContent = "";
@@ -27572,29 +27575,15 @@ function setDatumHelpOpen(isOpen) {
         note.textContent = "";
         return;
       }
-      items.forEach(item => {
-        const row = document.createElement("div");
-        row.className = "legend-row";
-        const helpButtonHtml = item.helpKey === "uncertainty"
-          ? `<button class="legend-help-btn" type="button" data-legend-help="uncertainty" aria-label="Explain uncertainty areas" title="Explain uncertainty areas">?</button>`
-          : "";
-
-        let labelText = item.label;
-        if (currentOverlayMode !== "depth") {
-          const raw = String(item.label || "");
-          if (/minor/i.test(raw)) labelText = "Minor";
-          else if (/moderate/i.test(raw)) labelText = "Moderate";
-          else if (/major/i.test(raw)) labelText = "Major";
-        }
-
-        row.innerHTML = `
-          <span class="legend-swatch" style="background:${item.color};"></span>
-          <span class="legend-label">${labelText}${helpButtonHtml}</span>
-        `;
-        list.appendChild(row);
-      });
-
-
+      list.innerHTML = `
+        <div class="stage-legend-scale" aria-label="${physicsActive ? "" : "Flood Depth uncertainty areas, separate from "}flood stages from minor through moderate to major">
+          ${physicsActive ? "" : `<div class="stage-legend-uncertainty"><span>Uncertain</span><div class="stage-legend-green" aria-hidden="true"></div></div>`}
+          <div class="stage-legend-levels">
+            <div class="stage-legend-labels"><span>Minor</span><span>Moderate</span><span>Major</span></div>
+            <div class="stage-legend-gradient" aria-hidden="true"></div>
+          </div>
+        </div>
+      `;
       note.textContent = "";
     }
 
@@ -28621,39 +28610,77 @@ function setDatumHelpOpen(isOpen) {
       return wetPixels;
     }
 
-    async function getBathtubStageOverlayRecord(stageValue) {
+    function applyStageUncertaintyPixels(depthPixels, stagePixels) {
+      if (!depthPixels || !stagePixels || depthPixels.length !== stagePixels.length) {
+        throw new Error("Flood Depth and Flood Stages raster sizes do not match.");
+      }
+      let uncertainPixels = 0;
+      for (let offset = 0; offset < depthPixels.length; offset += 4) {
+        if (!isDisconnectedRasterPixel(depthPixels, offset)) continue;
+        stagePixels[offset] = depthPixels[offset];
+        stagePixels[offset + 1] = depthPixels[offset + 1];
+        stagePixels[offset + 2] = depthPixels[offset + 2];
+        stagePixels[offset + 3] = depthPixels[offset + 3];
+        uncertainPixels += 1;
+      }
+      return uncertainPixels;
+    }
+
+    async function getBathtubStageOverlayRecord(stageValue, depthRecord = null) {
       const stage = Number(stageValue);
       if (!Number.isFinite(stage)) return null;
-      const key = stageToCode(stage);
-      if (bathtubStageOverlayCache.has(key)) return bathtubStageOverlayCache.get(key);
-
+      // Equal water levels can have different uncertainty after filling/drainage.
+      // The resolved depth-frame URL identifies the exact mask to reuse.
+      const key = JSON.stringify([stageToCode(stage), depthRecord?.url || "no-uncertainty"]);
+      const cache = bathtubStageOverlayCache;
+      if (cache.has(key)) return cache.get(key);
+      const releaseDepth = retainRasterObjectUrl(depthRecord?.url);
       const request = (async () => {
-        const queryGrid = await getDepthQueryGrid();
-        if (!queryGrid?.values || !queryGrid.width || !queryGrid.height) return null;
-        const canvas = document.createElement("canvas");
-        canvas.width = queryGrid.width;
-        canvas.height = queryGrid.height;
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-        if (!context) return null;
-        const imageData = context.createImageData(canvas.width, canvas.height);
-        const source = queryGrid.values;
-        const target = imageData.data;
-        applyBathtubStagePixels(source, target, stage);
-        context.putImageData(imageData, 0, 0);
-        return {
-          url: await canvasToDrainageObjectUrl(canvas),
-          filename: `NorthWildwoodBathtubStage${key}.png`,
-          isBathtubStage: true
-        };
+        try {
+          const [queryGrid, depthImage] = await Promise.all([
+            getDepthQueryGrid(),
+            depthRecord ? getDrainageRasterImage(depthRecord.url) : null
+          ]);
+          if (!queryGrid?.values || !queryGrid.width || !queryGrid.height) return null;
+          if (depthRecord && (!depthImage || depthImage.naturalWidth !== queryGrid.width ||
+              depthImage.naturalHeight !== queryGrid.height)) {
+            throw new Error("Flood Depth uncertainty raster is unavailable or its grid does not match Flood Stages.");
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = queryGrid.width;
+          canvas.height = queryGrid.height;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          if (!context) return null;
+          const imageData = context.createImageData(canvas.width, canvas.height);
+          applyBathtubStagePixels(queryGrid.values, imageData.data, stage);
+          let uncertainPixelCount = 0;
+          if (depthImage) {
+            context.drawImage(depthImage, 0, 0);
+            const depthPixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+            uncertainPixelCount = applyStageUncertaintyPixels(depthPixels, imageData.data);
+          }
+          context.putImageData(imageData, 0, 0);
+          return {
+            url: await canvasToDrainageObjectUrl(canvas),
+            filename: `NorthWildwoodFloodStages${stageToCode(stage)}.png`,
+            isBathtubStage: true,
+            uncertainPixelCount
+          };
+        } finally {
+          releaseDepth();
+        }
       })().catch(error => {
-        bathtubStageOverlayCache.delete(key);
-        console.warn("Could not build the bathtub flood-stage raster.", error);
+        console.warn("Could not build Flood Stages with its Flood Depth uncertainty areas.", error);
         return null;
       });
-      bathtubStageOverlayCache.set(key, request);
+      cache.set(key, request);
       const record = await request;
+      if (cache !== bathtubStageOverlayCache) {
+        retireRasterObjectUrl(record?.url);
+        return null;
+      }
       if (!record) {
-        bathtubStageOverlayCache.delete(key);
+        cache.delete(key);
         return null;
       }
       return cacheBathtubStageOverlay(key, record);
@@ -28803,7 +28830,15 @@ function setDatumHelpOpen(isOpen) {
     async function getHydraulicOverlayRecord(mode, stageValue, phase, entry = null, series = currentRawSeriesHours) {
       let releaseRaster = null;
       try {
-        if (mode === "dynamic") return getBathtubStageOverlayRecord(stageValue);
+        if (mode === "dynamic") {
+          // Physics depth has no green mask. Never substitute a static mask for it.
+          if (getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), "depth")?.url) {
+            return getBathtubStageOverlayRecord(stageValue);
+          }
+          const depthRecord = await getHydraulicOverlayRecord("depth", stageValue, phase, entry, series);
+          if (!depthRecord?.url) return null;
+          return getBathtubStageOverlayRecord(stageValue, depthRecord);
+        }
         let baseRecord = await getOverlayRecord(mode, stageValue, phase);
         if (!baseRecord || !entry) return baseRecord;
         baseRecord = await getFillingInterpolatedOverlayRecord(
@@ -32070,7 +32105,9 @@ function updateExportSegmentedUI() {
       const phase = getHydraulicPhaseForEntry(item.entry, item.index, item.series);
       // Resolve each frame before using the bounded URL cache. A rounded stage
       // is not an identity for a retained-water or physics forecast raster.
-      const record = getPhysicsDisplayRecord(getPhysicsAssetForEntry(item.entry), currentOverlayMode)
+      const physicsRecord = currentOverlayMode === "depth"
+        ? getPhysicsDisplayRecord(getPhysicsAssetForEntry(item.entry), "depth") : null;
+      const record = physicsRecord
         || await getHydraulicOverlayRecord(currentOverlayMode, displayStage, phase, item.entry, item.series);
       if (!record?.url) throw new Error("The flood image is unavailable for the selected time.");
       const image = await getExportImageElement(record.url);
@@ -32441,7 +32478,7 @@ function updateExportSegmentedUI() {
 
     async function setExportFloodLayer(mode, stageValue, phase = "slack", entry = null, series = currentRawSeriesHours) {
       ensureExportMap();
-      const physicsRecord = getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode);
+      const physicsRecord = mode === "depth" ? getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode) : null;
       let overlayUrl = "";
       if (physicsRecord?.url) {
         overlayUrl = physicsRecord.url;
@@ -35818,7 +35855,7 @@ function populateCalendarSelectors() {
       physicsForecastManifests = {};
       physicsQueryImageCache = new Map();
       bathtubStageOverlayCache.forEach(record => {
-        if (record?.url?.startsWith("blob:")) URL.revokeObjectURL(record.url);
+        retireRasterObjectUrl(record?.url);
       });
       bathtubStageOverlayCache = new Map();
       forecastData = null;
@@ -37109,10 +37146,7 @@ function startPlayback() {
         const { x, y } = pixel;
         const rgba = renderedFloodPixelCache.context.getImageData(x, y, 1, 1).data;
         const visible = rgba[3] > 0;
-        const green = visible &&
-          Math.abs(rgba[0] - 99) <= 3 &&
-          Math.abs(rgba[1] - 212) <= 3 &&
-          Math.abs(rgba[2] - 113) <= 3;
+        const green = isDisconnectedRasterPixel(rgba, 0);
         const depthBandIndex = currentOverlayMode === "depth" ? DRAINAGE_DEPTH_COLORS.findIndex(color =>
           color.every((channel, index) => Math.abs(channel - rgba[index]) <= 3)) : -1;
         const depthBandFt = depthBandIndex < 0 ? null : [depthBandIndex ? DRAINAGE_DEPTH_BREAKS_FT[depthBandIndex - 1] : 0,

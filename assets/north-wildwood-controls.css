@@ -6,6 +6,102 @@
   html body[data-shorelysafe-ui] #leftPanel #forecastScenarioCard[hidden] {
     display:none !important;
   }
+  /* Active buttons communicate the selection without duplicate header badges. */
+  html body[data-shorelysafe-ui] #leftPanel .nww-status-value[hidden] {
+    display:none !important;
+  }
+  html body[data-shorelysafe-ui] #leftPanel .opacity-card .control-row.opacity-control {
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) !important;
+    grid-template-rows:20px auto !important;
+    justify-items:center !important;
+    align-items:center !important;
+    gap:2px !important;
+    height:auto !important;
+    min-height:0 !important;
+    padding:0 !important;
+    margin:0 !important;
+  }
+  html body[data-shorelysafe-ui] #leftPanel .opacity-control #opacityText {
+    display:block !important;
+    position:static !important;
+    width:100% !important;
+    height:auto !important;
+    min-height:0 !important;
+    padding:0 !important;
+    margin:0 !important;
+    border:0 !important;
+    background:none !important;
+    color:var(--fleet-text) !important;
+    font-size:var(--nww-pane-font) !important;
+    font-weight:600 !important;
+    line-height:1.25 !important;
+    text-align:center !important;
+    font-variant-numeric:tabular-nums !important;
+  }
+  /* An uncertainty swatch is separate from the continuous severity scale. */
+  html body[data-shorelysafe-ui]:not(.mobile-optimized) #legendDock[data-legend-mode="dynamic"] :is(#legendBody,#legendList),
+  html body[data-shorelysafe-ui].mobile-legend-open #legendDock[data-legend-mode="dynamic"] :is(#legendBody,#legendList),
+  html body[data-shorelysafe-ui] #exportLegendDock[data-export-legend-mode="dynamic"] .legend-list {
+    display:block !important;
+    width:100% !important;
+    height:auto !important;
+    min-height:0 !important;
+    padding:0 !important;
+    margin:0 !important;
+  }
+  html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) .stage-legend-scale {
+    display:flex !important;
+    align-items:end !important;
+    gap:10px !important;
+    width:100% !important;
+    font-size:var(--nww-pane-detail) !important;
+    line-height:1.25 !important;
+    font-weight:600 !important;
+    letter-spacing:0 !important;
+    text-transform:none !important;
+    color:var(--fleet-text) !important;
+  }
+  html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) .stage-legend-uncertainty {
+    flex:0 0 25% !important;
+  }
+  html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) .stage-legend-levels {
+    flex:1 1 auto !important;
+    min-width:0 !important;
+  }
+  html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) .stage-legend-labels {
+    display:flex !important;
+    justify-content:space-between !important;
+    gap:4px !important;
+  }
+  html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) :is(.stage-legend-green,.stage-legend-gradient) {
+    box-sizing:border-box !important;
+    height:12px !important;
+    margin-top:4px !important;
+    border:1px solid rgba(255,255,255,.48) !important;
+    border-radius:999px !important;
+  }
+  html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) .stage-legend-green {
+    background:#63d471 !important;
+  }
+  html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) .stage-legend-gradient {
+    background:linear-gradient(90deg,#f4a742 0%,#e74c3c 50%,#7d3c98 100%) !important;
+  }
+  html body[data-shorelysafe-ui].mobile-legend-open #legendDock[data-legend-mode="dynamic"] #legendHeader {
+    display:flex !important;
+    align-items:center !important;
+    justify-content:flex-start !important;
+    gap:8px !important;
+    height:auto !important;
+    min-height:28px !important;
+    margin:0 0 8px !important;
+  }
+  html body[data-shorelysafe-ui].mobile-legend-open #legendDock[data-legend-mode="dynamic"] :is(.legend-header-text,.legend-header-actions,#legendTitle) {
+    position:static !important;
+    flex:0 1 auto !important;
+    width:auto !important;
+    margin:0 !important;
+  }
   /* A scrollable rail must not clip its last button into a second pill shape.
      Card shadows otherwise accumulate in the gaps as a gray rectangular strip. */
   html body[data-shorelysafe-ui] #rightRail {

@@ -103,8 +103,8 @@ html {
     @media (max-height:800px) {
       /* Short desktop windows keep the same text size with less empty padding. */
       html body[data-shorelysafe-ui]:not(.mobile-optimized) #leftPanel {
-        --nww-control-padding:4px;
-        --nww-control-gap:3px;
+        --nww-control-padding:3px;
+        --nww-control-gap:2px;
         --nww-control-button:36px;
         gap:4px !important;
       }
