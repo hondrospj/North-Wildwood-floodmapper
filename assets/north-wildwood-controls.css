@@ -39,7 +39,7 @@
     text-align:center !important;
     font-variant-numeric:tabular-nums !important;
   }
-  /* An uncertainty swatch is separate from the continuous severity scale. */
+  /* An uncertainty swatch is separate from the three discrete severity bands. */
   html body[data-shorelysafe-ui]:not(.mobile-optimized) #legendDock[data-legend-mode="dynamic"] :is(#legendBody,#legendList),
   html body[data-shorelysafe-ui].mobile-legend-open #legendDock[data-legend-mode="dynamic"] :is(#legendBody,#legendList),
   html body[data-shorelysafe-ui] #exportLegendDock[data-export-legend-mode="dynamic"] .legend-list {
@@ -70,9 +70,10 @@
     min-width:0 !important;
   }
   html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) .stage-legend-labels {
-    display:flex !important;
-    justify-content:space-between !important;
-    gap:4px !important;
+    display:grid !important;
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    text-align:center !important;
+    gap:0 !important;
   }
   html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) :is(.stage-legend-green,.stage-legend-gradient) {
     box-sizing:border-box !important;
@@ -85,7 +86,7 @@
     background:#63d471 !important;
   }
   html body[data-shorelysafe-ui] :is(#legendDock,#exportLegendDock) .stage-legend-gradient {
-    background:linear-gradient(90deg,#f4a742 0%,#e74c3c 50%,#7d3c98 100%) !important;
+    background:linear-gradient(90deg,#f4a742 0%,#f4a742 33.333333%,#e74c3c 33.333333%,#e74c3c 66.666667%,#7d3c98 66.666667%,#7d3c98 100%) !important;
   }
   html body[data-shorelysafe-ui].mobile-legend-open #legendDock[data-legend-mode="dynamic"] #legendHeader {
     display:flex !important;
