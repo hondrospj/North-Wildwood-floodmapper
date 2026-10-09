@@ -2,6 +2,49 @@
    geometry remain in north-wildwood-mobile.css. Use the fleet layer so these
    scoped rules take precedence over its shared !important declarations. */
 @layer shorely-fleet-ui {
+  /* A scrollable rail must not clip its last button into a second pill shape.
+     Card shadows otherwise accumulate in the gaps as a gray rectangular strip. */
+  html body[data-shorelysafe-ui] #rightRail {
+    border-radius:0 !important;
+    background:transparent !important;
+    box-shadow:none !important;
+    filter:none !important;
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+  }
+  html body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) > .rail-card {
+    box-shadow:none !important;
+    filter:none !important;
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+  }
+  html body[data-shorelysafe-ui] #mapperTutorialBtn#mapperTutorialBtn.mapper-tutorial-launch {
+    box-sizing:border-box !important;
+    align-items:center !important;
+    justify-content:center !important;
+    flex:0 0 auto !important;
+    width:100% !important;
+    height:auto !important;
+    min-height:44px !important;
+    max-height:none !important;
+    padding:10px 14px !important;
+    margin:0 !important;
+    border:1px solid var(--fleet-line) !important;
+    border-radius:12px !important;
+    background:var(--fleet-panel) !important;
+    box-shadow:none !important;
+    font-size:13px !important;
+    font-weight:600 !important;
+    line-height:1.3 !important;
+    letter-spacing:0 !important;
+    text-align:center !important;
+    text-transform:none !important;
+    white-space:normal !important;
+  }
+  html body[data-shorelysafe-ui] #mapperTutorialBtn#mapperTutorialBtn.mapper-tutorial-launch:hover {
+    background:#12213a !important;
+    border-color:var(--fleet-accent) !important;
+  }
   @media (min-width:901px) and (min-height:561px) {
     html body[data-shorelysafe-ui] #leftPanel {
       --nww-control-padding:12px;
