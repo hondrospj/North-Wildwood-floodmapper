@@ -40,6 +40,7 @@ try {
     async function openCamera(id, keyboard = false) {
       const marker = page.locator(`[data-webcam-marker="${id}"]`);
       const before = requests.length;
+      await marker.click({ trial: true });
       if (keyboard) { await marker.focus(); await page.keyboard.press('Enter'); }
       else await marker.click();
       await page.waitForFunction(() => !document.getElementById('webcamPanel').hidden && document.getElementById('webcamPanel').dataset.playerState === 'player-open');
