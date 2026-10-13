@@ -24260,7 +24260,7 @@ html body #mapTitleBadge #mapTitleLogo{
 }
 </style>
 </head>
-<body class="nw-app-loading" data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261008-v1">
+<body data-flood-frame-resilience="retain-retry-20261013" class="nw-app-loading" data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261008-v1">
   <div id="nwSiteLoader" role="status" aria-live="polite" aria-label="Loading North Wildwood Flood Mapper">
     <div class="nw-loader-card">
       <div class="nw-loader-spinner" aria-hidden="true"></div>
@@ -28026,6 +28026,9 @@ function setDatumHelpOpen(isOpen) {
           releaseRaster();
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          img.onload = null;
+          img.onerror = null;
+          if (!value) { try { img.src = ""; } catch (_) {} }
           resolve(value);
         };
         const cancelIfRequested = () => {
@@ -33298,6 +33301,79 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       return image.complete && image.naturalWidth > 0;
     }
 
+    async function renderFloodFrameWithRetry(renderFrame, token) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        if (token !== lastRenderToken) return false;
+        try {
+          if (await renderFrame()) return token === lastRenderToken;
+        } catch (error) {
+          if (token !== lastRenderToken) return false;
+          if (attempt === 1) console.warn("The selected flood frame could not load.", error);
+        }
+        if (token !== lastRenderToken) return false;
+        if (attempt === 0) {
+          document.body.dataset.floodFrameRecovery = "retrying";
+          await new Promise(resolve => window.setTimeout(resolve, 250));
+        }
+      }
+      return false;
+    }
+
+    function reportFloodFrameFailure() {
+      const retained = Boolean(currentFloodLayer && map?.hasLayer(currentFloodLayer));
+      const message = retained
+        ? "Could not load the selected flood image. The previous image and time are still shown. Select a time to retry."
+        : "The flood image could not load. Select a time to retry.";
+      if (typeof floodFrameState !== "undefined") floodFrameState = "failed";
+      document.body.dataset.floodFrame = "failed";
+      document.body.dataset.floodFrameRecovery = "failed";
+      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
+      toast(message);
+      if (!retained && typeof markInitialFloodFrameFailed === "function") markInitialFloodFrameFailed();
+      if (typeof stopPlayback === "function") stopPlayback();
+    }
+
+    function waitForRecoveryFloodLayer(layer, token, onReady) {
+      return new Promise(resolve => {
+        let settled = false;
+        let timeout = null;
+        const finish = ready => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          layer.off("load", handleLoad);
+          layer.off("error", handleError);
+          layer.off("remove", handleRemove);
+          if (!ready) {
+            if (pendingFloodLayer === layer) pendingFloodLayer = null;
+            preloadPromiseCache.delete(layer._url);
+            if (typeof disposeFloodLayer === "function") disposeFloodLayer(layer);
+            else {
+              if (map.hasLayer(layer)) map.removeLayer(layer);
+              const image = layer.getElement();
+              if (image) image.src = "";
+            }
+          }
+          resolve(ready);
+        };
+        const handleLoad = async () => {
+          if (settled || token !== lastRenderToken) return finish(false);
+          if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
+          await new Promise(requestAnimationFrame);
+          if (settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);
+          try { onReady(); finish(true); }
+          catch (error) { console.warn("The flood image could not be displayed.", error); finish(false); }
+        };
+        const handleError = () => finish(false);
+        const handleRemove = () => { if (currentFloodLayer !== layer) finish(false); };
+        layer.on("load", handleLoad);
+        layer.on("error", handleError);
+        layer.on("remove", handleRemove);
+        timeout = window.setTimeout(() => finish(false), 20000);
+        try { layer.addTo(map); } catch (_) { finish(false); }
+      });
+    }
+
     function clearFloodLayer() {
       floodFrameState = "unavailable";
       document.body.dataset.floodFrame = floodFrameState;
@@ -34606,8 +34682,6 @@ function formatSelectedObservedDate(dateStr) {
 
         if (!match) {
           toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
-          clearFloodLayer();
-          markInitialFloodFrameFailed();
           return;
         }
 
@@ -34616,8 +34690,6 @@ function formatSelectedObservedDate(dateStr) {
         const loaded = await preloadImage(overlayUrl);
         if (token !== lastRenderToken) return;
         if (!loaded) {
-          clearFloodLayer();
-          markInitialFloodFrameFailed();
           return false;
         }
 
@@ -34625,8 +34697,6 @@ function formatSelectedObservedDate(dateStr) {
           await ensureOverlayBounds(overlayUrl);
         } catch (err) {
           toast(err.message);
-          clearFloodLayer();
-          markInitialFloodFrameFailed();
           return;
         }
 
@@ -34653,64 +34723,28 @@ function formatSelectedObservedDate(dateStr) {
         );
 
         pendingFloodLayer = nextLayer;
-        return await new Promise(resolve => {
-          nextLayer.once("load", async () => {
-            if (token !== lastRenderToken) {
-              if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-              resolve(false);
-              return;
+        return await waitForRecoveryFloodLayer(nextLayer, token, () => {
+          nextLayer.setOpacity(overlayOpacity);
+          currentFloodLayer = nextLayer;
+          floodFrameState = "ready";
+          document.body.dataset.floodFrame = "ready";
+          pendingFloodLayer = null;
+  
+          if (previousLayer && map.hasLayer(previousLayer)) {
+            map.removeLayer(previousLayer);
+          }
+  
+          updatePersistentDepthQueryPopup();
+  
+          if (!mapHasFit && floodLatLngBounds) {
+            const townBounds = getBoundaryDrivenOverlayBounds();
+            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
+            if (document.body.classList.contains("mobile-optimized")) {
+              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
             }
-
-            // Keep the displayed frame until the replacement pixels are ready.
-            if (!await decodeFloodFrameImage(nextLayer.getElement()) || token !== lastRenderToken) {
-              if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-              if (pendingFloodLayer === nextLayer) pendingFloodLayer = null;
-              if (token === lastRenderToken) {
-                clearFloodLayer();
-                toast("The selected flood image could not load. Please try again.");
-                if (typeof markInitialFloodFrameFailed === "function") markInitialFloodFrameFailed();
-              }
-              resolve(false);
-              return;
-            }
-
-            nextLayer.setOpacity(overlayOpacity);
-            currentFloodLayer = nextLayer;
-            floodFrameState = "ready";
-            document.body.dataset.floodFrame = "ready";
-            pendingFloodLayer = null;
-
-            if (previousLayer && map.hasLayer(previousLayer)) {
-              map.removeLayer(previousLayer);
-            }
-
-            updatePersistentDepthQueryPopup();
-
-            if (!mapHasFit && floodLatLngBounds) {
-              const townBounds = getBoundaryDrivenOverlayBounds();
-              map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
-              if (document.body.classList.contains("mobile-optimized")) {
-                map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-              }
-              mapHasFit = true;
-            }
-            markInitialFloodFrameReady();
-            resolve(true);
-          });
-
-          nextLayer.once("error", () => {
-            if (token === lastRenderToken) {
-              if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-              pendingFloodLayer = null;
-              toast(`Leaflet could not draw ${match.filename}.`);
-              clearFloodLayer();
-              markInitialFloodFrameFailed();
-            }
-            resolve(false);
-          });
-
-          nextLayer.once("remove", () => resolve(false));
-          nextLayer.addTo(map);
+            mapHasFit = true;
+          }
+          markInitialFloodFrameReady();
         });
       } finally {
         releaseRaster?.();
@@ -34723,15 +34757,11 @@ function formatSelectedObservedDate(dateStr) {
       const overlayUrl = getPhysicsDisplayRecord(asset)?.url;
       const bounds = getActivePhysicsManifest()?.boundsWgs84;
       if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
-        clearFloodLayer();
-        markInitialFloodFrameFailed();
         throw new Error("The selected physics frame is incomplete.");
       }
       const loaded = await preloadImage(overlayUrl);
       if (token !== lastRenderToken) return;
       if (!loaded) {
-        clearFloodLayer();
-        markInitialFloodFrameFailed();
         return false;
       }
       floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
@@ -34750,55 +34780,22 @@ function formatSelectedObservedDate(dateStr) {
         pane: "floodPane"
       });
       pendingFloodLayer = nextLayer;
-      return await new Promise(resolve => {
-        nextLayer.once("load", async () => {
-          if (token !== lastRenderToken) {
-            if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-            resolve(false);
-            return;
+      return await waitForRecoveryFloodLayer(nextLayer, token, () => {
+        nextLayer.setOpacity(overlayOpacity);
+        currentFloodLayer = nextLayer;
+        floodFrameState = "ready";
+        document.body.dataset.floodFrame = "ready";
+        pendingFloodLayer = null;
+        renderedFloodPixelCache = null;
+        if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
+        if (!mapHasFit) {
+          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
+          if (document.body.classList.contains("mobile-optimized")) {
+            map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
           }
-          // Keep the displayed frame until the replacement pixels are ready.
-          if (!await decodeFloodFrameImage(nextLayer.getElement()) || token !== lastRenderToken) {
-            if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-            if (pendingFloodLayer === nextLayer) pendingFloodLayer = null;
-            if (token === lastRenderToken) {
-              clearFloodLayer();
-              toast("The selected flood image could not load. Please try again.");
-              if (typeof markInitialFloodFrameFailed === "function") markInitialFloodFrameFailed();
-            }
-            resolve(false);
-            return;
-          }
-
-          nextLayer.setOpacity(overlayOpacity);
-          currentFloodLayer = nextLayer;
-          floodFrameState = "ready";
-          document.body.dataset.floodFrame = "ready";
-          pendingFloodLayer = null;
-          renderedFloodPixelCache = null;
-          if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
-          if (!mapHasFit) {
-            map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
-            if (document.body.classList.contains("mobile-optimized")) {
-              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-            }
-            mapHasFit = true;
-          }
-          markInitialFloodFrameReady();
-          resolve(true);
-        });
-        nextLayer.once("error", () => {
-          if (token === lastRenderToken) {
-            if (map.hasLayer(nextLayer)) map.removeLayer(nextLayer);
-            pendingFloodLayer = null;
-            toast("The current physics frame could not be drawn.");
-            clearFloodLayer();
-            markInitialFloodFrameFailed();
-          }
-          resolve(false);
-        });
-        nextLayer.once("remove", () => resolve(false));
-        nextLayer.addTo(map);
+          mapHasFit = true;
+        }
+        markInitialFloodFrameReady();
       });
     }
 
@@ -34809,7 +34806,8 @@ function formatSelectedObservedDate(dateStr) {
       const entry = currentSeriesHours[index];
       if (!entry) return;
 
-      currentHourIndex = index;
+      const previousHourIndex = currentHourIndex;
+      const requestedSeries = currentSeriesHours;
       const token = ++lastRenderToken;
       // Keep the last displayed frame visible while its replacement loads.
       floodFrameState = "loading";
@@ -34827,6 +34825,7 @@ function formatSelectedObservedDate(dateStr) {
       updateSliderProgress();
 
       if (displayStage == null) {
+        currentHourIndex = index;
         renderSelectionMeta(entry, rawStage, displayStage);
         renderTimelineMeta(entry);
         toast(currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours)
@@ -34861,34 +34860,28 @@ function formatSelectedObservedDate(dateStr) {
         : buildNotes(rawStage, displayStage);
       toast(note);
 
-      try {
-        const ready = physicsAsset
-          ? await setPhysicsFloodLayer(physicsAsset, token)
-          : await setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours);
-        if (token !== lastRenderToken) return;
-        if (!ready) {
-          clearFloodLayer();
-          floodFrameState = "failed";
-          document.getElementById("stageSubText").textContent = "Flood map unavailable for this selection. Retry with Reload.";
-        }
-      } catch (error) {
-        if (token !== lastRenderToken) return;
-        clearFloodLayer();
-        floodFrameState = "failed";
-        document.getElementById("stageSubText").textContent = "Flood map unavailable for this selection. Retry with Reload.";
-        toast(error.message);
-        markInitialFloodFrameFailed();
+      const ready = await renderFloodFrameWithRetry(() => physicsAsset
+        ? setPhysicsFloodLayer(physicsAsset, token)
+        : setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours), token);
+      if (token !== lastRenderToken || requestedSeries !== currentSeriesHours) return false;
+      if (!ready) {
+        currentHourIndex = previousHourIndex;
+        slider.value = String(previousHourIndex);
+        updateSliderProgress();
+        document.body.classList.toggle("physics-forecast-active", physicsUiWasActive);
+        document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiWasActive);
+        if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();
+        reportFloodFrameFailure();
+        return false;
       }
+      currentHourIndex = index;
       renderSelectionMeta(entry, rawStage, displayStage);
       renderTimelineMeta(entry);
       updateNsiStructureImpactLayer();
-      if (floodFrameState !== "ready") {
-        document.getElementById("stageSubText").textContent = "Flood map unavailable for this selection. Retry with Reload.";
-      }
-      document.body.dataset.floodFrame = floodFrameState;
-      if (floodFrameState !== "ready") toast("");
-      setFloodFrameStatus(floodFrameState === "ready" ? ""
-        : "Flood map unavailable for this selection. Retry with Reload.", floodFrameState === "ready" ? "info" : "error");
+      floodFrameState = "ready";
+      document.body.dataset.floodFrame = "ready";
+      document.body.dataset.floodFrameRecovery = "ready";
+      setFloodFrameStatus("", "info");
       if (initialFramePending) scheduleOverlayCatalogWarmup(index);
       else preloadAroundHour(index);
     }

@@ -17,7 +17,7 @@ function fixture(html){
   getOverlayRecord:async(mode,stage)=>({url:'frame-'+stage,filename:'frame-'+stage}),getHydraulicOverlayRecord:async(mode,stage)=>({url:'frame-'+stage,filename:'frame-'+stage}),
   retainRasterObjectUrl:()=>()=>{},scheduleRasterObjectUrlCleanup(){},cancelTimelineSelection(){},toast(){},ensureMap(){},ensureOverlayBounds:async()=>{},markInitialFloodFrameReady(){},markInitialFloodFrameFailed(){},setFloodFrameStatus(){},updatePersistentDepthQueryPopup(){},getBoundaryDrivenOverlayBounds:()=>null,fitConfiguredInitialMapView(){},
   renderSelectionMeta(e){labels.push(e.stage);},renderTimelineMeta(){},updateNsiStructureImpactLayer(){},updateSliderProgress(){},hasDisplayedLongGaugeOutage:()=>false,GAUGE_OUTAGE_THRESHOLD_HOURS:72,renderLegend(){},buildNotes:()=>'',scheduleOverlayCatalogWarmup(){},preloadAroundHour(){}});
- for(const name of ['decodeFloodFrameImage','preloadImage','clearFloodLayer','waitForFloodOverlayLoad','setFloodLayer','renderHour']){
+ for(const name of ['decodeFloodFrameImage','preloadImage','clearFloodLayer','renderFloodFrameWithRetry','reportFloodFrameFailure','waitForRecoveryFloodLayer','waitForFloodOverlayLoad','setFloodLayer','renderHour']){
   const match=html.match(new RegExp('    (?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]+?\\n    }'));
   if(match)new vm.Script(match[0]).runInContext(ctx);
  }
@@ -28,7 +28,7 @@ for(const row of [{repository:'North Wildwood'}]){
   const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
   let f=fixture(html);f.plans.set('frame-1',{ms:30,decodeMs:40});const task=handled(f.ctx.renderHour(1));await sleep(10);assert.equal(f.ctx.currentFloodLayer,f.old,'previous frame disappeared during loading');assert.equal(f.labels.length,0,'timestamp changed before frame');await sleep(35);assert.equal(f.ctx.currentFloodLayer,f.old,'previous frame disappeared during decoding');await task;assert.equal(f.ctx.currentFloodLayer._url,'frame-1');assert.equal(f.ctx.currentFloodLayer._image.decoded,true);assert.equal(f.labels.at(-1),1);
   f=fixture(html);f.plans.set('frame-1',{ms:60,decodeMs:30});f.plans.set('frame-2',{ms:5,decodeMs:5});const slow=handled(f.ctx.renderHour(1));await sleep(5);const fast=handled(f.ctx.renderHour(2));await Promise.all([slow,fast]);assert.equal(f.ctx.currentFloodLayer._url,'frame-2','late response replaced latest selection');assert.equal(f.labels.at(-1),2);
-  f=fixture(html);f.plans.set('frame-1',{fail:true,ms:1});await f.ctx.renderHour(1);assert.equal(f.ctx.currentFloodLayer,null,'failed frame was presented as valid');
+  f=fixture(html);f.plans.set('frame-1',{fail:true,ms:1});await f.ctx.renderHour(1);assert.equal(f.ctx.currentFloodLayer,f.old,'failed replacement removed the last good frame');assert(f.layers.has(f.old),'last good frame left the map');assert.equal(f.labels.length,0,'failed replacement advanced timestamp');assert.equal(f.ctx.currentHourIndex,0,'failed replacement advanced hour');
   f=fixture(html);await f.ctx.renderHour(3);assert.equal(f.ctx.currentFloodLayer,null,'missing data retained a misleading map');assert.equal(f.labels.at(-1),null);
   f=fixture(html);f.plans.set('retry',{fail:true,ms:1});assert.equal(await f.ctx.preloadImage('retry'),null);await sleep(1);f.plans.set('retry',{ms:1,decodeMs:1});assert.equal(await f.ctx.preloadImage('retry'),'retry','failed preload was permanently cached');
   results.push({repository:row.repository,passed:true});
