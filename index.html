@@ -40118,7 +40118,7 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
     const nav=document.getElementById('nwDefaultNavControl');if(nav)set(nav,'right',`${innerWidth-r.left+16}px`);
     const standalone=document.getElementById('countyStandaloneView');if(standalone)set(standalone,'right',`${innerWidth-r.left+16}px`);
     document.body.style.setProperty('--county-nav-right',`${innerWidth-r.left+6}px`);
-    const zoom=document.querySelector('.leaflet-control-zoom');if(zoom){set(zoom,'position','fixed');set(zoom,'left','auto');set(zoom,'right',`${innerWidth-r.left+16}px`);set(zoom,'top','150px');set(zoom,'margin','0px');set(zoom,'transform','none');}
+    const zoom=document.querySelector('.leaflet-control-zoom');if(zoom){const host=zoom.parentElement;set(host,'position','absolute');set(host,'left','auto');set(host,'right',`${innerWidth-r.left+16}px`);set(host,'top','150px');set(host,'width','auto');set(zoom,'position','relative');set(zoom,'left','auto');set(zoom,'right','0px');set(zoom,'top','0px');set(zoom,'margin','0px');set(zoom,'transform','none');}
     for(const pane of [left,right])expectedStyles.set(pane,pane.getAttribute('style'));
     document.body.dataset.countyViewportFit='complete';
   }
