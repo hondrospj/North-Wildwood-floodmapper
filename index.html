@@ -24435,7 +24435,7 @@ html body[data-county-viewport] #leftPanel,html body[data-county-viewport] #righ
 html body[data-county-viewport] #leftPanel > .panel-card,html body[data-county-viewport] #leftPanel > .compact-card,html body[data-county-viewport] #timelineIntervalCard{height:auto!important;max-height:none!important;flex-shrink:0!important;}
 html body[data-county-viewport] #timelineIntervalToggle{height:auto!important;min-height:40px!important;max-height:none!important;overflow:visible!important;}
 html body[data-county-viewport] #timelineIntervalToggle button{min-height:38px!important;white-space:normal!important;}
-html body[data-county-viewport] #timelineBubble{left:24px!important;right:auto!important;transform:none!important;max-width:calc(100% - 48px)!important;}
+html body[data-county-viewport] #timelineBubble{left:24px!important;right:auto!important;transform:none!important;translate:none!important;scale:none!important;max-width:calc(100% - 48px)!important;}
 }
 html body[data-county-viewport].top-tides-modal-open #mapTitleBadge{visibility:hidden!important;opacity:0!important;pointer-events:none!important;}
 </style>
@@ -40130,6 +40130,8 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
       pane.dataset.countyFitScale=scale.toFixed(4);
     }
     for(const day of document.querySelectorAll('#timelineDayTabs .timeline-day')){set(day,'flex','1 1 0');set(day,'width','0px');set(day,'max-width','none');}
+    // county-pill-anchor-20261015: reset independent CSS translate as well as transform.
+    const bubble=document.getElementById('timelineBubble');if(bubble){set(bubble,'left','24px');set(bubble,'right','auto');set(bubble,'translate','none');set(bubble,'transform','none');set(bubble,'scale','none');}
     const l=left.getBoundingClientRect(),r=right.getBoundingClientRect();
     const title=document.getElementById('mapTitleBadge');if(title){set(title,'visibility',document.body.classList.contains('top-tides-modal-open')?'hidden':'visible');set(title,'background','#171f2e');set(title,'width','max-content');set(title,'height','auto');set(title,'padding','10px 14px');set(title,'top','16px');set(title,'left',`${(l.right+r.left)/2}px`);set(title,'max-width',`${Math.max(140,r.left-l.right-140)}px`);set(title,'transform','translateX(-50%)');}
     const nav=document.getElementById('nwDefaultNavControl');if(nav)set(nav,'right',`${innerWidth-r.left+16}px`);
