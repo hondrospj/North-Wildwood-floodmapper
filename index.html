@@ -24415,6 +24415,17 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 </style>
+<style id="county-desktop-hotfix-20261015">
+@media(min-width:901px){
+html body[data-county-viewport] #mapTitleBadge{visibility:visible!important;opacity:1!important;display:flex!important;width:max-content!important;min-width:0!important;height:auto!important;top:16px!important;padding:10px 14px!important;gap:10px!important;}
+html body[data-county-viewport] #mapTitleBadge #mapTitleText{visibility:visible!important;opacity:1!important;display:block!important;font-size:clamp(16px,1.7vw,26px)!important;line-height:1.15!important;white-space:normal!important;overflow-wrap:normal!important;min-width:0!important;}
+html body[data-county-viewport] #rightRail #topTideList{max-height:180px!important;overflow-y:auto!important;display:flex!important;flex-direction:column!important;gap:6px!important;}
+html body[data-county-viewport] #rightRail #topTideList > *{min-height:38px!important;height:auto!important;flex-shrink:0!important;padding:8px!important;font-size:13px!important;line-height:1.25!important;}
+html body[data-county-viewport] #rightRail #topTideList .top-tide-item{display:grid!important;grid-template-columns:22px minmax(0,1fr) auto!important;gap:5px!important;}
+html body[data-county-viewport] #timelineDayTabs .timeline-day{flex:1 1 0!important;width:0!important;min-width:0!important;max-width:none!important;overflow:hidden!important;white-space:nowrap!important;}
+html body[data-county-viewport] .leaflet-top.leaflet-left{left:auto!important;right:calc(var(--county-nav-right,300px) + 8px)!important;top:150px!important;}
+}
+</style>
 </head>
 <body data-county-mobile="20261015" data-county-fix="20261015" class="nw-app-loading" data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261008-v1" data-flood-frame-resilience="retain-retry-20261013">
   <div id="nwSiteLoader" role="status" aria-live="polite" aria-label="Loading North Wildwood Flood Mapper">
@@ -40087,19 +40098,27 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
   function update(){
     frame=null;if(compact.matches){fitMobile();return;}
     if(mobileApplied){for(const pane of [left,right])for(const p of ['left','right','width','max-width','top','bottom','height','max-height','min-height','overflow-x','overflow-y'])pane.style.removeProperty(p);for(const p of ['left','right','bottom'])timeline.style.removeProperty(p);mobileApplied=false;}
-    const available=timeline.getBoundingClientRect().top-28;
+    const available=Math.max(200,timeline.getBoundingClientRect().top-84);
+    let natural=1;
     for(const pane of [left,right]){
-      set(pane,'zoom','1');set(pane,'height','auto');set(pane,'min-height','0px');set(pane,'max-height','none');set(pane,'bottom','auto');set(pane,'top','16px');set(pane,'overflow','visible');set(pane,'overflow-y','visible');set(pane,'overflow-x','visible');
-      const natural=Math.max(pane.scrollHeight,pane.getBoundingClientRect().height);
-      const scale=Math.min(1,Math.max(.5,available/Math.max(natural,1)));
-      set(pane,'zoom',scale.toFixed(4));set(pane,'top',`${16/scale}px`);
-      pane.dataset.countyFitScale=scale.toFixed(4);pane.dataset.countyWholeCards='true';
+      set(pane,'zoom','1');set(pane,'min-width','0px');set(pane,'width',pane===left?'300px':'280px');set(pane,'max-width',pane===left?'300px':'280px');
+      set(pane,'height','auto');set(pane,'min-height','0px');set(pane,'max-height','none');set(pane,'bottom','auto');set(pane,'top','16px');set(pane,'overflow','visible');
+      natural=Math.max(natural,pane.scrollHeight,pane.getBoundingClientRect().height);
     }
+    const scale=Math.min(1,Math.max(.55,available/natural));
+    for(const pane of [left,right]){
+      set(pane,'zoom',scale.toFixed(4));set(pane,'top',`${16/scale}px`);
+      set(pane,pane===left?'left':'right',`${16/scale}px`);
+      set(pane,'max-height',`${available/scale}px`);set(pane,'overflow-y','auto');set(pane,'overflow-x','hidden');
+      pane.dataset.countyFitScale=scale.toFixed(4);
+    }
+    for(const day of document.querySelectorAll('#timelineDayTabs .timeline-day')){set(day,'flex','1 1 0');set(day,'width','0px');set(day,'max-width','none');}
     const l=left.getBoundingClientRect(),r=right.getBoundingClientRect();
-    const title=document.getElementById('mapTitleBadge');if(title){set(title,'left',`${(l.right+r.left)/2}px`);set(title,'max-width',`${Math.max(140,r.left-l.right-40)}px`);set(title,'transform','translateX(-50%)');}
+    const title=document.getElementById('mapTitleBadge');if(title){set(title,'visibility','visible');set(title,'background','#171f2e');set(title,'width','max-content');set(title,'height','auto');set(title,'padding','10px 14px');set(title,'top','16px');set(title,'left',`${(l.right+r.left)/2}px`);set(title,'max-width',`${Math.max(140,r.left-l.right-140)}px`);set(title,'transform','translateX(-50%)');}
     const nav=document.getElementById('nwDefaultNavControl');if(nav)set(nav,'right',`${innerWidth-r.left+16}px`);
     const standalone=document.getElementById('countyStandaloneView');if(standalone)set(standalone,'right',`${innerWidth-r.left+16}px`);
     document.body.style.setProperty('--county-nav-right',`${innerWidth-r.left+6}px`);
+    const zoom=document.querySelector('.leaflet-control-zoom');if(zoom){set(zoom,'position','fixed');set(zoom,'left','auto');set(zoom,'right',`${innerWidth-r.left+16}px`);set(zoom,'top','150px');set(zoom,'margin','0px');set(zoom,'transform','none');}
     for(const pane of [left,right])expectedStyles.set(pane,pane.getAttribute('style'));
     document.body.dataset.countyViewportFit='complete';
   }
