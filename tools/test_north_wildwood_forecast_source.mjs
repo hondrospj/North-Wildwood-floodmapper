@@ -22,5 +22,5 @@ for(const missing of [null,{}, {...forecast,scenarioVersion:undefined},
   {...forecast,scenarioForecasts:{mean:{hours:null}}}]) {
   assert.equal(select(missing,'mean').length,0,'Older or missing settings must not silently substitute another curve');
 }
-for(const label of ['Minimum','Mean','Maximum'])assert.ok(html.includes(`label: "${label}", percentile: ""`));
+for(const label of ['Lower End','Mean','Upper End'])assert.ok(html.includes(`label: "${label}", percentile: ""`));
 console.log('Passed unadjusted scenario selection, missing/old-source cases, repeated reads, and neutral display labels');
