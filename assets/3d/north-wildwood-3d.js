@@ -1220,6 +1220,13 @@
 
   async function syncBuildings3d(options) {
     if (!glMap || !glStyleReady) return;
+    if (!TOWN_CONFIG?.structures?.buildings3dPath) {
+      await window.COUNTY_3D_BUILDINGS.sync(glMap, TERRAIN_EXAGGERATION);
+      syncBuildingVisibilityForCamera();
+      placeFloodForScaleDepthPass();
+      setStatus("3D buildings • schematic heights");
+      return;
+    }
     var syncOptions = options || {};
     var enabled = layerVisible("buildingsToggle", false);
     if (!enabled && !syncOptions.preload && !glMap.getSource("nw-buildings-source")) {
@@ -1989,6 +1996,13 @@
 
   var originalSetBuildingsEnabled = setBuildingsEnabled;
   setBuildingsEnabled = async function (enabled) {
+    if (enabled) {
+      var requestedToggle = document.getElementById("buildingsToggle");
+      if (requestedToggle) { requestedToggle.classList.add("on"); requestedToggle.setAttribute("aria-checked", "true"); }
+      var requestedMap = await ensure3dMap();
+      if (!requestedMap) throw new Error("3D buildings could not start; the 2D map remains available.");
+      if (requestedMap.getPitch() <= 10) document.querySelector("#nwDefaultNavControl .nw-simple-view")?.click();
+    }
     if (glMap && document.body.classList.contains("map-3d-ready")) {
       var shouldEnable = Boolean(enabled);
       var toggle = document.getElementById("buildingsToggle");
@@ -2002,6 +2016,7 @@
       updateMapClickModeControl();
       toast("");
       await syncBuildings3d();
+      if (shouldEnable) await window.COUNTY_3D_BUILDINGS.focus(glMap);
       if (shouldEnable) focusEnabledBuildings3d();
       suspendLeafletVisualLayers();
       return;
