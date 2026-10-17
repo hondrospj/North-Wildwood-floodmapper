@@ -40,7 +40,11 @@ try {
     async function openCamera(id, keyboard = false) {
       const marker = page.locator(`[data-webcam-marker="${id}"]`);
       const before = requests.length;
-      await marker.click({ trial: true });
+      // Software-rendered CI can finish its first terrain paint after the
+      // ready class appears. Keep the existing 60-second 3D startup budget;
+      // ordinary 2D actions retain the tighter 20-second budget.
+      const is3dMarker = await marker.evaluate(el => el.classList.contains('maplibregl-marker'));
+      await marker.click({ trial: true, timeout: is3dMarker ? 60000 : 20000 });
       if (keyboard) { await marker.focus(); await page.keyboard.press('Enter'); }
       else await marker.click();
       await page.waitForFunction(() => !document.getElementById('webcamPanel').hidden && document.getElementById('webcamPanel').dataset.playerState === 'player-open');
