@@ -32,12 +32,14 @@ try{
   for(let i=0;i<20;i++){
     await activate('#mobileControlsToggle');
     if(!await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open')))throw Error('Drawer did not open');
+    if(await page.locator('#observedCalendarOpenBtn').isVisible())await activate('#observedCalendarOpenBtn');
     // Hold the first mouse click through delayed layout timers. Detaching the
     // calendar card during this gesture suppresses click in WebKit.
     if(!touch&&i===0)await page.locator('#calendarTitleBtn').click({delay:400});
     else await activate('#calendarTitleBtn');
     if(!await page.locator('#calendarPopover').evaluate(el=>el.classList.contains('open')))throw Error('Calendar did not open');
     await activate('#calendarPopoverCloseBtn');
+    if(await page.locator('#observedCalendarCloseBtn').isVisible())await activate('#observedCalendarCloseBtn');
     await activate('#mapperTutorialBtn');
     await activate('#mapperTutorialClose');
     if(await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open')))await activate('#mobileControlsClose');

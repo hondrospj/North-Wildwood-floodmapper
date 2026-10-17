@@ -85,12 +85,12 @@ try {
       check(!await page.evaluate(()=>Boolean(playTimer)),`${width} dialog click does not start playback`);
       if(await page.locator('#downloadModalCloseBtn').isVisible())await activate(page,'#downloadModalCloseBtn');
       await openDrawer(page);await activate(page,'#observedDataBtn');await settled(page);
-      await activate(page,'#calendarTitleBtn');await settled(page);
+      if(await page.locator('#observedCalendarOpenBtn').isVisible())await activate(page,'#observedCalendarOpenBtn');await activate(page,'#calendarTitleBtn');await settled(page);
       await contained(page,'#calendarPopover',`${width} calendar fits`);
       const selectedHour=await page.evaluate(()=>currentHourIndex);
       await page.keyboard.press('ArrowRight');
       check(await page.evaluate(()=>currentHourIndex)===selectedHour,`${width} calendar keys do not advance timeline`);
-      await activate(page,'#calendarPopoverCloseBtn');
+      await activate(page,'#calendarPopoverCloseBtn');if(await page.locator('#observedCalendarCloseBtn').isVisible())await activate(page,'#observedCalendarCloseBtn');
       check(!await page.locator('#calendarPopover').evaluate(e=>e.classList.contains('open')),`${width} calendar close works`);
       await activate(page,'#returnIntervalDataBtn');await settled(page);
       check(await page.locator('#returnIntervalCard').isVisible(),`${width} modeled mode visible`);
