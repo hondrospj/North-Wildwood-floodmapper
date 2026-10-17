@@ -47,7 +47,6 @@ jobs:
           import urllib.request
           from datetime import datetime, timedelta, timezone
           from pathlib import Path
-          from tools.north_wildwood_tide_anchors import ANCHOR_VERSION, MINIMUM_OFFSET_FT, MINIMUM_TIDE_TARGETS, collect_source_hours, anchor_mean_curve, minimum_below_mean
 
           TOWN_NAME = "North Wildwood"
           IS_SPLIT = False
@@ -85,7 +84,7 @@ jobs:
 
           HEADER_ALIASES = {
               "time": ["time", "valid", "validtime", "valid_time", "datetime", "date_time", "forecast_time", "src_time", "srctime"],
-              "twl": ["twl", "twl_ft", "twl_mllw", "twl_mllw_ft", "stormtide", "storm_tide", "total_water_level", "water_level"],
+              "twl": ["twl"],
               "twl10": ["twl10p", "twl_10p", "twl10", "twl_p10", "p10_twl", "twl_e10", "e10_twl"],
               "twl90": ["twl90p", "twl_90p", "twl90", "twl_p90", "p90_twl", "twl_e90", "e90_twl"],
               "tide": ["tide", "tide_ft", "tide_mllw", "tide_mllw_ft"],
@@ -233,42 +232,6 @@ jobs:
                       })
               return out
 
-          def remap_percentiles(raw, zone):
-              """Build Mean and Maximum bases; Minimum is derived after anchoring."""
-              from statistics import NormalDist
-              z10 = abs(NormalDist().inv_cdf(0.10))
-              ratios = {"mean": 1.0,
-                        "highEnd": abs(NormalDist().inv_cdf(0.25)) / z10}
-              labels = {"mean": ("Mean", "10th percentile", "adjusted_p10"),
-                        "highEnd": ("Maximum", "Estimated 25th percentile", "adjusted_p25")}
-              by_key = {key: {row["timeUtc"]: row for row in rows} for key, rows in raw.items()}
-              common = sorted(set(by_key["mean"]) & set(by_key["lowEnd"]) & set(by_key["highEnd"]))
-              remapped = {key: [] for key in labels}
-              for time_utc in common:
-                  base = by_key["mean"][time_utc]
-                  center = base["rawPetssValue"]
-                  lower = by_key["lowEnd"][time_utc]["rawPetssValue"]
-                  upper = by_key["highEnd"][time_utc]["rawPetssValue"]
-                  spread = max(0.0, center - lower)
-                  for key, ratio in ratios.items():
-                      unadjusted = lower if key == "mean" else center - ratio * spread
-                      value = unadjusted
-                      navd88 = round2(value + zone["navd88OffsetFromMllwFt"])
-                      matched, clamped = stage_key(navd88)
-                      _, percentile, product = labels[key]
-                      row = dict(base)
-                      row.update({"scenario": key, "product": product, "percentile": percentile,
-                                  "estimatedTwlMllwFt": round3(value), "sourceStageFt": navd88,
-                                  "unadjustedTwlMllwFt": round3(unadjusted), "scenarioAdjustmentFt": 0,
-                                  "navd88StageFt": navd88, "mllwStageFt": round2(value),
-                                  "twlMllwFt": round2(value), "surgeFt": None,
-                                  "matchedStageKey": matched, "wasClamped": clamped,
-                                  "isEstimatedPercentile": key != "mean",
-                                  "sourceMeanTwlMllwFt": center,
-                                  "sourceTwl90pMllwFt": lower,
-                                  "sourceTwl10pMllwFt": upper})
-                      remapped[key].append(row)
-              return remapped
 
           def align_products(products, forecast_start):
               by_key = {key: {row["timeUtc"]: row for row in rows} for key, rows in products.items()}
@@ -311,9 +274,6 @@ jobs:
 
           def build_zone_forecast(zone, now_utc):
               last_error = None
-              previous_context = []
-              if OUT_PATH.exists():
-                  previous_context = json.loads(OUT_PATH.read_text()).get("tideAnchorSourceHours", [])
               for cycle in recent_cycles(now_utc):
                   try:
                       url = petss_station_csv_url(cycle)
@@ -322,14 +282,13 @@ jobs:
                       parsed = parse_station_csv(text, zone)
                       start = max(cycle["cycleUtc"], now_utc)
                       aligned = align_products(parsed, start)
-                      anchor_source = collect_source_hours(parsed["lowEnd"], previous_context)
-                      return payload_for_zone(zone, cycle, url, member, aligned, now_utc, anchor_source)
+                      return payload_for_zone(zone, cycle, url, member, aligned, now_utc)
                   except Exception as exc:
                       last_error = exc
                       print(f"Rejected {zone['id']} cycle: {exc}")
               raise RuntimeError(f"No usable PETSS forecast for {zone['id']} {zone['petssGaugeId']}: {last_error}")
 
-          def payload_for_zone(zone, cycle, source_url, member, products, issued_dt, anchor_source_hours=()):
+          def payload_for_zone(zone, cycle, source_url, member, products, issued_dt):
               definitions = {
                   "mean": ("Mean", "Mean", "mean"),
                   "lowEnd": ("Low End", "90p / e90", "e90"),
@@ -356,20 +315,8 @@ jobs:
                       "forecastNavd88Max": round2(max(h["navd88StageFt"] for h in hours)),
                   }
               mean_hours = forecasts["mean"]["hours"]
-              scenario_rows = remap_percentiles(products, zone)
-              anchor_source = collect_source_hours(products["lowEnd"], anchor_source_hours)
-              mean_tide_anchors = anchor_mean_curve(scenario_rows["mean"], anchor_source,
-                                                   zone["navd88OffsetFromMllwFt"], stage_key)
-              scenario_rows["lowEnd"] = minimum_below_mean(scenario_rows["mean"], stage_key, mean_tide_anchors)
-              scenario_definitions = {
-                  "lowEnd": ("Minimum", "", "mean_minus_2in"),
-                  "mean": ("Mean", "10th percentile", "adjusted_p10"),
-                  "highEnd": ("Maximum", "Estimated 25th percentile", "adjusted_p25"),
-              }
-              scenario_options = {key: {"label": label, "percentile": percentile, "product": product}
-                                  for key, (label, percentile, product) in scenario_definitions.items()}
-              scenario_forecasts = {key: {**scenario_options[key], "hours": annotate_hydraulic_phases(scenario_rows[key])}
-                                    for key in scenario_options}
+              scenario_options = options
+              scenario_forecasts = forecasts
               return {
                   "zoneId": zone["id"],
                   "zoneName": zone["zoneName"],
@@ -402,15 +349,6 @@ jobs:
                   "forecastOptions": options,
                   "scenarioOptions": scenario_options,
                   "scenarioForecasts": scenario_forecasts,
-                  "scenarioVersion": "mean-anchors-min-minus-2in-max-p25-v5",
-                  "scenarioAdjustmentFt": 0,
-                  "minimumOffsetFt": MINIMUM_OFFSET_FT,
-                  "minimumTideTargetsMLLW": MINIMUM_TIDE_TARGETS,
-                  "scenarioMethod": "Mean uses NOAA TWL90p without a local subtraction before dated tide anchoring. Minimum is two inches below the final Mean, except for explicitly dated Minimum tide anchors fitted between unchanged low tides. Maximum retains the existing normal lower-tail p25 estimate without a local subtraction; raw NOAA forecasts are preserved separately.",
-                  "meanTideAnchorVersion": ANCHOR_VERSION,
-                  "meanTideAnchors": mean_tide_anchors,
-                  "meanTideAnchorMethod": "Dated manual Mean crests in feet MLLW. Each rise and fall is scaled about its adjacent low tide; peak times and low tides are preserved. Minimum follows two inches below Mean except its dated tide overrides. Maximum is unchanged.",
-                  "tideAnchorSourceHours": anchor_source,
                   "products": product_meta,
                   "forecasts": forecasts,
                   "hours": mean_hours,
@@ -436,6 +374,9 @@ jobs:
 
       - name: Generate non-operational PETSS research comparison
         run: python tools/experimental_petss_guidance.py --input forecast.json --output data/experimental_petss_guidance.json
+
+      - name: Select issued PETSS ensemble mean for operational forecasts
+        run: python3 tools/select_petss_mean.py forecast.json
 
       - name: Commit updated forecast
         shell: bash
