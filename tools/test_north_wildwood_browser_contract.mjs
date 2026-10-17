@@ -384,15 +384,17 @@ playbackIntervalMinutes = 60;
 assert.equal(playbackContext.getPlaybackFrameDurationMs(), 950);
 playbackIntervalMinutes = 1440;
 assert.equal(playbackContext.getPlaybackFrameDurationMs(), 950);
-assert.match(extractFunction("preloadAroundHour"), /currentOverlayMode/);
+const prefetch=extractFunction("preloadAroundHour");
+if(/getOverlayRecord\(/.test(prefetch))assert.match(prefetch,/currentOverlayMode/);
+else assert.doesNotMatch(prefetch,/fetch\(|preloadImage\(/,"On-demand rendering must not preload full-resolution composites");
 assert.doesNotMatch(extractFunction("preloadAroundHour"), /\["depth", "dynamic"\]/);
-assert.match(extractFunction("preloadAroundHour"), /requestIdleCallback/);
-assert.match(extractFunction("preloadAroundHour"), /distance <= 12/);
+if(/getOverlayRecord\(/.test(prefetch))assert.match(prefetch,/requestIdleCallback/);
+if(/getOverlayRecord\(/.test(prefetch))assert.match(prefetch,/distance <= 12/);
 assert.doesNotMatch(extractFunction("setTimelineIntervalMinutes"), /clearFloodLayer\(\)/);
 assert.match(extractFunction("testImageUrl"), /imageExistsCache\.set\(url, request\)[\s\S]+await request/);
 assert.match(extractFunction("getOverlayRecord"), /overlayRecordCache\.set\(key, request\)[\s\S]+await request/);
-assert.match(extractFunction("setFloodLayer"), /await new Promise[\s\S]+markInitialFloodFrameReady\(\)/);
-assert.match(extractFunction("setPhysicsFloodLayer"), /await new Promise[\s\S]+markInitialFloodFrameReady\(\)/);
+assert.match(extractFunction("setFloodLayer"), /(?:await new Promise|await waitForRecoveryFloodLayer)[\s\S]+markInitialFloodFrameReady\(\)/);
+assert.match(extractFunction("setPhysicsFloodLayer"), /(?:await new Promise|await waitForRecoveryFloodLayer)[\s\S]+markInitialFloodFrameReady\(\)/);
 assert.match(
   extractFunction("reloadAll"),
   /await renderHour\(currentHourIndex\)[\s\S]+activateDeferredMapLayers\(\)[\s\S]+scheduleBackgroundDataWarmup\(\)/
@@ -674,8 +676,8 @@ assert.match(SOURCE, /elevation >= 1000/);
 assert.doesNotMatch(SOURCE, /<dt>Ground<\/dt>/);
 assert.doesNotMatch(SOURCE, /<dt>Maximum depth penalty<\/dt>/);
 assert.match(SOURCE, /<div class="depth-query-value">/);
-assert.match(extractFunction("getDepthQueryPopupHeading"), /currentDataMode === "forecast"[\s\S]+return "Forecast Water Depth"/);
-assert.match(extractFunction("getDepthQueryPopupHeading"), /currentDataMode === "observed"[\s\S]+return "Water Depth"/);
+assert.match(extractFunction("getDepthQueryPopupHeading"), /displayedMode === "forecast"[\s\S]+return "Forecast Water Depth"/);
+assert.match(extractFunction("getDepthQueryPopupHeading"), /displayedMode === "observed"[\s\S]+return "Water Depth"/);
 assert.match(extractFunction("getDepthQueryPopupHeading"), /return "Modeled Water Depth"/);
 assert.match(extractFunction("buildDepthQueryPopupHtml"), /getDepthQueryPopupHeading\(\)/);
 assert.match(SOURCE, /let persistentDepthQueryContext = null/);

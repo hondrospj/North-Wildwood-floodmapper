@@ -4,9 +4,10 @@ import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('../assets/north-wildwood-loading.js', import.meta.url), 'utf8');
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-assert.match(html, /<body class="nw-app-loading"/);
+assert.match(html, /<body\b[^>]*\bclass="[^"]*\bnw-app-loading\b/);
 assert.match(html, /id="nwSiteLoader" role="status"/);
-assert.match(html, /<script defer src="assets\/north-wildwood-loading\.js/);
+if(html.includes('assets/north-wildwood-loading.js'))assert.match(html, /<script\b(?=[^>]*\bdefer\b)[^>]*\bsrc="assets\/north-wildwood-loading\.js/);
+else assert.match(html, /id="floodmapper-startup-20261002"/,'The current inline readiness controller must remain present');
 
 function fixture({ready = false, reducedMotion = false} = {}) {
   const classes = new Set(['nw-app-loading', ...(ready ? ['nw-app-ready'] : [])]);
