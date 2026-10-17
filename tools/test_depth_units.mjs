@@ -26,7 +26,7 @@ function extract(name, source = html) {
 }
 
 const context = vm.createContext({
-  currentDataMode: 'forecast',
+  currentDataMode: 'forecast', currentFloodLayer: null,
   getSelectedStageNavd88: () => 0.5,
   getNsiFirstOccupiedFloorNavd88: p => p.modeledFirstFloorNavd88Ft,
   escapeTownAddressHtml: value => value,
@@ -59,9 +59,10 @@ if (html.includes('function v11PopupHtml(')) {
   const isV2 = html.includes('function formatDepthQueryValue(');
   if (isV2) load('formatDepthQueryValue');
   load('getDepthQueryPopupHeading');
+  if(html.includes('function buildDepthQueryValueHtml(')) load('buildDepthQueryValueHtml');
   load('buildDepthQueryPopupHtml');
   for (const [depth, text] of [[0, '0 in'], [0.5, '6 in'], [1, '1.00 ft'], [null, 'N/A']]) {
-    assert.ok(context.buildDepthQueryPopupHtml(depth).includes(`>${text}</div>`));
+    assert.ok(context.buildDepthQueryPopupHtml(depth).replace(/<[^>]+>/g,'').includes(text));
   }
   if (isV2) {
     assert.equal(context.formatDepthQueryValue(0.1), '0–1.2 in');
@@ -87,13 +88,13 @@ if (html.includes('function v11PopupHtml(')) {
     });
     vm.runInContext('async ' + extract('handleDepthQueryClick'), context);
     await context.handleDepthQueryClick({latlng: {lat: 1, lng: 1}});
-    assert.ok(popup.includes('>6 in</div>'));
+    assert.ok(popup.replace(/<[^>]+>/g,'').includes('6 in'));
     context.samplePhysicsDepth = async () => ({depthM: 0.3048, wet: true});
     await context.handleDepthQueryClick({latlng: {lat: 1, lng: 1}});
-    assert.ok(popup.includes('>1.00 ft</div>'));
+    assert.ok(popup.replace(/<[^>]+>/g,'').includes('1.00 ft'));
     context.samplePhysicsDepth = async () => ({depthM: 0.6096, wet: true});
     await context.handleDepthQueryClick({latlng: {lat: 1, lng: 1}});
-    assert.ok(popup.includes('>2.00 ft</div>'));
+    assert.ok(popup.replace(/<[^>]+>/g,'').includes('2.00 ft'));
   }
 }
 

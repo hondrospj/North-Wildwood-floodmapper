@@ -104,6 +104,8 @@ try {
       await activate(page,'#topTidesModalCloseBtn');
       await closeDrawer(page);
     }
+    await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();
+    await page.waitForFunction(()=>document.body.classList.contains('map-3d-ready'),{},{timeout:90000});
     for(const [width,height] of [[320,568],[390,844],[568,320]]){
       await page.setViewportSize({width,height});await settled(page);
       await page.evaluate(feature=>openParcelFloodPrompt(feature,map.getCenter()),parcel);

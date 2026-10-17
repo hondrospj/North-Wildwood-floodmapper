@@ -15,9 +15,9 @@ function context(names, stubs = {}) {
     MINOR_VERTICAL_PENALTY_FT:0.75, MODERATE_VERTICAL_PENALTY_FT:0.25, MAJOR_VERTICAL_PENALTY_FT:0,
     // Object-URL ownership and cache eviction have a separate raster lifetime suite.
     retainRasterObjectUrl:()=>()=>{}, scheduleRasterObjectUrlCleanup(){}, RASTER_IMAGE_CACHE_LIMIT:4,
-    TOWN_CONFIG:{overlays:{}},
+    TOWN_CONFIG:{overlays:{}},lastRenderToken:0,pendingFloodLayer:null,currentFloodLayer:null,map:null,
     ...stubs});
-  for (const name of [...new Set(["normalizeStageValue", ...names])]) vm.runInContext(extract(name), ctx);
+  for (const name of [...new Set(["normalizeStageValue", ...(names.includes("loadObservedDay")?["cancelPendingFloodFrame"]:[]), ...names])]) vm.runInContext(extract(name), ctx);
   return ctx;
 }
 const stageFns=["roundToCatalogPrecision","floorToCatalogStep","getOverlayStage"];
@@ -49,7 +49,7 @@ for (const name of ["testImageUrl","preloadImage","getExportImageElement"]) {
   class FakeImage {
     constructor(){ this.complete=false; this.naturalWidth=0; }
     async decode(){}
-    set src(value) { requested++; queueMicrotask(()=>{
+    set src(value) { if(!value)return; requested++; queueMicrotask(()=>{
       if(!available){ this.onerror?.(); return; }
       this.complete=true; this.naturalWidth=64; this.onload?.();
     }); }
@@ -60,19 +60,8 @@ for (const name of ["testImageUrl","preloadImage","getExportImageElement"]) {
   await images[name]("test.png");available=true;
   const recovered=await images[name]("test.png");assert(recovered);assert.equal(requested,2,`${name} retained a failed image`);
 }
-for(const failure of ["missing-record","image-error","bounds-error"]){
-  const previous={id:"old"};const layers=new Set([previous]);
-  const next={handlers:{},once(event,fn){this.handlers[event]=fn;return this},addTo(){layers.add(this);this.handlers.error();return this}};
-  const frame=context(["clearFloodLayer","setFloodLayer"],{currentRawSeriesHours:[],lastRenderToken:1,
-    document:{body:{dataset:{initialFloodFrame:"ready"}}},toast(){},ensureMap(){},
-    async getHydraulicOverlayRecord(){return failure==="missing-record"?null:{url:"broken.png",filename:"broken.png"}},
-    async preloadImage(url){return url},async ensureOverlayBounds(){if(failure==="bounds-error")throw Error("bounds");},
-    currentFloodLayer:previous,pendingFloodLayer:null,currentDataMode:"observed",renderedFloodPixelCache:{},floodFrameState:"ready",
-    createHydraulicImageOverlay(){return next},markInitialFloodFrameFailed(){},
-    map:{hasLayer:x=>layers.has(x),removeLayer:x=>layers.delete(x)}});
-  assert.notEqual(await frame.setFloodLayer("depth",4,"slack",1),true);
-  assert.equal(layers.size,0,`${failure} retained an old map`);assert.equal(frame.currentFloodLayer,null);
-}
+// The shared recovery suite covers failed replacements, retries and last-good-frame retention.
+await import("./test_export_frame_recovery.mjs");
 const banner=[];const requests=[];let networkMode="fail-point";
 const alerts=context(["checkNwsAlerts"],{nwsAlertPromise:null,lastSuccessfulNwsAlerts:null,
   document:{body:{dataset:{}},getElementById:()=>({})},TOWN_CONFIG:{alerts:{zoneCodes:["NJZ024"]}},NWS_POINT_URL:"points",
@@ -90,7 +79,7 @@ const race=context(["loadObservedDay"],{selectionGeneration:0,async ensureObserv
   getObservedDayRecord:()=>({peakNAVD88:4,hours:[]}),stopPlayback(){},updateDataModeButtons(){},
   buildTopTideEvents:()=>[],buildObservedCanonicalSeries:()=>[{}],getTimelineIntervalMinutes:()=>15,
   sampleCanonicalHydraulicSeries:x=>x,formatStageForDisplay:String,syncSliderBounds(){},getPeakHourIndex:()=>0,
-  document:{getElementById:()=>({})},async renderCalendar(){},async renderHour(){},renderTopTides(){}});
+  document:{body:{dataset:{}},getElementById:()=>({})},async renderCalendar(){},async renderHour(){},renderTopTides(){}});
 const first=race.loadObservedDay("2000-01-01");await race.loadObservedDay("2026-09-12");releaseFirst();await first;
 assert.equal(race.selectedObservedDate,"2026-09-12");
 for (const invalid of ["2025-11-02 01:15:00","2025-03-09 02:15:00","2025-02-30 01:00:00"]) {

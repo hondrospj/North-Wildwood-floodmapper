@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const html = fs.readFileSync(process.argv[2] || new URL('../index.html', import.meta.url), 'utf8');
-const names = ['switchOverlayMode', 'setParcelsEnabled', 'setNsiStructuresEnabled',
+const names = ['cancelPendingFloodFrame', 'switchOverlayMode', 'setParcelsEnabled', 'setNsiStructuresEnabled',
   'searchTownAddress', 'clearTownAddressLookup'];
 const functions = names.map(name => {
   const match = html.match(new RegExp(`^    (?:async )?function ${name}\\([^\\n]*\\) \\{\\n.*?^    \\}`, 'ms'));
@@ -35,7 +35,7 @@ function setup() {
   }
   const state = {layers, viewChanges: 0, status: '', popups: 0, buildingEnables: 0, renders: []};
   const context = vm.createContext({console,
-    document: {getElementById: el, body: {classList: {contains() {return false;}}}},
+    document: {getElementById: el, body: {dataset: {}, classList: {contains() {return false;}}}},
     window: {NORTH_WILDWOOD_3D: {setAddressMarker() {}}},
     map: {hasLayer: l => layers.has(l), removeLayer: l => layers.delete(l), getZoom: () => 14,
       setView() {state.viewChanges++;}},
@@ -51,7 +51,7 @@ function setup() {
     fetchNominatimTownCandidates: async () => [], pickBestTownAddressCandidate: v => v[0],
     L: {latLng: (lat, lon) => ({lat, lon}), marker: latlng => ({latlng,
       addTo() {layers.add(this); return this;}, setLatLng(p) {this.latlng = p;}, setIcon() {}})},
-    currentOverlayMode: 'depth', currentDataMode: 'observed', currentViewType: 'observed-day',
+    lastRenderToken: 0, currentFloodLayer: null, pendingFloodLayer: null, currentOverlayMode: 'depth', currentDataMode: 'observed', currentViewType: 'observed-day',
     currentTopTideIndex: null, currentHourIndex: 7, selectedObservedDate: '2016-01-23',
     currentSeriesHours: [{timeUtc: '2016-01-23T12:00:00Z', stageFt: 6.69}],
     stopPlayback() {}, updateModeButtons() {}, updateDataModeButtons() {}, clearFloodLayer() {}, renderTopTides() {},

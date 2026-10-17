@@ -13,14 +13,19 @@ for(const key of ['lowEnd','mean','highEnd']) {
   assert.equal(select(forecast,key),forecast.scenarioForecasts[key].hours);
   assert.ok(select(forecast,key).length>12);
 }
-const first=select()[0],raw=forecast.forecasts.lowEnd.hours.find(h=>h.timeUtc===first.timeUtc);
-assert.ok(Math.abs(first.mllwStageFt-(raw.rawPetssValue+(first.tideAnchorAdjustmentFt??0)))<=.005001);
-assert.equal(select()[0].mllwStageFt,first.mllwStageFt,'Repeated reads must not subtract again');
-for(const missing of [null,{}, {...forecast,scenarioVersion:undefined},
-  {...forecast,minimumOffsetFt:undefined},{...forecast,minimumOffsetFt:0},
-  {...forecast,scenarioAdjustmentFt:-0.25}, {...forecast,scenarioVersion:'mean-anchors-min-minus-2in-max-p25-v4'}, {...forecast,scenarioForecasts:{}},
-  {...forecast,scenarioForecasts:{mean:{hours:null}}}]) {
-  assert.equal(select(missing,'mean').length,0,'Older or missing settings must not silently substitute another curve');
+const before=JSON.stringify(forecast);
+assert.equal(forecast.operationalForecastProduct,'TWL');
+assert.equal(forecast.operationalForecastStatistic,'ensemble_mean');
+for(const hour of select(forecast,'mean')) {
+  assert.equal(hour.sourceColumn,'TWL');
+  assert.ok(Math.abs(hour.mllwStageFt-hour.rawPetssValue)<=.005001,'Mean was locally shifted');
+  assert.ok(Math.abs(hour.navd88StageFt-(hour.mllwStageFt+forecast.navd88OffsetFromMllwFt))<=.005001,'Datum conversion changed');
 }
-for(const label of ['Lower End','Mean','Upper End'])assert.ok(html.includes(`label: "${label}", percentile: ""`));
-console.log('Passed unadjusted scenario selection, missing/old-source cases, repeated reads, and neutral display labels');
+assert.equal(JSON.stringify(forecast),before,'Selection mutated the issued data');
+for(const missing of [null,{}, {scenarioForecasts:{mean:{hours:null}}}])assert.equal(select(missing,'mean').length,0);
+const fallback={hours:[{timeUtc:'2026-10-17T00:00:00Z',sourceColumn:'TWL',mllwStageFt:4}]};
+assert.equal(select(fallback,'mean'),fallback.hours);
+assert.equal(select(fallback,'lowEnd').length,0,'A bound substituted the mean curve');
+assert.equal(select(fallback,'highEnd').length,0,'A bound substituted the mean curve');
+assert.equal(select(forecast,'missing').length,0);
+console.log('Passed issued PETSS TWL mean, datum conversion, independent range selection, missing data and nonmutating reads');

@@ -58,6 +58,8 @@ try{
   check(data.nullSurrogate===null,'Missing NOAA level became a real water level');
   console.log('Historical source, cadence, daily peak, and navigation-order checks passed');
 
+  await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();
+  await page.waitForFunction(()=>document.body.classList.contains('map-3d-ready'),{},{timeout:90000});
   await page.setViewportSize({width:390,height:844});
   await page.waitForTimeout(1000);
   await page.evaluate(feature=>{openParcelFloodPrompt(feature,map.getCenter());},parcel);
@@ -80,7 +82,8 @@ try{
   await page.locator('#infoModalCloseBtn').tap();
   await page.waitForTimeout(100);
   check(await page.evaluate(()=>document.activeElement.id==='dataSourceHelpBtn'),'Help focus not restored to opener');
-  check(await page.evaluate(()=>!document.getElementById('hourSlider').closest('[inert]')),'Modal left the map inert after closing');
+  check(await page.evaluate(()=>!!document.getElementById('hourSlider').closest('[inert]')),'Open drawer left the map keyboard-active');
+  await page.getByRole('tab',{name:'Tools',exact:true}).click();
 
   // Deterministic provider fixtures; real form, normalization, parcel matching,
   // marker renderer, drawer and popup paths are exercised without rate limits.
@@ -108,6 +111,7 @@ try{
   const actualBounds=bounds.active.split(',').map(Number),expectedBounds=bounds.visible.flat();
   check(actualBounds.every((value,index)=>Number.isFinite(value)&&Math.abs(value-expectedBounds[index])<1e-9),'Active bounds differ from the visible renderer');
   await page.locator('#mobileControlsToggle').tap();
+  await page.getByRole('tab',{name:'Tools',exact:true}).click();
   await page.locator('#openDownloadModalBtn').tap();
   await page.locator('#exportFormatPngBtn').tap();
   await page.locator('#exportExtentCurrentBtn').tap();

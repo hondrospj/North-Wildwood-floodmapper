@@ -17,7 +17,7 @@ function fixture(html){
   getOverlayRecord:async(mode,stage)=>({url:'frame-'+stage,filename:'frame-'+stage}),getHydraulicOverlayRecord:async(mode,stage)=>({url:'frame-'+stage,filename:'frame-'+stage}),
   retainRasterObjectUrl:()=>()=>{},scheduleRasterObjectUrlCleanup(){},cancelTimelineSelection(){},toast(){},ensureMap(){},ensureOverlayBounds:async()=>{},markInitialFloodFrameReady(){},markInitialFloodFrameFailed(){},setFloodFrameStatus(){},updatePersistentDepthQueryPopup(){},getBoundaryDrivenOverlayBounds:()=>null,fitConfiguredInitialMapView(){},
   renderSelectionMeta(e){labels.push(e.stage);},renderTimelineMeta(){},updateNsiStructureImpactLayer(){},updateSliderProgress(){},hasDisplayedLongGaugeOutage:()=>false,GAUGE_OUTAGE_THRESHOLD_HOURS:72,renderLegend(){},buildNotes:()=>'',scheduleOverlayCatalogWarmup(){},preloadAroundHour(){}});
- for(const name of ['decodeFloodFrameImage','preloadImage','clearFloodLayer','renderFloodFrameWithRetry','reportFloodFrameFailure','waitForRecoveryFloodLayer','waitForFloodOverlayLoad','setFloodLayer','renderHour']){
+ for(const name of ['normalizeStageValue','decodeFloodFrameImage','preloadImage','clearFloodLayer','renderFloodFrameWithRetry','reportFloodFrameFailure','waitForRecoveryFloodLayer','waitForFloodOverlayLoad','setFloodLayer','renderHour']){
   const match=html.match(new RegExp('    (?:async )?function '+name+'\\([^\\n]*\\) \\{[\\s\\S]+?\\n    }'));
   if(match)new vm.Script(match[0]).runInContext(ctx);
  }

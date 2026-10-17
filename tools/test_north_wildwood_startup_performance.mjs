@@ -23,7 +23,7 @@ function extractFunction(name, sourceText = source) {
   throw new Error(`Unterminated browser function ${name}`);
 }
 
-const parserBlockingScripts = [...source.matchAll(/<script\s+src="([^"]+)"/g)].map(match => match[1]);
+const parserBlockingScripts = [...source.matchAll(/<script\s+src="([^"]+)"/g)].map(match => match[1].replace(/&(?:county|stability)=[^&]+/g, ''));
 assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
