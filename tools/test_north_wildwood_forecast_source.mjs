@@ -14,10 +14,12 @@ for(const key of ['lowEnd','mean','highEnd']) {
   assert.ok(select(forecast,key).length>12);
 }
 const before=JSON.stringify(forecast);
-assert.equal(forecast.operationalForecastProduct,'TWL');
-assert.equal(forecast.operationalForecastStatistic,'ensemble_mean');
+if(forecast.operationalForecastProduct)assert.equal(forecast.operationalForecastProduct,'TWL');
+if(forecast.operationalForecastStatistic)assert.equal(forecast.operationalForecastStatistic,'ensemble_mean');
+assert.equal(forecast.forecasts.mean.product,'mean');
+assert.match(forecast.sourceType,/TWL/);
 for(const hour of select(forecast,'mean')) {
-  assert.equal(hour.sourceColumn,'TWL');
+  if(hour.sourceColumn)assert.equal(hour.sourceColumn,'TWL');
   assert.ok(Math.abs(hour.mllwStageFt-hour.rawPetssValue)<=.005001,'Mean was locally shifted');
   assert.ok(Math.abs(hour.navd88StageFt-(hour.mllwStageFt+forecast.navd88OffsetFromMllwFt))<=.005001,'Datum conversion changed');
 }

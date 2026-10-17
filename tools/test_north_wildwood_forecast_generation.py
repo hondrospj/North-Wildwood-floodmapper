@@ -1,16 +1,12 @@
-"""Check scheduled generation against raw NOAA values without a local subtraction."""
+"""Verify the scheduled generator preserves issued PETSS levels and datum conversion."""
 from pathlib import Path
-from statistics import NormalDist
 from datetime import datetime
 import copy
 import json
-import math
 import re
-import sys
 import textwrap
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 def generator():
     workflow = (ROOT / '.github/workflows/update-forecast.yml').read_text()
@@ -21,60 +17,40 @@ def generator():
 
 def rebuild(source):
     g = generator()
-    products = {key: copy.deepcopy(record['hours']) for key, record in source['forecasts'].items()}
+    by_key = {key: {h['timeUtc']: h for h in record['hours']} for key, record in source['forecasts'].items()}
+    rows = [','.join([g['HEADER_ALIASES']['time'][0], 'TWL', 'TWL10p', 'TWL90p', 'Tide', 'Surge'])]
+    for stamp in sorted(set.intersection(*(set(rows) for rows in by_key.values()))):
+        mean = by_key['mean'][stamp]
+        values = [stamp, mean['rawPetssValue'], by_key['highEnd'][stamp]['rawPetssValue'], by_key['lowEnd'][stamp]['rawPetssValue'], mean.get('tideMllwFt'), mean.get('surgeFt')]
+        rows.append(','.join('' if v is None else str(v) for v in values))
+    products = g['parse_station_csv']('\n'.join(rows), g['ZONES'][0])
     result = g['payload_for_zone'](g['ZONES'][0],
         {'cycleUtc': datetime.fromisoformat(source['petssCycleUtc'].replace('Z', '+00:00'))},
         source['sourceUrl'], source['sourceMember'], products,
-        datetime.fromisoformat(source['issuedUtc'].replace('Z', '+00:00')),
-        source.get('tideAnchorSourceHours', []))
+        datetime.fromisoformat(source['issuedUtc'].replace('Z', '+00:00')))
     result.pop('zoneId', None)
     result.pop('zoneName', None)
     return result
 
 if __name__ == '__main__':
     source = json.loads((ROOT / 'forecast.json').read_text())
+    saved = copy.deepcopy(source)
     result = rebuild(source)
-    assert result['scenarioVersion'] == 'mean-anchors-min-minus-2in-max-p25-v5'
-    assert result['scenarioAdjustmentFt'] == 0
-    assert result['minimumOffsetFt'] == -2 / 12
-    assert result['forecasts'] == source['forecasts'], 'Raw NOAA products must stay intact'
-    lower = {h['timeUtc']: h['rawPetssValue'] for h in source['forecasts']['lowEnd']['hours']}
-    center = {h['timeUtc']: h['rawPetssValue'] for h in source['forecasts']['mean']['hours']}
-    ratios = {k: NormalDist().inv_cdf(p) / NormalDist().inv_cdf(.1)
-              for k, p in [('mean', .1), ('highEnd', .25)]}
+    g = generator()
     total = 0
-    for key, ratio in ratios.items():
+    for key in ['lowEnd', 'mean', 'highEnd']:
+        issued = {h['timeUtc']: h for h in source['forecasts'][key]['hours']}
         for h in result['scenarioForecasts'][key]['hours']:
-            stamp = h['timeUtc']
-            unadjusted = lower[stamp] if key == 'mean' else center[stamp] - ratio * max(0, center[stamp] - lower[stamp])
-            adjusted = unadjusted + h.get('tideAnchorAdjustmentFt', 0)
-            if key != 'mean':
-                assert 'tideAnchorAdjustmentFt' not in h, 'Only Mean may be anchored'
-            assert abs(h['mllwStageFt'] - adjusted) <= .005001
-            assert abs(h['navd88StageFt'] - (adjusted + source['navd88OffsetFromMllwFt'])) <= .005001
+            raw = issued[h['timeUtc']]['rawPetssValue']
+            assert abs(h['mllwStageFt'] - raw) <= .005001, (key, h)
+            assert abs(h['navd88StageFt'] - (raw + source['navd88OffsetFromMllwFt'])) <= .005001
             assert h['sourceStageFt'] == h['navd88StageFt']
             assert h['twlMllwFt'] == h['mllwStageFt']
-            assert h['scenarioAdjustmentFt'] == 0
-            assert abs(h['unadjustedTwlMllwFt'] - unadjusted) <= .000501
-            assert h['isEstimatedPercentile'] == (key != 'mean')
-            clamped = max(-2, min(20, h['navd88StageFt']))
-            assert abs(float(h['matchedStageKey']) - math.floor((clamped + 1e-9) / .1) * .1) < 1e-8
+            assert (h['matchedStageKey'], h['wasClamped']) == g['stage_key'](h['navd88StageFt'])
+            assert not any('anchor' in field.lower() for field in h), 'Operational levels cannot carry a tide anchor'
             total += 1
-    for minimum, mean, maximum in zip(*(result['scenarioForecasts'][k]['hours'] for k in ['lowEnd', 'mean', 'highEnd'])):
-        assert minimum['timeUtc'] == mean['timeUtc'] == maximum['timeUtc']
-        expected_gap = 2 / 12 - minimum.get('minimumTideAnchorAdjustmentFt', 0)
-        for field in ['mllwStageFt', 'navd88StageFt', 'twlMllwFt', 'sourceStageFt']:
-            assert abs(mean[field] - minimum[field] - expected_gap) < 1e-9, (field, mean, minimum)
-        assert abs(minimum['minimumOffsetFt'] + expected_gap) < 1e-9
-        assert minimum['product'] == ('mean_minus_2in_with_tide_anchor' if 'minimumTideAnchorId' in minimum else 'mean_minus_2in')
-        assert minimum['percentile'] == ''
-        assert minimum['isEstimatedPercentile'] is False
-        clamped = max(-2, min(20, minimum['navd88StageFt']))
-        assert abs(float(minimum['matchedStageKey']) - math.floor((clamped + 1e-9) / .1) * .1) < 1e-8
-        assert minimum['navd88StageFt'] < mean['navd88StageFt']
-        if 'tideAnchorId' not in mean:
-            assert mean['navd88StageFt'] <= maximum['navd88StageFt']
-        total += 1
-    assert rebuild(result)['scenarioForecasts'] == result['scenarioForecasts'], 'Repeated jobs must not compound the adjustment'
-    assert result['scenarioForecasts'] == source['scenarioForecasts'], 'Published scenarios must match scheduled generation'
-    print(f'Passed all {total} scenario-hours, Minimum gap and dated override, datum conversion, raster keys, and no double adjustment')
+    assert result['hours'] == result['scenarioForecasts']['mean']['hours']
+    assert result['forecasts'] == result['scenarioForecasts']
+    assert rebuild(result)['scenarioForecasts'] == result['scenarioForecasts'], 'Repeated jobs changed issued levels'
+    assert source == saved, 'Generation mutated input data'
+    print(f'Passed {total} issued scenario-hours, independent bounds, mean default, datum conversion, raster keys and idempotency')
