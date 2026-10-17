@@ -11,7 +11,7 @@ page.on('pageerror',error=>errors.push(error.message));
 page.setDefaultTimeout(15000);
 async function activate(selector){
   const control=page.locator(selector);
-  if(await control.evaluate(el=>!!el.closest('#leftPanel'))&&await page.locator('#mobileControlsToggle').isVisible())await page.locator('#mobileControlsToggle')[touch?'tap':'click']();
+  if(await control.evaluate(el=>!!el.closest('#leftPanel'))&&await page.locator('#mobileControlsToggle').isVisible()&&!await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open')))await page.locator('#mobileControlsToggle')[touch?'tap':'click']();
   const group=await control.evaluate(el=>el.closest('[data-nww-group]')?.dataset.nwwGroup);
   if(group&&await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open'))){
     const tab=page.locator(`#nwwMobileControlHeader [data-group="${group}"]`);
@@ -33,7 +33,9 @@ try{
   for(let i=0;i<20;i++){
     await activate('#mobileControlsToggle');
     if(!await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open')))throw Error('Drawer did not open');
-    if(await page.locator('#observedCalendarOpenBtn').isVisible())await activate('#observedCalendarOpenBtn');
+    // The previous cycle ends in Tools. Select Forecast before opening its
+    // calendar, even when that control is hidden by the current section.
+    await activate('#observedCalendarOpenBtn');
     // Hold the first mouse click through delayed layout timers. Detaching the
     // calendar card during this gesture suppresses click in WebKit.
     if(!touch&&i===0)await page.locator('#calendarTitleBtn').click({delay:400});
