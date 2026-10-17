@@ -14,6 +14,9 @@ function check(ok,label,details){checks.push(label);if(!ok)failures.push({label,
 async function settled(page){await page.waitForTimeout(900);}
 async function activate(page,selector){
   const control=page.locator(selector);
+  if(await control.evaluate(el=>!!el.closest('#leftPanel'))&&await page.locator('#mobileControlsToggle').isVisible()){
+    if(touchPages.has(page))await page.locator('#mobileControlsToggle').tap();else await page.locator('#mobileControlsToggle').click();
+  }
   // Mobile controls now have sections; navigate just as a user would.
   const group=await control.evaluate(el=>el.closest('[data-nww-group]')?.dataset.nwwGroup);
   if(group&&await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open'))){

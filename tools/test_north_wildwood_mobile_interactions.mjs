@@ -11,6 +11,7 @@ page.on('pageerror',error=>errors.push(error.message));
 page.setDefaultTimeout(15000);
 async function activate(selector){
   const control=page.locator(selector);
+  if(await control.evaluate(el=>!!el.closest('#leftPanel'))&&await page.locator('#mobileControlsToggle').isVisible())await page.locator('#mobileControlsToggle')[touch?'tap':'click']();
   const group=await control.evaluate(el=>el.closest('[data-nww-group]')?.dataset.nwwGroup);
   if(group&&await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open'))){
     const tab=page.locator(`#nwwMobileControlHeader [data-group="${group}"]`);
