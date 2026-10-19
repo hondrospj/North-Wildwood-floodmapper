@@ -26288,6 +26288,15 @@ html body[data-county-viewport] #timelineBubble{left:24px!important;right:auto!i
 }
 html body[data-county-viewport].top-tides-modal-open #mapTitleBadge{visibility:hidden!important;opacity:0!important;pointer-events:none!important;}
 </style>
+<style id="shorely-timeline-frame-alignment-20261019">
+/* Desktop day bands share the native slider's frame positions. Mobile keeps
+   its existing selected-day layout; the variable switches on resize. */
+@media (min-width:901px) {
+  html body #timelineDayTabs .timeline-day {
+    --shorely-timeline-day-flex:var(--shorely-timeline-frame-weight,1);
+  }
+}
+</style>
 </head>
 <body data-county-viewport="20261017" data-county-mobile="20261015" data-county-fix="20261015" class="nw-app-loading" data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261017" data-flood-frame-resilience="retain-retry-20261013" data-floodmapper-reference="20261017" data-fleet-viewport-existing="true" data-floodmapper-unified="20261017.3">
   <div id="nwSiteLoader" role="status" aria-live="polite" aria-label="Loading North Wildwood Flood Mapper">
@@ -29764,6 +29773,8 @@ function setDatumHelpOpen(isOpen) {
     function buildTimelineGroupGradient(startIndex, endIndex, sampleCenters = false) {
       const entries = currentSeriesHours.slice(startIndex, endIndex + 1);
       if (!entries.length) return "";
+      // Whole-series day bands meet halfway between adjacent frame centers.
+      // A selected-day mobile slider instead spans its first and last centers.
       const firstEdge = sampleCenters ? startIndex : Math.max(0, startIndex - 0.5);
       const lastEdge = sampleCenters ? endIndex : Math.min(currentSeriesHours.length - 1, endIndex + 0.5);
       const span = lastEdge - firstEdge;
@@ -35677,9 +35688,14 @@ function getEntryESTDate(entry) {
           btn.setAttribute("aria-label", `Gauge inoperable for more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} hours`);
           btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable North Wildwood or Stone Harbor gauge level`;
         }
-        const firstEdge = Math.max(0, group.start - 0.5);
-        const lastEdge = Math.min(currentSeriesHours.length - 1, group.end + 0.5);
-        btn.style.flex = `${Math.max(0.5, lastEdge - firstEdge)} 1 0`;
+        // The first and last frames occupy half a slider interval.
+        const timelineFrameWeight = currentSeriesHours.length <= 1 ? 1
+          : Math.min(currentSeriesHours.length - 1, group.end + 0.5) - Math.max(0, group.start - 0.5);
+        btn.dataset.start = String(group.start);
+        btn.dataset.end = String(group.end);
+        btn.style.setProperty("--shorely-timeline-frame-weight", String(timelineFrameWeight));
+        // Inline priority survives the town/reference styles' equal-flex rules.
+        btn.style.setProperty("flex", "var(--shorely-timeline-day-flex, 1) 1 0", "important");
         const tideGradient = gaugeInoperable ? null : buildTimelineGroupGradient(group.start, group.end, isMobileTimeline());
         if (tideGradient) {
           btn.style.setProperty("--timeline-day-gradient", tideGradient);
