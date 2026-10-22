@@ -7,9 +7,9 @@
   "datum": "NAVD88",
   "timeZone": "America/New_York",
   "method": "Hourly maxima derived from the city-primary composite 15-minute archive; Stone Harbor supplies missing city anchors",
-  "lastProcessedISO": "2026-10-21T06:42:41Z",
+  "lastProcessedISO": "2026-10-22T04:48:30Z",
   "archiveStartDate": "2007-10-01",
-  "archiveEndDate": "2026-10-21",
+  "archiveEndDate": "2026-10-22",
   "navd88OffsetFromMllwFt": -2.75,
   "thresholdsMLLW": {
     "minorLow": 6.0,
@@ -1678439,9 +1678439,9 @@
     },
     {
       "date": "2026-10-21",
-      "classification": "none",
-      "peakNAVD88": 1.39,
-      "peakMLLW": 4.14,
+      "classification": "minor",
+      "peakNAVD88": 3.92,
+      "peakMLLW": 6.67,
       "hours": [
         {
           "hourIndex": 0,
@@ -1678459,16 +1678459,254 @@
           "timeLocal": "2026-10-21T01:00",
           "timeEST": "2026-10-21T01:00",
           "displayTimeEST": "2026-10-21T01:00",
-          "navd88StageFt": 1.39,
-          "mllwStageFt": 4.14,
+          "navd88StageFt": 1.54,
+          "mllwStageFt": 4.29,
           "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 2,
+          "timeUtc": "2026-10-21T06:00:00Z",
+          "timeLocal": "2026-10-21T02:00",
+          "timeEST": "2026-10-21T02:00",
+          "displayTimeEST": "2026-10-21T02:00",
+          "navd88StageFt": 2.16,
+          "mllwStageFt": 4.91,
+          "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 3,
+          "timeUtc": "2026-10-21T07:00:00Z",
+          "timeLocal": "2026-10-21T03:00",
+          "timeEST": "2026-10-21T03:00",
+          "displayTimeEST": "2026-10-21T03:00",
+          "navd88StageFt": 2.66,
+          "mllwStageFt": 5.41,
+          "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 4,
+          "timeUtc": "2026-10-21T08:00:00Z",
+          "timeLocal": "2026-10-21T04:00",
+          "timeEST": "2026-10-21T04:00",
+          "displayTimeEST": "2026-10-21T04:00",
+          "navd88StageFt": 3.04,
+          "mllwStageFt": 5.79,
+          "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 5,
+          "timeUtc": "2026-10-21T09:00:00Z",
+          "timeLocal": "2026-10-21T05:00",
+          "timeEST": "2026-10-21T05:00",
+          "displayTimeEST": "2026-10-21T05:00",
+          "navd88StageFt": 3.24,
+          "mllwStageFt": 5.99,
+          "hydraulicPhase": "slack"
+        },
+        {
+          "hourIndex": 6,
+          "timeUtc": "2026-10-21T10:00:00Z",
+          "timeLocal": "2026-10-21T06:00",
+          "timeEST": "2026-10-21T06:00",
+          "displayTimeEST": "2026-10-21T06:00",
+          "navd88StageFt": 3.24,
+          "mllwStageFt": 5.99,
+          "hydraulicPhase": "slack"
+        },
+        {
+          "hourIndex": 7,
+          "timeUtc": "2026-10-21T11:00:00Z",
+          "timeLocal": "2026-10-21T07:00",
+          "timeEST": "2026-10-21T07:00",
+          "displayTimeEST": "2026-10-21T07:00",
+          "navd88StageFt": 2.95,
+          "mllwStageFt": 5.7,
+          "hydraulicPhase": "draining"
+        },
+        {
+          "hourIndex": 8,
+          "timeUtc": "2026-10-21T12:00:00Z",
+          "timeLocal": "2026-10-21T08:00",
+          "timeEST": "2026-10-21T08:00",
+          "displayTimeEST": "2026-10-21T08:00",
+          "navd88StageFt": 2.53,
+          "mllwStageFt": 5.28,
+          "hydraulicPhase": "draining"
+        },
+        {
+          "hourIndex": 9,
+          "timeUtc": "2026-10-21T13:00:00Z",
+          "timeLocal": "2026-10-21T09:00",
+          "timeEST": "2026-10-21T09:00",
+          "displayTimeEST": "2026-10-21T09:00",
+          "navd88StageFt": 1.96,
+          "mllwStageFt": 4.71,
+          "hydraulicPhase": "draining"
+        },
+        {
+          "hourIndex": 10,
+          "timeUtc": "2026-10-21T14:00:00Z",
+          "timeLocal": "2026-10-21T10:00",
+          "timeEST": "2026-10-21T10:00",
+          "displayTimeEST": "2026-10-21T10:00",
+          "navd88StageFt": 1.36,
+          "mllwStageFt": 4.11,
+          "hydraulicPhase": "draining"
+        },
+        {
+          "hourIndex": 11,
+          "timeUtc": "2026-10-21T15:00:00Z",
+          "timeLocal": "2026-10-21T11:00",
+          "timeEST": "2026-10-21T11:00",
+          "displayTimeEST": "2026-10-21T11:00",
+          "navd88StageFt": 0.96,
+          "mllwStageFt": 3.71,
+          "hydraulicPhase": "slack"
+        },
+        {
+          "hourIndex": 12,
+          "timeUtc": "2026-10-21T16:00:00Z",
+          "timeLocal": "2026-10-21T12:00",
+          "timeEST": "2026-10-21T12:00",
+          "displayTimeEST": "2026-10-21T12:00",
+          "navd88StageFt": 1.37,
+          "mllwStageFt": 4.12,
+          "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 13,
+          "timeUtc": "2026-10-21T17:00:00Z",
+          "timeLocal": "2026-10-21T13:00",
+          "timeEST": "2026-10-21T13:00",
+          "displayTimeEST": "2026-10-21T13:00",
+          "navd88StageFt": 1.92,
+          "mllwStageFt": 4.67,
+          "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 14,
+          "timeUtc": "2026-10-21T18:00:00Z",
+          "timeLocal": "2026-10-21T14:00",
+          "timeEST": "2026-10-21T14:00",
+          "displayTimeEST": "2026-10-21T14:00",
+          "navd88StageFt": 2.54,
+          "mllwStageFt": 5.29,
+          "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 15,
+          "timeUtc": "2026-10-21T19:00:00Z",
+          "timeLocal": "2026-10-21T15:00",
+          "timeEST": "2026-10-21T15:00",
+          "displayTimeEST": "2026-10-21T15:00",
+          "navd88StageFt": 3.05,
+          "mllwStageFt": 5.8,
+          "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 16,
+          "timeUtc": "2026-10-21T20:00:00Z",
+          "timeLocal": "2026-10-21T16:00",
+          "timeEST": "2026-10-21T16:00",
+          "displayTimeEST": "2026-10-21T16:00",
+          "navd88StageFt": 3.56,
+          "mllwStageFt": 6.31,
+          "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 17,
+          "timeUtc": "2026-10-21T21:00:00Z",
+          "timeLocal": "2026-10-21T17:00",
+          "timeEST": "2026-10-21T17:00",
+          "displayTimeEST": "2026-10-21T17:00",
+          "navd88StageFt": 3.87,
+          "mllwStageFt": 6.62,
+          "hydraulicPhase": "filling"
+        },
+        {
+          "hourIndex": 18,
+          "timeUtc": "2026-10-21T22:00:00Z",
+          "timeLocal": "2026-10-21T18:00",
+          "timeEST": "2026-10-21T18:00",
+          "displayTimeEST": "2026-10-21T18:00",
+          "navd88StageFt": 3.92,
+          "mllwStageFt": 6.67,
+          "hydraulicPhase": "slack"
+        },
+        {
+          "hourIndex": 19,
+          "timeUtc": "2026-10-21T23:00:00Z",
+          "timeLocal": "2026-10-21T19:00",
+          "timeEST": "2026-10-21T19:00",
+          "displayTimeEST": "2026-10-21T19:00",
+          "navd88StageFt": 3.79,
+          "mllwStageFt": 6.54,
+          "hydraulicPhase": "draining"
+        },
+        {
+          "hourIndex": 20,
+          "timeUtc": "2026-10-22T00:00:00Z",
+          "timeLocal": "2026-10-21T20:00",
+          "timeEST": "2026-10-21T20:00",
+          "displayTimeEST": "2026-10-21T20:00",
+          "navd88StageFt": 3.26,
+          "mllwStageFt": 6.01,
+          "hydraulicPhase": "draining"
+        },
+        {
+          "hourIndex": 21,
+          "timeUtc": "2026-10-22T01:00:00Z",
+          "timeLocal": "2026-10-21T21:00",
+          "timeEST": "2026-10-21T21:00",
+          "displayTimeEST": "2026-10-21T21:00",
+          "navd88StageFt": 2.63,
+          "mllwStageFt": 5.38,
+          "hydraulicPhase": "draining"
+        },
+        {
+          "hourIndex": 22,
+          "timeUtc": "2026-10-22T02:00:00Z",
+          "timeLocal": "2026-10-21T22:00",
+          "timeEST": "2026-10-21T22:00",
+          "displayTimeEST": "2026-10-21T22:00",
+          "navd88StageFt": 1.98,
+          "mllwStageFt": 4.73,
+          "hydraulicPhase": "draining"
+        },
+        {
+          "hourIndex": 23,
+          "timeUtc": "2026-10-22T03:00:00Z",
+          "timeLocal": "2026-10-21T23:00",
+          "timeEST": "2026-10-21T23:00",
+          "displayTimeEST": "2026-10-21T23:00",
+          "navd88StageFt": 1.26,
+          "mllwStageFt": 4.01,
+          "hydraulicPhase": "draining"
+        }
+      ]
+    },
+    {
+      "date": "2026-10-22",
+      "classification": "none",
+      "peakNAVD88": 0.78,
+      "peakMLLW": 3.53,
+      "hours": [
+        {
+          "hourIndex": 0,
+          "timeUtc": "2026-10-22T04:00:00Z",
+          "timeLocal": "2026-10-22T00:00",
+          "timeEST": "2026-10-22T00:00",
+          "displayTimeEST": "2026-10-22T00:00",
+          "navd88StageFt": 0.78,
+          "mllwStageFt": 3.53,
+          "hydraulicPhase": "slack"
         }
       ]
     }
   ],
   "fullArchiveBuiltISO": "2026-06-29T21:25:49Z",
   "sourceUrlTemplate": "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=01411360&parameterCd=72279&startDT=2026-06-27T21%3A00%3A00Z&endDT=2026-06-29T21%3A00%3A00Z&siteStatus=all",
-  "lastIncrementalUpdateISO": "2026-10-21T06:42:41Z",
+  "lastIncrementalUpdateISO": "2026-10-22T04:48:30Z",
   "schema": "north-wildwood-composite-gauge-hourly-v2",
   "jonasCalibration": {
     "date": "2016-01-23",
