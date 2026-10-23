@@ -861,12 +861,11 @@ assert.match(extractFunction("buildStableExportGifPalette"), /globalPalette: tru
 assert.match(extractFunction("exportGif"), /globalPalette: stableGlobalPalette/);
 assert.doesNotMatch(SOURCE, /globalPalette: false/);
 assert.doesNotMatch(SOURCE, /seedGifLegendPalette/);
-assert.match(SOURCE, /\.export-stage-legend\[data-export-legend-mode="depth"\]\{[\s\S]+background:#0b1220 !important/);
-assert.match(SOURCE, /id="north-wildwood-export-final-qa"/);
-assert.match(SOURCE, /data-export-aspect="16:9"|font-size:60px !important/);
-assert.match(SOURCE, /data-export-aspect="1:1"[\s\S]+font-size:52px !important/);
-assert.match(SOURCE, /data-export-aspect="4:5"[\s\S]+font-size:50px !important/);
-assert.match(SOURCE, /data-export-aspect="9:16"[\s\S]+font-size:50px !important/);
+assert.match(SOURCE, /#exportFooter[^{}]*\{[^}]*background:#0b1424/);
+assert.match(extractFunction("drawExportTimestampOnCanvas"), /getExportFooterLayout[\s\S]+getExportTimestampRows/,
+  "GIF labels must share the responsive footer geometry used by PNG captures");
+assert.match(extractFunction("updateExportTimestampLabel"), /getExportFooterLayout[\s\S]+getExportTimestampRows/,
+  "PNG labels must use the same responsive footer typography");
 
 const modeledStormLabelContext = vm.createContext({ Number });
 vm.runInContext(
