@@ -4,6 +4,8 @@ import vm from "node:vm";
 
 const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const source = fs.readFileSync(new URL("../assets/export-preview.js", import.meta.url), "utf8");
+assert.match(html, /<script defer src="assets\/export-preview\.js\?v=[^"]+"/,
+  "Preview UI must not add a parser-blocking startup request");
 function nativeFunction(name) {
   const match = html.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n    }`));
   assert.ok(match, `Missing native ${name} function`);
