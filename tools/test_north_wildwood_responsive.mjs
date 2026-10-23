@@ -2,6 +2,7 @@
 // PLAYWRIGHT_MODULE and CHROME_PATH follow test_north_wildwood_layout.mjs.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {revealExportControl} from './browser_export_review.mjs';
 const {chromium, webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const engine=process.env.NWW_BROWSER==='webkit' ? webkit : chromium;
 const browser=await engine.launch({headless:true,...(process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH}:{}),...(engine===chromium?{args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']}: {})});
@@ -25,6 +26,7 @@ async function activate(page,selector){
       if(touchPages.has(page))await tab.tap();else await tab.click();
     }
   }
+  await revealExportControl(page,selector,{touch:touchPages.has(page)});
   try{if(touchPages.has(page))await control.tap();else await control.click();}
   catch(error){
     console.error('Control failure',selector,await control.evaluate(el=>{

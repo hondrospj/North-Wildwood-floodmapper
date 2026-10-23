@@ -1,5 +1,21 @@
 # North Wildwood Floodmapper
 
+## Development
+
+The browser application is authored in [`tools/app`](tools/app/README.md).
+`index.html`, `assets/app/*.js`, and `assets/styles/*.css` are generated outputs;
+edit the template or domain sources, then run
+`node tools/build_north_wildwood_app.mjs`. Verify with
+`node tools/build_north_wildwood_app.mjs --check` and
+`node tools/test_north_wildwood_refactor_parity.mjs --self-test`.
+The pinned parity fixture protects this refactor's unchanged UI and scientific
+behavior; deliberate future changes require an explicitly reviewed fixture update.
+
+Forecast generation lives in `tools/update_north_wildwood_forecast.py`, with
+offline fixture tests in `tools/test_north_wildwood_forecast_generation.py`.
+Production publishing validates data schemas, forecast coverage/source age,
+and all required suites for the exact application commit before activation.
+
 ## Phase-aware conditional connectivity
 
 The dashboard keeps its later gauge archives, return-interval storms, exports,

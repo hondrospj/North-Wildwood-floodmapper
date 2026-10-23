@@ -2,6 +2,7 @@
 // Run with the same NWW_TEST_URL / PLAYWRIGHT_MODULE / CHROME_PATH as the layout suite.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { revealExportControl } from './browser_export_review.mjs';
 const {chromium,webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const engine=process.env.NWW_BROWSER==='webkit'?webkit:chromium;
 const browser=await engine.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{}),...(engine===chromium?{args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']}: {})});
@@ -114,6 +115,7 @@ try{
   await page.getByRole('tab',{name:'Tools',exact:true}).click();
   await page.locator('#openDownloadModalBtn').tap();
   await page.locator('#exportFormatPngBtn').tap();
+  await revealExportControl(page, '#exportExtentCurrentBtn', { touch: true });
   await page.locator('#exportExtentCurrentBtn').tap();
   const downloadPromise=page.waitForEvent('download',{timeout:120000});
   await page.locator('#downloadBtn').tap();
