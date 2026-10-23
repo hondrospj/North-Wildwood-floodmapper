@@ -1,10 +1,11 @@
+import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const sourcePath = process.argv[2];
 if (!sourcePath) throw new Error('Usage: node popup-focus.mjs /path/to/north-wildwood-3d.js');
-const source = fs.readFileSync(sourcePath, 'utf8');
+const source = readAppSource(sourcePath);
 const body = source.match(/updatePersistentDepthQueryPopup = function \(\) \{([\s\S]*?)\n  \};/)?.[1];
 assert.ok(body, 'The actual popup refresh wrapper must be present');
 const refresh = new Function('env', `with(env) { ${body}\n }`);
