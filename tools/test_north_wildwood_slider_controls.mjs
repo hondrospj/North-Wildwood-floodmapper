@@ -12,8 +12,8 @@ const context = vm.createContext({
   stopPlayback: () => {}, toast: message => {throw Error(message);},
   renderHour: async index => {context.cancelTimelineSelection(); context.currentHourIndex=index; renders.push(index);}
 });
-vm.runInContext('let timelineSelectionFrame=0; let pendingTimelineSelection=null;',context);
-for(const name of ['cancelTimelineSelection','flushTimelineSelection','queueTimelineSelection','stepTimeline']) {
+vm.runInContext('let timelineSelectionFrame=0; let pendingTimelineSelection=null; let requestedTimelineSelection=null;',context);
+for(const name of ['getTimelineNavigationIndex','cancelTimelineSelection','flushTimelineSelection','queueTimelineSelection','stepTimeline']) {
   const code = html.match(new RegExp(`    function ${name}\\([\\s\\S]*?\\n    }`))?.[0];
   assert.ok(code,name);vm.runInContext(code,context);
 }

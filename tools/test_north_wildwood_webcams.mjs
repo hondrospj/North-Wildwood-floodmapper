@@ -19,9 +19,13 @@ try {
     assert.equal(requests.length, 0, 'No camera media before selection');
     assert.equal(await page.locator('#webcamsBrowse').count(), 0);
     async function openControls() {
-      if (mobile && !await page.locator('body').evaluate(el => el.classList.contains('mobile-controls-open'))) {
-        await page.locator('#mobileControlsToggle').click();
-        if (await page.locator('#nwwMapTab').isVisible()) await page.locator('#nwwMapTab').click();
+      if (mobile) {
+        if (!await page.locator('body').evaluate(el => el.classList.contains('mobile-controls-open'))) {
+          await page.locator('#mobileControlsToggle').click();
+        }
+        // The app owns this tab's markup. Exercise its visible semantics rather
+        // than the optional ID supplied by the older mobile navigation module.
+        await page.getByRole('tab', { name: 'Map layers', exact: true }).click();
       }
       await page.locator('#webcamsToggle').click({ trial: true });
     }

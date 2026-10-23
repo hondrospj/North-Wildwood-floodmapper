@@ -26506,6 +26506,19 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
   }
 }
 </style>
+<style id="north-wildwood-camera-viewport-20261023">
+/* Keep the existing camera card surface, width and controls in short windows. */
+#webcamPanel[data-viewport-overlay="true"] {
+  position:fixed;
+  z-index:10050;
+}
+#webcamPanel[data-viewport-overlay="true"] .webcam-heading {
+  position:sticky;
+  top:0;
+  z-index:1;
+  background:#121d2d;
+}
+</style>
 </head>
 <body data-county-viewport="20261017" data-county-mobile="20261015" data-county-fix="20261015" class="nw-app-loading" data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261017" data-flood-frame-resilience="retain-retry-20261013" data-floodmapper-reference="20261017" data-fleet-viewport-existing="true" data-floodmapper-unified="20261017.3">
   <div id="nwSiteLoader" role="status" aria-live="polite" aria-label="Loading North Wildwood Flood Mapper">
@@ -27879,6 +27892,7 @@ function cloneStyleObject(value) {
     let persistentDepthQueryContext = null;
     let selectedParcelFeature = null;
     let mapClickMode = "building";
+    let mapQueryGeneration = 0;
 
     let exportMap = null;
     let exportBasemapColorLayer = null;
@@ -31983,6 +31997,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
     function setMapClickMode(mode, options = {}) {
+      ++mapQueryGeneration;
       mapClickMode = mode === "depth" ? "depth" : "building";
       updateMapClickModeControl();
       if (options.closePopup !== false && persistentFloodPopup && map?.hasLayer(persistentFloodPopup)) {
@@ -35701,6 +35716,8 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
 
     function cancelPendingFloodFrame(invalidate = true) {
       if (invalidate) ++lastRenderToken;
+      cancelTimelineSelection();
+      requestedTimelineSelection = null;
       const pending = pendingFloodLayer;
       pendingFloodLayer = null;
       if (pending && pending !== currentFloodLayer && map?.hasLayer(pending)) {
@@ -35723,6 +35740,8 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       if (currentFloodLayer && map?.hasLayer(currentFloodLayer)) map.removeLayer(currentFloodLayer);
       pendingFloodLayer = null;
       currentFloodLayer = null;
+      updateNsiStructureImpactLayer();
+      updatePersistentDepthQueryPopup();
       scheduleRasterObjectUrlCleanup();
     }
 
@@ -37178,6 +37197,7 @@ function formatSelectedObservedDate(dateStr) {
       const previousHourIndex = currentHourIndex;
       const requestedSeries = currentSeriesHours;
       const token = ++lastRenderToken;
+      requestedTimelineSelection = { series: requestedSeries, index, token };
       // Keep the last displayed frame visible while its replacement loads.
       floodFrameState = "loading";
       setFloodFrameStatus("", "loading");
@@ -37201,6 +37221,7 @@ function formatSelectedObservedDate(dateStr) {
           ? `Gauge inoperable: more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} consecutive hours are unavailable.`
           : "No observed record for this time.");
         ++lastRenderToken;
+        requestedTimelineSelection = null;
         clearFloodLayer();
         setFloodFrameStatus("Water-level data are unavailable for this time.", "error");
         return;
@@ -37234,6 +37255,7 @@ function formatSelectedObservedDate(dateStr) {
         : setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours), token);
       if (token !== lastRenderToken || requestedSeries !== currentSeriesHours) return false;
       if (!ready) {
+        requestedTimelineSelection = null;
         currentHourIndex = previousHourIndex;
         slider.value = String(previousHourIndex);
         updateSliderProgress();
@@ -37244,6 +37266,7 @@ function formatSelectedObservedDate(dateStr) {
         return false;
       }
       currentHourIndex = index;
+      requestedTimelineSelection = null;
       renderSelectionMeta(entry, rawStage, displayStage);
       renderTimelineMeta(entry);
       updateNsiStructureImpactLayer();
@@ -37259,6 +37282,12 @@ function formatSelectedObservedDate(dateStr) {
     // flushes immediately; any other navigation cancels the queued selection.
     let timelineSelectionFrame = 0;
     let pendingTimelineSelection = null;
+    let requestedTimelineSelection = null;
+    function getTimelineNavigationIndex() {
+      if (pendingTimelineSelection?.series === currentSeriesHours) return pendingTimelineSelection.index;
+      if (requestedTimelineSelection?.series === currentSeriesHours) return requestedTimelineSelection.index;
+      return currentHourIndex;
+    }
     function cancelTimelineSelection() {
       if (timelineSelectionFrame) cancelAnimationFrame(timelineSelectionFrame);
       timelineSelectionFrame = 0;
@@ -37280,7 +37309,7 @@ function formatSelectedObservedDate(dateStr) {
     }
     function stepTimeline(direction) {
       stopPlayback();
-      const selected = pendingTimelineSelection?.index ?? currentHourIndex;
+      const selected = getTimelineNavigationIndex();
       queueTimelineSelection(selected + direction, true);
     }
 
@@ -38481,18 +38510,23 @@ function populateCalendarSelectors() {
     async function stepSeriesBy(delta) {
       if (!currentSeriesHours.length) return;
 
-      const nextIndex = currentHourIndex + delta;
+      const navigationIndex = getTimelineNavigationIndex();
+      const nextIndex = navigationIndex + delta;
       if (nextIndex >= 0 && nextIndex < currentSeriesHours.length) {
         await renderHour(nextIndex);
         return;
       }
 
       if (currentViewType === "observed-day" && selectedObservedDate) {
-        const neighborDate = getNeighborObservedDate(selectedObservedDate, delta > 0 ? 1 : -1);
+        const dailyMaximum = getTimelineIntervalMinutes() === 1440;
+        const displayedDate = dailyMaximum
+          ? currentSeriesHours[navigationIndex]?.observedDate || selectedObservedDate
+          : selectedObservedDate;
+        const neighborDate = getNeighborObservedDate(displayedDate, delta > 0 ? 1 : -1);
         if (neighborDate) {
           const wasPlaying = Boolean(playTimer);
-          await loadObservedDay(neighborDate, delta > 0 ? 0 : null, null, { preservePlayback: wasPlaying });
-          if (delta < 0 && currentSeriesHours.length) {
+          await loadObservedDay(neighborDate, !dailyMaximum && delta > 0 ? 0 : null, null, { preservePlayback: wasPlaying });
+          if (!dailyMaximum && delta < 0 && currentSeriesHours.length) {
             await renderHour(currentSeriesHours.length - 1);
           }
           if (delta > 0 && wasPlaying) {
@@ -39025,6 +39059,12 @@ function startPlayback() {
         '</div>';
     }
 
+    function openNsiStructurePopup(feature, latlng) {
+      const popup = openPersistentFloodPopup(latlng, buildNsiStructurePopup(feature), 360);
+      persistentDepthQueryContext = { popup, kind: "structure", feature };
+      return popup;
+    }
+
     function updateNsiStructureImpactLayer() {
       if (!nsiStructuresLayer) return;
       const stage = getSelectedStageNavd88();
@@ -39076,7 +39116,7 @@ function startPlayback() {
               onEachFeature: (feature, layer) => {
                 layer.on("click", event => {
                   if (event?.originalEvent) event.originalEvent._parcelHandled = true;
-                  openPersistentFloodPopup(event.latlng, buildNsiStructurePopup(feature), 360);
+                  openNsiStructurePopup(feature, event.latlng);
                 });
               }
             });
@@ -39735,6 +39775,11 @@ function startPlayback() {
       const context = persistentDepthQueryContext;
       const popup = persistentFloodPopup;
       if (!context || !popup || context.popup !== popup || !map?.hasLayer(popup)) return;
+      if (context.kind === "structure") {
+        popup.setContent(buildNsiStructurePopup(context.feature));
+        popup.update();
+        return;
+      }
       if (context.kind === "physics") {
         // Physics values belong to one frame; close them when navigation starts.
         if (floodFrameState !== "ready") {
@@ -39790,13 +39835,17 @@ function startPlayback() {
 
     async function handleDepthQueryClick(event) {
       if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
+      const queryGeneration = ++mapQueryGeneration;
+      const queryMode = mapClickMode;
+      const queryRenderToken = lastRenderToken;
+      const isCurrentQuery = () => queryGeneration === mapQueryGeneration && queryMode === mapClickMode && queryRenderToken === lastRenderToken;
       try {
         if (mapClickMode === "building" && parcelInfoInteractionEnabled()) {
           const nsiEnabled = document.getElementById("nsiStructuresToggle")?.classList.contains("on");
           if (nsiEnabled) {
             const structureFeature = findNsiStructureFeatureForLocation(event.latlng.lat, event.latlng.lng);
             if (structureFeature) {
-              openPersistentFloodPopup(event.latlng, buildNsiStructurePopup(structureFeature), 360);
+              openNsiStructurePopup(structureFeature, event.latlng);
               return;
             }
           }
@@ -39813,6 +39862,7 @@ function startPlayback() {
             event.latlng.lng,
             { allowNearest: false }
           );
+          if (!isCurrentQuery()) return;
           if (parcelFeature) {
             openParcelFloodPrompt(parcelFeature, event.latlng);
             return;
@@ -39825,7 +39875,7 @@ function startPlayback() {
         if (physicsAsset) {
           const queryToken = lastRenderToken;
           const result = await samplePhysicsDepth(physicsAsset, event.latlng.lat, event.latlng.lng);
-          if (queryToken !== lastRenderToken || entry !== currentSeriesHours[currentHourIndex] || floodFrameState !== "ready") return;
+          if (!isCurrentQuery() || queryToken !== lastRenderToken || entry !== currentSeriesHours[currentHourIndex] || floodFrameState !== "ready") return;
           const depthFt = result?.depthM == null ? null : result.depthM / 0.3048;
           const html = '<div class="depth-query-popup" role="status" aria-live="polite">' +
             '<h3>Physics Water Depth</h3><div class="depth-query-value">' +
@@ -39839,6 +39889,7 @@ function startPlayback() {
           return;
         }
         const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
+        if (!isCurrentQuery()) return;
         if (!sample) {
           await openDepthQueryPopup(event.latlng, null);
           return;
@@ -41613,7 +41664,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 </script>
 
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261017.3"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261023.1"></script>
 <script src="./assets/road-impacts.js?v=20261002-road-impacts-default-off"></script>
 
 <script defer src="./assets/modal-focus.js?v=20260925-drawer-focus"></script>
@@ -42027,26 +42078,43 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
     const currentGl = window.NORTH_WILDWOOD_3D?.getMap?.();
     const useGl = Boolean(currentGl && document.body.classList.contains("map-3d-ready"));
     const container = document.getElementById("mapWrap") || (useGl ? currentGl.getContainer?.() : currentMap?.getContainer?.()) || document.getElementById("map");
-    if (container && panel.parentElement !== container) {
-      container.append(panel);
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    let top = innerWidth <= 900 ? 120 : 140;
+    for (const id of ["topBanner", "topBar", "mapTitleBadge", "mobileControlsToggle"]) {
+      const element = document.getElementById(id);
+      if (!element || !element.getClientRects().length || getComputedStyle(element).visibility === "hidden") continue;
+      const box = element.getBoundingClientRect();
+      if (box.height && box.top < rect.top + rect.height / 2) top = Math.max(top, box.bottom - rect.top + 12);
+    }
+    const viewport = window.visualViewport;
+    const viewportTop = Math.max(0, viewport?.offsetTop || 0);
+    const viewportLeft = Math.max(0, viewport?.offsetLeft || 0);
+    const viewportHeight = viewport?.height || innerHeight;
+    const viewportWidth = viewport?.width || innerWidth;
+    const dock = document.getElementById("timelineDock")?.getBoundingClientRect();
+    const bottom = Math.min(rect.bottom, viewportTop + viewportHeight, dock?.height ? dock.top : Infinity);
+    const available = bottom - rect.top - top - 12;
+    // A short window cannot fit a player between the header and timeline.
+    // Give the same viewer its own scrollable viewport above those controls.
+    const overlay = available < 200 || rect.top + top < viewportTop;
+    const parent = overlay ? document.body : container;
+    panel.dataset.viewportOverlay = String(overlay);
+    if (panel.parentElement !== parent) {
+      parent.append(panel);
       if (window.L?.DomEvent) {
         L.DomEvent.disableClickPropagation(panel);
         L.DomEvent.disableScrollPropagation(panel);
       }
     }
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      let top = innerWidth <= 900 ? 120 : 140;
-      for (const id of ["topBanner", "topBar", "mapTitleBadge", "mobileControlsToggle"]) {
-        const element = document.getElementById(id);
-        if (!element || !element.getClientRects().length || getComputedStyle(element).visibility === "hidden") continue;
-        const box = element.getBoundingClientRect();
-        if (box.height && box.top < rect.top + rect.height / 2) top = Math.max(top, box.bottom - rect.top + 12);
-      }
-      const dock = document.getElementById("timelineDock")?.getBoundingClientRect();
-      const bottom = dock?.height && dock.top > rect.top + top ? Math.min(rect.bottom, dock.top) : rect.bottom;
-      panel.style.top = `${top}px`;
-      panel.style.maxHeight = `${Math.max(0, bottom - rect.top - top - 12)}px`;
+    panel.style.top = `${overlay ? viewportTop + 8 : top}px`;
+    panel.style.maxHeight = `${overlay ? Math.max(1, viewportHeight - 16) : available}px`;
+    if (overlay) {
+      panel.style.left = `${viewportLeft + viewportWidth / 2}px`;
+      panel.style.maxWidth = `${Math.max(1, viewportWidth - 16)}px`;
+    } else {
+      panel.style.removeProperty("left");
+      panel.style.removeProperty("max-width");
     }
   }
 
@@ -42216,6 +42284,8 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
   new MutationObserver(syncMarkers).observe(document.body, { attributes: true, attributeFilter: ["class"] });
   window.addEventListener("load", syncMarkers);
   window.addEventListener("resize", () => { syncCameraRow(); if (!panel.hidden) mountPanel(); });
+  window.visualViewport?.addEventListener("resize", () => { if (!panel.hidden) mountPanel(); });
+  window.visualViewport?.addEventListener("scroll", () => { if (!panel.hidden) mountPanel(); });
   const layoutObserver = new ResizeObserver(() => { if (!panel.hidden) mountPanel(); });
   [document.getElementById("topBanner"), document.getElementById("timelineDock")].filter(Boolean).forEach(el => layoutObserver.observe(el));
   window.addEventListener("pagehide", () => setEnabled(false));

@@ -52,6 +52,7 @@ function setup() {
     L: {latLng: (lat, lon) => ({lat, lon}), marker: latlng => ({latlng,
       addTo() {layers.add(this); return this;}, setLatLng(p) {this.latlng = p;}, setIcon() {}})},
     lastRenderToken: 0, currentFloodLayer: null, pendingFloodLayer: null, persistentDepthQueryContext: null,
+    requestedTimelineSelection: null, cancelTimelineSelection() {},
     updatePersistentDepthQueryPopup() {}, currentOverlayMode: 'depth', currentDataMode: 'observed', currentViewType: 'observed-day',
     currentTopTideIndex: null, currentHourIndex: 7, selectedObservedDate: '2016-01-23',
     currentSeriesHours: [{timeUtc: '2016-01-23T12:00:00Z', stageFt: 6.69}],

@@ -123,10 +123,11 @@ function physicsFixture(pixel = [0, 0, 0, 255]) {
     createElement: () => ({ getContext: () => ({ drawImage() {}, getImageData: () => ({ data: Uint8ClampedArray.from(pixel) }) }) }),
   };
   const context = vm.createContext({ console, document, currentSeriesHours: entries, currentHourIndex: 0,
-    currentDataMode: 'forecast', currentOverlayMode: 'depth', mapClickMode: 'depth', floodFrameState: 'ready', lastRenderToken: 0,
+    currentDataMode: 'forecast', currentOverlayMode: 'depth', mapClickMode: 'depth', floodFrameState: 'ready', lastRenderToken: 0, mapQueryGeneration: 0,
     currentFloodLayer: { _floodmapperFrame: { entry: entries[0], stage: 1, dataMode: 'forecast' } },
     persistentFloodPopup: null, persistentDepthQueryContext: null, pendingFloodLayer: null, setFloodFrameStatus() {},
     renderedFloodPixelCache: null, scheduleRasterObjectUrlCleanup() {},
+    requestedTimelineSelection: null, cancelTimelineSelection() {}, updateNsiStructureImpactLayer() {},
     getPhysicsAssetForEntry: entry => entry?.physicsFrame || null,
     getActivePhysicsManifest: () => ({ boundsWgs84: [[39, -75], [40, -74]], cycleId: 'test-cycle' }),
     preloadPhysicsQueryImage: async () => ({ naturalWidth: 2, naturalHeight: 2 }),

@@ -17,6 +17,7 @@ function context(names, stubs = {}) {
     retainRasterObjectUrl:()=>()=>{}, scheduleRasterObjectUrlCleanup(){}, RASTER_IMAGE_CACHE_LIMIT:4,
     TOWN_CONFIG:{overlays:{}},lastRenderToken:0,pendingFloodLayer:null,currentFloodLayer:null,map:null,
     persistentDepthQueryContext:null,updatePersistentDepthQueryPopup(){},
+    requestedTimelineSelection:null,cancelTimelineSelection(){},
     ...stubs});
   for (const name of [...new Set(["normalizeStageValue", ...(names.includes("loadObservedDay")?["cancelPendingFloodFrame"]:[]), ...names])]) vm.runInContext(extract(name), ctx);
   return ctx;

@@ -80,6 +80,7 @@ if (html.includes('function v11PopupHtml(')) {
     let popup;
     Object.assign(context, {
       mapClickMode: 'depth', currentSeriesHours: [{}], currentHourIndex: 0,
+      lastRenderToken: 0, floodFrameState: 'ready', mapQueryGeneration: 0,
       getPhysicsAssetForEntry: () => ({}),
       samplePhysicsDepth: async () => ({depthM: 0.1524, wet: true}),
       getActivePhysicsManifest: () => ({cycleId: 'test'}),

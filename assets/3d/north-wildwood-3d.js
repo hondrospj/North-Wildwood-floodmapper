@@ -2194,7 +2194,15 @@
         var scrollTop = content ? content.scrollTop : 0;
         var focusedClose = document.activeElement?.classList.contains("maplibregl-popup-close-button");
         var focusedCta = document.activeElement?.classList.contains("house-alert-cta");
-        glPopup.setHTML(html);
+        // MapLibre also autofocuses on setHTML. A time update must leave
+        // keyboard focus on the timeline unless it was already in this card.
+        var focusAfterOpen = glPopup.options.focusAfterOpen;
+        glPopup.options.focusAfterOpen = false;
+        try {
+          glPopup.setHTML(html);
+        } finally {
+          glPopup.options.focusAfterOpen = focusAfterOpen;
+        }
         lastGlPopupHtml = html;
         syncGlPopupLayout();
         var updatedContent = glPopup.getElement().querySelector(".maplibregl-popup-content");
