@@ -32015,6 +32015,29 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       ensureParcelAssets().catch(error => console.warn("Building parcel matching will retry when requested.", error));
     }
 
+    function addRoadLabelHalo(context, width, height, radius) {
+      const halo = document.createElement("canvas");
+      halo.width = width;
+      halo.height = height;
+      const haloContext = halo.getContext("2d");
+      if (!haloContext) return;
+      const mask = context.getImageData(0, 0, width, height);
+      for (let index = 0; index < mask.data.length; index += 4) {
+        const luminance = mask.data[index] * 0.2126 + mask.data[index + 1] * 0.7152 + mask.data[index + 2] * 0.0722;
+        // Outline the dark lettering/edges without thickening light road lines.
+        if (luminance >= 128) mask.data[index + 3] = 0;
+        mask.data[index] = mask.data[index + 1] = mask.data[index + 2] = 255;
+      }
+      haloContext.putImageData(mask, 0, 0);
+      context.save();
+      context.globalCompositeOperation = "destination-over";
+      for (let direction = 0; direction < 8; direction += 1) {
+        const angle = direction * Math.PI / 4;
+        context.drawImage(halo, Math.cos(angle) * radius, Math.sin(angle) * radius);
+      }
+      context.restore();
+    }
+
     // Bake the label styling into canvas tiles so PNG/GIF captures preserve it.
     // The live map keeps its soft gray style; exports can use stronger contrast.
     function createRoadLabelLayer(url, options) {
@@ -32034,6 +32057,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
               context.filter = this.options.roadLabelFilter || "grayscale(1) contrast(.5) brightness(1.35)";
               context.drawImage(image, 0, 0, size.x, size.y);
               context.filter = "none";
+              if (this.options.roadLabelHalo > 0) {
+                addRoadLabelHalo(context, size.x, size.y, this.options.roadLabelHalo);
+              }
               tile.complete = true; tile.naturalWidth = size.x;
               done(null, tile);
             } catch (error) { tile.complete = true; done(error, tile); }
@@ -34610,6 +34636,7 @@ function updateExportSegmentedUI() {
         zoomOffset: -1,
         maxNativeZoom: 20,
         roadLabelFilter: "grayscale(1) contrast(1.15)",
+        roadLabelHalo: 2,
         subdomains: "abcd",
         crossOrigin: true,
         opacity: 0,
