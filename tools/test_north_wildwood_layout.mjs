@@ -1,7 +1,8 @@
+import { readAppSource } from './app_source.mjs';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const {chromium} = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const source=fs.readFileSync(new URL('../index.html', import.meta.url),'utf8');
+const source=readAppSource(new URL('../index.html', import.meta.url));
 const blocks=[...source.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)];
 const shared=blocks.find(m=>m[0].startsWith('<script id="floodmapper-unified-controller-20261017"'));
 const legacy=blocks.find(m=>m[0].startsWith('<script id="shorely-mobile-slider-key-correction-script"'));

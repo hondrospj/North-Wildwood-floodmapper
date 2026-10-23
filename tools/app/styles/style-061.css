@@ -1,0 +1,23 @@
+
+  html body #mapClickModeControl.map-click-mode-control,
+  html body.mobile-optimized #mapClickModeControl.map-click-mode-control{
+    top:var(--map-click-mode-top,72px) !important;
+  }
+  html body .house-alert-popup .nsi-structure-grid,
+  html body .nsi-structure-popup .nsi-structure-grid{
+    margin:8px 0 !important;
+  }
+  html body .house-alert-popup .nsi-impact-status,
+  html body .nsi-structure-popup .nsi-impact-status{
+    margin:0 0 9px !important;
+  }
+  html body #map.leaflet-container > .leaflet-control-container > .leaflet-top.leaflet-right{
+    display:none !important;
+    visibility:hidden !important;
+    pointer-events:none !important;
+  }
+  html body #map.leaflet-container > .leaflet-control-container > .leaflet-top.leaflet-right > .leaflet-control-zoom.leaflet-bar.leaflet-control{
+    display:none !important;
+    visibility:hidden !important;
+    pointer-events:none !important;
+  }

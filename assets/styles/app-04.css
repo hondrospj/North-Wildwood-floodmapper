@@ -1,0 +1,43 @@
+
+#webcamPanel[hidden], #webcamPanel [hidden] { display:none !important; }
+.shorelysafe-camera-item { grid-column:var(--webcam-column,1) !important; }
+.shorelysafe-camera-item .layer-meta { display:flex; align-items:center; }
+html body:not(.mobile-optimized) #rightRail > .layers-card:has(.shorelysafe-camera-item) { height:auto !important; min-height:0 !important; max-height:none !important; flex-shrink:0 !important; }
+.webcam-map-marker { box-sizing:border-box; width:36px; height:36px; padding:7px; background:#12495a; color:white; border:2px solid white; border-radius:50%; box-shadow:0 2px 7px #0006; cursor:pointer; }
+.webcam-map-marker svg { display:block; width:100%; height:100%; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; }
+.webcam-map-marker:focus-visible, #webcamPanel button:focus-visible, #webcamPanel a:focus-visible, #webcamPanel select:focus-visible { outline:3px solid #e49b24; outline-offset:2px; }
+#webcamPanel { position:absolute; top:140px; left:50%; transform:translateX(-50%); z-index:9100; box-sizing:border-box; width:min(400px,calc(100% - 24px)); max-height:calc(100% - 270px); overflow:auto; overscroll-behavior:contain; border:1px solid #425069; border-radius:13px; background:#121d2d; color:#edf3ff; box-shadow:0 6px 24px #0006; padding:12px; font:12px/1.35 system-ui,sans-serif; text-align:left; cursor:default; pointer-events:auto !important; }
+#webcamPanel .webcam-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+#webcamPanel h2 { margin:0; font-size:16px; line-height:1.25; }
+#webcamLocation { margin:5px 0 10px; font-size:11px; color:#b8cbe1; }
+#webcamPanel button, #webcamChoice { font:inherit; color:#d9eaff; background:#213047; border:1px solid #425069; border-radius:6px; cursor:pointer; }
+#webcamPanel button { min-height:0 !important; padding:3px 6px !important; font-size:11px !important; }
+#webcamPanel #webcamClose { flex:0 0 32px; width:32px; height:32px; min-height:32px !important; padding:0 !important; font-size:23px !important; line-height:1; }
+#webcamChoice { width:100%; margin-bottom:9px; padding:6px; }
+#webcamPanel .webcam-frame { width:100%; aspect-ratio:16 / 9; background:#102535; border-radius:7px; overflow:hidden; }
+#webcamPanel iframe, #webcamPanel .webcam-frame img { display:block; width:100%; height:100%; border:0; object-fit:contain; }
+#webcamPanel .webcam-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:5px; margin:8px 0; font-size:10px; color:#b8cbe1; }
+#webcamLocate { padding:3px 6px; }
+#webcamPanel .webcam-source { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:#b8cbe1; font-size:9px; }
+#webcamPanel a { color:#93c6ff; text-decoration:underline; }
+#webcamPanel #webcamRetry { padding:0 4px !important; font-size:15px !important; }
+#webcamOtherSources { margin-top:8px; font-size:10px; }
+#webcamOtherSources div { display:flex; gap:6px; flex-wrap:wrap; margin-top:5px; }
+#webcamPanel[data-player-state="unavailable"] #webcamStatus { color:#ffcb85; }
+@media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
+  #webcamPanel { top:85px; width:min(400px,calc(100% - 16px)); max-height:calc(100dvh - 205px); padding:10px; }
+  #webcamPanel #webcamClose { width:44px; height:44px; min-height:44px !important; flex-basis:44px; }
+  #webcamPanel #webcamLocate, #webcamPanel #webcamRetry { min-height:36px !important; }
+  #webcamChoice { min-height:36px; }
+  #webcamPanel .webcam-frame { max-height:34dvh; }
+}
+body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .webcam-map-marker, .export-stage #webcamPanel { display:none !important; }
+@media print { .webcam-map-marker, #webcamPanel { display:none !important; } }
+
+
+#webcamPanel .webcam-disclaimer { margin:10px 0 0; color:#b8cbe1; font-size:10px; line-height:1.4; }
+/* Town layouts that hid the old mobile Layers card must expose its Cameras switch. */
+html body.mobile-optimized #mobileRailMount > .layers-card:has(.shorelysafe-camera-item) {
+  display:block !important; visibility:visible !important; opacity:1 !important; pointer-events:auto !important;
+  height:auto !important; min-height:0 !important; max-height:none !important; flex-shrink:0 !important;
+}

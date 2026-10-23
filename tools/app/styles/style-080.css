@@ -1,0 +1,12 @@
+
+/* Keep the existing camera card surface, width and controls in short windows. */
+#webcamPanel[data-viewport-overlay="true"] {
+  position:fixed;
+  z-index:10050;
+}
+#webcamPanel[data-viewport-overlay="true"] .webcam-heading {
+  position:sticky;
+  top:0;
+  z-index:1;
+  background:#121d2d;
+}

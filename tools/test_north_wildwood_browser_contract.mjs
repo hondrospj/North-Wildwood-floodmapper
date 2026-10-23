@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readAppSource } from './app_source.mjs';
 // Static and executable checks for the browser's 0.1-ft connected-depth contract.
 
 import assert from "node:assert/strict";
@@ -9,7 +10,7 @@ import path from "node:path";
 
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SOURCE = fs.readFileSync(path.join(HERE, "..", "index.html"), "utf8");
+const SOURCE = readAppSource(path.join(HERE, "..", "index.html"));
 const THREE_D_SOURCE = fs.readFileSync(path.join(HERE, "..", "assets", "3d", "north-wildwood-3d.js"), "utf8");
 const THREE_D_BUILDINGS = JSON.parse(fs.readFileSync(
   path.join(HERE, "..", "assets", "3d", "NorthWildwoodBuildings3D.geojson"),

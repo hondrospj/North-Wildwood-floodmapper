@@ -1,9 +1,10 @@
+import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('../assets/north-wildwood-loading.js', import.meta.url), 'utf8');
-const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const html = readAppSource(new URL('../index.html', import.meta.url));
 assert.match(html, /<body\b[^>]*\bclass="[^"]*\bnw-app-loading\b/);
 assert.match(html, /id="nwSiteLoader" role="status"/);
 if(html.includes('assets/north-wildwood-loading.js'))assert.match(html, /<script\b(?=[^>]*\bdefer\b)[^>]*\bsrc="assets\/north-wildwood-loading\.js/);

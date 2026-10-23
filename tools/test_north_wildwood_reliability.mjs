@@ -1,8 +1,9 @@
+import { readAppSource } from './app_source.mjs';
 import fs from "node:fs";
 import vm from "node:vm";
 import assert from "node:assert/strict";
 import "../assets/municipal-time.js";
-const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const html = readAppSource(new URL("../index.html", import.meta.url));
 function extract(name) {
   const start = html.search(new RegExp("^    (?:async )?function " + name + "\\(", "m"));
   assert(start >= 0, name);

@@ -1,15 +1,34 @@
 name: Historical replay regression
 on:
   push:
-    paths:
-      - index.html
-      - tools/test_hourly_replay.mjs
-      - .github/workflows/hourly-replay-regression.yml
+    branches: [main]
+    paths-ignore:
+      - forecast.json
+      - data/experimental_petss_guidance.json
+      - observed.json
+      - observed15min.json
+      - stone_harbor_observed15min.json
+      - toptides.json
+      - observed_archive_index.json
+      - lewes_archive_index.json
+      - lewes_hourly.json
+      - observed_archive/**/*.json
+      - city-gauge/data/**/*.json
+      - city-gauge/comparison/**/*.json
   pull_request:
-    paths:
-      - index.html
-      - tools/test_hourly_replay.mjs
-      - .github/workflows/hourly-replay-regression.yml
+    paths-ignore:
+      - forecast.json
+      - data/experimental_petss_guidance.json
+      - observed.json
+      - observed15min.json
+      - stone_harbor_observed15min.json
+      - toptides.json
+      - observed_archive_index.json
+      - lewes_archive_index.json
+      - lewes_hourly.json
+      - observed_archive/**/*.json
+      - city-gauge/data/**/*.json
+      - city-gauge/comparison/**/*.json
   workflow_dispatch:
 permissions:
   contents: read

@@ -1,0 +1,361 @@
+#!/usr/bin/env python3
+"""Build North Wildwood's issued PETSS station forecast.
+
+This module is the scheduled forecast generator. Parsing, published product
+selection, units, datum conversion, hydraulic phases, cycle fallback, and HTTP
+retry behavior match the former workflow-embedded implementation. Importing it
+performs no network requests or writes; ``main`` is the command-line entry point.
+
+The generation boundary accepts a caller-supplied UTC forecast start for offline
+replay and testing. Only the command-line entry point obtains the current hour
+and writes ``forecast.json``. The workflow retains the subsequent research
+sidecar, operational-mean selection, and Git publication steps.
+"""
+
+import csv
+import http.client
+import io
+import json
+import math
+import random
+import re
+import tarfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+TOWN_NAME = "North Wildwood"
+IS_SPLIT = False
+DEFAULT_ZONE_ID = "default"
+ZONES = [
+  {
+    "id": "default",
+    "zoneName": "North Wildwood",
+    "label": "North Wildwood",
+    "gaugeName": "Stone Harbor",
+    "petssGaugeId": "8535581",
+    "usgsGaugeId": "01411360",
+    "noaaGaugeId": "8535581",
+    "observedSource": "usgs",
+    "navd88OffsetFromMllwFt": -2.75,
+    "thresholdsMllw": {
+      "minorLow": 6.0,
+      "moderateLow": 7.0,
+      "majorLow": 8.0
+    },
+    "thresholdsNavd88": {
+      "minorLow": 3.25,
+      "moderateLow": 4.25,
+      "majorLow": 5.25
+    }
+  }
+]
+OUT_PATH = Path("forecast.json")
+FORECAST_HOURS = 84
+MIN_LAYER_STAGE = -2.0
+MAX_LAYER_STAGE = 20.0
+LAYER_INCREMENT = 0.1
+CYCLES_NEWEST_FIRST = (18, 12, 6, 0)
+DAYS_BACK_TO_TRY = 5
+
+HEADER_ALIASES = {
+    "time": ["time", "valid", "validtime", "valid_time", "datetime", "date_time", "forecast_time", "src_time", "srctime"],
+    "twl": ["twl"],
+    "twl10": ["twl10p", "twl_10p", "twl10", "twl_p10", "p10_twl", "twl_e10", "e10_twl"],
+    "twl90": ["twl90p", "twl_90p", "twl90", "twl_p90", "p90_twl", "twl_e90", "e90_twl"],
+    "tide": ["tide", "tide_ft", "tide_mllw", "tide_mllw_ft"],
+    "surge": ["surge", "surge_ft", "stormsurge", "storm_surge"],
+}
+
+def fetch_bytes(url):
+    last_error = None
+    for attempt in range(1, 6):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": f"{TOWN_NAME}-floodmapper/2.0"})
+            with urllib.request.urlopen(req, timeout=180) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            if exc.code not in {429, 500, 502, 503, 504}:
+                raise
+            last_error = exc
+        except (urllib.error.URLError, http.client.IncompleteRead, TimeoutError, OSError, ValueError) as exc:
+            last_error = exc
+        if attempt == 5:
+            raise last_error
+        delay = min(30.0, 2 ** attempt) + random.random() * 2.0
+        print(f"Transient forecast fetch failure ({last_error}); retry {attempt}/5 in {delay:.1f}s")
+        time.sleep(delay)
+
+def petss_station_csv_url(cycle):
+    return f"https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/petss.{cycle['ymd']}/petss.t{cycle['hh']:02d}z.csv.tar.gz"
+
+def recent_cycles(now):
+    cycles = []
+    for days_back in range(DAYS_BACK_TO_TRY + 1):
+        day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) - timedelta(days=days_back)
+        ymd = day.strftime("%Y%m%d")
+        for hour in CYCLES_NEWEST_FIRST:
+            cycle_dt = day.replace(hour=hour)
+            if cycle_dt <= now + timedelta(minutes=30):
+                cycles.append({"ymd": ymd, "hh": hour, "cycleUtc": cycle_dt})
+    return cycles
+
+def extract_station_csv(url, station_id):
+    raw = fetch_bytes(url)
+    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tf:
+        members = [m for m in tf.getmembers() if m.isfile()]
+        pattern = re.compile(rf"(^|/){re.escape(str(station_id))}\.csv$", re.I)
+        match = next((m for m in members if pattern.search(m.name)), None)
+        if not match:
+            raise RuntimeError(f"station CSV {station_id}.csv not found")
+        extracted = tf.extractfile(match)
+        if extracted is None:
+            raise RuntimeError(f"could not extract {match.name}")
+        return extracted.read().decode("utf-8", errors="replace"), match.name
+
+def norm_header(value):
+    return re.sub(r"[^a-z0-9_]", "", str(value or "").strip().lower().replace(" ", ""))
+
+def find_idx(headers, aliases, required=True):
+    normalized = [norm_header(h) for h in headers]
+    for alias in aliases:
+        if alias in normalized:
+            return normalized.index(alias)
+    if required:
+        raise RuntimeError(f"missing required column from headers: {headers}")
+    return -1
+
+def normalize_time(value):
+    raw = str(value or "").strip()
+    if re.fullmatch(r"\d{10}", raw):
+        return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:8]), int(raw[8:10]), tzinfo=timezone.utc)
+    if re.fullmatch(r"\d{12}", raw):
+        return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:8]), int(raw[8:10]), int(raw[10:12]), tzinfo=timezone.utc)
+    text = raw if raw.endswith("Z") or "+" in raw[-6:] else raw + "Z"
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except Exception:
+        return None
+
+def clean_level(value):
+    try:
+        n = float(str(value).strip())
+    except Exception:
+        return None
+    if not math.isfinite(n) or abs(n) >= 9000 or n < -50 or n > 50:
+        return None
+    return n
+
+def round2(value):
+    return round(float(value) + 1e-9, 2)
+
+def round3(value):
+    return round(float(value) + 1e-9, 3)
+
+def stage_key(navd88):
+    clamped = max(MIN_LAYER_STAGE, min(MAX_LAYER_STAGE, navd88))
+    floored = math.floor((clamped + 1e-9) / LAYER_INCREMENT) * LAYER_INCREMENT
+    return f"{floored:.2f}", navd88 < MIN_LAYER_STAGE or navd88 > MAX_LAYER_STAGE
+
+def parse_station_csv(text, zone):
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    if len(rows) < 2:
+        raise RuntimeError("station CSV was empty")
+    headers = rows[0]
+    time_idx = find_idx(headers, HEADER_ALIASES["time"])
+    twl_idx = find_idx(headers, HEADER_ALIASES["twl"])
+    twl10_idx = find_idx(headers, HEADER_ALIASES["twl10"])
+    twl90_idx = find_idx(headers, HEADER_ALIASES["twl90"])
+    tide_idx = find_idx(headers, HEADER_ALIASES["tide"], required=False)
+    surge_idx = find_idx(headers, HEADER_ALIASES["surge"], required=False)
+    out = {"mean": [], "lowEnd": [], "highEnd": []}
+    for columns in rows[1:]:
+        if len(columns) <= max(time_idx, twl_idx, twl10_idx, twl90_idx):
+            continue
+        dt = normalize_time(columns[time_idx])
+        if not dt:
+            continue
+        time_utc = dt.isoformat().replace("+00:00", "Z")
+        tide = clean_level(columns[tide_idx]) if tide_idx >= 0 and tide_idx < len(columns) else None
+        surge = clean_level(columns[surge_idx]) if surge_idx >= 0 and surge_idx < len(columns) else None
+        for key, idx, label, product, percentile in [
+            ("mean", twl_idx, "Mean", "mean", "Mean"),
+            ("lowEnd", twl90_idx, "Low End", "e90", "90p / e90"),
+            ("highEnd", twl10_idx, "High End", "e10", "10p / e10"),
+        ]:
+            mllw = clean_level(columns[idx])
+            if mllw is None:
+                continue
+            navd88 = round2(mllw + zone["navd88OffsetFromMllwFt"])
+            matched, clamped = stage_key(navd88)
+            out[key].append({
+                "timeUtc": time_utc,
+                "scenario": key,
+                "product": product,
+                "percentile": percentile,
+                "rawPetssValue": round3(mllw),
+                "rawPetssScale": 1.0,
+                "sourceStageFt": navd88,
+                "sourceDatum": "NAVD88",
+                "navd88StageFt": navd88,
+                "mllwStageFt": round2(mllw),
+                "twlMllwFt": round2(mllw),
+                "tideMllwFt": round3(tide) if tide is not None else None,
+                "surgeFt": round3(surge) if surge is not None else None,
+                "matchedStageKey": matched,
+                "wasClamped": clamped,
+            })
+    return out
+
+
+def align_products(products, forecast_start):
+    by_key = {key: {row["timeUtc"]: row for row in rows} for key, rows in products.items()}
+    common = sorted(set(by_key["mean"]) & set(by_key["lowEnd"]) & set(by_key["highEnd"]))
+    kept = [t for t in common if datetime.fromisoformat(t.replace("Z", "+00:00")) >= forecast_start][: FORECAST_HOURS + 1]
+    if len(kept) < 12:
+        raise RuntimeError(f"only {len(kept)} usable forecast rows")
+    output = {"mean": [], "lowEnd": [], "highEnd": []}
+    for key in output:
+        for i, time_utc in enumerate(kept):
+            row = dict(by_key[key][time_utc])
+            row["hourIndex"] = i
+            output[key].append(row)
+    return output
+
+def thresholds_navd_from_mllw(zone):
+    return {key: round2(value + zone["navd88OffsetFromMllwFt"]) for key, value in zone["thresholdsMllw"].items()}
+
+def annotate_hydraulic_phases(hours):
+    epsilon = 0.025
+    for index, row in enumerate(hours):
+        current = row.get("navd88StageFt")
+        previous = hours[index - 1].get("navd88StageFt") if index > 0 else None
+        following = hours[index + 1].get("navd88StageFt") if index + 1 < len(hours) else None
+        before = current - previous if current is not None and previous is not None else None
+        after = following - current if following is not None and current is not None else None
+        if before is not None and after is not None and before > epsilon and after <= epsilon:
+            phase = "slack"
+        elif before is not None and after is not None and before >= -epsilon and after < -epsilon:
+            phase = "slack"
+        elif after is not None and (before is None or abs(after) >= abs(before)):
+            phase = "filling" if after > epsilon else "draining" if after < -epsilon else "slack"
+        elif before is not None:
+            phase = "filling" if before > epsilon else "draining" if before < -epsilon else "slack"
+        else:
+            phase = "slack"
+        row["hydraulicPhase"] = phase
+        row["riseRateFtPer15Min"] = round3(before / 4.0) if before is not None else 0.0
+    return hours
+
+def build_zone_forecast(zone, now_utc):
+    last_error = None
+    for cycle in recent_cycles(now_utc):
+        try:
+            url = petss_station_csv_url(cycle)
+            print(f"Trying {zone['id']} {zone['petssGaugeId']} {url}")
+            text, member = extract_station_csv(url, zone["petssGaugeId"])
+            parsed = parse_station_csv(text, zone)
+            start = max(cycle["cycleUtc"], now_utc)
+            aligned = align_products(parsed, start)
+            return payload_for_zone(zone, cycle, url, member, aligned, now_utc)
+        except Exception as exc:
+            last_error = exc
+            print(f"Rejected {zone['id']} cycle: {exc}")
+    raise RuntimeError(f"No usable PETSS forecast for {zone['id']} {zone['petssGaugeId']}: {last_error}")
+
+def payload_for_zone(zone, cycle, source_url, member, products, issued_dt):
+    definitions = {
+        "mean": ("Mean", "Mean", "mean"),
+        "lowEnd": ("Low End", "90p / e90", "e90"),
+        "highEnd": ("High End", "10p / e10", "e10"),
+    }
+    forecasts = {}
+    product_meta = {}
+    options = {}
+    for key, (label, percentile, product) in definitions.items():
+        hours = annotate_hydraulic_phases(products[key])
+        forecasts[key] = {"label": label, "percentile": percentile, "product": product, "hours": hours}
+        options[key] = {"label": label, "percentile": percentile, "product": product}
+        product_meta[key] = {
+            "label": label,
+            "percentile": percentile,
+            "product": product,
+            "sourceUrl": source_url,
+            "sourceMember": member,
+            "petssCycleUtc": cycle["cycleUtc"].isoformat().replace("+00:00", "Z"),
+            "rawRowCount": len(hours),
+            "forecastMllwMin": round2(min(h["mllwStageFt"] for h in hours)),
+            "forecastMllwMax": round2(max(h["mllwStageFt"] for h in hours)),
+            "forecastNavd88Min": round2(min(h["navd88StageFt"] for h in hours)),
+            "forecastNavd88Max": round2(max(h["navd88StageFt"] for h in hours)),
+        }
+    mean_hours = forecasts["mean"]["hours"]
+    scenario_options = options
+    scenario_forecasts = forecasts
+    return {
+        "zoneId": zone["id"],
+        "zoneName": zone["zoneName"],
+        "gaugeName": zone["gaugeName"],
+        "stationId": zone["petssGaugeId"],
+        "stationName": f"{zone['gaugeName'].upper()}, NJ",
+        "noaaGaugeId": zone["noaaGaugeId"],
+        "usgsGaugeId": zone["usgsGaugeId"],
+        "issuedUtc": issued_dt.isoformat().replace("+00:00", "Z"),
+        "petssCycleUtc": cycle["cycleUtc"].isoformat().replace("+00:00", "Z"),
+        "forecastStartUtc": mean_hours[0]["timeUtc"],
+        "forecastEndUtc": mean_hours[-1]["timeUtc"],
+        "sourceUrl": source_url,
+        "sourceMember": member,
+        "sourceType": "NOMADS_PETSS_FORECAST_ONLY_station_csv_TWL_TWL10p_TWL90p",
+        "sourceDatum": "MLLW",
+        "mapDatum": "NAVD88",
+        "rawPetssScale": 1.0,
+        "navd88OffsetFromMllwFt": zone["navd88OffsetFromMllwFt"],
+        "twlFormula": "navd88StageFt = twlMllwFt + navd88OffsetFromMllwFt.",
+        "thresholdsMLLW": zone["thresholdsMllw"],
+        "thresholdsNAVD88": thresholds_navd_from_mllw(zone),
+        "layerStageRangeNAVD88": {"min": MIN_LAYER_STAGE, "max": MAX_LAYER_STAGE, "increment": LAYER_INCREMENT},
+        "hydraulicModel": {
+            "timeStepMinutes": 15,
+            "phaseField": "hydraulicPhase",
+            "phases": ["filling", "crest-release-44", "crest-release-75", "crest-release-94", "slack", "draining"],
+            "assetStrategy": "time-based one-hour crest release over precomputed one-foot-grid hydraulic lookups"
+        },
+        "forecastOptions": options,
+        "scenarioOptions": scenario_options,
+        "scenarioForecasts": scenario_forecasts,
+        "products": product_meta,
+        "forecasts": forecasts,
+        "hours": mean_hours,
+    }
+
+def build_forecast(now_utc):
+    """Assemble the forecast for a supplied UTC start without writing files.
+
+    The caller supplies the same hour-rounded start used by the scheduled CLI.
+    This preserves the distinction between issue time and the source cycle.
+    """
+    if IS_SPLIT:
+        output = {"town": TOWN_NAME, "defaultZoneId": DEFAULT_ZONE_ID, "schema": "multi-zone-forecast-v1", "issuedUtc": now_utc.isoformat().replace("+00:00", "Z"), "zones": {}}
+        for zone in ZONES:
+            forecast = build_zone_forecast(zone, now_utc)
+            output["zones"][zone["id"]] = {"label": zone["label"], "gaugeName": zone["gaugeName"], "forecast": forecast}
+    else:
+        output = build_zone_forecast(ZONES[0], now_utc)
+        output.pop("zoneId", None)
+        output.pop("zoneName", None)
+    return output
+
+
+def main():
+    """Generate and write the scheduled forecast using the current UTC hour."""
+    now_utc = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    output = build_forecast(now_utc)
+    OUT_PATH.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
+    print("Wrote", OUT_PATH)
+
+if __name__ == "__main__":
+    main()

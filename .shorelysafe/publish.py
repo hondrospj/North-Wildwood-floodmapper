@@ -60,8 +60,13 @@ def api(site, app_id, token, endpoint, method='GET', data=None, raw=False):
             if attempt == 3: raise
         time.sleep(2 ** attempt)
 
-def publish(app, source, apps, connection, dry_run=False):
+def publish(app, source, apps, connection, dry_run=False, *, expected_commit=None, before_commit=None):
     manifest, payloads = prepare(app, source, apps)
+    if expected_commit is not None and manifest['commit'] != expected_commit:
+        raise ValueError('Checkout differs from the validated release commit')
+    if expected_commit is not None and subprocess.check_output(
+            ['git','status','--porcelain','--untracked-files=no'], cwd=source, text=True).strip():
+        raise ValueError('Validated release checkout has modified tracked files')
     summary = {'application':app['id'],'files':len(manifest['files']), 'bytes':sum(f['size'] for f in manifest['files']), 'commit':manifest['commit']}
     if dry_run: return summary
     site,token = connection['site'],connection['tokens'][app['id']]
@@ -108,6 +113,10 @@ def publish(app, source, apps, connection, dry_run=False):
                 upload_batch(entries);entries=[];batch_bytes=0
             entries.append((sha,data));batch_bytes+=len(data)
     upload_batch(entries)
+    # Uploads can outlive a new main commit. Recheck immediately before activation,
+    # while the workflow's shared publishing concurrency lock is still held.
+    if before_commit is not None:
+        before_commit()
     result = api(site,app['id'],token,'commit','POST',{'deployment':plan['deployment']})
     summary.update(result); summary['uploaded_blobs']=len(plan['missing'])
     return summary

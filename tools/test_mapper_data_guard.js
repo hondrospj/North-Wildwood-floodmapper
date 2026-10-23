@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app_source.cjs');
 'use strict';
 // Run: node tests/test_mapper_data_guard.js [index.html]
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
@@ -38,4 +39,4 @@ async function runFunctions(functions,adjustment=0){
  return {primitive_fixtures:fixtures.length,normalizer_fixtures:9,forecast_scenario_fixtures:loaderFixtures};
 }
 module.exports={runFunctions,reader,loader,extract};
-if(require.main===module){const path=process.argv[2]||'index.html';const source=fs.readFileSync(path,'utf8');const functions=Object.fromEntries(['normalizeStageValue','getRawStageValue','getStageValue','loadForecast'].map(n=>[n,extract(source,n)]));const adjustment=/return n \+ STAGE_ADJUSTMENT_FT/.test(functions.normalizeStageValue)?Number(source.match(/const STAGE_ADJUSTMENT_FT = ([^;]+);/)[1]):0;runFunctions(functions,adjustment).then(result=>console.log(JSON.stringify({passed:true,...result}))).catch(error=>{console.error(error);process.exitCode=1;});}
+if(require.main===module){const path=process.argv[2]||'index.html';const source=readAppSource(path);const functions=Object.fromEntries(['normalizeStageValue','getRawStageValue','getStageValue','loadForecast'].map(n=>[n,extract(source,n)]));const adjustment=/return n \+ STAGE_ADJUSTMENT_FT/.test(functions.normalizeStageValue)?Number(source.match(/const STAGE_ADJUSTMENT_FT = ([^;]+);/)[1]):0;runFunctions(functions,adjustment).then(result=>console.log(JSON.stringify({passed:true,...result}))).catch(error=>{console.error(error);process.exitCode=1;});}

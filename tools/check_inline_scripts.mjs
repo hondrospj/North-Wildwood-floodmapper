@@ -1,7 +1,8 @@
+import { readAppSource } from './app_source.mjs';
 import fs from "node:fs";
 import vm from "node:vm";
 
-const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const html = readAppSource(new URL("../index.html", import.meta.url));
 const scriptPattern = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
 let compiled = 0;
 

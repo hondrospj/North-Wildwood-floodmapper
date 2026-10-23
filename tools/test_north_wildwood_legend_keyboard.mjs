@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,7 +11,7 @@ if (!sourcePath) {
   console.error('Usage: node legend-keyboard.mjs /absolute/path/to/index.html');
   process.exit(2);
 }
-const html = fs.readFileSync(sourcePath, 'utf8');
+const html = readAppSource(sourcePath);
 const controller = html.match(/<script\b[^>]*\bid="floodmapper-unified-controller-20261017"[^>]*>([\s\S]*?)<\/script>/)?.[1];
 assert.ok(controller, 'The unified controller must exist in the supplied HTML');
 const keyboardBody = controller.match(/document\.addEventListener\('keydown',event=>\{([\s\S]*?)\n \},true\);/)?.[1];

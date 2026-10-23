@@ -1,9 +1,34 @@
 name: Export regression
 on:
   push:
-    paths: ["index.html", "assets/export-area.js", "assets/export-preview.js", "tools/test_export*.mjs", ".github/workflows/export-regression.yml"]
+    branches: [main]
+    paths-ignore:
+      - forecast.json
+      - data/experimental_petss_guidance.json
+      - observed.json
+      - observed15min.json
+      - stone_harbor_observed15min.json
+      - toptides.json
+      - observed_archive_index.json
+      - lewes_archive_index.json
+      - lewes_hourly.json
+      - observed_archive/**/*.json
+      - city-gauge/data/**/*.json
+      - city-gauge/comparison/**/*.json
   pull_request:
-    paths: ["index.html", "assets/export-area.js", "assets/export-preview.js", "tools/test_export*.mjs", ".github/workflows/export-regression.yml"]
+    paths-ignore:
+      - forecast.json
+      - data/experimental_petss_guidance.json
+      - observed.json
+      - observed15min.json
+      - stone_harbor_observed15min.json
+      - toptides.json
+      - observed_archive_index.json
+      - lewes_archive_index.json
+      - lewes_hourly.json
+      - observed_archive/**/*.json
+      - city-gauge/data/**/*.json
+      - city-gauge/comparison/**/*.json
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,6 +42,13 @@ jobs:
             index.html
             assets/export-area.js
             assets/export-preview.js
+            assets/app/
+            assets/styles/
+            tools/app/
+            tools/app_source.*
+            tools/build_north_wildwood_app.mjs
+            tools/test_north_wildwood_refactor_parity.mjs
+            tools/fixtures/north-wildwood-refactor-baseline.json
             tools/test_export*.mjs
             tools/test_north_wildwood_export_layout.mjs
           sparse-checkout-cone-mode: false
@@ -26,6 +58,8 @@ jobs:
           node-version: "22"
       - name: Verify map export
         run: |
+          node tools/build_north_wildwood_app.mjs --check
+          node tools/test_north_wildwood_refactor_parity.mjs --self-test
           node --check assets/export-area.js
           node --check assets/export-preview.js
           node tools/test_export_preview.mjs

@@ -1,0 +1,49 @@
+
+  :is(.centered-close-control,.leaflet-popup-close-button){
+    --centered-close-x-color:#eaf0ff;
+    --centered-close-x-size:14px;
+    position:relative !important;
+    display:grid !important;
+    place-items:center !important;
+    box-sizing:border-box !important;
+    padding:0 !important;
+    color:transparent !important;
+    font-size:0 !important;
+    line-height:0 !important;
+    text-indent:0 !important;
+  }
+
+  :is(.centered-close-control,.leaflet-popup-close-button)::before,
+  :is(.centered-close-control,.leaflet-popup-close-button)::after{
+    content:"" !important;
+    position:absolute !important;
+    left:50% !important;
+    top:50% !important;
+    width:var(--centered-close-x-size) !important;
+    height:2px !important;
+    margin:0 !important;
+    border:0 !important;
+    border-radius:999px !important;
+    background:var(--centered-close-x-color) !important;
+    box-shadow:none !important;
+    pointer-events:none !important;
+    transform-origin:center !important;
+  }
+
+  :is(.centered-close-control,.leaflet-popup-close-button)::before{
+    transform:translate(-50%,-50%) rotate(45deg) !important;
+  }
+
+  :is(.centered-close-control,.leaflet-popup-close-button)::after{
+    transform:translate(-50%,-50%) rotate(-45deg) !important;
+  }
+
+  .leaflet-popup-close-button{
+    --centered-close-x-color:#d8f9ff;
+  }
+
+  @media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
+    :is(.centered-close-control,.leaflet-popup-close-button){
+      --centered-close-x-size:18px;
+    }
+  }

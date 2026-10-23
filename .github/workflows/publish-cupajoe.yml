@@ -1,46 +1,110 @@
 name: Publish ShorelySafe to Cup A Joe
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   workflow_dispatch:
   workflow_run:
-    workflows: ["Deploy North Wildwood hydraulic v36", "Depth query regression", "FloodMapper reliability checks", "Rebuild pre-2007 Lewes archive", "Stage reviewed FloodMapper repair", "Trigger forecast update now", "Trigger observed update now", "Update North Wildwood city gauge archive", "Update North Wildwood forecast", "Update North Wildwood observed", "pages-build-deployment"]
+    workflows:
+      - FloodMapper reliability checks
+      - Export regression
+      - Depth query regression
+      - Historical replay regression
+      - Build lossless flood overlay WebP
+      - Deploy North Wildwood hydraulic v36
+      - Rebuild pre-2007 Lewes archive
+      - Trigger forecast update now
+      - Trigger observed update now
+      - Update North Wildwood city gauge archive
+      - Update North Wildwood forecast
+      - Update North Wildwood observed
     types: [completed]
-    branches: ["main"]
+    branches: [main]
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: shorelysafe-publish
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      (github.event_name != 'workflow_run' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          ref: "main"
-          path: "sources/North-Wildwood-floodmapper"
-          lfs: true
-          persist-credentials: false
-      - name: Publish application files
-        working-directory: "sources/North-Wildwood-floodmapper"
+      - name: Select immutable release candidate
+        id: candidate
         env:
-          SHORELYSAFE_TOKEN: ${{ secrets.SHORELYSAFE_PUBLISH_TOKEN }}
-          SHORELYSAFE_SITE: "https://cupajoe.live"
-          SHORELYSAFE_APP: "floodmapper--north-wildwood"
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import json, os
+          import json, os, re, urllib.request
+          candidate = os.environ["GITHUB_SHA"]
+          if os.environ["GITHUB_EVENT_NAME"] == "workflow_run":
+              # Coalesce completions onto current main once. Generator outputs
+              # made with GITHUB_TOKEN do not trigger push checks; an older check
+              # completion can also replace a pending generator event in the queue.
+              # The gate still requires this candidate's exact application checks.
+              url = "https://api.github.com/repos/" + os.environ["GITHUB_REPOSITORY"] + "/git/ref/heads/main"
+              request = urllib.request.Request(url, headers={
+                  "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                  "Accept": "application/vnd.github+json",
+              })
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  candidate = json.load(response)["object"]["sha"]
+          if not re.fullmatch(r"[0-9a-f]{40}", candidate):
+              raise SystemExit("Release candidate must be a full commit SHA")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write("sha=" + candidate + "\n")
+          print("Selected immutable release " + candidate)
+          PY
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ steps.candidate.outputs.sha }}
+          path: sources/North-Wildwood-floodmapper
+          fetch-depth: 0
+          lfs: true
+          persist-credentials: false
+      - name: Require tested application code and valid generated data
+        id: gate
+        working-directory: sources/North-Wildwood-floodmapper
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.candidate.outputs.sha }}
+        run: >-
+          python3 tools/release_gate.py --candidate "$RELEASE_SHA"
+          --receipt "$RUNNER_TEMP/north-wildwood-release.json"
+      - name: Publish validated application files
+        if: steps.gate.outputs.publish == 'true'
+        working-directory: sources/North-Wildwood-floodmapper
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.candidate.outputs.sha }}
+          SHORELYSAFE_TOKEN: ${{ secrets.SHORELYSAFE_PUBLISH_TOKEN }}
+          SHORELYSAFE_SITE: https://cupajoe.live
+          SHORELYSAFE_APP: floodmapper--north-wildwood
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
           from pathlib import Path
-          import sys
-          sys.path.insert(0, ".shorelysafe")
+          sys.path[:0] = [".shorelysafe", "tools"]
           import publish
-          token=os.environ["SHORELYSAFE_TOKEN"]
-          if not token: raise SystemExit("SHORELYSAFE_PUBLISH_TOKEN is not configured")
-          apps=json.loads(Path(".shorelysafe/apps.json").read_text())
-          app=next(a for a in apps if a["id"]==os.environ["SHORELYSAFE_APP"])
-          connection={"site":os.environ["SHORELYSAFE_SITE"],"tokens":{app["id"]:token}}
-          print(json.dumps(publish.publish(app,Path.cwd(),apps,connection)))
+          from release_gate import GitHub, assert_current
+          candidate = os.environ["RELEASE_SHA"]
+          receipt = json.loads((Path(os.environ["RUNNER_TEMP"]) / "north-wildwood-release.json").read_text())
+          if receipt["releaseSha"] != candidate or receipt["repository"] != os.environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("Release receipt does not match the selected checkout")
+          github = GitHub(os.environ["GITHUB_REPOSITORY"], os.environ["GH_TOKEN"])
+          assert_current(github, candidate)
+          token = os.environ["SHORELYSAFE_TOKEN"]
+          if not token:
+              raise SystemExit("SHORELYSAFE_PUBLISH_TOKEN is not configured")
+          apps = json.loads(Path(".shorelysafe/apps.json").read_text())
+          app = next(app for app in apps if app["id"] == os.environ["SHORELYSAFE_APP"])
+          connection = {"site": os.environ["SHORELYSAFE_SITE"], "tokens": {app["id"]: token}}
+          result = publish.publish(app, Path.cwd(), apps, connection,
+              expected_commit=candidate, before_commit=lambda: assert_current(github, candidate))
+          print(json.dumps(result))
           PY

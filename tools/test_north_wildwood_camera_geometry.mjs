@@ -1,10 +1,11 @@
+import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const sourcePath = process.argv[2];
 if (!sourcePath) throw new Error('Usage: node camera-geometry.mjs SOURCE_HTML_OR_MOUNT_FUNCTION [CSS_FILE]');
-const source = fs.readFileSync(sourcePath, 'utf8');
+const source = readAppSource(sourcePath);
 const css = process.argv[3] ? fs.readFileSync(process.argv[3], 'utf8') : source;
 const functionSource = source.match(/  function mountPanel\(\) \{[\s\S]*?\n  \}/)?.[0];
 assert.ok(functionSource, 'The actual camera mountPanel function must exist');

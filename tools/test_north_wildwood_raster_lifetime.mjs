@@ -1,7 +1,8 @@
+import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const html=readAppSource(new URL('../index.html',import.meta.url));
 const source=html.slice(html.indexOf('    const rasterObjectUrlUsers ='),html.indexOf('    function cacheBathtubStageOverlay('));
 const callbacks=[],revoked=[];
 const context=vm.createContext({Map,Set,window:{setTimeout(fn){callbacks.push(fn);return callbacks.length}},URL:{revokeObjectURL(url){revoked.push(url)}},currentFloodLayer:null,pendingFloodLayer:null,preloadPromiseCache:new Map(),drainageRasterImageCache:new Map(),exportImageElementCache:new Map()});

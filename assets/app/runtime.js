@@ -1,0 +1,14497 @@
+
+    const APP_BASE = new URL(".", window.location.href);
+    let FORECAST_URL = "";
+    let OBSERVED_URL = "";
+    let CANONICAL_DAILY_URL = "";
+    let OBSERVED_15MIN_URL = "";
+    let OBSERVED_ARCHIVE_INDEX_URL = "";
+    let LEWES_ARCHIVE_INDEX_URL = "";
+    let LEWES_HOURLY_URL = "";
+    let TOP_TIDES_URL = "";
+    let RETURN_INTERVALS_URL = "";
+    let DEPTH_QUERY_PNG_URL = "";
+    let DEVELOPED_QUERY_PNG_URL = "";
+    let DEPTH_QUERY_COG_URL = "";
+    let HYDRAULIC_STATES_URL = "";
+    let PHYSICS_FORECAST_POINTER_URL = "";
+    let PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE = "";
+    let PARCELS_URL = "";
+    let HOUSE_ALERT_CDF_URL = "";
+    let PARCEL_BOUNDARY_PNG_URL = "";
+    let NSI_STRUCTURES_URL = "";
+
+    function withFreshJsonUrl(url) {
+      const fresh = new URL(url, window.location.href);
+      fresh.searchParams.set("_ts", String(Date.now()));
+      return fresh.href;
+    }
+
+    const OPTIONAL_SCRIPT_URLS = {
+      html2canvas: "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+      jszip: "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+      geotiff: "https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"
+    };
+    const optionalScriptPromises = new Map();
+
+    function loadOptionalScript(key, isReady) {
+      if (isReady()) return Promise.resolve();
+      if (optionalScriptPromises.has(key)) return optionalScriptPromises.get(key);
+      const url = OPTIONAL_SCRIPT_URLS[key];
+      const promise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = url;
+        script.async = true;
+        script.dataset.optionalLibrary = key;
+        script.onload = () => isReady()
+          ? resolve()
+          : reject(new Error(`${key} loaded without exposing its browser API.`));
+        script.onerror = () => reject(new Error(`${key} could not be loaded.`));
+        document.head.appendChild(script);
+      }).catch(error => {
+        optionalScriptPromises.delete(key);
+        document.querySelector(`script[data-optional-library="${key}"]`)?.remove();
+        throw error;
+      });
+      optionalScriptPromises.set(key, promise);
+      return promise;
+    }
+
+    async function ensureExportLibraries(format, frameCount = 1) {
+      document.body.dataset.exportLibraries = "loading";
+      const loads = [loadOptionalScript("html2canvas", () => typeof window.html2canvas === "function")];
+      if (format === "png" && frameCount > 1) loads.push(loadOptionalScript("jszip", () => typeof window.JSZip === "function"));
+      try {
+        await Promise.all(loads);
+        document.body.dataset.exportLibraries = "ready";
+      } catch (error) {
+        document.body.dataset.exportLibraries = "unavailable";
+        throw error;
+      }
+    }
+
+    function warmExportLibraries() {
+      const format = getDownloadFormatValue();
+      const estimatedFrameCount = format === "png" ? Math.max(1, getDownloadFrameItems().length) : 1;
+      ensureExportLibraries(format, estimatedFrameCount).catch(error => {
+        console.warn("Export tools will retry when export begins.", error);
+      });
+    }
+
+    async function ensureDepthQueryLibrary() {
+      await loadOptionalScript("geotiff", () => Boolean(window.GeoTIFF?.fromUrl));
+    }
+
+
+
+    const MIN_STAGE = -4.0;
+    const MIN_DEPTH_STAGE = 0.0;
+    const MAX_STAGE = 20.0;
+    const STAGE_STEP = 0.1;
+    const DEFAULT_OVERLAY_MODE = "depth";
+    const DEFAULT_DATA_MODE = "forecast";
+    const DEFAULT_OPACITY = 0.75;
+    const TOP_TIDE_DISPLAY_COUNT = 2;
+    const TOP_TIDE_SELECT_COUNT = 10;
+    const TOP_TIDE_WINDOW_HOURS = 12;
+    const ROAD_LABEL_ZOOM = 10;
+    const EXPORT_RANGE_MAX_HOURS = 84;
+    const EXPORT_RANGE_MAX_MS = EXPORT_RANGE_MAX_HOURS * 60 * 60 * 1000;
+    const EXPORT_INTERVALS = {
+      hourly: { value: "hourly", label: "Hourly", minutes: 60, frameLimit: EXPORT_RANGE_MAX_HOURS + 1 },
+      "15min": { value: "15min", label: "15-Minute", minutes: 15, frameLimit: (EXPORT_RANGE_MAX_HOURS * 4) + 1 },
+      daily: { value: "daily", label: "Daily Maximum", minutes: 1440, frameLimit: 5 }
+    };
+    const PLAYBACK_DAY_CONFIRMATION_INTERVAL = 20;
+    const PLAYBACK_SIMULATED_HOUR_MS = 950;
+    const PLAYBACK_MINIMUM_FRAME_DELAY_MS = 20;
+    const EXPORT_CAPTURE_DELAY_MS = 1;
+    const EXPORT_GIF_SPEEDS = {
+      slow: { value: "slow", label: "Slow", delayMs: 2000 },
+      normal: { value: "normal", label: "Normal", delayMs: 1000 },
+      fast: { value: "fast", label: "Fast", delayMs: 500 }
+    };
+    const EXPORT_GIF_QUALITY = 1;
+    const EXPORT_CAPTURE_SCALE = 1;
+    const EXPORT_GIF_DITHER = false;
+    const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
+    const GIF_WORKER_CDN_URL = "https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.worker.js";
+    const EXPORT_GIF_ASPECTS = {
+      "4:5": { value: "4:5", width: 1080, height: 1350, pngWidth: 2160, pngHeight: 2700, label: "Social 4:5" },
+      "16:9": { value: "16:9", width: 1920, height: 1080, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
+      "9:16": { value: "9:16", width: 1080, height: 1920, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
+      "1:1": { value: "1:1", width: 1200, height: 1200, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }
+    };
+    const EXPORT_PROGRESS_UPDATE_EVERY = 8;
+
+
+
+    let TOWN_CONFIG = null;
+    let OVERLAY_ROOTS = { depth: [], dynamic: [] };
+    let OVERLAY_PHASE_ROOTS = { depth: {}, dynamic: {} };
+    let OVERLAY_CACHE_VERSIONS = {};
+    let NWS_POINT_URL = "";
+    let SITE_CONFIG = {};
+    let MUNICIPAL_BOUNDARY_QUERY_CANDIDATES = [];
+    let MUNICIPAL_BOUNDARY_QUERY_URL = "";
+    let MUNICIPAL_BOUNDARY_OUTFIELDS = "";
+    let DATUM_OFFSETS = { navd88: 0, mllw: 0 };
+    let FALLBACK_TOWN_MASK_RING = [];
+    let FALLBACK_LATLNG_BOUNDS = null;
+    let MUNICIPAL_BOUNDARY_BUNNY_URL = "";
+    let MINOR_FLOOD_FT = 0;
+    let MODERATE_FLOOD_FT = 0;
+    let MAJOR_FLOOD_FT = 0;
+
+    const MINOR_VERTICAL_PENALTY_FT = 0.75;
+    const MODERATE_VERTICAL_PENALTY_FT = 0.25;
+    const MAJOR_VERTICAL_PENALTY_FT = 0;
+
+    function formatOffsetWithSign(value, digits = 2) {
+      const n = Number(value) || 0;
+      const sign = n >= 0 ? "+" : "";
+      return `${sign}${n.toFixed(digits)}`;
+    }
+
+    function formatDatumToggleLabel() {
+      return `MLLW (${formatOffsetWithSign(DATUM_OFFSETS.mllw, 2)} ft)`;
+    }
+
+    function buildOverlayRoots(rootList) {
+      const list = Array.isArray(rootList) ? rootList : (rootList ? [rootList] : []);
+      return list.map(path => new URL(path, APP_BASE).href);
+    }
+
+    function configuredSurrogate() {
+      return TOWN_CONFIG?.observed?.surrogate || { enabled: false };
+    }
+
+    function surrogateEnabled() {
+      return configuredSurrogate().enabled === true;
+    }
+
+    function surrogateStationId() {
+      return String(configuredSurrogate().stationId || "");
+    }
+
+    function surrogateStationName() {
+      return String(configuredSurrogate().stationName || "NOAA surrogate");
+    }
+
+    function surrogateStationShort() {
+      return String(configuredSurrogate().stationShort || surrogateStationName());
+    }
+
+    function surrogateBiasCorrectionFt() {
+      const value = Number(configuredSurrogate().biasCorrectionFt);
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function decodeSurrogateHundredths(value) {
+      if (value == null || value === "") return null;
+      const raw = Number(value);
+      return Number.isFinite(raw) ? raw / 100 + surrogateBiasCorrectionFt() : null;
+    }
+
+    function primaryArchiveStartDate() {
+      return String(TOWN_CONFIG?.observed?.primaryArchiveStartDate || "2007-10-01");
+    }
+
+    function primaryGaugeName() {
+      return String(TOWN_CONFIG?.site?.gaugeName || TOWN_CONFIG?.site?.name || "Primary gauge");
+    }
+
+    function optionalAppUrl(value) {
+      return value ? new URL(value, APP_BASE).href : "";
+    }
+
+    function normalizeConfiguredDataset(payload, kind = "") {
+      const zoneId = TOWN_CONFIG?.data?.zoneId;
+      const zone = zoneId && payload?.zones?.[zoneId] ? payload.zones[zoneId] : null;
+      if (!zone) return payload;
+      return (kind && zone?.[kind]) || zone?.forecast || zone?.observed || zone;
+    }
+
+
+    function decodeHtmlText(value) {
+      const el = document.createElement("textarea");
+      el.innerHTML = String(value ?? "");
+      return el.value;
+    }
+
+    let mapTitleFitRaf = 0;
+
+    function fitMapTitleBadgeToViewport() {
+      if(document.body.hasAttribute("data-county-viewport")) return;
+      if (document.documentElement.classList.contains("avalon-mobile-ui") && isCompactFloodmapperLayout()) return;
+      mapTitleFitRaf = 0;
+      const badge = document.getElementById("mapTitleBadge");
+      const text = document.getElementById("mapTitleText");
+      if (!badge || !text) return;
+
+      const viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+      const compact = isCompactFloodmapperLayout();
+      let leftLimit = 12;
+      let rightLimit = viewportWidth - 12;
+
+      if (!compact) {
+        const leftPanel = document.getElementById("leftPanel");
+        const rightRail = document.getElementById("rightRail");
+        const leftRect = leftPanel?.getBoundingClientRect();
+        const rightRect = rightRail?.getBoundingClientRect();
+        if (leftRect?.width && getComputedStyle(leftPanel).display !== "none") {
+          leftLimit = Math.max(leftLimit, leftRect.right + 14);
+        }
+        if (rightRect?.width && getComputedStyle(rightRail).display !== "none") {
+          rightLimit = Math.min(rightLimit, rightRect.left - 14);
+        }
+        const navigation = document.getElementById("nwDefaultNavControl");
+        const navigationRect = navigation?.getBoundingClientRect();
+        if (navigationRect?.width && navigationRect.top < badge.getBoundingClientRect().bottom + 8) {
+          rightLimit = Math.min(rightLimit, navigationRect.left - 14);
+        }
+      }
+
+      if (rightLimit - leftLimit < 180) {
+        leftLimit = 12;
+        rightLimit = viewportWidth - 12;
+      }
+      const availableWidth = Math.max(156, rightLimit - leftLimit);
+      const center = leftLimit + (availableWidth / 2);
+      badge.style.setProperty("left", `${center}px`, "important");
+      badge.style.setProperty("max-width", `${availableWidth}px`, "important");
+      badge.style.setProperty("width", compact ? `${availableWidth}px` : "auto", "important");
+
+      const maximumFontSize = compact
+        ? Math.min(25, Math.max(17, viewportWidth * 0.056))
+        : viewportWidth <= 1080
+          ? Math.min(32, Math.max(20, viewportWidth * 0.028))
+          : viewportWidth <= 1280
+            ? Math.min(36, Math.max(24, viewportWidth * 0.026))
+            : Math.min(42, Math.max(28, viewportWidth * 0.024));
+      const maximumLogoWidth = compact
+        ? (viewportWidth <= 430 ? 0 : Math.min(68, availableWidth * 0.17))
+        : viewportWidth <= 1080
+          ? 0
+          : Math.min(viewportWidth <= 1280 ? 122 : 150, availableWidth * 0.2);
+      badge.style.setProperty("--nww-title-font-size", `${maximumFontSize}px`);
+      text.style.setProperty("font-size", `${maximumFontSize}px`, "important");
+      badge.style.setProperty("--nww-title-logo-max", `${maximumLogoWidth}px`);
+      badge.querySelectorAll(".shorely-title-logo").forEach(logo => {
+        logo.style.setProperty("max-width", `${maximumLogoWidth}px`, "important");
+      });
+
+      const badgeStyle = getComputedStyle(badge);
+      const paddingWidth = (parseFloat(badgeStyle.paddingLeft) || 0) + (parseFloat(badgeStyle.paddingRight) || 0);
+      const children = Array.from(badge.children).filter(child => {
+        const rect = child.getBoundingClientRect();
+        const style = getComputedStyle(child);
+        return child !== text && rect.width > 0 && style.display !== "none" && style.visibility !== "hidden";
+      });
+      const gap = parseFloat(badgeStyle.columnGap || badgeStyle.gap) || 0;
+      const fixedWidth = paddingWidth
+        + children.reduce((sum, child) => sum + child.getBoundingClientRect().width, 0)
+        + gap * Math.max(0, children.length);
+      const naturalTextWidth = Math.max(text.scrollWidth, text.getBoundingClientRect().width, 1);
+      const availableTextWidth = Math.max(80, availableWidth - fixedWidth);
+      const minimumFontSize = compact ? 12 : viewportWidth <= 1080 ? 11 : 16;
+      const fittedFontSize = Math.max(
+        minimumFontSize,
+        Math.min(maximumFontSize, maximumFontSize * (availableTextWidth / naturalTextWidth))
+      );
+      let finalFontSize = fittedFontSize;
+      for (let pass = 0; pass < 3; pass += 1) {
+        badge.style.setProperty("--nww-title-font-size", `${finalFontSize.toFixed(2)}px`);
+        text.style.setProperty("font-size", `${finalFontSize.toFixed(2)}px`, "important");
+        if (text.scrollWidth <= text.clientWidth + 1 || !text.scrollWidth) break;
+        const correction = Math.max(0.5, Math.min(0.99, text.clientWidth / text.scrollWidth));
+        finalFontSize = Math.max(minimumFontSize, finalFontSize * correction * 0.985);
+      }
+
+      const rect = badge.getBoundingClientRect();
+      badge.dataset.viewportContained = String(
+        rect.left >= leftLimit - 1 && rect.right <= rightLimit + 1 && rect.left >= -1 && rect.right <= viewportWidth + 1
+      );
+      badge.dataset.textContained = String(text.scrollWidth <= text.clientWidth + 1);
+    }
+
+    function scheduleMapTitleFit() {
+      // Wait for the navigation controls before measuring the title's lane.
+      if (document.readyState === "loading") {
+        if (mapTitleFitRaf) return;
+        mapTitleFitRaf = -1;
+        document.addEventListener("DOMContentLoaded", () => {
+          mapTitleFitRaf = 0;
+          scheduleMapTitleFit();
+        }, { once:true });
+        return;
+      }
+      if (mapTitleFitRaf > 0) cancelAnimationFrame(mapTitleFitRaf);
+      mapTitleFitRaf = requestAnimationFrame(fitMapTitleBadgeToViewport);
+    }
+
+    function setExportLogoImage(id, src, alt = "") {
+      const img = document.getElementById(id);
+      if (!img) return;
+      if (src) {
+        img.src = src;
+        img.alt = alt || "";
+        img.classList.add("is-visible");
+        img.style.display = "";
+        img.onerror = function(){
+          this.classList.remove("is-visible");
+          this.style.display = "none";
+        };
+      } else {
+        img.removeAttribute("src");
+        img.alt = "";
+        img.classList.remove("is-visible");
+        img.style.display = "none";
+      }
+    }
+
+    function syncExportBrandLogos(config) {
+      const assets = config?.assets || {};
+      setExportLogoImage("exportTownLogo", assets.titleLogoPath, assets.titleLogoAlt || config?.site?.name || "");
+      setExportLogoImage("exportPartnerLogo", assets.partnerLogoPath || assets.rightRailLogoPath, assets.partnerLogoAlt || assets.rightRailLogoAlt || "ShorelySafe");
+    }
+
+    function applyTownConfig(config) {
+      if (!config) throw new Error("Missing TOWN_CONFIG at bottom of HTML.");
+      TOWN_CONFIG = config;
+      FORECAST_URL = new URL(config.data?.forecastPath || "./forecast.json", APP_BASE).href;
+      OBSERVED_URL = new URL(config.data?.observedPath || "./observed.json", APP_BASE).href;
+      CANONICAL_DAILY_URL = new URL(config.data?.canonicalDailyPath || "./canonical_daily_v2.json", APP_BASE).href;
+      OBSERVED_15MIN_URL = new URL(config.data?.observed15MinPath || "./observed15min.json", APP_BASE).href;
+      OBSERVED_ARCHIVE_INDEX_URL = new URL(config.data?.observedArchiveIndexPath || "./observed_archive_index.json", APP_BASE).href;
+      LEWES_ARCHIVE_INDEX_URL = optionalAppUrl(config.data?.surrogateArchiveIndexPath || config.data?.lewesArchiveIndexPath);
+      LEWES_HOURLY_URL = optionalAppUrl(config.data?.surrogateHourlyPath || config.data?.lewesHourlyPath);
+      TOP_TIDES_URL = new URL(config.data?.topTidesPath || "./toptides.json", APP_BASE).href;
+      RETURN_INTERVALS_URL = new URL(config.data?.returnIntervalsPath || "./return_intervals.json", APP_BASE).href;
+      DEPTH_QUERY_PNG_URL = optionalAppUrl(config.overlays?.depthQueryPngPath);
+      DEVELOPED_QUERY_PNG_URL = config.overlays?.developedQueryPngPath
+        ? new URL(config.overlays.developedQueryPngPath, APP_BASE).href
+        : "";
+      DEPTH_QUERY_COG_URL = config.overlays?.depthQueryCogPath
+        ? new URL(config.overlays.depthQueryCogPath, APP_BASE).href
+        : "";
+      HYDRAULIC_STATES_URL = optionalAppUrl(config.overlays?.hydraulicStatesPath);
+      PHYSICS_FORECAST_POINTER_URL = config.overlays?.physicsForecastPointerPath
+        ? new URL(config.overlays.physicsForecastPointerPath, APP_BASE).href
+        : "";
+      PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE =
+        config.overlays?.physicsForecastCyclePointerTemplatePath || "";
+      PARCELS_URL = optionalAppUrl(config.parcels?.geojsonPath);
+      HOUSE_ALERT_CDF_URL = optionalAppUrl(config.parcels?.houseAlertCdfPath);
+      PARCEL_BOUNDARY_PNG_URL = optionalAppUrl(config.parcels?.boundaryPngPath);
+      NSI_STRUCTURES_URL = config.structures?.nsi2026GeojsonPath
+        ? new URL(config.structures.nsi2026GeojsonPath, APP_BASE).href
+        : "";
+      MUNICIPAL_BOUNDARY_QUERY_URL = config.boundary?.queryUrl || "";
+      MUNICIPAL_BOUNDARY_OUTFIELDS = config.boundary?.outFields || "";
+
+      document.title = config.pageTitle || `${config.site?.name || "Town"} Flood Map`;
+
+      const siteTitleLine1 = document.getElementById("siteTitleLine1");
+      const siteTitleLine2 = document.getElementById("siteTitleLine2");
+      if (siteTitleLine1) siteTitleLine1.textContent = decodeHtmlText(config.brandTitleLine1 || config.site?.name || "Flood");
+      if (siteTitleLine2) siteTitleLine2.textContent = decodeHtmlText(config.brandTitleLine2 || "Flood Map");
+
+      const mapTitleText = document.getElementById("mapTitleText");
+      if (mapTitleText) mapTitleText.textContent = decodeHtmlText(config.mapTitle || config.pageTitle || `${config.site?.name || "Town"} Flood Map`);
+
+      const mapTitleLogo = document.getElementById("mapTitleLogo");
+      if (mapTitleLogo) {
+        if (config.assets?.titleLogoPath) {
+          mapTitleLogo.src = config.assets.titleLogoPath;
+          mapTitleLogo.alt = config.assets?.titleLogoAlt || "";
+          mapTitleLogo.style.display = "";
+          mapTitleLogo.onload = scheduleMapTitleFit;
+          mapTitleLogo.onerror = function(){ this.style.display = "none"; scheduleMapTitleFit(); };
+        } else {
+          mapTitleLogo.remove();
+        }
+      }
+
+      const mapTitlePartnerLogo = document.getElementById("mapTitlePartnerLogo");
+      if (mapTitlePartnerLogo) {
+        if (config.assets?.partnerLogoPath) {
+          mapTitlePartnerLogo.src = floodmapperUiLogoUrl(config.assets.partnerLogoPath, config.assets?.partnerLogoPath || config.assets?.partnerLogoPath);
+          mapTitlePartnerLogo.alt = config.assets?.partnerLogoAlt || "";
+          mapTitlePartnerLogo.style.display = "";
+          mapTitlePartnerLogo.onload = scheduleMapTitleFit;
+          mapTitlePartnerLogo.onerror = function(){
+            if (config.assets?.partnerLogoFallbackPath && !this.dataset.logoFallback) {
+              this.dataset.logoFallback = "1";
+              this.src = config.assets.partnerLogoFallbackPath;
+            } else {
+              this.style.display = "none";
+              scheduleMapTitleFit();
+            }
+          };
+        } else {
+          mapTitlePartnerLogo.removeAttribute("src");
+          mapTitlePartnerLogo.style.display = "none";
+        }
+      }
+      scheduleMapTitleFit();
+
+      const rightLogoLink = document.getElementById("rightLogoLink");
+      if (rightLogoLink) {
+        rightLogoLink.href = config.links?.partnerUrl || "#";
+        rightLogoLink.setAttribute("aria-label", config.links?.partnerAriaLabel || "Visit partner site");
+      }
+
+      const rightRailLogo = document.getElementById("rightRailLogo");
+      if (rightRailLogo) {
+        if (config.assets?.rightRailLogoPath || config.assets?.partnerLogoPath) {
+          rightRailLogo.src = floodmapperUiLogoUrl(config.assets?.rightRailLogoPath || config.assets.partnerLogoPath, config.assets?.rightRailLogoPath || config.assets?.partnerLogoPath);
+          rightRailLogo.alt = config.assets?.rightRailLogoAlt || config.assets?.partnerLogoAlt || "";
+          rightRailLogo.style.display = "";
+          rightRailLogo.onerror = function(){
+            if (config.assets?.partnerLogoFallbackPath && !this.dataset.logoFallback) {
+              this.dataset.logoFallback = "1";
+              this.src = config.assets.partnerLogoFallbackPath;
+            } else {
+              this.style.display = "none";
+            }
+          };
+        } else {
+          rightRailLogo.removeAttribute("src");
+          rightRailLogo.style.display = "none";
+        }
+      }
+
+      syncExportBrandLogos(config);
+
+      const addressTitle = document.getElementById("townAddressTitle");
+      if (addressTitle) addressTitle.textContent = decodeHtmlText(config.addressLookup?.title || `Find a ${config.site?.name || "Town"} Address`);
+      const addressInput = document.getElementById("townAddressInput");
+      if (addressInput) addressInput.placeholder = config.addressLookup?.placeholder || "Example: 3100 Main St";
+      const addressSearchBtn = document.getElementById("townAddressSearchBtn");
+      if (addressSearchBtn) addressSearchBtn.textContent = config.addressLookup?.buttonText || `Search ${config.site?.name || "Town"}`;
+
+      const datumMllwOffsetLabel = document.getElementById("datumMllwOffsetLabel");
+      if (datumMllwOffsetLabel) datumMllwOffsetLabel.textContent = `${formatOffsetWithSign(config.datums?.offsets?.mllw || 0, 2)} ft`;
+
+      const datumHelpTownLine = document.getElementById("datumHelpTownLine");
+      if (datumHelpTownLine) {
+        datumHelpTownLine.textContent = config.datums?.helpText || "Changing the reference changes the number shown, not the mapped flood area.";
+      }
+
+      OVERLAY_ROOTS = {
+        depth: buildOverlayRoots(config.overlays?.depthRoots),
+        dynamic: buildOverlayRoots(config.overlays?.dynamicRoots)
+      };
+      const configuredFamilyRoots = config.overlays?.familyRoots || config.overlays?.phaseRoots || {};
+      OVERLAY_PHASE_ROOTS = {
+        depth: Object.fromEntries(Object.entries(configuredFamilyRoots.depth || {}).map(([family, roots]) => [family, buildOverlayRoots(roots)])),
+        dynamic: Object.fromEntries(Object.entries(configuredFamilyRoots.dynamic || {}).map(([family, roots]) => [family, buildOverlayRoots(roots)]))
+      };
+      OVERLAY_CACHE_VERSIONS = config.overlays?.cacheVersions || {};
+
+      SITE_CONFIG = {
+        name: config.site?.name,
+        municipalityName: config.site?.municipalityName,
+        county: config.site?.county,
+        usgsGaugeId: config.site?.usgsGaugeId,
+        noaaGaugeId: config.site?.noaaGaugeId,
+        petssGaugeId: config.site?.petssGaugeId,
+        gaugeName: config.site?.gaugeName,
+        navd88OffsetFromMllwFt: config.datums?.navd88OffsetFromMllwFt,
+        floodThresholdsMllwFt: config.thresholds?.mllw,
+        floodThresholdsNavd88Ft: config.thresholds?.navd88,
+        depthPngPrefix: config.overlays?.depthPngPrefix,
+        stagePngPrefix: config.overlays?.stagePngPrefix
+      };
+
+      const point = config.nwsPoint || config.map?.center;
+      NWS_POINT_URL = point ? `https://api.weather.gov/points/${point.lat},${point.lon}` : "";
+
+      MUNICIPAL_BOUNDARY_QUERY_CANDIDATES = config.boundary?.queryCandidates || [];
+      DATUM_OFFSETS = config.datums?.offsets || { navd88: 0, mllw: 0 };
+      MUNICIPAL_BOUNDARY_BUNNY_URL = config.boundary?.bunnyBoundaryPath || config.boundary?.boundaryUrl || "";
+      FALLBACK_TOWN_MASK_RING = [];
+      FALLBACK_LATLNG_BOUNDS = null;
+
+      MINOR_FLOOD_FT = Number(config.thresholds?.navd88?.minor || 0);
+      MODERATE_FLOOD_FT = Number(config.thresholds?.navd88?.moderate || 0);
+      MAJOR_FLOOD_FT = Number(config.thresholds?.navd88?.major || 0);
+
+      DYNAMIC_LEGEND = buildDynamicLegend();
+
+      if (typeof municipalBoundaryRings !== "undefined") {
+        municipalBoundaryRings = [FALLBACK_TOWN_MASK_RING];
+      }
+    }
+
+    function buildDynamicLegend() {
+      const navd = SITE_CONFIG.floodThresholdsNavd88Ft || {};
+      const mllw = SITE_CONFIG.floodThresholdsMllwFt || {};
+      const minorHighNavd = (Number(navd.moderate) - 0.01).toFixed(2);
+      const moderateHighNavd = (Number(navd.major) - 0.01).toFixed(2);
+      const minorHighMllw = (Number(mllw.moderate) - 0.01).toFixed(2);
+      const moderateHighMllw = (Number(mllw.major) - 0.01).toFixed(2);
+      return [
+        { label: `Minor (${Number(navd.minor).toFixed(2)}–${minorHighNavd} ft NAVD88 / ${Number(mllw.minor).toFixed(1)}–${minorHighMllw} ft MLLW)`, color: "var(--minor)" },
+        { label: `Moderate (${Number(navd.moderate).toFixed(2)}–${moderateHighNavd} ft NAVD88 / ${Number(mllw.moderate).toFixed(1)}–${moderateHighMllw} ft MLLW)`, color: "var(--moderate)" },
+        { label: `Major (${Number(navd.major).toFixed(2)}+ ft NAVD88 / ${Number(mllw.major).toFixed(1)}+ ft MLLW)`, color: "var(--major)" }
+      ];
+    }
+
+    const ESRI_API_KEY = window.ESRI_API_KEY || "";
+    const ESRI_OSM_VECTOR_TILE_URL = "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer";
+    const ESRI_WORLD_IMAGERY_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+    const FALLBACK_BASEMAP_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
+    const ROAD_LABELS_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
+
+    const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const NEW_YORK_TIME_ZONE = "America/New_York";
+
+    const NY_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
+      timeZone: NEW_YORK_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZoneName: "short"
+    });
+
+    // Depths stay in feet internally; only their display units change.
+    function formatWaterDepth(depth, feetDigits = 2) {
+      if (!Number.isFinite(depth)) return "N/A";
+      if (Math.abs(depth) < 1) return `${Number((depth * 12).toFixed(1))} in`;
+      return `${depth.toFixed(feetDigits)} ft`;
+    }
+
+    const DEPTH_LEGEND = [
+      { label: "< 1.2 in", color: "var(--depth-0)" },
+      { label: "1.2–3 in", color: "var(--depth-1)" },
+      { label: "3–6 in", color: "var(--depth-2)" },
+      { label: "6–12 in", color: "var(--depth-3)" },
+      { label: "1.00–1.50 ft", color: "var(--depth-4)" },
+      { label: "1.50–2.00 ft", color: "var(--depth-5)" },
+      { label: "2.00–2.50 ft", color: "var(--depth-6)" },
+      { label: "2.50–3.00 ft", color: "var(--depth-7)" },
+      { label: "3.00–4.00 ft", color: "var(--depth-8)" },
+      { label: "4.00–5.00 ft", color: "var(--depth-9)" },
+      { label: "5.00+ ft", color: "var(--depth-10)" }
+    ];
+
+    let DYNAMIC_LEGEND = [];
+
+
+function cloneStyleObject(value) {
+      return JSON.parse(JSON.stringify(value || {}));
+    }
+
+    function styleEsriBuildingBasemap(style) {
+      const next = cloneStyleObject(style);
+      if (!Array.isArray(next.layers)) return next;
+
+      // The default MapLibre light intensity produces extreme contrast
+      // between roof and wall faces. With thousands of aligned shore-town
+      // footprints, those dark wall faces collapse into long horizontal
+      // bands at overview scale. A soft viewport light preserves true 3D
+      // geometry and the existing material color without the stripe effect.
+      next.light = {
+        ...(next.light || {}),
+        anchor: "viewport",
+        color: "#ffffff",
+        intensity: 0.18
+      };
+
+      next.layers = next.layers.map(layer => {
+        const id = String(layer?.id || "").toLowerCase();
+        const sourceLayer = String(layer?.["source-layer"] || "").toLowerCase();
+        const joined = `${id} ${sourceLayer}`;
+        const isSymbolTextLayer = layer?.type === "symbol";
+        const isBuildingLayer = /(building|footprint|structure)/.test(joined);
+
+        if (isSymbolTextLayer || /(label|poi|place-name|road-name|road-label|reference-label|admin-label|marine-label|water-label)/.test(joined)) {
+          return {
+            ...layer,
+            layout: {
+              ...(layer.layout || {}),
+              visibility: "none"
+            }
+          };
+        }
+
+        if (isBuildingLayer) {
+          const paint = { ...(layer.paint || {}) };
+          if (layer.type === "fill") {
+            paint["fill-color"] = "#d8d2c6";
+            paint["fill-opacity"] = 0.98;
+            // Esri publishes a fill edge and a separate outline for every
+            // footprint. At overview scale the stacked edges collapse into
+            // the dark dashes and bands visible in dense building blocks.
+            // Preserve the established beige fill while neutralizing its edge.
+            paint["fill-outline-color"] = "#d8d2c6";
+          }
+          if (layer.type === "line") {
+            return {
+              ...layer,
+              layout: {
+                ...(layer.layout || {}),
+                visibility: "none"
+              }
+            };
+          }
+          return { ...layer, paint };
+        }
+
+        return layer;
+      });
+
+      return next;
+    }
+
+    function styleEsriBuildingForeground(style) {
+      const next = cloneStyleObject(style);
+      if (!Array.isArray(next.layers)) return next;
+
+      next.layers = next.layers.map(layer => {
+        const id = String(layer?.id || "").toLowerCase();
+        const sourceLayer = String(layer?.["source-layer"] || "").toLowerCase();
+        const isBuildingLayer = /(building|footprint|structure)/.test(`${id} ${sourceLayer}`);
+        const isBuildingGeometry = isBuildingLayer && (layer?.type === "fill" || layer?.type === "line");
+        if (!isBuildingGeometry) {
+          return {
+            ...layer,
+            layout: {
+              ...(layer.layout || {}),
+              visibility: "none"
+            }
+          };
+        }
+
+        const paint = { ...(layer.paint || {}) };
+        if (layer.type === "fill") {
+          paint["fill-color"] = "#ddd7cb";
+          paint["fill-opacity"] = 0.98;
+          paint["fill-outline-color"] = "#bcb2a2";
+        } else {
+          paint["line-color"] = "#b8ad9d";
+          paint["line-opacity"] = 1;
+          paint["line-width"] = 1.05;
+        }
+        return { ...layer, paint };
+      });
+      return next;
+    }
+
+    function makeEsriBuildingBasemapLayer(paneName = "basemapColorPane") {
+      if (!(window.L && L.esri && L.esri.Vector && L.esri.Vector.vectorTileLayer)) return null;
+
+      const options = {
+        pane: paneName,
+        preserveDrawingBuffer: true,
+        style: styleEsriBuildingBasemap
+      };
+      if (ESRI_API_KEY) options.apikey = ESRI_API_KEY;
+
+      return L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);
+    }
+
+    function makeEsriBuildingForegroundLayer(paneName = "buildingsPane") {
+      if (!(window.L && L.esri && L.esri.Vector && L.esri.Vector.vectorTileLayer)) return null;
+      const options = {
+        pane: paneName,
+        preserveDrawingBuffer: true,
+        style: styleEsriBuildingForeground
+      };
+      if (ESRI_API_KEY) options.apikey = ESRI_API_KEY;
+      return L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);
+    }
+
+    let map = null;
+    let basemapGrayLayer = null;
+    let basemapColorLayer = null;
+    let satelliteLayer = null;
+    let roadsLayer = null;
+    let buildingsLayer = null;
+    let parcelsLayer = null;
+    let nsiStructuresLayer = null;
+    let parcelFeatures = [];
+    let nsiStructureFeatures = [];
+    let houseAlertCdfData = null;
+    let houseAlertCdfPromise = null;
+    let parcelLoadPromise = null;
+    let nsiStructureLoadPromise = null;
+    let parcelLayerGeneration = 0;
+    let nsiLayerGeneration = 0;
+    let nsiStructureRenderer = null;
+    let depthQueryGridPromise = null;
+    let developedQueryGridPromise = null;
+    let depthQueryImagePromise = null;
+    let hydraulicStatesPromise = null;
+    let physicsForecastManifests = {};
+    let physicsQueryImageCache = new Map();
+    let renderedFloodPixelCache = null;
+    let drainageRasterImageCache = new Map();
+    let fillingCompositeCache = new Map();
+    let drainageCompositeCache = new Map();
+    let bathtubStageOverlayCache = new Map();
+    let overlayPreloadGeneration = 0;
+    let historicalTopTideWarmupScheduled = false;
+    let historicalTopTideWarmupGeneration = 0;
+    let cityBoundaryOutline = null;
+    let cityBoundaryMask = null;
+    let cityBoundaryGuide = null;
+    let townAddressMarker = null;
+    let townAddressSearchGeneration = 0;
+    let persistentFloodPopup = null;
+    let persistentDepthQueryContext = null;
+    let selectedParcelFeature = null;
+    let mapClickMode = "building";
+    let mapQueryGeneration = 0;
+
+    let exportMap = null;
+    let exportBasemapColorLayer = null;
+    let exportSatelliteLayer = null;
+    let exportRoadsLayer = null;
+    let exportBuildingsLayer = null;
+    let exportParcelsLayer = null;
+    let exportBoundaryOutline = null;
+    let exportBoundaryMask = null;
+    let exportBoundaryGeometryRings = null;
+    let exportBoundaryGeometryFeature = null;
+    let exportFloodLayer = null;
+    let municipalBoundaryLoadPromise = null;
+    let municipalBoundaryFeature = null;
+    let municipalBoundaryRings = [];
+    let currentFloodLayer = null;
+    let pendingFloodLayer = null;
+    let floodLatLngBounds = null;
+    let floodOverlayGeometryMode = "world-file";
+    let mapHasFit = false;
+    let deferredMapLayersStarted = false;
+
+    let forecastData = null;
+    let currentForecastScenario = "mean";
+    const FORECAST_SCENARIOS = {
+      lowEnd: { label: "Lower End", percentile: "", buttonId: "forecastLowBtn" },
+      mean: { label: "Mean", percentile: "", buttonId: "forecastMeanBtn" },
+      highEnd: { label: "Upper End", percentile: "", buttonId: "forecastHighBtn" }
+    };
+    let returnIntervalData = null;
+    let currentReturnIntervalYears = 10;
+    const RETURN_INTERVAL_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    let observedData = null;
+    let canonicalDailyData = null;
+    let observed15MinuteData = null;
+    let observedArchiveIndexTextPromise = null;
+    let observed15MinuteDaysByDate = new Map();
+    // Distinct caches: identical dates do not imply identical gauge or cadence.
+    let lewesHourlyDaysByDate = new Map();
+    let observedArchiveUnavailableYears = new Set();
+    let lewesHourlyData = null;
+    let lewesArchiveIndexData = null;
+    let lewesArchiveIndexPromise = null;
+    let lewesArchiveIndexWarmupScheduled = false;
+    let observedArchiveYearPromises = new Map();
+    let observedArchiveLoadedYears = new Set();
+    let observedDaysCache = null;
+    let observedMonthKeys = [];
+    let observedFlatHours = [];
+    let observedHourIndexByDateHour = new Map();
+    let topTideEvents = [];
+    let historicTopTideEntries = [];
+    let historicalTopTidesPromise = null;
+    let backgroundDataPromise = null;
+    let currentMonthKey = null;
+    let selectedObservedDate = null;
+
+    let currentDataMode = DEFAULT_DATA_MODE;
+    let currentOverlayMode = DEFAULT_OVERLAY_MODE;
+    let currentSeriesHours = [];
+    let currentHourIndex = 0;
+    let currentSelectedLabel = "Forecast";
+    let currentSelectedSubLabel = "--";
+    let currentViewType = "forecast";
+    let currentTopTideIndex = null;
+    let currentRangeLabel = "--";
+    let currentBaseModeBeforeTopTide = "observed";
+    let currentDatum = "mllw";
+    let currentObservedResolution = "1hour";
+    let currentTimelineIntervalMinutes = 60;
+    let currentRawSeriesHours = [];
+
+    function physicsPointerUrl() {
+      const forecastCycle = Date.parse(forecastData?.petssCycleUtc || "");
+      const cycleId = Number.isFinite(forecastCycle)
+        ? new Date(forecastCycle).toISOString().replace(/[-:]/g, "").replace(/\.000Z$/, "Z")
+        : "";
+      const cyclePointerPath = PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE && cycleId
+        ? PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE.replaceAll("{cycleId}", cycleId)
+        : "";
+      const pointerPath = cyclePointerPath || PHYSICS_FORECAST_POINTER_URL;
+      if (!pointerPath) return "";
+      const url = new URL(pointerPath, window.location.href);
+      url.searchParams.set("_cycle_check", String(Math.floor(Date.now() / 300000)));
+      return url.href;
+    }
+
+    function resolvePhysicsFileRecord(record, manifestUrl) {
+      if (!record?.path || !manifestUrl) return null;
+      return { ...record, url: new URL(record.path, manifestUrl).href };
+    }
+
+    function hydratePhysicsManifest(manifest, manifestUrl) {
+      const hydrate = record => ({
+        ...record,
+        visible: resolvePhysicsFileRecord(record.visible, manifestUrl),
+        impact: resolvePhysicsFileRecord(record.impact, manifestUrl),
+        query: resolvePhysicsFileRecord(record.query, manifestUrl)
+      });
+      return {
+        ...manifest,
+        frames: (Array.isArray(manifest?.frames) ? manifest.frames : []).map(hydrate),
+        dailyMaximums: (Array.isArray(manifest?.dailyMaximums) ? manifest.dailyMaximums : []).map(hydrate)
+      };
+    }
+
+    function getActivePhysicsManifest() {
+      return physicsForecastManifests[currentForecastScenario] || null;
+    }
+
+    async function loadPhysicsForecast(force = false) {
+      if (!PHYSICS_FORECAST_POINTER_URL && !PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE) return null;
+      if (Object.keys(physicsForecastManifests).length && !force) {
+        return getActivePhysicsManifest();
+      }
+      const pointerUrl = physicsPointerUrl();
+      const pointer = await fetchJson(pointerUrl);
+      const manifestUrls = pointer?.manifestUrls && typeof pointer.manifestUrls === "object"
+        ? pointer.manifestUrls
+        : (pointer?.manifestUrl ? { [pointer.scenario || "mean"]: pointer.manifestUrl } : {});
+      if (pointer?.status !== "complete" || !Object.keys(manifestUrls).length) {
+        throw new Error("The physics forecast pointer is not complete.");
+      }
+      const hydrated = await Promise.all(Object.entries(manifestUrls).map(async ([scenario, rawUrl]) => {
+        const manifestUrl = new URL(rawUrl, pointerUrl).href;
+        const manifest = await fetchJson(manifestUrl);
+        const recordsValid = records => Array.isArray(records) && records.length &&
+          records.every(record => record?.visible?.path && record?.impact?.path && record?.query?.path);
+        if (
+          manifest?.status !== "complete" ||
+          manifest?.schema !== "north-wildwood-physics-forecast-v1" ||
+          !Array.isArray(manifest?.boundsWgs84) ||
+          !recordsValid(manifest?.frames) ||
+          !recordsValid(manifest?.dailyMaximums)
+        ) {
+          throw new Error(`The ${scenario} physics forecast manifest is invalid.`);
+        }
+        if (pointer.cycleId && manifest.cycleId !== pointer.cycleId) {
+          throw new Error("The physics pointer and manifest cycle do not match.");
+        }
+        if ((manifest.scenario || "mean") !== scenario) {
+          throw new Error(`The ${scenario} physics manifest has the wrong scenario label.`);
+        }
+        return [scenario, hydratePhysicsManifest(manifest, manifestUrl)];
+      }));
+      physicsForecastManifests = Object.fromEntries(hydrated);
+      physicsQueryImageCache = new Map();
+      return getActivePhysicsManifest() || hydrated[0]?.[1] || null;
+    }
+
+    function physicsManifestMatchesForecastCycle(manifest = getActivePhysicsManifest()) {
+      if (!manifest || !forecastData) return false;
+      const physicsCycle = Date.parse(manifest?.petssSource?.cycleUtc || "");
+      const dashboardCycle = Date.parse(forecastData?.petssCycleUtc || "");
+      return Number.isFinite(physicsCycle) &&
+        Number.isFinite(dashboardCycle) &&
+        physicsCycle === dashboardCycle;
+    }
+
+    function physicsForecastApplies() {
+      return Boolean(
+        currentDataMode === "forecast" &&
+        physicsManifestMatchesForecastCycle()
+      );
+    }
+
+    function physicsFrameToForecastEntry(frame) {
+      const stage = Number(frame?.boundaryStageNavd88Ft);
+      return {
+        timeUtc: frame.timeUtc,
+        displayTimeUtc: frame.timeUtc,
+        navd88StageFt: stage,
+        stageFt: stage,
+        value: stage,
+        timelineIntervalMinutes: 15,
+        observationInterval: "15min",
+        physicsFrame: frame,
+        physicsCycleId: getActivePhysicsManifest()?.cycleId || "",
+        isPhysicsForecast: true
+      };
+    }
+
+    function getPhysicsForecastDisplaySeries() {
+      const manifest = getActivePhysicsManifest();
+      if (!physicsForecastApplies() || !manifest) return null;
+      const allFrames = annotateHydraulicSeries(manifest.frames.map(physicsFrameToForecastEntry));
+      const interval = getTimelineIntervalMinutes();
+      if (interval === 15) return allFrames;
+      if (interval === 60) {
+        return allFrames
+          .filter(entry => entry.physicsFrame?.isHourlySourcePoint)
+          .map(entry => ({ ...entry, timelineIntervalMinutes: 60, observationInterval: "1hour" }));
+      }
+      const entriesByLocalDate = new Map();
+      allFrames.forEach(entry => {
+        const parts = getNyParts(getEntryESTDate(entry));
+        if (!parts) return;
+        const key = `${parts.year}-${parts.month}-${parts.day}`;
+        if (!entriesByLocalDate.has(key)) entriesByLocalDate.set(key, []);
+        entriesByLocalDate.get(key).push(entry);
+      });
+      return manifest.dailyMaximums.map(daily => {
+        const entries = entriesByLocalDate.get(daily.dateLocal) || [];
+        const peak = entries.reduce((best, entry) => (
+          !best || getStageValue(entry) > getStageValue(best) ? entry : best
+        ), entries[0] || allFrames[0]);
+        return {
+          ...peak,
+          observedDate: daily.dateLocal,
+          observationInterval: "daily",
+          timelineIntervalMinutes: 1440,
+          isDailyMaximum: true,
+          dailyMaximumKind: "forecast",
+          physicsDailyMaximum: daily
+        };
+      });
+    }
+
+    function getPhysicsAssetForEntry(entry) {
+      if (!physicsForecastApplies()) return null;
+      return entry?.physicsDailyMaximum || entry?.physicsFrame || null;
+    }
+
+    function getPhysicsDisplayRecord(asset, mode = currentOverlayMode) {
+      return mode === "dynamic" ? asset?.impact : asset?.visible;
+    }
+
+    let playTimer = null;
+    let playbackInFlight = false;
+    let playbackObservedDaysAdvanced = 0;
+    let playbackPausedForConfirmation = false;
+    let overlayOpacity = DEFAULT_OPACITY;
+    let lastRenderToken = 0;
+    let selectionGeneration = 0;
+    let archiveGeneration = 0;
+    let floodFrameState = "unavailable";
+    let currentSelectionQualityNote = "";
+    let nwsAlertRefreshTimer = null;
+    let nwsAlertPromise = null;
+    let lastSuccessfulNwsAlerts = null;
+    let imageExistsCache = new Map();
+    let overlayRecordCache = new Map();
+    let preloadPromiseCache = new Map();
+    let exportInProgress = false;
+    let exportCancelRequested = false;
+    let activeGifExport = null;
+    let gifWorkerUrlPromise = null;
+    let exportPngSelections = new Map();
+    let exportCalendarCursorDate = null;
+    let exportCalendarSelectedDayKey = "";
+    let exportRangePickMode = "start";
+    let exportStartCalendarCursorDate = null;
+    let exportEndCalendarCursorDate = null;
+    let exportStartCalendarViewMode = "month";
+    let exportEndCalendarViewMode = "month";
+    let exportImageElementCache = new Map();
+    let exportAvailabilityCache = null;
+    let exportAvailabilityDayMapCache = null;
+    let exportAvailabilityMonthMapCache = null;
+    let exportAvailabilityBoundsCache = null;
+    let exportAvailabilityHourTotalCache = null;
+    let exportEntriesForDayCache = new Map();
+    let observedExportDayIndexCache = null;
+    let exportTimePickerRenderRaf = null;
+    let exportTimePickerLastSignature = "";
+
+    function pad2(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    function toast(msg = "") {
+      const el = document.getElementById("toast");
+      const textEl = document.getElementById("toastMessage");
+      if (!el) return;
+      if (!msg) {
+        el.classList.remove("show");
+        if (textEl) textEl.textContent = "";
+        return;
+      }
+      if (textEl) textEl.textContent = msg;
+      else el.textContent = msg;
+      el.classList.add("show");
+    }
+
+    let floodBannerDismissed = false;
+
+    function clearTopBanner() {
+      floodBannerDismissed = true;
+      const banner = document.getElementById("topBanner");
+      if (banner) banner.classList.remove("alert");
+    }
+
+    function setBanner(active, title = "", meta = "", count = 0) {
+      const banner = document.getElementById("topBanner");
+      if (!banner) return;
+      if (TOWN_CONFIG?.alerts?.enabled === false) {
+        banner.classList.remove("alert");
+        banner.hidden = true;
+        banner.setAttribute("aria-hidden", "true");
+        return;
+      }
+      if (!active) floodBannerDismissed = false;
+      banner.classList.toggle("alert", Boolean(active) && !floodBannerDismissed);
+      document.getElementById("bannerTitle").textContent = title || "No active flood alerts";
+      document.getElementById("bannerMeta").textContent = meta || "";
+      document.getElementById("bannerCount").textContent = `${count} active`;
+    }
+
+    async function fetchJson(url, options = {}) {
+      const { timeoutMs = 30000, ...requestOptions } = options;
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, {
+          cache: "no-store",
+          headers: { "Accept": "application/geo+json, application/json" },
+          signal: controller.signal,
+          ...requestOptions
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+        return await response.json();
+      } finally {
+        window.clearTimeout(timer);
+      }
+    }
+
+    function setOpacityText() {
+      const percent = Math.round(overlayOpacity * 100);
+      document.getElementById("opacityText").textContent = `${percent}%`;
+      document.getElementById("opacitySlider").setAttribute("aria-valuetext", `${percent} percent`);
+    }
+
+    function getDatumLabel() {
+      return currentDatum === "mllw" ? "MLLW" : "NAVD88";
+    }
+
+    function getDatumLongLabel() {
+      return currentDatum === "mllw" ? formatDatumToggleLabel() : "NAVD88";
+    }
+
+    function normalizeStageValue(value) {
+      if (value == null || typeof value === "boolean" ||
+          (typeof value !== "number" && typeof value !== "string") ||
+          (typeof value === "string" && !value.trim())) return null;
+      const n = Number(value);
+      if (!Number.isFinite(n)) return null;
+      return n;
+    }
+
+    function convertStageForDisplay(value) {
+      const n = normalizeStageValue(value);
+      if (!Number.isFinite(n)) return null;
+      return n + (DATUM_OFFSETS[currentDatum] || 0);
+    }
+
+    function formatStageForDisplay(value, digits = 2) {
+      const converted = convertStageForDisplay(value);
+      return Number.isFinite(converted) ? `${converted.toFixed(digits)} ft` : "--";
+    }
+
+    function updateDatumUI() {
+      const pill = document.getElementById("datumPill");
+      const navdBtn = document.getElementById("datumNavd88Btn");
+      const mllwBtn = document.getElementById("datumMllwBtn");
+      const stageSub = document.getElementById("stageSubText");
+      if (pill) pill.textContent = getDatumLabel();
+      if (navdBtn) {
+        const isActive = currentDatum === "navd88";
+        navdBtn.classList.toggle("active", isActive);
+        navdBtn.setAttribute("aria-pressed", String(isActive));
+      }
+      if (mllwBtn) {
+        const isActive = currentDatum === "mllw";
+        mllwBtn.classList.toggle("active", isActive);
+        mllwBtn.setAttribute("aria-pressed", String(isActive));
+      }
+      if (stageSub) stageSub.textContent = getDatumLongLabel();
+    }
+
+    function getTimelineIntervalMinutes() {
+      return currentTimelineIntervalMinutes === 15 || currentTimelineIntervalMinutes === 1440
+        ? currentTimelineIntervalMinutes
+        : 60;
+    }
+
+    function getTimelineIntervalLabel(minutes = getTimelineIntervalMinutes()) {
+      if (minutes === 15) return "15 min";
+      if (minutes === 1440) return "daily maximum";
+      return "1 hour";
+    }
+
+    function updateTimelineIntervalUI() {
+      const minutes = getTimelineIntervalMinutes();
+      currentObservedResolution = minutes === 15 ? "15min" : (minutes === 1440 ? "daily" : "1hour");
+
+      const hourBtn = document.getElementById("intervalHourBtn");
+      const quarterBtn = document.getElementById("intervalQuarterBtn");
+      const dailyBtn = document.getElementById("intervalDailyBtn");
+      if (hourBtn) {
+        const active = minutes === 60;
+        hourBtn.classList.toggle("active", active);
+        hourBtn.setAttribute("aria-pressed", String(active));
+      }
+      if (quarterBtn) {
+        const active = minutes === 15;
+        quarterBtn.classList.toggle("active", active);
+        quarterBtn.setAttribute("aria-pressed", String(active));
+      }
+      if (dailyBtn) {
+        const active = minutes === 1440;
+        dailyBtn.classList.toggle("active", active);
+        dailyBtn.setAttribute("aria-pressed", String(active));
+      }
+
+      const dock = document.getElementById("timelineDock");
+      if (dock) dock.dataset.timelineInterval = String(minutes);
+    }
+
+    function updateObservedResolutionUI() {
+      updateTimelineIntervalUI();
+    }
+
+    function getForecastScenarioConfig(scenario = currentForecastScenario) {
+      return FORECAST_SCENARIOS[scenario] || FORECAST_SCENARIOS.mean;
+    }
+
+    function getForecastScenarioLabel(scenario = currentForecastScenario) {
+      return getForecastScenarioConfig(scenario).label;
+    }
+
+    function getForecastScenarioPercentileLabel(scenario = currentForecastScenario) {
+      return getForecastScenarioConfig(scenario).percentile;
+    }
+
+    function getForecastScenarioHours(data = forecastData, scenario = currentForecastScenario) {
+      if (!data) return [];
+      const record = data.scenarioForecasts?.[scenario] || data.forecasts?.[scenario];
+      if (Array.isArray(record?.hours)) return record.hours;
+      return scenario === "mean" && Array.isArray(data.hours) ? data.hours : [];
+    }
+
+    function getActiveForecastHours() {
+      return getForecastScenarioHours(forecastData, currentForecastScenario);
+    }
+
+    function updateForecastScenarioButtons() {
+      for (const [scenario, cfg] of Object.entries(FORECAST_SCENARIOS)) {
+        const btn = document.getElementById(cfg.buttonId);
+        if (!btn) continue;
+        const isActive = scenario === currentForecastScenario;
+        btn.classList.toggle("active", isActive);
+        btn.setAttribute("aria-pressed", String(isActive));
+      }
+      const pill = document.getElementById("forecastScenarioPill");
+      if (pill) pill.textContent = getForecastScenarioLabel();
+      if (currentDataMode === "forecast") {
+        const dataPill = document.getElementById("dataModePill");
+        if (dataPill) dataPill.textContent = getForecastScenarioLabel();
+      }
+    }
+
+    async function switchForecastScenario(scenario) {
+      if (!FORECAST_SCENARIOS[scenario]) return;
+      if (scenario === currentForecastScenario && currentDataMode === "forecast") return;
+      stopPlayback();
+      const floodSelectionToken = cancelPendingFloodFrame();
+      toast("");
+      currentForecastScenario = scenario;
+      currentDataMode = "forecast";
+      currentViewType = "forecast";
+      currentTopTideIndex = null;
+      updateForecastScenarioButtons();
+      updateDataModeButtons();
+      cancelPendingFloodFrame(false);
+      await loadForecast();
+      if (floodSelectionToken !== lastRenderToken) return false;
+      renderTopTides();
+      await renderHour(currentHourIndex);
+    }
+
+    function getReturnIntervalRecord(years = currentReturnIntervalYears) {
+      const requested = Number(years);
+      return (returnIntervalData?.intervals || []).find(item => Number(item?.years) === requested) || null;
+    }
+
+    function getReturnIntervalLabel(years = currentReturnIntervalYears) {
+      const value = Number(years);
+      return value === 1 ? "Every Year" : `Every ${value.toLocaleString("en-US")} Years`;
+    }
+
+    function getReturnIntervalStormLabel(years = currentReturnIntervalYears) {
+      const value = Number(years);
+      return `${value.toLocaleString("en-US")}-Year Storm`;
+    }
+
+    function updateReturnIntervalButtons() {
+      RETURN_INTERVAL_OPTIONS.forEach(years => {
+        const btn = document.querySelector(`[data-return-years="${years}"]`);
+        if (!btn) return;
+        const active = years === currentReturnIntervalYears;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+      const pill = document.getElementById("returnIntervalPill");
+      if (pill) pill.textContent = getReturnIntervalLabel();
+      if (currentDataMode === "return-interval") {
+        const dataPill = document.getElementById("dataModePill");
+        if (dataPill) dataPill.textContent = getReturnIntervalLabel();
+      }
+    }
+
+    function buildReturnIntervalDisplaySeries(entries = currentRawSeriesHours) {
+      const source = annotateHydraulicSeries(Array.isArray(entries) ? entries : []);
+      if (getTimelineIntervalMinutes() === 1440) {
+        const halfWindow = Number(returnIntervalData?.windowHours || 84) / 2;
+        const bestByStormDay = new Map();
+        source.forEach(entry => {
+          const offset = Number(entry?.offsetHours);
+          const stage = getStageValue(entry);
+          if (!Number.isFinite(offset) || !Number.isFinite(stage)) return;
+          const dayIndex = Math.max(0, Math.floor((offset + halfWindow) / 24));
+          const existing = bestByStormDay.get(dayIndex);
+          if (!existing || stage > getStageValue(existing)) bestByStormDay.set(dayIndex, entry);
+        });
+        return Array.from(bestByStormDay.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([dayIndex, entry]) => ({
+            ...entry,
+            syntheticStormDay: dayIndex + 1,
+            observationInterval: "daily",
+            timelineIntervalMinutes: 1440,
+            isDailyMaximum: true,
+            dailyMaximumKind: "return-interval"
+          }));
+      }
+      if (getTimelineIntervalMinutes() === 15) {
+        return source.map(entry => ({
+          ...entry,
+          timelineIntervalMinutes: 15,
+          observationInterval: "15min"
+        }));
+      }
+      return source
+        .filter(entry => Math.abs(Number(entry?.offsetHours) - Math.round(Number(entry?.offsetHours))) < 1e-8)
+        .map(entry => ({
+          ...entry,
+          timelineIntervalMinutes: 60,
+          observationInterval: "1hour"
+        }));
+    }
+
+    async function loadReturnInterval(preferredEntry = null, options = {}) {
+      const floodSelectionToken = lastRenderToken;
+      const generation = options.generation ?? ++selectionGeneration;
+      if (!returnIntervalData || options.forceRefresh) {
+        const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
+        if (generation !== selectionGeneration) return;
+        returnIntervalData = payload;
+      }
+      const record = getReturnIntervalRecord();
+      if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {
+        throw new Error(`${getReturnIntervalLabel()} synthetic storm is unavailable.`);
+      }
+
+      if (floodSelectionToken !== lastRenderToken) return false;
+      clearExportAvailabilityCache();
+      currentRawSeriesHours = annotateHydraulicSeries(record.series15min);
+      currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);
+      currentDataMode = "return-interval";
+      currentViewType = "return-interval";
+      currentTopTideIndex = null;
+      currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;
+      const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);
+      if (!Number.isFinite(targetNavd88Ft)) {
+        throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);
+      }
+      currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;
+      currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;
+
+      syncSliderBounds();
+      currentHourIndex = preferredEntry
+        ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
+        : getPeakHourIndex(currentSeriesHours);
+      document.getElementById("hourSlider").value = String(currentHourIndex);
+      updateReturnIntervalButtons();
+    }
+
+    async function switchReturnInterval(years) {
+      const requested = Number(years);
+      if (!RETURN_INTERVAL_OPTIONS.includes(requested)) return;
+      if (requested === currentReturnIntervalYears && currentDataMode === "return-interval") return;
+      stopPlayback();
+      const floodSelectionToken = cancelPendingFloodFrame();
+      toast("");
+      currentReturnIntervalYears = requested;
+      currentDataMode = "return-interval";
+      currentViewType = "return-interval";
+      updateDataModeButtons();
+      cancelPendingFloodFrame(false);
+      await loadReturnInterval();
+      if (floodSelectionToken !== lastRenderToken) return false;
+      await renderHour(currentHourIndex);
+    }
+
+    function getNyParts(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+      const parts = {};
+      for (const part of NY_PARTS_FORMATTER.formatToParts(date)) {
+        if (part.type !== "literal") parts[part.type] = part.value;
+      }
+      const hour12 = Number(parts.hour || 0) % 12;
+      const dayPeriod = String(parts.dayPeriod || "").toUpperCase();
+      parts.hour24 = String(dayPeriod === "PM" ? hour12 + 12 : hour12);
+      return parts;
+    }
+
+    function getNyDateTimeLabel(date, options = {}) {
+      const parts = getNyParts(date);
+      if (!parts) return "--";
+      const weekday = parts.weekday || "";
+      const month = parts.month || "00";
+      const day = parts.day || "00";
+      const year = parts.year || "0000";
+      const hour = parts.hour || "--";
+      const minute = parts.minute || "00";
+      const tz = parts.timeZoneName || "ET";
+      const includeWeekday = options.includeWeekday !== false;
+      const includeDate = options.includeDate !== false;
+      const includeZone = options.includeZone !== false;
+      const compact = options.compact === true;
+      const dateText = includeDate ? `${month}/${day}/${year}` : "";
+      const timeText = compact ? `${hour}:${minute} ${parts.dayPeriod || ""}`.trim() : `(${hour}:${minute} ${parts.dayPeriod || ""})`;
+      return [
+        includeWeekday ? weekday : "",
+        dateText,
+        timeText,
+        includeZone ? tz : ""
+      ].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    }
+
+    function formatNyLocalIso(date) {
+      const parts = getNyParts(date);
+      if (!parts) return "";
+      return `${parts.year}-${parts.month}-${parts.day}T${pad2(Number(parts.hour24))}:${parts.minute}`;
+    }
+
+    function roundDownToQuarterHourMs(ms) {
+      const step = 15 * 60 * 1000;
+      return Math.floor(ms / step) * step;
+    }
+
+function detectSeriesResolutionMinutes(entries = []) {
+      const times = entries
+        .map(entryTimeMs)
+        .filter(t => Number.isFinite(t))
+        .sort((a, b) => a - b);
+
+      const diffs = [];
+      for (let i = 1; i < times.length; i++) {
+        const diffMinutes = (times[i] - times[i - 1]) / 60000;
+        if (diffMinutes > 0) diffs.push(diffMinutes);
+      }
+      if (!diffs.length) return null;
+      diffs.sort((a, b) => a - b);
+      return diffs[Math.floor(diffs.length / 2)];
+    }
+
+function parseStoredLocalNyToDate(timeEST) {
+      const match = String(timeEST || "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      if (!match) return null;
+      const [, y, m, d, hh, mm] = match;
+      const targetLocalMs = Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm));
+      let guessUtcMs = targetLocalMs;
+      for (let i = 0; i < 5; i++) {
+        const parts = getNyParts(new Date(guessUtcMs));
+        if (!parts) break;
+        const actualLocalMs = Date.UTC(
+          Number(parts.year),
+          Number(parts.month) - 1,
+          Number(parts.day),
+          Number(parts.hour24),
+          Number(parts.minute)
+        );
+        const diff = targetLocalMs - actualLocalMs;
+        guessUtcMs += diff;
+        if (diff === 0) break;
+      }
+      return new Date(guessUtcMs);
+    }
+
+    function makeObservedHourKeyFromDate(date) {
+      const parts = getNyParts(date);
+      if (!parts) return null;
+      return `${parts.year}-${parts.month}-${parts.day}-${pad2(Number(parts.hour24))}`;
+    }
+
+    function makeObservedMissingHourEntry(slotMs, options = {}) {
+      const displayTimeEST = formatNyLocalIso(new Date(slotMs));
+      const observedDate = displayTimeEST ? displayTimeEST.slice(0, 10) : (options.observedDate || selectedObservedDate || "");
+      return {
+        displayTimeEST,
+        displayTimeUtc: new Date(slotMs).toISOString(),
+        timeUtc: new Date(slotMs).toISOString(),
+        observedDate,
+        navd88StageFt: null,
+        stageFt: null,
+        value: null,
+        observationInterval: "1hour",
+        isMissingObservedHour: true,
+        sourceResolutionMinutes: null
+      };
+    }
+
+
+    function makeObservedMissingDayHourEntry(dateStr, hourIndex, options = {}) {
+      const safeHour = Math.max(0, Math.min(23, Number(hourIndex) || 0));
+      const displayTimeEST = `${dateStr}T${pad2(safeHour)}:00`;
+      return {
+        displayTimeEST,
+        observedDate: dateStr,
+        hourIndex: safeHour,
+        navd88StageFt: null,
+        stageFt: null,
+        value: null,
+        observationInterval: "1hour",
+        isMissingObservedHour: true,
+        sourceResolutionMinutes: options.sourceResolutionMinutes ?? null
+      };
+    }
+
+    function getStoredEntryHourIndex(entry) {
+      const raw = String(entry?.displayTimeEST || entry?.timeEST || entry?.timeEst || "");
+      const match = raw.match(/^\d{4}-\d{2}-\d{2}T(\d{2}):/);
+      if (match) {
+        const hour = Number(match[1]);
+        if (Number.isInteger(hour) && hour >= 0 && hour <= 23) return hour;
+      }
+
+      const d = getEntryESTDate(entry);
+      const parts = d ? getNyParts(d) : null;
+      const fallback = Number(parts?.hour24);
+      if (Number.isInteger(fallback) && fallback >= 0 && fallback <= 23) return fallback;
+
+      const direct = Number(entry?.hourIndex);
+      return Number.isInteger(direct) && direct >= 0 && direct <= 23 ? direct : null;
+    }
+
+    function normalizeObservedDayHourEntry(source, dateStr, hourIndex, sourceIndex, sourceResolutionMinutes, options = {}) {
+      const safeHour = Math.max(0, Math.min(23, Number(hourIndex) || 0));
+      const stage = source?.navd88StageFt ?? source?.stageFt ?? source?.value ?? source?.waterLevel ?? source?.waterLevelNAVD88;
+      const forcedDisplayTime = `${dateStr}T${pad2(safeHour)}:00`;
+      return {
+        ...source,
+        navd88StageFt: Number.isFinite(Number(stage)) ? Number(stage) : source?.navd88StageFt,
+        displayTimeEST: options.forceArchiveHourTime
+          ? forcedDisplayTime
+          : (source?.displayTimeEST || source?.timeEST || source?.timeEst || forcedDisplayTime),
+        observedDate: dateStr,
+        hourIndex: safeHour,
+        sourceHourIndex: source?.sourceHourIndex ?? sourceIndex,
+        observationInterval: "1hour",
+        isMissingObservedHour: false,
+        sourceResolutionMinutes
+      };
+    }
+
+    function buildObservedDayDisplaySeries(dayRecord, dateStr) {
+      if (dayRecord?.isHistoricalCrestOnly) {
+        return annotateHydraulicSeries(getObservedSourceHoursForDay(dayRecord)
+          .filter(entry => Number.isFinite(getStageValue(entry)))
+          .map(entry => ({
+            ...entry,
+            observedDate: dateStr,
+            observationInterval: "crest",
+            topTideDateOnly: true,
+            isHistoricalTopTide: true,
+            isHistoricalCrestOnly: true
+          })));
+      }
+      if (getTimelineIntervalMinutes() === 1440) {
+        return buildObservedDailyMaximumSeries(dateStr.slice(0, 7));
+      }
+      return sampleCanonicalHydraulicSeries(
+        buildObservedCanonicalSeries(dayRecord, dateStr),
+        getTimelineIntervalMinutes()
+      );
+    }
+
+    const GAUGE_OUTAGE_THRESHOLD_HOURS = 12;
+
+    function getTimelineFrameHours(entry) {
+      const explicitMinutes = Number(entry?.timelineIntervalMinutes);
+      if (Number.isFinite(explicitMinutes) && explicitMinutes > 0) return explicitMinutes / 60;
+      if (entry?.observationInterval === "15min") return 0.25;
+      if (entry?.observationInterval === "daily") return 24;
+      return getTimelineIntervalMinutes() === 15 ? 0.25 : 1;
+    }
+
+    function getLongestGaugeOutageHours(series = [], startIndex = 0, endIndex = null, options = null) {
+      if (!Array.isArray(series) || !series.length) return 0;
+      options = options || {};
+      const start = Math.max(0, Number(startIndex) || 0);
+      let end = Math.min(series.length - 1, endIndex == null ? series.length - 1 : Number(endIndex));
+      if (options.ignoreTrailingGap) {
+        while (end >= start) {
+          const entry = series[end];
+          const missing = entry?.isMissingObservedHour || entry?.isMissingTimelineFrame || !Number.isFinite(getStageValue(entry));
+          if (!missing) break;
+          end -= 1;
+        }
+      }
+      let longest = 0;
+      let current = 0;
+      for (let index = start; index <= end; index++) {
+        const entry = series[index];
+        const missing = entry?.isMissingObservedHour || entry?.isMissingTimelineFrame || !Number.isFinite(getStageValue(entry));
+        if (missing) {
+          current += getTimelineFrameHours(entry);
+          longest = Math.max(longest, current);
+        } else {
+          current = 0;
+        }
+      }
+      return Number(longest.toFixed(2));
+    }
+
+    function hasLongGaugeOutage(series = [], startIndex = 0, endIndex = null, options = {}) {
+      return getLongestGaugeOutageHours(series, startIndex, endIndex, options) > GAUGE_OUTAGE_THRESHOLD_HOURS;
+    }
+
+    function isLatestObservedSeriesSegment(series = [], startIndex = 0, endIndex = null) {
+      if (!Array.isArray(series) || !series.length) return false;
+      const latestDate = getLatestObservedDate();
+      if (!latestDate) return false;
+      const start = Math.max(0, Number(startIndex) || 0);
+      const end = Math.min(series.length - 1, endIndex == null ? series.length - 1 : Number(endIndex));
+      return series.slice(start, end + 1).some(entry =>
+        entry?.observedDate === latestDate
+        && !entry?.isMissingObservedHour
+        && !entry?.isMissingTimelineFrame
+        && Number.isFinite(getStageValue(entry))
+      );
+    }
+
+    function getDisplayedGaugeOutageHours(series = [], startIndex = 0, endIndex = null) {
+      return getLongestGaugeOutageHours(series, startIndex, endIndex, {
+        ignoreTrailingGap: isLatestObservedSeriesSegment(series, startIndex, endIndex)
+      });
+    }
+
+    function hasDisplayedLongGaugeOutage(series = [], startIndex = 0, endIndex = null) {
+      return getDisplayedGaugeOutageHours(series, startIndex, endIndex) > GAUGE_OUTAGE_THRESHOLD_HOURS;
+    }
+
+    function getObservedDisplaySeries(entries = [], options = {}) {
+      if (!Array.isArray(entries)) return [];
+
+      const valid = entries
+        .map((entry, idx) => ({ entry, idx, t: entryTimeMs(entry) }))
+        .filter(item => item.t != null)
+        .sort((a, b) => a.t - b.t);
+
+      const rangeStartMs = Number.isFinite(options.rangeStartMs) ? options.rangeStartMs : null;
+      const rangeEndMs = Number.isFinite(options.rangeEndMs) ? options.rangeEndMs : null;
+      const fillMissingSlots = options.fillMissingSlots !== false && rangeStartMs != null && rangeEndMs != null;
+
+      if (!valid.length) {
+        if (!fillMissingSlots) return entries.map(entry => ({ ...entry, observationInterval: "1hour" }));
+        const start = roundDownToQuarterHourMs(Math.min(rangeStartMs, rangeEndMs));
+        const end = roundDownToQuarterHourMs(Math.max(rangeStartMs, rangeEndMs));
+        const out = [];
+        for (let slot = start; slot <= end; slot += 60 * 60 * 1000) {
+          out.push(makeObservedMissingHourEntry(slot, options));
+        }
+        return out;
+      }
+
+      const sourceResolutionMinutes = detectSeriesResolutionMinutes(entries);
+      const buckets = new Map();
+      valid.forEach(({ entry, idx }) => {
+        const d = getEntryESTDate(entry);
+        if (!d) return;
+        if (rangeStartMs != null && d.getTime() < rangeStartMs - 60 * 60 * 1000) return;
+        if (rangeEndMs != null && d.getTime() > rangeEndMs + 60 * 60 * 1000) return;
+        const parts = getNyParts(d);
+        if (!parts) return;
+        const key = makeObservedHourKeyFromDate(d);
+        const minute = Number(parts.minute || 0);
+        const score = Math.abs(minute);
+        const slotIso = `${parts.year}-${parts.month}-${parts.day}T${pad2(Number(parts.hour24))}:00`;
+        const existing = buckets.get(key);
+        if (!existing || score < existing.score || (score === existing.score && idx < existing.idx)) {
+          buckets.set(key, { entry, idx, score, slotIso });
+        }
+      });
+
+      if (fillMissingSlots) {
+        const start = roundDownToQuarterHourMs(Math.min(rangeStartMs, rangeEndMs));
+        const end = roundDownToQuarterHourMs(Math.max(rangeStartMs, rangeEndMs));
+        const out = [];
+        for (let slot = start; slot <= end; slot += 60 * 60 * 1000) {
+          const key = makeObservedHourKeyFromDate(new Date(slot));
+          const item = key ? buckets.get(key) : null;
+          if (item) {
+            out.push({
+              ...item.entry,
+              displayTimeEST: item.slotIso,
+              observationInterval: "1hour",
+              sourceResolutionMinutes
+            });
+          } else {
+            out.push(makeObservedMissingHourEntry(slot, { ...options, sourceResolutionMinutes }));
+          }
+        }
+        return out;
+      }
+
+      return Array.from(buckets.values())
+        .sort((a, b) => a.slotIso.localeCompare(b.slotIso))
+        .map(item => ({
+          ...item.entry,
+          displayTimeEST: item.slotIso,
+          observationInterval: "1hour",
+          sourceResolutionMinutes
+        }));
+    }
+
+    function findClosestEntryIndex(series, referenceEntry) {
+      if (!Array.isArray(series) || !series.length || !referenceEntry) return 0;
+      const target = entryTimeMs(referenceEntry);
+      if (target == null) return 0;
+      let bestIndex = 0;
+      let bestDiff = Infinity;
+      series.forEach((entry, idx) => {
+        const t = entryTimeMs(entry);
+        if (t == null) return;
+        const diff = Math.abs(t - target);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIndex = idx;
+        }
+      });
+      return bestIndex;
+    }
+
+    function findClosestMeasuredEntryIndex(series, referenceEntry) {
+      if (!Array.isArray(series) || !series.length) return 0;
+      const measured = series
+        .map((entry, idx) => ({ entry, idx, time: entryTimeMs(entry) }))
+        .filter(item =>
+          Number.isFinite(item.time)
+          && Number.isFinite(getStageValue(item.entry))
+          && !item.entry?.isMissingObservedHour
+          && !item.entry?.isMissingTimelineFrame
+        );
+      if (!measured.length) return findClosestEntryIndex(series, referenceEntry);
+
+      const target = entryTimeMs(referenceEntry);
+      if (!Number.isFinite(target)) return measured[measured.length - 1].idx;
+
+      let best = measured[0];
+      let bestDiff = Math.abs(best.time - target);
+      measured.slice(1).forEach(item => {
+        const diff = Math.abs(item.time - target);
+        if (diff < bestDiff || (diff === bestDiff && item.time > best.time)) {
+          best = item;
+          bestDiff = diff;
+        }
+      });
+      return best.idx;
+    }
+
+    function applyObservedCrestToSource(dayRecord, entries) {
+      if (!dayRecord?.officialCrestEntry || entries.length <= 1) return entries;
+      return dayRecord.isLewesSurrogate
+        ? fitLewesSurrogateTideToCrest(entries, dayRecord.officialCrestEntry)
+        : injectOfficialStoneHarborCrest(entries, dayRecord.officialCrestEntry);
+    }
+
+    function getObservedSourceHoursForDay(dayRecord) {
+      const dateStr = dayRecord?.date || dayRecord?.d;
+      if (dayRecord?.isLewesSurrogate) {
+        const compact = dayRecord?.lewesCompactDay || lewesHourlyDaysByDate.get(dateStr);
+        if (compact) return applyObservedCrestToSource(dayRecord, decodeLewesHourlyDay({ ...dayRecord, lewesCompactDay: compact }));
+      } else if (dateStr) {
+        const quarterDay = observed15MinuteDaysByDate.get(dateStr);
+        if (quarterDay?.v?.some(value => value != null)) return applyObservedCrestToSource(dayRecord, decodeObserved15MinuteDay(quarterDay));
+      }
+      const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];
+      if (dense.length) return dense;
+      const fallbackPeak = normalizeStageValue(dayRecord?.peakNAVD88);
+      if (Number.isFinite(fallbackPeak) && dayRecord?.date) {
+        return [{
+          observedDate: dayRecord.date,
+          navd88StageFt: fallbackPeak, stageFt: fallbackPeak, value: fallbackPeak,
+          observationInterval: "daily", timelineIntervalMinutes: 1440,
+          isDailyPeakOnly: true, peakTimeKnown: false,
+          source: "canonical-daily-peak-fallback", pipelineSource: dayRecord.pipelineSource || ""
+        }];
+      }
+      return Array.isArray(dayRecord?.hours) ? dayRecord.hours : [];
+    }
+
+    function setTimelineSlotFields(entry, slotMs, intervalMinutes, options = {}) {
+      const date = new Date(slotMs);
+      const localIso = formatNyLocalIso(date);
+      const dateKey = localIso ? localIso.slice(0, 10) : (options.observedDate || entry?.observedDate || "");
+      const hourIndex = localIso ? Number(localIso.slice(11, 13)) : (entry?.hourIndex ?? null);
+      const minuteIndex = localIso ? Number(localIso.slice(14, 16)) : (entry?.minuteIndex ?? null);
+      return {
+        ...entry,
+        timeUtc: date.toISOString(),
+        displayTimeUtc: date.toISOString(),
+        displayTimeEST: localIso || entry?.displayTimeEST || entry?.timeEST || "",
+        timeEST: localIso || entry?.timeEST || entry?.displayTimeEST || "",
+        observedDate: dateKey,
+        hourIndex,
+        minuteIndex,
+        timelineIntervalMinutes: intervalMinutes,
+        observationInterval: intervalMinutes === 15 ? "15min" : "1hour"
+      };
+    }
+
+    function makeMissingTimelineEntry(slotMs, intervalMinutes, options = {}) {
+      const date = new Date(slotMs);
+      const localIso = formatNyLocalIso(date);
+      const dateKey = localIso ? localIso.slice(0, 10) : (options.observedDate || "");
+      return {
+        displayTimeEST: localIso,
+        timeEST: localIso,
+        displayTimeUtc: date.toISOString(),
+        timeUtc: date.toISOString(),
+        observedDate: dateKey,
+        hourIndex: localIso ? Number(localIso.slice(11, 13)) : null,
+        minuteIndex: localIso ? Number(localIso.slice(14, 16)) : null,
+        navd88StageFt: null,
+        stageFt: null,
+        value: null,
+        observationInterval: intervalMinutes === 15 ? "15min" : "1hour",
+        timelineIntervalMinutes: intervalMinutes,
+        sourceResolutionMinutes: options.sourceResolutionMinutes ?? null,
+        isMissingObservedHour: options.kind !== "forecast",
+        isMissingTimelineFrame: true
+      };
+    }
+
+    function makeInterpolatedTimelineEntry(beforeItem, afterItem, slotMs, intervalMinutes, options = {}) {
+      const beforeStage = getStageValue(beforeItem?.entry);
+      const afterStage = getStageValue(afterItem?.entry);
+      if (!Number.isFinite(beforeStage) || !Number.isFinite(afterStage) || afterItem.t <= beforeItem.t) {
+        return makeMissingTimelineEntry(slotMs, intervalMinutes, options);
+      }
+
+      const ratio = (slotMs - beforeItem.t) / (afterItem.t - beforeItem.t);
+      const stage = Number((beforeStage + ((afterStage - beforeStage) * ratio)).toFixed(4));
+      return setTimelineSlotFields({
+        ...beforeItem.entry,
+        hydraulicPhase: null,
+        navd88StageFt: stage,
+        stageFt: stage,
+        value: stage,
+        sourceResolutionMinutes: options.sourceResolutionMinutes ?? detectSeriesResolutionMinutes(options.sourceEntries || []),
+        isInterpolatedTimelineFrame: true,
+        isMeasuredQuarterHourArchive: false,
+        isMissingObservedHour: false,
+        isMissingTimelineFrame: false,
+        isFittedCrestFrame: false,
+        isOfficialCrestFrame: false,
+        observationQuality: "interpolated",
+        interpolationSpanSeconds: (afterItem.t - beforeItem.t) / 1000,
+        interpolationStartUtc: new Date(beforeItem.t).toISOString(),
+        interpolationEndUtc: new Date(afterItem.t).toISOString()
+      }, slotMs, intervalMinutes, options);
+    }
+
+    function buildQuarterHourTimelineSeries(entries = [], options = {}) {
+      const intervalMinutes = 15;
+      const stepMs = intervalMinutes * 60 * 1000;
+      const valid = (Array.isArray(entries) ? entries : [])
+        .map((entry, idx) => ({ entry, idx, t: entryTimeMs(entry) }))
+        .filter(item => !item.entry?.isDailyPeakOnly && Number.isFinite(item.t) && Number.isFinite(getStageValue(item.entry)))
+        .sort((a, b) => a.t - b.t || a.idx - b.idx);
+
+      const sourceResolutionMinutes = options.sourceResolutionMinutes ?? detectSeriesResolutionMinutes(entries);
+      const startMs = Number.isFinite(options.startMs)
+        ? options.startMs
+        : (valid.length ? Math.ceil(valid[0].t / stepMs) * stepMs : null);
+      const endMs = Number.isFinite(options.endMs)
+        ? options.endMs
+        : (valid.length ? Math.floor(valid[valid.length - 1].t / stepMs) * stepMs : null);
+      const maxGapMs = (Number(options.maxGapMinutes) || 75) * 60 * 1000;
+      const fillMissingSlots = options.fillMissingSlots !== false;
+
+      if (!valid.length) {
+        if (!fillMissingSlots || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return [];
+        const missing = [];
+        for (let slot = startMs; slot <= endMs; slot += stepMs) {
+          missing.push(makeMissingTimelineEntry(slot, intervalMinutes, {
+            ...options,
+            sourceResolutionMinutes
+          }));
+        }
+        return missing;
+      }
+
+      const exactBySlot = new Map();
+      valid.forEach(item => {
+        const slot = Math.round(item.t / stepMs) * stepMs;
+        if (Math.abs(item.t - slot) > stepMs / 2) return;
+        const existing = exactBySlot.get(slot);
+        if (!existing || Math.abs(item.t - slot) < Math.abs(existing.t - slot)) exactBySlot.set(slot, item);
+      });
+
+      const out = [];
+      let cursor = 0;
+      for (let slot = startMs; slot <= endMs; slot += stepMs) {
+        const exact = exactBySlot.get(slot);
+        if (exact && Number.isFinite(getStageValue(exact.entry))) {
+          out.push(setTimelineSlotFields({
+            ...exact.entry,
+            sourceResolutionMinutes
+          }, slot, intervalMinutes, options));
+          continue;
+        }
+
+        while (cursor < valid.length - 1 && valid[cursor + 1].t < slot) cursor += 1;
+        const before = valid[cursor];
+        const after = valid[cursor + 1];
+        if (before && after && before.t <= slot && after.t >= slot && after.t - before.t <= maxGapMs) {
+          const frame = makeInterpolatedTimelineEntry(before, after, slot, intervalMinutes, {
+            ...options,
+            sourceResolutionMinutes,
+            sourceEntries: entries
+          });
+          if (!frame.isMissingTimelineFrame || fillMissingSlots) out.push(frame);
+        } else if (fillMissingSlots) {
+          out.push(makeMissingTimelineEntry(slot, intervalMinutes, {
+            ...options,
+            sourceResolutionMinutes
+          }));
+        }
+      }
+
+      return out;
+    }
+
+    function buildForecastDisplaySeries(entries = currentRawSeriesHours) {
+      const source = Array.isArray(entries) ? entries : [];
+      if (getTimelineIntervalMinutes() === 1440) {
+        return buildDailyMaximumSeries(source, { kind: "forecast" });
+      }
+      return sampleCanonicalHydraulicSeries(
+        buildForecastCanonicalSeries(source),
+        getTimelineIntervalMinutes()
+      );
+    }
+
+    function buildForecastCanonicalSeries(entries = []) {
+      return annotateHydraulicSeries(buildQuarterHourTimelineSeries(entries, {
+        kind: "forecast",
+        fillMissingSlots: false,
+        maxGapMinutes: 75
+      }));
+    }
+
+    function buildDailyMaximumSeries(entries = [], options = {}) {
+      const bestByDate = new Map();
+      (Array.isArray(entries) ? entries : []).forEach(entry => {
+        const date = getEntryESTDate(entry);
+        const parts = date ? getNyParts(date) : null;
+        const key = parts ? `${parts.year}-${parts.month}-${parts.day}` : (entry?.observedDate || "");
+        const stage = getStageValue(entry);
+        if (!key || !Number.isFinite(stage)) return;
+        const existing = bestByDate.get(key);
+        if (!existing || stage > getStageValue(existing)) bestByDate.set(key, entry);
+      });
+      return Array.from(bestByDate.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([dateKey, entry]) => ({
+        ...entry,
+        observedDate: dateKey,
+        observationInterval: "daily",
+        timelineIntervalMinutes: 1440,
+        isDailyMaximum: true,
+        dailyMaximumKind: options.kind || "observed"
+      }));
+    }
+
+    function buildObservedDailyMaximumSeries(monthKey) {
+      const out = [];
+      for (const day of getObservedDaysForMonth(monthKey)) {
+        const dateKey = day?.date;
+        if (!dateKey) continue;
+        const entries = getObservedSourceHoursForDay(day);
+        const daily = buildDailyMaximumSeries(entries, { kind: "observed" })[0];
+        if (daily) {
+          out.push({ ...daily, observedDate: dateKey, peakNAVD88: getStageValue(daily) });
+        } else if (Number.isFinite(normalizeStageValue(day.peakNAVD88))) {
+          out.push({
+            navd88StageFt: Number(day.peakNAVD88), stageFt: Number(day.peakNAVD88), value: Number(day.peakNAVD88),
+            observedDate: dateKey, observationInterval: "daily", isDailyPeakOnly: true, peakTimeKnown: false,
+            timelineIntervalMinutes: 1440, isDailyMaximum: true, peakNAVD88: Number(day.peakNAVD88)
+          });
+        }
+      }
+      return out.sort((a, b) => String(a.observedDate).localeCompare(String(b.observedDate)));
+    }
+
+
+    function buildObservedIndexFromCanonical(payload) {
+      const rows = Array.isArray(payload?.days) ? payload.days : [];
+      const days = rows.map(row => {
+        const date = String(row?.[0] || "");
+        const peak = normalizeStageValue(row?.[1]);
+        const pipelineSource = String(row?.[2] || "");
+        const peakNAVD88 = Number.isFinite(peak) ? peak / 100 : null;
+        return {
+          date,
+          classification: Number.isFinite(peakNAVD88) ? classifyFloodStage(peakNAVD88) : "none",
+          peakNAVD88,
+          hours: [],
+          pipelineSource,
+          isCanonicalPipelineTruth: true,
+          isLewesSurrogate: pipelineSource === "N" || (pipelineSource === "C" && surrogateEnabled() && date < primaryArchiveStartDate()),
+          surrogateStationId: pipelineSource === "N" ? surrogateStationId() : null,
+          surrogateStationName: pipelineSource === "N" ? surrogateStationName() : null
+        };
+      }).filter(day => /^\d{4}-\d{2}-\d{2}$/.test(day.date));
+      return {
+        archiveStartDate: payload?.archive?.startDate || days[0]?.date || null,
+        archiveEndDate: payload?.archive?.endDate || days[days.length - 1]?.date || null,
+        datum: payload?.datum || "NAVD88",
+        gaugeName: primaryGaugeName(),
+        sourceType: "usgs-first-bias-corrected-noaa-usgs-crest-override",
+        lewesCutoffDate: primaryArchiveStartDate(),
+        sourcePrecedence: payload?.provenance?.sourcePrecedence || TOWN_CONFIG?.observed?.sourcePrecedence || [],
+        provenance: payload?.provenance || {},
+        days
+      };
+    }
+
+    async function ensureCanonicalDailyArchive() {
+      if (canonicalDailyData) return canonicalDailyData;
+      const generation = archiveGeneration;
+      const payload = await fetchJson(CANONICAL_DAILY_URL, { cache: "default" });
+      if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+      canonicalDailyData = payload;
+      return canonicalDailyData;
+    }
+
+    function buildLewesObservedIndexDays(archive) {
+      const cutoff = primaryArchiveStartDate();
+      return (Array.isArray(archive?.days) ? archive.days : [])
+        .filter(day => day?.d && String(day.d) < cutoff)
+        .map(day => ({
+          date: day.d,
+          classification: Number.isFinite(decodeSurrogateHundredths(day.p)) ? classifyFloodStage(decodeSurrogateHundredths(day.p)) : "none",
+          peakNAVD88: day.p != null && Number.isFinite(Number(day.p)) ? decodeSurrogateHundredths(day.p) : null,
+          hours: [],
+          isLewesSurrogate: true,
+          surrogateStationId: archive?.stationId || surrogateStationId(),
+          surrogateStationName: archive?.stationName || surrogateStationName(),
+          lewesCompactDay: Array.isArray(day?.v) ? day : null
+        }));
+    }
+
+    function buildObservedIndexFrom15MinuteArchive(archive, lewesArchive = null) {
+      const compactDays = Array.isArray(archive?.days) ? archive.days : [];
+      const stoneHarborDays = compactDays.map(day => ({
+        date: day.d,
+        classification: day.c || "none",
+        peakNAVD88: day.p != null && Number.isFinite(Number(day.p)) ? Number(day.p) / 100 : null,
+        hours: []
+      }));
+      const lewesDays = buildLewesObservedIndexDays(lewesArchive);
+      const allDays = [...lewesDays, ...stoneHarborDays].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      return {
+        archiveStartDate: allDays[0]?.date || archive?.archiveStartDate || compactDays[0]?.d || null,
+        archiveEndDate: archive?.archiveEndDate || compactDays[compactDays.length - 1]?.d || null,
+        datum: archive?.datum || "NAVD88",
+        gaugeName: archive?.gaugeName || primaryGaugeName(),
+        sourceType: lewesDays.length ? "lewes-hourly-plus-stone-harbor-15-minute-index" : "compact-15-minute-index",
+        lewesCutoffDate: lewesArchive?.stoneHarborCutoffDate || "2007-10-01",
+        days: allDays
+      };
+    }
+
+    function mergeObservedArchiveIndex(index, source = "stone-harbor") {
+      if (!index || !Array.isArray(index.days)) return;
+      const incoming = source === "lewes"
+        ? buildLewesObservedIndexDays(index)
+        : index.days.map(day => ({
+            date: day.d,
+            classification: day.c || "none",
+            peakNAVD88: day.p != null && Number.isFinite(Number(day.p)) ? Number(day.p) / 100 : null,
+            hours: []
+          }));
+
+      // The canonical daily release can predate later USGS observations.
+      // Reconcile the browser calendar with the primary replay index BEFORE
+      // any year is loaded, so navigation order cannot change source policy.
+      const primaryIndex = source === "stone-harbor" && String(index.stationId || index.site) === String(TOWN_CONFIG?.observed?.usgsGaugeId);
+
+      if (!observedData) {
+        observedData = buildObservedIndexFrom15MinuteArchive(
+          source === "stone-harbor" ? index : { days: [] },
+          source === "lewes" ? index : null
+        );
+      } else {
+        const existing = new Map((observedData.days || []).map(day => [String(day?.date || ""), day]));
+        incoming.forEach(day => {
+          if (!day?.date) return;
+          const current = existing.get(day.date);
+          if (current) {
+            current.isHistoricalCrestOnly = false;
+            if (primaryIndex && Number.isFinite(normalizeStageValue(day.peakNAVD88))) {
+              current.canonicalPeakNAVD88 ??= current.peakNAVD88;
+              if (current.pipelineSource !== "C" && !current.officialCrestEntry) {
+                current.peakNAVD88 = day.peakNAVD88;
+                current.classification = classifyFloodStage(day.peakNAVD88);
+                current.pipelineSource = "U";
+              }
+              current.isLewesSurrogate = false;
+              current.surrogateStationId = null;
+              current.surrogateStationName = null;
+              return;
+            }
+            if (current.isCanonicalPipelineTruth) {
+              return;
+            }
+            current.classification = day.classification || current.classification || "none";
+            if (Number.isFinite(normalizeStageValue(day.peakNAVD88))) {
+              current.peakNAVD88 = Number.isFinite(normalizeStageValue(current.peakNAVD88))
+                ? Math.max(Number(current.peakNAVD88), Number(day.peakNAVD88))
+                : Number(day.peakNAVD88);
+            }
+            if (source === "lewes") {
+              current.isLewesSurrogate = true;
+              current.surrogateStationId = current.surrogateStationId || surrogateStationId();
+              current.surrogateStationName = current.surrogateStationName || surrogateStationName();
+            }
+            return;
+          }
+          observedData.days.push(day);
+          existing.set(day.date, day);
+        });
+        observedData.days.sort((a, b) => String(a?.date || "").localeCompare(String(b?.date || "")));
+        observedData.archiveStartDate = observedData.days[0]?.date || observedData.archiveStartDate;
+        if (source === "stone-harbor") {
+          observedData.archiveEndDate = index.archiveEndDate || observedData.archiveEndDate;
+        }
+        if (source === "lewes") {
+          observedData.lewesCutoffDate = index.stoneHarborCutoffDate || observedData.lewesCutoffDate || "2007-10-01";
+        }
+      }
+      observedDaysCache = null;
+      observedMonthKeys = buildObservedMonthKeysFromDays(getObservedDays());
+      clearExportAvailabilityCache();
+    }
+
+    function preloadObservedArchiveIndexText() {
+      if (observedArchiveIndexTextPromise) return observedArchiveIndexTextPromise;
+      const request = fetch(OBSERVED_ARCHIVE_INDEX_URL, {
+        cache: "default",
+        headers: { "Accept": "application/geo+json, application/json" }
+      })
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status} for ${OBSERVED_ARCHIVE_INDEX_URL}`);
+          return response.text();
+        })
+        .catch(error => {
+          if (observedArchiveIndexTextPromise === request) observedArchiveIndexTextPromise = null;
+          throw error;
+        });
+      observedArchiveIndexTextPromise = request;
+      return request;
+    }
+
+    async function ensureObserved15MinuteArchive() {
+      const generation = archiveGeneration;
+      let payload;
+      if (observed15MinuteData) return observed15MinuteData;
+      try {
+        payload = JSON.parse(await preloadObservedArchiveIndexText());
+        if (String(payload.stationId || payload.site) !== String(TOWN_CONFIG?.observed?.usgsGaugeId)) {
+          throw new Error("The cached archive index does not use the primary USGS gauge.");
+        }
+      } catch (indexError) {
+        console.warn("Optimized observed archive index unavailable; using the compact archive.", indexError);
+        payload = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
+      }
+      if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+      // The compact fallback must satisfy the same gauge/cadence contract as
+      // a year shard before it can populate the primary cache.
+      addArchiveShardDays(payload, "stone-harbor");
+      observed15MinuteData = payload;
+      return observed15MinuteData;
+    }
+
+    async function ensureLewesHourlyArchive() {
+      if (!surrogateEnabled() || !LEWES_HOURLY_URL) return null;
+      if (lewesHourlyData && Array.isArray(lewesHourlyData.days)) return lewesHourlyData;
+      const generation = archiveGeneration;
+      const payload = await fetchJson(LEWES_HOURLY_URL, { cache: "default" });
+      if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+      lewesHourlyData = payload;
+      return lewesHourlyData;
+    }
+
+    function refreshObservedArchiveUi() {
+      if (!observedData) return;
+      observedDaysCache = null;
+      observedMonthKeys = buildObservedMonthKeysFromDays(getObservedDays());
+      topTideEvents = buildTopTideEvents();
+      renderTopTides();
+      populateCalendarSelectors();
+      if (currentDataMode === "observed") {
+        renderCalendar().catch(error => console.warn("Observed calendar refresh failed.", error));
+      }
+    }
+
+    async function ensureLewesArchiveIndex() {
+      if (!surrogateEnabled() || !LEWES_ARCHIVE_INDEX_URL) return null;
+      if (lewesArchiveIndexData) return lewesArchiveIndexData;
+      if (lewesArchiveIndexPromise) return lewesArchiveIndexPromise;
+      const generation = archiveGeneration;
+      lewesArchiveIndexPromise = fetchJson(LEWES_ARCHIVE_INDEX_URL, { cache: "default" })
+        .then(index => {
+          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+          lewesArchiveIndexData = index;
+          lewesHourlyData = {
+            stationId: index?.stationId || surrogateStationId(),
+            stationName: index?.gaugeName || surrogateStationName(),
+            stoneHarborCutoffDate: primaryArchiveStartDate()
+          };
+          mergeObservedArchiveIndex(index, "lewes");
+          refreshObservedArchiveUi();
+          return index;
+        })
+        .catch(error => {
+          if (generation !== archiveGeneration) return null;
+          lewesArchiveIndexPromise = null;
+          console.warn(`${surrogateStationShort()} archive day index will retry when requested.`, error);
+          return null;
+        });
+      return lewesArchiveIndexPromise;
+    }
+
+    function scheduleLewesArchiveIndexWarmup() {
+      if (!surrogateEnabled()) return;
+      if (lewesArchiveIndexWarmupScheduled || lewesArchiveIndexData) return;
+      lewesArchiveIndexWarmupScheduled = true;
+      const start = () => ensureLewesArchiveIndex().catch(() => null);
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(start, { timeout: 5000 });
+      } else {
+        window.setTimeout(start, 1800);
+      }
+    }
+
+    function getObservedArchiveSourceForDate(dateStr) {
+      const day = getObservedDayRecord(String(dateStr || ""));
+      if (surrogateEnabled() && String(dateStr || "") < primaryArchiveStartDate()) return "lewes";
+      if (day?.pipelineSource === "N") return "lewes";
+      if (day?.pipelineSource === "U" || day?.pipelineSource === "C") return "stone-harbor";
+      const cutoff = primaryArchiveStartDate();
+      return surrogateEnabled() && String(dateStr || "") < cutoff ? "lewes" : "stone-harbor";
+    }
+
+    function getObservedArchiveShardUrl(source, year) {
+      const index = source === "lewes" ? lewesArchiveIndexData : observed15MinuteData;
+      const fallback = `./observed_archive/${source}/{year}.json`;
+      const configuredTemplate = source === "lewes" ? configuredSurrogate().shardPathTemplate : "";
+      const template = String(configuredTemplate || index?.shardPathTemplate || fallback);
+      const url = new URL(template.replace("{year}", String(year)), APP_BASE);
+      if (source === "stone-harbor") url.searchParams.set("policy", "20260921-usgs-first");
+      return url.href;
+    }
+
+    function addArchiveShardDays(payload, source) {
+      const expectedInterval = source === "lewes" ? 60 : 15;
+      if (Number(payload?.intervalMinutes) !== expectedInterval) {
+        throw new Error(`Invalid ${source} archive interval; expected ${expectedInterval} minutes.`);
+      }
+      if (payload.source && payload.source !== source) throw new Error("Archive source mismatch.");
+      const expectedStation = source === "lewes" ? surrogateStationId() : String(TOWN_CONFIG?.observed?.usgsGaugeId);
+      if (String(payload.stationId || payload.site) !== expectedStation) throw new Error("Archive gauge mismatch.");
+      const cache = source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate;
+      const days = Array.isArray(payload?.days) ? payload.days : [];
+      // Validate the whole response before committing any entries to a cache.
+      days.forEach(day => {
+        if (!day?.d || !Array.isArray(day.v)) return;
+        const start = parseStoredLocalNyToDate(`${day.d}T00:00`);
+        const end = parseStoredLocalNyToDate(`${addDaysToDateKey(day.d, 1)}T00:00`);
+        const slots = start && end ? (end - start) / (expectedInterval * 60000) : 0;
+        if (day.v.length !== slots || Number(day.u) * 1000 !== start?.getTime()) {
+          throw new Error(`Invalid ${source} sample cadence for ${day.d}.`);
+        }
+        if (day.v.some(value => value !== null && !Number.isFinite(value))) throw new Error("Invalid archive sample.");
+      });
+      days.forEach(day => {
+        if (!day?.d || !Array.isArray(day.v)) return;
+        cache.set(day.d, day);
+        if (!observedData) return;
+        const existing = getObservedDayRecord(day.d);
+        if (!existing) {
+          observedData.days.push({
+            date: day.d,
+            classification: day.c || "none",
+            peakNAVD88: day.p != null && Number.isFinite(Number(day.p)) ? source === "lewes" ? decodeSurrogateHundredths(day.p) : Number(day.p) / 100 : null,
+            hours: [],
+            isLewesSurrogate: source === "lewes",
+            surrogateStationId: source === "lewes" ? surrogateStationId() : null,
+            surrogateStationName: source === "lewes" ? surrogateStationName() : null
+          });
+        } else if (source !== "lewes" || existing.isLewesSurrogate) {
+          existing.isHistoricalCrestOnly = false;
+        }
+      });
+      if (observedData) {
+        observedData.days.sort((a, b) => String(a?.date || "").localeCompare(String(b?.date || "")));
+      }
+      observedDaysCache = null;
+      clearExportAvailabilityCache();
+    }
+
+    async function ensureObservedArchiveYear(source, year) {
+      const generation = archiveGeneration;
+      const key = `${source}:${year}`;
+      if (observedArchiveLoadedYears.has(key)) return true;
+      if (observedArchiveUnavailableYears.has(key)) return false;
+      if (observedArchiveYearPromises.has(key)) return observedArchiveYearPromises.get(key);
+      if (source === "stone-harbor") await ensureObserved15MinuteArchive();
+      const index = source === "lewes" ? await ensureLewesArchiveIndex() : observed15MinuteData;
+      if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+      if (index?.days?.length && !index.days.some(day => String(day.d).startsWith(`${year}-`))) {
+        observedArchiveUnavailableYears.add(key);
+        return false;
+      }
+      const install = payload => {
+        if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+        const covered = payload?.days?.some(day => String(day.d).startsWith(`${year}-`) && Array.isArray(day.v));
+        if (!covered) throw new Error(`Archive does not cover ${source} ${year}.`);
+        addArchiveShardDays(payload, source);
+        observedArchiveLoadedYears.add(key);
+        return true;
+      };
+      const promise = fetchJson(getObservedArchiveShardUrl(source, year), { cache: "default" })
+        .then(install)
+        .catch(async error => {
+          if (generation !== archiveGeneration) throw error;
+          console.warn(`Optimized ${source} ${year} archive unavailable.`, error);
+          try {
+            const fallback = source === "stone-harbor"
+              ? await fetchJson(OBSERVED_15MIN_URL, { cache: "default" })
+              : await ensureLewesHourlyArchive();
+            return install(fallback);
+          } catch (fallbackError) {
+            if (generation !== archiveGeneration) throw fallbackError;
+            // A network failure remains retryable. Never mark an uncovered
+            // year as loaded or silently borrow a different gauge's samples.
+            console.warn(`Detailed ${source} ${year} history unavailable; daily peaks only.`, fallbackError);
+            return false;
+          }
+        }).finally(() => {
+          if (observedArchiveYearPromises.get(key) === promise) observedArchiveYearPromises.delete(key);
+        });
+      observedArchiveYearPromises.set(key, promise);
+      return promise;
+    }
+
+    async function ensureObservedArchiveForDate(dateStr) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ""))) return false;
+      const source = getObservedArchiveSourceForDate(dateStr);
+      await ensureObservedArchiveYear(source, String(dateStr).slice(0, 4));
+      // The final three quarter-hours need the next measured hourly endpoint.
+      // Usually it is in the same shard; December 31 also needs the next year.
+      const nextDate = addDaysToDateKey(dateStr, 1);
+      if (source === "lewes" && nextDate.slice(0, 4) !== dateStr.slice(0, 4)
+          && getObservedArchiveSourceForDate(nextDate) === source) {
+        await ensureObservedArchiveYear(source, nextDate.slice(0, 4));
+      }
+      return (source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate).has(dateStr);
+    }
+
+    async function ensureObservedArchiveRange(startDate, endDate) {
+      const startKey = getExportDayKeyFromDate(startDate);
+      const endKey = getExportDayKeyFromDate(endDate);
+      if (!startKey || !endKey) return;
+      const keys = new Set();
+      let cursor = startKey < endKey ? startKey : endKey;
+      const finalKey = startKey < endKey ? endKey : startKey;
+      while (cursor && cursor <= finalKey) {
+        keys.add(`${getObservedArchiveSourceForDate(cursor)}:${cursor.slice(0, 4)}`);
+        cursor = addDaysToDateKey(cursor, 1);
+      }
+      await Promise.all(Array.from(keys).map(key => {
+        const [source, year] = key.split(":");
+        return ensureObservedArchiveYear(source, year);
+      }));
+      await ensureObservedArchiveForDate(finalKey);
+    }
+
+    function decodeLewesHourlyDay(dayRecord) {
+      const compact = dayRecord?.lewesCompactDay;
+      if (!compact || !Number.isFinite(Number(compact.u)) || !Array.isArray(compact.v)) return [];
+      const sixMinuteIndexes = new Set(Array.isArray(compact.x) ? compact.x.map(Number) : []);
+      return compact.v.map((encoded, index) => {
+        const timeMs = (Number(compact.u) + index * 3600) * 1000;
+        const stage = encoded == null ? null : decodeSurrogateHundredths(encoded);
+        return setTimelineSlotFields({
+          navd88StageFt: stage,
+          stageFt: stage,
+          value: stage,
+          source: sixMinuteIndexes.has(index) ? `noaa-${configuredSurrogate().key || "surrogate"}-verified-6min` : `noaa-${configuredSurrogate().key || "surrogate"}-verified-hourly`,
+          sourceStationId: lewesHourlyData?.stationId || surrogateStationId(),
+          sourceStation: lewesHourlyData?.stationName || surrogateStationName(),
+          sourceStationShort: surrogateStationShort(),
+          sourceResolutionMinutes: sixMinuteIndexes.has(index) ? 6 : 60,
+          isLewesSurrogate: true,
+          surrogateForPrimaryGauge: true,
+          isMissingObservedHour: !Number.isFinite(stage)
+        }, timeMs, 60, { observedDate: dayRecord.date });
+      });
+    }
+
+    function decodeObserved15MinuteDay(day) {
+      if (!day || !Number.isFinite(Number(day.u)) || !Array.isArray(day.v)) return [];
+      return day.v.map((encoded, index) => {
+        const timeMs = (Number(day.u) + index * 900) * 1000;
+        const stage = encoded == null ? null : Number(encoded) / 100;
+        return setTimelineSlotFields({
+          navd88StageFt: stage, stageFt: stage, value: stage,
+          sourceResolutionMinutes: Number(observed15MinuteData?.sourceResolutionMinutes) || 6,
+          sourceStationId: (day.s || "")[index] === "N" ? "1005" : (day.s || "")[index] === "L" ? surrogateStationId() : String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || ""),
+          stormReplay: day.replay || null,
+          observationQuality: (day.q || "")[index] || "unknown",
+          isMeasuredQuarterHourArchive: (day.q || "")[index] === "M",
+          isInterpolatedTimelineFrame: (day.q || "")[index] === "I",
+          interpolationSpanSeconds: Array.isArray(day.g) ? day.g[index] : null,
+          isMissingObservedHour: !Number.isFinite(stage)
+        }, timeMs, 15, { observedDate: day.d });
+      });
+    }
+
+    function buildObservedQuarterHourDisplaySeries(dayRecord, dateStr) {
+      return buildObservedCanonicalSeries(dayRecord, dateStr);
+    }
+
+    function buildObservedCanonicalSeries(dayRecord, dateStr) {
+      let source = getObservedSourceHoursForDay(dayRecord);
+      if (source.length && source.every(entry => entry.isDailyPeakOnly)) return source;
+      const start = parseStoredLocalNyToDate(`${dateStr}T00:00`);
+      const end = parseStoredLocalNyToDate(`${dateStr}T23:45`);
+      if (dayRecord?.isLewesSurrogate) {
+        const nextDate = addDaysToDateKey(dateStr, 1);
+        const nextDay = getObservedDayRecord(nextDate);
+        const midnight = parseStoredLocalNyToDate(`${nextDate}T00:00`);
+        // Use a real, loaded sample from the same gauge. Never extrapolate
+        // past the last reading or turn a date-only crest into a timed sample.
+        if (nextDay?.isLewesSurrogate && midnight) {
+          source = source.concat(getObservedSourceHoursForDay(nextDay).filter(entry =>
+            !entry.isDailyPeakOnly && entryTimeMs(entry) === midnight.getTime()
+          ));
+        }
+      }
+      const sourceResolutionMinutes = detectSeriesResolutionMinutes(source);
+      const series = buildQuarterHourTimelineSeries(source, {
+        kind: "observed",
+        observedDate: dateStr,
+        startMs: start ? start.getTime() : null,
+        endMs: end ? end.getTime() : null,
+        sourceResolutionMinutes,
+        fillMissingSlots: true,
+        // Lewes archive samples are hourly; the primary archive is 15-minute.
+        // Allow adjacent hourly readings, but keep missing hourly readings blank.
+        maxGapMinutes: dayRecord?.isLewesSurrogate ? 60 : 30
+      });
+
+      return annotateHydraulicSeries(series.map((entry, idx) => ({
+        ...entry,
+        observedDate: dateStr,
+        quarterHourIndex: idx,
+        classification: dayRecord?.classification || entry.classification || "none",
+        peakNAVD88: dayRecord?.peakNAVD88 ?? entry.peakNAVD88,
+        sourceResolutionMinutes
+      })));
+    }
+
+    function sampleCanonicalHydraulicSeries(entries = [], intervalMinutes = getTimelineIntervalMinutes()) {
+      const canonical = Array.isArray(entries) ? entries : [];
+      if (canonical.length && canonical.every(entry => entry.isDailyPeakOnly)) return canonical.slice();
+      if (intervalMinutes === 15) {
+        return canonical.map(entry => ({
+          ...entry,
+          timelineIntervalMinutes: 15,
+          observationInterval: "15min"
+        }));
+      }
+      if (intervalMinutes !== 60) return canonical.slice();
+
+      return canonical
+        .filter(entry => {
+          const date = getEntryESTDate(entry);
+          const parts = date ? getNyParts(date) : null;
+          return parts && Number(parts.minute) === 0;
+        })
+        .map(entry => ({
+          ...entry,
+          timelineIntervalMinutes: 60,
+          observationInterval: "1hour",
+          sampledFromCanonical15MinuteHistory: true
+        }));
+    }
+
+function setDatumHelpOpen(isOpen) {
+      const modal = document.getElementById("datumModal");
+      const btn = document.getElementById("datumHelpBtn");
+      if (!modal || !btn) return;
+      modal.hidden = !isOpen;
+      modal.classList.toggle("open", isOpen);
+      btn.setAttribute("aria-expanded", String(isOpen));
+      if (isOpen) {
+        document.getElementById("datumModalCloseBtn")?.focus();
+      }
+    }
+
+    const HELP_COPY = {
+      dataSource: {
+        title: "Flood data",
+        body: `
+          <p><strong>Forecast</strong> shows expected tides ahead. <strong>Past</strong> shows measured tide gauge readings. <strong>Modeled Floods</strong> shows sample floods that are possible over time.</p>
+        `
+      },
+      forecastType: {
+        title: "Forecast type",
+        body: `
+          <p>Choose Lower End, Mean, or Upper End to compare forecast scenarios based on NOAA PETSS guidance. Upper End shows the upper water-depth estimate for this forecast.</p>
+        `
+      },
+      overlay: {
+        title: "Overlay",
+        body: `
+          <p><strong>Flood Depth</strong> shows the estimated water depth above the ground, in inches below 1 foot and feet at 1 foot or more.</p>
+          <p><strong>Flood Stages</strong> groups flooding as minor, moderate, or major.</p>
+        `
+      },
+      timelineDetail: {
+        title: "Timeline detail",
+        body: `
+          <p><strong>Hourly</strong> shows one point per hour. <strong>15-Min</strong> shows four points per hour when available. <strong>Daily Max</strong> shows each day's highest water level.</p>
+        `
+      },
+      returnIntervals: {
+        title: "Modeled floods",
+        body: `
+          <p><strong>Every 100 Years</strong> means about a 1% chance in any year. It does not mean the flood can happen only once every 100 years.</p>
+          <p>Each choice shows a sample 24-hour storm whose surge peak is aligned to the first high tide in the window.</p>
+        `
+      },
+      depthLegend: {
+        title: "Flood Depth Key",
+        body: `
+          <p>Light blue is shallow water. Darker blue is deeper water.</p>
+          <p><strong>Uncertainty</strong> marks terrain below the selected water level that the connected flood model does not classify as flooded under the current filling conditions. Marshes and beaches are never changed just to complete a street route. During drainage, lag-retained street water is blue.</p>
+        `
+      },
+      stageLegend: {
+        title: "Flood Stages Key",
+        body: `
+          <p>Flood Stages colors terrain below the selected water level by its existing Minor, Moderate, or Major category.</p>
+          <p><strong>Green uncertainty areas</strong> are the same areas shown in Flood Depth for the selected time. They replace the stage color wherever Flood Depth marks uncertain flooding. Uncertainty is separate from flood severity; it is not a stage below Minor. Physics forecast frames do not provide this green uncertainty layer.</p>
+          <ul>
+            <li><strong>Minor:</strong> low roads and public areas may flood.</li>
+            <li><strong>Moderate:</strong> roads and some buildings may flood. Evacuations may be needed.</li>
+            <li><strong>Major:</strong> many roads and buildings may flood. Larger evacuations may be needed.</li>
+          </ul>
+        `
+      }
+    };
+
+    function setInfoModalOpen(isOpen, title = "Information", body = "") {
+      const modal = document.getElementById("infoModal");
+      const titleEl = document.getElementById("infoModalTitle");
+      const bodyEl = document.getElementById("infoModalBody");
+      if (!modal || !titleEl || !bodyEl) return;
+      if (isOpen) {
+        titleEl.textContent = title;
+        bodyEl.innerHTML = body;
+      }
+      modal.hidden = !isOpen;
+      modal.classList.toggle("open", !!isOpen);
+      modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+      if (isOpen) document.getElementById("infoModalCloseBtn")?.focus();
+    }
+
+    function showInfoModal(key) {
+      const copy = HELP_COPY[key];
+      if (!copy) return;
+      setInfoModalOpen(true, copy.title, copy.body);
+    }
+
+    function showLegendInfoModal() {
+      showInfoModal(currentOverlayMode === "dynamic" ? "stageLegend" : "depthLegend");
+    }
+
+    function setDownloadModalOpen(isOpen) {
+      const modal = document.getElementById("downloadModal");
+      const btn = document.getElementById("openDownloadModalBtn");
+      if (!modal || !btn) return;
+
+      modal.hidden = !isOpen;
+      modal.classList.toggle("open", isOpen);
+      btn.setAttribute("aria-expanded", String(isOpen));
+
+      if (isOpen) {
+        updateDownloadModeCopy();
+        updateExportSegmentedUI();
+        applyExportStageAspect(getDownloadAspectValue());
+        syncDownloadRangeInputs(true);
+        updateDownloadSummary();
+        requestAnimationFrame(() => {
+          const modalCard = modal.querySelector(".download-modal-card");
+          if (modalCard) modalCard.scrollTop = 0;
+          const compactTouchLayout = isCompactFloodmapperLayout();
+          const focusTarget = compactTouchLayout
+            ? document.getElementById("downloadModalCloseBtn")
+            : currentDataMode === "return-interval"
+              ? document.getElementById("downloadStartTimeSelect")
+              : document.getElementById("downloadStartDateText");
+          try {
+            focusTarget?.focus({ preventScroll: true });
+          } catch (_) {
+            focusTarget?.focus();
+          }
+        });
+      }
+    }
+
+    function updateDownloadModeCopy() {
+      const launchMeta = document.getElementById("downloadLaunchMeta");
+      const modalSub = document.getElementById("downloadModalSub");
+      const modeled = currentDataMode === "return-interval";
+      const modeledHours = Number(returnIntervalData?.windowHours || 24);
+      if (launchMeta) {
+        launchMeta.textContent = modeled
+          ? `Create a shareable animation of the full ${modeledHours}-hour modeled storm.`
+          : `Create an animation or high-resolution image sequence with North Wildwood centered.`;
+      }
+      if (modalSub) {
+        modalSub.textContent = modeled
+          ? `Choose a time range within this ${modeledHours}-hour storm. Map view preserves the area you are viewing.`
+          : `Choose timing, layout, and framing for up to ${EXPORT_RANGE_MAX_HOURS} hours. Map view preserves the area you are viewing.`;
+      }
+    }
+
+    function refreshCurrentDisplayText() {
+      updateDatumUI();
+      renderTopTides();
+      if (currentDataMode === "observed" && observedData) {
+        renderCalendar();
+        updateDayNav();
+      }
+      const entry = currentSeriesHours[currentHourIndex];
+      if (entry) {
+        const rawStage = getStageValue(entry);
+        const displayStage = getOverlayStage(rawStage);
+        renderSelectionMeta(entry, rawStage, displayStage);
+        renderTimelineMeta(entry);
+        requestAnimationFrame(fitSnapshotTimeText);
+      }
+    }
+
+    function updateModeButtons() {
+      document.getElementById("depthModeBtn").classList.toggle("active", currentOverlayMode === "depth");
+      document.getElementById("dynamicModeBtn").classList.toggle("active", currentOverlayMode === "dynamic");
+      document.getElementById("overlayModePill").textContent =
+        currentOverlayMode === "depth" ? "Flood Depth" : "Flood Stages";
+      renderLegend();
+    }
+
+    function updateDataModeButtons() {
+      document.getElementById("forecastDataBtn").classList.toggle("active", currentDataMode === "forecast");
+      document.getElementById("observedDataBtn").classList.toggle("active", currentDataMode === "observed");
+      document.getElementById("returnIntervalDataBtn")?.classList.toggle("active", currentDataMode === "return-interval");
+      document.getElementById("dataModePill").textContent = currentDataMode === "forecast"
+        ? getForecastScenarioLabel()
+        : currentDataMode === "return-interval"
+          ? getReturnIntervalLabel()
+          : "Observed";
+      const scenarioCard = document.getElementById("forecastScenarioCard");
+      if (scenarioCard) scenarioCard.hidden = currentDataMode !== "forecast";
+      const returnCard = document.getElementById("returnIntervalCard");
+      if (returnCard) returnCard.style.display = currentDataMode === "return-interval" ? "" : "none";
+      document.getElementById("calendarCard").classList.toggle("active", currentDataMode === "observed");
+      if (currentDataMode !== "observed") setObservedCalendarOpen(false);
+      const panel = document.getElementById("leftPanel");
+      if (panel && panel.dataset.dataMode !== currentDataMode) {
+        panel.dataset.dataMode = currentDataMode;
+        panel.scrollTop = 0;
+      }
+      document.body.classList.toggle("observed-mode", currentDataMode === "observed");
+      document.body.classList.toggle("return-interval-mode", currentDataMode === "return-interval");
+      updateForecastScenarioButtons();
+      updateReturnIntervalButtons();
+      updateObservedResolutionUI();
+      updateDownloadModeCopy();
+      syncLeftPanelLayout();
+    }
+
+    function renderLegend() {
+      const list = document.getElementById("legendList");
+      const physicsActive = physicsForecastApplies();
+      const depthLegendHasNote = currentOverlayMode === "depth" && physicsActive;
+      const physicsDailyMaximumActive = depthLegendHasNote &&
+        document.body.classList.contains("physics-daily-maximum-active");
+      const legendKey = `${currentOverlayMode}:${physicsActive}:${physicsDailyMaximumActive}`;
+      // Reuse unchanged markup without suppressing model or interval changes.
+      if (list.dataset.renderedLegendKey === legendKey && list.childElementCount) return;
+      list.dataset.renderedLegendKey = legendKey;
+      const title = document.getElementById("legendTitle");
+      const sub = document.getElementById("legendSub");
+      const note = document.getElementById("legendNote");
+      const legendDock = document.getElementById("legendDock");
+
+      title.textContent = currentOverlayMode === "depth" ? "Flood Depth" : "Flood Stages";
+      sub.textContent = "";
+      if (legendDock) {
+        legendDock.dataset.legendMode = currentOverlayMode;
+        legendDock.dataset.previewText = currentOverlayMode === "depth"
+          ? "Flood Depth Key"
+          : "Flood Stages Key";
+        // Desktop legend sizing is content-driven in north-wildwood-controls.css.
+      }
+
+      list.innerHTML = "";
+      if (currentOverlayMode === "depth") {
+        const physicsActive = depthLegendHasNote;
+        list.innerHTML = physicsActive ? `
+          <div class="depth-legend-scale" aria-label="${physicsDailyMaximumActive ? "Modeled daily maximum flood depth" : "Modeled flood depth at the selected time"} from shallow to deep">
+            <div class="depth-legend-labels"><span>${physicsDailyMaximumActive ? "Daily Max" : "Current Time"}</span><span>Shallow</span><span>Deep</span></div>
+            <div class="depth-legend-gradient" aria-hidden="true"></div>
+          </div>
+          <div class="depth-legend-uncertainty-note">
+            <span>${physicsDailyMaximumActive
+              ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day"
+              : "<strong>Physics frame</strong> shows cells wet by this time"}</span>
+          </div>
+        ` : `
+          <div class="depth-legend-scale" aria-label="Uncertainty areas followed by connected modeled flood depth from shallow to deep">
+            <div class="depth-legend-labels"><span>Uncertain</span><span>Shallow</span><span>Deep</span></div>
+            <div class="depth-legend-gradient" aria-hidden="true"></div>
+          </div>
+        `;
+        list.querySelector("[data-legend-help='uncertainty']")?.addEventListener("click", event => {
+          event.stopPropagation();
+          showInfoModal("depthLegend");
+        });
+        note.textContent = "";
+        return;
+      }
+      list.innerHTML = `
+        <div class="stage-legend-scale" aria-label="${physicsActive ? "" : "Flood Depth uncertainty areas, separate from "}flood stages from minor through moderate to major">
+          ${physicsActive ? "" : `<div class="stage-legend-uncertainty"><span>Uncertain</span><div class="stage-legend-green" aria-hidden="true"></div></div>`}
+          <div class="stage-legend-levels">
+            <div class="stage-legend-labels"><span>Minor</span><span>Moderate</span><span>Major</span></div>
+            <div class="stage-legend-gradient" aria-hidden="true"></div>
+          </div>
+        </div>
+      `;
+      note.textContent = "";
+    }
+
+    function clampStage(value) {
+      return Math.max(MIN_STAGE, Math.min(MAX_STAGE, value));
+    }
+
+    function roundToCatalogPrecision(value) {
+      return Number(value.toFixed(2));
+    }
+
+    function floorToCatalogStep(value) {
+      const stepped = Math.floor((value + 1e-9) / STAGE_STEP) * STAGE_STEP;
+      return roundToCatalogPrecision(stepped);
+    }
+
+    function getOverlayStage(value) {
+      const n = normalizeStageValue(value);
+      if (!Number.isFinite(n)) return null;
+      const minimum = MIN_DEPTH_STAGE;
+      const clamped = Math.max(minimum, Math.min(MAX_STAGE, n));
+      return Math.max(minimum, floorToCatalogStep(clamped));
+    }
+
+    function getVerticalBathtubPenalty(stageValue) {
+      const stage = Number(stageValue);
+      if (!Number.isFinite(stage)) return null;
+      const configured = TOWN_CONFIG?.overlays?.depthPenalty;
+      if (configured) {
+        const low = Number(configured.atOrBelowMinorFt);
+        const high = Number(configured.atOrAboveMajorFt);
+        const decay = Number(configured.exponentialDecayRate);
+        const lowPenalty = Number.isFinite(low) ? low : 0;
+        const highPenalty = Number.isFinite(high) ? high : 0;
+        if (stage <= MINOR_FLOOD_FT) return lowPenalty;
+        if (stage >= MAJOR_FLOOD_FT) return highPenalty;
+        const progress = (stage - MINOR_FLOOD_FT) / (MAJOR_FLOOD_FT - MINOR_FLOOD_FT);
+        if (Number.isFinite(decay) && decay > 0) {
+          const residual = Math.exp(-decay);
+          const normalized = (Math.exp(-decay * progress) - residual) / (1 - residual);
+          return highPenalty + (lowPenalty - highPenalty) * normalized;
+        }
+        return lowPenalty + (highPenalty - lowPenalty) * progress;
+      }
+      if (stage < MINOR_FLOOD_FT) return 0;
+      if (stage >= MAJOR_FLOOD_FT) return MAJOR_VERTICAL_PENALTY_FT;
+      const x0 = MINOR_FLOOD_FT;
+      const x1 = MODERATE_FLOOD_FT;
+      const x2 = MAJOR_FLOOD_FT;
+      const l0 = ((stage - x1) * (stage - x2)) / ((x0 - x1) * (x0 - x2));
+      const l1 = ((stage - x0) * (stage - x2)) / ((x1 - x0) * (x1 - x2));
+      const l2 = ((stage - x0) * (stage - x1)) / ((x2 - x0) * (x2 - x1));
+      return Math.max(0,
+        MINOR_VERTICAL_PENALTY_FT * l0 +
+        MODERATE_VERTICAL_PENALTY_FT * l1 +
+        MAJOR_VERTICAL_PENALTY_FT * l2
+      );
+    }
+
+    function getPenaltyRemainingFraction(stageValue, phase = "slack") {
+      if (TOWN_CONFIG?.overlays?.phaseModelEnabled === false) return 1;
+      const stage = Number(stageValue);
+      const normalizedPhase = normalizeHydraulicPhase(phase);
+      const penalty = getVerticalBathtubPenalty(stage);
+      if (!Number.isFinite(penalty) || penalty <= 0 || normalizedPhase === "draining") return 0;
+      if (normalizedPhase === "filling" || normalizedPhase === "slack") return 1;
+      if (normalizedPhase === "draining-release-15") {
+        return stage < MODERATE_FLOOD_FT ? 2 / 3 : 1 / 2;
+      }
+      if (normalizedPhase === "draining-release-30") {
+        return stage < MODERATE_FLOOD_FT ? 1 / 3 : 0;
+      }
+      return 0;
+    }
+
+    function getPenalizedConnectedDepth(stageValue, groundValue, developed = true, phase = "slack", sourceDistanceFt = null) {
+      const stage = Number(stageValue);
+      const ground = Number(groundValue);
+      const polynomialPenalty = getVerticalBathtubPenalty(stage);
+      if (!Number.isFinite(stage) || !Number.isFinite(ground) || !Number.isFinite(polynomialPenalty)) return null;
+      const rawDepth = Math.max(0, stage - ground);
+      const configuredPenalty = TOWN_CONFIG?.overlays?.depthPenalty;
+      const maximumLocalFraction = Number(configuredPenalty?.maximumLocalDepthFraction);
+      const staticPenaltyModel = TOWN_CONFIG?.overlays?.phaseModelEnabled === false;
+      const appliedPenalty = developed
+        ? (staticPenaltyModel && Number.isFinite(maximumLocalFraction)
+          ? Math.min(polynomialPenalty, rawDepth * maximumLocalFraction)
+          : polynomialPenalty)
+        : 0;
+      const normalizedPhase = normalizeHydraulicPhase(phase);
+      const penaltyRemainingFraction = getPenaltyRemainingFraction(stage, normalizedPhase);
+      const adjustment = -appliedPenalty * penaltyRemainingFraction;
+      const adjustedStage = stage + adjustment;
+      const postCrest = staticPenaltyModel ? false : normalizedPhase.startsWith("draining");
+      const waterSurface = postCrest ? stage : adjustedStage;
+      const depth = Math.max(0, waterSurface - ground);
+      return {
+        rawDepth,
+        polynomialPenalty,
+        appliedPenalty,
+        penaltyRemainingFraction,
+        sourceDistanceFt,
+        adjustment,
+        adjustedStage,
+        depth,
+        localWaterSurface: waterSurface
+      };
+    }
+
+    function getDepthTimelineColor(stageValue) {
+      const n = Number(stageValue);
+      if (!Number.isFinite(n)) return "rgba(121,221,90,.92)";
+      if (n < MINOR_FLOOD_FT) return "rgba(121,221,90,.92)";
+      if (n < MODERATE_FLOOD_FT) return "rgba(213,138,0,.92)";
+      if (n < MAJOR_FLOOD_FT) return "rgba(216,75,103,.92)";
+      return "rgba(124,92,224,.92)";
+    }
+
+    function getImpactTimelineColor(stageValue) {
+      const n = Number(stageValue);
+      if (!Number.isFinite(n)) return "rgba(121,221,90,.92)";
+      if (n < MINOR_FLOOD_FT) return "rgba(121,221,90,.92)";
+      if (n < MODERATE_FLOOD_FT) return "rgba(213,138,0,.92)";
+      if (n < MAJOR_FLOOD_FT) return "rgba(216,75,103,.92)";
+      return "rgba(124,92,224,.92)";
+    }
+
+    function getTimelineHourColor(entry) {
+      const rawStage = getStageValue(entry);
+      if (currentOverlayMode === "dynamic") {
+        return getImpactTimelineColor(rawStage);
+      }
+      return getDepthTimelineColor(rawStage);
+    }
+
+    function buildTimelineGroupGradient(startIndex, endIndex, sampleCenters = false) {
+      const entries = currentSeriesHours.slice(startIndex, endIndex + 1);
+      if (!entries.length) return "";
+      // Whole-series day bands meet halfway between adjacent frame centers.
+      // A selected-day mobile slider instead spans its first and last centers.
+      const firstEdge = sampleCenters ? startIndex : Math.max(0, startIndex - 0.5);
+      const lastEdge = sampleCenters ? endIndex : Math.min(currentSeriesHours.length - 1, endIndex + 0.5);
+      const span = lastEdge - firstEdge;
+      if (span <= 0) return `linear-gradient(90deg, ${getTimelineHourColor(entries[0])}, ${getTimelineHourColor(entries[0])})`;
+      const stops = [];
+      entries.forEach((entry, idx) => {
+        const color = getStageValue(entry) == null ? "#94a3b8" : getTimelineHourColor(entry);
+        const startPct = 100 * (Math.max(firstEdge, startIndex + idx - 0.5) - firstEdge) / span;
+        const endPct = 100 * (Math.min(lastEdge, startIndex + idx + 0.5) - firstEdge) / span;
+        stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
+      });
+      return `linear-gradient(90deg, ${stops.join(", ")})`;
+    }
+
+    function stageToCode(stageValue) {
+      const n = Number(stageValue);
+      const sign = n < 0 ? "m" : "p";
+      const scale = Number(TOWN_CONFIG?.overlays?.stageCodeScale) || 10;
+      const width = Number(TOWN_CONFIG?.overlays?.stageCodeWidth) || (scale >= 100 ? 4 : 3);
+      const units = Math.round(Math.abs(n) * scale);
+      return `${sign}${String(units).padStart(width, "0")}`;
+    }
+
+    function normalizeHydraulicPhase(value) {
+      const phase = String(value || "").toLowerCase();
+      const supported = new Set([
+        "filling",
+        "slack",
+        "draining-release-15",
+        "draining-release-30",
+        "draining"
+      ]);
+      return supported.has(phase) ? phase : "slack";
+    }
+
+    function getHydraulicStatePhase(value) {
+      const phase = normalizeHydraulicPhase(value);
+      return phase.startsWith("draining-release-") ? "draining" : phase;
+    }
+
+    function getHydraulicFrameMinutes(entry, fallback = 15) {
+      const explicitMinutes = Number(entry?.timelineIntervalMinutes);
+      if (Number.isFinite(explicitMinutes) && explicitMinutes > 0) return explicitMinutes;
+      if (entry?.observationInterval === "15min") return 15;
+      if (entry?.observationInterval === "1hour") return 60;
+      return fallback;
+    }
+
+    function findHydraulicCrestIndex(series = [], resolvedIndex = 0) {
+      const rows = Array.isArray(series) ? series : [];
+      if (!rows.length) return -1;
+      const safeIndex = Math.max(0, Math.min(Number(resolvedIndex) || 0, rows.length - 1));
+      const currentTime = entryTimeMs(rows[safeIndex]);
+      const maximumLookbackMinutes = 8 * 60;
+      const separatingDropFt = 0.4;
+      let crestIndex = safeIndex;
+      let crestStage = getStageValue(rows[safeIndex]);
+
+      for (let candidate = safeIndex - 1; candidate >= 0; candidate -= 1) {
+        const candidateTime = entryTimeMs(rows[candidate]);
+        if (Number.isFinite(currentTime) && Number.isFinite(candidateTime) &&
+            currentTime - candidateTime > maximumLookbackMinutes * 60 * 1000) break;
+        if (!Number.isFinite(currentTime) && safeIndex - candidate > 32) break;
+        const candidateStage = getStageValue(rows[candidate]);
+        if (!Number.isFinite(candidateStage)) continue;
+        if (!Number.isFinite(crestStage) || candidateStage > crestStage + 1e-9 ||
+            (Math.abs(candidateStage - crestStage) <= 1e-9 && candidate > crestIndex)) {
+          crestStage = candidateStage;
+          crestIndex = candidate;
+        } else if (candidate < crestIndex && candidateStage < crestStage - separatingDropFt) {
+          // This is the pre-crest trough. Stop before an earlier, potentially
+          // higher tide can replace the active event's local high water.
+          break;
+        }
+      }
+      return crestIndex;
+    }
+
+    function getHydraulicElapsedMinutes(rows, crestIndex, resolvedIndex) {
+      const crestTime = entryTimeMs(rows[crestIndex]);
+      const currentTime = entryTimeMs(rows[resolvedIndex]);
+      if (Number.isFinite(crestTime) && Number.isFinite(currentTime)) {
+        return Math.max(0, (currentTime - crestTime) / 60000);
+      }
+      return Math.max(0, resolvedIndex - crestIndex) * getHydraulicFrameMinutes(rows[resolvedIndex]);
+    }
+
+    function inferHydraulicPhaseForIndex(series = [], index = 0) {
+      const rows = Array.isArray(series) ? series : [];
+      const resolvedIndex = Math.max(0, Math.min(Number(index) || 0, rows.length - 1));
+      if (resolvedIndex < 0) return "slack";
+
+      const current = getStageValue(rows[resolvedIndex]);
+      const previous = resolvedIndex > 0 ? getStageValue(rows[resolvedIndex - 1]) : null;
+      const next = resolvedIndex + 1 < rows.length ? getStageValue(rows[resolvedIndex + 1]) : null;
+      const before = Number.isFinite(current) && Number.isFinite(previous) ? current - previous : null;
+      const after = Number.isFinite(next) && Number.isFinite(current) ? next - current : null;
+      const epsilon = 0.025;
+
+      if (Number.isFinite(before) && Number.isFinite(after) && before > epsilon && after <= epsilon) return "slack";
+      if (Number.isFinite(before) && Number.isFinite(after) && before >= 0 && after < -epsilon) return "slack";
+      if (Number.isFinite(before) && Number.isFinite(after) && before < -epsilon && after >= -epsilon) return "draining";
+      if (Number.isFinite(before) && Number.isFinite(after) && before <= epsilon && after > epsilon) {
+        return before < 0 ? "draining" : "slack";
+      }
+
+      // Once the series is falling, recover the latest local high tide and
+      // release the admission penalty using North Wildwood's calibrated
+      // 45/30/0-minute minor/moderate/major durations.
+      const falling = (Number.isFinite(before) && before < -epsilon) ||
+        (Number.isFinite(after) && after < -epsilon && Number.isFinite(before) && before < 0);
+      if (falling) {
+        const crestIndex = findHydraulicCrestIndex(rows, resolvedIndex);
+        const crestStage = getStageValue(rows[crestIndex]);
+        const minutesSinceCrest = getHydraulicElapsedMinutes(rows, crestIndex, resolvedIndex);
+        if (crestStage < MINOR_FLOOD_FT || crestStage >= MAJOR_FLOOD_FT) return "draining";
+        if (crestStage >= MODERATE_FLOOD_FT) {
+          return minutesSinceCrest <= 15 ? "draining-release-15" : "draining";
+        }
+        if (minutesSinceCrest <= 15) return "draining-release-15";
+        if (minutesSinceCrest <= 30) return "draining-release-30";
+        return "draining";
+      }
+
+      const delta = Number.isFinite(after) && (!Number.isFinite(before) || Math.abs(after) >= Math.abs(before)) ? after : before;
+      if (Number.isFinite(delta) && delta > epsilon) return "filling";
+      if (Number.isFinite(delta) && delta < -epsilon) return "draining";
+      return "slack";
+    }
+
+    function annotateHydraulicSeries(series = []) {
+      const rows = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      const phases = rows.map((entry, index) => (
+        Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : "slack"
+      ));
+      return rows.map((entry, index) => {
+        const phase = phases[index];
+        const annotated = {
+          ...entry,
+          hydraulicPhase: phase,
+          hydraulicPhaseCanonical: true
+        };
+        if (!phase.startsWith("draining")) return annotated;
+        const crestIndex = findHydraulicCrestIndex(rows, index);
+        const crestEntry = rows[crestIndex];
+        return {
+          ...annotated,
+          hydraulicCrestIndex: crestIndex,
+          hydraulicCrestTimeUtc: Number.isFinite(entryTimeMs(crestEntry))
+            ? new Date(entryTimeMs(crestEntry)).toISOString()
+            : null,
+          hydraulicCrestStageFt: getStageValue(crestEntry),
+          hydraulicElapsedMinutes: getHydraulicElapsedMinutes(rows, crestIndex, index)
+        };
+      });
+    }
+
+    function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {
+      if (entry?.hydraulicPhaseCanonical && entry?.hydraulicPhase) {
+        return normalizeHydraulicPhase(entry.hydraulicPhase);
+      }
+      const rows = Array.isArray(series) ? series : [];
+      let resolvedIndex = Number.isInteger(index) ? index : rows.indexOf(entry);
+      if (resolvedIndex < 0 && entry) resolvedIndex = findClosestEntryIndex(rows, entry);
+      if (resolvedIndex < 0) return entry?.hydraulicPhase
+        ? normalizeHydraulicPhase(entry.hydraulicPhase)
+        : "slack";
+      return inferHydraulicPhaseForIndex(rows, resolvedIndex);
+    }
+
+    function getOverlayFilename(mode, stageValue) {
+      const code = stageToCode(stageValue);
+      if (mode === "depth") return `${SITE_CONFIG.depthPngPrefix}${code}.png`;
+      return `${SITE_CONFIG.stagePngPrefix}${code}.png`;
+    }
+
+    function getOverlayFilenameCandidates(mode, stageValue) {
+      const png = getOverlayFilename(mode, stageValue);
+      return [png.replace(/\.png$/, ".webp"), png];
+    }
+
+    function getOverlayCandidates(mode, stageValue, phase = "slack") {
+      const normalizedPhase = normalizeHydraulicPhase(phase);
+      const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedPhase] || [];
+      const roots = phaseRoots.length ? phaseRoots : (OVERLAY_ROOTS[mode] || []);
+      // Keep the current bundled catalog. The old Bunny v37 filling images
+      // do not match it, so they must not replace an unavailable current frame.
+      const orderedRoots = roots.filter(root => {
+        const url = new URL(root);
+        return !(url.hostname === "floodmapperv1.b-cdn.net" && url.pathname.includes("/v37/"));
+      });
+      const filenames = getOverlayFilenameCandidates(mode, stageValue);
+      const candidates = orderedRoots.flatMap(root => filenames.map(name => {
+        const url = new URL(name, root);
+        const version = OVERLAY_CACHE_VERSIONS?.hydraulic || OVERLAY_CACHE_VERSIONS?.[mode];
+        if (version) url.searchParams.set("v", version);
+        return url.href;
+      }));
+      if (!["cupajoe.live", "www.cupajoe.live"].includes(APP_BASE.hostname)) return candidates;
+      // Use the identical published atlas directly; retain the local copy if
+      // that host is unavailable. Live forecast JSON stays on its own route.
+      const atlasPath = `${APP_BASE.pathname}assets/hydraulic-v29/`;
+      const staticBase = new URL("North-Wildwood-floodmapper/", "https://hondrospj.github.io/");
+      return candidates.flatMap(candidate => {
+        const url = new URL(candidate);
+        if (url.origin !== APP_BASE.origin || !url.pathname.startsWith(atlasPath)) return [candidate];
+        const direct = new URL(url.pathname.slice(APP_BASE.pathname.length), staticBase);
+        direct.search = url.search;
+        return [direct.href, candidate];
+      });
+    }
+
+    function latLngBoundsFromRing(ring) {
+      if (!Array.isArray(ring) || ring.length < 3) return null;
+      const points = ring
+        .filter(point => Array.isArray(point) && point.length >= 2)
+        .map(([lat, lng]) => L.latLng(Number(lat), Number(lng)))
+        .filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+      if (!points.length) return null;
+      return L.latLngBounds(points);
+    }
+
+    function getBoundaryDrivenOverlayBounds() {
+
+
+      try {
+        if (cityBoundaryOutline && typeof cityBoundaryOutline.getBounds === "function") {
+          const boundaryBounds = cityBoundaryOutline.getBounds();
+          if (boundaryBounds && boundaryBounds.isValid && boundaryBounds.isValid()) {
+            return boundaryBounds;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not read drawn municipal boundary bounds; falling back to boundary ring.", err);
+      }
+
+      const ringBounds = latLngBoundsFromRing(getPrimaryMunicipalBoundaryRing());
+      if (ringBounds && ringBounds.isValid && ringBounds.isValid()) {
+        return ringBounds;
+      }
+
+      if (FALLBACK_LATLNG_BOUNDS && FALLBACK_LATLNG_BOUNDS.isValid && FALLBACK_LATLNG_BOUNDS.isValid()) {
+        return FALLBACK_LATLNG_BOUNDS;
+      }
+
+      const center = TOWN_CONFIG?.map?.center || {};
+      const lat = Number(center.lat);
+      const lon = Number(center.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        return L.latLngBounds([lat - 0.03, lon - 0.04], [lat + 0.03, lon + 0.04]);
+      }
+
+      return L.latLngBounds([0, 0], [0.01, 0.01]);
+    }
+
+    async function testImageUrl(url) {
+      if (!url) return { ok: false };
+      if (exportCancelRequested) return { ok: false, cancelled: true };
+      if (imageExistsCache.has(url)) return imageExistsCache.get(url);
+      const request = new Promise(resolve => {
+        const img = new Image();
+        let settled = false;
+        let cancelTimer = null;
+        let timeoutTimer = null;
+        const done = value => {
+          if (settled) return;
+          settled = true;
+          if (cancelTimer) window.clearInterval(cancelTimer);
+          if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          resolve(value);
+        };
+        const cancelIfRequested = () => {
+          if (!exportCancelRequested) return false;
+          imageExistsCache.delete(url);
+          img.onload = null;
+          img.onerror = null;
+          try { img.src = ""; } catch (_) {}
+          done({ ok: false, cancelled: true });
+          return true;
+        };
+        if (cancelIfRequested()) return;
+        if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
+        img.crossOrigin = "anonymous";
+        img.fetchPriority = "high";
+        img.onload = () => done({ ok: true });
+        img.onerror = () => done({ ok: false });
+        timeoutTimer = window.setTimeout(() => done({ ok: false }), 20000);
+        img.src = url;
+      });
+      imageExistsCache.set(url, request);
+      const result = await request;
+      if (imageExistsCache.get(url) === request) {
+        if (!result.ok) imageExistsCache.delete(url);
+        else imageExistsCache.set(url, result);
+      }
+      return result;
+    }
+
+    function preloadImage(url, priority = "low") {
+      if (!url) return Promise.resolve(null);
+      if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);
+
+      const releaseRaster = retainRasterObjectUrl(url);
+      const promise = new Promise(resolve => {
+        const img = new Image();
+        let settled = false;
+        let cancelTimer = null;
+        let timeoutTimer = null;
+        const done = value => {
+          if (settled) return;
+          settled = true;
+          releaseRaster();
+          if (cancelTimer) window.clearInterval(cancelTimer);
+          if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          img.onload = null;
+          img.onerror = null;
+          if (!value) { try { img.src = ""; } catch (_) {} }
+          resolve(value);
+        };
+        const cancelIfRequested = () => {
+          if (!exportCancelRequested) return false;
+          preloadPromiseCache.delete(url);
+          img.onload = null;
+          img.onerror = null;
+          try { img.src = ""; } catch (_) {}
+          done(null);
+          return true;
+        };
+        if (cancelIfRequested()) return;
+        if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
+        img.crossOrigin = "anonymous";
+        img.decoding = "async";
+        img.fetchPriority = priority === "high" ? "high" : "low";
+        img.onload = async () => done(await decodeFloodFrameImage(img) ? url : null);
+        img.onerror = () => done(null);
+        timeoutTimer = window.setTimeout(() => done(null), 20000);
+        img.src = url;
+      });
+
+      preloadPromiseCache.set(url, promise);
+      promise.then(result => {
+        if (!result && preloadPromiseCache.get(url) === promise) preloadPromiseCache.delete(url);
+      });
+      return promise;
+    }
+
+    // Retain encoded composites for replay; decoded raster caches stay small.
+    const FLOOD_COMPOSITE_CACHE_COMPACT = isCompactFloodmapperLayout();
+    const FLOOD_COMPOSITE_CACHE_ENTRY_LIMIT = FLOOD_COMPOSITE_CACHE_COMPACT ? 16 : 48;
+    const FLOOD_COMPOSITE_CACHE_BYTE_LIMIT = (FLOOD_COMPOSITE_CACHE_COMPACT ? 24 : 128) * 1024 * 1024;
+    const floodCompositeBlobSizes = new Map();
+
+    const RASTER_IMAGE_CACHE_LIMIT = isCompactFloodmapperLayout() ? 2 : 4;
+    function getExportImageElement(url) {
+      if (!url) return Promise.resolve(null);
+      if (exportCancelRequested) return Promise.resolve(null);
+      if (exportImageElementCache.has(url)) {
+        const cached = exportImageElementCache.get(url);
+        exportImageElementCache.delete(url);
+        exportImageElementCache.set(url, cached);
+        return cached;
+      }
+      const releaseRaster = retainRasterObjectUrl(url);
+      const promise = new Promise(resolve => {
+        const img = new Image();
+        let settled = false;
+        let cancelTimer = null;
+        let timeoutTimer = null;
+        const done = value => {
+          if (settled) return;
+          settled = true;
+          releaseRaster();
+          if (cancelTimer) window.clearInterval(cancelTimer);
+          if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          resolve(value);
+        };
+        const cancelIfRequested = () => {
+          if (!exportCancelRequested) return false;
+          exportImageElementCache.delete(url);
+          img.onload = null;
+          img.onerror = null;
+          try { img.src = ""; } catch (_) {}
+          done(null);
+          return true;
+        };
+        if (cancelIfRequested()) return;
+        cancelTimer = window.setInterval(cancelIfRequested, 80);
+        img.decoding = "async";
+        img.loading = "eager";
+        img.fetchPriority = "high";
+        img.crossOrigin = "anonymous";
+        img.onload = () => done(img);
+        img.onerror = () => done(null);
+        timeoutTimer = window.setTimeout(() => done(null), 20000);
+        img.src = url;
+      });
+      exportImageElementCache.set(url, promise);
+      while (exportImageElementCache.size > RASTER_IMAGE_CACHE_LIMIT) {
+        exportImageElementCache.delete(exportImageElementCache.keys().next().value);
+      }
+      promise.then(result => {
+        if (!result && exportImageElementCache.get(url) === promise) exportImageElementCache.delete(url);
+      });
+      return promise;
+    }
+
+    async function findWorkingOverlay(mode, stageValue, family = "crest") {
+      const candidates = getOverlayCandidates(mode, stageValue, family);
+      for (const url of candidates) {
+        throwIfExportCancelled();
+        const exists = await testImageUrl(url);
+        throwIfExportCancelled();
+        if (exists.ok) {
+          return { url, filename: url.split('/').pop() || getOverlayFilename(mode, stageValue) };
+        }
+      }
+      throwIfExportCancelled();
+      return null;
+    }
+
+    async function getOverlayRecord(mode, stageValue, phase = "slack") {
+      const normalizedPhase = normalizeHydraulicPhase(phase);
+      const key = `${mode}:${normalizedPhase}:${stageToCode(stageValue)}`;
+      if (exportCancelRequested) throwIfExportCancelled();
+      if (overlayRecordCache.has(key)) return overlayRecordCache.get(key);
+      const request = findWorkingOverlay(mode, stageValue, normalizedPhase);
+      overlayRecordCache.set(key, request);
+      try {
+        const match = await request;
+        throwIfExportCancelled();
+        if (overlayRecordCache.get(key) === request) {
+          if (match) overlayRecordCache.set(key, match);
+          else overlayRecordCache.delete(key);
+        }
+        return match;
+      } catch (error) {
+        if (overlayRecordCache.get(key) === request) overlayRecordCache.delete(key);
+        throw error;
+      }
+    }
+
+    const DRAINAGE_DEPTH_BREAKS_FT = [0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00];
+    const DRAINAGE_DEPTH_COLORS = [
+      [125, 249, 255], [93, 231, 255], [56, 211, 255], [27, 183, 245],
+      [22, 140, 235], [21, 107, 224], [24, 83, 198], [23, 62, 168],
+      [19, 47, 132], [11, 30, 91], [5, 14, 51]
+    ];
+    const DRAINAGE_STAGE_COLORS = [
+      [244, 167, 66], [231, 76, 60], [125, 60, 152]
+    ];
+    const DRAINAGE_RASTER_IMAGE_CACHE_LIMIT = 4;
+    const FILLING_COMPOSITE_CACHE_LIMIT = FLOOD_COMPOSITE_CACHE_ENTRY_LIMIT;
+    const DRAINAGE_COMPOSITE_CACHE_LIMIT = FLOOD_COMPOSITE_CACHE_ENTRY_LIMIT;
+
+    function isDisconnectedRasterPixel(values, offset) {
+      return values[offset + 3] > 0 &&
+        Math.abs(values[offset] - 99) <= 4 &&
+        Math.abs(values[offset + 1] - 212) <= 4 &&
+        Math.abs(values[offset + 2] - 113) <= 4;
+    }
+
+    function isWetRasterPixel(values, offset) {
+      return values[offset + 3] > 0 && !isDisconnectedRasterPixel(values, offset);
+    }
+
+    function getDrainageDepthColor(depthFt) {
+      for (let index = 0; index < DRAINAGE_DEPTH_BREAKS_FT.length; index += 1) {
+        if (depthFt < DRAINAGE_DEPTH_BREAKS_FT[index]) return DRAINAGE_DEPTH_COLORS[index];
+      }
+      return DRAINAGE_DEPTH_COLORS[DRAINAGE_DEPTH_COLORS.length - 1];
+    }
+
+    function getDrainageStageColor(stageFt) {
+      if (stageFt >= MAJOR_FLOOD_FT) return DRAINAGE_STAGE_COLORS[2];
+      if (stageFt >= MODERATE_FLOOD_FT) return DRAINAGE_STAGE_COLORS[1];
+      return DRAINAGE_STAGE_COLORS[0];
+    }
+
+    function getFillingStageFraction(rawStageFt, lowerStageFt) {
+      const raw = Number(rawStageFt);
+      const lower = Number(lowerStageFt);
+      if (!Number.isFinite(raw) || !Number.isFinite(lower)) return 0;
+      return Math.max(0, Math.min(1, (raw - lower) / STAGE_STEP));
+    }
+
+    function getFillingTransitionBlend(stageFraction) {
+      const fraction = Math.max(0, Math.min(1, Number(stageFraction) || 0));
+      // Ease the whole newly connected surface in together. A spatial wipe
+      // exposes the one-pixel routing skeleton first, which reads as long
+      // lines and leaves large pure-green gaps between catalog stages. Treat
+      // each catalog tenth as representing values that round to that tenth,
+      // so the upper frame is fully established at the half-tenth boundary.
+      const nearestFrameProgress = Math.min(1, fraction * 2);
+      return nearestFrameProgress * nearestFrameProgress * (3 - 2 * nearestFrameProgress);
+    }
+
+    function isDevelopedRasterPixel(developedPixels, offset) {
+      return Boolean(developedPixels && developedPixels[offset + 2] >= 128);
+    }
+
+    function isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel) {
+      const offset = pixel * 4;
+      return !isWetRasterPixel(lowerPixels, offset) &&
+        isWetRasterPixel(upperPixels, offset) &&
+        isDevelopedRasterPixel(developedPixels, offset);
+    }
+
+    function isShallowFillingTransitionPixel(depthPixels, pixel) {
+      if (!depthPixels) return false;
+      const offset = pixel * 4;
+      const shallow = DRAINAGE_DEPTH_COLORS[0];
+      return depthPixels[offset + 3] > 0 &&
+        Math.abs(depthPixels[offset] - shallow[0]) <= 4 &&
+        Math.abs(depthPixels[offset + 1] - shallow[1]) <= 4 &&
+        Math.abs(depthPixels[offset + 2] - shallow[2]) <= 4;
+    }
+
+    function getFillingTransitionPixelDepth(queryPixels, developedPixels, pixel, rawStageFt) {
+      if (!queryPixels || !developedPixels || queryPixels.length !== developedPixels.length) return null;
+      const offset = pixel * 4;
+      const encodedGround = queryPixels[offset] * 256 + queryPixels[offset + 1];
+      if (!encodedGround) return null;
+      const groundFt = (encodedGround - 32768) / 10;
+      const connectionCode = queryPixels[offset + 2];
+      const stageFt = Number(rawStageFt);
+      // The upper catalog raster already limits this interpolation to cells
+      // that connect during the current tenth-foot interval. Do not compare
+      // its quantized connection code to the in-between gauge value or the
+      // whole surface remains green until the next catalog frame.
+      if (!Number.isFinite(stageFt) || connectionCode === 255) return null;
+      const developed = isDevelopedRasterPixel(developedPixels, offset);
+      const adjustedStageFt = stageFt - (developed ? getVerticalBathtubPenalty(stageFt) : 0);
+      if (groundFt > adjustedStageFt + 1e-9) return null;
+      // Use the same local water surface as the query and catalog depth model.
+      return Math.max(0.005, adjustedStageFt - groundFt);
+    }
+
+    function buildFillingTransitionQueue(
+      lowerPixels,
+      upperPixels,
+      developedPixels,
+      width,
+      height,
+      depthPixels = upperPixels
+    ) {
+      const pixelCount = width * height;
+      const candidateState = new Uint8Array(pixelCount);
+      const shallowState = new Uint8Array(pixelCount);
+      // The upper catalog raster is the authority for where the next tenth
+      // may flood. Restrict the in-between front to developed pixels and never
+      // invent water outside that authoritative mask.
+      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+        if (isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel)) {
+          candidateState[pixel] = 1;
+          if (isShallowFillingTransitionPixel(depthPixels, pixel)) shallowState[pixel] = 1;
+        }
+      }
+      const hasLowerWetNeighbour = pixel => {
+        const x = pixel % width;
+        const y = Math.floor(pixel / width);
+        return (x > 0 && isWetRasterPixel(lowerPixels, (pixel - 1) * 4)) ||
+          (x + 1 < width && isWetRasterPixel(lowerPixels, (pixel + 1) * 4)) ||
+          (y > 0 && isWetRasterPixel(lowerPixels, (pixel - width) * 4)) ||
+          (y + 1 < height && isWetRasterPixel(lowerPixels, (pixel + width) * 4));
+      };
+
+      const neighboursOf = pixel => {
+        const x = pixel % width;
+        const y = Math.floor(pixel / width);
+        const neighbours = [];
+        if (x > 0) neighbours.push(pixel - 1);
+        if (x + 1 < width) neighbours.push(pixel + 1);
+        if (y > 0) neighbours.push(pixel - width);
+        if (y + 1 < height) neighbours.push(pixel + width);
+        return neighbours;
+      };
+
+      // Feeder cells are deliberately encoded by the hydraulic generator as
+      // the 0.00-0.10 ft depth class. Reveal each source-connected shallow
+      // component before widening the surrounding basin. This preserves the
+      // visible source-to-basin trickle at fractional tenth-foot stages.
+      const shallowVisited = new Uint8Array(pixelCount);
+      const shallowComponents = [];
+      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+        if (shallowState[pixel] !== 1 || shallowVisited[pixel]) continue;
+        const members = [];
+        const componentQueue = [pixel];
+        let seed = -1;
+        shallowVisited[pixel] = 1;
+        for (let head = 0; head < componentQueue.length; head += 1) {
+          const current = componentQueue[head];
+          members.push(current);
+          if (seed < 0 && hasLowerWetNeighbour(current)) seed = current;
+          for (const neighbour of neighboursOf(current)) {
+            if (shallowState[neighbour] !== 1 || shallowVisited[neighbour]) continue;
+            shallowVisited[neighbour] = 1;
+            componentQueue.push(neighbour);
+          }
+        }
+        if (seed < 0) continue;
+
+        // Trace one shortest source-to-interior spine through the component.
+        // The upper depth raster already encodes the generator's feeder as
+        // shallow water, so this reaches the end of that feeder before area
+        // is spent widening its edges.
+        const memberSet = new Set(members);
+        const seeds = members.filter(hasLowerWetNeighbour);
+        const ordered = seeds.slice();
+        const predecessor = new Map(seeds.map(current => [current, -1]));
+        const distance = new Map(seeds.map(current => [current, 1]));
+        let farthest = seed;
+        for (let head = 0; head < ordered.length; head += 1) {
+          const current = ordered[head];
+          const currentDistance = distance.get(current);
+          if (currentDistance > distance.get(farthest) ||
+              (currentDistance === distance.get(farthest) && current < farthest)) {
+            farthest = current;
+          }
+          for (const neighbour of neighboursOf(current)) {
+            if (!memberSet.has(neighbour) || predecessor.has(neighbour)) continue;
+            predecessor.set(neighbour, current);
+            distance.set(neighbour, currentDistance + 1);
+            ordered.push(neighbour);
+          }
+        }
+        const spine = [];
+        for (let current = farthest; current >= 0; current = predecessor.get(current)) {
+          spine.push(current);
+        }
+        spine.reverse();
+        shallowComponents.push({ first: pixel, size: members.length, ordered, spine });
+      }
+
+      shallowComponents.sort((left, right) =>
+        right.size - left.size || left.first - right.first
+      );
+      const queue = [];
+      const queued = new Set();
+      for (const component of shallowComponents) {
+        for (const pixel of component.spine) {
+          queue.push(pixel);
+          queued.add(pixel);
+        }
+      }
+      for (const component of shallowComponents) {
+        for (const pixel of component.ordered) {
+          if (queued.has(pixel)) continue;
+          queue.push(pixel);
+          queued.add(pixel);
+        }
+      }
+
+      // Then expand through every remaining eligible pixel by sides. Filtering
+      // the shallow prefix out of this ordinary BFS keeps the result monotonic
+      // while preserving the same final upper-stage footprint.
+      const expansionQueue = [];
+      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+        if (candidateState[pixel] !== 1 || !hasLowerWetNeighbour(pixel)) continue;
+        candidateState[pixel] = 2;
+        expansionQueue.push(pixel);
+      }
+      for (let head = 0; head < expansionQueue.length; head += 1) {
+        const pixel = expansionQueue[head];
+        for (const neighbour of neighboursOf(pixel)) {
+          if (candidateState[neighbour] !== 1) continue;
+          candidateState[neighbour] = 2;
+          expansionQueue.push(neighbour);
+        }
+      }
+      for (const pixel of expansionQueue) {
+        if (!queued.has(pixel)) queue.push(pixel);
+      }
+      return queue;
+    }
+
+    function applyFillingTransitionPixels(
+      lowerPixels,
+      upperPixels,
+      developedPixels,
+      width,
+      height,
+      rawStageFt,
+      lowerStageFt,
+      mode,
+      depthPixels = upperPixels,
+      queryPixels = null
+    ) {
+      if (!lowerPixels || !upperPixels || lowerPixels.length !== upperPixels.length ||
+          !developedPixels || developedPixels.length !== lowerPixels.length ||
+          !queryPixels || queryPixels.length !== lowerPixels.length ||
+          width * height * 4 !== lowerPixels.length) return 0;
+      const fraction = getFillingStageFraction(rawStageFt, lowerStageFt);
+      if (!(fraction > 0)) return 0;
+      const blend = getFillingTransitionBlend(fraction);
+      const transitionStageRgb = getDrainageStageColor(rawStageFt);
+      let added = 0;
+      const pixelCount = width * height;
+      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+        if (!isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel)) continue;
+        const depthFt = getFillingTransitionPixelDepth(
+          queryPixels,
+          developedPixels,
+          pixel,
+          rawStageFt
+        );
+        if (!Number.isFinite(depthFt)) continue;
+        const offset = pixel * 4;
+        const color = mode === "depth"
+          ? getDrainageDepthColor(depthFt)
+          : transitionStageRgb;
+        const sourceAlpha = lowerPixels[offset + 3];
+        if (sourceAlpha > 0) {
+          lowerPixels[offset] = Math.round(lowerPixels[offset] * (1 - blend) + color[0] * blend);
+          lowerPixels[offset + 1] = Math.round(lowerPixels[offset + 1] * (1 - blend) + color[1] * blend);
+          lowerPixels[offset + 2] = Math.round(lowerPixels[offset + 2] * (1 - blend) + color[2] * blend);
+          lowerPixels[offset + 3] = Math.round(sourceAlpha * (1 - blend) + 225 * blend);
+        } else {
+          lowerPixels[offset] = color[0];
+          lowerPixels[offset + 1] = color[1];
+          lowerPixels[offset + 2] = color[2];
+          lowerPixels[offset + 3] = Math.round(225 * blend);
+        }
+        added += 1;
+      }
+      return added;
+    }
+
+    function applyDrainageRetentionPixels(currentPixels, historicalPixelSets, queryPixels, stageFt, mode) {
+      const pixelCount = Math.floor(currentPixels.length / 4);
+      if (!pixelCount || !queryPixels || queryPixels.length !== currentPixels.length) return 0;
+      const history = (historicalPixelSets || []).filter(
+        values => values && values.length === currentPixels.length
+      );
+      if (!history.length) return 0;
+      // The first history raster is the crest footprint. A falling limb may
+      // retain water from that footprint, but it must never admit a pixel that
+      // was not present at crest merely because a phase penalty was released.
+      // A confirmed blue pixel over the full crest footprint stays blue; it
+      // may become shallower or disappear, but it never downgrades to green.
+      const crestPixels = history[0];
+      let modified = 0;
+      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
+        if (!isWetRasterPixel(currentPixels, offset) || crestPixels[offset + 3] > 0) continue;
+        currentPixels[offset] = 0;
+        currentPixels[offset + 1] = 0;
+        currentPixels[offset + 2] = 0;
+        currentPixels[offset + 3] = 0;
+        modified += 1;
+      }
+      const retained = new Uint8Array(pixelCount);
+      for (const historyPixels of history) {
+        for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
+          if (!retained[pixel] && crestPixels[offset + 3] > 0 &&
+              isWetRasterPixel(historyPixels, offset)) retained[pixel] = 1;
+        }
+      }
+
+      const retainedStageRgb = getDrainageStageColor(stageFt);
+      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
+        if (!retained[pixel] || isWetRasterPixel(currentPixels, offset)) continue;
+        const encodedGround = queryPixels[offset] * 256 + queryPixels[offset + 1];
+        if (!encodedGround) continue;
+        const groundFt = (encodedGround - 32768) / 10;
+        const depthFt = Number(stageFt) - groundFt;
+        if (!(depthFt > 0.005)) continue;
+        const color = mode === "depth" ? getDrainageDepthColor(depthFt) : retainedStageRgb;
+        currentPixels[offset] = color[0];
+        currentPixels[offset + 1] = color[1];
+        currentPixels[offset + 2] = color[2];
+        currentPixels[offset + 3] = 225;
+        modified += 1;
+      }
+      return modified;
+    }
+
+    function getDrainageRetentionMilestones(entry, series = currentRawSeriesHours) {
+      const phase = getHydraulicPhaseForEntry(entry, null, series);
+      const crestStage = Number(entry?.hydraulicCrestStageFt);
+      const currentTime = entryTimeMs(entry);
+      const crestTime = Date.parse(entry?.hydraulicCrestTimeUtc || "");
+      if (!phase.startsWith("draining") || !Number.isFinite(crestStage) ||
+          crestStage < MINOR_FLOOD_FT || !Number.isFinite(currentTime) || !Number.isFinite(crestTime)) return [];
+
+      const rows = (Array.isArray(series) ? series : [])
+        .filter(row => {
+          const time = entryTimeMs(row);
+          return Number.isFinite(time) && time >= crestTime && time < currentTime && Number.isFinite(getStageValue(row));
+        });
+      const selected = new Map();
+      for (const row of rows) {
+        const rowPhase = getHydraulicPhaseForEntry(row, null, series);
+        if (rowPhase === "filling") continue;
+        const existing = selected.get(rowPhase);
+        if (!existing || getStageValue(row) > getStageValue(existing)) selected.set(rowPhase, row);
+      }
+      return Array.from(selected.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+    }
+
+    function getDrainageRasterImage(url) {
+      if (!url) return Promise.resolve(null);
+      if (drainageRasterImageCache.has(url)) return drainageRasterImageCache.get(url);
+      const releaseRaster = retainRasterObjectUrl(url);
+      const promise = new Promise(resolve => {
+        const image = new Image();
+        image.crossOrigin = "anonymous";
+        image.decoding = "async";
+        image.onload = () => { releaseRaster(); resolve(image); };
+        image.onerror = () => { releaseRaster(); resolve(null); };
+        image.src = url;
+      }).then(image => {
+        // A failed decode must not prevent the next request from retrying.
+        if (!image && drainageRasterImageCache.get(url) === promise) {
+          drainageRasterImageCache.delete(url);
+        }
+        return image;
+      });
+      drainageRasterImageCache.set(url, promise);
+      while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {
+        drainageRasterImageCache.delete(drainageRasterImageCache.keys().next().value);
+      }
+      return promise;
+    }
+
+    function canvasToDrainageObjectUrl(canvas) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+          if (!blob) reject(new Error("Could not encode the retained drainage raster."));
+          else {
+            const url = URL.createObjectURL(blob);
+            floodCompositeBlobSizes.set(url, blob.size);
+            // Some palette converters also use this encoder; bound bookkeeping.
+            while (floodCompositeBlobSizes.size > 256) {
+              floodCompositeBlobSizes.delete(floodCompositeBlobSizes.keys().next().value);
+            }
+            resolve(url);
+          }
+        }, "image/png");
+      });
+    }
+
+    // A cache eviction must not revoke an image still used by a renderer or decoder.
+    const rasterObjectUrlUsers = new Map();
+    const retiredRasterObjectUrls = new Set();
+    let rasterObjectUrlCleanupTimer = null;
+
+    function scheduleRasterObjectUrlCleanup() {
+      if (rasterObjectUrlCleanupTimer !== null || !retiredRasterObjectUrls.size) return;
+      // Let promise continuations hand a generated image to the next consumer.
+      rasterObjectUrlCleanupTimer = window.setTimeout(() => {
+        rasterObjectUrlCleanupTimer = null;
+        for (const url of retiredRasterObjectUrls) {
+          if (rasterObjectUrlUsers.has(url) || currentFloodLayer?._url === url || pendingFloodLayer?._url === url) continue;
+          URL.revokeObjectURL(url);
+          retiredRasterObjectUrls.delete(url);
+          preloadPromiseCache.delete(url);
+          drainageRasterImageCache.delete(url);
+          exportImageElementCache.delete(url);
+        }
+      }, 0);
+    }
+
+    function retainRasterObjectUrl(url) {
+      if (!url?.startsWith("blob:")) return () => {};
+      rasterObjectUrlUsers.set(url, (rasterObjectUrlUsers.get(url) || 0) + 1);
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        const remaining = (rasterObjectUrlUsers.get(url) || 1) - 1;
+        if (remaining) rasterObjectUrlUsers.set(url, remaining);
+        else rasterObjectUrlUsers.delete(url);
+        scheduleRasterObjectUrlCleanup();
+      };
+    }
+
+    function retireRasterObjectUrl(url) {
+      if (!url?.startsWith("blob:")) return;
+      retiredRasterObjectUrls.add(url);
+      scheduleRasterObjectUrlCleanup();
+    }
+
+    function cacheBathtubStageOverlay(key, record) {
+      bathtubStageOverlayCache.set(key, record);
+      while (bathtubStageOverlayCache.size > 48) {
+        const oldestKey = bathtubStageOverlayCache.keys().next().value;
+        const oldest = bathtubStageOverlayCache.get(oldestKey);
+        retireRasterObjectUrl(oldest?.url);
+        bathtubStageOverlayCache.delete(oldestKey);
+      }
+      return record;
+    }
+
+    function applyBathtubStagePixels(source, target, stageValue) {
+      const stage = Number(stageValue);
+      if (!source || !target || source.length !== target.length || !Number.isFinite(stage)) return 0;
+      let wetPixels = 0;
+      for (let offset = 0; offset < source.length; offset += 4) {
+        const encodedGround = source[offset] * 256 + source[offset + 1];
+        if (!encodedGround) continue;
+        const groundFt = (encodedGround - 32768) / 10;
+        if (!(groundFt < stage - 0.005)) continue;
+        const color = groundFt < MINOR_FLOOD_FT
+          ? DRAINAGE_STAGE_COLORS[0]
+          : groundFt < MODERATE_FLOOD_FT
+            ? DRAINAGE_STAGE_COLORS[1]
+            : DRAINAGE_STAGE_COLORS[2];
+        target[offset] = color[0];
+        target[offset + 1] = color[1];
+        target[offset + 2] = color[2];
+        target[offset + 3] = 225;
+        wetPixels += 1;
+      }
+      return wetPixels;
+    }
+
+    function applyStageUncertaintyPixels(depthPixels, stagePixels) {
+      if (!depthPixels || !stagePixels || depthPixels.length !== stagePixels.length) {
+        throw new Error("Flood Depth and Flood Stages raster sizes do not match.");
+      }
+      let uncertainPixels = 0;
+      for (let offset = 0; offset < depthPixels.length; offset += 4) {
+        if (!isDisconnectedRasterPixel(depthPixels, offset)) continue;
+        stagePixels[offset] = depthPixels[offset];
+        stagePixels[offset + 1] = depthPixels[offset + 1];
+        stagePixels[offset + 2] = depthPixels[offset + 2];
+        stagePixels[offset + 3] = depthPixels[offset + 3];
+        uncertainPixels += 1;
+      }
+      return uncertainPixels;
+    }
+
+    async function getBathtubStageOverlayRecord(stageValue, depthRecord = null) {
+      const stage = Number(stageValue);
+      if (!Number.isFinite(stage)) return null;
+      // Equal water levels can have different uncertainty after filling/drainage.
+      // The resolved depth-frame URL identifies the exact mask to reuse.
+      const key = JSON.stringify([stageToCode(stage), depthRecord?.url || "no-uncertainty"]);
+      const cache = bathtubStageOverlayCache;
+      if (cache.has(key)) return cache.get(key);
+      const releaseDepth = retainRasterObjectUrl(depthRecord?.url);
+      const request = (async () => {
+        try {
+          const [queryGrid, depthImage] = await Promise.all([
+            getDepthQueryGrid(),
+            depthRecord ? getDrainageRasterImage(depthRecord.url) : null
+          ]);
+          if (!queryGrid?.values || !queryGrid.width || !queryGrid.height) return null;
+          if (depthRecord && (!depthImage || depthImage.naturalWidth !== queryGrid.width ||
+              depthImage.naturalHeight !== queryGrid.height)) {
+            throw new Error("Flood Depth uncertainty raster is unavailable or its grid does not match Flood Stages.");
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = queryGrid.width;
+          canvas.height = queryGrid.height;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          if (!context) return null;
+          const imageData = context.createImageData(canvas.width, canvas.height);
+          applyBathtubStagePixels(queryGrid.values, imageData.data, stage);
+          let uncertainPixelCount = 0;
+          if (depthImage) {
+            context.drawImage(depthImage, 0, 0);
+            const depthPixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+            uncertainPixelCount = applyStageUncertaintyPixels(depthPixels, imageData.data);
+          }
+          context.putImageData(imageData, 0, 0);
+          return {
+            url: await canvasToDrainageObjectUrl(canvas),
+            filename: `NorthWildwoodFloodStages${stageToCode(stage)}.png`,
+            isBathtubStage: true,
+            uncertainPixelCount
+          };
+        } finally {
+          releaseDepth();
+        }
+      })().catch(error => {
+        console.warn("Could not build Flood Stages with its Flood Depth uncertainty areas.", error);
+        return null;
+      });
+      cache.set(key, request);
+      const record = await request;
+      if (cache !== bathtubStageOverlayCache) {
+        retireRasterObjectUrl(record?.url);
+        return null;
+      }
+      if (!record) {
+        cache.delete(key);
+        return null;
+      }
+      return cacheBathtubStageOverlay(key, record);
+    }
+
+    function cacheDrainageComposite(key, record) {
+      if (typeof floodCompositeBlobSizes !== "undefined" && record?.url && floodCompositeBlobSizes.has(record.url)) {
+        record.compositeByteLength = floodCompositeBlobSizes.get(record.url);
+        floodCompositeBlobSizes.delete(record.url);
+      }
+      drainageCompositeCache.set(key, record);
+      while (
+        drainageCompositeCache.size > DRAINAGE_COMPOSITE_CACHE_LIMIT ||
+        (drainageCompositeCache.size > 1 &&
+          Array.from(drainageCompositeCache.values()).reduce((bytes, item) => bytes + (item?.compositeByteLength || 0), 0) >
+            (typeof FLOOD_COMPOSITE_CACHE_BYTE_LIMIT === "number" ? FLOOD_COMPOSITE_CACHE_BYTE_LIMIT : 128 * 1024 * 1024))
+      ) {
+        const oldestKey = drainageCompositeCache.keys().next().value;
+        const oldest = drainageCompositeCache.get(oldestKey);
+        retireRasterObjectUrl(oldest?.url);
+        drainageCompositeCache.delete(oldestKey);
+      }
+      return record;
+    }
+
+    function cacheFillingComposite(key, record) {
+      if (typeof floodCompositeBlobSizes !== "undefined" && record?.url && floodCompositeBlobSizes.has(record.url)) {
+        record.compositeByteLength = floodCompositeBlobSizes.get(record.url);
+        floodCompositeBlobSizes.delete(record.url);
+      }
+      fillingCompositeCache.set(key, record);
+      while (
+        fillingCompositeCache.size > FILLING_COMPOSITE_CACHE_LIMIT ||
+        (fillingCompositeCache.size > 1 &&
+          Array.from(fillingCompositeCache.values()).reduce((bytes, item) => bytes + (item?.compositeByteLength || 0), 0) >
+            (typeof FLOOD_COMPOSITE_CACHE_BYTE_LIMIT === "number" ? FLOOD_COMPOSITE_CACHE_BYTE_LIMIT : 128 * 1024 * 1024))
+      ) {
+        const oldestKey = fillingCompositeCache.keys().next().value;
+        const oldest = fillingCompositeCache.get(oldestKey);
+        retireRasterObjectUrl(oldest?.url);
+        fillingCompositeCache.delete(oldestKey);
+      }
+      return record;
+    }
+
+    async function getFillingInterpolatedOverlayRecord(
+      mode,
+      lowerStageFt,
+      phase,
+      entry,
+      lowerRecord
+    ) {
+      const rawStageFt = getStageValue(entry);
+      const fraction = getFillingStageFraction(rawStageFt, lowerStageFt);
+      const normalizedPhase = normalizeHydraulicPhase(phase);
+      if (!lowerRecord || !(fraction > 1e-6) || fraction >= 1 - 1e-6 ||
+          (normalizedPhase !== "filling" && normalizedPhase !== "slack")) return lowerRecord;
+      const upperStageFt = roundToCatalogPrecision(Math.min(MAX_STAGE, lowerStageFt + STAGE_STEP));
+      if (!(upperStageFt > lowerStageFt)) return lowerRecord;
+      const key = [
+        mode,
+        normalizedPhase,
+        Number(rawStageFt).toFixed(3),
+        stageToCode(lowerStageFt),
+        stageToCode(upperStageFt)
+      ].join("|");
+      if (fillingCompositeCache.has(key)) {
+        const cached = fillingCompositeCache.get(key);
+        fillingCompositeCache.delete(key);
+        fillingCompositeCache.set(key, cached);
+        return cached;
+      }
+
+      const request = (async () => {
+        const upperRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase);
+        const depthRequest = mode === "depth"
+          ? upperRequest
+          : getOverlayRecord("depth", upperStageFt, normalizedPhase);
+        const [upperRecord, depthRecord] = await Promise.all([upperRequest, depthRequest]);
+        if (!upperRecord || !depthRecord) return lowerRecord;
+        const [lowerImage, upperImage, depthImage, developedGrid, queryGrid] = await Promise.all([
+          getDrainageRasterImage(lowerRecord.url),
+          getDrainageRasterImage(upperRecord.url),
+          getDrainageRasterImage(depthRecord.url),
+          getDevelopedQueryGrid(),
+          getDepthQueryGrid()
+        ]);
+        if (!lowerImage || !upperImage || !depthImage || !developedGrid || !queryGrid) return lowerRecord;
+        const width = lowerImage.naturalWidth;
+        const height = lowerImage.naturalHeight;
+        if (upperImage.naturalWidth !== width || upperImage.naturalHeight !== height ||
+            depthImage.naturalWidth !== width || depthImage.naturalHeight !== height ||
+            developedGrid.width !== width || developedGrid.height !== height ||
+            queryGrid.width !== width || queryGrid.height !== height) {
+          console.warn("Filling interpolation skipped because its raster grids do not match.");
+          return lowerRecord;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) return lowerRecord;
+        context.drawImage(lowerImage, 0, 0);
+        const lowerImageData = context.getImageData(0, 0, width, height);
+        context.clearRect(0, 0, width, height);
+        context.drawImage(upperImage, 0, 0);
+        const upperPixels = context.getImageData(0, 0, width, height).data;
+        let depthPixels = upperPixels;
+        if (depthImage !== upperImage) {
+          context.clearRect(0, 0, width, height);
+          context.drawImage(depthImage, 0, 0);
+          depthPixels = context.getImageData(0, 0, width, height).data;
+        }
+        const addedPixelCount = applyFillingTransitionPixels(
+          lowerImageData.data,
+          upperPixels,
+          developedGrid.values,
+          width,
+          height,
+          rawStageFt,
+          lowerStageFt,
+          mode,
+          depthPixels,
+          queryGrid.values
+        );
+        if (!addedPixelCount) return lowerRecord;
+        context.putImageData(lowerImageData, 0, 0);
+        const url = await canvasToDrainageObjectUrl(canvas);
+        return {
+          ...lowerRecord,
+          url,
+          isContinuousFillingComposite: true,
+          fillingFraction: fraction,
+          addedPixelCount
+        };
+      })().catch(error => {
+        console.warn("Could not build the continuous filling raster; using the lower catalog raster.", error);
+        return lowerRecord;
+      });
+
+      fillingCompositeCache.set(key, request);
+      const record = await request;
+      return cacheFillingComposite(key, record);
+    }
+
+    async function getHydraulicOverlayRecord(mode, stageValue, phase, entry = null, series = currentRawSeriesHours) {
+      let releaseRaster = null;
+      try {
+        if (mode === "dynamic") {
+          // Physics depth has no green mask. Never substitute a static mask for it.
+          if (getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), "depth")?.url) {
+            return getBathtubStageOverlayRecord(stageValue);
+          }
+          const depthRecord = await getHydraulicOverlayRecord("depth", stageValue, phase, entry, series);
+          if (!depthRecord?.url) return null;
+          return getBathtubStageOverlayRecord(stageValue, depthRecord);
+        }
+        let baseRecord = await getOverlayRecord(mode, stageValue, phase);
+        if (!baseRecord || !entry) return baseRecord;
+        baseRecord = await getFillingInterpolatedOverlayRecord(
+          mode,
+          stageValue,
+          phase,
+          entry,
+          baseRecord
+        );
+        releaseRaster = retainRasterObjectUrl(baseRecord?.url);
+        const milestones = getDrainageRetentionMilestones(entry, series);
+        if (!milestones.length) return baseRecord;
+
+        const key = [
+          mode,
+          stageToCode(stageValue),
+          normalizeHydraulicPhase(phase),
+          entryTimeMs(entry), getStageValue(entry),
+          ...milestones.map(item => `${entryTimeMs(item)}:${normalizeHydraulicPhase(item.hydraulicPhase)}:${stageToCode(getOverlayStage(getStageValue(item)))}:${getStageValue(item)}`)
+        ].join("|");
+        if (drainageCompositeCache.has(key)) {
+          const cached = drainageCompositeCache.get(key);
+          drainageCompositeCache.delete(key);
+          drainageCompositeCache.set(key, cached);
+          return cached;
+        }
+
+        const request = (async () => {
+          const historicalRecords = (await Promise.all(milestones.map(item => {
+            const itemStage = getOverlayStage(getStageValue(item));
+            return itemStage == null
+              ? Promise.resolve(null)
+              : getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));
+          }))).filter(Boolean);
+          if (!historicalRecords.length) return baseRecord;
+
+          const [baseImage, queryGrid, ...historyImages] = await Promise.all([
+            getDrainageRasterImage(baseRecord.url),
+            getDepthQueryGrid(),
+            ...historicalRecords.map(record => getDrainageRasterImage(record.url))
+          ]);
+          if (!baseImage || !queryGrid || historyImages.some(image => !image)) return baseRecord;
+          if (baseImage.naturalWidth !== queryGrid.width || baseImage.naturalHeight !== queryGrid.height) {
+            console.warn("Drainage retention skipped because the packed query grid does not match the flood raster.");
+            return baseRecord;
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = baseImage.naturalWidth;
+          canvas.height = baseImage.naturalHeight;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          if (!context) return baseRecord;
+          context.drawImage(baseImage, 0, 0);
+          const currentImageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const historicalPixelSets = historyImages.map(image => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, 0);
+            return context.getImageData(0, 0, canvas.width, canvas.height).data;
+          });
+          const addedPixelCount = applyDrainageRetentionPixels(
+            currentImageData.data,
+            historicalPixelSets,
+            queryGrid.values,
+            stageValue,
+            mode
+          );
+          if (!addedPixelCount) return baseRecord;
+          context.putImageData(currentImageData, 0, 0);
+          const url = await canvasToDrainageObjectUrl(canvas);
+          return {
+            ...baseRecord,
+            url,
+            isHistoryAwareDrainageComposite: true,
+            retainedPixelCount: addedPixelCount
+          };
+        })().catch(error => {
+          console.warn("Could not build the history-aware drainage raster; using the static phase raster.", error);
+          return baseRecord;
+        });
+
+        drainageCompositeCache.set(key, request);
+        const record = await request;
+        return cacheDrainageComposite(key, record);
+      } finally {
+        releaseRaster?.();
+      }
+    }
+
+    function preloadAroundHour(index) {
+      // Full-resolution composites are loaded only for the selected frame.
+    }
+
+    function scheduleOverlayCatalogWarmup(index) {
+      // The selected frame is loaded on demand by the map renderer.
+    }
+
+    function scheduleHistoricalTopTideWarmup() {
+      // Historical data and its raster are requested only when a card is selected.
+    }
+
+    // The hydraulic grid is north-up in EPSG:6527, not in Web Mercator. Keep
+    // all four transformed pixel-edge corners so Leaflet and MapLibre preserve
+    // the world file's rotation and projection convergence instead of forcing
+    // the raster into an axis-aligned WGS84 rectangle.
+    function getConfiguredWorldFileCornersLatLng() {
+      const configured = TOWN_CONFIG?.overlays?.worldFileCornersWgs84;
+      const values = Array.isArray(configured)
+        ? configured
+        : configured && typeof configured === "object"
+          ? [configured.northWest, configured.northEast, configured.southEast, configured.southWest]
+          : [];
+      if (values.length !== 4) return null;
+      const corners = values.map(value => {
+        const lat = Number(Array.isArray(value) ? value[0] : value?.lat);
+        const lng = Number(Array.isArray(value) ? value[1] : value?.lng ?? value?.lon);
+        return [lat, lng];
+      });
+      if (!corners.every(value => value.every(Number.isFinite))) return null;
+      return corners.map(value => L.latLng(value[0], value[1]));
+    }
+
+    function getConfiguredWorldFileCoordinates() {
+      const corners = getConfiguredWorldFileCornersLatLng();
+      return corners?.map(corner => [corner.lng, corner.lat]) || null;
+    }
+
+    function getWorldFileRasterSize() {
+      const configured = TOWN_CONFIG?.overlays?.worldFileRasterSize || {};
+      const width = Number(configured.width);
+      const height = Number(configured.height);
+      return {
+        width: Number.isFinite(width) && width > 0 ? width : 2186,
+        height: Number.isFinite(height) && height > 0 ? height : 2824
+      };
+    }
+
+    function latLngToWorldFileUv(lat, lng) {
+      const corners = getConfiguredWorldFileCornersLatLng();
+      if (!corners) return null;
+      const projectedCorners = corners.map(corner => L.CRS.EPSG3857.project(corner));
+      const [northWest, northEast, , southWest] = projectedCorners;
+      const acrossX = northEast.x - northWest.x;
+      const acrossY = northEast.y - northWest.y;
+      const downX = southWest.x - northWest.x;
+      const downY = southWest.y - northWest.y;
+      const determinant = (acrossX * downY) - (acrossY * downX);
+      if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-12) return null;
+      const point = L.CRS.EPSG3857.project(L.latLng(Number(lat), Number(lng)));
+      const relativeX = point.x - northWest.x;
+      const relativeY = point.y - northWest.y;
+      const u = ((relativeX * downY) - (relativeY * downX)) / determinant;
+      const v = ((acrossX * relativeY) - (acrossY * relativeX)) / determinant;
+      return Number.isFinite(u) && Number.isFinite(v) ? { u, v } : null;
+    }
+
+    function latLngToWorldFilePixel(lat, lng, width, height) {
+      const uv = latLngToWorldFileUv(lat, lng);
+      if (!uv || uv.u < 0 || uv.v < 0 || uv.u >= 1 || uv.v >= 1) return null;
+      const x = Math.floor(uv.u * Number(width));
+      const y = Math.floor(uv.v * Number(height));
+      return Number.isFinite(x) && Number.isFinite(y) ? { x, y, u: uv.u, v: uv.v } : null;
+    }
+
+    const WorldFileImageOverlay = L.ImageOverlay.extend({
+      initialize(url, corners, options = {}) {
+        this._worldFileCorners = corners.map(corner => L.latLng(corner));
+        this._worldFileAffine = true;
+        this._pixelWidth = Number(options.pixelWidth) || 2186;
+        this._pixelHeight = Number(options.pixelHeight) || 2824;
+        const bounds = L.latLngBounds(this._worldFileCorners);
+        L.ImageOverlay.prototype.initialize.call(this, url, bounds, options);
+      },
+
+      _worldFileLayerPoints(zoomEvent = null) {
+        if (!this._map) return null;
+        return this._worldFileCorners.map(corner => zoomEvent
+          ? this._map._latLngToNewLayerPoint(corner, zoomEvent.zoom, zoomEvent.center)
+          : this._map.latLngToLayerPoint(corner));
+      },
+
+      _applyWorldFileTransform(points) {
+        if (!this._image || !points) return;
+        const [northWest, northEast, , southWest] = points;
+        const width = this._pixelWidth;
+        const height = this._pixelHeight;
+        const scaleX = (northEast.x - northWest.x) / width;
+        const shearY = (northEast.y - northWest.y) / width;
+        const shearX = (southWest.x - northWest.x) / height;
+        const scaleY = (southWest.y - northWest.y) / height;
+        this._image.style.width = `${width}px`;
+        this._image.style.height = `${height}px`;
+        this._image.style.left = "0";
+        this._image.style.top = "0";
+        this._image.style.transformOrigin = "0 0";
+        // A world file is affine. Keeping the raster in Leaflet's normal 2D
+        // compositor plane prevents pan/zoom flashes and z-order inversions.
+        this._image.style.transform = `matrix(${[
+          scaleX, shearY, shearX, scaleY, northWest.x, northWest.y
+        ].join(",")})`;
+      },
+
+      _reset() {
+        this._applyWorldFileTransform(this._worldFileLayerPoints());
+      },
+
+      _animateZoom(event) {
+        this._applyWorldFileTransform(this._worldFileLayerPoints(event));
+      }
+    });
+
+    function createWorldFileImageOverlay(url, options = {}) {
+      const corners = getConfiguredWorldFileCornersLatLng();
+      if (!corners) return null;
+      const rasterSize = getWorldFileRasterSize();
+      return new WorldFileImageOverlay(url, corners, {
+        ...options,
+        pixelWidth: rasterSize.width,
+        pixelHeight: rasterSize.height
+      });
+    }
+
+    function createHydraulicImageOverlay(url, options = {}) {
+      if (url === PARCEL_BOUNDARY_PNG_URL && TOWN_CONFIG.parcels?.worldFileCornersWgs84) {
+        const raster = TOWN_CONFIG.parcels.worldFileRasterSize;
+        return new WorldFileImageOverlay(url, TOWN_CONFIG.parcels.worldFileCornersWgs84, {
+          ...options,
+          pixelWidth: raster?.width,
+          pixelHeight: raster?.height
+        });
+      }
+      return createWorldFileImageOverlay(url, options) || L.imageOverlay(url, floodLatLngBounds, options);
+    }
+
+    function getActiveFloodOverlayCoordinates() {
+      const useWorldFile = currentFloodLayer?._worldFileAffine === true ||
+        (!currentFloodLayer && floodOverlayGeometryMode === "world-file");
+      if (useWorldFile) {
+        const coordinates = getConfiguredWorldFileCoordinates();
+        if (coordinates) return coordinates;
+      }
+      if (!floodLatLngBounds) return null;
+      return [
+        [floodLatLngBounds.getWest(), floodLatLngBounds.getNorth()],
+        [floodLatLngBounds.getEast(), floodLatLngBounds.getNorth()],
+        [floodLatLngBounds.getEast(), floodLatLngBounds.getSouth()],
+        [floodLatLngBounds.getWest(), floodLatLngBounds.getSouth()]
+      ];
+    }
+
+    async function ensureOverlayBounds(sampleOverlayUrl) {
+      const configured = TOWN_CONFIG?.overlays?.boundsWgs84 || {};
+      const south = Number(configured.south);
+      const west = Number(configured.west);
+      const north = Number(configured.north);
+      const east = Number(configured.east);
+      const hasConfiguredBounds = [south, west, north, east].every(Number.isFinite)
+        && south < north
+        && west < east;
+      const worldFileCorners = getConfiguredWorldFileCornersLatLng();
+      floodLatLngBounds = worldFileCorners
+        ? L.latLngBounds(worldFileCorners)
+        : hasConfiguredBounds
+          ? L.latLngBounds([south, west], [north, east])
+          : getBoundaryDrivenOverlayBounds();
+      floodOverlayGeometryMode = worldFileCorners ? "world-file" : "axis-aligned";
+      document.body.dataset.floodRasterGeometry = worldFileCorners
+        ? "world-file-quadrilateral"
+        : "axis-aligned";
+
+      return {
+        url: sampleOverlayUrl || null,
+        mode: worldFileCorners ? "world-file-quadrilateral" : hasConfiguredBounds ? "configured-raster" : "boundary-fallback",
+        bounds: floodLatLngBounds
+      };
+    }
+
+    function getPrimaryMunicipalBoundaryRing() {
+      return Array.isArray(municipalBoundaryRings) && municipalBoundaryRings.length ? municipalBoundaryRings[0] : FALLBACK_TOWN_MASK_RING;
+    }
+
+    function approximateRingArea(ring) {
+      if (!Array.isArray(ring) || ring.length < 3) return 0;
+      let area = 0;
+      for (let i = 0; i < ring.length; i++) {
+        const [lat1, lng1] = ring[i];
+        const [lat2, lng2] = ring[(i + 1) % ring.length];
+        area += (lng1 * lat2) - (lng2 * lat1);
+      }
+      return Math.abs(area / 2);
+    }
+
+    function webMercatorToWgs84(x, y) {
+      const longitude = (Number(x) / 20037508.34) * 180;
+      const mercatorLatitude = (Number(y) / 20037508.34) * 180;
+      const latitude = (180 / Math.PI) * (2 * Math.atan(Math.exp(mercatorLatitude * Math.PI / 180)) - (Math.PI / 2));
+      return [longitude, latitude];
+    }
+
+function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
+      if (!Array.isArray(rings)) return [];
+      const sourceCrs = Number(sourceWkid) === 4326 ? "EPSG:4326" : "EPSG:3857";
+
+      return rings
+        .map(ring => Array.isArray(ring) ? ring : [])
+        .map(ring => ring
+          .filter(coord => Array.isArray(coord) && coord.length >= 2)
+          .map(([x, y]) => {
+            const pair = sourceCrs === "EPSG:4326" ? [x, y] : webMercatorToWgs84(x, y);
+            const [lng, lat] = pair;
+            return [lat, lng];
+          })
+        )
+        .map(ring => {
+          if (ring.length > 1) {
+            const first = ring[0];
+            const last = ring[ring.length - 1];
+            if (first[0] === last[0] && first[1] === last[1]) ring.pop();
+          }
+          return ring;
+        })
+        .filter(ring => ring.length >= 3)
+        .sort((a, b) => approximateRingArea(b) - approximateRingArea(a));
+    }
+
+    function buildGeoJsonFeatureFromArcGIS(feature) {
+      if (!feature?.geometry?.rings?.length) return null;
+      const spatialReference = feature.geometry.spatialReference || {};
+      const sourceWkid = Number(spatialReference.latestWkid || spatialReference.wkid || 3857);
+      const rings = normalizeBoundaryRingsFromArcGIS(feature.geometry.rings, sourceWkid);
+      if (!rings.length) return null;
+
+      const coordinates = rings.length === 1
+        ? [rings[0].map(([lat, lng]) => [lng, lat])]
+        : rings.map(ring => [ring.map(([lat, lng]) => [lng, lat])]);
+
+      return {
+        type: "Feature",
+        properties: feature.attributes || {},
+        geometry: {
+          type: rings.length === 1 ? "Polygon" : "MultiPolygon",
+          coordinates
+        }
+      };
+    }
+
+    function latLngBoundsFromBoundsObject(bounds) {
+      if (!bounds || typeof bounds !== "object") return null;
+      const sw = bounds.southWest || bounds.sw || (Number.isFinite(Number(bounds.south)) && Number.isFinite(Number(bounds.west)) ? [bounds.south, bounds.west] : null);
+      const ne = bounds.northEast || bounds.ne || (Number.isFinite(Number(bounds.north)) && Number.isFinite(Number(bounds.east)) ? [bounds.north, bounds.east] : null);
+      if (!sw || !ne) return null;
+      const parsed = L.latLngBounds(sw, ne);
+      return parsed && parsed.isValid && parsed.isValid() ? parsed : null;
+    }
+
+    function ringFromLatLngBounds(bounds) {
+      if (!bounds || !bounds.isValid || !bounds.isValid()) return [];
+      const sw = bounds.getSouthWest();
+      const ne = bounds.getNorthEast();
+      return [
+        [sw.lat, sw.lng],
+        [ne.lat, sw.lng],
+        [ne.lat, ne.lng],
+        [sw.lat, ne.lng],
+        [sw.lat, sw.lng]
+      ];
+    }
+
+    function normalizeLatLngRing(ring) {
+      if (!Array.isArray(ring)) return [];
+      const normalized = ring
+        .filter(point => Array.isArray(point) && point.length >= 2)
+        .map(([lat, lng]) => [Number(lat), Number(lng)])
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+      if (normalized.length > 1) {
+        const first = normalized[0];
+        const last = normalized[normalized.length - 1];
+        if (first[0] === last[0] && first[1] === last[1]) normalized.pop();
+      }
+      return normalized.length >= 3 ? normalized : [];
+    }
+
+    function normalizeRingsFromGeoJsonGeometry(geometry) {
+      if (!geometry) return [];
+      const rings = [];
+      const addRing = ring => {
+        const normalized = Array.isArray(ring)
+          ? ring.map(coord => Array.isArray(coord) && coord.length >= 2 ? [Number(coord[1]), Number(coord[0])] : null).filter(Boolean)
+          : [];
+        const valid = normalizeLatLngRing(normalized);
+        if (valid.length) rings.push(valid);
+      };
+      if (geometry.type === "Polygon") {
+        (geometry.coordinates || []).forEach(addRing);
+      } else if (geometry.type === "MultiPolygon") {
+        (geometry.coordinates || []).forEach(poly => (poly || []).forEach(addRing));
+      }
+      return rings.sort((a, b) => approximateRingArea(b) - approximateRingArea(a));
+    }
+
+    function featureFromLatLngRings(rings, properties = {}) {
+      const validRings = (rings || []).map(normalizeLatLngRing).filter(ring => ring.length >= 3);
+      if (!validRings.length) return null;
+      return {
+        type: "Feature",
+        properties,
+        geometry: {
+          type: validRings.length === 1 ? "Polygon" : "MultiPolygon",
+          coordinates: validRings.length === 1
+            ? [validRings[0].map(([lat, lng]) => [lng, lat])]
+            : validRings.map(ring => [ring.map(([lat, lng]) => [lng, lat])])
+        }
+      };
+    }
+
+    function pickBoundaryFeatureFromGeoJson(data) {
+      if (!data) return null;
+      if (data.type === "Feature") return data;
+      if (data.type === "FeatureCollection") {
+        return (data.features || []).find(feature => {
+          const type = feature?.geometry?.type;
+          return type === "Polygon" || type === "MultiPolygon";
+        }) || null;
+      }
+      if (data.type === "Polygon" || data.type === "MultiPolygon") {
+        return { type: "Feature", properties: {}, geometry: data };
+      }
+      return null;
+    }
+
+    async function fetchBunnyBoundaryFeature() {
+      if (!MUNICIPAL_BOUNDARY_BUNNY_URL) return null;
+      const response = await fetch(MUNICIPAL_BOUNDARY_BUNNY_URL, {
+        cache: "no-store",
+        headers: { "Accept": "application/geo+json, application/json" }
+      });
+      if (!response.ok) throw new Error(`Bunny boundary request failed: ${response.status}`);
+      const data = await response.json();
+
+      const geoJsonFeature = pickBoundaryFeatureFromGeoJson(data);
+      if (geoJsonFeature) {
+        const rings = normalizeRingsFromGeoJsonGeometry(geoJsonFeature.geometry);
+        if (rings.length) {
+          municipalBoundaryFeature = geoJsonFeature;
+          municipalBoundaryRings = rings;
+          FALLBACK_TOWN_MASK_RING = rings[0];
+          FALLBACK_LATLNG_BOUNDS = latLngBoundsFromRing(rings[0]);
+          return { feature: geoJsonFeature, rings };
+        }
+      }
+
+      const rings = (data.rings || data.fallbackMaskRings || (data.fallbackMaskRing ? [data.fallbackMaskRing] : []))
+        .map(normalizeLatLngRing)
+        .filter(ring => ring.length >= 3)
+        .sort((a, b) => approximateRingArea(b) - approximateRingArea(a));
+      const bounds = latLngBoundsFromBoundsObject(data.bounds || data.fallbackLatLngBounds || data.latLngBounds);
+      const finalRings = rings.length ? rings : (bounds ? [ringFromLatLngBounds(bounds)] : []);
+      if (!finalRings.length) throw new Error("Bunny boundary file did not contain a usable GeoJSON polygon, rings, or bounds.");
+
+      const feature = featureFromLatLngRings(finalRings, data.properties || {});
+      FALLBACK_TOWN_MASK_RING = finalRings[0];
+      FALLBACK_LATLNG_BOUNDS = bounds || latLngBoundsFromRing(finalRings[0]);
+      return { feature, rings: finalRings };
+    }
+
+    async function fetchMunicipalBoundaryFeature() {
+      try {
+        const bunnyBoundary = await fetchBunnyBoundaryFeature();
+        if (bunnyBoundary?.feature && bunnyBoundary?.rings?.length) return bunnyBoundary;
+      } catch (err) {
+        console.warn("Could not load municipal boundary from Bunny; trying ArcGIS query.", err);
+      }
+
+      for (const where of MUNICIPAL_BOUNDARY_QUERY_CANDIDATES) {
+        const params = new URLSearchParams({
+          f: "json",
+          where,
+          outFields: MUNICIPAL_BOUNDARY_OUTFIELDS,
+          returnGeometry: "true",
+          outSR: "3857",
+          resultRecordCount: "1"
+        });
+
+        const response = await fetch(`${MUNICIPAL_BOUNDARY_QUERY_URL}?${params.toString()}`, {
+          cache: "no-store",
+          headers: { "Accept": "application/json" }
+        });
+
+        if (!response.ok) continue;
+        const json = await response.json();
+        const feature = Array.isArray(json?.features) ? json.features[0] : null;
+        const geojsonFeature = buildGeoJsonFeatureFromArcGIS(feature);
+        if (geojsonFeature) {
+          return { feature: geojsonFeature, rings: normalizeBoundaryRingsFromArcGIS(feature.geometry.rings, Number(feature.geometry?.spatialReference?.latestWkid || feature.geometry?.spatialReference?.wkid || 3857)) };
+        }
+      }
+
+      return null;
+    }
+
+    function makeBoundaryVector(style) {
+      const boundaryStyle = {
+        fill: false,
+        fillOpacity: 0,
+        stroke: true,
+        ...style
+      };
+
+      if (municipalBoundaryFeature) {
+        return L.geoJSON(municipalBoundaryFeature, {
+          pane: "boundaryPane",
+          interactive: false,
+          style: () => boundaryStyle
+        });
+      }
+
+      const fallbackRing = getPrimaryMunicipalBoundaryRing();
+      return L.polygon(fallbackRing.length ? fallbackRing : ringFromLatLngBounds(getBoundaryDrivenOverlayBounds()), {
+        pane: "boundaryPane",
+        interactive: false,
+        smoothFactor: 0,
+        ...boundaryStyle
+      });
+    }
+
+    function createBoundaryMaskGeometry() {
+      const outerWorldRing = [
+        [85, -180],
+        [85, 180],
+        [-85, 180],
+        [-85, -180]
+      ];
+      const innerRings = Array.isArray(municipalBoundaryRings) && municipalBoundaryRings.length
+        ? municipalBoundaryRings
+        : (FALLBACK_TOWN_MASK_RING.length ? [FALLBACK_TOWN_MASK_RING] : []);
+      return [outerWorldRing, ...innerRings];
+    }
+
+    function updateBoundaryMaskLayer() {
+      if (!map) return;
+
+      if (cityBoundaryMask && map.hasLayer(cityBoundaryMask)) {
+        map.removeLayer(cityBoundaryMask);
+      }
+
+      cityBoundaryMask = L.polygon(createBoundaryMaskGeometry(), {
+        pane: "maskPane",
+        interactive: false,
+        smoothFactor: 0,
+        stroke: false,
+        fill: true,
+        fillColor: "#d7d7d7",
+        fillOpacity: 0.62,
+        bubblingMouseEvents: false
+      }).addTo(map);
+    }
+
+    function isTownBoundaryEnabled() {
+      return true;
+    }
+
+    function applyTownBoundaryVisibility() {
+      if (!map || !cityBoundaryOutline) {
+        renderLegend();
+        return;
+      }
+
+      const shouldShow = isTownBoundaryEnabled();
+      const hasOutline = map.hasLayer(cityBoundaryOutline);
+
+      if (shouldShow && !hasOutline) {
+        cityBoundaryOutline.addTo(map);
+      } else if (!shouldShow && hasOutline) {
+        map.removeLayer(cityBoundaryOutline);
+      }
+
+      renderLegend();
+    }
+
+    function updateMunicipalBoundaryLayer() {
+      if (!map) return;
+
+      if (cityBoundaryOutline && map.hasLayer(cityBoundaryOutline)) {
+        map.removeLayer(cityBoundaryOutline);
+      }
+      if (cityBoundaryMask && map.hasLayer(cityBoundaryMask)) {
+        map.removeLayer(cityBoundaryMask);
+        cityBoundaryMask = null;
+      }
+      if (cityBoundaryGuide && map.hasLayer(cityBoundaryGuide)) {
+        map.removeLayer(cityBoundaryGuide);
+        cityBoundaryGuide = null;
+      }
+
+      updateBoundaryMaskLayer();
+
+      cityBoundaryOutline = makeBoundaryVector({
+        color: getComputedStyle(document.documentElement).getPropertyValue("--boundary-color").trim() || "#000000",
+        weight: 4.6,
+        opacity: 1,
+        lineCap: "round",
+        lineJoin: "round"
+      }).addTo(map);
+
+      applyTownBoundaryVisibility();
+      updateColorBasemapClip();
+    }
+
+    async function loadMunicipalBoundary() {
+      if (municipalBoundaryLoadPromise) return municipalBoundaryLoadPromise;
+      municipalBoundaryLoadPromise = (async () => {
+        try {
+          const boundary = await fetchMunicipalBoundaryFeature();
+          if (!boundary?.feature || !boundary?.rings?.length) {
+            throw new Error("Municipal boundary query returned no geometry.");
+          }
+          municipalBoundaryFeature = boundary.feature;
+          municipalBoundaryRings = boundary.rings;
+        } catch (err) {
+          console.warn("Municipal boundary unavailable from Bunny and ArcGIS; using configured map center fallback.", err);
+          municipalBoundaryFeature = null;
+          municipalBoundaryRings = FALLBACK_TOWN_MASK_RING.length ? [FALLBACK_TOWN_MASK_RING] : [];
+        }
+        updateMunicipalBoundaryLayer();
+        // A preview may have created the export map before this request finished.
+        // Replace its old outline/mask as soon as authoritative geometry arrives.
+        if (exportMap && hasValidExportBoundaryGeometry()) updateExportBoundaryVisibility();
+        syncLeftPanelLayout();
+      })();
+      try { return await municipalBoundaryLoadPromise; }
+      finally { municipalBoundaryLoadPromise = null; }
+    }
+
+    function hasValidExportBoundaryGeometry() {
+      return Array.isArray(municipalBoundaryRings) && municipalBoundaryRings.some(ring =>
+        Array.isArray(ring) && ring.length >= 3 && ring.every(point =>
+          Array.isArray(point) && point.length >= 2 && point.slice(0, 2).every(Number.isFinite)));
+    }
+
+    async function ensureExportMunicipalBoundary() {
+      if (!hasValidExportBoundaryGeometry()) await loadMunicipalBoundary();
+      throwIfExportCancelled();
+      if (!hasValidExportBoundaryGeometry()) {
+        throw new Error("The town boundary could not load. Please try the export again.");
+      }
+    }
+
+    function updateColorBasemapClip() {
+      if (!basemapColorLayer || typeof basemapColorLayer.getContainer !== "function") return;
+      const container = basemapColorLayer.getContainer();
+      if (!container) return;
+      container.style.clipPath = "";
+      container.style.webkitClipPath = "";
+    }
+
+    function getTimelineReservedSpace() {
+      const dock = document.getElementById("timelineDock");
+      if (!dock) return 132;
+      const styles = window.getComputedStyle(dock);
+      const bottom = parseFloat(styles.bottom) || 0;
+      return Math.ceil(dock.offsetHeight + bottom);
+    }
+
+    function syncLeftPanelLayout() {
+      if(document.body.hasAttribute("data-floodmapper-unified")) return;
+      const panel = document.getElementById("leftPanel");
+      if (!panel) return;
+
+
+      panel.classList.remove("needs-scroll");
+      document.body.classList.remove(
+        "observed-tight",
+        "observed-ultra-tight",
+        "observed-fit-tight",
+        "observed-fit-ultra",
+        "calendar-picker-open"
+      );
+
+      if (isCompactFloodmapperLayout()) {
+        [
+          "left", "right", "top", "bottom", "width", "min-width", "max-width",
+          "height", "max-height", "overflow", "overflow-y", "overflow-x",
+          "scrollbar-gutter", "gap", "padding", "transform", "transition",
+          "animation", "display", "flex-direction", "grid-template-columns"
+        ].forEach(prop => panel.style.removeProperty(prop));
+        scheduleMapTitleFit();
+        return;
+      }
+
+      // Desktop pane dimensions are available before first paint in controls.css.
+      scheduleMapTitleFit();
+    }
+
+    function markInitialFloodFrameReady() {
+      if (document.body.dataset.initialFloodFrame === "ready") return;
+      document.body.dataset.initialFloodFrame = "ready";
+      document.body.dataset.initialFloodFrameReadyAt = performance.now().toFixed(1);
+    }
+
+    function markInitialFloodFrameFailed() {
+      if (document.body.dataset.initialFloodFrame === "ready") return;
+      document.body.dataset.initialFloodFrame = "failed";
+      document.body.dataset.initialFloodFrameReadyAt = performance.now().toFixed(1);
+    }
+
+    function activateDeferredMapLayers() {
+      if (!map || deferredMapLayersStarted) return;
+      deferredMapLayersStarted = true;
+      document.body.dataset.deferredMapLayers = "active";
+      document.body.dataset.deferredMapLayersStartedAt = performance.now().toFixed(1);
+      if (basemapColorLayer && !map.hasLayer(basemapColorLayer)) basemapColorLayer.addTo(map);
+      if (roadsLayer && !map.hasLayer(roadsLayer)) roadsLayer.addTo(map);
+      updateRoadLayerAppearance();
+      updateColorBasemapClip();
+    }
+
+    function ensureMap() {
+      if (map) return;
+
+      map = L.map("map", {
+        zoomControl: false,
+        minZoom: 11,
+        maxZoom: 22,
+        zoomSnap: 1,
+        zoomDelta: 1,
+        preferCanvas: true
+      });
+
+      map.createPane("basemapGrayPane");
+      map.createPane("basemapColorPane");
+      map.createPane("satellitePane");
+      map.createPane("boundaryPane");
+      map.createPane("floodPane");
+      map.createPane("parcelsPane");
+      map.createPane("buildingsPane");
+      map.createPane("structuresPane");
+      map.createPane("roadsPane");
+      map.createPane("maskPane");
+      map.getPane("basemapGrayPane").style.zIndex = 180;
+      map.getPane("basemapColorPane").style.zIndex = 190;
+      map.getPane("satellitePane").style.zIndex = 200;
+      map.getPane("boundaryPane").style.zIndex = 640;
+      map.getPane("floodPane").style.zIndex = 500;
+      map.getPane("parcelsPane").style.zIndex = 610;
+      map.getPane("buildingsPane").style.zIndex = 620;
+      map.getPane("structuresPane").style.zIndex = 625;
+      map.getPane("roadsPane").style.zIndex = 710;
+      map.getPane("maskPane").style.zIndex = 630;
+      map.getPane("popupPane").style.zIndex = 800;
+
+      basemapGrayLayer = null;
+      basemapColorLayer = makeEsriBuildingBasemapLayer();
+
+      if (basemapColorLayer) {
+        basemapColorLayer.on("error", () => {
+          if (basemapColorLayer && map.hasLayer(basemapColorLayer)) {
+            map.removeLayer(basemapColorLayer);
+          }
+          basemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
+            attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+            minZoom: 11,
+            maxZoom: 19,
+            subdomains: "abc",
+            crossOrigin: true,
+            updateWhenIdle: true,
+            keepBuffer: 1,
+            className: "basemap-color-layer",
+            pane: "basemapColorPane"
+          });
+          if (deferredMapLayersStarted) basemapColorLayer.addTo(map);
+        });
+      } else {
+        basemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
+          attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+          minZoom: 11,
+          maxZoom: 19,
+          subdomains: "abc",
+          crossOrigin: true,
+          updateWhenIdle: true,
+          keepBuffer: 1,
+          className: "basemap-color-layer",
+          pane: "basemapColorPane"
+        });
+      }
+
+      satelliteLayer = L.tileLayer(ESRI_WORLD_IMAGERY_URL, {
+        attribution: "Tiles &copy; Esri",
+        minZoom: 11,
+        maxZoom: 19,
+        crossOrigin: true,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        pane: "satellitePane"
+      });
+
+      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
+        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+        minZoom: 11,
+        maxNativeZoom: 19,
+        maxZoom: 20,
+        subdomains: "abcd",
+        crossOrigin: true,
+        opacity: 0,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        className: "roads-layer",
+        pane: "roadsPane"
+      });
+
+      updateMunicipalBoundaryLayer();
+
+      L.control.zoom({ position: "topright" }).addTo(map);
+      map.on("zoomend moveend resize", () => {
+        updateRoadLayerAppearance();
+        updateColorBasemapClip();
+      });
+      map.on("click", handleDepthQueryClick);
+      updateRoadLayerAppearance();
+      updateColorBasemapClip();
+
+      map.fitBounds(getBoundaryDrivenOverlayBounds(), { padding: [20, 20] });
+      requestAnimationFrame(() => {
+        map.invalidateSize();
+        updateColorBasemapClip();
+      });
+    }
+
+    function setSatelliteEnabled(enabled) {
+      const shouldEnable = Boolean(enabled);
+      const toggle = document.getElementById("satelliteToggle");
+      if (toggle) {
+        toggle.classList.toggle("on", shouldEnable);
+        toggle.setAttribute("aria-checked", String(shouldEnable));
+      }
+      if (!map) ensureMap();
+      if (shouldEnable) {
+        if (satelliteLayer && !map.hasLayer(satelliteLayer)) satelliteLayer.addTo(map);
+      } else if (satelliteLayer && map.hasLayer(satelliteLayer)) {
+        map.removeLayer(satelliteLayer);
+      }
+      updateExportSatelliteLayer();
+    }
+
+    function parcelInfoInteractionEnabled() {
+      return Boolean(
+        document.getElementById("parcelsToggle")?.classList.contains("on") ||
+        document.getElementById("buildingsToggle")?.classList.contains("on") ||
+        document.getElementById("nsiStructuresToggle")?.classList.contains("on")
+      );
+    }
+
+    function updateMapClickModeControl() {
+      const control = document.getElementById("mapClickModeControl");
+      const buildingButton = document.getElementById("mapClickBuildingBtn");
+      const depthButton = document.getElementById("mapClickDepthBtn");
+      if (!control || !buildingButton || !depthButton) return;
+      control.hidden = !parcelInfoInteractionEnabled();
+      buildingButton.textContent = "Building Info";
+      depthButton.textContent = "Flood Depth";
+      buildingButton.classList.toggle("active", mapClickMode === "building");
+      depthButton.classList.toggle("active", mapClickMode === "depth");
+      buildingButton.setAttribute("aria-pressed", String(mapClickMode === "building"));
+      depthButton.setAttribute("aria-pressed", String(mapClickMode === "depth"));
+      if (!control.hidden) requestAnimationFrame(positionMapClickModeControl);
+    }
+
+    function positionMapClickModeControl() {
+      const control = document.getElementById("mapClickModeControl");
+      const title = document.getElementById("mapTitleBadge");
+      if (!control || !title || control.hidden) return;
+      const titleRect = title.getBoundingClientRect();
+      if (!Number.isFinite(titleRect.bottom) || titleRect.height < 2) return;
+      control.style.setProperty("--map-click-mode-top", `${Math.ceil(titleRect.bottom + 7)}px`);
+    }
+
+    function setMapClickMode(mode, options = {}) {
+      ++mapQueryGeneration;
+      mapClickMode = mode === "depth" ? "depth" : "building";
+      updateMapClickModeControl();
+      if (options.closePopup !== false && persistentFloodPopup && map?.hasLayer(persistentFloodPopup)) {
+        map.removeLayer(persistentFloodPopup);
+      }
+    }
+
+    async function setBuildingsEnabled(enabled) {
+      const shouldEnable = Boolean(enabled);
+      const toggle = document.getElementById("buildingsToggle");
+      if (toggle) {
+        toggle.classList.toggle("on", shouldEnable);
+        toggle.setAttribute("aria-checked", String(shouldEnable));
+      }
+      if (!map) ensureMap();
+      if (!shouldEnable) {
+        if (buildingsLayer && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
+        updateExportBuildingsLayer();
+        updateMapClickModeControl();
+        toast("");
+        return;
+      }
+
+      if (!buildingsLayer) {
+        buildingsLayer = makeEsriBuildingForegroundLayer("buildingsPane");
+        if (!buildingsLayer) throw new Error("The exact building layer is unavailable in this browser.");
+        buildingsLayer.on("error", () => {
+          setBuildingsEnabled(false).catch(() => {});
+          toast("The exact building layer could not be loaded.");
+        });
+      }
+      if (!map.hasLayer(buildingsLayer)) buildingsLayer.addTo(map);
+      setMapClickMode("building", { closePopup: false });
+      updateExportBuildingsLayer();
+      toast("");
+      ensureParcelAssets().catch(error => console.warn("Building parcel matching will retry when requested.", error));
+    }
+
+    function addRoadLabelHalo(context, width, height, radius) {
+      const halo = document.createElement("canvas");
+      halo.width = width;
+      halo.height = height;
+      const haloContext = halo.getContext("2d");
+      if (!haloContext) return;
+      const mask = context.getImageData(0, 0, width, height);
+      for (let index = 0; index < mask.data.length; index += 4) {
+        const luminance = mask.data[index] * 0.2126 + mask.data[index + 1] * 0.7152 + mask.data[index + 2] * 0.0722;
+        // Outline the dark lettering/edges without thickening light road lines.
+        if (luminance >= 128) mask.data[index + 3] = 0;
+        mask.data[index] = mask.data[index + 1] = mask.data[index + 2] = 255;
+      }
+      haloContext.putImageData(mask, 0, 0);
+      context.save();
+      context.globalCompositeOperation = "destination-over";
+      for (let direction = 0; direction < 8; direction += 1) {
+        const angle = direction * Math.PI / 4;
+        context.drawImage(halo, Math.cos(angle) * radius, Math.sin(angle) * radius);
+      }
+      context.restore();
+    }
+
+    // Bake the label styling into canvas tiles so PNG/GIF captures preserve it.
+    // The live map keeps its soft gray style; exports can use stronger contrast.
+    function createRoadLabelLayer(url, options) {
+      const SoftRoadLayer = L.TileLayer.extend({
+        createTile(coords, done) {
+          const tile = document.createElement("canvas");
+          const size = this.getTileSize();
+          tile.width = size.x; tile.height = size.y;
+          tile.complete = false; tile.naturalWidth = 0;
+          const image = new Image();
+          image.crossOrigin = "anonymous";
+          image.onload = () => {
+            try {
+              const context = tile.getContext("2d");
+              if (!context) throw new Error("The road label canvas is unavailable.");
+              context.imageSmoothingQuality = "high";
+              context.filter = this.options.roadLabelFilter || "grayscale(1) contrast(.5) brightness(1.35)";
+              context.drawImage(image, 0, 0, size.x, size.y);
+              context.filter = "none";
+              if (this.options.roadLabelHalo > 0) {
+                addRoadLabelHalo(context, size.x, size.y, this.options.roadLabelHalo);
+              }
+              tile.complete = true; tile.naturalWidth = size.x;
+              done(null, tile);
+            } catch (error) { tile.complete = true; done(error, tile); }
+          };
+          image.onerror = () => {
+            tile.complete = true;
+            done(new Error("The road reference tile could not load."), tile);
+          };
+          image.src = this.getTileUrl(coords);
+          return tile;
+        }
+      });
+      return new SoftRoadLayer(url, options);
+    }
+
+    function updateRoadLayerAppearance() {
+      if (!map || !roadsLayer) return;
+
+      const toggle = document.getElementById("roadsToggle");
+      const roadsEnabled = !toggle || toggle.classList.contains("on");
+      const zoom = map.getZoom() || 0;
+      const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;
+
+      roadsLayer.setOpacity(showLabels ? 0.98 : 0);
+
+      const pane = map.getPane("roadsPane");
+      if (pane) pane.classList.toggle("roads-dark", showLabels);
+    }
+
+    function setDownloadStatus(message = "", isError = false) {
+      const el = document.getElementById("downloadStatus");
+      if (el) {
+        el.textContent = message;
+        el.classList.toggle("error", Boolean(isError));
+      }
+      if (exportInProgress || isExportProgressOpen()) {
+        setExportProgress(message, null, isError);
+      }
+    }
+
+    function isExportProgressOpen() {
+      return document.getElementById("exportProgressOverlay")?.classList.contains("open") || false;
+    }
+
+    function setExportProgressVisible(isVisible) {
+      const overlay = document.getElementById("exportProgressOverlay");
+      if (!overlay) return;
+      overlay.hidden = !isVisible;
+      overlay.classList.toggle("open", Boolean(isVisible));
+      overlay.setAttribute("aria-busy", String(Boolean(isVisible)));
+    }
+
+    function setExportProgress(message = "", percent = null, isError = false) {
+      const messageEl = document.getElementById("exportProgressMessage");
+      const fillEl = document.getElementById("exportProgressFill");
+      const pctEl = document.getElementById("exportProgressPercent");
+      if (messageEl) {
+        messageEl.textContent = message || (isError ? "Export failed." : "Working...");
+        messageEl.classList.toggle("error", Boolean(isError));
+      }
+      if (Number.isFinite(percent)) {
+        const pct = Math.max(0, Math.min(100, Math.round(percent)));
+        if (fillEl) fillEl.style.width = `${pct}%`;
+        if (pctEl) pctEl.textContent = `${pct}%`;
+      }
+    }
+
+    function finishExportProgress(message = "", isError = false) {
+      setExportProgress(message, isError ? null : 100, isError);
+      window.setTimeout(() => {
+        if (!exportInProgress) setExportProgressVisible(false);
+      }, isError ? 5200 : 1600);
+    }
+
+    function makeExportCancelledError() {
+      const err = new Error("Export cancelled.");
+      err.name = "AbortError";
+      return err;
+    }
+
+    function isExportCancelledError(err) {
+      const raw = String(err?.message || err || "");
+      return err?.name === "AbortError" || /export (?:cancelled|canceled|aborted)|gif export was aborted/i.test(raw);
+    }
+
+    function throwIfExportCancelled() {
+      if (exportCancelRequested) throw makeExportCancelledError();
+    }
+
+    function finishCancelledExportProgress(message = "Export cancelled.") {
+      setExportProgress(message, null, false);
+      window.setTimeout(() => {
+        if (!exportInProgress) setExportProgressVisible(false);
+      }, 900);
+    }
+
+    function cancelCurrentExport() {
+      if (!exportInProgress) {
+        setExportProgressVisible(false);
+        return;
+      }
+      exportCancelRequested = true;
+      const closeBtn = document.getElementById("exportProgressCloseBtn");
+      if (closeBtn) closeBtn.disabled = true;
+      setExportProgress("Cancelling export...", null, false);
+      if (activeGifExport && typeof activeGifExport.abort === "function") {
+        try { activeGifExport.abort(); } catch (_) {}
+      }
+    }
+
+    function getExportBaseName(frameItems = []) {
+      const mode = currentOverlayMode === "dynamic" ? "impact-thresholds" : "flood-depth";
+      const firstItem = Array.isArray(frameItems) ? frameItems[0] : null;
+      const view = firstItem?.mode === "observed"
+        ? (firstItem.entry?.observedDate || "observed")
+        : currentViewType === "forecast"
+          ? "forecast"
+          : currentViewType === "return-interval"
+            ? `${currentReturnIntervalYears}-year-return-interval`
+          : currentViewType === "observed-day"
+            ? (selectedObservedDate || "observed")
+            : "historic-crest";
+      const aspect = getDownloadAspectValue().replace(":", "x");
+      const interval = getDownloadIntervalValue();
+      const townSlug = TOWN_CONFIG?.exportSlug || TOWN_CONFIG?.site?.slug || TOWN_CONFIG?.site?.name || "flood-map";
+      return `${townSlug}-${view}-${mode}-${interval}-${aspect}`.replace(/[^a-z0-9\-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+    }
+
+    function getSafeFrameStamp(entry, sequence) {
+      const raw = String(entry?.displayTimeEST || entry?.timeEST || entry?.timeEst || entry?.timeUtc || `frame-${sequence + 1}`);
+      return raw.replace(/[:\s]/g, "-").replace(/[^a-z0-9\-_]+/gi, "").toLowerCase();
+    }
+
+    function isDownloadModalOpen() {
+      return document.getElementById("downloadModal")?.classList.contains("open") || false;
+    }
+
+    function getObservedArchiveDateBounds() {
+      const days = getObservedDays();
+      if (!days.length) return null;
+
+      const firstDay = days[0];
+      const lastDay = days[days.length - 1];
+      const firstHours = Array.isArray(firstDay?.hours) ? firstDay.hours : [];
+      const lastHours = Array.isArray(lastDay?.hours) ? lastDay.hours : [];
+
+      const firstDate = firstHours.length ? getEntryESTDate(firstHours[0]) : parseStoredLocalNyToDate(`${firstDay.date}T00:00`);
+      const lastDate = lastHours.length ? getEntryESTDate(lastHours[lastHours.length - 1]) : parseStoredLocalNyToDate(`${lastDay.date}T23:00`);
+
+      if (!firstDate || !lastDate) return null;
+      return { firstDate, lastDate };
+    }
+
+    function getForecastExportEntries() {
+      const activeForecastHours = getActiveForecastHours();
+      const source = activeForecastHours.length
+        ? activeForecastHours
+        : currentDataMode === "forecast"
+          ? currentSeriesHours
+          : [];
+      return source.map(entry => ({
+        ...entry,
+        exportSourceMode: "forecast"
+      }));
+    }
+
+    function getReturnIntervalExportEntries() {
+      const source = Array.isArray(currentRawSeriesHours) && currentRawSeriesHours.length
+        ? currentRawSeriesHours
+        : currentSeriesHours;
+      return source.map(entry => ({
+        ...entry,
+        exportSourceMode: "return-interval"
+      }));
+    }
+
+    function getCurrentExportSourceMode() {
+      if (currentDataMode === "observed") return "observed";
+      if (currentDataMode === "return-interval") return "return-interval";
+      return "forecast";
+    }
+
+    function getObservedRangeExportEntries(startDate, endDate) {
+      if (!startDate || !endDate) return [];
+
+      const minMs = Math.min(startDate.getTime(), endDate.getTime()) - 2 * 60 * 60 * 1000;
+      const maxMs = Math.max(startDate.getTime(), endDate.getTime()) + 2 * 60 * 60 * 1000;
+
+      const startParts = getNyParts(new Date(minMs));
+      const endParts = getNyParts(new Date(maxMs));
+      if (!startParts || !endParts) return [];
+
+      const startKey = `${startParts.year}-${startParts.month}-${startParts.day}`;
+      const endKey = `${endParts.year}-${endParts.month}-${endParts.day}`;
+      const candidates = [];
+
+      getObservedDays().forEach(day => {
+        const dateKey = String(day?.date || "");
+        if (!dateKey || dateKey < startKey || dateKey > endKey) return;
+
+        const hours = getObservedSourceHoursForDay(day);
+        hours.forEach((hour, idx) => {
+          const t = entryTimeMs(hour);
+          if (t == null || t < minMs || t > maxMs) return;
+          candidates.push({
+            ...hour,
+            observedDate: day.date,
+            classification: day.classification || "none",
+            peakNAVD88: day.peakNAVD88,
+            sourceHourIndex: idx,
+            exportSourceMode: "observed"
+          });
+        });
+      });
+
+      return candidates
+        .filter(entry => Number.isFinite(getStageValue(entry)))
+        .sort((a, b) => entryTimeMs(a) - entryTimeMs(b))
+        .map(entry => ({
+        ...entry,
+        exportSourceMode: "observed"
+      }));
+    }
+
+    function getDownloadSourceEntries(includeHistorical = false, startDate = null, endDate = null) {
+      if (currentDataMode === "return-interval") {
+        const modeled = getReturnIntervalExportEntries();
+        if (!startDate || !endDate) return modeled;
+        const minMs = Math.min(startDate.getTime(), endDate.getTime());
+        const maxMs = Math.max(startDate.getTime(), endDate.getTime());
+        return modeled.filter(entry => {
+          const time = entryTimeMs(entry);
+          return Number.isFinite(time) && time >= minMs && time <= maxMs;
+        });
+      }
+
+      if (!includeHistorical) {
+        const sourceMode = getCurrentExportSourceMode();
+        return currentSeriesHours.map(entry => ({ ...entry, exportSourceMode: sourceMode }));
+      }
+
+      if (startDate && endDate) {
+        const combined = [
+          ...getObservedRangeExportEntries(startDate, endDate),
+          ...getForecastExportEntries().filter(entry => {
+            const t = entryTimeMs(entry);
+            if (t == null) return false;
+            const minMs = Math.min(startDate.getTime(), endDate.getTime()) - 2 * 60 * 60 * 1000;
+            const maxMs = Math.max(startDate.getTime(), endDate.getTime()) + 2 * 60 * 60 * 1000;
+            return t >= minMs && t <= maxMs;
+          })
+        ].filter(entry => entryTimeMs(entry) != null);
+
+        if (!combined.length) return [];
+
+        const byHour = new Map();
+        combined.forEach(entry => {
+          const d = getEntryESTDate(entry);
+          const key = d ? formatNyLocalIso(d) : String(entryTimeMs(entry));
+          const existing = byHour.get(key);
+          if (!existing || entry.exportSourceMode === "forecast") {
+            byHour.set(key, entry);
+          }
+        });
+
+        return Array.from(byHour.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+      }
+
+      return currentSeriesHours.map(entry => ({
+        ...entry,
+        exportSourceMode: getCurrentExportSourceMode()
+      }));
+    }
+
+    function getDownloadCurrentEntry() {
+      const entry = currentSeriesHours[currentHourIndex] || null;
+      if (!entry) return null;
+      return {
+        ...entry,
+        exportSourceMode: getCurrentExportSourceMode()
+      };
+    }
+
+    function getDownloadFrameItemFromEntry(entry, fallbackIndex = 0, sourceSeries = new Map()) {
+      if (!entry) return null;
+      const sourceMode = entry.exportSourceMode || currentDataMode;
+      const dateStr = entry.observedDate || selectedObservedDate || "";
+      const key = sourceMode === "observed" ? `observed:${dateStr}` : sourceMode;
+      if (!sourceSeries.has(key)) {
+        let series;
+        if (sourceMode === "observed") {
+          series = buildObservedCanonicalSeries(getObservedDayRecord(dateStr), dateStr);
+        } else if (sourceMode === "return-interval") {
+          series = annotateHydraulicSeries(currentRawSeriesHours);
+        } else if (physicsForecastApplies()) {
+          series = annotateHydraulicSeries(getActivePhysicsManifest().frames.map(physicsFrameToForecastEntry));
+        } else {
+          series = buildForecastCanonicalSeries(getActiveForecastHours());
+        }
+        sourceSeries.set(key, series);
+      }
+      let series = sourceSeries.get(key);
+      let index = findClosestEntryIndex(series, entry);
+      let canonical = series[index];
+      if (!canonical || entryTimeMs(canonical) !== entryTimeMs(entry) ||
+          Math.abs(getStageValue(canonical) - getStageValue(entry)) > 0.0001) {
+        // Keep an off-grid measured peak at its actual time and water level.
+        series = annotateHydraulicSeries([
+          ...series.filter(row => entryTimeMs(row) !== entryTimeMs(entry)), entry
+        ].sort((a, b) => entryTimeMs(a) - entryTimeMs(b)));
+        index = findClosestEntryIndex(series, entry);
+        canonical = series[index];
+      }
+      const resolvedEntry = { ...entry };
+      for (const field of ["hydraulicPhase", "hydraulicPhaseCanonical", "hydraulicCrestIndex",
+        "hydraulicCrestTimeUtc", "hydraulicCrestStageFt", "hydraulicElapsedMinutes"]) {
+        resolvedEntry[field] = canonical?.[field];
+      }
+      // Export cadence and the visible timeline must never replace tide history.
+      return {
+        mode: sourceMode,
+        ...(sourceMode === "observed" ? { dateStr } : {}),
+        index,
+        entry: resolvedEntry,
+        series
+      };
+    }
+
+    function getExportEditorPrefixFromCanonicalId(id) {
+      if (id === "downloadStartInput") return "start";
+      if (id === "downloadEndInput") return "end";
+      return "";
+    }
+
+    function getExportDateEditorElements(prefix) {
+      const cap = prefix === "end" ? "End" : "Start";
+      return {
+        canonical: document.getElementById(`download${cap}Input`),
+        dateText: document.getElementById(`download${cap}DateText`),
+        datePicker: document.getElementById(`download${cap}DatePicker`),
+        timeSelect: document.getElementById(`download${cap}TimeSelect`)
+      };
+    }
+
+    const EXPORT_DATE_MASK = "MM/DD/YYYY";
+    const MODELED_EXPORT_DATE_PLACEHOLDER = "xx/xx/xxxx";
+    const EXPORT_DATE_MASK_POSITIONS = [0, 1, 3, 4, 6, 7, 8, 9];
+
+    function exportDateMaskPlaceholderAt(index) {
+      if (index < 2) return "M";
+      if (index < 5) return "D";
+      return "Y";
+    }
+
+    function formatExportDateMask(value) {
+      const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+      const chars = EXPORT_DATE_MASK.split("");
+      EXPORT_DATE_MASK_POSITIONS.forEach((position, index) => {
+        chars[position] = digits[index] || exportDateMaskPlaceholderAt(position);
+      });
+      return chars.join("");
+    }
+
+    function normalizeExportDateMask(input) {
+      if (!input) return EXPORT_DATE_MASK;
+      const normalized = formatExportDateMask(input.value);
+      if (input.value !== normalized) input.value = normalized;
+      return normalized;
+    }
+
+    function getNextExportDateMaskPosition(index, direction = 1, includeCurrent = true) {
+      let current = Number.isFinite(index) ? index : 0;
+      if (!includeCurrent) current += direction;
+      while (current >= 0 && current < EXPORT_DATE_MASK.length) {
+        if (EXPORT_DATE_MASK_POSITIONS.includes(current)) return current;
+        current += direction;
+      }
+      return direction > 0 ? EXPORT_DATE_MASK.length : 0;
+    }
+
+    function setExportDateMaskCaret(input, index) {
+      if (!input) return;
+      let position = Math.max(0, Math.min(EXPORT_DATE_MASK.length, Number(index) || 0));
+      if (!EXPORT_DATE_MASK_POSITIONS.includes(position) && position < EXPORT_DATE_MASK.length) {
+        position = getNextExportDateMaskPosition(position, 1, true);
+      }
+      requestAnimationFrame(() => {
+        try { input.setSelectionRange(position, position); } catch (e) {}
+      });
+    }
+
+    function clearExportDateMaskRange(chars, start, end) {
+      EXPORT_DATE_MASK_POSITIONS.forEach(position => {
+        if (position >= start && position < end) chars[position] = exportDateMaskPlaceholderAt(position);
+      });
+    }
+
+    function insertExportDateMaskDigits(input, text) {
+      normalizeExportDateMask(input);
+      const digits = String(text || "").replace(/\D/g, "");
+      if (!digits) return;
+      const chars = input.value.split("");
+      const start = input.selectionStart == null ? 0 : input.selectionStart;
+      const end = input.selectionEnd == null ? start : input.selectionEnd;
+      if (end > start) clearExportDateMaskRange(chars, start, end);
+      let position = getNextExportDateMaskPosition(start, 1, true);
+      for (const digit of digits) {
+        if (position >= EXPORT_DATE_MASK.length) break;
+        chars[position] = digit;
+        position = getNextExportDateMaskPosition(position, 1, false);
+      }
+      input.value = chars.join("");
+      setExportDateMaskCaret(input, position);
+    }
+
+    function deleteExportDateMaskDigits(input, backward) {
+      normalizeExportDateMask(input);
+      const chars = input.value.split("");
+      const start = input.selectionStart == null ? 0 : input.selectionStart;
+      const end = input.selectionEnd == null ? start : input.selectionEnd;
+      let caret = start;
+      if (end > start) {
+        clearExportDateMaskRange(chars, start, end);
+        caret = getNextExportDateMaskPosition(start, 1, true);
+      } else if (backward) {
+        const target = getNextExportDateMaskPosition(start, -1, false);
+        if (EXPORT_DATE_MASK_POSITIONS.includes(target)) {
+          chars[target] = exportDateMaskPlaceholderAt(target);
+          caret = target;
+        }
+      } else {
+        const target = getNextExportDateMaskPosition(start, 1, true);
+        if (EXPORT_DATE_MASK_POSITIONS.includes(target)) {
+          chars[target] = exportDateMaskPlaceholderAt(target);
+          caret = target;
+        }
+      }
+      input.value = chars.join("");
+      setExportDateMaskCaret(input, caret);
+    }
+
+    function parseExportDateText(value) {
+      const raw = String(value || "").trim();
+      if (!raw || /[MDY]/i.test(raw)) return null;
+      let year;
+      let month;
+      let day;
+      const digits = raw.replace(/\D/g, "");
+      let match = raw.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+      if (match) {
+        year = Number(match[1]);
+        month = Number(match[2]);
+        day = Number(match[3]);
+      } else {
+        match = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2}|\d{4})$/);
+        if (match) {
+          month = Number(match[1]);
+          day = Number(match[2]);
+          year = Number(match[3]);
+          if (year < 100) year += 2000;
+        } else if (/^\d{8}$/.test(digits)) {
+          month = Number(digits.slice(0, 2));
+          day = Number(digits.slice(2, 4));
+          year = Number(digits.slice(4, 8));
+        } else {
+          return null;
+        }
+      }
+      if (year < 1900 || year > 2200 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+      const test = new Date(Date.UTC(year, month - 1, day));
+      if (test.getUTCFullYear() !== year || test.getUTCMonth() !== month - 1 || test.getUTCDate() !== day) return null;
+      return {
+        year,
+        month,
+        day,
+        isoDate: `${year}-${pad2(month)}-${pad2(day)}`,
+        displayDate: `${pad2(month)}/${pad2(day)}/${year}`
+      };
+    }
+
+    function openExportDatePicker(prefix) {
+      const elements = getExportDateEditorElements(prefix);
+      const picker = elements.datePicker;
+      if (!picker || picker.disabled) return;
+      const parsed = parseExportDateText(elements.dateText?.value);
+      const current = getRangeInputDate(elements.canonical?.id || "");
+      const currentIso = current ? formatNyLocalIso(current).slice(0, 10) : "";
+      picker.value = parsed?.isoDate || currentIso || picker.value || "";
+      const rect = elements.dateText?.getBoundingClientRect?.();
+      if (rect && rect.width && rect.height) {
+        picker.style.left = `${Math.max(0, Math.round(rect.left))}px`;
+        picker.style.top = `${Math.max(0, Math.round(rect.top))}px`;
+        picker.style.width = `${Math.max(44, Math.round(rect.width))}px`;
+        picker.style.height = `${Math.max(44, Math.round(rect.height))}px`;
+      }
+      try {
+        if (typeof picker.showPicker === "function") {
+          picker.showPicker();
+          return;
+        }
+      } catch (e) {}
+      try { picker.focus({ preventScroll: true }); } catch (e) { try { picker.focus(); } catch (ignore) {} }
+      try { picker.click(); } catch (e) {}
+    }
+
+    function formatExportTimeLabel(value) {
+      const match = String(value || "").match(/^(\d{2}):(\d{2})$/);
+      if (!match) return value || "";
+      const hour24 = Number(match[1]);
+      const minute = Number(match[2]);
+      const period = hour24 >= 12 ? "PM" : "AM";
+      const hour12 = hour24 % 12 || 12;
+      return `${pad2(hour12)}:${pad2(minute)} ${period}`;
+    }
+
+    function populateExportTimeSelect(select, selectedValue = "00:00") {
+      if (!select) return;
+      const normalized = /^\d{2}:\d{2}$/.test(selectedValue) ? selectedValue : "00:00";
+      const values = [];
+      for (let minutes = 0; minutes < 24 * 60; minutes += 15) {
+        values.push(`${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`);
+      }
+      if (!values.includes(normalized)) values.push(normalized);
+      values.sort();
+      const existingValues = Array.from(select.options || [], option => option.value);
+      const optionsAreCurrent = existingValues.length === values.length
+        && existingValues.every((value, index) => value === values[index]);
+      if (!optionsAreCurrent) {
+        select.innerHTML = values.map(value => `<option value="${value}">${formatExportTimeLabel(value)}</option>`).join("");
+      }
+      select.value = normalized;
+    }
+
+    function syncExportDateTimeEditorFromCanonical(prefix) {
+      const elements = getExportDateEditorElements(prefix);
+      if (!elements.canonical || !elements.dateText || !elements.timeSelect) return;
+      const modeledDateLocked = currentDataMode === "return-interval";
+      const cap = prefix === "end" ? "End" : "Start";
+      const calendarButton = document.getElementById(`download${cap}CalendarBtn`);
+      elements.dateText.readOnly = modeledDateLocked;
+      elements.dateText.disabled = exportInProgress || modeledDateLocked;
+      elements.dateText.classList.toggle("modeled-date-locked", modeledDateLocked);
+      elements.dateText.setAttribute(
+        "aria-label",
+        modeledDateLocked
+          ? "Modeled storm date is not applicable"
+          : `Export ${prefix} date in month day year format`
+      );
+      if (calendarButton) {
+        calendarButton.hidden = modeledDateLocked;
+        calendarButton.disabled = exportInProgress || modeledDateLocked;
+      }
+      if (elements.datePicker) elements.datePicker.disabled = exportInProgress || modeledDateLocked;
+      const value = elements.canonical.value || "";
+      const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+      if (!match) {
+        elements.dateText.value = modeledDateLocked ? MODELED_EXPORT_DATE_PLACEHOLDER : EXPORT_DATE_MASK;
+        if (elements.datePicker) elements.datePicker.value = "";
+        populateExportTimeSelect(elements.timeSelect, "00:00");
+        return;
+      }
+      const isoDate = `${match[1]}-${match[2]}-${match[3]}`;
+      const timeValue = `${match[4]}:${match[5]}`;
+      elements.dateText.value = modeledDateLocked
+        ? MODELED_EXPORT_DATE_PLACEHOLDER
+        : `${match[2]}/${match[3]}/${match[1]}`;
+      elements.dateText.classList.remove("is-invalid");
+      elements.dateText.removeAttribute("aria-invalid");
+      if (elements.datePicker) elements.datePicker.value = isoDate;
+      populateExportTimeSelect(elements.timeSelect, timeValue);
+    }
+
+    function commitExportDateTimeEditor(prefix, options = {}) {
+      const elements = getExportDateEditorElements(prefix);
+      if (!elements.canonical || !elements.dateText || !elements.timeSelect) return false;
+      if (currentDataMode === "return-interval") {
+        const canonicalMatch = elements.canonical.value.match(/^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}$/);
+        if (!canonicalMatch) return false;
+        const timeValue = /^\d{2}:\d{2}$/.test(elements.timeSelect.value) ? elements.timeSelect.value : "00:00";
+        elements.canonical.value = `${canonicalMatch[1]}T${timeValue}`;
+        if (options.markEdited) elements.canonical.dataset.userEdited = "1";
+        elements.dateText.value = MODELED_EXPORT_DATE_PLACEHOLDER;
+        elements.dateText.classList.remove("is-invalid");
+        elements.dateText.removeAttribute("aria-invalid");
+        return true;
+      }
+      const parsed = parseExportDateText(elements.dateText.value);
+      if (!parsed) {
+        elements.dateText.classList.add("is-invalid");
+        elements.dateText.setAttribute("aria-invalid", "true");
+        if (options.showError) setDownloadStatus("Enter the date as MM/DD/YYYY.", true);
+        return false;
+      }
+      const timeValue = /^\d{2}:\d{2}$/.test(elements.timeSelect.value) ? elements.timeSelect.value : "00:00";
+      elements.canonical.value = `${parsed.isoDate}T${timeValue}`;
+      if (options.markEdited) elements.canonical.dataset.userEdited = "1";
+      if (options.normalize !== false) elements.dateText.value = parsed.displayDate;
+      elements.dateText.classList.remove("is-invalid");
+      elements.dateText.removeAttribute("aria-invalid");
+      if (elements.datePicker) elements.datePicker.value = parsed.isoDate;
+      return true;
+    }
+
+    function commitAllExportDateTimeEditors(showError = false) {
+      const startOk = commitExportDateTimeEditor("start", { showError, normalize: true });
+      const endOk = commitExportDateTimeEditor("end", { showError, normalize: true });
+      return startOk && endOk;
+    }
+
+    function getRangeInputDate(id) {
+      const value = document.getElementById(id)?.value || "";
+      return value ? parseStoredLocalNyToDate(value) : null;
+    }
+
+    function setRangeInputDate(id, date) {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.value = date ? formatNyLocalIso(date) : "";
+      const prefix = getExportEditorPrefixFromCanonicalId(id);
+      if (prefix) syncExportDateTimeEditorFromCanonical(prefix);
+    }
+
+    function findStartIndexForTime(entries, targetMs) {
+      if (!entries.length || targetMs == null) return 0;
+      for (let i = 0; i < entries.length; i++) {
+        const t = entryTimeMs(entries[i]);
+        if (t != null && t >= targetMs) return i;
+      }
+      return Math.max(0, entries.length - 1);
+    }
+
+    function findEndIndexForTime(entries, targetMs) {
+      if (!entries.length || targetMs == null) return Math.max(0, entries.length - 1);
+      let lastIndex = 0;
+      for (let i = 0; i < entries.length; i++) {
+        const t = entryTimeMs(entries[i]);
+        if (t == null) continue;
+        if (t <= targetMs) {
+          lastIndex = i;
+        } else {
+          break;
+        }
+      }
+      return lastIndex;
+    }
+
+    function getDownloadScopeValue() {
+      const hiddenScope = document.getElementById("downloadScopeSelect");
+      const activeScopeButton = document.querySelector("#downloadScopeControl button[data-scope].active");
+      const raw = hiddenScope?.value || activeScopeButton?.dataset?.scope || "range";
+      const normalized = raw === "current" ? "current" : "range";
+      if (hiddenScope && hiddenScope.value !== normalized) hiddenScope.value = normalized;
+      return normalized;
+    }
+
+    function getDownloadFormatValue() {
+      const hiddenFormat = document.getElementById("downloadFormatSelect");
+      const activeFormatButton = document.querySelector("#downloadFormatControl button[data-format].active");
+      const raw = hiddenFormat?.value || activeFormatButton?.dataset?.format || "gif";
+      const normalized = raw === "png" ? "png" : "gif";
+      if (hiddenFormat && hiddenFormat.value !== normalized) hiddenFormat.value = normalized;
+      return normalized;
+    }
+
+    function getDownloadIntervalValue() {
+      const hiddenInterval = document.getElementById("downloadIntervalSelect");
+      const activeIntervalButton = document.querySelector("#downloadIntervalControl button[data-export-interval].active");
+      const raw = hiddenInterval?.value || activeIntervalButton?.dataset?.exportInterval || "hourly";
+      const normalized = EXPORT_INTERVALS[raw] ? raw : "hourly";
+      if (hiddenInterval && hiddenInterval.value !== normalized) hiddenInterval.value = normalized;
+      return normalized;
+    }
+
+    function getDownloadIntervalConfig() {
+      return EXPORT_INTERVALS[getDownloadIntervalValue()] || EXPORT_INTERVALS.hourly;
+    }
+
+    function getDownloadFrameLimit() {
+      return getDownloadIntervalConfig().frameLimit;
+    }
+
+    function getDownloadSpeedValue() {
+      const hiddenSpeed = document.getElementById("downloadSpeedSelect");
+      const activeSpeedButton = document.querySelector("#downloadSpeedControl button[data-speed].active");
+      const raw = hiddenSpeed?.value || activeSpeedButton?.dataset?.speed || "normal";
+      const normalized = EXPORT_GIF_SPEEDS[raw] ? raw : "normal";
+      if (hiddenSpeed && hiddenSpeed.value !== normalized) hiddenSpeed.value = normalized;
+      return normalized;
+    }
+
+    function getGifFrameDelayMs() {
+      return EXPORT_GIF_SPEEDS[getDownloadSpeedValue()]?.delayMs || 1000;
+    }
+
+    function getDownloadAspectValue() {
+      const hiddenAspect = document.getElementById("downloadAspectSelect");
+      const activeAspectButton = document.querySelector("#downloadAspectControl button[data-aspect].active");
+      const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || "viewport";
+      const normalized = raw === "viewport" || EXPORT_GIF_ASPECTS[raw] ? raw : "viewport";
+      if (hiddenAspect && hiddenAspect.value !== normalized) hiddenAspect.value = normalized;
+      return normalized;
+    }
+
+    function getDownloadExtentValue() {
+      const hiddenExtent = document.getElementById("downloadExtentSelect");
+      const activeExtentButton = document.querySelector("#downloadExtentControl button[data-extent].active");
+      const raw = hiddenExtent?.value || activeExtentButton?.dataset?.extent || "current";
+      const normalized = raw === "town" ? "town" : "current";
+      if (hiddenExtent && hiddenExtent.value !== normalized) hiddenExtent.value = normalized;
+      return normalized;
+    }
+
+    function getCurrentForecastExportRange() {
+      const entries = getForecastExportEntriesLimited()
+        .filter(entry => entryTimeMs(entry) != null)
+        .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+      if (!entries.length) return null;
+      const firstDate = getEntryESTDate(entries[0]);
+      const lastDate = getEntryESTDate(entries[entries.length - 1]);
+      if (!firstDate || !lastDate) return null;
+      const cappedLast = new Date(Math.min(lastDate.getTime(), firstDate.getTime() + EXPORT_RANGE_MAX_MS));
+      return { firstDate, lastDate: cappedLast };
+    }
+
+    function getCurrentSelectionExportRange() {
+      if (currentDataMode === "return-interval") {
+        const entries = getReturnIntervalExportEntries()
+          .filter(entry => entryTimeMs(entry) != null)
+          .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+        const firstDate = entries.length ? getEntryESTDate(entries[0]) : null;
+        const lastDate = entries.length ? getEntryESTDate(entries[entries.length - 1]) : null;
+        return firstDate && lastDate ? { firstDate, lastDate } : null;
+      }
+      const currentDate = getEntryESTDate(getDownloadCurrentEntry());
+      if (!currentDate) return getCurrentForecastExportRange();
+
+      const currentMs = currentDate.getTime();
+      const maxEndMs = currentMs + EXPORT_RANGE_MAX_MS;
+      const remainingDates = currentSeriesHours
+        .map(entry => getEntryESTDate(entry))
+        .filter(date => {
+          const timeMs = date?.getTime();
+          return Number.isFinite(timeMs) && timeMs >= currentMs && timeMs <= maxEndMs;
+        })
+        .sort((a, b) => a.getTime() - b.getTime());
+      const lastDate = remainingDates.length
+        ? remainingDates[remainingDates.length - 1]
+        : currentDate;
+
+      return { firstDate: currentDate, lastDate };
+    }
+
+    function seedDownloadRangeToCurrentSelection(force = false) {
+      const startEl = document.getElementById("downloadStartInput");
+      const endEl = document.getElementById("downloadEndInput");
+      if (!startEl || !endEl) return false;
+
+      const selectedRange = getCurrentSelectionExportRange();
+      if (!selectedRange) return false;
+
+      if (force) {
+        delete startEl.dataset.userEdited;
+        delete endEl.dataset.userEdited;
+      }
+
+      if (force || !startEl.value || startEl.dataset.userEdited !== "1") {
+        setRangeInputDate("downloadStartInput", selectedRange.firstDate);
+      }
+      if (force || !endEl.value || endEl.dataset.userEdited !== "1") {
+        const endDate = getDownloadFormatValue() === "png"
+          ? (getRangeInputDate("downloadStartInput") || selectedRange.firstDate)
+          : selectedRange.lastDate;
+        setRangeInputDate("downloadEndInput", endDate);
+      }
+      return true;
+    }
+
+    // Freeze the visible geographic area once for the entire export job.
+    let exportViewportBounds = null;
+
+    function getActiveMapBounds() {
+      const activeMap = window.NORTH_WILDWOOD_3D?.getMap?.();
+      const bounds = document.body.classList.contains("map-3d-ready") && activeMap
+        ? activeMap.getBounds() : map?.getBounds();
+      if (!bounds) return null;
+      const south = bounds.getSouth(), north = bounds.getNorth();
+      const west = bounds.getWest(), east = bounds.getEast();
+      if (![south, north, west, east].every(Number.isFinite) || north <= south || east <= west) return null;
+      return L.latLngBounds([[south, west], [north, east]]);
+    }
+
+    // Geometry is shared by DOM captures and the fast GIF compositor. The
+    // footer owns real canvas space; no title, key or logo covers the map.
+    function getExportFooterLayout(width, height) {
+      const w = Math.max(2, Math.round(width));
+      const h = Math.max(2, Math.round(height));
+      const unit = Math.max(0.125, Math.min(w / 1200, h / 900));
+      const stacked = w < h * 1.1;
+      const footerHeight = Math.max(1, Math.round(Math.min(h * 0.4, (stacked ? 224 : 160) * unit)));
+      const mapHeight = h - footerHeight;
+      const pad = Math.round(24 * unit);
+      const gap = Math.round(16 * unit);
+      const timestampWidth = stacked ? w - pad * 2 : Math.round(w * 0.51) - pad - gap;
+      const rightX = Math.round(w * 0.51);
+      return {
+        width: w, height: h, unit, stacked, footerHeight,
+        map: { x: 0, y: 0, width: w, height: mapHeight },
+        timestamp: { x: pad, y: mapHeight + Math.round(17 * unit), width: timestampWidth, height: Math.round(94 * unit) },
+        legend: stacked
+          ? { x: pad, y: mapHeight + Math.round(119 * unit), width: Math.round(w * 0.65) - pad - gap, height: Math.round(76 * unit) }
+          : { x: rightX, y: mapHeight + Math.round(17 * unit), width: w - rightX - pad, height: Math.round(76 * unit) },
+        branding: stacked
+          ? { x: Math.round(w * 0.65), y: mapHeight + Math.round(123 * unit), width: Math.round(w * 0.35) - pad, height: Math.round(47 * unit) }
+          : { x: rightX, y: mapHeight + Math.round(99 * unit), width: w - rightX - pad, height: Math.round(36 * unit) },
+        attribution: { x: pad, y: h - Math.round(18 * unit), size: Math.max(2, Math.round(9 * unit)) }
+      };
+    }
+
+    function getExportViewportConfigForRatio(ratio, longEdge) {
+      const safeRatio = Number.isFinite(ratio) && ratio > 0 ? ratio : 16 / 9;
+      let width = longEdge * Math.min(1, safeRatio);
+      const mapHeight = longEdge / Math.max(1, safeRatio);
+      let height = mapHeight;
+      // Preserve the geographic map ratio with the footer outside that area.
+      for (let i = 0; i < 16; i++) height = mapHeight + getExportFooterLayout(width, height).footerHeight;
+      const scale = Math.min(1, longEdge / Math.max(width, height));
+      width = Math.max(2, Math.round(width * scale));
+      height = Math.max(2, Math.round(height * scale));
+      return { value: "viewport", width, height, label: "Map view", resolutionLabel: `${width} × ${height}` };
+    }
+
+    function getExportViewportAspect() {
+      const bounds = exportViewportBounds || getActiveMapBounds();
+      const nw = bounds && L.CRS.EPSG3857.latLngToPoint(bounds.getNorthWest(), 0);
+      const se = bounds && L.CRS.EPSG3857.latLngToPoint(bounds.getSouthEast(), 0);
+      const ratio = nw && se ? (se.x - nw.x) / (se.y - nw.y) : 16 / 9;
+      return getExportViewportConfigForRatio(ratio, getDownloadFormatValue() === "png" ? 2160 : 1440);
+    }
+
+    function fitExportMapToSelectedExtent(mapInstance) {
+      if (!mapInstance) return;
+      const mode = getDownloadExtentValue();
+
+      if (mode === "town") {
+        const townBounds = getBoundaryDrivenOverlayBounds();
+        if (townBounds && (!townBounds.isValid || townBounds.isValid())) {
+          const aspect = getExportAspectConfig();
+          const sidePadding = Math.round(Math.min(64, aspect.width * 0.025));
+          const topPadding = sidePadding;
+          mapInstance.fitBounds(townBounds, {
+            paddingTopLeft: [sidePadding, topPadding],
+            paddingBottomRight: [sidePadding, sidePadding],
+            animate: false
+          });
+          return;
+        }
+      }
+
+      if (mode === "current") {
+        const visibleBounds = exportViewportBounds || getActiveMapBounds();
+        if (!visibleBounds) throw new Error("The current map view is not ready. Please try again.");
+        // Fractional zoom preserves the selected area at any output resolution.
+        // A chosen social aspect crops around its center instead of zooming out.
+        mapInstance.options.zoomSnap = 0;
+        const zoom = mapInstance.getBoundsZoom(visibleBounds, true);
+        const nw = mapInstance.project(visibleBounds.getNorthWest(), zoom);
+        const se = mapInstance.project(visibleBounds.getSouthEast(), zoom);
+        const center = mapInstance.unproject(nw.add(se).divideBy(2), zoom);
+        mapInstance.setView(center, zoom, { animate: false });
+        return;
+      }
+
+      let bounds = null;
+      if (mode === "simulation" && floodLatLngBounds) {
+        bounds = floodLatLngBounds;
+      } else if (map) {
+        bounds = getActiveMapBounds();
+      }
+
+      if ((!bounds || !bounds.isValid || !bounds.isValid()) && floodLatLngBounds) {
+        bounds = floodLatLngBounds;
+      }
+
+      if (bounds && (!bounds.isValid || bounds.isValid())) {
+        mapInstance.fitBounds(bounds, { padding: [0, 0], animate: false });
+      } else if (map) {
+        mapInstance.setView(map.getCenter(), map.getZoom(), { animate: false });
+      }
+    }
+
+
+    function getExportAspectConfig(aspect = null) {
+      if ((aspect || getDownloadAspectValue()) === "viewport") return getExportViewportAspect();
+      const base = EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS["4:5"];
+      if (getDownloadFormatValue() !== "png") return base;
+      return {
+        ...base,
+        width: base.pngWidth || base.width,
+        height: base.pngHeight || base.height,
+        resolutionLabel: `${base.pngWidth || base.width} × ${base.pngHeight || base.height}`
+      };
+    }
+
+    function applyExportStageAspect(aspect = null) {
+      const config = getExportAspectConfig(aspect);
+      const layout = getExportFooterLayout(config.width, config.height);
+      const stageHost = document.getElementById("exportStage");
+      const stageFrame = document.getElementById("exportStageFrame");
+      [stageHost, stageFrame].filter(Boolean).forEach(element => {
+        element.style.width = `${config.width}px`;
+        element.style.height = `${config.height}px`;
+      });
+      if (stageFrame) {
+        stageFrame.dataset.exportAspect = config.value;
+        stageFrame.dataset.exportCompact = String(config.width < 1000);
+        stageFrame.style.setProperty("--export-footer-gap", `${Math.round(12 * layout.unit)}px`);
+        stageFrame.style.setProperty("--export-key-gap", `${Math.max(1, Math.round(5 * layout.unit))}px`);
+        stageFrame.style.setProperty("--export-key-title", `${Math.round(20 * layout.unit)}px`);
+        stageFrame.style.setProperty("--export-key-label", `${Math.round(13 * layout.unit)}px`);
+        stageFrame.style.setProperty("--export-key-bar", `${Math.round(14 * layout.unit)}px`);
+      }
+      const mapElement = document.getElementById("exportMap");
+      if (mapElement) mapElement.style.setProperty("height", `${layout.map.height}px`, "important");
+      const footer = document.getElementById("exportFooter");
+      if (footer) footer.style.height = `${layout.footerHeight}px`;
+      [["exportTimestampLabel", layout.timestamp], ["exportLegendDock", layout.legend], ["exportLogoStrip", layout.branding]].forEach(([id, box]) => {
+        const element = document.getElementById(id);
+        if (!element) return;
+        for (const [key, value] of Object.entries({ left: box.x, top: box.y - layout.map.height, width: box.width, height: box.height })) {
+          element.style.setProperty(key, `${value}px`, "important");
+        }
+      });
+      const attribution = document.getElementById("exportMapAttribution");
+      if (attribution) {
+        attribution.style.padding = `0 ${layout.attribution.x}px`;
+        attribution.style.fontSize = `${layout.attribution.size}px`;
+        attribution.style.lineHeight = `${Math.round(16 * layout.unit)}px`;
+      }
+      if (exportMap) exportMap.invalidateSize(false);
+      return config;
+    }
+
+
+function syncDownloadRangeInputs(force = false) {
+      const wrap = document.getElementById("downloadRangeFields");
+      const startEl = document.getElementById("downloadStartInput");
+      const endEl = document.getElementById("downloadEndInput");
+      if (!startEl || !endEl) return;
+
+      if (wrap) wrap.hidden = false;
+      if (force) {
+        delete startEl.dataset.userEdited;
+        delete endEl.dataset.userEdited;
+      }
+
+      const bounds = getDownloadArchiveBounds();
+      const startPicker = document.getElementById("downloadStartDatePicker");
+      const endPicker = document.getElementById("downloadEndDatePicker");
+      if (bounds?.firstDate && bounds?.lastDate) {
+        const minValue = formatNyLocalIso(bounds.firstDate).slice(0, 10);
+        const maxValue = formatNyLocalIso(bounds.lastDate).slice(0, 10);
+        [startPicker, endPicker].forEach(picker => {
+          if (!picker) return;
+          picker.min = minValue;
+          picker.max = maxValue;
+        });
+      } else {
+        [startPicker, endPicker].forEach(picker => {
+          picker?.removeAttribute("min");
+          picker?.removeAttribute("max");
+        });
+      }
+
+      const seededSelection = seedDownloadRangeToCurrentSelection(force);
+      if (!seededSelection && (!startEl.value || !endEl.value)) {
+        const currentDate = getEntryESTDate(getDownloadCurrentEntry());
+        if (currentDate) {
+          if (!startEl.value) setRangeInputDate("downloadStartInput", currentDate);
+          if (!endEl.value) setRangeInputDate("downloadEndInput", currentDate);
+        }
+      }
+
+      syncExportDateTimeEditorFromCanonical("start");
+      syncExportDateTimeEditorFromCanonical("end");
+      renderExportTimePicker(true);
+    }
+
+function getDownloadRangeRequest() {
+      if (!commitAllExportDateTimeEditors(false)) return null;
+      const startDate = getRangeInputDate("downloadStartInput");
+      const endDate = getRangeInputDate("downloadEndInput");
+      if (!startDate || !endDate) return null;
+
+      const startMs = startDate.getTime();
+      const endMs = endDate.getTime();
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+
+      return {
+        startDate,
+        endDate,
+        startMs,
+        endMs,
+        durationMs: endMs - startMs
+      };
+    }
+
+function getDownloadArchiveBounds() {
+      if (currentDataMode === "return-interval") {
+        const modeledEntries = getReturnIntervalExportEntries()
+          .filter(entry => entryTimeMs(entry) != null)
+          .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+        const firstDate = modeledEntries.length ? getEntryESTDate(modeledEntries[0]) : null;
+        const lastDate = modeledEntries.length ? getEntryESTDate(modeledEntries[modeledEntries.length - 1]) : null;
+        return firstDate && lastDate ? { firstDate, lastDate } : null;
+      }
+      const observedBounds = getObservedArchiveDateBounds();
+      const forecastEntries = getForecastExportEntries();
+      const forecastFirst = forecastEntries.length ? getEntryESTDate(forecastEntries[0]) : null;
+      const forecastLast = forecastEntries.length ? getEntryESTDate(forecastEntries[forecastEntries.length - 1]) : null;
+      let firstDate = observedBounds?.firstDate || forecastFirst || getEntryESTDate(getDownloadCurrentEntry());
+      let lastDate = observedBounds?.lastDate || forecastLast || getEntryESTDate(getDownloadCurrentEntry());
+      if (forecastFirst && (!firstDate || forecastFirst.getTime() < firstDate.getTime())) firstDate = forecastFirst;
+      if (forecastLast && (!lastDate || forecastLast.getTime() > lastDate.getTime())) lastDate = forecastLast;
+      return firstDate && lastDate ? { firstDate, lastDate } : null;
+    }
+
+    function validateDownloadRangeForExport() {
+      const range = getDownloadRangeRequest();
+      if (!range) {
+        return {
+          ok: false,
+          reason: "invalid-range",
+          message: "Please select a valid start date/time and end date/time."
+        };
+      }
+
+      if (range.endMs < range.startMs) {
+        return {
+          ok: false,
+          reason: "invalid-order",
+          message: "The end date and time must be after the start date and time."
+        };
+      }
+
+      if (range.durationMs > EXPORT_RANGE_MAX_MS) {
+        return {
+          ok: false,
+          reason: "range-too-long",
+          message: "Please select a time range of 84 hours or less (up to 4 days)."
+        };
+      }
+
+      const bounds = getDownloadArchiveBounds();
+      if (bounds) {
+        const firstMs = bounds.firstDate.getTime();
+        const lastMs = bounds.lastDate.getTime();
+        if (range.startMs < firstMs || range.endMs > lastMs) {
+          return {
+            ok: false,
+            reason: "outside-data",
+            message: `Please choose a time within the available data range: ${formatFixedESTFromUtc(bounds.firstDate.toISOString())} through ${formatFixedESTFromUtc(bounds.lastDate.toISOString())}.`
+          };
+        }
+      }
+
+      return { ok: true, range };
+    }
+
+    function getDownloadFrameItems(scope = null) {
+      const mode = scope || getDownloadScopeValue();
+      const currentEntry = getDownloadCurrentEntry();
+
+      if (mode === "current") {
+        if (!currentEntry) return [];
+        const item = getDownloadFrameItemFromEntry(currentEntry, currentHourIndex);
+        return item ? [item] : [];
+      }
+
+      const range = getDownloadRangeRequest();
+      if (!range) return [];
+
+      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate)
+        .filter(entry => entryTimeMs(entry) != null)
+        .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+      if (!entries.length) return [];
+
+      const items = buildExportRangeFrameItems(entries, range, getDownloadIntervalValue());
+      const frameLimit = getDownloadFrameLimit();
+      if (items.length > frameLimit) {
+        return items.slice(0, frameLimit);
+      }
+      return items;
+    }
+
+    function getDownloadRangeSummaryFrameCount(range) {
+      if (!range || !Number.isFinite(range.startMs) || !Number.isFinite(range.endMs)) return 0;
+      const startMs = Math.min(range.startMs, range.endMs);
+      const endMs = Math.max(range.startMs, range.endMs);
+      const interval = getDownloadIntervalConfig();
+      if (interval.value === "daily") {
+        const keys = new Set();
+        for (let cursor = startMs; cursor <= endMs; cursor += 6 * 60 * 60 * 1000) {
+          const key = getExportDayKeyFromDate(new Date(cursor));
+          if (key) keys.add(key);
+        }
+        const endKey = getExportDayKeyFromDate(new Date(endMs));
+        if (endKey) keys.add(endKey);
+        return Math.max(1, keys.size);
+      }
+      const stepMs = interval.minutes * 60 * 1000;
+      return Math.max(1, Math.floor((endMs - startMs) / stepMs) + 1);
+    }
+
+
+function getExportDayKeyFromDate(date) {
+      const parts = getNyParts(date);
+      if (!parts) return "";
+      return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+    }
+
+    function getExportMonthKey(date) {
+      const parts = getNyParts(date);
+      if (!parts) return "";
+      return `${parts.year}-${String(parts.month).padStart(2, "0")}`;
+    }
+
+    function getExportWeekdayIndex(date) {
+      const parts = getNyParts(date);
+      const weekday = String(parts?.weekday || "").slice(0, 3).toLowerCase();
+      const weekdayIndex = {
+        sun: 0,
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6
+      }[weekday];
+
+      return Number.isInteger(weekdayIndex) ? weekdayIndex : 0;
+    }
+
+    function getExportMonthStart(date) {
+      const parts = getNyParts(date || new Date());
+      if (!parts) return new Date();
+      return parseStoredLocalNyToDate(`${parts.year}-${String(parts.month).padStart(2, "0")}-01T00:00`) || new Date();
+    }
+
+    function shiftExportMonth(date, delta) {
+      const parts = getNyParts(date || new Date());
+      const shifted = new Date(Date.UTC(parts.year, parts.month - 1 + delta, 1, 12, 0, 0));
+      const y = shifted.getUTCFullYear();
+      const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+      return parseStoredLocalNyToDate(`${y}-${m}-01T00:00`) || shifted;
+    }
+
+function clearExportAvailabilityCache() {
+      exportAvailabilityCache = null;
+      exportAvailabilityDayMapCache = null;
+      exportAvailabilityMonthMapCache = null;
+      exportAvailabilityBoundsCache = null;
+      exportAvailabilityHourTotalCache = null;
+      exportEntriesForDayCache = new Map();
+      observedExportDayIndexCache = null;
+      exportTimePickerLastSignature = "";
+    }
+
+    function getObservedExportDayIndex() {
+      if (observedExportDayIndexCache) return observedExportDayIndexCache;
+      const index = new Map();
+      getObservedDays().forEach(day => {
+        const dayKey = String(day?.date || "").slice(0, 10);
+        if (!dayKey) return;
+        const existing = index.get(dayKey);
+        const existingCount = Array.isArray(existing?.hours) ? existing.hours.length : 0;
+        const newCount = Array.isArray(day?.hours) ? day.hours.length : 0;
+        if (!existing || newCount >= existingCount) index.set(dayKey, day);
+      });
+      observedExportDayIndexCache = index;
+      return index;
+    }
+
+    function primeExportTimePickerShell() {
+      const title = document.getElementById("exportPickerTitle");
+      const count = document.getElementById("exportSelectionCount");
+      if (title) title.textContent = "Available export dates";
+      if (count) count.textContent = "Loading";
+      ["exportStartCalendarGrid", "exportEndCalendarGrid"].forEach(id => {
+        const grid = document.getElementById(id);
+        if (grid) grid.innerHTML = `<div class="export-picker-empty" style="grid-column:1/-1">Loading available dates...</div>`;
+      });
+    }
+
+    function scheduleExportTimePickerRender(force = false) {
+      if (!isDownloadModalOpen() && !force) return;
+      if (exportTimePickerRenderRaf != null) cancelAnimationFrame(exportTimePickerRenderRaf);
+      exportTimePickerRenderRaf = requestAnimationFrame(() => {
+        exportTimePickerRenderRaf = null;
+        renderExportTimePicker(force);
+      });
+    }
+
+    function getForecastExportEntriesLimited() {
+      const entries = getForecastExportEntries()
+        .filter(entry => entryTimeMs(entry) != null)
+        .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+      if (!entries.length) return [];
+      const firstMs = entryTimeMs(entries[0]);
+      const maxMs = firstMs + EXPORT_RANGE_MAX_MS;
+      return entries.filter(entry => {
+        const t = entryTimeMs(entry);
+        return t != null && t <= maxMs;
+      });
+    }
+
+    function getExportAvailabilityDayMap() {
+      if (exportAvailabilityDayMapCache) return exportAvailabilityDayMapCache;
+      const map = new Map();
+
+      function ensureMeta(dayKey) {
+        if (!dayKey) return null;
+        if (!map.has(dayKey)) {
+          map.set(dayKey, {
+            dayKey,
+            observed: false,
+            forecast: false,
+            count: 0,
+            firstDate: parseStoredLocalNyToDate(`${dayKey}T00:00`),
+            lastDate: parseStoredLocalNyToDate(`${dayKey}T23:00`)
+          });
+        }
+        return map.get(dayKey);
+      }
+
+      if (currentDataMode !== "return-interval") {
+        getObservedExportDayIndex().forEach((day, dayKey) => {
+          const meta = ensureMeta(dayKey);
+          if (!meta) return false;
+          meta.observed = true;
+          const hours = Array.isArray(day?.hours) ? day.hours : [];
+          meta.count += Math.max(1, hours.length || 24);
+        });
+      }
+
+      const activeEntries = currentDataMode === "return-interval"
+        ? getReturnIntervalExportEntries()
+        : getForecastExportEntriesLimited();
+      activeEntries.forEach(entry => {
+        const d = getEntryESTDate(entry);
+        const dayKey = getExportDayKeyFromDate(d);
+        const meta = ensureMeta(dayKey);
+        if (!meta) return;
+        meta.forecast = true;
+        meta.modeled = currentDataMode === "return-interval";
+        meta.count += 1;
+        if (d) {
+          if (!meta.firstDate || d.getTime() < meta.firstDate.getTime()) meta.firstDate = d;
+          if (!meta.lastDate || d.getTime() > meta.lastDate.getTime()) meta.lastDate = d;
+        }
+      });
+
+      exportAvailabilityDayMapCache = map;
+      return map;
+    }
+
+    function getExportAvailabilityBounds() {
+      if (exportAvailabilityBoundsCache) return exportAvailabilityBoundsCache;
+      const dayMap = getExportAvailabilityDayMap();
+      if (!dayMap.size) return null;
+      let firstDate = null;
+      let lastDate = null;
+      dayMap.forEach(meta => {
+        const a = meta.firstDate || parseStoredLocalNyToDate(`${meta.dayKey}T00:00`);
+        const b = meta.lastDate || parseStoredLocalNyToDate(`${meta.dayKey}T23:00`);
+        if (a && (!firstDate || a.getTime() < firstDate.getTime())) firstDate = a;
+        if (b && (!lastDate || b.getTime() > lastDate.getTime())) lastDate = b;
+      });
+      exportAvailabilityBoundsCache = firstDate && lastDate ? { firstDate, lastDate } : null;
+      return exportAvailabilityBoundsCache;
+    }
+
+    function getExportAvailabilityMonthMap() {
+      if (exportAvailabilityMonthMapCache) return exportAvailabilityMonthMapCache;
+      const months = new Map();
+      getExportAvailabilityDayMap().forEach(meta => {
+        const monthKey = String(meta.dayKey || "").slice(0, 7);
+        if (!monthKey) return;
+        if (!months.has(monthKey)) {
+          months.set(monthKey, {
+            monthKey,
+            observed: false,
+            forecast: false,
+            firstDate: meta.firstDate || parseStoredLocalNyToDate(`${meta.dayKey}T00:00`),
+            lastDate: meta.lastDate || parseStoredLocalNyToDate(`${meta.dayKey}T23:00`)
+          });
+        }
+        const current = months.get(monthKey);
+        current.observed = current.observed || !!meta.observed;
+        current.forecast = current.forecast || !!meta.forecast;
+        const a = meta.firstDate || parseStoredLocalNyToDate(`${meta.dayKey}T00:00`);
+        const b = meta.lastDate || parseStoredLocalNyToDate(`${meta.dayKey}T23:00`);
+        if (a && (!current.firstDate || a.getTime() < current.firstDate.getTime())) current.firstDate = a;
+        if (b && (!current.lastDate || b.getTime() > current.lastDate.getTime())) current.lastDate = b;
+      });
+      exportAvailabilityMonthMapCache = months;
+      return months;
+    }
+
+    function getExportDataRangeDetailedText() {
+      return getExportAvailabilityRangeText();
+    }
+
+
+    function formatExportCompactDate(date) {
+      if (!date) return "--";
+      const parts = getNyParts(date);
+      if (!parts) return "--";
+      const mm = String(Number(parts.month)).padStart(2, "0");
+      const dd = String(Number(parts.day)).padStart(2, "0");
+      const yy = String(Number(parts.year) % 100).padStart(2, "0");
+      return `${mm}/${dd}/${yy}`;
+    }
+
+    function getExportAvailabilityRangeText() {
+      const bounds = getExportAvailabilityBounds();
+      if (!bounds?.firstDate || !bounds?.lastDate) return "No dates";
+      return `${formatExportCompactDate(bounds.firstDate)}–${formatExportCompactDate(bounds.lastDate)}`;
+    }
+
+    function populateExportHourSelects() {
+      const selects = [document.getElementById("exportStartHourSelect"), document.getElementById("exportEndHourSelect")].filter(Boolean);
+      if (!selects.length) return;
+      selects.forEach(select => {
+        if (select.options.length >= 24) return;
+        select.innerHTML = "";
+        for (let h = 0; h < 24; h++) {
+          const opt = document.createElement("option");
+          opt.value = String(h);
+          const hour12 = (h % 12) || 12;
+          opt.textContent = `${hour12}:00 ${h >= 12 ? "PM" : "AM"}`;
+          select.appendChild(opt);
+        }
+      });
+    }
+
+    function getExportHourSelectValue(id, fallbackHour = 0) {
+      const value = Number(document.getElementById(id)?.value);
+      return Number.isFinite(value) ? Math.max(0, Math.min(23, Math.round(value))) : fallbackHour;
+    }
+
+    function setExportHourSelectFromDate(id, date) {
+      const select = document.getElementById(id);
+      const parts = date ? getNyParts(date) : null;
+      if (select && parts) select.value = String(parts.hour);
+    }
+
+    function syncExportHourSelectsFromInputs() {
+      populateExportHourSelects();
+      const start = getRangeInputDate("downloadStartInput");
+      const end = getRangeInputDate("downloadEndInput");
+      setExportHourSelectFromDate("exportStartHourSelect", start);
+      setExportHourSelectFromDate("exportEndHourSelect", end);
+      syncExportDateTimeWheelsFromInputs();
+    }
+
+    function getExportWheelIds(prefix) {
+      const cap = prefix === "end" ? "End" : "Start";
+      return {
+        month: `export${cap}MonthSelect`,
+        day: `export${cap}DaySelect`,
+        year: `export${cap}YearSelect`,
+        hour: `export${cap}HourSelect`,
+        manual: `export${cap}ManualInput`,
+        ampm: `export${cap}AmPmInput`,
+        hidden: prefix === "end" ? "downloadEndInput" : "downloadStartInput"
+      };
+    }
+
+    function getExportWheelSelect(prefix, part) {
+      const ids = getExportWheelIds(prefix);
+      return document.getElementById(ids[part]);
+    }
+
+    function getExportBoundsYears() {
+      const bounds = getExportAvailabilityBounds();
+      const firstParts = getNyParts(bounds?.firstDate || new Date());
+      const lastParts = getNyParts(bounds?.lastDate || new Date());
+      return {
+        first: firstParts?.year || 2007,
+        last: lastParts?.year || new Date().getFullYear()
+      };
+    }
+
+    function populateExportDateTimeWheels() {
+      const { first, last } = getExportBoundsYears();
+      ["start", "end"].forEach(prefix => {
+        const monthSelect = getExportWheelSelect(prefix, "month");
+        const daySelect = getExportWheelSelect(prefix, "day");
+        const yearSelect = getExportWheelSelect(prefix, "year");
+        const hourSelect = getExportWheelSelect(prefix, "hour");
+        if (!monthSelect || !daySelect || !yearSelect || !hourSelect) return;
+        if (!monthSelect.options.length) {
+          monthSelect.innerHTML = "";
+          for (let m = 1; m <= 12; m++) {
+            const opt = document.createElement("option");
+            opt.value = String(m);
+            opt.textContent = String(m).padStart(2, "0");
+            monthSelect.appendChild(opt);
+          }
+        }
+        const oldYear = yearSelect.value;
+        const yearValues = Array.from(yearSelect.options).map(opt => opt.value).join(",");
+        const wantedYears = Array.from({ length: Math.max(0, last - first + 1) }, (_, i) => String(first + i)).join(",");
+        if (yearValues !== wantedYears) {
+          yearSelect.innerHTML = "";
+          for (let y = first; y <= last; y++) {
+            const opt = document.createElement("option");
+            opt.value = String(y);
+            opt.textContent = String(y);
+            yearSelect.appendChild(opt);
+          }
+          if (oldYear && Number(oldYear) >= first && Number(oldYear) <= last) yearSelect.value = oldYear;
+        }
+        populateExportHourSelects();
+        updateExportWheelDayOptions(prefix, false);
+      });
+    }
+
+    function updateExportWheelDayOptions(prefix, preserve = true) {
+      const monthSelect = getExportWheelSelect(prefix, "month");
+      const daySelect = getExportWheelSelect(prefix, "day");
+      const yearSelect = getExportWheelSelect(prefix, "year");
+      if (!monthSelect || !daySelect || !yearSelect) return;
+      const oldDay = preserve ? Number(daySelect.value || 1) : 1;
+      const y = Number(yearSelect.value) || getExportBoundsYears().first;
+      const m = Number(monthSelect.value) || 1;
+      const days = new Date(y, m, 0).getDate();
+      if (daySelect.options.length !== days) {
+        daySelect.innerHTML = "";
+        for (let d = 1; d <= days; d++) {
+          const opt = document.createElement("option");
+          opt.value = String(d);
+          opt.textContent = String(d).padStart(2, "0");
+          daySelect.appendChild(opt);
+        }
+      }
+      daySelect.value = String(Math.min(days, Math.max(1, oldDay)));
+    }
+
+function setExportAmPmValue(prefix, value) {
+      const normalized = String(value || "AM").toUpperCase() === "PM" ? "PM" : "AM";
+      const input = getExportWheelSelect(prefix, "ampm");
+      if (input) input.value = normalized;
+      document.querySelectorAll(`[data-export-ampm-prefix="${prefix}"][data-export-ampm]`).forEach(btn => {
+        const active = btn.dataset.exportAmpm === normalized;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+    }
+
+    function formatExportManualTyping(value) {
+      const raw = String(value || "");
+      const digits = raw.replace(/\D/g, "").slice(0, 6);
+      if (!digits) return "";
+      let out = "";
+      const mm = digits.slice(0, 2);
+      const dd = digits.slice(2, 4);
+      const yy = digits.slice(4, 6);
+      out += mm;
+      if (digits.length > 2) out += "/" + dd;
+      else if (digits.length === 2 && raw.endsWith("/")) out += "/";
+      if (digits.length > 4) out += "/" + yy;
+      else if (digits.length === 4 && /\/$/.test(raw)) out += "/";
+      return out;
+    }
+
+    function isCompleteExportManualValue(value) {
+      return /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/i.test(String(value || "").trim());
+    }
+
+    function setExportManualValidity(prefix, isValid, message = "") {
+      const manual = getExportWheelSelect(prefix, "manual");
+      if (!manual) return;
+      manual.classList.toggle("is-invalid", Boolean(!isValid && String(manual.value || "").trim()));
+      manual.setAttribute("aria-invalid", String(Boolean(!isValid && String(manual.value || "").trim())));
+      if (!isValid && message && !exportInProgress) setDownloadStatus(message, true);
+      if (isValid && !exportInProgress) setDownloadStatus("", false);
+    }
+
+    function formatExportManualDate(date) {
+      const p = date ? getNyParts(date) : null;
+      if (!p) return "";
+      const yy = String(p.year % 100).padStart(2, "0");
+      return `${String(p.month).padStart(2, "0")}/${String(p.day).padStart(2, "0")}/${yy}`;
+    }
+
+
+    function formatExportPickedDateLabel(date) {
+      const p = date ? getNyParts(date) : null;
+      if (!p) return "Select a date";
+      const d = parseStoredLocalNyToDate(`${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}T12:00`);
+      return d ? new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      }).format(d) : `${p.month}/${p.day}/${p.year}`;
+    }
+
+    function updateExportPickedDateLabels() {
+      const startBtn = document.getElementById("exportStartPickedDate");
+      const endBtn = document.getElementById("exportEndPickedDate");
+      const startDate = getRangeInputDate("downloadStartInput");
+      const endDate = getRangeInputDate("downloadEndInput");
+      if (startBtn) startBtn.textContent = startDate ? formatExportPickedDateLabel(startDate) : "Select a start date";
+      if (endBtn) endBtn.textContent = endDate ? formatExportPickedDateLabel(endDate) : "Select an end date";
+      const startManual = document.getElementById("exportStartManualInput");
+      const endManual = document.getElementById("exportEndManualInput");
+      if (startManual && document.activeElement !== startManual && startDate) startManual.value = formatExportManualDate(startDate);
+      if (endManual && document.activeElement !== endManual && endDate) endManual.value = formatExportManualDate(endDate);
+    }
+
+    function parseExportManualDate(value, prefix = null) {
+      const raw = String(value || "").trim();
+      const match = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/i);
+      if (!match) return null;
+      let month = Number(match[1]);
+      let day = Number(match[2]);
+      let year = Number(match[3]);
+      const hour = prefix === "end" ? getExportHourSelectValue("exportEndHourSelect", 23) : getExportHourSelectValue("exportStartHourSelect", 0);
+      if (year < 100) year += 2000;
+      if (!Number.isFinite(month) || !Number.isFinite(day) || !Number.isFinite(year) || !Number.isFinite(hour)) return null;
+      if (month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23) return null;
+      const parsed = parseStoredLocalNyToDate(`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(hour).padStart(2, "0")}:00`);
+      const check = parsed ? getNyParts(parsed) : null;
+      if (!check || check.year !== year || check.month !== month || check.day !== day) return null;
+      return parsed;
+    }
+
+    function getExportDateFromWheels(prefix) {
+      const manual = getExportWheelSelect(prefix, "manual");
+      const manualDate = parseExportManualDate(manual?.value, prefix);
+      if (manualDate) return manualDate;
+      const monthSelect = getExportWheelSelect(prefix, "month");
+      const daySelect = getExportWheelSelect(prefix, "day");
+      const yearSelect = getExportWheelSelect(prefix, "year");
+      const hourSelect = getExportWheelSelect(prefix, "hour");
+      if (!monthSelect || !daySelect || !yearSelect || !hourSelect) return null;
+      const y = Number(yearSelect.value);
+      const m = Number(monthSelect.value);
+      const d = Number(daySelect.value);
+      const h = Number(hourSelect.value);
+      if (![y, m, d, h].every(Number.isFinite)) return null;
+      return parseStoredLocalNyToDate(`${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}T${String(h).padStart(2, "0")}:00`);
+    }
+
+    function setExportWheelsFromDate(prefix, date) {
+      populateExportDateTimeWheels();
+      const p = date ? getNyParts(date) : null;
+      if (!p) return;
+      const monthSelect = getExportWheelSelect(prefix, "month");
+      const yearSelect = getExportWheelSelect(prefix, "year");
+      const daySelect = getExportWheelSelect(prefix, "day");
+      const hourSelect = getExportWheelSelect(prefix, "hour");
+      const manual = getExportWheelSelect(prefix, "manual");
+      if (monthSelect) monthSelect.value = String(p.month);
+      if (yearSelect) yearSelect.value = String(p.year);
+      updateExportWheelDayOptions(prefix, true);
+      if (daySelect) daySelect.value = String(p.day);
+      if (hourSelect) hourSelect.value = String(p.hour);
+      setExportAmPmValue(prefix, p.hour >= 12 ? "PM" : "AM");
+      if (manual && document.activeElement !== manual) manual.value = formatExportManualDate(date);
+      updateExportPickedDateLabels();
+    }
+
+    function syncExportDateTimeWheelsFromInputs() {
+      populateExportDateTimeWheels();
+      setExportWheelsFromDate("start", getRangeInputDate("downloadStartInput"));
+      setExportWheelsFromDate("end", getRangeInputDate("downloadEndInput"));
+    }
+
+    function getExportOrderMessage(prefix) {
+      return prefix === "start"
+        ? "Start date must be before end date. Please choose a start date/time before the end date/time."
+        : "End date must be after start date. Please choose an end date/time after the start date/time.";
+    }
+
+    function showExportDateOrderPopup(message, title = "Check export range") {
+      const finalMessage = message || "Please check the selected export range.";
+      const modal = document.getElementById("exportOrderModal");
+      const heading = document.getElementById("exportOrderModalTitle");
+      const body = document.getElementById("exportOrderModalBody");
+      if (heading) heading.textContent = title;
+      if (body) body.textContent = finalMessage;
+      if (modal) {
+        modal.hidden = false;
+        modal.classList.add("open");
+        setTimeout(() => document.getElementById("exportOrderModalOkBtn")?.focus(), 0);
+      } else {
+        window.alert(finalMessage);
+      }
+      setDownloadStatus(finalMessage, true);
+    }
+
+    function closeExportDateOrderPopup() {
+      const modal = document.getElementById("exportOrderModal");
+      if (!modal) return;
+      modal.classList.remove("open");
+      modal.hidden = true;
+    }
+
+    function isExportBoundaryOrderValid(prefix, proposedDate) {
+      if (!proposedDate) return false;
+      const other = getRangeInputDate(prefix === "end" ? "downloadStartInput" : "downloadEndInput");
+      if (!other) return true;
+      return prefix === "end" ? proposedDate.getTime() >= other.getTime() : proposedDate.getTime() <= other.getTime();
+    }
+
+    function setHiddenExportDate(prefix, date, options = {}) {
+      const ids = getExportWheelIds(prefix);
+      const input = document.getElementById(ids.hidden);
+      if (!input || !date) return false;
+      if (!options.skipOrderCheck && !isExportBoundaryOrderValid(prefix, date)) {
+        if (options.showPopup !== false) showExportDateOrderPopup(getExportOrderMessage(prefix));
+        syncExportDateTimeWheelsFromInputs();
+        return false;
+      }
+      setRangeInputDate(ids.hidden, date);
+      input.dataset.userEdited = "1";
+      updateExportPickedDateLabels();
+      return true;
+    }
+
+    function handleExportDateTimeWheelChange(prefix) {
+      updateExportWheelDayOptions(prefix, true);
+      const date = getExportDateFromWheels(prefix);
+      if (!date) return;
+      if (!setHiddenExportDate(prefix, date, { showPopup: true })) {
+        updateDownloadSummary();
+        scheduleExportTimePickerRender(true);
+        return;
+      }
+      const selected = getRangeInputDate(prefix === "end" ? "downloadEndInput" : "downloadStartInput") || date;
+      exportCalendarSelectedDayKey = getExportDayKeyFromDate(selected);
+      setExportCalendarCursor(prefix, selected);
+      syncExportDateTimeWheelsFromInputs();
+      scheduleExportTimePickerRender(true);
+      updateDownloadSummary();
+    }
+
+    function handleExportManualInput(prefix) {
+      const manual = getExportWheelSelect(prefix, "manual");
+      if (!manual) return;
+      const raw = String(manual.value || "").trim();
+      if (!raw) {
+        setExportManualValidity(prefix, true);
+        return;
+      }
+      const date = parseExportManualDate(raw, prefix);
+      if (!date) {
+        const msg = isCompleteExportManualValue(raw)
+          ? "That date is not valid. Use MM/DD/YY, then choose the time below."
+          : "Use MM/DD/YY, then choose the time below.";
+        setExportManualValidity(prefix, false, msg);
+        updateDownloadSummary();
+        return;
+      }
+      setExportManualValidity(prefix, true);
+      setExportPickMode(prefix, false);
+      if (!setHiddenExportDate(prefix, date, { showPopup: true })) {
+        const current = getRangeInputDate(prefix === "end" ? "downloadEndInput" : "downloadStartInput");
+        if (current) manual.value = formatExportManualDate(current);
+        updateDownloadSummary();
+        scheduleExportTimePickerRender(true);
+        return;
+      }
+      exportCalendarSelectedDayKey = getExportDayKeyFromDate(date);
+      setExportCalendarCursor(prefix, date);
+      setExportCalendarViewMode(prefix, "month");
+      syncExportDateTimeWheelsFromInputs();
+      scheduleExportTimePickerRender(true);
+      updateDownloadSummary();
+    }
+
+    function handleExportAmPmToggle(prefix, ampm) {
+      setExportPickMode(prefix, false);
+      setExportAmPmValue(prefix, ampm);
+      const date = getExportDateFromWheels(prefix);
+      if (!date) return;
+      if (!setHiddenExportDate(prefix, date, { showPopup: true })) {
+        updateDownloadSummary();
+        scheduleExportTimePickerRender(true);
+        return;
+      }
+      exportCalendarSelectedDayKey = getExportDayKeyFromDate(date);
+      setExportCalendarCursor(prefix, date);
+      setExportCalendarViewMode(prefix, "month");
+      syncExportDateTimeWheelsFromInputs();
+      scheduleExportTimePickerRender(true);
+      updateDownloadSummary();
+    }
+
+    function getExportDateForDayAndHour(dayKey, hour) {
+      if (!dayKey) return null;
+      return parseStoredLocalNyToDate(`${dayKey}T${String(hour).padStart(2, "0")}:00`);
+    }
+
+function getExportCalendarCursor(prefix) {
+      return prefix === "end" ? exportEndCalendarCursorDate : exportStartCalendarCursorDate;
+    }
+
+    function setExportCalendarCursor(prefix, date) {
+      const monthStart = date ? getExportMonthStart(date) : null;
+      if (prefix === "end") exportEndCalendarCursorDate = monthStart;
+      else exportStartCalendarCursorDate = monthStart;
+    }
+
+    function getExportCalendarViewMode(prefix) {
+      return prefix === "end" ? exportEndCalendarViewMode : exportStartCalendarViewMode;
+    }
+
+    function setExportCalendarViewMode(prefix, mode) {
+      const normalized = mode === "year" ? "year" : "month";
+      if (prefix === "end") exportEndCalendarViewMode = normalized;
+      else exportStartCalendarViewMode = normalized;
+    }
+
+    function setExportPickMode(mode = "start", syncCursor = true) {
+      exportRangePickMode = mode === "end" ? "end" : "start";
+      if (syncCursor) {
+        const date = getRangeInputDate(exportRangePickMode === "end" ? "downloadEndInput" : "downloadStartInput");
+        if (date) {
+          exportCalendarSelectedDayKey = getExportDayKeyFromDate(date);
+          setExportCalendarCursor(exportRangePickMode, date);
+          setExportCalendarViewMode(exportRangePickMode, "month");
+        }
+      }
+      updateExportPickModeUI();
+    }
+
+    function updateExportPickModeUI() {
+      const mode = exportRangePickMode === "end" ? "end" : "start";
+      document.querySelectorAll("[data-export-pick-panel]").forEach(panel => {
+        panel.classList.toggle("is-pick-active", panel.dataset.exportPickPanel === mode);
+      });
+      const hint = document.getElementById("exportPickerHint");
+      if (hint) hint.textContent = "";
+    }
+
+    function ensureExportCalendarCursors() {
+      const dayMap = getExportAvailabilityDayMap();
+      const bounds = getExportAvailabilityBounds();
+      if (!bounds || !dayMap.size) return;
+      const start = getRangeInputDate("downloadStartInput") || bounds.firstDate;
+      const end = getRangeInputDate("downloadEndInput") || bounds.lastDate || start;
+      if (!exportStartCalendarCursorDate) setExportCalendarCursor("start", start);
+      if (!exportEndCalendarCursorDate) setExportCalendarCursor("end", end);
+      if (!exportCalendarSelectedDayKey) exportCalendarSelectedDayKey = getExportDayKeyFromDate(start);
+    }
+
+    function setExportRangeBoundaryFromDayKey(dayKey, boundary = exportRangePickMode) {
+      const prefix = boundary === "end" ? "end" : "start";
+      const dayMap = getExportAvailabilityDayMap();
+      const meta = dayMap.get(dayKey);
+      if (!meta) return;
+      populateExportHourSelects();
+      const startEl = document.getElementById("downloadStartInput");
+      const endEl = document.getElementById("downloadEndInput");
+      const startHour = getExportHourSelectValue("exportStartHourSelect", 0);
+      const endHour = getExportHourSelectValue("exportEndHourSelect", 23);
+      const picked = getExportDateForDayAndHour(dayKey, prefix === "end" ? endHour : startHour);
+      if (!picked) return false;
+
+      if (!isExportBoundaryOrderValid(prefix, picked)) {
+        showExportDateOrderPopup(getExportOrderMessage(prefix));
+        syncExportHourSelectsFromInputs();
+        scheduleExportTimePickerRender(true);
+        updateDownloadSummary();
+        return false;
+      }
+
+      setRangeInputDate(prefix === "end" ? "downloadEndInput" : "downloadStartInput", picked);
+      if (startEl) startEl.dataset.userEdited = "1";
+      if (endEl) endEl.dataset.userEdited = "1";
+      exportCalendarSelectedDayKey = dayKey;
+      setExportCalendarCursor(prefix, picked);
+      setExportCalendarViewMode(prefix, "month");
+      syncExportHourSelectsFromInputs();
+      updateExportPickedDateLabels();
+      return true;
+    }
+
+function getSelectedPngFrameItems() {
+      return Array.from(exportPngSelections.values()).sort((a, b) => entryTimeMs(a.entry) - entryTimeMs(b.entry));
+    }
+
+function setExportRangeFromDayKey(dayKey, prefix = exportRangePickMode) {
+      const dayMap = getExportAvailabilityDayMap();
+      if (!dayMap.has(dayKey)) return false;
+      const activeMode = prefix === "end" ? "end" : "start";
+      setExportPickMode(activeMode, false);
+      const ok = setExportRangeBoundaryFromDayKey(dayKey, activeMode);
+      if (!ok) return false;
+      exportCalendarSelectedDayKey = dayKey;
+      syncExportHourSelectsFromInputs();
+      return true;
+    }
+
+    function flashExportSelectedDateBox(prefix) {
+      const cap = prefix === "end" ? "End" : "Start";
+      const picked = document.getElementById(`export${cap}ManualInput`) || document.getElementById(`export${cap}PickedDate`);
+      if (picked) {
+        picked.classList.remove("selected-date-flash");
+        void picked.offsetWidth;
+        picked.classList.add("selected-date-flash");
+      }
+    }
+
+    function renderExportBoundaryCalendar(prefix) {
+      const cap = prefix === "end" ? "End" : "Start";
+      const grid = document.getElementById(`export${cap}CalendarGrid`);
+      const titleEl = document.getElementById(`export${cap}CalendarTitle`);
+      const prevBtn = document.getElementById(`export${cap}CalendarPrevBtn`);
+      const nextBtn = document.getElementById(`export${cap}CalendarNextBtn`);
+      const container = document.querySelector(`[data-export-calendar="${prefix}"]`);
+      const weekdays = container?.querySelector(".export-calendar-weekdays");
+      if (!grid) return;
+
+      const dayMap = getExportAvailabilityDayMap();
+      const bounds = getExportAvailabilityBounds();
+      grid.innerHTML = "";
+      if (!bounds || !dayMap.size) {
+        grid.innerHTML = `<div class="export-picker-empty" style="grid-column:1/-1">No exportable dates are available.</div>`;
+        return;
+      }
+
+      let cursor = getExportCalendarCursor(prefix);
+      if (!cursor) {
+        const fallbackDate = getRangeInputDate(prefix === "end" ? "downloadEndInput" : "downloadStartInput") || (prefix === "end" ? bounds.lastDate : bounds.firstDate);
+        setExportCalendarCursor(prefix, fallbackDate);
+        cursor = getExportCalendarCursor(prefix);
+      }
+
+      const viewMode = getExportCalendarViewMode(prefix);
+      const cursorParts = getNyParts(cursor || bounds.firstDate);
+      const firstMonth = getExportMonthKey(bounds.firstDate);
+      const lastMonth = getExportMonthKey(bounds.lastDate);
+      const currentMonth = getExportMonthKey(cursor);
+      const firstYear = getNyParts(bounds.firstDate)?.year || cursorParts.year;
+      const lastYear = getNyParts(bounds.lastDate)?.year || cursorParts.year;
+
+      if (titleEl) {
+        const monthName = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "America/New_York" }).format(cursor || bounds.firstDate);
+        titleEl.textContent = viewMode === "year" ? String(cursorParts.year) : monthName;
+        titleEl.title = viewMode === "year" ? "Show month calendar" : "Show year view";
+      }
+      if (prevBtn) prevBtn.disabled = viewMode === "year" ? cursorParts.year <= firstYear : currentMonth <= firstMonth;
+      if (nextBtn) nextBtn.disabled = viewMode === "year" ? cursorParts.year >= lastYear : currentMonth >= lastMonth;
+
+      if (viewMode === "year") {
+        if (weekdays) weekdays.style.display = "none";
+        grid.classList.add("year-view");
+        const monthMap = getExportAvailabilityMonthMap();
+        for (let m = 1; m <= 12; m++) {
+          const monthKey = `${cursorParts.year}-${String(m).padStart(2, "0")}`;
+          const meta = monthMap.get(monthKey);
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "export-calendar-day";
+          const labelDate = parseStoredLocalNyToDate(`${monthKey}-01T00:00`);
+          btn.textContent = labelDate ? new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "America/New_York" }).format(labelDate) : monthKey;
+          if (meta) {
+            btn.classList.add("available");
+            if (meta.forecast) btn.classList.add("forecast-day");
+            btn.addEventListener("click", () => {
+              setExportCalendarCursor(prefix, parseStoredLocalNyToDate(`${monthKey}-01T00:00`) || cursor || bounds.firstDate);
+              setExportCalendarViewMode(prefix, "month");
+              scheduleExportTimePickerRender(true);
+            });
+          } else {
+            btn.disabled = true;
+            btn.classList.add("empty");
+          }
+          grid.appendChild(btn);
+        }
+        return;
+      }
+
+      if (weekdays) weekdays.style.display = "grid";
+      grid.classList.remove("year-view");
+      const year = Number(cursorParts.year);
+      const month = Number(cursorParts.month);
+      const monthText = String(month).padStart(2, "0");
+      const firstOfMonth = parseStoredLocalNyToDate(`${year}-${monthText}-01T00:00`);
+      const startPad = getExportWeekdayIndex(firstOfMonth);
+      const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const start = getRangeInputDate("downloadStartInput");
+      const end = getRangeInputDate("downloadEndInput");
+      const rangeStartMs = start ? start.getTime() : null;
+      const rangeEndMs = end ? end.getTime() : null;
+      const minRangeMs = rangeStartMs != null && rangeEndMs != null ? Math.min(rangeStartMs, rangeEndMs) : null;
+      const maxRangeMs = rangeStartMs != null && rangeEndMs != null ? Math.max(rangeStartMs, rangeEndMs) : null;
+      const startDayKey = start ? getExportDayKeyFromDate(start) : "";
+      const endDayKey = end ? getExportDayKeyFromDate(end) : "";
+
+      for (let i = 0; i < startPad; i++) {
+        const blank = document.createElement("div");
+        blank.className = "export-calendar-day empty";
+        grid.appendChild(blank);
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dayKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const meta = dayMap.get(dayKey);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "export-calendar-day";
+        if (meta) {
+          btn.classList.add("available");
+          if (meta.forecast) btn.classList.add("forecast-day");
+          btn.textContent = String(day);
+          btn.title = meta.forecast && meta.observed ? "Forecast + historical data available" : meta.forecast ? "Forecast data available" : "Historical data available";
+          const firstMs = meta.firstMs ?? (meta.firstDate ? meta.firstDate.getTime() : null);
+          const lastMs = meta.lastMs ?? (meta.lastDate ? meta.lastDate.getTime() : null);
+          if (minRangeMs != null && maxRangeMs != null && firstMs != null && lastMs != null && lastMs >= minRangeMs && firstMs <= maxRangeMs) {
+            btn.classList.add("in-range");
+          }
+          if (dayKey === startDayKey) btn.classList.add("range-start");
+          if (dayKey === endDayKey) btn.classList.add("range-end");
+          btn.classList.toggle("selected", prefix === "end" ? dayKey === endDayKey : dayKey === startDayKey);
+          btn.addEventListener("click", () => {
+            const changed = setExportRangeFromDayKey(dayKey, prefix);
+            if (!changed) return;
+            flashExportSelectedDateBox(prefix);
+            scheduleExportTimePickerRender(true);
+            updateDownloadSummary();
+          });
+        } else {
+          const dayStart = parseStoredLocalNyToDate(`${dayKey}T00:00`);
+          const dayEnd = parseStoredLocalNyToDate(`${dayKey}T23:00`);
+          const withinExportRange = bounds?.firstDate && bounds?.lastDate && dayEnd && dayStart && dayEnd.getTime() >= bounds.firstDate.getTime() && dayStart.getTime() <= bounds.lastDate.getTime();
+          btn.textContent = "";
+          btn.disabled = true;
+          btn.title = withinExportRange ? "No data available" : "";
+          btn.classList.add(withinExportRange ? "no-data" : "empty");
+        }
+        grid.appendChild(btn);
+      }
+    }
+
+    function renderExportTimePicker(force = false) {
+      const wrap = document.getElementById("exportTimePicker");
+      const dataRangeEl = document.getElementById("exportDataRangeText");
+      if (!wrap) return;
+
+      wrap.hidden = false;
+      const bounds = getDownloadArchiveBounds();
+      if (dataRangeEl) {
+        if (currentDataMode === "return-interval") {
+          dataRangeEl.innerHTML = `<span>Modeled storm</span><strong>${Number(returnIntervalData?.windowHours || 24)}-hour synthetic event</strong>`;
+        } else if (bounds?.firstDate && bounds?.lastDate) {
+          dataRangeEl.innerHTML = `<span>Available data</span><strong>${formatExportCompactDate(bounds.firstDate)} – ${formatExportCompactDate(bounds.lastDate)}</strong>`;
+        } else {
+          dataRangeEl.innerHTML = `<span>Available data</span><strong>Loading…</strong>`;
+        }
+      }
+    }
+
+function updateDownloadSummary() {
+      const summary = document.getElementById("downloadSummary");
+      if (!summary || !isDownloadModalOpen()) return;
+
+      syncDownloadRangeInputs(false);
+      const scope = getDownloadScopeValue();
+      const format = getDownloadFormatValue();
+      const formatLabel = format.toUpperCase();
+      const aspectConfig = getExportAspectConfig();
+      const aspectLabel = aspectConfig.label;
+      const resolutionLabel = format === "png" ? `, ${aspectConfig.resolutionLabel}` : "";
+      const extentLabel = getDownloadExtentValue() === "town" ? "Fill North Wildwood" : "Current View";
+      const speed = EXPORT_GIF_SPEEDS[getDownloadSpeedValue()]?.label || "Normal";
+      const interval = getDownloadIntervalConfig();
+      const frameLimit = getDownloadFrameLimit();
+
+      if (format === "png") {
+        const selectedItems = getSelectedPngFrameItems();
+        if (selectedItems.length) {
+          summary.textContent = `PNG (${aspectLabel}${resolutionLabel}, ${extentLabel}) export of ${selectedItems.length} selected frame${selectedItems.length === 1 ? "" : "s"}.`;
+          return;
+        }
+        if (scope === "range") {
+          const range = getDownloadRangeRequest();
+          const count = range ? Math.min(getDownloadRangeSummaryFrameCount(range), frameLimit) : 0;
+          summary.textContent = count
+            ? `PNG (${aspectLabel}${resolutionLabel}, ${interval.label}, ${extentLabel}) export of ${count} frame${count === 1 ? "" : "s"}.`
+            : "No frames are available for export.";
+          return;
+        }
+        const item = getDownloadFrameItemFromEntry(getDownloadCurrentEntry(), currentHourIndex);
+        summary.textContent = item ? `PNG (${aspectLabel}${resolutionLabel}, ${extentLabel}) export at ${formatHourEntryTime(item.entry)}.` : "No frames are available for export.";
+        return;
+      }
+
+      if (scope === "range") {
+        const range = getDownloadRangeRequest();
+        if (!range) {
+          summary.textContent = "No frames are available for export.";
+          return;
+        }
+        if (range.durationMs > EXPORT_RANGE_MAX_MS) {
+          summary.textContent = `${formatLabel} (${aspectLabel}, ${speed}, ${extentLabel}) export range is longer than ${EXPORT_RANGE_MAX_HOURS} hours and is not allowed.`;
+          return;
+        }
+        const frameCount = Math.min(getDownloadRangeSummaryFrameCount(range), frameLimit);
+        summary.textContent = `${formatLabel} (${aspectLabel}, ${interval.label}, ${speed}, ${extentLabel}) export of ${frameCount} frame${frameCount === 1 ? "" : "s"} from ${formatFixedESTFromUtc(range.startDate.toISOString())} to ${formatFixedESTFromUtc(range.endDate.toISOString())}.`;
+        return;
+      }
+
+      const item = getDownloadFrameItemFromEntry(getDownloadCurrentEntry(), currentHourIndex);
+      if (!item) {
+        summary.textContent = "No frames are available for export.";
+        return;
+      }
+      summary.textContent = `${formatLabel} (${aspectLabel}, ${speed}, ${extentLabel}) export at ${formatHourEntryTime(item.entry)}.`;
+    }
+
+
+
+function updateExportSegmentedUI() {
+      const scopeValue = getDownloadScopeValue();
+      const formatValue = getDownloadFormatValue();
+      const intervalValue = getDownloadIntervalValue();
+      const aspectValue = getDownloadAspectValue();
+      const extentValue = getDownloadExtentValue();
+      const speedValue = getDownloadSpeedValue();
+
+      document.querySelectorAll("#downloadScopeControl button[data-scope]").forEach(btn => {
+        const active = btn.dataset.scope === scopeValue;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+      document.querySelectorAll("#downloadFormatControl button[data-format]").forEach(btn => {
+        const active = btn.dataset.format === formatValue;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+      document.querySelectorAll("#downloadIntervalControl button[data-export-interval]").forEach(btn => {
+        const active = btn.dataset.exportInterval === intervalValue;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+      document.querySelectorAll("#downloadAspectControl button[data-aspect]").forEach(btn => {
+        const active = btn.dataset.aspect === aspectValue;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+      document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(btn => {
+        const active = btn.dataset.extent === extentValue;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+      document.querySelectorAll("#downloadSpeedControl button[data-speed]").forEach(btn => {
+        const active = btn.dataset.speed === speedValue;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+      const speedField = document.getElementById("gifSpeedField");
+      if (speedField) speedField.hidden = formatValue !== "gif";
+      const btnLabel = document.getElementById("downloadBtnLabel");
+      if (btnLabel && !exportInProgress) {
+        btnLabel.textContent = formatValue === "png" ? "Download PNG Frames" : "Download GIF";
+      }
+    }
+
+    function resetExportPanelToDefaults() {
+      if (exportInProgress) return;
+
+      const setHidden = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value;
+      };
+
+      setHidden("downloadFormatSelect", "gif");
+      setHidden("downloadIntervalSelect", "hourly");
+      setHidden("downloadAspectSelect", "viewport");
+      setHidden("downloadSpeedSelect", "normal");
+      setHidden("downloadScopeSelect", "range");
+      setHidden("downloadExtentSelect", "current");
+
+      closeExportDateOrderPopup();
+      setDownloadStatus("", false);
+      updateExportSegmentedUI();
+      syncDownloadRangeInputs(true);
+      applyExportStageAspect("viewport");
+      updateDownloadSummary();
+      setTimeout(() => document.getElementById("downloadResetBtn")?.blur(), 0);
+    }
+
+    function setDownloadBusy(isBusy, message = "") {
+      if (isBusy) {
+        if (!exportInProgress) exportViewportBounds = getActiveMapBounds();
+        exportCancelRequested = false;
+      } else {
+        exportViewportBounds = null;
+        exportCancelRequested = false;
+        activeGifExport = null;
+      }
+      exportInProgress = isBusy;
+      const btn = document.getElementById("downloadBtn");
+      const btnLabel = document.getElementById("downloadBtnLabel");
+      const progressCloseBtn = document.getElementById("exportProgressCloseBtn");
+      const scope = document.getElementById("downloadScopeSelect");
+      const start = document.getElementById("downloadStartInput");
+      const format = document.getElementById("downloadFormatSelect");
+      const interval = document.getElementById("downloadIntervalSelect");
+      const aspect = document.getElementById("downloadAspectSelect");
+      const speed = document.getElementById("downloadSpeedSelect");
+      const extent = document.getElementById("downloadExtentSelect");
+      const end = document.getElementById("downloadEndInput");
+      const exportEditorControls = [
+        "downloadStartDateText",
+        "downloadStartDatePicker",
+        "downloadStartCalendarBtn",
+        "downloadStartTimeSelect",
+        "downloadEndDateText",
+        "downloadEndDatePicker",
+        "downloadEndCalendarBtn",
+        "downloadEndTimeSelect"
+      ].map(id => document.getElementById(id)).filter(Boolean);
+      if (btn) {
+        btn.disabled = isBusy;
+        btn.classList.toggle("is-busy", isBusy);
+      }
+      if (btnLabel) {
+        btnLabel.textContent = isBusy
+          ? "Creating export..."
+          : getDownloadFormatValue() === "png" ? "Download PNG Frames" : "Download GIF";
+      }
+      if (progressCloseBtn) {
+        progressCloseBtn.disabled = false;
+        progressCloseBtn.classList.toggle("is-cancel-action", isBusy);
+        progressCloseBtn.textContent = isBusy ? "Cancel" : "×";
+        progressCloseBtn.setAttribute("aria-label", isBusy ? "Cancel export" : "Hide export progress");
+        progressCloseBtn.title = isBusy ? "Cancel export" : "Hide export progress";
+      }
+      if (scope) scope.disabled = isBusy;
+      if (format) format.disabled = isBusy;
+      if (interval) interval.disabled = isBusy;
+      if (aspect) aspect.disabled = isBusy;
+      if (speed) speed.disabled = isBusy;
+      document.querySelectorAll("#downloadFormatControl button, #downloadIntervalControl button, #downloadAspectControl button, #downloadSpeedControl button").forEach(el => { el.disabled = isBusy; });
+      const picker = document.getElementById("exportTimePicker");
+      if (picker) picker.classList.toggle("is-busy", isBusy);
+      if (start) start.disabled = isBusy;
+      if (end) end.disabled = isBusy;
+      const modeledDateLocked = currentDataMode === "return-interval";
+      const modeledDateControlIds = new Set([
+        "downloadStartDateText",
+        "downloadStartDatePicker",
+        "downloadStartCalendarBtn",
+        "downloadEndDateText",
+        "downloadEndDatePicker",
+        "downloadEndCalendarBtn"
+      ]);
+      exportEditorControls.forEach(control => {
+        control.disabled = isBusy || (modeledDateLocked && modeledDateControlIds.has(control.id));
+      });
+      if (isBusy) {
+        setExportProgressVisible(true);
+        setExportProgress(message || "Preparing export...", 0, false);
+      }
+      setDownloadStatus(message, false);
+    }
+
+    function wait(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function waitForStableRender() {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await wait(EXPORT_CAPTURE_DELAY_MS);
+    }
+
+    function waitForImageElementReady(img, timeoutMs = 1500) {
+      if (!img || !img.src || img.style.display === "none" || !img.classList.contains("is-visible")) {
+        return Promise.resolve();
+      }
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise(resolve => {
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          img.removeEventListener("load", done);
+          img.removeEventListener("error", done);
+          resolve();
+        };
+        const timer = setTimeout(done, timeoutMs);
+        img.addEventListener("load", done, { once: true });
+        img.addEventListener("error", done, { once: true });
+      });
+    }
+
+    async function waitForExportChromeReady() {
+      const partner = document.getElementById("exportPartnerLogo");
+      const brand = document.getElementById("mapTitlePartnerLogo");
+      if (partner && !partner.getAttribute?.("src") && brand?.getAttribute?.("src")) {
+        setExportLogoImage("exportPartnerLogo", brand.src, brand.alt || "ShorelySafe");
+      }
+      for (const id of ["exportTownLogo", "exportPartnerLogo"]) {
+        const image = document.getElementById(id);
+        if (image) image.loading = "eager";
+      }
+      const images = [
+        document.getElementById("exportTownLogo"),
+        document.getElementById("exportPartnerLogo")
+      ];
+      await Promise.all(images.map(async img => {
+        if (!img?.src || !img.classList.contains("is-visible") || img.style.display === "none") return;
+        if (!img.src.startsWith("data:")) {
+          const source = await getExportImageElement(img.src);
+          throwIfExportCancelled();
+          if (!source) throw new Error("The export logo could not load. Please try again.");
+          const canvas = document.createElement("canvas");
+          try {
+            canvas.width = source.naturalWidth;
+            canvas.height = source.naturalHeight;
+            const context = canvas.getContext("2d");
+            if (!context) throw new Error("Could not prepare the export logo.");
+            context.drawImage(source, 0, 0);
+            // html2canvas otherwise fetches the remote logo again for every
+            // capture and silently omits it when that second request is slow.
+            img.src = canvas.toDataURL("image/png");
+          } finally {
+            canvas.width = 1;
+            canvas.height = 1;
+          }
+        }
+        if (typeof img.decode === "function") await img.decode();
+        else await waitForImageElementReady(img);
+        throwIfExportCancelled();
+      }));
+    }
+
+
+    function waitForTileLayerReady(layer, timeoutMs = 3500) {
+      return new Promise(resolve => {
+        if (!layer || typeof layer.on !== "function") {
+          resolve();
+          return;
+        }
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          layer.off?.("load", done);
+          layer.off?.("tileerror", done);
+          resolve();
+        };
+        const timer = setTimeout(done, timeoutMs);
+        layer.on("load", done);
+        layer.on("tileerror", done);
+        if (typeof layer.isLoading === "function" && !layer.isLoading()) {
+          setTimeout(done, 80);
+        }
+      });
+    }
+
+    async function waitForExportMapReady(extraDelayMs = 120) {
+      if (!exportMap) return;
+      exportMap.invalidateSize(false);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const waits = [];
+      if (exportBasemapColorLayer) waits.push(waitForTileLayerReady(exportBasemapColorLayer));
+      if (exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0) waits.push(waitForTileLayerReady(exportRoadsLayer));
+      await Promise.race([
+        Promise.all(waits),
+        wait(3800)
+      ]).catch(() => null);
+      // Esri's vector layer load event precedes the underlying WebGL render.
+      // Capturing then can produce an empty canvas, especially on phones.
+      const vectorBasemap = exportBasemapColorLayer;
+      try {
+        await waitForExportVectorLayerReady(vectorBasemap);
+      } catch (error) {
+        if (isExportCancelledError(error)) throw error;
+        // A stalled vector worker is equivalent to the vector layer's error
+        // event. Use the existing raster fallback and verify its actual tiles.
+        useExportFallbackBasemap(vectorBasemap);
+      }
+      await Promise.all([
+        waitForExportRasterLayerReady(exportBasemapColorLayer),
+        exportSatelliteLayer && exportMap.hasLayer(exportSatelliteLayer)
+          ? waitForExportRasterLayerReady(exportSatelliteLayer) : null,
+        exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0
+          ? waitForExportRasterLayerReady(exportRoadsLayer) : null,
+        exportBuildingsLayer && exportMap.hasLayer(exportBuildingsLayer)
+          ? waitForExportVectorLayerReady(exportBuildingsLayer) : null
+      ]);
+      if (extraDelayMs > 0) await wait(extraDelayMs);
+    }
+
+    function getFriendlyExportError(err, format = "") {
+      const raw = String(err?.message || err || "Download failed.").trim();
+      const formatLabel = String(format || "export").toUpperCase();
+      if (isExportCancelledError(err)) return "Export cancelled.";
+      if (!raw) return `${formatLabel} export failed.`;
+      if (/JSZip|zip export library/i.test(raw)) {
+        return "PNG export could not package multiple images. Reload the page and try again.";
+      }
+      if (/gif\.worker|Failed to construct 'Worker'|cannot be accessed from origin/i.test(raw)) {
+        return "GIF export was blocked by a worker loading issue. Reload the page and try again.";
+      }
+      if (/formatNyDateKey|format date key|date key/i.test(raw)) {
+        return "The export date picker had an internal date-format issue. Reload the page; if it continues, use MM/DD/YY for both export dates.";
+      }
+      if (/Failed to fetch|NetworkError|Load failed/i.test(raw)) {
+        return "GIF export failed while loading browser export components. Reload the page and try again.";
+      }
+      if (/html2canvas|canvasToBlob|CanvasToBlob|Canvas export failed|taint|cross-origin resource/i.test(raw)) {
+        return `${formatLabel} export could not capture the map cleanly. Reload the page and try again.`;
+      }
+      if (raw.length > 140) {
+        return `${formatLabel} export failed. Check the browser console for the full error.`;
+      }
+      return raw;
+    }
+
+    async function getSameOriginWorkerUrl(sourceUrl) {
+      const response = await fetch(sourceUrl, { mode: "cors", cache: "force-cache" });
+      if (!response.ok) {
+        throw new Error(`Could not load worker script (${response.status}).`);
+      }
+      const scriptText = await response.text();
+      return URL.createObjectURL(new Blob([scriptText], { type: "text/javascript" }));
+    }
+
+    async function waitForExportVectorLayerReady(layer, timeoutMs = 15000) {
+      if (!layer || typeof layer._createMaplibreLayer !== "function") return;
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        throwIfExportCancelled();
+        if (layer._map === null) return; // The layer's error handler installed a fallback.
+        const glMap = layer._maplibreGL?._glMap;
+        if (glMap?.loaded() && glMap.areTilesLoaded()) {
+          glMap.triggerRepaint();
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          return;
+        }
+        await wait(100);
+      }
+      throw new Error("The map background is still loading. Please try the export again.");
+    }
+
+    async function waitForExportRasterLayerReady(layer, timeoutMs = 30000) {
+      if (!layer || typeof layer.isLoading !== "function") return;
+      const deadline = Date.now() + timeoutMs;
+      let retriedFailedTiles = false;
+      while (Date.now() < deadline) {
+        throwIfExportCancelled();
+        const tiles = Array.from(layer.getContainer()?.querySelectorAll("img.leaflet-tile, canvas.leaflet-tile") || []);
+        if (tiles.some(tile => tile.complete && !tile.naturalWidth)) {
+          // A preview and its download share this layer. Re-request failed tiles
+          // once so a transient preview failure cannot poison the next capture.
+          if (!retriedFailedTiles && typeof layer.redraw === "function") {
+            retriedFailedTiles = true;
+            layer.redraw();
+            await wait(100);
+            continue;
+          }
+          throw new Error("A map tile could not load. Please try the export again.");
+        }
+        if (!layer.isLoading() && tiles.length && tiles.every(tile => tile.complete && tile.naturalWidth > 0)) {
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          return;
+        }
+        await wait(100);
+      }
+      throw new Error("The map background is still loading. Please try the export again.");
+    }
+
+    function useExportFallbackBasemap(expectedLayer = exportBasemapColorLayer) {
+      if (expectedLayer !== exportBasemapColorLayer) return;
+      if (expectedLayer && exportMap.hasLayer(expectedLayer)) {
+        // Esri Leaflet 4.3.2 cannot remove a vector layer before its style is
+        // ready: onRemove assumes _maplibreGL exists, and its queued ready
+        // listener would otherwise re-add the abandoned layer later.
+        if (typeof expectedLayer._createMaplibreLayer === "function" && !expectedLayer._maplibreGL) {
+          expectedLayer.off("ready");
+          expectedLayer.onRemove = () => {};
+        }
+        exportMap.removeLayer(expectedLayer);
+      }
+      exportBasemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
+        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+        minZoom: 0, maxZoom: 24, maxNativeZoom: 19,
+        subdomains: "abc", crossOrigin: true, updateWhenIdle: true, keepBuffer: 1,
+        className: "basemap-color-layer", pane: "basemapColorPane"
+      }).addTo(exportMap);
+    }
+
+    function isOutsideExportStage(element) {
+      // html2canvas clones the document before capturing the requested element.
+      // Exclude the live application so its maps/images cannot delay the clone
+      // or allocate a second copy of the interactive map during an export.
+      const stage = document.getElementById("exportStage");
+      return element.parentElement === document.body && element !== stage && !element.contains(stage)
+        && !["STYLE", "LINK"].includes(element.tagName);
+    }
+
+    async function getExportFrameImage(item) {
+      const displayStage = getOverlayStage(getStageValue(item?.entry));
+      if (displayStage == null) throw new Error("Stage is not numeric for the selected hour.");
+      const phase = getHydraulicPhaseForEntry(item.entry, item.index, item.series);
+      // Resolve each frame before using the bounded URL cache. A rounded stage
+      // is not an identity for a retained-water or physics forecast raster.
+      const physicsRecord = currentOverlayMode === "depth"
+        ? getPhysicsDisplayRecord(getPhysicsAssetForEntry(item.entry), "depth") : null;
+      const record = physicsRecord
+        || await getHydraulicOverlayRecord(currentOverlayMode, displayStage, phase, item.entry, item.series);
+      if (!record?.url) throw new Error("The flood image is unavailable for the selected time.");
+      const image = await getExportImageElement(record.url);
+      throwIfExportCancelled();
+      if (!image) throw new Error("The flood image could not load. Please try the export again.");
+      return image;
+    }
+
+    function createStreamingGifEncoder(options, frameCount) {
+      // The gif.js worker protocol emits a header for index 0 and a trailer for
+      // the last frame. Encode one transferred RGBA buffer at a time, retaining
+      // only compressed Blob parts instead of every full-resolution canvas.
+      const worker = new Worker(options.workerScript);
+      const parts = [];
+      let nextIndex = 0;
+      let globalPalette = options.globalPalette;
+      let pending = null;
+      let closed = false;
+      const dispose = (error = new Error("GIF export was aborted.")) => {
+        closed = true;
+        worker.terminate();
+        parts.length = 0;
+        if (pending) {
+          clearTimeout(pending.timer);
+          const reject = pending.reject;
+          pending = null;
+          reject(error);
+        }
+      };
+      worker.onerror = event => {
+        event.preventDefault();
+        dispose(new Error("GIF encoding failed. Please try the export again."));
+      };
+      worker.onmessageerror = () => dispose(new Error("Could not read the encoded GIF frame."));
+      worker.onmessage = event => {
+        if (!pending || closed) return;
+        const frame = event.data;
+        if (frame?.index !== nextIndex || !Array.isArray(frame.data) || !frame.data.length) {
+          dispose(new Error("The GIF encoder returned an invalid frame."));
+          return;
+        }
+        const pages = frame.data.map((page, index) => index === frame.data.length - 1
+          ? page.subarray(0, frame.cursor) : page);
+        parts.push(new Blob(pages));
+        if (globalPalette === true) globalPalette = frame.globalPalette;
+        nextIndex += 1;
+        clearTimeout(pending.timer);
+        const resolve = pending.resolve;
+        pending = null;
+        resolve();
+      };
+      return {
+        abort: dispose,
+        dispose,
+        getGlobalPalette: () => globalPalette,
+        async addFrame(canvas, { delay }) {
+          throwIfExportCancelled();
+          if (closed || pending || nextIndex >= frameCount) throw new Error("GIF encoder is not ready for another frame.");
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("Could not read the GIF frame.");
+          const data = context.getImageData(0, 0, options.width, options.height).data;
+          await new Promise((resolve, reject) => {
+            pending = { resolve, reject, timer: setTimeout(() => {
+              dispose(new Error("GIF encoding timed out. Please try the export again."));
+            }, 120000) };
+            try {
+              worker.postMessage({
+                index: nextIndex, last: nextIndex === frameCount - 1,
+                width: options.width, height: options.height,
+                quality: options.quality, dither: options.dither,
+                globalPalette, repeat: 0,
+                transparent: null, delay, canTransfer: true, data
+              }, [data.buffer]);
+            } catch (error) {
+              dispose(error);
+            }
+          });
+          throwIfExportCancelled();
+        },
+        finish() {
+          if (closed || pending || nextIndex !== frameCount) throw new Error("The GIF export is incomplete.");
+          return new Blob(parts, { type: "image/gif" });
+        }
+      };
+    }
+
+    async function getGifWorkerUrl() {
+      if (gifWorkerUrlPromise) return gifWorkerUrlPromise;
+      gifWorkerUrlPromise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL).catch(error => {
+        gifWorkerUrlPromise = null;
+        throw error;
+      });
+      return gifWorkerUrlPromise;
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
+    function makeExportBoundaryVector(style) {
+      const boundaryStyle = {
+        fill: false,
+        fillOpacity: 0,
+        stroke: true,
+        ...style
+      };
+
+      if (municipalBoundaryFeature) {
+        return L.geoJSON(municipalBoundaryFeature, {
+          pane: "boundaryPane",
+          interactive: false,
+          style: () => boundaryStyle
+        });
+      }
+
+      const fallbackRing = getPrimaryMunicipalBoundaryRing();
+      return L.polygon(fallbackRing.length ? fallbackRing : ringFromLatLngBounds(getBoundaryDrivenOverlayBounds()), {
+        pane: "boundaryPane",
+        interactive: false,
+        smoothFactor: 0,
+        ...boundaryStyle
+      });
+    }
+
+    function makeExportBoundaryMask() {
+      return L.polygon(createBoundaryMaskGeometry(), {
+        pane: "maskPane",
+        interactive: false,
+        smoothFactor: 0,
+        stroke: false,
+        fill: true,
+        fillColor: "#d7d7d7",
+        fillOpacity: 0.62,
+        bubblingMouseEvents: false
+      });
+    }
+
+    function ensureExportMap() {
+      if (exportMap) return exportMap;
+
+      exportMap = L.map("exportMap", {
+        zoomControl: false,
+        attributionControl: false,
+        minZoom: 0,
+        maxZoom: 24,
+        zoomSnap: 0,
+        zoomDelta: 1,
+        preferCanvas: true,
+        zoomAnimation: false,
+        fadeAnimation: false,
+        markerZoomAnimation: false
+      });
+
+      exportMap.createPane("basemapColorPane");
+      exportMap.createPane("satellitePane");
+      exportMap.createPane("boundaryPane");
+      exportMap.createPane("floodPane");
+      exportMap.createPane("parcelsPane");
+      exportMap.createPane("buildingsPane");
+      exportMap.createPane("roadsPane");
+      exportMap.createPane("maskPane");
+      exportMap.getPane("basemapColorPane").style.zIndex = 190;
+      exportMap.getPane("satellitePane").style.zIndex = 200;
+      exportMap.getPane("boundaryPane").style.zIndex = 640;
+      exportMap.getPane("floodPane").style.zIndex = 500;
+      exportMap.getPane("parcelsPane").style.zIndex = 610;
+      exportMap.getPane("buildingsPane").style.zIndex = 620;
+      exportMap.getPane("roadsPane").style.zIndex = 710;
+      exportMap.getPane("maskPane").style.zIndex = 630;
+
+      exportBasemapColorLayer = makeEsriBuildingBasemapLayer();
+      if (exportBasemapColorLayer) {
+        exportBasemapColorLayer.addTo(exportMap);
+        const vectorBasemap = exportBasemapColorLayer;
+        vectorBasemap.on("error load-error", () => useExportFallbackBasemap(vectorBasemap));
+      } else {
+        useExportFallbackBasemap();
+      }
+
+      exportSatelliteLayer = L.tileLayer(ESRI_WORLD_IMAGERY_URL, {
+        attribution: "Tiles &copy; Esri",
+        minZoom: 0,
+        maxZoom: 24,
+        maxNativeZoom: 19,
+        crossOrigin: true,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        pane: "satellitePane"
+      });
+      updateExportSatelliteLayer();
+
+      exportRoadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
+        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+        minZoom: 0,
+        maxZoom: 24,
+        // A 512px tile from one source zoom lower covers the same geography
+        // while making road names twice as large in both PNG and GIF exports.
+        tileSize: 512,
+        zoomOffset: -1,
+        maxNativeZoom: 20,
+        roadLabelFilter: "grayscale(1) contrast(1.15)",
+        roadLabelHalo: 2,
+        subdomains: "abcd",
+        crossOrigin: true,
+        opacity: 0,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        className: "roads-layer",
+        pane: "roadsPane"
+      }).addTo(exportMap);
+
+      updateExportBuildingsLayer();
+      // Without a valid inner ring a world mask would gray out the entire town.
+      // First-frame preparation waits for geometry before this map is captured.
+      if (hasValidExportBoundaryGeometry()) updateExportBoundaryVisibility();
+      fitExportMapToSelectedExtent(exportMap);
+      return exportMap;
+    }
+
+    function updateExportSatelliteLayer() {
+      if (!exportMap || !exportSatelliteLayer) return;
+      const enabled = document.getElementById("satelliteToggle")?.classList.contains("on");
+      if (enabled) {
+        if (!exportMap.hasLayer(exportSatelliteLayer)) exportSatelliteLayer.addTo(exportMap);
+      } else if (exportMap.hasLayer(exportSatelliteLayer)) {
+        exportMap.removeLayer(exportSatelliteLayer);
+      }
+    }
+
+    function updateExportBuildingsLayer() {
+      if (!exportMap) return;
+      const enabled = document.getElementById("buildingsToggle")?.classList.contains("on");
+      if (enabled) {
+        if (!exportBuildingsLayer) {
+          exportBuildingsLayer = makeEsriBuildingForegroundLayer("buildingsPane");
+        }
+        if (exportBuildingsLayer && !exportMap.hasLayer(exportBuildingsLayer)) {
+          exportBuildingsLayer.addTo(exportMap);
+        }
+      } else if (exportBuildingsLayer && exportMap.hasLayer(exportBuildingsLayer)) {
+        exportMap.removeLayer(exportBuildingsLayer);
+      }
+    }
+
+    async function updateExportParcelsLayer() {
+      if (!exportMap) return;
+      const enabled = document.getElementById("parcelsToggle")?.classList.contains("on");
+      if (!enabled) {
+        if (exportParcelsLayer && exportMap.hasLayer(exportParcelsLayer)) {
+          exportMap.removeLayer(exportParcelsLayer);
+        }
+        return;
+      }
+      if (!exportParcelsLayer) {
+        await preloadImage(PARCEL_BOUNDARY_PNG_URL);
+        exportParcelsLayer = createHydraulicImageOverlay(
+          PARCEL_BOUNDARY_PNG_URL,
+          {
+            pane: "parcelsPane",
+            opacity: 0.78,
+            interactive: false,
+            crossOrigin: true,
+            zIndex: 610
+          }
+        );
+      }
+      if (!exportMap.hasLayer(exportParcelsLayer)) exportParcelsLayer.addTo(exportMap);
+    }
+
+    function updateExportLegend(entry = null) {
+      const source = document.getElementById("legendDock");
+      const target = document.getElementById("exportLegendDock");
+      if (!source || !target) return;
+      const isDepthLegend = currentOverlayMode === "depth";
+      const isPhysicsDepth = isDepthLegend && physicsForecastApplies();
+      const isPhysicsDailyMaximum = isPhysicsDepth && Boolean(entry?.isDailyMaximum);
+      target.dataset.exportLegendMode = isDepthLegend ? "depth" : "dynamic";
+      target.innerHTML = isDepthLegend
+        ? `
+          <div class="export-depth-key">
+            <div class="export-depth-key-heading">
+              <strong>Flood Depth</strong>
+            </div>
+            <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Uncertainty areas followed by connected modeled flood depth from shallow to deep"}">
+              <div class="export-depth-key-gradient" aria-hidden="true"></div>
+              <div class="export-depth-key-ends" aria-hidden="true">
+                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "Uncertainty"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
+              </div>
+            </div>
+            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green</strong> means uncertainty."}</div>
+          </div>
+        `
+        : `<div class="export-depth-key"><div class="export-depth-key-heading"><strong>Flood Stages</strong></div><div class="stage-legend-scale"><div class="stage-legend-uncertainty"><span>Uncertainty</span><div class="stage-legend-green"></div></div><div class="stage-legend-levels"><div class="stage-legend-labels"><span>Minor</span><span>Moderate</span><span>Major</span></div><div class="stage-legend-gradient"></div></div></div></div>`;
+
+      target.querySelectorAll("button, .help-btn, #legendHelpBtn").forEach(el => el.remove());
+      target.classList.remove("legend-collapsed", "legend-expanded", "legend-floating-user");
+      target.style.background = "#1b2536";
+      target.style.border = "1px solid rgba(191,219,254,.18)";
+      target.style.boxShadow = "0 12px 24px rgba(0,0,0,.24)";
+      target.style.backdropFilter = "none";
+      target.style.webkitBackdropFilter = "none";
+      target.style.overflow = "visible";
+
+      const header = target.querySelector("#legendHeader, .legend-head, .legend-title-row");
+      if (header) {
+        header.style.cursor = "default";
+      }
+
+      target.querySelectorAll("[id]").forEach(el => {
+        el.removeAttribute("id");
+      });
+
+      target.querySelectorAll(".legend-body, .legend-list, .legend-row, .legend-note").forEach(el => {
+        el.style.background = "transparent";
+        el.style.boxShadow = "none";
+        el.style.filter = "none";
+        el.style.backdropFilter = "none";
+        el.style.webkitBackdropFilter = "none";
+      });
+
+      const sourceSwatches = Array.from(source.querySelectorAll(".legend-swatch"));
+      const targetSwatches = Array.from(target.querySelectorAll(".legend-swatch"));
+      targetSwatches.forEach((swatch, idx) => {
+        const sourceSwatch = sourceSwatches[idx];
+        if (!sourceSwatch) return;
+        const styles = window.getComputedStyle(sourceSwatch);
+        swatch.style.background = styles.backgroundImage && styles.backgroundImage !== "none" ? styles.backgroundImage : styles.backgroundColor;
+        swatch.style.backgroundColor = styles.backgroundColor;
+        swatch.style.borderColor = styles.borderColor;
+        swatch.style.borderWidth = styles.borderWidth;
+        swatch.style.borderStyle = styles.borderStyle;
+        swatch.style.boxShadow = "none";
+        swatch.style.filter = "none";
+        swatch.style.opacity = styles.opacity;
+      });
+
+      target.querySelectorAll(".legend-row-boundary").forEach(row => row.remove());
+    }
+
+    function updateExportRoadLayerAppearance() {
+      if (!exportMap || !exportRoadsLayer) return;
+      const roadsEnabled = document.getElementById("roadsToggle")?.classList.contains("on");
+      const zoom = exportMap.getZoom() || 0;
+      const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;
+      exportRoadsLayer.setOpacity(showLabels ? 0.98 : 0);
+      const pane = exportMap.getPane("roadsPane");
+      if (pane) pane.classList.toggle("roads-dark", showLabels);
+    }
+
+    function updateExportBoundaryVisibility() {
+      if (!exportMap) return;
+      if (!hasValidExportBoundaryGeometry()) {
+        throw new Error("The town boundary is not ready for export.");
+      }
+      if (!exportBoundaryMask || !exportBoundaryOutline ||
+          exportBoundaryGeometryRings !== municipalBoundaryRings ||
+          exportBoundaryGeometryFeature !== municipalBoundaryFeature) {
+        const nextMask = makeExportBoundaryMask();
+        const nextOutline = makeExportBoundaryVector({
+          color: getComputedStyle(document.documentElement).getPropertyValue("--boundary-color").trim() || "#000000",
+          weight: 4.6, opacity: 1, lineCap: "round", lineJoin: "round"
+        });
+        [exportBoundaryMask, exportBoundaryOutline].filter(Boolean).forEach(layer => {
+          if (exportMap.hasLayer(layer)) exportMap.removeLayer(layer);
+        });
+        exportBoundaryMask = nextMask;
+        exportBoundaryOutline = nextOutline;
+        exportBoundaryGeometryRings = municipalBoundaryRings;
+        exportBoundaryGeometryFeature = municipalBoundaryFeature;
+      }
+      if (isTownBoundaryEnabled()) {
+        if (!exportMap.hasLayer(exportBoundaryOutline)) exportBoundaryOutline.addTo(exportMap);
+      } else if (exportMap.hasLayer(exportBoundaryOutline)) {
+        exportMap.removeLayer(exportBoundaryOutline);
+      }
+      if (!exportMap.hasLayer(exportBoundaryMask)) exportBoundaryMask.addTo(exportMap);
+    }
+
+    async function setExportFloodLayer(mode, stageValue, phase = "slack", entry = null, series = currentRawSeriesHours) {
+      ensureExportMap();
+      const physicsRecord = mode === "depth" ? getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode) : null;
+      let overlayUrl = "";
+      if (physicsRecord?.url) {
+        overlayUrl = physicsRecord.url;
+        const bounds = getActivePhysicsManifest()?.boundsWgs84;
+        if (!Array.isArray(bounds) || bounds.length !== 2) {
+          throw new Error("Physics forecast bounds are unavailable.");
+        }
+        floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
+        floodOverlayGeometryMode = "axis-aligned";
+      } else {
+        const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
+        if (!match) {
+          throw new Error(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
+        }
+        overlayUrl = match.url;
+        await ensureOverlayBounds(overlayUrl);
+      }
+      if (!await preloadImage(overlayUrl)) {
+        throwIfExportCancelled();
+        throw new Error("The flood image could not load. Please try the export again.");
+      }
+      if (exportFloodLayer && exportMap.hasLayer(exportFloodLayer)) {
+        exportMap.removeLayer(exportFloodLayer);
+      }
+      exportFloodLayer = physicsRecord?.url
+        ? L.imageOverlay(overlayUrl, floodLatLngBounds, {
+          opacity: overlayOpacity,
+          interactive: false,
+          crossOrigin: true,
+          zIndex: 500,
+          pane: "floodPane",
+          className: currentDataMode === "return-interval" && mode === "depth"
+            ? "return-interval-depth-overlay"
+            : ""
+        })
+        : createHydraulicImageOverlay(overlayUrl, {
+          opacity: overlayOpacity,
+          interactive: false,
+          crossOrigin: true,
+          zIndex: 500,
+          pane: "floodPane",
+          className: currentDataMode === "return-interval" && mode === "depth"
+            ? "return-interval-depth-overlay"
+            : ""
+        });
+      await new Promise((resolve, reject) => {
+        const layer = exportFloodLayer;
+        let settled = false;
+        const finish = error => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          clearInterval(cancelTimer);
+          layer.off("load", loaded);
+          layer.off("error", failed);
+          error ? reject(error) : resolve();
+        };
+        const loaded = () => finish();
+        const failed = () => finish(new Error("The flood image could not load. Please try the export again."));
+        const timer = setTimeout(failed, 20000);
+        const cancelTimer = setInterval(() => {
+          try { throwIfExportCancelled(); } catch (error) { finish(error); }
+        }, 100);
+        // Subscribe before adding: cached images may finish synchronously.
+        layer.once("load", loaded);
+        layer.once("error", failed);
+        try {
+          layer.addTo(exportMap);
+          const img = layer.getElement();
+          if (img?.complete) img.naturalWidth > 0 ? loaded() : failed();
+        } catch (error) { finish(error); }
+      });
+    }
+
+    function getExportFrameWaterLevelText(entry) {
+      const rawStage = getStageValue(entry);
+      const value = Number.isFinite(rawStage) ? formatStageForDisplay(rawStage) : "No data";
+      return `${value} ${getDatumLabel()}`;
+    }
+
+    function stripExportTimeZoneLabel(value) {
+      return String(value || "")
+        .replace(/\s+(?:GMT(?:[+-]\d{1,2}(?::?\d{2})?)?|UTC|E[SD]T|ET)\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function getExportFrameDateTimeText(entry) {
+      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} · Peak time unknown`;
+      if (entry?.returnIntervalYears) {
+        return getReturnIntervalStormLabel(entry.returnIntervalYears);
+      }
+      const date = getEntryESTDate(entry);
+      const parts = date ? getNyParts(date) : null;
+      if (!parts) {
+        const fallback = formatHourEntryTime(entry);
+        return fallback && fallback !== "--" ? stripExportTimeZoneLabel(fallback) : "Selected time";
+      }
+      const month = MONTH_NAMES[Number(parts.month) - 1] || parts.month;
+      const time = `${parts.hour}:${parts.minute} ${parts.dayPeriod || ""}`
+        .replace(/\s+/g, " ")
+        .trim();
+      return `${month} ${Number(parts.day)}, ${parts.year} · ${time}`;
+    }
+
+    function getExportFrameTimestampText(entry) {
+      return `${decodeHtmlText(TOWN_CONFIG?.site?.name || TOWN_CONFIG?.brandTitleLine1 || "").trim()}\n${getExportFrameDateTimeText(entry)}\n${getExportFrameWaterLevelText(entry)}`;
+    }
+
+    function getExportTimestampRows(entry, layout) {
+      const lines = String(getExportFrameTimestampText(entry) || "").split(/\n+/).filter(Boolean);
+      let top = layout.timestamp.y;
+      return lines.map((text, index) => {
+        const size = Math.round((index === 0 ? 28 : index === 1 ? 20 : 24) * layout.unit);
+        const height = Math.round(size * 1.15);
+        const row = { text, x: layout.timestamp.x, y: top, width: layout.timestamp.width,
+          size, height, weight: index === 0 ? 800 : index === 1 ? 550 : 750,
+          color: index === 2 ? "#b8d8ff" : "#ffffff" };
+        top += height + Math.round(5 * layout.unit);
+        return row;
+      });
+    }
+
+    function updateExportTimestampLabel(entry) {
+      const label = document.getElementById("exportTimestampLabel");
+      if (!label) return;
+      const config = getExportAspectConfig();
+      const layout = getExportFooterLayout(config.width, config.height);
+      label.replaceChildren(...getExportTimestampRows(entry, layout).map(row => {
+        const span = document.createElement("span");
+        span.textContent = row.text;
+        Object.assign(span.style, { top: `${row.y - layout.timestamp.y}px`, width: `${row.width}px`,
+          height: `${row.height}px`, lineHeight: `${row.height}px`, fontSize: `${row.size}px`,
+          fontWeight: String(row.weight), color: row.color });
+        return span;
+      }));
+    }
+
+    let exportFrameViewPrimed = false;
+    async function prepareExportFrame(item, options = {}) {
+      await ensureExportMunicipalBoundary();
+      applyExportStageAspect(getDownloadAspectValue());
+      const mapInstance = ensureExportMap();
+      const isFirstFrame = !!options.isFirstFrame;
+      mapInstance.invalidateSize(false);
+
+      if (isFirstFrame || !exportFrameViewPrimed) {
+        updateExportLegend(item.entry);
+        updateExportBoundaryVisibility();
+        await updateExportParcelsLayer();
+        fitExportMapToSelectedExtent(mapInstance);
+        exportFrameViewPrimed = true;
+      }
+
+      updateExportTimestampLabel(item.entry);
+      updateExportRoadLayerAppearance();
+
+      const rawStage = getStageValue(item.entry);
+      const displayStage = getOverlayStage(rawStage);
+      if (displayStage == null) {
+        throw new Error("Stage is not numeric for the selected hour.");
+      }
+
+      const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
+      await setExportFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, item.entry, item.series || currentRawSeriesHours);
+      mapInstance.invalidateSize(false);
+      await waitForExportMapReady(isFirstFrame ? 70 : 10);
+      await waitForStableRender();
+    }
+
+    async function captureExportCanvas(options = {}) {
+      if (typeof html2canvas !== "function") {
+        throw new Error("html2canvas did not load, so map export is unavailable.");
+      }
+      const stage = document.getElementById("exportStageFrame");
+      if (!stage) throw new Error("Export stage is unavailable.");
+      await waitForExportChromeReady();
+      const captureScale = Number.isFinite(options.scale) && options.scale > 0
+        ? Math.min(options.scale, getExportCaptureScale())
+        : getExportCaptureScale();
+      return await html2canvas(stage, {
+        backgroundColor: null,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        removeContainer: true,
+        foreignObjectRendering: false,
+        imageTimeout: 20000,
+        ignoreElements: isOutsideExportStage,
+        scale: captureScale
+      });
+    }
+
+    async function captureExportLayerCanvas(options = {}) {
+      if (typeof html2canvas !== "function") return null;
+      const stage = document.getElementById("exportStageFrame");
+      const mapEl = document.getElementById("exportMap");
+      const timestamp = document.getElementById("exportTimestampLabel");
+      const legend = document.getElementById("exportLegendDock");
+      const logoStrip = document.getElementById("exportLogoStrip");
+      if (!stage) return null;
+      await waitForExportChromeReady();
+      const footer = document.getElementById("exportFooter");
+      const previousFooterVisibility = footer?.style.visibility || "";
+      const previousMapVisibility = mapEl?.style.visibility || "";
+      const previousTimestampVisibility = timestamp?.style.visibility || "";
+      const previousLegendVisibility = legend?.style.visibility || "";
+      const previousLogoVisibility = logoStrip?.style.visibility || "";
+      const previousBackground = stage.style.background || "";
+      const previousMapBackground = mapEl?.style.background || "";
+      const hiddenPaneNames = Array.isArray(options.hiddenPaneNames) ? options.hiddenPaneNames : [];
+      const hiddenPanes = hiddenPaneNames
+        .map(name => exportMap?.getPane(name))
+        .filter(Boolean)
+        .map(pane => ({ pane, visibility: pane.style.visibility || "" }));
+      try {
+        hiddenPanes.forEach(({ pane }) => { pane.style.visibility = "hidden"; });
+        if (options.hideFooter && footer) footer.style.visibility = "hidden";
+        if (options.hideMap && mapEl) mapEl.style.visibility = "hidden";
+        if (options.hideTimestamp !== false && timestamp) timestamp.style.visibility = "hidden";
+        if (options.hideLegend && legend) legend.style.visibility = "hidden";
+        if (options.hideLogo && logoStrip) logoStrip.style.visibility = "hidden";
+        stage.style.background = "transparent";
+        if (mapEl) mapEl.style.background = "transparent";
+        const captureScale = getExportCaptureScale();
+        return await html2canvas(stage, {
+          backgroundColor: null,
+          useCORS: true,
+          allowTaint: false,
+          logging: false,
+          removeContainer: true,
+          foreignObjectRendering: false,
+          imageTimeout: 20000,
+          ignoreElements: isOutsideExportStage,
+          scale: captureScale
+        });
+      } finally {
+        hiddenPanes.forEach(({ pane, visibility }) => { pane.style.visibility = visibility; });
+        if (footer) footer.style.visibility = previousFooterVisibility;
+        if (mapEl) mapEl.style.visibility = previousMapVisibility;
+        if (timestamp) timestamp.style.visibility = previousTimestampVisibility;
+        if (legend) legend.style.visibility = previousLegendVisibility;
+        if (logoStrip) logoStrip.style.visibility = previousLogoVisibility;
+        stage.style.background = previousBackground;
+        if (mapEl) mapEl.style.background = previousMapBackground;
+      }
+    }
+
+    async function captureExportMapForegroundCanvas() {
+      return captureExportLayerCanvas({
+        hiddenPaneNames: ["basemapColorPane", "satellitePane", "floodPane", "roadsPane"],
+        hideTimestamp: true,
+        hideLegend: true,
+        hideLogo: true,
+        hideFooter: true
+      });
+    }
+
+    async function captureExportRoadLabelsCanvas() {
+      return captureExportLayerCanvas({
+        hiddenPaneNames: ["basemapColorPane", "satellitePane", "floodPane", "parcelsPane", "buildingsPane", "boundaryPane", "maskPane"],
+        hideTimestamp: true,
+        hideLegend: true,
+        hideLogo: true,
+        hideFooter: true
+      });
+    }
+
+    async function captureExportChromeCanvas() {
+      return captureExportLayerCanvas({
+        hideMap: true,
+        hideTimestamp: true
+      });
+    }
+
+function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), toleranceMs = 31 * 60 * 1000) {
+      if (!Array.isArray(entries) || !entries.length || !Number.isFinite(slotMs)) return null;
+      let best = null;
+      let bestDiff = Infinity;
+      entries.forEach((entry, idx) => {
+        const t = entryTimeMs(entry);
+        if (t == null) return;
+        const diff = Math.abs(t - slotMs);
+        const key = String(t);
+        if (diff <= toleranceMs && diff < bestDiff && !usedKeys.has(key)) {
+          best = { entry, idx, key, diff };
+          bestDiff = diff;
+        }
+      });
+      return best;
+    }
+
+    function buildHourlyRangeFrameItems(entries, range, sourceSeries = new Map()) {
+      if (!Array.isArray(entries) || !entries.length || !range) return [];
+      const sorted = entries.slice().sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+      const usedKeys = new Set();
+      const items = [];
+      const hourMs = 60 * 60 * 1000;
+      for (let slotMs = range.startMs; slotMs <= range.endMs + 1000; slotMs += hourMs) {
+        const match = findClosestExportEntryForSlot(sorted, slotMs, usedKeys, 31 * 60 * 1000);
+        if (!match) continue;
+        usedKeys.add(match.key);
+        const exportEntry = {
+          ...match.entry,
+          observationInterval: "1hour",
+          timelineIntervalMinutes: 60,
+          exportInterval: "hourly"
+        };
+        const fallbackIndex = exportEntry.exportSourceMode === "observed" ? match.idx : findClosestEntryIndex(currentSeriesHours, exportEntry);
+        const item = getDownloadFrameItemFromEntry(exportEntry, fallbackIndex, sourceSeries);
+        if (item) items.push(item);
+      }
+      return items;
+    }
+
+    function buildQuarterHourRangeFrameItems(entries, range, sourceSeries = new Map()) {
+      if (!Array.isArray(entries) || !entries.length || !range) return [];
+      const sourceMode = entries.find(entry => entry.exportSourceMode)?.exportSourceMode || "observed";
+      const series = buildQuarterHourTimelineSeries(entries, {
+        kind: sourceMode,
+        startMs: range.startMs,
+        endMs: range.endMs,
+        fillMissingSlots: false,
+        maxGapMinutes: 75
+      });
+      return series
+        .filter(entry => Number.isFinite(getStageValue(entry)))
+        .map((entry, idx) => {
+          const exportEntry = {
+            ...entry,
+            exportSourceMode: entry.exportSourceMode || sourceMode,
+            observationInterval: "15min",
+            timelineIntervalMinutes: 15,
+            exportInterval: "15min"
+          };
+          const fallbackIndex = exportEntry.exportSourceMode === "observed"
+            ? idx
+            : findClosestEntryIndex(currentSeriesHours, exportEntry);
+          return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex, sourceSeries);
+        })
+        .filter(Boolean);
+    }
+
+    function buildDailyMaximumRangeFrameItems(entries, range, sourceSeries = new Map()) {
+      if (!Array.isArray(entries) || !entries.length || !range) return [];
+      const inRange = entries.filter(entry => {
+        const time = entryTimeMs(entry);
+        return Number.isFinite(time) && time >= range.startMs && time <= range.endMs && Number.isFinite(getStageValue(entry));
+      });
+      return buildDailyMaximumSeries(inRange, { kind: "export" })
+        .map((entry, idx) => {
+          const exportEntry = {
+            ...entry,
+            exportSourceMode: entry.exportSourceMode || "observed",
+            observationInterval: "daily",
+            timelineIntervalMinutes: 1440,
+            exportInterval: "daily"
+          };
+          const fallbackIndex = exportEntry.exportSourceMode === "observed"
+            ? idx
+            : findClosestEntryIndex(currentSeriesHours, exportEntry);
+          return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex, sourceSeries);
+        })
+        .filter(Boolean);
+    }
+
+    function buildExportRangeFrameItems(entries, range, intervalValue = getDownloadIntervalValue()) {
+      if (intervalValue === "daily") return buildDailyMaximumRangeFrameItems(entries, range);
+      const timed = entries.filter(entry => !entry.isDailyPeakOnly);
+      const dailyOnly = buildDailyMaximumRangeFrameItems(entries.filter(entry => entry.isDailyPeakOnly), range);
+      const frames = intervalValue === "15min"
+        ? buildQuarterHourRangeFrameItems(timed, range)
+        : buildHourlyRangeFrameItems(timed, range);
+      // Unknown peak times must never become interpolation endpoints or gain
+      // an hourly/quarter-hour label merely because of the export selection.
+      return [...frames, ...dailyOnly].sort((a, b) => entryTimeMs(a.entry) - entryTimeMs(b.entry));
+    }
+
+
+    async function withExportFrames(frameItems, onFrame, progressStart = 4, progressEnd = 82) {
+      const total = Math.max(1, frameItems.length);
+      exportFrameViewPrimed = false;
+      throwIfExportCancelled();
+      for (let i = 0; i < frameItems.length; i++) {
+        const item = frameItems[i];
+        throwIfExportCancelled();
+        const pct = progressStart + ((i / total) * (progressEnd - progressStart));
+        const message = `Rendering frame ${i + 1} of ${frameItems.length}...`;
+        setDownloadStatus(message);
+        setExportProgress(message, pct, false);
+        await prepareExportFrame(item, { isFirstFrame: i === 0 });
+        throwIfExportCancelled();
+        if (i === 0) {
+          await waitForExportMapReady(40);
+          throwIfExportCancelled();
+        }
+        const canvas = await captureExportCanvas();
+        try {
+          throwIfExportCancelled();
+          await onFrame({ sequence: i, item, entry: item.entry, canvas });
+          throwIfExportCancelled();
+        } finally {
+          canvas.width = 1;
+          canvas.height = 1;
+        }
+        const donePct = progressStart + (((i + 1) / total) * (progressEnd - progressStart));
+        setExportProgress(`Rendered frame ${i + 1} of ${frameItems.length}...`, donePct, false);
+      }
+    }
+
+    function canvasToBlob(canvas, type = "image/png", quality) {
+      return new Promise((resolve, reject) => {
+        if (!canvas || typeof canvas.toBlob !== "function") {
+          reject(new Error("Canvas export failed because this browser cannot create image blobs."));
+          return;
+        }
+        canvas.toBlob(blob => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("Canvas export failed because the map image could not be converted to a file."));
+          }
+        }, type, quality);
+      });
+    }
+
+    function drawRoundedRectPath(ctx, x, y, width, height, radius) {
+      const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function drawExportTimestampOnCanvas(ctx, canvas, entry) {
+      const scale = getExportCaptureScale();
+      const layout = getExportFooterLayout(canvas.width / scale, canvas.height / scale);
+      const fontFamily = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+      ctx.save();
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      getExportTimestampRows(entry, layout).forEach(row => {
+        ctx.font = `${row.weight} ${row.size * scale}px ${fontFamily}`;
+        ctx.fillStyle = row.color;
+        ctx.fillText(row.text, row.x * scale, (row.y + row.height / 2) * scale, row.width * scale);
+      });
+      ctx.restore();
+    }
+
+    function drawExportFloodOnCanvas(ctx, image, rect) {
+      const layout = getExportFooterLayout(ctx.canvas.width, ctx.canvas.height);
+      // Raster bounds can extend beyond the map; never paint into the footer.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(layout.map.x, layout.map.y, layout.map.width, layout.map.height);
+      ctx.clip();
+      ctx.globalAlpha = Math.max(0, Math.min(1, overlayOpacity));
+      ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+      ctx.restore();
+    }
+
+    function getExportCaptureScale() {
+      const dpr = Number(window.devicePixelRatio) || 1;
+      return Math.max(1, Math.min(EXPORT_CAPTURE_SCALE, dpr > 1 ? dpr : EXPORT_CAPTURE_SCALE));
+    }
+
+    function getExportOverlayRect(mapInstance) {
+      if (!mapInstance || !floodLatLngBounds) return null;
+      // The fast compositor only supports axis-aligned image rectangles. A
+      // world-file raster is captured through Leaflet so its four-corner warp
+      // remains spatially correct in every exported frame.
+      if (exportFloodLayer?._worldFileAffine) return null;
+      const scale = getExportCaptureScale();
+      const nw = mapInstance.latLngToContainerPoint(floodLatLngBounds.getNorthWest());
+      const se = mapInstance.latLngToContainerPoint(floodLatLngBounds.getSouthEast());
+      return {
+        x: Math.round(nw.x * scale),
+        y: Math.round(nw.y * scale),
+        width: Math.round((se.x - nw.x) * scale),
+        height: Math.round((se.y - nw.y) * scale)
+      };
+    }
+
+
+    async function captureFastGifBaseCanvas(firstItem) {
+      await ensureExportMunicipalBoundary();
+      const mapInstance = ensureExportMap();
+      applyExportStageAspect(getDownloadAspectValue());
+      mapInstance.invalidateSize(false);
+      updateExportLegend(firstItem?.entry);
+      updateExportBoundaryVisibility();
+      await updateExportParcelsLayer();
+      updateExportRoadLayerAppearance();
+      fitExportMapToSelectedExtent(mapInstance);
+
+      if (exportFloodLayer && mapInstance.hasLayer(exportFloodLayer)) {
+        mapInstance.removeLayer(exportFloodLayer);
+      }
+      const timestamp = document.getElementById("exportTimestampLabel");
+      const legend = document.getElementById("exportLegendDock");
+      const logoStrip = document.getElementById("exportLogoStrip");
+      const previousTimestampVisibility = timestamp?.style.visibility || "";
+      const previousLegendVisibility = legend?.style.visibility || "";
+      const previousLogoVisibility = logoStrip?.style.visibility || "";
+      let baseCanvas;
+      try {
+        if (timestamp) timestamp.style.visibility = "hidden";
+        if (legend) legend.style.visibility = "hidden";
+        if (logoStrip) logoStrip.style.visibility = "hidden";
+        await waitForExportMapReady(80);
+        await waitForStableRender();
+        baseCanvas = await captureExportCanvas();
+      } finally {
+        // A cancelled/failed capture must not hide chrome in later exports.
+        if (timestamp) timestamp.style.visibility = previousTimestampVisibility;
+        if (legend) legend.style.visibility = previousLegendVisibility;
+        if (logoStrip) logoStrip.style.visibility = previousLogoVisibility;
+      }
+      let mapForegroundCanvas, roadLabelsCanvas, chromeCanvas;
+      try {
+        mapForegroundCanvas = await captureExportMapForegroundCanvas();
+        roadLabelsCanvas = await captureExportRoadLabelsCanvas();
+        chromeCanvas = await captureExportChromeCanvas();
+        updateExportTimestampLabel(firstItem?.entry || null);
+        return { baseCanvas, overlayRect: getExportOverlayRect(mapInstance), mapForegroundCanvas, roadLabelsCanvas, chromeCanvas };
+      } catch (error) {
+        [baseCanvas, mapForegroundCanvas, roadLabelsCanvas, chromeCanvas].filter(Boolean).forEach(canvas => {
+          canvas.width = 1;
+          canvas.height = 1;
+        });
+        throw error;
+      }
+    }
+
+    async function addFastCompositeGifFrames(gif, frameItems, progressStart = 4, progressEnd = 96) {
+      const total = Math.max(1, frameItems.length);
+      throwIfExportCancelled();
+      const {
+        baseCanvas,
+        overlayRect,
+        mapForegroundCanvas,
+        roadLabelsCanvas,
+        chromeCanvas
+      } = await captureFastGifBaseCanvas(frameItems[0]);
+      const frameCanvas = document.createElement("canvas");
+      try {
+        throwIfExportCancelled();
+        frameCanvas.width = baseCanvas.width;
+        frameCanvas.height = baseCanvas.height;
+        const ctx = frameCanvas.getContext("2d", { alpha: false, willReadFrequently: false });
+        if (ctx) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; }
+        if (!ctx || !overlayRect) {
+          await withExportFrames(frameItems, async ({ canvas }) => {
+            await gif.addFrame(canvas, { delay: getGifFrameDelayMs() });
+          }, progressStart, progressEnd);
+          return;
+        }
+        for (let i = 0; i < frameItems.length; i++) {
+          const item = frameItems[i];
+          throwIfExportCancelled();
+          const pct = progressStart + ((i / total) * (progressEnd - progressStart));
+          const message = `Encoding frame ${i + 1} of ${frameItems.length}...`;
+          if (i === 0 || i === frameItems.length - 1 || i % EXPORT_PROGRESS_UPDATE_EVERY === 0) {
+            setDownloadStatus(message);
+            setExportProgress(message, pct, false);
+          }
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = "source-over";
+          ctx.drawImage(baseCanvas, 0, 0);
+          {
+            const overlayImg = await getExportFrameImage(item);
+            drawExportFloodOnCanvas(ctx, overlayImg, overlayRect);
+          }
+          if (mapForegroundCanvas) ctx.drawImage(mapForegroundCanvas, 0, 0, frameCanvas.width, frameCanvas.height);
+          if (roadLabelsCanvas) ctx.drawImage(roadLabelsCanvas, 0, 0, frameCanvas.width, frameCanvas.height);
+          if (chromeCanvas) ctx.drawImage(chromeCanvas, 0, 0, frameCanvas.width, frameCanvas.height);
+          drawExportTimestampOnCanvas(ctx, frameCanvas, item.entry);
+          await gif.addFrame(frameCanvas, { delay: getGifFrameDelayMs() });
+          throwIfExportCancelled();
+          const donePct = progressStart + (((i + 1) / total) * (progressEnd - progressStart));
+          if (i === frameItems.length - 1 || i % EXPORT_PROGRESS_UPDATE_EVERY === 0) {
+            setExportProgress(`Encoded frame ${i + 1} of ${frameItems.length}...`, donePct, false);
+          }
+          if (i % 8 === 7) await wait(0);
+        }
+      } finally {
+        [baseCanvas, mapForegroundCanvas, roadLabelsCanvas, chromeCanvas, frameCanvas].filter(Boolean).forEach(canvas => {
+          canvas.width = 1;
+          canvas.height = 1;
+        });
+      }
+    }
+
+    async function buildStableExportGifPalette(firstItem, workerScript, aspectConfig, gifQuality) {
+      throwIfExportCancelled();
+      setDownloadStatus("Locking GIF key colors...");
+      setExportProgress("Locking GIF key colors...", 4, false);
+      exportFrameViewPrimed = false;
+      await prepareExportFrame(firstItem, { isFirstFrame: true });
+      throwIfExportCancelled();
+
+      const paletteCanvas = await captureExportCanvas();
+      const exportScale = getExportCaptureScale();
+      let paletteGif;
+      try {
+        paletteGif = createStreamingGifEncoder({
+          quality: gifQuality,
+          workerScript,
+          width: Math.round(aspectConfig.width * exportScale),
+          height: Math.round(aspectConfig.height * exportScale),
+          dither: EXPORT_GIF_DITHER,
+          globalPalette: true,
+        }, 1);
+        activeGifExport = paletteGif;
+        await paletteGif.addFrame(paletteCanvas, { delay: 1 });
+        throwIfExportCancelled();
+        const palette = paletteGif.getGlobalPalette();
+        if (!palette || typeof palette.length !== "number" || palette.length < 3) {
+          throw new Error("Could not create a stable GIF color palette.");
+        }
+        return Array.from(palette);
+      } finally {
+        if (activeGifExport === paletteGif) activeGifExport = null;
+        paletteGif?.dispose();
+        paletteCanvas.width = 1;
+        paletteCanvas.height = 1;
+      }
+    }
+
+    async function exportGif(frameItems) {
+      throwIfExportCancelled();
+      if (typeof Worker === "undefined") {
+        throw new Error("This browser cannot encode GIF images.");
+      }
+      const aspectConfig = applyExportStageAspect(getDownloadAspectValue());
+      const items = frameItems.slice(0, getDownloadFrameLimit());
+      if (!items.length) throw new Error("No frames are available for export.");
+      setDownloadStatus(`Preparing ${aspectConfig.label} GIF...`);
+      setExportProgress(`Preparing ${aspectConfig.label} GIF...`, 2, false);
+      const workerScript = await getGifWorkerUrl();
+      throwIfExportCancelled();
+
+      const gifQuality = EXPORT_GIF_QUALITY;
+
+      const exportScale = getExportCaptureScale();
+      const stableGlobalPalette = await buildStableExportGifPalette(items[0], workerScript, aspectConfig, gifQuality);
+      throwIfExportCancelled();
+      const gif = createStreamingGifEncoder({
+        quality: gifQuality,
+        workerScript,
+        width: Math.round(aspectConfig.width * exportScale),
+        height: Math.round(aspectConfig.height * exportScale),
+        dither: EXPORT_GIF_DITHER,
+        // Use the same precomputed palette for every frame, including frame one. This keeps
+        // static chrome—especially the flood-depth key—pixel-stable throughout the GIF.
+        globalPalette: stableGlobalPalette,
+      }, items.length);
+      activeGifExport = gif;
+      try {
+        await addFastCompositeGifFrames(gif, items, 8, 96);
+        throwIfExportCancelled();
+        const blob = gif.finish();
+        setExportProgress("Starting GIF download...", 99, false);
+        downloadBlob(blob, `${getExportBaseName(items)}.gif`);
+      } finally {
+        gif.dispose();
+        if (activeGifExport === gif) activeGifExport = null;
+      }
+    }
+
+    async function exportPng(frameItems) {
+      throwIfExportCancelled();
+      const aspectConfig = applyExportStageAspect(getDownloadAspectValue());
+      const items = frameItems.slice(0, EXPORT_PNG_SELECTION_LIMIT);
+      setDownloadStatus(`Preparing ${items.length} PNG frame${items.length === 1 ? "" : "s"}...`);
+      setExportProgress(`Preparing ${aspectConfig.label} PNG export...`, 2, false);
+
+      if (items.length === 1) {
+        await withExportFrames(items, async ({ canvas, entry, sequence }) => {
+          const blob = await canvasToBlob(canvas, "image/png");
+          throwIfExportCancelled();
+          downloadBlob(blob, `${getExportBaseName(items)}-${getSafeFrameStamp(entry, sequence)}.png`);
+        }, 8, 94);
+        return;
+      }
+
+      if (typeof JSZip === "undefined") {
+        throw new Error("PNG zip export library did not load.");
+      }
+      const zip = new JSZip();
+      await withExportFrames(items, async ({ canvas, entry, sequence }) => {
+        const blob = await canvasToBlob(canvas, "image/png");
+        throwIfExportCancelled();
+        zip.file(`${String(sequence + 1).padStart(2, "0")}-${getSafeFrameStamp(entry, sequence)}.png`, blob);
+        throwIfExportCancelled();
+      }, 8, 76);
+      setDownloadStatus("Packaging PNG files...");
+      setExportProgress("Packaging PNG files...", 82, false);
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" }, metadata => {
+        throwIfExportCancelled();
+        const pct = 82 + ((Number(metadata.percent) || 0) * 0.16);
+        setExportProgress(`Packaging PNG files... ${Math.round(metadata.percent || 0)}%`, pct, false);
+      });
+      throwIfExportCancelled();
+      downloadBlob(zipBlob, `${getExportBaseName(items)}-pngs.zip`);
+    }
+
+    async function downloadCurrentSelection() {
+      if (exportInProgress) return;
+      stopPlayback();
+      if (getDownloadScopeValue() === "current" && floodFrameState !== "ready") {
+        setDownloadStatus("Wait for a valid flood map before exporting this selection.", true);
+        return;
+      }
+      syncDownloadRangeInputs(false);
+      const format = getDownloadFormatValue();
+      const validation = validateDownloadRangeForExport();
+      if (!validation.ok) {
+        const popupTitle = validation.reason === "range-too-long"
+          ? "Time range too long"
+          : "Check export range";
+        showExportDateOrderPopup(validation.message, popupTitle);
+        updateDownloadSummary();
+        return;
+      }
+
+      if (currentDataMode !== "return-interval" && getDownloadScopeValue() !== "current" && validation.range) {
+        setDownloadBusy(true, "Loading the selected tide-archive year...");
+        try {
+          await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
+        } catch (error) {
+          console.error(error);
+          setDownloadBusy(false);
+          const message = "The selected tide-archive year could not be loaded. Please try again.";
+          setDownloadStatus(message, true);
+          toast(message);
+          return;
+        }
+      }
+
+      let frameItems = [];
+      if (format === "png") {
+        frameItems = getDownloadFrameItems();
+        if (frameItems.length > EXPORT_PNG_SELECTION_LIMIT) {
+          frameItems = frameItems.slice(0, EXPORT_PNG_SELECTION_LIMIT);
+          toast(`PNG export is limited to ${EXPORT_PNG_SELECTION_LIMIT} frames.`);
+        }
+      } else {
+        frameItems = getDownloadFrameItems();
+      }
+
+      if (!frameItems.length) {
+        setDownloadBusy(false);
+        toast("No frames are available for export.");
+        setDownloadStatus("No frames are available for export.", true);
+        return;
+      }
+      setDownloadModalOpen(false);
+      setDownloadBusy(true, "Preparing export...");
+      throwIfExportCancelled();
+      const label = format === "png" ? "PNG" : `${getDownloadAspectValue()} GIF`;
+      setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? "" : "s"}...`, 1, false);
+      try {
+        setDownloadStatus("Loading export tools...");
+        setExportProgress("Loading export tools...", 1, false);
+        await ensureExportLibraries(format, frameItems.length);
+        throwIfExportCancelled();
+        if (format === "png") {
+          await exportPng(frameItems);
+        } else {
+          await exportGif(frameItems);
+        }
+        const doneMessage = `Downloaded ${format.toUpperCase()} export.`;
+        setDownloadStatus(doneMessage);
+        finishExportProgress(doneMessage, false);
+      } catch (err) {
+        if (isExportCancelledError(err)) {
+          const cancelMessage = "Export cancelled.";
+          setDownloadStatus(cancelMessage, false);
+          finishCancelledExportProgress(cancelMessage);
+        } else {
+          console.error(err);
+          const friendlyMessage = getFriendlyExportError(err, format);
+          toast(friendlyMessage);
+          setDownloadStatus(friendlyMessage, true);
+          finishExportProgress(friendlyMessage, true);
+        }
+      } finally {
+        setDownloadBusy(false, document.getElementById("downloadStatus")?.textContent || "");
+        updateDownloadSummary();
+      }
+    }
+
+    function setFloodFrameStatus(message, state = "info") {
+      if (state === "loading") message = "";
+      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== "Stone Harbor USGS").join(" • ");
+      const status = document.getElementById("floodFrameStatus");
+      if (!status) return;
+      const timeline = document.getElementById("timelineDock");
+      const top = timeline?.getBoundingClientRect().top;
+      if (Number.isFinite(top)) status.style.setProperty("--flood-status-bottom", `${Math.max(24, window.innerHeight - top + 70)}px`);
+      status.textContent = message;
+      status.dataset.state = state;
+      status.hidden = !message;
+    }
+
+    async function decodeFloodFrameImage(image) {
+      if (!image || !image.complete || !image.naturalWidth) return false;
+      if (typeof image.decode === "function") {
+        try { await image.decode(); } catch (_) { return false; }
+      }
+      return image.complete && image.naturalWidth > 0;
+    }
+
+    async function renderFloodFrameWithRetry(renderFrame, token) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        if (token !== lastRenderToken) return false;
+        try {
+          if (await renderFrame()) return token === lastRenderToken;
+        } catch (error) {
+          if (token !== lastRenderToken) return false;
+          if (attempt === 1) console.warn("The selected flood frame could not load.", error);
+        }
+        if (token !== lastRenderToken) return false;
+        if (attempt === 0) {
+          document.body.dataset.floodFrameRecovery = "retrying";
+          await new Promise(resolve => window.setTimeout(resolve, 250));
+        }
+      }
+      return false;
+    }
+
+    function reportFloodFrameFailure() {
+      const retained = Boolean(currentFloodLayer && map?.hasLayer(currentFloodLayer));
+      const message = retained
+        ? "Could not load the selected flood image. The previous image and time are still shown. Select a time to retry."
+        : "The flood image could not load. Select a time to retry.";
+      if (typeof floodFrameState !== "undefined") floodFrameState = "failed";
+      document.body.dataset.floodFrame = "failed";
+      document.body.dataset.floodFrameRecovery = "failed";
+      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
+      toast(message);
+      if (!retained && typeof markInitialFloodFrameFailed === "function") markInitialFloodFrameFailed();
+      if (typeof stopPlayback === "function") stopPlayback();
+    }
+
+    function waitForRecoveryFloodLayer(layer, token, onReady) {
+      return new Promise(resolve => {
+        let settled = false;
+        let timeout = null;
+        const finish = ready => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          layer.off("load", handleLoad);
+          layer.off("error", handleError);
+          layer.off("remove", handleRemove);
+          if (!ready) {
+            if (pendingFloodLayer === layer) pendingFloodLayer = null;
+            preloadPromiseCache.delete(layer._url);
+            if (typeof disposeFloodLayer === "function") disposeFloodLayer(layer);
+            else {
+              if (map.hasLayer(layer)) map.removeLayer(layer);
+              const image = layer.getElement();
+              if (image) image.src = "";
+            }
+          }
+          resolve(ready);
+        };
+        const handleLoad = async () => {
+          if (settled || token !== lastRenderToken) return finish(false);
+          if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
+          await new Promise(requestAnimationFrame);
+          if (settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);
+          try { onReady(); finish(true); }
+          catch (error) { console.warn("The flood image could not be displayed.", error); finish(false); }
+        };
+        const handleError = () => finish(false);
+        const handleRemove = () => { if (currentFloodLayer !== layer) finish(false); };
+        layer.on("load", handleLoad);
+        layer.on("error", handleError);
+        layer.on("remove", handleRemove);
+        timeout = window.setTimeout(() => finish(false), 20000);
+        try { layer.addTo(map); } catch (_) { finish(false); }
+      });
+    }
+
+    function cancelPendingFloodFrame(invalidate = true) {
+      if (invalidate) ++lastRenderToken;
+      cancelTimelineSelection();
+      requestedTimelineSelection = null;
+      const pending = pendingFloodLayer;
+      pendingFloodLayer = null;
+      if (pending && pending !== currentFloodLayer && map?.hasLayer(pending)) {
+        if (typeof disposeFloodLayer === "function") disposeFloodLayer(pending);
+        else map.removeLayer(pending);
+      }
+      if (typeof floodFrameState !== "undefined") floodFrameState = "loading";
+      document.body.dataset.floodFrame = "loading";
+      if (persistentDepthQueryContext?.kind === "physics") updatePersistentDepthQueryPopup();
+      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "Loading the next flood map… Previous frame shown." : "Loading flood map…", "loading");
+      return lastRenderToken;
+    }
+
+    function clearFloodLayer() {
+      floodFrameState = "unavailable";
+      document.body.dataset.floodFrame = floodFrameState;
+      if (persistentDepthQueryContext?.kind === "physics") updatePersistentDepthQueryPopup();
+      renderedFloodPixelCache = null;
+      if (pendingFloodLayer && map?.hasLayer(pendingFloodLayer)) map.removeLayer(pendingFloodLayer);
+      if (currentFloodLayer && map?.hasLayer(currentFloodLayer)) map.removeLayer(currentFloodLayer);
+      pendingFloodLayer = null;
+      currentFloodLayer = null;
+      updateNsiStructureImpactLayer();
+      updatePersistentDepthQueryPopup();
+      scheduleRasterObjectUrlCleanup();
+    }
+
+    function applyOverlayOpacity() {
+      if (currentFloodLayer?.setOpacity) currentFloodLayer.setOpacity(overlayOpacity);
+    }
+
+    function formatFixedESTFromUtc(isoString) {
+      if (!isoString) return "--";
+      const d = new Date(isoString);
+      if (Number.isNaN(d.getTime())) return "--";
+      const parts = getNyParts(d);
+      if (!parts) return "--";
+      return `${MONTH_NAMES[Number(parts.month) - 1]} ${Number(parts.day)}, ${parts.hour}:${parts.minute} ${parts.dayPeriod || ""} ${parts.timeZoneName || "ET"}`.replace(/\s+/g, " ").trim();
+    }
+
+function parseStoredESTToDate(timeEST) {
+      return parseStoredLocalNyToDate(timeEST);
+    }
+
+    function formatReturnStormOffset(entry, options = {}) {
+      const offset = Number(entry?.offsetHours);
+      if (!Number.isFinite(offset)) return "Synthetic storm";
+      if (Math.abs(offset) < 1e-8) return options.compact ? "Storm peak" : "Storm Peak • First High Tide";
+      const absolute = Math.abs(offset);
+      const value = Number.isInteger(absolute)
+        ? String(absolute)
+        : absolute.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+      return `${value} hr ${offset < 0 ? "before" : "after"} peak`;
+    }
+
+    function formatHourEntryTime(entry) {
+      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
+      if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
+      if (entry?.returnIntervalYears) return formatReturnStormOffset(entry);
+      const d = getEntryESTDate(entry);
+      if (!d) return "--";
+      return formatFixedESTFromUtc(d.toISOString());
+    }
+
+    function formatHourEntryTimeCompact(entry) {
+      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak`;
+      if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
+      if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
+      const d = getEntryESTDate(entry);
+      if (!d) return "--";
+      const parts = getNyParts(d);
+      if (!parts) return "--";
+      return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute} ${parts.dayPeriod || ""}`.replace(/\s+/g, " ").trim();
+    }
+
+    function formatSnapshotTime(entry) {
+      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
+      if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
+      if (entry?.returnIntervalYears) return formatReturnStormOffset(entry);
+      const est = getEntryESTDate(entry);
+      if (!est) return "--";
+      return getNyDateTimeLabel(est, { includeWeekday: true, includeDate: true, includeZone: true, compact: false });
+    }
+
+function getEntryESTDate(entry) {
+      // Calendar ordering anchor only, never an asserted observation timestamp.
+      if (entry?.isDailyPeakOnly) return parseStoredLocalNyToDate(`${entry.observedDate}T00:00`);
+      const d = entry?.timeUtc
+        ? new Date(entry.timeUtc)
+        : entry?.displayTimeUtc
+          ? new Date(entry.displayTimeUtc)
+          : entry?.displayTimeEST
+            ? parseStoredESTToDate(entry.displayTimeEST)
+            : entry?.displayTimeEst
+              ? parseStoredESTToDate(entry.displayTimeEst)
+              : entry?.timeEST
+                ? parseStoredESTToDate(entry.timeEST)
+                : (entry?.timeEst ? parseStoredESTToDate(entry.timeEst) : null);
+      if (!d || Number.isNaN(d.getTime())) return null;
+      return d;
+    }
+
+    function formatTimelineBubbleText(entry) {
+      if (entry?.isDailyPeakOnly) return isMobileTimeline() ? "Daily peak only" : `${formatSelectedObservedDate(entry.observedDate)} • Daily peak only`;
+      if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
+      if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
+      const est = getEntryESTDate(entry);
+      if (!est) return "--";
+      const parts = getNyParts(est);
+      if (!parts) return "--";
+      if (isMobileTimeline()) {
+        const time = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/New_York", hour: "numeric", minute: "2-digit", timeZoneName: "short"
+        }).format(est).replace(":00", "");
+        return `<span class="timeline-sr-date">${formatTimelineDayLabel(entry)} · </span>${time}`;
+      }
+      const minuteText = parts.minute === "00" ? "" : `:${parts.minute}`;
+      return `${parts.weekday} ${Number(parts.day)} · ${parts.hour}${minuteText} ${parts.dayPeriod || ""}`.replace(/\s+/g, " ").trim();
+    }
+
+    function formatTimelineDayLabel(entry) {
+      if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
+      if (entry?.returnIntervalYears) {
+        const halfWindow = Number(returnIntervalData?.windowHours || 84) / 2;
+        const dayNumber = Math.max(1, Math.floor((Number(entry.offsetHours) + halfWindow) / 24) + 1);
+        return `Day ${dayNumber}`;
+      }
+      const est = getEntryESTDate(entry);
+      if (!est) return "--";
+      const parts = getNyParts(est);
+      if (!parts) return "--";
+      return `${parts.weekday} ${Number(parts.day)}`;
+    }
+
+    function sameEntryESTDay(a, b) {
+      if (a?.returnIntervalYears || b?.returnIntervalYears) {
+        if (!(a?.returnIntervalYears && b?.returnIntervalYears)) return false;
+        const halfWindow = Number(returnIntervalData?.windowHours || 84) / 2;
+        const dayFor = entry => Math.max(1, Math.floor((Number(entry.offsetHours) + halfWindow) / 24) + 1);
+        return dayFor(a) === dayFor(b);
+      }
+      const da = getEntryESTDate(a);
+      const db = getEntryESTDate(b);
+      if (!da || !db) return false;
+      const pa = getNyParts(da);
+      const pb = getNyParts(db);
+      if (!pa || !pb) return false;
+      return pa.year === pb.year && pa.month === pb.month && pa.day === pb.day;
+    }
+
+    function positionTimelineBubble() {
+      if(document.body.hasAttribute("data-county-viewport")) return;
+      const dock = document.getElementById("timelineDock");
+      const slider = document.getElementById("hourSlider");
+      const bubble = document.getElementById("timelineBubble");
+      if (!dock || !slider || !bubble || !currentSeriesHours.length) return;
+
+      const min = Number(slider.min) || 0;
+      const max = Number(slider.max) || 0;
+      const pct = max > min ? (currentHourIndex - min) / (max - min) : 0.5;
+      const dockRect = dock.getBoundingClientRect();
+      const sliderRect = slider.getBoundingClientRect();
+      const thumbSize = parseFloat(getComputedStyle(slider).getPropertyValue("--nww-thumb-size")) || 16;
+      const usableWidth = Math.max(0, sliderRect.width - thumbSize);
+      const x = (sliderRect.left - dockRect.left) + (thumbSize / 2) + (pct * usableWidth);
+      const bubbleHalf = Math.max(72, (bubble.offsetWidth / 2) + 8);
+      const safe = Math.max(bubbleHalf, Math.min(dockRect.width - bubbleHalf, x));
+      bubble.style.left = `${safe}px`;
+    }
+
+    function fitTextToSingleLine(el, maxPx, minPx = 11) {
+      if (!el) return;
+      el.style.fontSize = `${maxPx}px`;
+      while (el.scrollWidth > el.clientWidth + 1 && maxPx > minPx) {
+        maxPx -= 0.5;
+        el.style.fontSize = `${maxPx}px`;
+      }
+    }
+
+    function fitSnapshotTimeText() {
+      const timeEl = document.getElementById("timeText");
+      if (!timeEl) return;
+      timeEl.style.fontSize = "";
+      const observed = document.body.classList.contains("observed-mode");
+      fitTextToSingleLine(timeEl, observed ? 17 : 20, 11.5);
+    }
+
+    function getTimelineClockMinutes(entry) {
+      if (entry?.isDailyPeakOnly || entry?.topTideDateOnly) return null;
+      if (entry?.returnIntervalYears) return ((Number(entry.offsetHours) * 60 % 1440) + 1440) % 1440;
+      const date = getEntryESTDate(entry);
+      const parts = date && getNyParts(date);
+      if (!parts) return null;
+      const hour = Number(parts.hour) % 12 + (parts.dayPeriod === "PM" ? 12 : 0);
+      return hour * 60 + Number(parts.minute);
+    }
+
+    function getTimelineDaySelection(start, end) {
+      // Compare the same local clock time across days, clamping partial days
+      // to their nearest available sample. Daily maxima keep their own peak.
+      if (currentHourIndex >= start && currentHourIndex <= end) return currentHourIndex;
+      const minute = getTimelineClockMinutes(currentSeriesHours[currentHourIndex]);
+      if (minute == null || !Number.isFinite(minute)) return start;
+      let selected = start, distance = Infinity;
+      for (let index = start; index <= end; index++) {
+        const candidate = getTimelineClockMinutes(currentSeriesHours[index]);
+        if (candidate == null || !Number.isFinite(candidate)) continue;
+        const delta = Math.abs(candidate - minute);
+        if (delta < distance) { selected = index; distance = delta; }
+      }
+      return selected;
+    }
+
+    function revealTimelineDay(button, wrap) {
+      if (!button || !isMobileTimeline()) return;
+      requestAnimationFrame(() => {
+        // Scroll only the day strip, never the map or page.
+        if (button.offsetLeft < wrap.scrollLeft || button.offsetLeft + button.offsetWidth > wrap.scrollLeft + wrap.clientWidth) {
+          wrap.scrollLeft = button.offsetLeft - (wrap.clientWidth - button.offsetWidth) / 2;
+        }
+      });
+    }
+
+    let timelineDayCache = null;
+    function renderTimelineDays() {
+      const wrap = document.getElementById("timelineDayTabs");
+      if (!wrap) return;
+      const cacheKey = `${currentDataMode}:${currentOverlayMode}:${isMobileTimeline()}`;
+      if (timelineDayCache?.series === currentSeriesHours && timelineDayCache.key === cacheKey) {
+        for (const {button, start, end} of timelineDayCache.groups) {
+          const active = currentHourIndex >= start && currentHourIndex <= end;
+          if (button.classList.contains("active") !== active) {
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-current", String(active));
+            if (active) revealTimelineDay(button, wrap);
+          }
+        }
+        return;
+      }
+      wrap.innerHTML = "";
+      timelineDayCache = {series: currentSeriesHours, key: cacheKey, groups: []};
+      if (!currentSeriesHours.length) return;
+
+      const groups = [];
+      let startIndex = 0;
+      for (let i = 1; i <= currentSeriesHours.length; i++) {
+        if (i === currentSeriesHours.length || !sameEntryESTDay(currentSeriesHours[i - 1], currentSeriesHours[i])) {
+          groups.push({
+            start: startIndex,
+            end: i - 1,
+            label: formatTimelineDayLabel(currentSeriesHours[startIndex]),
+            hours: (i - startIndex)
+          });
+          startIndex = i;
+        }
+      }
+
+      groups.forEach(group => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "timeline-day";
+        const gaugeInoperable = currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours, group.start, group.end);
+        btn.classList.toggle("gauge-inoperable", gaugeInoperable);
+        btn.textContent = gaugeInoperable ? "Gauge inoperable" : group.label;
+        if (gaugeInoperable) {
+          const outageHours = getDisplayedGaugeOutageHours(currentSeriesHours, group.start, group.end);
+          btn.setAttribute("aria-label", `Gauge inoperable for more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} hours`);
+          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable North Wildwood or Stone Harbor gauge level`;
+        }
+        // The first and last frames occupy half a slider interval.
+        const timelineFrameWeight = currentSeriesHours.length <= 1 ? 1
+          : Math.min(currentSeriesHours.length - 1, group.end + 0.5) - Math.max(0, group.start - 0.5);
+        btn.dataset.start = String(group.start);
+        btn.dataset.end = String(group.end);
+        btn.style.setProperty("--shorely-timeline-frame-weight", String(timelineFrameWeight));
+        // Inline priority survives the town/reference styles' equal-flex rules.
+        btn.style.setProperty("flex", "var(--shorely-timeline-day-flex, 1) 1 0", "important");
+        const tideGradient = gaugeInoperable ? null : buildTimelineGroupGradient(group.start, group.end, isMobileTimeline());
+        if (tideGradient) {
+          btn.style.setProperty("--timeline-day-gradient", tideGradient);
+          btn.style.backgroundImage = `linear-gradient(180deg, rgba(10,18,32,.18), rgba(10,18,32,.18)), ${tideGradient}`;
+        } else if (gaugeInoperable) {
+          btn.style.backgroundImage = "none";
+        }
+        const active = currentHourIndex >= group.start && currentHourIndex <= group.end;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-current", String(active));
+        timelineDayCache.groups.push({button: btn, start: group.start, end: group.end});
+        btn.addEventListener("click", () => {
+          stopPlayback();
+          renderHour(getTimelineDaySelection(group.start, group.end)).catch(err => toast(err.message));
+        });
+        wrap.appendChild(btn);
+        if (active) revealTimelineDay(btn, wrap);
+      });
+    }
+
+    function getRawStageValue(entry) {
+      if (!entry) return null;
+      // Validate primitive values before coercion; town datum adjustment runs once downstream.
+      const readRawStage = value => {
+      if (value == null || typeof value === "boolean" ||
+          (typeof value !== "number" && typeof value !== "string") ||
+          (typeof value === "string" && !value.trim())) return null;
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+      };
+      const keys = [
+        "navd88StageFt",
+        "stageFt",
+        "value",
+        "waterLevel",
+        "waterLevelFt",
+        "waterLevelNAVD88",
+        "waterLevelNavd88",
+        "navd88",
+        "NAVD88",
+        "navd88_ft",
+        "navd88Ft",
+        "stage_navd88_ft",
+        "stageNAVD88",
+        "stageNavd88",
+        "water_level",
+        "water_level_ft",
+        "water_level_navd88",
+        "wl_navd88_ft"
+      ];
+      for (const key of keys) {
+        if (entry[key] == null || entry[key] === "") continue;
+        const n = readRawStage(entry[key]);
+        if (Number.isFinite(n)) return n;
+      }
+
+      for (const key of Object.keys(entry)) {
+        const k = key.toLowerCase();
+        if (!/(navd|stage|water|level|height)/.test(k)) continue;
+        if (/(peak|max|min|hour|index|rank|date|time|class|source)/.test(k)) continue;
+        // Explicit alternate-datum values are not a NAVD88 fallback.
+        if (/(mllw|mhhw|mhw|mlw|msl|ngvd)/.test(k)) continue;
+        if (entry[key] == null || entry[key] === "") continue;
+        const n = readRawStage(entry[key]);
+        if (Number.isFinite(n)) return n;
+      }
+      return null;
+    }
+
+    function getStageValue(entry) {
+      const raw = getRawStageValue(entry);
+      return raw == null ? null : normalizeStageValue(raw);
+    }
+
+    function classifyFloodStage(stageValue) {
+      const n = Number(stageValue);
+      if (!Number.isFinite(n)) return "none";
+      if (n < MINOR_FLOOD_FT) return "none";
+      if (n < MODERATE_FLOOD_FT) return "minor";
+      if (n < MAJOR_FLOOD_FT) return "moderate";
+      return "major";
+    }
+
+    function classifyFloodEntries(entries = []) {
+      let severity = "none";
+      const rank = { none: 0, minor: 1, moderate: 2, major: 3 };
+      entries.forEach(entry => {
+        const next = classifyFloodStage(getStageValue(entry));
+        if ((rank[next] || 0) > (rank[severity] || 0)) severity = next;
+      });
+      return severity;
+    }
+
+    function buildNotes(rawStage, matchedStage) {
+      const notes = [];
+      if (!Number.isFinite(rawStage) || !Number.isFinite(matchedStage)) return "";
+      if (Math.abs(rawStage - matchedStage) > 0.0001) {
+        notes.push(`The displayed water level stays exact, but the called raster is rounded down to the nearest published overlay at ${matchedStage.toFixed(1)} ft NAVD88.`);
+      }
+      if (rawStage > MAX_STAGE) {
+        notes.push(`The adjusted water level was above the published range and the raster call was clamped to ${matchedStage.toFixed(1)} ft NAVD88.`);
+      } else if (rawStage < MIN_STAGE) {
+        notes.push(`The adjusted water level was below the published range and the raster call was clamped to ${matchedStage.toFixed(1)} ft NAVD88.`);
+      }
+      return notes.join(" ");
+    }
+
+    function getPeakHourIndex(hours = currentSeriesHours) {
+      if (!hours.length) return 0;
+      let maxIndex = 0;
+      let maxVal = -Infinity;
+      hours.forEach((h, i) => {
+        const v = getStageValue(h);
+        if (Number.isFinite(v) && v > maxVal) {
+          maxVal = v;
+          maxIndex = i;
+        }
+      });
+      return maxIndex;
+    }
+
+    function observedDateHourKey(dateStr, hourIndex) {
+      const h = Number(hourIndex);
+      if (!dateStr || !Number.isInteger(h) || h < 0 || h > 23) return null;
+      return `${dateStr}|${pad2(h)}`;
+    }
+
+    function getStoredLocalDateHour(entry) {
+      const raw = String(entry?.displayTimeEST || entry?.timeEST || entry?.timeEst || "");
+      const match = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):/);
+      if (match) {
+        const hour = Number(match[2]);
+        if (Number.isInteger(hour) && hour >= 0 && hour <= 23) {
+          return { dateStr: match[1], hourIndex: hour };
+        }
+      }
+      const d = getEntryESTDate(entry);
+      const parts = d ? getNyParts(d) : null;
+      if (!parts) return null;
+      const hour = Number(parts.hour24);
+      if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+      return { dateStr: `${parts.year}-${parts.month}-${parts.day}`, hourIndex: hour };
+    }
+
+    function putObservedArchiveHour(dateStr, hourIndex, entry, score, sourceIndex = null) {
+      const key = observedDateHourKey(dateStr, hourIndex);
+      if (!key || !Number.isFinite(getStageValue(entry))) return;
+      const existing = observedHourIndexByDateHour.get(key);
+      if (!existing || score > existing.score) {
+        observedHourIndexByDateHour.set(key, { entry, score, sourceIndex });
+      }
+    }
+
+    function rebuildObservedHourLookup() {
+      observedHourIndexByDateHour = new Map();
+      const rawDays = Array.isArray(observedData?.days) ? observedData.days : [];
+      rawDays.forEach(day => {
+        const dateStr = String(day?.date || "");
+        const hours = Array.isArray(day?.hours) ? day.hours : [];
+        const sourceResolutionMinutes = detectSeriesResolutionMinutes(hours);
+        const fullArchiveDay = hours.length >= 20 && (!sourceResolutionMinutes || sourceResolutionMinutes >= 45);
+        hours.forEach((entry, idx) => {
+          if (!Number.isFinite(getStageValue(entry))) return;
+
+          const local = getStoredLocalDateHour(entry);
+          if (local) {
+            putObservedArchiveHour(local.dateStr, local.hourIndex, entry, 300, idx);
+          }
+
+          if (fullArchiveDay && dateStr && idx >= 0 && idx <= 23) {
+            putObservedArchiveHour(dateStr, idx, entry, 220, idx);
+          }
+
+          const storedHour = getStoredEntryHourIndex(entry);
+          if (dateStr && storedHour != null) {
+            putObservedArchiveHour(dateStr, storedHour, entry, 180, idx);
+          }
+        });
+      });
+    }
+
+    function getObservedArchiveEntryByDateHour(dateStr, hourIndex) {
+      const key = observedDateHourKey(dateStr, hourIndex);
+      return key ? (observedHourIndexByDateHour.get(key) || null) : null;
+    }
+
+    function scoreObservedDayRecord(day) {
+      const hours = Array.isArray(day?.hours) ? day.hours : [];
+      let validStages = 0;
+      hours.forEach(hour => {
+        if (Number.isFinite(getStageValue(hour))) validStages++;
+      });
+      return validStages * 1000 + hours.length;
+    }
+
+    function mergeObservedDayRecords(records = []) {
+      if (!records.length) return null;
+      const sortedRecords = records.slice().sort((a, b) => scoreObservedDayRecord(a) - scoreObservedDayRecord(b));
+      const base = { ...sortedRecords[sortedRecords.length - 1] };
+      const byHour = new Map();
+      const timelineRawHours = [];
+
+      sortedRecords.forEach(record => {
+        const hours = Array.isArray(record?.hours) ? record.hours : [];
+        const sourceResolutionMinutes = detectSeriesResolutionMinutes(hours);
+        const fullArchiveDay = hours.length >= 20 && (!sourceResolutionMinutes || sourceResolutionMinutes >= 45);
+        hours.forEach((hour, idx) => {
+          if (entryTimeMs(hour) != null) {
+            timelineRawHours.push({
+              ...hour,
+              observedDate: record.date,
+              classification: record.classification || base.classification || "none",
+              peakNAVD88: record.peakNAVD88 ?? base.peakNAVD88,
+              sourceHourIndex: idx,
+              sourceResolutionMinutes
+            });
+          }
+
+          let hourIndex = getStoredEntryHourIndex(hour);
+          if (!(hourIndex >= 0 && hourIndex <= 23) && fullArchiveDay && idx >= 0 && idx <= 23) {
+            hourIndex = idx;
+          }
+          if (!(hourIndex >= 0 && hourIndex <= 23)) {
+            const direct = Number(hour?.hourIndex);
+            hourIndex = Number.isInteger(direct) && direct >= 0 && direct <= 23 ? direct : null;
+          }
+          if (!(hourIndex >= 0 && hourIndex <= 23)) return;
+
+          const nextStage = getStageValue(hour);
+          const existing = byHour.get(hourIndex);
+          const existingStage = existing ? getStageValue(existing) : null;
+
+          if (!existing || (!Number.isFinite(existingStage) && Number.isFinite(nextStage))) {
+            byHour.set(hourIndex, {
+              ...hour,
+              hourIndex,
+              observedDate: record.date,
+              classification: record.classification || base.classification || "none",
+              peakNAVD88: record.peakNAVD88 ?? base.peakNAVD88,
+              sourceHourIndex: idx
+            });
+          }
+        });
+      });
+
+      if (byHour.size) {
+        base.hours = Array.from(byHour.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([hourIndex, hour]) => ({
+            ...hour,
+            hourIndex,
+            displayTimeEST: hour.displayTimeEST || hour.timeEST || hour.timeEst || `${base.date}T${pad2(hourIndex)}:00`
+          }));
+      } else {
+        base.hours = Array.isArray(base.hours) ? base.hours : [];
+      }
+
+      if (timelineRawHours.length) {
+        base.timelineRawHours = timelineRawHours
+          .sort((a, b) => (entryTimeMs(a) ?? 0) - (entryTimeMs(b) ?? 0));
+      } else {
+        base.timelineRawHours = Array.isArray(base.hours) ? base.hours : [];
+      }
+
+      return base;
+    }
+
+    function getObservedDays() {
+      if (observedDaysCache) return observedDaysCache;
+      const rawDays = Array.isArray(observedData?.days) ? observedData.days : [];
+      if (!rawDays.length) {
+        observedDaysCache = [];
+        return observedDaysCache;
+      }
+      const byDate = new Map();
+      rawDays.forEach(day => {
+        const date = String(day?.date || "");
+        if (!date) return;
+        if (!byDate.has(date)) byDate.set(date, []);
+        byDate.get(date).push(day);
+      });
+      observedDaysCache = Array.from(byDate.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([, records]) => mergeObservedDayRecords(records))
+        .filter(Boolean);
+      return observedDaysCache;
+    }
+
+    function getMonthKeyFromDate(dateStr) {
+      return String(dateStr).slice(0, 7);
+    }
+
+    function buildObservedMonthKeysFromDays(days) {
+      const keys = new Set();
+      days.forEach(day => {
+        if (day?.date) keys.add(getMonthKeyFromDate(day.date));
+      });
+      return Array.from(keys).sort();
+    }
+
+    function getObservedDayRecord(dateStr) {
+      return getObservedDays().find(d => d.date === dateStr) || null;
+    }
+
+    function getObservedDaysForMonth(monthKey) {
+      return getObservedDays().filter(d => getMonthKeyFromDate(d.date) === monthKey);
+    }
+
+    function getLatestObservedDate() {
+      const days = getObservedDays();
+      if (!days.length) return null;
+      for (let index = days.length - 1; index >= 0; index -= 1) {
+        const day = days[index];
+        const hasPeak = day?.peakNAVD88 != null && Number.isFinite(Number(day.peakNAVD88));
+        const hasMeasuredHour = getObservedSourceHoursForDay(day).some(entry => Number.isFinite(getStageValue(entry)));
+        if (hasPeak || hasMeasuredHour) return day.date;
+      }
+      return days[days.length - 1].date;
+    }
+
+function formatSelectedObservedDate(dateStr) {
+      const match = String(dateStr || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return dateStr || "Pick a day";
+      const [, y, m, d] = match;
+      return `${MONTH_NAMES[Number(m) - 1]} ${Number(d)}, ${y}`;
+    }
+
+    function prettyMonthShort(monthKey) {
+      if (!monthKey) return "--";
+      const [y, m] = monthKey.split("-");
+      return `${MONTH_NAMES[Number(m) - 1]} ${y}`;
+    }
+
+    function getChronologicalDateIndex(dateStr) {
+      return getObservedDays().findIndex(d => d.date === dateStr);
+    }
+
+    function getNeighborObservedDate(dateStr, direction) {
+      const days = getObservedDays();
+      const idx = getChronologicalDateIndex(dateStr);
+      if (idx < 0) return null;
+      const nextIdx = idx + direction;
+      if (nextIdx < 0 || nextIdx >= days.length) return null;
+      return days[nextIdx]?.date || null;
+    }
+
+    function updateDayNav() {
+      const center = document.getElementById("dayNavCenter");
+      const input = document.getElementById("observedDateInput");
+      const prevBtn = document.getElementById("prevDayBtn");
+      const nextBtn = document.getElementById("nextDayBtn");
+
+      const displayValue = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : "";
+
+      if (input) {
+        if (document.activeElement !== input) input.value = displayValue;
+        input.placeholder = selectedObservedDate ? displayValue : "Type a date";
+      } else if (center) {
+        center.textContent = displayValue || "Pick a day";
+      }
+
+      if (!selectedObservedDate) {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        return;
+      }
+
+      prevBtn.disabled = !getNeighborObservedDate(selectedObservedDate, -1);
+      nextBtn.disabled = !getNeighborObservedDate(selectedObservedDate, 1);
+    }
+
+    function parseTypedObservedDate(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return null;
+
+      let match = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+      if (match) {
+        const y = Number(match[1]);
+        const m = Number(match[2]);
+        const d = Number(match[3]);
+        if (m >= 1 && m <= 12 && d >= 1 && d <= 31) return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      }
+
+      match = raw.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
+      if (match) {
+        const m = Number(match[1]);
+        const d = Number(match[2]);
+        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());
+        if (y < 100) y += 2000;
+        if (m >= 1 && m <= 12 && d >= 1 && d <= 31) return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      }
+
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = parsed.getMonth() + 1;
+        const d = parsed.getDate();
+        return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      }
+
+      return null;
+    }
+
+    async function submitTypedObservedDate() {
+      const input = document.getElementById("observedDateInput");
+      if (!input) return;
+      const parsed = parseTypedObservedDate(input.value);
+      if (!parsed) {
+        input.value = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : "";
+        toast("Enter a date like Apr 19, 2026 or 04/19/2026.");
+        return;
+      }
+      const available = getObservedDays().some(day => day.date === parsed);
+      if (!available) {
+        input.value = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : "";
+        toast(`No observed data available for ${formatSelectedObservedDate(parsed)}.`);
+        return;
+      }
+      await loadObservedDay(parsed);
+      input.blur();
+    }
+
+    function buildObservedFlatHours() {
+      const flat = [];
+      getObservedDays().forEach(day => {
+        const hours = getObservedSourceHoursForDay(day);
+        const sourceResolutionMinutes = detectSeriesResolutionMinutes(hours);
+        const fullArchiveDay = hours.length >= 20 && (!sourceResolutionMinutes || sourceResolutionMinutes >= 45);
+        hours.forEach((hour, idx) => {
+          const safeHour = fullArchiveDay && idx >= 0 && idx <= 23
+            ? idx
+            : (getStoredEntryHourIndex(hour) ?? idx);
+          flat.push({
+            ...hour,
+            observedDate: day.date,
+            displayTimeEST: fullArchiveDay && safeHour >= 0 && safeHour <= 23
+              ? `${day.date}T${pad2(safeHour)}:00`
+              : (hour.displayTimeEST || hour.timeEST || hour.timeEst),
+            hourIndex: safeHour,
+            classification: day.classification || "none",
+            peakNAVD88: day.peakNAVD88,
+            sourceHourIndex: idx,
+            absoluteIndex: flat.length
+          });
+        });
+      });
+      return flat;
+    }
+
+    function entryTimeMs(entry) {
+      const d = getEntryESTDate(entry);
+      return d ? d.getTime() : null;
+    }
+
+    function formatTopTideDateLabelFromDateKey(dateKey) {
+      return formatSelectedObservedDate(dateKey);
+    }
+
+    function formatTopTideDateLabelFromEntry(entry) {
+      if (entry?.topTideDisplayDate) return entry.topTideDisplayDate;
+      if (entry?.display_date) return entry.display_date;
+      if (entry?.displayDate) return entry.displayDate;
+      if (entry?.observedDate) return formatTopTideDateLabelFromDateKey(entry.observedDate);
+      const d = getEntryESTDate(entry);
+      if (!d) return "--";
+      const parts = getNyParts(d);
+      if (!parts) return "--";
+      return `${MONTH_NAMES[Number(parts.month) - 1]} ${Number(parts.day)}, ${parts.year}`;
+    }
+
+    function normalizeTopTidesJsonEntry(item, idx) {
+      if (!item || typeof item !== "object") return null;
+      const height = Number(item.height_ft ?? item.heightFt ?? item.navd88 ?? item.NAVD88 ?? item.stage_ft ?? item.stageFt);
+      const date = String(item.date || item.crest_date || item.crestDate || "").slice(0, 10);
+      if (!Number.isFinite(height) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+      const displayDate = String(item.display_date || item.displayDate || formatTopTideDateLabelFromDateKey(date));
+      const rawTime = String(item.time_est || item.timeEST || item.crest_time || item.crestTime || "").trim();
+      const time = /^\d{2}:\d{2}$/.test(rawTime) ? rawTime : "12:00";
+      const sourceArea = String(item.source_area || item.sourceArea || "historical");
+      const sourceSite = String(item.site_no || item.siteNo || "");
+      const sourceStation = String(item.station_name || item.stationName || "");
+      const sourceStationShort = String(item.station_short || item.stationShort || (sourceArea === "stone-harbor" ? "Stone Harbor" : ""));
+
+      return {
+        navd88StageFt: height,
+        observedDate: date,
+        displayTimeEST: `${date}T${time}`,
+        timeEST: `${date}T${time}`,
+        topTideDateOnly: true,
+        topTideDisplayDate: displayDate,
+        topTideSource: "historical",
+        topTideSourceIndex: idx,
+        crestTimeKnown: /^\d{2}:\d{2}$/.test(rawTime),
+        sourceArea,
+        sourceSite,
+        sourceStation,
+        sourceStationShort,
+        stationPriority: Number(item.station_priority ?? item.stationPriority ?? (sourceArea === "stone-harbor" ? 3 : 1)),
+        recordType: String(item.record_type || item.recordType || "USGS storm-tide crest"),
+        eventName: String(item.event_name || item.eventName || ""),
+        sourceUrl: String(item.source_url || item.sourceUrl || ""),
+        observationInterval: "crest",
+        isHistoricalTopTide: true
+      };
+    }
+
+    async function loadHistoricalTopTides() {
+      if (historicTopTideEntries.length) return historicTopTideEntries;
+      if (historicalTopTidesPromise) return historicalTopTidesPromise;
+      historicalTopTidesPromise = fetchJson(TOP_TIDES_URL, { cache: "default" })
+        .then(data => {
+          const rows = Array.isArray(data?.toptides) ? data.toptides : Array.isArray(data) ? data : [];
+          historicTopTideEntries = rows.map(normalizeTopTidesJsonEntry).filter(Boolean);
+          return historicTopTideEntries;
+        })
+        .catch(error => {
+          historicalTopTidesPromise = null;
+          historicTopTideEntries = [];
+          throw error;
+        });
+      return historicalTopTidesPromise;
+    }
+
+    function mergeHistoricalCrestsIntoObservedIndex() {
+      if (!observedData || !Array.isArray(observedData.days) || !historicTopTideEntries.length) return;
+      const bestCrestByDate = new Map();
+      historicTopTideEntries.forEach(entry => {
+        const dateKey = String(entry?.observedDate || "");
+        if (!dateKey || !Number.isFinite(getStageValue(entry))) return;
+        const existing = bestCrestByDate.get(dateKey);
+        const nextPriority = Number(entry.stationPriority) || 0;
+        const existingPriority = Number(existing?.stationPriority) || 0;
+        if (!existing || nextPriority > existingPriority || (nextPriority === existingPriority && getStageValue(entry) > getStageValue(existing))) {
+          bestCrestByDate.set(dateKey, entry);
+        }
+      });
+      let changed = false;
+      bestCrestByDate.forEach((entry, dateKey) => {
+        const stage = getStageValue(entry);
+        const crestEntry = {
+          ...entry,
+          observedDate: dateKey,
+          observationInterval: "crest",
+          isHistoricalTopTide: true,
+          isHistoricalCrestOnly: true
+        };
+        const existingDays = observedData.days.filter(day => String(day?.date || "") === dateKey);
+        if (existingDays.length) {
+          existingDays.forEach(day => {
+            day.classification = classifyFloodStage(stage);
+            day.peakNAVD88 = stage;
+            day.peakMLLW = stage + (DATUM_OFFSETS.mllw || 0);
+            day.officialCrestEntry = crestEntry;
+            day.officialCrestStageFt = stage;
+            day.crestSourceSite = entry.sourceSite;
+            day.crestSourceStation = entry.sourceStation;
+          });
+          changed = true;
+          return;
+        }
+        observedData.days.push({
+          date: dateKey,
+          classification: classifyFloodStage(stage),
+          peakNAVD88: stage,
+          peakMLLW: stage + (DATUM_OFFSETS.mllw || 0),
+          isHistoricalCrestOnly: true,
+          crestSourceSite: entry.sourceSite,
+          crestSourceStation: entry.sourceStation,
+          hours: [crestEntry],
+          timelineRawHours: [crestEntry]
+        });
+        changed = true;
+      });
+      if (changed) {
+        observedData.days.sort((a, b) => String(a?.date || "").localeCompare(String(b?.date || "")));
+        observedData.archiveStartDate = observedData.days[0]?.date || observedData.archiveStartDate;
+        observedDaysCache = null;
+        clearExportAvailabilityCache();
+      }
+    }
+
+    function buildModernTopTideCandidates() {
+      const sortedDays = getObservedDays()
+        .filter(day => !day?.isHistoricalCrestOnly && !day?.isLewesSurrogate && !day?.officialCrestEntry && Number.isFinite(Number(day?.peakNAVD88)))
+        .slice()
+        .sort((a, b) => Number(b.peakNAVD88) - Number(a.peakNAVD88));
+
+      const chosen = [];
+      const minGapMs = TOP_TIDE_WINDOW_HOURS * 60 * 60 * 1000;
+
+      for (const dayRecord of sortedDays) {
+        const dateKey = String(dayRecord?.date || "");
+        const t = Date.parse(`${dateKey}T12:00:00Z`);
+        if (!dateKey || !Number.isFinite(t)) continue;
+        const overlaps = chosen.some(existing => {
+          const et = Date.parse(`${existing.dateKey}T12:00:00Z`);
+          return Number.isFinite(et) && Math.abs(et - t) < minGapMs;
+        });
+        if (overlaps) continue;
+
+        const hasLoadedSeries = observed15MinuteDaysByDate.has(dateKey)
+          || (Array.isArray(dayRecord.timelineRawHours) && dayRecord.timelineRawHours.length > 0)
+          || (Array.isArray(dayRecord.hours) && dayRecord.hours.length > 0);
+        if (!hasLoadedSeries) continue;
+
+        const canonicalSeries = buildObservedCanonicalSeries(dayRecord, dateKey);
+        const daySeries = getTimelineIntervalMinutes() === 1440
+          ? buildObservedDailyMaximumSeries(dateKey.slice(0, 7))
+          : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());
+        if (!daySeries.some(item => Number.isFinite(getStageValue(item)))) continue;
+        const dailyEventIndex = getTimelineIntervalMinutes() === 1440
+          ? daySeries.findIndex(item => item?.observedDate === dateKey)
+          : -1;
+        const peakLocalIndex = dailyEventIndex >= 0 ? dailyEventIndex : getPeakHourIndex(daySeries);
+        const sourceEntry = daySeries[peakLocalIndex];
+
+        const entry = {
+          ...sourceEntry,
+          observedDate: dateKey,
+          topTideDateOnly: false,
+          topTideDisplayDate: formatTopTideDateLabelFromDateKey(dateKey),
+          topTideSource: "modern",
+          sourceArea: "stone-harbor",
+          sourceSite: String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || ""),
+          sourceStation: "Great Channel at Stone Harbor NJ",
+          sourceStationShort: primaryGaugeName(),
+          stationPriority: 3,
+          isHistoricalTopTide: false
+        };
+
+        chosen.push({
+          entry,
+          dateKey,
+          peakStage: Number(dayRecord.peakNAVD88),
+          title: formatTopTideDateLabelFromDateKey(dateKey),
+          subtitle: "",
+          series: daySeries,
+          canonicalSeries,
+          peakLocalIndex,
+          sourceType: "modern",
+          sourceArea: "stone-harbor",
+          stationPriority: 3
+        });
+
+        if (chosen.length >= Math.max(TOP_TIDE_SELECT_COUNT * 2, TOP_TIDE_SELECT_COUNT + 5)) break;
+      }
+      return chosen;
+    }
+
+    function injectOfficialStoneHarborCrest(series, crestEntry) {
+      const cloned = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      if (!cloned.length) return cloned;
+      const officialStage = getStageValue(crestEntry);
+      if (!Number.isFinite(officialStage)) return cloned;
+      const targetIndex = crestEntry?.crestTimeKnown
+        ? findClosestEntryIndex(cloned, crestEntry)
+        : getPeakHourIndex(cloned);
+      if (targetIndex < 0 || targetIndex >= cloned.length) return cloned;
+      const archiveStage = getStageValue(cloned[targetIndex]);
+      if (Number.isFinite(archiveStage) && archiveStage >= officialStage) return cloned;
+      cloned[targetIndex] = {
+        ...cloned[targetIndex],
+        navd88StageFt: officialStage,
+        stageFt: officialStage,
+        value: officialStage,
+        officialCrestStageFt: officialStage,
+        officialCrestSourceSite: crestEntry.sourceSite,
+        sourceStationShort: crestEntry.sourceStationShort,
+        observationQuality: "C",
+        crestTimeEstimated: !crestEntry.crestTimeKnown,
+        isOfficialCrestFrame: true
+      };
+      return cloned;
+    }
+
+    function fitLewesSurrogateTideToCrest(series, crestEntry) {
+      const cloned = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      const officialStage = getStageValue(crestEntry);
+      if (!cloned.length || !Number.isFinite(officialStage)) return cloned;
+
+      const targetIndex = getPeakHourIndex(cloned);
+      if (targetIndex < 0 || targetIndex >= cloned.length) return cloned;
+
+      const sourcePeak = getStageValue(cloned[targetIndex]);
+      const targetTime = entryTimeMs(cloned[targetIndex]);
+      if (!Number.isFinite(sourcePeak) || !Number.isFinite(targetTime)) return cloned;
+
+      const delta = officialStage - sourcePeak;
+      const halfWindowHours = 6;
+      cloned.forEach((entry, index) => {
+        const stage = getStageValue(entry);
+        const time = entryTimeMs(entry);
+        if (!Number.isFinite(stage) || !Number.isFinite(time)) return;
+        const distanceHours = Math.abs(time - targetTime) / (60 * 60 * 1000);
+        if (distanceHours > halfWindowHours) return;
+        const weight = 0.5 * (1 + Math.cos(Math.PI * distanceHours / halfWindowHours));
+        const adjusted = Number((stage + delta * weight).toFixed(4));
+        cloned[index] = {
+          ...entry,
+          navd88StageFt: adjusted,
+          stageFt: adjusted,
+          value: adjusted,
+          sourceStationShort: surrogateStationShort(),
+          surrogateForStoneHarbor: true,
+          crestFitMethod: "raised-cosine-12-hour-tide-window",
+          observationQuality: "C",
+          crestTimeEstimated: !crestEntry.crestTimeKnown,
+          fittedStoneHarborCrestStageFt: officialStage,
+          isFittedCrestFrame: index === targetIndex
+        };
+      });
+
+      cloned[targetIndex] = {
+        ...cloned[targetIndex],
+        navd88StageFt: officialStage,
+        stageFt: officialStage,
+        value: officialStage,
+        isFittedCrestFrame: true
+      };
+      return cloned;
+    }
+
+    function buildHistoricalTopTideCandidates() {
+      return historicTopTideEntries
+        .filter(entry => Number.isFinite(getStageValue(entry)))
+        .map(entry => {
+          const dateKey = entry.observedDate || "";
+          const dayRecord = dateKey ? getObservedDayRecord(dateKey) : null;
+          const usesStoneHarborReplayShape = true;
+          const canUseStoneHarborArchive = Boolean(
+            dayRecord && !dayRecord.isHistoricalCrestOnly && !dayRecord.isLewesSurrogate && usesStoneHarborReplayShape
+          );
+          const canUseLewesSurrogate = Boolean(
+            dayRecord && dayRecord.isLewesSurrogate
+          );
+          let canonicalSeries = (canUseStoneHarborArchive || canUseLewesSurrogate)
+            ? buildObservedCanonicalSeries(dayRecord, dateKey)
+            : [];
+          const gaugeOutageHours = getLongestGaugeOutageHours(canonicalSeries);
+          const forceCrestOnly = gaugeOutageHours > GAUGE_OUTAGE_THRESHOLD_HOURS;
+          if (forceCrestOnly) canonicalSeries = [];
+          if (canonicalSeries.length > 1) {
+            canonicalSeries = canUseLewesSurrogate
+              ? fitLewesSurrogateTideToCrest(canonicalSeries, entry)
+              : injectOfficialStoneHarborCrest(canonicalSeries, entry);
+            canonicalSeries = annotateHydraulicSeries(canonicalSeries);
+          }
+          const replayable = canonicalSeries.length > 1 && canonicalSeries.some(item => Number.isFinite(getStageValue(item)));
+          const series = !replayable
+            ? []
+            : getTimelineIntervalMinutes() === 1440
+              ? [{
+                  ...canonicalSeries[getPeakHourIndex(canonicalSeries)],
+                  observationInterval: "daily",
+                  timelineIntervalMinutes: 1440,
+                  isDailyMaximum: true
+                }]
+              : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());
+          const dailyEventIndex = replayable && getTimelineIntervalMinutes() === 1440
+            ? series.findIndex(item => item?.observedDate === dateKey)
+            : -1;
+          const peakLocalIndex = replayable
+            ? (dailyEventIndex >= 0 ? dailyEventIndex : (entry.crestTimeKnown ? findClosestEntryIndex(series, entry) : getPeakHourIndex(series)))
+            : 0;
+          return {
+            entry,
+            dateKey,
+            peakStage: getStageValue(entry),
+            title: formatTopTideDateLabelFromEntry(entry),
+            subtitle: entry.sourceStationShort || "USGS crest",
+            series: replayable ? series : [{ ...entry, topTideHourIndex: 0, observationInterval: "crest" }],
+            canonicalSeries: replayable ? canonicalSeries : [],
+            peakLocalIndex,
+            sourceType: replayable ? (canUseLewesSurrogate ? "lewes-surrogate-crest" : "archive-crest") : "historical",
+            sourceArea: entry.sourceArea,
+            surrogateSource: canUseLewesSurrogate ? `NOAA ${surrogateStationShort()} ${surrogateStationId()}` : "",
+            stationPriority: Number(entry.stationPriority) || 0,
+            forceCrestOnly,
+            gaugeOutageHours
+          };
+        });
+    }
+
+    function buildTopTideEvents() {
+      const combined = [
+        ...buildModernTopTideCandidates(),
+        ...buildHistoricalTopTideCandidates()
+      ].filter(event => Number.isFinite(event.peakStage)
+        // User-reported invalid sensor peaks; exclude both feed paths before ranking.
+        && !["2026-09-21", "2026-08-23"].includes(event.dateKey));
+
+      const bestByDate = new Map();
+      combined.forEach(event => {
+        const key = event.dateKey || event.title || `${event.sourceType}-${bestByDate.size}`;
+        const existing = bestByDate.get(key);
+        if (!existing) {
+          bestByDate.set(key, event);
+          return;
+        }
+        const eventPriority = Number(event.stationPriority) || (event.sourceType === "modern" ? 3 : 0);
+        const existingPriority = Number(existing.stationPriority) || (existing.sourceType === "modern" ? 3 : 0);
+        const eventReplayable = Array.isArray(event.series) && event.series.length > 1;
+        const existingReplayable = Array.isArray(existing.series) && existing.series.length > 1;
+        const shouldReplace = (event.forceCrestOnly && !existing.forceCrestOnly)
+          || (!existing.forceCrestOnly && eventPriority > existingPriority)
+          || (!existing.forceCrestOnly && eventPriority === existingPriority && eventReplayable && !existingReplayable)
+          || (event.forceCrestOnly === existing.forceCrestOnly && eventPriority === existingPriority && eventReplayable === existingReplayable && event.peakStage > existing.peakStage);
+        if (shouldReplace) bestByDate.set(key, event);
+      });
+
+      return Array.from(bestByDate.values())
+        .sort((a, b) => b.peakStage - a.peakStage)
+        .slice(0, TOP_TIDE_SELECT_COUNT)
+        .map((event, idx) => ({
+          ...event,
+          rank: idx + 1,
+          title: event.title || formatTopTideDateLabelFromEntry(event.entry),
+          series: (event.series || [event.entry]).map((entry, localIdx) => ({
+            ...entry,
+            topTideHourIndex: localIdx,
+            topTideDateOnly: event.sourceType === "historical" || (event.series || []).length <= 1,
+            topTideDisplayDate: event.title || formatTopTideDateLabelFromEntry(entry),
+            observationInterval: event.sourceType === "historical" ? "crest" : (entry.observationInterval || "1hour")
+          }))
+        }));
+    }
+
+    function createTopTideButton(event, idx, options = {}) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = options.extraClass ? `top-tide-item ${options.extraClass}` : "top-tide-item";
+      btn.dataset.sourceType = event.sourceType || "unknown";
+      if (event.surrogateSource) btn.dataset.surrogateSource = event.surrogateSource;
+      btn.classList.toggle("active", currentViewType === "top-tide" && currentTopTideIndex === idx);
+      btn.innerHTML = `
+        <div class="top-tide-rank">#${event.rank}</div>
+        <div class="top-tide-main">${event.title}</div>
+        <div class="top-tide-sub">${formatStageForDisplay(event.peakStage)}</div>
+      `;
+      btn.addEventListener("click", () => {
+        setTopTidesModalOpen(false);
+        loadTopTideEvent(idx).catch(err => toast(err.message));
+      });
+      return btn;
+    }
+
+    function renderTopTidesModal() {
+      const list = document.getElementById("topTidesModalList");
+      if (!list) return;
+      list.innerHTML = "";
+      const modalEvents = topTideEvents.slice(0, TOP_TIDE_SELECT_COUNT);
+      if (!modalEvents.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted";
+        empty.textContent = "No flood crests are available.";
+        list.appendChild(empty);
+        return;
+      }
+      modalEvents.forEach((event, globalIdx) => {
+        list.appendChild(createTopTideButton(event, globalIdx, { extraClass: "top-tide-modal-item" }));
+      });
+    }
+
+    function setTopTidesModalOpen(open) {
+      const modal = document.getElementById("topTidesModal");
+      if (!modal) return;
+      if (modal.parentElement !== document.body) document.body.appendChild(modal);
+      if (open && document.body.classList.contains("mobile-optimized") && typeof setMobileControlsOpen === "function") {
+        setMobileControlsOpen(false);
+      }
+      if (open) renderTopTidesModal();
+      modal.hidden = !open;
+      modal.classList.toggle("open", !!open);
+      modal.setAttribute("aria-hidden", open ? "false" : "true");
+      document.body.classList.toggle("top-tides-modal-open", !!open);
+      if (open) document.getElementById("topTidesModalCloseBtn")?.focus();
+    }
+
+    function renderTopTides() {
+      const wraps = [document.getElementById("topTideList"), document.getElementById("topTideListMobile")].filter(Boolean);
+
+      wraps.forEach(wrap => {
+        wrap.innerHTML = "";
+
+        if (!topTideEvents.length) {
+          const empty = document.createElement("div");
+          empty.className = "muted";
+          empty.textContent = "No archive data.";
+          wrap.appendChild(empty);
+          return;
+        }
+
+        topTideEvents.slice(0, TOP_TIDE_DISPLAY_COUNT).forEach((event, idx) => {
+          wrap.appendChild(createTopTideButton(event, idx));
+        });
+
+        if (topTideEvents.length > TOP_TIDE_DISPLAY_COUNT) {
+          const more = document.createElement("button");
+          more.type = "button";
+          more.className = "top-tide-more-btn";
+          more.innerHTML = `<svg class="top-tide-more-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg><span>Show more</span>`;
+          more.addEventListener("click", () => setTopTidesModalOpen(true));
+          wrap.appendChild(more);
+        }
+      });
+      renderTopTidesModal();
+    }
+
+    function renderTimelineMeta(currentEntry = null) {
+      syncSliderBounds();
+      const timelineValue = document.getElementById("timelineValue");
+      const timelineMeta = document.getElementById("timelineMeta");
+      const timelineStart = document.getElementById("timelineStart");
+      const timelineEnd = document.getElementById("timelineEnd");
+      const label = document.getElementById("timelineLabel");
+      const bubble = document.getElementById("timelineBubble");
+
+      const first = currentSeriesHours[0];
+      const last = currentSeriesHours[currentSeriesHours.length - 1];
+      const entry = currentEntry || currentSeriesHours[currentHourIndex];
+
+      if (!currentSeriesHours.length) {
+        timelineValue.textContent = "--";
+        timelineMeta.textContent = "--";
+        timelineStart.textContent = "--";
+        timelineEnd.textContent = "--";
+        label.textContent = "Replay";
+        document.getElementById("timelineDock")?.classList.remove("top-tide-crest-only");
+        if (bubble) bubble.textContent = "--";
+        updateTimelineAccessibility();
+        return;
+      }
+
+      const currentTime = formatHourEntryTime(entry);
+      timelineValue.textContent = currentTime;
+
+      if (currentViewType === "forecast") {
+        label.textContent = `${getForecastScenarioLabel()} • ${getTimelineIntervalLabel()}`;
+      } else if (currentViewType === "return-interval") {
+        label.textContent = `${getReturnIntervalLabel()} Flood • ${getTimelineIntervalLabel()}`;
+      } else if (currentViewType === "observed-day") {
+        label.textContent = entry?.isDailyPeakOnly ? "Observed • Daily peak only" : entry?.observationInterval === "crest" ? "Observed • USGS crest" : `Observed • ${getTimelineIntervalLabel()}`;
+      } else {
+        label.textContent = "Top 10 Highest Floods";
+      }
+
+      const crestOnlyTopTide = (currentViewType === "top-tide" && (entry?.isHistoricalTopTide || currentSeriesHours.length <= 1 || entry?.observationInterval === "crest"))
+        || (currentSeriesHours.length <= 1 && entry?.observationInterval === "crest");
+      const timelineDock = document.getElementById("timelineDock");
+      if (timelineDock) timelineDock.classList.toggle("top-tide-crest-only", Boolean(crestOnlyTopTide));
+
+      if (crestOnlyTopTide) {
+        const crestStation = entry?.sourceStationShort ? `${entry.sourceStationShort} USGS` : "USGS";
+        const msg = `Only the ${crestStation} storm-tide crest is available; maximum flood extent is plotted.`;
+        timelineMeta.textContent = msg;
+        timelineStart.textContent = msg;
+        timelineEnd.textContent = "";
+        if (bubble) {
+          const stageValue = getStageValue(entry);
+          const stageText = Number.isFinite(stageValue) ? formatStageForDisplay(stageValue) : "--";
+          const stageClass = Number.isFinite(stageValue) ? classifyFloodStage(stageValue) : "none";
+          bubble.innerHTML = `<span class="timeline-bubble-current">Maximum extent</span><span class="timeline-bubble-stage timeline-bubble-stage-${stageClass}">${stageText}</span>`;
+        }
+      } else {
+        if (timelineDock) timelineDock.classList.remove("top-tide-crest-only");
+        timelineMeta.textContent = "";
+
+        timelineStart.textContent = "";
+        timelineEnd.textContent = "";
+        if (timelineStart) timelineStart.setAttribute("aria-hidden", "true");
+        if (timelineEnd) timelineEnd.setAttribute("aria-hidden", "true");
+        if (bubble) {
+          const stageValue = getStageValue(entry);
+          if (!Number.isFinite(stageValue)) {
+            const outageLabel = hasDisplayedLongGaugeOutage(currentSeriesHours) ? "Gauge inoperable" : "No gauge level";
+            bubble.innerHTML = `<span class="timeline-bubble-current">${formatTimelineBubbleText(entry)}</span><span class="timeline-bubble-stage timeline-bubble-stage-gauge">${outageLabel}</span>`;
+          } else {
+            const stageText = formatStageForDisplay(stageValue);
+            const stageClass = classifyFloodStage(stageValue);
+            bubble.innerHTML = `<span class="timeline-bubble-current">${formatTimelineBubbleText(entry)}</span><span class="timeline-bubble-stage timeline-bubble-stage-${stageClass}">${stageText}</span>`;
+          }
+        }
+      }
+      updateTimelineAccessibility();
+      renderTimelineDays();
+      updateDownloadSummary();
+      requestAnimationFrame(positionTimelineBubble);
+    }
+
+    function updateTimelineAccessibility() {
+      const slider = document.getElementById("hourSlider");
+      const bubble = document.getElementById("timelineBubble");
+      if (!slider) return;
+      slider.setAttribute("aria-label", currentDataMode === "observed" ? "Observed flood time"
+        : currentDataMode === "return-interval" ? "Modeled flood time" : "Flood forecast time");
+      const parts = bubble ? [...bubble.querySelectorAll(".timeline-bubble-current,.timeline-bubble-stage")]
+        .map(part => part.textContent.trim()) : [];
+      const valueText = (parts.length ? parts.join(" ") : bubble?.textContent)?.replace(/\s+/g, " ").trim();
+      slider.setAttribute("aria-valuetext", valueText || "No time available");
+      slider.disabled = !currentSeriesHours.length || slider.min === slider.max;
+    }
+
+    function getSnapshotSubLabel(entry) {
+      if (entry?.isDailyPeakOnly) return "Daily peak only • detailed observations unavailable";
+      if (currentViewType === "forecast") return getForecastScenarioPercentileLabel();
+      if (currentViewType === "return-interval") return `Synthetic ${returnIntervalData?.windowHours || 84}-hour storm`;
+      if (entry?.observationInterval === "crest" && currentSeriesHours.length <= 1) return "Maximum extent only";
+      if (currentViewType === "top-tide") {
+        return (entry?.isHistoricalTopTide || currentSeriesHours.length <= 1 || entry?.observationInterval === "crest")
+          ? "Maximum extent only"
+          : `${getTimelineIntervalLabel()} record`;
+      }
+      return "";
+    }
+
+    function renderSelectionMeta(entry, rawStage, displayStage) {
+      currentSelectionQualityNote = "";
+      document.getElementById("timeText").textContent = formatSnapshotTime(entry);
+      if (entry?.isMissingObservedHour || !Number.isFinite(rawStage)) {
+        const gaugeInoperable = currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours);
+        document.getElementById("stageText").textContent = gaugeInoperable ? "Gauge inoperable" : "No data";
+        document.getElementById("stageSubText").textContent = gaugeInoperable
+          ? `More than ${GAUGE_OUTAGE_THRESHOLD_HOURS} consecutive hours are unavailable`
+          : "No observed record for this time";
+      } else {
+        document.getElementById("stageText").textContent = formatStageForDisplay(rawStage);
+        const stageSub = currentViewType === "forecast"
+          ? getForecastScenarioLabel()
+          : currentViewType === "return-interval"
+            ? `${getReturnIntervalLabel()} synthetic • ${getDatumLabel()}`
+            : currentViewType === "top-tide"
+              ? ((entry?.isHistoricalTopTide || currentSeriesHours.length <= 1 || entry?.observationInterval === "crest") ? "Maximum extent only" : `${getTimelineIntervalLabel()} record`)
+              : entry?.observationInterval === "crest"
+                ? `USGS crest • ${getDatumLabel()}`
+                : `${classifyFloodStage(rawStage) === "none" ? "No flooding" : `${classifyFloodStage(rawStage).charAt(0).toUpperCase() + classifyFloodStage(rawStage).slice(1)} flooding`} • ${getDatumLabel()}`;
+        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? "Stone Harbor USGS" : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
+        const qualityNote = entry?.observationQuality === "I" || entry?.isInterpolatedTimelineFrame
+          ? "Interpolated" : entry?.observationQuality === "U" || entry?.observationQuality === "unknown"
+            ? "Sampling quality not recorded" : entry?.observationQuality === "C" ? "Calibrated storm replay" : "";
+        currentSelectionQualityNote = [stationNote, qualityNote, entry?.crestTimeEstimated ? "Replay timing estimated from source tide" : "", entry?.isDailyPeakOnly ? "Daily peak only • peak time unknown" : ""].filter(Boolean).join(" • ");
+        document.getElementById("stageSubText").textContent = [stageSub, currentSelectionQualityNote].filter(Boolean).join(" • ");
+      }
+      updateSnapshotWaterLevelSeverity(rawStage);
+      document.getElementById("selectedText").textContent = currentSelectedLabel;
+      document.getElementById("selectedSubText").textContent = currentSelectedSubLabel;
+      const snapshotSubLabel = getSnapshotSubLabel(entry);
+      const timeSubText = document.getElementById("timeSubText");
+      timeSubText.textContent = snapshotSubLabel;
+      timeSubText.style.display = snapshotSubLabel ? "" : "none";
+      requestAnimationFrame(fitSnapshotTimeText);
+    }
+
+    async function setFloodLayer(mode, stageValue, phase, token, entry = null, series = currentRawSeriesHours) {
+      const frameEntry = typeof entry !== "undefined" && entry ? entry : currentSeriesHours[currentHourIndex];
+      const frameStage = getStageValue(frameEntry);
+      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : (typeof stageValue !== "undefined" ? stageValue : null), phase: typeof phase !== "undefined" ? phase : "slack", dataMode: currentDataMode };
+
+      let releaseRaster = null;
+      try {
+        toast("");
+        ensureMap();
+
+        const match = document.body.dataset.initialFloodFrame === "loading" && mode === "depth"
+          ? await getOverlayRecord(mode, stageValue, phase)
+          : await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
+        if (token !== lastRenderToken) return;
+
+        if (!match) {
+          toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);
+          return;
+        }
+
+        const overlayUrl = match.url;
+        releaseRaster = retainRasterObjectUrl(overlayUrl);
+        const loaded = await preloadImage(overlayUrl, "high");
+        if (token !== lastRenderToken) return;
+        if (!loaded) {
+          return false;
+        }
+
+        try {
+          await ensureOverlayBounds(overlayUrl);
+        } catch (err) {
+          toast(err.message);
+          return;
+        }
+
+        if (token !== lastRenderToken) return;
+
+        if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
+          map.removeLayer(pendingFloodLayer);
+          pendingFloodLayer = null;
+        }
+
+        const previousLayer = currentFloodLayer;
+        const nextLayer = createHydraulicImageOverlay(
+          overlayUrl,
+          {
+            opacity: 0,
+            interactive: false,
+            crossOrigin: true,
+            zIndex: 500,
+            pane: "floodPane",
+            className: currentDataMode === "return-interval" && mode === "depth"
+              ? "return-interval-depth-overlay"
+              : ""
+          }
+        );
+
+        pendingFloodLayer = nextLayer;
+        return await waitForRecoveryFloodLayer(nextLayer, token, () => {
+          nextLayer.setOpacity(overlayOpacity);
+          nextLayer._floodmapperFrame = frameMetadata;
+        currentFloodLayer = nextLayer;
+          floodFrameState = "ready";
+          document.body.dataset.floodFrame = "ready";
+          pendingFloodLayer = null;
+  
+          if (previousLayer && map.hasLayer(previousLayer)) {
+            map.removeLayer(previousLayer);
+          }
+  
+          updatePersistentDepthQueryPopup();
+  
+          if (!mapHasFit && floodLatLngBounds) {
+            const townBounds = getBoundaryDrivenOverlayBounds();
+            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
+            if (document.body.classList.contains("mobile-optimized")) {
+              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
+            }
+            mapHasFit = true;
+          }
+          markInitialFloodFrameReady();
+        });
+      } finally {
+        releaseRaster?.();
+      }
+    }
+
+    async function setPhysicsFloodLayer(asset, token, entry = null, phase = "slack") {
+      const frameEntry = typeof entry !== "undefined" && entry ? entry : currentSeriesHours[currentHourIndex];
+      const frameStage = getStageValue(frameEntry);
+      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : (typeof stageValue !== "undefined" ? stageValue : null), phase: typeof phase !== "undefined" ? phase : "slack", dataMode: currentDataMode };
+
+      toast("");
+      ensureMap();
+      const overlayUrl = getPhysicsDisplayRecord(asset)?.url;
+      const bounds = getActivePhysicsManifest()?.boundsWgs84;
+      if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
+        throw new Error("The selected physics frame is incomplete.");
+      }
+      const loaded = await preloadImage(overlayUrl, "high");
+      if (token !== lastRenderToken) return;
+      if (!loaded) {
+        return false;
+      }
+      floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
+      floodOverlayGeometryMode = "axis-aligned";
+
+      if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
+        map.removeLayer(pendingFloodLayer);
+        pendingFloodLayer = null;
+      }
+      const previousLayer = currentFloodLayer;
+      const nextLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {
+        opacity: 0,
+        interactive: false,
+        crossOrigin: true,
+        zIndex: 500,
+        pane: "floodPane"
+      });
+      pendingFloodLayer = nextLayer;
+      return await waitForRecoveryFloodLayer(nextLayer, token, () => {
+        nextLayer.setOpacity(overlayOpacity);
+        nextLayer._floodmapperFrame = frameMetadata;
+        currentFloodLayer = nextLayer;
+        floodFrameState = "ready";
+        document.body.dataset.floodFrame = "ready";
+        pendingFloodLayer = null;
+        renderedFloodPixelCache = null;
+        if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
+        if (!mapHasFit) {
+          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
+          if (document.body.classList.contains("mobile-optimized")) {
+            map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
+          }
+          mapHasFit = true;
+        }
+        markInitialFloodFrameReady();
+      });
+    }
+
+    async function renderHour(index) {
+      cancelTimelineSelection();
+      if (!currentSeriesHours.length) return;
+
+      const entry = currentSeriesHours[index];
+      if (!entry) return;
+
+      const previousHourIndex = currentHourIndex;
+      const requestedSeries = currentSeriesHours;
+      const token = ++lastRenderToken;
+      requestedTimelineSelection = { series: requestedSeries, index, token };
+      // Keep the last displayed frame visible while its replacement loads.
+      floodFrameState = "loading";
+      setFloodFrameStatus("", "loading");
+      document.body.dataset.floodFrame = floodFrameState;
+
+      const rawStage = getStageValue(entry);
+      const displayStage = getOverlayStage(rawStage);
+      const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);
+
+      updatePersistentDepthQueryPopup({ useRenderedFlood: false });
+
+      const slider = document.getElementById("hourSlider");
+      slider.value = String(index);
+      updateSliderProgress();
+
+      if (displayStage == null) {
+        currentHourIndex = index;
+        renderSelectionMeta(entry, rawStage, displayStage);
+        renderTimelineMeta(entry);
+        toast(currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours)
+          ? `Gauge inoperable: more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} consecutive hours are unavailable.`
+          : "No observed record for this time.");
+        ++lastRenderToken;
+        requestedTimelineSelection = null;
+        clearFloodLayer();
+        setFloodFrameStatus("Water-level data are unavailable for this time.", "error");
+        return;
+      }
+
+      const initialFramePending = document.body.dataset.initialFloodFrame === "loading";
+      const physicsAsset = currentOverlayMode === "depth" ? getPhysicsAssetForEntry(entry) : null;
+      const physicsUiWasActive = document.body.classList.contains("physics-forecast-active");
+      const physicsUiIsActive = Boolean(physicsAsset);
+      const physicsDailyUiWasActive = document.body.classList.contains("physics-daily-maximum-active");
+      const physicsDailyUiIsActive = Boolean(physicsAsset && entry?.isDailyMaximum);
+      document.body.classList.toggle("physics-forecast-active", physicsUiIsActive);
+      document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiIsActive);
+      if (
+        physicsUiWasActive !== physicsUiIsActive ||
+        physicsDailyUiWasActive !== physicsDailyUiIsActive
+      ) renderLegend();
+      const note = physicsAsset
+        ? (entry?.isDailyMaximum
+          ? (currentOverlayMode === "dynamic"
+            ? "Modeled flood-impact bands reached during this local day."
+            : "Cell-by-cell maximum depth from every 15-minute physics frame in this local day.")
+          : (currentOverlayMode === "dynamic"
+            ? "Flood-impact bands reached by this exact 15-minute shallow-water simulation."
+            : "Exact 15-minute nonlinear shallow-water simulation for this PETSS boundary level."))
+        : buildNotes(rawStage, displayStage);
+      toast(note);
+
+      const ready = await renderFloodFrameWithRetry(() => physicsAsset
+        ? setPhysicsFloodLayer(physicsAsset, token, entry, hydraulicPhase)
+        : setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours), token);
+      if (token !== lastRenderToken || requestedSeries !== currentSeriesHours) return false;
+      if (!ready) {
+        requestedTimelineSelection = null;
+        currentHourIndex = previousHourIndex;
+        slider.value = String(previousHourIndex);
+        updateSliderProgress();
+        document.body.classList.toggle("physics-forecast-active", physicsUiWasActive);
+        document.body.classList.toggle("physics-daily-maximum-active", physicsDailyUiWasActive);
+        if (physicsUiWasActive !== physicsUiIsActive || physicsDailyUiWasActive !== physicsDailyUiIsActive) renderLegend();
+        reportFloodFrameFailure();
+        return false;
+      }
+      currentHourIndex = index;
+      requestedTimelineSelection = null;
+      renderSelectionMeta(entry, rawStage, displayStage);
+      renderTimelineMeta(entry);
+      updateNsiStructureImpactLayer();
+      floodFrameState = "ready";
+      document.body.dataset.floodFrame = "ready";
+      document.body.dataset.floodFrameRecovery = "ready";
+      setFloodFrameStatus("", "info");
+      if (initialFramePending) scheduleOverlayCatalogWarmup(index);
+      else preloadAroundHour(index);
+    }
+
+    // Coalesce drag events into one render per animation frame. A final change
+    // flushes immediately; any other navigation cancels the queued selection.
+    let timelineSelectionFrame = 0;
+    let pendingTimelineSelection = null;
+    let requestedTimelineSelection = null;
+    function getTimelineNavigationIndex() {
+      if (pendingTimelineSelection?.series === currentSeriesHours) return pendingTimelineSelection.index;
+      if (requestedTimelineSelection?.series === currentSeriesHours) return requestedTimelineSelection.index;
+      return currentHourIndex;
+    }
+    function cancelTimelineSelection() {
+      if (timelineSelectionFrame) cancelAnimationFrame(timelineSelectionFrame);
+      timelineSelectionFrame = 0;
+      pendingTimelineSelection = null;
+    }
+    function flushTimelineSelection() {
+      const pending = pendingTimelineSelection;
+      cancelTimelineSelection();
+      if (!pending || pending.series !== currentSeriesHours) return;
+      if (pending.index === currentHourIndex && floodFrameState === "ready") return;
+      renderHour(pending.index).catch(error => toast(error.message));
+    }
+    function queueTimelineSelection(index, commit = false) {
+      const selected = Math.max(0, Math.min(currentSeriesHours.length - 1, Math.round(index)));
+      if (!currentSeriesHours.length || !Number.isFinite(selected)) return;
+      pendingTimelineSelection = {index: selected, series: currentSeriesHours};
+      if (commit) flushTimelineSelection();
+      else if (!timelineSelectionFrame) timelineSelectionFrame = requestAnimationFrame(flushTimelineSelection);
+    }
+    function stepTimeline(direction) {
+      stopPlayback();
+      const selected = getTimelineNavigationIndex();
+      queueTimelineSelection(selected + direction, true);
+    }
+
+    let timelineGradientCache = null;
+    function updateSliderProgress() {
+      const slider = document.getElementById("hourSlider");
+      if (!slider) return;
+      const min = Number(slider.min) || 0;
+      const max = Number(slider.max) || 0;
+      const value = Number(slider.value) || 0;
+      const percent = max > min ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0;
+      slider.style.setProperty("--timeline-progress", percent.toFixed(3) + "%");
+      const key = `${min}:${max}:${currentOverlayMode}`;
+      if (timelineGradientCache?.series !== currentSeriesHours || timelineGradientCache.key !== key) {
+        const gradient = buildTimelineGroupGradient(min, max, true);
+        slider.style.setProperty("--nww-stage-gradient", gradient || "linear-gradient(#94a3b8,#94a3b8)");
+        timelineGradientCache = {series: currentSeriesHours, key};
+      }
+    }
+
+    function isMobileTimeline() {
+      return isCompactFloodmapperLayout();
+    }
+
+    let timelineBoundsCache = null;
+    function getTimelineSliderBounds() {
+      const last = Math.max(0, currentSeriesHours.length - 1);
+      const selected = Math.max(0, Math.min(currentHourIndex, last));
+      let start = 0, end = last;
+      // The phone shows one day. Give that day's hours the whole touch track;
+      // retain global indices so rendering, playback, and exports stay in sync.
+      if (isMobileTimeline() && currentSeriesHours.length) {
+        if (timelineBoundsCache?.series === currentSeriesHours && selected >= timelineBoundsCache.start && selected <= timelineBoundsCache.end) {
+          ({start, end} = timelineBoundsCache);
+        } else {
+          start = end = selected;
+          while (start > 0 && sameEntryESTDay(currentSeriesHours[start - 1], currentSeriesHours[selected])) start--;
+          while (end < last && sameEntryESTDay(currentSeriesHours[end + 1], currentSeriesHours[selected])) end++;
+          timelineBoundsCache = {series: currentSeriesHours, start, end};
+        }
+      }
+      return { start, end, selected };
+    }
+
+    const timelineScaleTimeFormatter = new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York", hour:"numeric", minute:"2-digit"});
+    let timelineScaleCache = null;
+    function syncSliderBounds() {
+      const slider = document.getElementById("hourSlider");
+      if (!slider) return;
+      const { start, end, selected } = getTimelineSliderBounds();
+      document.getElementById("timelineDock").dataset.singleTimelineTime = String(start === end);
+      slider.min = String(start);
+      slider.max = String(end);
+      slider.value = String(selected);
+      if (timelineScaleCache?.series !== currentSeriesHours || timelineScaleCache.start !== start || timelineScaleCache.end !== end) {
+        const middle = Math.round((start + end) / 2);
+        for (const [id, index] of [["timelineFirstTime", start], ["timelineMiddleTime", middle], ["timelineLastTime", end]]) {
+          const label = document.getElementById(id);
+          const date = getEntryESTDate(currentSeriesHours[index]);
+          if (label) label.textContent = date ? timelineScaleTimeFormatter.format(date).replace(":00", "") : "";
+        }
+        const midLabel = document.getElementById("timelineMiddleTime");
+        if (midLabel) {
+          midLabel.style.left = `${end > start ? 100 * (middle - start) / (end - start) : 50}%`;
+          midLabel.hidden = end - start < 3;
+        }
+        timelineScaleCache = {series: currentSeriesHours, start, end};
+      }
+      const minutes = getTimelineIntervalMinutes();
+      const stepLabel = minutes === 1440 ? "1d" : minutes === 60 ? "1h" : `${minutes}m`;
+      for (const [id, direction] of [["timelineStepBack", -1], ["timelineStepForward", 1]]) {
+        const button = document.getElementById(id);
+        if (!button) continue;
+        button.disabled = !currentSeriesHours.length || selected + direction < 0 || selected + direction >= currentSeriesHours.length;
+        button.textContent = `${direction < 0 ? "−" : "+"}${stepLabel}`;
+        const target = currentSeriesHours[selected + direction];
+        button.setAttribute("aria-label", `${direction < 0 ? "Previous" : "Next"} time${target ? ": " + formatHourEntryTime(target) : " unavailable"}`);
+        button.title = button.getAttribute("aria-label");
+      }
+      updateSliderProgress();
+    }
+
+    async function loadForecast(preferredEntry = null, options = {}) {
+      const forecastFailureToken = lastRenderToken;
+      let forecastFailureGeneration = null;
+      try {
+      const floodSelectionToken = lastRenderToken;
+      const generation = options.generation ?? ++selectionGeneration;
+      forecastFailureGeneration = generation;
+      if (!forecastData || options.forceRefresh) {
+        const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL));
+        if (generation !== selectionGeneration) return;
+        forecastData = payload;
+      }
+      if (!options.deferPhysicsCatalog && (!Object.keys(physicsForecastManifests).length || options.forceRefresh)) {
+        await loadPhysicsForecast(Boolean(options.forceRefresh)).catch(error => {
+          console.warn("Physics forecast is not published yet; using the phase-aware atlas.", error);
+          physicsForecastManifests = {};
+        });
+      }
+      if (generation !== selectionGeneration) return;
+      if (floodSelectionToken !== lastRenderToken) return false;
+      clearExportAvailabilityCache();
+      const physicsSeries = getPhysicsForecastDisplaySeries();
+      if (physicsSeries) {
+        currentRawSeriesHours = annotateHydraulicSeries(
+          getActivePhysicsManifest().frames.map(physicsFrameToForecastEntry)
+        );
+        currentSeriesHours = physicsSeries;
+      } else {
+        currentRawSeriesHours = buildForecastCanonicalSeries(getActiveForecastHours());
+        currentSeriesHours = buildForecastDisplaySeries(currentRawSeriesHours);
+      }
+      currentViewType = "forecast";
+      currentTopTideIndex = null;
+      currentSelectedLabel = getForecastScenarioLabel();
+      currentSelectedSubLabel = getForecastScenarioPercentileLabel();
+      currentRangeLabel = currentSeriesHours.length
+        ? `${formatHourEntryTime(currentSeriesHours[0])} to ${formatHourEntryTime(currentSeriesHours[currentSeriesHours.length - 1])}`
+        : getForecastScenarioLabel();
+
+      syncSliderBounds();
+      if (!currentSeriesHours.length) {
+        // Do not leave another scenario's flood image under this selection's label.
+        currentHourIndex = 0;
+        document.getElementById("hourSlider").value = "0";
+        clearFloodLayer();
+        renderSelectionMeta(null, null, null);
+        document.getElementById("stageSubText").textContent = "No forecast available for this selection";
+        renderTimelineMeta();
+        toast(`${getForecastScenarioLabel()} forecast unavailable.`);
+        return false;
+      }
+      const currentTimeEntry = options.selectCurrent ? { timeUtc: new Date().toISOString() } : null;
+      currentHourIndex = preferredEntry
+        ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
+        : currentTimeEntry
+          ? findClosestEntryIndex(currentSeriesHours, currentTimeEntry)
+          : getPeakHourIndex(currentSeriesHours);
+      document.getElementById("hourSlider").value = String(currentHourIndex);
+      } catch (error) {
+        if (forecastFailureToken !== lastRenderToken) return false;
+        if (forecastFailureGeneration !== null && forecastFailureGeneration !== selectionGeneration) return false;
+        forecastData = null;
+        currentRawSeriesHours = [];
+        currentSeriesHours = [];
+        currentHourIndex = 0;
+        currentViewType = "forecast";
+        currentTopTideIndex = null;
+        currentSelectedLabel = getForecastScenarioLabel();
+        currentSelectedSubLabel = getForecastScenarioPercentileLabel();
+        currentRangeLabel = "";
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = "0";
+        clearFloodLayer();
+        renderSelectionMeta(null, null, null);
+        document.getElementById("stageSubText").textContent = "Forecast could not load";
+        renderTimelineMeta();
+        if (typeof reportFloodFrameFailure === "function") reportFloodFrameFailure();
+        const message = "Forecast could not load. Try another selection or reload.";
+        if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
+        toast(message);
+        return false;
+      }
+    }
+
+
+    function dateKeyToUtcMs(dateKey) {
+      const match = String(dateKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return NaN;
+      return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    }
+
+    function addDaysToDateKey(dateKey, days) {
+      const ms = dateKeyToUtcMs(dateKey);
+      if (!Number.isFinite(ms)) return null;
+      const d = new Date(ms + Number(days || 0) * 86400000);
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+    }
+
+    function compareDateKeys(a, b) {
+      const ams = dateKeyToUtcMs(a);
+      const bms = dateKeyToUtcMs(b);
+      if (!Number.isFinite(ams) || !Number.isFinite(bms)) return String(a || "").localeCompare(String(b || ""));
+      return ams - bms;
+    }
+
+    function getTodayNyDateKey() {
+      const parts = getNyParts(new Date());
+      if (!parts) return new Date().toISOString().slice(0, 10);
+      return `${parts.year}-${parts.month}-${parts.day}`;
+    }
+
+    function getObservedArchiveLatestDateKey() {
+      const days = Array.isArray(observedData?.days) ? observedData.days : [];
+      const dateKeys = days
+        .map(day => String(day?.date || "").slice(0, 10))
+        .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date))
+        .sort(compareDateKeys);
+      const archiveEnd = String(observedData?.archiveEndDate || observedData?.endDate || "").slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(archiveEnd)) dateKeys.push(archiveEnd);
+      dateKeys.sort(compareDateKeys);
+      return dateKeys.length ? dateKeys[dateKeys.length - 1] : null;
+    }
+
+    function makeObservedPlaceholderDay(dateKey) {
+      return {
+        date: dateKey,
+        classification: "none",
+        peakNAVD88: null,
+        generatedPlaceholderDay: true,
+        source: "frontend-calendar-fill",
+        hours: []
+      };
+    }
+
+    function addOrMergeObservedDayRecord(dayRecord) {
+      if (!dayRecord || !/^\d{4}-\d{2}-\d{2}$/.test(String(dayRecord.date || ""))) return;
+      if (!observedData || typeof observedData !== "object") observedData = {};
+      if (!Array.isArray(observedData.days)) observedData.days = [];
+
+      const nextHours = Array.isArray(dayRecord.hours) ? dayRecord.hours : [];
+      const existingIndex = observedData.days.findIndex(day => String(day?.date || "") === dayRecord.date);
+      if (existingIndex < 0) {
+        observedData.days.push(dayRecord);
+        return;
+      }
+
+      const existing = observedData.days[existingIndex] || {};
+      const existingHours = Array.isArray(existing.hours) ? existing.hours : [];
+      const existingValid = existingHours.filter(hour => Number.isFinite(getStageValue(hour))).length;
+      const nextValid = nextHours.filter(hour => Number.isFinite(getStageValue(hour))).length;
+
+      if (existing.generatedPlaceholderDay || nextValid > existingValid) {
+        observedData.days[existingIndex] = { ...existing, ...dayRecord };
+      }
+    }
+
+    function getUsgsObservedParameterCd() {
+      return TOWN_CONFIG?.observed?.usgsParameterCd || TOWN_CONFIG?.site?.usgsParameterCd || "";
+    }
+
+    function getUsgsObservedSiteId() {
+      return TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || SITE_CONFIG?.usgsGaugeId || "";
+    }
+
+    function normalizeUsgsIvObservedDays(data) {
+      const rows = [];
+      const seriesList = Array.isArray(data?.value?.timeSeries) ? data.value.timeSeries : [];
+      seriesList.forEach(series => {
+        const valueGroups = Array.isArray(series?.values) ? series.values : [];
+        valueGroups.forEach(group => {
+          const values = Array.isArray(group?.value) ? group.value : [];
+          values.forEach(item => {
+            const n = Number(item?.value);
+            const dtRaw = item?.dateTime;
+            const dt = dtRaw ? new Date(dtRaw) : null;
+            if (!Number.isFinite(n) || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;
+            const localIso = formatNyLocalIso(dt);
+            const dateKey = localIso.slice(0, 10);
+            const hourIndex = Number(localIso.slice(11, 13));
+            const minuteIndex = Number(localIso.slice(14, 16));
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !Number.isInteger(hourIndex) || !Number.isInteger(minuteIndex)) return;
+            rows.push({
+              displayTimeEST: localIso,
+              displayTimeUtc: dt.toISOString(),
+              timeUtc: dt.toISOString(),
+              observedDate: dateKey,
+              hourIndex,
+              minuteIndex,
+              navd88StageFt: n,
+              stageFt: n,
+              value: n,
+              observationInterval: "instantaneous",
+              source: "usgs-iv-live",
+              isLiveObservedBackfill: true,
+              isMissingObservedHour: false
+            });
+          });
+        });
+      });
+
+      const byDate = new Map();
+      rows
+        .sort((a, b) => String(a.displayTimeEST).localeCompare(String(b.displayTimeEST)))
+        .forEach(row => {
+          if (!byDate.has(row.observedDate)) byDate.set(row.observedDate, []);
+          byDate.get(row.observedDate).push(row);
+        });
+
+      return Array.from(byDate.entries()).map(([date, hours]) => {
+        const stages = hours.map(getStageValue).filter(Number.isFinite);
+        const peak = stages.length ? Math.max(...stages) : null;
+        return {
+          date,
+          classification: classifyFloodEntries(hours),
+          peakNAVD88: peak,
+          source: "usgs-iv-live",
+          liveBackfilled: true,
+          hours
+        };
+      });
+    }
+
+    async function fetchRecentUsgsObservedDays(startDate, endDate) {
+      const site = getUsgsObservedSiteId();
+      if (!site || !startDate || !endDate || compareDateKeys(startDate, endDate) > 0) return [];
+      const url = new URL("https://waterservices.usgs.gov/nwis/iv/");
+      const startInstant = parseStoredLocalNyToDate(startDate + "T00:00");
+      const endOfDayInstant = parseStoredLocalNyToDate(endDate + "T23:59");
+      const endInstant = endOfDayInstant && endOfDayInstant.getTime() < Date.now() ? endOfDayInstant : new Date();
+      url.searchParams.set("format", "json");
+      url.searchParams.set("sites", site);
+      url.searchParams.set("parameterCd", getUsgsObservedParameterCd());
+      const usgsIso = value => value.toISOString().replace(/\.\d{3}Z$/, "Z");
+      url.searchParams.set("startDT", startInstant ? usgsIso(startInstant) : startDate);
+      url.searchParams.set("endDT", usgsIso(endInstant));
+      url.searchParams.set("siteStatus", "all");
+      const data = await fetchJson(url.href);
+      return normalizeUsgsIvObservedDays(data);
+    }
+
+    function ensureObservedDatePlaceholders(startDate, endDate) {
+      if (!startDate || !endDate || compareDateKeys(startDate, endDate) > 0) return;
+      const existing = new Set((Array.isArray(observedData?.days) ? observedData.days : []).map(day => String(day?.date || "")));
+      let cursor = startDate;
+      while (cursor && compareDateKeys(cursor, endDate) <= 0) {
+        if (!existing.has(cursor)) {
+          addOrMergeObservedDayRecord(makeObservedPlaceholderDay(cursor));
+          existing.add(cursor);
+        }
+        cursor = addDaysToDateKey(cursor, 1);
+      }
+    }
+
+    async function extendObservedArchiveThroughToday() {
+      if (!observedData || typeof observedData !== "object") return;
+      const today = getTodayNyDateKey();
+      const latest = getObservedArchiveLatestDateKey();
+      if (!today || (latest && compareDateKeys(latest, today) >= 0)) return;
+
+      const startDate = addDaysToDateKey(latest, 1) || today;
+      try {
+        const liveDays = await fetchRecentUsgsObservedDays(startDate, today);
+        liveDays.forEach(addOrMergeObservedDayRecord);
+      } catch (err) {
+        console.warn("Observed live USGS backfill failed; filling calendar placeholders through today.", err);
+      }
+
+      ensureObservedDatePlaceholders(startDate, today);
+
+      observedData.archiveEndDate = today;
+      observedData.endDate = today;
+      observedDaysCache = null;
+      clearExportAvailabilityCache();
+    }
+
+    async function loadObserved() {
+      if (!observedData) {
+        const compactArchive = await ensureObserved15MinuteArchive();
+        observedData = buildObservedIndexFrom15MinuteArchive(compactArchive);
+        observedDaysCache = null;
+        clearExportAvailabilityCache();
+      }
+
+
+      await extendObservedArchiveThroughToday();
+
+      if (!historicTopTideEntries.length) await loadHistoricalTopTides();
+      mergeHistoricalCrestsIntoObservedIndex();
+      rebuildObservedHourLookup();
+
+      const days = getObservedDays();
+      observedMonthKeys = buildObservedMonthKeysFromDays(days);
+      observedFlatHours = [];
+      topTideEvents = buildTopTideEvents();
+      renderTopTides();
+
+      if (!currentMonthKey) {
+        currentMonthKey =
+          observedData.archiveEndDate?.slice(0, 7) ||
+          (days.length ? days[days.length - 1].date.slice(0, 7) : null) ||
+          (observedMonthKeys.length ? observedMonthKeys[observedMonthKeys.length - 1] : null);
+      }
+
+      populateCalendarSelectors();
+      scheduleLewesArchiveIndexWarmup();
+    }
+
+
+    function isWindowsShell() {
+      return document.documentElement.classList.contains("os-windows");
+    }
+
+    function closeWindowsDatebarMenus(exceptField = null) {
+      if (!isWindowsShell()) return;
+      document.querySelectorAll(".windows-datebar-field.open").forEach(field => {
+        if (field !== exceptField) {
+          field.classList.remove("open");
+          const btn = field.querySelector(".windows-datebar-button");
+          if (btn) btn.setAttribute("aria-expanded", "false");
+        }
+      });
+    }
+
+    function buildWindowsDatebarMenu(kind) {
+      const select = document.getElementById(kind === "month" ? "monthSelect" : "yearSelect");
+      const field = document.querySelector(`.windows-datebar-field[data-kind="${kind}"]`);
+      if (!select || !field) return;
+
+      const button = field.querySelector(".windows-datebar-button");
+      const menu = field.querySelector(".windows-datebar-menu");
+      if (!button || !menu) return;
+
+      const selectedOption = select.options[select.selectedIndex];
+      button.textContent = selectedOption ? selectedOption.textContent : "--";
+      button.setAttribute("title", selectedOption ? selectedOption.textContent : "");
+      menu.innerHTML = "";
+
+      Array.from(select.options).forEach(option => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "windows-datebar-option";
+        item.textContent = option.textContent;
+        item.dataset.value = option.value;
+        const active = option.value === select.value;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-selected", active ? "true" : "false");
+        item.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          select.value = option.value;
+          select.dispatchEvent(new Event("change", { bubbles:true }));
+          buildWindowsDatebarMenu(kind);
+          closeWindowsDatebarMenus();
+        });
+        menu.appendChild(item);
+      });
+    }
+
+    function syncWindowsCalendarDatebar() {
+      if (!isWindowsShell()) return;
+      buildWindowsDatebarMenu("month");
+      buildWindowsDatebarMenu("year");
+    }
+
+    function initWindowsCalendarDatebar() {
+      if (!isWindowsShell()) return;
+      const popover = document.getElementById("calendarPopover");
+      const grid = popover?.querySelector(".calendar-popover-grid");
+      const monthSelect = document.getElementById("monthSelect");
+      const yearSelect = document.getElementById("yearSelect");
+      const goBtn = document.getElementById("calendarGoBtn");
+      if (!popover || !grid || !monthSelect || !yearSelect || !goBtn || grid.querySelector(".windows-datebar-controls")) return;
+
+      popover.classList.add("windows-datebar");
+      monthSelect.closest("label")?.classList.add("native-datebar-field");
+      yearSelect.closest("label")?.classList.add("native-datebar-field");
+
+      const controls = document.createElement("div");
+      controls.className = "windows-datebar-controls";
+      controls.innerHTML = `
+        <div class="windows-datebar-field" data-kind="month">
+          <span class="windows-datebar-label">Month</span>
+          <button class="windows-datebar-button" type="button" aria-haspopup="listbox" aria-expanded="false">--</button>
+          <div class="windows-datebar-menu" role="listbox" aria-label="Month"></div>
+        </div>
+        <div class="windows-datebar-field" data-kind="year">
+          <span class="windows-datebar-label">Year</span>
+          <button class="windows-datebar-button" type="button" aria-haspopup="listbox" aria-expanded="false">--</button>
+          <div class="windows-datebar-menu" role="listbox" aria-label="Year"></div>
+        </div>
+      `;
+      grid.insertBefore(controls, goBtn);
+
+      controls.querySelectorAll(".windows-datebar-button").forEach(button => {
+        button.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          const field = button.closest(".windows-datebar-field");
+          const willOpen = !field.classList.contains("open");
+          closeWindowsDatebarMenus(field);
+          field.classList.toggle("open", willOpen);
+          button.setAttribute("aria-expanded", willOpen ? "true" : "false");
+        });
+      });
+
+      [monthSelect, yearSelect].forEach(select => {
+        select.addEventListener("change", syncWindowsCalendarDatebar);
+      });
+
+      document.addEventListener("click", event => {
+        if (!popover.contains(event.target)) closeWindowsDatebarMenus();
+      });
+
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape") closeWindowsDatebarMenus();
+      });
+
+      syncWindowsCalendarDatebar();
+    }
+
+    function setObservedCalendarOpen(open) {
+      const modal = document.getElementById("observedCalendarModal");
+      const trigger = document.getElementById("observedCalendarOpenBtn");
+      if (!modal) return;
+      // The full calendar is outside the control rail, so opening it cannot
+      // move the datum, overlay, interval, or legend below the timeline.
+      if (modal.parentElement !== document.body) document.body.appendChild(modal);
+      if (!open && modal.hidden) return;
+      if (open && isCompactFloodmapperLayout()) setMobileControlsOpen(false);
+      if (!open) setCalendarPopoverOpen(false);
+      modal.hidden = !open;
+      trigger?.setAttribute("aria-expanded", String(open));
+      if (open) document.getElementById("observedCalendarCloseBtn")?.focus({ preventScroll: true });
+      else if (isCompactFloodmapperLayout()) requestAnimationFrame(() => {
+        // Wait for the modal focus controller to release background isolation.
+        if (modal.hidden) document.getElementById("mobileControlsToggle")?.focus({ preventScroll: true });
+      });
+    }
+
+    function ensureCalendarPopoverIsBodyChild() {
+      const popover = document.getElementById("calendarPopover");
+      if (popover && popover.parentElement !== document.body) {
+        document.body.appendChild(popover);
+      }
+      const grid = popover?.querySelector(".calendar-popover-grid");
+      const close = document.getElementById("calendarPopoverCloseBtn");
+      if (grid && close && close.parentElement !== grid) grid.prepend(close);
+      if (grid) {
+        grid.setAttribute("role", "dialog");
+        grid.setAttribute("aria-modal", "true");
+        grid.setAttribute("aria-label", "Choose month");
+      }
+      return popover;
+    }
+
+    function setCalendarPopoverOpen(open) {
+      const popover = ensureCalendarPopoverIsBodyChild();
+      if (!popover) return;
+      if (open) populateCalendarSelectors();
+      popover.classList.toggle("open", !!open);
+      popover.setAttribute("aria-hidden", open ? "false" : "true");
+
+      if (open) {
+        popover.style.setProperty("position", "fixed", "important");
+        popover.style.setProperty("top", "50%", "important");
+        popover.style.setProperty("left", "50%", "important");
+        popover.style.setProperty("right", "auto", "important");
+        popover.style.setProperty("bottom", "auto", "important");
+        popover.style.setProperty("transform", "translate(-50%, -50%)", "important");
+        popover.style.setProperty("z-index", "12000", "important");
+        document.getElementById("calendarPopoverCloseBtn")?.focus({ preventScroll: true });
+      }
+
+      document.body.classList.remove("calendar-picker-open");
+      if (!open) closeWindowsDatebarMenus();
+      requestAnimationFrame(syncLeftPanelLayout);
+      setTimeout(syncLeftPanelLayout, 80);
+    }
+
+function populateCalendarSelectors() {
+      const monthSelect = document.getElementById("monthSelect");
+      const yearSelect = document.getElementById("yearSelect");
+
+      const years = Array.from(new Set(observedMonthKeys.map(key => key.slice(0, 4)))).sort();
+      monthSelect.innerHTML = MONTH_NAMES.map((name, i) => `<option value="${i + 1}">${name}</option>`).join("");
+      yearSelect.innerHTML = years.map(year => `<option value="${year}">${year}</option>`).join("");
+
+      if (currentMonthKey) {
+        const [y, m] = currentMonthKey.split("-");
+        monthSelect.value = String(Number(m));
+        yearSelect.value = y;
+      }
+      syncWindowsCalendarDatebar();
+    }
+
+    async function renderCalendar() {
+      if (!observedData || !currentMonthKey) return;
+      document.getElementById("monthLabel").textContent = prettyMonthShort(currentMonthKey);
+
+      const grid = document.getElementById("calendarGrid");
+      grid.innerHTML = "";
+
+      const [year, monthNum] = currentMonthKey.split("-").map(Number);
+      const first = new Date(Date.UTC(year, monthNum - 1, 1));
+      const lastDay = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
+      const firstWeekday = first.getUTCDay();
+      const monthDays = getObservedDaysForMonth(currentMonthKey);
+      const daysByDate = new Map(monthDays.map(day => [day.date, day]));
+
+      for (let i = 0; i < firstWeekday; i++) {
+        const blank = document.createElement("div");
+        blank.className = "calendar-day empty";
+        grid.appendChild(blank);
+      }
+
+      for (let day = 1; day <= lastDay; day++) {
+        const dateStr = `${year}-${pad2(monthNum)}-${pad2(day)}`;
+        const meta = daysByDate.get(dateStr);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "calendar-day";
+        btn.textContent = String(day);
+
+        if (!meta) {
+          btn.classList.add("day-none");
+          btn.disabled = true;
+          grid.appendChild(btn);
+          continue;
+        }
+
+        const derivedClass = classifyFloodEntries(Array.isArray(meta.hours) ? meta.hours : []);
+        const storedClass = String(meta.classification || "none").toLowerCase();
+        const cls = ["minor", "moderate", "major"].includes(storedClass) ? storedClass : derivedClass;
+        btn.classList.add(`day-${cls}`);
+        if (selectedObservedDate === dateStr && currentViewType !== "top-tide") btn.classList.add("selected");
+        btn.title = `${formatSelectedObservedDate(dateStr)} • ${cls}`;
+        btn.addEventListener("click", () => {
+          setObservedCalendarOpen(false);
+          loadObservedDay(dateStr).catch(err => toast(err.message));
+        });
+
+        grid.appendChild(btn);
+      }
+
+      const monthIndex = observedMonthKeys.indexOf(currentMonthKey);
+      document.getElementById("prevMonthBtn").disabled = monthIndex <= 0;
+      document.getElementById("nextMonthBtn").disabled = monthIndex === -1 || monthIndex >= observedMonthKeys.length - 1;
+      updateDayNav();
+      populateCalendarSelectors();
+      syncLeftPanelLayout();
+    }
+
+    async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
+      const floodSelectionToken = cancelPendingFloodFrame();
+      const generation = ++selectionGeneration;
+      try {
+        await ensureObservedArchiveForDate(dateStr);
+      } catch (error) {
+        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+        const failedMode = "observed";
+        const failedLabel = failedMode === "forecast" ? "Forecast" : failedMode === "return-interval" ? "Modeled flood" : "Observed";
+        currentDataMode = failedMode;
+        currentRawSeriesHours = [];
+        currentSeriesHours = [];
+        currentHourIndex = 0;
+        currentViewType = failedMode === "observed" ? "observed-day" : failedMode;
+        currentTopTideIndex = null;
+        currentSelectedLabel = failedMode === "forecast" ? getForecastScenarioLabel() : failedLabel;
+        currentSelectedSubLabel = "";
+        currentRangeLabel = "";
+        updateDataModeButtons();
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = "0";
+        clearFloodLayer();
+        renderSelectionMeta(null, null, null);
+        document.getElementById("stageSubText").textContent = `${failedLabel} data could not load`;
+        renderTimelineMeta();
+        if (typeof reportFloodFrameFailure === "function") reportFloodFrameFailure();
+        const message = `${failedLabel} data could not load. Try another selection or reload.`;
+        if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
+        toast(message);
+        return false;
+      }
+      if (floodSelectionToken !== lastRenderToken) return false;
+      if (generation !== selectionGeneration) return;
+      const dayRecord = getObservedDayRecord(dateStr);
+      if (!dayRecord) {
+        const failedMode = "observed";
+        const failedLabel = failedMode === "forecast" ? "Forecast" : failedMode === "return-interval" ? "Modeled flood" : "Observed";
+        currentDataMode = failedMode;
+        currentRawSeriesHours = [];
+        currentSeriesHours = [];
+        currentHourIndex = 0;
+        currentViewType = failedMode === "observed" ? "observed-day" : failedMode;
+        currentTopTideIndex = null;
+        currentSelectedLabel = failedMode === "forecast" ? getForecastScenarioLabel() : failedLabel;
+        currentSelectedSubLabel = "";
+        currentRangeLabel = "";
+        updateDataModeButtons();
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = "0";
+        clearFloodLayer();
+        renderSelectionMeta(null, null, null);
+        document.getElementById("stageSubText").textContent = `${failedLabel} data could not load`;
+        renderTimelineMeta();
+        if (typeof reportFloodFrameFailure === "function") reportFloodFrameFailure();
+        const message = `${failedLabel} data could not load. Try another selection or reload.`;
+        if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
+        toast(message);
+        return false;
+      }
+
+      const preservePlayback = Boolean(options && options.preservePlayback);
+      if (!preservePlayback) stopPlayback();
+      currentDataMode = "observed";
+      updateDataModeButtons();
+
+      selectedObservedDate = dateStr;
+      currentMonthKey = dateStr.slice(0, 7);
+      topTideEvents = buildTopTideEvents();
+      const rankedEvent = topTideEvents.find(event => event?.dateKey === dateStr) || null;
+      currentRawSeriesHours = buildObservedCanonicalSeries(dayRecord, dateStr);
+      currentSeriesHours = getTimelineIntervalMinutes() === 1440
+        ? buildObservedDailyMaximumSeries(dateStr.slice(0, 7))
+        : sampleCanonicalHydraulicSeries(currentRawSeriesHours, getTimelineIntervalMinutes());
+      currentViewType = "observed-day";
+      currentTopTideIndex = null;
+      currentSelectedLabel = dateStr;
+      currentSelectedSubLabel = rankedEvent
+        ? `${formatStageForDisplay(rankedEvent.peakStage)} peak`
+        : dayRecord.peakNAVD88 != null
+        ? `${formatStageForDisplay(normalizeStageValue(dayRecord.peakNAVD88))} peak`
+        : (() => {
+          const derived = classifyFloodEntries(Array.isArray(dayRecord.hours) ? dayRecord.hours : []);
+          return derived === "none" ? "Observed" : derived.charAt(0).toUpperCase() + derived.slice(1);
+        })();
+      currentRangeLabel = `${dateStr}`;
+
+      syncSliderBounds();
+      if (preferredEntry) {
+        currentHourIndex = findClosestMeasuredEntryIndex(currentSeriesHours, preferredEntry);
+      } else if (preferredHourIndex != null) {
+        currentHourIndex = Math.max(0, Math.min(preferredHourIndex, Math.max(0, currentSeriesHours.length - 1)));
+      } else if (getTimelineIntervalMinutes() === 1440) {
+        const selectedDayIndex = currentSeriesHours.findIndex(entry => entry?.observedDate === dateStr);
+        currentHourIndex = selectedDayIndex >= 0 ? selectedDayIndex : getPeakHourIndex(currentSeriesHours);
+      } else {
+        currentHourIndex = getPeakHourIndex(currentSeriesHours);
+      }
+      document.getElementById("hourSlider").value = String(currentHourIndex);
+
+      await renderCalendar();
+      if (floodSelectionToken !== lastRenderToken) return false;
+      if (generation !== selectionGeneration) return;
+      await renderHour(currentHourIndex);
+      renderTopTides();
+    }
+
+    async function loadTopTideEvent(index, preferredEntry = null) {
+      const generation = ++selectionGeneration;
+      if (!topTideEvents[index]) throw new Error("Top 10 flood crest not available.");
+      stopPlayback();
+      const floodSelectionToken = cancelPendingFloodFrame();
+
+      currentBaseModeBeforeTopTide = currentDataMode;
+      currentDataMode = "observed";
+      updateDataModeButtons();
+      if (!observedData) await warmBackgroundData();
+      if (floodSelectionToken !== lastRenderToken) return false;
+
+      if (generation !== selectionGeneration) return;
+      let event = topTideEvents[index];
+      const requestedDate = event.dateKey || event.entry?.observedDate || null;
+      if (requestedDate) {
+        const archiveSource = getObservedArchiveSourceForDate(requestedDate);
+        // Finish the compact Lewes day index before loading a pre-Stone Harbor
+        // record. Otherwise its idle refresh can replace the event catalog
+        // after this click has already captured the crest-only placeholder,
+        // leaving the first replay stuck at "Maximum extent" until the user
+        // changes the timeline interval.
+        if (archiveSource === "lewes") await ensureLewesArchiveIndex();
+        if (generation !== selectionGeneration) return;
+        const crestStage = getOverlayStage(event.peakStage);
+        const crestAssetPromise = crestStage == null
+          ? Promise.resolve(null)
+          : getOverlayRecord(currentOverlayMode, crestStage, "slack")
+              .then(record => record?.url ? preloadImage(record.url, "high") : null)
+              .catch(() => null);
+        await Promise.all([
+          ensureObservedArchiveForDate(requestedDate),
+          crestAssetPromise,
+        ]);
+        if (generation !== selectionGeneration) return;
+        topTideEvents = buildTopTideEvents();
+        event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;
+      }
+      currentViewType = "top-tide";
+      currentTopTideIndex = Math.max(0, topTideEvents.indexOf(event));
+      currentSelectedLabel = `Flood #${event.rank}`;
+      currentSelectedSubLabel = formatStageForDisplay(event.peakStage);
+      currentRangeLabel = `${event.title}`;
+      selectedObservedDate = event.dateKey || event.entry.observedDate || null;
+      if (selectedObservedDate) currentMonthKey = selectedObservedDate.slice(0, 7);
+
+      const eventSeries = (event.series && event.series.length ? event.series : [event.entry]);
+      const eventCanonicalSeries = event.canonicalSeries && event.canonicalSeries.length
+        ? event.canonicalSeries
+        : eventSeries;
+      const isCrestOnly = event.sourceType === "historical" || eventCanonicalSeries.length <= 1;
+      currentRawSeriesHours = eventCanonicalSeries.map((entry, idx) => ({
+        ...entry,
+        topTideHourIndex: idx,
+        topTideDateOnly: isCrestOnly,
+        topTideDisplayDate: event.title,
+        observationInterval: isCrestOnly ? "crest" : (entry.observationInterval || "1hour"),
+        isHistoricalTopTide: isCrestOnly && Boolean(entry.isHistoricalTopTide || event.sourceType === "historical")
+      }));
+      if (isCrestOnly) {
+        currentSeriesHours = currentRawSeriesHours.slice(0, 1);
+      } else if (getTimelineIntervalMinutes() === 1440) {
+        currentSeriesHours = [{
+          ...currentRawSeriesHours[getPeakHourIndex(currentRawSeriesHours)],
+          observationInterval: "daily",
+          timelineIntervalMinutes: 1440,
+          isDailyMaximum: true
+        }];
+      } else {
+        currentSeriesHours = sampleCanonicalHydraulicSeries(
+          currentRawSeriesHours,
+          getTimelineIntervalMinutes()
+        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));
+      }
+
+      syncSliderBounds();
+      currentHourIndex = isCrestOnly
+        ? 0
+        : preferredEntry
+          ? findClosestMeasuredEntryIndex(currentSeriesHours, preferredEntry)
+          : getPeakHourIndex(currentSeriesHours);
+      document.getElementById("hourSlider").value = String(currentHourIndex);
+
+      await renderCalendar();
+      if (floodSelectionToken !== lastRenderToken) return false;
+      await renderHour(currentHourIndex);
+      renderTopTides();
+      scheduleHistoricalTopTideWarmup();
+    }
+
+    async function setTimelineIntervalMinutes(minutes) {
+      const requested = Number(minutes);
+      const nextMinutes = requested === 15 || requested === 1440 ? requested : 60;
+      if (nextMinutes === getTimelineIntervalMinutes()) return;
+
+      const referenceEntry = currentSeriesHours[currentHourIndex] || null;
+      stopPlayback();
+      toast("");
+      currentTimelineIntervalMinutes = nextMinutes;
+      updateTimelineIntervalUI();
+      overlayPreloadGeneration += 1;
+
+      if (currentDataMode === "observed" && nextMinutes !== 60) {
+        const activeObservedDate = selectedObservedDate || currentSeriesHours[currentHourIndex]?.observedDate;
+        if (activeObservedDate) await ensureObservedArchiveForDate(activeObservedDate);
+      }
+
+      if (currentViewType === "return-interval" || currentDataMode === "return-interval") {
+        currentDataMode = "return-interval";
+        currentViewType = "return-interval";
+        updateDataModeButtons();
+        await loadReturnInterval(referenceEntry);
+        await renderHour(currentHourIndex);
+        return;
+      }
+
+      if (currentViewType === "forecast" || currentDataMode === "forecast") {
+        currentDataMode = "forecast";
+        currentViewType = "forecast";
+        updateDataModeButtons();
+        await loadForecast(referenceEntry);
+        renderTopTides();
+        await renderHour(currentHourIndex);
+        return;
+      }
+
+      if (currentViewType === "observed-day" && selectedObservedDate) {
+        await loadObservedDay(selectedObservedDate, null, referenceEntry);
+        return;
+      }
+
+      if (currentViewType === "top-tide" && currentTopTideIndex != null) {
+        topTideEvents = buildTopTideEvents();
+        const nextIndex = Math.min(currentTopTideIndex, Math.max(0, topTideEvents.length - 1));
+        if (topTideEvents[nextIndex]) {
+          await loadTopTideEvent(nextIndex, referenceEntry);
+        }
+        return;
+      }
+
+      refreshCurrentDisplayText();
+    }
+
+    async function switchOverlayMode(mode) {
+      if (mode === currentOverlayMode) return;
+
+      stopPlayback();
+      const floodSelectionToken = cancelPendingFloodFrame();
+      toast("");
+      currentOverlayMode = mode;
+      updateModeButtons();
+
+      await renderHour(currentHourIndex);
+    }
+
+    async function switchDataMode(mode) {
+      let modeFailureToken = lastRenderToken;
+      let modeFailureGeneration = null;
+      let modeFailureRequest = null;
+      try {
+      if (mode === currentDataMode && currentViewType !== "top-tide") return;
+      const generation = ++selectionGeneration;
+      modeFailureGeneration = generation;
+      ++lastRenderToken;
+      cancelPendingFloodFrame(false);
+      stopPlayback();
+      const floodSelectionToken = cancelPendingFloodFrame();
+      modeFailureToken = floodSelectionToken;
+      toast("");
+
+      if (mode === "forecast") {
+        currentDataMode = "forecast";
+        updateDataModeButtons();
+        await loadForecast(null, { generation });
+      if (floodSelectionToken !== lastRenderToken) return false;
+        if (generation !== selectionGeneration) return;
+        renderTopTides();
+        await renderHour(currentHourIndex);
+        return;
+      }
+
+      if (mode === "return-interval") {
+        currentDataMode = "return-interval";
+        currentViewType = "return-interval";
+        updateDataModeButtons();
+        cancelPendingFloodFrame(false);
+        await loadReturnInterval(null, { generation });
+      if (floodSelectionToken !== lastRenderToken) return false;
+        if (generation !== selectionGeneration) return;
+        renderTopTides();
+        await renderHour(currentHourIndex);
+        return;
+      }
+
+      currentDataMode = "observed";
+      updateDataModeButtons();
+      await warmBackgroundData();
+      if (floodSelectionToken !== lastRenderToken) return false;
+      if (generation !== selectionGeneration) return;
+      await renderCalendar();
+      if (floodSelectionToken !== lastRenderToken) return false;
+      if (generation !== selectionGeneration) return;
+
+      const defaultDate = (currentViewType === "top-tide" ? null : selectedObservedDate) || getLatestObservedDate();
+      if (defaultDate) {
+        await loadObservedDay(defaultDate);
+        scheduleHistoricalTopTideWarmup();
+      } else {
+        throw new Error("No observed dates were found in observed.json.");
+      }
+      } catch (error) {
+        if (modeFailureToken !== lastRenderToken || currentDataMode !== mode) return false;
+        if (modeFailureGeneration !== null && modeFailureGeneration !== selectionGeneration) return false;
+        const failedMode = mode;
+        const failedLabel = failedMode === "forecast" ? "Forecast" : failedMode === "return-interval" ? "Modeled flood" : "Observed";
+        currentDataMode = failedMode;
+        currentRawSeriesHours = [];
+        currentSeriesHours = [];
+        currentHourIndex = 0;
+        currentViewType = failedMode === "observed" ? "observed-day" : failedMode;
+        currentTopTideIndex = null;
+        currentSelectedLabel = failedMode === "forecast" ? getForecastScenarioLabel() : failedLabel;
+        currentSelectedSubLabel = "";
+        currentRangeLabel = "";
+        updateDataModeButtons();
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = "0";
+        clearFloodLayer();
+        renderSelectionMeta(null, null, null);
+        document.getElementById("stageSubText").textContent = `${failedLabel} data could not load`;
+        renderTimelineMeta();
+        if (typeof reportFloodFrameFailure === "function") reportFloodFrameFailure();
+        const message = `${failedLabel} data could not load. Try another selection or reload.`;
+        if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
+        toast(message);
+        return false;
+      }
+    }
+
+    async function warmBackgroundData() {
+      if (backgroundDataPromise) return backgroundDataPromise;
+      const generation = archiveGeneration;
+      backgroundDataPromise = (async () => {
+        const [observedCompact, canonical] = await Promise.all([
+          ensureObserved15MinuteArchive().catch(() => null),
+          ensureCanonicalDailyArchive().catch(() => null)
+        ]);
+        if (generation !== archiveGeneration) return null;
+        observed15MinuteData = observedCompact;
+        observedData = canonical ? buildObservedIndexFromCanonical(canonical) : (observedCompact ? buildObservedIndexFrom15MinuteArchive(observedCompact) : null);
+        if (observedCompact) mergeObservedArchiveIndex(observedCompact, "stone-harbor");
+        observedDaysCache = null;
+        observedMonthKeys = [];
+        observedFlatHours = [];
+        observedHourIndexByDateHour = new Map();
+        topTideEvents = [];
+        if (observedData) {
+          await loadObserved();
+        } else {
+          topTideEvents = buildTopTideEvents();
+          renderTopTides();
+        }
+        return observedData;
+      })().catch(error => {
+        if (generation === archiveGeneration) backgroundDataPromise = null;
+        console.warn("Background flood history loading will retry when requested.", error);
+        return null;
+      });
+      return backgroundDataPromise;
+    }
+
+    function scheduleTopTidesListWarmup() {
+      const start = async () => {
+        try {
+          await loadHistoricalTopTides();
+          topTideEvents = buildTopTideEvents();
+          renderTopTides();
+        } catch (error) {
+          console.warn("Historical high-tide summary will retry when requested.", error);
+        }
+      };
+      start();
+    }
+
+    function scheduleBackgroundDataWarmup() {
+      // Download the small calendar index while the forecast is visible, but
+      // leave JSON parsing and archive construction on demand. Past can then
+      // reuse the same in-flight response without delaying map interaction.
+      document.body.dataset.backgroundDataWarmup = "index-download-only";
+      preloadObservedArchiveIndexText().catch(() => null);
+    }
+
+    function waitForInitialFramePaint() {
+      return new Promise(resolve => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        window.setTimeout(finish, 160);
+        window.requestAnimationFrame(() => window.requestAnimationFrame(finish));
+      });
+    }
+
+    function scheduleForecastCatalogWarmup() {
+      const start = async () => {
+        if (document.body.dataset.initialFloodFrame !== "ready") return;
+        document.body.dataset.forecastCatalog = "loading";
+        try {
+          await loadPhysicsForecast(false);
+          document.body.dataset.forecastCatalog = "ready";
+        } catch (error) {
+          document.body.dataset.forecastCatalog = "unavailable";
+          console.warn("Forecast catalog will load when it is next requested.", error);
+        }
+      };
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(start, { timeout: 1200 });
+      } else {
+        window.setTimeout(start, 220);
+      }
+    }
+
+    async function reloadAll() {
+      const generation = ++selectionGeneration;
+      checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
+      ++archiveGeneration;
+      ++lastRenderToken;
+      stopPlayback();
+      const floodSelectionToken = cancelPendingFloodFrame();
+      cancelPendingFloodFrame(false);
+      toast("");
+      imageExistsCache = new Map();
+      overlayRecordCache = new Map();
+      preloadPromiseCache = new Map();
+      exportImageElementCache = new Map();
+      houseAlertCdfData = null;
+      houseAlertCdfPromise = null;
+      physicsForecastManifests = {};
+      physicsQueryImageCache = new Map();
+      bathtubStageOverlayCache.forEach(record => {
+        retireRasterObjectUrl(record?.url);
+      });
+      bathtubStageOverlayCache = new Map();
+      forecastData = null;
+      returnIntervalData = null;
+      observed15MinuteData = null;
+      observedArchiveIndexTextPromise = null;
+      observed15MinuteDaysByDate = new Map();
+      lewesHourlyDaysByDate = new Map();
+      observedArchiveUnavailableYears = new Set();
+      canonicalDailyData = null;
+      lewesHourlyData = null;
+      lewesArchiveIndexData = null;
+      lewesArchiveIndexPromise = null;
+      lewesArchiveIndexWarmupScheduled = false;
+      observedArchiveYearPromises = new Map();
+      observedArchiveLoadedYears = new Set();
+      observedData = null;
+      historicTopTideEntries = [];
+      historicalTopTidesPromise = null;
+      backgroundDataPromise = null;
+      historicalTopTideWarmupScheduled = false;
+      historicalTopTideWarmupGeneration += 1;
+      observedDaysCache = null;
+      clearExportAvailabilityCache();
+      observedMonthKeys = [];
+      observedFlatHours = [];
+      observedHourIndexByDateHour = new Map();
+      topTideEvents = [];
+      currentDataMode = "forecast";
+      currentViewType = "forecast";
+      updateDataModeButtons();
+      renderTopTides();
+      await loadForecast(null, { selectCurrent: true, forceRefresh: true, deferPhysicsCatalog: true, generation });
+      if (floodSelectionToken !== lastRenderToken) return false;
+      if (generation !== selectionGeneration) return;
+      try {
+        await renderHour(currentHourIndex);
+      } finally {
+        if (document.body.dataset.initialFloodFrame === "loading") markInitialFloodFrameFailed();
+        await waitForInitialFramePaint();
+        activateDeferredMapLayers();
+      }
+      scheduleForecastCatalogWarmup();
+      scheduleTopTidesListWarmup();
+      scheduleBackgroundDataWarmup();
+    }
+
+    function updatePlayPauseButton() {
+      const playBtn = document.getElementById("playBtn");
+      if (!playBtn) return;
+      const isPlaying = Boolean(playTimer);
+
+
+      playBtn.innerHTML = isPlaying
+        ? '<span class="playIcon pauseIcon" aria-hidden="true"></span>'
+        : '<span class="playIcon playTriangle" aria-hidden="true"></span>';
+      playBtn.classList.toggle("is-playing", isPlaying);
+      playBtn.setAttribute("aria-label", isPlaying ? "Pause animation" : "Play animation");
+      playBtn.removeAttribute("title");
+    }
+
+    function setPlaybackStillThereOpen(isOpen) {
+      const modal = document.getElementById("playbackStillThereModal");
+      if (!modal) return;
+      modal.hidden = !isOpen;
+      modal.classList.toggle("open", !!isOpen);
+      modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+      if (isOpen) document.getElementById("playbackStillThereContinueBtn")?.focus();
+    }
+
+    function clearPlaybackTimer() {
+      if (playTimer) {
+        clearTimeout(playTimer);
+        clearInterval(playTimer);
+        playTimer = null;
+      }
+      playbackInFlight = false;
+      updatePlayPauseButton();
+    }
+
+    function stopPlayback(options = {}) {
+      clearPlaybackTimer();
+      if (options.resetDayGuard !== false) playbackObservedDaysAdvanced = 0;
+      playbackPausedForConfirmation = false;
+      if (options.closePrompt !== false) setPlaybackStillThereOpen(false);
+    }
+
+    function pausePlaybackForDayConfirmation() {
+      clearPlaybackTimer();
+      playbackPausedForConfirmation = true;
+      setPlaybackStillThereOpen(true);
+    }
+
+    function continuePlaybackAfterDayConfirmation() {
+      setPlaybackStillThereOpen(false);
+      playbackPausedForConfirmation = false;
+      playbackObservedDaysAdvanced = 0;
+      startPlayback();
+    }
+
+    function togglePlayback(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (playTimer) {
+        stopPlayback();
+      } else {
+        playbackObservedDaysAdvanced = 0;
+        playbackPausedForConfirmation = false;
+        startPlayback();
+      }
+    }
+
+    async function stepSeriesBy(delta) {
+      if (!currentSeriesHours.length) return;
+
+      const navigationIndex = getTimelineNavigationIndex();
+      const nextIndex = navigationIndex + delta;
+      if (nextIndex >= 0 && nextIndex < currentSeriesHours.length) {
+        await renderHour(nextIndex);
+        return;
+      }
+
+      if (currentViewType === "observed-day" && selectedObservedDate) {
+        const dailyMaximum = getTimelineIntervalMinutes() === 1440;
+        const displayedDate = dailyMaximum
+          ? currentSeriesHours[navigationIndex]?.observedDate || selectedObservedDate
+          : selectedObservedDate;
+        const neighborDate = getNeighborObservedDate(displayedDate, delta > 0 ? 1 : -1);
+        if (neighborDate) {
+          const wasPlaying = Boolean(playTimer);
+          await loadObservedDay(neighborDate, !dailyMaximum && delta > 0 ? 0 : null, null, { preservePlayback: wasPlaying });
+          if (!dailyMaximum && delta < 0 && currentSeriesHours.length) {
+            await renderHour(currentSeriesHours.length - 1);
+          }
+          if (delta > 0 && wasPlaying) {
+            playbackObservedDaysAdvanced += 1;
+            if (playbackObservedDaysAdvanced >= PLAYBACK_DAY_CONFIRMATION_INTERVAL) {
+              pausePlaybackForDayConfirmation();
+            }
+          }
+          return;
+        }
+      }
+
+      if (delta > 0) {
+        await renderHour(0);
+      } else {
+        await renderHour(Math.max(0, currentSeriesHours.length - 1));
+      }
+    }
+
+    async function stepPlaybackForward() {
+      await stepSeriesBy(1);
+    }
+
+    function getPlaybackFrameDurationMs() {
+      const intervalMinutes = getTimelineIntervalMinutes();
+      if (intervalMinutes === 1440) return PLAYBACK_SIMULATED_HOUR_MS;
+      return PLAYBACK_SIMULATED_HOUR_MS * (intervalMinutes / 60);
+    }
+
+function startPlayback() {
+      stopPlayback({ resetDayGuard: false, closePrompt: true });
+      if (!currentSeriesHours.length) {
+        toast("No timeline frames are available to play for this selection.");
+        updatePlayPauseButton();
+        return;
+      }
+
+      playTimer = setTimeout(() => {}, 0);
+      updatePlayPauseButton();
+
+      const loop = async () => {
+        if (!playTimer) return;
+        const frameStartedAt = performance.now();
+        try {
+          await stepPlaybackForward();
+        } catch (err) {
+          toast(err?.message || String(err));
+          stopPlayback();
+          return;
+        }
+        if (!playTimer) return;
+        const renderDurationMs = performance.now() - frameStartedAt;
+        const nextFrameDelayMs = Math.max(
+          PLAYBACK_MINIMUM_FRAME_DELAY_MS,
+          getPlaybackFrameDurationMs() - renderDurationMs
+        );
+        playTimer = setTimeout(loop, nextFrameDelayMs);
+        updatePlayPauseButton();
+      };
+
+      loop();
+    }
+
+    async function goToCalendarSelection() {
+      const year = document.getElementById("yearSelect").value;
+      const month = pad2(document.getElementById("monthSelect").value);
+      const key = `${year}-${month}`;
+      if (!observedMonthKeys.includes(key)) {
+        toast("No archive dates are available for that month.");
+        return;
+      }
+      currentMonthKey = key;
+      setCalendarPopoverOpen(false);
+      await renderCalendar();
+    }
+
+    function formatLocalBannerTime(value) {
+      if (!value) return "";
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return "";
+      return formatFixedESTFromUtc(d.toISOString());
+    }
+
+    async function checkNwsAlerts() {
+      if (TOWN_CONFIG?.alerts?.enabled === false) {
+        setBanner(false);
+        document.body.dataset.nwsAlertState = "disabled";
+        return "disabled";
+      }
+      if (nwsAlertPromise) return nwsAlertPromise;
+      nwsAlertPromise = (async () => {
+        const zoneCodes = new Set((TOWN_CONFIG?.alerts?.zoneCodes || []).filter(Boolean).map(String));
+        let incomplete = false;
+        if (NWS_POINT_URL) {
+          try {
+            const point = await fetchJson(NWS_POINT_URL, { timeoutMs: 15000 });
+            [point?.properties?.forecastZone, point?.properties?.county].forEach(url => {
+              const code = String(url || "").split("/").pop();
+              if (code) zoneCodes.add(code);
+            });
+          } catch (error) { incomplete = true; }
+        }
+        const allFeatures = [];
+        await Promise.all(Array.from(zoneCodes, async zoneCode => {
+          try {
+            const alerts = await fetchJson(`https://api.weather.gov/alerts/active?zone=${encodeURIComponent(zoneCode)}`,
+              { timeoutMs: 15000 });
+            if (!Array.isArray(alerts?.features)) throw new Error("Invalid alert response");
+            allFeatures.push(...alerts.features);
+          } catch (error) { incomplete = true; }
+        }));
+        const seen = new Set();
+        const floodAlerts = allFeatures.filter(feature => {
+          const id = String(feature?.id || feature?.properties?.id || "");
+          if (id && seen.has(id)) return false;
+          if (id) seen.add(id);
+          return /(coastal flood|storm surge|lakeshore flood|flood warning|flood watch|flood advisory)/i.test(feature?.properties?.event || "");
+        });
+        const unavailable = incomplete || !zoneCodes.size;
+        if (!unavailable) lastSuccessfulNwsAlerts = { features: floodAlerts, checkedAt: new Date().toISOString() };
+        const shown = floodAlerts.length ? floodAlerts : unavailable ? (lastSuccessfulNwsAlerts?.features || []) : [];
+        const state = unavailable ? (lastSuccessfulNwsAlerts ? "stale" : "unavailable") : shown.length ? "active" : "none";
+        document.body.dataset.nwsAlertState = state;
+        const primary = shown[0]?.properties || {};
+        const checked = lastSuccessfulNwsAlerts?.checkedAt;
+        const meta = unavailable
+          ? `Alert updates unavailable${checked ? "; last checked " + formatLocalBannerTime(checked) : ". Please check weather.gov"}`
+          : [primary.severity, primary.expires ? `Until ${formatLocalBannerTime(primary.expires)}` : ""].filter(Boolean).join(" • ");
+        setBanner(unavailable || shown.length > 0, primary.event || (unavailable ? "Flood alert status unavailable" : "No active flood alerts"), meta, shown.length);
+        const countLabel = document.getElementById("bannerCount");
+        if (unavailable && countLabel) countLabel.textContent = shown.length ? `${shown.length} last reported` : "Status unknown";
+        return state;
+      })().finally(() => { nwsAlertPromise = null; });
+      return nwsAlertPromise;
+    }
+
+    function startNwsAlertRefresh() {
+      if (nwsAlertRefreshTimer !== null) window.clearInterval(nwsAlertRefreshTimer);
+      nwsAlertRefreshTimer = null;
+      if (TOWN_CONFIG?.alerts?.enabled === false) { setBanner(false); return; }
+      checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
+      nwsAlertRefreshTimer = window.setInterval(() => {
+        checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
+      }, 5 * 60 * 1000);
+    }
+
+    function formatExpectedFloodCount(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "—";
+      if (n > 0 && n < 1) return "<1";
+      return n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(n < 10 ? 1 : 0);
+    }
+
+    function formatFloodIntervalValue(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "—";
+      if (n <= 0) return "0";
+      if (n < 0.1) return "<0.1";
+      if (n < 10) return n.toFixed(1);
+      return n >= 100 ? Math.round(n).toLocaleString() : Math.round(n).toString();
+    }
+
+    const FLOOD_PROJECTION_SCENARIOS = {
+      observedTrend: { label: "Existing trend", color: "#e2e8f0" },
+      low: { label: "NOAA Low", color: "#2dd4bf" },
+      intermediateLow: { label: "NOAA Int. Low", color: "#38bdf8" },
+      intermediate: { label: "NOAA Intermediate", color: "#facc15" },
+      intermediateHigh: { label: "NOAA Int. High", color: "#fb923c" },
+      high: { label: "NOAA High", color: "#fb7185" }
+    };
+    let selectedFloodProjectionScenario = "intermediate";
+
+    function openPersistentFloodPopup(latlng, html, maxWidth = 360) {
+      if (!map) ensureMap();
+      persistentDepthQueryContext = null;
+      if (persistentFloodPopup && map.hasLayer(persistentFloodPopup)) {
+        map.removeLayer(persistentFloodPopup);
+      }
+      const mobilePopup = isCompactFloodmapperLayout();
+      const compactLandscapePopup = mobilePopup && window.innerHeight <= 560 && window.innerWidth > window.innerHeight;
+      const desktopRightRailWidth = mobilePopup
+        ? 0
+        : Math.ceil(document.getElementById("rightRail")?.getBoundingClientRect().width || 0);
+      const isHouseAlertPopup = String(html).includes("house-alert-popup");
+      const isDepthQueryPopup = String(html).includes("depth-query-popup");
+      const requestedPopupWidth = compactLandscapePopup && isHouseAlertPopup ? 520 : maxWidth;
+      const viewportPopupWidth = mobilePopup
+        ? Math.max(240, Math.min(requestedPopupWidth, window.innerWidth - 28))
+        : requestedPopupWidth;
+      const popup = L.popup({
+        className: isDepthQueryPopup ? "shorely-flood-popup shorely-depth-popup" : "shorely-flood-popup",
+        maxWidth: viewportPopupWidth,
+        minWidth: 0,
+        autoClose: false,
+        closeOnClick: false,
+        closeButton: true,
+        keepInView: !document.body.classList.contains("map-3d-ready"),
+        autoPan: !document.body.classList.contains("map-3d-ready"),
+        autoPanPaddingTopLeft: mobilePopup ? L.point(10, 126) : L.point(16, 16),
+        autoPanPaddingBottomRight: mobilePopup
+          ? L.point(10, Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shorely-mobile-timeline-height")) + 16 || 140)
+          : L.point(desktopRightRailWidth + 30, 16)
+      })
+        .setLatLng(latlng)
+        .setContent(html)
+        .addTo(map);
+      persistentFloodPopup = popup;
+      document.body.classList.add("persistent-flood-popup-open");
+      popup.once("remove", () => {
+        if (persistentFloodPopup === popup) {
+          persistentFloodPopup = null;
+          persistentDepthQueryContext = null;
+          document.body.classList.remove("persistent-flood-popup-open");
+        }
+      });
+      return popup;
+    }
+
+    function buildHouseAlertPopup(feature) {
+      const p = feature?.properties || {};
+      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
+      const crawlspaceDepth = Number(p.foundationHeightFt ?? p.nsi2026FoundationHeightFt);
+      const stage = getSelectedStageNavd88();
+      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;
+      const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
+      const waterStatus = difference == null
+        ? "Choose a water level to compare."
+        : Math.abs(difference) <= 0.1
+          ? "Current water is at the estimated occupied floor."
+          : difference > 0
+            ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`
+            : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;
+      return '<div class="house-alert-popup building-info-card">' +
+        '<span class="house-alert-kicker">Building</span>' +
+        '<h3>' + address + '</h3>' +
+        '<div class="building-info-facts">' +
+          '<div><span>Crawlspace / garage depth</span><strong>' +
+            (Number.isFinite(crawlspaceDepth) ? formatWaterDepth(crawlspaceDepth, 1) : 'Not available') +
+          '</strong></div>' +
+          '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +
+        '</div>' +
+        '<button class="house-alert-cta" type="button">See Flood History &amp; Projections</button>' +
+        '</div>';
+    }
+
+    function openParcelFloodPrompt(feature, latlng) {
+      selectedParcelFeature = feature;
+      const p = feature?.properties || {};
+      const popupLatLng = latlng || L.latLng(
+        Number(p.centroidLat || p.analysisLat),
+        Number(p.centroidLon || p.analysisLon)
+      );
+      const popup = openPersistentFloodPopup(popupLatLng, buildHouseAlertPopup(feature), 460);
+      persistentDepthQueryContext = { popup, kind: "building", feature };
+      return popup;
+    }
+
+    async function ensureFloodProjectionData() {
+      if (houseAlertCdfData) return houseAlertCdfData;
+      if (!HOUSE_ALERT_CDF_URL) throw new Error("Flood projection data is not configured.");
+      if (!houseAlertCdfPromise) {
+        houseAlertCdfPromise = fetchJson(HOUSE_ALERT_CDF_URL, { cache: "force-cache" })
+          .then(payload => {
+            if (!/flood-history-projections-v4$/.test(String(payload?.schema || ""))) {
+              throw new Error("The flood projection dataset needs to be refreshed.");
+            }
+            houseAlertCdfData = payload;
+            return payload;
+          })
+          .catch(error => {
+            houseAlertCdfPromise = null;
+            throw error;
+          });
+      }
+      return houseAlertCdfPromise;
+    }
+
+    function closeFloodHistoryPane() {
+      const backdrop = document.getElementById("floodHistoryBackdrop");
+      if (!backdrop) return;
+      backdrop.hidden = true;
+      backdrop.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("flood-history-open");
+    }
+
+    function findProjectionElevationIndex(feature, data) {
+      const grid = Array.isArray(data?.elevationGridFtNavd88) ? data.elevationGridFtNavd88 : [];
+      const preferred = Number(
+        feature?.properties?.nsi2026ModelElevationIndex ?? feature?.properties?.modelElevationIndex
+      );
+      if (Number.isInteger(preferred) && preferred >= 0 && preferred < grid.length) return preferred;
+      const elevation = Number(
+        feature?.properties?.nsi2026ModelElevationNavd88Ft ??
+        feature?.properties?.nsi2026ModeledFirstFloorNavd88Ft ??
+        feature?.properties?.modelElevationNavd88Ft ??
+        feature?.properties?.elevationNavd88Ft
+      );
+      let bestIndex = 0;
+      let bestDifference = Infinity;
+      grid.forEach((candidate, index) => {
+        const difference = Math.abs(Number(candidate) - elevation);
+        if (difference < bestDifference) {
+          bestDifference = difference;
+          bestIndex = index;
+        }
+      });
+      return bestIndex;
+    }
+
+    function niceProjectionMaximum(value) {
+      const n = Math.max(1, Number(value) || 1);
+      const magnitude = 10 ** Math.floor(Math.log10(n));
+      const normalized = n / magnitude;
+      const nice = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+      return nice * magnitude;
+    }
+
+    function renderProjectionChart(data, scenarioKey, elevationIndex, selectedYearIndex) {
+      const years = data.years || [];
+      const record = data.annualFloodEventCount?.[scenarioKey] || {};
+      const estimate = record.estimate?.[elevationIndex] || [];
+      const lower = record.lower95?.[elevationIndex] || [];
+      const upper = record.upper95?.[elevationIndex] || [];
+      const width = 420;
+      const height = 168;
+      const plot = { left: 42, right: 9, top: 10, bottom: 25 };
+      const plotWidth = width - plot.left - plot.right;
+      const plotHeight = height - plot.top - plot.bottom;
+      const maxValue = niceProjectionMaximum(Math.max(...upper.map(Number).filter(Number.isFinite), 1));
+      const x = index => plot.left + (years.length > 1 ? index / (years.length - 1) : 0) * plotWidth;
+      const y = value => plot.top + plotHeight - Math.min(1, Math.max(0, Number(value) / maxValue)) * plotHeight;
+      const line = estimate.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+      const band = upper.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`)
+        .concat(lower.map((value, index) => `${x(lower.length - 1 - index).toFixed(1)},${y(lower[lower.length - 1 - index]).toFixed(1)}`))
+        .join(" ");
+      const gridValues = [0, maxValue / 2, maxValue];
+      const selectedIndex = Math.max(0, Math.min(years.length - 1, selectedYearIndex));
+      const tickYears = [2026, 2050, 2075, 2100].filter(year => years.includes(year));
+      return `
+        <svg class="flood-projection-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Expected annual flood exceedances with 95 percent uncertainty">
+          ${gridValues.map(value => `<line class="flood-chart-grid" x1="${plot.left}" x2="${width - plot.right}" y1="${y(value)}" y2="${y(value)}"></line><text class="flood-chart-axis" x="${plot.left - 6}" y="${y(value) + 3}" text-anchor="end">${formatExpectedFloodCount(value)}</text>`).join("")}
+          <polygon class="flood-chart-band" points="${band}"></polygon>
+          <polyline class="flood-chart-line" points="${line}"></polyline>
+          ${tickYears.map(year => {
+            const index = years.indexOf(year);
+            return `<text class="flood-chart-axis" x="${x(index)}" y="${height - 7}" text-anchor="${year === years[0] ? "start" : year === years[years.length - 1] ? "end" : "middle"}">${year}</text>`;
+          }).join("")}
+          <circle class="flood-chart-dot" cx="${x(selectedIndex)}" cy="${y(estimate[selectedIndex])}" r="4"></circle>
+        </svg>`;
+    }
+
+    function renderFloodHistoryProjection(feature, data) {
+      const body = document.getElementById("floodHistoryBody");
+      if (!body) return;
+      const p = feature?.properties || {};
+      const years = Array.isArray(data.years) ? data.years : [];
+      const elevationIndex = findProjectionElevationIndex(feature, data);
+      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
+      const hasModeledFloor = Number.isFinite(firstFloor);
+      const historic = Number(hasModeledFloor
+        ? p.nsi2026HistoricFirstFloorExceedanceCount
+        : p.historicFloodEventCount);
+      const defaultYearIndex = Math.max(0, years.indexOf(2050));
+      const scenarioKey = data.annualFloodEventCount?.[selectedFloodProjectionScenario]
+        ? selectedFloodProjectionScenario
+        : (data.scenarioOrder || []).find(key => data.annualFloodEventCount?.[key]);
+      selectedFloodProjectionScenario = scenarioKey || "intermediate";
+      const scenario = FLOOD_PROJECTION_SCENARIOS[selectedFloodProjectionScenario] || FLOOD_PROJECTION_SCENARIOS.intermediate;
+      const record = data.annualFloodEventCount[selectedFloodProjectionScenario];
+      const estimate = record.estimate[elevationIndex];
+      const lower = record.lower95[elevationIndex];
+      const upper = record.upper95[elevationIndex];
+      body.style.setProperty("--scenario-color", scenario.color);
+      body.innerHTML = `
+        <div class="flood-history-summary">
+          <div class="flood-summary-item">
+            <span>${hasModeledFloor ? "Past floods above floor" : "Past floods at parcel"}</span>
+            <strong>${Number.isFinite(historic) ? historic.toLocaleString() : "—"}</strong>
+          </div>
+          <div class="flood-summary-item">
+            <span>${hasModeledFloor ? "Estimated occupied floor" : "Parcel ground"}</span>
+            <strong>${hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} <small>ft NAVD88</small></strong>
+          </div>
+        </div>
+        <section class="flood-history-section">
+          <div class="flood-history-section-head">
+            <div><h3>${hasModeledFloor ? "Future floods above floor" : "Future floods at parcel"}</h3><p>Expected events per year · range shown</p></div>
+            <label class="flood-scenario-field">
+              Sea-level scenario
+              <select id="floodProjectionScenarioSelect" class="flood-scenario-select" aria-label="Sea level projection curve">
+                ${(data.scenarioOrder || Object.keys(data.annualFloodEventCount)).map(key => {
+                  const item = FLOOD_PROJECTION_SCENARIOS[key] || { label: key };
+                  return `<option value="${escapeTownAddressHtml(key)}"${key === selectedFloodProjectionScenario ? " selected" : ""}>${escapeTownAddressHtml(item.label)}</option>`;
+                }).join("")}
+              </select>
+            </label>
+          </div>
+          <div id="floodProjectionChart">${renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, defaultYearIndex)}</div>
+          <div class="flood-year-control">
+            <input id="floodProjectionYearSlider" type="range" min="0" max="${Math.max(0, years.length - 1)}" value="${defaultYearIndex}" step="1" aria-label="Projection year">
+            <div id="floodProjectionYearReadout" class="flood-year-readout">
+              <span>${years[defaultYearIndex] || "—"}</span>
+              <strong>${formatExpectedFloodCount(estimate[defaultYearIndex])}/yr</strong>
+              <small>95%: ${formatFloodIntervalValue(lower[defaultYearIndex])}–${formatFloodIntervalValue(upper[defaultYearIndex])}</small>
+            </div>
+          </div>
+        </section>
+      `;
+
+      const updateSelectedYear = index => {
+        const selectedIndex = Math.max(0, Math.min(years.length - 1, Number(index) || 0));
+        const readout = document.getElementById("floodProjectionYearReadout");
+        const chart = document.getElementById("floodProjectionChart");
+        if (readout) {
+          readout.innerHTML = `<span>${years[selectedIndex]}</span><strong>${formatExpectedFloodCount(estimate[selectedIndex])}/yr</strong><small>95%: ${formatFloodIntervalValue(lower[selectedIndex])}–${formatFloodIntervalValue(upper[selectedIndex])}</small>`;
+        }
+        if (chart) chart.innerHTML = renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, selectedIndex);
+      };
+      document.getElementById("floodProjectionYearSlider")?.addEventListener("input", event => updateSelectedYear(event.target.value));
+      document.getElementById("floodProjectionScenarioSelect")?.addEventListener("change", event => {
+        selectedFloodProjectionScenario = event.target.value;
+        renderFloodHistoryProjection(feature, data);
+      });
+    }
+
+    async function openFloodHistoryPane(feature) {
+      if (!feature) return;
+      selectedParcelFeature = feature;
+      const backdrop = document.getElementById("floodHistoryBackdrop");
+      const body = document.getElementById("floodHistoryBody");
+      const address = document.getElementById("floodHistoryAddress");
+      if (!backdrop || !body) return;
+      address.textContent = feature?.properties?.address || "Selected North Wildwood parcel";
+      const provenance = document.getElementById("floodHistoryProvenance");
+      if (provenance) provenance.textContent = "";
+      body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';
+      backdrop.hidden = false;
+      backdrop.setAttribute("aria-hidden", "false");
+      document.body.classList.add("flood-history-open");
+      document.getElementById("floodHistoryCloseBtn")?.focus();
+      try {
+        const data = await ensureFloodProjectionData();
+        if (selectedParcelFeature === feature && !backdrop.hidden) {
+          const notice = document.getElementById("floodHistoryProvenance");
+          const basis = data.site?.name || data.sources?.observed || "Archived model";
+          if (notice) notice.textContent = `Model basis: ${basis}. Observations through ${data.observedArchive?.endDate || "an unspecified date"}. Generated ${(data.generatedUtc || "unknown").slice(0, 10)}.${data.qualityPolicyVersion ? "" : " This older model predates the current observation quality review and is not recalculated from the selected tide archive."}`;
+          renderFloodHistoryProjection(feature, data);
+        }
+      } catch (error) {
+        body.innerHTML = `<div class="flood-history-error"><strong>This projection could not be loaded.</strong><br>${escapeTownAddressHtml(error?.message || "Please try again in a moment.")}</div>`;
+      }
+    }
+
+    function wireFloodHistoryPane() {
+      const backdrop = document.getElementById("floodHistoryBackdrop");
+      document.getElementById("floodHistoryCloseBtn")?.addEventListener("click", closeFloodHistoryPane);
+      backdrop?.addEventListener("click", event => {
+        if (event.target === backdrop) closeFloodHistoryPane();
+      });
+      document.addEventListener("click", event => {
+        if (event.target?.closest?.(".house-alert-cta") && selectedParcelFeature) {
+          openFloodHistoryPane(selectedParcelFeature);
+        }
+      });
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && backdrop && !backdrop.hidden) closeFloodHistoryPane();
+      });
+    }
+
+    function getSelectedStageNavd88() {
+      const committedStage = currentFloodLayer?._floodmapperFrame?.stage;
+      if (Number.isFinite(committedStage)) return committedStage;
+      const entry = currentSeriesHours[currentHourIndex];
+      const stage = normalizeStageValue(getStageValue(entry));
+      return Number.isFinite(stage) ? stage : null;
+    }
+
+    function finiteStructureNumber(value) {
+      if (value == null || String(value).trim() === "") return null;
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    }
+
+    function getNsiFirstOccupiedFloorNavd88(properties) {
+      const p = properties || {};
+      const localGround = finiteStructureNumber(p.localGroundNavd88Ft ?? p.nsi2026LocalGroundNavd88Ft);
+      const riseToOccupiedFloor = finiteStructureNumber(p.foundationHeightFt ?? p.nsi2026FoundationHeightFt);
+      if (localGround != null && riseToOccupiedFloor != null) {
+        return localGround + Math.max(0, riseToOccupiedFloor);
+      }
+      return finiteStructureNumber(p.modeledFirstFloorNavd88Ft ?? p.nsi2026ModeledFirstFloorNavd88Ft);
+    }
+
+    function getNsiStructureImpactStyle(properties, stage = getSelectedStageNavd88()) {
+      const firstFloor = getNsiFirstOccupiedFloorNavd88(properties);
+      if (!Number.isFinite(firstFloor) || !Number.isFinite(stage)) {
+        return { radius: 2.7, color: "#94a3b8", weight: 0.7, opacity: 0.8, fillColor: "#64748b", fillOpacity: 0.42 };
+      }
+      const waterAboveFloor = stage - firstFloor;
+      if (waterAboveFloor > 0.1) {
+        return { radius: 4.3, color: "#fff1f2", weight: 1.1, opacity: 0.95, fillColor: "#fb7185", fillOpacity: 0.95 };
+      }
+      if (waterAboveFloor >= -0.5) {
+        return { radius: 3.6, color: "#fff7d6", weight: 1.0, opacity: 0.95, fillColor: "#fbbf24", fillOpacity: 0.88 };
+      }
+      return { radius: 2.7, color: "#d9fdff", weight: 0.7, opacity: 0.72, fillColor: "#22d3ee", fillOpacity: 0.48 };
+    }
+
+    function formatNsiImpactStatus(properties, stage = getSelectedStageNavd88()) {
+      const firstFloor = getNsiFirstOccupiedFloorNavd88(properties);
+      if (!Number.isFinite(firstFloor) || !Number.isFinite(stage)) return "Choose a water level to compare.";
+      const difference = stage - firstFloor;
+      if (difference > 0.1) return `Current water is ${formatWaterDepth(difference, 1)} above the estimated first occupied floor.`;
+      if (difference >= -0.1) return "Current water is at the estimated first occupied floor.";
+      return `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated first occupied floor.`;
+    }
+
+    function buildNsiStructurePopup(feature) {
+      const p = feature?.properties || {};
+      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
+      const address = escapeTownAddressHtml(p.address || "Modeled North Wildwood structure");
+      return '<div class="nsi-structure-popup">' +
+        '<span class="house-alert-kicker">Estimated floor flooding</span>' +
+        '<h3>' + address + '</h3>' +
+        '<div class="nsi-structure-grid">' +
+          '<span>Estimated first occupied floor</span><strong>' + (Number.isFinite(firstFloor) ? firstFloor.toFixed(1) + ' ft NAVD88' : '—') + '</strong>' +
+        '</div>' +
+        '<div class="nsi-impact-status">' + escapeTownAddressHtml(formatNsiImpactStatus(p)) + '</div>' +
+        '<div class="house-alert-note">Screening estimate.</div>' +
+        '</div>';
+    }
+
+    function openNsiStructurePopup(feature, latlng) {
+      const popup = openPersistentFloodPopup(latlng, buildNsiStructurePopup(feature), 360);
+      persistentDepthQueryContext = { popup, kind: "structure", feature };
+      return popup;
+    }
+
+    function updateNsiStructureImpactLayer() {
+      if (!nsiStructuresLayer) return;
+      const stage = getSelectedStageNavd88();
+      nsiStructuresLayer.eachLayer(layer => {
+        if (layer?.feature?.properties && typeof layer.setStyle === "function") {
+          layer.setStyle(getNsiStructureImpactStyle(layer.feature.properties, stage));
+        }
+      });
+    }
+
+    function findNsiStructureFeatureForLocation(lat, lon, maximumDistanceMeters = 24) {
+      let nearest = null;
+      let nearestDistance = Infinity;
+      const longitudeScale = Math.cos(Number(lat) * Math.PI / 180);
+      nsiStructureFeatures.forEach(feature => {
+        const coordinates = feature?.geometry?.coordinates || [];
+        const dLat = Number(coordinates[1]) - Number(lat);
+        const dLon = (Number(coordinates[0]) - Number(lon)) * longitudeScale;
+        const meters = Math.hypot(dLat, dLon) * 111320;
+        if (Number.isFinite(meters) && meters < nearestDistance) {
+          nearestDistance = meters;
+          nearest = feature;
+        }
+      });
+      return nearestDistance <= maximumDistanceMeters ? nearest : null;
+    }
+
+    async function ensureNsiStructureAssets() {
+      if (nsiStructuresLayer) return nsiStructuresLayer;
+      if (!NSI_STRUCTURES_URL) throw new Error("USACE NSI 2026 structures are not configured.");
+      if (!nsiStructureLoadPromise) {
+        nsiStructureLoadPromise = fetchJson(NSI_STRUCTURES_URL, { cache: "force-cache" })
+          .then(payload => {
+            if (!/nsi-2026-first-floor-v1$/.test(String(payload?.metadata?.schema || ""))) {
+              throw new Error("The USACE NSI 2026 structure asset needs to be refreshed.");
+            }
+            nsiStructureFeatures = Array.isArray(payload.features) ? payload.features : [];
+            nsiStructureRenderer = nsiStructureRenderer || L.canvas({ pane: "structuresPane", padding: 0.5, tolerance: 7 });
+            nsiStructuresLayer = L.geoJSON(payload, {
+              pane: "structuresPane",
+              renderer: nsiStructureRenderer,
+              pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+                ...getNsiStructureImpactStyle(feature?.properties),
+                pane: "structuresPane",
+                renderer: nsiStructureRenderer,
+                bubblingMouseEvents: false,
+                interactive: true
+              }),
+              onEachFeature: (feature, layer) => {
+                layer.on("click", event => {
+                  if (event?.originalEvent) event.originalEvent._parcelHandled = true;
+                  openNsiStructurePopup(feature, event.latlng);
+                });
+              }
+            });
+            return nsiStructuresLayer;
+          })
+          .catch(error => {
+            nsiStructureLoadPromise = null;
+            throw error;
+          });
+      }
+      return nsiStructureLoadPromise;
+    }
+
+    async function setNsiStructuresEnabled(enabled) {
+      const generation = ++nsiLayerGeneration;
+      const shouldEnable = Boolean(enabled);
+      const toggle = document.getElementById("nsiStructuresToggle");
+      if (toggle) {
+        toggle.classList.toggle("on", shouldEnable);
+        toggle.setAttribute("aria-checked", String(shouldEnable));
+      }
+      if (!map) ensureMap();
+      if (!shouldEnable) {
+        if (nsiStructuresLayer && map.hasLayer(nsiStructuresLayer)) map.removeLayer(nsiStructuresLayer);
+        updateMapClickModeControl();
+        toast("");
+        return;
+      }
+      let layer;
+      try {
+        layer = await ensureNsiStructureAssets();
+      } catch (error) {
+        if (generation !== nsiLayerGeneration) return;
+        throw error;
+      }
+      if (generation !== nsiLayerGeneration) return;
+      updateNsiStructureImpactLayer();
+      if (!map.hasLayer(layer)) layer.addTo(map);
+      setMapClickMode("building", { closePopup: false });
+      toast("Crawlspace/Garage impacts: red is above, gold is close, cyan is below.");
+    }
+
+    async function ensureParcelAssets() {
+      if (parcelLoadPromise) return parcelLoadPromise;
+      parcelLoadPromise = (async () => {
+        const geojson = await fetchJson(PARCELS_URL, { cache: "force-cache" });
+        parcelFeatures = Array.isArray(geojson?.features) ? geojson.features : [];
+        parcelsLayer = createHydraulicImageOverlay(PARCEL_BOUNDARY_PNG_URL, {
+          pane: "parcelsPane",
+          opacity: 0.78,
+          interactive: false,
+          crossOrigin: true,
+          zIndex: 610
+        });
+        return parcelsLayer;
+      })().catch(err => {
+        parcelLoadPromise = null;
+        throw err;
+      });
+      return parcelLoadPromise;
+    }
+
+    async function setParcelsEnabled(enabled) {
+      const generation = ++parcelLayerGeneration;
+      const shouldEnable = Boolean(enabled);
+      const toggle = document.getElementById("parcelsToggle");
+      if (toggle) {
+        toggle.classList.toggle("on", shouldEnable);
+        toggle.setAttribute("aria-checked", String(shouldEnable));
+      }
+      if (!map) ensureMap();
+      if (!shouldEnable) {
+        if (parcelsLayer && map.hasLayer(parcelsLayer)) map.removeLayer(parcelsLayer);
+        updateMapClickModeControl();
+        toast("");
+        return;
+      }
+      let layer;
+      try {
+        layer = await ensureParcelAssets();
+      } catch (error) {
+        if (generation !== parcelLayerGeneration) return;
+        throw error;
+      }
+      if (generation !== parcelLayerGeneration) return;
+      if (!map.hasLayer(layer)) layer.addTo(map);
+      setMapClickMode("building", { closePopup: false });
+      toast("");
+    }
+
+    function pointInRing(lon, lat, ring) {
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = Number(ring[i]?.[0]), yi = Number(ring[i]?.[1]);
+        const xj = Number(ring[j]?.[0]), yj = Number(ring[j]?.[1]);
+        const intersects = ((yi > lat) !== (yj > lat)) && (lon < ((xj - xi) * (lat - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+        if (intersects) inside = !inside;
+      }
+      return inside;
+    }
+
+    function pointInParcelFeature(feature, lat, lon) {
+      const geometry = feature?.geometry;
+      if (!geometry) return false;
+      const polygons = geometry.type === "Polygon" ? [geometry.coordinates] :
+        (geometry.type === "MultiPolygon" ? geometry.coordinates : []);
+      return polygons.some(rings => {
+        if (!Array.isArray(rings?.[0]) || !pointInRing(lon, lat, rings[0])) return false;
+        return !rings.slice(1).some(hole => pointInRing(lon, lat, hole));
+      });
+    }
+
+    async function findParcelFeatureForLocation(lat, lon, options = {}) {
+      await ensureParcelAssets();
+      const containing = parcelFeatures.find(feature => pointInParcelFeature(feature, lat, lon));
+      if (containing) return containing;
+      if (options.allowNearest === false) return null;
+      let nearest = null;
+      let nearestDistance = Infinity;
+      parcelFeatures.forEach(feature => {
+        const p = feature?.properties || {};
+        const dLat = Number(p.centroidLat) - lat;
+        const dLon = (Number(p.centroidLon) - lon) * Math.cos(lat * Math.PI / 180);
+        const meters = Math.hypot(dLat, dLon) * 111320;
+        if (Number.isFinite(meters) && meters < nearestDistance) {
+          nearestDistance = meters;
+          nearest = feature;
+        }
+      });
+      return nearestDistance <= 90 ? nearest : null;
+    }
+
+    function loadDepthQueryPng(url) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.crossOrigin = "anonymous";
+        image.decoding = "async";
+        image.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = image.naturalWidth;
+            canvas.height = image.naturalHeight;
+            const context = canvas.getContext("2d", { willReadFrequently: true });
+            if (!context) throw new Error("Could not create the depth-query canvas.");
+            context.drawImage(image, 0, 0);
+            resolve({
+              width: canvas.width,
+              height: canvas.height,
+              values: context.getImageData(0, 0, canvas.width, canvas.height).data
+            });
+          } catch (error) {
+            reject(error);
+          }
+        };
+        image.onerror = () => reject(new Error("Packed depth-query PNG could not be loaded."));
+        image.src = url;
+      });
+    }
+
+    async function getDepthQueryGrid() {
+      if (!DEPTH_QUERY_PNG_URL) return null;
+      if (!depthQueryGridPromise) {
+        depthQueryGridPromise = (async () => {
+          let lastError = null;
+          for (let attempt = 0; attempt < 2; attempt += 1) {
+            try {
+              const url = new URL(DEPTH_QUERY_PNG_URL);
+              if (attempt) url.searchParams.set("_retry", String(Date.now()));
+              return await loadDepthQueryPng(url.href);
+            } catch (error) {
+              lastError = error;
+            }
+          }
+          throw lastError || new Error("Packed depth-query PNG is unavailable.");
+        })().catch(error => {
+          depthQueryGridPromise = null;
+          throw error;
+        });
+      }
+      return depthQueryGridPromise;
+    }
+
+    async function getDevelopedQueryGrid() {
+      if (!DEVELOPED_QUERY_PNG_URL) return null;
+      if (!developedQueryGridPromise) {
+        developedQueryGridPromise = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)
+          .catch(error => {
+            developedQueryGridPromise = null;
+            throw error;
+          });
+      }
+      return developedQueryGridPromise;
+    }
+
+    async function getDepthQueryImage() {
+      if (!DEPTH_QUERY_COG_URL) throw new Error("Depth query COG is not configured.");
+      if (!window.GeoTIFF?.fromUrl) await ensureDepthQueryLibrary();
+      if (!depthQueryImagePromise) {
+        depthQueryImagePromise = GeoTIFF.fromUrl(DEPTH_QUERY_COG_URL)
+          .then(tiff => tiff.getImage())
+          .catch(error => {
+            depthQueryImagePromise = null;
+            throw error;
+          });
+      }
+      return depthQueryImagePromise;
+    }
+
+    function decodeHydraulicInt16Base64(encoded) {
+      const binary = atob(String(encoded || ""));
+      const buffer = new ArrayBuffer(binary.length);
+      const bytes = new Uint8Array(buffer);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const view = new DataView(buffer);
+      const output = new Int16Array(binary.length / 2);
+      for (let i = 0; i < output.length; i += 1) output[i] = view.getInt16(i * 2, true);
+      return output;
+    }
+
+    async function fetchHydraulicStateContainer(url) {
+      const response = await fetch(url, { cache: "force-cache", headers: { "Accept": "application/octet-stream,*/*" } });
+      if (!response.ok) throw new Error(`Hydraulic state request failed (${response.status}).`);
+      let buffer = await response.arrayBuffer();
+      let bytes = new Uint8Array(buffer);
+      if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+        if (typeof DecompressionStream !== "function") {
+          throw new Error("This browser cannot decompress the hydraulic state package.");
+        }
+        const decompressed = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+        buffer = await new Response(decompressed).arrayBuffer();
+        bytes = new Uint8Array(buffer);
+      }
+
+      const magic = new TextDecoder().decode(bytes.subarray(0, 8));
+      if (magic.startsWith("NWHYD2")) {
+        const headerLength = new DataView(buffer, 8, 4).getUint32(0, true);
+        const dataStart = 12 + headerLength;
+        const payload = JSON.parse(new TextDecoder().decode(bytes.subarray(12, dataStart)));
+        payload.decodedPhaseWaterSurface = {};
+        Object.entries(payload.phaseArrays || {}).forEach(([phase, record]) => {
+          const offset = Number(record?.offset) || 0;
+          const length = Number(record?.length) || 0;
+          if (payload.valueType === "int16-le") {
+            const view = new DataView(buffer, dataStart + offset, length);
+            const values = new Int16Array(length / 2);
+            for (let index = 0; index < values.length; index += 1) {
+              values[index] = view.getInt16(index * 2, true);
+            }
+            payload.decodedPhaseWaterSurface[phase] = values;
+          } else {
+            payload.decodedPhaseWaterSurface[phase] = new Uint8Array(buffer, dataStart + offset, length);
+          }
+        });
+        return payload;
+      }
+
+      const payload = JSON.parse(new TextDecoder().decode(bytes));
+      const encoded = payload?.phaseWaterSurfaceCentift || {};
+      payload.decodedPhaseWaterSurfaceCentift = {
+        filling: decodeHydraulicInt16Base64(encoded.filling),
+        slack: decodeHydraulicInt16Base64(encoded.slack),
+        draining: decodeHydraulicInt16Base64(encoded.draining)
+      };
+      return payload;
+    }
+
+    async function getHydraulicStates() {
+      if (!HYDRAULIC_STATES_URL) return null;
+      if (!hydraulicStatesPromise) {
+        hydraulicStatesPromise = fetchHydraulicStateContainer(HYDRAULIC_STATES_URL);
+      }
+      return hydraulicStatesPromise;
+    }
+
+    async function getHydraulicWaterSurfaceFt(zoneId, stage, phase) {
+      const payload = await getHydraulicStates();
+      if (!payload || !Number.isInteger(zoneId) || zoneId <= 0) return null;
+      const stageMin = Number(payload.stageMinNavd88Ft) || 0;
+      const stageMax = Number(payload.stageMaxNavd88Ft);
+      const stageStep = Number(payload.stageStepFt) || STAGE_STEP;
+      const stageCount = Number(payload.stageCount) || Math.round(
+        ((Number.isFinite(stageMax) ? stageMax : MAX_STAGE) - stageMin) / stageStep
+      ) + 1;
+      const stride = Number(payload.zoneStride) || ((Number(payload.zoneCount) || 0) + 1);
+      // Operational v20 families stop at 10 ft; higher planning levels retain
+      // v19 PNG fallbacks. Use the selected level for a masked point-depth
+      // estimate rather than silently returning the v20 10-ft state.
+      if (Number.isFinite(stageMax) && Number(stage) > stageMax + 1e-9) return Number(stage);
+      const stageIndex = Math.max(0, Math.min(stageCount - 1, Math.round((Number(stage) - stageMin) / stageStep)));
+      const binaryValues = payload.decodedPhaseWaterSurface?.[getHydraulicStatePhase(phase)];
+      if (binaryValues) {
+        const encoded = binaryValues[stageIndex * stride + zoneId];
+        if (payload.valueType === "int16-le") {
+          const drySentinel = Number(payload.drySentinelCentift ?? -32768);
+          return Number.isFinite(encoded) && encoded !== drySentinel ? encoded / 100 : null;
+        }
+        const drySentinel = Number(payload.drySentinel ?? 255);
+        const offset = Number(payload.surfaceOffsetDecifeet ?? -100);
+        return Number.isFinite(encoded) && encoded !== drySentinel ? (encoded + offset) / 10 : null;
+      }
+      const values = payload.decodedPhaseWaterSurfaceCentift?.[getHydraulicStatePhase(phase)];
+      const encoded = values?.[stageIndex * stride + zoneId];
+      const drySentinel = Number(payload.drySentinelCentift ?? -32768);
+      return Number.isFinite(encoded) && encoded !== drySentinel ? encoded / 100 : null;
+    }
+
+    // Query grids follow their own georeferencing, not one town's layout.
+    // Rotated grids keep the affine transform; north-up catalogs use Mercator Y.
+    function latLngToDepthQueryPixel(lat, lng, width, height) {
+      if (![lat, lng, width, height].every(Number.isFinite) ||
+          width <= 0 || height <= 0 || Math.abs(lat) >= 90) return null;
+      if (TOWN_CONFIG?.overlays?.worldFileCornersWgs84) {
+        return latLngToWorldFilePixel(lat, lng, width, height);
+      }
+      const bounds = TOWN_CONFIG?.overlays?.boundsWgs84;
+      if (!bounds) return null;
+      const { west, east, south, north } = bounds;
+      if (![west, east, south, north].every(Number.isFinite) ||
+          west >= east || south >= north || south <= -90 || north >= 90) return null;
+      const mercY = latitude => Math.log(Math.tan(Math.PI / 4 + latitude * Math.PI / 360));
+      const u = (lng - west) / (east - west);
+      const v = (mercY(north) - mercY(lat)) / (mercY(north) - mercY(south));
+      if (!Number.isFinite(u) || !Number.isFinite(v) || u < 0 || v < 0 || u >= 1 || v >= 1) return null;
+      return { x: Math.floor(u * width), y: Math.floor(v * height), u, v };
+    }
+
+    async function samplePackedDepthGrid(lat, lon) {
+      const [grid, developedGrid] = await Promise.all([
+        getDepthQueryGrid(),
+        getDevelopedQueryGrid().catch(error => {
+          console.warn("Developed-land query mask is unavailable.", error);
+          return null;
+        })
+      ]);
+      if (!grid || !floodLatLngBounds) return null;
+      const pixel = latLngToDepthQueryPixel(lat, lon, grid.width, grid.height);
+      if (!pixel) return null;
+      const { x, y } = pixel;
+      const offset = (y * grid.width + x) * 4;
+      const encodedElevation = grid.values[offset] * 256 + grid.values[offset + 1];
+      if (encodedElevation === 0) return null;
+      const elevation10 = encodedElevation - 32768;
+      const connectionCode = grid.values[offset + 2];
+      const developedOffset = developedGrid &&
+        developedGrid.width === grid.width && developedGrid.height === grid.height
+        ? (y * developedGrid.width + x) * 4
+        : -1;
+      const encodedSourceDistance = developedOffset >= 0
+        ? developedGrid.values[developedOffset] * 256 + developedGrid.values[developedOffset + 1]
+        : 65535;
+      return {
+        elevation: elevation10 / 10,
+        zoneId: 0,
+        connectionStage: connectionCode === 255 ? 9999 : (connectionCode - 50) / 10,
+        sourceFlag: false,
+        hardStructureFlag: false,
+        stormGrateFlag: false,
+        developedFlag: developedOffset >= 0 && developedGrid.values[developedOffset + 2] >= 128,
+        sourceDistanceFt: encodedSourceDistance === 65535 ? null : encodedSourceDistance,
+        featureDistanceFt: null
+      };
+    }
+
+    async function sampleDepthModelFromCog(lat, lon) {
+      const image = await getDepthQueryImage();
+      const bounds = image.getBoundingBox();
+      const width = image.getWidth();
+      const height = image.getHeight();
+      const x = Math.floor(((lon - bounds[0]) / (bounds[2] - bounds[0])) * width);
+      const y = Math.floor(((bounds[3] - lat) / (bounds[3] - bounds[1])) * height);
+      if (x < 0 || y < 0 || x >= width || y >= height) return null;
+      // A one-foot line or point is narrower than one screen pixel at ordinary
+      // map zooms. Read a sixteen-foot neighbourhood and snap only when the click
+      // is near a supplied hydraulic feature, keeping ordinary terrain clicks
+      // exact while making the narrow bulkhead cells realistically usable.
+      const featureRadiusPixels = 16;
+      const x0 = Math.max(0, x - featureRadiusPixels);
+      const y0 = Math.max(0, y - featureRadiusPixels);
+      const x1 = Math.min(width, x + featureRadiusPixels + 1);
+      const y1 = Math.min(height, y + featureRadiusPixels + 1);
+      const sampleCount = 7;
+      const windowWidth = x1 - x0;
+      const values = await image.readRasters({
+        window: [x0, y0, x1, y1],
+        samples: [0, 1, 2, 3, 4, 5, 6],
+        interleave: true
+      });
+      let sampleX = x;
+      let sampleY = y;
+      let featureDistanceFt = null;
+      let bestDistanceSquared = Infinity;
+      for (let row = 0; row < y1 - y0; row += 1) {
+        for (let column = 0; column < windowWidth; column += 1) {
+          const offset = (row * windowWidth + column) * sampleCount;
+          const candidateElevation = Number(values[offset]);
+          const hardFlag = Number(values[offset + 4]);
+          const grateFlag = Number(values[offset + 5]);
+          const plausibleElevation = Number.isFinite(candidateElevation) &&
+            candidateElevation > -100 && candidateElevation < 100;
+          const isFeature = plausibleElevation &&
+            ((hardFlag >= 0.5 && hardFlag <= 1.5) || (grateFlag >= 0.5 && grateFlag <= 1.5));
+          if (!isFeature) continue;
+          const candidateX = x0 + column;
+          const candidateY = y0 + row;
+          const distanceSquared = (candidateX - x) ** 2 + (candidateY - y) ** 2;
+          if (distanceSquared < bestDistanceSquared) {
+            bestDistanceSquared = distanceSquared;
+            sampleX = candidateX;
+            sampleY = candidateY;
+          }
+        }
+      }
+      const sampleOffset = ((sampleY - y0) * windowWidth + (sampleX - x0)) * sampleCount;
+      if (Number.isFinite(bestDistanceSquared)) {
+        const feetPerDegreeLatitude = 364000;
+        const feetPerDegreeLongitude = feetPerDegreeLatitude * Math.cos(lat * Math.PI / 180);
+        const xFeet = (sampleX - x) * ((bounds[2] - bounds[0]) / width) * feetPerDegreeLongitude;
+        const yFeet = (sampleY - y) * ((bounds[3] - bounds[1]) / height) * feetPerDegreeLatitude;
+        featureDistanceFt = Math.hypot(xFeet, yFeet);
+      }
+      const elevation = Number(values[sampleOffset]);
+      const zoneId = Math.round(Number(values[sampleOffset + 1]));
+      const connectionStage = Number(values[sampleOffset + 2]);
+      const sourceFlag = Number(values[sampleOffset + 3]);
+      const hardStructureFlag = Number(values[sampleOffset + 4]);
+      const stormGrateFlag = Number(values[sampleOffset + 5]);
+      const developedFlag = Number(values[sampleOffset + 6]);
+      if (!Number.isFinite(elevation) || elevation <= -1000 || elevation >= 1000) return null;
+      return {
+        elevation,
+        zoneId,
+        connectionStage,
+        sourceFlag: sourceFlag >= 0.5,
+        hardStructureFlag: hardStructureFlag >= 0.5,
+        stormGrateFlag: stormGrateFlag >= 0.5,
+        developedFlag: developedFlag >= 0.5,
+        featureDistanceFt
+      };
+    }
+
+    async function sha256Hex(buffer) {
+      if (!window.crypto?.subtle) return "";
+      const digest = await window.crypto.subtle.digest("SHA-256", buffer);
+      return Array.from(new Uint8Array(digest))
+        .map(value => value.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    function preloadPhysicsQueryImage(record) {
+      const url = record?.url;
+      if (!url) return Promise.resolve(null);
+      if (physicsQueryImageCache.has(url)) return physicsQueryImageCache.get(url);
+      const promise = (async () => {
+        const response = await fetch(url, {
+          mode: "cors",
+          credentials: "omit",
+          cache: "force-cache",
+          headers: { Accept: "image/png" }
+        });
+        if (!response.ok) throw new Error(`Physics query PNG returned HTTP ${response.status}.`);
+        const buffer = await response.arrayBuffer();
+        if (record.sha256 && window.crypto?.subtle) {
+          const actual = await sha256Hex(buffer);
+          if (actual !== String(record.sha256).toLowerCase()) {
+            throw new Error("Physics query PNG failed its SHA-256 integrity check.");
+          }
+        }
+        const objectUrl = URL.createObjectURL(new Blob([buffer], { type: "image/png" }));
+        const image = new Image();
+        image.decoding = "async";
+        try {
+          await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = () => reject(new Error("Physics query PNG could not be decoded."));
+            image.src = objectUrl;
+          });
+          return image;
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+      })().catch(error => {
+        physicsQueryImageCache.delete(url);
+        throw error;
+      });
+      physicsQueryImageCache.set(url, promise);
+      return promise;
+    }
+
+    async function samplePhysicsDepth(asset, lat, lon) {
+      const bounds = getActivePhysicsManifest()?.boundsWgs84;
+      if (!asset?.query?.url || !Array.isArray(bounds) || bounds.length !== 2) return null;
+      const south = Number(bounds[0]?.[0]);
+      const west = Number(bounds[0]?.[1]);
+      const north = Number(bounds[1]?.[0]);
+      const east = Number(bounds[1]?.[1]);
+      if (
+        ![south, west, north, east].every(Number.isFinite) ||
+        lat < south || lat > north || lon < west || lon > east
+      ) return null;
+      const image = await preloadPhysicsQueryImage(asset.query);
+      const x = Math.floor(((lon - west) / (east - west)) * image.naturalWidth);
+      const y = Math.floor(((north - lat) / (north - south)) * image.naturalHeight);
+      if (x < 0 || y < 0 || x >= image.naturalWidth || y >= image.naturalHeight) return null;
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(image, x, y, 1, 1, 0, 0, 1, 1);
+      const pixel = context.getImageData(0, 0, 1, 1).data;
+      const wet = pixel[2] === 1;
+      return { wet, depthM: wet ? (pixel[0] * 256 + pixel[1]) / 1000 : null };
+    }
+
+    async function sampleDepthModel(lat, lon) {
+      if (DEPTH_QUERY_PNG_URL) {
+        try {
+          return await samplePackedDepthGrid(lat, lon);
+        } catch (error) {
+          console.warn("Packed routed-depth query failed; retrying through the COG.", error);
+        }
+      }
+      if (DEPTH_QUERY_COG_URL) {
+        let lastError = null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            return await sampleDepthModelFromCog(lat, lon);
+          } catch (error) {
+            lastError = error;
+            depthQueryImagePromise = null;
+          }
+        }
+        throw lastError || new Error("Depth query data is unavailable.");
+      }
+      throw new Error("Depth query data is unavailable.");
+    }
+
+    function sampleRenderedFloodPixel(lat, lon) {
+      const image = currentFloodLayer?.getElement?.();
+      if (
+        !image ||
+        !image.complete ||
+        image.naturalWidth <= 0 ||
+        image.naturalHeight <= 0 ||
+        !floodLatLngBounds
+      ) return null;
+      const imageUrl = image.currentSrc || image.src;
+      try {
+        if (
+          !renderedFloodPixelCache ||
+          renderedFloodPixelCache.url !== imageUrl ||
+          renderedFloodPixelCache.width !== image.naturalWidth ||
+          renderedFloodPixelCache.height !== image.naturalHeight
+        ) {
+          const canvas = document.createElement("canvas");
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          if (!context) return null;
+          context.drawImage(image, 0, 0);
+          renderedFloodPixelCache = {
+            url: imageUrl,
+            width: image.naturalWidth,
+            height: image.naturalHeight,
+            context
+          };
+        }
+        const pixel = currentFloodLayer?._worldFileAffine
+          ? latLngToWorldFilePixel(lat, lon, image.naturalWidth, image.naturalHeight)
+          : (() => {
+            const west = floodLatLngBounds.getWest();
+            const east = floodLatLngBounds.getEast();
+            const south = floodLatLngBounds.getSouth();
+            const north = floodLatLngBounds.getNorth();
+            const x = Math.floor(((lon - west) / (east - west)) * image.naturalWidth);
+            const y = Math.floor(((north - lat) / (north - south)) * image.naturalHeight);
+            return x >= 0 && y >= 0 && x < image.naturalWidth && y < image.naturalHeight ? { x, y } : null;
+          })();
+        if (!pixel) return null;
+        const { x, y } = pixel;
+        const rgba = renderedFloodPixelCache.context.getImageData(x, y, 1, 1).data;
+        const visible = rgba[3] > 0;
+        const green = isDisconnectedRasterPixel(rgba, 0);
+        const depthBandIndex = currentOverlayMode === "depth" ? DRAINAGE_DEPTH_COLORS.findIndex(color =>
+          color.every((channel, index) => Math.abs(channel - rgba[index]) <= 3)) : -1;
+        const depthBandFt = depthBandIndex < 0 ? null : [depthBandIndex ? DRAINAGE_DEPTH_BREAKS_FT[depthBandIndex - 1] : 0,
+          DRAINAGE_DEPTH_BREAKS_FT[depthBandIndex] ?? Infinity];
+        return { visible, green, flooded: visible && !green, depthBandFt };
+      } catch (error) {
+        console.warn("Rendered flood-pixel sampling was unavailable.", error);
+        renderedFloodPixelCache = null;
+        return null;
+      }
+    }
+
+    function getDepthQueryDisplayDepth(sample, stageValue, renderedFlood = null, phase = "slack") {
+      if (!sample) return null;
+      const stage = normalizeStageValue(stageValue);
+      if (!Number.isFinite(stage)) return null;
+      const overlayStage = getOverlayStage(stage);
+      const depthStage = normalizeHydraulicPhase(phase) === "filling" ? stage : overlayStage;
+      const developed = sample.developedFlag === true;
+      const depthModel = getPenalizedConnectedDepth(
+        depthStage,
+        sample.elevation,
+        developed,
+        phase,
+        sample.sourceDistanceFt
+      );
+      const adjustedStage = Number(depthModel?.adjustedStage);
+      const normalizedPhase = normalizeHydraulicPhase(phase);
+      const connectionStageLimit = normalizedPhase === "draining"
+        ? adjustedStage
+        : overlayStage;
+      const modeledConnected = Number.isFinite(adjustedStage) &&
+        sample.elevation < adjustedStage - 0.005 &&
+        Number.isFinite(sample.connectionStage) &&
+        sample.connectionStage <= connectionStageLimit + 0.0001;
+      const connected = renderedFlood ? renderedFlood.flooded : modeledConnected;
+      const depth = connected && depthModel ? depthModel.depth : null;
+      // A visible pooled/feeder pixel is not evidence for an invented point depth.
+      if (renderedFlood?.flooded && (!Number.isFinite(depth) || depth <= 0.005)) {
+        // Only an actual shallow raster band supports the displayed 0–0.1 ft range.
+        return renderedFlood.depthBandFt?.[1] === 0.1 ? 0.05 : null;
+      }
+      return Number.isFinite(depth) ? depth : 0;
+    }
+
+    function getDepthQueryPopupHeading() {
+      const displayedMode = currentFloodLayer?._floodmapperFrame?.dataMode || currentDataMode;
+      if (displayedMode === "forecast") return "Forecast Water Depth";
+      if (displayedMode === "observed") return "Water Depth";
+      return "Modeled Water Depth";
+    }
+
+    function formatDepthQueryValue(depth) {
+      if (!Number.isFinite(depth)) return "N/A";
+      if (depth > 0 && depth <= 0.1000001) return "0–1.2 in";
+      return formatWaterDepth(depth);
+    }
+
+    function buildDepthQueryValueHtml(value) {
+      const parts = String(value).match(/^(.*?)\s+(in|ft)$/);
+      if (!parts) return '<span class="depth-query-number">' + value + '</span>';
+      return '<span class="depth-query-number">' + parts[1] + '</span> ' +
+        '<span class="depth-query-unit">' + parts[2] + '</span>';
+    }
+
+    function buildDepthQueryPopupHtml(depth) {
+      const value = formatDepthQueryValue(depth);
+      return '<div class="depth-query-popup" role="status" aria-live="polite">' +
+        '<h3>' + getDepthQueryPopupHeading() + '</h3><div class="depth-query-value">' +
+        buildDepthQueryValueHtml(value) + '</div></div>';
+    }
+
+    function updatePersistentDepthQueryPopup(options = {}) {
+      const context = persistentDepthQueryContext;
+      const popup = persistentFloodPopup;
+      if (!context || !popup || context.popup !== popup || !map?.hasLayer(popup)) return;
+      if (context.kind === "structure") {
+        popup.setContent(buildNsiStructurePopup(context.feature));
+        popup.update();
+        return;
+      }
+      if (context.kind === "physics") {
+        // Physics values belong to one frame; close them when navigation starts.
+        if (floodFrameState !== "ready") {
+          map.removeLayer(popup);
+          persistentDepthQueryContext = null;
+        }
+        return;
+      }
+      if (context.kind === "building") {
+        popup.setContent(buildHouseAlertPopup(context.feature));
+        popup.update();
+        return;
+      }
+      const displayedFrame = currentFloodLayer?._floodmapperFrame;
+      const stage = displayedFrame ? displayedFrame.stage : getStageValue(currentSeriesHours[currentHourIndex]);
+      if (floodFrameState !== "ready") {
+        popup.setContent(buildDepthQueryPopupHtml(null));
+        popup.update();
+        return;
+      }
+      const renderedFlood = options.useRenderedFlood === false
+        ? null
+        : sampleRenderedFloodPixel(context.latlng.lat, context.latlng.lng);
+      const phase = displayedFrame?.phase || getHydraulicPhaseForEntry(
+        currentSeriesHours[currentHourIndex],
+        currentHourIndex,
+        currentSeriesHours
+      );
+      const depth = getDepthQueryDisplayDepth(context.sample, stage, renderedFlood, phase);
+      popup.setContent(buildDepthQueryPopupHtml(depth));
+      popup.update();
+    }
+
+    function openDepthQueryPopup(latlng, sample) {
+      const displayedFrame = currentFloodLayer?._floodmapperFrame;
+      const stage = displayedFrame ? displayedFrame.stage : getStageValue(currentSeriesHours[currentHourIndex]);
+      const renderedFlood = sample
+        ? sampleRenderedFloodPixel(latlng.lat, latlng.lng)
+        : null;
+      const phase = displayedFrame?.phase || getHydraulicPhaseForEntry(
+        currentSeriesHours[currentHourIndex],
+        currentHourIndex,
+        currentSeriesHours
+      );
+      const depth = floodFrameState === "ready"
+        ? getDepthQueryDisplayDepth(sample, stage, renderedFlood, phase) : null;
+      const popup = openPersistentFloodPopup(latlng, buildDepthQueryPopupHtml(depth), 300);
+      if (sample) {
+        persistentDepthQueryContext = { popup, latlng, sample };
+      }
+      return popup;
+    }
+
+    async function handleDepthQueryClick(event) {
+      if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
+      const queryGeneration = ++mapQueryGeneration;
+      const queryMode = mapClickMode;
+      const queryRenderToken = lastRenderToken;
+      const isCurrentQuery = () => queryGeneration === mapQueryGeneration && queryMode === mapClickMode && queryRenderToken === lastRenderToken;
+      try {
+        if (mapClickMode === "building" && parcelInfoInteractionEnabled()) {
+          const nsiEnabled = document.getElementById("nsiStructuresToggle")?.classList.contains("on");
+          if (nsiEnabled) {
+            const structureFeature = findNsiStructureFeatureForLocation(event.latlng.lat, event.latlng.lng);
+            if (structureFeature) {
+              openNsiStructurePopup(structureFeature, event.latlng);
+              return;
+            }
+          }
+          const parcelLayerEnabled = Boolean(
+            document.getElementById("parcelsToggle")?.classList.contains("on") ||
+            document.getElementById("buildingsToggle")?.classList.contains("on")
+          );
+          if (!parcelLayerEnabled) {
+            toast("Tap a highlighted NSI structure point or choose Water depth.");
+            return;
+          }
+          const parcelFeature = await findParcelFeatureForLocation(
+            event.latlng.lat,
+            event.latlng.lng,
+            { allowNearest: false }
+          );
+          if (!isCurrentQuery()) return;
+          if (parcelFeature) {
+            openParcelFloodPrompt(parcelFeature, event.latlng);
+            return;
+          }
+          toast("No parcel contains that building tap. Tap inside a building or choose Water depth.");
+          return;
+        }
+        const entry = currentSeriesHours[currentHourIndex];
+        const physicsAsset = getPhysicsAssetForEntry(entry);
+        if (physicsAsset) {
+          const queryToken = lastRenderToken;
+          const result = await samplePhysicsDepth(physicsAsset, event.latlng.lat, event.latlng.lng);
+          if (!isCurrentQuery() || queryToken !== lastRenderToken || entry !== currentSeriesHours[currentHourIndex] || floodFrameState !== "ready") return;
+          const depthFt = result?.depthM == null ? null : result.depthM / 0.3048;
+          const html = '<div class="depth-query-popup" role="status" aria-live="polite">' +
+            '<h3>Physics Water Depth</h3><div class="depth-query-value">' +
+            buildDepthQueryValueHtml(result == null ? "N/A" : formatWaterDepth(depthFt == null ? 0 : depthFt)) +
+            '</div><div class="house-alert-note">' +
+            (result == null ? 'Outside modeled coverage' : result.wet ? 'Hydraulically connected modeled flooding' : 'Dry in this exact time step') +
+            ' • cycle ' + escapeTownAddressHtml(getActivePhysicsManifest()?.cycleId || '—') +
+            '</div></div>';
+          const popup = openPersistentFloodPopup(event.latlng, html, 330);
+          persistentDepthQueryContext = { popup, kind: "physics" };
+          return;
+        }
+        const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
+        if (!isCurrentQuery()) return;
+        if (!sample) {
+          await openDepthQueryPopup(event.latlng, null);
+          return;
+        }
+        await openDepthQueryPopup(event.latlng, sample);
+      } catch (err) {
+        console.error("Depth query failed", err);
+        toast("Depth query is temporarily unavailable.");
+      }
+    }
+
+    function wireLayerToggles() {
+      document.getElementById("mapClickBuildingBtn")?.addEventListener("click", () => setMapClickMode("building"));
+      document.getElementById("mapClickDepthBtn")?.addEventListener("click", () => setMapClickMode("depth"));
+      ["roadsToggle"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const toggleLayer = () => {
+          el.classList.toggle("on");
+          el.setAttribute("aria-checked", String(el.classList.contains("on")));
+          if (id === "roadsToggle") updateRoadLayerAppearance();
+        };
+        el.addEventListener("click", toggleLayer);
+        el.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleLayer();
+          }
+        });
+      });
+      const satelliteToggle = document.getElementById("satelliteToggle");
+      const toggleSatellite = () => {
+        setSatelliteEnabled(!satelliteToggle?.classList.contains("on"));
+      };
+      satelliteToggle?.addEventListener("click", toggleSatellite);
+      satelliteToggle?.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleSatellite();
+        }
+      });
+      const buildingsToggle = document.getElementById("buildingsToggle");
+      const toggleBuildings = () => {
+        const enabled = !buildingsToggle?.classList.contains("on");
+        setBuildingsEnabled(enabled).catch(error => {
+          setBuildingsEnabled(false).catch(() => {});
+          toast(error?.message || "Buildings could not be loaded.");
+        });
+      };
+      buildingsToggle?.addEventListener("click", toggleBuildings);
+      buildingsToggle?.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleBuildings();
+        }
+      });
+      const parcelsToggle = document.getElementById("parcelsToggle");
+      const toggleParcels = () => {
+        const enabled = !parcelsToggle.classList.contains("on");
+        setParcelsEnabled(enabled).catch(err => {
+          setParcelsEnabled(false);
+          toast(err.message || "Parcels could not be loaded.");
+        });
+      };
+      parcelsToggle?.addEventListener("click", toggleParcels);
+      parcelsToggle?.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleParcels();
+        }
+      });
+      const nsiStructuresToggle = document.getElementById("nsiStructuresToggle");
+      const toggleNsiStructures = () => {
+        const enabled = !nsiStructuresToggle?.classList.contains("on");
+        setNsiStructuresEnabled(enabled).catch(error => {
+          setNsiStructuresEnabled(false).catch(() => {});
+          toast(error?.message || "USACE NSI 2026 structures could not be loaded.");
+        });
+      };
+      nsiStructuresToggle?.addEventListener("click", toggleNsiStructures);
+      nsiStructuresToggle?.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleNsiStructures();
+        }
+      });
+    }
+
+
+    function ensureMobileControlShell() {
+      let toggle = document.getElementById("mobileControlsToggle");
+      if (!toggle) {
+        toggle = document.createElement("button");
+        toggle.id = "mobileControlsToggle";
+        toggle.type = "button";
+        toggle.innerHTML = '<span class="mobile-controls-icon" aria-hidden="true"><i></i><i></i><i></i></span>';
+        toggle.setAttribute("aria-label", "Open controls");
+        toggle.setAttribute("title", "Open controls");
+        toggle.setAttribute("aria-controls", "leftPanel");
+        toggle.setAttribute("aria-expanded", "false");
+        document.body.appendChild(toggle);
+      }
+
+      let backdrop = document.getElementById("mobileDrawerBackdrop");
+      if (!backdrop) {
+        backdrop = document.createElement("div");
+        backdrop.id = "mobileDrawerBackdrop";
+        backdrop.setAttribute("aria-hidden", "true");
+        document.body.appendChild(backdrop);
+      }
+
+      let mobileRailMount = document.getElementById("mobileRailMount");
+      if (!mobileRailMount) {
+        mobileRailMount = document.createElement("div");
+        mobileRailMount.id = "mobileRailMount";
+      }
+
+      let closeBtn = document.getElementById("mobileControlsClose");
+      if (!closeBtn) {
+        closeBtn = document.createElement("button");
+        closeBtn.id = "mobileControlsClose";
+        closeBtn.type = "button";
+        closeBtn.innerHTML = "&times;";
+        closeBtn.className = "centered-close-control";
+        closeBtn.setAttribute("aria-label", "Close controls");
+        closeBtn.setAttribute("title", "Close controls");
+      }
+      // Bind both the initial HTML button and any replacement made on resize.
+      if (closeBtn.dataset.mobileCloseWired !== "1") {
+        closeBtn.dataset.mobileCloseWired = "1";
+        closeBtn.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMobileControlsOpen(false);
+        });
+      }
+
+
+      return { toggle, backdrop, mobileRailMount, closeBtn };
+    }
+
+    function setMobileControlsOpen(isOpen) {
+      const open = Boolean(isOpen);
+      document.body.classList.toggle("mobile-controls-open", open);
+      const toggle = document.getElementById("mobileControlsToggle");
+      if (toggle) {
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.innerHTML = '<span class="mobile-controls-icon" aria-hidden="true"><i></i><i></i><i></i></span>';
+        toggle.setAttribute("aria-label", open ? "Close controls" : "Open controls");
+        toggle.setAttribute("title", open ? "Close controls" : "Open controls");
+      }
+      setTimeout(() => {
+        if (map) {
+          map.invalidateSize();
+          updateColorBasemapClip();
+        }
+        positionTimelineBubble();
+        fitSnapshotTimeText();
+      }, 80);
+    }
+
+    function syncMobileControlsLayout() {
+      const isMobile = isCompactFloodmapperLayout();
+      const leftPanel = document.getElementById("leftPanel");
+      const rightRail = document.getElementById("rightRail");
+      const app = document.getElementById("app");
+      if (!leftPanel || !rightRail || !app) return;
+      const wasMobile = document.body.classList.contains("mobile-optimized");
+
+      const { mobileRailMount, closeBtn } = ensureMobileControlShell();
+
+      if (isMobile) {
+        document.body.classList.add("mobile-optimized");
+        if (!wasMobile) {
+          leftPanel.scrollTop = 0;
+          rightRail.scrollTop = 0;
+        }
+        const mobileCloseBtn = document.getElementById("mobileControlsClose") || closeBtn;
+        if (mobileCloseBtn && mobileCloseBtn.parentNode !== leftPanel) {
+          leftPanel.insertBefore(mobileCloseBtn, leftPanel.firstChild);
+        }
+        if (!mobileRailMount.parentNode) leftPanel.appendChild(mobileRailMount);
+        Array.from(rightRail.children).forEach(node => mobileRailMount.appendChild(node));
+
+      } else {
+        document.body.classList.remove("mobile-optimized");
+        document.body.classList.remove("mobile-legend-open");
+        setMobileControlsOpen(false);
+        if (wasMobile) {
+          leftPanel.scrollTop = 0;
+          rightRail.scrollTop = 0;
+        }
+
+        const mobileCloseBtn = document.getElementById("mobileControlsClose");
+        if (mobileCloseBtn && mobileCloseBtn.parentNode === leftPanel) {
+          leftPanel.removeChild(mobileCloseBtn);
+        }
+
+        Array.from(mobileRailMount.children).forEach(node => {
+          rightRail.appendChild(node);
+        });
+
+        if (mobileRailMount.parentNode) mobileRailMount.parentNode.removeChild(mobileRailMount);
+      }
+      syncLegendPlacement();
+    }
+
+    function wireMobileControlShell() {
+      const { toggle, backdrop } = ensureMobileControlShell();
+      toggle.addEventListener("click", () => {
+        setMobileControlsOpen(!document.body.classList.contains("mobile-controls-open"));
+      });
+      backdrop.addEventListener("click", () => setMobileControlsOpen(false));
+      document.addEventListener("keydown", e => {
+        if (e.key === "Escape") setMobileControlsOpen(false);
+      });
+      document.addEventListener("click", e => {
+        if (!document.body.classList.contains("mobile-controls-open")) return;
+        const target = e.target;
+        const toggleBtn = document.getElementById("mobileControlsToggle");
+        if (toggleBtn?.contains(target)) return;
+      }, false);
+      syncMobileControlsLayout();
+    }
+
+    function syncLegendPlacement() {
+      if(document.body.hasAttribute("data-floodmapper-unified")) return;
+      if(document.body.hasAttribute("data-floodmapper-reference")) return;
+      if(document.body.hasAttribute("data-county-viewport")) return;
+      const legend = document.getElementById("legendDock");
+      const panel = document.getElementById("leftPanel");
+      if (!legend || !panel) return;
+      legend.classList.add("panel-card", "compact-card", "left-lower-legend-card");
+      legend.classList.remove("map-floating", "legend-floating-user", "legend-collapsed", "legend-expanded");
+      if (isCompactFloodmapperLayout()) {
+        if (legend.parentElement !== document.body) document.body.appendChild(legend);
+      } else {
+        const interval = document.getElementById("timelineIntervalCard");
+        const next = interval?.parentElement === panel ? interval.nextSibling : null;
+        if (legend.parentElement !== panel || (next && next !== legend)) panel.insertBefore(legend, next);
+      }
+    }
+
+    function escapeTownAddressHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function getTownAddressConfig() {
+      return TOWN_CONFIG?.addressLookup || {};
+    }
+
+    function getTownAddressDisplayName() {
+      return getTownAddressConfig().displayName || TOWN_CONFIG?.site?.name || "this town";
+    }
+
+    function setTownAddressStatus(message = "", type = "") {
+      const status = document.getElementById("townAddressStatus");
+      if (!status) return;
+      status.textContent = message;
+      status.classList.toggle("error", type === "error");
+      status.classList.toggle("success", type === "success");
+    }
+
+    function clearTownAddressLookup() {
+      ++townAddressSearchGeneration;
+      const button = document.getElementById("townAddressSearchBtn");
+      if (button) button.disabled = false;
+      const input = document.getElementById("townAddressInput");
+      if (input) input.value = "";
+      setTownAddressStatus("");
+      if (townAddressMarker && map && map.hasLayer(townAddressMarker)) {
+        map.removeLayer(townAddressMarker);
+      }
+      townAddressMarker = null;
+      window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);
+      input?.focus();
+    }
+
+    function escapeRegExp(value) {
+      return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function normalizeTownAddressQuery(value) {
+      const cfg = getTownAddressConfig();
+      const trailingTerms = [
+        cfg.displayName,
+        TOWN_CONFIG?.site?.name,
+        TOWN_CONFIG?.site?.municipalityName,
+        cfg.city,
+        cfg.state,
+        cfg.stateName,
+        cfg.postalCode
+      ].filter(Boolean).map(escapeRegExp).join("|");
+      let cleaned = String(value || "").replace(/\s+/g, " ").trim();
+      if (trailingTerms) {
+        cleaned = cleaned.replace(new RegExp(`,?\\s*(${trailingTerms})(\\s*,?\\s*(${trailingTerms}))*\\s*$`, "i"), "").trim();
+      }
+      return cleaned;
+    }
+
+    function isInsideTownLookupBox(lat, lon) {
+      const box = getTownAddressConfig().bbox || {};
+      const south = Number(box.south);
+      const north = Number(box.north);
+      const west = Number(box.west);
+      const east = Number(box.east);
+      if (![south, north, west, east].every(Number.isFinite)) return Number.isFinite(lat) && Number.isFinite(lon);
+      return Number.isFinite(lat) && Number.isFinite(lon) &&
+        lat >= south && lat <= north && lon >= west && lon <= east;
+    }
+
+    function normalizeTownAddressText(value) {
+      const cfg = getTownAddressConfig();
+      const removable = [
+        cfg.displayName,
+        TOWN_CONFIG?.site?.name,
+        TOWN_CONFIG?.site?.municipalityName,
+        cfg.city,
+        cfg.state,
+        cfg.stateName,
+        cfg.postalCode,
+        "borough",
+        "township",
+        "city",
+        cfg.countryCode,
+        cfg.sourceCountry,
+        "united",
+        "states"
+      ].filter(Boolean).map(v => String(v).toLowerCase());
+      const removablePattern = removable.length ? new RegExp(`\\b(${removable.map(escapeRegExp).join("|")})\\b`, "g") : null;
+      let cleaned = String(value || "")
+        .toLowerCase()
+        .replace(/&/g, " and ")
+        .replace(/\b(avenue|ave\.?|av)\b/g, "ave")
+        .replace(/\b(street|st\.?)\b/g, "st")
+        .replace(/\b(road|rd\.?)\b/g, "rd")
+        .replace(/\b(drive|dr\.?)\b/g, "dr")
+        .replace(/\b(place|pl\.?)\b/g, "pl")
+        .replace(/\b(court|ct\.?)\b/g, "ct")
+        .replace(/\b(lane|ln\.?)\b/g, "ln")
+        .replace(/\b(boulevard|blvd\.?)\b/g, "blvd")
+        .replace(/\b(north|n)\b/g, "n")
+        .replace(/\b(south|s)\b/g, "s")
+        .replace(/\b(east|e)\b/g, "e")
+        .replace(/\b(west|w)\b/g, "w")
+        .replace(/[^a-z0-9\s]/g, " ");
+      if (removablePattern) cleaned = cleaned.replace(removablePattern, " ");
+      return cleaned.replace(/\s+/g, " ").trim();
+    }
+
+    function levenshteinTownAddress(a, b) {
+      a = normalizeTownAddressText(a);
+      b = normalizeTownAddressText(b);
+      if (!a) return b.length;
+      if (!b) return a.length;
+      const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+      const curr = new Array(b.length + 1);
+      for (let i = 1; i <= a.length; i++) {
+        curr[0] = i;
+        for (let j = 1; j <= b.length; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+        }
+        for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
+      }
+      return prev[b.length];
+    }
+
+    function similarityTownAddress(a, b) {
+      const aa = normalizeTownAddressText(a);
+      const bb = normalizeTownAddressText(b);
+      const maxLen = Math.max(aa.length, bb.length, 1);
+      return 1 - (levenshteinTownAddress(aa, bb) / maxLen);
+    }
+
+    function resultHasTownPlaceText(result) {
+      const cfg = getTownAddressConfig();
+      const address = result && result.address ? result.address : {};
+      const displayName = String(result && result.display_name ? result.display_name : "").toLowerCase();
+      const placeText = [
+        address.city,
+        address.town,
+        address.village,
+        address.municipality,
+        address.borough,
+        address.suburb,
+        address.county,
+        displayName
+      ].filter(Boolean).join(" ").toLowerCase();
+      const placeTerms = [cfg.displayName, TOWN_CONFIG?.site?.name, TOWN_CONFIG?.site?.municipalityName, cfg.city]
+        .filter(Boolean)
+        .map(value => String(value).toLowerCase());
+      const postcode = String(address.postcode || "").trim();
+      return placeTerms.some(term => placeText.includes(term)) || (cfg.postalCode && postcode === String(cfg.postalCode));
+    }
+
+    function isLikelyTownResult(result) {
+      const lat = Number(result && result.lat);
+      const lon = Number(result && result.lon);
+      return isInsideTownLookupBox(lat, lon) && resultHasTownPlaceText(result);
+    }
+
+    function formatTownAddressLabel(result) {
+      if (result && result.label) return String(result.label);
+      const address = result && result.address ? result.address : {};
+      const parts = [];
+      const houseRoad = [address.house_number, address.road].filter(Boolean).join(" ").trim();
+      if (houseRoad) parts.push(houseRoad);
+      if (address.city || address.town || address.village || address.municipality || address.borough) {
+        parts.push(address.city || address.town || address.village || address.municipality || address.borough);
+      }
+      if (address.state) parts.push(address.state);
+      if (address.postcode) parts.push(address.postcode);
+      return parts.length ? parts.join(", ") : String(result.display_name || "address");
+    }
+
+    function townAddressCandidateScore(candidate, cleanQuery) {
+      const label = formatTownAddressLabel(candidate);
+      const normalizedQuery = normalizeTownAddressText(cleanQuery);
+      const normalizedLabel = normalizeTownAddressText(label);
+      let score = Number(candidate.score || 0);
+      if (candidate.source === "arcgis") score = Math.max(score, Number(candidate.arcgisScore || 0) / 100);
+      if (normalizedQuery && normalizedLabel) {
+        if (normalizedLabel.includes(normalizedQuery)) score += 0.40;
+        score += Math.max(0, similarityTownAddress(normalizedQuery, normalizedLabel)) * 0.45;
+      }
+      const queryHouseNumber = (normalizedQuery.match(/^\d+\b/) || [""])[0];
+      if (queryHouseNumber && normalizedLabel.startsWith(queryHouseNumber)) score += 0.15;
+      return score;
+    }
+
+    function normalizeNominatimTownCandidate(result, cleanQuery) {
+      if (!isLikelyTownResult(result)) return null;
+      const lat = Number(result.lat);
+      const lon = Number(result.lon);
+      const candidate = {
+        source: "nominatim",
+        lat,
+        lon,
+        label: formatTownAddressLabel(result),
+        address: result.address || {},
+        display_name: result.display_name || "",
+        score: 0.45
+      };
+      candidate.score = townAddressCandidateScore(candidate, cleanQuery);
+      return candidate;
+    }
+
+    function normalizeArcgisTownCandidate(candidate, cleanQuery) {
+      const lon = Number(candidate?.location?.x);
+      const lat = Number(candidate?.location?.y);
+      if (!isInsideTownLookupBox(lat, lon)) return null;
+      const attrs = candidate.attributes || {};
+      const label = String(attrs.Match_addr || candidate.address || "address").replace(/,\s*USA$/i, "");
+      const normalized = {
+        source: "arcgis",
+        lat,
+        lon,
+        label,
+        arcgisScore: Number(candidate.score || attrs.Score || 0),
+        score: 0
+      };
+      normalized.score = townAddressCandidateScore(normalized, cleanQuery);
+      return normalized;
+    }
+
+    async function fetchNominatimTownCandidates(clean) {
+      const cfg = getTownAddressConfig();
+      const city = cfg.city || TOWN_CONFIG?.site?.name || "";
+      const state = cfg.state || "";
+      const postalCode = cfg.postalCode || "";
+      const box = cfg.bbox || {};
+      const params = new URLSearchParams({
+        format: "jsonv2",
+        q: [clean, city, state, postalCode].filter(Boolean).join(", "),
+        addressdetails: "1",
+        limit: "10",
+        countrycodes: cfg.countryCode || ""
+      });
+      if ([box.west, box.north, box.east, box.south].every(value => Number.isFinite(Number(value)))) {
+        params.set("viewbox", `${box.west},${box.north},${box.east},${box.south}`);
+        params.set("bounded", "1");
+      }
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+        headers: { "Accept": "application/json" }
+      });
+      if (!response.ok) return [];
+      const results = await response.json();
+      return Array.isArray(results) ? results.map(item => normalizeNominatimTownCandidate(item, clean)).filter(Boolean) : [];
+    }
+
+    async function fetchArcgisTownCandidates(clean) {
+      const cfg = getTownAddressConfig();
+      const city = cfg.city || TOWN_CONFIG?.site?.name || "";
+      const state = cfg.state || "";
+      const postalCode = cfg.postalCode || "";
+      const center = cfg.geocodeCenter || TOWN_CONFIG?.map?.center || {};
+      const params = new URLSearchParams({
+        f: "json",
+        SingleLine: [clean, city, state, postalCode].filter(Boolean).join(", "),
+        outFields: "Match_addr,Addr_type,Score",
+        maxLocations: "10",
+        sourceCountry: cfg.sourceCountry || "",
+        category: "Address,Street Address,Postal,Populated Place",
+        outSR: "4326",
+        forStorage: "false"
+      });
+      if (Number.isFinite(Number(center.lon)) && Number.isFinite(Number(center.lat))) {
+        params.set("location", `${center.lon},${center.lat}`);
+      }
+      if (cfg.searchDistanceMeters) params.set("distance", String(cfg.searchDistanceMeters));
+      const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?${params.toString()}`, {
+        headers: { "Accept": "application/json" }
+      });
+      if (!response.ok) return [];
+      const data = await response.json();
+      const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
+      return candidates.map(item => normalizeArcgisTownCandidate(item, clean)).filter(Boolean);
+    }
+
+    function pickBestTownAddressCandidate(candidates, clean) {
+      const seen = new Set();
+      const unique = [];
+      candidates.forEach(candidate => {
+        const key = `${candidate.lat.toFixed(6)},${candidate.lon.toFixed(6)}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        candidate.score = townAddressCandidateScore(candidate, clean);
+        unique.push(candidate);
+      });
+      unique.sort((a, b) => b.score - a.score);
+      return unique[0] || null;
+    }
+
+    function getCurrentFloodThresholdsForDatum() {
+      return currentDatum === "mllw"
+        ? (SITE_CONFIG.floodThresholdsMllwFt || {})
+        : (SITE_CONFIG.floodThresholdsNavd88Ft || {});
+    }
+
+    function classifyFloodStageForDisplay(rawNavdStage) {
+      const display = convertStageForDisplay(rawNavdStage);
+      const thresholds = getCurrentFloodThresholdsForDatum();
+      const minor = Number(thresholds.minor);
+      const moderate = Number(thresholds.moderate);
+      const major = Number(thresholds.major);
+      if (!Number.isFinite(display) || !Number.isFinite(minor) || !Number.isFinite(moderate) || !Number.isFinite(major)) {
+        return classifyFloodStage(rawNavdStage);
+      }
+      if (display < minor) return "none";
+      if (display < moderate) return "minor";
+      if (display < major) return "moderate";
+      return "major";
+    }
+
+    function updateSnapshotWaterLevelSeverity(rawNavdStage) {
+      const waterBox = document.getElementById("stageText")?.closest(".stat-box");
+      if (!waterBox) return;
+      waterBox.classList.remove("snapshot-water-minor", "snapshot-water-moderate", "snapshot-water-major");
+      const severity = classifyFloodStageForDisplay(rawNavdStage);
+      if (severity === "minor" || severity === "moderate" || severity === "major") {
+        waterBox.classList.add(`snapshot-water-${severity}`);
+      }
+    }
+
+    function getShorelySafeAddressIcon() {
+      return L.divIcon({
+        className: "shorely-address-marker-wrap",
+        html: '<span class="shorely-address-marker"><span></span></span>',
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+        popupAnchor: [0, -14]
+      });
+    }
+
+    async function searchTownAddress(rawValue) {
+      const generation = ++townAddressSearchGeneration;
+      const button = document.getElementById("townAddressSearchBtn");
+      const clean = normalizeTownAddressQuery(rawValue);
+      const townName = getTownAddressDisplayName();
+      if (!clean) {
+        if (button) button.disabled = false;
+        setTownAddressStatus(`Enter a ${townName} address or street first.`, "error");
+        return;
+      }
+      if (!map) ensureMap();
+
+      if (button) button.disabled = true;
+      setTownAddressStatus(`Finding the closest ${townName} match…`);
+
+      try {
+        const candidateSets = await Promise.allSettled([
+          fetchArcgisTownCandidates(clean),
+          fetchNominatimTownCandidates(clean)
+        ]);
+        if (generation !== townAddressSearchGeneration) return;
+        const candidates = candidateSets.flatMap(result => result.status === "fulfilled" && Array.isArray(result.value) ? result.value : []);
+        const match = pickBestTownAddressCandidate(candidates, clean);
+        if (!match) {
+          setTownAddressStatus(`No close ${townName} match found. Try a street number and street name.`, "error");
+          return;
+        }
+
+        const latLng = L.latLng(match.lat, match.lon);
+        const label = formatTownAddressLabel(match);
+        let parcelFeature = null;
+        try {
+          parcelFeature = await findParcelFeatureForLocation(match.lat, match.lon);
+          if (generation !== townAddressSearchGeneration) return;
+          if (parcelFeature) {
+            await setBuildingsEnabled(true);
+          }
+        } catch (parcelErr) {
+          if (generation !== townAddressSearchGeneration) return;
+          console.warn("House Alert parcel match was unavailable.", parcelErr);
+        }
+
+        if (generation !== townAddressSearchGeneration) return;
+        if (townAddressMarker && map.hasLayer(townAddressMarker)) {
+          townAddressMarker.setLatLng(latLng);
+          townAddressMarker.setIcon(getShorelySafeAddressIcon());
+        } else {
+          townAddressMarker = L.marker(latLng, {
+            title: label,
+            riseOnHover: true,
+            icon: getShorelySafeAddressIcon()
+          }).addTo(map);
+        }
+
+        map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });
+        window.NORTH_WILDWOOD_3D?.setAddressMarker?.(latLng, label);
+        if (document.body.classList.contains("mobile-optimized")) {
+          document.getElementById("townAddressInput")?.blur();
+          setMobileControlsOpen(false);
+        }
+        if (parcelFeature) {
+          openParcelFloodPrompt(parcelFeature, latLng);
+        } else {
+          openPersistentFloodPopup(
+            latLng,
+            '<div class="town-address-popup"><strong>Closest match</strong><br>' + escapeTownAddressHtml(label) + "</div>",
+            370
+          );
+        }
+        setTownAddressStatus(parcelFeature ? `Building flood profile found: ${label}` : `Closest match: ${label}`, "success");
+      } catch (err) {
+        if (generation !== townAddressSearchGeneration) return;
+        setTownAddressStatus(err && err.message ? err.message : "Address lookup failed. Please try again.", "error");
+      } finally {
+        if (generation === townAddressSearchGeneration && button) button.disabled = false;
+      }
+    }
+
+    function wireTownAddressLookup() {
+      const form = document.getElementById("townAddressForm");
+      const input = document.getElementById("townAddressInput");
+      const clearBtn = document.getElementById("townAddressClearBtn");
+      if (!form || !input || form.dataset.wired === "1") return;
+      form.dataset.wired = "1";
+      form.addEventListener("submit", e => {
+        e.preventDefault();
+        searchTownAddress(input.value);
+      });
+      clearBtn?.addEventListener("click", clearTownAddressLookup);
+    }
+
+    const MAPPER_TUTORIAL_STEPS = [
+      {
+        title: "Welcome to the Floodmapper",
+        target: "#mapTitleBadge",
+        body: "<p>This map turns water levels into a street-level picture of potential flooding. You can explore the next several days, replay measured events, click the map for modeled depth, inspect parcels, and export what you see.</p><p><strong>Every mapped depth is referenced to the selected water level and the ground-elevation model.</strong></p>"
+      },
+      {
+        title: "Start with the forecast",
+        target: ".data-source-card",
+        body: "<p>Select <strong>Forecast</strong> to explore the forecast water levels and mapped flooding.</p><p>The map and timeline update together, so the selected hour is always the water level being mapped.</p>"
+      },
+      {
+        title: "Switch to observations",
+        target: ".data-source-card",
+        body: "<p>Select <strong>Observed</strong> to explore the tide-gauge archive. Use <strong>Interval</strong> in the left pane to switch among Hourly, 15-Min, and Daily Max views.</p>"
+      },
+      {
+        title: "Choose a historic flood",
+        target: "#calendarCard",
+        body: "<p>The calendar is your archive. Colored dates mark flood thresholds; choose a day or type a date to replay it. Crest-only records show the maximum extent when a full time series was not preserved.</p>"
+      },
+      {
+        title: "Move through time",
+        target: "#timelineDock",
+        body: "<p>Drag the slider to move the map through time, or press Play to animate it. The selected date, time, water level, and mapped depth always stay synchronized.</p>"
+      },
+      {
+        title: "Control map layers",
+        target: ".layers-card",
+        body: "<p>Turn the simulation boundary, road labels, or <strong>Parcels</strong> on and off. Click a parcel to see how many times that structure has flooded in the historic record.</p>"
+      },
+      {
+        title: "Jump to the largest floods",
+        target: ".mobile-top-tides-card, .top-tides-card",
+        body: "<p>The Top 10 list is the fastest way to inspect the archive's highest crests. Select an event to move the calendar, timeline, water-level readout, and inundation map to that flood.</p>"
+      },
+      {
+        title: "Export and share",
+        target: "#downloadCard",
+        body: "<p>Open the export panel to save a single PNG, a PNG sequence, or an animated GIF. Set the time range, frame interval, layout, speed, and labels before export.</p><p>Exports preserve the map, timestamp, datum, depth key, and branding so the result can stand on its own.</p>"
+      }
+    ];
+    let mapperTutorialIndex = 0;
+    let mapperTutorialResizeHandler = null;
+
+    function getVisibleTutorialTarget(selector) {
+      document.dispatchEvent(new CustomEvent("nww:reveal-control", {detail:selector}));
+      return Array.from(document.querySelectorAll(selector)).find(element => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 4 && rect.height > 4 && style.display !== "none" && style.visibility !== "hidden";
+      }) || document.querySelector(selector);
+    }
+
+    function positionMapperTutorial() {
+      const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
+      const target = step ? getVisibleTutorialTarget(step.target) : null;
+      const spotlight = document.getElementById("mapperTutorialSpotlight");
+      const card = document.getElementById("mapperTutorialCard");
+      if (!target || !spotlight || !card) return;
+      const rect = target.getBoundingClientRect();
+      const pad = 8;
+      spotlight.style.left = Math.max(4, rect.left - pad) + "px";
+      spotlight.style.top = Math.max(4, rect.top - pad) + "px";
+      spotlight.style.width = Math.max(20, Math.min(window.innerWidth - 8, rect.width + pad * 2)) + "px";
+      spotlight.style.height = Math.max(20, Math.min(window.innerHeight - 8, rect.height + pad * 2)) + "px";
+      const cardRect = card.getBoundingClientRect();
+      const gap = 18;
+      const margin = 14;
+      const width = Math.min(cardRect.width, window.innerWidth - margin * 2);
+      const height = Math.min(cardRect.height, window.innerHeight - margin * 2);
+      const clampLeft = value => Math.max(margin, Math.min(window.innerWidth - width - margin, value));
+      const clampTop = value => Math.max(margin, Math.min(window.innerHeight - height - margin, value));
+      const targetBox = {
+        left: Math.max(0, rect.left - pad), top: Math.max(0, rect.top - pad),
+        right: Math.min(window.innerWidth, rect.right + pad), bottom: Math.min(window.innerHeight, rect.bottom + pad)
+      };
+      const candidates = [
+        [rect.right + gap, rect.top],
+        [rect.left - width - gap, rect.top],
+        [rect.left, rect.bottom + gap],
+        [rect.left, rect.top - height - gap],
+        [margin, margin],
+        [window.innerWidth - width - margin, margin],
+        [margin, window.innerHeight - height - margin],
+        [window.innerWidth - width - margin, window.innerHeight - height - margin]
+      ].map(([rawLeft, rawTop]) => ({ left: clampLeft(rawLeft), top: clampTop(rawTop) }));
+      const overlapArea = candidate => {
+        const overlapWidth = Math.max(0, Math.min(candidate.left + width, targetBox.right) - Math.max(candidate.left, targetBox.left));
+        const overlapHeight = Math.max(0, Math.min(candidate.top + height, targetBox.bottom) - Math.max(candidate.top, targetBox.top));
+        return overlapWidth * overlapHeight;
+      };
+      candidates.sort((a, b) => overlapArea(a) - overlapArea(b));
+      const chosen = candidates[0];
+      card.style.setProperty("left", chosen.left + "px", "important");
+      card.style.setProperty("top", chosen.top + "px", "important");
+      card.style.setProperty("right", "auto", "important");
+      card.style.setProperty("bottom", "auto", "important");
+    }
+
+    function renderMapperTutorialStep() {
+      const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
+      if (!step) return;
+      const tutorialModePromise = mapperTutorialIndex === 1 && currentDataMode !== "forecast"
+        ? switchDataMode("forecast")
+        : (mapperTutorialIndex === 3 && currentDataMode !== "observed" ? switchDataMode("observed") : Promise.resolve());
+      const target = getVisibleTutorialTarget(step.target);
+      const compactTutorial = isCompactFloodmapperLayout();
+      if (compactTutorial && target) {
+        const needsDrawer = Boolean(target.closest("#leftPanel, #mobileRailMount"));
+        setMobileControlsOpen(needsDrawer);
+      }
+      document.getElementById("mapperTutorialProgress").textContent = (mapperTutorialIndex + 1) + " of " + MAPPER_TUTORIAL_STEPS.length;
+      document.getElementById("mapperTutorialTitle").textContent = step.title;
+      document.getElementById("mapperTutorialBody").innerHTML = step.body;
+      const back = document.getElementById("mapperTutorialBack");
+      const next = document.getElementById("mapperTutorialNext");
+      back.disabled = mapperTutorialIndex === 0;
+      next.textContent = mapperTutorialIndex === MAPPER_TUTORIAL_STEPS.length - 1 ? "Finish" : "Next";
+      window.setTimeout(async () => {
+        try { await tutorialModePromise; } catch (err) {}
+        const resolved = getVisibleTutorialTarget(step.target);
+        const mobileBlockByStep = { 1: "start", 3: "end", 6: "end", 7: "start" };
+        const block = compactTutorial ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
+        resolved?.scrollIntoView({ block, inline: "center", behavior: "auto" });
+        window.setTimeout(positionMapperTutorial, 80);
+        window.setTimeout(positionMapperTutorial, 320);
+      }, 40);
+    }
+
+    function setMapperTutorialOpen(open, startIndex = 0) {
+      const tutorial = document.getElementById("mapperTutorial");
+      if (!tutorial) return;
+      tutorial.hidden = !open;
+      tutorial.setAttribute("aria-hidden", open ? "false" : "true");
+      document.body.classList.toggle("tutorial-active", Boolean(open));
+      if (open) {
+        mapperTutorialIndex = Math.max(0, Math.min(startIndex, MAPPER_TUTORIAL_STEPS.length - 1));
+        renderMapperTutorialStep();
+        mapperTutorialResizeHandler = () => positionMapperTutorial();
+        window.addEventListener("resize", mapperTutorialResizeHandler);
+        document.getElementById("mapperTutorialNext")?.focus();
+      } else if (mapperTutorialResizeHandler) {
+        window.removeEventListener("resize", mapperTutorialResizeHandler);
+        mapperTutorialResizeHandler = null;
+      }
+    }
+
+    function wireMapperTutorial() {
+      document.getElementById("mapperTutorialBtn")?.addEventListener("click", () => setMapperTutorialOpen(true, 0));
+      document.getElementById("mapperTutorialClose")?.addEventListener("click", () => setMapperTutorialOpen(false));
+      document.getElementById("mapperTutorialBack")?.addEventListener("click", () => {
+        if (mapperTutorialIndex > 0) {
+          mapperTutorialIndex -= 1;
+          renderMapperTutorialStep();
+        }
+      });
+      document.getElementById("mapperTutorialNext")?.addEventListener("click", () => {
+        if (mapperTutorialIndex >= MAPPER_TUTORIAL_STEPS.length - 1) setMapperTutorialOpen(false);
+        else {
+          mapperTutorialIndex += 1;
+          renderMapperTutorialStep();
+        }
+      });
+      document.addEventListener("keydown", event => {
+        if (document.getElementById("mapperTutorial")?.hidden) return;
+        if (event.key === "Escape") setMapperTutorialOpen(false);
+        if (event.key === "ArrowRight") document.getElementById("mapperTutorialNext")?.click();
+        if (event.key === "ArrowLeft") document.getElementById("mapperTutorialBack")?.click();
+      });
+    }
+
+    function wireEvents() {
+      floodmapperLayoutMedia.addEventListener("change", () => {
+        syncMobileControlsLayout();
+        syncLeftPanelLayout();
+        renderTimelineMeta();
+        positionTimelineBubble();
+      });
+      document.getElementById("topBannerCloseBtn")?.addEventListener("click", clearTopBanner);
+      document.getElementById("toastCloseBtn")?.addEventListener("click", () => toast(""));
+      document.getElementById("exportProgressCloseBtn")?.addEventListener("click", cancelCurrentExport);
+
+      const timeSlider = document.getElementById("hourSlider");
+      timeSlider.addEventListener("input", event => {
+        stopPlayback();
+        queueTimelineSelection(Number(event.target.value));
+      });
+      timeSlider.addEventListener("change", event => queueTimelineSelection(Number(event.target.value), true));
+      timeSlider.addEventListener("keydown", event => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        // Step continuously across midnight even though the phone rail shows one day.
+        event.preventDefault();
+        stepTimeline(event.key === "ArrowLeft" ? -1 : 1);
+      });
+      document.getElementById("timelineStepBack")?.addEventListener("click", () => stepTimeline(-1));
+      document.getElementById("timelineStepForward")?.addEventListener("click", () => stepTimeline(1));
+
+      document.getElementById("intervalHourBtn")?.addEventListener("click", () => {
+        setTimelineIntervalMinutes(60).catch(err => toast(err.message));
+      });
+
+      document.getElementById("intervalQuarterBtn")?.addEventListener("click", () => {
+        setTimelineIntervalMinutes(15).catch(err => toast(err.message));
+      });
+
+      document.getElementById("intervalDailyBtn")?.addEventListener("click", () => {
+        setTimelineIntervalMinutes(1440).catch(err => toast(err.message));
+      });
+
+      document.getElementById("opacitySlider").addEventListener("input", e => {
+        overlayOpacity = Number(e.target.value) / 100;
+        setOpacityText();
+        applyOverlayOpacity();
+      });
+
+      document.getElementById("datumNavd88Btn").addEventListener("click", () => {
+        if (currentDatum === "navd88") return;
+        currentDatum = "navd88";
+        refreshCurrentDisplayText();
+      });
+
+      document.getElementById("datumMllwBtn").addEventListener("click", () => {
+        if (currentDatum === "mllw") return;
+        currentDatum = "mllw";
+        refreshCurrentDisplayText();
+      });
+
+      document.getElementById("forecastDataBtn").addEventListener("click", () => {
+        switchDataMode("forecast").catch(err => toast(err.message));
+      });
+
+      document.getElementById("observedDataBtn").addEventListener("click", () => {
+        switchDataMode("observed").catch(err => toast(err.message));
+      });
+
+      document.getElementById("returnIntervalDataBtn")?.addEventListener("click", () => {
+        switchDataMode("return-interval").catch(err => toast(err.message));
+      });
+
+      document.getElementById("forecastLowBtn").addEventListener("click", () => {
+        switchForecastScenario("lowEnd").catch(err => toast(err.message));
+      });
+
+      document.getElementById("forecastMeanBtn").addEventListener("click", () => {
+        switchForecastScenario("mean").catch(err => toast(err.message));
+      });
+
+      document.getElementById("forecastHighBtn").addEventListener("click", () => {
+        switchForecastScenario("highEnd").catch(err => toast(err.message));
+      });
+
+      document.querySelectorAll("[data-return-years]").forEach(button => {
+        button.addEventListener("click", () => {
+          switchReturnInterval(Number(button.dataset.returnYears)).catch(err => toast(err.message));
+        });
+      });
+
+      document.getElementById("depthModeBtn").addEventListener("click", () => {
+        switchOverlayMode("depth").catch(err => toast(err.message));
+      });
+
+      document.getElementById("dynamicModeBtn").addEventListener("click", () => {
+        switchOverlayMode("dynamic").catch(err => toast(err.message));
+      });
+
+      const playButton = document.getElementById("playBtn");
+      if (playButton) {
+        playButton.disabled = false;
+        playButton.removeAttribute("disabled");
+        playButton.removeAttribute("title");
+        playButton.style.pointerEvents = "auto";
+        updatePlayPauseButton();
+
+        const isInsidePlayButton = event => {
+          if (!event || typeof event.clientX !== "number" || typeof event.clientY !== "number") return false;
+          const rect = playButton.getBoundingClientRect();
+          if (!rect.width || !rect.height) return false;
+
+          const pad = 12;
+          const x = event.clientX;
+          const y = event.clientY;
+          return x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad;
+        };
+
+        const activatePlay = event => {
+          if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+          }
+
+
+          const now = performance.now ? performance.now() : Date.now();
+          const lockedUntil = Number(playButton.dataset.playLockedUntil || 0);
+          if (now < lockedUntil) return;
+          playButton.dataset.playLockedUntil = String(now + 240);
+
+          playButton.classList.add("just-pressed");
+          window.setTimeout(() => playButton.classList.remove("just-pressed"), 160);
+          togglePlayback(event);
+        };
+
+        playButton.addEventListener("pointerdown", activatePlay, { capture:true });
+        playButton.addEventListener("click", activatePlay, { capture:true });
+        playButton.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.key === " ") activatePlay(event);
+        });
+
+
+        document.addEventListener("pointerdown", event => {
+          if (playButton.contains(event.target)) return;
+          // The enlarged hit area must not intercept dialogs or other buttons.
+          if (!event.target?.closest?.("#timelineDock") || event.target.closest("button, input, select, a")) return;
+          if (isInsidePlayButton(event)) activatePlay(event);
+        }, { capture:true });
+      }
+      const stopBtn = document.getElementById("stopBtn");
+      if (stopBtn) stopBtn.addEventListener("click", stopPlayback);
+
+      const reloadBtn = document.getElementById("reloadBtn");
+      if (reloadBtn) {
+        reloadBtn.addEventListener("click", () => {
+          reloadAll().catch(err => toast(err.message));
+        });
+      }
+
+      document.getElementById("prevMonthBtn").addEventListener("click", () => {
+        const idx = observedMonthKeys.indexOf(currentMonthKey);
+        if (idx > 0) {
+          currentMonthKey = observedMonthKeys[idx - 1];
+          renderCalendar().catch(err => toast(err.message));
+        }
+      });
+
+      document.getElementById("nextMonthBtn").addEventListener("click", () => {
+        const idx = observedMonthKeys.indexOf(currentMonthKey);
+        if (idx >= 0 && idx < observedMonthKeys.length - 1) {
+          currentMonthKey = observedMonthKeys[idx + 1];
+          renderCalendar().catch(err => toast(err.message));
+        }
+      });
+
+      document.getElementById("dataSourceHelpBtn")?.addEventListener("click", e => {
+        e.stopPropagation();
+        showInfoModal("dataSource");
+      });
+      document.getElementById("forecastTypeHelpBtn")?.addEventListener("click", e => {
+        e.stopPropagation();
+        showInfoModal("forecastType");
+      });
+      document.getElementById("returnIntervalHelpBtn")?.addEventListener("click", e => {
+        e.stopPropagation();
+        showInfoModal("returnIntervals");
+      });
+      document.getElementById("overlayHelpBtn")?.addEventListener("click", e => {
+        e.stopPropagation();
+        showInfoModal("overlay");
+      });
+      document.getElementById("timelineDetailHelpBtn")?.addEventListener("click", e => {
+        e.stopPropagation();
+        showInfoModal("timelineDetail");
+      });
+      document.getElementById("legendHelpBtn")?.addEventListener("click", e => {
+        e.stopPropagation();
+        showLegendInfoModal();
+      });
+      document.getElementById("infoModalCloseBtn")?.addEventListener("click", () => setInfoModalOpen(false));
+      document.getElementById("infoModal")?.addEventListener("click", e => {
+        if (e.target === e.currentTarget) setInfoModalOpen(false);
+      });
+
+      document.getElementById("datumHelpBtn").addEventListener("click", e => {
+        e.stopPropagation();
+        setDatumHelpOpen(true);
+      });
+
+      document.getElementById("datumModalCloseBtn").addEventListener("click", () => {
+        setDatumHelpOpen(false);
+      });
+
+      document.getElementById("datumModal").addEventListener("click", e => {
+        if (e.target === e.currentTarget) {
+          setDatumHelpOpen(false);
+        }
+      });
+
+      document.getElementById("openDownloadModalBtn").addEventListener("click", () => {
+        setDownloadModalOpen(true);
+        window.setTimeout(warmExportLibraries, 0);
+      });
+
+      document.getElementById("downloadModalCloseBtn").addEventListener("click", () => {
+        setDownloadModalOpen(false);
+      });
+
+      document.getElementById("downloadResetBtn")?.addEventListener("click", resetExportPanelToDefaults);
+
+      document.getElementById("exportOrderModalCloseBtn")?.addEventListener("click", closeExportDateOrderPopup);
+      document.getElementById("exportOrderModalOkBtn")?.addEventListener("click", closeExportDateOrderPopup);
+      document.getElementById("exportOrderModal")?.addEventListener("click", e => {
+        if (e.target === e.currentTarget) closeExportDateOrderPopup();
+      });
+
+      const stopPlaybackFromPrompt = () => {
+        stopPlayback();
+        setPlaybackStillThereOpen(false);
+      };
+      document.getElementById("playbackStillThereCloseBtn")?.addEventListener("click", stopPlaybackFromPrompt);
+      document.getElementById("playbackStillThereStopBtn")?.addEventListener("click", stopPlaybackFromPrompt);
+      document.getElementById("playbackStillThereContinueBtn")?.addEventListener("click", continuePlaybackAfterDayConfirmation);
+      document.getElementById("playbackStillThereModal")?.addEventListener("click", event => {
+        if (event.target === event.currentTarget) stopPlaybackFromPrompt();
+      });
+
+      document.getElementById("downloadModal").addEventListener("click", e => {
+        if (e.target === e.currentTarget) {
+          setDownloadModalOpen(false);
+        }
+      });
+
+      document.addEventListener("keydown", e => {
+        if (e.key === "Escape") {
+          setDatumHelpOpen(false);
+          setInfoModalOpen(false);
+          setDownloadModalOpen(false);
+          if (!document.getElementById("calendarPopover")?.classList.contains("open")) setObservedCalendarOpen(false);
+          setCalendarPopoverOpen(false);
+          setTopTidesModalOpen(false);
+          closeExportDateOrderPopup();
+          if (playbackPausedForConfirmation) stopPlayback();
+          setPlaybackStillThereOpen(false);
+          if (exportInProgress && isExportProgressOpen()) cancelCurrentExport();
+          else setExportProgressVisible(false);
+          toast("");
+        }
+      });
+
+      document.getElementById("prevDayBtn").addEventListener("click", () => {
+        const date = getNeighborObservedDate(selectedObservedDate, -1);
+        if (date) loadObservedDay(date).catch(err => toast(err.message));
+      });
+
+      document.getElementById("nextDayBtn").addEventListener("click", () => {
+        const date = getNeighborObservedDate(selectedObservedDate, 1);
+        if (date) loadObservedDay(date).catch(err => toast(err.message));
+      });
+
+      document.getElementById("observedCalendarOpenBtn").addEventListener("click", () => setObservedCalendarOpen(true));
+      document.getElementById("observedCalendarCloseBtn").addEventListener("click", () => setObservedCalendarOpen(false));
+      document.getElementById("observedCalendarModal").addEventListener("click", event => {
+        if (event.target === event.currentTarget) setObservedCalendarOpen(false);
+      });
+
+      document.getElementById("calendarTitleBtn").addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const popover = ensureCalendarPopoverIsBodyChild();
+        const open = !(popover && popover.classList.contains("open"));
+        setCalendarPopoverOpen(open);
+      });
+
+      document.getElementById("calendarPopoverCloseBtn")?.addEventListener("click", () => setCalendarPopoverOpen(false));
+
+      document.getElementById("calendarGoBtn").addEventListener("click", () => {
+        closeWindowsDatebarMenus();
+        goToCalendarSelection().then(() => setCalendarPopoverOpen(false)).catch(err => toast(err.message));
+      });
+
+      document.getElementById("calendarPopover").addEventListener("click", e => {
+        e.stopPropagation();
+      });
+
+      document.addEventListener("click", e => {
+        const popover = document.getElementById("calendarPopover");
+        const titleBtn = document.getElementById("calendarTitleBtn");
+        if (!popover || !popover.classList.contains("open")) return;
+        if (popover.contains(e.target) || titleBtn?.contains(e.target)) return;
+        setCalendarPopoverOpen(false);
+      });
+
+      document.addEventListener("keydown", e => {
+        if (e.key === "Escape") setCalendarPopoverOpen(false);
+      });
+
+      const observedDateInput = document.getElementById("observedDateInput");
+      if (observedDateInput) {
+        observedDateInput.addEventListener("keydown", e => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submitTypedObservedDate().catch(err => toast(err.message));
+          }
+          if (e.key === "Escape") {
+            observedDateInput.value = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : "";
+            observedDateInput.blur();
+          }
+        });
+        observedDateInput.addEventListener("blur", () => {
+          const typed = observedDateInput.value.trim();
+          const currentDisplay = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : "";
+          if (!typed || typed === currentDisplay) {
+            observedDateInput.value = currentDisplay;
+            return;
+          }
+          submitTypedObservedDate().catch(err => toast(err.message));
+        });
+        observedDateInput.addEventListener("focus", () => observedDateInput.select());
+      }
+
+      document.querySelectorAll("#downloadScopeControl button[data-scope]").forEach(btn => {
+        btn.addEventListener("click", event => {
+          event.preventDefault();
+          const input = document.getElementById("downloadScopeSelect");
+          if (!input) return;
+          input.value = btn.dataset.scope || "current";
+          document.querySelectorAll("#downloadScopeControl button[data-scope]").forEach(other => other.classList.toggle("active", other === btn));
+          if (!exportInProgress) setDownloadStatus("", false);
+          updateExportSegmentedUI();
+          syncDownloadRangeInputs(true);
+          updateDownloadSummary();
+        });
+      });
+
+      document.getElementById("downloadScopeSelect").addEventListener("change", () => {
+        if (!exportInProgress) setDownloadStatus("", false);
+        updateExportSegmentedUI();
+        syncDownloadRangeInputs(true);
+        updateDownloadSummary();
+      });
+
+      document.querySelectorAll("#downloadFormatControl button[data-format]").forEach(btn => {
+        btn.addEventListener("click", event => {
+          event.preventDefault();
+          const input = document.getElementById("downloadFormatSelect");
+          if (!input) return;
+          const previousFormat = getDownloadFormatValue();
+          input.value = btn.dataset.format || "gif";
+          if (input.value !== previousFormat && input.value === "png") {
+            const endEl = document.getElementById("downloadEndInput");
+            if (endEl) delete endEl.dataset.userEdited;
+          }
+          if (!exportInProgress) setDownloadStatus("", false);
+          applyExportStageAspect(getDownloadAspectValue());
+          updateExportSegmentedUI();
+          scheduleExportTimePickerRender(true);
+          updateDownloadSummary();
+        });
+      });
+
+      document.querySelectorAll("#downloadIntervalControl button[data-export-interval]").forEach(btn => {
+        btn.addEventListener("click", event => {
+          event.preventDefault();
+          const input = document.getElementById("downloadIntervalSelect");
+          if (!input) return;
+          input.value = btn.dataset.exportInterval || "hourly";
+          if (!exportInProgress) setDownloadStatus("", false);
+          updateExportSegmentedUI();
+          scheduleExportTimePickerRender(true);
+          updateDownloadSummary();
+        });
+      });
+
+      document.getElementById("downloadIntervalSelect")?.addEventListener("change", () => {
+        if (!exportInProgress) setDownloadStatus("", false);
+        updateExportSegmentedUI();
+        scheduleExportTimePickerRender(true);
+        updateDownloadSummary();
+      });
+
+      document.querySelectorAll("#downloadAspectControl button[data-aspect]").forEach(btn => {
+        btn.addEventListener("click", event => {
+          event.preventDefault();
+          const input = document.getElementById("downloadAspectSelect");
+          if (!input) return;
+          input.value = btn.dataset.aspect || "viewport";
+          if (!exportInProgress) setDownloadStatus("", false);
+          applyExportStageAspect(input.value);
+          updateExportSegmentedUI();
+          updateDownloadSummary();
+        });
+      });
+
+      document.getElementById("downloadAspectSelect")?.addEventListener("change", () => {
+        if (!exportInProgress) setDownloadStatus("", false);
+        applyExportStageAspect(getDownloadAspectValue());
+        updateExportSegmentedUI();
+        updateDownloadSummary();
+      });
+
+document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(btn => {
+        btn.addEventListener("click", event => {
+          event.preventDefault();
+          const input = document.getElementById("downloadExtentSelect");
+          if (!input) return;
+          input.value = btn.dataset.extent || "current";
+          if (!exportInProgress) setDownloadStatus("", false);
+          updateExportSegmentedUI();
+          updateDownloadSummary();
+        });
+      });
+
+      document.getElementById("downloadExtentSelect")?.addEventListener("change", () => {
+        if (!exportInProgress) setDownloadStatus("", false);
+        updateExportSegmentedUI();
+        updateDownloadSummary();
+      });
+
+      document.getElementById("adjustExportViewBtn")?.addEventListener("click", event => {
+        event.preventDefault();
+        const extentInput = document.getElementById("downloadExtentSelect");
+        if (extentInput) extentInput.value = "current";
+        updateExportSegmentedUI();
+        setDownloadModalOpen(false);
+        toast("Zoom or pan the map to the area you want, then reopen Export and keep Current View selected.");
+      });
+
+      document.querySelectorAll("#downloadSpeedControl button[data-speed]").forEach(btn => {
+        btn.addEventListener("click", event => {
+          event.preventDefault();
+          const input = document.getElementById("downloadSpeedSelect");
+          if (!input) return;
+          input.value = btn.dataset.speed || "normal";
+          if (!exportInProgress) setDownloadStatus("", false);
+          updateExportSegmentedUI();
+          updateDownloadSummary();
+        });
+      });
+
+      document.getElementById("downloadSpeedSelect")?.addEventListener("change", () => {
+        if (!exportInProgress) setDownloadStatus("", false);
+        updateExportSegmentedUI();
+        updateDownloadSummary();
+      });
+
+      ["start", "end"].forEach(prefix => {
+        const cap = prefix === "end" ? "End" : "Start";
+        document.getElementById(`export${cap}CalendarPrevBtn`)?.addEventListener("click", () => {
+          const cursor = getExportCalendarCursor(prefix) || new Date();
+          setExportCalendarCursor(prefix, shiftExportMonth(cursor, getExportCalendarViewMode(prefix) === "year" ? -12 : -1));
+          scheduleExportTimePickerRender(true);
+        });
+        document.getElementById(`export${cap}CalendarNextBtn`)?.addEventListener("click", () => {
+          const cursor = getExportCalendarCursor(prefix) || new Date();
+          setExportCalendarCursor(prefix, shiftExportMonth(cursor, getExportCalendarViewMode(prefix) === "year" ? 12 : 1));
+          scheduleExportTimePickerRender(true);
+        });
+        document.getElementById(`export${cap}CalendarTitle`)?.addEventListener("click", event => {
+          event.preventDefault();
+          setExportCalendarViewMode(prefix, getExportCalendarViewMode(prefix) === "year" ? "month" : "year");
+          scheduleExportTimePickerRender(true);
+        });
+      });
+
+      document.getElementById("exportStartPickedDate")?.addEventListener("click", () => {
+        setExportPickMode("start", true);
+        const date = getRangeInputDate("downloadStartInput");
+        if (date) setExportCalendarCursor("start", date);
+        setExportCalendarViewMode("start", "month");
+        scheduleExportTimePickerRender(true);
+      });
+      document.getElementById("exportEndPickedDate")?.addEventListener("click", () => {
+        setExportPickMode("end", true);
+        const date = getRangeInputDate("downloadEndInput");
+        if (date) setExportCalendarCursor("end", date);
+        setExportCalendarViewMode("end", "month");
+        scheduleExportTimePickerRender(true);
+      });
+
+      document.getElementById("clearPngSelectionsBtn")?.addEventListener("click", () => {
+        exportPngSelections.clear();
+        scheduleExportTimePickerRender(true);
+        updateDownloadSummary();
+      });
+
+      ["start", "end"].forEach(prefix => {
+        ["month", "day", "year", "hour"].forEach(part => {
+          const select = getExportWheelSelect(prefix, part);
+          if (!select) return;
+          select.addEventListener("change", () => {
+            if (!exportInProgress) setDownloadStatus("", false);
+            handleExportDateTimeWheelChange(prefix);
+          });
+          select.addEventListener("input", () => {
+            if (!exportInProgress) setDownloadStatus("", false);
+            handleExportDateTimeWheelChange(prefix);
+          });
+        });
+        const manual = getExportWheelSelect(prefix, "manual");
+        if (manual) {
+          const activateThisPicker = () => {
+            setExportPickMode(prefix, true);
+            scheduleExportTimePickerRender(true);
+          };
+          manual.addEventListener("focus", activateThisPicker);
+          manual.addEventListener("click", activateThisPicker);
+          let manualInputTimer = null;
+          manual.addEventListener("input", () => {
+            const formatted = formatExportManualTyping(manual.value);
+            if (manual.value !== formatted) {
+              manual.value = formatted;
+              try { manual.setSelectionRange(manual.value.length, manual.value.length); } catch (e) {}
+            }
+            if (manualInputTimer) clearTimeout(manualInputTimer);
+            manualInputTimer = setTimeout(() => handleExportManualInput(prefix), 180);
+          });
+          manual.addEventListener("change", () => handleExportManualInput(prefix));
+          manual.addEventListener("blur", () => {
+            const formatted = formatExportManualTyping(manual.value);
+            if (formatted) manual.value = formatted;
+            handleExportManualInput(prefix);
+          });
+        }
+      });
+
+      document.querySelectorAll("[data-export-ampm-prefix][data-export-ampm]").forEach(btn => {
+        btn.addEventListener("click", event => {
+          event.preventDefault();
+          if (!exportInProgress) setDownloadStatus("", false);
+          handleExportAmPmToggle(btn.dataset.exportAmpmPrefix, btn.dataset.exportAmpm);
+        });
+      });
+
+      ["start", "end"].forEach(prefix => {
+        const cap = prefix === "end" ? "End" : "Start";
+        const elements = getExportDateEditorElements(prefix);
+        if (!elements.canonical || !elements.dateText || !elements.timeSelect) return;
+        const refresh = () => {
+          if (!exportInProgress) setDownloadStatus("", false);
+          syncExportHourSelectsFromInputs();
+          scheduleExportTimePickerRender(true);
+          updateDownloadSummary();
+        };
+        normalizeExportDateMask(elements.dateText);
+        elements.dateText.addEventListener("focus", () => {
+          normalizeExportDateMask(elements.dateText);
+          const firstOpen = elements.dateText.value.search(/[MDY]/);
+          setExportDateMaskCaret(elements.dateText, firstOpen >= 0 ? firstOpen : 0);
+        });
+        elements.dateText.addEventListener("click", () => {
+          const start = elements.dateText.selectionStart == null ? 0 : elements.dateText.selectionStart;
+          setExportDateMaskCaret(elements.dateText, start);
+        });
+        elements.dateText.addEventListener("beforeinput", event => {
+          const type = String(event.inputType || "");
+          if (type.startsWith("insert")) {
+            const text = event.data || (event.dataTransfer ? event.dataTransfer.getData("text") : "");
+            if (text && /\d/.test(text)) {
+              event.preventDefault();
+              insertExportDateMaskDigits(elements.dateText, text);
+            } else if (type !== "insertCompositionText") {
+              event.preventDefault();
+            }
+          } else if (type === "deleteContentBackward" || type === "deleteWordBackward" || type === "deleteSoftLineBackward") {
+            event.preventDefault();
+            deleteExportDateMaskDigits(elements.dateText, true);
+          } else if (type.startsWith("delete")) {
+            event.preventDefault();
+            deleteExportDateMaskDigits(elements.dateText, false);
+          }
+          elements.canonical.dataset.userEdited = "1";
+          elements.dateText.classList.remove("is-invalid");
+          elements.dateText.removeAttribute("aria-invalid");
+          if (!exportInProgress) setDownloadStatus("", false);
+        });
+        elements.dateText.addEventListener("paste", event => {
+          event.preventDefault();
+          insertExportDateMaskDigits(elements.dateText, event.clipboardData?.getData("text") || "");
+          elements.canonical.dataset.userEdited = "1";
+        });
+        elements.dateText.addEventListener("input", () => {
+          normalizeExportDateMask(elements.dateText);
+          elements.canonical.dataset.userEdited = "1";
+          elements.dateText.classList.remove("is-invalid");
+          elements.dateText.removeAttribute("aria-invalid");
+          if (!exportInProgress) setDownloadStatus("", false);
+        });
+        elements.dateText.addEventListener("keydown", event => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: true, normalize: true })) refresh();
+            elements.dateText.blur();
+          } else if (event.key === "Backspace") {
+            event.preventDefault();
+            deleteExportDateMaskDigits(elements.dateText, true);
+          } else if (event.key === "Delete") {
+            event.preventDefault();
+            deleteExportDateMaskDigits(elements.dateText, false);
+          } else if (event.key === "Home") {
+            event.preventDefault();
+            setExportDateMaskCaret(elements.dateText, 0);
+          } else if (event.key === "End") {
+            event.preventDefault();
+            setExportDateMaskCaret(elements.dateText, EXPORT_DATE_MASK.length);
+          }
+        });
+        elements.dateText.addEventListener("blur", () => {
+          if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: false, normalize: true })) {
+            refresh();
+          } else {
+            syncExportDateTimeEditorFromCanonical(prefix);
+          }
+        });
+        elements.timeSelect.addEventListener("change", () => {
+          if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: true, normalize: true })) refresh();
+        });
+        const calendarButton = document.getElementById(`download${cap}CalendarBtn`);
+        calendarButton?.addEventListener("click", event => {
+          event.preventDefault();
+          openExportDatePicker(prefix);
+        });
+        if (elements.datePicker) {
+          const applyPickerValue = () => {
+            const match = String(elements.datePicker.value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (!match) return;
+            elements.dateText.value = `${match[2]}/${match[3]}/${match[1]}`;
+            if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: true, normalize: true })) refresh();
+          };
+          elements.datePicker.addEventListener("input", applyPickerValue);
+          elements.datePicker.addEventListener("change", applyPickerValue);
+        }
+      });
+      document.getElementById("downloadBtn").addEventListener("click", () => {
+        downloadCurrentSelection().catch(err => {
+          const format = getDownloadFormatValue();
+          const friendlyMessage = getFriendlyExportError(err, format);
+          console.error(err);
+          toast(friendlyMessage);
+          setDownloadStatus(friendlyMessage, true);
+        });
+      });
+
+      document.getElementById("timelineDock").addEventListener("wheel", e => {
+        if (currentDataMode !== "observed" || !currentSeriesHours.length) return;
+        e.preventDefault();
+        stopPlayback();
+        stepSeriesBy(e.deltaY > 0 ? 1 : -1).catch(err => toast(err.message));
+      }, { passive: false });
+
+      document.addEventListener("keydown", e => {
+        if (currentDataMode !== "observed" || !currentSeriesHours.length) return;
+        if (e.target?.closest?.('[role="dialog"], #calendarPopover, #mapperTutorial')) return;
+        const tag = String(document.activeElement?.tagName || "").toLowerCase();
+        if (tag === "input" || tag === "select" || tag === "textarea") return;
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          stopPlayback();
+          stepSeriesBy(1).catch(err => toast(err.message));
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          stopPlayback();
+          stepSeriesBy(-1).catch(err => toast(err.message));
+        } else if (e.key === "Escape") {
+          setDatumHelpOpen(false);
+          setInfoModalOpen(false);
+        }
+      });
+
+      const topTidesModal = document.getElementById("topTidesModal");
+      document.getElementById("topTidesModalCloseBtn")?.addEventListener("click", () => setTopTidesModalOpen(false));
+      topTidesModal?.addEventListener("click", e => {
+        if (e.target === e.currentTarget) setTopTidesModalOpen(false);
+      });
+      document.addEventListener("keydown", e => {
+        if (e.key === "Escape") setTopTidesModalOpen(false);
+      });
+
+      wireLayerToggles();
+      wireMapperTutorial();
+    }
+
+    async function main() {
+      document.body.dataset.initialFloodFrame = "loading";
+      document.body.dataset.deferredMapLayers = "waiting";
+      ensureMap();
+      setOpacityText();
+      updateDatumUI();
+      updateObservedResolutionUI();
+      updateModeButtons();
+      updateDataModeButtons();
+      setDatumHelpOpen(false);
+      setInfoModalOpen(false);
+      setDownloadModalOpen(false);
+      wireEvents();
+      wireTownAddressLookup();
+      wireFloodHistoryPane();
+      ensureCalendarPopoverIsBodyChild();
+      initWindowsCalendarDatebar();
+      wireMobileControlShell();
+      updateRoadLayerAppearance();
+      updateExportSegmentedUI();
+      syncDownloadRangeInputs(true);
+      updateDownloadSummary();
+      scheduleMapTitleFit();
+      if (typeof ResizeObserver === "function") {
+        const titleModeObserver = new ResizeObserver(positionMapClickModeControl);
+        const titleBadge = document.getElementById("mapTitleBadge");
+        if (titleBadge) titleModeObserver.observe(titleBadge);
+      }
+      window.addEventListener('resize', () => {
+        if (map) {
+          map.invalidateSize();
+          updateColorBasemapClip();
+        }
+        syncMobileControlsLayout();
+        syncLeftPanelLayout();
+        positionTimelineBubble();
+        fitSnapshotTimeText();
+        scheduleMapTitleFit();
+        positionMapClickModeControl();
+      });
+      requestAnimationFrame(() => {
+        if (map) {
+          map.invalidateSize();
+          updateColorBasemapClip();
+        }
+        syncMobileControlsLayout();
+        syncLeftPanelLayout();
+        positionTimelineBubble();
+        fitSnapshotTimeText();
+        scheduleMapTitleFit();
+      });
+      startNwsAlertRefresh();
+      await reloadAll();
+      const warmBoundary = () => loadMunicipalBoundary().catch(() => {});
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(warmBoundary, { timeout: 1600 });
+      } else {
+        window.setTimeout(warmBoundary, 220);
+      }
+    }
+
+    function applyMobileObservedOrdering() {
+      const leftPanel = document.getElementById("leftPanel");
+      if (!leftPanel || !document.body.classList.contains("mobile-optimized")) return;
+      const afterDataSource = document.querySelector(".data-source-card");
+      const order = [
+        document.getElementById("forecastScenarioCard"),
+        document.getElementById("calendarCard"),
+        document.getElementById("returnIntervalCard"),
+        document.querySelector(".overlay-card"),
+        document.querySelector(".datum-card"),
+        document.querySelector(".opacity-card"),
+        document.querySelector(".mobile-top-tides-card"),
+        document.querySelector(".snapshot-card")
+      ].filter(Boolean);
+      let anchor = afterDataSource;
+      order.forEach(node => {
+        if (node.parentNode === leftPanel) {
+          const next = anchor ? anchor.nextSibling : leftPanel.firstChild;
+          // Do not detach an already ordered card during a pointer gesture.
+          if (node !== next) leftPanel.insertBefore(node, next);
+          anchor = node;
+        }
+      });
+      const mobileRailMount = document.getElementById("mobileRailMount");
+      if (mobileRailMount) {
+        const exportCard = mobileRailMount.querySelector(".download-launch-card, .download-card");
+        const addressCard = mobileRailMount.querySelector("#townAddressCard, .town-address-card");
+        if (exportCard && addressCard && exportCard.nextSibling !== addressCard) {
+          mobileRailMount.insertBefore(exportCard, addressCard);
+        }
+      }
+    }
+
+    const _shorelyOriginalSetMobileControlsOpen = setMobileControlsOpen;
+    setMobileControlsOpen = function(isOpen) {
+      _shorelyOriginalSetMobileControlsOpen(isOpen);
+      window.setTimeout(applyMobileObservedOrdering, 0);
+      window.setTimeout(applyMobileObservedOrdering, 120);
+    };
+
+    const _shorelyOriginalSyncMobileControlsLayout = syncMobileControlsLayout;
+    syncMobileControlsLayout = function() {
+      _shorelyOriginalSyncMobileControlsLayout();
+      applyMobileObservedOrdering();
+    };
+
+    const _shorelyOriginalSwitchDataMode = switchDataMode;
+    switchDataMode = async function(mode) {
+      const result = await _shorelyOriginalSwitchDataMode(mode);
+      applyMobileObservedOrdering();
+      return result;
+    };
+
+  

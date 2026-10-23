@@ -1,9 +1,34 @@
 name: Depth query regression
 on:
   push:
-    paths: ['index.html', 'tools/test_depth_query.mjs', 'assets/**/*Query*.png', '.github/workflows/depth-query-regression.yml']
+    branches: [main]
+    paths-ignore:
+      - forecast.json
+      - data/experimental_petss_guidance.json
+      - observed.json
+      - observed15min.json
+      - stone_harbor_observed15min.json
+      - toptides.json
+      - observed_archive_index.json
+      - lewes_archive_index.json
+      - lewes_hourly.json
+      - observed_archive/**/*.json
+      - city-gauge/data/**/*.json
+      - city-gauge/comparison/**/*.json
   pull_request:
-    paths: ['index.html', 'tools/test_depth_query.mjs', 'assets/**/*Query*.png', '.github/workflows/depth-query-regression.yml']
+    paths-ignore:
+      - forecast.json
+      - data/experimental_petss_guidance.json
+      - observed.json
+      - observed15min.json
+      - stone_harbor_observed15min.json
+      - toptides.json
+      - observed_archive_index.json
+      - lewes_archive_index.json
+      - lewes_hourly.json
+      - observed_archive/**/*.json
+      - city-gauge/data/**/*.json
+      - city-gauge/comparison/**/*.json
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,6 +43,10 @@ jobs:
           sparse-checkout: |
             /index.html
             /tools/test_depth_query.mjs
+            /tools/app_source.*
+            /tools/app/
+            /assets/app/
+            /assets/styles/
             /assets/**/*Query*.png
       - uses: actions/setup-node@v4
         with:

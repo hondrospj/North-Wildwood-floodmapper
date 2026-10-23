@@ -1,3 +1,4 @@
+const { readAppSource } = require('./app_source.cjs');
 'use strict';
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 function extract(source,name){const start=[...source.matchAll(new RegExp('(?:async )?function '+name+'\\(','g'))].at(-1)?.index;assert(start!==undefined,name);for(let end=source.indexOf('}',start);end>=0;end=source.indexOf('}',end+1)){const f=source.slice(start,end+1);try{new vm.Script('('+f+')');return f;}catch{}}throw Error(name);}
@@ -81,4 +82,4 @@ async function runModeFunctions(functions,originalFunctions){
  return {passed:true,mode_and_archive_cases:checks,avalon_safe_forecast_rollback:avalon,modern_archive_fetch:functions.loadObservedDay.includes('await ensureObservedArchiveForDate(dateStr);')};
 }
 module.exports={runModeFunctions,extract};
-if(require.main===module){const file=process.argv[2]||'index.html',source=fs.readFileSync(file,'utf8'),handler=source.includes('async function switchDataModeNow(mode)')?'switchDataModeNow':'switchDataMode';runModeFunctions({modeHandler:extract(source,handler),loadObservedDay:extract(source,'loadObservedDay'),loadForecast:extract(source,'loadForecast')}).then(r=>console.log(JSON.stringify(r))).catch(e=>{console.error(e);process.exitCode=1;});}
+if(require.main===module){const file=process.argv[2]||'index.html',source=readAppSource(file),handler=source.includes('async function switchDataModeNow(mode)')?'switchDataModeNow':'switchDataMode';runModeFunctions({modeHandler:extract(source,handler),loadObservedDay:extract(source,'loadObservedDay'),loadForecast:extract(source,'loadForecast')}).then(r=>console.log(JSON.stringify(r))).catch(e=>{console.error(e);process.exitCode=1;});}

@@ -1,9 +1,10 @@
+import { readAppSource } from './app_source.mjs';
 // Hourly historical observations must produce a continuous, explicitly
 // interpolated quarter-hour replay without filling missing observations.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const html=fs.readFileSync(new URL(process.env.NWW_SOURCE || '../index.html',import.meta.url),'utf8');
+const html=readAppSource(new URL(process.env.NWW_SOURCE || '../index.html',import.meta.url));
 function extract(name){
  const start=html.search(new RegExp('^    (?:async )?function '+name+'\\(','m'));
  assert(start>=0,name);return html.slice(start,html.indexOf('\n    }',start)+6);

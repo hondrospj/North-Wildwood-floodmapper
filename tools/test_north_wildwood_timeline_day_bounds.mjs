@@ -1,8 +1,9 @@
+import { readAppSource } from './app_source.mjs';
 // Regression: the phone day navigator and native range must cover the same day.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const html=readAppSource(new URL('../index.html',import.meta.url));
 const nyDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 const sameDay=(a,b)=>nyDay.format(new Date(a.timeUtc))===nyDay.format(new Date(b.timeUtc));
 const context=vm.createContext({currentSeriesHours:[],currentHourIndex:0,mobile:true,timelineBoundsCache:null,

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readAppSource } from './app_source.mjs';
 // Focused checks for smooth fractional-stage filling without the full asset catalog.
 
 import assert from "node:assert/strict";
@@ -9,7 +10,7 @@ import path from "node:path";
 
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SOURCE = fs.readFileSync(path.join(HERE, "..", "index.html"), "utf8");
+const SOURCE = readAppSource(path.join(HERE, "..", "index.html"));
 
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);

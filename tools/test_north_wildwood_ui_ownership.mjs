@@ -1,8 +1,9 @@
+import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const html = readAppSource(new URL('../index.html', import.meta.url));
 const extract = name => {
   const source = html.match(new RegExp(`    function ${name}\\([\\s\\S]*?\\n    }`))?.[0];
   assert.ok(source, `${name} must exist`);

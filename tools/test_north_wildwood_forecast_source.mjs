@@ -1,8 +1,9 @@
+import { readAppSource } from './app_source.mjs';
 // Ensure every UI selection consumes the scheduled product without a local subtraction.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const html = readAppSource(new URL('../index.html', import.meta.url));
 const forecast = JSON.parse(fs.readFileSync(new URL('../forecast.json', import.meta.url), 'utf8'));
 const body = html.match(/    function getForecastScenarioHours\([\s\S]*?\n    }/)?.[0];
 assert.ok(body);

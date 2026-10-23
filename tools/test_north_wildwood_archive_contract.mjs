@@ -1,8 +1,9 @@
+import { readAppSource } from './app_source.mjs';
 // Network-independent failure/retry and cache-isolation tests for the real loaders.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const html=readAppSource(new URL('../index.html',import.meta.url));
 function extract(name){const start=html.search(new RegExp('^    (?:async )?function '+name+'\\(','m'));assert(start>=0,name);return html.slice(start,html.indexOf('\n    }',start)+6);}
 function context(names,extra={}){
   const c=vm.createContext({Map,Set,Number,Math,Date,Promise,console:{warn(){}},archiveGeneration:0,observedArchiveLoadedYears:new Set(),observedArchiveUnavailableYears:new Set(),observedArchiveYearPromises:new Map(),observed15MinuteDaysByDate:new Map(),lewesHourlyDaysByDate:new Map(),observedData:null,observedDaysCache:null,clearExportAvailabilityCache(){},...extra});

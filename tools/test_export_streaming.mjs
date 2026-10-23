@@ -1,8 +1,9 @@
+import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const html = readAppSource(new URL('../index.html', import.meta.url));
 const extract = name => {
   const match = html.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n    }`));
   assert.ok(match, `Missing ${name}`);

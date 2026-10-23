@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import math
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PAYLOAD = json.loads((ROOT / "return_intervals.json").read_text(encoding="utf-8"))
 LEVELS = json.loads((ROOT / "return_interval_levels_v2.json").read_text(encoding="utf-8"))
-INDEX = (ROOT / "index.html").read_text(encoding="utf-8")
+INDEX = subprocess.check_output(["node", "-e", "process.stdout.write(require('./tools/app_source.cjs').readAppSource())"], cwd=ROOT, text=True)
 EXPECTED_INTERVALS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]
 EXPECTED_PRECEDENCE = [
     "primary-usgs-continuous",

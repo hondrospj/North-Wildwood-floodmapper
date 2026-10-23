@@ -1,8 +1,9 @@
+import { readAppSource } from './app_source.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 
-const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const html = readAppSource(new URL("../index.html", import.meta.url));
 const source = fs.readFileSync(new URL("../assets/export-preview.js", import.meta.url), "utf8");
 assert.match(html, /<script defer src="assets\/export-preview\.js\?v=[^"]+"/,
   "Preview UI must not add a parser-blocking startup request");

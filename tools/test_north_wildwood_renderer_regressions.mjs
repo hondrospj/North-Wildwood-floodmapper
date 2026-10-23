@@ -1,10 +1,11 @@
+import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 
 const sourcePath = path.resolve(process.argv[2] || new URL('../index.html', import.meta.url).pathname);
-const source = fs.readFileSync(sourcePath, 'utf8');
+const source = readAppSource(sourcePath);
 const results = [];
 function extract(name) {
   const match = source.match(new RegExp('^    (?:async )?function ' + name + '\\([^\\n]*\\) \\{\\n.*?^    \\}', 'ms'));
