@@ -34340,10 +34340,19 @@ function updateExportSegmentedUI() {
     async function waitForExportRasterLayerReady(layer, timeoutMs = 30000) {
       if (!layer || typeof layer.isLoading !== "function") return;
       const deadline = Date.now() + timeoutMs;
+      let retriedFailedTiles = false;
       while (Date.now() < deadline) {
         throwIfExportCancelled();
         const tiles = Array.from(layer.getContainer()?.querySelectorAll("img.leaflet-tile, canvas.leaflet-tile") || []);
         if (tiles.some(tile => tile.complete && !tile.naturalWidth)) {
+          // A preview and its download share this layer. Re-request failed tiles
+          // once so a transient preview failure cannot poison the next capture.
+          if (!retriedFailedTiles && typeof layer.redraw === "function") {
+            retriedFailedTiles = true;
+            layer.redraw();
+            await wait(100);
+            continue;
+          }
           throw new Error("A map tile could not load. Please try the export again.");
         }
         if (!layer.isLoading() && tiles.length && tiles.every(tile => tile.complete && tile.naturalWidth > 0)) {
@@ -34915,14 +34924,16 @@ function updateExportSegmentedUI() {
       await waitForStableRender();
     }
 
-    async function captureExportCanvas() {
+    async function captureExportCanvas(options = {}) {
       if (typeof html2canvas !== "function") {
         throw new Error("html2canvas did not load, so map export is unavailable.");
       }
       const stage = document.getElementById("exportStageFrame");
       if (!stage) throw new Error("Export stage is unavailable.");
       await waitForExportChromeReady();
-      const captureScale = getExportCaptureScale();
+      const captureScale = Number.isFinite(options.scale) && options.scale > 0
+        ? Math.min(options.scale, getExportCaptureScale())
+        : getExportCaptureScale();
       return await html2canvas(stage, {
         backgroundColor: null,
         useCORS: true,
@@ -41859,6 +41870,7 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
 <script defer src="assets/north-wildwood-mobile.js?v=20261009-conflicts-1"></script>
 
 <script src="assets/export-area.js?v=20261008-2" id="floodmapper-export-area"></script>
+<script src="assets/export-preview.js?v=20261023-1" id="floodmapper-export-preview"></script>
 
 
 
