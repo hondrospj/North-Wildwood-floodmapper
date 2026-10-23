@@ -702,13 +702,45 @@ assert.match(SOURCE, /async function samplePackedDepthGrid\(/);
 assert.match(SOURCE, /encodedElevation - 32768/);
 assert.match(SOURCE, /connectionCode - 50/);
 assert.match(SOURCE, /\/assets\/hydraulic-v29\//);
-assert.match(extractFunction("getOverlayCandidates"), /const orderedRoots = \[\.\.\.roots\]/);
-assert.doesNotMatch(extractFunction("getOverlayCandidates"), /\.sort\(/);
-assert.ok(
-  SOURCE.indexOf('"./assets/hydraulic-v29/DepthPNGs/North%20Wildwood/"') <
-    SOURCE.indexOf('"https://floodmapperv1.b-cdn.net/DepthPNGs/North%20Wildwood/v37/"'),
-  "The complete bundled catalog must precede the matching Bunny v37 catalog",
-);
+// Exercise the browser's real delivery candidates, not a particular implementation.
+for (const host of [
+  "https://hondrospj.github.io/North-Wildwood-floodmapper/",
+  "https://cupajoe.live/north-wildwood/floodmapper/",
+]) {
+  for (const mode of ["depth", "dynamic"]) {
+    for (const phase of ["slack", "filling", "draining", "draining-release-15", "draining-release-30"]) {
+      const family = mode === "depth" ? "DepthPNGs" : "StagePNGs";
+      const prefix = mode === "depth" ? "NorthWildwoodDepth" : "NorthWildwoodStage";
+      const suffix = phase === "slack" ? "" : `${phase}/`;
+      const atlas = `assets/hydraulic-v29/${family}/North%20Wildwood/${suffix}`;
+      const localRoot = new URL(atlas, host).href;
+      const directRoot = new URL(atlas, "https://hondrospj.github.io/North-Wildwood-floodmapper/").href;
+      const legacyRoot = `https://floodmapperv1.b-cdn.net/${family}/North%20Wildwood/v37/${suffix}`;
+      const deliveryContext = vm.createContext({
+        URL,
+        APP_BASE: new URL(host),
+        TOWN_CONFIG: { overlays: { stageCodeScale: 100, stageCodeWidth: 4 } },
+        SITE_CONFIG: { depthPngPrefix: "NorthWildwoodDepth", stagePngPrefix: "NorthWildwoodStage" },
+        OVERLAY_PHASE_ROOTS: { [mode]: { [phase]: [localRoot, legacyRoot] } },
+        OVERLAY_ROOTS: { [mode]: [localRoot, legacyRoot] },
+        OVERLAY_CACHE_VERSIONS: { hydraulic: "contract-current-v40" },
+      });
+      for (const name of ["stageToCode", "normalizeHydraulicPhase", "getOverlayFilename", "getOverlayFilenameCandidates", "getOverlayCandidates"]) {
+        vm.runInContext(`${extractFunction(name)}; globalThis.${name} = ${name};`, deliveryContext);
+      }
+      const filenames = [`${prefix}p0400.webp`, `${prefix}p0400.png`];
+      const expected = filenames.flatMap(filename => {
+        const currentLocal = `${localRoot}${filename}?v=contract-current-v40`;
+        return host.startsWith("https://cupajoe.live/")
+          ? [`${directRoot}${filename}?v=contract-current-v40`, currentLocal]
+          : [currentLocal];
+      });
+      const actual = Array.from(deliveryContext.getOverlayCandidates(mode, 4, phase));
+      assert.deepEqual(actual, expected, `${host} ${mode} ${phase}: current atlas, filename, version and delivery order`);
+      assert.ok(actual.every(url => !url.startsWith(legacyRoot)), "The mismatched Bunny v37 atlas must not replace the current frame");
+    }
+  }
+}
 assert.match(SOURCE, /20260822-mask-stabilizer-v40/);
 assert.match(SOURCE, /sampledFromCanonical15MinuteHistory/);
 assert.match(SOURCE, /isHistoryAwareDrainageComposite/);

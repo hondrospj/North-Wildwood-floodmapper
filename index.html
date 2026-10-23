@@ -3,6 +3,7 @@
 <!-- The app owns timeline metadata and legend placement; skip the hosting legacy controller. -->
 <html lang="en" data-nww-avalon-timeline data-nww-mobile-layout data-ss-ui-ready="app">
 <head>
+<link rel="preconnect" href="https://hondrospj.github.io" crossorigin>
 <style id="shorely-depth-pill-20261016">
 /* Shared click-depth card. Keep the existing heading, depth, units and query states. */
 @layer shorely-depth-pill {
@@ -30082,16 +30083,31 @@ function setDatumHelpOpen(isOpen) {
       const normalizedPhase = normalizeHydraulicPhase(phase);
       const phaseRoots = OVERLAY_PHASE_ROOTS?.[mode]?.[normalizedPhase] || [];
       const roots = phaseRoots.length ? phaseRoots : (OVERLAY_ROOTS[mode] || []);
-      // Preserve configured priority. The bundled bare-earth drainage v37
-      // catalog is authoritative; Bunny v37 is a future same-version fallback.
-      const orderedRoots = [...roots];
+      // Keep the current bundled catalog. The old Bunny v37 filling images
+      // do not match it, so they must not replace an unavailable current frame.
+      const orderedRoots = roots.filter(root => {
+        const url = new URL(root);
+        return !(url.hostname === "floodmapperv1.b-cdn.net" && url.pathname.includes("/v37/"));
+      });
       const filenames = getOverlayFilenameCandidates(mode, stageValue);
-      return orderedRoots.flatMap(root => filenames.map(name => {
+      const candidates = orderedRoots.flatMap(root => filenames.map(name => {
         const url = new URL(name, root);
         const version = OVERLAY_CACHE_VERSIONS?.hydraulic || OVERLAY_CACHE_VERSIONS?.[mode];
         if (version) url.searchParams.set("v", version);
         return url.href;
       }));
+      if (!["cupajoe.live", "www.cupajoe.live"].includes(APP_BASE.hostname)) return candidates;
+      // Use the identical published atlas directly; retain the local copy if
+      // that host is unavailable. Live forecast JSON stays on its own route.
+      const atlasPath = `${APP_BASE.pathname}assets/hydraulic-v29/`;
+      const staticBase = new URL("North-Wildwood-floodmapper/", "https://hondrospj.github.io/");
+      return candidates.flatMap(candidate => {
+        const url = new URL(candidate);
+        if (url.origin !== APP_BASE.origin || !url.pathname.startsWith(atlasPath)) return [candidate];
+        const direct = new URL(url.pathname.slice(APP_BASE.pathname.length), staticBase);
+        direct.search = url.search;
+        return [direct.href, candidate];
+      });
     }
 
     function latLngBoundsFromRing(ring) {
@@ -30164,6 +30180,8 @@ function setDatumHelpOpen(isOpen) {
         };
         if (cancelIfRequested()) return;
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
+        img.crossOrigin = "anonymous";
+        img.fetchPriority = "high";
         img.onload = () => done({ ok: true });
         img.onerror = () => done({ ok: false });
         timeoutTimer = window.setTimeout(() => done({ ok: false }), 20000);
@@ -30210,6 +30228,7 @@ function setDatumHelpOpen(isOpen) {
         };
         if (cancelIfRequested()) return;
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
+        img.crossOrigin = "anonymous";
         img.decoding = "async";
         img.fetchPriority = priority === "high" ? "high" : "low";
         img.onload = async () => done(await decodeFloodFrameImage(img) ? url : null);
@@ -35451,6 +35470,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
     }
 
     function setFloodFrameStatus(message, state = "info") {
+      if (state === "loading") message = "";
       if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== "Stone Harbor USGS").join(" • ");
       const status = document.getElementById("floodFrameStatus");
       if (!status) return;
@@ -36892,7 +36912,7 @@ function formatSelectedObservedDate(dateStr) {
 
         const overlayUrl = match.url;
         releaseRaster = retainRasterObjectUrl(overlayUrl);
-        const loaded = await preloadImage(overlayUrl);
+        const loaded = await preloadImage(overlayUrl, "high");
         if (token !== lastRenderToken) return;
         if (!loaded) {
           return false;
@@ -36969,7 +36989,7 @@ function formatSelectedObservedDate(dateStr) {
       if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
         throw new Error("The selected physics frame is incomplete.");
       }
-      const loaded = await preloadImage(overlayUrl);
+      const loaded = await preloadImage(overlayUrl, "high");
       if (token !== lastRenderToken) return;
       if (!loaded) {
         return false;
