@@ -1424,13 +1424,14 @@
     if (!glPopup || !glMap) return;
     var element = glPopup.getElement();
     if (!element) return;
+    var close = element.querySelector(".maplibregl-popup-close-button");
+    if (close) close.setAttribute("aria-label", "Close popup");
     var compact = isCompactFloodmapperLayout();
     element.classList.toggle("nw-mobile-popup", compact);
     // MapLibre appends its close button after the card. Sticky positioning
     // only keeps it visible when it starts before the scrollable contents.
     if (compact) {
       var content = element.querySelector(".maplibregl-popup-content");
-      var close = element.querySelector(".maplibregl-popup-close-button");
       if (content && close && content.firstElementChild !== close) content.prepend(close);
     }
     // Map controls live outside MapLibre's stacking context. A compact popup
@@ -1582,6 +1583,8 @@
       });
     });
     glMap.on("click", async function (event) {
+      // Popup controls must not also select the building beneath them.
+      if (event.originalEvent?.target?.closest?.(".maplibregl-popup")) return;
       var buildingsEnabled = layerVisible("buildingsToggle", false);
       if (buildingsEnabled && mapClickMode === "building" && glMap.getLayer("nw-3d-buildings")) {
         var buildingQueryLayers = ["nw-3d-buildings"].filter(function (layerId) {
