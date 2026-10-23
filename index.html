@@ -30793,6 +30793,12 @@ function setDatumHelpOpen(isOpen) {
         image.onload = () => { releaseRaster(); resolve(image); };
         image.onerror = () => { releaseRaster(); resolve(null); };
         image.src = url;
+      }).then(image => {
+        // A failed decode must not prevent the next request from retrying.
+        if (!image && drainageRasterImageCache.get(url) === promise) {
+          drainageRasterImageCache.delete(url);
+        }
+        return image;
       });
       drainageRasterImageCache.set(url, promise);
       while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {
@@ -35703,6 +35709,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       }
       if (typeof floodFrameState !== "undefined") floodFrameState = "loading";
       document.body.dataset.floodFrame = "loading";
+      if (persistentDepthQueryContext?.kind === "physics") updatePersistentDepthQueryPopup();
       if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "Loading the next flood map… Previous frame shown." : "Loading flood map…", "loading");
       return lastRenderToken;
     }
@@ -35710,6 +35717,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
     function clearFloodLayer() {
       floodFrameState = "unavailable";
       document.body.dataset.floodFrame = floodFrameState;
+      if (persistentDepthQueryContext?.kind === "physics") updatePersistentDepthQueryPopup();
       renderedFloodPixelCache = null;
       if (pendingFloodLayer && map?.hasLayer(pendingFloodLayer)) map.removeLayer(pendingFloodLayer);
       if (currentFloodLayer && map?.hasLayer(currentFloodLayer)) map.removeLayer(currentFloodLayer);
@@ -37259,7 +37267,8 @@ function formatSelectedObservedDate(dateStr) {
     function flushTimelineSelection() {
       const pending = pendingTimelineSelection;
       cancelTimelineSelection();
-      if (!pending || pending.series !== currentSeriesHours || pending.index === currentHourIndex) return;
+      if (!pending || pending.series !== currentSeriesHours) return;
+      if (pending.index === currentHourIndex && floodFrameState === "ready") return;
       renderHour(pending.index).catch(error => toast(error.message));
     }
     function queueTimelineSelection(index, commit = false) {
@@ -39726,6 +39735,14 @@ function startPlayback() {
       const context = persistentDepthQueryContext;
       const popup = persistentFloodPopup;
       if (!context || !popup || context.popup !== popup || !map?.hasLayer(popup)) return;
+      if (context.kind === "physics") {
+        // Physics values belong to one frame; close them when navigation starts.
+        if (floodFrameState !== "ready") {
+          map.removeLayer(popup);
+          persistentDepthQueryContext = null;
+        }
+        return;
+      }
       if (context.kind === "building") {
         popup.setContent(buildHouseAlertPopup(context.feature));
         popup.update();
@@ -39806,17 +39823,19 @@ function startPlayback() {
         const entry = currentSeriesHours[currentHourIndex];
         const physicsAsset = getPhysicsAssetForEntry(entry);
         if (physicsAsset) {
+          const queryToken = lastRenderToken;
           const result = await samplePhysicsDepth(physicsAsset, event.latlng.lat, event.latlng.lng);
+          if (queryToken !== lastRenderToken || entry !== currentSeriesHours[currentHourIndex] || floodFrameState !== "ready") return;
           const depthFt = result?.depthM == null ? null : result.depthM / 0.3048;
           const html = '<div class="depth-query-popup" role="status" aria-live="polite">' +
             '<h3>Physics Water Depth</h3><div class="depth-query-value">' +
-            buildDepthQueryValueHtml(formatWaterDepth(depthFt == null ? 0 : depthFt)) +
+            buildDepthQueryValueHtml(result == null ? "N/A" : formatWaterDepth(depthFt == null ? 0 : depthFt)) +
             '</div><div class="house-alert-note">' +
-            (result?.wet ? 'Hydraulically connected modeled flooding' : 'Dry in this exact time step') +
+            (result == null ? 'Outside modeled coverage' : result.wet ? 'Hydraulically connected modeled flooding' : 'Dry in this exact time step') +
             ' • cycle ' + escapeTownAddressHtml(getActivePhysicsManifest()?.cycleId || '—') +
             '</div></div>';
-          persistentDepthQueryContext = null;
-          openPersistentFloodPopup(event.latlng, html, 330);
+          const popup = openPersistentFloodPopup(event.latlng, html, 330);
+          persistentDepthQueryContext = { popup, kind: "physics" };
           return;
         }
         const sample = await sampleDepthModel(event.latlng.lat, event.latlng.lng);
@@ -42486,7 +42505,7 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
   Object.entries(groups).forEach(([group,selector])=>document.querySelectorAll(selector).forEach(e=>{if(e.dataset.nwwGroup!==group)e.dataset.nwwGroup=group;}));
   for(const item of timeline.querySelectorAll('.timeline-key-item'))for(const node of [...item.childNodes])if(node.nodeType===Node.TEXT_NODE&&node.textContent.trim()){const span=document.createElement('span');span.className='timeline-key-label';span.textContent=node.textContent.trim().replace(/^No flooding$/i,'No Flooding').replace(/^(Minor|Moderate|Major) flooding$/i,'$1');node.replaceWith(span);}
   const bubble=document.getElementById('timelineBubble');if(bubble&&bubble.style.getPropertyValue('translate')!=='none')set(bubble,'translate','none');
-  const legend=document.getElementById('legendDock');if(legend){attr(legend,'role','button');legend.tabIndex=0;attr(legend,'aria-label','Flood map legend');attr(legend,'aria-expanded',String(body.classList.contains('mobile-legend-open')));}
+  const legend=document.getElementById('legendDock');if(legend){attr(legend,'aria-label','Flood map legend');if(mobile.matches){attr(legend,'role','button');legend.tabIndex=0;attr(legend,'aria-expanded',String(body.classList.contains('mobile-legend-open')));}else{legend.removeAttribute('role');legend.removeAttribute('tabindex');legend.removeAttribute('aria-expanded');}}
  }
  function reparent(){
   const compact=mobile.matches,legend=document.getElementById('legendDock');let mount=document.getElementById('mobileRailMount');
@@ -42542,7 +42561,7 @@ preloadNorthWildwoodExperience(northWildwoodMainPromise);
   if(body.classList.contains('mobile-controls-open')){
    if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}
    else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex="0"]')].filter(visible),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}
-  }else if(event.target.closest('#legendDock')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}
+  }else if(event.target.closest('#legendDock')&&!event.target.closest('button')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}
  },true);
  document.addEventListener('nww:reveal-control',event=>{if(mobile.matches&&typeof event.detail==='string'){const element=document.querySelector(event.detail);if(element)selectSection(element.closest('[data-nww-group]')?.dataset.nwwGroup||'forecast');schedule();}});
  const observer=new MutationObserver(records=>{if(records.some(m=>m.type!=='attributes'||m.attributeName!=='style'||owned.get(m.target)!==m.target.getAttribute('style')))schedule();});

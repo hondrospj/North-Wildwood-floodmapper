@@ -6,7 +6,7 @@ let nextId = 0;
 const frames = new Map();
 const renders = [];
 const context = vm.createContext({
-  currentSeriesHours: Array.from({length:100}, (_,i) => ({i})), currentHourIndex:0,
+  currentSeriesHours: Array.from({length:100}, (_,i) => ({i})), currentHourIndex:0, floodFrameState:'ready',
   requestAnimationFrame: fn => { frames.set(++nextId,fn); return nextId; },
   cancelAnimationFrame: id => frames.delete(id),
   stopPlayback: () => {}, toast: message => {throw Error(message);},
