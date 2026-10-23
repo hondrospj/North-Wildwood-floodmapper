@@ -8,11 +8,42 @@
   let pending = false;
   let activeJob = null;
   let exportRequested = false;
+  let settingsReviewed = false;
 
   const node = id => document.getElementById(id);
   const available = () => isDownloadModalOpen() && !exportRequested && !exportInProgress;
   const fresh = token => token === generation && available();
   const release = canvas => { if (canvas) canvas.width = canvas.height = 1; };
+
+  function renderReviewStep() {
+    const modal = node("downloadModal");
+    if (modal) modal.dataset.exportStep = settingsReviewed ? "review" : "area";
+    const basic = node("exportBasicFields");
+    const review = node("exportReviewFields");
+    const back = node("exportReviewBackBtn");
+    const reset = node("downloadResetBtn");
+    if (basic) basic.hidden = settingsReviewed;
+    if (review) review.hidden = !settingsReviewed;
+    if (back) back.hidden = !settingsReviewed;
+    if (reset) reset.hidden = !settingsReviewed;
+    const heading = node("exportStepHeading");
+    if (heading) heading.textContent = settingsReviewed ? "2 · Review export settings" : "1 · Area and time";
+    if (!exportInProgress && !exportRequested && !settingsReviewed) {
+      const label = node("downloadBtnLabel");
+      if (label) label.textContent = "Review export settings";
+    }
+    const area = node("exportPreviewAreaLabel");
+    if (area) area.textContent = getDownloadExtentValue() === "custom" ? "Selected area"
+      : getDownloadExtentValue() === "town" ? "North Wildwood" : "Current view";
+    const areaStatus = node("exportAreaStatus");
+    if (areaStatus) areaStatus.hidden = getDownloadExtentValue() !== "custom";
+  }
+
+  function reviewSettings() {
+    settingsReviewed = true;
+    updateExportSegmentedUI();
+    node("exportReviewFields")?.querySelector("button:not(:disabled)")?.focus({ preventScroll: true });
+  }
 
   function clearCanvas() {
     const mount = node("exportPreviewCanvas");
@@ -103,6 +134,7 @@
   const originalSummary = updateDownloadSummary;
   updateDownloadSummary = function (...args) {
     const result = originalSummary(...args);
+    renderReviewStep();
     schedulePreview();
     return result;
   };
@@ -110,7 +142,9 @@
   const originalOpen = setDownloadModalOpen;
   setDownloadModalOpen = function (open, ...args) {
     invalidate();
+    settingsReviewed = false;
     const result = originalOpen(open, ...args);
+    renderReviewStep();
     if (open) schedulePreview();
     else clearCanvas();
     return result;
@@ -119,6 +153,11 @@
   const originalDownload = downloadCurrentSelection;
   downloadCurrentSelection = async function (...args) {
     if (exportRequested || exportInProgress) return;
+    // The first action always reveals the important settings, never downloads.
+    if (!settingsReviewed) {
+      reviewSettings();
+      return;
+    }
     // Both jobs use the same offscreen renderer. Never capture while downloading.
     exportRequested = true;
     invalidate();
@@ -138,6 +177,13 @@
       }
       if (isDownloadModalOpen()) schedulePreview();
     }
+  };
+
+  const originalSegmentedUI = updateExportSegmentedUI;
+  updateExportSegmentedUI = function (...args) {
+    const result = originalSegmentedUI(...args);
+    renderReviewStep();
+    return result;
   };
 
   function init() {
@@ -160,14 +206,33 @@
       #downloadModal #exportPreviewRetryBtn{border:1px solid #60a5fa;border-radius:8px;background:transparent;color:#b8d8ff;padding:8px 12px;font:inherit;cursor:pointer;min-height:40px}
       #downloadModal #exportPreviewRetryBtn[hidden]{display:none!important}
       #downloadModal #exportPreviewRetryBtn:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+      #downloadModal .export-preview-layout>.download-grid{display:flex!important;flex-direction:column!important;gap:16px!important;min-width:0;align-self:stretch!important}
+      #downloadModal .export-step-fields{display:flex;flex-direction:column;gap:16px;min-width:0}
+      #downloadModal .export-preview-layout [hidden][hidden]{display:none!important}
+      #downloadModal #exportStepHeading{margin:0;font-size:15px;font-weight:750;color:#eaf0ff;line-height:1.4}
+      #downloadModal .export-step-fields>.download-field{display:flex!important;flex-direction:column!important;gap:8px!important;margin:0!important;min-width:0}
+      #downloadModal #exportTimePicker{padding:0!important;background:none!important;border:0!important;box-shadow:none!important}
+      #downloadModal #downloadRangeFields{display:flex!important;flex-direction:column!important;gap:14px!important}
+      #downloadModal #exportDataRangeText,#downloadModal .export-extent-help,#downloadModal #downloadModalSub{display:none!important}
+      #downloadModal .export-preview-area{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid #40516b;font-size:14px;color:#bac8df}
+      #downloadModal #exportChangeAreaBtn{padding:8px 0;min-height:40px;border:0;background:none;color:#7bb5ff;font:inherit;font-weight:700;cursor:pointer}
+      #downloadModal #exportChangeAreaBtn:focus-visible{outline:3px solid #93c5fd;outline-offset:3px;border-radius:4px}
+      #downloadModal .download-actions{margin-top:auto!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;width:100%!important;gap:10px!important;padding-top:8px!important}
+      #downloadModal #exportReviewBackBtn{min-height:40px;border:1px solid #40516b;border-radius:10px;padding:9px 12px;background:transparent;color:#c6d5ea;font:inherit;font-size:13px;cursor:pointer}
+      #downloadModal #downloadBtn{width:100%!important;min-height:50px!important;color:white!important;background:#3b82f6!important;border:1px solid #76adff!important}
+      #downloadModal #downloadBtn:disabled{opacity:.65!important}
+      #downloadModal .download-modal-head{margin-bottom:14px!important;align-items:start!important}
+      #downloadModal #exportModalTown{display:block;margin-top:5px;font-size:13px;font-weight:500;color:#bac8df}
+      #downloadModal #downloadAspectControl{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      #downloadModal #downloadAspectControl button:last-child{grid-column:1/-1}
       @keyframes export-preview-spin{to{transform:rotate(360deg)}}
       @media(prefers-reduced-motion:reduce){#downloadModal #exportPreview .export-preview-image::after{animation:none}}
       @media(min-width:1000px){
         #downloadModal .download-modal-card{width:min(1120px,calc(100vw - 32px))!important}
-        #downloadModal .export-preview-layout{grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr);gap:20px}
-        #downloadModal #exportPreview{grid-column:2;grid-row:1;position:sticky;top:0}
-        #downloadModal .export-preview-layout>.download-grid{grid-column:1;grid-row:1}
-        #downloadModal .export-preview-image{height:min(510px,56dvh)}
+        #downloadModal .export-preview-layout{grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:20px}
+        #downloadModal #exportPreview{grid-column:1;grid-row:1;position:sticky;top:0}
+        #downloadModal .export-preview-layout>.download-grid{grid-column:2;grid-row:1;min-height:min(590px,65dvh)}
+        #downloadModal .export-preview-image{height:min(520px,57dvh)}
       }
     `;
     document.head.appendChild(style);
@@ -178,14 +243,66 @@
     preview.id = "exportPreview";
     preview.dataset.state = "loading";
     preview.setAttribute("aria-label", "Export preview");
-    preview.innerHTML = `<div class="export-preview-heading"><span>Preview</span><span id="exportPreviewFrameLabel">First frame</span></div><div class="export-preview-image"><div id="exportPreviewCanvas"></div></div><figcaption class="export-preview-caption"><span id="exportPreviewStatus" role="status" aria-live="polite">Preparing preview…</span><button id="exportPreviewRetryBtn" type="button" hidden>Retry</button></figcaption>`;
+    preview.innerHTML = `<div class="export-preview-heading"><span>Preview</span><span id="exportPreviewFrameLabel">First frame</span></div><div class="export-preview-image"><div id="exportPreviewCanvas"></div></div><figcaption class="export-preview-caption"><span id="exportPreviewStatus" role="status" aria-live="polite">Preparing preview…</span><button id="exportPreviewRetryBtn" type="button" hidden>Retry</button></figcaption><div class="export-preview-area"><span id="exportPreviewAreaLabel">Current view</span><button id="exportChangeAreaBtn" type="button">Change area</button></div>`;
     layout.append(preview, grid);
+    const basic = document.createElement("section");
+    basic.id = "exportBasicFields";
+    basic.className = "export-step-fields";
+    basic.setAttribute("aria-label", "Export area and time");
+    const review = document.createElement("section");
+    review.id = "exportReviewFields";
+    review.className = "export-step-fields";
+    review.setAttribute("aria-label", "Required export settings");
+    review.hidden = true;
+    const step = document.createElement("h4");
+    step.id = "exportStepHeading";
+    [".export-filetype-field", "#exportTimePicker"].forEach(selector => {
+      const field = grid.querySelector(selector);
+      if (field) basic.appendChild(field);
+    });
+    [".export-layout-field", ".export-interval-field", "#gifSpeedField", ".export-framing-field"].forEach(selector => {
+      const field = grid.querySelector(selector);
+      if (field) review.appendChild(field);
+    });
+    grid.prepend(step, basic, review);
+    const actions = grid.querySelector(".download-actions");
+    const back = document.createElement("button");
+    back.id = "exportReviewBackBtn";
+    back.type = "button";
+    back.textContent = "Back to area and time";
+    back.hidden = true;
+    actions?.prepend(back);
+    back.addEventListener("click", () => {
+      settingsReviewed = false;
+      updateExportSegmentedUI();
+      node("exportFormatGifBtn")?.focus({ preventScroll: true });
+    });
+    node("exportChangeAreaBtn").addEventListener("click", () => node("exportExtentCustomBtn")?.click());
+    node("downloadResetBtn")?.addEventListener("click", () => {
+      settingsReviewed = false;
+      updateExportSegmentedUI();
+    });
+    const heading = node("downloadModalTitle");
+    if (heading) {
+      heading.textContent = "Export map";
+      const town = document.createElement("span");
+      town.id = "exportModalTown";
+      town.textContent = "North Wildwood";
+      heading.appendChild(town);
+    }
+    const png = node("exportFormatPngBtn");
+    if (png) png.textContent = "PNG";
+    const startLabel = node("downloadStartDateText")?.closest(".export-simple-datetime-field")?.querySelector("span");
+    const endLabel = node("downloadEndDateText")?.closest(".export-simple-datetime-field")?.querySelector("span");
+    if (startLabel) startLabel.textContent = "Start";
+    if (endLabel) endLabel.textContent = "End";
     node("exportPreviewRetryBtn").addEventListener("click", schedulePreview);
+    renderReviewStep();
     window.FLOODMAPPER_EXPORT_PREVIEW.ready = true;
     if (isDownloadModalOpen()) schedulePreview();
   }
 
-  window.FLOODMAPPER_EXPORT_PREVIEW = { version: "20261023-1", ready: false };
+  window.FLOODMAPPER_EXPORT_PREVIEW = { version: "20261023-2", ready: false };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();
 })();

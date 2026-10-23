@@ -26,7 +26,7 @@ function extractFunction(name) {
 assert.match(source, /id="openDownloadModalBtn"[^>]*>Export Map<\/button>/);
 assert.doesNotMatch(source, /<h3>Create Shareable Map<\/h3>/);
 assert.doesNotMatch(source, /id="downloadLaunchMeta"/);
-assert.match(source, /<h3 id="downloadModalTitle">Create shareable flood map<\/h3>/);
+assert.match(source, /<h3 id="downloadModalTitle">Export map<\/h3>/);
 assert.match(source, /data-aspect="4:5"[^>]+>Social 4:5<\/button>/);
 assert.match(source, /data-extent="town"[^>]+>Fill North Wildwood<\/button>/);
 assert.match(source, /pngWidth: 2160, pngHeight: 2700/);
@@ -80,7 +80,7 @@ vm.runInContext(
 fitContext.fitExportMapToSelectedExtent(mapInstance);
 assert.equal(fittedBounds, townBounds);
 assert.ok(fittedOptions.paddingTopLeft[0] > 0);
-assert.ok(fittedOptions.paddingTopLeft[1] > fittedOptions.paddingBottomRight[1]);
+assert.equal(fittedOptions.paddingTopLeft[1], fittedOptions.paddingBottomRight[1], "Footer branding no longer needs excessive map top padding");
 assert.equal(fittedOptions.animate, false);
 
 console.log("North Wildwood export layout checks passed");

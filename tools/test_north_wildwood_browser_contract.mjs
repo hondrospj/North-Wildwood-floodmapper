@@ -861,12 +861,11 @@ assert.match(extractFunction("buildStableExportGifPalette"), /globalPalette: tru
 assert.match(extractFunction("exportGif"), /globalPalette: stableGlobalPalette/);
 assert.doesNotMatch(SOURCE, /globalPalette: false/);
 assert.doesNotMatch(SOURCE, /seedGifLegendPalette/);
-assert.match(SOURCE, /\.export-stage-legend\[data-export-legend-mode="depth"\]\{[\s\S]+background:#0b1220 !important/);
-assert.match(SOURCE, /id="north-wildwood-export-final-qa"/);
-assert.match(SOURCE, /data-export-aspect="16:9"|font-size:60px !important/);
-assert.match(SOURCE, /data-export-aspect="1:1"[\s\S]+font-size:52px !important/);
-assert.match(SOURCE, /data-export-aspect="4:5"[\s\S]+font-size:50px !important/);
-assert.match(SOURCE, /data-export-aspect="9:16"[\s\S]+font-size:50px !important/);
+assert.match(SOURCE, /#exportFooter[^{}]*\{[^}]*background:#0b1424/);
+assert.match(extractFunction("drawExportTimestampOnCanvas"), /getExportFooterLayout[\s\S]+getExportTimestampRows/,
+  "GIF labels must share the responsive footer geometry used by PNG captures");
+assert.match(extractFunction("updateExportTimestampLabel"), /getExportFooterLayout[\s\S]+getExportTimestampRows/,
+  "PNG labels must use the same responsive footer typography");
 
 const modeledStormLabelContext = vm.createContext({ Number });
 vm.runInContext(
@@ -905,7 +904,12 @@ assert.match(
 assert.match(SOURCE, /ctx\.drawImage\(roadLabelsCanvas[\s\S]+ctx\.drawImage\(chromeCanvas[\s\S]+drawExportTimestampOnCanvas/);
 assert.match(SOURCE, /getPane\("roadsPane"\)\.style\.zIndex = 710/);
 assert.match(SOURCE, /\.export-stage \.leaflet-pane\.roads-dark img,[\s\S]+filter:none !important/);
-assert.match(SOURCE, /\.export-stage-legend\[data-export-legend-mode="depth"\]\{[\s\S]+right:40px !important/);
+const exportFooterStyle = SOURCE.match(/<style id="north-wildwood-export-footer-\d+">([\s\S]*?)<\/style>/)?.[1];
+assert.ok(exportFooterStyle, "Export branding, key and timestamps need a separate footer");
+assert.match(exportFooterStyle, /#exportFooter :is\(#exportTimestampLabel,#exportLegendDock,#exportLogoStrip\)[^{]*\{[^}]*right:auto !important[^}]*background:transparent !important/,
+  "Footer chrome must use its reserved layout rather than float over the map");
+assert.match(extractFunction("applyExportStageAspect"), /getExportFooterLayout[\s\S]+mapElement\.style\.setProperty\("height", `\$\{layout\.map\.height\}px`, "important"\)/,
+  "Reserve the footer height before sizing the exported map");
 assert.doesNotMatch(extractFunction("getExportFrameDateTimeText"), /timeZoneName|GMT|UTC|E\[SD\]T/);
 assert.match(SOURCE, /id="buildingsToggle"/);
 assert.match(SOURCE, /function styleEsriBuildingForeground\(/);

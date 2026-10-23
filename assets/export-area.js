@@ -50,9 +50,7 @@
     const se = L.CRS.EPSG3857.latLngToPoint(bounds.getSouthEast(), 0);
     const ratio = (se.x - nw.x) / (se.y - nw.y);
     const longEdge = getDownloadFormatValue() === "png" ? 2160 : 1440;
-    const width = Math.max(2, Math.round(longEdge * Math.min(1, ratio)));
-    const height = Math.max(2, Math.round(longEdge / Math.max(1, ratio)));
-    return { value: "viewport", width, height, label: "Selected area", resolutionLabel: `${width} × ${height}` };
+    return { ...getExportViewportConfigForRatio(ratio, longEdge), label: "Selected area" };
   };
 
   const originalBusy = setDownloadBusy;
@@ -361,7 +359,7 @@
   }
 
   window.FLOODMAPPER_EXPORT_AREA = {
-    version: "20261008-2", ready: false,
+    version: "20261023-3", ready: false,
     getBounds: () => copyBounds(selectedBounds),
     getJobBounds: () => copyBounds(jobBounds)
   };
