@@ -905,7 +905,12 @@ assert.match(
 assert.match(SOURCE, /ctx\.drawImage\(roadLabelsCanvas[\s\S]+ctx\.drawImage\(chromeCanvas[\s\S]+drawExportTimestampOnCanvas/);
 assert.match(SOURCE, /getPane\("roadsPane"\)\.style\.zIndex = 710/);
 assert.match(SOURCE, /\.export-stage \.leaflet-pane\.roads-dark img,[\s\S]+filter:none !important/);
-assert.match(SOURCE, /\.export-stage-legend\[data-export-legend-mode="depth"\]\{[\s\S]+right:40px !important/);
+const exportFooterStyle = SOURCE.match(/<style id="north-wildwood-export-footer-\d+">([\s\S]*?)<\/style>/)?.[1];
+assert.ok(exportFooterStyle, "Export branding, key and timestamps need a separate footer");
+assert.match(exportFooterStyle, /#exportFooter :is\(#exportTimestampLabel,#exportLegendDock,#exportLogoStrip\)[^{]*\{[^}]*right:auto !important[^}]*background:transparent !important/,
+  "Footer chrome must use its reserved layout rather than float over the map");
+assert.match(extractFunction("applyExportStageAspect"), /getExportFooterLayout[\s\S]+mapElement\.style\.setProperty\("height", `\$\{layout\.map\.height\}px`, "important"\)/,
+  "Reserve the footer height before sizing the exported map");
 assert.doesNotMatch(extractFunction("getExportFrameDateTimeText"), /timeZoneName|GMT|UTC|E\[SD\]T/);
 assert.match(SOURCE, /id="buildingsToggle"/);
 assert.match(SOURCE, /function styleEsriBuildingForeground\(/);

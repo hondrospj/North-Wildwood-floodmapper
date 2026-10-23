@@ -21,6 +21,7 @@ for (const failurePoint of ['waitForExportMapReady', 'captureExportCanvas']) {
   const original = Object.values(nodes).map(n => n.style.visibility);
   const ctx = context('captureFastGifBaseCanvas', {
     document:{getElementById:id => nodes[id]},
+    ensureExportMunicipalBoundary:noop,
     ensureExportMap:() => ({invalidateSize:noop,hasLayer:()=>false}),
     applyExportStageAspect:noop,getDownloadAspectValue:()=> 'viewport',
     updateExportLegend:noop,updateExportBoundaryVisibility:noop,updateExportParcelsLayer:noop,

@@ -54,7 +54,8 @@ function canvas(marker) {
 
 function harness() {
   const ids = ["downloadModal", "exportPreview", "exportPreviewCanvas", "exportPreviewStatus",
-    "exportPreviewFrameLabel", "exportPreviewRetryBtn", "downloadBtn", "downloadBtnLabel"];
+    "exportPreviewFrameLabel", "exportPreviewRetryBtn", "downloadBtn", "downloadBtnLabel",
+    "exportBasicFields", "exportReviewFields", "exportReviewBackBtn", "downloadResetBtn", "exportStepHeading"];
   const nodes = Object.fromEntries(ids.map(id => [id, node(id)]));
   nodes.downloadModal.hidden = true;
   let time = 0, timerId = 0;
@@ -84,6 +85,7 @@ function harness() {
     isDownloadModalOpen: () => !nodes.downloadModal.hidden,
     setDownloadModalOpen: open => { nodes.downloadModal.hidden = !open; },
     updateDownloadSummary: noop,
+    resetExportPanelToDefaults: noop,
     getDownloadScopeValue: () => state.scope,
     getDownloadFormatValue: () => "png",
     getDownloadAspectValue: () => "4:5",
@@ -227,6 +229,8 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   const capture = deferred(), download = deferred();
   state.capture = () => capture.promise; state.download = () => download.promise;
   ctx.setDownloadModalOpen(true); await tick();
+  await ctx.downloadCurrentSelection();
+  assert.equal(state.downloads, 0, "Review remains mandatory before testing the real download barrier");
   ctx.updateDownloadSummary();
   const downloading = ctx.downloadCurrentSelection();
   assert.equal(nodes.downloadBtn.disabled, true, "Give immediate feedback while draining a slow preview");
@@ -247,6 +251,7 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   const { ctx, state, tick } = harness();
   const capture = deferred(); state.capture = () => capture.promise;
   ctx.setDownloadModalOpen(true); await tick();
+  await ctx.downloadCurrentSelection();
   const downloading = ctx.downloadCurrentSelection();
   capture.reject(new Error("Preview network timeout")); await downloading;
   assert.equal(state.downloads, 1);
@@ -256,6 +261,7 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
 {
   const { ctx, state, nodes } = harness();
   state.download = async () => { throw new Error("Export network timeout"); };
+  await ctx.downloadCurrentSelection();
   await assert.rejects(ctx.downloadCurrentSelection(), /Export network timeout/);
   assert.equal(nodes.downloadBtn.disabled, false);
   assert.equal(nodes.downloadBtnLabel.textContent, "Download PNG Frames", "Restore Download after an export failure");
@@ -271,6 +277,7 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   ctx.setDownloadModalOpen(true); await tick();
   assert.match(nodes.exportPreviewStatus.textContent, /could not|couldn.t|failed|unavailable|retry/i);
   assert.ok(nodes.exportPreview.dataset.state !== "ready" || nodes.exportPreviewCanvas.children.length === 0);
+  await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 0, "Preview failure cannot bypass review");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1);
   state.capture = async () => canvas("recovered");
   ctx.setDownloadModalOpen(true); await tick();
