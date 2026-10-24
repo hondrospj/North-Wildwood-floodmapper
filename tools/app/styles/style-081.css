@@ -16,6 +16,8 @@
   #exportStageFrame #exportFooter .export-depth-key-ends span {white-space:nowrap;}
   #exportStageFrame #exportFooter .export-depth-key-ends span:nth-child(2):not(:last-child) {position:absolute;left:calc(18% + 8px);}
   #exportStageFrame #exportFooter .export-depth-key-note {display:none !important;}
-  html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock .stage-legend-scale {font-size:var(--export-key-label) !important;line-height:1.2 !important;gap:var(--export-footer-gap) !important;}
-  html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock :is(.stage-legend-green,.stage-legend-gradient) {height:var(--export-key-bar) !important;margin-top:var(--export-key-gap) !important;border-width:1px !important;}
+  @layer floodmapper-unified-base {
+    html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock .stage-legend-scale {font-size:var(--export-key-label) !important;line-height:1.2 !important;gap:var(--export-footer-gap) !important;}
+    html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock :is(.stage-legend-green,.stage-legend-gradient) {height:var(--export-key-bar) !important;margin-top:var(--export-key-gap) !important;border-width:1px !important;}
+  }
   #exportStageFrame #exportMapAttribution {z-index:1400 !important;left:0 !important;bottom:0 !important;width:100% !important;max-width:none !important;background:#0b1424 !important;color:#aabbd1 !important;box-sizing:border-box !important;white-space:nowrap;overflow:hidden;}
