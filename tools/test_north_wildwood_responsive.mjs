@@ -13,7 +13,7 @@ const parcel=JSON.parse(fs.readFileSync(new URL('../assets/parcel-history-v2/Nor
 const sizes=[[1512,945],[1321,800],[1200,800],[1200,500],[1121,768],[1024,768],[901,768],[900,768],[861,768],[860,768],[768,1024],[430,932],[390,844],[360,800],[320,568],[1512,600],[1024,561],[1024,560],[932,430],[667,375],[568,320],[1512,945]];
 function check(ok,label,details){checks.push(label);if(!ok)failures.push({label,details});}
 async function settled(page){await page.waitForTimeout(900);}
-async function resizeAndSettle(page,{width,height}){
+async function resizeAndSettle(page,{width,height},{timeout=10000}={}){
   const before=await page.evaluate(()=>({width:innerWidth,height:innerHeight,passes:Number(document.body.dataset.unifiedLayoutPasses)||0,at:performance.now()}));
   await page.setViewportSize({width,height});
   // A fixed delay can inspect the preceding viewport while a busy browser has
@@ -25,7 +25,7 @@ async function resizeAndSettle(page,{width,height}){
       window.responsiveResizePoll={at:performance.now(),completed};
       return completed?.width===width&&completed.height===height&&completed.passes>0&&
         (before.width===width&&before.height===height||completed.passes>before.passes);
-    },{width,height,before},{timeout:10000,polling:50});
+    },{width,height,before},{timeout,polling:50});
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   }catch(error){
     let diagnostic,deadline;
@@ -41,7 +41,7 @@ async function resizeAndSettle(page,{width,height}){
       ]);
     }catch(diagnosticError){diagnostic=diagnosticError.message;}
     finally{clearTimeout(deadline);}
-    console.error('Resize completion failure',JSON.stringify({requested:{width,height},before,diagnostic}));
+    console.error('Resize completion failure',JSON.stringify({requested:{width,height},timeout,before,diagnostic}));
     throw error;
   }
 }
@@ -185,8 +185,10 @@ try {
         pill?.getAttribute('aria-busy')==='false'&&pill?.getAttribute('aria-pressed')==='true');
     },{},{timeout:90000,polling:50});
     assert.notEqual(await page.locator('body').getAttribute('data-map3d'),'fallback','The real 3D renderer must load successfully');
+    // SwiftShader 3D resizes in CI recorded a 13.5-second main-thread task.
+    // Allow 30s for their real completion; all geometry assertions still apply.
     for(const [width,height] of [[320,568],[390,844],[568,320]]){
-      await resizeAndSettle(page,{width,height});
+      await resizeAndSettle(page,{width,height},{timeout:30000});
       await page.evaluate(feature=>openParcelFloodPrompt(feature,map.getCenter()),parcel);
       await settled(page);
       await contained(page,'.nw-mobile-popup .maplibregl-popup-content',`${width}x${height} building popup fits`);
