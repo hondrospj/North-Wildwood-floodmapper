@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Enforce the unchanged-UI/scientific-source contract for the source extraction.
-// The fixture records the pre-refactor source, independently of the build code.
+// Enforce the source extraction contract and narrowly approved presentation
+// changes. Original hashes remain independent of the build and UI audit code.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -19,6 +19,7 @@ const template = read("tools/app/index.template.html");
 const published = read("index.html");
 const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-ui.json"));
 const previewSource = read(previewUi.source);
+const exportPresentation = JSON.parse(read("tools/fixtures/north-wildwood-export-presentation.json"));
 const sourcePaths = new Set();
 const outputs = new Map();
 const entriesByToken = new Map();
@@ -30,7 +31,7 @@ let compiled = 0;
 
 // Audited exception: preserve an unchanged month Text node during WebKit's
 // held-click tracking. Inverse ONLY this exact change for original-hash checks;
-// the original baseline fixture, CSS, DOM and all other JavaScript stay pinned.
+// the original baseline fixture, DOM and all other JavaScript stay pinned.
 const MONTH_LABEL_SOURCE = "tools/app/runtime/22-calendar-and-modes.js";
 const MONTH_LABEL_BEFORE = `    async function renderCalendar() {
       if (!observedData || !currentMonthKey) return;
@@ -44,7 +45,49 @@ ${MONTH_LABEL_GUARD}`;
 const PREVIEW_TAG_BEFORE = '<script defer src="assets/export-preview.js?v=20261023-2" id="floodmapper-export-preview"></script>';
 const PREVIEW_TAG_AFTER = '<script defer src="assets/export-preview.js?v=20261023-gesture1" id="floodmapper-export-preview"></script>';
 
+// User-requested export readability changes are pinned by exact output hashes.
+// Restore ONLY these named presentation functions and the footer stylesheet
+// before checking the original full-block hashes. No runtime/science block is
+// exempted, and the original template, source ordering and fixture stay intact.
+const EXPORT_PRESENTATION_BLOCKS = [
+  ["script", "script-004", "tools/app/runtime/13-export-range.js", "getExportFooterLayout"],
+  ["script", "script-004", "tools/app/runtime/13-export-range.js", "applyExportStageAspect"],
+  ["script", "script-004", "tools/app/runtime/16-export-map.js", "updateExportLegend"],
+  ["script", "script-004", "tools/app/runtime/16-export-map.js", "getExportFrameDateTimeText"],
+  ["script", "script-004", "tools/app/runtime/16-export-map.js", "getExportTimestampRows"],
+  ["style", "style-081", "tools/app/styles/style-081.css", null],
+];
+
+function exactPresentationBlock(source, name, label) {
+  if (name === null) return source;
+  const matches = Array.from(source.matchAll(new RegExp(`^    function ${name}\\([^]*?\\n    }\\n`, "gm")));
+  assert.equal(matches.length, 1, `${label} must occur exactly once`);
+  return matches[0][0];
+}
+
+function auditedExportPresentationSource(kind, entry, source) {
+  for (const block of exportPresentation.blocks.filter(block => block.kind === kind && block.entryId === entry.id)) {
+    const label = block.function || block.source;
+    assert.ok(entry.sources.includes(block.source), `${label} must remain in its declared source`);
+    const actual = exactPresentationBlock(read(block.source), block.function, label);
+    assert.equal(Buffer.byteLength(actual), block.afterBytes, `${label} differs from the approved presentation change`);
+    assert.equal(sha256(actual), block.afterSha256, `${label} differs from the approved presentation change`);
+    assert.equal(exactPresentationBlock(block.beforeSource, block.function, `Original ${label}`), block.beforeSource,
+      `${label} audit must restore exactly its original presentation block`);
+    if (block.function === null) {
+      assert.equal(source, actual, `${label} must remain the complete declared stylesheet`);
+      source = block.beforeSource;
+    } else {
+      assert.equal(exactPresentationBlock(source, block.function, `Runtime ${label}`), actual,
+        `${label} must remain unchanged between source and runtime`);
+      source = source.replace(actual, block.beforeSource);
+    }
+  }
+  return source;
+}
+
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedExportPresentationSource(kind, entry, source);
   if (kind !== "script" || entry.id !== "script-004") return source;
   assert.ok(entry.sources.includes(MONTH_LABEL_SOURCE),
     "The audited month-label fix must remain in its declared runtime source");
@@ -96,6 +139,10 @@ assert.equal(manifest.version, 1);
 assert.equal(manifest.baselineCommit, baseline.baselineCommit,
   "The extraction manifest must identify the audited pre-refactor commit");
 assert.equal(previewUi.schemaVersion, 1);
+assert.equal(exportPresentation.schemaVersion, 1);
+assert.equal(exportPresentation.baselineCommit, "fe85848f68070189033fec66fe6fc3996df7cc4e");
+assert.deepEqual(exportPresentation.blocks.map(block => [block.kind, block.entryId, block.source, block.function]),
+  EXPORT_PRESENTATION_BLOCKS, "The export audit may cover only the explicitly approved presentation blocks");
 // The external controller received separate upstream label improvements after
 // the inline extraction baseline. Preserve those as well as the original DOM.
 assert.equal(previewUi.baselineCommit, "cd993903a689a41ef5439497b49c8350e962b9b7");
@@ -128,7 +175,7 @@ for (const kind of ["style", "script"]) {
       return read(relative);
     }).join("");
     const baselineSource = auditedBaselineSource(kind, entry, source);
-    assert.equal(Buffer.byteLength(baselineSource), original.bytes, `${expectedId} source length changed outside the audited fix`);
+    assert.equal(Buffer.byteLength(baselineSource), original.bytes, `${expectedId} source length changed outside the audited changes`);
     assert.equal(sha256(baselineSource), original.sha256,
       `${expectedId} source changed: preserve CSS rules, scientific values and script order exactly`);
     const key = token(kind, entry.id);
@@ -247,13 +294,14 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} unchanged CSS blocks in ${seenStyleOutputs.size} bundles, ${compiled - 1} unchanged classic scripts and one audited nonvisual runtime fix, exact UI DOM and dependency order.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation inverses; original UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
   try {
     for (const relative of ["tools/app", "assets/app", "assets/styles", "assets/export-preview.js",
-      "tools/fixtures/north-wildwood-refactor-baseline.json", "tools/fixtures/north-wildwood-export-preview-ui.json", "index.html"]) {
+      "tools/fixtures/north-wildwood-refactor-baseline.json", "tools/fixtures/north-wildwood-export-preview-ui.json",
+      "tools/fixtures/north-wildwood-export-presentation.json", "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
@@ -282,6 +330,16 @@ if (process.argv.includes("--self-test")) {
         read(MONTH_LABEL_SOURCE).replace(MONTH_LABEL_AFTER, MONTH_LABEL_AFTER + "\n" + MONTH_LABEL_AFTER)],
       ["changed preview UI", path.join(scratch, previewUi.source),
         previewSource.replace("height:220px", "height:221px")],
+      ["altered approved export layout", path.join(scratch, "tools/app/runtime/13-export-range.js"),
+        read("tools/app/runtime/13-export-range.js").replace("    function getExportFooterLayout(width, height) {",
+          "    function getExportFooterLayout(width, height) {\n      // Unapproved presentation change")],
+      ["duplicated approved export presentation function", path.join(scratch, "tools/app/runtime/16-export-map.js"),
+        read("tools/app/runtime/16-export-map.js") + "\n" + exactPresentationBlock(read("tools/app/runtime/16-export-map.js"),
+          "getExportTimestampRows", "getExportTimestampRows")],
+      ["altered approved export footer CSS", path.join(scratch, "tools/app/styles/style-081.css"),
+        read("tools/app/styles/style-081.css") + "\n/* Unapproved footer change */\n"],
+      ["altered water-level science adjacent to approved presentation", path.join(scratch, "tools/app/runtime/16-export-map.js"),
+        read("tools/app/runtime/16-export-map.js").replace("formatStageForDisplay(rawStage)", "formatStageForDisplay(rawStage + 1)")],
     ];
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target, "utf8");

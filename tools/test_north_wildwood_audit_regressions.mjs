@@ -153,6 +153,41 @@ try{
   check(edges.every(value=>Number.isFinite(value)&&Math.abs(value)<=1.5),'Export differs from the requested geographic bounds by more than pixel rounding: '+JSON.stringify(framing));
   check(framing.zoom<19,'Current View export zoomed into a zero-area hidden map: '+JSON.stringify(framing));
   if(process.env.NWW_SCREENSHOT_DIR){fs.mkdirSync(process.env.NWW_SCREENSHOT_DIR,{recursive:true});await download.saveAs(`${process.env.NWW_SCREENSHOT_DIR}/fixed-current-view.png`);await page.screenshot({path:`${process.env.NWW_SCREENSHOT_DIR}/fixed-mobile.png`});}
+  // Exercise the real export CSS cascade, including !important cascade layers.
+  // Geometry-only unit checks cannot detect live-pane rules shrinking this key.
+  const stageKey=await page.evaluate(()=>{
+    const dock=document.getElementById('exportLegendDock');
+    const original={mode:currentOverlayMode,aspect:getDownloadAspectValue(),html:dock.innerHTML,legendMode:dock.dataset.exportLegendMode};
+    const rect=element=>{const box=element.getBoundingClientRect();return{left:box.left,right:box.right,top:box.top,bottom:box.bottom,height:box.height};};
+    try{
+      currentOverlayMode='dynamic';
+      applyExportStageAspect('9:16');
+      updateExportLegend();
+      const scale=dock.querySelector('.stage-legend-scale');
+      const green=dock.querySelector('.stage-legend-green'),bands=dock.querySelector('.stage-legend-gradient');
+      const vars=getComputedStyle(document.getElementById('exportStageFrame'));
+      const expected=document.createElement('div');
+      expected.style.backgroundImage='linear-gradient(90deg,#f4a742 0%,#f4a742 33.333333%,#e74c3c 33.333333%,#e74c3c 66.666667%,#7d3c98 66.666667%,#7d3c98 100%)';
+      const text=[...dock.querySelectorAll('strong,.stage-legend-uncertainty>span,.stage-legend-labels>span')].map(element=>{
+        const range=document.createRange();range.selectNodeContents(element);
+        return{label:element.textContent,box:rect(range)};
+      });
+      return{box:rect(dock),scale:rect(scale),text,font:parseFloat(getComputedStyle(scale).fontSize),
+        labelSize:parseFloat(vars.getPropertyValue('--export-key-label')),barSize:parseFloat(vars.getPropertyValue('--export-key-bar')),
+        bars:[rect(green).height,rect(bands).height],green:getComputedStyle(green).backgroundColor,
+        gradient:getComputedStyle(bands).backgroundImage,expectedGradient:expected.style.backgroundImage};
+    }finally{
+      currentOverlayMode=original.mode;
+      applyExportStageAspect(original.aspect);
+      dock.innerHTML=original.html;
+      dock.dataset.exportLegendMode=original.legendMode;
+    }
+  });
+  check(stageKey.font===stageKey.labelSize,'Flood Stages export font is overridden by live-pane CSS: '+JSON.stringify(stageKey));
+  check(stageKey.bars.every(height=>Math.abs(height-stageKey.barSize)<0.1),'Flood Stages export bars ignore the export sizing: '+JSON.stringify(stageKey));
+  const insideKey=box=>box.left>=stageKey.box.left-0.5&&box.right<=stageKey.box.right+0.5&&box.top>=stageKey.box.top-0.5&&box.bottom<=stageKey.box.bottom+0.5;
+  check(insideKey(stageKey.scale)&&stageKey.text.every(item=>insideKey(item.box)),'Flood Stages export scale or text is clipped by the key box: '+JSON.stringify(stageKey));
+  check(stageKey.green==='rgb(99, 212, 113)'&&stageKey.gradient===stageKey.expectedGradient,'Flood Stages export lost its uncertainty color or hard stage bands: '+JSON.stringify(stageKey));
   await page.evaluate(()=>setDownloadModalOpen(false));
   await page.evaluate(()=>loadObservedDay('2008-02-12'));
   const dailyOnly=await page.evaluate(()=>{

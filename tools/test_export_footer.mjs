@@ -11,10 +11,14 @@ const extract = name => {
 };
 const ctx = vm.createContext({});
 vm.runInContext(`${extract('getExportFooterLayout')}\n${extract('getExportViewportConfigForRatio')}`, ctx);
+const outputSizes = [[1920,1080],[1080,1350],[1080,1920],[1200,1200],
+  [3840,2160],[2160,2700],[2160,3840],[2160,2160]];
+const disjoint = (one,two) => one.x + one.width <= two.x || two.x + two.width <= one.x ||
+  one.y + one.height <= two.y || two.y + two.height <= one.y;
 
 // Every fixed format retains its original canvas dimensions; all chrome is
 // outside the map and has enough space in landscape, portrait and square.
-for (const [width, height] of [[1920,1080],[1080,1350],[1080,1920],[1200,1200],[3840,2160],[2160,3840],[2160,2700]]) {
+for (const [width, height] of outputSizes) {
   const layout = ctx.getExportFooterLayout(width, height);
   assert.equal(layout.width, width);
   assert.equal(layout.height, height);
@@ -25,9 +29,13 @@ for (const [width, height] of [[1920,1080],[1080,1350],[1080,1920],[1200,1200],[
     assert.ok(box.x >= 0 && box.x + box.width <= width, `${key} extends beyond output width`);
     assert.ok(box.y + box.height <= height, `${key} extends beyond output height`);
   }
-  const text = layout.timestamp;
-  const key = layout.legend;
-  assert.ok(text.x + text.width <= key.x || text.y + text.height <= key.y, 'Title and key must not overlap');
+  for (const [one,two] of [['timestamp','legend'],['branding','timestamp'],['branding','legend']]) {
+    assert.ok(disjoint(layout[one],layout[two]), `${one} overlaps ${two} at ${width} × ${height}`);
+  }
+  if (layout.stacked) {
+    assert.equal(layout.legend.x,layout.timestamp.x,'Stacked key starts at the footer content edge');
+    assert.equal(layout.legend.width,width - layout.legend.x * 2,'Stacked key uses the full footer content width');
+  }
   assert.ok(layout.attribution.y >= layout.map.height);
 }
 // Map View preserves selected geographic ratio after reserving footer space,
@@ -67,6 +75,45 @@ label.rows.forEach((row,index) => {
   assert.equal(row.style.color, draw.color);
 });
 
+// Larger title/date/level rows must fit their reserved area at every real
+// GIF and PNG size; checking only the timestamp container can hide clipped text.
+for (const [width,height] of outputSizes) {
+  const layout = ctx.getExportFooterLayout(width,height);
+  const rows = ctx.getExportTimestampRows({},layout);
+  assert.equal(rows.length,3);
+  rows.forEach((row,index) => {
+    assert.ok(row.y >= layout.timestamp.y,`Text row ${index} starts above its box at ${width} × ${height}`);
+    assert.ok(row.y + row.height <= layout.timestamp.y + layout.timestamp.height,
+      `Text row ${index} is clipped below its box at ${width} × ${height}`);
+    assert.ok(row.y >= layout.map.height && row.y + row.height <= height,
+      `Text row ${index} crosses the map/footer boundary at ${width} × ${height}`);
+    if (index) assert.ok(rows[index - 1].y + rows[index - 1].height <= row.y,
+      `Text rows overlap at ${width} × ${height}`);
+  });
+}
+
+// Compact dates remain precise. Daily-crest-only observations and design
+// storms must never acquire a fabricated clock time while copy is shortened.
+const dates = vm.createContext({
+  MONTH_NAMES:['January','February','March','April','May','June','July','August','September','October','November','December'],
+  formatHourEntryTime:entry=>entry.fallback || '--',
+});
+vm.runInContext(`const NY_PARTS_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',hour12:true
+});\n${['getNyParts','getEntryESTDate','getReturnIntervalStormLabel','formatSelectedObservedDate',
+  'stripExportTimeZoneLabel','getExportFrameDateTimeText'].map(extract).join('\n')}`,dates);
+assert.equal(dates.getExportFrameDateTimeText({timeUtc:'2026-10-23T17:00:00Z'}),'Oct 23, 2026 · 1 PM');
+assert.equal(dates.getExportFrameDateTimeText({timeUtc:'2026-10-23T17:15:00Z'}),'Oct 23, 2026 · 1:15 PM');
+assert.equal(dates.getExportFrameDateTimeText({timeUtc:'2026-12-05T03:05:00Z'}),'Dec 4, 2026 · 10:05 PM');
+assert.equal(dates.getExportFrameDateTimeText({timeUtc:'1962-03-07T15:45:00Z'}),'Mar 7, 1962 · 10:45 AM');
+const dailyPeak = dates.getExportFrameDateTimeText({isDailyPeakOnly:true,observedDate:'1962-03-07'});
+assert.match(dailyPeak,/Mar(?:ch)? 7, 1962/);
+assert.match(dailyPeak,/Peak time unknown/);
+assert.doesNotMatch(dailyPeak,/\b(?:AM|PM)\b/,'A date-only crest cannot assert a clock time');
+assert.equal(dates.getExportFrameDateTimeText({returnIntervalYears:100}),'100-Year Storm');
+assert.equal(dates.getExportFrameDateTimeText({fallback:'October 23, 2026 · 1:15 PM EDT'}),
+  'October 23, 2026 · 1:15 PM');
+
 // Large flood rasters extend beyond their visible bounds. Compositing clips
 // before drawing so neither water nor alpha can contaminate the footer.
 const ops = [];
@@ -88,7 +135,7 @@ assert.match(extract('captureExportRoadLabelsCanvas'), /hideFooter: true/);
 assert.match(extract('captureExportLayerCanvas'), /footer\.style\.visibility = previousFooterVisibility/);
 assert.match(source, /id="exportFooter"/);
 assert.match(source, /#f4a742 33\.333333%.*#e74c3c 33\.333333%.*#7d3c98 66\.666667%/);
-console.log('PASS export footer: fixed output sizes, exact map-view framing, separate map/chrome bounds, matching PNG/GIF typography, clipped flood rasters and hard stage bands.');
+console.log('PASS export footer: GIF/PNG text bounds, non-overlapping branding, full-width stacked keys, precise compact dates, matching typography, clipped flood rasters and hard stage bands.');
 
 // Preview and download share the in-flight authoritative boundary request.
 // No first frame can capture the gray world mask before its town hole exists.
