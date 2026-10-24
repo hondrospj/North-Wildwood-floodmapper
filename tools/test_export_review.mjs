@@ -138,16 +138,16 @@ function fixture() {
 {
   const { ctx, ids, state } = fixture();
   ctx.setDownloadModalOpen(true);
-  assert.equal(ids.get("downloadBtnLabel").textContent, "Review export settings");
+  assert.equal(ids.get("downloadBtnLabel").textContent, "More options");
   assert.equal(ids.get("exportReviewFields").hidden, true);
   await ctx.downloadCurrentSelection();
   assert.equal(state.downloads, 0, "First invocation must only reveal required settings review");
   assert.equal(ids.get("exportReviewFields").hidden, false);
-  assert.equal(ids.get("downloadBtnLabel").textContent, "Download PNG Frames");
+  assert.equal(ids.get("downloadBtnLabel").textContent, "Download");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1);
   await ids.get("exportReviewBackBtn").dispatch("click");
   assert.equal(ids.get("exportReviewFields").hidden, true);
-  assert.equal(ids.get("downloadBtnLabel").textContent, "Review export settings");
+  assert.equal(ids.get("downloadBtnLabel").textContent, "More options");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1, "Back requires reviewing again before downloading");
   await ids.get("downloadResetBtn").dispatch("click"); assert.equal(state.resets, 1);
   assert.equal(ids.get("exportReviewFields").hidden, true, "A native Reset click also reinstates review");
@@ -162,9 +162,9 @@ function fixture() {
   const { ctx, ids, state } = fixture();
   ctx.setDownloadModalOpen(true);
   state.format = "gif"; ctx.updateExportSegmentedUI();
-  assert.equal(ids.get("downloadBtnLabel").textContent, "Review export settings");
+  assert.equal(ids.get("downloadBtnLabel").textContent, "More options");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 0);
-  assert.equal(ids.get("downloadBtnLabel").textContent, "Download GIF");
+  assert.equal(ids.get("downloadBtnLabel").textContent, "Download");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1);
 }
 
