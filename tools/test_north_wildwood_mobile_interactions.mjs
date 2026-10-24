@@ -43,7 +43,12 @@ try{
     await activate('#observedCalendarOpenBtn');
     // Hold the first mouse click through delayed layout timers. Detaching the
     // calendar card during this gesture suppresses click in WebKit.
-    if(!touch&&i===0)await page.locator('#calendarTitleBtn').click({delay:400});
+    if(!touch&&i===0){
+      // Reproduce the archive-index completion that may refresh an unchanged
+      // calendar while the user holds its month button. No flood data changes.
+      await page.evaluate(()=>document.getElementById('calendarTitleBtn').addEventListener('pointerdown',()=>setTimeout(refreshObservedArchiveUi,100),{once:true}));
+      await page.locator('#calendarTitleBtn').click({delay:400});
+    }
     else await activate('#calendarTitleBtn');
     // WebKit may deliver the synthetic click after its mouseup command returns.
     // Await the resulting state without sleeping before/between pointer events.

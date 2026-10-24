@@ -10838,7 +10838,9 @@ function populateCalendarSelectors() {
 
     async function renderCalendar() {
       if (!observedData || !currentMonthKey) return;
-      document.getElementById("monthLabel").textContent = prettyMonthShort(currentMonthKey);
+      const monthLabel = document.getElementById("monthLabel");
+      const monthText = prettyMonthShort(currentMonthKey);
+      if (monthLabel.textContent !== monthText) monthLabel.textContent = monthText;
 
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";

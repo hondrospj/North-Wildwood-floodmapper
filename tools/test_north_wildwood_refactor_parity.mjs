@@ -26,6 +26,31 @@ const styleEntries = [];
 const scriptEntries = [];
 let compiled = 0;
 
+// Audited exception: preserve an unchanged month Text node during WebKit's
+// held-click tracking. Inverse ONLY this exact change for original-hash checks;
+// the original baseline fixture, CSS, DOM and all other JavaScript stay pinned.
+const MONTH_LABEL_SOURCE = "tools/app/runtime/22-calendar-and-modes.js";
+const MONTH_LABEL_BEFORE = `    async function renderCalendar() {
+      if (!observedData || !currentMonthKey) return;
+      document.getElementById("monthLabel").textContent = prettyMonthShort(currentMonthKey);`;
+const MONTH_LABEL_GUARD = "      if (monthLabel.textContent !== monthText) monthLabel.textContent = monthText;";
+const MONTH_LABEL_AFTER = `    async function renderCalendar() {
+      if (!observedData || !currentMonthKey) return;
+      const monthLabel = document.getElementById("monthLabel");
+      const monthText = prettyMonthShort(currentMonthKey);
+${MONTH_LABEL_GUARD}`;
+
+function auditedBaselineSource(kind, entry, source) {
+  if (kind !== "script" || entry.id !== "script-004") return source;
+  assert.ok(entry.sources.includes(MONTH_LABEL_SOURCE),
+    "The audited month-label fix must remain in its declared runtime source");
+  assert.equal(read(MONTH_LABEL_SOURCE).split(MONTH_LABEL_AFTER).length - 1, 1,
+    "The exact audited month-label idempotence fix must occur once in its source");
+  assert.equal(source.split(MONTH_LABEL_AFTER).length - 1, 1,
+    "The exact audited month-label idempotence fix must occur once in the runtime");
+  return source.replace(MONTH_LABEL_AFTER, MONTH_LABEL_BEFORE);
+}
+
 function localPath(relative) {
   assert.equal(typeof relative, "string", "Application paths must be strings");
   const resolved = path.resolve(ROOT, relative);
@@ -86,12 +111,13 @@ for (const kind of ["style", "script"]) {
       sourcePaths.add(relative);
       return read(relative);
     }).join("");
-    assert.equal(Buffer.byteLength(source), original.bytes, `${expectedId} source length changed`);
-    assert.equal(sha256(source), original.sha256,
+    const baselineSource = auditedBaselineSource(kind, entry, source);
+    assert.equal(Buffer.byteLength(baselineSource), original.bytes, `${expectedId} source length changed outside the audited fix`);
+    assert.equal(sha256(baselineSource), original.sha256,
       `${expectedId} source changed: preserve CSS rules, scientific values and script order exactly`);
     const key = token(kind, entry.id);
     assert.ok(!entriesByToken.has(key), `Duplicate application template token ${key}`);
-    entriesByToken.set(key, { ...entry, kind, source });
+    entriesByToken.set(key, { ...entry, kind, source, baselineSource });
     if (kind === "style") {
       assert.ok(entry.output.startsWith("assets/styles/") && entry.output.endsWith(".css"));
       styleEntries.push(entry);
@@ -117,7 +143,7 @@ assert.deepEqual(actualTokenOrder, expectedTokenOrder,
 const originalHtml = template.replace(/<!-- nww:(?:style|script):[\w-]+ -->/g, key => {
   const entry = entriesByToken.get(key);
   assert.ok(entry, `Unknown template token ${key}`);
-  return entry.openTag + entry.source + entry.closeTag;
+  return entry.openTag + entry.baselineSource + entry.closeTag;
 });
 assert.equal(sha256(originalHtml), baseline.baselineHtmlSha256,
   "The source template must reproduce the entire original HTML byte-for-byte");
@@ -201,7 +227,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} unchanged CSS blocks in ${seenStyleOutputs.size} bundles, ${compiled} unchanged classic scripts, exact UI DOM and dependency order.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} unchanged CSS blocks in ${seenStyleOutputs.size} bundles, ${compiled - 1} unchanged classic scripts and one audited nonvisual runtime fix, exact UI DOM and dependency order.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -228,6 +254,12 @@ if (process.argv.includes("--self-test")) {
       ["changed UI DOM", scratchHtml, published.replace("<title>", "<title>Unrequested UI change ")],
       ["altered/stale runtime output", path.join(scratch, scriptEntries[0].output), read(scriptEntries[0].output) + "\n// stale bundle\n"],
       ["altered/stale CSS output", path.join(scratch, styleEntries[0].output), read(styleEntries[0].output) + "\nbody{display:none}\n"],
+      ["removed month-label idempotence guard", path.join(scratch, MONTH_LABEL_SOURCE),
+        read(MONTH_LABEL_SOURCE).replace(MONTH_LABEL_GUARD, "      monthLabel.textContent = monthText;")],
+      ["altered code adjacent to the audited fix", path.join(scratch, MONTH_LABEL_SOURCE),
+        read(MONTH_LABEL_SOURCE).replace(MONTH_LABEL_AFTER, MONTH_LABEL_AFTER + "\n      // Unapproved adjacent change")],
+      ["duplicated audited fix", path.join(scratch, MONTH_LABEL_SOURCE),
+        read(MONTH_LABEL_SOURCE).replace(MONTH_LABEL_AFTER, MONTH_LABEL_AFTER + "\n" + MONTH_LABEL_AFTER)],
     ];
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target, "utf8");

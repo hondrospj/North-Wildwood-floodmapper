@@ -24,8 +24,19 @@ integration controllers keep their original execution positions and attributes.
 Generated browser assets live in `assets/app` and `assets/styles`; the publisher
 already excludes `tools`, so authoring sources are not uploaded.
 
-Source-level regression tests use `tools/app_source.mjs` to reconstruct the
-original inline document from the built files. The independent parity test
+Source-level regression tests use `tools/app_source.mjs` to reconstruct an
+inline document from the built files. The independent parity test
 checks pinned baseline hashes and every output, while browser tests exercise the
 real external-script and stylesheet loading path. Never edit generated files or
 relax the parity fixture to conceal a behavior change.
+
+The sole audited JavaScript exception is month-label idempotence in
+`runtime/22-calendar-and-modes.js`: an unchanged month label keeps its existing
+Text node so an asynchronous archive refresh cannot invalidate WebKit's held
+mouse click. The visible text, CSS and HTML remain unchanged. The parity checker
+requires the exact fixed snippet once in `script-004` and its authoring source,
+then reverses that one snippet only while verifying the original script and
+whole-document hashes. The original baseline fixture is preserved. Generated
+outputs and syntax are still checked against the actual fixed code. Running the
+parity test with `--self-test` also proves that removing the guard, changing
+adjacent code or duplicating the exception is rejected.

@@ -27,13 +27,25 @@ async function activate(page,selector){
     }
   }
   await revealExportControl(page,selector,{touch:touchPages.has(page)});
-  try{if(touchPages.has(page))await control.tap();else await control.click();}
+  const selection=await control.evaluate(el=>{
+    for(const [key,input]of Object.entries({aspect:'downloadAspectSelect',format:'downloadFormatSelect',extent:'downloadExtentSelect',interval:'downloadIntervalSelect'}))if(el.dataset[key])return{value:el.dataset[key],input};
+    return null;
+  });
+  // Export preview image loading has a 20-second deadline; software rendering
+  // in CI can hold the input acknowledgement behind that work. Keep this
+  // bounded and verify selection below; never repeat a possibly delivered tap.
+  const actionOptions={timeout:await control.evaluate(el=>!!el.closest('#downloadModal'))?30000:15000};
+  try{if(touchPages.has(page))await control.tap(actionOptions);else await control.click(actionOptions);}
   catch(error){
     console.error('Control failure',selector,await control.evaluate(el=>{
       const chain=[];for(let p=el;p;p=p.parentElement){const s=getComputedStyle(p),r=p.getBoundingClientRect();chain.push({id:p.id,tag:p.tagName,classes:p.className,display:s.display,visibility:s.visibility,x:r.x,y:r.y,w:r.width,h:r.height,scroll:p.scrollTop});}
-      return {chain,active:document.activeElement?.id};
+      return {chain,active:document.activeElement?.id,pressed:el.getAttribute('aria-pressed'),preview:document.getElementById('exportPreview')?.dataset.state,inputEvents:window.responsiveInputAudit,longTasks:window.responsiveLongTasks};
     }));
     throw error;
+  }
+  if(selection){
+    await page.waitForFunction(({input,value})=>document.getElementById(input)?.value===value,selection,{timeout:3000});
+    check(await control.getAttribute('aria-pressed')==='true',`${selector} selected setting is applied`,selection);
   }
 }
 async function openDrawer(page){if(await page.locator('body').evaluate(e=>e.classList.contains('mobile-optimized')&&!e.classList.contains('mobile-controls-open')))await activate(page,'#mobileControlsToggle');}
@@ -55,6 +67,17 @@ try {
     page.setDefaultTimeout(15000);
     await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});
     await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready'),{},{timeout:90000});
+    await page.evaluate(()=>{
+      window.responsiveInputAudit=[];window.responsiveLongTasks=[];
+      for(const type of ['pointerdown','pointerup','click'])document.addEventListener(type,event=>{
+        if(!event.target.closest('#downloadModal'))return;
+        window.responsiveInputAudit.push({type,id:event.target.closest('button')?.id,at:performance.now()});
+        if(window.responsiveInputAudit.length>20)window.responsiveInputAudit.shift();
+      },true);
+      if(PerformanceObserver.supportedEntryTypes?.includes('longtask'))new PerformanceObserver(list=>{
+        window.responsiveLongTasks.push(...list.getEntries().map(entry=>({start:entry.startTime,duration:entry.duration})));window.responsiveLongTasks=window.responsiveLongTasks.slice(-10);
+      }).observe({type:'longtask'});
+    });
     for(const [width,height] of touch?[[390,844],[320,568],[844,390],[390,400],[390,844]]:sizes){
       await page.setViewportSize({width,height});await settled(page);
       const state=await page.evaluate(()=>{
