@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "29e7a1482a68d1880ec898be9559ef2162d37111",
+  "purpose": "Keep navigation mode pills readable when selecting 3D, returning to 2D, hovering or waiting for the renderer. Replace the 16%-alpha selected/hover blue with its opaque composite over the existing navy surface (#23344b), including the shared zoom-hover state, and keep the mode button at opacity 1 while its existing busy state remains accessible. Inverse only these two exact presentation fragments for original parity; all geometry, renderer behavior, scientific logic and earlier audit fixtures remain pinned.",
+  "kind": "style",
+  "entryId": "style-079",
+  "source": "tools/app/styles/style-079.css",
+  "blocks": [
+    {
+      "id": "mode-pill-opacity",
+      "beforeSource": "  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl\n    :is(.nw-direction-wheel,.nw-simple-view,.nw-simple-zoom,.nw-simple-zoom-button) {\n    background:#171e2a !important;\n    border-color:var(--fleet-line) !important;\n    color:var(--fleet-text) !important;\n    box-shadow:none !important;\n  }\n  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl .nw-direction-wheel {\n    border-width:1px !important;\n  }\n",
+      "afterSource": "  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl\n    :is(.nw-direction-wheel,.nw-simple-view,.nw-simple-zoom,.nw-simple-zoom-button) {\n    background:#171e2a !important;\n    border-color:var(--fleet-line) !important;\n    color:var(--fleet-text) !important;\n    box-shadow:none !important;\n  }\n  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl .nw-simple-view {\n    opacity:1 !important;\n  }\n  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl .nw-direction-wheel {\n    border-width:1px !important;\n  }\n",
+      "afterBytes": 588,
+      "afterSha256": "5d73e7da517e46082ae9f0c5da5365bd000b1fa4c3ba1b465fbd40f740a11637"
+    },
+    {
+      "id": "opaque-selected-hover",
+      "beforeSource": "  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl\n    :is(.nw-simple-view[aria-pressed=\"true\"],.nw-simple-view:hover,.nw-simple-zoom-button:hover) {\n    background:var(--accent-soft) !important;\n    border-color:var(--fleet-accent) !important;\n    color:var(--fleet-accent) !important;\n    box-shadow:none !important;\n    filter:none !important;\n  }\n",
+      "afterSource": "  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl\n    :is(.nw-simple-view[aria-pressed=\"true\"],.nw-simple-view:hover,.nw-simple-zoom-button:hover) {\n    background:#23344b !important;\n    border-color:var(--fleet-accent) !important;\n    color:var(--fleet-accent) !important;\n    box-shadow:none !important;\n    filter:none !important;\n  }\n",
+      "afterBytes": 368,
+      "afterSha256": "617fbbd87522dab9e7114902e0932edb9c9eb32ec1ff4bea664610d7c923ecfa"
+    }
+  ]
+}

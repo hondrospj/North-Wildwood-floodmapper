@@ -9596,6 +9596,9 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
     color:var(--fleet-text) !important;
     box-shadow:none !important;
   }
+  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl .nw-simple-view {
+    opacity:1 !important;
+  }
   html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl .nw-direction-wheel {
     border-width:1px !important;
   }
@@ -9614,7 +9617,7 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
   }
   html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl
     :is(.nw-simple-view[aria-pressed="true"],.nw-simple-view:hover,.nw-simple-zoom-button:hover) {
-    background:var(--accent-soft) !important;
+    background:#23344b !important;
     border-color:var(--fleet-accent) !important;
     color:var(--fleet-accent) !important;
     box-shadow:none !important;

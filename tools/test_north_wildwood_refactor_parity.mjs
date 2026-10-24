@@ -23,6 +23,7 @@ const exportPresentation = JSON.parse(read("tools/fixtures/north-wildwood-export
 const boundaryStartup = JSON.parse(read("tools/fixtures/north-wildwood-boundary-startup.json"));
 const paneStartup = JSON.parse(read("tools/fixtures/north-wildwood-pane-startup.json"));
 const uiStartup = JSON.parse(read("tools/fixtures/north-wildwood-ui-startup.json"));
+const viewPillSurface = JSON.parse(read("tools/fixtures/north-wildwood-view-pill-surface.json"));
 const sourcePaths = new Set();
 const outputs = new Map();
 const entriesByToken = new Map();
@@ -112,6 +113,10 @@ const UI_STARTUP_TEMPLATE = [
 const UI_STARTUP_SCRIPTS = [
   ["initial-top-tide-disclosure", "script", "script-004", "tools/app/runtime/19-observed-history.js",
     "fcc46015449c4bae27317d8bbc95e30deac6585d73520597151a392b75d57304"],
+];
+const VIEW_PILL_SURFACE_BLOCKS = [
+  ["mode-pill-opacity", "288e57666bfc4eab9abdbb350ac5a97ce7ed1b275033718a1dd536a2ffc37c35"],
+  ["opaque-selected-hover", "e42edca573f069062babf464909ac2ea8f5b80cfec16eb95d1807fcbd7775424"],
 ];
 
 function auditedUiStartupFragments(source, blocks, label) {
@@ -233,6 +238,11 @@ function auditedExportPresentationSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  if (kind === "style" && entry.id === "style-079") {
+    assert.ok(entry.sources.includes(viewPillSurface.source), "View-pill surface rules must stay in their declared stylesheet");
+    auditedUiStartupFragments(read(viewPillSurface.source), viewPillSurface.blocks, "View-pill source");
+    source = auditedUiStartupFragments(source, viewPillSurface.blocks, "View-pill stylesheet");
+  }
   source = auditedUiStartupSource(kind, entry, source);
   source = auditedPaneStartupSource(kind, entry, source);
   source = auditedBoundaryStartupSource(kind, entry, source);
@@ -321,6 +331,13 @@ assert.deepEqual(uiStartup.templateChanges.map(block => [block.id, sha256(block.
 assert.deepEqual(uiStartup.scriptChanges.map(block =>
   [block.id, block.kind, block.entryId, block.source, sha256(block.beforeSource)]), UI_STARTUP_SCRIPTS,
   "The startup UI runtime audit may inverse only the exact top-tide disclosure creation snippet");
+assert.equal(viewPillSurface.schemaVersion, 1);
+assert.equal(viewPillSurface.baselineCommit, "29e7a1482a68d1880ec898be9559ef2162d37111");
+assert.equal(viewPillSurface.kind, "style");
+assert.equal(viewPillSurface.entryId, "style-079");
+assert.equal(viewPillSurface.source, "tools/app/styles/style-079.css");
+assert.deepEqual(viewPillSurface.blocks.map(block => [block.id, sha256(block.beforeSource)]), VIEW_PILL_SURFACE_BLOCKS,
+  "The view-pill surface audit may inverse only its two exact reviewed presentation fragments");
 // The external controller received separate upstream label improvements after
 // the inline extraction baseline. Preserve those as well as the original DOM.
 assert.equal(previewUi.baselineCommit, "cd993903a689a41ef5439497b49c8350e962b9b7");
@@ -473,7 +490,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup inverses; original UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface inverses; original UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -483,6 +500,7 @@ if (process.argv.includes("--self-test")) {
       "tools/fixtures/north-wildwood-export-presentation.json", "tools/fixtures/north-wildwood-boundary-startup.json",
       "tools/fixtures/north-wildwood-pane-startup.json",
       "tools/fixtures/north-wildwood-ui-startup.json",
+      "tools/fixtures/north-wildwood-view-pill-surface.json",
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -577,6 +595,12 @@ if (process.argv.includes("--self-test")) {
           '<span class="unified-more-plus">Changed</span>')],
       ["broadened startup UI runtime audit", path.join(scratch, "tools/fixtures/north-wildwood-ui-startup.json"),
         JSON.stringify({ ...uiStartup, scriptChanges: [...uiStartup.scriptChanges, uiStartup.scriptChanges[0]] })],
+      ["restored transparent view-pill fill", path.join(scratch, viewPillSurface.source),
+        read(viewPillSurface.source).replace("background:#23344b !important", "background:var(--accent-soft) !important")],
+      ["restored dimmed busy view pill", path.join(scratch, viewPillSurface.source),
+        read(viewPillSurface.source).replace("opacity:1 !important", "opacity:.88 !important")],
+      ["broadened view-pill surface audit", path.join(scratch, "tools/fixtures/north-wildwood-view-pill-surface.json"),
+        JSON.stringify({ ...viewPillSurface, blocks: [...viewPillSurface.blocks, viewPillSurface.blocks[0]] })],
     ];
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target, "utf8");

@@ -90,3 +90,10 @@ The top-flood disclosure is created with its final plus/label spans and existing
 idempotence marker, so the controller does not replace a visible SVG later. Its
 single presentation markup statement has its own exact runtime inverse audit;
 the surrounding history, event selection and scientific logic remain pinned.
+
+The 2D/3D navigation pill keeps its solid surface during selection, hover and
+renderer startup. Its selected blue is the opaque composite of the previous
+16%-alpha accent over the normal navy, including the shared zoom-hover style.
+The existing busy cursor and accessible state remain, while the view button's
+opacity stays at 1. `north-wildwood-view-pill-surface.json` audits only those
+two CSS fragments; geometry and renderer behavior are unchanged.
