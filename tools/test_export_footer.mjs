@@ -144,8 +144,13 @@ const deferred = () => {
   const promise = new Promise((yes,no)=>{resolve=yes;reject=no;});
   return {promise,resolve,reject};
 };
-const authoritativeRings = [[[38.9,-74.9],[39.1,-74.9],[39.1,-74.7],[38.9,-74.9]]];
-const authoritativeFeature = {type:'Feature',geometry:{type:'Polygon'}};
+const authoritativeFeature = JSON.parse(fs.readFileSync(new URL('../Boundaries/North Wildwood.geojson', import.meta.url), 'utf8'));
+const authoritativeRings = authoritativeFeature.geometry.coordinates.map(coordinates => {
+  const ring = coordinates.map(([lng,lat]) => [lat,lng]);
+  const first = ring[0], last = ring[ring.length - 1];
+  if (first[0] === last[0] && first[1] === last[1]) ring.pop();
+  return ring;
+});
 function boundaryHarness() {
   const request = deferred();
   const counts = {fetch:0,map:0,mask:0,outline:0,draw:0};
@@ -154,11 +159,15 @@ function boundaryHarness() {
   const layer = kind => ({kind, addTo(){layers.add(this);return this;}});
   const state = vm.createContext({
     console:{warn(){}},municipalBoundaryLoadPromise:null,municipalBoundaryRings:[[]],municipalBoundaryFeature:null,
-    FALLBACK_TOWN_MASK_RING:[], exportMap:null, exportBoundaryMask:null,exportBoundaryOutline:null,
+    FALLBACK_TOWN_MASK_RING:[],FALLBACK_LATLNG_BOUNDS:null, exportMap:null, exportBoundaryMask:null,exportBoundaryOutline:null,
     exportBoundaryGeometryRings:null,exportBoundaryGeometryFeature:null,
     fetchMunicipalBoundaryFeature:()=>{counts.fetch++;return request.promise;},
     updateMunicipalBoundaryLayer(){},syncLeftPanelLayout(){},throwIfExportCancelled(){},isTownBoundaryEnabled:()=>true,
     document:{documentElement:{}},getComputedStyle:()=>({getPropertyValue:()=>''}),
+    L:{
+      latLng:(lat,lng)=>({lat,lng}),
+      latLngBounds:points=>({points,isValid:()=>points.length >= 3}),
+    },
     makeExportBoundaryMask:()=>{counts.mask++;return layer('mask');},
     makeExportBoundaryVector:()=>{counts.outline++;return layer('outline');},
     applyExportStageAspect(){},getDownloadAspectValue:()=> '1:1',
@@ -168,7 +177,9 @@ function boundaryHarness() {
     currentOverlayMode:'depth',currentSeriesHours:[],currentRawSeriesHours:[],exportFrameViewPrimed:false,
     setExportFloodLayer:async()=>{counts.draw++;},waitForExportMapReady(){},waitForStableRender(){},
   });
-  vm.runInContext(['loadMunicipalBoundary','hasValidExportBoundaryGeometry','ensureExportMunicipalBoundary',
+  vm.runInContext(['approximateRingArea','normalizeLatLngRing','normalizeRingsFromGeoJsonGeometry',
+    'pickBoundaryFeatureFromGeoJson','latLngBoundsFromRing','seedMunicipalBoundary',
+    'loadMunicipalBoundary','hasValidExportBoundaryGeometry','ensureExportMunicipalBoundary',
     'updateExportBoundaryVisibility','prepareExportFrame'].map(extract).join('\n'),state);
   state.ensureExportMap=()=>{
     counts.map++;
