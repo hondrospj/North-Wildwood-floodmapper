@@ -14,17 +14,36 @@ const sizes=[[1512,945],[1321,800],[1200,800],[1200,500],[1121,768],[1024,768],[
 function check(ok,label,details){checks.push(label);if(!ok)failures.push({label,details});}
 async function settled(page){await page.waitForTimeout(900);}
 async function resizeAndSettle(page,{width,height}){
-  const before=await page.evaluate(()=>({width:innerWidth,height:innerHeight,passes:Number(document.body.dataset.unifiedLayoutPasses)||0}));
+  const before=await page.evaluate(()=>({width:innerWidth,height:innerHeight,passes:Number(document.body.dataset.unifiedLayoutPasses)||0,at:performance.now()}));
   await page.setViewportSize({width,height});
   // A fixed delay can inspect the preceding viewport while a busy browser has
   // not delivered its resize frame. Wait for the real controller's completion
   // counter at this viewport; geometry correctness is asserted separately.
-  await page.waitForFunction(({width,height,before})=>{
-    const completed=window.responsiveCompletedLayout;
-    return completed?.width===width&&completed.height===height&&completed.passes>0&&
-      (before.width===width&&before.height===height||completed.passes>before.passes);
-  },{width,height,before},{timeout:10000,polling:'raf'});
-  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  try{
+    await page.waitForFunction(({width,height,before})=>{
+      const completed=window.responsiveCompletedLayout;
+      window.responsiveResizePoll={at:performance.now(),completed};
+      return completed?.width===width&&completed.height===height&&completed.passes>0&&
+        (before.width===width&&before.height===height||completed.passes>before.passes);
+    },{width,height,before},{timeout:10000,polling:50});
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  }catch(error){
+    let diagnostic,deadline;
+    try{
+      diagnostic=await Promise.race([
+        page.evaluate(()=>({at:performance.now(),width:innerWidth,height:innerHeight,
+          passes:document.body.dataset.unifiedLayoutPasses,layout:document.body.dataset.unifiedLayout,
+          completed:window.responsiveCompletedLayout,history:window.responsiveLayoutHistory,
+          lastPoll:window.responsiveResizePoll,body:document.body.className,map3d:document.body.dataset.map3d,
+          mode:document.body.dataset.mapViewMode,busy:document.querySelector('.nw-simple-view')?.getAttribute('aria-busy'),
+          renderer:document.getElementById('map3dDiagnostics')?.textContent,longTasks:window.responsiveLongTasks})),
+        new Promise(resolve=>{deadline=setTimeout(()=>resolve('Browser did not return resize diagnostics within 2s'),2000);}),
+      ]);
+    }catch(diagnosticError){diagnostic=diagnosticError.message;}
+    finally{clearTimeout(deadline);}
+    console.error('Resize completion failure',JSON.stringify({requested:{width,height},before,diagnostic}));
+    throw error;
+  }
 }
 async function activate(page,selector){
   const control=page.locator(selector);
@@ -84,7 +103,12 @@ try {
     await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});
     await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready'),{},{timeout:90000});
     await page.evaluate(()=>{
-      const recordLayout=()=>{window.responsiveCompletedLayout={width:innerWidth,height:innerHeight,passes:Number(document.body.dataset.unifiedLayoutPasses)||0};};
+      window.responsiveLayoutHistory=[];
+      const recordLayout=()=>{
+        const completed={width:innerWidth,height:innerHeight,passes:Number(document.body.dataset.unifiedLayoutPasses)||0,at:performance.now()};
+        window.responsiveCompletedLayout=completed;window.responsiveLayoutHistory.push(completed);
+        if(window.responsiveLayoutHistory.length>12)window.responsiveLayoutHistory.shift();
+      };
       new MutationObserver(recordLayout).observe(document.body,{attributes:true,attributeFilter:['data-unified-layout-passes']});
       recordLayout();
       window.responsiveInputAudit=[];window.responsiveLongTasks=[];
@@ -153,7 +177,14 @@ try {
       await closeDrawer(page);
     }
     await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();
-    await page.waitForFunction(()=>document.body.classList.contains('map-3d-ready'),{},{timeout:90000});
+    // Asset readiness precedes the launcher's actual camera transition. Begin
+    // resize checks only after the real 3D control acknowledges completion.
+    await page.waitForFunction(()=>{
+      const pill=document.querySelector('#nwDefaultNavControl .nw-simple-view');
+      return document.body.dataset.map3d==='fallback'||(document.body.classList.contains('map-3d-ready')&&
+        pill?.getAttribute('aria-busy')==='false'&&pill?.getAttribute('aria-pressed')==='true');
+    },{},{timeout:90000,polling:50});
+    assert.notEqual(await page.locator('body').getAttribute('data-map3d'),'fallback','The real 3D renderer must load successfully');
     for(const [width,height] of [[320,568],[390,844],[568,320]]){
       await resizeAndSettle(page,{width,height});
       await page.evaluate(feature=>openParcelFloodPrompt(feature,map.getCenter()),parcel);
