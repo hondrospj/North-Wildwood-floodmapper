@@ -64,3 +64,12 @@ cases. The separately pinned boundary-startup audit reverses only the eight name
 functions, new seed helper and exact geometry assignment for original source
 parity; the original refactor fixture, UI, CSS and scientific behavior remain
 unchanged.
+
+Desktop panes use their finished widths and positioning in the initial
+stylesheet, and forecast labels are already final in the template. The late
+presentation controller no longer needs to shrink the visible pane or replace
+its heading during startup. The pane-startup browser regression holds that
+controller request while checking the first painted cards, then releases it
+and verifies stable widths, labels and card placement. Timeline-aware scrolling
+still reserves space for the actual timestamp on short windows. A separately
+pinned pane audit covers only this CSS insertion and the three initial labels.

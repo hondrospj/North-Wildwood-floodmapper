@@ -21,6 +21,7 @@ const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-
 const previewSource = read(previewUi.source);
 const exportPresentation = JSON.parse(read("tools/fixtures/north-wildwood-export-presentation.json"));
 const boundaryStartup = JSON.parse(read("tools/fixtures/north-wildwood-boundary-startup.json"));
+const paneStartup = JSON.parse(read("tools/fixtures/north-wildwood-pane-startup.json"));
 const sourcePaths = new Set();
 const outputs = new Map();
 const entriesByToken = new Map();
@@ -74,6 +75,50 @@ const BOUNDARY_STARTUP_BLOCKS = [
   ["script", "script-004", "tools/app/runtime/28-tutorial-and-events.js", "main", null],
   ["script", "script-007", "tools/app/town-config.js", null, "TOWN_CONFIG.boundary.startupFeature"],
 ];
+
+// Match the already finished pane geometry and labels on the first paint.
+// Inverse only the exact insertion between these two adjacent desktop rules;
+// never exempt the complete stylesheet, mobile rules or surrounding template.
+const PANE_STARTUP_CSS_SOURCE = "tools/app/styles/style-002.css";
+const PANE_STARTUP_CSS_START = '  html body[data-floodmapper-unified] #leftPanel,html body[data-floodmapper-unified] #rightRail {zoom:1!important;gap:6px!important;scrollbar-gutter:stable;}\n';
+const PANE_STARTUP_CSS_END = '  html body[data-floodmapper-unified] #leftPanel>:is(.panel-card,#legendDock),html body[data-floodmapper-unified] #rightRail>.rail-card {flex:0 0 auto!important;}\n';
+const PANE_STARTUP_LABELS = [
+  ["forecast-range", "<h2>Forecast Type</h2>", "<h2>Forecast range</h2>"],
+  ["forecast-low", '<button id="forecastLowBtn" type="button" data-scenario="lowEnd">Lower End</button>',
+    '<button id="forecastLowBtn" type="button" data-scenario="lowEnd">Lower end</button>'],
+  ["forecast-high", '<button id="forecastHighBtn" type="button" data-scenario="highEnd">Upper End</button>',
+    '<button id="forecastHighBtn" type="button" data-scenario="highEnd">Upper end</button>'],
+];
+
+function exactPaneStartupCss(source) {
+  assert.equal(source.split(PANE_STARTUP_CSS_START).length - 1, 1, "The pane startup CSS start anchor must occur once");
+  assert.equal(source.split(PANE_STARTUP_CSS_END).length - 1, 1, "The pane startup CSS end anchor must occur once");
+  const start = source.indexOf(PANE_STARTUP_CSS_START);
+  const end = source.indexOf(PANE_STARTUP_CSS_END);
+  assert.ok(end >= start + PANE_STARTUP_CSS_START.length, "Pane startup CSS anchors must retain their original order");
+  return source.slice(start, end + PANE_STARTUP_CSS_END.length);
+}
+
+function auditedPaneStartupSource(kind, entry, source) {
+  if (kind !== "style" || entry.id !== "style-002") return source;
+  const block = paneStartup.css;
+  assert.ok(entry.sources.includes(block.source), "Pane startup CSS must stay in its declared stylesheet");
+  const actual = exactPaneStartupCss(read(block.source));
+  assert.equal(Buffer.byteLength(actual), block.afterBytes, "Pane startup CSS differs from the exact reviewed insertion");
+  assert.equal(sha256(actual), block.afterSha256, "Pane startup CSS differs from the exact reviewed insertion");
+  assert.equal(exactPaneStartupCss(source), actual, "Pane startup CSS must remain unchanged in the generated source");
+  return source.replace(actual, block.beforeSource);
+}
+
+function auditedPaneStartupTemplate(source) {
+  for (const block of paneStartup.labels) {
+    assert.equal(source.split(block.afterSource).length - 1, 1, `${block.id} label must occur exactly once`);
+    assert.equal(Buffer.byteLength(block.afterSource), block.afterBytes, `${block.id} label byte count changed`);
+    assert.equal(sha256(block.afterSource), block.afterSha256, `${block.id} label differs from the reviewed text`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
 
 function exactBoundaryStartupBlock(source, block, label) {
   const expression = block.function
@@ -139,6 +184,7 @@ function auditedExportPresentationSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedPaneStartupSource(kind, entry, source);
   source = auditedBoundaryStartupSource(kind, entry, source);
   source = auditedExportPresentationSource(kind, entry, source);
   if (kind !== "script" || entry.id !== "script-004") return source;
@@ -204,6 +250,16 @@ assert.equal(sha256(read(boundaryStartup.featureSource)), boundaryStartup.featur
 assert.deepEqual(boundaryStartup.blocks.map(block =>
   [block.kind, block.entryId, block.source, block.function, block.assignment]), BOUNDARY_STARTUP_BLOCKS,
   "The boundary startup audit may cover only the explicitly approved blocks");
+assert.equal(paneStartup.schemaVersion, 1);
+assert.equal(paneStartup.baselineCommit, "a778676bff8b6b527e9a341b01639c10f7cff2bc");
+assert.equal(paneStartup.css.kind, "style");
+assert.equal(paneStartup.css.entryId, "style-002");
+assert.equal(paneStartup.css.source, PANE_STARTUP_CSS_SOURCE);
+assert.equal(paneStartup.css.beforeSource, PANE_STARTUP_CSS_START + PANE_STARTUP_CSS_END,
+  "The pane audit must restore only the two originally adjacent desktop rules");
+assert.equal(paneStartup.templateSource, "tools/app/index.template.html");
+assert.deepEqual(paneStartup.labels.map(block => [block.id, block.beforeSource, block.afterSource]), PANE_STARTUP_LABELS,
+  "The pane startup template audit may change only the three labels already used by the finished interface");
 // The external controller received separate upstream label improvements after
 // the inline extraction baseline. Preserve those as well as the original DOM.
 assert.equal(previewUi.baselineCommit, "cd993903a689a41ef5439497b49c8350e962b9b7");
@@ -264,7 +320,7 @@ const expectedTokenOrder = baseline.blocks.map(block =>
 const actualTokenOrder = Array.from(template.matchAll(/<!-- nww:(?:style|script):[\w-]+ -->/g), match => match[0]);
 assert.deepEqual(actualTokenOrder, expectedTokenOrder,
   "Extraction slots must retain the original interleaved CSS/script order");
-const originalHtml = template.replace(/<!-- nww:(?:style|script):[\w-]+ -->/g, key => {
+const originalHtml = auditedPaneStartupTemplate(template).replace(/<!-- nww:(?:style|script):[\w-]+ -->/g, key => {
   const entry = entriesByToken.get(key);
   assert.ok(entry, `Unknown template token ${key}`);
   return entry.openTag + entry.baselineSource + entry.closeTag;
@@ -355,7 +411,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup inverses; original UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup inverses; original UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -363,6 +419,7 @@ if (process.argv.includes("--self-test")) {
     for (const relative of ["tools/app", "assets/app", "assets/styles", "assets/export-preview.js",
       "tools/fixtures/north-wildwood-refactor-baseline.json", "tools/fixtures/north-wildwood-export-preview-ui.json",
       "tools/fixtures/north-wildwood-export-presentation.json", "tools/fixtures/north-wildwood-boundary-startup.json",
+      "tools/fixtures/north-wildwood-pane-startup.json",
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -421,6 +478,20 @@ if (process.argv.includes("--self-test")) {
           "map.fitBounds(getBoundaryDrivenOverlayBounds(true)")],
       ["broadened boundary audit declaration list", path.join(scratch, "tools/fixtures/north-wildwood-boundary-startup.json"),
         JSON.stringify({ ...boundaryStartup, blocks: [...boundaryStartup.blocks, boundaryStartup.blocks[0]] })],
+      ["altered pane startup CSS", path.join(scratch, PANE_STARTUP_CSS_SOURCE),
+        read(PANE_STARTUP_CSS_SOURCE).replace(PANE_STARTUP_CSS_START,
+          PANE_STARTUP_CSS_START + "  /* Unapproved startup geometry change */\n")],
+      ["duplicated pane startup CSS", path.join(scratch, PANE_STARTUP_CSS_SOURCE),
+        read(PANE_STARTUP_CSS_SOURCE) + exactPaneStartupCss(read(PANE_STARTUP_CSS_SOURCE))],
+      ["repositioned pane startup CSS", path.join(scratch, PANE_STARTUP_CSS_SOURCE),
+        read(PANE_STARTUP_CSS_SOURCE).replace(exactPaneStartupCss(read(PANE_STARTUP_CSS_SOURCE)), "") +
+          exactPaneStartupCss(read(PANE_STARTUP_CSS_SOURCE))],
+      ["altered unrelated mobile CSS", path.join(scratch, PANE_STARTUP_CSS_SOURCE),
+        read(PANE_STARTUP_CSS_SOURCE) + "\n@media(max-width:900px){#leftPanel{width:300px!important;}}\n"],
+      ["altered startup label", path.join(scratch, paneStartup.templateSource),
+        template.replace(PANE_STARTUP_LABELS[0][2], "<h2>Unapproved forecast label</h2>")],
+      ["broadened pane startup label audit", path.join(scratch, "tools/fixtures/north-wildwood-pane-startup.json"),
+        JSON.stringify({ ...paneStartup, labels: [...paneStartup.labels, paneStartup.labels[0]] })],
     ];
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target, "utf8");

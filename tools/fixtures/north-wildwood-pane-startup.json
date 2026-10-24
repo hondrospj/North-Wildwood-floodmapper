@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "a778676bff8b6b527e9a341b01639c10f7cff2bc",
+  "purpose": "Use the already approved final desktop pane dimensions and forecast labels from the first paint, eliminating the visible legacy-to-unified layout jump without hiding controls or waiting for data. Pin only the exact desktop CSS insertion between two original adjacent rules, and the three complete template labels already produced by the final controller. Inverse those snippets only for original source hashes; preserve all neighboring CSS, mobile rules, full template structure, original fixtures, boundary audit, JavaScript and scientific data.",
+  "css": {
+    "kind": "style",
+    "entryId": "style-002",
+    "source": "tools/app/styles/style-002.css",
+    "beforeSource": "  html body[data-floodmapper-unified] #leftPanel,html body[data-floodmapper-unified] #rightRail {zoom:1!important;gap:6px!important;scrollbar-gutter:stable;}\n  html body[data-floodmapper-unified] #leftPanel>:is(.panel-card,#legendDock),html body[data-floodmapper-unified] #rightRail>.rail-card {flex:0 0 auto!important;}\n",
+    "afterBytes": 909,
+    "afterSha256": "593b806ab3a777a04e2785b995363f87264f04209b3a6283c63ca46632316f2a"
+  },
+  "templateSource": "tools/app/index.template.html",
+  "labels": [
+    {
+      "id": "forecast-range",
+      "beforeSource": "<h2>Forecast Type</h2>",
+      "afterSource": "<h2>Forecast range</h2>",
+      "afterBytes": 23,
+      "afterSha256": "973ee8590daeb282c157483917a1a615ade536a83397ac214808203d18a575a9"
+    },
+    {
+      "id": "forecast-low",
+      "beforeSource": "<button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower End</button>",
+      "afterSource": "<button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower end</button>",
+      "afterBytes": 83,
+      "afterSha256": "c1a0bd019ef3ab3ad761383a3ea17d31d287f252bfe39be9e39248c1ae2ef55c"
+    },
+    {
+      "id": "forecast-high",
+      "beforeSource": "<button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper End</button>",
+      "afterSource": "<button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper end</button>",
+      "afterBytes": 85,
+      "afterSha256": "8a5550d44091d9074bb113852ef05773e1ccab835557a81c8b8b9ddb69047237"
+    }
+  ]
+}
