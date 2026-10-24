@@ -9652,7 +9652,7 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
   #exportStageFrame #exportFooter .export-stage-logo {width:auto !important;height:auto !important;min-width:0 !important;max-width:48% !important;max-height:100% !important;object-fit:contain !important;}
   #exportStageFrame #exportFooter .export-stage-logo:only-child {max-width:100% !important;}
   #exportStageFrame #exportFooter .export-depth-key {display:grid;gap:var(--export-key-gap) !important;}
-  #exportStageFrame #exportFooter .export-depth-key-heading strong {font-size:var(--export-key-title) !important;line-height:1.15 !important;font-weight:750 !important;letter-spacing:0 !important;}
+  #exportStageFrame #exportFooter .export-depth-key-heading strong {font-size:var(--export-key-title) !important;line-height:1.25 !important;font-weight:750 !important;letter-spacing:0 !important;}
   #exportStageFrame #exportFooter .export-depth-key-scale {display:grid;gap:var(--export-key-gap) !important;}
   #exportStageFrame #exportFooter .export-depth-key-gradient {height:var(--export-key-bar) !important;border-width:1px !important;}
   #exportStageFrame #exportFooter .export-depth-key-ends {font-size:var(--export-key-label) !important;line-height:1.2 !important;letter-spacing:0 !important;text-transform:none !important;}

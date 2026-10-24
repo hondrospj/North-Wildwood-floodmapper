@@ -5876,7 +5876,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         stageFrame.dataset.exportAspect = config.value;
         stageFrame.dataset.exportCompact = String(config.width < 1000);
         stageFrame.style.setProperty("--export-footer-gap", `${Math.round(12 * layout.unit)}px`);
-        stageFrame.style.setProperty("--export-key-gap", `${Math.max(1, Math.round(6 * layout.unit))}px`);
+        stageFrame.style.setProperty("--export-key-gap", `${Math.max(1, Math.round(5 * layout.unit))}px`);
         stageFrame.style.setProperty("--export-key-title", `${Math.round(26 * layout.unit)}px`);
         stageFrame.style.setProperty("--export-key-label", `${Math.round(22 * layout.unit)}px`);
         stageFrame.style.setProperty("--export-key-bar", `${Math.round(20 * layout.unit)}px`);
