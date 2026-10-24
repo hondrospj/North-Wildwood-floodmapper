@@ -339,6 +339,17 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       return null;
     }
 
+    function seedMunicipalBoundary(data) {
+      const feature = pickBoundaryFeatureFromGeoJson(data);
+      const rings = normalizeRingsFromGeoJsonGeometry(feature?.geometry);
+      if (!feature || !rings.length) return false;
+      municipalBoundaryFeature = feature;
+      municipalBoundaryRings = rings;
+      FALLBACK_TOWN_MASK_RING = rings[0];
+      FALLBACK_LATLNG_BOUNDS = latLngBoundsFromRing(rings[0]);
+      return true;
+    }
+
     async function fetchBunnyBoundaryFeature() {
       if (!MUNICIPAL_BOUNDARY_BUNNY_URL) return null;
       const response = await fetch(MUNICIPAL_BOUNDARY_BUNNY_URL, {
@@ -417,7 +428,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         ...style
       };
 
-      if (municipalBoundaryFeature) {
+      if (["Polygon", "MultiPolygon"].includes(municipalBoundaryFeature?.geometry?.type)
+        && hasValidExportBoundaryGeometry()) {
         return L.geoJSON(municipalBoundaryFeature, {
           pane: "boundaryPane",
           interactive: false,
@@ -425,8 +437,11 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         });
       }
 
-      const fallbackRing = getPrimaryMunicipalBoundaryRing();
-      return L.polygon(fallbackRing.length ? fallbackRing : ringFromLatLngBounds(getBoundaryDrivenOverlayBounds()), {
+      const fallbackRing = normalizeLatLngRing(getPrimaryMunicipalBoundaryRing());
+      // An extent is not a municipal boundary. Leave the outline absent until
+      // real geometry is available rather than flashing a rectangular town.
+      if (!fallbackRing || fallbackRing.length < 3) return null;
+      return L.polygon(fallbackRing, {
         pane: "boundaryPane",
         interactive: false,
         smoothFactor: 0,
@@ -453,8 +468,12 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (cityBoundaryMask && map.hasLayer(cityBoundaryMask)) {
         map.removeLayer(cityBoundaryMask);
       }
+      cityBoundaryMask = null;
+      const geometry = createBoundaryMaskGeometry();
+      // Never shade the whole world while the municipal cutout is missing.
+      if (!hasValidExportBoundaryGeometry() || geometry.length < 2) return;
 
-      cityBoundaryMask = L.polygon(createBoundaryMaskGeometry(), {
+      cityBoundaryMask = L.polygon(geometry, {
         pane: "maskPane",
         interactive: false,
         smoothFactor: 0,
@@ -511,13 +530,17 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         opacity: 1,
         lineCap: "round",
         lineJoin: "round"
-      }).addTo(map);
+      });
+      if (cityBoundaryOutline) cityBoundaryOutline.addTo(map);
 
       applyTownBoundaryVisibility();
       updateColorBasemapClip();
     }
 
     async function loadMunicipalBoundary() {
+      // The bundled official polygon is ready before the map is constructed.
+      // Reuse it without a second request or a visible remove/add cycle.
+      if (municipalBoundaryFeature && hasValidExportBoundaryGeometry()) return;
       if (municipalBoundaryLoadPromise) return municipalBoundaryLoadPromise;
       municipalBoundaryLoadPromise = (async () => {
         try {
@@ -525,12 +548,11 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
           if (!boundary?.feature || !boundary?.rings?.length) {
             throw new Error("Municipal boundary query returned no geometry.");
           }
-          municipalBoundaryFeature = boundary.feature;
-          municipalBoundaryRings = boundary.rings;
+          if (!seedMunicipalBoundary(boundary.feature)) {
+            throw new Error("Municipal boundary query returned invalid geometry.");
+          }
         } catch (err) {
-          console.warn("Municipal boundary unavailable from Bunny and ArcGIS; using configured map center fallback.", err);
-          municipalBoundaryFeature = null;
-          municipalBoundaryRings = FALLBACK_TOWN_MASK_RING.length ? [FALLBACK_TOWN_MASK_RING] : [];
+          console.warn("Municipal boundary unavailable; retaining any valid municipal geometry.", err);
         }
         updateMunicipalBoundaryLayer();
         // A preview may have created the export map before this request finished.

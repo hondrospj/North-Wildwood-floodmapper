@@ -520,7 +520,9 @@
       DYNAMIC_LEGEND = buildDynamicLegend();
 
       if (typeof municipalBoundaryRings !== "undefined") {
-        municipalBoundaryRings = [FALLBACK_TOWN_MASK_RING];
+        municipalBoundaryFeature = null;
+        municipalBoundaryRings = [];
+        seedMunicipalBoundary(config.boundary?.startupFeature);
       }
     }
 

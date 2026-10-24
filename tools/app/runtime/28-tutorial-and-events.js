@@ -827,6 +827,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       document.body.dataset.initialFloodFrame = "loading";
       document.body.dataset.deferredMapLayers = "waiting";
       ensureMap();
+      const boundaryReady = loadMunicipalBoundary().catch(() => {});
       setOpacityText();
       updateDatumUI();
       updateObservedResolutionUI();
@@ -875,13 +876,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
         scheduleMapTitleFit();
       });
       startNwsAlertRefresh();
-      await reloadAll();
-      const warmBoundary = () => loadMunicipalBoundary().catch(() => {});
-      if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(warmBoundary, { timeout: 1600 });
-      } else {
-        window.setTimeout(warmBoundary, 220);
-      }
+      await Promise.all([reloadAll(), boundaryReady]);
     }
 
     function applyMobileObservedOrdering() {

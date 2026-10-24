@@ -20,6 +20,7 @@ const published = read("index.html");
 const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-ui.json"));
 const previewSource = read(previewUi.source);
 const exportPresentation = JSON.parse(read("tools/fixtures/north-wildwood-export-presentation.json"));
+const boundaryStartup = JSON.parse(read("tools/fixtures/north-wildwood-boundary-startup.json"));
 const sourcePaths = new Set();
 const outputs = new Map();
 const entriesByToken = new Map();
@@ -58,6 +59,55 @@ const EXPORT_PRESENTATION_BLOCKS = [
   ["style", "style-081", "tools/app/styles/style-081.css", null],
 ];
 
+// The startup fix may seed only the existing authoritative town polygon and
+// change the named boundary/startup functions. Invert those exact blocks for
+// original extraction parity; every other runtime byte remains pinned.
+const BOUNDARY_STARTUP_BLOCKS = [
+  ["script", "script-004", "tools/app/runtime/00-configuration.js", "applyTownConfig", null],
+  ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "seedMunicipalBoundary", null],
+  ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "makeBoundaryVector", null],
+  ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "updateBoundaryMaskLayer", null],
+  ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "updateMunicipalBoundaryLayer", null],
+  ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "loadMunicipalBoundary", null],
+  ["script", "script-004", "tools/app/runtime/28-tutorial-and-events.js", "main", null],
+  ["script", "script-007", "tools/app/town-config.js", null, "TOWN_CONFIG.boundary.startupFeature"],
+];
+
+function exactBoundaryStartupBlock(source, block, label) {
+  const expression = block.function
+    ? new RegExp(`^    (?:async )?function ${block.function}\\([^]*?\\n    }\\n${block.function === "seedMunicipalBoundary" ? "\\n" : ""}`, "gm")
+    : /^TOWN_CONFIG\.boundary\.startupFeature = [^\n]+;\n/gm;
+  const matches = Array.from(source.matchAll(expression));
+  assert.equal(matches.length, 1, `${label} must occur exactly once`);
+  return matches[0][0];
+}
+
+function auditedBoundaryStartupSource(kind, entry, source) {
+  for (const block of boundaryStartup.blocks.filter(block => block.kind === kind && block.entryId === entry.id)) {
+    const label = block.function || block.assignment;
+    assert.ok(entry.sources.includes(block.source), `${label} must remain in its declared source`);
+    const actual = exactBoundaryStartupBlock(read(block.source), block, label);
+    assert.equal(Buffer.byteLength(actual), block.afterBytes, `${label} differs from the approved boundary startup change`);
+    assert.equal(sha256(actual), block.afterSha256, `${label} differs from the approved boundary startup change`);
+    if (block.function === "seedMunicipalBoundary" || block.assignment) {
+      assert.equal(block.beforeSource, "", `${label} must be a new-only audited block`);
+    } else {
+      assert.equal(exactBoundaryStartupBlock(block.beforeSource, block, `Original ${label}`), block.beforeSource,
+        `${label} audit must restore exactly its original function`);
+    }
+    assert.equal(exactBoundaryStartupBlock(source, block, `Runtime ${label}`), actual,
+      `${label} must remain unchanged between source and runtime`);
+    if (block.assignment) {
+      const prefix = `${block.assignment} = `;
+      assert.ok(actual.startsWith(prefix) && actual.endsWith(";\n"));
+      assert.deepEqual(JSON.parse(actual.slice(prefix.length, -2)), JSON.parse(read(boundaryStartup.featureSource)),
+        "The startup feature must reproduce the existing authoritative boundary exactly");
+    }
+    source = source.replace(actual, block.beforeSource);
+  }
+  return source;
+}
+
 function exactPresentationBlock(source, name, label) {
   if (name === null) return source;
   const matches = Array.from(source.matchAll(new RegExp(`^    function ${name}\\([^]*?\\n    }\\n`, "gm")));
@@ -87,6 +137,7 @@ function auditedExportPresentationSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedBoundaryStartupSource(kind, entry, source);
   source = auditedExportPresentationSource(kind, entry, source);
   if (kind !== "script" || entry.id !== "script-004") return source;
   assert.ok(entry.sources.includes(MONTH_LABEL_SOURCE),
@@ -143,6 +194,14 @@ assert.equal(exportPresentation.schemaVersion, 1);
 assert.equal(exportPresentation.baselineCommit, "fe85848f68070189033fec66fe6fc3996df7cc4e");
 assert.deepEqual(exportPresentation.blocks.map(block => [block.kind, block.entryId, block.source, block.function]),
   EXPORT_PRESENTATION_BLOCKS, "The export audit may cover only the explicitly approved presentation blocks");
+assert.equal(boundaryStartup.schemaVersion, 1);
+assert.equal(boundaryStartup.baselineCommit, "17c5ca1c73466e1860204d0906c65f306e902f8c");
+assert.equal(boundaryStartup.featureSource, "Boundaries/North Wildwood.geojson");
+assert.equal(sha256(read(boundaryStartup.featureSource)), boundaryStartup.featureSha256,
+  "The embedded startup polygon must preserve the original authoritative boundary file");
+assert.deepEqual(boundaryStartup.blocks.map(block =>
+  [block.kind, block.entryId, block.source, block.function, block.assignment]), BOUNDARY_STARTUP_BLOCKS,
+  "The boundary startup audit may cover only the explicitly approved blocks");
 // The external controller received separate upstream label improvements after
 // the inline extraction baseline. Preserve those as well as the original DOM.
 assert.equal(previewUi.baselineCommit, "cd993903a689a41ef5439497b49c8350e962b9b7");
@@ -294,14 +353,15 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation inverses; original UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup inverses; original UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
   try {
     for (const relative of ["tools/app", "assets/app", "assets/styles", "assets/export-preview.js",
       "tools/fixtures/north-wildwood-refactor-baseline.json", "tools/fixtures/north-wildwood-export-preview-ui.json",
-      "tools/fixtures/north-wildwood-export-presentation.json", "index.html"]) {
+      "tools/fixtures/north-wildwood-export-presentation.json", "tools/fixtures/north-wildwood-boundary-startup.json",
+      boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
@@ -340,6 +400,22 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/styles/style-081.css") + "\n/* Unapproved footer change */\n"],
       ["altered water-level science adjacent to approved presentation", path.join(scratch, "tools/app/runtime/16-export-map.js"),
         read("tools/app/runtime/16-export-map.js").replace("formatStageForDisplay(rawStage)", "formatStageForDisplay(rawStage + 1)")],
+      ["altered approved boundary startup function", path.join(scratch, "tools/app/runtime/10-map-geometry-and-layers.js"),
+        read("tools/app/runtime/10-map-geometry-and-layers.js").replace("    function seedMunicipalBoundary(",
+          "    function seedMunicipalBoundary(/* Unapproved startup change */")],
+      ["duplicated approved boundary startup function", path.join(scratch, "tools/app/runtime/10-map-geometry-and-layers.js"),
+        read("tools/app/runtime/10-map-geometry-and-layers.js") + "\n" +
+          exactBoundaryStartupBlock(read("tools/app/runtime/10-map-geometry-and-layers.js"),
+            boundaryStartup.blocks.find(block => block.function === "seedMunicipalBoundary"), "seedMunicipalBoundary")],
+      ["altered code adjacent to the boundary startup fix", path.join(scratch, "tools/app/runtime/10-map-geometry-and-layers.js"),
+        read("tools/app/runtime/10-map-geometry-and-layers.js") + "\n// Unapproved adjacent runtime change\n"],
+      ["removed exact startup boundary assignment", path.join(scratch, "tools/app/town-config.js"),
+        read("tools/app/town-config.js").replace(exactBoundaryStartupBlock(read("tools/app/town-config.js"),
+          boundaryStartup.blocks.find(block => block.assignment), "startupFeature"), "")],
+      ["altered authoritative boundary file", path.join(scratch, boundaryStartup.featureSource),
+        read(boundaryStartup.featureSource) + "\n"],
+      ["broadened boundary audit declaration list", path.join(scratch, "tools/fixtures/north-wildwood-boundary-startup.json"),
+        JSON.stringify({ ...boundaryStartup, blocks: [...boundaryStartup.blocks, boundaryStartup.blocks[0]] })],
     ];
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target, "utf8");

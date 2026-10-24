@@ -51,3 +51,14 @@ reverses that exact cache key for the original whole-document hash and rejects
 preview CSS/markup changes. A real-browser test completes an actual capture
 during a held gesture; unit cases cover cancellation, closure and download
 handoff so waiting previews cannot deadlock the exporter.
+
+The municipal boundary is seeded synchronously from the exact committed
+`Boundaries/North Wildwood.geojson` before map construction. Startup reuses that
+geometry without a second network request or late outline replacement. If no
+valid polygon is available, the map shows neither a fabricated rectangular town
+outline nor a world-only gray mask, and its boundary request can be retried.
+`test_north_wildwood_boundary_startup.mjs` exercises those startup and recovery
+cases. The separately pinned boundary-startup audit reverses only the six named
+functions, new seed helper and exact geometry assignment for original source
+parity; the original refactor fixture, UI, CSS and scientific behavior remain
+unchanged.
