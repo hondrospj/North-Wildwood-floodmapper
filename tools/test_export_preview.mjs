@@ -244,7 +244,7 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   assert.equal(nodes.exportPreviewCanvas.children.length, 0, "A cancelled preview cannot commit during export");
   download.resolve(); await downloading; await duplicate; await flush();
   assert.equal(nodes.downloadBtn.disabled, false, "Restore Download after the export finishes");
-  assert.equal(nodes.downloadBtnLabel.textContent, "Download PNG Frames");
+  assert.equal(nodes.downloadBtnLabel.textContent, "Download");
 }
 
 // A preview that rejects while Download is draining it cannot reject the real export.
@@ -265,7 +265,7 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   await ctx.downloadCurrentSelection();
   await assert.rejects(ctx.downloadCurrentSelection(), /Export network timeout/);
   assert.equal(nodes.downloadBtn.disabled, false);
-  assert.equal(nodes.downloadBtnLabel.textContent, "Download PNG Frames", "Restore Download after an export failure");
+  assert.equal(nodes.downloadBtnLabel.textContent, "Download", "Restore Download after an export failure");
   state.download = async () => {};
   await ctx.downloadCurrentSelection();
   assert.equal(state.downloads, 2, "Release preview/export request lock after export failure");
