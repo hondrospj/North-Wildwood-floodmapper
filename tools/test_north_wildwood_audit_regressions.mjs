@@ -14,6 +14,16 @@ const parcel=JSON.parse(fs.readFileSync(new URL('../assets/parcel-history-v2/Nor
 let checks=0;
 function check(value,message){assert.ok(value,message);checks++;}
 async function reachable(selector){return page.locator(selector).evaluate(element=>{const rect=element.getBoundingClientRect();const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);return hit===element||element.contains(hit);});}
+async function checkReachable(selector,message){
+  const accessible=await reachable(selector);
+  if(!accessible) console.error('Hit-test diagnostics',JSON.stringify(await page.locator(selector).evaluate(element=>{
+    const rect=node=>node?Object.fromEntries(['x','y','width','height','top','right','bottom','left'].map(key=>[key,node.getBoundingClientRect()[key]])):null;
+    const name=node=>node?`${node.tagName}#${node.id}.${String(node.className)}`:null;
+    const box=element.getBoundingClientRect(),popup=element.closest('.nw-mobile-popup'),content=popup?.querySelector('.maplibregl-popup-content');
+    return{button:rect(element),popup:rect(popup),content:rect(content),scrollTop:content?.scrollTop,activeElement:name(document.activeElement),hits:document.elementsFromPoint(box.x+box.width/2,box.y+box.height/2).map(name),viewport:{width:innerWidth,height:innerHeight,scrollX,scrollY},body:document.body.className,currentHourIndex,floodFrameState,pendingTimelineSelection,requestedTimelineSelection};
+  })));
+  check(accessible,message);
+}
 try{
   await page.goto(process.env.NWW_TEST_URL||'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready'),{},{timeout:120000});
@@ -64,12 +74,14 @@ try{
   await page.setViewportSize({width:390,height:844});
   await page.waitForTimeout(1000);
   await page.evaluate(feature=>{openParcelFloodPrompt(feature,map.getCenter());},parcel);
-  check(await reachable('.nw-mobile-popup .maplibregl-popup-close-button'),'Popup close inaccessible when opened');
+  await checkReachable('.nw-mobile-popup .maplibregl-popup-close-button','Popup close inaccessible when opened');
+  const targetIndex=await page.locator('#hourSlider').evaluate(element=>Number(element.max));
   await page.locator('#hourSlider').focus();await page.keyboard.press('End');
-  await page.waitForTimeout(1000);
+  await page.waitForFunction(target=>currentHourIndex===target&&floodFrameState==='ready'&&!pendingTimelineSelection&&!requestedTimelineSelection,targetIndex,{timeout:90000});
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const popup=await page.evaluate(feature=>({actual:document.querySelector('.nw-mobile-popup .house-alert-popup').textContent,expected:new DOMParser().parseFromString(buildHouseAlertPopup(feature),'text/html').querySelector('.house-alert-popup').textContent}),parcel);
   check(popup.actual===popup.expected,'Building reading did not refresh with the timeline');
-  check(await reachable('.nw-mobile-popup .maplibregl-popup-close-button'),'Popup close inaccessible after timeline change');
+  await checkReachable('.nw-mobile-popup .maplibregl-popup-close-button','Popup close inaccessible after timeline change');
   await page.locator('.nw-mobile-popup .maplibregl-popup-close-button').tap();
   check(await page.locator('.nw-mobile-popup').count()===0,'Popup close does not dismiss the popup');
 
@@ -126,7 +138,8 @@ try{
     return{labels:[...element.children].map(child=>child.textContent),overlap:boxes.some((box,index)=>index>0&&box.left<boxes[index-1].right+1)};
   });
   check(!legend.overlap,'Downloaded depth-key labels overlap: '+JSON.stringify(legend));
-  const framing=await page.evaluate(()=>({visible:getActiveMapBounds().toBBoxString(),exported:exportMap.getBounds().toBBoxString(),zoom:exportMap.getZoom()}));
+  const framing=await page.evaluate(()=>({visible:getActiveMapBounds().toBBoxString(),exported:exportMap.getBounds().toBBoxString(),zoom:exportMap.getZoom(),frozen:exportViewportBounds?.toBBoxString(),size:exportMap.getSize(),aspect:getExportAspectConfig(),footer:getExportFooterLayout(exportMap.getSize().x,exportMap.getSize().y)}));
+  console.log('Current View output bounds',JSON.stringify(framing));
   const v=framing.visible.split(',').map(Number),e=framing.exported.split(',').map(Number);
   check(e[0]<=v[0]+1e-5&&e[1]<=v[1]+1e-5&&e[2]>=v[2]-1e-5&&e[3]>=v[3]-1e-5,'Export does not contain the visible geographic bounds');
   check(framing.zoom<19,'Current View export zoomed into a zero-area hidden map: '+JSON.stringify(framing));
