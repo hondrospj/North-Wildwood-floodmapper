@@ -26,9 +26,14 @@ try{
     await switchDataMode('observed');
     window.controlAudit=[];
     for(const type of ['pointerdown','pointerup','click'])document.addEventListener(type,event=>{
-      window.controlAudit.push({type,id:event.target.id,body:document.body.className});
+      const button=event.target.closest('button'),rect=button?.getBoundingClientRect();
+      window.controlAudit.push({type,id:event.target.id,button:button?.id,body:document.body.className,at:performance.now(),connected:event.target.isConnected,inert:!!event.target.closest('[inert]'),active:document.activeElement?.id,rect:rect&&{x:rect.x,y:rect.y,width:rect.width,height:rect.height}});
       if(window.controlAudit.length>30)window.controlAudit.shift();
     },true);
+    new MutationObserver(records=>{
+      window.controlAudit.push({type:'month-label-mutation',at:performance.now(),removed:records.reduce((sum,record)=>sum+record.removedNodes.length,0),added:records.reduce((sum,record)=>sum+record.addedNodes.length,0),value:document.getElementById('monthLabel').textContent});
+      if(window.controlAudit.length>30)window.controlAudit.shift();
+    }).observe(document.getElementById('monthLabel'),{childList:true});
   });
   for(let i=0;i<20;i++){
     await activate('#mobileControlsToggle');
@@ -40,7 +45,9 @@ try{
     // calendar card during this gesture suppresses click in WebKit.
     if(!touch&&i===0)await page.locator('#calendarTitleBtn').click({delay:400});
     else await activate('#calendarTitleBtn');
-    if(!await page.locator('#calendarPopover').evaluate(el=>el.classList.contains('open')))throw Error('Calendar did not open');
+    // WebKit may deliver the synthetic click after its mouseup command returns.
+    // Await the resulting state without sleeping before/between pointer events.
+    await page.waitForFunction(()=>document.getElementById('calendarPopover').classList.contains('open'),{},{timeout:3000});
     await activate('#calendarPopoverCloseBtn');
     if(await page.locator('#observedCalendarCloseBtn').isVisible())await activate('#observedCalendarCloseBtn');
     await activate('#mapperTutorialBtn');
