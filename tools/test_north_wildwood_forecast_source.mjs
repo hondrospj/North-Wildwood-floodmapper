@@ -19,10 +19,19 @@ if(forecast.operationalForecastProduct)assert.equal(forecast.operationalForecast
 if(forecast.operationalForecastStatistic)assert.equal(forecast.operationalForecastStatistic,'ensemble_mean');
 assert.equal(forecast.forecasts.mean.product,'mean');
 assert.match(forecast.sourceType,/TWL/);
+function assertIssuedDatum(hour,offset){
+  // Both published datums are independently rounded to hundredths from the
+  // issued source. Compare NAVD88 to that common source, not rounded MLLW.
+  assert.ok(Math.abs(hour.navd88StageFt-(hour.rawPetssValue+offset))<=.005001,'Datum conversion changed');
+}
+// At a half-cent boundary, two valid rounded datums can differ by 0.01 ft
+// after conversion. A genuine extra 0.01-ft shift must still be rejected.
+assertIssuedDatum({rawPetssValue:.675,mllwStageFt:.68,navd88StageFt:-2.08},-2.75);
+assert.throws(()=>assertIssuedDatum({rawPetssValue:.675,mllwStageFt:.68,navd88StageFt:-2.06},-2.75),/Datum conversion changed/);
 for(const hour of select(forecast,'mean')) {
   if(hour.sourceColumn)assert.equal(hour.sourceColumn,'TWL');
   assert.ok(Math.abs(hour.mllwStageFt-hour.rawPetssValue)<=.005001,'Mean was locally shifted');
-  assert.ok(Math.abs(hour.navd88StageFt-(hour.mllwStageFt+forecast.navd88OffsetFromMllwFt))<=.005001,'Datum conversion changed');
+  assertIssuedDatum(hour,forecast.navd88OffsetFromMllwFt);
 }
 assert.equal(JSON.stringify(forecast),before,'Selection mutated the issued data');
 for(const missing of [null,{}, {scenarioForecasts:{mean:{hours:null}}}])assert.equal(select(missing,'mean').length,0);
