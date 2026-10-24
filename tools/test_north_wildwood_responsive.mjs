@@ -28,7 +28,7 @@ async function activate(page,selector){
   }
   await revealExportControl(page,selector,{touch:touchPages.has(page)});
   const selection=await control.evaluate(el=>{
-    for(const [key,input]of Object.entries({aspect:'downloadAspectSelect',format:'downloadFormatSelect',extent:'downloadExtentSelect',interval:'downloadIntervalSelect'}))if(el.dataset[key])return{value:el.dataset[key],input};
+    for(const [key,input]of Object.entries({aspect:'downloadAspectSelect',format:'downloadFormatSelect',extent:'downloadExtentSelect',exportInterval:'downloadIntervalSelect'}))if(el.dataset[key])return{value:el.dataset[key],input};
     return null;
   });
   // Export preview image loading has a 20-second deadline; software rendering
