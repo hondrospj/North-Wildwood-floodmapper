@@ -28,24 +28,39 @@ try{
   await page.waitForFunction(()=>window.previewCaptureReady,{},{timeout:90000});
   const control=page.locator('#exportFormatPngBtn');
   await control.scrollIntoViewIfNeeded();
-  const before=await control.boundingBox();
-  const x=before.x+before.width/2,y=before.y+before.height/2;
-  await page.mouse.move(x,y);await page.mouse.down();
-  await page.evaluate(async()=>{
-    window.releasePreviewCapture();
-    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await control.evaluate(element=>{
+    const snapshot=()=>{
+      const {x,y,width,height}=element.getBoundingClientRect();
+      const hit=document.elementFromPoint(x+width/2,y+height/2);
+      return{x,y,width,height,hit:hit?.closest('button')?.id,pressed:window.previewGesturePressed,state:document.getElementById('exportPreview').dataset.state};
+    };
+    window.previewGestureEvents=[];
+    for(const type of ['pointerdown','pointerup','click'])element.addEventListener(type,event=>{
+      if(type==='pointerdown')window.previewGesturePressed=true;
+      if(type==='pointerup')window.previewGesturePressed=false;
+      window.previewGestureEvents.push({type,target:event.target.id,at:performance.now(),...snapshot()});
+    },true);
+    element.addEventListener('pointerdown',()=>{
+      window.previewGestureBefore=snapshot();
+      window.releasePreviewCapture();
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{window.previewGestureDuring=snapshot();}));
+    },{once:true});
   });
-  const during=await control.boundingBox();
-  const state=await page.locator('#exportPreview').getAttribute('data-state');
-  console.log('Preview gesture geometry',JSON.stringify({before,during,state}));
+  // A locator gesture verifies visibility and hit-testing before dispatch. Raw
+  // page.mouse coordinates do not perform those checks in mobile emulation.
+  await control.click({delay:400});
+  await page.waitForFunction(()=>window.previewGestureDuring,{},{timeout:3000});
+  const {before,during,events}=await page.evaluate(()=>({before:window.previewGestureBefore,during:window.previewGestureDuring,events:window.previewGestureEvents}));
+  console.log('Preview gesture geometry',JSON.stringify({before,during,events}));
+  assert.equal(before.hit,'exportFormatPngBtn');
+  assert.equal(during.pressed,true,'The real capture must complete during the held gesture');
   assert.ok(Math.abs(before.x-during.x)<1&&Math.abs(before.y-during.y)<1,'Preview completion moved the format control during a held gesture');
-  await page.mouse.up();
   await page.waitForFunction(()=>document.getElementById('downloadFormatSelect').value==='png',{},{timeout:3000});
   assert.equal(await control.getAttribute('aria-pressed'),'true');
   await page.waitForFunction(()=>document.getElementById('exportPreview').dataset.state==='ready',{},{timeout:90000});
   assert.deepEqual(errors,[]);
   console.log('Real preview completion preserves the held format gesture and selected PNG setting');
 }catch(error){
-  console.error('Preview test state',JSON.stringify(await page.evaluate(()=>({preview:document.getElementById('exportPreview')?.dataset.state,status:document.getElementById('exportPreviewStatus')?.textContent,frame:floodFrameState,body:document.body.className}))),JSON.stringify({errors,warnings}));
+  console.error('Preview test state',JSON.stringify(await page.evaluate(()=>({preview:document.getElementById('exportPreview')?.dataset.state,status:document.getElementById('exportPreviewStatus')?.textContent,format:document.getElementById('downloadFormatSelect')?.value,frame:floodFrameState,body:document.body.className,before:window.previewGestureBefore,during:window.previewGestureDuring,events:window.previewGestureEvents,viewport:{width:innerWidth,height:innerHeight,scale:visualViewport?.scale,offsetTop:visualViewport?.offsetTop}}))),JSON.stringify({errors,warnings}));
   throw error;
 }finally{await browser.close();}
