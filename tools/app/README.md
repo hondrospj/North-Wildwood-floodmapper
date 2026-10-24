@@ -73,3 +73,20 @@ controller request while checking the first painted cards, then releases it
 and verifies stable widths, labels and card placement. Timeline-aware scrolling
 still reserves space for the actual timestamp on short windows. A separately
 pinned pane audit covers only this CSS insertion and the three initial labels.
+
+The remaining startup presentation also begins with its finished static markup:
+the unused town logo is omitted, address controls use the configured town copy,
+and layer order and the play icon match the final controller. Initial CSS uses
+the same title/navigation lane and reserves the responsive top-flood list only
+until real rows arrive. Both panes initially reserve the same timestamp/dock
+clearance as the finished controller, with the same scrollable clipping. A
+neutral, hidden timestamp uses the real text classes
+for its natural footprint; actual forecast metadata replaces it before reveal.
+Missing-data timestamps remain hidden without inventing a forecast. The short
+mobile navigation media query is equivalent to its former late class gate.
+`north-wildwood-ui-startup.json` pins only these exact CSS/template fragments,
+with all earlier audit fixtures and scientific logic unchanged.
+The top-flood disclosure is created with its final plus/label spans and existing
+idempotence marker, so the controller does not replace a visible SVG later. Its
+single presentation markup statement has its own exact runtime inverse audit;
+the surrounding history, event selection and scientific logic remain pinned.

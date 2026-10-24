@@ -22,6 +22,7 @@ const previewSource = read(previewUi.source);
 const exportPresentation = JSON.parse(read("tools/fixtures/north-wildwood-export-presentation.json"));
 const boundaryStartup = JSON.parse(read("tools/fixtures/north-wildwood-boundary-startup.json"));
 const paneStartup = JSON.parse(read("tools/fixtures/north-wildwood-pane-startup.json"));
+const uiStartup = JSON.parse(read("tools/fixtures/north-wildwood-ui-startup.json"));
 const sourcePaths = new Set();
 const outputs = new Map();
 const entriesByToken = new Map();
@@ -89,6 +90,54 @@ const PANE_STARTUP_LABELS = [
   ["forecast-high", '<button id="forecastHighBtn" type="button" data-scenario="highEnd">Upper End</button>',
     '<button id="forecastHighBtn" type="button" data-scenario="highEnd">Upper end</button>'],
 ];
+
+// Pin the original bytes of each small follow-up UI fragment independently.
+// The separate fixture records its reviewed replacement; no complete sheet or
+// template is exempted, and earlier pane/boundary audit data stays unchanged.
+const UI_STARTUP_CSS = [
+  ["timeline-loading-visibility", "93686531e77d96d337133d0edff6c5dd21c3c2bca6260cc0f8a194c52e32cb16"],
+  ["desktop-initial-controls", "fc0541c68a25758233e5ec2e75e67527eafcf5e6b376419ae689f10643b4c1cb"],
+  ["short-mobile-navigation", "2ce892ca4288e17a5dd7046969821d99e3a89a597413db9ba8dd6d09e5610446"],
+];
+const UI_STARTUP_TEMPLATE = [
+  ["unused-town-title-logo", "ad362fef6a869e086ccd51bf3b547e9e97c43296d7ff51de83ae841a7080d65a"],
+  ["initial-address-title", "02db0ce2c88589e1051b066056d5b7b29617094961a632ace328fbad05c478f3"],
+  ["initial-address-placeholder", "176149a0a86cd7ce4d5803f08ea03f260b2581292b5e72667e1ea5549892c9ac"],
+  ["initial-address-button", "a893d32da236b2b09058e31a03d607c046d3eb2327282b84eeed1969d8951f8f"],
+  ["initial-tour-label", "93bbad53604ee546c7b4ccaf11b67789f11181ad2f46bb320c9c6c7cf5e2f057"],
+  ["initial-play-icon", "fec1cce46ab6b3ca12409b013cc9ddd6b488b8a1f934386ac03dc817882a734a"],
+  ["initial-timeline-placeholder", "e8489613e80da3a663d55187c3eec1fac3276f964bf109eda2c294c2d7ca0911"],
+  ["initial-layer-order", "a28892f5f9d0767d7f782893d7d39526e5a30c9bf0b489dbc2da638801537e9b"],
+];
+const UI_STARTUP_SCRIPTS = [
+  ["initial-top-tide-disclosure", "script", "script-004", "tools/app/runtime/19-observed-history.js",
+    "fcc46015449c4bae27317d8bbc95e30deac6585d73520597151a392b75d57304"],
+];
+
+function auditedUiStartupFragments(source, blocks, label) {
+  for (const block of blocks) {
+    assert.ok(block.afterSource.length > 0, `${block.id} must use a nonempty exact fragment`);
+    assert.equal(Buffer.byteLength(block.afterSource), block.afterBytes, `${block.id} approved fragment length changed`);
+    assert.equal(sha256(block.afterSource), block.afterSha256, `${block.id} approved fragment hash changed`);
+    assert.equal(source.split(block.afterSource).length - 1, 1, `${label} ${block.id} must occur exactly once`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+
+function auditedUiStartupSource(kind, entry, source) {
+  if (kind === "style" && entry.id === "style-002") {
+    assert.ok(entry.sources.includes(uiStartup.cssSource), "Startup UI CSS must remain in its declared stylesheet");
+    auditedUiStartupFragments(read(uiStartup.cssSource), uiStartup.cssChanges, "Source");
+    source = auditedUiStartupFragments(source, uiStartup.cssChanges, "Stylesheet");
+  }
+  for (const block of uiStartup.scriptChanges.filter(block => block.kind === kind && block.entryId === entry.id)) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared runtime source`);
+    auditedUiStartupFragments(read(block.source), [block], "Source");
+    source = auditedUiStartupFragments(source, [block], "Runtime");
+  }
+  return source;
+}
 
 function exactPaneStartupCss(source) {
   assert.equal(source.split(PANE_STARTUP_CSS_START).length - 1, 1, "The pane startup CSS start anchor must occur once");
@@ -184,6 +233,7 @@ function auditedExportPresentationSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedUiStartupSource(kind, entry, source);
   source = auditedPaneStartupSource(kind, entry, source);
   source = auditedBoundaryStartupSource(kind, entry, source);
   source = auditedExportPresentationSource(kind, entry, source);
@@ -260,6 +310,17 @@ assert.equal(paneStartup.css.beforeSource, PANE_STARTUP_CSS_START + PANE_STARTUP
 assert.equal(paneStartup.templateSource, "tools/app/index.template.html");
 assert.deepEqual(paneStartup.labels.map(block => [block.id, block.beforeSource, block.afterSource]), PANE_STARTUP_LABELS,
   "The pane startup template audit may change only the three labels already used by the finished interface");
+assert.equal(uiStartup.schemaVersion, 1);
+assert.equal(uiStartup.baselineCommit, "a7e4b26a48fc7691f99ede5a061daf033b034738");
+assert.equal(uiStartup.cssSource, "tools/app/styles/style-002.css");
+assert.equal(uiStartup.templateSource, "tools/app/index.template.html");
+assert.deepEqual(uiStartup.cssChanges.map(block => [block.id, sha256(block.beforeSource)]), UI_STARTUP_CSS,
+  "The startup UI CSS audit may inverse only its three exact reviewed fragments");
+assert.deepEqual(uiStartup.templateChanges.map(block => [block.id, sha256(block.beforeSource)]), UI_STARTUP_TEMPLATE,
+  "The startup UI template audit may inverse only its eight exact reviewed fragments");
+assert.deepEqual(uiStartup.scriptChanges.map(block =>
+  [block.id, block.kind, block.entryId, block.source, sha256(block.beforeSource)]), UI_STARTUP_SCRIPTS,
+  "The startup UI runtime audit may inverse only the exact top-tide disclosure creation snippet");
 // The external controller received separate upstream label improvements after
 // the inline extraction baseline. Preserve those as well as the original DOM.
 assert.equal(previewUi.baselineCommit, "cd993903a689a41ef5439497b49c8350e962b9b7");
@@ -320,7 +381,8 @@ const expectedTokenOrder = baseline.blocks.map(block =>
 const actualTokenOrder = Array.from(template.matchAll(/<!-- nww:(?:style|script):[\w-]+ -->/g), match => match[0]);
 assert.deepEqual(actualTokenOrder, expectedTokenOrder,
   "Extraction slots must retain the original interleaved CSS/script order");
-const originalHtml = auditedPaneStartupTemplate(template).replace(/<!-- nww:(?:style|script):[\w-]+ -->/g, key => {
+const originalUiTemplate = auditedUiStartupFragments(template, uiStartup.templateChanges, "Template");
+const originalHtml = auditedPaneStartupTemplate(originalUiTemplate).replace(/<!-- nww:(?:style|script):[\w-]+ -->/g, key => {
   const entry = entriesByToken.get(key);
   assert.ok(entry, `Unknown template token ${key}`);
   return entry.openTag + entry.baselineSource + entry.closeTag;
@@ -411,7 +473,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup inverses; original UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup inverses; original UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -420,6 +482,7 @@ if (process.argv.includes("--self-test")) {
       "tools/fixtures/north-wildwood-refactor-baseline.json", "tools/fixtures/north-wildwood-export-preview-ui.json",
       "tools/fixtures/north-wildwood-export-presentation.json", "tools/fixtures/north-wildwood-boundary-startup.json",
       "tools/fixtures/north-wildwood-pane-startup.json",
+      "tools/fixtures/north-wildwood-ui-startup.json",
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -492,6 +555,28 @@ if (process.argv.includes("--self-test")) {
         template.replace(PANE_STARTUP_LABELS[0][2], "<h2>Unapproved forecast label</h2>")],
       ["broadened pane startup label audit", path.join(scratch, "tools/fixtures/north-wildwood-pane-startup.json"),
         JSON.stringify({ ...paneStartup, labels: [...paneStartup.labels, paneStartup.labels[0]] })],
+      ["altered initial title lane", path.join(scratch, uiStartup.cssSource),
+        read(uiStartup.cssSource).replace("left:calc(50% - 40px)!important", "left:50%!important")],
+      ["altered initial pane clearance", path.join(scratch, uiStartup.cssSource),
+        read(uiStartup.cssSource).replace("max-height:max(100px,calc(100dvh - 217.2px))!important",
+          "max-height:100vh!important")],
+      ["duplicated startup UI fragment", path.join(scratch, uiStartup.cssSource),
+        read(uiStartup.cssSource) + uiStartup.cssChanges[1].afterSource],
+      ["repositioned startup UI fragment", path.join(scratch, uiStartup.cssSource),
+        read(uiStartup.cssSource).replace(uiStartup.cssChanges[1].afterSource, "") + uiStartup.cssChanges[1].afterSource],
+      ["removed pending timestamp protection", path.join(scratch, uiStartup.cssSource),
+        read(uiStartup.cssSource).replace("#timelineBubble:has(.timeline-bubble-startup-placeholder)", "#unapprovedPlaceholder")],
+      ["altered initial configured address", path.join(scratch, uiStartup.templateSource),
+        template.replace("Find a North Wildwood Address", "Find Address")],
+      ["reverted initial layer order/case", path.join(scratch, uiStartup.templateSource),
+        template.replace("<div class=\"layer-name\">Road names</div>", "<div class=\"layer-name\">Road Names</div>")],
+      ["broadened startup UI CSS audit", path.join(scratch, "tools/fixtures/north-wildwood-ui-startup.json"),
+        JSON.stringify({ ...uiStartup, cssChanges: [...uiStartup.cssChanges, uiStartup.cssChanges[0]] })],
+      ["altered initial top-tide disclosure", path.join(scratch, uiStartup.scriptChanges[0].source),
+        read(uiStartup.scriptChanges[0].source).replace('<span class="unified-more-plus">+</span>',
+          '<span class="unified-more-plus">Changed</span>')],
+      ["broadened startup UI runtime audit", path.join(scratch, "tools/fixtures/north-wildwood-ui-startup.json"),
+        JSON.stringify({ ...uiStartup, scriptChanges: [...uiStartup.scriptChanges, uiStartup.scriptChanges[0]] })],
     ];
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target, "utf8");

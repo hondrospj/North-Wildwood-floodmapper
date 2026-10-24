@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "a7e4b26a48fc7691f99ede5a061daf033b034738",
+  "purpose": "Render only the already finished presentation geometry and static copy before slow scripts or data arrive. Omit the unused title logo, seed configured address text and final layer/play markup, and apply measured title/navigation dimensions immediately. Reserve the existing compact top-flood list footprint only until actual rows exist and hide an unloaded timestamp while retaining its natural styled geometry; never invent a forecast or change actual data styling. Replace the short-mobile navigation class gate with exactly equivalent media conditions. Restore only the reviewed snippets for original parity; every other stylesheet, template byte, runtime, scientific value and previous audit fixture remains pinned. The top-tide disclosure is created with the exact final plus/label spans and the existing idempotence marker, avoiding a second visible icon replacement; only its original single markup line is inverted for runtime parity.",
+  "cssSource": "tools/app/styles/style-002.css",
+  "templateSource": "tools/app/index.template.html",
+  "cssChanges": [
+    {
+      "id": "timeline-loading-visibility",
+      "beforeSource": " html body[data-floodmapper-unified] #mapTitleBadge #mapTitleText {min-width:0!important;overflow-wrap:normal!important;}\n html body[data-floodmapper-unified]:not(:has(#nwDefaultNavControl)) .leaflet-control-zoom {position:static!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;transform:none!important;float:none!important;margin:0!important;display:block!important;}\n",
+      "afterSource": " html body[data-floodmapper-unified] #mapTitleBadge #mapTitleText {min-width:0!important;overflow-wrap:normal!important;}\n html body[data-floodmapper-unified] #timelineBubble:has(.timeline-bubble-startup-placeholder),html body[data-floodmapper-unified] #timelineBubble:not(:has(.timeline-bubble-current)),html body[data-floodmapper-unified] #timelineBubble:not(:has(.timeline-bubble-stage)) {visibility:hidden!important;}\n html body[data-floodmapper-unified]:not(:has(#nwDefaultNavControl)) .leaflet-control-zoom {position:static!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;transform:none!important;float:none!important;margin:0!important;display:block!important;}\n",
+      "afterBytes": 713,
+      "afterSha256": "2af0234ab7ec642807c7cb343e1559404c7154c128818275a1e9103552679cdf"
+    },
+    {
+      "id": "desktop-initial-controls",
+      "beforeSource": "  html body[data-floodmapper-unified] #timelineBubble {left:24px!important;right:auto!important;top:auto!important;bottom:120px!important;width:max-content!important;max-width:calc(100vw - 48px)!important;}\n  html body[data-floodmapper-unified] #timelineDock :is(#timelinePreviousDay,#timelineNextDay) {display:none!important;}\n",
+      "afterSource": "  html body[data-floodmapper-unified] #timelineBubble {left:24px!important;right:auto!important;top:auto!important;bottom:120px!important;width:max-content!important;max-width:calc(100vw - 48px)!important;}\n  /* Static controls already use their finished layout while data is loading. */\n  html body[data-floodmapper-unified] :is(#leftPanel,#rightRail) {max-height:max(100px,calc(100dvh - 217.2px))!important;overflow-y:auto!important;overflow-x:hidden!important;}\n  html body[data-floodmapper-unified] #mapTitleBadge {left:calc(50% - 40px)!important;right:auto!important;top:16px!important;max-width:max(100px,calc(100vw - 752px))!important;transform:translateX(-50%)!important;}\n  html body[data-floodmapper-unified] #nwDefaultNavControl {left:auto!important;right:310px!important;top:16px!important;}\n  html body[data-floodmapper-unified] #rightRail #topTideList:not(:has(.top-tide-item)) {min-height:118px!important;}\n  @media(min-height:961px) {\n    html body[data-floodmapper-unified] #rightRail #topTideList:not(:has(.top-tide-item)) {min-height:calc(max(34px,calc(1.25 * var(--nww-pane-font) + 16px)) + max(34px,calc(1.25 * var(--nww-pane-font) + 16px)) + max(34px,calc(1.25 * var(--nww-pane-font) + 14px)) + 10px)!important;}\n  }\n  @media(max-height:800px) {\n    html body[data-floodmapper-unified] #rightRail #topTideList:not(:has(.top-tide-item)) {min-height:92px!important;}\n  }\n  html body[data-floodmapper-unified] #timelineBubble:not(:has(.timeline-bubble-stage))::after {content:\"--\"!important;position:static!important;inset:auto!important;display:block!important;transform:none!important;width:auto!important;height:auto!important;margin:0!important;flex:0 0 auto!important;font:800 22px/1.1 system-ui!important;padding:3px 8px!important;border:1px solid transparent!important;white-space:nowrap!important;background:none!important;}\n  html body[data-floodmapper-unified] #timelineDock :is(#timelinePreviousDay,#timelineNextDay) {display:none!important;}\n",
+      "afterBytes": 1973,
+      "afterSha256": "282c737b50f1e09cfbd60264cc04adb4a96520a03f02e85929bdb445ece72ced"
+    },
+    {
+      "id": "short-mobile-navigation",
+      "beforeSource": " @media(max-height:500px){\n  html.county-compact body[data-floodmapper-unified] #nwDefaultNavControl {display:flex!important;flex-direction:row!important;align-items:center!important;gap:8px!important;width:auto!important;height:44px!important;min-height:44px!important;}\n  html.county-compact body[data-floodmapper-unified] #nwDefaultNavControl .nw-direction-wheel {width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;font-size:8px!important;}\n  html.county-compact body[data-floodmapper-unified] #nwDefaultNavControl .nw-simple-view {width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;margin:0!important;}\n  html.county-compact body[data-floodmapper-unified] #nwDefaultNavControl .nw-simple-zoom {display:flex!important;flex-direction:row!important;width:88px!important;height:44px!important;margin:0!important;}\n  html.county-compact body[data-floodmapper-unified] #nwDefaultNavControl .nw-simple-zoom-button {width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;}\n  html.county-compact body[data-floodmapper-unified]:has(#countyStandaloneView) .leaflet-top.leaflet-right {top:calc(var(--cm-top,8px) + 60px)!important;right:calc(var(--cm-right,8px) + 60px)!important;}\n  html.county-compact body[data-floodmapper-unified]:has(#countyStandaloneView) .leaflet-control-zoom {display:flex!important;flex-direction:row!important;margin:0!important;}\n  html.county-compact body[data-floodmapper-unified]:has(#countyStandaloneView) .leaflet-control-zoom a {width:44px!important;height:44px!important;line-height:44px!important;}\n }\n}\n",
+      "afterSource": " @media(max-width:900px) and (max-height:500px), (max-width:1366px) and (any-pointer:coarse) and (max-height:500px), (max-height:500px) and (pointer:coarse){\n  html:root body[data-floodmapper-unified] #nwDefaultNavControl {display:flex!important;flex-direction:row!important;align-items:center!important;gap:8px!important;width:auto!important;height:44px!important;min-height:44px!important;}\n  html:root body[data-floodmapper-unified] #nwDefaultNavControl .nw-direction-wheel {width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;font-size:8px!important;}\n  html:root body[data-floodmapper-unified] #nwDefaultNavControl .nw-simple-view {width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;margin:0!important;}\n  html:root body[data-floodmapper-unified] #nwDefaultNavControl .nw-simple-zoom {display:flex!important;flex-direction:row!important;width:88px!important;height:44px!important;margin:0!important;}\n  html:root body[data-floodmapper-unified] #nwDefaultNavControl .nw-simple-zoom-button {width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;}\n  html:root body[data-floodmapper-unified]:has(#countyStandaloneView) .leaflet-top.leaflet-right {top:calc(var(--cm-top,8px) + 60px)!important;right:calc(var(--cm-right,8px) + 60px)!important;}\n  html:root body[data-floodmapper-unified]:has(#countyStandaloneView) .leaflet-control-zoom {display:flex!important;flex-direction:row!important;margin:0!important;}\n  html:root body[data-floodmapper-unified]:has(#countyStandaloneView) .leaflet-control-zoom a {width:44px!important;height:44px!important;line-height:44px!important;}\n }\n}\n",
+      "afterBytes": 1707,
+      "afterSha256": "e807838c9ea9fb0bb50834adf795a73deb50a0833a8a2e4f9beb5673172a7d12"
+    }
+  ],
+  "templateChanges": [
+    {
+      "id": "unused-town-title-logo",
+      "beforeSource": "    <div id=\"mapTitleBadge\" class=\"shorely-title-badge\" aria-hidden=\"true\">\n      <img id=\"mapTitleLogo\" class=\"shorely-title-logo shorely-title-logo-town\" src=\"\" alt=\"\" loading=\"eager\" decoding=\"async\" style=\"display:none;\" />\n      <span id=\"mapTitleText\" class=\"shorely-title-text\">North Wildwood Flood Mapper</span>\n",
+      "afterSource": "    <div id=\"mapTitleBadge\" class=\"shorely-title-badge\" aria-hidden=\"true\">\n      <span id=\"mapTitleText\" class=\"shorely-title-text\">North Wildwood Flood Mapper</span>\n",
+      "afterBytes": 168,
+      "afterSha256": "1549f4ed554e4ec7f1aa57e7bef87ff17b74e6a2a11f08bdf6ccae43bd53b9d7"
+    },
+    {
+      "id": "initial-address-title",
+      "beforeSource": "<h3 id=\"townAddressTitle\">Find Address</h3>",
+      "afterSource": "<h3 id=\"townAddressTitle\">Find a North Wildwood Address</h3>",
+      "afterBytes": 60,
+      "afterSha256": "34434c16f18437f333d12b62f1130f960d7afc48b678aed58a8e35e65dc2dd81"
+    },
+    {
+      "id": "initial-address-placeholder",
+      "beforeSource": "placeholder=\"Example: 3100 Main St\"",
+      "afterSource": "placeholder=\"Example: 123 Main St\"",
+      "afterBytes": 34,
+      "afterSha256": "38585d414b89fa01da4ac9d8e41619aa5c521e2a7a5db6b3d473ce03b576f75a"
+    },
+    {
+      "id": "initial-address-button",
+      "beforeSource": "<button id=\"townAddressSearchBtn\" class=\"right-rail-action town-address-btn\" type=\"submit\">Search</button>",
+      "afterSource": "<button id=\"townAddressSearchBtn\" class=\"right-rail-action town-address-btn\" type=\"submit\">Search North Wildwood</button>",
+      "afterBytes": 121,
+      "afterSha256": "781dfe8fefca09cdda322b5e9af4f95ab62e02a91d3be0323f1e551b213ccbf1"
+    },
+    {
+      "id": "initial-tour-label",
+      "beforeSource": "<button id=\"mapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-rail\" type=\"button\">Take the Floodmapper tour</button>",
+      "afterSource": "<button id=\"mapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-rail\" type=\"button\">Take the FloodMapper tour</button>",
+      "afterBytes": 138,
+      "afterSha256": "8f67d4e72dec0490ce459dffc25f0889f1df9aee9c952ab3d34aac905e2f5196"
+    },
+    {
+      "id": "initial-play-icon",
+      "beforeSource": "<button id=\"playBtn\" type=\"button\" class=\"playFab\" aria-label=\"Play\">▶</button>",
+      "afterSource": "<button id=\"playBtn\" type=\"button\" class=\"playFab\" aria-label=\"Play\"><span class=\"playIcon playTriangle\" aria-hidden=\"true\"></span></button>",
+      "afterBytes": 140,
+      "afterSha256": "ac050aef3ef3e3e7cb863f47d716c475e685754850212006e888d168deecd502"
+    },
+    {
+      "id": "initial-timeline-placeholder",
+      "beforeSource": "<div id=\"timelineBubble\">--</div>",
+      "afterSource": "<div id=\"timelineBubble\"><span class=\"timeline-bubble-current timeline-bubble-startup-placeholder\">--</span><span class=\"timeline-bubble-stage\">--</span></div>",
+      "afterBytes": 159,
+      "afterSha256": "0ee93714139e1287dd281ecfa97dcdf0edfd2af5a7633fc2cbd9155660cca998"
+    },
+    {
+      "id": "initial-layer-order",
+      "beforeSource": "          <div class=\"layer-list\">\n            <div class=\"layer-item\">\n              <div id=\"satelliteToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show satellite imagery\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Satellite</div>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"roadsToggle\" class=\"toggle on\" role=\"switch\" tabindex=\"0\" aria-checked=\"true\" aria-label=\"Show road names\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Road Names</div>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"roadImpactsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show road impacts\" title=\"Highlight roads with more than 0.5 ft of modeled water at the selected time\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Road Impacts</div>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"buildingsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show buildings above floodwater\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Buildings</div>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"parcelsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show parcels\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Parcels</div>\n              </div>\n            </div>\n\n            <div class=\"layer-item\">\n              <div id=\"nsiStructuresToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show structural impacts: garage, crawlspace, first floor\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Structural Impacts</div>\n              </div>\n            </div>\n            <div class=\"layer-item shorelysafe-camera-item\" data-html2canvas-ignore=\"true\">\n              <div id=\"webcamsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show cameras\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Cameras</div>\n              </div>\n            </div>\n          </div>\n        </section>\n\n        <section class=\"rail-card top-tides-card\">\n",
+      "afterSource": "          <div class=\"layer-list\">\n            <div class=\"layer-item\">\n              <div id=\"satelliteToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show satellite imagery\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Satellite</div>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"roadImpactsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show road impacts\" title=\"Highlight roads with more than 0.5 ft of modeled water at the selected time\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Road Impacts</div>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"buildingsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show buildings above floodwater\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Buildings</div>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"parcelsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show parcels\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Parcels</div>\n              </div>\n            </div>\n\n            <div class=\"layer-item\">\n              <div id=\"nsiStructuresToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show structural impacts: garage, crawlspace, first floor\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Structural Impacts</div>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"roadsToggle\" class=\"toggle on\" role=\"switch\" tabindex=\"0\" aria-checked=\"true\" aria-label=\"Show road names\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Road names</div>\n              </div>\n            </div>\n            <div class=\"layer-item shorelysafe-camera-item\" data-html2canvas-ignore=\"true\">\n              <div id=\"webcamsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show cameras\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Cameras</div>\n              </div>\n            </div>\n          </div>\n        </section>\n\n        <section class=\"rail-card top-tides-card\">\n",
+      "afterBytes": 2509,
+      "afterSha256": "24486e99d0511ca0b3f1872ebcb55c6c448fb00be7af3a4cc6eb5a7e595143cf"
+    }
+  ],
+  "scriptChanges": [
+    {
+      "id": "initial-top-tide-disclosure",
+      "kind": "script",
+      "entryId": "script-004",
+      "source": "tools/app/runtime/19-observed-history.js",
+      "beforeSource": "          more.innerHTML = `<svg class=\"top-tide-more-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M12 5v14M5 12h14\"/></svg><span>Show more</span>`;\n",
+      "afterSource": "          more.innerHTML = '<span class=\"unified-more-plus\">+</span><span>Show more</span>';\n          more.dataset.unifiedMore = \"true\";\n",
+      "afterBytes": 138,
+      "afterSha256": "a9d973754e79aae1ce958b9735daa8358657f713d902e85330b117ecb9b59d30"
+    }
+  ]
+}
