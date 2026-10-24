@@ -17,6 +17,8 @@ const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baselin
 const manifest = JSON.parse(read("tools/app/manifest.json"));
 const template = read("tools/app/index.template.html");
 const published = read("index.html");
+const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-ui.json"));
+const previewSource = read(previewUi.source);
 const sourcePaths = new Set();
 const outputs = new Map();
 const entriesByToken = new Map();
@@ -39,6 +41,8 @@ const MONTH_LABEL_AFTER = `    async function renderCalendar() {
       const monthLabel = document.getElementById("monthLabel");
       const monthText = prettyMonthShort(currentMonthKey);
 ${MONTH_LABEL_GUARD}`;
+const PREVIEW_TAG_BEFORE = '<script defer src="assets/export-preview.js?v=20261023-2" id="floodmapper-export-preview"></script>';
+const PREVIEW_TAG_AFTER = '<script defer src="assets/export-preview.js?v=20261023-gesture1" id="floodmapper-export-preview"></script>';
 
 function auditedBaselineSource(kind, entry, source) {
   if (kind !== "script" || entry.id !== "script-004") return source;
@@ -91,6 +95,18 @@ assert.equal(baseline.schemaVersion, 1);
 assert.equal(manifest.version, 1);
 assert.equal(manifest.baselineCommit, baseline.baselineCommit,
   "The extraction manifest must identify the audited pre-refactor commit");
+assert.equal(previewUi.schemaVersion, 1);
+// The external controller received separate upstream label improvements after
+// the inline extraction baseline. Preserve those as well as the original DOM.
+assert.equal(previewUi.baselineCommit, "cd993903a689a41ef5439497b49c8350e962b9b7");
+assert.equal(previewUi.source, "assets/export-preview.js");
+assert.deepEqual(previewUi.uiFunctions.map(block => block.function), ["init", "renderReviewStep", "showState"]);
+for (const block of previewUi.uiFunctions) {
+  const match = previewSource.match(new RegExp(`  function ${block.function}\\([^)]*\\) \\{[\\s\\S]*?\\n  }\\n`));
+  assert.ok(match, `Missing original preview UI function ${block.function}`);
+  assert.equal(Buffer.byteLength(match[0]), block.bytes, `${block.function} preview UI changed`);
+  assert.equal(sha256(match[0]), block.sha256, `${block.function} preview CSS/markup/text changed`);
+}
 
 for (const kind of ["style", "script"]) {
   const before = baseline.blocks.filter(block => block.kind === kind);
@@ -145,8 +161,12 @@ const originalHtml = template.replace(/<!-- nww:(?:style|script):[\w-]+ -->/g, k
   assert.ok(entry, `Unknown template token ${key}`);
   return entry.openTag + entry.baselineSource + entry.closeTag;
 });
-assert.equal(sha256(originalHtml), baseline.baselineHtmlSha256,
-  "The source template must reproduce the entire original HTML byte-for-byte");
+// Only the cache key changes for the external preview's nonvisual gesture fix.
+// Its UI-producing functions remain pinned independently above.
+assert.equal(originalHtml.split(PREVIEW_TAG_AFTER).length - 1, 1,
+  "The preview must retain its exact defer/id attributes and audited cache version");
+assert.equal(sha256(originalHtml.replace(PREVIEW_TAG_AFTER, PREVIEW_TAG_BEFORE)), baseline.baselineHtmlSha256,
+  "The source template must reproduce original HTML with only the audited cache-key update");
 
 for (const [output, pieces] of outputs) {
   assert.equal(read(output), pieces.join(""),
@@ -232,8 +252,8 @@ console.log(`North Wildwood source parity passed: ${styleEntries.length} unchang
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
   try {
-    for (const relative of ["tools/app", "assets/app", "assets/styles",
-      "tools/fixtures/north-wildwood-refactor-baseline.json", "index.html"]) {
+    for (const relative of ["tools/app", "assets/app", "assets/styles", "assets/export-preview.js",
+      "tools/fixtures/north-wildwood-refactor-baseline.json", "tools/fixtures/north-wildwood-export-preview-ui.json", "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
@@ -260,6 +280,8 @@ if (process.argv.includes("--self-test")) {
         read(MONTH_LABEL_SOURCE).replace(MONTH_LABEL_AFTER, MONTH_LABEL_AFTER + "\n      // Unapproved adjacent change")],
       ["duplicated audited fix", path.join(scratch, MONTH_LABEL_SOURCE),
         read(MONTH_LABEL_SOURCE).replace(MONTH_LABEL_AFTER, MONTH_LABEL_AFTER + "\n" + MONTH_LABEL_AFTER)],
+      ["changed preview UI", path.join(scratch, previewUi.source),
+        previewSource.replace("height:220px", "height:221px")],
     ];
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target, "utf8");

@@ -40,3 +40,14 @@ whole-document hashes. The original baseline fixture is preserved. Generated
 outputs and syntax are still checked against the actual fixed code. Running the
 parity test with `--self-test` also proves that removing the guard, changing
 adjacent code or duplicating the exception is rejected.
+
+The external export preview also defers its final canvas/ready update until an
+active pointer gesture has finished. This prevents its existing loading caption
+from moving the format controls under a held pointer. Its CSS, markup, labels
+and final layout are unchanged: the three UI-producing functions are separately
+pinned to upstream `cd99390` in `north-wildwood-export-preview-ui.json`. The only
+HTML dependency change is that controller's cache version. The parity check
+reverses that exact cache key for the original whole-document hash and rejects
+preview CSS/markup changes. A real-browser test completes an actual capture
+during a held gesture; unit cases cover cancellation, closure and download
+handoff so waiting previews cannot deadlock the exporter.

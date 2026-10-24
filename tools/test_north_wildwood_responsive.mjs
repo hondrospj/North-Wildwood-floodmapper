@@ -35,17 +35,19 @@ async function activate(page,selector){
   // in CI can hold the input acknowledgement behind that work. Keep this
   // bounded and verify selection below; never repeat a possibly delivered tap.
   const actionOptions={timeout:await control.evaluate(el=>!!el.closest('#downloadModal'))?30000:15000};
-  try{if(touchPages.has(page))await control.tap(actionOptions);else await control.click(actionOptions);}
-  catch(error){
-    console.error('Control failure',selector,await control.evaluate(el=>{
-      const chain=[];for(let p=el;p;p=p.parentElement){const s=getComputedStyle(p),r=p.getBoundingClientRect();chain.push({id:p.id,tag:p.tagName,classes:p.className,display:s.display,visibility:s.visibility,x:r.x,y:r.y,w:r.width,h:r.height,scroll:p.scrollTop});}
-      return {chain,active:document.activeElement?.id,pressed:el.getAttribute('aria-pressed'),preview:document.getElementById('exportPreview')?.dataset.state,inputEvents:window.responsiveInputAudit,longTasks:window.responsiveLongTasks};
-    }));
-    throw error;
+  try{
+    if(touchPages.has(page))await control.tap(actionOptions);else await control.click(actionOptions);
+    if(selection){
+      await page.waitForFunction(({input,value})=>document.getElementById(input)?.value===value,selection,{timeout:3000});
+      check(await control.getAttribute('aria-pressed')==='true',`${selector} selected setting is applied`,selection);
+    }
   }
-  if(selection){
-    await page.waitForFunction(({input,value})=>document.getElementById(input)?.value===value,selection,{timeout:3000});
-    check(await control.getAttribute('aria-pressed')==='true',`${selector} selected setting is applied`,selection);
+  catch(error){
+    console.error('Control failure',selector,await control.evaluate((el,expected)=>{
+      const chain=[];for(let p=el;p;p=p.parentElement){const s=getComputedStyle(p),r=p.getBoundingClientRect();chain.push({id:p.id,tag:p.tagName,classes:p.className,display:s.display,visibility:s.visibility,x:r.x,y:r.y,w:r.width,h:r.height,scroll:p.scrollTop});}
+      return {chain,active:document.activeElement?.id,pressed:el.getAttribute('aria-pressed'),expected,actual:expected&&document.getElementById(expected.input)?.value,preview:document.getElementById('exportPreview')?.dataset.state,inputEvents:window.responsiveInputAudit,longTasks:window.responsiveLongTasks};
+    },selection));
+    throw error;
   }
 }
 async function openDrawer(page){if(await page.locator('body').evaluate(e=>e.classList.contains('mobile-optimized')&&!e.classList.contains('mobile-controls-open')))await activate(page,'#mobileControlsToggle');}
@@ -71,7 +73,8 @@ try {
       window.responsiveInputAudit=[];window.responsiveLongTasks=[];
       for(const type of ['pointerdown','pointerup','click'])document.addEventListener(type,event=>{
         if(!event.target.closest('#downloadModal'))return;
-        window.responsiveInputAudit.push({type,id:event.target.closest('button')?.id,at:performance.now()});
+        const button=event.target.closest('button'),rect=button?.getBoundingClientRect();
+        window.responsiveInputAudit.push({type,id:button?.id,at:performance.now(),x:event.clientX,y:event.clientY,rect:rect&&{x:rect.x,y:rect.y,width:rect.width,height:rect.height},preview:document.getElementById('exportPreview')?.dataset.state});
         if(window.responsiveInputAudit.length>20)window.responsiveInputAudit.shift();
       },true);
       if(PerformanceObserver.supportedEntryTypes?.includes('longtask'))new PerformanceObserver(list=>{

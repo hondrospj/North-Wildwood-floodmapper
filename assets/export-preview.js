@@ -9,11 +9,59 @@
   let activeJob = null;
   let exportRequested = false;
   let settingsReviewed = false;
+  const gesturePointers = new Set();
+  const publicationWaiters = new Set();
+  let gestureSettling = false;
+  let gestureTimer = null;
 
   const node = id => document.getElementById(id);
   const available = () => isDownloadModalOpen() && !exportRequested && !exportInProgress;
   const fresh = token => token === generation && available();
   const release = canvas => { if (canvas) canvas.width = canvas.height = 1; };
+
+  function finishPreviewGesture() {
+    clearTimeout(gestureTimer);
+    gestureTimer = null;
+    gesturePointers.clear();
+    gestureSettling = false;
+    for (const resolve of publicationWaiters) resolve();
+    publicationWaiters.clear();
+  }
+
+  function waitForPreviewGesture() {
+    if (!gestureSettling) return Promise.resolve();
+    return new Promise(resolve => publicationWaiters.add(resolve));
+  }
+
+  // Publishing ready removes the preview caption from normal flow. Keep its
+  // geometry stable from pointer-down through the resulting control click.
+  document.addEventListener("pointerdown", event => {
+    if (!available() || !node("downloadModal")?.contains(event.target)) return;
+    clearTimeout(gestureTimer);
+    gestureTimer = null;
+    gesturePointers.add(event.pointerId);
+    gestureSettling = true;
+  }, true);
+  document.addEventListener("pointerup", event => {
+    if (!gesturePointers.delete(event.pointerId) || gesturePointers.size) return;
+    // A cancelled/suppressed compatibility click must not retain the canvas.
+    gestureTimer = setTimeout(finishPreviewGesture, 500);
+  }, true);
+  document.addEventListener("click", () => {
+    if (!gestureSettling || gesturePointers.size) return;
+    clearTimeout(gestureTimer);
+    // Run after this event's handlers have committed their selected setting.
+    gestureTimer = setTimeout(finishPreviewGesture, 0);
+  }, true);
+  document.addEventListener("pointercancel", event => {
+    if (gesturePointers.delete(event.pointerId) && !gesturePointers.size) finishPreviewGesture();
+  }, true);
+  window.addEventListener?.("blur", finishPreviewGesture);
+  window.addEventListener?.("pagehide", invalidate);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) invalidate();
+    else if (available()) schedulePreview();
+  });
 
   function renderReviewStep() {
     const modal = node("downloadModal");
@@ -69,6 +117,7 @@
     pending = false;
     clearTimeout(timer);
     timer = null;
+    finishPreviewGesture();
   }
 
   function schedulePreview() {
@@ -110,6 +159,8 @@
     const config = getExportAspectConfig();
     const scale = Math.min(1, 800 / config.width, 600 / config.height);
     const canvas = await captureExportCanvas({ scale });
+    if (!fresh(token)) { release(canvas); return; }
+    await waitForPreviewGesture();
     if (!fresh(token)) { release(canvas); return; }
     canvas.setAttribute("role", "img");
     canvas.setAttribute("aria-label", "Preview of the selected North Wildwood export area");

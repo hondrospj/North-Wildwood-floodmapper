@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "cd993903a689a41ef5439497b49c8350e962b9b7",
+  "source": "assets/export-preview.js",
+  "uiFunctions": [
+    {
+      "function": "init",
+      "bytes": 9367,
+      "sha256": "e7af13bd973afc5442f6e5e69d46119170f5b7e66a2d51926ad118b878363056"
+    },
+    {
+      "function": "renderReviewStep",
+      "bytes": 1349,
+      "sha256": "ce1f9caa0858b9522d1fb78328760cefa7a9e5d450173c5a3b5adb042ff4485b"
+    },
+    {
+      "function": "showState",
+      "bytes": 439,
+      "sha256": "9525c37e2ba07f1ba5170fa2f002a5b5d601d340adc58768fce9f21efe85b86e"
+    }
+  ]
+}

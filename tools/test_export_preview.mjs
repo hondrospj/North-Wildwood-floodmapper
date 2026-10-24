@@ -40,6 +40,7 @@ function node(id = "") {
     removeAttribute: name => attributes.delete(name),
     addEventListener(name, callback) { listeners.set(name, callback); },
     dispatch(name, event = {}) { return listeners.get(name)?.(event); },
+    contains(child) { return child === this || this.children.some(node => node.contains?.(child)); },
     replaceChildren(...children) { this.children = children; },
     append(...children) { this.children.push(...children); },
     appendChild(child) { this.children.push(child); return child; },
@@ -59,6 +60,8 @@ function harness() {
     "exportBasicFields", "exportReviewFields", "exportReviewBackBtn", "downloadResetBtn", "exportStepHeading"];
   const nodes = Object.fromEntries(ids.map(id => [id, node(id)]));
   nodes.downloadModal.hidden = true;
+  nodes.downloadModal.append(nodes.downloadBtn, nodes.exportPreview, nodes.exportBasicFields, nodes.exportReviewFields);
+  const documentEvents = node("document"), windowEvents = node("window");
   let time = 0, timerId = 0;
   const timers = new Map();
   const state = {
@@ -71,9 +74,9 @@ function harness() {
   const ctx = vm.createContext({
     console: { log: noop, warn: noop, error: noop },
     document: {
-      readyState: "loading", body: node("body"), head: node("head"),
+      readyState: "loading", hidden: false, body: node("body"), head: node("head"),
       getElementById: id => nodes[id] ?? null,
-      addEventListener: noop,
+      addEventListener: (...args) => documentEvents.addEventListener(...args),
       querySelector: () => null,
       querySelectorAll: () => [],
       createElement: tag => tag === "canvas" ? canvas("created") : node(),
@@ -82,6 +85,7 @@ function harness() {
     clearTimeout: id => timers.delete(id),
     requestAnimationFrame: fn => fn(),
     cancelAnimationFrame: noop,
+    addEventListener: (...args) => windowEvents.addEventListener(...args),
     exportInProgress: false, floodFrameState: "ready", currentDataMode: "forecast",
     isDownloadModalOpen: () => !nodes.downloadModal.hidden,
     setDownloadModalOpen: open => { nodes.downloadModal.hidden = !open; },
@@ -129,7 +133,9 @@ function harness() {
     }
     time = target; await flush();
   }
-  return { ctx, state, nodes, tick };
+  const dispatch = (name, event = {}) => documentEvents.dispatch(name, { target: nodes.downloadBtn, pointerId: 1, ...event });
+  const dispatchWindow = name => windowEvents.dispatch(name);
+  return { ctx, state, nodes, tick, dispatch, dispatchWindow };
 }
 
 // Current-frame preview follows the downloader's valid-frame guard and retries when ready.
@@ -172,6 +178,101 @@ function harness() {
   assert.equal(state.archives[0].start, state.validation.range.startDate);
   assert.equal(state.prepared[0].item, archivedFrame, "Resolve first frame after archive availability");
   assert.ok(state.events.indexOf("archive") < state.events.indexOf("prepare"));
+}
+
+// A completed preview cannot move a control between pointer-down and its click.
+{
+  const { ctx, nodes, tick, dispatch } = harness();
+  ctx.setDownloadModalOpen(true);
+  dispatch("pointerdown");
+  await tick();
+  assert.equal(nodes.exportPreviewCanvas.children.length, 0, "Hold the completed canvas through a gesture");
+  assert.equal(nodes.exportPreview.dataset.state, "loading", "Keep the caption geometry stable");
+  dispatch("pointerup"); await flush();
+  assert.equal(nodes.exportPreviewCanvas.children.length, 0, "Pointer-up must allow the compatibility click first");
+  dispatch("click"); await flush();
+  assert.equal(nodes.exportPreviewCanvas.children.length, 0, "Publish only after the click's handlers complete");
+  await tick(0);
+  assert.equal(nodes.exportPreviewCanvas.children[0]?.marker, "first");
+  assert.equal(nodes.exportPreview.dataset.state, "ready");
+}
+
+// Multi-pointer gestures and a newly started gesture retain the same barrier.
+{
+  const { ctx, nodes, tick, dispatch } = harness();
+  ctx.setDownloadModalOpen(true);
+  dispatch("pointerdown"); dispatch("pointerdown", { pointerId: 2 });
+  await tick();
+  dispatch("pointerup"); dispatch("click"); await tick(0);
+  assert.equal(nodes.exportPreviewCanvas.children.length, 0, "Another held pointer still owns the gesture");
+  dispatch("pointerup", { pointerId: 2 }); await tick(200);
+  dispatch("pointerdown", { pointerId: 3 }); await tick(600);
+  assert.equal(nodes.exportPreviewCanvas.children.length, 0, "A new gesture cancels the previous no-click deadline");
+  dispatch("pointercancel", { pointerId: 3 }); await flush();
+  assert.equal(nodes.exportPreview.dataset.state, "ready");
+}
+
+// Pointer cancellation, focus loss and a suppressed click cannot strand a capture.
+for (const ending of ["pointercancel", "blur", "no-click"]) {
+  const { ctx, nodes, tick, dispatch, dispatchWindow } = harness();
+  ctx.setDownloadModalOpen(true); dispatch("pointerdown"); await tick();
+  if (ending === "blur") dispatchWindow("blur");
+  else if (ending === "pointercancel") dispatch("pointercancel");
+  else {
+    dispatch("pointerup"); await tick(499);
+    assert.equal(nodes.exportPreviewCanvas.children.length, 0, "Allow a delayed compatibility click before fallback");
+    await tick(1);
+  }
+  await flush();
+  assert.equal(nodes.exportPreview.dataset.state, "ready", `${ending} releases the held publication`);
+}
+
+// Changed settings are serialized behind the held capture; only the newest commits.
+{
+  const { ctx, state, nodes, tick, dispatch } = harness();
+  const stale = canvas("old-setting");
+  state.capture = async () => state.captures.length === 1 ? stale : canvas("new-setting");
+  ctx.setDownloadModalOpen(true); dispatch("pointerdown"); await tick();
+  ctx.updateDownloadSummary(); await tick();
+  assert.equal(state.prepared.length, 1, "Keep the shared stage serialized while publication waits");
+  dispatch("pointerup"); dispatch("click"); await tick(0);
+  assert.equal(stale.width, 1, "Release the stale canvas after its setting changes");
+  assert.equal(stale.height, 1);
+  assert.equal(state.prepared.length, 2);
+  assert.equal(nodes.exportPreviewCanvas.children[0]?.marker, "new-setting");
+}
+
+// Lifecycle invalidation must release held canvases and allow a fresh preview.
+for (const ending of ["close", "hidden", "pagehide"]) {
+  const { ctx, state, nodes, tick, dispatch, dispatchWindow } = harness();
+  const held = canvas("discarded"); state.capture = async () => held;
+  ctx.setDownloadModalOpen(true); dispatch("pointerdown"); await tick();
+  if (ending === "close") ctx.setDownloadModalOpen(false);
+  else if (ending === "hidden") { ctx.document.hidden = true; dispatch("visibilitychange"); }
+  else dispatchWindow("pagehide");
+  await flush();
+  assert.equal(held.width, 1, `${ending} releases a completed waiting capture`);
+  assert.equal(held.height, 1);
+  assert.equal(nodes.exportPreviewCanvas.children.length, 0, `${ending} cannot publish stale work`);
+  state.capture = async () => canvas("fresh");
+  if (ending === "hidden") { ctx.document.hidden = false; dispatch("visibilitychange"); }
+  else ctx.setDownloadModalOpen(true);
+  await tick();
+  assert.equal(nodes.exportPreviewCanvas.children[0]?.marker, "fresh");
+}
+
+// Download invalidation drains a held publication without waiting for its gesture.
+{
+  const { ctx, state, nodes, tick, dispatch } = harness();
+  const held = canvas("not-a-download"); state.capture = async () => held;
+  ctx.setDownloadModalOpen(true); dispatch("pointerdown"); await tick();
+  await ctx.downloadCurrentSelection();
+  assert.equal(state.downloads, 0, "The review gate remains intact during a gesture");
+  await ctx.downloadCurrentSelection();
+  assert.equal(state.downloads, 1, "A real download must not deadlock on the preview gesture waiter");
+  assert.equal(held.width, 1);
+  assert.equal(nodes.exportPreviewCanvas.children.length, 0);
+  assert.equal(nodes.downloadBtn.disabled, false);
 }
 
 // Validation failure cannot initiate a costly archive fetch or leave an old extent displayed.
@@ -366,4 +467,4 @@ for (const outcome of ["timeout", "cancel"]) {
 assert.match(html, /src="assets\/export-preview\.js[^\"]*"/);
 assert.ok(html.indexOf('src="assets/export-preview.js') > html.indexOf('src="assets/export-area.js'),
   "Load the preview after the area selection hooks");
-console.log("PASS export preview: accurate frames, archives, bounded capture, stale rendering, close/reopen, download races, same-extent tile recovery and original export resolution.");
+console.log("PASS export preview: accurate frames, held gestures/clicks, cancellation and lifecycle release, serialized download handoff, stale rendering, close/reopen, tile recovery and original export resolution.");
