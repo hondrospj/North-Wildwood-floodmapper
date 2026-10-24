@@ -13,6 +13,19 @@ const parcel=JSON.parse(fs.readFileSync(new URL('../assets/parcel-history-v2/Nor
 const sizes=[[1512,945],[1321,800],[1200,800],[1200,500],[1121,768],[1024,768],[901,768],[900,768],[861,768],[860,768],[768,1024],[430,932],[390,844],[360,800],[320,568],[1512,600],[1024,561],[1024,560],[932,430],[667,375],[568,320],[1512,945]];
 function check(ok,label,details){checks.push(label);if(!ok)failures.push({label,details});}
 async function settled(page){await page.waitForTimeout(900);}
+async function resizeAndSettle(page,{width,height}){
+  const before=await page.evaluate(()=>({width:innerWidth,height:innerHeight,passes:Number(document.body.dataset.unifiedLayoutPasses)||0}));
+  await page.setViewportSize({width,height});
+  // A fixed delay can inspect the preceding viewport while a busy browser has
+  // not delivered its resize frame. Wait for the real controller's completion
+  // counter at this viewport; geometry correctness is asserted separately.
+  await page.waitForFunction(({width,height,before})=>{
+    const completed=window.responsiveCompletedLayout;
+    return completed?.width===width&&completed.height===height&&completed.passes>0&&
+      (before.width===width&&before.height===height||completed.passes>before.passes);
+  },{width,height,before},{timeout:10000,polling:'raf'});
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+}
 async function activate(page,selector){
   const control=page.locator(selector);
   if(await control.evaluate(el=>!!el.closest('#leftPanel'))&&await page.locator('#mobileControlsToggle').isVisible()){
@@ -26,7 +39,9 @@ async function activate(page,selector){
       if(touchPages.has(page))await tab.tap();else await tab.click();
     }
   }
-  await revealExportControl(page,selector,{touch:touchPages.has(page)});
+  // Review navigation shares the modal's capture/input acknowledgement bound.
+  const actionOptions={timeout:await control.evaluate(el=>!!el.closest('#downloadModal'))?30000:15000};
+  await revealExportControl(page,selector,{touch:touchPages.has(page),timeout:actionOptions.timeout});
   const selection=await control.evaluate(el=>{
     for(const [key,input]of Object.entries({aspect:'downloadAspectSelect',format:'downloadFormatSelect',extent:'downloadExtentSelect',exportInterval:'downloadIntervalSelect'}))if(el.dataset[key])return{value:el.dataset[key],input};
     return null;
@@ -34,7 +49,6 @@ async function activate(page,selector){
   // Export preview image loading has a 20-second deadline; software rendering
   // in CI can hold the input acknowledgement behind that work. Keep this
   // bounded and verify selection below; never repeat a possibly delivered tap.
-  const actionOptions={timeout:await control.evaluate(el=>!!el.closest('#downloadModal'))?30000:15000};
   try{
     if(touchPages.has(page))await control.tap(actionOptions);else await control.click(actionOptions);
     if(selection){
@@ -70,6 +84,9 @@ try {
     await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});
     await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready'),{},{timeout:90000});
     await page.evaluate(()=>{
+      const recordLayout=()=>{window.responsiveCompletedLayout={width:innerWidth,height:innerHeight,passes:Number(document.body.dataset.unifiedLayoutPasses)||0};};
+      new MutationObserver(recordLayout).observe(document.body,{attributes:true,attributeFilter:['data-unified-layout-passes']});
+      recordLayout();
       window.responsiveInputAudit=[];window.responsiveLongTasks=[];
       for(const type of ['pointerdown','pointerup','click'])document.addEventListener(type,event=>{
         if(!event.target.closest('#downloadModal'))return;
@@ -82,7 +99,7 @@ try {
       }).observe({type:'longtask'});
     });
     for(const [width,height] of touch?[[390,844],[320,568],[844,390],[390,400],[390,844]]:sizes){
-      await page.setViewportSize({width,height});await settled(page);
+      await resizeAndSettle(page,{width,height});
       const state=await page.evaluate(()=>{
         const visible=el=>el&&el.getBoundingClientRect().width>0&&getComputedStyle(el).visibility!=='hidden'&&getComputedStyle(el).display!=='none';
         const rect=id=>{const e=document.getElementById(id);if(!visible(e))return null;const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,w:r.width,h:r.height};};
@@ -103,7 +120,7 @@ try {
       console.log(prefix,'checked');
     }
     for(const width of [320,390,768]){
-      await page.setViewportSize({width,height:width===768?1024:844});await settled(page);
+      await resizeAndSettle(page,{width,height:width===768?1024:844});
       await openDrawer(page);await activate(page,'#openDownloadModalBtn');await settled(page);
       await contained(page,'#downloadModal .download-modal-card',`${width} export fits`);
       const overflow=await page.locator('#downloadModal .download-modal-card').evaluate(card=>{const r=card.getBoundingClientRect();return [...card.querySelectorAll('button,input:not([type=hidden]),select')].filter(el=>{if(el.classList.contains('export-native-date-picker'))return false;const b=el.getBoundingClientRect();return b.width>0&&(b.left<r.left-1||b.right>r.right+1)}).map(el=>el.id);});
@@ -138,7 +155,7 @@ try {
     await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();
     await page.waitForFunction(()=>document.body.classList.contains('map-3d-ready'),{},{timeout:90000});
     for(const [width,height] of [[320,568],[390,844],[568,320]]){
-      await page.setViewportSize({width,height});await settled(page);
+      await resizeAndSettle(page,{width,height});
       await page.evaluate(feature=>openParcelFloodPrompt(feature,map.getCenter()),parcel);
       await settled(page);
       await contained(page,'.nw-mobile-popup .maplibregl-popup-content',`${width}x${height} building popup fits`);
