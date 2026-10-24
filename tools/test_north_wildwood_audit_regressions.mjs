@@ -187,7 +187,13 @@ try{
   check(stageKey.bars.every(height=>Math.abs(height-stageKey.barSize)<0.1),'Flood Stages export bars ignore the export sizing: '+JSON.stringify(stageKey));
   const insideKey=box=>box.left>=stageKey.box.left-0.5&&box.right<=stageKey.box.right+0.5&&box.top>=stageKey.box.top-0.5&&box.bottom<=stageKey.box.bottom+0.5;
   check(insideKey(stageKey.scale)&&stageKey.text.every(item=>insideKey(item.box)),'Flood Stages export scale or text is clipped by the key box: '+JSON.stringify(stageKey));
-  check(stageKey.green==='rgb(99, 212, 113)'&&stageKey.gradient===stageKey.expectedGradient,'Flood Stages export lost its uncertainty color or hard stage bands: '+JSON.stringify(stageKey));
+  // WebKit serializes percentage stops through float32. Compare that tiny
+  // rounding difference while requiring exact colors and duplicate hard stops.
+  const gradientStops=gradient=>[...gradient.matchAll(/([\d.]+)%/g)].map(match=>Number(match[1]));
+  const stops=gradientStops(stageKey.gradient),expectedStops=gradientStops(stageKey.expectedGradient);
+  const sameColors=stageKey.gradient.replace(/[\d.]+%/g,'%')===stageKey.expectedGradient.replace(/[\d.]+%/g,'%');
+  const sameStops=stops.length===6&&stops.length===expectedStops.length&&stops.every((stop,index)=>Math.abs(stop-expectedStops[index])<0.00001);
+  check(stageKey.green==='rgb(99, 212, 113)'&&sameColors&&sameStops&&stops[1]===stops[2]&&stops[3]===stops[4],'Flood Stages export lost its uncertainty color or hard stage bands: '+JSON.stringify(stageKey));
   await page.evaluate(()=>setDownloadModalOpen(false));
   await page.evaluate(()=>loadObservedDay('2008-02-12'));
   const dailyOnly=await page.evaluate(()=>{
