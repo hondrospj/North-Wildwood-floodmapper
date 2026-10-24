@@ -1,8 +1,7 @@
 
 @layer floodmapper-unified-polish {
-/* Readiness belongs to the flood/data renderer, not a branded page transition. */
-html body #nwSiteLoader{display:none!important;visibility:hidden!important;pointer-events:none!important;}
-html body:is(.nw-app-loading,.nw-app-ready) :is(#app,#topBanner){
+/* The welcome overlay follows renderer readiness; controls reveal without a second transition. */
+html body.nw-app-ready:not(.nw-app-loading) :is(#app,#topBanner){
  opacity:1!important;pointer-events:auto!important;animation:none!important;filter:none!important;
 }
 }

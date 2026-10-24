@@ -9412,8 +9412,6 @@ html body[data-county-viewport] #timelineDayTabs .timeline-day{flex:1 1 0!import
 html body[data-county-viewport] .leaflet-top.leaflet-left{left:auto!important;right:calc(var(--county-nav-right,300px) + 8px)!important;top:150px!important;}
 }
 
-#nwSiteLoader{display:none!important;visibility:hidden!important;pointer-events:none!important;}
-html body.nw-app-loading #app,html body.nw-app-loading #topBanner{opacity:1!important;pointer-events:auto!important;}
 html body.nw-app-ready #app,html body.nw-app-ready #topBanner{animation:none!important;filter:none!important;}
 html body[data-county-viewport] #leftPanel,html body[data-county-viewport] #rightRail,html body[data-county-viewport] #timelineDock,html body[data-county-viewport] #timelineBubble{transition:none!important;animation:none!important;}
 @media(min-width:901px) and (not (any-pointer:coarse)), (min-width:1367px) {
@@ -9433,9 +9431,8 @@ html body[data-county-viewport].top-tides-modal-open #mapTitleBadge{visibility:h
 }
 
 @layer floodmapper-unified-polish {
-/* Readiness belongs to the flood/data renderer, not a branded page transition. */
-html body #nwSiteLoader{display:none!important;visibility:hidden!important;pointer-events:none!important;}
-html body:is(.nw-app-loading,.nw-app-ready) :is(#app,#topBanner){
+/* The welcome overlay follows renderer readiness; controls reveal without a second transition. */
+html body.nw-app-ready:not(.nw-app-loading) :is(#app,#topBanner){
  opacity:1!important;pointer-events:auto!important;animation:none!important;filter:none!important;
 }
 }

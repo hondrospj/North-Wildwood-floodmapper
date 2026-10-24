@@ -32,6 +32,9 @@ async function checkViewport({width,height,mobile=false}) {
       window.__captureViewPill=()=>{
         const pill=document.querySelector('#nwDefaultNavControl .nw-simple-view');
         if(!pill?.getClientRects().length||getComputedStyle(pill).visibility==='hidden')return null;
+        for(let parent=pill;parent;parent=parent.parentElement)if(Number(getComputedStyle(parent).opacity)===0)return null;
+        const loader=document.getElementById('nwSiteLoader');
+        if(loader&&!loader.hidden){const style=getComputedStyle(loader);if(style.display!=='none'&&style.visibility!=='hidden'&&Number(style.opacity)>0)return null;}
         const style=getComputedStyle(pill);
         color.clearRect(0,0,1,1);color.fillStyle=style.backgroundColor;color.fillRect(0,0,1,1);
         let effectiveOpacity=1;
@@ -66,6 +69,11 @@ async function checkViewport({width,height,mobile=false}) {
     });
     await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
     await page.waitForFunction(()=>!!document.body.dataset.unifiedUiReady&&Number(document.body.dataset.unifiedLayoutPasses)>0);
+    await page.waitForFunction(()=>{
+      const loader=document.getElementById('nwSiteLoader'),style=loader&&getComputedStyle(loader);
+      return (!loader||loader.hidden||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)&&
+        Number(getComputedStyle(document.getElementById('app')).opacity)>0.999;
+    },{},{timeout:90000});
     const pill=page.locator('#nwDefaultNavControl .nw-simple-view');
     await pill.waitFor({state:'visible'});
     await page.mouse.move(0,0);

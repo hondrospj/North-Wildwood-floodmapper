@@ -7,8 +7,10 @@ const source = fs.readFileSync(new URL('../assets/north-wildwood-loading.js', im
 const html = readAppSource(new URL('../index.html', import.meta.url));
 assert.match(html, /<body\b[^>]*\bclass="[^"]*\bnw-app-loading\b/);
 assert.match(html, /id="nwSiteLoader" role="status"/);
-if(html.includes('assets/north-wildwood-loading.js'))assert.match(html, /<script\b(?=[^>]*\bdefer\b)[^>]*\bsrc="assets\/north-wildwood-loading\.js/);
-else assert.match(html, /id="floodmapper-startup-20261002"/,'The current inline readiness controller must remain present');
+assert.match(html, /<script\b(?=[^>]*\bdefer\b)[^>]*\bsrc="assets\/north-wildwood-loading\.js/,
+  'The shipped document must actually connect the original deferred loading-screen controller');
+assert.doesNotMatch(html, /#nwSiteLoader\s*\{[^}]*display\s*:\s*none\s*!important/,
+  'No unconditional important CSS override may disconnect the visible splash');
 
 function fixture({ready = false, reducedMotion = false} = {}) {
   const classes = new Set(['nw-app-loading', ...(ready ? ['nw-app-ready'] : [])]);

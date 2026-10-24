@@ -45,8 +45,15 @@ async function checkStartup(width,height=1000,mobile=false) {
         if (!element?.getClientRects().length) return false;
         for (let node=element;node;node=node.parentElement) {
           const style=getComputedStyle(node);
-          if (style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0) return false;
+          if (style.display==='none'||style.visibility==='hidden') return false;
         }
+        return true;
+      };
+      const painted = element => {
+        if(!visible(element))return false;
+        for(let node=element;node;node=node.parentElement)if(Number(getComputedStyle(node).opacity)===0)return false;
+        const loader=document.getElementById('nwSiteLoader');
+        if(loader&&!loader.hidden){const style=getComputedStyle(loader);if(style.display!=='none'&&style.visibility!=='hidden'&&Number(style.opacity)>0)return false;}
         return true;
       };
       const bounds = element => {
@@ -66,7 +73,7 @@ async function checkStartup(width,height=1000,mobile=false) {
           };
         }
         return {
-          pane:bounds(panel),cards,ready:!!document.body?.dataset.unifiedUiReady,
+          pane:bounds(panel),cards,painted:painted(panel),ready:!!document.body?.dataset.unifiedUiReady,
           paneSizing:{
             maxHeight:getComputedStyle(panel).maxHeight,height:getComputedStyle(panel).height,
             bottom:getComputedStyle(panel).bottom,overflowY:getComputedStyle(panel).overflowY,
@@ -124,6 +131,11 @@ async function checkStartup(width,height=1000,mobile=false) {
     await navigation;
     await page.waitForFunction(() => !!document.body.dataset.unifiedUiReady &&
       Number(document.body.dataset.unifiedLayoutPasses)>0);
+    await page.waitForFunction(() => {
+      const loader=document.getElementById('nwSiteLoader'),style=loader&&getComputedStyle(loader);
+      return (!loader||loader.hidden||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)&&
+        Number(getComputedStyle(document.getElementById('app')).opacity)>0.999;
+    },{},{timeout:90000});
     await twoPaints(page);
     final=await page.evaluate(() => window.__capturePaneStartup());
     audit=await page.evaluate(() => {
@@ -154,6 +166,7 @@ async function checkStartup(width,height=1000,mobile=false) {
       assert.equal(await page.locator('#leftPanel').isVisible(),false);
     } else {
       assert.ok(final);
+      assert.equal(final.painted,true,'Finished desktop controls must actually be revealed after the splash');
       assertNear(final.pane.width,300,`${width}px final pane width`);
       const staticCards=['data','forecast','overlay','datum','opacity','interval'];
       for (const key of staticCards) {
@@ -204,6 +217,14 @@ async function checkStartup(width,height=1000,mobile=false) {
     assert.deepEqual(errors,[],'No uncaught browser errors during startup or drawer interactions');
     console.log(`PASS pane startup ${width}x${height}: ${mobile ? 'closed drawer never flashes; tabs work' : 'first paint and delayed controller share 300px pane, card geometry and labels'} (${audit.frames} frames)`);
   } catch (error) {
+    console.error('Loading state at pane failure:',await page.evaluate(() => {
+      const app=document.getElementById('app'),loader=document.getElementById('nwSiteLoader');
+      const state=node=>node&&{hidden:node.hidden,inert:node.inert,classes:node.className,
+        display:getComputedStyle(node).display,visibility:getComputedStyle(node).visibility,
+        opacity:getComputedStyle(node).opacity,ariaBusy:node.getAttribute('aria-busy')};
+      return {readyState:document.readyState,body:document.body.className,dataset:{...document.body.dataset},
+        app:state(app),loader:state(loader),scripts:[...document.scripts].filter(script=>script.src.includes('loading')).map(script=>script.src)};
+    }).catch(()=>null));
     console.error(JSON.stringify({viewport:{width,height},mobile,initial,final,audit:audit ||
       await page.evaluate(() => window.__paneStartupAudit).catch(()=>null),errors},null,2));
     throw error;

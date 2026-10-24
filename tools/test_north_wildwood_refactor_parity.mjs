@@ -24,6 +24,7 @@ const boundaryStartup = JSON.parse(read("tools/fixtures/north-wildwood-boundary-
 const paneStartup = JSON.parse(read("tools/fixtures/north-wildwood-pane-startup.json"));
 const uiStartup = JSON.parse(read("tools/fixtures/north-wildwood-ui-startup.json"));
 const viewPillSurface = JSON.parse(read("tools/fixtures/north-wildwood-view-pill-surface.json"));
+const loaderRestore = JSON.parse(read("tools/fixtures/north-wildwood-loader-restore.json"));
 const sourcePaths = new Set();
 const outputs = new Map();
 const entriesByToken = new Map();
@@ -117,6 +118,12 @@ const UI_STARTUP_SCRIPTS = [
 const VIEW_PILL_SURFACE_BLOCKS = [
   ["mode-pill-opacity", "288e57666bfc4eab9abdbb350ac5a97ce7ed1b275033718a1dd536a2ffc37c35"],
   ["opaque-selected-hover", "e42edca573f069062babf464909ac2ea8f5b80cfec16eb95d1807fcbd7775424"],
+];
+const LOADER_RESTORE_STYLES = [
+  ["style", "style-072", "tools/app/styles/style-072.css", "fragment",
+    "f2ec901ed64c3cd26224a680b4c403eaad149b9667829c43e691ae1b6eaebad9"],
+  ["style", "style-074", "tools/app/styles/style-074.css", "whole-stylesheet",
+    "06c0a8b90f8e9ce48babdb0b65edc5b6e99bb4545cf59c41bce124f03b46517b"],
 ];
 
 function auditedUiStartupFragments(source, blocks, label) {
@@ -238,6 +245,20 @@ function auditedExportPresentationSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  for (const block of loaderRestore.styles.filter(block => block.kind === kind && block.entryId === entry.id)) {
+    assert.ok(entry.sources.includes(block.source), `${entry.id} loader rules must stay in their declared source`);
+    if (block.mode === "whole-stylesheet") {
+      assert.deepEqual(entry.sources, [block.source], "The dedicated loader lifecycle block must not include another source");
+      assert.equal(read(block.source), block.afterSource, "The loader lifecycle source differs from its exact reviewed block");
+      assert.equal(Buffer.byteLength(source), block.afterBytes, "The loader lifecycle block length changed");
+      assert.equal(sha256(source), block.afterSha256, "The loader lifecycle block changed outside the reviewed restoration");
+      assert.equal(source, block.afterSource, "The generated loader lifecycle block must match its source");
+      source = block.beforeSource;
+    } else {
+      auditedUiStartupFragments(read(block.source), [block], "Loader source");
+      source = auditedUiStartupFragments(source, [block], "Loader stylesheet");
+    }
+  }
   if (kind === "style" && entry.id === "style-079") {
     assert.ok(entry.sources.includes(viewPillSurface.source), "View-pill surface rules must stay in their declared stylesheet");
     auditedUiStartupFragments(read(viewPillSurface.source), viewPillSurface.blocks, "View-pill source");
@@ -338,6 +359,29 @@ assert.equal(viewPillSurface.entryId, "style-079");
 assert.equal(viewPillSurface.source, "tools/app/styles/style-079.css");
 assert.deepEqual(viewPillSurface.blocks.map(block => [block.id, sha256(block.beforeSource)]), VIEW_PILL_SURFACE_BLOCKS,
   "The view-pill surface audit may inverse only its two exact reviewed presentation fragments");
+assert.equal(loaderRestore.schemaVersion, 1);
+assert.equal(loaderRestore.baselineCommit, "cc901738b8b4fa15e027c63577ce0a16445a1764");
+assert.deepEqual(loaderRestore.styles.map(block =>
+  [block.kind, block.entryId, block.source, block.mode, sha256(block.beforeSource)]), LOADER_RESTORE_STYLES,
+  "The loader restoration audit may inverse only its two exact original visibility/lifecycle fragments");
+assert.equal(loaderRestore.controller.source, "assets/north-wildwood-loading.js");
+assert.equal(loaderRestore.controller.sha256, "cc99a91625f8dea0f4d11d136cca2fc5dd1703223f0fe689f046791ee36ea276");
+assert.equal(Buffer.byteLength(read(loaderRestore.controller.source)), loaderRestore.controller.bytes,
+  "The original welcome controller length must stay unchanged");
+assert.equal(sha256(read(loaderRestore.controller.source)), loaderRestore.controller.sha256,
+  "The original welcome controller must stay byte-for-byte unchanged");
+assert.equal(loaderRestore.templateSource, "tools/app/index.template.html");
+assert.equal(sha256(loaderRestore.templateChange.beforeSource), "3f8c28bb4a7c493f945380350d92400ec053893736ec936593f90ce59d2a9e4c",
+  "The welcome controller must remain adjacent to the original loader stylesheet");
+const welcomeTag = loaderRestore.templateChange.scriptTag;
+assert.match(welcomeTag, /^<script\b[^>]*><\/script>$/);
+const welcomeAttributes = attributes(welcomeTag.slice(0, welcomeTag.indexOf(">") + 1));
+assert.equal(welcomeAttributes.size, 2, "The restored controller must retain only its src and defer attributes");
+assert.ok(welcomeAttributes.has("defer"), "The restored welcome controller must not block HTML parsing");
+referencedOutput(welcomeAttributes.get("src"), loaderRestore.controller.source);
+assert.equal(loaderRestore.templateChange.afterSource,
+  loaderRestore.templateChange.beforeSource + welcomeTag + "\n",
+  "The loader tag audit may add only its one deferred controller script");
 // The external controller received separate upstream label improvements after
 // the inline extraction baseline. Preserve those as well as the original DOM.
 assert.equal(previewUi.baselineCommit, "cd993903a689a41ef5439497b49c8350e962b9b7");
@@ -398,7 +442,8 @@ const expectedTokenOrder = baseline.blocks.map(block =>
 const actualTokenOrder = Array.from(template.matchAll(/<!-- nww:(?:style|script):[\w-]+ -->/g), match => match[0]);
 assert.deepEqual(actualTokenOrder, expectedTokenOrder,
   "Extraction slots must retain the original interleaved CSS/script order");
-const originalUiTemplate = auditedUiStartupFragments(template, uiStartup.templateChanges, "Template");
+const originalLoaderTemplate = auditedUiStartupFragments(template, [loaderRestore.templateChange], "Loader template");
+const originalUiTemplate = auditedUiStartupFragments(originalLoaderTemplate, uiStartup.templateChanges, "Template");
 const originalHtml = auditedPaneStartupTemplate(originalUiTemplate).replace(/<!-- nww:(?:style|script):[\w-]+ -->/g, key => {
   const entry = entriesByToken.get(key);
   assert.ok(entry, `Unknown template token ${key}`);
@@ -490,7 +535,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface inverses; original UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore inverses; original UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -501,6 +546,7 @@ if (process.argv.includes("--self-test")) {
       "tools/fixtures/north-wildwood-pane-startup.json",
       "tools/fixtures/north-wildwood-ui-startup.json",
       "tools/fixtures/north-wildwood-view-pill-surface.json",
+      "tools/fixtures/north-wildwood-loader-restore.json", loaderRestore.controller.source,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -601,6 +647,18 @@ if (process.argv.includes("--self-test")) {
         read(viewPillSurface.source).replace("opacity:1 !important", "opacity:.88 !important")],
       ["broadened view-pill surface audit", path.join(scratch, "tools/fixtures/north-wildwood-view-pill-surface.json"),
         JSON.stringify({ ...viewPillSurface, blocks: [...viewPillSurface.blocks, viewPillSurface.blocks[0]] })],
+      ["restored early loader hiding", path.join(scratch, loaderRestore.styles[0].source),
+        read(loaderRestore.styles[0].source).replace("\n", "\n#nwSiteLoader{display:none!important;}\n")],
+      ["revealed controls before loader completion", path.join(scratch, loaderRestore.styles[1].source),
+        read(loaderRestore.styles[1].source).replace("body.nw-app-ready:not(.nw-app-loading)",
+          "body:is(.nw-app-loading,.nw-app-ready)")],
+      ["removed welcome controller", path.join(scratch, loaderRestore.templateSource),
+        template.replace(loaderRestore.templateChange.scriptTag, "")],
+      ["changed welcome controller to asynchronous execution", path.join(scratch, loaderRestore.templateSource),
+        template.replace(loaderRestore.templateChange.scriptTag,
+          loaderRestore.templateChange.scriptTag.replace("<script defer", "<script async"))],
+      ["altered original welcome controller", path.join(scratch, loaderRestore.controller.source),
+        read(loaderRestore.controller.source) + "\n// Unapproved loader behavior\n"],
     ];
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target, "utf8");

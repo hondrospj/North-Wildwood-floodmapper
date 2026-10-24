@@ -42,6 +42,7 @@ jobs:
             index.html
             assets/export-area.js
             assets/export-preview.js
+            assets/north-wildwood-loading.js
             assets/app/
             assets/styles/
             tools/app/
@@ -55,6 +56,7 @@ jobs:
             tools/fixtures/north-wildwood-pane-startup.json
             tools/fixtures/north-wildwood-ui-startup.json
             tools/fixtures/north-wildwood-view-pill-surface.json
+            tools/fixtures/north-wildwood-loader-restore.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs
             tools/test_north_wildwood_export_layout.mjs

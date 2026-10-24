@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "cc901738b8b4fa15e027c63577ce0a16445a1764",
+  "purpose": "Restore the existing ShorelySafe welcome overlay, its original deferred controller, progress/focus handling and renderer-ready handoff at the user's explicit request. Remove only the two early loader/app visibility overrides and update the dedicated later lifecycle block so it reveals controls only after nw-app-loading ends. Keep every stable pane, boundary, typography, view-toggle and scientific change intact. Exact fragment inverses preserve independent original extraction hashes; the controller asset remains byte-for-byte unchanged and its script tag uses its content hash.",
+  "controller": {
+    "source": "assets/north-wildwood-loading.js",
+    "bytes": 3699,
+    "sha256": "cc99a91625f8dea0f4d11d136cca2fc5dd1703223f0fe689f046791ee36ea276"
+  },
+  "styles": [
+    {
+      "kind": "style",
+      "entryId": "style-072",
+      "source": "tools/app/styles/style-072.css",
+      "mode": "fragment",
+      "beforeSource": "\n#nwSiteLoader{display:none!important;visibility:hidden!important;pointer-events:none!important;}\nhtml body.nw-app-loading #app,html body.nw-app-loading #topBanner{opacity:1!important;pointer-events:auto!important;}\nhtml body.nw-app-ready #app,html body.nw-app-ready #topBanner{animation:none!important;filter:none!important;}\nhtml body[data-county-viewport] #leftPanel,html body[data-county-viewport] #rightRail,html body[data-county-viewport] #timelineDock,html body[data-county-viewport] #timelineBubble{transition:none!important;animation:none!important;}\n",
+      "afterSource": "\nhtml body.nw-app-ready #app,html body.nw-app-ready #topBanner{animation:none!important;filter:none!important;}\nhtml body[data-county-viewport] #leftPanel,html body[data-county-viewport] #rightRail,html body[data-county-viewport] #timelineDock,html body[data-county-viewport] #timelineBubble{transition:none!important;animation:none!important;}\n",
+      "afterBytes": 345,
+      "afterSha256": "5c3ff8df1593feb20ba9bb146767821e5336c4a4b9a7cbc4ad8f69aa6dcebd03"
+    },
+    {
+      "kind": "style",
+      "entryId": "style-074",
+      "source": "tools/app/styles/style-074.css",
+      "mode": "whole-stylesheet",
+      "beforeSource": "\n@layer floodmapper-unified-polish {\n/* Readiness belongs to the flood/data renderer, not a branded page transition. */\nhtml body #nwSiteLoader{display:none!important;visibility:hidden!important;pointer-events:none!important;}\nhtml body:is(.nw-app-loading,.nw-app-ready) :is(#app,#topBanner){\n opacity:1!important;pointer-events:auto!important;animation:none!important;filter:none!important;\n}\n}\n",
+      "afterSource": "\n@layer floodmapper-unified-polish {\n/* The welcome overlay follows renderer readiness; controls reveal without a second transition. */\nhtml body.nw-app-ready:not(.nw-app-loading) :is(#app,#topBanner){\n opacity:1!important;pointer-events:auto!important;animation:none!important;filter:none!important;\n}\n}\n",
+      "afterBytes": 305,
+      "afterSha256": "b71e1f79fdf0b8278792b923eadd10f66c9b74a511555a301bda085ce288df46"
+    }
+  ],
+  "templateSource": "tools/app/index.template.html",
+  "templateChange": {
+    "beforeSource": "<link rel=\"stylesheet\" href=\"assets/north-wildwood-loading.css?v=20261009-original-2\">\n",
+    "scriptTag": "<script defer src=\"assets/north-wildwood-loading.js?v=cc99a91625f8dea0\"></script>",
+    "afterSource": "<link rel=\"stylesheet\" href=\"assets/north-wildwood-loading.css?v=20261009-original-2\">\n<script defer src=\"assets/north-wildwood-loading.js?v=cc99a91625f8dea0\"></script>\n",
+    "afterBytes": 169,
+    "afterSha256": "9ac8342177f1f3d46006ada6e9b21316e157a5c19d978c9fb931d47d783acd91"
+  }
+}

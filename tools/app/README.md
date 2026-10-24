@@ -97,3 +97,11 @@ renderer startup. Its selected blue is the opaque composite of the previous
 The existing busy cursor and accessible state remain, while the view button's
 opacity stays at 1. `north-wildwood-view-pill-surface.json` audits only those
 two CSS fragments; geometry and renderer behavior are unchanged.
+
+The original ShorelySafe welcome screen is restored through its unchanged
+deferred controller and existing loading stylesheet. The overlay owns startup
+focus/progress and reveals controls after renderer readiness, with the original
+reduced-motion and stalled-request recovery. Stable pane rules remain intact;
+only the legacy loader-hiding/early-reveal overrides are removed. The separate
+`north-wildwood-loader-restore.json` audit pins those exact lifecycle fragments,
+the added script tag and the controller's unchanged content hash.

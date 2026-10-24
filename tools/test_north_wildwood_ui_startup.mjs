@@ -49,12 +49,15 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
         if (!r.width || !r.height) return false;
         for(let parent=node;parent;parent=parent.parentElement) {
           const style=getComputedStyle(parent);
-          if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)return false;
+          if(style.display==='none'||style.visibility==='hidden')return false;
         }
         return true;
       }
       function painted(node) {
         if(!rendered(node))return false;
+        for(let parent=node;parent;parent=parent.parentElement)if(Number(getComputedStyle(parent).opacity)===0)return false;
+        const loader=document.getElementById('nwSiteLoader');
+        if(loader&&!loader.hidden){const style=getComputedStyle(loader);if(style.display!=='none'&&style.visibility!=='hidden'&&Number(style.opacity)>0)return false;}
         const r=node.getBoundingClientRect();
         let left=Math.max(0,r.left),top=Math.max(0,r.top),right=Math.min(innerWidth,r.right),bottom=Math.min(innerHeight,r.bottom);
         let escapesOverflow=getComputedStyle(node).position==='fixed';
@@ -160,6 +163,11 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
       const stage=bubble?.querySelector('.timeline-bubble-stage')?.textContent.trim();
       return current&&stage&&current!=='--'&&stage!=='--'&&!bubble.querySelector('.timeline-bubble-startup-placeholder');
     });
+    await page.waitForFunction(()=>{
+      const loader=document.getElementById('nwSiteLoader'),style=loader&&getComputedStyle(loader);
+      return (!loader||loader.hidden||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)&&
+        Number(getComputedStyle(document.getElementById('app')).opacity)>0.999;
+    },{},{timeout:90000});
     await twoPaints(page);
     stages.loaded=await page.evaluate(()=>window.__captureUiStartup());
     trace('data released; final paint captured');
@@ -174,8 +182,9 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
     check(audit.samples.some(sample=>!sample.ready),'Probe captured a pre-controller frame');
     check(audit.samples.some(sample=>sample.ready),'Probe captured a post-controller frame');
     if(!mobile) {
-      check(stages.controllerHeld.title?.painted,'Desktop title paints before the controller');
-      check(stages.controllerHeld.rail?.painted,'Desktop right controls paint before the controller');
+      check(!!stages.controllerHeld.title,'Desktop title already has its final geometry beneath the splash');
+      check(!!stages.controllerHeld.rail,'Desktop right controls already have geometry beneath the splash');
+      check(final.title?.painted&&final.rail?.painted,'Finished title and right controls are actually revealed');
       for(const key of ['layers','tides','export','address','tour'])check(!!stages.controllerHeld.cards[key],key+' card already has its reserved startup geometry');
     }
     const expectedRows=['satelliteToggle','roadImpactsToggle','buildingsToggle','parcelsToggle','nsiStructuresToggle','roadsToggle','webcamsToggle'];
