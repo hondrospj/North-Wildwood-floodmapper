@@ -289,7 +289,7 @@
     Object.entries(compactLabels).forEach(([id, text]) => {
       const element = node(id);
       if (!element) return;
-      element.setAttribute("aria-label", element.textContent.trim());
+      element.setAttribute("aria-label", id === "exportExtentTownBtn" ? "Whole town (North Wildwood)" : element.textContent.trim());
       element.textContent = text;
     });
     [[".export-filetype-field", ""], [".export-interval-field", "Interval"],
