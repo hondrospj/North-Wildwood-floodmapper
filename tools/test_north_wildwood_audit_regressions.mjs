@@ -129,6 +129,8 @@ try{
   await page.locator('#exportFormatPngBtn').tap();
   await revealExportControl(page, '#exportExtentCurrentBtn', { touch: true });
   await page.locator('#exportExtentCurrentBtn').tap();
+  check(await page.locator('#downloadAspectSelect').inputValue()==='viewport','Current View test must retain the Map view aspect');
+  const requestedExportBounds=await page.evaluate(()=>getActiveMapBounds().toBBoxString());
   const downloadPromise=page.waitForEvent('download',{timeout:120000});
   await page.locator('#downloadBtn').tap();
   const download=await downloadPromise;
@@ -138,10 +140,17 @@ try{
     return{labels:[...element.children].map(child=>child.textContent),overlap:boxes.some((box,index)=>index>0&&box.left<boxes[index-1].right+1)};
   });
   check(!legend.overlap,'Downloaded depth-key labels overlap: '+JSON.stringify(legend));
-  const framing=await page.evaluate(()=>({visible:getActiveMapBounds().toBBoxString(),exported:exportMap.getBounds().toBBoxString(),zoom:exportMap.getZoom(),frozen:exportViewportBounds?.toBBoxString(),size:exportMap.getSize(),aspect:getExportAspectConfig(),footer:getExportFooterLayout(exportMap.getSize().x,exportMap.getSize().y)}));
+  const framing=await page.evaluate(requested=>{
+    const [west,south,east,north]=requested.split(',').map(Number);
+    const origin=exportMap.getPixelOrigin();
+    return{requested,visible:getActiveMapBounds().toBBoxString(),exported:exportMap.getBounds().toBBoxString(),zoom:exportMap.getZoom(),size:exportMap.getSize(),aspect:getExportAspectConfig(),corners:{northWest:exportMap.project([north,west]).subtract(origin),southEast:exportMap.project([south,east]).subtract(origin)}};
+  },requestedExportBounds);
   console.log('Current View output bounds',JSON.stringify(framing));
-  const v=framing.visible.split(',').map(Number),e=framing.exported.split(',').map(Number);
-  check(e[0]<=v[0]+1e-5&&e[1]<=v[1]+1e-5&&e[2]>=v[2]-1e-5&&e[3]>=v[3]-1e-5,'Export does not contain the visible geographic bounds');
+  // Map view fills the map rectangle. Its integer dimensions and Leaflet's
+  // rounded pixel origin can shift an edge by up to 1.5 output pixels. Check
+  // every edge in output pixels, bounding both cropping AND extra margin.
+  const edges=[framing.corners.northWest.x,framing.corners.northWest.y,framing.corners.southEast.x-framing.size.x,framing.corners.southEast.y-framing.size.y];
+  check(edges.every(value=>Number.isFinite(value)&&Math.abs(value)<=1.5),'Export differs from the requested geographic bounds by more than pixel rounding: '+JSON.stringify(framing));
   check(framing.zoom<19,'Current View export zoomed into a zero-area hidden map: '+JSON.stringify(framing));
   if(process.env.NWW_SCREENSHOT_DIR){fs.mkdirSync(process.env.NWW_SCREENSHOT_DIR,{recursive:true});await download.saveAs(`${process.env.NWW_SCREENSHOT_DIR}/fixed-current-view.png`);await page.screenshot({path:`${process.env.NWW_SCREENSHOT_DIR}/fixed-mobile.png`});}
   await page.evaluate(()=>setDownloadModalOpen(false));
