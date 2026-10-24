@@ -180,18 +180,17 @@
         ? `
           <div class="export-depth-key">
             <div class="export-depth-key-heading">
-              <strong>Flood Depth</strong>
+              <strong>Depth</strong>
             </div>
             <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Uncertainty areas followed by connected modeled flood depth from shallow to deep"}">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
               <div class="export-depth-key-ends" aria-hidden="true">
-                <span>${isPhysicsDailyMaximum ? "Daily Max" : isPhysicsDepth ? "Current Time" : "Uncertainty"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
+                <span>${isPhysicsDailyMaximum ? "Daily max" : isPhysicsDepth ? "Shallow" : "Uncertain"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
               </div>
             </div>
-            <div class="export-depth-key-note">${isPhysicsDailyMaximum ? "<strong>Physics daily max</strong> shows each cell's greatest modeled depth that day." : isPhysicsDepth ? "<strong>Physics frame</strong> shows cells wet by this time." : "<strong>Green</strong> means uncertainty."}</div>
           </div>
         `
-        : `<div class="export-depth-key"><div class="export-depth-key-heading"><strong>Flood Stages</strong></div><div class="stage-legend-scale"><div class="stage-legend-uncertainty"><span>Uncertainty</span><div class="stage-legend-green"></div></div><div class="stage-legend-levels"><div class="stage-legend-labels"><span>Minor</span><span>Moderate</span><span>Major</span></div><div class="stage-legend-gradient"></div></div></div></div>`;
+        : `<div class="export-depth-key"><div class="export-depth-key-heading"><strong>Stages</strong></div><div class="stage-legend-scale"><div class="stage-legend-uncertainty"><span>Uncertain</span><div class="stage-legend-green"></div></div><div class="stage-legend-levels"><div class="stage-legend-labels"><span>Minor</span><span>Moderate</span><span>Major</span></div><div class="stage-legend-gradient"></div></div></div></div>`;
 
       target.querySelectorAll("button, .help-btn, #legendHelpBtn").forEach(el => el.remove());
       target.classList.remove("legend-collapsed", "legend-expanded", "legend-floating-user");
@@ -378,8 +377,8 @@
         const fallback = formatHourEntryTime(entry);
         return fallback && fallback !== "--" ? stripExportTimeZoneLabel(fallback) : "Selected time";
       }
-      const month = MONTH_NAMES[Number(parts.month) - 1] || parts.month;
-      const time = `${parts.hour}:${parts.minute} ${parts.dayPeriod || ""}`
+      const month = (MONTH_NAMES[Number(parts.month) - 1] || parts.month).slice(0, 3);
+      const time = `${parts.hour}${parts.minute === "00" ? "" : `:${parts.minute}`} ${parts.dayPeriod || ""}`
         .replace(/\s+/g, " ")
         .trim();
       return `${month} ${Number(parts.day)}, ${parts.year} · ${time}`;
@@ -393,7 +392,7 @@
       const lines = String(getExportFrameTimestampText(entry) || "").split(/\n+/).filter(Boolean);
       let top = layout.timestamp.y;
       return lines.map((text, index) => {
-        const size = Math.round((index === 0 ? 28 : index === 1 ? 20 : 24) * layout.unit);
+        const size = Math.round((index === 0 ? 40 : index === 1 ? 26 : 34) * layout.unit);
         const height = Math.round(size * 1.15);
         const row = { text, x: layout.timestamp.x, y: top, width: layout.timestamp.width,
           size, height, weight: index === 0 ? 800 : index === 1 ? 550 : 750,

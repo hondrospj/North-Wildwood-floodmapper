@@ -150,22 +150,23 @@
       const h = Math.max(2, Math.round(height));
       const unit = Math.max(0.125, Math.min(w / 1200, h / 900));
       const stacked = w < h * 1.1;
-      const footerHeight = Math.max(1, Math.round(Math.min(h * 0.4, (stacked ? 224 : 160) * unit)));
+      const footerHeight = Math.max(1, Math.round(Math.min(h * 0.4, (stacked ? 270 : 178) * unit)));
       const mapHeight = h - footerHeight;
       const pad = Math.round(24 * unit);
       const gap = Math.round(16 * unit);
-      const timestampWidth = stacked ? w - pad * 2 : Math.round(w * 0.51) - pad - gap;
-      const rightX = Math.round(w * 0.51);
+      const brandWidth = Math.round(240 * unit);
+      const timestampWidth = stacked ? w - pad * 2 - brandWidth - gap : Math.round(w * 0.48) - pad - gap;
+      const rightX = Math.round(w * 0.48);
       return {
         width: w, height: h, unit, stacked, footerHeight,
         map: { x: 0, y: 0, width: w, height: mapHeight },
-        timestamp: { x: pad, y: mapHeight + Math.round(17 * unit), width: timestampWidth, height: Math.round(94 * unit) },
+        timestamp: { x: pad, y: mapHeight + Math.round(16 * unit), width: timestampWidth, height: Math.round(128 * unit) },
         legend: stacked
-          ? { x: pad, y: mapHeight + Math.round(119 * unit), width: Math.round(w * 0.65) - pad - gap, height: Math.round(76 * unit) }
-          : { x: rightX, y: mapHeight + Math.round(17 * unit), width: w - rightX - pad, height: Math.round(76 * unit) },
+          ? { x: pad, y: mapHeight + Math.round(156 * unit), width: w - pad * 2, height: Math.round(90 * unit) }
+          : { x: rightX, y: mapHeight + Math.round(16 * unit), width: w - rightX - pad, height: Math.round(90 * unit) },
         branding: stacked
-          ? { x: Math.round(w * 0.65), y: mapHeight + Math.round(123 * unit), width: Math.round(w * 0.35) - pad, height: Math.round(47 * unit) }
-          : { x: rightX, y: mapHeight + Math.round(99 * unit), width: w - rightX - pad, height: Math.round(36 * unit) },
+          ? { x: w - pad - brandWidth, y: mapHeight + Math.round(22 * unit), width: brandWidth, height: Math.round(55 * unit) }
+          : { x: rightX, y: mapHeight + Math.round(117 * unit), width: w - rightX - pad, height: Math.round(34 * unit) },
         attribution: { x: pad, y: h - Math.round(18 * unit), size: Math.max(2, Math.round(9 * unit)) }
       };
     }
@@ -268,10 +269,10 @@
         stageFrame.dataset.exportAspect = config.value;
         stageFrame.dataset.exportCompact = String(config.width < 1000);
         stageFrame.style.setProperty("--export-footer-gap", `${Math.round(12 * layout.unit)}px`);
-        stageFrame.style.setProperty("--export-key-gap", `${Math.max(1, Math.round(5 * layout.unit))}px`);
-        stageFrame.style.setProperty("--export-key-title", `${Math.round(20 * layout.unit)}px`);
-        stageFrame.style.setProperty("--export-key-label", `${Math.round(13 * layout.unit)}px`);
-        stageFrame.style.setProperty("--export-key-bar", `${Math.round(14 * layout.unit)}px`);
+        stageFrame.style.setProperty("--export-key-gap", `${Math.max(1, Math.round(6 * layout.unit))}px`);
+        stageFrame.style.setProperty("--export-key-title", `${Math.round(26 * layout.unit)}px`);
+        stageFrame.style.setProperty("--export-key-label", `${Math.round(22 * layout.unit)}px`);
+        stageFrame.style.setProperty("--export-key-bar", `${Math.round(20 * layout.unit)}px`);
       }
       const mapElement = document.getElementById("exportMap");
       if (mapElement) mapElement.style.setProperty("height", `${layout.map.height}px`, "important");

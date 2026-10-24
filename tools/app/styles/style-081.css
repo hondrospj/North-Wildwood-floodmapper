@@ -12,6 +12,9 @@
   #exportStageFrame #exportFooter .export-depth-key-scale {display:grid;gap:var(--export-key-gap) !important;}
   #exportStageFrame #exportFooter .export-depth-key-gradient {height:var(--export-key-bar) !important;border-width:1px !important;}
   #exportStageFrame #exportFooter .export-depth-key-ends {font-size:var(--export-key-label) !important;line-height:1.2 !important;letter-spacing:0 !important;text-transform:none !important;}
+  #exportStageFrame #exportFooter .export-depth-key-ends {position:relative;}
+  #exportStageFrame #exportFooter .export-depth-key-ends span {white-space:nowrap;}
+  #exportStageFrame #exportFooter .export-depth-key-ends span:nth-child(2):not(:last-child) {position:absolute;left:calc(18% + 8px);}
   #exportStageFrame #exportFooter .export-depth-key-note {display:none !important;}
   html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock .stage-legend-scale {font-size:var(--export-key-label) !important;line-height:1.2 !important;gap:var(--export-footer-gap) !important;}
   html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock :is(.stage-legend-green,.stage-legend-gradient) {height:var(--export-key-bar) !important;margin-top:var(--export-key-gap) !important;border-width:1px !important;}
