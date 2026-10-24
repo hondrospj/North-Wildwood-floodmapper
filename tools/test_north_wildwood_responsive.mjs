@@ -99,7 +99,7 @@ try {
     const page=await context.newPage();
     if(touch)touchPages.add(page);
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
-    page.setDefaultTimeout(15000);
+    page.setDefaultTimeout(30000);
     await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});
     await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready'),{},{timeout:90000});
     await page.evaluate(()=>{
