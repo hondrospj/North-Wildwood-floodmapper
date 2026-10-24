@@ -357,27 +357,29 @@
       return L.latLngBounds(points);
     }
 
-    function getBoundaryDrivenOverlayBounds() {
-
-
-      try {
-        if (cityBoundaryOutline && typeof cityBoundaryOutline.getBounds === "function") {
-          const boundaryBounds = cityBoundaryOutline.getBounds();
-          if (boundaryBounds && boundaryBounds.isValid && boundaryBounds.isValid()) {
-            return boundaryBounds;
+    function getBoundaryDrivenOverlayBounds(preferMunicipalBoundary = true) {
+      // Keep the startup camera independent of whether geometry was bundled
+      // or fetched later. Other callers still use the authoritative extent.
+      if (preferMunicipalBoundary) {
+        try {
+          if (cityBoundaryOutline && typeof cityBoundaryOutline.getBounds === "function") {
+            const boundaryBounds = cityBoundaryOutline.getBounds();
+            if (boundaryBounds && boundaryBounds.isValid && boundaryBounds.isValid()) {
+              return boundaryBounds;
+            }
           }
+        } catch (err) {
+          console.warn("Could not read drawn municipal boundary bounds; falling back to boundary ring.", err);
         }
-      } catch (err) {
-        console.warn("Could not read drawn municipal boundary bounds; falling back to boundary ring.", err);
-      }
 
-      const ringBounds = latLngBoundsFromRing(getPrimaryMunicipalBoundaryRing());
-      if (ringBounds && ringBounds.isValid && ringBounds.isValid()) {
-        return ringBounds;
-      }
+        const ringBounds = latLngBoundsFromRing(getPrimaryMunicipalBoundaryRing());
+        if (ringBounds && ringBounds.isValid && ringBounds.isValid()) {
+          return ringBounds;
+        }
 
-      if (FALLBACK_LATLNG_BOUNDS && FALLBACK_LATLNG_BOUNDS.isValid && FALLBACK_LATLNG_BOUNDS.isValid()) {
-        return FALLBACK_LATLNG_BOUNDS;
+        if (FALLBACK_LATLNG_BOUNDS && FALLBACK_LATLNG_BOUNDS.isValid && FALLBACK_LATLNG_BOUNDS.isValid()) {
+          return FALLBACK_LATLNG_BOUNDS;
+        }
       }
 
       const center = TOWN_CONFIG?.map?.center || {};

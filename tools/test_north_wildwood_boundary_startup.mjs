@@ -40,6 +40,13 @@ function harness() {
     const layer = {
       kind, geometry, options,
       addTo(map) { map.addLayer(this); return this; },
+      getBounds() {
+        assert.equal(kind, 'geoJSON', 'Read municipal outline bounds from the actual GeoJSON layer');
+        const coordinates = geometry.geometry.type === 'Polygon'
+          ? geometry.geometry.coordinates.flat()
+          : geometry.geometry.coordinates.flat(2);
+        return context.L.latLngBounds(coordinates.map(([lng,lat]) => [lat,lng]));
+      },
     };
     drawn.push(layer);
     return layer;
@@ -61,8 +68,15 @@ function harness() {
       polygon: (geometry, options) => makeLayer('polygon', geometry, options),
       geoJSON: (geometry, options) => makeLayer('geoJSON', geometry, options),
       latLng: (lat, lng) => ({ lat, lng }),
-      latLngBounds(points) {
-        return { points, isValid() { return points.length >= 3; } };
+      latLngBounds(first, second) {
+        const points = (second ? [first,second] : first).map(point =>
+          Array.isArray(point) ? {lat:point[0],lng:point[1]} : point);
+        return {
+          points,
+          isValid() { return points.length >= 2 && points.every(point => Number.isFinite(point.lat) && Number.isFinite(point.lng)); },
+          getSouthWest() { return {lat:Math.min(...points.map(point => point.lat)),lng:Math.min(...points.map(point => point.lng))}; },
+          getNorthEast() { return {lat:Math.max(...points.map(point => point.lat)),lng:Math.max(...points.map(point => point.lng))}; },
+        };
       },
     },
     municipalBoundaryFeature: null,
@@ -137,6 +151,43 @@ function harness() {
   assert.deepEqual(plain(h.context.FALLBACK_TOWN_MASK_RING), []);
   assert.equal(h.context.FALLBACK_LATLNG_BOUNDS, null);
 }
+
+// Bundling the boundary must not change the established initial camera extent.
+// Geometry/export callers still obtain the real outline or fallback ring bounds.
+{
+  const h = harness();
+  const extent = bounds => plain([bounds.getSouthWest(),bounds.getNorthEast()]);
+  h.context.TOWN_CONFIG = configContext.TOWN_CONFIG;
+  vm.runInContext(extractFunction('getBoundaryDrivenOverlayBounds'), h.context);
+  const originalExtent = extent(h.context.getBoundaryDrivenOverlayBounds());
+  const {lat,lon} = configContext.TOWN_CONFIG.map.center;
+  assert.deepEqual(originalExtent, [
+    {lat:lat - 0.03,lng:lon - 0.04},
+    {lat:lat + 0.03,lng:lon + 0.04},
+  ], 'Unseeded startup preserves the existing configured center extent');
+
+  h.context.seedMunicipalBoundary(officialBoundary);
+  const ringExtent = extent(h.context.getBoundaryDrivenOverlayBounds());
+  assert.notDeepEqual(ringExtent, originalExtent, 'The authoritative municipal bounds differ from the camera framing');
+  assert.deepEqual(ringExtent, extent(h.context.latLngBoundsFromRing(h.context.municipalBoundaryRings[0])),
+    'Default geometry callers still prefer the authoritative ring before the outline is drawn');
+
+  h.context.updateMunicipalBoundaryLayer();
+  assert.equal(h.context.cityBoundaryOutline.kind, 'geoJSON');
+  assert.deepEqual(extent(h.context.getBoundaryDrivenOverlayBounds()), ringExtent,
+    'Default geometry callers retain the real outline extent after Leaflet draws it');
+  assert.deepEqual(extent(h.context.getBoundaryDrivenOverlayBounds(false)), originalExtent,
+    'The startup camera opt-out must preserve the pre-seed configured framing');
+
+  h.context.cityBoundaryOutline = null;
+  h.context.municipalBoundaryRings = [];
+  h.context.FALLBACK_TOWN_MASK_RING = [];
+  assert.deepEqual(extent(h.context.getBoundaryDrivenOverlayBounds()), ringExtent,
+    'Default geometry callers still use valid fallback boundary bounds');
+  assert.deepEqual(extent(h.context.getBoundaryDrivenOverlayBounds(false)), originalExtent);
+}
+assert.match(extractFunction('ensureMap'), /map\.fitBounds\(getBoundaryDrivenOverlayBounds\(false\),/,
+  'Initial camera framing must explicitly ignore readiness of municipal geometry');
 
 // No valid polygon means no invented box outline and no world-only gray mask.
 for (const invalid of [null, {}, { type: 'Point', coordinates: [-74.8, 39] }, {
@@ -229,4 +280,4 @@ assert.ok(main.indexOf('loadMunicipalBoundary()') > main.indexOf('ensureMap()') 
 assert.doesNotMatch(main, /requestIdleCallback\([^)]*warmBoundary|setTimeout\(warmBoundary/,
   'The municipal boundary must not be postponed until an idle callback');
 
-console.log('Passed exact synchronous municipal boundary, stable first draw, absent/invalid geometry, retry/recovery, deduplicated loads, and startup ordering');
+console.log('Passed exact synchronous municipal boundary, stable first draw and camera framing, absent/invalid geometry, retry/recovery, deduplicated loads, and startup ordering');

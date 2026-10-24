@@ -64,11 +64,13 @@ const EXPORT_PRESENTATION_BLOCKS = [
 // original extraction parity; every other runtime byte remains pinned.
 const BOUNDARY_STARTUP_BLOCKS = [
   ["script", "script-004", "tools/app/runtime/00-configuration.js", "applyTownConfig", null],
+  ["script", "script-004", "tools/app/runtime/06-inundation-catalog.js", "getBoundaryDrivenOverlayBounds", null],
   ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "seedMunicipalBoundary", null],
   ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "makeBoundaryVector", null],
   ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "updateBoundaryMaskLayer", null],
   ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "updateMunicipalBoundaryLayer", null],
   ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "loadMunicipalBoundary", null],
+  ["script", "script-004", "tools/app/runtime/10-map-geometry-and-layers.js", "ensureMap", null],
   ["script", "script-004", "tools/app/runtime/28-tutorial-and-events.js", "main", null],
   ["script", "script-007", "tools/app/town-config.js", null, "TOWN_CONFIG.boundary.startupFeature"],
 ];
@@ -414,6 +416,9 @@ if (process.argv.includes("--self-test")) {
           boundaryStartup.blocks.find(block => block.assignment), "startupFeature"), "")],
       ["altered authoritative boundary file", path.join(scratch, boundaryStartup.featureSource),
         read(boundaryStartup.featureSource) + "\n"],
+      ["changed preserved startup camera", path.join(scratch, "tools/app/runtime/10-map-geometry-and-layers.js"),
+        read("tools/app/runtime/10-map-geometry-and-layers.js").replace("map.fitBounds(getBoundaryDrivenOverlayBounds(false)",
+          "map.fitBounds(getBoundaryDrivenOverlayBounds(true)")],
       ["broadened boundary audit declaration list", path.join(scratch, "tools/fixtures/north-wildwood-boundary-startup.json"),
         JSON.stringify({ ...boundaryStartup, blocks: [...boundaryStartup.blocks, boundaryStartup.blocks[0]] })],
     ];

@@ -751,7 +751,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       updateRoadLayerAppearance();
       updateColorBasemapClip();
 
-      map.fitBounds(getBoundaryDrivenOverlayBounds(), { padding: [20, 20] });
+      map.fitBounds(getBoundaryDrivenOverlayBounds(false), { padding: [20, 20] });
       requestAnimationFrame(() => {
         map.invalidateSize();
         updateColorBasemapClip();

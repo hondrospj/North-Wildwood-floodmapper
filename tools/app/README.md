@@ -54,11 +54,13 @@ handoff so waiting previews cannot deadlock the exporter.
 
 The municipal boundary is seeded synchronously from the exact committed
 `Boundaries/North Wildwood.geojson` before map construction. Startup reuses that
-geometry without a second network request or late outline replacement. If no
+geometry without a second network request or late outline replacement. The
+initial camera retains its configured extent independently of boundary loading,
+including on narrow screens. If no
 valid polygon is available, the map shows neither a fabricated rectangular town
 outline nor a world-only gray mask, and its boundary request can be retried.
 `test_north_wildwood_boundary_startup.mjs` exercises those startup and recovery
-cases. The separately pinned boundary-startup audit reverses only the six named
+cases. The separately pinned boundary-startup audit reverses only the eight named
 functions, new seed helper and exact geometry assignment for original source
 parity; the original refactor fixture, UI, CSS and scientific behavior remain
 unchanged.
