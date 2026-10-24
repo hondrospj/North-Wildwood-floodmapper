@@ -25,7 +25,7 @@ function assertIssuedDatum(hour,offset){
   assert.ok(Math.abs(hour.navd88StageFt-(hour.rawPetssValue+offset))<=.005001,'Datum conversion changed');
 }
 // At a half-cent boundary, two valid rounded datums can differ by 0.01 ft
-// after conversion. A genuine extra 0.01-ft shift must still be rejected.
+// after conversion. Values outside the rounding interval must still be rejected.
 assertIssuedDatum({rawPetssValue:.675,mllwStageFt:.68,navd88StageFt:-2.08},-2.75);
 assert.throws(()=>assertIssuedDatum({rawPetssValue:.675,mllwStageFt:.68,navd88StageFt:-2.06},-2.75),/Datum conversion changed/);
 for(const hour of select(forecast,'mean')) {

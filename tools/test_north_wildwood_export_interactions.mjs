@@ -49,13 +49,15 @@ try{
   // A locator gesture verifies visibility and hit-testing before dispatch. Raw
   // page.mouse coordinates do not perform those checks in mobile emulation.
   await control.click({delay:400});
-  await page.waitForFunction(()=>window.previewGestureDuring,{},{timeout:3000});
+  // Software compositing can postpone rAF polling even after the sample was
+  // recorded. Timer polling observes it without weakening the held-state check.
+  await page.waitForFunction(()=>window.previewGestureDuring,{},{timeout:30000,polling:50});
   const {before,during,events}=await page.evaluate(()=>({before:window.previewGestureBefore,during:window.previewGestureDuring,events:window.previewGestureEvents}));
   console.log('Preview gesture geometry',JSON.stringify({before,during,events}));
   assert.equal(before.hit,'exportFormatPngBtn');
   assert.equal(during.pressed,true,'The real capture must complete during the held gesture');
   assert.ok(Math.abs(before.x-during.x)<1&&Math.abs(before.y-during.y)<1,'Preview completion moved the format control during a held gesture');
-  await page.waitForFunction(()=>document.getElementById('downloadFormatSelect').value==='png',{},{timeout:3000});
+  await page.waitForFunction(()=>document.getElementById('downloadFormatSelect').value==='png',{},{timeout:30000,polling:50});
   assert.equal(await control.getAttribute('aria-pressed'),'true');
   await page.waitForFunction(()=>document.getElementById('exportPreview').dataset.state==='ready',{},{timeout:90000});
   assert.deepEqual(errors,[]);

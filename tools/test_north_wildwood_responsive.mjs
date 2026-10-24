@@ -38,7 +38,7 @@ async function activate(page,selector){
   try{
     if(touchPages.has(page))await control.tap(actionOptions);else await control.click(actionOptions);
     if(selection){
-      await page.waitForFunction(({input,value})=>document.getElementById(input)?.value===value,selection,{timeout:3000});
+      await page.waitForFunction(({input,value})=>document.getElementById(input)?.value===value,selection,{timeout:30000,polling:50});
       check(await control.getAttribute('aria-pressed')==='true',`${selector} selected setting is applied`,selection);
     }
   }
