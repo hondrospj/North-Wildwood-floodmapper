@@ -120,6 +120,10 @@ try {
   await page.locator('#downloadEndTimeSelect').selectOption('23:00');
   assert.equal(await selectedInstant(), '2026-01-01T04:00:00.000Z');
   await page.locator('#downloadBtn').click(); // Per-session settings review.
+  // This case isolates cancellable archive preparation. Pending-preview
+  // cancellation has its own regression; finish its real rendering first.
+  await page.waitForFunction(() => document.getElementById('exportPreview')?.dataset.state === 'ready',
+    {}, { timeout: 90000 });
   await page.evaluate(() => {
     const original = ensureObservedArchiveRange;
     let held = false;

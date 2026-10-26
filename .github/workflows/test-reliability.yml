@@ -137,6 +137,11 @@ jobs:
             if curl --fail --silent http://127.0.0.1:8765/index.html >/dev/null; then break; fi
             sleep 1
           done
+          # Exercise full Chromium's current headless implementation, matching
+          # installed browsers and the Windows regression job.
+          if [ "$NWW_BROWSER" = "chromium" ]; then
+            export CHROME_PATH="$(node --input-type=module -e 'import { chromium } from "playwright"; process.stdout.write(chromium.executablePath());')"
+          fi
           node tools/test_north_wildwood_20261026_browser.mjs
           node tools/test_modal_focus_transitions.mjs
           node tools/test_north_wildwood_holistic_ui.mjs
