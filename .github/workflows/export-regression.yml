@@ -42,6 +42,7 @@ jobs:
             index.html
             assets/export-area.js
             assets/export-preview.js
+            assets/north-wildwood-font.css
             assets/north-wildwood-loading.js
             assets/app/
             assets/styles/
