@@ -1,0 +1,47 @@
+name: Isolated holistic Windows browser audit
+on:
+  push:
+    branches: [codex/holistic-device-audit-20261026]
+    paths: [.github/workflows/holistic-device-audit.yml, tools/holistic-device-audit.mjs]
+permissions:
+  contents: read
+jobs:
+  windows-browser:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, edge, firefox]
+    env:
+      AUDIT_BROWSER: ${{ matrix.browser }}
+      AUDIT_OUTPUT: audit-results/${{ matrix.browser }}
+      NWW_TEST_URL: http://127.0.0.1:8771/index.html
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser runtime
+        shell: pwsh
+        run: |
+          npm install --no-save --ignore-scripts playwright
+          if ('${{ matrix.browser }}' -eq 'edge') { npx playwright install msedge }
+          else { npx playwright install ${{ matrix.browser }} }
+      - name: Start read-only application preview
+        shell: pwsh
+        run: |
+          Start-Process python -ArgumentList '-m','http.server','8771','--bind','127.0.0.1' -RedirectStandardOutput preview-output.log -RedirectStandardError preview-error.log
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            try { Invoke-WebRequest http://127.0.0.1:8771/index.html -UseBasicParsing | Out-Null; break } catch { Start-Sleep -Seconds 1 }
+          }
+      - name: Exercise desktop and phone-size profiles
+        run: node tools/holistic-device-audit.mjs
+      - name: Save audit evidence, including failing scenarios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: holistic-windows-${{ matrix.browser }}
+          path: |
+            audit-results/
+            preview-*.log
