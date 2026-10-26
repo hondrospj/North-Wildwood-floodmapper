@@ -43,6 +43,9 @@ jobs:
           node-version: '22'
       - name: Install scientific test dependencies
         run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
           sudo apt-get update
           sudo apt-get install -y gdal-bin libgdal-dev python3-gdal python3-numpy python3-scipy python3-pil python3-rasterio clang
       - name: Browser logic and committed asset contracts
@@ -113,6 +116,9 @@ jobs:
           node-version: '22'
       - name: Install browser runtime
         run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
           npm install --no-save playwright
           npx playwright install --with-deps ${{ matrix.browser }}
       - name: Real application, responsive and rapid-interaction regressions
