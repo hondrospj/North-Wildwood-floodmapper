@@ -66,6 +66,7 @@ for (const profile of profiles) {
     await page.screenshot({ path: path.join(output, `${profile.id}-startup.png`) });
     return state;
   });
+  if (!result.cases.at(-1).passed) { result.observations.push({ profile: profile.id, skipped: 'Startup unavailable; downstream scenarios excluded.' }); await context.close(); continue; }
   await record('physical-date-key-and-spring-validation', async () => {
     await activate('#openDownloadModalBtn');
     const input = page.locator('#downloadStartDateText');
