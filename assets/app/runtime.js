@@ -32,6 +32,7 @@
       geotiff: "https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"
     };
     const optionalScriptPromises = new Map();
+    const OPTIONAL_SCRIPT_TIMEOUT_MS = 12000;
 
     function loadOptionalScript(key, isReady) {
       if (isReady()) return Promise.resolve();
@@ -39,17 +40,26 @@
       const url = OPTIONAL_SCRIPT_URLS[key];
       const promise = new Promise((resolve, reject) => {
         const script = document.createElement("script");
+        let settled = false;
+        const finish = error => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(deadline);
+          script.onload = script.onerror = null;
+          if (error) {
+            script.remove();
+            reject(error);
+          } else resolve();
+        };
+        const deadline = window.setTimeout(() => finish(new Error(`${key} took too long to load. Please try again.`)), OPTIONAL_SCRIPT_TIMEOUT_MS);
         script.src = url;
         script.async = true;
         script.dataset.optionalLibrary = key;
-        script.onload = () => isReady()
-          ? resolve()
-          : reject(new Error(`${key} loaded without exposing its browser API.`));
-        script.onerror = () => reject(new Error(`${key} could not be loaded.`));
+        script.onload = () => finish(isReady() ? null : new Error(`${key} loaded without exposing its browser API.`));
+        script.onerror = () => finish(new Error(`${key} could not be loaded.`));
         document.head.appendChild(script);
       }).catch(error => {
-        optionalScriptPromises.delete(key);
-        document.querySelector(`script[data-optional-library="${key}"]`)?.remove();
+        if (optionalScriptPromises.get(key) === promise) optionalScriptPromises.delete(key);
         throw error;
       });
       optionalScriptPromises.set(key, promise);
@@ -1261,30 +1271,33 @@ function cloneStyleObject(value) {
       }
     }
 
+    function buildReturnIntervalDailyMaximumSeries(entries) {
+      const source = Array.isArray(entries) ? entries : [];
+      const halfWindow = Number(returnIntervalData?.windowHours || 84) / 2;
+      const bestByStormDay = new Map();
+      source.forEach(entry => {
+        const offset = Number(entry?.offsetHours);
+        const stage = getStageValue(entry);
+        if (!Number.isFinite(offset) || !Number.isFinite(stage)) return;
+        const dayIndex = Math.max(0, Math.floor((offset + halfWindow) / 24));
+        const existing = bestByStormDay.get(dayIndex);
+        if (!existing || stage > getStageValue(existing)) bestByStormDay.set(dayIndex, entry);
+      });
+      return Array.from(bestByStormDay.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([dayIndex, entry]) => ({
+          ...entry,
+          syntheticStormDay: dayIndex + 1,
+          observationInterval: "daily",
+          timelineIntervalMinutes: 1440,
+          isDailyMaximum: true,
+          dailyMaximumKind: "return-interval"
+        }));
+    }
+
     function buildReturnIntervalDisplaySeries(entries = currentRawSeriesHours) {
       const source = annotateHydraulicSeries(Array.isArray(entries) ? entries : []);
-      if (getTimelineIntervalMinutes() === 1440) {
-        const halfWindow = Number(returnIntervalData?.windowHours || 84) / 2;
-        const bestByStormDay = new Map();
-        source.forEach(entry => {
-          const offset = Number(entry?.offsetHours);
-          const stage = getStageValue(entry);
-          if (!Number.isFinite(offset) || !Number.isFinite(stage)) return;
-          const dayIndex = Math.max(0, Math.floor((offset + halfWindow) / 24));
-          const existing = bestByStormDay.get(dayIndex);
-          if (!existing || stage > getStageValue(existing)) bestByStormDay.set(dayIndex, entry);
-        });
-        return Array.from(bestByStormDay.entries())
-          .sort((a, b) => a[0] - b[0])
-          .map(([dayIndex, entry]) => ({
-            ...entry,
-            syntheticStormDay: dayIndex + 1,
-            observationInterval: "daily",
-            timelineIntervalMinutes: 1440,
-            isDailyMaximum: true,
-            dailyMaximumKind: "return-interval"
-          }));
-      }
+      if (getTimelineIntervalMinutes() === 1440) return buildReturnIntervalDailyMaximumSeries(source);
       if (getTimelineIntervalMinutes() === 15) {
         return source.map(entry => ({
           ...entry,
@@ -2106,20 +2119,33 @@ function parseStoredLocalNyToDate(timeEST) {
       clearExportAvailabilityCache();
     }
 
-    function preloadObservedArchiveIndexText() {
+    function preloadObservedArchiveIndexText(timeoutMs = 15000) {
       if (observedArchiveIndexTextPromise) return observedArchiveIndexTextPromise;
-      const request = fetch(OBSERVED_ARCHIVE_INDEX_URL, {
+      const controller = new AbortController();
+      let timer;
+      const deadline = new Promise((_, reject) => {
+        timer = window.setTimeout(() => {
+          controller.abort();
+          reject(new Error("The observed archive index timed out."));
+        }, timeoutMs);
+      });
+      // Race the entire response body, not only the headers. A pending index
+      // must yield to the compact fallback even if transport abort is delayed.
+      const download = fetch(OBSERVED_ARCHIVE_INDEX_URL, {
         cache: "default",
-        headers: { "Accept": "application/geo+json, application/json" }
+        headers: { "Accept": "application/geo+json, application/json" },
+        signal: controller.signal
       })
         .then(response => {
           if (!response.ok) throw new Error(`HTTP ${response.status} for ${OBSERVED_ARCHIVE_INDEX_URL}`);
           return response.text();
-        })
+        });
+      const request = Promise.race([download, deadline])
         .catch(error => {
           if (observedArchiveIndexTextPromise === request) observedArchiveIndexTextPromise = null;
           throw error;
-        });
+        })
+        .finally(() => window.clearTimeout(timer));
       observedArchiveIndexTextPromise = request;
       return request;
     }
@@ -2552,14 +2578,17 @@ function setDatumHelpOpen(isOpen) {
       showInfoModal(currentOverlayMode === "dynamic" ? "stageLegend" : "depthLegend");
     }
 
+    let downloadModalGeneration = 0;
     function setDownloadModalOpen(isOpen) {
       const modal = document.getElementById("downloadModal");
       const btn = document.getElementById("openDownloadModalBtn");
       if (!modal || !btn) return;
+      const generation = ++downloadModalGeneration;
 
       modal.hidden = !isOpen;
       modal.classList.toggle("open", isOpen);
       btn.setAttribute("aria-expanded", String(isOpen));
+      document.dispatchEvent(new Event("nww:modalchange"));
 
       if (isOpen) {
         updateDownloadModeCopy();
@@ -2567,7 +2596,16 @@ function setDatumHelpOpen(isOpen) {
         applyExportStageAspect(getDownloadAspectValue());
         syncDownloadRangeInputs(true);
         updateDownloadSummary();
-        requestAnimationFrame(() => {
+        ensureExportArchiveAvailability().then(() => {
+          if (generation !== downloadModalGeneration || modal.hidden) return;
+          // Availability may finish while a user is halfway through a date.
+          // Update only picker bounds, leaving their visible edit untouched.
+          syncDownloadArchivePickerBounds();
+          renderExportTimePicker(true);
+        }).catch(error => console.warn("Export history availability could not load.", error));
+        // Focus while opening. A deferred callback can run after the user has
+        // already entered a date and move their focus/caret to another control.
+        {
           const modalCard = modal.querySelector(".download-modal-card");
           if (modalCard) modalCard.scrollTop = 0;
           const compactTouchLayout = isCompactFloodmapperLayout();
@@ -2581,7 +2619,7 @@ function setDatumHelpOpen(isOpen) {
           } catch (_) {
             focusTarget?.focus();
           }
-        });
+        }
       }
     }
 
@@ -5136,6 +5174,33 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       return { firstDate, lastDate };
     }
 
+    async function ensureExportArchiveAvailability() {
+      if (currentDataMode === "return-interval") return;
+      // Export has its own entry point: archive availability cannot depend on
+      // whether the user has previously navigated to Past.
+      const previousDays = getObservedDays();
+      await warmBackgroundData();
+      await ensureLewesArchiveIndex();
+      if (!getObservedArchiveDateBounds()) {
+        throw new Error("Historical export dates could not load. Please try again.");
+      }
+      if (getObservedDays() !== previousDays) clearExportAvailabilityCache();
+    }
+
+    function exportRangeNeedsObservedArchive(range) {
+      if (!range || currentDataMode === "return-interval") return false;
+      const startMs = Number.isFinite(range.startMs) ? range.startMs : range.startDate?.getTime();
+      const endMs = Number.isFinite(range.endMs) ? range.endMs : range.endDate?.getTime();
+      const times = getForecastExportEntries()
+        .filter(entry => Number.isFinite(getStageValue(entry)))
+        .map(entryTimeMs)
+        .filter(Number.isFinite);
+      if (!times.length || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return true;
+      // Forecast entries take precedence over overlapping observations in the
+      // exported series. A range wholly covered by them needs no history I/O.
+      return startMs < Math.min(...times) || endMs > Math.max(...times);
+    }
+
     function getForecastExportEntries() {
       const activeForecastHours = getActiveForecastHours();
       const source = activeForecastHours.length
@@ -5546,7 +5611,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         || options[0]?.value || "";
     }
 
-    function syncExportDateTimeEditorFromCanonical(prefix) {
+    function syncExportDateTimeEditorFromCanonical(prefix, options = {}) {
       const elements = getExportDateEditorElements(prefix);
       if (!elements.canonical || !elements.dateText || !elements.timeSelect) return;
       const modeledDateLocked = currentDataMode === "return-interval";
@@ -5566,6 +5631,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         calendarButton.disabled = exportInProgress || modeledDateLocked;
       }
       if (elements.datePicker) elements.datePicker.disabled = exportInProgress || modeledDateLocked;
+      // Availability/summary refreshes are passive. Do not replace a partial
+      // date or its caret while the user owns this editor; explicit date picks
+      // and resets still synchronize through the default authoritative path.
+      if (options.preserveActiveEdit && !modeledDateLocked && document.activeElement === elements.dateText) return;
       if (elements.canonical.dataset.invalidLocalTime === "1") return;
       const value = elements.canonical.value || "";
       const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
@@ -5805,10 +5874,13 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         delete endEl.dataset.userEdited;
       }
 
-      if (force || !startEl.value || startEl.dataset.userEdited !== "1") {
+      const activeEditor = document.activeElement;
+      const editingStart = activeEditor && activeEditor === document.getElementById("downloadStartDateText");
+      const editingEnd = activeEditor && activeEditor === document.getElementById("downloadEndDateText");
+      if (force || (!editingStart && (!startEl.value || startEl.dataset.userEdited !== "1"))) {
         setRangeInputDate("downloadStartInput", selectedRange.firstDate);
       }
-      if (force || !endEl.value || endEl.dataset.userEdited !== "1") {
+      if (force || (!editingEnd && (!endEl.value || endEl.dataset.userEdited !== "1"))) {
         const endDate = getDownloadFormatValue() === "png"
           ? (getRangeInputDate("downloadStartInput") || selectedRange.firstDate)
           : selectedRange.lastDate;
@@ -5984,18 +6056,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
 
-function syncDownloadRangeInputs(force = false) {
-      const wrap = document.getElementById("downloadRangeFields");
-      const startEl = document.getElementById("downloadStartInput");
-      const endEl = document.getElementById("downloadEndInput");
-      if (!startEl || !endEl) return;
-
-      if (wrap) wrap.hidden = false;
-      if (force) {
-        delete startEl.dataset.userEdited;
-        delete endEl.dataset.userEdited;
-      }
-
+    function syncDownloadArchivePickerBounds() {
       const bounds = getDownloadArchiveBounds();
       const startPicker = document.getElementById("downloadStartDatePicker");
       const endPicker = document.getElementById("downloadEndDatePicker");
@@ -6013,6 +6074,20 @@ function syncDownloadRangeInputs(force = false) {
           picker?.removeAttribute("max");
         });
       }
+    }
+
+function syncDownloadRangeInputs(force = false) {
+      const wrap = document.getElementById("downloadRangeFields");
+      const startEl = document.getElementById("downloadStartInput");
+      const endEl = document.getElementById("downloadEndInput");
+      if (!startEl || !endEl) return;
+
+      if (wrap) wrap.hidden = false;
+      if (force) {
+        delete startEl.dataset.userEdited;
+        delete endEl.dataset.userEdited;
+      }
+      syncDownloadArchivePickerBounds();
 
       const seededSelection = seedDownloadRangeToCurrentSelection(force);
       if (!seededSelection && (!startEl.value || !endEl.value)) {
@@ -6023,8 +6098,8 @@ function syncDownloadRangeInputs(force = false) {
         }
       }
 
-      syncExportDateTimeEditorFromCanonical("start");
-      syncExportDateTimeEditorFromCanonical("end");
+      syncExportDateTimeEditorFromCanonical("start", { preserveActiveEdit: !force });
+      syncExportDateTimeEditorFromCanonical("end", { preserveActiveEdit: !force });
       renderExportTimePicker(true);
     }
 
@@ -6057,6 +6132,9 @@ function getDownloadArchiveBounds() {
         return firstDate && lastDate ? { firstDate, lastDate } : null;
       }
       const observedBounds = getObservedArchiveDateBounds();
+      // Until history initializes, forecast-only dates are not authoritative
+      // archive limits. Preview/download await availability and revalidate.
+      if (!observedBounds) return null;
       const forecastEntries = getForecastExportEntries();
       const forecastFirst = forecastEntries.length ? getEntryESTDate(forecastEntries[0]) : null;
       const forecastLast = forecastEntries.length ? getEntryESTDate(forecastEntries[forecastEntries.length - 1]) : null;
@@ -6141,6 +6219,13 @@ function getDownloadArchiveBounds() {
       const endMs = Math.max(range.startMs, range.endMs);
       const interval = getDownloadIntervalConfig();
       if (interval.value === "daily") {
+        if (currentDataMode === "return-interval") {
+          const entries = getReturnIntervalExportEntries().filter(entry => {
+            const time = entryTimeMs(entry);
+            return Number.isFinite(time) && time >= startMs && time <= endMs;
+          });
+          return buildReturnIntervalDailyMaximumSeries(entries).length;
+        }
         const keys = new Set();
         for (let cursor = startMs; cursor <= endMs; cursor += 6 * 60 * 60 * 1000) {
           const key = getExportDayKeyFromDate(new Date(cursor));
@@ -6259,17 +6344,38 @@ function clearExportAvailabilityCache() {
     function getExportAvailabilityDayMap() {
       if (exportAvailabilityDayMapCache) return exportAvailabilityDayMapCache;
       const map = new Map();
+      const entryDates = new Map();
 
       function ensureMeta(dayKey) {
         if (!dayKey) return null;
         if (!map.has(dayKey)) {
+          let firstDate;
+          let lastDate;
           map.set(dayKey, {
             dayKey,
             observed: false,
             forecast: false,
             count: 0,
-            firstDate: parseStoredLocalNyToDate(`${dayKey}T00:00`),
-            lastDate: parseStoredLocalNyToDate(`${dayKey}T23:00`)
+            // The archive has tens of thousands of days. Resolve exact New
+            // York boundaries only when a visible day or aggregate needs them.
+            get firstDate() {
+              if (firstDate === undefined) {
+                firstDate = parseStoredLocalNyToDate(`${dayKey}T00:00`);
+                const entry = entryDates.get(dayKey)?.firstDate;
+                if (entry && (!firstDate || entry.getTime() < firstDate.getTime())) firstDate = entry;
+              }
+              return firstDate;
+            },
+            set firstDate(value) { firstDate = value; },
+            get lastDate() {
+              if (lastDate === undefined) {
+                lastDate = parseStoredLocalNyToDate(`${dayKey}T23:00`);
+                const entry = entryDates.get(dayKey)?.lastDate;
+                if (entry && (!lastDate || entry.getTime() > lastDate.getTime())) lastDate = entry;
+              }
+              return lastDate;
+            },
+            set lastDate(value) { lastDate = value; }
           });
         }
         return map.get(dayKey);
@@ -6297,8 +6403,12 @@ function clearExportAvailabilityCache() {
         meta.modeled = currentDataMode === "return-interval";
         meta.count += 1;
         if (d) {
-          if (!meta.firstDate || d.getTime() < meta.firstDate.getTime()) meta.firstDate = d;
-          if (!meta.lastDate || d.getTime() > meta.lastDate.getTime()) meta.lastDate = d;
+          const dates = entryDates.get(dayKey);
+          if (!dates) entryDates.set(dayKey, { firstDate: d, lastDate: d });
+          else {
+            if (d.getTime() < dates.firstDate.getTime()) dates.firstDate = d;
+            if (d.getTime() > dates.lastDate.getTime()) dates.lastDate = d;
+          }
         }
       });
 
@@ -6306,44 +6416,55 @@ function clearExportAvailabilityCache() {
       return map;
     }
 
+    function getExportAvailabilityBoundsForDays(days) {
+      // ISO day keys preserve calendar order without parsing every boundary.
+      const ordered = Array.from(days).sort((a, b) => a.dayKey < b.dayKey ? -1 : a.dayKey > b.dayKey ? 1 : 0);
+      let firstDate = null;
+      let lastDate = null;
+      for (const meta of ordered) {
+        if (meta.firstDate) { firstDate = meta.firstDate; break; }
+      }
+      for (let i = ordered.length - 1; i >= 0; i--) {
+        if (ordered[i].lastDate) { lastDate = ordered[i].lastDate; break; }
+      }
+      return firstDate && lastDate ? { firstDate, lastDate } : null;
+    }
+
     function getExportAvailabilityBounds() {
       if (exportAvailabilityBoundsCache) return exportAvailabilityBoundsCache;
       const dayMap = getExportAvailabilityDayMap();
       if (!dayMap.size) return null;
-      let firstDate = null;
-      let lastDate = null;
-      dayMap.forEach(meta => {
-        const a = meta.firstDate || parseStoredLocalNyToDate(`${meta.dayKey}T00:00`);
-        const b = meta.lastDate || parseStoredLocalNyToDate(`${meta.dayKey}T23:00`);
-        if (a && (!firstDate || a.getTime() < firstDate.getTime())) firstDate = a;
-        if (b && (!lastDate || b.getTime() > lastDate.getTime())) lastDate = b;
-      });
-      exportAvailabilityBoundsCache = firstDate && lastDate ? { firstDate, lastDate } : null;
+      exportAvailabilityBoundsCache = getExportAvailabilityBoundsForDays(dayMap.values());
       return exportAvailabilityBoundsCache;
     }
 
     function getExportAvailabilityMonthMap() {
       if (exportAvailabilityMonthMapCache) return exportAvailabilityMonthMapCache;
       const months = new Map();
+      const monthDays = new Map();
       getExportAvailabilityDayMap().forEach(meta => {
         const monthKey = String(meta.dayKey || "").slice(0, 7);
         if (!monthKey) return;
         if (!months.has(monthKey)) {
+          const days = [];
+          monthDays.set(monthKey, days);
+          let bounds;
+          const getBounds = () => {
+            if (bounds === undefined) bounds = getExportAvailabilityBoundsForDays(days);
+            return bounds;
+          };
           months.set(monthKey, {
             monthKey,
             observed: false,
             forecast: false,
-            firstDate: meta.firstDate || parseStoredLocalNyToDate(`${meta.dayKey}T00:00`),
-            lastDate: meta.lastDate || parseStoredLocalNyToDate(`${meta.dayKey}T23:00`)
+            get firstDate() { return getBounds()?.firstDate || null; },
+            get lastDate() { return getBounds()?.lastDate || null; }
           });
         }
         const current = months.get(monthKey);
         current.observed = current.observed || !!meta.observed;
         current.forecast = current.forecast || !!meta.forecast;
-        const a = meta.firstDate || parseStoredLocalNyToDate(`${meta.dayKey}T00:00`);
-        const b = meta.lastDate || parseStoredLocalNyToDate(`${meta.dayKey}T23:00`);
-        if (a && (!current.firstDate || a.getTime() < current.firstDate.getTime())) current.firstDate = a;
-        if (b && (!current.lastDate || b.getTime() > current.lastDate.getTime())) current.lastDate = b;
+        monthDays.get(monthKey).push(meta);
       });
       exportAvailabilityMonthMapCache = months;
       return months;
@@ -7620,6 +7741,7 @@ function updateExportSegmentedUI() {
         zoomSnap: 0,
         zoomDelta: 1,
         preferCanvas: true,
+        keyboard: false,
         zoomAnimation: false,
         fadeAnimation: false,
         markerZoomAnimation: false
@@ -8203,7 +8325,10 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
         const time = entryTimeMs(entry);
         return Number.isFinite(time) && time >= range.startMs && time <= range.endMs && Number.isFinite(getStageValue(entry));
       });
-      return buildDailyMaximumSeries(inRange, { kind: "export" })
+      const daily = currentDataMode === "return-interval"
+        ? buildReturnIntervalDailyMaximumSeries(inRange)
+        : buildDailyMaximumSeries(inRange, { kind: "export" });
+      return daily
         .map((entry, idx) => {
           const exportEntry = {
             ...entry,
@@ -8587,13 +8712,17 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
         return;
       }
 
-      const needsArchive = currentDataMode !== "return-interval" && getDownloadScopeValue() !== "current" && validation.range;
+      const needsArchive = getDownloadScopeValue() !== "current" && exportRangeNeedsObservedArchive(validation.range);
       // Close the settings dialog before showing progress so its focus/inert
       // isolation cannot disable the progress Cancel button during preparation.
       setDownloadModalOpen(false);
       setDownloadBusy(true, needsArchive ? "Loading the selected tide-archive year..." : "Preparing export...");
       try {
         if (needsArchive) {
+          await ensureExportArchiveAvailability();
+          throwIfExportCancelled();
+          const availableValidation = validateDownloadRangeForExport();
+          if (!availableValidation.ok) throw new Error(availableValidation.message);
           try {
             await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
           } catch (error) {
@@ -11179,9 +11308,12 @@ function populateCalendarSelectors() {
     async function setTimelineIntervalMinutes(minutes) {
       const requested = Number(minutes);
       const nextMinutes = requested === 15 || requested === 1440 ? requested : 60;
-      if (nextMinutes === getTimelineIntervalMinutes()) return;
+      const previousMinutes = getTimelineIntervalMinutes();
+      if (nextMinutes === previousMinutes) return;
 
       const referenceEntry = currentSeriesHours[currentHourIndex] || null;
+      const generation = ++selectionGeneration;
+      const floodSelectionToken = cancelPendingFloodFrame();
       stopPlayback();
       toast("");
       currentTimelineIntervalMinutes = nextMinutes;
@@ -11190,14 +11322,28 @@ function populateCalendarSelectors() {
 
       if (currentDataMode === "observed" && nextMinutes !== 60) {
         const activeObservedDate = selectedObservedDate || currentSeriesHours[currentHourIndex]?.observedDate;
-        if (activeObservedDate) await ensureObservedArchiveForDate(activeObservedDate);
+        try {
+          if (activeObservedDate) await ensureObservedArchiveForDate(activeObservedDate);
+        } catch (error) {
+          if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
+          currentTimelineIntervalMinutes = previousMinutes;
+          updateTimelineIntervalUI();
+          floodFrameState = currentFloodLayer ? "ready" : "failed";
+          document.body.dataset.floodFrame = floodFrameState;
+          const message = "Observed detail could not load. Previous interval shown. Select an interval to retry.";
+          setFloodFrameStatus(message, "error");
+          toast(message);
+          return false;
+        }
       }
+      if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
 
       if (currentViewType === "return-interval" || currentDataMode === "return-interval") {
         currentDataMode = "return-interval";
         currentViewType = "return-interval";
         updateDataModeButtons();
-        await loadReturnInterval(referenceEntry);
+        await loadReturnInterval(referenceEntry, { generation });
+        if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
         await renderHour(currentHourIndex);
         return;
       }
@@ -11206,7 +11352,8 @@ function populateCalendarSelectors() {
         currentDataMode = "forecast";
         currentViewType = "forecast";
         updateDataModeButtons();
-        await loadForecast(referenceEntry);
+        await loadForecast(referenceEntry, { generation });
+        if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
         renderTopTides();
         await renderHour(currentHourIndex);
         return;
@@ -11246,7 +11393,7 @@ function populateCalendarSelectors() {
       let modeFailureGeneration = null;
       let modeFailureRequest = null;
       try {
-      if (mode === currentDataMode && currentViewType !== "top-tide") return;
+      if (mode === currentDataMode && currentViewType !== "top-tide" && currentSeriesHours.length) return;
       const generation = ++selectionGeneration;
       modeFailureGeneration = generation;
       ++lastRenderToken;
@@ -11282,6 +11429,27 @@ function populateCalendarSelectors() {
 
       currentDataMode = "observed";
       updateDataModeButtons();
+      const preferredObservedDate = currentViewType === "top-tide" ? null : selectedObservedDate;
+      // The old image may remain visible while loading, but its forecast
+      // timeline and labels must not be presented as observations.
+      currentViewType = "observed-day";
+      currentTopTideIndex = null;
+      currentRawSeriesHours = [];
+      currentSeriesHours = [];
+      currentHourIndex = 0;
+      currentSelectedLabel = "Observed";
+      currentSelectedSubLabel = "";
+      currentRangeLabel = "";
+      syncSliderBounds();
+      document.getElementById("hourSlider").value = "0";
+      renderSelectionMeta(null, null, null);
+      document.getElementById("stageSubText").textContent = "Loading observed history…";
+      renderTimelineMeta();
+      renderTimelineDays();
+      const loadingMessage = currentFloodLayer
+        ? "Loading observed history… Previous flood map shown."
+        : "Loading observed history…";
+      setFloodFrameStatus(loadingMessage, "info");
       await warmBackgroundData();
       if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
@@ -11289,7 +11457,7 @@ function populateCalendarSelectors() {
       if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
 
-      const defaultDate = (currentViewType === "top-tide" ? null : selectedObservedDate) || getLatestObservedDate();
+      const defaultDate = preferredObservedDate || getLatestObservedDate();
       if (defaultDate) {
         await loadObservedDay(defaultDate);
         scheduleHistoricalTopTideWarmup();
@@ -11328,7 +11496,7 @@ function populateCalendarSelectors() {
     async function warmBackgroundData() {
       if (backgroundDataPromise) return backgroundDataPromise;
       const generation = archiveGeneration;
-      backgroundDataPromise = (async () => {
+      const request = (async () => {
         const [observedCompact, canonical] = await Promise.all([
           ensureObserved15MinuteArchive().catch(() => null),
           ensureCanonicalDailyArchive().catch(() => null)
@@ -11349,12 +11517,18 @@ function populateCalendarSelectors() {
           renderTopTides();
         }
         return observedData;
-      })().catch(error => {
-        if (generation === archiveGeneration) backgroundDataPromise = null;
+      })().then(result => {
+        // Both optional source failures are converted to null above. Do not
+        // retain that resolved-null request as a permanent successful warmup.
+        if (!result && backgroundDataPromise === request) backgroundDataPromise = null;
+        return result;
+      }).catch(error => {
+        if (backgroundDataPromise === request) backgroundDataPromise = null;
         console.warn("Background flood history loading will retry when requested.", error);
         return null;
       });
-      return backgroundDataPromise;
+      backgroundDataPromise = request;
+      return request;
     }
 
     function scheduleTopTidesListWarmup() {
@@ -13687,6 +13861,7 @@ function startPlayback() {
     }
 
     function positionMapperTutorial() {
+      if (document.getElementById("mapperTutorial")?.hidden !== false) return;
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
       const target = step ? getVisibleTutorialTarget(step.target) : null;
       const spotlight = document.getElementById("mapperTutorialSpotlight");
@@ -13732,7 +13907,11 @@ function startPlayback() {
       card.style.setProperty("bottom", "auto", "important");
     }
 
+    let mapperTutorialGeneration = 0;
     function renderMapperTutorialStep() {
+      const generation = ++mapperTutorialGeneration;
+      const isCurrentStep = () => generation === mapperTutorialGeneration &&
+        document.getElementById("mapperTutorial")?.hidden === false;
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
       if (!step) return;
       const tutorialModePromise = mapperTutorialIndex === 1 && currentDataMode !== "forecast"
@@ -13752,19 +13931,22 @@ function startPlayback() {
       back.disabled = mapperTutorialIndex === 0;
       next.textContent = mapperTutorialIndex === MAPPER_TUTORIAL_STEPS.length - 1 ? "Finish" : "Next";
       window.setTimeout(async () => {
+        if (!isCurrentStep()) return;
         try { await tutorialModePromise; } catch (err) {}
+        if (!isCurrentStep()) return;
         const resolved = getVisibleTutorialTarget(step.target);
         const mobileBlockByStep = { 1: "start", 3: "end", 6: "end", 7: "start" };
         const block = compactTutorial ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
         resolved?.scrollIntoView({ block, inline: "center", behavior: "auto" });
-        window.setTimeout(positionMapperTutorial, 80);
-        window.setTimeout(positionMapperTutorial, 320);
+        window.setTimeout(() => { if (isCurrentStep()) positionMapperTutorial(); }, 80);
+        window.setTimeout(() => { if (isCurrentStep()) positionMapperTutorial(); }, 320);
       }, 40);
     }
 
     function setMapperTutorialOpen(open, startIndex = 0) {
       const tutorial = document.getElementById("mapperTutorial");
       if (!tutorial) return;
+      ++mapperTutorialGeneration;
       tutorial.hidden = !open;
       tutorial.setAttribute("aria-hidden", open ? "false" : "true");
       document.body.classList.toggle("tutorial-active", Boolean(open));
@@ -14611,4 +14793,3 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       return result;
     };
 
-  

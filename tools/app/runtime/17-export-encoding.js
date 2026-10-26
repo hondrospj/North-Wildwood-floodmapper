@@ -55,7 +55,10 @@
         const time = entryTimeMs(entry);
         return Number.isFinite(time) && time >= range.startMs && time <= range.endMs && Number.isFinite(getStageValue(entry));
       });
-      return buildDailyMaximumSeries(inRange, { kind: "export" })
+      const daily = currentDataMode === "return-interval"
+        ? buildReturnIntervalDailyMaximumSeries(inRange)
+        : buildDailyMaximumSeries(inRange, { kind: "export" });
+      return daily
         .map((entry, idx) => {
           const exportEntry = {
             ...entry,
@@ -439,13 +442,17 @@
         return;
       }
 
-      const needsArchive = currentDataMode !== "return-interval" && getDownloadScopeValue() !== "current" && validation.range;
+      const needsArchive = getDownloadScopeValue() !== "current" && exportRangeNeedsObservedArchive(validation.range);
       // Close the settings dialog before showing progress so its focus/inert
       // isolation cannot disable the progress Cancel button during preparation.
       setDownloadModalOpen(false);
       setDownloadBusy(true, needsArchive ? "Loading the selected tide-archive year..." : "Preparing export...");
       try {
         if (needsArchive) {
+          await ensureExportArchiveAvailability();
+          throwIfExportCancelled();
+          const availableValidation = validateDownloadRangeForExport();
+          if (!availableValidation.ok) throw new Error(availableValidation.message);
           try {
             await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
           } catch (error) {

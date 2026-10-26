@@ -14,6 +14,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from cache_contract import identity_matches, simulation_identity
 
 try:
     import anuga
@@ -270,14 +271,21 @@ def main() -> None:
     frame_count = int(math.floor(final_time / output_interval)) + 1
 
     cycle_id = guidance["cycleId"]
+    run_options = {key: getattr(args, key) for key in (
+        "mesh_cell_m", "mesh_type", "duration_hours", "output_interval_seconds", "threads", "constant_stage_m")}
+    identity = simulation_identity(ROOT, config, guidance, args.scenario, run_options)
     if args.output_dir:
         final_directory = args.output_dir.resolve()
     else:
         final_directory = ROOT / "model/runs" / cycle_id / args.scenario
     if final_directory.exists():
         if not args.force:
-            print(f"Completed run already exists: {final_directory}")
-            return
+            manifest_path = final_directory / "run_manifest.json"
+            existing = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
+            if existing.get("status") == "complete" and identity_matches(existing.get("simulationIdentity"), identity):
+                print(f"Completed matching run already exists: {final_directory}")
+                return
+            raise RuntimeError(f"Existing run inputs/settings do not match: {final_directory}. Rerun with --force to rebuild.")
         shutil.rmtree(final_directory)
     incomplete_directory = final_directory.with_name(final_directory.name + ".incomplete")
     if incomplete_directory.exists():
@@ -503,6 +511,8 @@ def main() -> None:
         "modelId": config["modelId"],
         "cycleId": cycle_id,
         "scenario": args.scenario,
+        "runOptions": run_options,
+        "simulationIdentity": identity,
         "startedUtc": guidance["forecastStartUtc"],
         "completedUtc": utc_now(),
         "petssSource": {

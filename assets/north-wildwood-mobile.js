@@ -1,5 +1,7 @@
 /* Mobile navigation only. Existing controls and flood calculations remain app-owned. */
 (() => {
+  const unifiedOwnsLayout = () => Boolean(document.body.dataset.unifiedUiReady);
+  if (unifiedOwnsLayout()) return;
   const panel = document.getElementById('leftPanel');
   if (!panel) return;
   const mobile = floodmapperLayoutMedia;
@@ -17,6 +19,7 @@
   panel.prepend(header);
   const tabs = [...header.querySelectorAll('[role=tab]')];
   function selectGroup(group, focus = false) {
+    if (unifiedOwnsLayout()) return;
     panel.dataset.nwwSection = group;
     for (const tab of tabs) {
       const selected = tab.dataset.group === group;
@@ -41,12 +44,14 @@
   let wasOpen = false;
   const toggle = document.getElementById('mobileControlsToggle');
   function sync() {
+    if (unifiedOwnsLayout()) return;
     const open = mobile.matches && document.body.classList.contains('mobile-controls-open');
     if (open && !wasOpen) {
       document.body.classList.remove('mobile-legend-open');
       panel.setAttribute('aria-labelledby', 'nwwControlsTitle');
       // The drawer controller clears inert in its scheduled layout pass.
       requestAnimationFrame(() => {
+        if (unifiedOwnsLayout()) return;
         if (document.body.classList.contains('mobile-controls-open') && !panel.inert &&
             !document.body.classList.contains('tutorial-active') &&
             !document.querySelector('#infoModal.open,#datumModal.open,#downloadModal.open,#topTidesModal.open')) {
@@ -63,6 +68,7 @@
   mobile.addEventListener('change', sync);
   // Select the right section before the existing tour measures its target.
   document.addEventListener('nww:reveal-control', event => {
+    if (unifiedOwnsLayout()) return;
     if (!mobile.matches) return;
     const group = document.querySelector(event.detail)?.closest('[data-nww-group]')?.dataset.nwwGroup;
     if (group && group !== panel.dataset.nwwSection) selectGroup(group);

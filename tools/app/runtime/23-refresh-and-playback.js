@@ -1,7 +1,7 @@
     async function warmBackgroundData() {
       if (backgroundDataPromise) return backgroundDataPromise;
       const generation = archiveGeneration;
-      backgroundDataPromise = (async () => {
+      const request = (async () => {
         const [observedCompact, canonical] = await Promise.all([
           ensureObserved15MinuteArchive().catch(() => null),
           ensureCanonicalDailyArchive().catch(() => null)
@@ -22,12 +22,18 @@
           renderTopTides();
         }
         return observedData;
-      })().catch(error => {
-        if (generation === archiveGeneration) backgroundDataPromise = null;
+      })().then(result => {
+        // Both optional source failures are converted to null above. Do not
+        // retain that resolved-null request as a permanent successful warmup.
+        if (!result && backgroundDataPromise === request) backgroundDataPromise = null;
+        return result;
+      }).catch(error => {
+        if (backgroundDataPromise === request) backgroundDataPromise = null;
         console.warn("Background flood history loading will retry when requested.", error);
         return null;
       });
-      return backgroundDataPromise;
+      backgroundDataPromise = request;
+      return request;
     }
 
     function scheduleTopTidesListWarmup() {

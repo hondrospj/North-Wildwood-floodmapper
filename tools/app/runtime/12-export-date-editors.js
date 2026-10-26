@@ -232,7 +232,7 @@
         || options[0]?.value || "";
     }
 
-    function syncExportDateTimeEditorFromCanonical(prefix) {
+    function syncExportDateTimeEditorFromCanonical(prefix, options = {}) {
       const elements = getExportDateEditorElements(prefix);
       if (!elements.canonical || !elements.dateText || !elements.timeSelect) return;
       const modeledDateLocked = currentDataMode === "return-interval";
@@ -252,6 +252,10 @@
         calendarButton.disabled = exportInProgress || modeledDateLocked;
       }
       if (elements.datePicker) elements.datePicker.disabled = exportInProgress || modeledDateLocked;
+      // Availability/summary refreshes are passive. Do not replace a partial
+      // date or its caret while the user owns this editor; explicit date picks
+      // and resets still synchronize through the default authoritative path.
+      if (options.preserveActiveEdit && !modeledDateLocked && document.activeElement === elements.dateText) return;
       if (elements.canonical.dataset.invalidLocalTime === "1") return;
       const value = elements.canonical.value || "";
       const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);

@@ -23,14 +23,17 @@
       showInfoModal(currentOverlayMode === "dynamic" ? "stageLegend" : "depthLegend");
     }
 
+    let downloadModalGeneration = 0;
     function setDownloadModalOpen(isOpen) {
       const modal = document.getElementById("downloadModal");
       const btn = document.getElementById("openDownloadModalBtn");
       if (!modal || !btn) return;
+      const generation = ++downloadModalGeneration;
 
       modal.hidden = !isOpen;
       modal.classList.toggle("open", isOpen);
       btn.setAttribute("aria-expanded", String(isOpen));
+      document.dispatchEvent(new Event("nww:modalchange"));
 
       if (isOpen) {
         updateDownloadModeCopy();
@@ -38,7 +41,16 @@
         applyExportStageAspect(getDownloadAspectValue());
         syncDownloadRangeInputs(true);
         updateDownloadSummary();
-        requestAnimationFrame(() => {
+        ensureExportArchiveAvailability().then(() => {
+          if (generation !== downloadModalGeneration || modal.hidden) return;
+          // Availability may finish while a user is halfway through a date.
+          // Update only picker bounds, leaving their visible edit untouched.
+          syncDownloadArchivePickerBounds();
+          renderExportTimePicker(true);
+        }).catch(error => console.warn("Export history availability could not load.", error));
+        // Focus while opening. A deferred callback can run after the user has
+        // already entered a date and move their focus/caret to another control.
+        {
           const modalCard = modal.querySelector(".download-modal-card");
           if (modalCard) modalCard.scrollTop = 0;
           const compactTouchLayout = isCompactFloodmapperLayout();
@@ -52,7 +64,7 @@
           } catch (_) {
             focusTarget?.focus();
           }
-        });
+        }
       }
     }
 

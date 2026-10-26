@@ -8,6 +8,8 @@
   let pending = false;
   let activeJob = null;
   let exportRequested = false;
+  let exportRequestGeneration = 0;
+  let cancelPreviewWait = null;
   let settingsReviewed = false;
   const gesturePointers = new Set();
   const publicationWaiters = new Set();
@@ -137,12 +139,19 @@
       if (fresh(token)) showState("empty", "Wait for the map to finish loading.");
       return;
     }
-    const validation = validateDownloadRangeForExport();
+    let validation = validateDownloadRangeForExport();
     if (!validation.ok) {
       if (fresh(token)) showState("empty", validation.message);
       return;
     }
-    if (currentDataMode !== "return-interval" && getDownloadScopeValue() !== "current" && validation.range) {
+    if (getDownloadScopeValue() !== "current" && exportRangeNeedsObservedArchive(validation.range)) {
+      await ensureExportArchiveAvailability();
+      if (!fresh(token)) return;
+      validation = validateDownloadRangeForExport();
+      if (!validation.ok) {
+        if (fresh(token)) showState("empty", validation.message);
+        return;
+      }
       await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
       if (!fresh(token)) return;
     }
@@ -194,6 +203,17 @@
 
   const originalOpen = setDownloadModalOpen;
   setDownloadModalOpen = function (open, ...args) {
+    if (!open && cancelPreviewWait) {
+      // Closing is a real cancellation even when preview preparation has not
+      // yet entered the exporter's progress/Cancel lifecycle.
+      exportRequestGeneration++;
+      exportRequested = false;
+      const cancel = cancelPreviewWait;
+      cancelPreviewWait = null;
+      cancel();
+      const button = node("downloadBtn");
+      if (button) button.disabled = false;
+    }
     invalidate();
     settingsReviewed = false;
     const result = originalOpen(open, ...args);
@@ -212,6 +232,7 @@
       return;
     }
     // Both jobs use the same offscreen renderer. Never capture while downloading.
+    const requestGeneration = ++exportRequestGeneration;
     exportRequested = true;
     invalidate();
     const button = node("downloadBtn");
@@ -220,15 +241,25 @@
     if (label) label.textContent = "Preparing export…";
     const preview = activeJob;
     try {
-      if (preview) await preview;
+      if (preview) {
+        const completed = await Promise.race([
+          preview.then(() => true),
+          new Promise(resolve => { cancelPreviewWait = () => resolve(false); })
+        ]);
+        if (!completed || requestGeneration !== exportRequestGeneration) return;
+      }
+      cancelPreviewWait = null;
       return await originalDownload(...args);
     } finally {
-      exportRequested = false;
-      if (!exportInProgress) {
-        if (button) button.disabled = false;
-        updateExportSegmentedUI();
+      if (requestGeneration === exportRequestGeneration) {
+        cancelPreviewWait = null;
+        exportRequested = false;
+        if (!exportInProgress) {
+          if (button) button.disabled = false;
+          updateExportSegmentedUI();
+        }
+        if (isDownloadModalOpen()) schedulePreview();
       }
-      if (isDownloadModalOpen()) schedulePreview();
     }
   };
 
@@ -272,7 +303,7 @@
       #downloadModal #exportChangeAreaBtn:focus-visible{outline:3px solid #93c5fd;outline-offset:3px;border-radius:4px}
       #downloadModal .download-actions{margin-top:auto!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;width:100%!important;gap:10px!important;padding-top:8px!important}
       #downloadModal #exportReviewBackBtn{min-height:40px;border:0;border-radius:8px;padding:9px 12px;background:transparent;color:#c6d5ea;font:inherit;font-size:13px;cursor:pointer}
-      #downloadModal #downloadBtn{width:100%!important;min-height:50px!important;color:white!important;background:#3b82f6!important;border:1px solid #76adff!important}
+      #downloadModal #downloadBtn{width:100%!important;min-height:50px!important;color:white!important;background:#1d4ed8!important;border:1px solid #76adff!important}
       #downloadModal #downloadBtn:disabled{opacity:.65!important}
       #downloadModal .download-modal-head{margin-bottom:14px!important;align-items:start!important}
       #downloadModal #downloadAspectControl{grid-template-columns:repeat(2,minmax(0,1fr))!important}

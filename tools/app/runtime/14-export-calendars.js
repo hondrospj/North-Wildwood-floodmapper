@@ -96,17 +96,38 @@ function clearExportAvailabilityCache() {
     function getExportAvailabilityDayMap() {
       if (exportAvailabilityDayMapCache) return exportAvailabilityDayMapCache;
       const map = new Map();
+      const entryDates = new Map();
 
       function ensureMeta(dayKey) {
         if (!dayKey) return null;
         if (!map.has(dayKey)) {
+          let firstDate;
+          let lastDate;
           map.set(dayKey, {
             dayKey,
             observed: false,
             forecast: false,
             count: 0,
-            firstDate: parseStoredLocalNyToDate(`${dayKey}T00:00`),
-            lastDate: parseStoredLocalNyToDate(`${dayKey}T23:00`)
+            // The archive has tens of thousands of days. Resolve exact New
+            // York boundaries only when a visible day or aggregate needs them.
+            get firstDate() {
+              if (firstDate === undefined) {
+                firstDate = parseStoredLocalNyToDate(`${dayKey}T00:00`);
+                const entry = entryDates.get(dayKey)?.firstDate;
+                if (entry && (!firstDate || entry.getTime() < firstDate.getTime())) firstDate = entry;
+              }
+              return firstDate;
+            },
+            set firstDate(value) { firstDate = value; },
+            get lastDate() {
+              if (lastDate === undefined) {
+                lastDate = parseStoredLocalNyToDate(`${dayKey}T23:00`);
+                const entry = entryDates.get(dayKey)?.lastDate;
+                if (entry && (!lastDate || entry.getTime() > lastDate.getTime())) lastDate = entry;
+              }
+              return lastDate;
+            },
+            set lastDate(value) { lastDate = value; }
           });
         }
         return map.get(dayKey);
@@ -134,8 +155,12 @@ function clearExportAvailabilityCache() {
         meta.modeled = currentDataMode === "return-interval";
         meta.count += 1;
         if (d) {
-          if (!meta.firstDate || d.getTime() < meta.firstDate.getTime()) meta.firstDate = d;
-          if (!meta.lastDate || d.getTime() > meta.lastDate.getTime()) meta.lastDate = d;
+          const dates = entryDates.get(dayKey);
+          if (!dates) entryDates.set(dayKey, { firstDate: d, lastDate: d });
+          else {
+            if (d.getTime() < dates.firstDate.getTime()) dates.firstDate = d;
+            if (d.getTime() > dates.lastDate.getTime()) dates.lastDate = d;
+          }
         }
       });
 
@@ -143,44 +168,55 @@ function clearExportAvailabilityCache() {
       return map;
     }
 
+    function getExportAvailabilityBoundsForDays(days) {
+      // ISO day keys preserve calendar order without parsing every boundary.
+      const ordered = Array.from(days).sort((a, b) => a.dayKey < b.dayKey ? -1 : a.dayKey > b.dayKey ? 1 : 0);
+      let firstDate = null;
+      let lastDate = null;
+      for (const meta of ordered) {
+        if (meta.firstDate) { firstDate = meta.firstDate; break; }
+      }
+      for (let i = ordered.length - 1; i >= 0; i--) {
+        if (ordered[i].lastDate) { lastDate = ordered[i].lastDate; break; }
+      }
+      return firstDate && lastDate ? { firstDate, lastDate } : null;
+    }
+
     function getExportAvailabilityBounds() {
       if (exportAvailabilityBoundsCache) return exportAvailabilityBoundsCache;
       const dayMap = getExportAvailabilityDayMap();
       if (!dayMap.size) return null;
-      let firstDate = null;
-      let lastDate = null;
-      dayMap.forEach(meta => {
-        const a = meta.firstDate || parseStoredLocalNyToDate(`${meta.dayKey}T00:00`);
-        const b = meta.lastDate || parseStoredLocalNyToDate(`${meta.dayKey}T23:00`);
-        if (a && (!firstDate || a.getTime() < firstDate.getTime())) firstDate = a;
-        if (b && (!lastDate || b.getTime() > lastDate.getTime())) lastDate = b;
-      });
-      exportAvailabilityBoundsCache = firstDate && lastDate ? { firstDate, lastDate } : null;
+      exportAvailabilityBoundsCache = getExportAvailabilityBoundsForDays(dayMap.values());
       return exportAvailabilityBoundsCache;
     }
 
     function getExportAvailabilityMonthMap() {
       if (exportAvailabilityMonthMapCache) return exportAvailabilityMonthMapCache;
       const months = new Map();
+      const monthDays = new Map();
       getExportAvailabilityDayMap().forEach(meta => {
         const monthKey = String(meta.dayKey || "").slice(0, 7);
         if (!monthKey) return;
         if (!months.has(monthKey)) {
+          const days = [];
+          monthDays.set(monthKey, days);
+          let bounds;
+          const getBounds = () => {
+            if (bounds === undefined) bounds = getExportAvailabilityBoundsForDays(days);
+            return bounds;
+          };
           months.set(monthKey, {
             monthKey,
             observed: false,
             forecast: false,
-            firstDate: meta.firstDate || parseStoredLocalNyToDate(`${meta.dayKey}T00:00`),
-            lastDate: meta.lastDate || parseStoredLocalNyToDate(`${meta.dayKey}T23:00`)
+            get firstDate() { return getBounds()?.firstDate || null; },
+            get lastDate() { return getBounds()?.lastDate || null; }
           });
         }
         const current = months.get(monthKey);
         current.observed = current.observed || !!meta.observed;
         current.forecast = current.forecast || !!meta.forecast;
-        const a = meta.firstDate || parseStoredLocalNyToDate(`${meta.dayKey}T00:00`);
-        const b = meta.lastDate || parseStoredLocalNyToDate(`${meta.dayKey}T23:00`);
-        if (a && (!current.firstDate || a.getTime() < current.firstDate.getTime())) current.firstDate = a;
-        if (b && (!current.lastDate || b.getTime() > current.lastDate.getTime())) current.lastDate = b;
+        monthDays.get(monthKey).push(meta);
       });
       exportAvailabilityMonthMapCache = months;
       return months;

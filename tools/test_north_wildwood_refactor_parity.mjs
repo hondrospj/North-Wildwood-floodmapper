@@ -15,10 +15,17 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+const HOLISTIC_FIX_AUDIT_PATH = "tools/fixtures/north-wildwood-20261026-holistic-fixes.json";
+const holisticFixText = read(HOLISTIC_FIX_AUDIT_PATH);
+assert.equal(sha256(holisticFixText), "359b8237b258a4e5dfbbc966e1729c0359bdfd9cac458ee09eb5fdefc63811a3",
+  "The holistic fixes must retain their exact reviewed inverse fragments");
+const holisticFixAudit = JSON.parse(holisticFixText);
+assert.equal(holisticFixAudit.schemaVersion, 1);
+assert.equal(holisticFixAudit.baselineCommit, "075b294431f5bf57542a2c8850ef7b2d26320766");
 const template = read("tools/app/index.template.html");
 const published = read("index.html");
 const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-ui.json"));
-const previewSource = read(previewUi.source);
+const previewSource = auditedHolisticRead(previewUi.source);
 const exportPresentation = JSON.parse(read("tools/fixtures/north-wildwood-export-presentation.json"));
 const boundaryStartup = JSON.parse(read("tools/fixtures/north-wildwood-boundary-startup.json"));
 const paneStartup = JSON.parse(read("tools/fixtures/north-wildwood-pane-startup.json"));
@@ -199,7 +206,7 @@ function auditedUiStartupSource(kind, entry, source) {
   }
   for (const block of uiStartup.scriptChanges.filter(block => block.kind === kind && block.entryId === entry.id)) {
     assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared runtime source`);
-    auditedUiStartupFragments(read(block.source), [block], "Source");
+    auditedUiStartupFragments(auditedHolisticRead(block.source), [block], "Source");
     source = auditedUiStartupFragments(source, [block], "Runtime");
   }
   return source;
@@ -218,7 +225,7 @@ function auditedPaneStartupSource(kind, entry, source) {
   if (kind !== "style" || entry.id !== "style-002") return source;
   const block = paneStartup.css;
   assert.ok(entry.sources.includes(block.source), "Pane startup CSS must stay in its declared stylesheet");
-  const actual = exactPaneStartupCss(read(block.source));
+  const actual = exactPaneStartupCss(auditedHolisticRead(block.source));
   assert.equal(Buffer.byteLength(actual), block.afterBytes, "Pane startup CSS differs from the exact reviewed insertion");
   assert.equal(sha256(actual), block.afterSha256, "Pane startup CSS differs from the exact reviewed insertion");
   assert.equal(exactPaneStartupCss(source), actual, "Pane startup CSS must remain unchanged in the generated source");
@@ -248,7 +255,7 @@ function auditedBoundaryStartupSource(kind, entry, source) {
   for (const block of boundaryStartup.blocks.filter(block => block.kind === kind && block.entryId === entry.id)) {
     const label = block.function || block.assignment;
     assert.ok(entry.sources.includes(block.source), `${label} must remain in its declared source`);
-    const actual = exactBoundaryStartupBlock(read(block.source), block, label);
+    const actual = exactBoundaryStartupBlock(auditedHolisticRead(block.source), block, label);
     assert.equal(Buffer.byteLength(actual), block.afterBytes, `${label} differs from the approved boundary startup change`);
     assert.equal(sha256(actual), block.afterSha256, `${label} differs from the approved boundary startup change`);
     if (block.function === "seedMunicipalBoundary" || block.assignment) {
@@ -281,7 +288,7 @@ function auditedExportPresentationSource(kind, entry, source) {
   for (const block of exportPresentation.blocks.filter(block => block.kind === kind && block.entryId === entry.id)) {
     const label = block.function || block.source;
     assert.ok(entry.sources.includes(block.source), `${label} must remain in its declared source`);
-    const restoredSource = auditedIssueFixFragments(read(block.source),
+    const restoredSource = auditedIssueFixFragments(auditedHolisticRead(block.source),
       bugFixAudit.changes.filter(change => change.source === block.source), "Presentation source");
     const actual = exactPresentationBlock(restoredSource, block.function, label);
     assert.equal(Buffer.byteLength(actual), block.afterBytes, `${label} differs from the approved presentation change`);
@@ -314,28 +321,43 @@ function auditedIssueFixFragments(source, blocks, label) {
   return source;
 }
 
+function auditedHolisticRead(relative) {
+  const blocks = [...holisticFixAudit.changes, ...holisticFixAudit.externalChanges].filter(block => block.source === relative);
+  return auditedIssueFixFragments(read(relative), blocks, relative);
+}
+
+function auditedHolisticSource(kind, entry, source) {
+  const blocks = holisticFixAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
+  for (const block of blocks) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared source`);
+    auditedIssueFixFragments(read(block.source), [block], "Holistic authoring source");
+  }
+  return auditedIssueFixFragments(source, blocks, entry.id);
+}
+
 function auditedIssueFixSource(kind, entry, source) {
   const blocks = bugFixAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
   for (const block of blocks) {
     assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared authoring source`);
-    auditedIssueFixFragments(read(block.source), [block], "Authoring source");
+    auditedIssueFixFragments(auditedHolisticRead(block.source), [block], "Authoring source");
   }
   return auditedIssueFixFragments(source, blocks, entry.id);
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedHolisticSource(kind, entry, source);
   source = auditedIssueFixSource(kind, entry, source);
   for (const block of loaderRestore.styles.filter(block => block.kind === kind && block.entryId === entry.id)) {
     assert.ok(entry.sources.includes(block.source), `${entry.id} loader rules must stay in their declared source`);
     if (block.mode === "whole-stylesheet") {
       assert.deepEqual(entry.sources, [block.source], "The dedicated loader lifecycle block must not include another source");
-      assert.equal(read(block.source), block.afterSource, "The loader lifecycle source differs from its exact reviewed block");
+      assert.equal(auditedHolisticRead(block.source), block.afterSource, "The loader lifecycle source differs from its exact reviewed block");
       assert.equal(Buffer.byteLength(source), block.afterBytes, "The loader lifecycle block length changed");
       assert.equal(sha256(source), block.afterSha256, "The loader lifecycle block changed outside the reviewed restoration");
       assert.equal(source, block.afterSource, "The generated loader lifecycle block must match its source");
       source = block.beforeSource;
     } else {
-      auditedUiStartupFragments(read(block.source), [block], "Loader source");
+      auditedUiStartupFragments(auditedHolisticRead(block.source), [block], "Loader source");
       source = auditedUiStartupFragments(source, [block], "Loader stylesheet");
     }
   }
@@ -524,7 +546,7 @@ const expectedTokenOrder = baseline.blocks.map(block =>
 const actualTokenOrder = Array.from(template.matchAll(/<!-- nww:(?:style|script):[\w-]+ -->/g), match => match[0]);
 assert.deepEqual(actualTokenOrder, expectedTokenOrder,
   "Extraction slots must retain the original interleaved CSS/script order");
-const originalIssueTemplate = auditedIssueFixFragments(template, bugFixAudit.templateChanges, "Template");
+const originalIssueTemplate = auditedIssueFixFragments(auditedIssueFixFragments(template, holisticFixAudit.templateChanges, "Holistic template"), bugFixAudit.templateChanges, "Template");
 const originalFamilyTemplate = auditedFontFamilyTemplate(originalIssueTemplate, "Source template");
 const originalLoaderTemplate = auditedUiStartupFragments(originalFamilyTemplate, [loaderRestore.templateChange], "Loader template");
 const originalUiTemplate = auditedUiStartupFragments(originalLoaderTemplate, uiStartup.templateChanges, "Template");
@@ -630,7 +652,7 @@ if (process.argv.includes("--self-test")) {
       "tools/fixtures/north-wildwood-pane-startup.json",
       "tools/fixtures/north-wildwood-ui-startup.json",
       "tools/fixtures/north-wildwood-view-pill-surface.json",
-      "tools/fixtures/north-wildwood-loader-restore.json", BUG_FIX_AUDIT_PATH, loaderRestore.controller.source,
+      "tools/fixtures/north-wildwood-loader-restore.json", BUG_FIX_AUDIT_PATH, HOLISTIC_FIX_AUDIT_PATH, loaderRestore.controller.source,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -644,6 +666,10 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened holistic inverse audit", path.join(scratch, HOLISTIC_FIX_AUDIT_PATH),
+        JSON.stringify({ ...holisticFixAudit, changes: [...holisticFixAudit.changes, holisticFixAudit.changes[0]] })],
+      ["altered holistic correctness fragment", path.join(scratch, holisticFixAudit.changes[0].source),
+        read(holisticFixAudit.changes[0].source).replace(holisticFixAudit.changes[0].afterSource, holisticFixAudit.changes[0].afterSource + "\n// Unreviewed holistic change\n")],
       ["altered approved correctness fix", path.join(scratch, bugFixAudit.changes[0].source),
         read(bugFixAudit.changes[0].source).replace(bugFixAudit.changes[0].afterSource,
           bugFixAudit.changes[0].afterSource + "\n// Unreviewed correctness change\n")],

@@ -32,6 +32,7 @@
       geotiff: "https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"
     };
     const optionalScriptPromises = new Map();
+    const OPTIONAL_SCRIPT_TIMEOUT_MS = 12000;
 
     function loadOptionalScript(key, isReady) {
       if (isReady()) return Promise.resolve();
@@ -39,17 +40,26 @@
       const url = OPTIONAL_SCRIPT_URLS[key];
       const promise = new Promise((resolve, reject) => {
         const script = document.createElement("script");
+        let settled = false;
+        const finish = error => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(deadline);
+          script.onload = script.onerror = null;
+          if (error) {
+            script.remove();
+            reject(error);
+          } else resolve();
+        };
+        const deadline = window.setTimeout(() => finish(new Error(`${key} took too long to load. Please try again.`)), OPTIONAL_SCRIPT_TIMEOUT_MS);
         script.src = url;
         script.async = true;
         script.dataset.optionalLibrary = key;
-        script.onload = () => isReady()
-          ? resolve()
-          : reject(new Error(`${key} loaded without exposing its browser API.`));
-        script.onerror = () => reject(new Error(`${key} could not be loaded.`));
+        script.onload = () => finish(isReady() ? null : new Error(`${key} loaded without exposing its browser API.`));
+        script.onerror = () => finish(new Error(`${key} could not be loaded.`));
         document.head.appendChild(script);
       }).catch(error => {
-        optionalScriptPromises.delete(key);
-        document.querySelector(`script[data-optional-library="${key}"]`)?.remove();
+        if (optionalScriptPromises.get(key) === promise) optionalScriptPromises.delete(key);
         throw error;
       });
       optionalScriptPromises.set(key, promise);

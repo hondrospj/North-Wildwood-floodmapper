@@ -31,7 +31,7 @@ assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
   "./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray",
   "./assets/road-impacts.js?v=20261002-road-impacts-default-off",
-  "assets/avalon-mobile.js?v=20261009-conflicts-1",
+  "assets/avalon-mobile.js?v=20261026-holistic1",
   "assets/export-area.js?v=20261023-3",
 ]);
 

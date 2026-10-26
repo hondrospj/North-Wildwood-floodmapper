@@ -20,6 +20,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from cache_contract import identity_matches, product_identities, render_identity, simulation_identity
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -371,6 +372,31 @@ def write_local_pointer(path: Path, pointer: dict[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def validate_publication_inputs(config: dict[str, Any], guidance: dict[str, Any],
+                                cycle_id: str, validation: dict[str, Any]) -> dict[str, str]:
+    """A prior passed report cannot authorize publishing a changed model/render."""
+    if guidance.get("cycleId") != cycle_id:
+        raise RuntimeError("Publication guidance cycle mismatch")
+    identities = product_identities(ROOT, config, guidance)
+    if validation.get("productIdentitySha256ByScenario") != identities:
+        raise RuntimeError("Product validation identity is stale; rerun validation before publishing")
+    results = {row["scenario"]: row for row in validation["scenarios"]}
+    for scenario in config["petss"]["scenarios"]:
+        run = ROOT / "model/runs" / cycle_id / scenario
+        run_path = run / "run_manifest.json"
+        public_path = run / "public/manifest.json"
+        run_manifest = json.loads(run_path.read_text())
+        public_manifest = json.loads(public_path.read_text())
+        simulation = simulation_identity(ROOT, config, guidance, scenario)
+        rendered = render_identity(ROOT, config, simulation)
+        if (not identity_matches(run_manifest.get("simulationIdentity"), simulation)
+                or not identity_matches(public_manifest.get("renderIdentity"), rendered)
+                or results[scenario].get("runManifestSha256") != sha256_file(run_path)
+                or results[scenario].get("publicManifestSha256") != sha256_file(public_path)):
+            raise RuntimeError(f"{scenario} changed since validation; rerun the model/validation before publishing")
+    return identities
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
@@ -387,6 +413,9 @@ def main() -> None:
         (ROOT / "model/state/latest_petss.json").read_text(encoding="utf-8")
     )
     cycle_id = args.cycle_id or guidance["cycleId"]
+    cycle_guidance_path = ROOT / "model/state" / f"petss_{cycle_id}.json"
+    if cycle_guidance_path.is_file():
+        guidance = json.loads(cycle_guidance_path.read_text(encoding="utf-8"))
     scenarios = list(config["petss"]["scenarios"])
     run_directory = ROOT / "model/runs" / cycle_id
     validation_path = ROOT / "model/state" / f"validation_{cycle_id}.json"
@@ -402,6 +431,7 @@ def main() -> None:
         != scenarios
     ):
         raise RuntimeError(f"Invalid product validation report: {validation_path}")
+    identities = validate_publication_inputs(config, guidance, cycle_id, validation)
     access_key = get_access_key(bunny_config["storageZone"], args.setup_key)
     bunny = BunnyStorage(
         zone=bunny_config["storageZone"],
@@ -440,6 +470,7 @@ def main() -> None:
         "forecastEndUtc": manifests[scenarios[0]]["forecastEndUtc"],
         "scenarios": scenarios,
         "manifestUrls": manifest_urls,
+        "productIdentitySha256ByScenario": identities,
     }
     pointer_payload = (json.dumps(pointer, indent=2) + "\n").encode("utf-8")
     stable_pointer_remote_path = join_remote(

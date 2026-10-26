@@ -122,6 +122,33 @@
       return { firstDate, lastDate };
     }
 
+    async function ensureExportArchiveAvailability() {
+      if (currentDataMode === "return-interval") return;
+      // Export has its own entry point: archive availability cannot depend on
+      // whether the user has previously navigated to Past.
+      const previousDays = getObservedDays();
+      await warmBackgroundData();
+      await ensureLewesArchiveIndex();
+      if (!getObservedArchiveDateBounds()) {
+        throw new Error("Historical export dates could not load. Please try again.");
+      }
+      if (getObservedDays() !== previousDays) clearExportAvailabilityCache();
+    }
+
+    function exportRangeNeedsObservedArchive(range) {
+      if (!range || currentDataMode === "return-interval") return false;
+      const startMs = Number.isFinite(range.startMs) ? range.startMs : range.startDate?.getTime();
+      const endMs = Number.isFinite(range.endMs) ? range.endMs : range.endDate?.getTime();
+      const times = getForecastExportEntries()
+        .filter(entry => Number.isFinite(getStageValue(entry)))
+        .map(entryTimeMs)
+        .filter(Number.isFinite);
+      if (!times.length || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return true;
+      // Forecast entries take precedence over overlapping observations in the
+      // exported series. A range wholly covered by them needs no history I/O.
+      return startMs < Math.min(...times) || endMs > Math.max(...times);
+    }
+
     function getForecastExportEntries() {
       const activeForecastHours = getActiveForecastHours();
       const source = activeForecastHours.length

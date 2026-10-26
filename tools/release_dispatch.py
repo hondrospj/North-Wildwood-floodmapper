@@ -2,7 +2,7 @@
 """Run required checks for a GITHUB_TOKEN-generated application asset commit.
 
 GitHub workflow dispatch accepts a branch or tag. A SHA-derived validation tag
-pins all four dispatches even if hourly data updates advance main between them.
+pins all required dispatches even if hourly data updates advance main between them.
 """
 import argparse
 import os

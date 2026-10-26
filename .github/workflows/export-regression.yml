@@ -59,6 +59,7 @@ jobs:
             tools/fixtures/north-wildwood-view-pill-surface.json
             tools/fixtures/north-wildwood-loader-restore.json
             tools/fixtures/north-wildwood-20261026-bug-fixes.json
+            tools/fixtures/north-wildwood-20261026-holistic-fixes.json
             tools/fixtures/north-wildwood-export-dst.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs
@@ -76,6 +77,8 @@ jobs:
           node --check assets/export-area.js
           node --check assets/export-preview.js
           node tools/test_export_preview.mjs
+          node tools/test_export_holistic.mjs
+          node tools/test_export_availability_performance.mjs
           node tools/test_export_review.mjs
           node tools/test_export_footer.mjs
           node tools/test_north_wildwood_export_dates.mjs

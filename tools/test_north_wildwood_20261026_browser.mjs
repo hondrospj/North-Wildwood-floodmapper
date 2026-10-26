@@ -111,6 +111,14 @@ try {
   await page.locator('#downloadModalCloseBtn').click();
   await page.locator('#openDownloadModalBtn').click();
   await page.locator('#exportFormatPngBtn').click();
+  // Forecast-only ranges intentionally bypass history. Select a genuine
+  // historical frame so this test still exercises archive preparation.
+  await fillDate('12/31/2025');
+  await page.locator('#downloadStartTimeSelect').selectOption('23:00');
+  await page.locator('#downloadEndDateText').fill('12/31/2025');
+  await page.locator('#downloadEndTimeSelect').focus();
+  await page.locator('#downloadEndTimeSelect').selectOption('23:00');
+  assert.equal(await selectedInstant(), '2026-01-01T04:00:00.000Z');
   await page.locator('#downloadBtn').click(); // Per-session settings review.
   await page.evaluate(() => {
     const original = ensureObservedArchiveRange;
