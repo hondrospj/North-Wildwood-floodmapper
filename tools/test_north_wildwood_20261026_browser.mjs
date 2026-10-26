@@ -50,6 +50,10 @@ try {
   // Use actual keyboard deletion/insertion, including the mask's beforeinput
   // and caret handlers. Deleting and retyping the same digit is a no-op.
   const dateInput = page.locator('#downloadStartDateText');
+  for (const id of ['downloadStartDateText', 'downloadEndDateText']) {
+    assert.equal(await page.locator(`#${id}`).getAttribute('maxlength'), null,
+      'A full placeholder mask must not make WebKit discard beforeinput text');
+  }
   await dateInput.evaluate(input => {
     window.__auditDateEvents = [];
     for (const type of ['keydown', 'beforeinput', 'input', 'keyup']) input.addEventListener(type, event => {

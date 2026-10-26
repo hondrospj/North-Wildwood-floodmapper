@@ -24,6 +24,18 @@ function context(names, mocks = {}) {
 }
 const timeFunctions = ['getNyParts', 'formatNyLocalIso', 'getLocalNyDateCandidates', 'parseStoredLocalNyToDate'];
 
+// The mask keeps a ten-character value even when a digit is deleted. A native
+// maxlength would make WebKit truncate an insertion before our beforeinput
+// handler receives the digit. The mask itself owns its length limit.
+{
+  const template = fs.readFileSync(new URL('app/index.template.html', import.meta.url), 'utf8');
+  for (const id of ['downloadStartDateText', 'downloadEndDateText']) {
+    const tag = template.match(new RegExp(`<input\\b[^>]*\\bid="${id}"[^>]*>`))?.[0];
+    assert.ok(tag, `Missing ${id}`);
+    assert.doesNotMatch(tag, /\bmaxlength\s*=/i, `${id} must leave insertion data available to the mask`);
+  }
+}
+
 // New York's missing and repeated hours are distinguished without depending on
 // the browser's own timezone. Invalid calendar rollover is rejected as well.
 {
@@ -80,6 +92,9 @@ const timeFunctions = ['getNyParts', 'formatNyLocalIso', 'getLocalNyDateCandidat
   rapid.selectionStart = rapid.selectionEnd = 8; // Native ArrowLeft twice.
   animationFrames.splice(0).forEach(callback => callback());
   assert.equal(rapid.selectionStart, 8, 'A queued caret write cannot overwrite later arrow movement');
+  const overflow = inputAt(0);
+  ctx.insertExportDateMaskDigits(overflow, '12345678901234567890');
+  assert.equal(overflow.value, '12/34/5678', 'The mask enforces eight digits without native maxlength');
 }
 
 // A small DOM surface exercises real editor population and commits, including

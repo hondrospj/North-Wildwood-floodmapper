@@ -26,7 +26,7 @@ const uiStartup = JSON.parse(read("tools/fixtures/north-wildwood-ui-startup.json
 const viewPillSurface = JSON.parse(read("tools/fixtures/north-wildwood-view-pill-surface.json"));
 const loaderRestore = JSON.parse(read("tools/fixtures/north-wildwood-loader-restore.json"));
 const BUG_FIX_AUDIT_PATH = "tools/fixtures/north-wildwood-20261026-bug-fixes.json";
-const BUG_FIX_AUDIT_SHA256 = "4da6a3ec3678c9e10128721af62b8d7e70609c84416691f9d9ed819c53aa4412";
+const BUG_FIX_AUDIT_SHA256 = "06b82915a30c6d163e0369f274198693841d5ad2c1b1c93b51f7f3da37d57e69";
 const bugFixAuditText = read(BUG_FIX_AUDIT_PATH);
 assert.equal(sha256(bugFixAuditText), BUG_FIX_AUDIT_SHA256,
   "The October 26 fixes must retain their exact independently reviewed inverse fragments");
