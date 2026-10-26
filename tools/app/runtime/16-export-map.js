@@ -381,7 +381,9 @@
       const time = `${parts.hour}${parts.minute === "00" ? "" : `:${parts.minute}`} ${parts.dayPeriod || ""}`
         .replace(/\s+/g, " ")
         .trim();
-      return `${month} ${Number(parts.day)}, ${parts.year} · ${time}`;
+      const repeatedHour = getLocalNyDateCandidates(formatNyLocalIso(date)).length > 1;
+      const zone = repeatedHour ? ` ${parts.timeZoneName || "ET"}` : "";
+      return `${month} ${Number(parts.day)}, ${parts.year} · ${time}${zone}`;
     }
 
     function getExportFrameTimestampText(entry) {

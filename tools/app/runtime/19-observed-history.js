@@ -459,8 +459,21 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     function buildModernTopTideCandidates() {
-      const sortedDays = getObservedDays()
-        .filter(day => !day?.isHistoricalCrestOnly && !day?.isLewesSurrogate && !day?.officialCrestEntry && Number.isFinite(Number(day?.peakNAVD88)))
+      // Rank the day index before any replay year is downloaded. Detailed
+      // samples enrich the selected event; they must not decide its rank.
+      const daysByDate = new Map((observed15MinuteData?.days || []).map(day => [day.d, {
+        date: day.d,
+        peakNAVD88: normalizeStageValue(day.p) == null ? null : Number(day.p) / 100,
+        classification: day.c || "none",
+        hours: []
+      }]));
+      getObservedDays().forEach(day => daysByDate.set(day.date, day));
+      const officialDates = new Set(historicTopTideEntries
+        .filter(entry => Number.isFinite(getStageValue(entry)))
+        .map(entry => entry.observedDate));
+      const sortedDays = Array.from(daysByDate.values())
+        .filter(day => !day?.isHistoricalCrestOnly && !day?.isLewesSurrogate && !day?.officialCrestEntry
+          && !officialDates.has(day.date) && Number.isFinite(normalizeStageValue(day?.peakNAVD88)))
         .slice()
         .sort((a, b) => Number(b.peakNAVD88) - Number(a.peakNAVD88));
 
@@ -477,15 +490,12 @@ function formatSelectedObservedDate(dateStr) {
         });
         if (overlaps) continue;
 
-        const hasLoadedSeries = observed15MinuteDaysByDate.has(dateKey)
-          || (Array.isArray(dayRecord.timelineRawHours) && dayRecord.timelineRawHours.length > 0)
-          || (Array.isArray(dayRecord.hours) && dayRecord.hours.length > 0);
-        if (!hasLoadedSeries) continue;
-
         const canonicalSeries = buildObservedCanonicalSeries(dayRecord, dateKey);
-        const daySeries = getTimelineIntervalMinutes() === 1440
-          ? buildObservedDailyMaximumSeries(dateKey.slice(0, 7))
-          : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());
+        const daySeries = canonicalSeries.every(entry => entry.isDailyPeakOnly)
+          ? canonicalSeries
+          : getTimelineIntervalMinutes() === 1440
+            ? buildObservedDailyMaximumSeries(dateKey.slice(0, 7))
+            : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());
         if (!daySeries.some(item => Number.isFinite(getStageValue(item)))) continue;
         const dailyEventIndex = getTimelineIntervalMinutes() === 1440
           ? daySeries.findIndex(item => item?.observedDate === dateKey)

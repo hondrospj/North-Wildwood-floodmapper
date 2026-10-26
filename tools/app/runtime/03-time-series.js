@@ -61,27 +61,25 @@ function detectSeriesResolutionMinutes(entries = []) {
       return diffs[Math.floor(diffs.length / 2)];
     }
 
-function parseStoredLocalNyToDate(timeEST) {
+    function getLocalNyDateCandidates(timeEST) {
       const match = String(timeEST || "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-      if (!match) return null;
+      if (!match) return [];
       const [, y, m, d, hh, mm] = match;
       const targetLocalMs = Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm));
-      let guessUtcMs = targetLocalMs;
-      for (let i = 0; i < 5; i++) {
-        const parts = getNyParts(new Date(guessUtcMs));
-        if (!parts) break;
-        const actualLocalMs = Date.UTC(
-          Number(parts.year),
-          Number(parts.month) - 1,
-          Number(parts.day),
-          Number(parts.hour24),
-          Number(parts.minute)
-        );
-        const diff = targetLocalMs - actualLocalMs;
-        guessUtcMs += diff;
-        if (diff === 0) break;
-      }
-      return new Date(guessUtcMs);
+      // New York uses UTC-4/UTC-5 throughout the supported gauge archive.
+      // Round-trip both offsets: spring-forward has no candidate and fall-back
+      // has two distinct instants, in chronological order.
+      return [4, 5].map(offset => new Date(targetLocalMs + offset * 60 * 60 * 1000)).filter(date => {
+        const parts = getNyParts(date);
+        return parts && parts.year === y && parts.month === m && parts.day === d &&
+          Number(parts.hour24) === Number(hh) && parts.minute === mm;
+      });
+    }
+
+function parseStoredLocalNyToDate(timeEST) {
+      // Legacy wall-time records retain the earlier repeated hour. Interactive
+      // export editors expose both candidates and keep their selected instant.
+      return getLocalNyDateCandidates(timeEST)[0] || null;
     }
 
     function makeObservedHourKeyFromDate(date) {

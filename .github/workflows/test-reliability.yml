@@ -56,6 +56,10 @@ jobs:
           python3 tools/test_release_data.py
           node tools/check_inline_scripts.mjs
           node tools/test_interaction_races.mjs
+          node tools/test_north_wildwood_3d_interactions.mjs
+          node tools/test_north_wildwood_address_recovery.mjs
+          node tools/test_north_wildwood_export_dates.mjs
+          node tools/test_north_wildwood_top_tides_and_live_observations.mjs
           node tools/test_north_wildwood_renderer_regressions.mjs index.html
           node tools/test_north_wildwood_legend_keyboard.mjs index.html
           node tools/test_north_wildwood_ui_state.mjs index.html
@@ -137,6 +141,7 @@ jobs:
           node tools/test_north_wildwood_view_pill.mjs
           if [ "$NWW_BROWSER" = "chromium" ]; then node tools/test_north_wildwood_webcams.mjs; fi
           node tools/test_north_wildwood_export_interactions.mjs
+          node tools/test_north_wildwood_20261026_browser.mjs
           node tools/test_north_wildwood_mobile_interactions.mjs
           NWW_TOUCH=1 node tools/test_north_wildwood_mobile_interactions.mjs
           node tools/test_north_wildwood_audit_regressions.mjs

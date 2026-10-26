@@ -226,8 +226,9 @@
 
         const byHour = new Map();
         combined.forEach(entry => {
-          const d = getEntryESTDate(entry);
-          const key = d ? formatNyLocalIso(d) : String(entryTimeMs(entry));
+          // A repeated fall-back wall time represents two different readings.
+          // Forecast preference applies only to the exact same instant.
+          const key = String(entryTimeMs(entry));
           const existing = byHour.get(key);
           if (!existing || entry.exportSourceMode === "forecast") {
             byHour.set(key, entry);

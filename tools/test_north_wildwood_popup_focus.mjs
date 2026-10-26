@@ -8,7 +8,9 @@ if (!sourcePath) throw new Error('Usage: node popup-focus.mjs /path/to/north-wil
 const source = readAppSource(sourcePath);
 const body = source.match(/updatePersistentDepthQueryPopup = function \(\) \{([\s\S]*?)\n  \};/)?.[1];
 assert.ok(body, 'The actual popup refresh wrapper must be present');
-const refresh = new Function('env', `with(env) { ${body}\n }`);
+const fallbackLifetimeSource = source.match(/  function closeOutdatedFallbackBuildingPopup\(\) \{[\s\S]*?\n  \}/)?.[0];
+assert.ok(fallbackLifetimeSource, 'The actual fallback popup lifetime helper must be present');
+const refresh = new Function('env', `with(env) { ${fallbackLifetimeSource}\n ${body}\n }`);
 
 function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, throws = false } = {}) {
   const document = { activeElement: null };
@@ -43,6 +45,7 @@ function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, thro
   const env = {
     glPopup, document, persistentFloodPopup: { getContent: () => changed ? 'new reading' : 'old reading' },
     lastGlPopupHtml: 'old reading',
+    fallbackBuildingPopup: null, fallbackBuildingRenderToken: null, lastRenderToken: 1, floodFrameState: 'ready',
     originalUpdatePersistentDepthQueryPopup: () => { calls.original++; return 'original result'; },
     syncGlPopupLayout: () => calls.layout++,
   };

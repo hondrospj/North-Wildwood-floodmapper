@@ -439,43 +439,29 @@
         return;
       }
 
-      if (currentDataMode !== "return-interval" && getDownloadScopeValue() !== "current" && validation.range) {
-        setDownloadBusy(true, "Loading the selected tide-archive year...");
-        try {
-          await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
-        } catch (error) {
-          console.error(error);
-          setDownloadBusy(false);
-          const message = "The selected tide-archive year could not be loaded. Please try again.";
-          setDownloadStatus(message, true);
-          toast(message);
-          return;
+      const needsArchive = currentDataMode !== "return-interval" && getDownloadScopeValue() !== "current" && validation.range;
+      // Close the settings dialog before showing progress so its focus/inert
+      // isolation cannot disable the progress Cancel button during preparation.
+      setDownloadModalOpen(false);
+      setDownloadBusy(true, needsArchive ? "Loading the selected tide-archive year..." : "Preparing export...");
+      try {
+        if (needsArchive) {
+          try {
+            await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
+          } catch (error) {
+            throwIfExportCancelled();
+            throw new Error("The selected tide-archive year could not be loaded. Please try again.", { cause: error });
+          }
         }
-      }
-
-      let frameItems = [];
-      if (format === "png") {
-        frameItems = getDownloadFrameItems();
-        if (frameItems.length > EXPORT_PNG_SELECTION_LIMIT) {
+        throwIfExportCancelled();
+        let frameItems = getDownloadFrameItems();
+        if (format === "png" && frameItems.length > EXPORT_PNG_SELECTION_LIMIT) {
           frameItems = frameItems.slice(0, EXPORT_PNG_SELECTION_LIMIT);
           toast(`PNG export is limited to ${EXPORT_PNG_SELECTION_LIMIT} frames.`);
         }
-      } else {
-        frameItems = getDownloadFrameItems();
-      }
-
-      if (!frameItems.length) {
-        setDownloadBusy(false);
-        toast("No frames are available for export.");
-        setDownloadStatus("No frames are available for export.", true);
-        return;
-      }
-      setDownloadModalOpen(false);
-      setDownloadBusy(true, "Preparing export...");
-      throwIfExportCancelled();
-      const label = format === "png" ? "PNG" : `${getDownloadAspectValue()} GIF`;
-      setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? "" : "s"}...`, 1, false);
-      try {
+        if (!frameItems.length) throw new Error("No frames are available for export.");
+        const label = format === "png" ? "PNG" : `${getDownloadAspectValue()} GIF`;
+        setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? "" : "s"}...`, 1, false);
         setDownloadStatus("Loading export tools...");
         setExportProgress("Loading export tools...", 1, false);
         await ensureExportLibraries(format, frameItems.length);

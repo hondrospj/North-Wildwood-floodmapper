@@ -42,6 +42,7 @@ try {
       assert.equal(await page.locator('body').evaluate(el => el.classList.contains('mobile-controls-open')), false);
     }
     async function openCamera(id, keyboard = false) {
+      const external = id === 'north-beach';
       const marker = page.locator(`[data-webcam-marker="${id}"]`);
       const before = requests.length;
       // Software-rendered CI can finish its first terrain paint after the
@@ -51,11 +52,18 @@ try {
       await marker.click({ trial: true, timeout: is3dMarker ? 60000 : 20000 });
       if (keyboard) { await marker.focus(); await page.keyboard.press('Enter'); }
       else await marker.click();
-      await page.waitForFunction(() => !document.getElementById('webcamPanel').hidden && document.getElementById('webcamPanel').dataset.playerState === 'player-open');
-      assert.equal(requests.length, before + 1, 'One activation opens one feed');
-      assert.equal(await page.locator('#webcamFrame iframe').count(), 1);
+      await page.waitForFunction(state => !document.getElementById('webcamPanel').hidden && document.getElementById('webcamPanel').dataset.playerState === state, external ? 'external' : 'player-open');
+      assert.equal(requests.length, before + (external ? 0 : 1), 'Only an embeddable camera requests a feed');
+      assert.equal(await page.locator('#webcamFrame iframe').count(), external ? 0 : 1);
       assert.equal(await page.locator('#webcamPanel').evaluate(el => el.parentElement.id), 'mapWrap');
-      assert.match(await page.locator('#webcamStatus').innerText(), /availability shown by provider/);
+      assert.match(await page.locator('#webcamStatus').innerText(), external ? /city website/ : /availability shown by provider/);
+      assert.equal(await page.locator('#webcamRetry').isVisible(), !external);
+      if (external) {
+        const link = page.locator('#webcamFrame .webcam-external a');
+        assert.equal(await link.getAttribute('href'), 'https://northwildwood.com/north-wildwood-surf-cams/');
+        assert.equal(await link.getAttribute('target'), '_blank');
+        assert.match(await link.getAttribute('rel'), /noopener/);
+      }
       assert.ok(await page.locator('.webcam-disclaimer').isVisible());
       const box = await page.locator('#webcamPanel').boundingBox();
       assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0);
@@ -78,11 +86,17 @@ try {
     await openCamera('north-bay');
     assert.ok(requests.some(url => url.includes('ipcamlive')));
     const oldPlayer = await page.locator('#webcamFrame iframe').elementHandle();
+    const beforeBeach = requests.length;
     await page.locator('#webcamChoice').selectOption('north-beach');
-    await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'player-open');
+    await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'external');
     assert.equal(await oldPlayer.evaluate(el => el.isConnected), false);
-    assert.equal(await page.locator('#webcamFrame iframe').count(), 1);
-    assert.match(await page.locator('#webcamFrame iframe').getAttribute('src'), /magicbrain/);
+    assert.equal(await page.locator('#webcamFrame iframe').count(), 0);
+    assert.equal(requests.length, beforeBeach, 'Restricted beach camera never requests an iframe');
+    assert.equal(await page.locator('#webcamRetry').isVisible(), false);
+    await page.locator('#webcamChoice').selectOption('north-bay');
+    await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'player-open');
+    assert.equal(requests.length, beforeBeach + 1, 'Switching back opens the bay player lazily');
+    assert.equal(await page.locator('#webcamRetry').isVisible(), true);
     await page.keyboard.press('Escape');
     await assertViewerClosed();
     await openCamera('north-beach', true);

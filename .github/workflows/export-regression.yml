@@ -58,9 +58,12 @@ jobs:
             tools/fixtures/north-wildwood-ui-startup.json
             tools/fixtures/north-wildwood-view-pill-surface.json
             tools/fixtures/north-wildwood-loader-restore.json
+            tools/fixtures/north-wildwood-20261026-bug-fixes.json
+            tools/fixtures/north-wildwood-export-dst.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs
             tools/test_north_wildwood_export_layout.mjs
+            tools/test_north_wildwood_export_dates.mjs
           sparse-checkout-cone-mode: false
           lfs: false
       - uses: actions/setup-node@v4
@@ -75,6 +78,7 @@ jobs:
           node tools/test_export_preview.mjs
           node tools/test_export_review.mjs
           node tools/test_export_footer.mjs
+          node tools/test_north_wildwood_export_dates.mjs
           node tools/test_north_wildwood_export_layout.mjs
           node tools/test_export_syntax.mjs
           node tools/test_export_recovery.mjs

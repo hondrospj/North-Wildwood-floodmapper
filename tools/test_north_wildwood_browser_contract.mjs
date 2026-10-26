@@ -911,7 +911,29 @@ assert.match(exportFooterStyle, /#exportFooter :is\(#exportTimestampLabel,#expor
   "Footer chrome must use its reserved layout rather than float over the map");
 assert.match(extractFunction("applyExportStageAspect"), /getExportFooterLayout[\s\S]+mapElement\.style\.setProperty\("height", `\$\{layout\.map\.height\}px`, "important"\)/,
   "Reserve the footer height before sizing the exported map");
-assert.doesNotMatch(extractFunction("getExportFrameDateTimeText"), /timeZoneName|GMT|UTC|E\[SD\]T/);
+const exportDateTimeContext = vm.createContext({ Date, Intl });
+for (const declaration of [
+  SOURCE.match(/const MONTH_NAMES = \[[^\n]+\];/)?.[0],
+  SOURCE.match(/const NEW_YORK_TIME_ZONE = "[^"]+";/)?.[0],
+  SOURCE.match(/const NY_PARTS_FORMATTER = new Intl\.DateTimeFormat\("en-US", \{[\s\S]*?\n    \}\);/)?.[0],
+]) {
+  assert.ok(declaration, "Missing the app's New York date-formatting configuration");
+  vm.runInContext(declaration, exportDateTimeContext);
+}
+for (const name of ["pad2", "getNyParts", "formatNyLocalIso", "getLocalNyDateCandidates",
+  "parseStoredLocalNyToDate", "parseStoredESTToDate", "getEntryESTDate", "getExportFrameDateTimeText"]) {
+  vm.runInContext(extractFunction(name), exportDateTimeContext);
+}
+for (const [timeUtc, expected] of [
+  ["2026-07-29T13:00:00Z", "Jul 29, 2026 · 9 AM"],
+  ["2026-07-29T13:15:00Z", "Jul 29, 2026 · 9:15 AM"],
+  ["2026-01-29T14:00:00Z", "Jan 29, 2026 · 9 AM"],
+  ["2025-11-02T05:30:00Z", "Nov 2, 2025 · 1:30 AM EDT"],
+  ["2025-11-02T06:30:00Z", "Nov 2, 2025 · 1:30 AM EST"],
+]) {
+  assert.equal(exportDateTimeContext.getExportFrameDateTimeText({ timeUtc }), expected,
+    "Ordinary export times keep their existing label; repeated hours identify the selected instant");
+}
 assert.match(SOURCE, /id="buildingsToggle"/);
 assert.match(SOURCE, /function styleEsriBuildingForeground\(/);
 assert.match(SOURCE, /makeEsriBuildingForegroundLayer\("buildingsPane"\)/);

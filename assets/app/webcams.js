@@ -61,6 +61,23 @@
 
   function loadPlayer(camera) {
     clearPlayer();
+    panel.querySelector("#webcamRetry").hidden = Boolean(camera.external);
+    if (camera.external) {
+      panel.dataset.playerState = "external";
+      status.textContent = "Watch this camera on the city website.";
+      const notice = document.createElement("div");
+      notice.className = "webcam-external";
+      const message = document.createElement("p");
+      message.textContent = `${camera.name} opens on the city’s camera page.`;
+      const link = document.createElement("a");
+      link.href = camera.sourceUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Watch camera ↗";
+      notice.append(message, link);
+      frameHost.append(notice);
+      return;
+    }
     status.textContent = "Opening camera…";
     panel.dataset.playerState = "loading";
     const player = document.createElement(camera.kind === "image" ? "img" : "iframe");

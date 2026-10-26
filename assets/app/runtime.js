@@ -1417,27 +1417,25 @@ function detectSeriesResolutionMinutes(entries = []) {
       return diffs[Math.floor(diffs.length / 2)];
     }
 
-function parseStoredLocalNyToDate(timeEST) {
+    function getLocalNyDateCandidates(timeEST) {
       const match = String(timeEST || "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-      if (!match) return null;
+      if (!match) return [];
       const [, y, m, d, hh, mm] = match;
       const targetLocalMs = Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm));
-      let guessUtcMs = targetLocalMs;
-      for (let i = 0; i < 5; i++) {
-        const parts = getNyParts(new Date(guessUtcMs));
-        if (!parts) break;
-        const actualLocalMs = Date.UTC(
-          Number(parts.year),
-          Number(parts.month) - 1,
-          Number(parts.day),
-          Number(parts.hour24),
-          Number(parts.minute)
-        );
-        const diff = targetLocalMs - actualLocalMs;
-        guessUtcMs += diff;
-        if (diff === 0) break;
-      }
-      return new Date(guessUtcMs);
+      // New York uses UTC-4/UTC-5 throughout the supported gauge archive.
+      // Round-trip both offsets: spring-forward has no candidate and fall-back
+      // has two distinct instants, in chronological order.
+      return [4, 5].map(offset => new Date(targetLocalMs + offset * 60 * 60 * 1000)).filter(date => {
+        const parts = getNyParts(date);
+        return parts && parts.year === y && parts.month === m && parts.day === d &&
+          Number(parts.hour24) === Number(hh) && parts.minute === mm;
+      });
+    }
+
+function parseStoredLocalNyToDate(timeEST) {
+      // Legacy wall-time records retain the earlier repeated hour. Interactive
+      // export editors expose both candidates and keep their selected instant.
+      return getLocalNyDateCandidates(timeEST)[0] || null;
     }
 
     function makeObservedHourKeyFromDate(date) {
@@ -5242,8 +5240,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
         const byHour = new Map();
         combined.forEach(entry => {
-          const d = getEntryESTDate(entry);
-          const key = d ? formatNyLocalIso(d) : String(entryTimeMs(entry));
+          // A repeated fall-back wall time represents two different readings.
+          // Forecast preference applies only to the exact same instant.
+          const key = String(entryTimeMs(entry));
           const existing = byHour.get(key);
           if (!existing || entry.exportSourceMode === "forecast") {
             byHour.set(key, entry);
@@ -5340,6 +5339,14 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
     function formatExportDateMask(value) {
+      const raw = String(value || "").toUpperCase();
+      if (raw.length === EXPORT_DATE_MASK.length && raw[2] === "/" && raw[5] === "/") {
+        const chars = EXPORT_DATE_MASK.split("");
+        EXPORT_DATE_MASK_POSITIONS.forEach(position => {
+          if (/\d/.test(raw[position])) chars[position] = raw[position];
+        });
+        return chars.join("");
+      }
       const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
       const chars = EXPORT_DATE_MASK.split("");
       EXPORT_DATE_MASK_POSITIONS.forEach((position, index) => {
@@ -5371,9 +5378,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (!EXPORT_DATE_MASK_POSITIONS.includes(position) && position < EXPORT_DATE_MASK.length) {
         position = getNextExportDateMaskPosition(position, 1, true);
       }
-      requestAnimationFrame(() => {
-        try { input.setSelectionRange(position, position); } catch (e) {}
-      });
+      // beforeinput/key deletion is prevented; commit the caret with the value
+      // so a fast following key cannot land at the browser's reset-to-end caret.
+      // A deferred write would also overwrite subsequent native arrow movement.
+      try { input.setSelectionRange(position, position); } catch (e) {}
     }
 
     function clearExportDateMaskRange(chars, start, end) {
@@ -5410,6 +5418,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         clearExportDateMaskRange(chars, start, end);
         caret = getNextExportDateMaskPosition(start, 1, true);
       } else if (backward) {
+        if (start === 0) return;
         const target = getNextExportDateMaskPosition(start, -1, false);
         if (EXPORT_DATE_MASK_POSITIONS.includes(target)) {
           chars[target] = exportDateMaskPlaceholderAt(target);
@@ -5500,22 +5509,41 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       return `${pad2(hour12)}:${pad2(minute)} ${period}`;
     }
 
-    function populateExportTimeSelect(select, selectedValue = "00:00") {
+    function getExportTimeSelection(value) {
+      const match = String(value || "").match(/^(\d{2}:\d{2})(?:\|(-?\d+))?$/);
+      return match ? { time: match[1], instantMs: match[2] == null ? null : Number(match[2]) } : null;
+    }
+
+    function populateExportTimeSelect(select, selectedValue = "00:00", isoDate = "", selectedDate = null) {
       if (!select) return;
-      const normalized = /^\d{2}:\d{2}$/.test(selectedValue) ? selectedValue : "00:00";
+      const normalized = getExportTimeSelection(selectedValue)?.time || "00:00";
       const values = [];
       for (let minutes = 0; minutes < 24 * 60; minutes += 15) {
         values.push(`${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`);
       }
       if (!values.includes(normalized)) values.push(normalized);
       values.sort();
-      const existingValues = Array.from(select.options || [], option => option.value);
-      const optionsAreCurrent = existingValues.length === values.length
-        && existingValues.every((value, index) => value === values[index]);
-      if (!optionsAreCurrent) {
-        select.innerHTML = values.map(value => `<option value="${value}">${formatExportTimeLabel(value)}</option>`).join("");
+      const options = values.flatMap(time => {
+        const label = formatExportTimeLabel(time);
+        const candidates = isoDate ? getLocalNyDateCandidates(`${isoDate}T${time}`) : [];
+        if (isoDate && !candidates.length) {
+          return time === normalized ? [{ value: time, label: `${label} (unavailable)`, disabled: true }] : [];
+        }
+        if (candidates.length > 1) {
+          return candidates.map((date, index) => ({ value: `${time}|${date.getTime()}`,
+            label: `${label} ${getNyParts(date)?.timeZoneName || "ET"} (${index === 0 ? "first" : "second"})` }));
+        }
+        return [{ value: time, label }];
+      });
+      const markup = options.map(option => `<option value="${option.value}"${option.disabled ? " disabled" : ""}>${option.label}</option>`).join("");
+      if (select.dataset.optionsMarkup !== markup) {
+        select.innerHTML = markup;
+        select.dataset.optionsMarkup = markup;
       }
-      select.value = normalized;
+      const exactValue = selectedDate ? `${normalized}|${selectedDate.getTime()}` : selectedValue;
+      select.value = options.find(option => option.value === exactValue)?.value
+        || options.find(option => option.value === normalized || option.value.startsWith(`${normalized}|`))?.value
+        || options[0]?.value || "";
     }
 
     function syncExportDateTimeEditorFromCanonical(prefix) {
@@ -5538,6 +5566,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         calendarButton.disabled = exportInProgress || modeledDateLocked;
       }
       if (elements.datePicker) elements.datePicker.disabled = exportInProgress || modeledDateLocked;
+      if (elements.canonical.dataset.invalidLocalTime === "1") return;
       const value = elements.canonical.value || "";
       const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
       if (!match) {
@@ -5554,7 +5583,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       elements.dateText.classList.remove("is-invalid");
       elements.dateText.removeAttribute("aria-invalid");
       if (elements.datePicker) elements.datePicker.value = isoDate;
-      populateExportTimeSelect(elements.timeSelect, timeValue);
+      const selectedDate = elements.canonical.dataset.timeUtc ? new Date(elements.canonical.dataset.timeUtc) : null;
+      populateExportTimeSelect(elements.timeSelect, timeValue, isoDate, selectedDate);
     }
 
     function commitExportDateTimeEditor(prefix, options = {}) {
@@ -5563,8 +5593,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (currentDataMode === "return-interval") {
         const canonicalMatch = elements.canonical.value.match(/^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}$/);
         if (!canonicalMatch) return false;
-        const timeValue = /^\d{2}:\d{2}$/.test(elements.timeSelect.value) ? elements.timeSelect.value : "00:00";
+        const timeValue = getExportTimeSelection(elements.timeSelect.value)?.time || "00:00";
         elements.canonical.value = `${canonicalMatch[1]}T${timeValue}`;
+        delete elements.canonical.dataset.timeUtc;
+        delete elements.canonical.dataset.invalidLocalTime;
         if (options.markEdited) elements.canonical.dataset.userEdited = "1";
         elements.dateText.value = MODELED_EXPORT_DATE_PLACEHOLDER;
         elements.dateText.classList.remove("is-invalid");
@@ -5578,13 +5610,29 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         if (options.showError) setDownloadStatus("Enter the date as MM/DD/YYYY.", true);
         return false;
       }
-      const timeValue = /^\d{2}:\d{2}$/.test(elements.timeSelect.value) ? elements.timeSelect.value : "00:00";
-      elements.canonical.value = `${parsed.isoDate}T${timeValue}`;
+      const timeSelection = getExportTimeSelection(elements.timeSelect.value);
+      const timeValue = timeSelection?.time || "00:00";
+      const localValue = `${parsed.isoDate}T${timeValue}`;
+      const candidates = getLocalNyDateCandidates(localValue);
+      if (!candidates.length) {
+        elements.canonical.dataset.invalidLocalTime = "1";
+        elements.canonical.dataset.userEdited = "1";
+        elements.dateText.classList.add("is-invalid");
+        elements.dateText.setAttribute("aria-invalid", "true");
+        populateExportTimeSelect(elements.timeSelect, timeValue, parsed.isoDate);
+        if (options.showError) setDownloadStatus("That time does not occur in New York on this date. Choose another time.", true);
+        return false;
+      }
+      const selectedDate = candidates.find(date => date.getTime() === timeSelection?.instantMs) || candidates[0];
+      elements.canonical.value = localValue;
+      elements.canonical.dataset.timeUtc = selectedDate.toISOString();
+      delete elements.canonical.dataset.invalidLocalTime;
       if (options.markEdited) elements.canonical.dataset.userEdited = "1";
       if (options.normalize !== false) elements.dateText.value = parsed.displayDate;
       elements.dateText.classList.remove("is-invalid");
       elements.dateText.removeAttribute("aria-invalid");
       if (elements.datePicker) elements.datePicker.value = parsed.isoDate;
+      populateExportTimeSelect(elements.timeSelect, timeValue, parsed.isoDate, selectedDate);
       return true;
     }
 
@@ -5595,14 +5643,21 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
     function getRangeInputDate(id) {
-      const value = document.getElementById(id)?.value || "";
-      return value ? parseStoredLocalNyToDate(value) : null;
+      const input = document.getElementById(id);
+      const value = input?.value || "";
+      if (!value || input.dataset.invalidLocalTime === "1") return null;
+      const candidates = getLocalNyDateCandidates(value);
+      const selectedMs = Date.parse(input.dataset.timeUtc || "");
+      return candidates.find(date => date.getTime() === selectedMs) || candidates[0] || null;
     }
 
     function setRangeInputDate(id, date) {
       const input = document.getElementById(id);
       if (!input) return;
       input.value = date ? formatNyLocalIso(date) : "";
+      if (date) input.dataset.timeUtc = date.toISOString();
+      else delete input.dataset.timeUtc;
+      delete input.dataset.invalidLocalTime;
       const prefix = getExportEditorPrefixFromCanonicalId(id);
       if (prefix) syncExportDateTimeEditorFromCanonical(prefix);
     }
@@ -7087,8 +7142,10 @@ function updateExportSegmentedUI() {
 
     function setDownloadBusy(isBusy, message = "") {
       if (isBusy) {
-        if (!exportInProgress) exportViewportBounds = getActiveMapBounds();
-        exportCancelRequested = false;
+        if (!exportInProgress) {
+          exportViewportBounds = getActiveMapBounds();
+          exportCancelRequested = false;
+        }
       } else {
         exportViewportBounds = null;
         exportCancelRequested = false;
@@ -7897,7 +7954,9 @@ function updateExportSegmentedUI() {
       const time = `${parts.hour}${parts.minute === "00" ? "" : `:${parts.minute}`} ${parts.dayPeriod || ""}`
         .replace(/\s+/g, " ")
         .trim();
-      return `${month} ${Number(parts.day)}, ${parts.year} · ${time}`;
+      const repeatedHour = getLocalNyDateCandidates(formatNyLocalIso(date)).length > 1;
+      const zone = repeatedHour ? ` ${parts.timeZoneName || "ET"}` : "";
+      return `${month} ${Number(parts.day)}, ${parts.year} · ${time}${zone}`;
     }
 
     function getExportFrameTimestampText(entry) {
@@ -8528,43 +8587,29 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
         return;
       }
 
-      if (currentDataMode !== "return-interval" && getDownloadScopeValue() !== "current" && validation.range) {
-        setDownloadBusy(true, "Loading the selected tide-archive year...");
-        try {
-          await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
-        } catch (error) {
-          console.error(error);
-          setDownloadBusy(false);
-          const message = "The selected tide-archive year could not be loaded. Please try again.";
-          setDownloadStatus(message, true);
-          toast(message);
-          return;
+      const needsArchive = currentDataMode !== "return-interval" && getDownloadScopeValue() !== "current" && validation.range;
+      // Close the settings dialog before showing progress so its focus/inert
+      // isolation cannot disable the progress Cancel button during preparation.
+      setDownloadModalOpen(false);
+      setDownloadBusy(true, needsArchive ? "Loading the selected tide-archive year..." : "Preparing export...");
+      try {
+        if (needsArchive) {
+          try {
+            await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
+          } catch (error) {
+            throwIfExportCancelled();
+            throw new Error("The selected tide-archive year could not be loaded. Please try again.", { cause: error });
+          }
         }
-      }
-
-      let frameItems = [];
-      if (format === "png") {
-        frameItems = getDownloadFrameItems();
-        if (frameItems.length > EXPORT_PNG_SELECTION_LIMIT) {
+        throwIfExportCancelled();
+        let frameItems = getDownloadFrameItems();
+        if (format === "png" && frameItems.length > EXPORT_PNG_SELECTION_LIMIT) {
           frameItems = frameItems.slice(0, EXPORT_PNG_SELECTION_LIMIT);
           toast(`PNG export is limited to ${EXPORT_PNG_SELECTION_LIMIT} frames.`);
         }
-      } else {
-        frameItems = getDownloadFrameItems();
-      }
-
-      if (!frameItems.length) {
-        setDownloadBusy(false);
-        toast("No frames are available for export.");
-        setDownloadStatus("No frames are available for export.", true);
-        return;
-      }
-      setDownloadModalOpen(false);
-      setDownloadBusy(true, "Preparing export...");
-      throwIfExportCancelled();
-      const label = format === "png" ? "PNG" : `${getDownloadAspectValue()} GIF`;
-      setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? "" : "s"}...`, 1, false);
-      try {
+        if (!frameItems.length) throw new Error("No frames are available for export.");
+        const label = format === "png" ? "PNG" : `${getDownloadAspectValue()} GIF`;
+        setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? "" : "s"}...`, 1, false);
         setDownloadStatus("Loading export tools...");
         setExportProgress("Loading export tools...", 1, false);
         await ensureExportLibraries(format, frameItems.length);
@@ -9552,8 +9597,21 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     function buildModernTopTideCandidates() {
-      const sortedDays = getObservedDays()
-        .filter(day => !day?.isHistoricalCrestOnly && !day?.isLewesSurrogate && !day?.officialCrestEntry && Number.isFinite(Number(day?.peakNAVD88)))
+      // Rank the day index before any replay year is downloaded. Detailed
+      // samples enrich the selected event; they must not decide its rank.
+      const daysByDate = new Map((observed15MinuteData?.days || []).map(day => [day.d, {
+        date: day.d,
+        peakNAVD88: normalizeStageValue(day.p) == null ? null : Number(day.p) / 100,
+        classification: day.c || "none",
+        hours: []
+      }]));
+      getObservedDays().forEach(day => daysByDate.set(day.date, day));
+      const officialDates = new Set(historicTopTideEntries
+        .filter(entry => Number.isFinite(getStageValue(entry)))
+        .map(entry => entry.observedDate));
+      const sortedDays = Array.from(daysByDate.values())
+        .filter(day => !day?.isHistoricalCrestOnly && !day?.isLewesSurrogate && !day?.officialCrestEntry
+          && !officialDates.has(day.date) && Number.isFinite(normalizeStageValue(day?.peakNAVD88)))
         .slice()
         .sort((a, b) => Number(b.peakNAVD88) - Number(a.peakNAVD88));
 
@@ -9570,15 +9628,12 @@ function formatSelectedObservedDate(dateStr) {
         });
         if (overlaps) continue;
 
-        const hasLoadedSeries = observed15MinuteDaysByDate.has(dateKey)
-          || (Array.isArray(dayRecord.timelineRawHours) && dayRecord.timelineRawHours.length > 0)
-          || (Array.isArray(dayRecord.hours) && dayRecord.hours.length > 0);
-        if (!hasLoadedSeries) continue;
-
         const canonicalSeries = buildObservedCanonicalSeries(dayRecord, dateKey);
-        const daySeries = getTimelineIntervalMinutes() === 1440
-          ? buildObservedDailyMaximumSeries(dateKey.slice(0, 7))
-          : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());
+        const daySeries = canonicalSeries.every(entry => entry.isDailyPeakOnly)
+          ? canonicalSeries
+          : getTimelineIntervalMinutes() === 1440
+            ? buildObservedDailyMaximumSeries(dateKey.slice(0, 7))
+            : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());
         if (!daySeries.some(item => Number.isFinite(getStageValue(item)))) continue;
         const dailyEventIndex = getTimelineIntervalMinutes() === 1440
           ? daySeries.findIndex(item => item?.observedDate === dateKey)
@@ -9924,7 +9979,9 @@ function formatSelectedObservedDate(dateStr) {
 
       if (crestOnlyTopTide) {
         const crestStation = entry?.sourceStationShort ? `${entry.sourceStationShort} USGS` : "USGS";
-        const msg = `Only the ${crestStation} storm-tide crest is available; maximum flood extent is plotted.`;
+        const msg = entry?.isDailyPeakOnly
+          ? "Only the daily peak water level is available; maximum flood extent is plotted."
+          : `Only the ${crestStation} storm-tide crest is available; maximum flood extent is plotted.`;
         timelineMeta.textContent = msg;
         timelineStart.textContent = msg;
         timelineEnd.textContent = "";
@@ -10536,14 +10593,15 @@ function formatSelectedObservedDate(dateStr) {
       const rows = [];
       const seriesList = Array.isArray(data?.value?.timeSeries) ? data.value.timeSeries : [];
       seriesList.forEach(series => {
+        const noDataValue = normalizeStageValue(series?.variable?.noDataValue);
         const valueGroups = Array.isArray(series?.values) ? series.values : [];
         valueGroups.forEach(group => {
           const values = Array.isArray(group?.value) ? group.value : [];
           values.forEach(item => {
-            const n = Number(item?.value);
+            const n = normalizeStageValue(item?.value);
             const dtRaw = item?.dateTime;
             const dt = dtRaw ? new Date(dtRaw) : null;
-            if (!Number.isFinite(n) || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;
+            if (!Number.isFinite(n) || n === noDataValue || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;
             const localIso = formatNyLocalIso(dt);
             const dateKey = localIso.slice(0, 10);
             const hourIndex = Number(localIso.slice(11, 13));
@@ -11302,7 +11360,10 @@ function populateCalendarSelectors() {
     function scheduleTopTidesListWarmup() {
       const start = async () => {
         try {
-          await loadHistoricalTopTides();
+          await Promise.all([
+            loadHistoricalTopTides(),
+            ensureObserved15MinuteArchive().catch(() => null)
+          ]);
           topTideEvents = buildTopTideEvents();
           renderTopTides();
         } catch (error) {
@@ -13136,8 +13197,12 @@ function startPlayback() {
       status.classList.toggle("success", type === "success");
     }
 
+    let townAddressLookupController = null;
+
     function clearTownAddressLookup() {
       ++townAddressSearchGeneration;
+      townAddressLookupController?.abort();
+      townAddressLookupController = null;
       const button = document.getElementById("townAddressSearchBtn");
       if (button) button.disabled = false;
       const input = document.getElementById("townAddressInput");
@@ -13339,7 +13404,36 @@ function startPlayback() {
       return normalized;
     }
 
-    async function fetchNominatimTownCandidates(clean) {
+    async function fetchTownAddressJson(url, searchSignal) {
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      let timeout;
+      const deadline = new Promise((resolve, reject) => {
+        controller.signal.addEventListener("abort", () => {
+          reject(new Error(searchSignal?.aborted ? "Address lookup canceled." : "Address provider timed out."));
+        }, { once: true });
+        if (searchSignal?.aborted) abort();
+        else {
+          searchSignal?.addEventListener("abort", abort, { once: true });
+          timeout = setTimeout(abort, 8000);
+        }
+      });
+      try {
+        // Bound the body read as well as the initial response. The explicit
+        // deadline also releases the UI if a provider ignores an abort.
+        return await Promise.race([deadline, (async () => {
+          const response = await fetch(url, {
+            headers: { "Accept": "application/json" }, signal: controller.signal
+          });
+          return response.ok ? response.json() : null;
+        })()]);
+      } finally {
+        clearTimeout(timeout);
+        searchSignal?.removeEventListener("abort", abort);
+      }
+    }
+
+    async function fetchNominatimTownCandidates(clean, signal) {
       const cfg = getTownAddressConfig();
       const city = cfg.city || TOWN_CONFIG?.site?.name || "";
       const state = cfg.state || "";
@@ -13356,15 +13450,11 @@ function startPlayback() {
         params.set("viewbox", `${box.west},${box.north},${box.east},${box.south}`);
         params.set("bounded", "1");
       }
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-        headers: { "Accept": "application/json" }
-      });
-      if (!response.ok) return [];
-      const results = await response.json();
+      const results = await fetchTownAddressJson(`https://nominatim.openstreetmap.org/search?${params.toString()}`, signal);
       return Array.isArray(results) ? results.map(item => normalizeNominatimTownCandidate(item, clean)).filter(Boolean) : [];
     }
 
-    async function fetchArcgisTownCandidates(clean) {
+    async function fetchArcgisTownCandidates(clean, signal) {
       const cfg = getTownAddressConfig();
       const city = cfg.city || TOWN_CONFIG?.site?.name || "";
       const state = cfg.state || "";
@@ -13384,11 +13474,7 @@ function startPlayback() {
         params.set("location", `${center.lon},${center.lat}`);
       }
       if (cfg.searchDistanceMeters) params.set("distance", String(cfg.searchDistanceMeters));
-      const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?${params.toString()}`, {
-        headers: { "Accept": "application/json" }
-      });
-      if (!response.ok) return [];
-      const data = await response.json();
+      const data = await fetchTownAddressJson(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?${params.toString()}`, signal);
       const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
       return candidates.map(item => normalizeArcgisTownCandidate(item, clean)).filter(Boolean);
     }
@@ -13450,10 +13536,14 @@ function startPlayback() {
 
     async function searchTownAddress(rawValue) {
       const generation = ++townAddressSearchGeneration;
+      townAddressLookupController?.abort();
+      const controller = new AbortController();
+      townAddressLookupController = controller;
       const button = document.getElementById("townAddressSearchBtn");
       const clean = normalizeTownAddressQuery(rawValue);
       const townName = getTownAddressDisplayName();
       if (!clean) {
+        townAddressLookupController = null;
         if (button) button.disabled = false;
         setTownAddressStatus(`Enter a ${townName} address or street first.`, "error");
         return;
@@ -13465,8 +13555,8 @@ function startPlayback() {
 
       try {
         const candidateSets = await Promise.allSettled([
-          fetchArcgisTownCandidates(clean),
-          fetchNominatimTownCandidates(clean)
+          fetchArcgisTownCandidates(clean, controller.signal),
+          fetchNominatimTownCandidates(clean, controller.signal)
         ]);
         if (generation !== townAddressSearchGeneration) return;
         const candidates = candidateSets.flatMap(result => result.status === "fulfilled" && Array.isArray(result.value) ? result.value : []);
@@ -13522,7 +13612,10 @@ function startPlayback() {
         if (generation !== townAddressSearchGeneration) return;
         setTownAddressStatus(err && err.message ? err.message : "Address lookup failed. Please try again.", "error");
       } finally {
-        if (generation === townAddressSearchGeneration && button) button.disabled = false;
+        if (generation === townAddressSearchGeneration) {
+          townAddressLookupController = null;
+          if (button) button.disabled = false;
+        }
       }
     }
 

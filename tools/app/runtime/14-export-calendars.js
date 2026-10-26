@@ -979,8 +979,10 @@ function updateExportSegmentedUI() {
 
     function setDownloadBusy(isBusy, message = "") {
       if (isBusy) {
-        if (!exportInProgress) exportViewportBounds = getActiveMapBounds();
-        exportCancelRequested = false;
+        if (!exportInProgress) {
+          exportViewportBounds = getActiveMapBounds();
+          exportCancelRequested = false;
+        }
       } else {
         exportViewportBounds = null;
         exportCancelRequested = false;

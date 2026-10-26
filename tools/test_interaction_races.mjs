@@ -35,13 +35,13 @@ function setup() {
     return elements.get(id);
   }
   const state = {layers, viewChanges: 0, status: '', popups: 0, buildingEnables: 0, renders: []};
-  const context = vm.createContext({console,
+  const context = vm.createContext({console, AbortController,
     document: {getElementById: el, body: {dataset: {}, classList: {contains() {return false;}}}},
     window: {NORTH_WILDWOOD_3D: {setAddressMarker() {}}},
     map: {hasLayer: l => layers.has(l), removeLayer: l => layers.delete(l), getZoom: () => 14,
       setView() {state.viewChanges++;}},
     ensureMap() {}, updateMapClickModeControl() {}, setMapClickMode() {}, toast() {},
-    parcelLayerGeneration: 0, nsiLayerGeneration: 0, townAddressSearchGeneration: 0,
+    parcelLayerGeneration: 0, nsiLayerGeneration: 0, townAddressSearchGeneration: 0, townAddressLookupController: null,
     parcelsLayer: null, nsiStructuresLayer: null, updateNsiStructureImpactLayer() {}, townAddressMarker: null,
     normalizeTownAddressQuery: v => v, getTownAddressDisplayName: () => 'North Wildwood',
     setTownAddressStatus: v => state.status = v, formatTownAddressLabel: () => 'New Jersey Avenue, North Wildwood',
@@ -103,17 +103,21 @@ for (const [fn, toggle, loader, layerVar] of [
     tests++;
   }
 }
-for (const phase of ['geocoding', 'parcel-matching']) {
+for (const phase of ['geocoding', 'parcel-matching', 'building-loading']) {
   const {context: c, state, el} = setup(), gate = deferred(), entered = deferred();
   if (phase === 'geocoding') c.fetchArcgisTownCandidates = async () => {entered.resolve(); await gate.promise; return [{lat: 39.006, lon: -74.8}];};
-  else c.findParcelFeatureForLocation = async () => {entered.resolve(); await gate.promise; return {};};
+  else if (phase === 'parcel-matching') c.findParcelFeatureForLocation = async () => {entered.resolve(); await gate.promise; return {};};
+  else {
+    c.findParcelFeatureForLocation = async () => ({});
+    c.setBuildingsEnabled = async () => {state.buildingEnables++; entered.resolve(); await gate.promise;};
+  }
   const search = c.searchTownAddress('New Jersey Avenue');
   await entered.promise; c.clearTownAddressLookup();
   assert.equal(el('townAddressSearchBtn').disabled, false);
   gate.resolve(); await search;
   assert.equal(el('townAddressInput').value, ''); assert.equal(c.townAddressMarker, null);
   assert.equal(state.viewChanges, 0); assert.equal(state.popups, 0); assert.equal(state.status, '');
-  assert.equal(state.buildingEnables, 0);
+  assert.equal(state.buildingEnables, phase === 'building-loading' ? 1 : 0);
   tests++;
 }
 {

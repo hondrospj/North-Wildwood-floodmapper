@@ -25,6 +25,14 @@ const paneStartup = JSON.parse(read("tools/fixtures/north-wildwood-pane-startup.
 const uiStartup = JSON.parse(read("tools/fixtures/north-wildwood-ui-startup.json"));
 const viewPillSurface = JSON.parse(read("tools/fixtures/north-wildwood-view-pill-surface.json"));
 const loaderRestore = JSON.parse(read("tools/fixtures/north-wildwood-loader-restore.json"));
+const BUG_FIX_AUDIT_PATH = "tools/fixtures/north-wildwood-20261026-bug-fixes.json";
+const BUG_FIX_AUDIT_SHA256 = "4da6a3ec3678c9e10128721af62b8d7e70609c84416691f9d9ed819c53aa4412";
+const bugFixAuditText = read(BUG_FIX_AUDIT_PATH);
+assert.equal(sha256(bugFixAuditText), BUG_FIX_AUDIT_SHA256,
+  "The October 26 fixes must retain their exact independently reviewed inverse fragments");
+const bugFixAudit = JSON.parse(bugFixAuditText);
+assert.equal(bugFixAudit.schemaVersion, 1);
+assert.equal(bugFixAudit.baselineCommit, "de65f0db910cb8511d9911b7c1b60adf4ce9805b");
 const sourcePaths = new Set();
 const outputs = new Map();
 const entriesByToken = new Map();
@@ -273,7 +281,9 @@ function auditedExportPresentationSource(kind, entry, source) {
   for (const block of exportPresentation.blocks.filter(block => block.kind === kind && block.entryId === entry.id)) {
     const label = block.function || block.source;
     assert.ok(entry.sources.includes(block.source), `${label} must remain in its declared source`);
-    const actual = exactPresentationBlock(read(block.source), block.function, label);
+    const restoredSource = auditedIssueFixFragments(read(block.source),
+      bugFixAudit.changes.filter(change => change.source === block.source), "Presentation source");
+    const actual = exactPresentationBlock(restoredSource, block.function, label);
     assert.equal(Buffer.byteLength(actual), block.afterBytes, `${label} differs from the approved presentation change`);
     assert.equal(sha256(actual), block.afterSha256, `${label} differs from the approved presentation change`);
     assert.equal(exactPresentationBlock(block.beforeSource, block.function, `Original ${label}`), block.beforeSource,
@@ -290,7 +300,31 @@ function auditedExportPresentationSource(kind, entry, source) {
   return source;
 }
 
+// User-requested correctness fixes have a separate exact-fragment inverse.
+// Restore only those reviewed diffs, then apply every earlier audit and the
+// original immutable extraction hashes. No source block is exempted wholesale.
+function auditedIssueFixFragments(source, blocks, label) {
+  for (const block of blocks) {
+    assert.ok(block.beforeSource && block.afterSource, `${block.id} must retain nonempty context`);
+    assert.equal(sha256(block.beforeSource), block.beforeSha256, `${block.id} original fragment changed`);
+    assert.equal(sha256(block.afterSource), block.afterSha256, `${block.id} fixed fragment changed`);
+    assert.equal(source.split(block.afterSource).length - 1, 1, `${label} ${block.id} must occur exactly once`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+
+function auditedIssueFixSource(kind, entry, source) {
+  const blocks = bugFixAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
+  for (const block of blocks) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared authoring source`);
+    auditedIssueFixFragments(read(block.source), [block], "Authoring source");
+  }
+  return auditedIssueFixFragments(source, blocks, entry.id);
+}
+
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedIssueFixSource(kind, entry, source);
   for (const block of loaderRestore.styles.filter(block => block.kind === kind && block.entryId === entry.id)) {
     assert.ok(entry.sources.includes(block.source), `${entry.id} loader rules must stay in their declared source`);
     if (block.mode === "whole-stylesheet") {
@@ -490,7 +524,8 @@ const expectedTokenOrder = baseline.blocks.map(block =>
 const actualTokenOrder = Array.from(template.matchAll(/<!-- nww:(?:style|script):[\w-]+ -->/g), match => match[0]);
 assert.deepEqual(actualTokenOrder, expectedTokenOrder,
   "Extraction slots must retain the original interleaved CSS/script order");
-const originalFamilyTemplate = auditedFontFamilyTemplate(template, "Source template");
+const originalIssueTemplate = auditedIssueFixFragments(template, bugFixAudit.templateChanges, "Template");
+const originalFamilyTemplate = auditedFontFamilyTemplate(originalIssueTemplate, "Source template");
 const originalLoaderTemplate = auditedUiStartupFragments(originalFamilyTemplate, [loaderRestore.templateChange], "Loader template");
 const originalUiTemplate = auditedUiStartupFragments(originalLoaderTemplate, uiStartup.templateChanges, "Template");
 const originalHtml = auditedPaneStartupTemplate(originalUiTemplate).replace(/<!-- nww:(?:style|script):[\w-]+ -->/g, key => {
@@ -584,7 +619,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family inverses; original UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26-fixes inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -595,7 +630,7 @@ if (process.argv.includes("--self-test")) {
       "tools/fixtures/north-wildwood-pane-startup.json",
       "tools/fixtures/north-wildwood-ui-startup.json",
       "tools/fixtures/north-wildwood-view-pill-surface.json",
-      "tools/fixtures/north-wildwood-loader-restore.json", loaderRestore.controller.source,
+      "tools/fixtures/north-wildwood-loader-restore.json", BUG_FIX_AUDIT_PATH, loaderRestore.controller.source,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -609,6 +644,11 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["altered approved correctness fix", path.join(scratch, bugFixAudit.changes[0].source),
+        read(bugFixAudit.changes[0].source).replace(bugFixAudit.changes[0].afterSource,
+          bugFixAudit.changes[0].afterSource + "\n// Unreviewed correctness change\n")],
+      ["broadened correctness inverse audit", path.join(scratch, BUG_FIX_AUDIT_PATH),
+        JSON.stringify({ ...bugFixAudit, changes: [...bugFixAudit.changes, bugFixAudit.changes[0]] })],
       ["dropped common-family stylesheet", scratchHtml, published.replace(FONT_FAMILY_TAG + "\n", "")],
       ["moved common-family stylesheet", scratchHtml,
         published.replace(FONT_FAMILY_TAG + "\n", "").replace("</head>", FONT_FAMILY_TAG + "\n</head>")],

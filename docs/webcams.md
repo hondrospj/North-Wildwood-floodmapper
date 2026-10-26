@@ -1,8 +1,8 @@
 # North Wildwood camera layer
 
 The Cameras switch is off by default. It adds two approximate site markers in
-Leaflet (2D) and MapLibre (3D), plus a View cameras button for keyboard/mobile
-access. Opening the bay camera loads its official cross-origin player. The beach
+Leaflet (2D) and MapLibre (3D). Camera markers support keyboard activation
+and mobile touch. Opening the bay camera loads its official cross-origin player. The beach
 camera links to the city page because its provider restricts embedding.
 Switching, closing, disabling the layer or leaving the page removes the old iframe.
 Camera imagery never follows the flood forecast/replay time and never enters
@@ -37,10 +37,15 @@ Neither marker claims a surveyed camera mounting point or exact field of view.
 
 Iframe load means the provider's page opened, not that video is live. The UI
 does not invent a last-frame timestamp or infer online/offline from iframe load.
-The provider displays stream errors and video timestamps. A 15-second load
-timeout reports an unconfirmed feed; Reload camera and the city source link
-remain available. No recorder, stream scraper, proxy or camera credentials
+The provider displays stream errors and video timestamps. A player load error
+shows an unavailable message; Reload camera and the city source link remain
+available. No recorder, stream scraper, proxy or camera credentials
 are introduced. Provider availability and embed policy may change.
+
+The October 26, 2026 review reconfirmed the beach provider’s restrictive CSP.
+The active player now uses the city link for that camera, matching this policy,
+and never requests its blocked iframe. Switching back to the bay still loads
+its player only after selection.
 
 ## Verification
 

@@ -114,3 +114,13 @@ stylesheet hash, audits its family-only declarations, and reverses only its exac
 head tag for the original document hash. The baseline fixture and all original
 source, layout and runtime checks remain unchanged. Mutation checks reject a
 missing, moved, duplicated or altered tag and changes to the reviewed stylesheet.
+
+The October 26 code audit fixes have their own exact-fragment inverse fixture,
+`north-wildwood-20261026-bug-fixes.json`, based on `de65f0d`. The checker pins the
+fixture digest, restores only its reviewed runtime, camera style and template
+diffs, and then runs all earlier inverse audits and the original immutable
+extraction hashes. No complete runtime or stylesheet is exempted. Mutation
+checks reject alterations to the fixes and attempts to broaden this fixture.
+Behavior regressions cover stable Top 10 rankings and lazy replay, USGS no-data,
+building interaction races and missing elevations, address request recovery,
+positional date editing, daylight-saving exports, and archive cancellation.

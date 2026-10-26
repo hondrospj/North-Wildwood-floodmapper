@@ -16,6 +16,9 @@ html body:not(.mobile-optimized) #rightRail > .layers-card:has(.shorelysafe-came
 #webcamChoice { width:100%; margin-bottom:9px; padding:6px; }
 #webcamPanel .webcam-frame { width:100%; aspect-ratio:16 / 9; background:#102535; border-radius:7px; overflow:hidden; }
 #webcamPanel iframe, #webcamPanel .webcam-frame img { display:block; width:100%; height:100%; border:0; object-fit:contain; }
+#webcamPanel .webcam-external { box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:16px; text-align:center; }
+#webcamPanel .webcam-external p { margin:0 0 12px; }
+#webcamPanel .webcam-external a { display:inline-block; padding:10px 14px; border:1px solid #5da3ff; border-radius:7px; background:#203f60; color:#fff; font-weight:600; }
 #webcamPanel .webcam-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:5px; margin:8px 0; font-size:10px; color:#b8cbe1; }
 #webcamLocate { padding:3px 6px; }
 #webcamPanel .webcam-source { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:#b8cbe1; font-size:9px; }

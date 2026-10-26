@@ -71,9 +71,8 @@ assert.match(topTideLoader, /archiveSource === "lewes"\) await ensureLewesArchiv
 assert.match(topTideLoader, /ensureLewesArchiveIndex\(\);[\s\S]+ensureObservedArchiveForDate\(requestedDate\)/);
 assert.match(topTideLoader, /await renderCalendar\(\);[\s\S]+scheduleHistoricalTopTideWarmup\(\)/);
 
-const modernTopTides = extractFunction("buildModernTopTideCandidates");
-assert.match(modernTopTides, /const hasLoadedSeries = observed15MinuteDaysByDate\.has\(dateKey\)/);
-assert.match(modernTopTides, /if \(!hasLoadedSeries\) continue;[\s\S]+buildObservedCanonicalSeries/);
+// Ranking and on-demand replay are exercised against the source modules in
+// test_north_wildwood_top_tides_and_live_observations.mjs.
 
 const historicalTideLoader = extractFunction("loadHistoricalTopTides");
 assert.match(historicalTideLoader, /fetchJson\(TOP_TIDES_URL, \{ cache: "default" \}\)/);

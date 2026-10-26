@@ -97,15 +97,18 @@ for (const [width,height] of outputSizes) {
 const dates = vm.createContext({
   MONTH_NAMES:['January','February','March','April','May','June','July','August','September','October','November','December'],
   formatHourEntryTime:entry=>entry.fallback || '--',
+  pad2:value=>String(value).padStart(2,'0'),
 });
 vm.runInContext(`const NY_PARTS_FORMATTER = new Intl.DateTimeFormat('en-US', {
-  timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',hour12:true
-});\n${['getNyParts','getEntryESTDate','getReturnIntervalStormLabel','formatSelectedObservedDate',
+  timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',hour12:true,timeZoneName:'short'
+});\n${['getNyParts','getLocalNyDateCandidates','formatNyLocalIso','getEntryESTDate','getReturnIntervalStormLabel','formatSelectedObservedDate',
   'stripExportTimeZoneLabel','getExportFrameDateTimeText'].map(extract).join('\n')}`,dates);
 assert.equal(dates.getExportFrameDateTimeText({timeUtc:'2026-10-23T17:00:00Z'}),'Oct 23, 2026 · 1 PM');
 assert.equal(dates.getExportFrameDateTimeText({timeUtc:'2026-10-23T17:15:00Z'}),'Oct 23, 2026 · 1:15 PM');
 assert.equal(dates.getExportFrameDateTimeText({timeUtc:'2026-12-05T03:05:00Z'}),'Dec 4, 2026 · 10:05 PM');
 assert.equal(dates.getExportFrameDateTimeText({timeUtc:'1962-03-07T15:45:00Z'}),'Mar 7, 1962 · 10:45 AM');
+assert.equal(dates.getExportFrameDateTimeText({timeUtc:'2025-11-02T05:30:00Z'}),'Nov 2, 2025 · 1:30 AM EDT');
+assert.equal(dates.getExportFrameDateTimeText({timeUtc:'2025-11-02T06:30:00Z'}),'Nov 2, 2025 · 1:30 AM EST');
 const dailyPeak = dates.getExportFrameDateTimeText({isDailyPeakOnly:true,observedDate:'1962-03-07'});
 assert.match(dailyPeak,/Mar(?:ch)? 7, 1962/);
 assert.match(dailyPeak,/Peak time unknown/);

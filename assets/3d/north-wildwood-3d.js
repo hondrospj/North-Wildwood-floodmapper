@@ -34,6 +34,9 @@
   var syncingFrom3d = false;
   var syncingModeTransition = false;
   var buildingCursorHandlersWired = false;
+  var buildingToggleGeneration = 0;
+  var fallbackBuildingPopup = null;
+  var fallbackBuildingRenderToken = null;
   var navControlSyncFrame = null;
   var syncPersistentNavControl = function () {};
 
@@ -1041,7 +1044,8 @@
   }
 
   function finiteBuildingNumber(value) {
-    if (value === null || typeof value === "undefined" || value === "" || typeof value === "boolean") return NaN;
+    if ((typeof value !== "number" && typeof value !== "string") ||
+        (typeof value === "string" && value.trim() === "")) return NaN;
     var number = Number(value);
     return Number.isFinite(number) ? number : NaN;
   }
@@ -1357,17 +1361,19 @@
   function buildBuildingPopupHtml(properties) {
     var p = properties || {};
     var address = escapeTownAddressHtml(p.address || p.osmName || "North Wildwood building");
-    var crawlspaceDepth = Number(p.foundationHeightFt);
-    var firstFloor = Number(p.modeledFirstFloorNavd88Ft);
-    var stage = Number(getSelectedStageNavd88());
+    var crawlspaceDepth = finiteBuildingNumber(p.foundationHeightFt);
+    var firstFloor = finiteBuildingNumber(p.modeledFirstFloorNavd88Ft);
+    var stage = finiteBuildingNumber(getSelectedStageNavd88());
     var difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : NaN;
-    var status = !Number.isFinite(difference)
-      ? "Choose a water level to compare."
-      : Math.abs(difference) <= 0.1
-        ? "Current water is at the estimated occupied floor."
-        : difference > 0
-          ? "Current water is " + formatWaterDepth(difference, 1) + " above the estimated occupied floor."
-          : "Current water is " + formatWaterDepth(Math.abs(difference), 1) + " below the estimated occupied floor.";
+    var status = !Number.isFinite(firstFloor)
+      ? "Estimated occupied-floor elevation is unavailable."
+      : !Number.isFinite(difference)
+        ? "Choose a water level to compare."
+        : Math.abs(difference) <= 0.1
+          ? "Current water is at the estimated occupied floor."
+          : difference > 0
+            ? "Current water is " + formatWaterDepth(difference, 1) + " above the estimated occupied floor."
+            : "Current water is " + formatWaterDepth(Math.abs(difference), 1) + " below the estimated occupied floor.";
     return '<div class="nsi-structure-popup building-info-card">' +
       '<span class="house-alert-kicker">Building</span>' +
       '<h3>' + address + '</h3>' +
@@ -1380,6 +1386,7 @@
 
   function closeGlPopup() {
     if (!glPopup) return;
+    ++mapQueryGeneration;
     var popup = glPopup;
     glPopup = null;
     try { popup.remove(); } catch (_) {}
@@ -1415,9 +1422,28 @@
     lastGlPopupHtml = String(html || "");
     syncGlPopupLayout();
     glPopup.on("close", function () {
+      ++mapQueryGeneration;
       glPopup = null;
       if (persistentFloodPopup && map && map.hasLayer(persistentFloodPopup)) map.removeLayer(persistentFloodPopup);
     });
+  }
+
+  function openFallbackBuildingPopup(latlng, properties) {
+    var popup = openPersistentFloodPopup(latlng, buildBuildingPopupHtml(properties), 380);
+    fallbackBuildingPopup = popup;
+    fallbackBuildingRenderToken = lastRenderToken;
+    popup.once("remove", function () {
+      if (fallbackBuildingPopup === popup) fallbackBuildingPopup = null;
+    });
+    return popup;
+  }
+
+  function closeOutdatedFallbackBuildingPopup() {
+    if (!fallbackBuildingPopup ||
+        (fallbackBuildingRenderToken === lastRenderToken && floodFrameState === "ready")) return;
+    var popup = fallbackBuildingPopup;
+    fallbackBuildingPopup = null;
+    if (map && map.hasLayer(popup)) map.removeLayer(popup);
   }
 
   function syncGlPopupLayout() {
@@ -1592,21 +1618,29 @@
         });
         var rendered = glMap.queryRenderedFeatures(event.point, { layers: buildingQueryLayers });
         if (rendered.length) {
+          var queryGeneration = ++mapQueryGeneration;
+          var queryMode = mapClickMode;
+          var queryRenderToken = lastRenderToken;
+          var isCurrentQuery = function () {
+            return queryGeneration === mapQueryGeneration && queryMode === mapClickMode &&
+              queryRenderToken === lastRenderToken && layerVisible("buildingsToggle", false);
+          };
           try {
             var parcelFeature = await findParcelFeatureForLocation(
               event.lngLat.lat,
               event.lngLat.lng,
               { allowNearest: false }
             );
+            if (!isCurrentQuery()) return;
             if (parcelFeature) {
               openParcelFloodPrompt(parcelFeature, L.latLng(event.lngLat.lat, event.lngLat.lng));
               return;
             }
           } catch (_) {}
-          openPersistentFloodPopup(
+          if (!isCurrentQuery()) return;
+          openFallbackBuildingPopup(
             L.latLng(event.lngLat.lat, event.lngLat.lng),
-            buildBuildingPopupHtml(rendered[0].properties),
-            380
+            rendered[0].properties
           );
           return;
         }
@@ -2052,35 +2086,45 @@
 
   var originalSetBuildingsEnabled = setBuildingsEnabled;
   setBuildingsEnabled = async function (enabled) {
-    if (enabled) {
-      var requestedToggle = document.getElementById("buildingsToggle");
-      if (requestedToggle) { requestedToggle.classList.add("on"); requestedToggle.setAttribute("aria-checked", "true"); }
-      var requestedMap = await ensure3dMap();
-      if (!requestedMap) throw new Error("3D buildings could not start; the 2D map remains available.");
-      if (requestedMap.getPitch() <= 10) document.querySelector("#nwDefaultNavControl .nw-simple-view")?.click();
+    var generation = ++buildingToggleGeneration;
+    var shouldEnable = Boolean(enabled);
+    var toggle = document.getElementById("buildingsToggle");
+    if (toggle) {
+      toggle.classList.toggle("on", shouldEnable);
+      toggle.setAttribute("aria-checked", String(shouldEnable));
     }
-    if (glMap && document.body.classList.contains("map-3d-ready")) {
-      var shouldEnable = Boolean(enabled);
-      var toggle = document.getElementById("buildingsToggle");
-      if (toggle) {
-        toggle.classList.toggle("on", shouldEnable);
-        toggle.setAttribute("aria-checked", String(shouldEnable));
+    if (!shouldEnable) ++mapQueryGeneration;
+    try {
+      if (shouldEnable) {
+        var requestedMap = await ensure3dMap();
+        if (generation !== buildingToggleGeneration) return;
+        if (!requestedMap) throw new Error("3D buildings could not start; the 2D map remains available.");
+        if (requestedMap.getPitch() <= 10) document.querySelector("#nwDefaultNavControl .nw-simple-view")?.click();
       }
-      if (buildingsLayer && map && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
-      if (shouldEnable) setMapClickMode("building", { closePopup: false });
-      updateExportBuildingsLayer();
-      updateMapClickModeControl();
-      toast("");
-      await syncBuildings3d();
-      if (shouldEnable) await window.COUNTY_3D_BUILDINGS.focus(glMap);
-      if (shouldEnable) focusEnabledBuildings3d();
+      if (glMap && document.body.classList.contains("map-3d-ready")) {
+        if (buildingsLayer && map && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
+        if (shouldEnable) setMapClickMode("building", { closePopup: false });
+        updateExportBuildingsLayer();
+        updateMapClickModeControl();
+        toast("");
+        await syncBuildings3d();
+        if (generation !== buildingToggleGeneration) return;
+        if (shouldEnable) await window.COUNTY_3D_BUILDINGS.focus(glMap);
+        if (generation !== buildingToggleGeneration) return;
+        if (shouldEnable) focusEnabledBuildings3d();
+        suspendLeafletVisualLayers();
+        return;
+      }
+      var result = await originalSetBuildingsEnabled.apply(this, arguments);
+      if (generation !== buildingToggleGeneration) return;
+      if (glMap) await syncBuildings3d();
+      if (generation !== buildingToggleGeneration) return;
       suspendLeafletVisualLayers();
-      return;
+      return result;
+    } catch (error) {
+      if (generation !== buildingToggleGeneration) return;
+      throw error;
     }
-    var result = await originalSetBuildingsEnabled.apply(this, arguments);
-    if (glMap) await syncBuildings3d();
-    suspendLeafletVisualLayers();
-    return result;
   };
 
   var originalSetSatelliteEnabled = setSatelliteEnabled;
@@ -2141,6 +2185,7 @@
   var originalClearFloodLayer = clearFloodLayer;
   clearFloodLayer = function () {
     var result = originalClearFloodLayer.apply(this, arguments);
+    closeOutdatedFallbackBuildingPopup();
     syncFloodLayer3d();
     return result;
   };
@@ -2189,6 +2234,7 @@
 
   var originalUpdatePersistentDepthQueryPopup = updatePersistentDepthQueryPopup;
   updatePersistentDepthQueryPopup = function () {
+    closeOutdatedFallbackBuildingPopup();
     var result = originalUpdatePersistentDepthQueryPopup.apply(this, arguments);
     if (glPopup && persistentFloodPopup && typeof persistentFloodPopup.getContent === "function") {
       var html = String(persistentFloodPopup.getContent() || "");

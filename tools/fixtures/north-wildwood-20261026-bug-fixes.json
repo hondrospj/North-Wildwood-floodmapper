@@ -1,0 +1,304 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "de65f0db910cb8511d9911b7c1b60adf4ce9805b",
+  "changes": [
+    {
+      "id": "03-time-series-1",
+      "source": "tools/app/runtime/03-time-series.js",
+      "beforeSource": "      return diffs[Math.floor(diffs.length / 2)];\n    }\n\nfunction parseStoredLocalNyToDate(timeEST) {\n      const match = String(timeEST || \"\").match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})/);\n      if (!match) return null;\n      const [, y, m, d, hh, mm] = match;\n      const targetLocalMs = Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm));\n      let guessUtcMs = targetLocalMs;\n      for (let i = 0; i < 5; i++) {\n        const parts = getNyParts(new Date(guessUtcMs));\n        if (!parts) break;\n        const actualLocalMs = Date.UTC(\n          Number(parts.year),\n          Number(parts.month) - 1,\n          Number(parts.day),\n          Number(parts.hour24),\n          Number(parts.minute)\n        );\n        const diff = targetLocalMs - actualLocalMs;\n        guessUtcMs += diff;\n        if (diff === 0) break;\n      }\n      return new Date(guessUtcMs);\n    }\n\n    function makeObservedHourKeyFromDate(date) {\n",
+      "afterSource": "      return diffs[Math.floor(diffs.length / 2)];\n    }\n\n    function getLocalNyDateCandidates(timeEST) {\n      const match = String(timeEST || \"\").match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})/);\n      if (!match) return [];\n      const [, y, m, d, hh, mm] = match;\n      const targetLocalMs = Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm));\n      // New York uses UTC-4/UTC-5 throughout the supported gauge archive.\n      // Round-trip both offsets: spring-forward has no candidate and fall-back\n      // has two distinct instants, in chronological order.\n      return [4, 5].map(offset => new Date(targetLocalMs + offset * 60 * 60 * 1000)).filter(date => {\n        const parts = getNyParts(date);\n        return parts && parts.year === y && parts.month === m && parts.day === d &&\n          Number(parts.hour24) === Number(hh) && parts.minute === mm;\n      });\n    }\n\nfunction parseStoredLocalNyToDate(timeEST) {\n      // Legacy wall-time records retain the earlier repeated hour. Interactive\n      // export editors expose both candidates and keep their selected instant.\n      return getLocalNyDateCandidates(timeEST)[0] || null;\n    }\n\n    function makeObservedHourKeyFromDate(date) {\n",
+      "beforeSha256": "9e6e157a96830aea89b2b213842c5de359fca019ca481cc9f02b5b62723b844f",
+      "afterSha256": "c59a3167ed11a2811c10caf6208c4dd450b27a2a15e1f8ba3fcf06ab8b4636ed",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "11-export-selection-1",
+      "source": "tools/app/runtime/11-export-selection.js",
+      "beforeSource": "\n        const byHour = new Map();\n        combined.forEach(entry => {\n          const d = getEntryESTDate(entry);\n          const key = d ? formatNyLocalIso(d) : String(entryTimeMs(entry));\n          const existing = byHour.get(key);\n          if (!existing || entry.exportSourceMode === \"forecast\") {\n            byHour.set(key, entry);\n",
+      "afterSource": "\n        const byHour = new Map();\n        combined.forEach(entry => {\n          // A repeated fall-back wall time represents two different readings.\n          // Forecast preference applies only to the exact same instant.\n          const key = String(entryTimeMs(entry));\n          const existing = byHour.get(key);\n          if (!existing || entry.exportSourceMode === \"forecast\") {\n            byHour.set(key, entry);\n",
+      "beforeSha256": "f3974b118757f375c9c0cc74842b1a6c2796c412afd1ae54039a46302da71177",
+      "afterSha256": "51d72dd85b8cd5567042623960750a89dd20d56c9c6f8981da568ba280b11eb8",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "12-export-date-editors-1",
+      "source": "tools/app/runtime/12-export-date-editors.js",
+      "beforeSource": "    }\n\n    function formatExportDateMask(value) {\n      const digits = String(value || \"\").replace(/\\D/g, \"\").slice(0, 8);\n      const chars = EXPORT_DATE_MASK.split(\"\");\n      EXPORT_DATE_MASK_POSITIONS.forEach((position, index) => {\n",
+      "afterSource": "    }\n\n    function formatExportDateMask(value) {\n      const raw = String(value || \"\").toUpperCase();\n      if (raw.length === EXPORT_DATE_MASK.length && raw[2] === \"/\" && raw[5] === \"/\") {\n        const chars = EXPORT_DATE_MASK.split(\"\");\n        EXPORT_DATE_MASK_POSITIONS.forEach(position => {\n          if (/\\d/.test(raw[position])) chars[position] = raw[position];\n        });\n        return chars.join(\"\");\n      }\n      const digits = String(value || \"\").replace(/\\D/g, \"\").slice(0, 8);\n      const chars = EXPORT_DATE_MASK.split(\"\");\n      EXPORT_DATE_MASK_POSITIONS.forEach((position, index) => {\n",
+      "beforeSha256": "4638eec7faad789cb8fb5ff45617c1bcf3a130c92b99c85ce9722825cca812fd",
+      "afterSha256": "13a5bec673f926e99b7f23767a7900b0a4601f8a66eb561fd33cd457f377a43d",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "12-export-date-editors-2",
+      "source": "tools/app/runtime/12-export-date-editors.js",
+      "beforeSource": "      if (!EXPORT_DATE_MASK_POSITIONS.includes(position) && position < EXPORT_DATE_MASK.length) {\n        position = getNextExportDateMaskPosition(position, 1, true);\n      }\n      requestAnimationFrame(() => {\n        try { input.setSelectionRange(position, position); } catch (e) {}\n      });\n    }\n\n    function clearExportDateMaskRange(chars, start, end) {\n",
+      "afterSource": "      if (!EXPORT_DATE_MASK_POSITIONS.includes(position) && position < EXPORT_DATE_MASK.length) {\n        position = getNextExportDateMaskPosition(position, 1, true);\n      }\n      // beforeinput/key deletion is prevented; commit the caret with the value\n      // so a fast following key cannot land at the browser's reset-to-end caret.\n      // A deferred write would also overwrite subsequent native arrow movement.\n      try { input.setSelectionRange(position, position); } catch (e) {}\n    }\n\n    function clearExportDateMaskRange(chars, start, end) {\n",
+      "beforeSha256": "7aea7d4c5603f9979c104ad66d7f57ff1301242c6d2517a2ce278a6dc482af59",
+      "afterSha256": "358404449b021d2da19e30e994e44ecf9755d4141a2e916b9e0e6297a09ec663",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "12-export-date-editors-3",
+      "source": "tools/app/runtime/12-export-date-editors.js",
+      "beforeSource": "        clearExportDateMaskRange(chars, start, end);\n        caret = getNextExportDateMaskPosition(start, 1, true);\n      } else if (backward) {\n        const target = getNextExportDateMaskPosition(start, -1, false);\n        if (EXPORT_DATE_MASK_POSITIONS.includes(target)) {\n          chars[target] = exportDateMaskPlaceholderAt(target);\n",
+      "afterSource": "        clearExportDateMaskRange(chars, start, end);\n        caret = getNextExportDateMaskPosition(start, 1, true);\n      } else if (backward) {\n        if (start === 0) return;\n        const target = getNextExportDateMaskPosition(start, -1, false);\n        if (EXPORT_DATE_MASK_POSITIONS.includes(target)) {\n          chars[target] = exportDateMaskPlaceholderAt(target);\n",
+      "beforeSha256": "9528885f39d0745676112d5126a158a852a23f2dad496fd83fe97df64d103138",
+      "afterSha256": "750767e4f130d3122570c38c34a600b190bbc7753ef182cfb5822d1a275fe4da",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "12-export-date-editors-4",
+      "source": "tools/app/runtime/12-export-date-editors.js",
+      "beforeSource": "      return `${pad2(hour12)}:${pad2(minute)} ${period}`;\n    }\n\n    function populateExportTimeSelect(select, selectedValue = \"00:00\") {\n      if (!select) return;\n      const normalized = /^\\d{2}:\\d{2}$/.test(selectedValue) ? selectedValue : \"00:00\";\n      const values = [];\n      for (let minutes = 0; minutes < 24 * 60; minutes += 15) {\n        values.push(`${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`);\n      }\n      if (!values.includes(normalized)) values.push(normalized);\n      values.sort();\n      const existingValues = Array.from(select.options || [], option => option.value);\n      const optionsAreCurrent = existingValues.length === values.length\n        && existingValues.every((value, index) => value === values[index]);\n      if (!optionsAreCurrent) {\n        select.innerHTML = values.map(value => `<option value=\"${value}\">${formatExportTimeLabel(value)}</option>`).join(\"\");\n      }\n      select.value = normalized;\n    }\n\n    function syncExportDateTimeEditorFromCanonical(prefix) {\n",
+      "afterSource": "      return `${pad2(hour12)}:${pad2(minute)} ${period}`;\n    }\n\n    function getExportTimeSelection(value) {\n      const match = String(value || \"\").match(/^(\\d{2}:\\d{2})(?:\\|(-?\\d+))?$/);\n      return match ? { time: match[1], instantMs: match[2] == null ? null : Number(match[2]) } : null;\n    }\n\n    function populateExportTimeSelect(select, selectedValue = \"00:00\", isoDate = \"\", selectedDate = null) {\n      if (!select) return;\n      const normalized = getExportTimeSelection(selectedValue)?.time || \"00:00\";\n      const values = [];\n      for (let minutes = 0; minutes < 24 * 60; minutes += 15) {\n        values.push(`${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`);\n      }\n      if (!values.includes(normalized)) values.push(normalized);\n      values.sort();\n      const options = values.flatMap(time => {\n        const label = formatExportTimeLabel(time);\n        const candidates = isoDate ? getLocalNyDateCandidates(`${isoDate}T${time}`) : [];\n        if (isoDate && !candidates.length) {\n          return time === normalized ? [{ value: time, label: `${label} (unavailable)`, disabled: true }] : [];\n        }\n        if (candidates.length > 1) {\n          return candidates.map((date, index) => ({ value: `${time}|${date.getTime()}`,\n            label: `${label} ${getNyParts(date)?.timeZoneName || \"ET\"} (${index === 0 ? \"first\" : \"second\"})` }));\n        }\n        return [{ value: time, label }];\n      });\n      const markup = options.map(option => `<option value=\"${option.value}\"${option.disabled ? \" disabled\" : \"\"}>${option.label}</option>`).join(\"\");\n      if (select.dataset.optionsMarkup !== markup) {\n        select.innerHTML = markup;\n        select.dataset.optionsMarkup = markup;\n      }\n      const exactValue = selectedDate ? `${normalized}|${selectedDate.getTime()}` : selectedValue;\n      select.value = options.find(option => option.value === exactValue)?.value\n        || options.find(option => option.value === normalized || option.value.startsWith(`${normalized}|`))?.value\n        || options[0]?.value || \"\";\n    }\n\n    function syncExportDateTimeEditorFromCanonical(prefix) {\n",
+      "beforeSha256": "48ae3542ff684743a95c05711ae53fcdfcc426e1fd0e6fc45518ade9e63d778e",
+      "afterSha256": "9223f6641c70b5793b7853f97dc1e0383237c6c7ff57e9920be382427682c1d8",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "12-export-date-editors-5",
+      "source": "tools/app/runtime/12-export-date-editors.js",
+      "beforeSource": "        calendarButton.disabled = exportInProgress || modeledDateLocked;\n      }\n      if (elements.datePicker) elements.datePicker.disabled = exportInProgress || modeledDateLocked;\n      const value = elements.canonical.value || \"\";\n      const match = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/);\n      if (!match) {\n",
+      "afterSource": "        calendarButton.disabled = exportInProgress || modeledDateLocked;\n      }\n      if (elements.datePicker) elements.datePicker.disabled = exportInProgress || modeledDateLocked;\n      if (elements.canonical.dataset.invalidLocalTime === \"1\") return;\n      const value = elements.canonical.value || \"\";\n      const match = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/);\n      if (!match) {\n",
+      "beforeSha256": "dc427612fd8f044c17d44f7f5cf15f274fb5ca03820bc30627ad341cc6ba1c32",
+      "afterSha256": "63907bdd10b492fcfc292238ffc91f6fb177b62bb4e31433aae128796a0294e3",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "12-export-date-editors-6",
+      "source": "tools/app/runtime/12-export-date-editors.js",
+      "beforeSource": "      elements.dateText.classList.remove(\"is-invalid\");\n      elements.dateText.removeAttribute(\"aria-invalid\");\n      if (elements.datePicker) elements.datePicker.value = isoDate;\n      populateExportTimeSelect(elements.timeSelect, timeValue);\n    }\n\n    function commitExportDateTimeEditor(prefix, options = {}) {\n",
+      "afterSource": "      elements.dateText.classList.remove(\"is-invalid\");\n      elements.dateText.removeAttribute(\"aria-invalid\");\n      if (elements.datePicker) elements.datePicker.value = isoDate;\n      const selectedDate = elements.canonical.dataset.timeUtc ? new Date(elements.canonical.dataset.timeUtc) : null;\n      populateExportTimeSelect(elements.timeSelect, timeValue, isoDate, selectedDate);\n    }\n\n    function commitExportDateTimeEditor(prefix, options = {}) {\n",
+      "beforeSha256": "16a882be5d61fc2baf4fe57a96584d4107a68dad289219a5fdd9b32fae00aa67",
+      "afterSha256": "cb0eed5ab58793235ab14301867c15ff30ac3bd0fbb1a7b6d4cbd05117565ffa",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "12-export-date-editors-7",
+      "source": "tools/app/runtime/12-export-date-editors.js",
+      "beforeSource": "      if (currentDataMode === \"return-interval\") {\n        const canonicalMatch = elements.canonical.value.match(/^(\\d{4}-\\d{2}-\\d{2})T\\d{2}:\\d{2}$/);\n        if (!canonicalMatch) return false;\n        const timeValue = /^\\d{2}:\\d{2}$/.test(elements.timeSelect.value) ? elements.timeSelect.value : \"00:00\";\n        elements.canonical.value = `${canonicalMatch[1]}T${timeValue}`;\n        if (options.markEdited) elements.canonical.dataset.userEdited = \"1\";\n        elements.dateText.value = MODELED_EXPORT_DATE_PLACEHOLDER;\n        elements.dateText.classList.remove(\"is-invalid\");\n",
+      "afterSource": "      if (currentDataMode === \"return-interval\") {\n        const canonicalMatch = elements.canonical.value.match(/^(\\d{4}-\\d{2}-\\d{2})T\\d{2}:\\d{2}$/);\n        if (!canonicalMatch) return false;\n        const timeValue = getExportTimeSelection(elements.timeSelect.value)?.time || \"00:00\";\n        elements.canonical.value = `${canonicalMatch[1]}T${timeValue}`;\n        delete elements.canonical.dataset.timeUtc;\n        delete elements.canonical.dataset.invalidLocalTime;\n        if (options.markEdited) elements.canonical.dataset.userEdited = \"1\";\n        elements.dateText.value = MODELED_EXPORT_DATE_PLACEHOLDER;\n        elements.dateText.classList.remove(\"is-invalid\");\n",
+      "beforeSha256": "09d5d9c898f15d3391bb5ecdee500c6b1d8d31dae892ac99c066d25a0e60fb30",
+      "afterSha256": "c7e578d5a5b6e4a1dca532c2a26f0fa57dac99e4b6140365a3e1118e89a4b7c1",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "12-export-date-editors-8",
+      "source": "tools/app/runtime/12-export-date-editors.js",
+      "beforeSource": "        if (options.showError) setDownloadStatus(\"Enter the date as MM/DD/YYYY.\", true);\n        return false;\n      }\n      const timeValue = /^\\d{2}:\\d{2}$/.test(elements.timeSelect.value) ? elements.timeSelect.value : \"00:00\";\n      elements.canonical.value = `${parsed.isoDate}T${timeValue}`;\n      if (options.markEdited) elements.canonical.dataset.userEdited = \"1\";\n      if (options.normalize !== false) elements.dateText.value = parsed.displayDate;\n      elements.dateText.classList.remove(\"is-invalid\");\n      elements.dateText.removeAttribute(\"aria-invalid\");\n      if (elements.datePicker) elements.datePicker.value = parsed.isoDate;\n      return true;\n    }\n\n",
+      "afterSource": "        if (options.showError) setDownloadStatus(\"Enter the date as MM/DD/YYYY.\", true);\n        return false;\n      }\n      const timeSelection = getExportTimeSelection(elements.timeSelect.value);\n      const timeValue = timeSelection?.time || \"00:00\";\n      const localValue = `${parsed.isoDate}T${timeValue}`;\n      const candidates = getLocalNyDateCandidates(localValue);\n      if (!candidates.length) {\n        elements.canonical.dataset.invalidLocalTime = \"1\";\n        elements.canonical.dataset.userEdited = \"1\";\n        elements.dateText.classList.add(\"is-invalid\");\n        elements.dateText.setAttribute(\"aria-invalid\", \"true\");\n        populateExportTimeSelect(elements.timeSelect, timeValue, parsed.isoDate);\n        if (options.showError) setDownloadStatus(\"That time does not occur in New York on this date. Choose another time.\", true);\n        return false;\n      }\n      const selectedDate = candidates.find(date => date.getTime() === timeSelection?.instantMs) || candidates[0];\n      elements.canonical.value = localValue;\n      elements.canonical.dataset.timeUtc = selectedDate.toISOString();\n      delete elements.canonical.dataset.invalidLocalTime;\n      if (options.markEdited) elements.canonical.dataset.userEdited = \"1\";\n      if (options.normalize !== false) elements.dateText.value = parsed.displayDate;\n      elements.dateText.classList.remove(\"is-invalid\");\n      elements.dateText.removeAttribute(\"aria-invalid\");\n      if (elements.datePicker) elements.datePicker.value = parsed.isoDate;\n      populateExportTimeSelect(elements.timeSelect, timeValue, parsed.isoDate, selectedDate);\n      return true;\n    }\n\n",
+      "beforeSha256": "eddfa75b01808b78ec55aee903610c91ac120ceccfd55006cf88ba3d45d04548",
+      "afterSha256": "c83a2c2026ed93e24ffd4bd5fe7d24a2d415f7e31a65d4cbe5d3fe0e5f0c7535",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "12-export-date-editors-9",
+      "source": "tools/app/runtime/12-export-date-editors.js",
+      "beforeSource": "    }\n\n    function getRangeInputDate(id) {\n      const value = document.getElementById(id)?.value || \"\";\n      return value ? parseStoredLocalNyToDate(value) : null;\n    }\n\n    function setRangeInputDate(id, date) {\n      const input = document.getElementById(id);\n      if (!input) return;\n      input.value = date ? formatNyLocalIso(date) : \"\";\n      const prefix = getExportEditorPrefixFromCanonicalId(id);\n      if (prefix) syncExportDateTimeEditorFromCanonical(prefix);\n    }\n",
+      "afterSource": "    }\n\n    function getRangeInputDate(id) {\n      const input = document.getElementById(id);\n      const value = input?.value || \"\";\n      if (!value || input.dataset.invalidLocalTime === \"1\") return null;\n      const candidates = getLocalNyDateCandidates(value);\n      const selectedMs = Date.parse(input.dataset.timeUtc || \"\");\n      return candidates.find(date => date.getTime() === selectedMs) || candidates[0] || null;\n    }\n\n    function setRangeInputDate(id, date) {\n      const input = document.getElementById(id);\n      if (!input) return;\n      input.value = date ? formatNyLocalIso(date) : \"\";\n      if (date) input.dataset.timeUtc = date.toISOString();\n      else delete input.dataset.timeUtc;\n      delete input.dataset.invalidLocalTime;\n      const prefix = getExportEditorPrefixFromCanonicalId(id);\n      if (prefix) syncExportDateTimeEditorFromCanonical(prefix);\n    }\n",
+      "beforeSha256": "47ed5916598b8e9d336c6b60b9d725d4985bdc41572409a1699a11f447223094",
+      "afterSha256": "8f0c8f4b189a6a130c92cd220bfa21de60e4a7c80deb2dc044f5b166b4cd292f",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "14-export-calendars-1",
+      "source": "tools/app/runtime/14-export-calendars.js",
+      "beforeSource": "\n    function setDownloadBusy(isBusy, message = \"\") {\n      if (isBusy) {\n        if (!exportInProgress) exportViewportBounds = getActiveMapBounds();\n        exportCancelRequested = false;\n      } else {\n        exportViewportBounds = null;\n        exportCancelRequested = false;\n",
+      "afterSource": "\n    function setDownloadBusy(isBusy, message = \"\") {\n      if (isBusy) {\n        if (!exportInProgress) {\n          exportViewportBounds = getActiveMapBounds();\n          exportCancelRequested = false;\n        }\n      } else {\n        exportViewportBounds = null;\n        exportCancelRequested = false;\n",
+      "beforeSha256": "87e4f6f7db5af35e66e5d4be4b4d608f0f92334f672e80d935f37017c82898d9",
+      "afterSha256": "dbb6c21b04f24c0aa499c692f8a0d4b2f4dd45fff5b12c9f649a01ecdc960772",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "16-export-map-1",
+      "source": "tools/app/runtime/16-export-map.js",
+      "beforeSource": "      const time = `${parts.hour}${parts.minute === \"00\" ? \"\" : `:${parts.minute}`} ${parts.dayPeriod || \"\"}`\n        .replace(/\\s+/g, \" \")\n        .trim();\n      return `${month} ${Number(parts.day)}, ${parts.year} \u00b7 ${time}`;\n    }\n\n    function getExportFrameTimestampText(entry) {\n",
+      "afterSource": "      const time = `${parts.hour}${parts.minute === \"00\" ? \"\" : `:${parts.minute}`} ${parts.dayPeriod || \"\"}`\n        .replace(/\\s+/g, \" \")\n        .trim();\n      const repeatedHour = getLocalNyDateCandidates(formatNyLocalIso(date)).length > 1;\n      const zone = repeatedHour ? ` ${parts.timeZoneName || \"ET\"}` : \"\";\n      return `${month} ${Number(parts.day)}, ${parts.year} \u00b7 ${time}${zone}`;\n    }\n\n    function getExportFrameTimestampText(entry) {\n",
+      "beforeSha256": "243d7e60148963d2bf04a9136248360622418f84d74735d917ccb0d0cff5bc6e",
+      "afterSha256": "86a2cbdd6e313f2f563e491c297a39912549de6d2a32b7cae68a8e91ecc556c5",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "17-export-encoding-1",
+      "source": "tools/app/runtime/17-export-encoding.js",
+      "beforeSource": "        return;\n      }\n\n      if (currentDataMode !== \"return-interval\" && getDownloadScopeValue() !== \"current\" && validation.range) {\n        setDownloadBusy(true, \"Loading the selected tide-archive year...\");\n        try {\n          await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);\n        } catch (error) {\n          console.error(error);\n          setDownloadBusy(false);\n          const message = \"The selected tide-archive year could not be loaded. Please try again.\";\n          setDownloadStatus(message, true);\n          toast(message);\n          return;\n        }\n      }\n\n      let frameItems = [];\n      if (format === \"png\") {\n        frameItems = getDownloadFrameItems();\n        if (frameItems.length > EXPORT_PNG_SELECTION_LIMIT) {\n          frameItems = frameItems.slice(0, EXPORT_PNG_SELECTION_LIMIT);\n          toast(`PNG export is limited to ${EXPORT_PNG_SELECTION_LIMIT} frames.`);\n        }\n      } else {\n        frameItems = getDownloadFrameItems();\n      }\n\n      if (!frameItems.length) {\n        setDownloadBusy(false);\n        toast(\"No frames are available for export.\");\n        setDownloadStatus(\"No frames are available for export.\", true);\n        return;\n      }\n      setDownloadModalOpen(false);\n      setDownloadBusy(true, \"Preparing export...\");\n      throwIfExportCancelled();\n      const label = format === \"png\" ? \"PNG\" : `${getDownloadAspectValue()} GIF`;\n      setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? \"\" : \"s\"}...`, 1, false);\n      try {\n        setDownloadStatus(\"Loading export tools...\");\n        setExportProgress(\"Loading export tools...\", 1, false);\n        await ensureExportLibraries(format, frameItems.length);\n",
+      "afterSource": "        return;\n      }\n\n      const needsArchive = currentDataMode !== \"return-interval\" && getDownloadScopeValue() !== \"current\" && validation.range;\n      // Close the settings dialog before showing progress so its focus/inert\n      // isolation cannot disable the progress Cancel button during preparation.\n      setDownloadModalOpen(false);\n      setDownloadBusy(true, needsArchive ? \"Loading the selected tide-archive year...\" : \"Preparing export...\");\n      try {\n        if (needsArchive) {\n          try {\n            await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);\n          } catch (error) {\n            throwIfExportCancelled();\n            throw new Error(\"The selected tide-archive year could not be loaded. Please try again.\", { cause: error });\n          }\n        }\n        throwIfExportCancelled();\n        let frameItems = getDownloadFrameItems();\n        if (format === \"png\" && frameItems.length > EXPORT_PNG_SELECTION_LIMIT) {\n          frameItems = frameItems.slice(0, EXPORT_PNG_SELECTION_LIMIT);\n          toast(`PNG export is limited to ${EXPORT_PNG_SELECTION_LIMIT} frames.`);\n        }\n        if (!frameItems.length) throw new Error(\"No frames are available for export.\");\n        const label = format === \"png\" ? \"PNG\" : `${getDownloadAspectValue()} GIF`;\n        setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? \"\" : \"s\"}...`, 1, false);\n        setDownloadStatus(\"Loading export tools...\");\n        setExportProgress(\"Loading export tools...\", 1, false);\n        await ensureExportLibraries(format, frameItems.length);\n",
+      "beforeSha256": "dc58a2d8bb7133f30e9b255a79c6d3bc9b1d167ed47db3ba53601e767a26456d",
+      "afterSha256": "ed034d38e2b877d6404a81d9fafb58f7d6a6533729c515487d3702893369b34e",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "19-observed-history-1",
+      "source": "tools/app/runtime/19-observed-history.js",
+      "beforeSource": "    }\n\n    function buildModernTopTideCandidates() {\n      const sortedDays = getObservedDays()\n        .filter(day => !day?.isHistoricalCrestOnly && !day?.isLewesSurrogate && !day?.officialCrestEntry && Number.isFinite(Number(day?.peakNAVD88)))\n        .slice()\n        .sort((a, b) => Number(b.peakNAVD88) - Number(a.peakNAVD88));\n\n",
+      "afterSource": "    }\n\n    function buildModernTopTideCandidates() {\n      // Rank the day index before any replay year is downloaded. Detailed\n      // samples enrich the selected event; they must not decide its rank.\n      const daysByDate = new Map((observed15MinuteData?.days || []).map(day => [day.d, {\n        date: day.d,\n        peakNAVD88: normalizeStageValue(day.p) == null ? null : Number(day.p) / 100,\n        classification: day.c || \"none\",\n        hours: []\n      }]));\n      getObservedDays().forEach(day => daysByDate.set(day.date, day));\n      const officialDates = new Set(historicTopTideEntries\n        .filter(entry => Number.isFinite(getStageValue(entry)))\n        .map(entry => entry.observedDate));\n      const sortedDays = Array.from(daysByDate.values())\n        .filter(day => !day?.isHistoricalCrestOnly && !day?.isLewesSurrogate && !day?.officialCrestEntry\n          && !officialDates.has(day.date) && Number.isFinite(normalizeStageValue(day?.peakNAVD88)))\n        .slice()\n        .sort((a, b) => Number(b.peakNAVD88) - Number(a.peakNAVD88));\n\n",
+      "beforeSha256": "c16dba207667c159fe693496924044a3a347cd67d8d6c2ba40c48413fa54c75b",
+      "afterSha256": "db042e13e2ae5bf9062733c5808443e4e2ba625b11d49ec4b02f044c82cfd5e4",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "19-observed-history-2",
+      "source": "tools/app/runtime/19-observed-history.js",
+      "beforeSource": "        });\n        if (overlaps) continue;\n\n        const hasLoadedSeries = observed15MinuteDaysByDate.has(dateKey)\n          || (Array.isArray(dayRecord.timelineRawHours) && dayRecord.timelineRawHours.length > 0)\n          || (Array.isArray(dayRecord.hours) && dayRecord.hours.length > 0);\n        if (!hasLoadedSeries) continue;\n\n        const canonicalSeries = buildObservedCanonicalSeries(dayRecord, dateKey);\n        const daySeries = getTimelineIntervalMinutes() === 1440\n          ? buildObservedDailyMaximumSeries(dateKey.slice(0, 7))\n          : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());\n        if (!daySeries.some(item => Number.isFinite(getStageValue(item)))) continue;\n        const dailyEventIndex = getTimelineIntervalMinutes() === 1440\n          ? daySeries.findIndex(item => item?.observedDate === dateKey)\n",
+      "afterSource": "        });\n        if (overlaps) continue;\n\n        const canonicalSeries = buildObservedCanonicalSeries(dayRecord, dateKey);\n        const daySeries = canonicalSeries.every(entry => entry.isDailyPeakOnly)\n          ? canonicalSeries\n          : getTimelineIntervalMinutes() === 1440\n            ? buildObservedDailyMaximumSeries(dateKey.slice(0, 7))\n            : sampleCanonicalHydraulicSeries(canonicalSeries, getTimelineIntervalMinutes());\n        if (!daySeries.some(item => Number.isFinite(getStageValue(item)))) continue;\n        const dailyEventIndex = getTimelineIntervalMinutes() === 1440\n          ? daySeries.findIndex(item => item?.observedDate === dateKey)\n",
+      "beforeSha256": "2706a01d7dcadfd5f517051cb57d3e5cbd8f66cf309f3ea7f2da961088c32e8c",
+      "afterSha256": "f7a69a5b08cafcdd70f16ba7bce2101e7c1e23436b6f17186c07066dd3c6a2ad",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "20-timeline-rendering-1",
+      "source": "tools/app/runtime/20-timeline-rendering.js",
+      "beforeSource": "\n      if (crestOnlyTopTide) {\n        const crestStation = entry?.sourceStationShort ? `${entry.sourceStationShort} USGS` : \"USGS\";\n        const msg = `Only the ${crestStation} storm-tide crest is available; maximum flood extent is plotted.`;\n        timelineMeta.textContent = msg;\n        timelineStart.textContent = msg;\n        timelineEnd.textContent = \"\";\n",
+      "afterSource": "\n      if (crestOnlyTopTide) {\n        const crestStation = entry?.sourceStationShort ? `${entry.sourceStationShort} USGS` : \"USGS\";\n        const msg = entry?.isDailyPeakOnly\n          ? \"Only the daily peak water level is available; maximum flood extent is plotted.\"\n          : `Only the ${crestStation} storm-tide crest is available; maximum flood extent is plotted.`;\n        timelineMeta.textContent = msg;\n        timelineStart.textContent = msg;\n        timelineEnd.textContent = \"\";\n",
+      "beforeSha256": "33c8b257aba0f374dca7f882225e5c642523afd62f931bcfd6e4ddc8db2320be",
+      "afterSha256": "3310a5c678346727ff04c6f5b0d2b6ab197d71ab715de4d5f3496fa59448c095",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "21-forecast-and-observed-loading-1",
+      "source": "tools/app/runtime/21-forecast-and-observed-loading.js",
+      "beforeSource": "      const rows = [];\n      const seriesList = Array.isArray(data?.value?.timeSeries) ? data.value.timeSeries : [];\n      seriesList.forEach(series => {\n        const valueGroups = Array.isArray(series?.values) ? series.values : [];\n        valueGroups.forEach(group => {\n          const values = Array.isArray(group?.value) ? group.value : [];\n          values.forEach(item => {\n            const n = Number(item?.value);\n            const dtRaw = item?.dateTime;\n            const dt = dtRaw ? new Date(dtRaw) : null;\n            if (!Number.isFinite(n) || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;\n            const localIso = formatNyLocalIso(dt);\n            const dateKey = localIso.slice(0, 10);\n            const hourIndex = Number(localIso.slice(11, 13));\n",
+      "afterSource": "      const rows = [];\n      const seriesList = Array.isArray(data?.value?.timeSeries) ? data.value.timeSeries : [];\n      seriesList.forEach(series => {\n        const noDataValue = normalizeStageValue(series?.variable?.noDataValue);\n        const valueGroups = Array.isArray(series?.values) ? series.values : [];\n        valueGroups.forEach(group => {\n          const values = Array.isArray(group?.value) ? group.value : [];\n          values.forEach(item => {\n            const n = normalizeStageValue(item?.value);\n            const dtRaw = item?.dateTime;\n            const dt = dtRaw ? new Date(dtRaw) : null;\n            if (!Number.isFinite(n) || n === noDataValue || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;\n            const localIso = formatNyLocalIso(dt);\n            const dateKey = localIso.slice(0, 10);\n            const hourIndex = Number(localIso.slice(11, 13));\n",
+      "beforeSha256": "8631b67a031bc7f22f11175cffddab03dbdd746628243013fa110d23272f36a7",
+      "afterSha256": "6369dba5a437a084c9082cec8fc7f4708d9280c6ab273aed904396ba199bd6f5",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "23-refresh-and-playback-1",
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSource": "    function scheduleTopTidesListWarmup() {\n      const start = async () => {\n        try {\n          await loadHistoricalTopTides();\n          topTideEvents = buildTopTideEvents();\n          renderTopTides();\n        } catch (error) {\n",
+      "afterSource": "    function scheduleTopTidesListWarmup() {\n      const start = async () => {\n        try {\n          await Promise.all([\n            loadHistoricalTopTides(),\n            ensureObserved15MinuteArchive().catch(() => null)\n          ]);\n          topTideEvents = buildTopTideEvents();\n          renderTopTides();\n        } catch (error) {\n",
+      "beforeSha256": "44248e3628d92e6e6ccc2e2c4d290079877b20bf41a0bc54cb8a92ca7565f4aa",
+      "afterSha256": "6852da96a4fddc8849262c592d0f5c2375f526e0cec82dbb31ed8f04b55faf73",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "27-mobile-and-address-1",
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSource": "      status.classList.toggle(\"success\", type === \"success\");\n    }\n\n    function clearTownAddressLookup() {\n      ++townAddressSearchGeneration;\n      const button = document.getElementById(\"townAddressSearchBtn\");\n      if (button) button.disabled = false;\n      const input = document.getElementById(\"townAddressInput\");\n",
+      "afterSource": "      status.classList.toggle(\"success\", type === \"success\");\n    }\n\n    let townAddressLookupController = null;\n\n    function clearTownAddressLookup() {\n      ++townAddressSearchGeneration;\n      townAddressLookupController?.abort();\n      townAddressLookupController = null;\n      const button = document.getElementById(\"townAddressSearchBtn\");\n      if (button) button.disabled = false;\n      const input = document.getElementById(\"townAddressInput\");\n",
+      "beforeSha256": "0b8b9c846da77710f5fd53cc36d462a54e0525a033629a08b413145526e14183",
+      "afterSha256": "8f29e97ca90029c6545c15d1d71f458aa1373d1b634f71131dd5661c5c92dace",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "27-mobile-and-address-2",
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSource": "      return normalized;\n    }\n\n    async function fetchNominatimTownCandidates(clean) {\n      const cfg = getTownAddressConfig();\n      const city = cfg.city || TOWN_CONFIG?.site?.name || \"\";\n      const state = cfg.state || \"\";\n",
+      "afterSource": "      return normalized;\n    }\n\n    async function fetchTownAddressJson(url, searchSignal) {\n      const controller = new AbortController();\n      const abort = () => controller.abort();\n      let timeout;\n      const deadline = new Promise((resolve, reject) => {\n        controller.signal.addEventListener(\"abort\", () => {\n          reject(new Error(searchSignal?.aborted ? \"Address lookup canceled.\" : \"Address provider timed out.\"));\n        }, { once: true });\n        if (searchSignal?.aborted) abort();\n        else {\n          searchSignal?.addEventListener(\"abort\", abort, { once: true });\n          timeout = setTimeout(abort, 8000);\n        }\n      });\n      try {\n        // Bound the body read as well as the initial response. The explicit\n        // deadline also releases the UI if a provider ignores an abort.\n        return await Promise.race([deadline, (async () => {\n          const response = await fetch(url, {\n            headers: { \"Accept\": \"application/json\" }, signal: controller.signal\n          });\n          return response.ok ? response.json() : null;\n        })()]);\n      } finally {\n        clearTimeout(timeout);\n        searchSignal?.removeEventListener(\"abort\", abort);\n      }\n    }\n\n    async function fetchNominatimTownCandidates(clean, signal) {\n      const cfg = getTownAddressConfig();\n      const city = cfg.city || TOWN_CONFIG?.site?.name || \"\";\n      const state = cfg.state || \"\";\n",
+      "beforeSha256": "442cf18aed0f7ff6349cb09a21e024d560fc236c801e129070be88ba0415a7f7",
+      "afterSha256": "6cf84f6215e0d17485f32d26ee544a13cb677ff57bef02b88c2bb72b59549c53",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "27-mobile-and-address-3",
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSource": "        params.set(\"viewbox\", `${box.west},${box.north},${box.east},${box.south}`);\n        params.set(\"bounded\", \"1\");\n      }\n      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {\n        headers: { \"Accept\": \"application/json\" }\n      });\n      if (!response.ok) return [];\n      const results = await response.json();\n      return Array.isArray(results) ? results.map(item => normalizeNominatimTownCandidate(item, clean)).filter(Boolean) : [];\n    }\n\n    async function fetchArcgisTownCandidates(clean) {\n      const cfg = getTownAddressConfig();\n      const city = cfg.city || TOWN_CONFIG?.site?.name || \"\";\n      const state = cfg.state || \"\";\n",
+      "afterSource": "        params.set(\"viewbox\", `${box.west},${box.north},${box.east},${box.south}`);\n        params.set(\"bounded\", \"1\");\n      }\n      const results = await fetchTownAddressJson(`https://nominatim.openstreetmap.org/search?${params.toString()}`, signal);\n      return Array.isArray(results) ? results.map(item => normalizeNominatimTownCandidate(item, clean)).filter(Boolean) : [];\n    }\n\n    async function fetchArcgisTownCandidates(clean, signal) {\n      const cfg = getTownAddressConfig();\n      const city = cfg.city || TOWN_CONFIG?.site?.name || \"\";\n      const state = cfg.state || \"\";\n",
+      "beforeSha256": "d16257bd5d387e59bb0764c0d9e9f007df2c4251dfe10d004b4dd3de9b926503",
+      "afterSha256": "c339d26c5e6a88e5edfe992f8cfc1b6f3296f2984ee8fed9dfa83d1f2700efbf",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "27-mobile-and-address-4",
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSource": "        params.set(\"location\", `${center.lon},${center.lat}`);\n      }\n      if (cfg.searchDistanceMeters) params.set(\"distance\", String(cfg.searchDistanceMeters));\n      const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?${params.toString()}`, {\n        headers: { \"Accept\": \"application/json\" }\n      });\n      if (!response.ok) return [];\n      const data = await response.json();\n      const candidates = Array.isArray(data?.candidates) ? data.candidates : [];\n      return candidates.map(item => normalizeArcgisTownCandidate(item, clean)).filter(Boolean);\n    }\n",
+      "afterSource": "        params.set(\"location\", `${center.lon},${center.lat}`);\n      }\n      if (cfg.searchDistanceMeters) params.set(\"distance\", String(cfg.searchDistanceMeters));\n      const data = await fetchTownAddressJson(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?${params.toString()}`, signal);\n      const candidates = Array.isArray(data?.candidates) ? data.candidates : [];\n      return candidates.map(item => normalizeArcgisTownCandidate(item, clean)).filter(Boolean);\n    }\n",
+      "beforeSha256": "fc164b56c22ec16f7bf12d13c00c5f5929d41a19c52d2170cd3968820479fbe5",
+      "afterSha256": "191ee4a245a43bbfffe273b31234a1ef86076f9de272da7a3aabd18fad109d35",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "27-mobile-and-address-5",
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSource": "\n    async function searchTownAddress(rawValue) {\n      const generation = ++townAddressSearchGeneration;\n      const button = document.getElementById(\"townAddressSearchBtn\");\n      const clean = normalizeTownAddressQuery(rawValue);\n      const townName = getTownAddressDisplayName();\n      if (!clean) {\n        if (button) button.disabled = false;\n        setTownAddressStatus(`Enter a ${townName} address or street first.`, \"error\");\n        return;\n",
+      "afterSource": "\n    async function searchTownAddress(rawValue) {\n      const generation = ++townAddressSearchGeneration;\n      townAddressLookupController?.abort();\n      const controller = new AbortController();\n      townAddressLookupController = controller;\n      const button = document.getElementById(\"townAddressSearchBtn\");\n      const clean = normalizeTownAddressQuery(rawValue);\n      const townName = getTownAddressDisplayName();\n      if (!clean) {\n        townAddressLookupController = null;\n        if (button) button.disabled = false;\n        setTownAddressStatus(`Enter a ${townName} address or street first.`, \"error\");\n        return;\n",
+      "beforeSha256": "f970d5f4c1ee25676d222d4df6e0ebe51a78346915a6163a239a3e2890ad60ba",
+      "afterSha256": "4d055e29a3f3adbff9dce3eec1bf9ccefbb8e95482285837a20d98ca61bfa6c3",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "27-mobile-and-address-6",
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSource": "\n      try {\n        const candidateSets = await Promise.allSettled([\n          fetchArcgisTownCandidates(clean),\n          fetchNominatimTownCandidates(clean)\n        ]);\n        if (generation !== townAddressSearchGeneration) return;\n        const candidates = candidateSets.flatMap(result => result.status === \"fulfilled\" && Array.isArray(result.value) ? result.value : []);\n",
+      "afterSource": "\n      try {\n        const candidateSets = await Promise.allSettled([\n          fetchArcgisTownCandidates(clean, controller.signal),\n          fetchNominatimTownCandidates(clean, controller.signal)\n        ]);\n        if (generation !== townAddressSearchGeneration) return;\n        const candidates = candidateSets.flatMap(result => result.status === \"fulfilled\" && Array.isArray(result.value) ? result.value : []);\n",
+      "beforeSha256": "4c15fa2b4f06adddd1587109fc300725950d3803e9d0628cc3e9e4f64414b5d7",
+      "afterSha256": "f07e2b0ee22127e3342cf5ab4a9e82e65fe325e33dc2ed43c1de9d64c6fe42af",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "27-mobile-and-address-7",
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSource": "        if (generation !== townAddressSearchGeneration) return;\n        setTownAddressStatus(err && err.message ? err.message : \"Address lookup failed. Please try again.\", \"error\");\n      } finally {\n        if (generation === townAddressSearchGeneration && button) button.disabled = false;\n      }\n    }\n\n",
+      "afterSource": "        if (generation !== townAddressSearchGeneration) return;\n        setTownAddressStatus(err && err.message ? err.message : \"Address lookup failed. Please try again.\", \"error\");\n      } finally {\n        if (generation === townAddressSearchGeneration) {\n          townAddressLookupController = null;\n          if (button) button.disabled = false;\n        }\n      }\n    }\n\n",
+      "beforeSha256": "f8c867659b5901908863f0202451aba54714e9627f24e0123c3d0f63f9d73cad",
+      "afterSha256": "588d9566f6d22b472285080a8fc33ccded7cd90b0394e614f5ce91a7d4d567a3",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "style-012-1",
+      "source": "tools/app/styles/style-012.css",
+      "beforeSource": "#webcamChoice { width:100%; margin-bottom:9px; padding:6px; }\n#webcamPanel .webcam-frame { width:100%; aspect-ratio:16 / 9; background:#102535; border-radius:7px; overflow:hidden; }\n#webcamPanel iframe, #webcamPanel .webcam-frame img { display:block; width:100%; height:100%; border:0; object-fit:contain; }\n#webcamPanel .webcam-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:5px; margin:8px 0; font-size:10px; color:#b8cbe1; }\n#webcamLocate { padding:3px 6px; }\n#webcamPanel .webcam-source { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:#b8cbe1; font-size:9px; }\n",
+      "afterSource": "#webcamChoice { width:100%; margin-bottom:9px; padding:6px; }\n#webcamPanel .webcam-frame { width:100%; aspect-ratio:16 / 9; background:#102535; border-radius:7px; overflow:hidden; }\n#webcamPanel iframe, #webcamPanel .webcam-frame img { display:block; width:100%; height:100%; border:0; object-fit:contain; }\n#webcamPanel .webcam-external { box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:16px; text-align:center; }\n#webcamPanel .webcam-external p { margin:0 0 12px; }\n#webcamPanel .webcam-external a { display:inline-block; padding:10px 14px; border:1px solid #5da3ff; border-radius:7px; background:#203f60; color:#fff; font-weight:600; }\n#webcamPanel .webcam-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:5px; margin:8px 0; font-size:10px; color:#b8cbe1; }\n#webcamLocate { padding:3px 6px; }\n#webcamPanel .webcam-source { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:#b8cbe1; font-size:9px; }\n",
+      "beforeSha256": "26759c20066de4bc7b09b808fa3b6929eb72a199dec602ffba4bc64b21fcfa89",
+      "afterSha256": "721f76d606d3f278f6ec01ee60c74a116a705fed366e0a535570e7e7779a37b1",
+      "kind": "style",
+      "entryId": "style-012"
+    },
+    {
+      "id": "webcams-1",
+      "source": "tools/app/webcams.js",
+      "beforeSource": "\n  function loadPlayer(camera) {\n    clearPlayer();\n    status.textContent = \"Opening camera\u2026\";\n    panel.dataset.playerState = \"loading\";\n    const player = document.createElement(camera.kind === \"image\" ? \"img\" : \"iframe\");\n",
+      "afterSource": "\n  function loadPlayer(camera) {\n    clearPlayer();\n    panel.querySelector(\"#webcamRetry\").hidden = Boolean(camera.external);\n    if (camera.external) {\n      panel.dataset.playerState = \"external\";\n      status.textContent = \"Watch this camera on the city website.\";\n      const notice = document.createElement(\"div\");\n      notice.className = \"webcam-external\";\n      const message = document.createElement(\"p\");\n      message.textContent = `${camera.name} opens on the city\u2019s camera page.`;\n      const link = document.createElement(\"a\");\n      link.href = camera.sourceUrl;\n      link.target = \"_blank\";\n      link.rel = \"noopener noreferrer\";\n      link.textContent = \"Watch camera \u2197\";\n      notice.append(message, link);\n      frameHost.append(notice);\n      return;\n    }\n    status.textContent = \"Opening camera\u2026\";\n    panel.dataset.playerState = \"loading\";\n    const player = document.createElement(camera.kind === \"image\" ? \"img\" : \"iframe\");\n",
+      "beforeSha256": "c1108b6b47bba2846f5464db04b4b9494be6ad26c9b8891150fc00a1f55cc9cd",
+      "afterSha256": "8a84dcdcdf5079f49c7adf4af979f11bcf4438a6f40a6f410155ec50a8359e7c",
+      "kind": "script",
+      "entryId": "script-008"
+    }
+  ],
+  "templateChanges": [
+    {
+      "id": "index.template-1",
+      "source": "tools/app/index.template.html",
+      "beforeSource": "<!-- nww:script:script-006 -->\n\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261023.2\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=20260925-drawer-focus\"></script>\n",
+      "afterSource": "<!-- nww:script:script-006 -->\n\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261026.1\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=20260925-drawer-focus\"></script>\n",
+      "beforeSha256": "20f94a7496bcea6aa166084e12ececcdb97652b3c701c9a0d51b78262ad382c7",
+      "afterSha256": "81e465321c0ac2c0c44f206722281a5ae88730da7b5b642bba40c55f5bf377c8"
+    },
+    {
+      "id": "index.template-2",
+      "source": "tools/app/index.template.html",
+      "beforeSource": "\n\n\n<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay / flood camera\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp \u00b7 North Wildwood \u00b7 approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue beach\",\"short\":\"15th Avenue beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station \u00b7 North Wildwood \u00b7 approximate site location\",\"external\":false,\"description\":\"View current conditions on the camera provider\u2019s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n<!-- nww:script:script-008 -->\n\n<!-- nww:script:script-009 -->\n",
+      "afterSource": "\n\n\n<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay / flood camera\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp \u00b7 North Wildwood \u00b7 approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue beach\",\"short\":\"15th Avenue beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station \u00b7 North Wildwood \u00b7 approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider\u2019s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n<!-- nww:script:script-008 -->\n\n<!-- nww:script:script-009 -->\n",
+      "beforeSha256": "b224e1352104e456261c0a30442c6e886391436b4980462c0950b71dde61db93",
+      "afterSha256": "7e9f9e0639f2136b57af049bda5e165dd9c4701eabe232264abc72c73bf984b2"
+    }
+  ]
+}

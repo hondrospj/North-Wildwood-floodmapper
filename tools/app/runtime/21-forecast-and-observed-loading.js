@@ -166,14 +166,15 @@
       const rows = [];
       const seriesList = Array.isArray(data?.value?.timeSeries) ? data.value.timeSeries : [];
       seriesList.forEach(series => {
+        const noDataValue = normalizeStageValue(series?.variable?.noDataValue);
         const valueGroups = Array.isArray(series?.values) ? series.values : [];
         valueGroups.forEach(group => {
           const values = Array.isArray(group?.value) ? group.value : [];
           values.forEach(item => {
-            const n = Number(item?.value);
+            const n = normalizeStageValue(item?.value);
             const dtRaw = item?.dateTime;
             const dt = dtRaw ? new Date(dtRaw) : null;
-            if (!Number.isFinite(n) || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;
+            if (!Number.isFinite(n) || n === noDataValue || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;
             const localIso = formatNyLocalIso(dt);
             const dateKey = localIso.slice(0, 10);
             const hourIndex = Number(localIso.slice(11, 13));

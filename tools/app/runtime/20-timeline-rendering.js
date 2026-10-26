@@ -43,7 +43,9 @@
 
       if (crestOnlyTopTide) {
         const crestStation = entry?.sourceStationShort ? `${entry.sourceStationShort} USGS` : "USGS";
-        const msg = `Only the ${crestStation} storm-tide crest is available; maximum flood extent is plotted.`;
+        const msg = entry?.isDailyPeakOnly
+          ? "Only the daily peak water level is available; maximum flood extent is plotted."
+          : `Only the ${crestStation} storm-tide crest is available; maximum flood extent is plotted.`;
         timelineMeta.textContent = msg;
         timelineStart.textContent = msg;
         timelineEnd.textContent = "";

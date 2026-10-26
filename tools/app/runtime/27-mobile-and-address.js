@@ -255,8 +255,12 @@
       status.classList.toggle("success", type === "success");
     }
 
+    let townAddressLookupController = null;
+
     function clearTownAddressLookup() {
       ++townAddressSearchGeneration;
+      townAddressLookupController?.abort();
+      townAddressLookupController = null;
       const button = document.getElementById("townAddressSearchBtn");
       if (button) button.disabled = false;
       const input = document.getElementById("townAddressInput");
@@ -458,7 +462,36 @@
       return normalized;
     }
 
-    async function fetchNominatimTownCandidates(clean) {
+    async function fetchTownAddressJson(url, searchSignal) {
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      let timeout;
+      const deadline = new Promise((resolve, reject) => {
+        controller.signal.addEventListener("abort", () => {
+          reject(new Error(searchSignal?.aborted ? "Address lookup canceled." : "Address provider timed out."));
+        }, { once: true });
+        if (searchSignal?.aborted) abort();
+        else {
+          searchSignal?.addEventListener("abort", abort, { once: true });
+          timeout = setTimeout(abort, 8000);
+        }
+      });
+      try {
+        // Bound the body read as well as the initial response. The explicit
+        // deadline also releases the UI if a provider ignores an abort.
+        return await Promise.race([deadline, (async () => {
+          const response = await fetch(url, {
+            headers: { "Accept": "application/json" }, signal: controller.signal
+          });
+          return response.ok ? response.json() : null;
+        })()]);
+      } finally {
+        clearTimeout(timeout);
+        searchSignal?.removeEventListener("abort", abort);
+      }
+    }
+
+    async function fetchNominatimTownCandidates(clean, signal) {
       const cfg = getTownAddressConfig();
       const city = cfg.city || TOWN_CONFIG?.site?.name || "";
       const state = cfg.state || "";
@@ -475,15 +508,11 @@
         params.set("viewbox", `${box.west},${box.north},${box.east},${box.south}`);
         params.set("bounded", "1");
       }
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-        headers: { "Accept": "application/json" }
-      });
-      if (!response.ok) return [];
-      const results = await response.json();
+      const results = await fetchTownAddressJson(`https://nominatim.openstreetmap.org/search?${params.toString()}`, signal);
       return Array.isArray(results) ? results.map(item => normalizeNominatimTownCandidate(item, clean)).filter(Boolean) : [];
     }
 
-    async function fetchArcgisTownCandidates(clean) {
+    async function fetchArcgisTownCandidates(clean, signal) {
       const cfg = getTownAddressConfig();
       const city = cfg.city || TOWN_CONFIG?.site?.name || "";
       const state = cfg.state || "";
@@ -503,11 +532,7 @@
         params.set("location", `${center.lon},${center.lat}`);
       }
       if (cfg.searchDistanceMeters) params.set("distance", String(cfg.searchDistanceMeters));
-      const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?${params.toString()}`, {
-        headers: { "Accept": "application/json" }
-      });
-      if (!response.ok) return [];
-      const data = await response.json();
+      const data = await fetchTownAddressJson(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?${params.toString()}`, signal);
       const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
       return candidates.map(item => normalizeArcgisTownCandidate(item, clean)).filter(Boolean);
     }
@@ -569,10 +594,14 @@
 
     async function searchTownAddress(rawValue) {
       const generation = ++townAddressSearchGeneration;
+      townAddressLookupController?.abort();
+      const controller = new AbortController();
+      townAddressLookupController = controller;
       const button = document.getElementById("townAddressSearchBtn");
       const clean = normalizeTownAddressQuery(rawValue);
       const townName = getTownAddressDisplayName();
       if (!clean) {
+        townAddressLookupController = null;
         if (button) button.disabled = false;
         setTownAddressStatus(`Enter a ${townName} address or street first.`, "error");
         return;
@@ -584,8 +613,8 @@
 
       try {
         const candidateSets = await Promise.allSettled([
-          fetchArcgisTownCandidates(clean),
-          fetchNominatimTownCandidates(clean)
+          fetchArcgisTownCandidates(clean, controller.signal),
+          fetchNominatimTownCandidates(clean, controller.signal)
         ]);
         if (generation !== townAddressSearchGeneration) return;
         const candidates = candidateSets.flatMap(result => result.status === "fulfilled" && Array.isArray(result.value) ? result.value : []);
@@ -641,7 +670,10 @@
         if (generation !== townAddressSearchGeneration) return;
         setTownAddressStatus(err && err.message ? err.message : "Address lookup failed. Please try again.", "error");
       } finally {
-        if (generation === townAddressSearchGeneration && button) button.disabled = false;
+        if (generation === townAddressSearchGeneration) {
+          townAddressLookupController = null;
+          if (button) button.disabled = false;
+        }
       }
     }
 

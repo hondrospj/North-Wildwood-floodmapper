@@ -33,7 +33,10 @@
     function scheduleTopTidesListWarmup() {
       const start = async () => {
         try {
-          await loadHistoricalTopTides();
+          await Promise.all([
+            loadHistoricalTopTides(),
+            ensureObserved15MinuteArchive().catch(() => null)
+          ]);
           topTideEvents = buildTopTideEvents();
           renderTopTides();
         } catch (error) {
