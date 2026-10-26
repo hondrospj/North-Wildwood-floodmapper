@@ -149,20 +149,33 @@
       clearExportAvailabilityCache();
     }
 
-    function preloadObservedArchiveIndexText() {
+    function preloadObservedArchiveIndexText(timeoutMs = 15000) {
       if (observedArchiveIndexTextPromise) return observedArchiveIndexTextPromise;
-      const request = fetch(OBSERVED_ARCHIVE_INDEX_URL, {
+      const controller = new AbortController();
+      let timer;
+      const deadline = new Promise((_, reject) => {
+        timer = window.setTimeout(() => {
+          controller.abort();
+          reject(new Error("The observed archive index timed out."));
+        }, timeoutMs);
+      });
+      // Race the entire response body, not only the headers. A pending index
+      // must yield to the compact fallback even if transport abort is delayed.
+      const download = fetch(OBSERVED_ARCHIVE_INDEX_URL, {
         cache: "default",
-        headers: { "Accept": "application/geo+json, application/json" }
+        headers: { "Accept": "application/geo+json, application/json" },
+        signal: controller.signal
       })
         .then(response => {
           if (!response.ok) throw new Error(`HTTP ${response.status} for ${OBSERVED_ARCHIVE_INDEX_URL}`);
           return response.text();
-        })
+        });
+      const request = Promise.race([download, deadline])
         .catch(error => {
           if (observedArchiveIndexTextPromise === request) observedArchiveIndexTextPromise = null;
           throw error;
-        });
+        })
+        .finally(() => window.clearTimeout(timer));
       observedArchiveIndexTextPromise = request;
       return request;
     }

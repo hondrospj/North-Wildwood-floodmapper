@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
+from cache_contract import identity_matches, render_identity, simulation_identity
 
 import numpy as np
 from PIL import Image
@@ -138,6 +139,13 @@ def validate_scenario(
     )
     if guidance.get("cycleId") != cycle_id:
         raise RuntimeError(f"{scenario} validation guidance cycle mismatch")
+    simulation = simulation_identity(ROOT, config, guidance, scenario)
+    rendered = render_identity(ROOT, config, simulation)
+    if not identity_matches(run_manifest.get("simulationIdentity"), simulation):
+        raise RuntimeError(f"{scenario} simulation identity does not match current inputs/settings")
+    if (not identity_matches(manifest.get("renderIdentity"), rendered)
+            or manifest.get("simulationIdentitySha256") != simulation["sha256"]):
+        raise RuntimeError(f"{scenario} render identity does not match current inputs/settings")
     guidance_frames = guidance["scenarios"][scenario]
     if len(guidance_frames) != len(frames):
         raise RuntimeError(f"{scenario} guidance/render frame count mismatch")
@@ -233,6 +241,10 @@ def validate_scenario(
 
     return {
         "scenario": scenario,
+        "simulationIdentitySha256": simulation["sha256"],
+        "renderIdentitySha256": rendered["sha256"],
+        "runManifestSha256": sha256(run_directory / "run_manifest.json"),
+        "publicManifestSha256": sha256(public_directory / "manifest.json"),
         "frameCount": len(frames),
         "dailyMaximumCount": len(daily_records),
         "maximumSpeedMps": maximum_speed,
@@ -269,6 +281,7 @@ def main() -> None:
         "validatedUtc": utc_now(),
         "cycleId": cycle_id,
         "scenarios": results,
+        "productIdentitySha256ByScenario": {result["scenario"]: result["renderIdentitySha256"] for result in results},
         "totalPublicBytes": sum(result["publicBytes"] for result in results),
     }
     path = ROOT / "model/state" / f"validation_{cycle_id}.json"

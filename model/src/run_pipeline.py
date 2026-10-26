@@ -18,7 +18,8 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from cache_contract import terrain_manifest_matches
+from cache_contract import (identity_matches, published_pointer_matches, render_identity,
+                            simulation_identity, terrain_manifest_matches)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -59,7 +60,7 @@ def run_step(label: str, command: list[str]) -> float:
     return elapsed
 
 
-def remote_pointer_cycle(config: dict[str, Any]) -> str | None:
+def remote_pointer(config: dict[str, Any]) -> dict:
     bunny = config["bunny"]
     remote_path = "/".join(
         (
@@ -77,9 +78,9 @@ def remote_pointer_cycle(config: dict[str, Any]) -> str | None:
     try:
         with urllib.request.urlopen(request, timeout=45) as response:
             value = json.loads(response.read().decode("utf-8"))
-        return value.get("cycleId") if value.get("status") == "complete" else None
+        return value if isinstance(value, dict) else {}
     except Exception:
-        return None
+        return {}
 
 
 def terrain_is_ready(config: dict[str, Any]) -> bool:
@@ -127,7 +128,7 @@ def discard_published_hydraulic_states(
     return deleted
 
 
-def hydraulic_is_complete(cycle_id: str, scenario: str) -> bool:
+def hydraulic_is_complete(cycle_id: str, scenario: str, expected_identity: dict) -> bool:
     run_directory = ROOT / "model/runs" / cycle_id / scenario
     run_manifest = run_directory / "run_manifest.json"
     if not run_manifest.is_file():
@@ -138,6 +139,7 @@ def hydraulic_is_complete(cycle_id: str, scenario: str) -> bool:
             hydraulic.get("status") == "complete"
             and hydraulic.get("cycleId") == cycle_id
             and hydraulic.get("scenario") == scenario
+            and identity_matches(hydraulic.get("simulationIdentity"), expected_identity)
         )
     except Exception:
         return False
@@ -154,7 +156,7 @@ def hydraulic_state_is_renderable(cycle_id: str, scenario: str) -> bool:
     )
 
 
-def public_products_are_complete(cycle_id: str, scenario: str) -> bool:
+def public_products_are_complete(cycle_id: str, scenario: str, expected_identity: dict) -> bool:
     public_manifest = (
         ROOT / "model/runs" / cycle_id / scenario / "public/manifest.json"
     )
@@ -168,6 +170,7 @@ def public_products_are_complete(cycle_id: str, scenario: str) -> bool:
             public.get("status") == "complete"
             and public.get("cycleId") == cycle_id
             and public.get("scenario") == scenario
+            and identity_matches(public.get("renderIdentity"), expected_identity)
             and bool(frames)
             and bool(daily)
             and all(
@@ -214,6 +217,7 @@ def main() -> None:
     try:
         fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
+        lock_stream.close()
         print("Another North Wildwood physics pipeline is already running; exiting.")
         return
 
@@ -258,19 +262,29 @@ def main() -> None:
         status["cycleId"] = cycle_id
         atomic_json(status_path, status)
 
+        expected = {}
+        for scenario in config["petss"]["scenarios"]:
+            simulation = simulation_identity(ROOT, config, guidance, scenario)
+            expected[scenario] = (simulation, render_identity(ROOT, config, simulation))
+        public_identities = {scenario: identities[1]["sha256"] for scenario, identities in expected.items()}
         published_local = state_directory / f"published_{cycle_id}_pointer.json"
+        try:
+            local_pointer = read_json(published_local)
+        except (OSError, ValueError):
+            local_pointer = {}
         if (
             not args.force
             and not args.no_publish
             and published_local.is_file()
-            and remote_pointer_cycle(config) == cycle_id
+            and published_pointer_matches(local_pointer, cycle_id, public_identities)
+            and published_pointer_matches(remote_pointer(config), cycle_id, public_identities)
         ):
             status.update(
                 {
                     "status": "skipped-current",
                     "completedUtc": utc_now(),
                     "elapsedSeconds": round(time.monotonic() - pipeline_started, 3),
-                    "reason": "This PETSS cycle is already fully published.",
+                    "reason": "This PETSS cycle and effective product identities are already fully published.",
                 }
             )
             atomic_json(status_path, status)
@@ -278,8 +292,9 @@ def main() -> None:
             return
 
         for scenario in config["petss"]["scenarios"]:
-            hydraulic_complete = hydraulic_is_complete(cycle_id, scenario)
-            public_complete = public_products_are_complete(cycle_id, scenario)
+            simulation, rendered = expected[scenario]
+            hydraulic_complete = hydraulic_is_complete(cycle_id, scenario, simulation)
+            public_complete = public_products_are_complete(cycle_id, scenario, rendered)
             if (
                 hydraulic_complete
                 and not public_complete
@@ -384,6 +399,8 @@ def main() -> None:
         )
         atomic_json(status_path, status)
         raise
+    finally:
+        lock_stream.close()
 
 
 if __name__ == "__main__":

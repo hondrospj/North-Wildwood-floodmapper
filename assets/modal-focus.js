@@ -22,6 +22,12 @@
 
   function isolate(dialog) {
     for (let branch = dialog; branch && branch !== document.body; branch = branch.parentElement) {
+      // A child can still carry inert from the previous modal's isolation
+      // when its opening handler requests initial focus synchronously.
+      if (branch.inert) {
+        if (!inertBefore.has(branch)) inertBefore.set(branch, true);
+        branch.inert = false;
+      }
       for (const sibling of branch.parentElement?.children || []) {
         if (sibling === branch || /^(SCRIPT|STYLE|LINK)$/.test(sibling.tagName)) continue;
         if (!inertBefore.has(sibling)) inertBefore.set(sibling, sibling.inert);
@@ -31,7 +37,7 @@
   }
 
   function controls(dialog) {
-    return [...dialog.querySelectorAll(focusable)].filter(element => visible(element) && !element.closest('[inert]'));
+    return [...dialog.querySelectorAll(focusable)].filter(element => element.tabIndex >= 0 && visible(element) && !element.closest('[inert]'));
   }
 
   function focusFirst(dialog) {
@@ -65,7 +71,12 @@
       if (top !== oldTop) {
         restoreBackground();
         if (top) isolate(top.dialog);
-        if (restoreTarget && visible(restoreTarget) && !restoreTarget.closest('[inert]')) {
+        // Opening a child may demote its parent out of the aria-modal query.
+        // Never restore that parent's trigger outside the newly active modal,
+        // or replace focus that the user has already moved inside it.
+        const focusedInside = top && top.dialog.contains(document.activeElement);
+        if (!focusedInside && restoreTarget && (!top || top.dialog.contains(restoreTarget)) &&
+            visible(restoreTarget) && !restoreTarget.closest('[inert]')) {
           restoreTarget.focus({ preventScroll: true });
         }
         if (top && !top.dialog.contains(document.activeElement)) focusFirst(top.dialog);
@@ -100,6 +111,9 @@
     }
   }, true);
   const observer = new MutationObserver(sync);
+  // App opening handlers can synchronize isolation before assigning initial
+  // focus; MutationObserver remains the fallback for other modal changes.
+  document.addEventListener("nww:modalchange", sync);
   // Observe the modal and its visibility-controlling ancestors, not map tiles
   // or frequently changing timeline content throughout the entire document.
   const targets = new Set();

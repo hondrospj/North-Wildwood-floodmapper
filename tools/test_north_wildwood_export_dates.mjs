@@ -228,6 +228,8 @@ for (const outcome of ['cancel-resolve', 'cancel-reject', 'archive-error', 'succ
     stopPlayback: noop, syncDownloadRangeInputs: noop, getDownloadScopeValue: () => 'range',
     getDownloadFormatValue: () => 'png', getDownloadAspectValue: () => 'viewport',
     validateDownloadRangeForExport: () => ({ ok: true, range: { startDate: new Date(), endDate: new Date() } }),
+    ensureExportArchiveAvailability: async () => {},
+    exportRangeNeedsObservedArchive: () => true,
     ensureObservedArchiveRange: () => archive, getDownloadFrameItems: () => { frameBuilds++; return [{ entry: {} }]; },
     setDownloadModalOpen: open => { modalOpen = open; }, EXPORT_PNG_SELECTION_LIMIT: 337,
     ensureExportLibraries: async () => { libraries++; }, exportPng: async () => { downloads++; },
@@ -239,6 +241,8 @@ for (const outcome of ['cancel-resolve', 'cancel-reject', 'archive-error', 'succ
   assert.equal(ctx.exportInProgress, true);
   assert.equal(modalOpen, false, 'Settings isolation must release the visible progress Cancel button');
   assert.match(progress, /archive year/);
+  // Availability initialization now precedes the selected-year request.
+  for (let turn = 0; turn < 5; turn++) await Promise.resolve();
   if (outcome.startsWith('cancel')) {
     ctx.cancelCurrentExport();
     ctx.setDownloadBusy(true);

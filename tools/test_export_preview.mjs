@@ -99,6 +99,8 @@ function harness() {
     getDownloadSpeedValue: () => "normal",
     getExportAspectConfig: () => ({ width: 2160, height: 2700, label: "Social 4:5" }),
     validateDownloadRangeForExport: () => state.validation,
+    ensureExportArchiveAvailability: async () => {},
+    exportRangeNeedsObservedArchive: () => true,
     ensureObservedArchiveRange: async (start, end) => {
       state.archives.push({ start, end }); state.events.push("archive"); await state.archive(start, end);
     },
@@ -166,6 +168,18 @@ function harness() {
   assert.equal(state.libraries[0].count, 1, "Preview needs only the image capture library");
   assert.ok(state.captures[0].scale > 0 && state.captures[0].scale < 1, "Bound thumbnail pixels below full output resolution");
   assert.equal(nodes.exportPreviewCanvas.children.length, 1);
+}
+
+// Valid forecast-only previews do not depend on any historical transport.
+{
+  const { ctx, state, nodes, tick } = harness();
+  ctx.exportRangeNeedsObservedArchive = () => false;
+  ctx.ensureExportArchiveAvailability = async () => { throw Error("history offline"); };
+  state.archive = async () => { throw Error("archive offline"); };
+  ctx.setDownloadModalOpen(true); await tick();
+  assert.equal(nodes.exportPreview.dataset.state, "ready");
+  assert.equal(state.archives.length, 0);
+  assert.equal(state.prepared.length, 1);
 }
 
 // A year loaded during export must also be loaded before choosing a historic preview frame.
@@ -357,6 +371,27 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   const downloading = ctx.downloadCurrentSelection();
   capture.reject(new Error("Preview network timeout")); await downloading;
   assert.equal(state.downloads, 1);
+}
+
+// Closing settings cancels Download while a preview dependency is still pending.
+{
+  const { ctx, state, nodes, tick } = harness();
+  const library = deferred(); state.library = () => library.promise;
+  ctx.setDownloadModalOpen(true); await tick();
+  await ctx.downloadCurrentSelection();
+  const requested = ctx.downloadCurrentSelection();
+  assert.equal(nodes.downloadBtn.disabled, true);
+  ctx.setDownloadModalOpen(false);
+  await requested;
+  assert.equal(nodes.downloadBtn.disabled, false, "Closing must release a preview-drain request immediately");
+  assert.equal(state.downloads, 0, "A cancelled preparation must not download later");
+  ctx.setDownloadModalOpen(true);
+  assert.equal(nodes.downloadBtnLabel.textContent, "More options");
+  library.resolve(); await flush();
+  state.library = async () => {};
+  await tick();
+  await ctx.downloadCurrentSelection(); await ctx.downloadCurrentSelection();
+  assert.equal(state.downloads, 1, "Reopening can review and download after the dependency recovers");
 }
 
 // An actual export error must also release the request lock for a later retry.

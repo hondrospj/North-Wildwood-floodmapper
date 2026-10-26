@@ -144,7 +144,12 @@ assert.match(unifiedBlueStyle, /#hourSlider[\s\S]*var\(--nw-ui-blue\) 0%,var\(--
 function extractFunction(name) {
   const start = SOURCE.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `Missing browser function ${name}`);
-  const bodyStart = SOURCE.indexOf("{", start);
+  let parameterDepth = 0, parameterEnd = start;
+  for (let index = SOURCE.indexOf("(", start); index < SOURCE.length; index += 1) {
+    if (SOURCE[index] === "(") parameterDepth += 1;
+    if (SOURCE[index] === ")" && --parameterDepth === 0) { parameterEnd = index; break; }
+  }
+  const bodyStart = SOURCE.indexOf("{", parameterEnd + 1);
   let depth = 0;
   for (let index = bodyStart; index < SOURCE.length; index += 1) {
     if (SOURCE[index] === "{") depth += 1;
@@ -802,7 +807,8 @@ assert.match(SOURCE, /function buildDailyMaximumRangeFrameItems\(/);
 assert.match(SOURCE, /function getReturnIntervalExportEntries\(/);
 assert.match(SOURCE, /exportSourceMode: "return-interval"/);
 assert.match(SOURCE, /mode: sourceMode/);
-assert.match(SOURCE, /currentDataMode !== "return-interval" && getDownloadScopeValue\(\) !== "current"/);
+assert.match(SOURCE, /const needsArchive = getDownloadScopeValue\(\) !== "current" && exportRangeNeedsObservedArchive\(validation.range\)/);
+assert.match(extractFunction("exportRangeNeedsObservedArchive"), /currentDataMode === "return-interval"[\s\S]+return false/);
 assert.match(SOURCE, /Create a shareable animation of the full \$\{modeledHours\}-hour modeled storm/);
 assert.match(SOURCE, /getExportBaseName\(items\)/);
 assert.match(SOURCE, /function getCurrentSelectionExportRange\(/);

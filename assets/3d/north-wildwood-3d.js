@@ -104,9 +104,9 @@
   function updateDiagnostics() {
     var output = document.getElementById("map3dDiagnostics");
     if (!output) return;
-    var cameraAltitudeMeters = glMap ? cameraAltitudeAboveTerrainMeters() : null;
+    var cameraAltitudeMeters = glMap && glStyleReady ? cameraAltitudeAboveTerrainMeters() : null;
     var state = {
-      ready: document.body.classList.contains("map-3d-ready"),
+      ready: Boolean(glStyleReady && document.body.dataset.map3d === "ready"),
       exaggeration: TERRAIN_EXAGGERATION,
       maxZoom: MAP_MAX_ZOOM,
       pitch: glMap ? Number(glMap.getPitch().toFixed(2)) : null,
@@ -117,12 +117,12 @@
         : null,
       centerLng: glMap ? Number(glMap.getCenter().lng.toFixed(7)) : null,
       centerLat: glMap ? Number(glMap.getCenter().lat.toFixed(7)) : null,
-      terrainSource: glMap && glMap.getTerrain ? glMap.getTerrain() : null,
+      terrainSource: glMap && glStyleReady && glMap.getTerrain ? glMap.getTerrain() : null,
       buildingCount: buildingData && buildingData.features ? buildingData.features.length : 0,
-      buildingsVisible: Boolean(glMap && glMap.getLayer("nw-3d-buildings") &&
+      buildingsVisible: Boolean(glMap && glStyleReady && glMap.getLayer("nw-3d-buildings") &&
         glMap.getLayoutProperty("nw-3d-buildings", "visibility") !== "none"),
       nsiOccupiedFloorCount: Array.isArray(nsiStructureFeatures) ? nsiStructureFeatures.length : 0,
-      nsiOccupiedFloorsVisible: Boolean(glMap && glMap.getLayer("nw-nsi-points") &&
+      nsiOccupiedFloorsVisible: Boolean(glMap && glStyleReady && glMap.getLayer("nw-nsi-points") &&
         glMap.getLayoutProperty("nw-nsi-points", "visibility") !== "none"),
       floodSurface: document.body.dataset.map3dFloodSurface || null,
       floodAltitudeMeters: Number(document.body.dataset.map3dFloodAltitudeMeters) || null,
@@ -1657,6 +1657,94 @@
     if (map) map.on("moveend zoomend", syncLeafletViewTo3d);
   }
 
+  function wire3dContextRecovery(mapInstance) {
+    var generation = 0;
+    var timer = null;
+    var onStyleReady = null;
+    function clearWait() {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+      if (onStyleReady) mapInstance.off("style.load", onStyleReady);
+      onStyleReady = null;
+    }
+    function current(token) {
+      return glMap === mapInstance && generation === token;
+    }
+    function failed(token, error) {
+      if (!current(token)) return;
+      clearWait();
+      document.body.dataset.map3d = "unavailable";
+      setStatus("Flood display could not recover. Reload this page.");
+      console.warn("The flood display could not recover after a graphics reset.", error);
+    }
+    mapInstance.on("webglcontextlost", function () {
+      var token = ++generation;
+      clearWait();
+      glStyleReady = false;
+      // GPU handles belong to the lost context. MapLibre drops custom layers
+      // from the recovered style, so the old layer object must not be reused.
+      if (floodPlaneLayer && floodPlaneLayer.cancelTextureLoad) floodPlaneLayer.cancelTextureLoad();
+      floodPlaneLayer = null;
+      document.body.dataset.map3d = "recovering";
+      document.body.dataset.map3dFloodTexture = "unavailable";
+      setStatus("Map graphics interrupted. Waiting for recovery…");
+      timer = window.setTimeout(function () { failed(token, new Error("Graphics recovery timed out.")); }, 20000);
+    });
+    mapInstance.on("webglcontextrestored", function () {
+      var token = ++generation;
+      clearWait();
+      document.body.dataset.map3d = "recovering";
+      setStatus("Restoring flood display…");
+      timer = window.setTimeout(function () { failed(token, new Error("Flood restoration timed out.")); }, 20000);
+      onStyleReady = function () {
+        if (!current(token)) return;
+        if (onStyleReady) mapInstance.off("style.load", onStyleReady);
+        onStyleReady = null;
+        try {
+          glStyleReady = true;
+          syncBoundary3d();
+          syncFloodLayer3d();
+          syncSatellite3d();
+          syncRoadLabels3d();
+          syncParcels3d();
+          syncNsi3d();
+          async function waitForCurrentFlood() {
+            while (current(token)) {
+              var restoredLayer = floodPlaneLayer;
+              var restoredUrl = restoredLayer && restoredLayer.url;
+              var ready = await (restoredLayer ? restoredLayer.whenReady() : true);
+              if (!current(token)) return false;
+              // Follow a selection made during recovery. A superseded image
+              // resolving cannot certify the newer texture as healthy.
+              if (restoredLayer !== floodPlaneLayer || restoredLayer && restoredUrl !== restoredLayer.url) continue;
+              if (restoredLayer && (!ready || !restoredLayer.textureReady || restoredLayer.committedUrl !== restoredUrl)) {
+                throw new Error("The selected flood texture could not reload.");
+              }
+              return true;
+            }
+            return false;
+          }
+          waitForCurrentFlood().then(function (ready) {
+            if (!current(token)) return;
+            if (!ready) return;
+            clearWait();
+            document.body.dataset.map3d = "ready";
+            setStatus();
+            mapInstance.triggerRepaint();
+            syncPersistentNavControl();
+          }).catch(function (error) { failed(token, error); });
+          Promise.resolve(syncBuildings3d()).catch(function (error) {
+            console.warn("Buildings could not refresh after graphics recovery.", error);
+          });
+        } catch (error) { failed(token, error); }
+      };
+      // Restoration recreates the style asynchronously. Wait for its source
+      // definitions before adding the custom flood layer again.
+      mapInstance.on("style.load", onStyleReady);
+      if (mapInstance.isStyleLoaded()) onStyleReady();
+    });
+  }
+
   async function ensure3dMap() {
     if (glMapPromise) return glMapPromise;
     if (glMap && glStyleReady) return glMap;
@@ -1717,6 +1805,7 @@
       glMap.on("error", function (event) {
         console.warn("North Wildwood 3D renderer warning.", event && event.error ? event.error : event);
       });
+      wire3dContextRecovery(glMap);
       await new Promise(function (resolve, reject) {
         var timer = window.setTimeout(function () { reject(new Error("The 3D renderer timed out.")); }, 20000);
         glMap.once("load", function () {

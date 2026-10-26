@@ -243,30 +243,33 @@
       }
     }
 
+    function buildReturnIntervalDailyMaximumSeries(entries) {
+      const source = Array.isArray(entries) ? entries : [];
+      const halfWindow = Number(returnIntervalData?.windowHours || 84) / 2;
+      const bestByStormDay = new Map();
+      source.forEach(entry => {
+        const offset = Number(entry?.offsetHours);
+        const stage = getStageValue(entry);
+        if (!Number.isFinite(offset) || !Number.isFinite(stage)) return;
+        const dayIndex = Math.max(0, Math.floor((offset + halfWindow) / 24));
+        const existing = bestByStormDay.get(dayIndex);
+        if (!existing || stage > getStageValue(existing)) bestByStormDay.set(dayIndex, entry);
+      });
+      return Array.from(bestByStormDay.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([dayIndex, entry]) => ({
+          ...entry,
+          syntheticStormDay: dayIndex + 1,
+          observationInterval: "daily",
+          timelineIntervalMinutes: 1440,
+          isDailyMaximum: true,
+          dailyMaximumKind: "return-interval"
+        }));
+    }
+
     function buildReturnIntervalDisplaySeries(entries = currentRawSeriesHours) {
       const source = annotateHydraulicSeries(Array.isArray(entries) ? entries : []);
-      if (getTimelineIntervalMinutes() === 1440) {
-        const halfWindow = Number(returnIntervalData?.windowHours || 84) / 2;
-        const bestByStormDay = new Map();
-        source.forEach(entry => {
-          const offset = Number(entry?.offsetHours);
-          const stage = getStageValue(entry);
-          if (!Number.isFinite(offset) || !Number.isFinite(stage)) return;
-          const dayIndex = Math.max(0, Math.floor((offset + halfWindow) / 24));
-          const existing = bestByStormDay.get(dayIndex);
-          if (!existing || stage > getStageValue(existing)) bestByStormDay.set(dayIndex, entry);
-        });
-        return Array.from(bestByStormDay.entries())
-          .sort((a, b) => a[0] - b[0])
-          .map(([dayIndex, entry]) => ({
-            ...entry,
-            syntheticStormDay: dayIndex + 1,
-            observationInterval: "daily",
-            timelineIntervalMinutes: 1440,
-            isDailyMaximum: true,
-            dailyMaximumKind: "return-interval"
-          }));
-      }
+      if (getTimelineIntervalMinutes() === 1440) return buildReturnIntervalDailyMaximumSeries(source);
       if (getTimelineIntervalMinutes() === 15) {
         return source.map(entry => ({
           ...entry,

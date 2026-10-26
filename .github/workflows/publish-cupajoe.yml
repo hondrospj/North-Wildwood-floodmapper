@@ -6,6 +6,7 @@ on:
   workflow_run:
     workflows:
       - FloodMapper reliability checks
+      - Holistic device regression
       - Export regression
       - Depth query regression
       - Historical replay regression

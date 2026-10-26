@@ -47,6 +47,7 @@
         zoomSnap: 0,
         zoomDelta: 1,
         preferCanvas: true,
+        keyboard: false,
         zoomAnimation: false,
         fadeAnimation: false,
         markerZoomAnimation: false

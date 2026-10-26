@@ -113,6 +113,28 @@ aliases is intentional because the current Bunny pull zone applies CORS by
 extension. `install_launchd.py` can poll for new PETSS cycles while preventing
 overlapping runs with an advisory lock.
 
+Completed runs are reused only when their content identities match the current
+boundary guidance, terrain files, effective mesh/solver/friction settings,
+builder code, and dependency versions. Renderer settings and implementation have
+a separate identity, so a render-only change can reuse available hydraulic
+states. If those large states were removed after publication, the pipeline
+reruns the simulation before rendering again. Legacy manifests without these
+identities are rebuilt once. The already-published shortcut also checks the
+effective identities, rather than only the PETSS cycle identifier.
+
+The pipeline schedules these rebuilds automatically. Direct `run_anuga.py` and
+`render_physics.py` invocations reuse matching products but reject an existing
+directory with different settings; use `--force` to explicitly replace it.
+Diagnostic CLI overrides are included in run identities and cannot pass normal
+production validation as an unchanged production run. Validation records the
+exact run/public manifests and the publisher refuses stale validation reports.
+
+Run the generation-cache regression checks without a hydraulic simulation:
+
+```bash
+python3 model/tests/test_generation_identity.py
+```
+
 ## Limits and calibration gate
 
 This is a major physical upgrade, not a claim of property-scale certainty. V1

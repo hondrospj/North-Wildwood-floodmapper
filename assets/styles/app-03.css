@@ -970,6 +970,21 @@
 
     body.map-3d-ready #map3dStatus{ display:none; }
 
+    html body:is([data-map3d="recovering"],[data-map3d="unavailable"]) #map3dStatus {
+      display:block !important;
+      position:fixed;
+      top:45%;
+      left:50%;
+      right:auto;
+      max-width:calc(100vw - 32px);
+      transform:translateX(-50%);
+      z-index:7900;
+      color:#fff;
+      background:#78350f;
+      font-size:14px;
+      text-align:center;
+    }
+
     html body #nw3dLauncher{
       position:absolute;
       z-index:1450;

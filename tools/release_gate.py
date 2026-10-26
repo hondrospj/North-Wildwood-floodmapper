@@ -22,6 +22,7 @@ from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, validate_data
 
 REQUIRED_WORKFLOWS = {
     "test-reliability.yml": ("contracts", "full-app-browser (chromium)", "full-app-browser (webkit)"),
+    "holistic-device-regression.yml": ("windows-browser (chromium)", "windows-browser (edge)", "windows-browser (firefox)"),
     "export-regression.yml": ("export",),
     "depth-query-regression.yml": ("depth-query",),
     "hourly-replay-regression.yml": ("hourly-replay",),

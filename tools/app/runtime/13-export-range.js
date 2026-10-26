@@ -117,10 +117,13 @@
         delete endEl.dataset.userEdited;
       }
 
-      if (force || !startEl.value || startEl.dataset.userEdited !== "1") {
+      const activeEditor = document.activeElement;
+      const editingStart = activeEditor && activeEditor === document.getElementById("downloadStartDateText");
+      const editingEnd = activeEditor && activeEditor === document.getElementById("downloadEndDateText");
+      if (force || (!editingStart && (!startEl.value || startEl.dataset.userEdited !== "1"))) {
         setRangeInputDate("downloadStartInput", selectedRange.firstDate);
       }
-      if (force || !endEl.value || endEl.dataset.userEdited !== "1") {
+      if (force || (!editingEnd && (!endEl.value || endEl.dataset.userEdited !== "1"))) {
         const endDate = getDownloadFormatValue() === "png"
           ? (getRangeInputDate("downloadStartInput") || selectedRange.firstDate)
           : selectedRange.lastDate;
@@ -296,18 +299,7 @@
     }
 
 
-function syncDownloadRangeInputs(force = false) {
-      const wrap = document.getElementById("downloadRangeFields");
-      const startEl = document.getElementById("downloadStartInput");
-      const endEl = document.getElementById("downloadEndInput");
-      if (!startEl || !endEl) return;
-
-      if (wrap) wrap.hidden = false;
-      if (force) {
-        delete startEl.dataset.userEdited;
-        delete endEl.dataset.userEdited;
-      }
-
+    function syncDownloadArchivePickerBounds() {
       const bounds = getDownloadArchiveBounds();
       const startPicker = document.getElementById("downloadStartDatePicker");
       const endPicker = document.getElementById("downloadEndDatePicker");
@@ -325,6 +317,20 @@ function syncDownloadRangeInputs(force = false) {
           picker?.removeAttribute("max");
         });
       }
+    }
+
+function syncDownloadRangeInputs(force = false) {
+      const wrap = document.getElementById("downloadRangeFields");
+      const startEl = document.getElementById("downloadStartInput");
+      const endEl = document.getElementById("downloadEndInput");
+      if (!startEl || !endEl) return;
+
+      if (wrap) wrap.hidden = false;
+      if (force) {
+        delete startEl.dataset.userEdited;
+        delete endEl.dataset.userEdited;
+      }
+      syncDownloadArchivePickerBounds();
 
       const seededSelection = seedDownloadRangeToCurrentSelection(force);
       if (!seededSelection && (!startEl.value || !endEl.value)) {
@@ -335,8 +341,8 @@ function syncDownloadRangeInputs(force = false) {
         }
       }
 
-      syncExportDateTimeEditorFromCanonical("start");
-      syncExportDateTimeEditorFromCanonical("end");
+      syncExportDateTimeEditorFromCanonical("start", { preserveActiveEdit: !force });
+      syncExportDateTimeEditorFromCanonical("end", { preserveActiveEdit: !force });
       renderExportTimePicker(true);
     }
 
@@ -369,6 +375,9 @@ function getDownloadArchiveBounds() {
         return firstDate && lastDate ? { firstDate, lastDate } : null;
       }
       const observedBounds = getObservedArchiveDateBounds();
+      // Until history initializes, forecast-only dates are not authoritative
+      // archive limits. Preview/download await availability and revalidate.
+      if (!observedBounds) return null;
       const forecastEntries = getForecastExportEntries();
       const forecastFirst = forecastEntries.length ? getEntryESTDate(forecastEntries[0]) : null;
       const forecastLast = forecastEntries.length ? getEntryESTDate(forecastEntries[forecastEntries.length - 1]) : null;
@@ -453,6 +462,13 @@ function getDownloadArchiveBounds() {
       const endMs = Math.max(range.startMs, range.endMs);
       const interval = getDownloadIntervalConfig();
       if (interval.value === "daily") {
+        if (currentDataMode === "return-interval") {
+          const entries = getReturnIntervalExportEntries().filter(entry => {
+            const time = entryTimeMs(entry);
+            return Number.isFinite(time) && time >= startMs && time <= endMs;
+          });
+          return buildReturnIntervalDailyMaximumSeries(entries).length;
+        }
         const keys = new Set();
         for (let cursor = startMs; cursor <= endMs; cursor += 6 * 60 * 60 * 1000) {
           const key = getExportDayKeyFromDate(new Date(cursor));

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from cache_contract import spatial_lookup_fingerprint
+from cache_contract import identity_matches, render_identity, simulation_identity, spatial_lookup_fingerprint
 
 import argparse
 import hashlib
@@ -258,19 +258,29 @@ def main() -> None:
     if not run_manifest_path.is_file():
         raise FileNotFoundError(f"Missing complete model run: {run_manifest_path}")
     run_manifest = json.loads(run_manifest_path.read_text(encoding="utf-8"))
+    if run_manifest.get("status") != "complete":
+        raise RuntimeError("Run is not marked complete")
     if run_manifest["cycleId"] != cycle_id:
         raise RuntimeError(
             f"Run cycle {run_manifest['cycleId']} does not match guidance {cycle_id}"
         )
     if run_manifest["scenario"] != args.scenario:
         raise RuntimeError("Run scenario does not match requested render scenario")
+    simulation = simulation_identity(ROOT, config, guidance, args.scenario, run_manifest.get("runOptions"))
+    if not identity_matches(run_manifest.get("simulationIdentity"), simulation):
+        raise RuntimeError("Run inputs/settings do not match the current model. Rebuild the simulation before rendering.")
+    identity = render_identity(ROOT, config, simulation)
 
     final_public = run_directory / "public"
     incomplete_public = run_directory / "public.incomplete"
     if final_public.exists():
         if not args.force:
-            print(f"Completed render already exists: {final_public}")
-            return
+            manifest_path = final_public / "manifest.json"
+            existing = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
+            if existing.get("status") == "complete" and identity_matches(existing.get("renderIdentity"), identity):
+                print(f"Completed matching render already exists: {final_public}")
+                return
+            raise RuntimeError(f"Existing render inputs/settings do not match: {final_public}. Rerun with --force to rebuild.")
         shutil.rmtree(final_public)
     if incomplete_public.exists():
         shutil.rmtree(incomplete_public)
@@ -467,6 +477,8 @@ def main() -> None:
         "town": config["town"],
         "cycleId": cycle_id,
         "scenario": args.scenario,
+        "simulationIdentitySha256": simulation["sha256"],
+        "renderIdentity": identity,
         "generatedUtc": utc_now(),
         "forecastStartUtc": guidance_frames[0]["timeUtc"],
         "forecastEndUtc": guidance_frames[-1]["timeUtc"],

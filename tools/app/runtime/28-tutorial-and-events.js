@@ -8,6 +8,7 @@
     }
 
     function positionMapperTutorial() {
+      if (document.getElementById("mapperTutorial")?.hidden !== false) return;
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
       const target = step ? getVisibleTutorialTarget(step.target) : null;
       const spotlight = document.getElementById("mapperTutorialSpotlight");
@@ -53,7 +54,11 @@
       card.style.setProperty("bottom", "auto", "important");
     }
 
+    let mapperTutorialGeneration = 0;
     function renderMapperTutorialStep() {
+      const generation = ++mapperTutorialGeneration;
+      const isCurrentStep = () => generation === mapperTutorialGeneration &&
+        document.getElementById("mapperTutorial")?.hidden === false;
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
       if (!step) return;
       const tutorialModePromise = mapperTutorialIndex === 1 && currentDataMode !== "forecast"
@@ -73,19 +78,22 @@
       back.disabled = mapperTutorialIndex === 0;
       next.textContent = mapperTutorialIndex === MAPPER_TUTORIAL_STEPS.length - 1 ? "Finish" : "Next";
       window.setTimeout(async () => {
+        if (!isCurrentStep()) return;
         try { await tutorialModePromise; } catch (err) {}
+        if (!isCurrentStep()) return;
         const resolved = getVisibleTutorialTarget(step.target);
         const mobileBlockByStep = { 1: "start", 3: "end", 6: "end", 7: "start" };
         const block = compactTutorial ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
         resolved?.scrollIntoView({ block, inline: "center", behavior: "auto" });
-        window.setTimeout(positionMapperTutorial, 80);
-        window.setTimeout(positionMapperTutorial, 320);
+        window.setTimeout(() => { if (isCurrentStep()) positionMapperTutorial(); }, 80);
+        window.setTimeout(() => { if (isCurrentStep()) positionMapperTutorial(); }, 320);
       }, 40);
     }
 
     function setMapperTutorialOpen(open, startIndex = 0) {
       const tutorial = document.getElementById("mapperTutorial");
       if (!tutorial) return;
+      ++mapperTutorialGeneration;
       tutorial.hidden = !open;
       tutorial.setAttribute("aria-hidden", open ? "false" : "true");
       document.body.classList.toggle("tutorial-active", Boolean(open));
@@ -932,4 +940,3 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       return result;
     };
 
-  
