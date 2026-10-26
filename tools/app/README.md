@@ -105,3 +105,12 @@ reduced-motion and stalled-request recovery. Stable pane rules remain intact;
 only the legacy loader-hiding/early-reveal overrides are removed. The separate
 `north-wildwood-loader-restore.json` audit pins those exact lifecycle fragments,
 the added script tag and the controller's unchanged content hash.
+
+The common UI font family lives in `assets/north-wildwood-font.css`, loaded as
+the first head dependency. Its first cascade layer changes only the family,
+including controls and pseudo-element labels; existing sizes, weights, spacing
+and line heights remain in their original rules. Parity pins the exact external
+stylesheet hash, audits its family-only declarations, and reverses only its exact
+head tag for the original document hash. The baseline fixture and all original
+source, layout and runtime checks remain unchanged. Mutation checks reject a
+missing, moved, duplicated or altered tag and changes to the reviewed stylesheet.

@@ -50,6 +50,52 @@ ${MONTH_LABEL_GUARD}`;
 const PREVIEW_TAG_BEFORE = '<script defer src="assets/export-preview.js?v=20261023-2" id="floodmapper-export-preview"></script>';
 const PREVIEW_TAG_AFTER = '<script defer src="assets/export-preview.js?v=20261023-gesture1" id="floodmapper-export-preview"></script>';
 
+// The requested common UI family is an independent, first-loaded stylesheet.
+// Invert only its exact head insertion for original-document checks. All
+// original inline declarations, layout rules and dependency order stay pinned.
+const FONT_FAMILY_SOURCE = "assets/north-wildwood-font.css";
+const FONT_FAMILY_TAG = '<link rel="stylesheet" href="./assets/north-wildwood-font.css?v=20261026-1">';
+const FONT_FAMILY_SHA256 = "40ae82d038de6c6dfc928c259c6ab276de4112dde733590f5462718ba8480b15";
+
+function auditedFontFamilyTemplate(source, label) {
+  assert.equal(source.split(FONT_FAMILY_TAG).length - 1, 1,
+    `${label} must include the exact font-family stylesheet once`);
+  const insertion = `<head>\n${FONT_FAMILY_TAG}\n`;
+  assert.equal(source.split(insertion).length - 1, 1,
+    `${label} must load the font-family stylesheet before every original head dependency`);
+  return source.replace(insertion, "<head>\n");
+}
+
+function auditFontFamilyStylesheet() {
+  const source = read(FONT_FAMILY_SOURCE);
+  assert.equal(sha256(source), FONT_FAMILY_SHA256,
+    "The common-family stylesheet must retain its exact reviewed content");
+  // Review its narrow declaration scope independently of the content hash.
+  // One outer layer may contain ordinary rules only; nested rules, imports,
+  // scripts and changes to size/weight/geometry are not part of this exception.
+  const css = source.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+  const layer = css.match(/^@layer\s+([\w-]+)\s*\{([\s\S]*)\}$/);
+  assert.ok(layer, "The font-family stylesheet must contain one named cascade layer");
+  assert.equal(layer[1], "north-wildwood-font", "The reviewed first cascade layer must retain its name");
+  assert.doesNotMatch(layer[2], /@/, "The font-family layer may not import or nest additional at-rules");
+  let rules = 0;
+  const residue = layer[2].replace(/([^{}]+)\{([^{}]*)\}/g, (full, selector, declarations) => {
+    assert.ok(selector.trim(), "Every font-family rule needs a selector");
+    const entries = declarations.split(";").map(value => value.trim()).filter(Boolean);
+    assert.ok(entries.length, "Every font-family rule needs a declaration");
+    for (const declaration of entries) {
+      const match = declaration.match(/^(font-family|--nww-ui-font-family)\s*:\s*([^{};]+)$/);
+      assert.ok(match, `The font-family exception may not alter another property: ${declaration}`);
+      assert.doesNotMatch(match[2], /(?:url\s*\(|expression\s*\()/i,
+        "The font-family exception must use only the reviewed local font stack");
+    }
+    rules += 1;
+    return "";
+  });
+  assert.ok(rules > 0, "The font-family layer must contain reviewed rules");
+  assert.equal(residue.trim(), "", "The font-family layer may contain only ordinary declaration rules");
+}
+
 // User-requested export readability changes are pinned by exact output hashes.
 // Restore ONLY these named presentation functions and the footer stylesheet
 // before checking the original full-block hashes. No runtime/science block is
@@ -314,6 +360,8 @@ function token(kind, id) {
   return `<!-- nww:${kind}:${id} -->`;
 }
 
+auditFontFamilyStylesheet();
+auditedFontFamilyTemplate(published, "Generated HTML");
 assert.equal(baseline.schemaVersion, 1);
 assert.equal(manifest.version, 1);
 assert.equal(manifest.baselineCommit, baseline.baselineCommit,
@@ -442,7 +490,8 @@ const expectedTokenOrder = baseline.blocks.map(block =>
 const actualTokenOrder = Array.from(template.matchAll(/<!-- nww:(?:style|script):[\w-]+ -->/g), match => match[0]);
 assert.deepEqual(actualTokenOrder, expectedTokenOrder,
   "Extraction slots must retain the original interleaved CSS/script order");
-const originalLoaderTemplate = auditedUiStartupFragments(template, [loaderRestore.templateChange], "Loader template");
+const originalFamilyTemplate = auditedFontFamilyTemplate(template, "Source template");
+const originalLoaderTemplate = auditedUiStartupFragments(originalFamilyTemplate, [loaderRestore.templateChange], "Loader template");
 const originalUiTemplate = auditedUiStartupFragments(originalLoaderTemplate, uiStartup.templateChanges, "Template");
 const originalHtml = auditedPaneStartupTemplate(originalUiTemplate).replace(/<!-- nww:(?:style|script):[\w-]+ -->/g, key => {
   const entry = entriesByToken.get(key);
@@ -535,12 +584,12 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore inverses; original UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family inverses; original UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
   try {
-    for (const relative of ["tools/app", "assets/app", "assets/styles", "assets/export-preview.js",
+    for (const relative of ["tools/app", "assets/app", "assets/styles", "assets/export-preview.js", FONT_FAMILY_SOURCE,
       "tools/fixtures/north-wildwood-refactor-baseline.json", "tools/fixtures/north-wildwood-export-preview-ui.json",
       "tools/fixtures/north-wildwood-export-presentation.json", "tools/fixtures/north-wildwood-boundary-startup.json",
       "tools/fixtures/north-wildwood-pane-startup.json",
@@ -560,6 +609,17 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["dropped common-family stylesheet", scratchHtml, published.replace(FONT_FAMILY_TAG + "\n", "")],
+      ["moved common-family stylesheet", scratchHtml,
+        published.replace(FONT_FAMILY_TAG + "\n", "").replace("</head>", FONT_FAMILY_TAG + "\n</head>")],
+      ["duplicated common-family stylesheet", path.join(scratch, "tools/app/index.template.html"),
+        template.replace(FONT_FAMILY_TAG, FONT_FAMILY_TAG + "\n" + FONT_FAMILY_TAG)],
+      ["altered common-family stylesheet dependency", path.join(scratch, "tools/app/index.template.html"),
+        template.replace(FONT_FAMILY_TAG, FONT_FAMILY_TAG.replace("20261026-1", "unreviewed"))],
+      ["altered reviewed common font family", path.join(scratch, FONT_FAMILY_SOURCE),
+        read(FONT_FAMILY_SOURCE).replace("Inter,", "Arial,")],
+      ["added geometry to family-only stylesheet", path.join(scratch, FONT_FAMILY_SOURCE),
+        read(FONT_FAMILY_SOURCE).replace("font-family:var", "font-size:18px!important;\n    font-family:var")],
       ["dropped CSS bundle", scratchHtml, published.replace(styleTags[0], "")],
       ["moved CSS bundle", scratchHtml, published.replace(styleTags[0], "") + styleTags[0]],
       ["dropped script", scratchHtml, published.replace(scriptTags[0], "")],
