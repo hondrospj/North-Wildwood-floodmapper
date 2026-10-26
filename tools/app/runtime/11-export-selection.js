@@ -126,12 +126,13 @@
       if (currentDataMode === "return-interval") return;
       // Export has its own entry point: archive availability cannot depend on
       // whether the user has previously navigated to Past.
+      const previousDays = getObservedDays();
       await warmBackgroundData();
       await ensureLewesArchiveIndex();
       if (!getObservedArchiveDateBounds()) {
         throw new Error("Historical export dates could not load. Please try again.");
       }
-      clearExportAvailabilityCache();
+      if (getObservedDays() !== previousDays) clearExportAvailabilityCache();
     }
 
     function exportRangeNeedsObservedArchive(range) {

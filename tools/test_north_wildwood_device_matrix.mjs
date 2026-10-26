@@ -10,10 +10,11 @@ const output = path.resolve(process.env.AUDIT_OUTPUT || 'audit-results');
 fs.mkdirSync(output, { recursive: true });
 const browser = await type.launch({ headless: true,
   ...(name === 'edge' ? { channel: 'msedge' } : {}),
+  ...(name === 'chromium' && process.env.NWW_CHROMIUM_CHANNEL ? {channel:process.env.NWW_CHROMIUM_CHANNEL} : {}),
   ...(name === 'chromium' && process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
   ...(['chromium', 'edge'].includes(name) ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } : {})
 });
-const result = { browser: name, browserVersion: browser.version(), host: { platform: os.platform(), release: os.release(), arch: os.arch() },
+const result = { browser: name, browserVersion: browser.version(), browserChannel: name==='chromium'?(process.env.NWW_CHROMIUM_CHANNEL||'chromium-headless-shell'):name, host: { platform: os.platform(), release: os.release(), arch: os.arch() },
   appRevision: process.env.GITHUB_SHA || 'working-tree', cases: [], observations: [] };
 const url = process.env.NWW_TEST_URL || 'http://127.0.0.1:8771/index.html';
 const profiles = [

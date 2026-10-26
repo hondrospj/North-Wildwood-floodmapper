@@ -29,6 +29,7 @@ New regression coverage:
 
 - `tools/test_north_wildwood_history_recovery.mjs`: deadlines, retries, pending-mode presentation and stale interval completion.
 - `tools/test_export_holistic.mjs`: archive initialization, forecast-only outage isolation, modeled day grouping and optional-library timeout/retry.
+- `tools/test_export_availability_performance.mjs`: a 30,333-day catalog resolves date boundaries lazily while preserving exact New York/DST semantics.
 - `tools/test_modal_focus_transitions.mjs`: nested modal isolation, focus restoration and roving-tab exclusion.
 - `tools/test_north_wildwood_holistic_ui.mjs`: actual graphics loss/restoration, current selected texture, responsive keyboard navigation, native Firefox enlarged text and rapid date editing.
 - `tools/test_north_wildwood_holistic_export.mjs`: real historical previews, modeled frame consistency, a decoded GIF, pending CDN cancellation/retry and forecast-only export with history unavailable.

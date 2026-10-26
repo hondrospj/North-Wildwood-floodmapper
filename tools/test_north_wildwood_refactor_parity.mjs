@@ -17,7 +17,7 @@ const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baselin
 const manifest = JSON.parse(read("tools/app/manifest.json"));
 const HOLISTIC_FIX_AUDIT_PATH = "tools/fixtures/north-wildwood-20261026-holistic-fixes.json";
 const holisticFixText = read(HOLISTIC_FIX_AUDIT_PATH);
-assert.equal(sha256(holisticFixText), "38a405e6cae64531229f6ecc053870605732d9e04cd4e587f591e98a3d8006fc",
+assert.equal(sha256(holisticFixText), "359b8237b258a4e5dfbbc966e1729c0359bdfd9cac458ee09eb5fdefc63811a3",
   "The holistic fixes must retain their exact reviewed inverse fragments");
 const holisticFixAudit = JSON.parse(holisticFixText);
 assert.equal(holisticFixAudit.schemaVersion, 1);

@@ -8,14 +8,25 @@ const name = process.env.NWW_BROWSER || 'chromium';
 const engine = playwright[name === 'edge' ? 'chromium' : name];
 const browser = await engine.launch({headless:true,
   ...(name === 'edge' ? {channel:'msedge'} : {}),
+  ...(name === 'chromium' && process.env.NWW_CHROMIUM_CHANNEL ? {channel:process.env.NWW_CHROMIUM_CHANNEL} : {}),
   ...(name === 'chromium' && process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH} : {}),
   ...(['chromium','edge'].includes(name) ? {args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']} : {}),
   ...(name === 'firefox' ? {firefoxUserPrefs:{'font.minimum-size.x-western':30}} : {}),
 });
 const url = process.env.NWW_TEST_URL || 'http://127.0.0.1:8765/index.html';
 const checks = [], errors = [], observations = [];
+let exportProfile = null;
 const output = process.env.NWW_AUDIT_OUTPUT;
 if (output) fs.mkdirSync(output,{recursive:true});
+async function finishProfile() {
+  const session=exportProfile;exportProfile=null;
+  if(!session)return;
+  let timer;
+  await Promise.race([
+    session.send('Profiler.stop').then(({profile})=>fs.writeFileSync(path.join(output,`${name}-export-open-profile.json`),JSON.stringify(profile))),
+    new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Profile collection timed out')),10000);}),
+  ]).catch(error=>observations.push(error.message)).finally(()=>clearTimeout(timer));
+}
 async function pageFor(options) {
   const page = await browser.newPage(options);
   page.setDefaultTimeout(30000);
@@ -73,6 +84,10 @@ try {
   const desktop = await pageFor({viewport:{width:1440,height:900},timezoneId:'America/Los_Angeles'});
   const fonts=await desktop.evaluate(()=>[...new Set([...document.querySelectorAll('body,button,input,select,label,h1,h2,h3')].filter(el=>el.getClientRects().length).map(el=>getComputedStyle(el).fontFamily))]);
   assert.equal(fonts.length,1,JSON.stringify(fonts));checks.push('visible interface text retains one shared font family');
+  if(output && process.env.NWW_PROFILE_EXPORT_OPEN==='1' && ['chromium','edge'].includes(name)) {
+    exportProfile=await desktop.context().newCDPSession(desktop);
+    await exportProfile.send('Profiler.enable');await exportProfile.send('Profiler.start');
+  }
   await desktop.locator('#openDownloadModalBtn').click();
   await desktop.waitForFunction(()=>typeof exportMap!=='undefined' && exportMap);
   const semantics=await desktop.evaluate(()=>['downloadFormatControl','downloadIntervalControl','downloadAspectControl','downloadExtentControl','downloadSpeedControl'].map(id=>document.getElementById(id).getAttribute('role')));
@@ -85,6 +100,7 @@ try {
     const a=luminance(c.color),b=luminance(c.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
   });
   assert.ok(contrast>=4.5,`Action contrast is ${contrast}`);checks.push('export action text contrast is at least4.5:1');
+  await finishProfile();
   await desktop.locator('#downloadModalCloseBtn').click();
   await desktop.locator('.nw-simple-zoom-out').focus();
   for(let i=0;i<8;i++) {
@@ -143,7 +159,8 @@ try {
   await snapshot(mobile,'mobile');await mobile.close();
   assert.deepEqual(errors,[]);checks.push('no uncaught browser errors');
 } finally {
-  const result={browser:name,version:browser.version(),checks,observations,errors};
+  await finishProfile();
+  const result={browser:name,version:browser.version(),channel:name==='chromium'?(process.env.NWW_CHROMIUM_CHANNEL||(process.env.CHROME_PATH?'installed-chrome':'chromium-headless-shell')):name,checks,observations,errors};
   if(output)fs.writeFileSync(path.join(output,`${name}-ui.json`),JSON.stringify(result,null,2));
   console.log(JSON.stringify(result,null,2));await browser.close();
 }

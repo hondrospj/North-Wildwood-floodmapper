@@ -46,6 +46,10 @@ jobs:
       AUDIT_OUTPUT: audit-results/${{ matrix.browser }}/matrix
       NWW_AUDIT_OUTPUT: audit-results/${{ matrix.browser }}/ui
       NWW_TEST_URL: http://127.0.0.1:8771/index.html
+      # Full Chromium uses the current headless implementation. The default
+      # legacy headless shell is a separate binary, unlike an installed browser.
+      NWW_CHROMIUM_CHANNEL: chromium
+      NWW_PROFILE_EXPORT_OPEN: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

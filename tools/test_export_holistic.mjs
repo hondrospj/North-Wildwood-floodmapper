@@ -13,14 +13,16 @@ const extract = name => {
 // A fresh Forecast page must not advertise its forecast window as complete
 // archive availability; the real range path initializes history before deciding.
 {
-  let bounds = null, warms = 0, lewes = 0, clears = 0;
+  let bounds = null, warms = 0, lewes = 0, clears = 0, days = [];
+  const loadedDays = [{date:'2025-01-01'}];
   const forecast = [{ timeUtc:'2026-10-26T17:00:00Z' },{ timeUtc:'2026-10-30T05:00:00Z' }];
   const ctx = vm.createContext({ currentDataMode:'forecast',
     getObservedArchiveDateBounds: () => bounds,
+    getObservedDays: () => days,
     getForecastExportEntries: () => forecast,
     getEntryESTDate: e => e ? new Date(e.timeUtc) : null,
     getDownloadCurrentEntry: () => forecast[0],
-    warmBackgroundData: async () => { warms++; bounds = {firstDate:new Date('2025-01-01T05:00:00Z'),lastDate:new Date('2026-10-26T17:00:00Z')}; },
+    warmBackgroundData: async () => { warms++; days = loadedDays; bounds = {firstDate:new Date('2025-01-01T05:00:00Z'),lastDate:new Date('2026-10-26T17:00:00Z')}; },
     ensureLewesArchiveIndex: async () => { lewes++; },
     clearExportAvailabilityCache: () => { clears++; },
   });
@@ -32,8 +34,10 @@ const extract = name => {
   assert.equal(available.lastDate.toISOString(),'2026-10-30T05:00:00.000Z');
   assert.equal(ctx.currentDataMode,'forecast','Archive initialization does not navigate the main map');
   assert.deepEqual([warms,lewes,clears],[1,1,1]);
+  await ctx.ensureExportArchiveAvailability();
+  assert.equal(clears,1,'Already-warmed availability must retain its expensive catalog caches');
   ctx.currentDataMode='return-interval'; await ctx.ensureExportArchiveAvailability();
-  assert.equal(warms,1,'Synthetic modeled storms need no historical transport');
+  assert.equal(warms,2,'Synthetic modeled storms need no historical transport');
 }
 
 // Healthy forecast ranges remain independent of an unavailable history service
