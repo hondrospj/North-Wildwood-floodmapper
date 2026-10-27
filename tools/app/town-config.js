@@ -276,6 +276,7 @@ async function preloadNorthWildwoodExperience(mainPromise) {
   // The initial 2D flood map is sufficient to make the app usable. The 3D
   // launcher owns runtime, terrain, and building loading when selected.
   await Promise.allSettled([mainPromise]);
+  if (!window.floodmapperMapDependenciesReady) return;
   document.body.dataset.sitePreload = "complete";
   document.body.dataset.sitePreloadBlockingPolicy = "initial-flood-renderer-3d-on-demand";
   document.body.dataset.sitePreloadAvoidedBytes = "3d-observed-parcels-nsi-export-libraries";
@@ -283,7 +284,9 @@ async function preloadNorthWildwoodExperience(mainPromise) {
   document.body.classList.add("nw-app-ready");
 }
 
-const northWildwoodMainPromise = main().catch(err => {
+window.floodmapperMapDependenciesReady = Boolean(window.L && typeof L.map === 'function');
+if (!window.floodmapperMapDependenciesReady) window.dispatchEvent(new Event('nww:map-dependency-error'));
+const northWildwoodMainPromise = (window.floodmapperMapDependenciesReady ? main() : Promise.resolve(null)).catch(err => {
   console.error(err);
   toast(err.message);
   return null;

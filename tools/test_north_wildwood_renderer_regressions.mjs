@@ -82,7 +82,7 @@ function rasterFixture(limit = 2) {
     retainRasterObjectUrl: () => () => {},
     window: { setTimeout(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms }); return id; }, clearTimeout(id) { timers.delete(id); } },
   });
-  load(context, ['getDrainageRasterImage']);
+  load(context, ['awaitRasterRequest', 'getDrainageRasterImage']);
   return { context, images, timers };
 }
 await test('A failed raster decode can be retried successfully', async () => {

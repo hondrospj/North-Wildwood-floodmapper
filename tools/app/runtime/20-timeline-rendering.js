@@ -202,10 +202,15 @@
         );
 
         pendingFloodLayer = nextLayer;
-        return await waitForRecoveryFloodLayer(nextLayer, token, () => {
+        return await waitForRecoveryFloodLayer(nextLayer, token, async () => {
+          // Leaflet also backs the visible WebGL map. Its hidden image being
+          // decoded is only the first half of a frame commit in pitched 3D.
+          if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
+              !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;
+          if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;
           nextLayer.setOpacity(overlayOpacity);
           nextLayer._floodmapperFrame = frameMetadata;
-        currentFloodLayer = nextLayer;
+          currentFloodLayer = nextLayer;
           floodFrameState = "ready";
           document.body.dataset.floodFrame = "ready";
           pendingFloodLayer = null;
@@ -264,7 +269,10 @@
         pane: "floodPane"
       });
       pendingFloodLayer = nextLayer;
-      return await waitForRecoveryFloodLayer(nextLayer, token, () => {
+      return await waitForRecoveryFloodLayer(nextLayer, token, async () => {
+        if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
+            !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;
+        if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;
         nextLayer.setOpacity(overlayOpacity);
         nextLayer._floodmapperFrame = frameMetadata;
         currentFloodLayer = nextLayer;

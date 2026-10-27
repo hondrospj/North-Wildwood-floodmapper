@@ -42,7 +42,7 @@ def record(root, path):
 
 def make_fixture(root):
     config = copy.deepcopy(ORIGINAL)
-    for name in ("prepare_terrain.py", "run_anuga.py", "render_physics.py", "validate_products.py", "cache_contract.py"):
+    for name in ("prepare_terrain.py", "run_anuga.py", "render_physics.py", "frame_alignment.py", "validate_products.py", "cache_contract.py"):
         target = root / "model/src" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "model/src" / name, target)
@@ -80,6 +80,7 @@ def make_fixture(root):
         hydraulic.mkdir()
         (hydraulic / "stage_centroid_m.npy").write_bytes(b"not executed")
         (hydraulic / "mesh.npz").write_bytes(b"not executed")
+        write_json(hydraulic / "frame_statistics.json", [{"modelTimeSeconds": frame["secondsFromModelStart"]} for frame in frames])
         products = []
         for i, frame in enumerate(frames):
             files = {}
@@ -152,6 +153,33 @@ class GenerationIdentityTests(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         self.assertIn("validate_products.py", commands[0][1][2])
         self.assertEqual(len(self.validate()), 3)
+
+    def test_custom_interval_products_validate_against_actual_solver_times(self):
+        self.guidance["scenarios"] = {scenario: copy.deepcopy(curve) for scenario, curve in self.guidance["scenarios"].items()}
+        for scenario, curve in self.guidance["scenarios"].items():
+            curve.append({**curve[-1], "secondsFromModelStart": 1800, "timeUtc": "2026-10-26T04:30:00Z"})
+            run = self.root / "model/runs" / CYCLE / scenario
+            options = {"output_interval_seconds": 1800}
+            simulation = cache.simulation_identity(self.root, self.config, self.guidance, scenario, options)
+            run_manifest = json.loads((run / "run_manifest.json").read_text())
+            run_manifest.update(runOptions=options, simulationIdentity=simulation)
+            run_manifest["output"]["intervalSeconds"] = 1800
+            write_json(run / "run_manifest.json", run_manifest)
+            write_json(run / "hydraulic/frame_statistics.json", [{"modelTimeSeconds": 0}, {"modelTimeSeconds": 1800}])
+            public = run / "public/manifest.json"
+            manifest = json.loads(public.read_text())
+            manifest.update(simulationIdentitySha256=simulation["sha256"], renderIdentity=cache.render_identity(self.root, self.config, simulation), frameIntervalSeconds=1800)
+            manifest["frames"][-1].update(timeUtc="2026-10-26T04:30:00Z", modelTimeSeconds=1800)
+            write_json(public, manifest)
+        write_json(self.root / "model/state/latest_petss.json", self.guidance)
+        self.assertEqual(len(self.validate()), 3)
+        scenario = self.config["petss"]["scenarios"][0]
+        public = self.root / "model/runs" / CYCLE / scenario / "public/manifest.json"
+        manifest = json.loads(public.read_text())
+        manifest["frames"][-1].update(timeUtc="2026-10-26T04:15:00Z", modelTimeSeconds=900)
+        write_json(public, manifest)
+        with self.assertRaisesRegex(RuntimeError, "interval"):
+            self.validate()
 
     def test_all_five_audit_variants_invalidate_expected_stages(self):
         cases = ("friction", "solver", "domain", "builder", "render")

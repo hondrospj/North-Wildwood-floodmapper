@@ -181,7 +181,9 @@
       if (isOpen) document.getElementById("playbackStillThereContinueBtn")?.focus();
     }
 
+    let playbackGeneration = 0;
     function clearPlaybackTimer() {
+      ++playbackGeneration;
       if (playTimer) {
         clearTimeout(playTimer);
         clearInterval(playTimer);
@@ -284,18 +286,20 @@ function startPlayback() {
 
       playTimer = setTimeout(() => {}, 0);
       updatePlayPauseButton();
+      const generation = playbackGeneration;
 
       const loop = async () => {
-        if (!playTimer) return;
+        if (!playTimer || generation !== playbackGeneration) return;
         const frameStartedAt = performance.now();
         try {
           await stepPlaybackForward();
         } catch (err) {
+          if (generation !== playbackGeneration) return;
           toast(err?.message || String(err));
           stopPlayback();
           return;
         }
-        if (!playTimer) return;
+        if (!playTimer || generation !== playbackGeneration) return;
         const renderDurationMs = performance.now() - frameStartedAt;
         const nextFrameDelayMs = Math.max(
           PLAYBACK_MINIMUM_FRAME_DELAY_MS,

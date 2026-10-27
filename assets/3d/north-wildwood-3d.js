@@ -29,6 +29,7 @@
   var mapLibreRuntimePromise = null;
   var mapStylePromise = null;
   var floodPlaneLayer = null;
+  var pendingFlood3dRequest = null;
   var floodRemovalTimer = null;
   var syncingFromLeaflet = false;
   var syncingFrom3d = false;
@@ -327,7 +328,7 @@
       committedUrl: "",
       cancelTextureLoad: null,
       retiredTextures: [],
-      pendingFrame: { coordinates: initial.coordinates || null, altitudeMeters: Number(initial.altitudeMeters) || 0 },
+      pendingFrame: { coordinates: initial.coordinates || null, altitudeMeters: Number(initial.altitudeMeters) || 0, isCurrent: initial.isCurrent || null },
       url: initial.url || "",
       coordinates: initial.coordinates || null,
       altitudeMeters: Number(initial.altitudeMeters) || 0,
@@ -461,7 +462,8 @@
             var replacement = null;
             try {
               if (typeof image.decode === "function") await image.decode();
-              if (settled || token !== self.imageToken || !self.gl || !self.texture) return finish(false);
+              if (settled || token !== self.imageToken || !self.gl || !self.texture || self.gl.isContextLost?.() ||
+                  self.pendingFrame?.isCurrent && !self.pendingFrame.isCurrent()) return finish(false);
               var gl = self.gl;
               var priorActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE);
               var priorFlipY = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);
@@ -469,6 +471,9 @@
               gl.activeTexture(gl.TEXTURE0);
               var priorTexture0 = gl.getParameter(gl.TEXTURE_BINDING_2D);
               try {
+                // MapLibre shares this context. Attribute only errors from
+                // this upload to the candidate, rather than an earlier draw.
+                if (gl.getError) for (var errorIndex = 0; errorIndex < 8 && gl.getError() !== gl.NO_ERROR; errorIndex += 1) {}
                 // Upload into a candidate texture. A decode/GPU failure cannot
                 // damage the last complete image that is still on screen.
                 replacement = gl.createTexture();
@@ -482,6 +487,9 @@
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
                 gl.generateMipmap(gl.TEXTURE_2D);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+                if (gl.isContextLost?.() || gl.getError && gl.getError() !== gl.NO_ERROR) {
+                  throw new Error("The next flood texture could not be uploaded.");
+                }
               } finally {
                 gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, priorFlipY);
                 gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, priorPremultiplyAlpha);
@@ -523,7 +531,7 @@
       update: function (next) {
         var priorUrl = this.url;
         this.url = next.url || "";
-        this.pendingFrame = { coordinates: next.coordinates || null, altitudeMeters: Number(next.altitudeMeters) || 0 };
+        this.pendingFrame = { coordinates: next.coordinates || null, altitudeMeters: Number(next.altitudeMeters) || 0, isCurrent: next.isCurrent || null };
         this.opacity = Math.max(0, Math.min(1, Number(next.opacity)));
         this.useDepthTest = next.useDepthTest !== false;
         if (this.textureReady && this.committedUrl === this.url) {
@@ -830,8 +838,12 @@
 
   function syncFloodLayer3d() {
     if (!glMap || !glStyleReady) return;
-    var url = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);
-    var coordinates = activeFloodCoordinates();
+    var request = pendingFlood3dRequest && pendingFlood3dRequest.isCurrent() ? pendingFlood3dRequest : null;
+    var selectedLayer = request ? request.layer : currentFloodLayer;
+    var url = selectedLayer && (selectedLayer._url || selectedLayer._image && selectedLayer._image.src);
+    var coordinates = selectedLayer?._worldFileAffine && selectedLayer._worldFileCorners
+      ? selectedLayer._worldFileCorners.map(function (corner) { return [corner.lng, corner.lat]; })
+      : coordinatesFromLeafletBounds(selectedLayer?.getBounds?.()) || activeFloodCoordinates();
     if (!url || !coordinates) {
       syncBuildingWaterComposite3d(null);
       if (floodRemovalTimer) window.clearTimeout(floodRemovalTimer);
@@ -846,7 +858,7 @@
       window.clearTimeout(floodRemovalTimer);
       floodRemovalTimer = null;
     }
-    var stageNavd88 = getSelectedStageNavd88();
+    var stageNavd88 = request ? request.frame.stage : getSelectedStageNavd88();
     var pitched = glMap.getPitch() > 10;
     var physicalAltitudeMeters = Number.isFinite(stageNavd88)
       ? stageNavd88 * 0.3048 * TERRAIN_EXAGGERATION
@@ -857,6 +869,7 @@
       opacity: overlayOpacity,
       visible: pitched,
       useDepthTest: usesDetailedFloodDepth(),
+      isCurrent: request ? request.isCurrent : null,
       altitudeMeters: physicalAltitudeMeters
     };
     // Top-down mode uses MapLibre's native image source, which remains in one
@@ -888,6 +901,41 @@
       : "axis-aligned";
     document.body.dataset.map3dFloodAltitudeMeters = options.altitudeMeters.toFixed(3);
     document.body.dataset.map3dFloodPhysicalAltitudeMeters = physicalAltitudeMeters.toFixed(3);
+  }
+
+  async function prepareFloodFrame3d(layer, frame, token) {
+    if (!glMap || !document.body.classList.contains("map-3d-ready") || glMap.getPitch() <= 10) return true;
+    if (!glStyleReady || document.body.dataset.map3d !== "ready") return false;
+    var requestedMap = glMap;
+    var request = { layer: layer, frame: frame, token: token, isCurrent: function () {
+      return pendingFlood3dRequest === request && glMap === requestedMap && glStyleReady &&
+        token === lastRenderToken && pendingFloodLayer === layer && map?.hasLayer(layer);
+    } };
+    pendingFlood3dRequest = request;
+    var accepted = false;
+    try {
+      syncFloodLayer3d();
+      var plane = floodPlaneLayer;
+      var url = layer._url || layer.getElement?.()?.src;
+      var ready = plane ? await plane.whenReady() : false;
+      accepted = Boolean(ready && request.isCurrent() && plane === floodPlaneLayer &&
+        plane.textureReady && plane.committedUrl === url);
+      return accepted;
+    } finally {
+      if (pendingFlood3dRequest === request) {
+        pendingFlood3dRequest = null;
+        // Failed/obsolete candidates must not change the committed frame's
+        // water height, texture or native image source.
+        if (!accepted) syncFloodLayer3d();
+      }
+    }
+  }
+
+  function discardObsoleteFloodFrame3d() {
+    if (!pendingFlood3dRequest || pendingFlood3dRequest.isCurrent()) return;
+    pendingFlood3dRequest = null;
+    if (floodPlaneLayer?.cancelTextureLoad) floodPlaneLayer.cancelTextureLoad();
+    syncFloodLayer3d();
   }
 
   function syncSatellite3d() {
@@ -2323,6 +2371,7 @@
 
   var originalUpdatePersistentDepthQueryPopup = updatePersistentDepthQueryPopup;
   updatePersistentDepthQueryPopup = function () {
+    discardObsoleteFloodFrame3d();
     closeOutdatedFallbackBuildingPopup();
     var result = originalUpdatePersistentDepthQueryPopup.apply(this, arguments);
     if (glPopup && persistentFloodPopup && typeof persistentFloodPopup.getContent === "function") {
@@ -2361,6 +2410,7 @@
     setAddressMarker: setAddressMarker,
     getBuildingData: function () { return buildingData; },
     syncFlood: syncFloodLayer3d,
+    prepareFloodFrame: prepareFloodFrame3d,
     syncBuildings: syncBuildings3d,
     state: function () {
       return {

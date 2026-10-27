@@ -174,6 +174,15 @@ def expected_hour_range(start_date: date, end_date: date) -> range:
     return range(start_second, end_second, HOUR_SECONDS)
 
 
+def request_utc_dates(start_date: date, end_date: date) -> tuple[date, date]:
+    """Cover the entire local interval with inclusive NOAA GMT request dates."""
+    hours = expected_hour_range(start_date, end_date)
+    return (
+        datetime.fromtimestamp(hours.start, timezone.utc).date(),
+        datetime.fromtimestamp(hours.stop - 1, timezone.utc).date(),
+    )
+
+
 def load_hourly_archive(
     start_date: date,
     end_date: date,
@@ -181,14 +190,16 @@ def load_hourly_archive(
     pause_seconds: float,
 ) -> dict[int, float]:
     hourly: dict[int, float] = {}
-    for chunk_start, chunk_end in iter_year_chunks(start_date, end_date):
+    expected_hours = expected_hour_range(start_date, end_date)
+    utc_start, utc_end = request_utc_dates(start_date, end_date)
+    for chunk_start, chunk_end in iter_year_chunks(utc_start, utc_end):
         print(f"Fetching Lewes verified hourly heights: {chunk_start} through {chunk_end}")
         payload = fetch_product("hourly_height", chunk_start, chunk_end, cache_dir, pause_seconds)
         valid = 0
         for row in payload.get("data", []):
             stamp = parse_utc_stamp(row.get("t"))
             level = parse_level(row.get("v"))
-            if stamp is None or level is None:
+            if stamp is None or level is None or stamp not in expected_hours:
                 continue
             hourly[stamp] = level
             valid += 1
@@ -203,6 +214,9 @@ def months_needing_six_minute_fill(
 ) -> list[tuple[date, date]]:
     missing_months: set[str] = set()
     expected_start = max(start_date, SIX_MINUTE_START_DATE)
+    if expected_start > end_date:
+        return []
+    utc_start, utc_end = request_utc_dates(expected_start, end_date)
     for stamp in expected_hour_range(expected_start, end_date):
         if stamp in hourly:
             continue
@@ -211,8 +225,8 @@ def months_needing_six_minute_fill(
     out = []
     for key in sorted(missing_months):
         year, month = map(int, key.split("-"))
-        first = max(expected_start, date(year, month, 1))
-        last = min(end_date, next_month(date(year, month, 1)) - timedelta(days=1))
+        first = max(utc_start, date(year, month, 1))
+        last = min(utc_end, next_month(date(year, month, 1)) - timedelta(days=1))
         if first <= last:
             out.append((first, last))
     return out
@@ -226,6 +240,7 @@ def fill_from_six_minute(
     pause_seconds: float,
 ) -> set[int]:
     filled: set[int] = set()
+    expected_hours = expected_hour_range(start_date, end_date)
     month_chunks = months_needing_six_minute_fill(hourly, start_date, end_date)
     print(f"Lewes months requiring verified six-minute fallback: {len(month_chunks)}")
     for chunk_start, chunk_end in month_chunks:
@@ -239,7 +254,7 @@ def fill_from_six_minute(
                 continue
             anchor = int(round(stamp / HOUR_SECONDS) * HOUR_SECONDS)
             distance = abs(stamp - anchor)
-            if distance > MAX_SIX_MINUTE_DISTANCE_SECONDS or anchor in hourly:
+            if distance > MAX_SIX_MINUTE_DISTANCE_SECONDS or anchor in hourly or anchor not in expected_hours:
                 continue
             existing = candidates.get(anchor)
             if existing is None or distance < existing[0]:

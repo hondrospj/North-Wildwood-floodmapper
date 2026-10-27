@@ -115,7 +115,7 @@ context.canvasToDrainageObjectUrl = async canvas => {
   rendered.set(url, canvas.result);
   return url;
 };
-vm.runInContext(`${extractFunction("cacheBathtubStageOverlay")}; async ${extractFunction("getBathtubStageOverlayRecord")}`, context);
+vm.runInContext(`${extractFunction("awaitRasterRequest")}; ${extractFunction("cacheBathtubStageOverlay")}; async ${extractFunction("getBathtubStageOverlayRecord")}`, context);
 const a = await context.getBathtubStageOverlayRecord(5, {url:'mask-a'});
 const aAgain = await context.getBathtubStageOverlayRecord(5, {url:'mask-a'});
 const b = await context.getBathtubStageOverlayRecord(5, {url:'mask-b'});

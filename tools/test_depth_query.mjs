@@ -63,7 +63,7 @@ const recovery=vm.createContext({URL,Date,Promise,Error,
   DEPTH_QUERY_PNG_URL:'https://example.test/query.png',
   loadDepthQueryPng:async()=>{calls++;if(fail)throw Error('transient failure');return{width:4,height:4};}
 });
-vm.runInContext('let depthQueryGridPromise=null;\n'+extract('getDepthQueryGrid'),recovery);
+vm.runInContext('let depthQueryGridPromise=null;\n'+extract('awaitRasterRequest')+'\n'+extract('getDepthQueryGrid'),recovery);
 await assert.rejects(recovery.getDepthQueryGrid(),/transient failure/);
 assert.equal(calls,2);fail=false;
 assert.equal((await recovery.getDepthQueryGrid()).width,4);

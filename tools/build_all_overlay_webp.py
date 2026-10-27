@@ -7,6 +7,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from hashlib import sha256
 from pathlib import Path
 import shutil
+import os
+import tempfile
 
 from PIL import Image, features
 
@@ -23,19 +25,29 @@ def digest(path):
 
 def encode(source, destinations):
     output = destinations[0]
-    with Image.open(source) as original:
-        rgba = original.convert('RGBA')
-        pixels = sha256(rgba.tobytes()).digest()
-        size = rgba.size
-        rgba.save(output, 'WEBP', lossless=True, exact=True, quality=100, method=4)
-    with Image.open(output) as webp:
-        decoded = webp.convert('RGBA')
-        if decoded.size != size or sha256(decoded.tobytes()).digest() != pixels:
-            output.unlink(missing_ok=True)
+    descriptor, name = tempfile.mkstemp(dir=output.parent, suffix='.webp.incomplete')
+    os.close(descriptor)
+    temporary = Path(name)
+    try:
+        with Image.open(source) as original:
+            rgba = original.convert('RGBA')
+            pixels = sha256(rgba.tobytes()).digest()
+            size = rgba.size
+            rgba.save(temporary, 'WEBP', lossless=True, exact=True, quality=100, method=4)
+        if pixel_signature(temporary) != (size, pixels):
             raise RuntimeError(f'WebP pixel verification failed: {source}')
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
     for destination in destinations[1:]:
         shutil.copyfile(output, destination)
     return len(destinations)
+
+
+def pixel_signature(path):
+    with Image.open(path) as original:
+        rgba = original.convert('RGBA')
+        return rgba.size, sha256(rgba.tobytes()).digest()
 
 
 def main():
@@ -44,11 +56,24 @@ def main():
     paths = sorted(path for path in (ROOT / 'assets').rglob('*.png')
                    if 'DepthPNGs' in path.parts or 'StagePNGs' in path.parts)
     groups = {}
+    signatures = {}
     for path in paths:
         target = path.with_suffix('.webp')
-        if not target.exists():
-            groups.setdefault(digest(path), []).append(path)
-    print(f'{len(paths)} display PNGs; {sum(map(len, groups.values()))} WebP companions missing; {len(groups)} unique encodings', flush=True)
+        source_hash = digest(path)
+        if source_hash not in signatures:
+            signatures[source_hash] = pixel_signature(path)
+        matches = False
+        if target.exists():
+            try:
+                target_hash = digest(target)
+                if target_hash not in signatures:
+                    signatures[target_hash] = pixel_signature(target)
+                matches = signatures[source_hash] == signatures[target_hash]
+            except (OSError, ValueError):
+                pass  # A damaged companion is rebuilt from its authoritative PNG.
+        if not matches:
+            groups.setdefault(source_hash, []).append(path)
+    print(f'{len(paths)} display PNGs; {sum(map(len, groups.values()))} WebP companions missing or stale; {len(groups)} unique encodings', flush=True)
     count = 0
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = [pool.submit(encode, group[0], [path.with_suffix('.webp') for path in group])

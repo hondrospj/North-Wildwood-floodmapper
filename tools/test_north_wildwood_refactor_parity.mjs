@@ -15,6 +15,16 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+const LINE_FIX_AUDIT_PATH = "tools/fixtures/north-wildwood-20261027-line-fixes.json";
+const LINE_FIX_AUDIT_SHA256 = "a14f0b863cb02794bff8d3e99f5b6ea1dce130fe645919b9395213a969afe975";
+const lineFixText = read(LINE_FIX_AUDIT_PATH);
+assert.equal(sha256(lineFixText), LINE_FIX_AUDIT_SHA256,
+  "The October 27 fixes must retain their exact independently reviewed inverse fragments");
+const lineFixAudit = JSON.parse(lineFixText);
+assert.equal(lineFixAudit.schemaVersion, 1);
+assert.equal(lineFixAudit.baselineCommit, "4177f020ec58213dff42f41a1df6d06ce5829c5f");
+assert.equal(new Set(lineFixAudit.files.map(file => file.source)).size, lineFixAudit.files.length);
+for (const file of lineFixAudit.files) auditedLineRead(file.source);
 const HOLISTIC_FIX_AUDIT_PATH = "tools/fixtures/north-wildwood-20261026-holistic-fixes.json";
 const holisticFixText = read(HOLISTIC_FIX_AUDIT_PATH);
 assert.equal(sha256(holisticFixText), "359b8237b258a4e5dfbbc966e1729c0359bdfd9cac458ee09eb5fdefc63811a3",
@@ -323,14 +333,36 @@ function auditedIssueFixFragments(source, blocks, label) {
 
 function auditedHolisticRead(relative) {
   const blocks = [...holisticFixAudit.changes, ...holisticFixAudit.externalChanges].filter(block => block.source === relative);
-  return auditedIssueFixFragments(read(relative), blocks, relative);
+  return auditedIssueFixFragments(auditedLineRead(relative), blocks, relative);
+}
+
+function auditedLineRead(relative) {
+  const blocks = [...lineFixAudit.changes, ...lineFixAudit.externalChanges, ...lineFixAudit.templateChanges]
+    .filter(block => block.source === relative);
+  const source = read(relative);
+  const restored = auditedIssueFixFragments(source, blocks, relative);
+  const file = lineFixAudit.files.find(file => file.source === relative);
+  if (file) {
+    assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its exact October 27 fixes`);
+    assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every original byte`);
+  }
+  return restored;
+}
+
+function auditedLineSource(kind, entry, source) {
+  const blocks = lineFixAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
+  for (const block of blocks) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared source`);
+    auditedLineRead(block.source);
+  }
+  return auditedIssueFixFragments(source, blocks, entry.id);
 }
 
 function auditedHolisticSource(kind, entry, source) {
   const blocks = holisticFixAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
   for (const block of blocks) {
     assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared source`);
-    auditedIssueFixFragments(read(block.source), [block], "Holistic authoring source");
+    auditedIssueFixFragments(auditedLineRead(block.source), [block], "Holistic authoring source");
   }
   return auditedIssueFixFragments(source, blocks, entry.id);
 }
@@ -345,6 +377,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedLineSource(kind, entry, source);
   source = auditedHolisticSource(kind, entry, source);
   source = auditedIssueFixSource(kind, entry, source);
   for (const block of loaderRestore.styles.filter(block => block.kind === kind && block.entryId === entry.id)) {
@@ -400,14 +433,14 @@ function attributes(opening) {
   return result;
 }
 
-function referencedOutput(value, expectedOutput) {
+function referencedOutput(value, expectedOutput, content = read(expectedOutput)) {
   const url = new URL(value, "https://north-wildwood-parity.invalid/");
   assert.equal(url.origin, "https://north-wildwood-parity.invalid",
     "Extracted application sources must remain local");
   assert.equal(decodeURIComponent(url.pathname).replace(/^\//, ""), expectedOutput,
     "Generated tag points to the wrong output file");
   const version = url.searchParams.get("v");
-  assert.ok(version && version.length >= 12 && sha256(read(expectedOutput)).startsWith(version),
+  assert.ok(version && version.length >= 12 && sha256(content).startsWith(version),
     `${expectedOutput} must have a version derived from its exact content`);
   assert.equal(url.hash, "", "Extracted source references must not contain fragments");
 }
@@ -470,9 +503,9 @@ assert.deepEqual(loaderRestore.styles.map(block =>
   "The loader restoration audit may inverse only its two exact original visibility/lifecycle fragments");
 assert.equal(loaderRestore.controller.source, "assets/north-wildwood-loading.js");
 assert.equal(loaderRestore.controller.sha256, "cc99a91625f8dea0f4d11d136cca2fc5dd1703223f0fe689f046791ee36ea276");
-assert.equal(Buffer.byteLength(read(loaderRestore.controller.source)), loaderRestore.controller.bytes,
+assert.equal(Buffer.byteLength(auditedLineRead(loaderRestore.controller.source)), loaderRestore.controller.bytes,
   "The original welcome controller length must stay unchanged");
-assert.equal(sha256(read(loaderRestore.controller.source)), loaderRestore.controller.sha256,
+assert.equal(sha256(auditedLineRead(loaderRestore.controller.source)), loaderRestore.controller.sha256,
   "The original welcome controller must stay byte-for-byte unchanged");
 assert.equal(loaderRestore.templateSource, "tools/app/index.template.html");
 assert.equal(sha256(loaderRestore.templateChange.beforeSource), "3f8c28bb4a7c493f945380350d92400ec053893736ec936593f90ce59d2a9e4c",
@@ -482,7 +515,8 @@ assert.match(welcomeTag, /^<script\b[^>]*><\/script>$/);
 const welcomeAttributes = attributes(welcomeTag.slice(0, welcomeTag.indexOf(">") + 1));
 assert.equal(welcomeAttributes.size, 2, "The restored controller must retain only its src and defer attributes");
 assert.ok(welcomeAttributes.has("defer"), "The restored welcome controller must not block HTML parsing");
-referencedOutput(welcomeAttributes.get("src"), loaderRestore.controller.source);
+referencedOutput(welcomeAttributes.get("src"), loaderRestore.controller.source,
+  auditedLineRead(loaderRestore.controller.source));
 assert.equal(loaderRestore.templateChange.afterSource,
   loaderRestore.templateChange.beforeSource + welcomeTag + "\n",
   "The loader tag audit may add only its one deferred controller script");
@@ -546,7 +580,7 @@ const expectedTokenOrder = baseline.blocks.map(block =>
 const actualTokenOrder = Array.from(template.matchAll(/<!-- nww:(?:style|script):[\w-]+ -->/g), match => match[0]);
 assert.deepEqual(actualTokenOrder, expectedTokenOrder,
   "Extraction slots must retain the original interleaved CSS/script order");
-const originalIssueTemplate = auditedIssueFixFragments(auditedIssueFixFragments(template, holisticFixAudit.templateChanges, "Holistic template"), bugFixAudit.templateChanges, "Template");
+const originalIssueTemplate = auditedIssueFixFragments(auditedIssueFixFragments(auditedLineRead("tools/app/index.template.html"), holisticFixAudit.templateChanges, "Holistic template"), bugFixAudit.templateChanges, "Template");
 const originalFamilyTemplate = auditedFontFamilyTemplate(originalIssueTemplate, "Source template");
 const originalLoaderTemplate = auditedUiStartupFragments(originalFamilyTemplate, [loaderRestore.templateChange], "Loader template");
 const originalUiTemplate = auditedUiStartupFragments(originalLoaderTemplate, uiStartup.templateChanges, "Template");
@@ -641,7 +675,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26-fixes inverses; remaining UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -653,6 +687,7 @@ if (process.argv.includes("--self-test")) {
       "tools/fixtures/north-wildwood-ui-startup.json",
       "tools/fixtures/north-wildwood-view-pill-surface.json",
       "tools/fixtures/north-wildwood-loader-restore.json", BUG_FIX_AUDIT_PATH, HOLISTIC_FIX_AUDIT_PATH, loaderRestore.controller.source,
+      LINE_FIX_AUDIT_PATH, ...lineFixAudit.files.map(file => file.source),
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -666,6 +701,11 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened October 27 inverse audit", path.join(scratch, LINE_FIX_AUDIT_PATH),
+        JSON.stringify({ ...lineFixAudit, changes: [...lineFixAudit.changes, lineFixAudit.changes[0]] })],
+      ["altered October 27 correctness fragment", path.join(scratch, lineFixAudit.changes[0].source),
+        read(lineFixAudit.changes[0].source).replace(lineFixAudit.changes[0].afterSource,
+          lineFixAudit.changes[0].afterSource + "\n// Unreviewed change\n")],
       ["broadened holistic inverse audit", path.join(scratch, HOLISTIC_FIX_AUDIT_PATH),
         JSON.stringify({ ...holisticFixAudit, changes: [...holisticFixAudit.changes, holisticFixAudit.changes[0]] })],
       ["altered holistic correctness fragment", path.join(scratch, holisticFixAudit.changes[0].source),
@@ -779,10 +819,10 @@ if (process.argv.includes("--self-test")) {
         read(loaderRestore.styles[1].source).replace("body.nw-app-ready:not(.nw-app-loading)",
           "body:is(.nw-app-loading,.nw-app-ready)")],
       ["removed welcome controller", path.join(scratch, loaderRestore.templateSource),
-        template.replace(loaderRestore.templateChange.scriptTag, "")],
+        template.replace(template.match(/<script\b[^>]*\bsrc="assets\/north-wildwood-loading\.js[^>]*><\/script>/)[0], "")],
       ["changed welcome controller to asynchronous execution", path.join(scratch, loaderRestore.templateSource),
-        template.replace(loaderRestore.templateChange.scriptTag,
-          loaderRestore.templateChange.scriptTag.replace("<script defer", "<script async"))],
+        template.replace(template.match(/<script\b[^>]*\bsrc="assets\/north-wildwood-loading\.js[^>]*><\/script>/)[0],
+          template.match(/<script\b[^>]*\bsrc="assets\/north-wildwood-loading\.js[^>]*><\/script>/)[0].replace("<script", "<script async"))],
       ["altered original welcome controller", path.join(scratch, loaderRestore.controller.source),
         read(loaderRestore.controller.source) + "\n// Unapproved loader behavior\n"],
     ];

@@ -75,7 +75,7 @@ await assert.rejects(frameImage.getExportFrameImage({entry:{}}), /flood image is
 let ready = false, repainted = false;
 let workerAttempts = 0;
 const workerUrl = context('getGifWorkerUrl', {
-  gifWorkerUrlPromise:null, GIF_WORKER_CDN_URL:'worker.js',
+  gifWorkerUrlPromise:null, gifWorkerLoadRequest:null, AbortController, GIF_WORKER_CDN_URL:'worker.js',
   getSameOriginWorkerUrl:async()=>{
     if (++workerAttempts === 1) throw new Error('offline');
     return 'blob:worker';

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 from cache_contract import identity_matches, render_identity, simulation_identity
+from frame_alignment import load_guidance_frames
 
 import numpy as np
 from PIL import Image
@@ -118,13 +119,15 @@ def validate_scenario(
 
     frames = manifest["frames"]
     expected_interval = int(manifest["frameIntervalSeconds"])
+    if len(frames) != manifest["frameCount"] or expected_interval != int(run_manifest["output"]["intervalSeconds"]):
+        raise RuntimeError(f"{scenario} solver/render output interval or count mismatch")
     timestamps = [
         datetime.fromisoformat(frame["timeUtc"].replace("Z", "+00:00"))
         for frame in frames
     ]
     for before, after in zip(timestamps, timestamps[1:]):
         if int((after - before).total_seconds()) != expected_interval:
-            raise RuntimeError(f"{scenario} contains a non-15-minute frame interval")
+            raise RuntimeError(f"{scenario} contains an unexpected frame interval")
 
     time_zone = ZoneInfo(config["render"]["dailyMaximumTimeZone"])
     daily_maximums: dict[str, np.ndarray] = {}
@@ -139,14 +142,15 @@ def validate_scenario(
     )
     if guidance.get("cycleId") != cycle_id:
         raise RuntimeError(f"{scenario} validation guidance cycle mismatch")
-    simulation = simulation_identity(ROOT, config, guidance, scenario)
+    simulation = simulation_identity(ROOT, config, guidance, scenario, run_manifest.get("runOptions"))
     rendered = render_identity(ROOT, config, simulation)
     if not identity_matches(run_manifest.get("simulationIdentity"), simulation):
         raise RuntimeError(f"{scenario} simulation identity does not match current inputs/settings")
     if (not identity_matches(manifest.get("renderIdentity"), rendered)
             or manifest.get("simulationIdentitySha256") != simulation["sha256"]):
         raise RuntimeError(f"{scenario} render identity does not match current inputs/settings")
-    guidance_frames = guidance["scenarios"][scenario]
+    statistics = read_json(run_directory / "hydraulic/frame_statistics.json")
+    guidance_frames = load_guidance_frames(guidance, scenario, statistics, run_manifest.get("runOptions", {}).get("constant_stage_m"))
     if len(guidance_frames) != len(frames):
         raise RuntimeError(f"{scenario} guidance/render frame count mismatch")
     total_bytes = 0

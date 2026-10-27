@@ -1,0 +1,505 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "4177f020ec58213dff42f41a1df6d06ce5829c5f",
+  "changes": [
+    {
+      "id": "tools-app-runtime-09-raster-lifecycle.js-1",
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSource": "    function getDrainageRasterImage(url) {\n      if (!url) return Promise.resolve(null);\n      if (drainageRasterImageCache.has(url)) return drainageRasterImageCache.get(url);\n      const releaseRaster = retainRasterObjectUrl(url);\n      const promise = new Promise(resolve => {\n        const image = new Image();\n        image.crossOrigin = \"anonymous\";\n        image.decoding = \"async\";\n        image.onload = () => { releaseRaster(); resolve(image); };\n        image.onerror = () => { releaseRaster(); resolve(null); };\n        image.src = url;\n      }).then(image => {\n        // A failed decode must not prevent the next request from retrying.\n        if (!image && drainageRasterImageCache.get(url) === promise) {\n",
+      "afterSource": "    function awaitRasterRequest(request) {\n      // The decoded grid may be shared with the interactive map. Cancel only\n      // this export's wait; the shared transport has its own bounded deadline.\n      if (typeof exportInProgress === \"undefined\" || !exportInProgress) return request;\n      return new Promise((resolve, reject) => {\n        let settled = false;\n        let timer = null;\n        const finish = (error, value) => {\n          if (settled) return;\n          settled = true;\n          if (timer !== null) window.clearInterval(timer);\n          error ? reject(error) : resolve(value);\n        };\n        const cancel = () => {\n          if (!exportCancelRequested) return;\n          const error = new Error(\"Export cancelled.\");\n          error.name = \"AbortError\";\n          finish(error);\n        };\n        timer = window.setInterval(cancel, 80);\n        Promise.resolve(request).then(value => finish(null, value), error => finish(error));\n        cancel();\n      });\n    }\n\n    function getDrainageRasterImage(url) {\n      if (!url) return Promise.resolve(null);\n      if (drainageRasterImageCache.has(url)) return awaitRasterRequest(drainageRasterImageCache.get(url));\n      const releaseRaster = retainRasterObjectUrl(url);\n      const promise = new Promise(resolve => {\n        const image = new Image();\n        let settled = false;\n        const timer = window.setTimeout(() => finish(null), 20000);\n        const finish = value => {\n          if (settled) return;\n          settled = true;\n          window.clearTimeout(timer);\n          image.onload = image.onerror = null;\n          releaseRaster();\n          if (!value) { try { image.src = \"\"; } catch (_) {} }\n          resolve(value);\n        };\n        image.crossOrigin = \"anonymous\";\n        image.decoding = \"async\";\n        image.onload = () => finish(image);\n        image.onerror = () => finish(null);\n        image.src = url;\n      }).then(image => {\n        // A failed decode must not prevent the next request from retrying.\n        if (!image && drainageRasterImageCache.get(url) === promise) {\n",
+      "beforeSha256": "7e8d86fa1e1c1a12379fe5c4557dccba1a3f9c791b0358a3f08e5aa0163e883d",
+      "afterSha256": "9b4c7eec2c61fc5e6beaf93939001fe561a9bc253b2f4711c0c335e2b09b5bf7",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-09-raster-lifecycle.js-2",
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSource": "      drainageRasterImageCache.set(url, promise);\n      while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {\n        drainageRasterImageCache.delete(drainageRasterImageCache.keys().next().value);\n      }\n      return promise;\n    }\n\n    function canvasToDrainageObjectUrl(canvas) {\n      return new Promise((resolve, reject) => {\n",
+      "afterSource": "      drainageRasterImageCache.set(url, promise);\n      while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {\n        drainageRasterImageCache.delete(drainageRasterImageCache.keys().next().value);\n      }\n      return awaitRasterRequest(promise);\n    }\n\n    function canvasToDrainageObjectUrl(canvas) {\n      return new Promise((resolve, reject) => {\n",
+      "beforeSha256": "fbfa1c3e3073742feae87d824aad5a12faf2e167236d3784adcb2170bf7043e6",
+      "afterSha256": "caf00419985726b2abce3ab8afa1a630447d45ce166d5f22d88d99120e2a60b6",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-09-raster-lifecycle.js-3",
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSource": "      // Equal water levels can have different uncertainty after filling/drainage.\n      // The resolved depth-frame URL identifies the exact mask to reuse.\n      const key = JSON.stringify([stageToCode(stage), depthRecord?.url || \"no-uncertainty\"]);\n      const cache = bathtubStageOverlayCache;\n      if (cache.has(key)) return cache.get(key);\n      const releaseDepth = retainRasterObjectUrl(depthRecord?.url);\n      const request = (async () => {\n        try {\n          const [queryGrid, depthImage] = await Promise.all([\n",
+      "afterSource": "      // Equal water levels can have different uncertainty after filling/drainage.\n      // The resolved depth-frame URL identifies the exact mask to reuse.\n      const key = JSON.stringify([stageToCode(stage), depthRecord?.url || \"no-uncertainty\"]);\n      const cache = bathtubStageOverlayCache;\n      if (cache.has(key)) return awaitRasterRequest(cache.get(key));\n      const releaseDepth = retainRasterObjectUrl(depthRecord?.url);\n      const request = (async () => {\n        try {\n          const [queryGrid, depthImage] = await Promise.all([\n",
+      "beforeSha256": "87f04479df1c0084017109f885082ecfb4d4572e46cf5434ddc0bdde8b011872",
+      "afterSha256": "1afa0674825d509cc18cdab2d0a5c31157435490a774def7f50be39fbf053d07",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-09-raster-lifecycle.js-4",
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSource": "        } finally {\n          releaseDepth();\n        }\n      })().catch(error => {\n        console.warn(\"Could not build Flood Stages with its Flood Depth uncertainty areas.\", error);\n        return null;\n      });\n      cache.set(key, request);\n      const record = await request;\n      if (cache !== bathtubStageOverlayCache) {\n        retireRasterObjectUrl(record?.url);\n        return null;\n      }\n",
+      "afterSource": "        } finally {\n          releaseDepth();\n        }\n      })().catch(error => {\n        if (error?.name === \"AbortError\" || error?.name === \"TimeoutError\") {\n          if (cache.get(key) === request) cache.delete(key);\n          throw error;\n        }\n        console.warn(\"Could not build Flood Stages with its Flood Depth uncertainty areas.\", error);\n        return null;\n      });\n      cache.set(key, request);\n      const record = await awaitRasterRequest(request);\n      if (cache !== bathtubStageOverlayCache) {\n        retireRasterObjectUrl(record?.url);\n        return null;\n      }\n",
+      "beforeSha256": "27833cb9b5cfc9140cd06d008b789c3e7cd9e366750601875a486d72d72fc85f",
+      "afterSha256": "ffe597c8e4ce00c44c17b3b7b245b428de243985b54483ac2b6045fa8caa361b",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-09-raster-lifecycle.js-5",
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSource": "      if (fillingCompositeCache.has(key)) {\n        const cached = fillingCompositeCache.get(key);\n        fillingCompositeCache.delete(key);\n        fillingCompositeCache.set(key, cached);\n        return cached;\n      }\n\n      const request = (async () => {\n        const upperRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase);\n",
+      "afterSource": "      if (fillingCompositeCache.has(key)) {\n        const cached = fillingCompositeCache.get(key);\n        fillingCompositeCache.delete(key);\n        fillingCompositeCache.set(key, cached);\n        return awaitRasterRequest(cached);\n      }\n\n      const request = (async () => {\n        const upperRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase);\n",
+      "beforeSha256": "2e0ea2500123e2b427d12ba18231a36d0a4069396b4badf092971e65f237e500",
+      "afterSha256": "5384fdf51925198289789b479211ea2a7f02b53effd689969db1d8ce0bcd6395",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-09-raster-lifecycle.js-6",
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSource": "          fillingFraction: fraction,\n          addedPixelCount\n        };\n      })().catch(error => {\n        console.warn(\"Could not build the continuous filling raster; using the lower catalog raster.\", error);\n        return lowerRecord;\n      });\n\n      fillingCompositeCache.set(key, request);\n      const record = await request;\n      return cacheFillingComposite(key, record);\n    }\n\n    async function getHydraulicOverlayRecord(mode, stageValue, phase, entry = null, series = currentRawSeriesHours) {\n",
+      "afterSource": "          fillingFraction: fraction,\n          addedPixelCount\n        };\n      })().catch(error => {\n        if (error?.name === \"AbortError\" || error?.name === \"TimeoutError\") {\n          if (fillingCompositeCache.get(key) === request) fillingCompositeCache.delete(key);\n          throw error;\n        }\n        console.warn(\"Could not build the continuous filling raster; using the lower catalog raster.\", error);\n        return lowerRecord;\n      });\n\n      fillingCompositeCache.set(key, request);\n      const record = await awaitRasterRequest(request);\n      return cacheFillingComposite(key, record);\n    }\n\n    async function getHydraulicOverlayRecord(mode, stageValue, phase, entry = null, series = currentRawSeriesHours) {\n",
+      "beforeSha256": "77258b7002c0f164dcc6091458fb9b875b9752d60d2ca7905defcc70a068aa0f",
+      "afterSha256": "7d70c5696bd8e7f9977bcc46cd5733aaf37a56d9546c21fd447fa37c7bc02992",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-09-raster-lifecycle.js-7",
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSource": "        if (drainageCompositeCache.has(key)) {\n          const cached = drainageCompositeCache.get(key);\n          drainageCompositeCache.delete(key);\n          drainageCompositeCache.set(key, cached);\n          return cached;\n        }\n\n        const request = (async () => {\n          const historicalRecords = (await Promise.all(milestones.map(item => {\n",
+      "afterSource": "        if (drainageCompositeCache.has(key)) {\n          const cached = drainageCompositeCache.get(key);\n          drainageCompositeCache.delete(key);\n          drainageCompositeCache.set(key, cached);\n          return awaitRasterRequest(cached);\n        }\n\n        const request = (async () => {\n          const historicalRecords = (await Promise.all(milestones.map(item => {\n",
+      "beforeSha256": "370d1741992743ee77fc982b6f57b4fc972cb06b6f8f56bc4840075f5ba32552",
+      "afterSha256": "ed89837270c30bb3aa51a93b0d8cfc77233c1a8d3340dc44d84d5a9183e46900",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-09-raster-lifecycle.js-8",
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSource": "            isHistoryAwareDrainageComposite: true,\n            retainedPixelCount: addedPixelCount\n          };\n        })().catch(error => {\n          console.warn(\"Could not build the history-aware drainage raster; using the static phase raster.\", error);\n          return baseRecord;\n        });\n\n        drainageCompositeCache.set(key, request);\n        const record = await request;\n        return cacheDrainageComposite(key, record);\n      } finally {\n        releaseRaster?.();\n      }\n",
+      "afterSource": "            isHistoryAwareDrainageComposite: true,\n            retainedPixelCount: addedPixelCount\n          };\n        })().catch(error => {\n          if (error?.name === \"AbortError\" || error?.name === \"TimeoutError\") {\n            if (drainageCompositeCache.get(key) === request) drainageCompositeCache.delete(key);\n            throw error;\n          }\n          console.warn(\"Could not build the history-aware drainage raster; using the static phase raster.\", error);\n          return baseRecord;\n        });\n\n        drainageCompositeCache.set(key, request);\n        const record = await awaitRasterRequest(request);\n        return cacheDrainageComposite(key, record);\n      } finally {\n        releaseRaster?.();\n      }\n",
+      "beforeSha256": "f525788f00876383a1a5d760ed02d9f04c35b004f2c0a35b386e8b5dfae782f0",
+      "afterSha256": "c4ac63b9034efd636cd1260aafdd6e76706c4901452f8fdc725f2dd9d2d1ae06",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-11-export-selection.js-1",
+      "source": "tools/app/runtime/11-export-selection.js",
+      "beforeSource": "    function isExportProgressOpen() {\n      return document.getElementById(\"exportProgressOverlay\")?.classList.contains(\"open\") || false;\n    }\n\n    function setExportProgressVisible(isVisible) {\n      const overlay = document.getElementById(\"exportProgressOverlay\");\n      if (!overlay) return;\n      overlay.hidden = !isVisible;\n      overlay.classList.toggle(\"open\", Boolean(isVisible));\n      overlay.setAttribute(\"aria-busy\", String(Boolean(isVisible)));\n    }\n\n    function setExportProgress(message = \"\", percent = null, isError = false) {\n      const messageEl = document.getElementById(\"exportProgressMessage\");\n",
+      "afterSource": "    function isExportProgressOpen() {\n      return document.getElementById(\"exportProgressOverlay\")?.classList.contains(\"open\") || false;\n    }\n\n    let exportProgressVisibilityVersion = 0;\n    let exportProgressReturnFocus = null;\n\n    function setExportProgressVisible(isVisible) {\n      const overlay = document.getElementById(\"exportProgressOverlay\");\n      if (!overlay) return;\n      const wasVisible = !overlay.hidden && overlay.classList.contains(\"open\");\n      exportProgressVisibilityVersion += 1;\n      if (isVisible && !wasVisible && !overlay.contains(document.activeElement)) {\n        exportProgressReturnFocus = document.activeElement;\n      }\n      overlay.hidden = !isVisible;\n      overlay.classList.toggle(\"open\", Boolean(isVisible));\n      overlay.setAttribute(\"aria-busy\", String(Boolean(isVisible && exportInProgress)));\n      // Apply the shared modal isolation before assigning initial focus. The\n      // settings dialog has just closed, so waiting for its observer would\n      // leave a keyboard event free to activate a control behind this overlay.\n      document.dispatchEvent?.(new CustomEvent(\"nww:modalchange\"));\n      if (isVisible) {\n        document.getElementById(\"exportProgressCloseBtn\")?.focus({ preventScroll: true });\n      } else if (wasVisible) {\n        const target = exportProgressReturnFocus;\n        exportProgressReturnFocus = null;\n        // A nested dialog may already have restored its own focus. Restore\n        // our trigger only when focus was left inside the now-hidden overlay.\n        if ((!document.activeElement || document.activeElement === document.body || overlay.contains(document.activeElement)) &&\n            target?.isConnected && !target.closest(\"[hidden],[inert],[aria-hidden='true']\") && target.getClientRects().length) {\n          target.focus({ preventScroll: true });\n        }\n      }\n    }\n\n    function setExportProgress(message = \"\", percent = null, isError = false) {\n      const messageEl = document.getElementById(\"exportProgressMessage\");\n",
+      "beforeSha256": "bff21b33e5d7e1fc4f6c898bbf0ad1a5cc4e178ff34b91fa9f0cebd308f07f13",
+      "afterSha256": "064e06d941cf898364c2d1798f8874d215699cc4c732022ca842d69fb7445774",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-11-export-selection.js-2",
+      "source": "tools/app/runtime/11-export-selection.js",
+      "beforeSource": "    }\n\n    function finishExportProgress(message = \"\", isError = false) {\n      setExportProgress(message, isError ? null : 100, isError);\n      window.setTimeout(() => {\n        if (!exportInProgress) setExportProgressVisible(false);\n      }, isError ? 5200 : 1600);\n    }\n\n    function makeExportCancelledError() {\n",
+      "afterSource": "    }\n\n    function finishExportProgress(message = \"\", isError = false) {\n      setExportProgress(message, isError ? null : 100, isError);\n      const visibilityVersion = exportProgressVisibilityVersion;\n      window.setTimeout(() => {\n        if (!exportInProgress && visibilityVersion === exportProgressVisibilityVersion) setExportProgressVisible(false);\n      }, isError ? 5200 : 1600);\n    }\n\n    function makeExportCancelledError() {\n",
+      "beforeSha256": "e1118b92cd4e5973e426702f1d3db95bb82556fad0f9b99f4df3f66e847eb976",
+      "afterSha256": "fa297f9f64d6f784aac239336db02fde2fc6ce6c32563be6781ec16ae087fff9",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-11-export-selection.js-3",
+      "source": "tools/app/runtime/11-export-selection.js",
+      "beforeSource": "    }\n\n    function finishCancelledExportProgress(message = \"Export cancelled.\") {\n      setExportProgress(message, null, false);\n      window.setTimeout(() => {\n        if (!exportInProgress) setExportProgressVisible(false);\n      }, 900);\n    }\n\n    function cancelCurrentExport() {\n",
+      "afterSource": "    }\n\n    function finishCancelledExportProgress(message = \"Export cancelled.\") {\n      setExportProgress(message, null, false);\n      const visibilityVersion = exportProgressVisibilityVersion;\n      window.setTimeout(() => {\n        if (!exportInProgress && visibilityVersion === exportProgressVisibilityVersion) setExportProgressVisible(false);\n      }, 900);\n    }\n\n    function cancelCurrentExport() {\n",
+      "beforeSha256": "6243ddb505242b28118521927d5d027b82959c32a835dbbb04f4ce96cdb56480",
+      "afterSha256": "97a32c5c7598d1071a3504864cc58cbf13d2db46f01e04bc2e0610813b9d5a2c",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-11-export-selection.js-4",
+      "source": "tools/app/runtime/11-export-selection.js",
+      "beforeSource": "      exportCancelRequested = true;\n      const closeBtn = document.getElementById(\"exportProgressCloseBtn\");\n      if (closeBtn) closeBtn.disabled = true;\n      setExportProgress(\"Cancelling export...\", null, false);\n      if (activeGifExport && typeof activeGifExport.abort === \"function\") {\n        try { activeGifExport.abort(); } catch (_) {}\n      }\n    }\n",
+      "afterSource": "      exportCancelRequested = true;\n      const closeBtn = document.getElementById(\"exportProgressCloseBtn\");\n      if (closeBtn) closeBtn.disabled = true;\n      setExportProgress(\"Cancelling export...\", null, false);\n      cancelGifWorkerLoad();\n      if (activeGifExport && typeof activeGifExport.abort === \"function\") {\n        try { activeGifExport.abort(); } catch (_) {}\n      }\n    }\n",
+      "beforeSha256": "a6aa4648ed8716703f747bd70c5c5a2dd2ad415cb421dd7e118f85b4d713f810",
+      "afterSha256": "82cc6c9b2c7322497996f0d73c012f21214e648ff03e54e4f9aaa6ad1534d733",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-14-export-calendars.js-1",
+      "source": "tools/app/runtime/14-export-calendars.js",
+      "beforeSource": "        exportCancelRequested = false;\n        activeGifExport = null;\n      }\n      exportInProgress = isBusy;\n      const btn = document.getElementById(\"downloadBtn\");\n      const btnLabel = document.getElementById(\"downloadBtnLabel\");\n      const progressCloseBtn = document.getElementById(\"exportProgressCloseBtn\");\n      const scope = document.getElementById(\"downloadScopeSelect\");\n",
+      "afterSource": "        exportCancelRequested = false;\n        activeGifExport = null;\n      }\n      exportInProgress = isBusy;\n      document.getElementById(\"exportProgressOverlay\")?.setAttribute(\"aria-busy\", String(Boolean(isBusy)));\n      const btn = document.getElementById(\"downloadBtn\");\n      const btnLabel = document.getElementById(\"downloadBtnLabel\");\n      const progressCloseBtn = document.getElementById(\"exportProgressCloseBtn\");\n      const scope = document.getElementById(\"downloadScopeSelect\");\n",
+      "beforeSha256": "9118b1dc50850556b57312b5571d36cd76817b46318f47687a48624f0ae10e0b",
+      "afterSha256": "6fee94cc37c1a6b8fde894b533fd8805ab7c0055154c597aab14224c9382f974",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-14-export-calendars.js-2",
+      "source": "tools/app/runtime/14-export-calendars.js",
+      "beforeSource": "      }\n      if (progressCloseBtn) {\n        progressCloseBtn.disabled = false;\n        progressCloseBtn.classList.toggle(\"is-cancel-action\", isBusy);\n        progressCloseBtn.textContent = isBusy ? \"Cancel\" : \"\u00d7\";\n        progressCloseBtn.setAttribute(\"aria-label\", isBusy ? \"Cancel export\" : \"Hide export progress\");\n        progressCloseBtn.title = isBusy ? \"Cancel export\" : \"Hide export progress\";\n      }\n",
+      "afterSource": "      }\n      if (progressCloseBtn) {\n        progressCloseBtn.disabled = false;\n        progressCloseBtn.classList.toggle(\"is-cancel-action\", isBusy);\n        progressCloseBtn.classList.toggle(\"centered-close-control\", !isBusy);\n        progressCloseBtn.textContent = isBusy ? \"Cancel\" : \"\u00d7\";\n        progressCloseBtn.setAttribute(\"aria-label\", isBusy ? \"Cancel export\" : \"Hide export progress\");\n        progressCloseBtn.title = isBusy ? \"Cancel export\" : \"Hide export progress\";\n      }\n",
+      "beforeSha256": "970c97d1a2f960d0c95a9783027e5bee586de80e80ee1687b29e1f8602547828",
+      "afterSha256": "6435250c9c43447eb32db538936488c20e8532e37fa92b5895f702b069630e21",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-15-export-capture.js-1",
+      "source": "tools/app/runtime/15-export-capture.js",
+      "beforeSource": "      }\n      return raw;\n    }\n\n    async function getSameOriginWorkerUrl(sourceUrl) {\n      const response = await fetch(sourceUrl, { mode: \"cors\", cache: \"force-cache\" });\n      if (!response.ok) {\n        throw new Error(`Could not load worker script (${response.status}).`);\n      }\n      const scriptText = await response.text();\n      return URL.createObjectURL(new Blob([scriptText], { type: \"text/javascript\" }));\n    }\n\n    async function waitForExportVectorLayerReady(layer, timeoutMs = 15000) {\n      if (!layer || typeof layer._createMaplibreLayer !== \"function\") return;\n",
+      "afterSource": "      }\n      return raw;\n    }\n\n    function getSameOriginWorkerUrl(sourceUrl, { signal, timeoutMs = 12000 } = {}) {\n      // The deadline covers both response headers and the complete body. A\n      // separate rejection also releases Cancel when a transport ignores abort.\n      return new Promise((resolve, reject) => {\n        const controller = new AbortController();\n        let settled = false;\n        let timer = null;\n        const finish = (error, url = null) => {\n          if (settled) {\n            if (url) URL.revokeObjectURL(url);\n            return;\n          }\n          settled = true;\n          clearTimeout(timer);\n          signal?.removeEventListener(\"abort\", cancelled);\n          if (error) {\n            controller.abort();\n            reject(error);\n          } else {\n            resolve(url);\n          }\n        };\n        const cancelled = () => finish(makeExportCancelledError());\n        signal?.addEventListener(\"abort\", cancelled, { once: true });\n        if (signal?.aborted) {\n          cancelled();\n          return;\n        }\n        timer = setTimeout(() => finish(new Error(\"The GIF worker download took too long. Please try the export again.\")), timeoutMs);\n        Promise.resolve().then(async () => {\n          if (settled) return;\n          const response = await fetch(sourceUrl, { mode: \"cors\", cache: \"force-cache\", signal: controller.signal });\n          if (settled) return;\n          if (!response.ok) throw new Error(`Could not load worker script (${response.status}).`);\n          const scriptText = await response.text();\n          if (settled) return;\n          finish(null, URL.createObjectURL(new Blob([scriptText], { type: \"text/javascript\" })));\n        }).catch(error => finish(error));\n      });\n    }\n\n    async function waitForExportVectorLayerReady(layer, timeoutMs = 15000) {\n      if (!layer || typeof layer._createMaplibreLayer !== \"function\") return;\n",
+      "beforeSha256": "d0c43ddef00f7c70c6116f94babb0e60a9101d32f54c35296777b44db0c8c0e2",
+      "afterSha256": "43ba1b8e10121b9ebcf9a5402b016414801f73cf32cc1a4fa355898ed60365e7",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-15-export-capture.js-2",
+      "source": "tools/app/runtime/15-export-capture.js",
+      "beforeSource": "        }\n      };\n    }\n\n    async function getGifWorkerUrl() {\n      if (gifWorkerUrlPromise) return gifWorkerUrlPromise;\n      gifWorkerUrlPromise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL).catch(error => {\n        gifWorkerUrlPromise = null;\n        throw error;\n      });\n      return gifWorkerUrlPromise;\n    }\n\n    function downloadBlob(blob, filename) {\n",
+      "afterSource": "        }\n      };\n    }\n\n    let gifWorkerLoadRequest = null;\n\n    function cancelGifWorkerLoad() {\n      const request = gifWorkerLoadRequest;\n      if (!request) return;\n      gifWorkerLoadRequest = null;\n      if (gifWorkerUrlPromise === request.promise) gifWorkerUrlPromise = null;\n      request.controller.abort();\n    }\n\n    async function getGifWorkerUrl() {\n      if (gifWorkerUrlPromise) return gifWorkerUrlPromise;\n      const request = { controller: new AbortController(), promise: null };\n      gifWorkerLoadRequest = request;\n      request.promise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL, { signal: request.controller.signal }).then(url => {\n        if (gifWorkerLoadRequest !== request || request.controller.signal.aborted) {\n          URL.revokeObjectURL(url);\n          throw makeExportCancelledError();\n        }\n        return url;\n      }).catch(error => {\n        if (gifWorkerUrlPromise === request.promise) gifWorkerUrlPromise = null;\n        throw error;\n      }).finally(() => {\n        if (gifWorkerLoadRequest === request) gifWorkerLoadRequest = null;\n      });\n      gifWorkerUrlPromise = request.promise;\n      return gifWorkerUrlPromise;\n    }\n\n    function downloadBlob(blob, filename) {\n",
+      "beforeSha256": "74c457a6e46667f4be92579f72c04cbe2cf8c4ce4c0c0a883e0593799133ec63",
+      "afterSha256": "8efed2d60f53344b7ab1bbfe47f7802ce1963be20e645657cfec3bcc7c291962",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-18-flood-frame-rendering.js-1",
+      "source": "tools/app/runtime/18-flood-frame-rendering.js",
+      "beforeSource": "          if (settled || token !== lastRenderToken) return finish(false);\n          if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);\n          await new Promise(requestAnimationFrame);\n          if (settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);\n          try { onReady(); finish(true); }\n          catch (error) { console.warn(\"The flood image could not be displayed.\", error); finish(false); }\n        };\n        const handleError = () => finish(false);\n        const handleRemove = () => { if (currentFloodLayer !== layer) finish(false); };\n",
+      "afterSource": "          if (settled || token !== lastRenderToken) return finish(false);\n          if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);\n          await new Promise(requestAnimationFrame);\n          if (settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);\n          try {\n            const ready = await onReady();\n            if (ready === false || settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);\n            finish(true);\n          }\n          catch (error) { console.warn(\"The flood image could not be displayed.\", error); finish(false); }\n        };\n        const handleError = () => finish(false);\n        const handleRemove = () => { if (currentFloodLayer !== layer) finish(false); };\n",
+      "beforeSha256": "138e06fc1e807d35923a485b55877abd8ede921975a3948fc4922187e866e78d",
+      "afterSha256": "ec68d861a3d4c5046b5dc956257be50bc9c1ac11e5b35fb1c560fd8f64082e70",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-20-timeline-rendering.js-1",
+      "source": "tools/app/runtime/20-timeline-rendering.js",
+      "beforeSource": "          }\n        );\n\n        pendingFloodLayer = nextLayer;\n        return await waitForRecoveryFloodLayer(nextLayer, token, () => {\n          nextLayer.setOpacity(overlayOpacity);\n          nextLayer._floodmapperFrame = frameMetadata;\n        currentFloodLayer = nextLayer;\n          floodFrameState = \"ready\";\n          document.body.dataset.floodFrame = \"ready\";\n          pendingFloodLayer = null;\n  \n",
+      "afterSource": "          }\n        );\n\n        pendingFloodLayer = nextLayer;\n        return await waitForRecoveryFloodLayer(nextLayer, token, async () => {\n          // Leaflet also backs the visible WebGL map. Its hidden image being\n          // decoded is only the first half of a frame commit in pitched 3D.\n          if (typeof window !== \"undefined\" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&\n              !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;\n          if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;\n          nextLayer.setOpacity(overlayOpacity);\n          nextLayer._floodmapperFrame = frameMetadata;\n          currentFloodLayer = nextLayer;\n          floodFrameState = \"ready\";\n          document.body.dataset.floodFrame = \"ready\";\n          pendingFloodLayer = null;\n  \n",
+      "beforeSha256": "a62910683604b1119453dd6397558faac2511ffbd067fed0f3d92faea697fc2d",
+      "afterSha256": "76f0ac8a1ba629ed383413811f07589c40be5010a01a4a50f001e40cc3172944",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-20-timeline-rendering.js-2",
+      "source": "tools/app/runtime/20-timeline-rendering.js",
+      "beforeSource": "        zIndex: 500,\n        pane: \"floodPane\"\n      });\n      pendingFloodLayer = nextLayer;\n      return await waitForRecoveryFloodLayer(nextLayer, token, () => {\n        nextLayer.setOpacity(overlayOpacity);\n        nextLayer._floodmapperFrame = frameMetadata;\n        currentFloodLayer = nextLayer;\n        floodFrameState = \"ready\";\n",
+      "afterSource": "        zIndex: 500,\n        pane: \"floodPane\"\n      });\n      pendingFloodLayer = nextLayer;\n      return await waitForRecoveryFloodLayer(nextLayer, token, async () => {\n        if (typeof window !== \"undefined\" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&\n            !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;\n        if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;\n        nextLayer.setOpacity(overlayOpacity);\n        nextLayer._floodmapperFrame = frameMetadata;\n        currentFloodLayer = nextLayer;\n        floodFrameState = \"ready\";\n",
+      "beforeSha256": "e27490c78dd08afd579d9618a7ec4d72271c5809cc29a3929dcdded89fa4812e",
+      "afterSha256": "44e905cac218018413ae694e5de8345b785223f89763a74834bf5959fba0fb14",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-23-refresh-and-playback.js-1",
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSource": "      modal.setAttribute(\"aria-hidden\", isOpen ? \"false\" : \"true\");\n      if (isOpen) document.getElementById(\"playbackStillThereContinueBtn\")?.focus();\n    }\n\n    function clearPlaybackTimer() {\n      if (playTimer) {\n        clearTimeout(playTimer);\n        clearInterval(playTimer);\n        playTimer = null;\n",
+      "afterSource": "      modal.setAttribute(\"aria-hidden\", isOpen ? \"false\" : \"true\");\n      if (isOpen) document.getElementById(\"playbackStillThereContinueBtn\")?.focus();\n    }\n\n    let playbackGeneration = 0;\n    function clearPlaybackTimer() {\n      ++playbackGeneration;\n      if (playTimer) {\n        clearTimeout(playTimer);\n        clearInterval(playTimer);\n        playTimer = null;\n",
+      "beforeSha256": "9c7f1534a738b0ad775181c77dc0fe730b420ae6fa79fa352986557174ad5fae",
+      "afterSha256": "b6e34b6a88ec635f6d1500eb070e2bb0580e7089c58eb9c25e3448f61178fc5f",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-23-refresh-and-playback.js-2",
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSource": "      }\n\n      playTimer = setTimeout(() => {}, 0);\n      updatePlayPauseButton();\n\n      const loop = async () => {\n        if (!playTimer) return;\n        const frameStartedAt = performance.now();\n        try {\n          await stepPlaybackForward();\n        } catch (err) {\n          toast(err?.message || String(err));\n          stopPlayback();\n          return;\n        }\n        if (!playTimer) return;\n        const renderDurationMs = performance.now() - frameStartedAt;\n        const nextFrameDelayMs = Math.max(\n          PLAYBACK_MINIMUM_FRAME_DELAY_MS,\n          getPlaybackFrameDurationMs() - renderDurationMs\n",
+      "afterSource": "      }\n\n      playTimer = setTimeout(() => {}, 0);\n      updatePlayPauseButton();\n      const generation = playbackGeneration;\n\n      const loop = async () => {\n        if (!playTimer || generation !== playbackGeneration) return;\n        const frameStartedAt = performance.now();\n        try {\n          await stepPlaybackForward();\n        } catch (err) {\n          if (generation !== playbackGeneration) return;\n          toast(err?.message || String(err));\n          stopPlayback();\n          return;\n        }\n        if (!playTimer || generation !== playbackGeneration) return;\n        const renderDurationMs = performance.now() - frameStartedAt;\n        const nextFrameDelayMs = Math.max(\n          PLAYBACK_MINIMUM_FRAME_DELAY_MS,\n          getPlaybackFrameDurationMs() - renderDurationMs\n",
+      "beforeSha256": "e034d314d7432a6ab88dab16da7f9162c2825408844f34bec3d0007a30e8c775",
+      "afterSha256": "9fdb6e537f0cba1fccb0d11b1e02a9ad2d9381d3202d4572cee7a5073258acf9",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-26-depth-queries.js-1",
+      "source": "tools/app/runtime/26-depth-queries.js",
+      "beforeSource": "    function loadDepthQueryPng(url) {\n      return new Promise((resolve, reject) => {\n        const image = new Image();\n        image.crossOrigin = \"anonymous\";\n        image.decoding = \"async\";\n        image.onload = () => {\n          try {\n",
+      "afterSource": "    function loadDepthQueryPng(url) {\n      return new Promise((resolve, reject) => {\n        const image = new Image();\n        let settled = false;\n        const timer = window.setTimeout(() => {\n          const error = new Error(\"Packed depth-query PNG took too long to load. Please try again.\");\n          error.name = \"TimeoutError\";\n          finish(error);\n        }, 20000);\n        const finish = (error, grid) => {\n          if (settled) return;\n          settled = true;\n          window.clearTimeout(timer);\n          image.onload = image.onerror = null;\n          if (error) {\n            try { image.src = \"\"; } catch (_) {}\n            reject(error);\n          } else resolve(grid);\n        };\n        image.crossOrigin = \"anonymous\";\n        image.decoding = \"async\";\n        image.onload = () => {\n          try {\n",
+      "beforeSha256": "8ebaa771893dd3cc75dd052b1ddda55b2ed3484b6eef9b5c20edc0ec670d6205",
+      "afterSha256": "638387c35c7a45a8ba13798867c0dc7445e19f392dc6458c338032598d5ec668",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-26-depth-queries.js-2",
+      "source": "tools/app/runtime/26-depth-queries.js",
+      "beforeSource": "            canvas.height = image.naturalHeight;\n            const context = canvas.getContext(\"2d\", { willReadFrequently: true });\n            if (!context) throw new Error(\"Could not create the depth-query canvas.\");\n            context.drawImage(image, 0, 0);\n            resolve({\n              width: canvas.width,\n              height: canvas.height,\n              values: context.getImageData(0, 0, canvas.width, canvas.height).data\n            });\n          } catch (error) {\n            reject(error);\n          }\n        };\n        image.onerror = () => reject(new Error(\"Packed depth-query PNG could not be loaded.\"));\n        image.src = url;\n      });\n    }\n\n    async function getDepthQueryGrid() {\n      if (!DEPTH_QUERY_PNG_URL) return null;\n      if (!depthQueryGridPromise) {\n        depthQueryGridPromise = (async () => {\n          let lastError = null;\n          for (let attempt = 0; attempt < 2; attempt += 1) {\n            try {\n              const url = new URL(DEPTH_QUERY_PNG_URL);\n              if (attempt) url.searchParams.set(\"_retry\", String(Date.now()));\n              return await loadDepthQueryPng(url.href);\n            } catch (error) {\n              lastError = error;\n            }\n          }\n          throw lastError || new Error(\"Packed depth-query PNG is unavailable.\");\n        })().catch(error => {\n          depthQueryGridPromise = null;\n          throw error;\n        });\n      }\n      return depthQueryGridPromise;\n    }\n\n    async function getDevelopedQueryGrid() {\n      if (!DEVELOPED_QUERY_PNG_URL) return null;\n      if (!developedQueryGridPromise) {\n        developedQueryGridPromise = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)\n          .catch(error => {\n            developedQueryGridPromise = null;\n            throw error;\n          });\n      }\n      return developedQueryGridPromise;\n    }\n\n    async function getDepthQueryImage() {\n      if (!DEPTH_QUERY_COG_URL) throw new Error(\"Depth query COG is not configured.\");\n",
+      "afterSource": "            canvas.height = image.naturalHeight;\n            const context = canvas.getContext(\"2d\", { willReadFrequently: true });\n            if (!context) throw new Error(\"Could not create the depth-query canvas.\");\n            context.drawImage(image, 0, 0);\n            finish(null, {\n              width: canvas.width,\n              height: canvas.height,\n              values: context.getImageData(0, 0, canvas.width, canvas.height).data\n            });\n          } catch (error) {\n            finish(error);\n          }\n        };\n        image.onerror = () => finish(new Error(\"Packed depth-query PNG could not be loaded.\"));\n        image.src = url;\n      });\n    }\n\n    async function getDepthQueryGrid() {\n      if (!DEPTH_QUERY_PNG_URL) return null;\n      if (!depthQueryGridPromise) {\n        const request = (async () => {\n          let lastError = null;\n          for (let attempt = 0; attempt < 2; attempt += 1) {\n            try {\n              const url = new URL(DEPTH_QUERY_PNG_URL);\n              if (attempt) url.searchParams.set(\"_retry\", String(Date.now()));\n              return await loadDepthQueryPng(url.href);\n            } catch (error) {\n              // A stalled transport has already used its full deadline. Let\n              // the frame controller/user retry instead of doubling that wait.\n              if (error?.name === \"TimeoutError\") throw error;\n              lastError = error;\n            }\n          }\n          throw lastError || new Error(\"Packed depth-query PNG is unavailable.\");\n        })().catch(error => {\n          if (depthQueryGridPromise === request) depthQueryGridPromise = null;\n          throw error;\n        });\n        depthQueryGridPromise = request;\n      }\n      return awaitRasterRequest(depthQueryGridPromise);\n    }\n\n    async function getDevelopedQueryGrid() {\n      if (!DEVELOPED_QUERY_PNG_URL) return null;\n      if (!developedQueryGridPromise) {\n        const request = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)\n          .catch(error => {\n            if (developedQueryGridPromise === request) developedQueryGridPromise = null;\n            throw error;\n          });\n        developedQueryGridPromise = request;\n      }\n      return awaitRasterRequest(developedQueryGridPromise);\n    }\n\n    async function getDepthQueryImage() {\n      if (!DEPTH_QUERY_COG_URL) throw new Error(\"Depth query COG is not configured.\");\n",
+      "beforeSha256": "8d58fbc08682cde4f75ce2a611249687fe0a2a5835f7bc685290ce2a074c7b4b",
+      "afterSha256": "6e12a6a8a1d42f614c546b339298c0d6cb3ecdab7ce64d341d32c750677a45c7",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-styles-style-002.css-1",
+      "source": "tools/app/styles/style-002.css",
+      "beforeSource": "\n}\n/* One ordering and one set of dimensions for every renderer. */\n@layer floodmapper-unified-polish {\n html body[data-floodmapper-unified] #nativeRoadNamesHint {display:none!important;}\n html body[data-floodmapper-unified] #roadImpactsKey[hidden] {display:none!important;}\n html body[data-floodmapper-unified] .top-tide-more-btn .unified-more-plus {color:#60a5fa!important;background:transparent!important;border:0!important;box-shadow:none!important;width:auto!important;height:auto!important;}\n html body[data-floodmapper-unified] #legendCollapseBtn {display:none!important;}\n",
+      "afterSource": "\n}\n/* One ordering and one set of dimensions for every renderer. */\n@layer floodmapper-unified-polish {\n /* Native minimum font sizes can wrap every choice group onto more lines.\n    Keep each control's normal minimum size while its row grows with its text. */\n html body[data-floodmapper-unified] #leftPanel :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle,.return-interval-grid) {\n   height:auto!important;max-height:none!important;align-items:stretch!important;\n }\n html body[data-floodmapper-unified] #leftPanel :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle,.return-interval-grid) > button {\n   height:auto!important;max-height:none!important;min-width:0!important;\n   white-space:normal!important;overflow-wrap:anywhere!important;overflow:visible!important;\n }\n @media(max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {\n  html body[data-floodmapper-unified] #leftPanel #timelineIntervalToggle,\n  html body[data-floodmapper-unified] #leftPanel :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle) > button {\n    min-height:48px!important;\n  }\n  html body[data-floodmapper-unified] #nwwMobileControlHeader h2 {line-height:1.714285714!important;}\n  html body[data-floodmapper-unified] #nwwMobileControlHeader p {line-height:1.333333333!important;}\n }\n html body[data-floodmapper-unified] #nativeRoadNamesHint {display:none!important;}\n html body[data-floodmapper-unified] #roadImpactsKey[hidden] {display:none!important;}\n html body[data-floodmapper-unified] .top-tide-more-btn .unified-more-plus {color:#60a5fa!important;background:transparent!important;border:0!important;box-shadow:none!important;width:auto!important;height:auto!important;}\n html body[data-floodmapper-unified] #legendCollapseBtn {display:none!important;}\n",
+      "beforeSha256": "c6001af17532950f60f12bb86628f6c918ace19739adbb869c0437f8faf147b3",
+      "afterSha256": "609df08c641ecd401217b58552c5ce40ba5847906abd7c33ba95e3075eddc095",
+      "kind": "style",
+      "entryId": "style-002"
+    },
+    {
+      "id": "tools-app-town-config.js-1",
+      "source": "tools/app/town-config.js",
+      "beforeSource": "async function preloadNorthWildwoodExperience(mainPromise) {\n  // The initial 2D flood map is sufficient to make the app usable. The 3D\n  // launcher owns runtime, terrain, and building loading when selected.\n  await Promise.allSettled([mainPromise]);\n  document.body.dataset.sitePreload = \"complete\";\n  document.body.dataset.sitePreloadBlockingPolicy = \"initial-flood-renderer-3d-on-demand\";\n  document.body.dataset.sitePreloadAvoidedBytes = \"3d-observed-parcels-nsi-export-libraries\";\n  document.body.dataset.map3dDeferredWarmup = \"on-demand-no-background-camera-traversal\";\n  document.body.classList.add(\"nw-app-ready\");\n}\n\nconst northWildwoodMainPromise = main().catch(err => {\n  console.error(err);\n  toast(err.message);\n  return null;\n});\n",
+      "afterSource": "async function preloadNorthWildwoodExperience(mainPromise) {\n  // The initial 2D flood map is sufficient to make the app usable. The 3D\n  // launcher owns runtime, terrain, and building loading when selected.\n  await Promise.allSettled([mainPromise]);\n  if (!window.floodmapperMapDependenciesReady) return;\n  document.body.dataset.sitePreload = \"complete\";\n  document.body.dataset.sitePreloadBlockingPolicy = \"initial-flood-renderer-3d-on-demand\";\n  document.body.dataset.sitePreloadAvoidedBytes = \"3d-observed-parcels-nsi-export-libraries\";\n  document.body.dataset.map3dDeferredWarmup = \"on-demand-no-background-camera-traversal\";\n  document.body.classList.add(\"nw-app-ready\");\n}\n\nwindow.floodmapperMapDependenciesReady = Boolean(window.L && typeof L.map === 'function');\nif (!window.floodmapperMapDependenciesReady) window.dispatchEvent(new Event('nww:map-dependency-error'));\nconst northWildwoodMainPromise = (window.floodmapperMapDependenciesReady ? main() : Promise.resolve(null)).catch(err => {\n  console.error(err);\n  toast(err.message);\n  return null;\n});\n",
+      "beforeSha256": "4a65e6d2281bb0c758f7ef405fb70b831ddcf3c48acdcfafe0f4c818b4fca281",
+      "afterSha256": "b84ccd1a8d01a527510275aee9b467fbfaf304c086fd951539f16ab5c349d212",
+      "kind": "script",
+      "entryId": "script-007"
+    }
+  ],
+  "externalChanges": [
+    {
+      "id": "assets-3d-north-wildwood-3d.js-1",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "  var buildingDataPromise = null;\n  var mapLibreRuntimePromise = null;\n  var mapStylePromise = null;\n  var floodPlaneLayer = null;\n  var floodRemovalTimer = null;\n  var syncingFromLeaflet = false;\n  var syncingFrom3d = false;\n  var syncingModeTransition = false;\n",
+      "afterSource": "  var buildingDataPromise = null;\n  var mapLibreRuntimePromise = null;\n  var mapStylePromise = null;\n  var floodPlaneLayer = null;\n  var pendingFlood3dRequest = null;\n  var floodRemovalTimer = null;\n  var syncingFromLeaflet = false;\n  var syncingFrom3d = false;\n  var syncingModeTransition = false;\n",
+      "beforeSha256": "3ba1583cf0cb67974905d888bb90c2b8fe2073b197190d72a984d8e041f95384",
+      "afterSha256": "d15f931964b75b444934426759df3c8fd86a1fcf6f151f3485b4df0f505d611b"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-2",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "      imageToken: 0,\n      committedUrl: \"\",\n      cancelTextureLoad: null,\n      retiredTextures: [],\n      pendingFrame: { coordinates: initial.coordinates || null, altitudeMeters: Number(initial.altitudeMeters) || 0 },\n      url: initial.url || \"\",\n      coordinates: initial.coordinates || null,\n      altitudeMeters: Number(initial.altitudeMeters) || 0,\n      opacity: Number.isFinite(Number(initial.opacity)) ? Number(initial.opacity) : 0.75,\n",
+      "afterSource": "      imageToken: 0,\n      committedUrl: \"\",\n      cancelTextureLoad: null,\n      retiredTextures: [],\n      pendingFrame: { coordinates: initial.coordinates || null, altitudeMeters: Number(initial.altitudeMeters) || 0, isCurrent: initial.isCurrent || null },\n      url: initial.url || \"\",\n      coordinates: initial.coordinates || null,\n      altitudeMeters: Number(initial.altitudeMeters) || 0,\n      opacity: Number.isFinite(Number(initial.opacity)) ? Number(initial.opacity) : 0.75,\n",
+      "beforeSha256": "218de6506f648985a874f23d8fbee3a5290916a82c2050fa3b54e4c7e850f489",
+      "afterSha256": "737c2494131b6b4148d3ba9511be001bc7b3425d6c1554877167808a358f82b4"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-3",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "          image.onload = async function () {\n            var replacement = null;\n            try {\n              if (typeof image.decode === \"function\") await image.decode();\n              if (settled || token !== self.imageToken || !self.gl || !self.texture) return finish(false);\n              var gl = self.gl;\n              var priorActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE);\n              var priorFlipY = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);\n              var priorPremultiplyAlpha = gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);\n              gl.activeTexture(gl.TEXTURE0);\n              var priorTexture0 = gl.getParameter(gl.TEXTURE_BINDING_2D);\n              try {\n                // Upload into a candidate texture. A decode/GPU failure cannot\n                // damage the last complete image that is still on screen.\n                replacement = gl.createTexture();\n                if (!replacement) throw new Error(\"The next flood texture could not be allocated.\");\n",
+      "afterSource": "          image.onload = async function () {\n            var replacement = null;\n            try {\n              if (typeof image.decode === \"function\") await image.decode();\n              if (settled || token !== self.imageToken || !self.gl || !self.texture || self.gl.isContextLost?.() ||\n                  self.pendingFrame?.isCurrent && !self.pendingFrame.isCurrent()) return finish(false);\n              var gl = self.gl;\n              var priorActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE);\n              var priorFlipY = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);\n              var priorPremultiplyAlpha = gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);\n              gl.activeTexture(gl.TEXTURE0);\n              var priorTexture0 = gl.getParameter(gl.TEXTURE_BINDING_2D);\n              try {\n                // MapLibre shares this context. Attribute only errors from\n                // this upload to the candidate, rather than an earlier draw.\n                if (gl.getError) for (var errorIndex = 0; errorIndex < 8 && gl.getError() !== gl.NO_ERROR; errorIndex += 1) {}\n                // Upload into a candidate texture. A decode/GPU failure cannot\n                // damage the last complete image that is still on screen.\n                replacement = gl.createTexture();\n                if (!replacement) throw new Error(\"The next flood texture could not be allocated.\");\n",
+      "beforeSha256": "ac3f12d1a4d7fba32bc4973ed4c060ecd26c0b5d3bf5e7c14caf671dc95bc6de",
+      "afterSha256": "7ddade571b555a9da838f99f2268382bde5f8b34c1acb9acf6a28211b5cefbd3"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-4",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "                gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);\n                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);\n                gl.generateMipmap(gl.TEXTURE_2D);\n                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);\n              } finally {\n                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, priorFlipY);\n                gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, priorPremultiplyAlpha);\n                gl.bindTexture(gl.TEXTURE_2D, priorTexture0);\n",
+      "afterSource": "                gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);\n                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);\n                gl.generateMipmap(gl.TEXTURE_2D);\n                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);\n                if (gl.isContextLost?.() || gl.getError && gl.getError() !== gl.NO_ERROR) {\n                  throw new Error(\"The next flood texture could not be uploaded.\");\n                }\n              } finally {\n                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, priorFlipY);\n                gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, priorPremultiplyAlpha);\n                gl.bindTexture(gl.TEXTURE_2D, priorTexture0);\n",
+      "beforeSha256": "ae56432c3652677eb559d5367ad14df85bcff296c5229d8fb14ff5d645b152a1",
+      "afterSha256": "286ee0793f0b70b9b0660db90e98fa5eb5469e9ed6eb31407fcc04826ef58295"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-5",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "\n      update: function (next) {\n        var priorUrl = this.url;\n        this.url = next.url || \"\";\n        this.pendingFrame = { coordinates: next.coordinates || null, altitudeMeters: Number(next.altitudeMeters) || 0 };\n        this.opacity = Math.max(0, Math.min(1, Number(next.opacity)));\n        this.useDepthTest = next.useDepthTest !== false;\n        if (this.textureReady && this.committedUrl === this.url) {\n          if (this.cancelTextureLoad) { this.imageToken += 1; this.cancelTextureLoad(); }\n",
+      "afterSource": "\n      update: function (next) {\n        var priorUrl = this.url;\n        this.url = next.url || \"\";\n        this.pendingFrame = { coordinates: next.coordinates || null, altitudeMeters: Number(next.altitudeMeters) || 0, isCurrent: next.isCurrent || null };\n        this.opacity = Math.max(0, Math.min(1, Number(next.opacity)));\n        this.useDepthTest = next.useDepthTest !== false;\n        if (this.textureReady && this.committedUrl === this.url) {\n          if (this.cancelTextureLoad) { this.imageToken += 1; this.cancelTextureLoad(); }\n",
+      "beforeSha256": "d6656481cdc4ce00b89f82c1858b8237fca31c607f433f97564336227b651c9a",
+      "afterSha256": "1f7eb4d50459c3ac1fa16dcfb468202db1bda6e5e070cfadf65acaf3c2ac093b"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-6",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "  }\n\n  function syncFloodLayer3d() {\n    if (!glMap || !glStyleReady) return;\n    var url = currentFloodLayer && (currentFloodLayer._url || currentFloodLayer._image && currentFloodLayer._image.src);\n    var coordinates = activeFloodCoordinates();\n    if (!url || !coordinates) {\n      syncBuildingWaterComposite3d(null);\n      if (floodRemovalTimer) window.clearTimeout(floodRemovalTimer);\n      // Selection metadata has already changed; a previous texture is stale.\n",
+      "afterSource": "  }\n\n  function syncFloodLayer3d() {\n    if (!glMap || !glStyleReady) return;\n    var request = pendingFlood3dRequest && pendingFlood3dRequest.isCurrent() ? pendingFlood3dRequest : null;\n    var selectedLayer = request ? request.layer : currentFloodLayer;\n    var url = selectedLayer && (selectedLayer._url || selectedLayer._image && selectedLayer._image.src);\n    var coordinates = selectedLayer?._worldFileAffine && selectedLayer._worldFileCorners\n      ? selectedLayer._worldFileCorners.map(function (corner) { return [corner.lng, corner.lat]; })\n      : coordinatesFromLeafletBounds(selectedLayer?.getBounds?.()) || activeFloodCoordinates();\n    if (!url || !coordinates) {\n      syncBuildingWaterComposite3d(null);\n      if (floodRemovalTimer) window.clearTimeout(floodRemovalTimer);\n      // Selection metadata has already changed; a previous texture is stale.\n",
+      "beforeSha256": "af029365361520999ba3c490366ad51b5d5cb7c9c4634a5dc8972f2bb5ff0288",
+      "afterSha256": "c37725b12de879626ed3c30bc83932f3e9fd57390b3ecd2a55979e69e156c778"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-7",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "    if (floodRemovalTimer) {\n      window.clearTimeout(floodRemovalTimer);\n      floodRemovalTimer = null;\n    }\n    var stageNavd88 = getSelectedStageNavd88();\n    var pitched = glMap.getPitch() > 10;\n    var physicalAltitudeMeters = Number.isFinite(stageNavd88)\n      ? stageNavd88 * 0.3048 * TERRAIN_EXAGGERATION\n      : 0;\n",
+      "afterSource": "    if (floodRemovalTimer) {\n      window.clearTimeout(floodRemovalTimer);\n      floodRemovalTimer = null;\n    }\n    var stageNavd88 = request ? request.frame.stage : getSelectedStageNavd88();\n    var pitched = glMap.getPitch() > 10;\n    var physicalAltitudeMeters = Number.isFinite(stageNavd88)\n      ? stageNavd88 * 0.3048 * TERRAIN_EXAGGERATION\n      : 0;\n",
+      "beforeSha256": "1294d90ba764381d7252c1d3d64ccd276b239d07d9c615ff66672ab4d093c313",
+      "afterSha256": "4312b7c731728f00cf4e7617ae3012510444379f6bcc2c6b0f9688a0bc9e6c6f"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-8",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "      coordinates: coordinates,\n      opacity: overlayOpacity,\n      visible: pitched,\n      useDepthTest: usesDetailedFloodDepth(),\n      altitudeMeters: physicalAltitudeMeters\n    };\n    // Top-down mode uses MapLibre's native image source, which remains in one\n    // stable style layer while the camera pans or rotates. The preloaded flat\n",
+      "afterSource": "      coordinates: coordinates,\n      opacity: overlayOpacity,\n      visible: pitched,\n      useDepthTest: usesDetailedFloodDepth(),\n      isCurrent: request ? request.isCurrent : null,\n      altitudeMeters: physicalAltitudeMeters\n    };\n    // Top-down mode uses MapLibre's native image source, which remains in one\n    // stable style layer while the camera pans or rotates. The preloaded flat\n",
+      "beforeSha256": "c9bc233294be564085ce7b594b031fbcb36d25aef3b9560f1c55b78b380a7175",
+      "afterSha256": "8b02e8e1747bfa5120f9af58aa07dd350f3ead8e6c280a0cdedc825d9b1cdb99"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-9",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "      ? \"world-file-quadrilateral\"\n      : \"axis-aligned\";\n    document.body.dataset.map3dFloodAltitudeMeters = options.altitudeMeters.toFixed(3);\n    document.body.dataset.map3dFloodPhysicalAltitudeMeters = physicalAltitudeMeters.toFixed(3);\n  }\n\n  function syncSatellite3d() {\n    if (!glMap || !glStyleReady || !glMap.getLayer(\"nw-satellite\")) return;\n",
+      "afterSource": "      ? \"world-file-quadrilateral\"\n      : \"axis-aligned\";\n    document.body.dataset.map3dFloodAltitudeMeters = options.altitudeMeters.toFixed(3);\n    document.body.dataset.map3dFloodPhysicalAltitudeMeters = physicalAltitudeMeters.toFixed(3);\n  }\n\n  async function prepareFloodFrame3d(layer, frame, token) {\n    if (!glMap || !document.body.classList.contains(\"map-3d-ready\") || glMap.getPitch() <= 10) return true;\n    if (!glStyleReady || document.body.dataset.map3d !== \"ready\") return false;\n    var requestedMap = glMap;\n    var request = { layer: layer, frame: frame, token: token, isCurrent: function () {\n      return pendingFlood3dRequest === request && glMap === requestedMap && glStyleReady &&\n        token === lastRenderToken && pendingFloodLayer === layer && map?.hasLayer(layer);\n    } };\n    pendingFlood3dRequest = request;\n    var accepted = false;\n    try {\n      syncFloodLayer3d();\n      var plane = floodPlaneLayer;\n      var url = layer._url || layer.getElement?.()?.src;\n      var ready = plane ? await plane.whenReady() : false;\n      accepted = Boolean(ready && request.isCurrent() && plane === floodPlaneLayer &&\n        plane.textureReady && plane.committedUrl === url);\n      return accepted;\n    } finally {\n      if (pendingFlood3dRequest === request) {\n        pendingFlood3dRequest = null;\n        // Failed/obsolete candidates must not change the committed frame's\n        // water height, texture or native image source.\n        if (!accepted) syncFloodLayer3d();\n      }\n    }\n  }\n\n  function discardObsoleteFloodFrame3d() {\n    if (!pendingFlood3dRequest || pendingFlood3dRequest.isCurrent()) return;\n    pendingFlood3dRequest = null;\n    if (floodPlaneLayer?.cancelTextureLoad) floodPlaneLayer.cancelTextureLoad();\n    syncFloodLayer3d();\n  }\n\n  function syncSatellite3d() {\n    if (!glMap || !glStyleReady || !glMap.getLayer(\"nw-satellite\")) return;\n",
+      "beforeSha256": "83dcf057d564e547e445b09956a9adee95e00388606700a153d4461cdfe0cbb9",
+      "afterSha256": "5e0fbb80acaca95fdf3af25a067c6b74d28a86869407081f5f13a5155b265b08"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-10",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "  };\n\n  var originalUpdatePersistentDepthQueryPopup = updatePersistentDepthQueryPopup;\n  updatePersistentDepthQueryPopup = function () {\n    closeOutdatedFallbackBuildingPopup();\n    var result = originalUpdatePersistentDepthQueryPopup.apply(this, arguments);\n    if (glPopup && persistentFloodPopup && typeof persistentFloodPopup.getContent === \"function\") {\n      var html = String(persistentFloodPopup.getContent() || \"\");\n",
+      "afterSource": "  };\n\n  var originalUpdatePersistentDepthQueryPopup = updatePersistentDepthQueryPopup;\n  updatePersistentDepthQueryPopup = function () {\n    discardObsoleteFloodFrame3d();\n    closeOutdatedFallbackBuildingPopup();\n    var result = originalUpdatePersistentDepthQueryPopup.apply(this, arguments);\n    if (glPopup && persistentFloodPopup && typeof persistentFloodPopup.getContent === \"function\") {\n      var html = String(persistentFloodPopup.getContent() || \"\");\n",
+      "beforeSha256": "698e2c103020386ec983b5c2bd7938639f114e5fd17a6b8459881a35fb9375e4",
+      "afterSha256": "febcdcff06aa21a93d56570b979e6ad3f63ab4e64449416a2b5c871d30476150"
+    },
+    {
+      "id": "assets-3d-north-wildwood-3d.js-11",
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSource": "    getMap: function () { return glMap; },\n    setAddressMarker: setAddressMarker,\n    getBuildingData: function () { return buildingData; },\n    syncFlood: syncFloodLayer3d,\n    syncBuildings: syncBuildings3d,\n    state: function () {\n      return {\n        ready: document.body.classList.contains(\"map-3d-ready\"),\n",
+      "afterSource": "    getMap: function () { return glMap; },\n    setAddressMarker: setAddressMarker,\n    getBuildingData: function () { return buildingData; },\n    syncFlood: syncFloodLayer3d,\n    prepareFloodFrame: prepareFloodFrame3d,\n    syncBuildings: syncBuildings3d,\n    state: function () {\n      return {\n        ready: document.body.classList.contains(\"map-3d-ready\"),\n",
+      "beforeSha256": "a7f42726e539431e17641f00f297b987c442f40bbb807b7e66eadd281dd1f094",
+      "afterSha256": "33299cc2d846a312b0780c781702bef7a57dbac9269afcbb9047415f113294f4"
+    },
+    {
+      "id": "assets-modal-focus.js-1",
+      "source": "assets/modal-focus.js",
+      "beforeSource": "      let restoreTarget = null;\n      while (stack.length && !dialogs.includes(stack.at(-1).dialog)) restoreTarget = stack.pop().restore;\n      // Remove closed lower dialogs without disturbing an open nested dialog.\n      for (let index = stack.length - 1; index >= 0; index--) {\n        if (!dialogs.includes(stack[index].dialog)) stack.splice(index, 1);\n      }\n      for (const dialog of dialogs) {\n        if (stack.some(item => item.dialog === dialog)) continue;\n        const candidate = stack.length ? previousFocus : (lastTrigger || previousFocus);\n        stack.push({ dialog, restore: candidate && !dialog.contains(candidate) ? candidate : null });\n        lastTrigger = null;\n      }\n      const top = stack.at(-1);\n",
+      "afterSource": "      let restoreTarget = null;\n      while (stack.length && !dialogs.includes(stack.at(-1).dialog)) restoreTarget = stack.pop().restore;\n      // Remove closed lower dialogs without disturbing an open nested dialog.\n      for (let index = stack.length - 1; index >= 0; index--) {\n        if (!dialogs.includes(stack[index].dialog)) {\n          const closed = stack[index];\n          // Completion can close progress while a nested dialog remains open.\n          // Its eventual close must restore the original visible trigger.\n          for (const child of stack.slice(index + 1)) {\n            if (child.restore && closed.dialog.contains(child.restore)) child.restore = closed.restore;\n          }\n          stack.splice(index, 1);\n        }\n      }\n      for (const dialog of dialogs) {\n        if (stack.some(item => item.dialog === dialog)) continue;\n        const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);\n        stack.push({ dialog, restore: candidate && !dialog.contains(candidate) ? candidate : null });\n        lastTrigger = null;\n      }\n      const top = stack.at(-1);\n",
+      "beforeSha256": "977f365b66294a3b91b9148ed12e3eba7b673827a4f0a5c7861488d57416032c",
+      "afterSha256": "b3400621a51f3ee92ea06f2f42a0116284e0b7d741a35444df87e545d262a7f3"
+    },
+    {
+      "id": "assets-north-wildwood-loading.css-1",
+      "source": "assets/north-wildwood-loading.css",
+      "beforeSource": "    @keyframes nwLoaderOrbit{to{transform:rotate(360deg)}}\n    @keyframes nwAppFadeIn{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:none}}\n    @media (prefers-reduced-motion:reduce){#nwSiteLoader::before,#nwSiteLoader::after,.nw-loader-spinner,.nw-loader-spinner::before{animation-duration:1ms;animation-iteration-count:1}body.nw-app-ready:not(.nw-app-loading) #app,body.nw-app-ready:not(.nw-app-loading) #topBanner{animation:none}}\n#nwSiteLoader[hidden]{display:none}\n",
+      "afterSource": "    @keyframes nwLoaderOrbit{to{transform:rotate(360deg)}}\n    @keyframes nwAppFadeIn{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:none}}\n    @media (prefers-reduced-motion:reduce){#nwSiteLoader::before,#nwSiteLoader::after,.nw-loader-spinner,.nw-loader-spinner::before{animation-duration:1ms;animation-iteration-count:1}body.nw-app-ready:not(.nw-app-loading) #app,body.nw-app-ready:not(.nw-app-loading) #topBanner{animation:none}}\n#nwSiteLoader[hidden]{display:none}\n#nwLoaderRetry[hidden]{display:none}\n#nwLoaderRetry{margin-top:18px;min-height:44px;padding:10px 18px;border:1px solid #93c5fd;border-radius:10px;background:#1d4ed8;color:#fff;font:inherit;font-size:14px;font-weight:700;line-height:1.3;cursor:pointer}\n#nwLoaderRetry:focus-visible{outline:3px solid #7df9ff;outline-offset:4px}\n#nwLoaderRetry:disabled{cursor:wait;opacity:.75}\n",
+      "beforeSha256": "03032fc0b4002cf4d58ba3a74d9dc4dd1b78d4acc4af79b614031eef6e688856",
+      "afterSha256": "909cd98db4212ca662462f27182c65f965af156b09106c6886380beea3eb0c7c"
+    },
+    {
+      "id": "assets-north-wildwood-loading.js-1",
+      "source": "assets/north-wildwood-loading.js",
+      "beforeSource": "      setNorthWildwoodLoadingState(simulatedProgress);\n    }, 240);\n    const background = new Map();\n    const observer = new MutationObserver(checkReady);\n    app.setAttribute('aria-busy', 'true');\n    function isolateControls() {\n      // Mobile places its Controls and Key buttons outside the app container.\n      for (const id of ['app', 'mobileControlsToggle', 'legendDock']) {\n        const element = document.getElementById(id);\n",
+      "afterSource": "      setNorthWildwoodLoadingState(simulatedProgress);\n    }, 240);\n    const background = new Map();\n    const observer = new MutationObserver(checkReady);\n    const retry = document.getElementById('nwLoaderRetry');\n    app.setAttribute('aria-busy', 'true');\n    retry?.addEventListener('click', () => {\n      retry.disabled = true;\n      retry.textContent = 'Reloading map\u2026';\n      window.location.reload();\n    });\n    window.addEventListener('nww:map-dependency-error', showDependencyFailure);\n    function isolateControls() {\n      // Mobile places its Controls and Key buttons outside the app container.\n      for (const id of ['app', 'mobileControlsToggle', 'legendDock']) {\n        const element = document.getElementById(id);\n",
+      "beforeSha256": "67991500ac8d48b1217b3df8e29c74b0eb8ddd92515b441ee15e6c80f4e02ec1",
+      "afterSha256": "7dd51301c73002ce7e29176a76d82b1642b7f0024b32a9b13f9f01770afff386"
+    },
+    {
+      "id": "assets-north-wildwood-loading.js-2",
+      "source": "assets/north-wildwood-loading.js",
+      "beforeSource": "      document.body.dataset.siteLoader = reason;\n      document.body.classList.remove('nw-app-loading');\n      for (const [element, inert] of background) element.inert = inert;\n      app.setAttribute('aria-busy', 'false');\n      loader.classList.add('is-fading');\n      loader.setAttribute('aria-hidden', 'true');\n      const hide = () => { loader.hidden = true; };\n      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) hide();\n      else setTimeout(hide, 700);\n    }\n    function finish(reason) {\n      if (finished) return;\n      finished = true;\n      clearTimeout(deadline);\n      clearInterval(progressTimer);\n      observer.disconnect();\n      if (reason === 'timeout') { reveal(reason); return; }\n      setNorthWildwoodLoadingState(100, 'Floodmapper ready');\n      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) reveal(reason);\n      else {\n        // Preserve the original minimum display, completion pause and fade.\n        const remaining = Math.max(0, 800 - (performance.now() - startedAt));\n        setTimeout(() => reveal(reason), remaining + 260);\n      }\n    }\n    function checkReady() {\n      if (document.body.classList.contains('nw-app-ready')) finish('complete');\n",
+      "afterSource": "      document.body.dataset.siteLoader = reason;\n      document.body.classList.remove('nw-app-loading');\n      for (const [element, inert] of background) element.inert = inert;\n      app.setAttribute('aria-busy', 'false');\n      const hadLoaderFocus = loader.contains?.(document.activeElement);\n      loader.classList.add('is-fading');\n      loader.setAttribute('aria-hidden', 'true');\n      if (hadLoaderFocus) {\n        for (const id of ['mobileControlsToggle', 'dataSourceHelpBtn']) {\n          const target = document.getElementById(id);\n          if (target && !target.closest('[inert]') && target.getClientRects().length) {\n            target.focus({preventScroll:true});\n            break;\n          }\n        }\n      }\n      const hide = () => { loader.hidden = true; };\n      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) hide();\n      else setTimeout(hide, 700);\n    }\n    function finish(reason) {\n      if (finished) return;\n      if (reason === 'timeout' && !window.floodmapperMapDependenciesReady) {\n        showDependencyFailure();\n        return;\n      }\n      finished = true;\n      clearTimeout(deadline);\n      clearInterval(progressTimer);\n      observer.disconnect();\n      window.removeEventListener('nww:map-dependency-error', showDependencyFailure);\n      if (reason === 'timeout') { reveal(reason); return; }\n      setNorthWildwoodLoadingState(100, 'Floodmapper ready');\n      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) reveal(reason);\n      else {\n        // Preserve the original minimum display, completion pause and fade.\n        const remaining = Math.max(0, 800 - (performance.now() - startedAt));\n        setTimeout(() => reveal(reason), remaining + 260);\n      }\n    }\n    function showDependencyFailure() {\n      if (finished) return;\n      clearTimeout(deadline);\n      clearInterval(progressTimer);\n      document.body.dataset.siteLoader = 'dependency-error';\n      setNorthWildwoodLoadingState(undefined, 'Map components could not load. Check your connection and try again.');\n      // Keep unfinished controls isolated. A late successful startup can still\n      // signal readiness through the observer and reveal the usable map.\n      if (retry) {\n        retry.hidden = false;\n        retry.focus({preventScroll:true});\n      }\n    }\n    function checkReady() {\n      if (document.body.classList.contains('nw-app-ready')) finish('complete');\n",
+      "beforeSha256": "98b7ef81c0f5ddf3d584147be57a6010c9b5d9afecdbdc53c4fdb03570252eb1",
+      "afterSha256": "d7534740ca5c60ffc0f1b37a9273bca8608e219c1e55ad018e66e4e861923a05"
+    },
+    {
+      "id": "assets-north-wildwood-loading.js-3",
+      "source": "assets/north-wildwood-loading.js",
+      "beforeSource": "    // Release the interface even if an external library or request never finishes.\n    deadline = setTimeout(() => finish('timeout'), 20000);\n    checkReady();\n  }\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});\n  else init();\n})();\n",
+      "afterSource": "    // Release the interface even if an external library or request never finishes.\n    deadline = setTimeout(() => finish('timeout'), 20000);\n    checkReady();\n  }\n  // This parser-positioned controller starts before third-party core scripts.\n  // Waiting for DOMContentLoaded here would also wait for a stalled script.\n  if (document.getElementById('app') && document.getElementById('nwSiteLoader')) init();\n  else document.addEventListener('DOMContentLoaded', init, {once:true});\n})();\n",
+      "beforeSha256": "dc122bc07016b8d533b96a4265c8b0d9902e3b3a40a58e80da2bde0bfad81822",
+      "afterSha256": "8904fe9607d1d13a679527fc9e16573633b719e6f8b74082c4c990336ca8042b"
+    }
+  ],
+  "templateChanges": [
+    {
+      "id": "tools-app-index.template.html-1",
+      "source": "tools/app/index.template.html",
+      "beforeSource": "<!-- Keep the same layer order on GitHub Pages and CupaJoe. -->\n<!-- nww:style:style-006 -->\n<!-- Shorely Safe browser-tab branding -->\n<link rel=\"icon\" type=\"image/png\" href=\"./assets/shorelysafe-favicon-20261008.png\" />\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-loading.css?v=20261009-original-2\">\n<script defer src=\"assets/north-wildwood-loading.js?v=cc99a91625f8dea0\"></script>\n\n\n<!-- Keep optional work outside the initial flood-map loading path. -->\n<link rel=\"preconnect\" href=\"https://unpkg.com\" crossorigin>\n",
+      "afterSource": "<!-- Keep the same layer order on GitHub Pages and CupaJoe. -->\n<!-- nww:style:style-006 -->\n<!-- Shorely Safe browser-tab branding -->\n<link rel=\"icon\" type=\"image/png\" href=\"./assets/shorelysafe-favicon-20261008.png\" />\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-loading.css?v=20261027-lines1\">\n\n\n<!-- Keep optional work outside the initial flood-map loading path. -->\n<link rel=\"preconnect\" href=\"https://unpkg.com\" crossorigin>\n",
+      "beforeSha256": "e52c3ac4aa161d0d91b83f803e02e3454bef0ad4f29c9b0a9dc5f3b120dc55d6",
+      "afterSha256": "3960cb25b4cb389a95aa59421b9dc9612145ec049bbba7e6079847a6d1894ffa"
+    },
+    {
+      "id": "tools-app-index.template.html-2",
+      "source": "tools/app/index.template.html",
+      "beforeSource": "      <div class=\"nw-loader-eyebrow\">ShorelySafe</div>\n      <h1>North Wildwood Flood Mapper</h1>\n      <p id=\"nwLoaderStatus\" class=\"nw-loader-status\">Preparing forecast and map data\u2026</p>\n      <div class=\"nw-loader-progress\" aria-hidden=\"true\"><span id=\"nwLoaderProgress\"></span></div>\n    </div>\n  </div>\n  <div id=\"floodFrameStatus\" role=\"status\" aria-live=\"polite\" hidden></div>\n  <div id=\"topBanner\">\n",
+      "afterSource": "      <div class=\"nw-loader-eyebrow\">ShorelySafe</div>\n      <h1>North Wildwood Flood Mapper</h1>\n      <p id=\"nwLoaderStatus\" class=\"nw-loader-status\">Preparing forecast and map data\u2026</p>\n      <div class=\"nw-loader-progress\" aria-hidden=\"true\"><span id=\"nwLoaderProgress\"></span></div>\n      <button id=\"nwLoaderRetry\" type=\"button\" hidden>Retry loading map</button>\n    </div>\n  </div>\n  <div id=\"floodFrameStatus\" role=\"status\" aria-live=\"polite\" hidden></div>\n  <div id=\"topBanner\">\n",
+      "beforeSha256": "e0e5d6a6e878a89ab6df61d8cc5aec1d04a9c609f95acea2f2894ae9c5e9173c",
+      "afterSha256": "6b168419c7d1e312855e5b060acc4d8a8b57788d4ec398f1c30bbc1f5e7faf9a"
+    },
+    {
+      "id": "tools-app-index.template.html-3",
+      "source": "tools/app/index.template.html",
+      "beforeSource": "      </div>\n    </div>\n  </div>\n\n  <div id=\"exportProgressOverlay\" class=\"export-progress-overlay\" hidden aria-live=\"polite\" aria-busy=\"true\">\n    <div class=\"export-progress-card\" role=\"status\">\n      <button id=\"exportProgressCloseBtn\" class=\"export-progress-close centered-close-control\" type=\"button\" aria-label=\"Hide export progress\">\u00d7</button>\n      <div class=\"export-progress-wheel\" aria-hidden=\"true\"></div>\n      <div class=\"export-progress-title\">Preparing export</div>\n      <div id=\"exportProgressMessage\" class=\"export-progress-message\">Preparing export...</div>\n      <div class=\"export-progress-bar\" aria-hidden=\"true\"><div id=\"exportProgressFill\" class=\"export-progress-fill\"></div></div>\n      <div id=\"exportProgressPercent\" class=\"export-progress-percent\">0%</div>\n    </div>\n  </div>\n",
+      "afterSource": "      </div>\n    </div>\n  </div>\n\n  <div id=\"exportProgressOverlay\" class=\"export-progress-overlay\" hidden aria-busy=\"false\">\n    <div class=\"export-progress-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"exportProgressTitle\" aria-describedby=\"exportProgressMessage\" tabindex=\"-1\">\n      <button id=\"exportProgressCloseBtn\" class=\"export-progress-close centered-close-control\" type=\"button\" aria-label=\"Hide export progress\">\u00d7</button>\n      <div class=\"export-progress-wheel\" aria-hidden=\"true\"></div>\n      <div id=\"exportProgressTitle\" class=\"export-progress-title\">Preparing export</div>\n      <div id=\"exportProgressMessage\" class=\"export-progress-message\" role=\"status\" aria-live=\"polite\">Preparing export...</div>\n      <div class=\"export-progress-bar\" aria-hidden=\"true\"><div id=\"exportProgressFill\" class=\"export-progress-fill\"></div></div>\n      <div id=\"exportProgressPercent\" class=\"export-progress-percent\">0%</div>\n    </div>\n  </div>\n",
+      "beforeSha256": "4d6a2ddbdb946a38c90b3ceaeebc6878cd9496b56a0be3cf6b9abd146d172b93",
+      "afterSha256": "f712d157021a098ef8400731c81446cf23511438b5c7fa0ddfa46dcb7d868b61"
+    },
+    {
+      "id": "tools-app-index.template.html-4",
+      "source": "tools/app/index.template.html",
+      "beforeSource": "  </div>\n\n\n\n  <script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n\n",
+      "afterSource": "  </div>\n\n\n\n  <script src=\"assets/north-wildwood-loading.js?v=20261027-lines1\"></script>\n  <script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n\n",
+      "beforeSha256": "af767b67533e7d5d1644c6284a34cf4dc289b037a1f39f72f24dbff94524c5e3",
+      "afterSha256": "1dde1adc48bf022898cd451ac3704b9e0f2f783c88f0446eee723e933e718c0d"
+    },
+    {
+      "id": "tools-app-index.template.html-5",
+      "source": "tools/app/index.template.html",
+      "beforeSource": "\n<!-- nww:script:script-006 -->\n\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261026-holistic1\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=20261026-holistic1\"></script>\n<!-- nww:script:script-007 -->\n\n\n<script src=\"assets/avalon-mobile.js?v=20261026-holistic1\"></script>\n",
+      "afterSource": "\n<!-- nww:script:script-006 -->\n\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=20261027-lines1\"></script>\n<!-- nww:script:script-007 -->\n\n\n<script src=\"assets/avalon-mobile.js?v=20261026-holistic1\"></script>\n",
+      "beforeSha256": "c4af37bf56f23398ef568c3a66756de9bca99218f085c7a3101507e0ed49f119",
+      "afterSha256": "427f535f569d821c57a188ed652f29ce15538aab4777b05d3f97768afde40c8f"
+    }
+  ],
+  "files": [
+    {
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSha256": "fe266fc56968522c17dd1e93d230c516fcd975afc6985acb61e8059a27fe67a9",
+      "afterSha256": "c9ba8f13a2f75bed905b204e556d19f12e0ffd7986726d2a0ae6420ae5293d7b"
+    },
+    {
+      "source": "assets/modal-focus.js",
+      "beforeSha256": "0d1023fb8e4449fb44e5c65dcea8057511c06d22be3f353651d77a2280c5114d",
+      "afterSha256": "1cc4a9498e933dd86fdfd87e92168cebc39c172c05d0fe910ef583038ea8070c"
+    },
+    {
+      "source": "assets/north-wildwood-loading.css",
+      "beforeSha256": "619ef6b8b601c4f41f2877eb097edf170e06f3aa038176189c77522792684f1f",
+      "afterSha256": "39c95551c8b00bc75f9eb6e311556951727eb162ebf15031f93d7a1651963ba5"
+    },
+    {
+      "source": "assets/north-wildwood-loading.js",
+      "beforeSha256": "cc99a91625f8dea0f4d11d136cca2fc5dd1703223f0fe689f046791ee36ea276",
+      "afterSha256": "887ce496b13dc6a9c2b3da2b12a701c193a6fedb5c615e1909341c91972e1aa6"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "e1c4b754ae212181d585b396f7c67b0a017119e6be66e8ec2c0e03c7e736d8d5",
+      "afterSha256": "6b40e6c46d8f0d2cb0514937df67d527fac611d3e5f56874f38e17b062e284e6"
+    },
+    {
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSha256": "f674f659e746b86012617f9f2cc112267fe6f9916a238bd98e0a08f548352289",
+      "afterSha256": "95507555600598a9ecd75ad063eec0d3b202fc1acc6b5441183bcace6e293d4e"
+    },
+    {
+      "source": "tools/app/runtime/11-export-selection.js",
+      "beforeSha256": "4c6e0a0cc79191b6e6b0bca8ff3ad083f20836535a7d74e952a9d435030ee81a",
+      "afterSha256": "76682b92b22e615e10991d598a2669dcb70550ff84e3998173494293c265d6ab"
+    },
+    {
+      "source": "tools/app/runtime/14-export-calendars.js",
+      "beforeSha256": "6d8e309d5b4d32d01a1e6cf1fcf57a8e0ee3beee401e454867b7e90441157919",
+      "afterSha256": "5d2f124dab72bafbef0a02ce1ea4c4c26d850edfff96643734c1928e0ece7ea9"
+    },
+    {
+      "source": "tools/app/runtime/15-export-capture.js",
+      "beforeSha256": "b3ed9321fd0341cc05d4e82cd6565082f5e68e72685f912bfae32aa1cd8e7332",
+      "afterSha256": "6665ada385590926ec3d934140fb951b6080fdd891bacd87ae5632e9d84a633b"
+    },
+    {
+      "source": "tools/app/runtime/18-flood-frame-rendering.js",
+      "beforeSha256": "9639f45eb44766184c05735c8829b53477b0e36c75807630c3f3e5e21d4c7f3c",
+      "afterSha256": "5d8ab860a892d4d254ebfdc1508230ddf12e68098f2b7a306669f69c21f41adc"
+    },
+    {
+      "source": "tools/app/runtime/20-timeline-rendering.js",
+      "beforeSha256": "4a18cfdeb2588585a2e999314b0a970e4473bfc679ba6b246d862aa2c23a7340",
+      "afterSha256": "0bbd45379eecb927e606bbca2ae2d17b1ce34c5e018177d367542eec3e2750f4"
+    },
+    {
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSha256": "fd9df3282dfa6841bada272e569506a81fb08d61b6f7bdf401f6d8b666c14b31",
+      "afterSha256": "3e79db342fbd874667b51b4a485306d0b68005531172d7c2adda45c15d2a497b"
+    },
+    {
+      "source": "tools/app/runtime/26-depth-queries.js",
+      "beforeSha256": "0ad7c93919d9f9f669620fc75b29a5f8e8429c596c012116798c572ffe41566c",
+      "afterSha256": "73787793dfb4f605a680d15b672a755522cfe32f12319d68895d6d1ffda8cdfa"
+    },
+    {
+      "source": "tools/app/styles/style-002.css",
+      "beforeSha256": "441986af48d5669f175ddcbdf1a9d11ce90be4947c42205d9769dd057d5dbba2",
+      "afterSha256": "a2825c0da9e1b036267f0200b4256410cc18a98b90e4a7d68bae6abd2d557b97"
+    },
+    {
+      "source": "tools/app/town-config.js",
+      "beforeSha256": "db887496503844397489fa1a8d25b6538d7a0af8b8b5e7807eb9388c74a80552",
+      "afterSha256": "68d7a72bb351d56965c92bf2b10130b0a3564f972004fc87a41dd2ce68e5b0ea"
+    }
+  ]
+}

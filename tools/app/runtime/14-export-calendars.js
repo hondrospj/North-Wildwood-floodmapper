@@ -1025,6 +1025,7 @@ function updateExportSegmentedUI() {
         activeGifExport = null;
       }
       exportInProgress = isBusy;
+      document.getElementById("exportProgressOverlay")?.setAttribute("aria-busy", String(Boolean(isBusy)));
       const btn = document.getElementById("downloadBtn");
       const btnLabel = document.getElementById("downloadBtnLabel");
       const progressCloseBtn = document.getElementById("exportProgressCloseBtn");
@@ -1058,6 +1059,7 @@ function updateExportSegmentedUI() {
       if (progressCloseBtn) {
         progressCloseBtn.disabled = false;
         progressCloseBtn.classList.toggle("is-cancel-action", isBusy);
+        progressCloseBtn.classList.toggle("centered-close-control", !isBusy);
         progressCloseBtn.textContent = isBusy ? "Cancel" : "×";
         progressCloseBtn.setAttribute("aria-label", isBusy ? "Cancel export" : "Hide export progress");
         progressCloseBtn.title = isBusy ? "Cancel export" : "Hide export progress";

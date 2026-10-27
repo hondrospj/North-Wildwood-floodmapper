@@ -1,6 +1,8 @@
 import "../assets/municipal-time.js";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 const northDataDir = path.resolve("city-gauge/data");
 const outputDir = path.resolve("city-gauge/comparison");
@@ -13,6 +15,17 @@ const quarterMs = 15 * 60 * 1000;
 const maxInterpolationGapMs = 30 * 60 * 1000;
 const isolatedSpikeThresholdFt = 3;
 const schema = "north-wildwood-stone-harbor-comparison-year-v3";
+
+const sha256 = (content) => createHash("sha256").update(content).digest("hex");
+// Both processing rules and municipal DST parsing affect calibration eligibility.
+const policySha256 = sha256(Buffer.concat(await Promise.all([
+  fs.readFile(new URL(import.meta.url)),
+  fs.readFile(new URL("../assets/municipal-time.js", import.meta.url)),
+])));
+
+export function cacheIdentity(northContent) {
+  return { northWildwoodSha256: sha256(northContent), policySha256 };
+}
 
 const epoch = globalThis.NorthWildwoodTime.municipalEpoch;
 
@@ -245,19 +258,23 @@ function lagStats(northValues, stoneValues) {
   return { ...best, correlation: round(best.correlation, 4) };
 }
 
-async function existingPayload(year, northRecordCount) {
+export async function existingPayload(year, identity, directory = outputDir) {
   if (year >= currentYear) return null;
   try {
-    const payload = JSON.parse(await fs.readFile(path.join(outputDir, `${year}.json`), "utf8"));
-    return payload.schema === schema && payload.sources?.northWildwood?.recordCount === northRecordCount ? payload : null;
+    const payload = JSON.parse(await fs.readFile(path.join(directory, `${year}.json`), "utf8"));
+    return payload.schema === schema
+      && payload.cacheIdentity?.northWildwoodSha256 === identity.northWildwoodSha256
+      && payload.cacheIdentity?.policySha256 === identity.policySha256 ? payload : null;
   } catch {
     return null;
   }
 }
 
 async function buildYear(year) {
-  const northPayload = JSON.parse(await fs.readFile(path.join(northDataDir, `${year}.json`), "utf8"));
-  const cached = await existingPayload(year, northPayload.recordCount);
+  const northContent = await fs.readFile(path.join(northDataDir, `${year}.json`));
+  const northPayload = JSON.parse(northContent);
+  const identity = cacheIdentity(northContent);
+  const cached = await existingPayload(year, identity);
   if (cached) {
     console.log(JSON.stringify({ year, status: "reused", pairs: cached.stats.pairCount }));
     return cached;
@@ -287,6 +304,7 @@ async function buildYear(year) {
   const peakMatches = matchPeaks(northValues, stoneValues, startTime);
   const payload = {
     schema,
+    cacheIdentity: identity,
     year,
     datum: "NAVD88",
     intervalMinutes: 15,
@@ -310,6 +328,7 @@ async function buildYear(year) {
   return payload;
 }
 
+async function main() {
 await fs.mkdir(outputDir, { recursive: true });
 const payloads = [];
 for (const year of years) payloads.push(await buildYear(year));
@@ -342,3 +361,6 @@ const index = {
 };
 await fs.writeFile(path.join(outputDir, "index.json"), `${JSON.stringify(index, null, 2)}\n`);
 console.log(JSON.stringify({ comparison: { coverage: index.coverage, stats: index.stats, peaks: index.peaks } }));
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

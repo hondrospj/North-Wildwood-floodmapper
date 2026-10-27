@@ -124,3 +124,12 @@ checks reject alterations to the fixes and attempts to broaden this fixture.
 Behavior regressions cover stable Top 10 rankings and lazy replay, USGS no-data,
 building interaction races and missing elevations, address request recovery,
 positional date editing, daylight-saving exports, and archive cancellation.
+
+The October 27 follow-up fixes use a further exact-fragment inverse fixture,
+`north-wildwood-20261027-line-fixes.json`, based on `4177f020`. This layer also
+verifies each complete restored file hash before applying the unchanged earlier
+audits. The welcome controller now executes immediately before the third-party
+core scripts so its watchdog can run while parsing waits for a stalled library;
+it displays a retry state without releasing unfinished controls. This intentional
+dependency-order change supersedes the earlier deferred-controller placement.
+See `docs/2026-10-27-line-audit-fixes.md` for the 17 fixes and their regressions.

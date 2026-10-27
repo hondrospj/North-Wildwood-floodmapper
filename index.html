@@ -5,7 +5,7 @@
 <head>
 <link rel="stylesheet" href="./assets/north-wildwood-font.css?v=20261026-1">
 <link rel="preconnect" href="https://hondrospj.github.io" crossorigin>
-<link rel="stylesheet" data-nww-style-bundle="app-01" href="./assets/styles/app-01.css?v=d52bd3d1ab55e139">
+<link rel="stylesheet" data-nww-style-bundle="app-01" href="./assets/styles/app-01.css?v=31a9a7cfaa7d7be4">
 <!-- nww:style:style-002 -->
 
 
@@ -17,8 +17,7 @@
 <!-- nww:style:style-006 -->
 <!-- Shorely Safe browser-tab branding -->
 <link rel="icon" type="image/png" href="./assets/shorelysafe-favicon-20261008.png" />
-<link rel="stylesheet" href="assets/north-wildwood-loading.css?v=20261009-original-2">
-<script defer src="assets/north-wildwood-loading.js?v=cc99a91625f8dea0"></script>
+<link rel="stylesheet" href="assets/north-wildwood-loading.css?v=20261027-lines1">
 
 
 <!-- Keep optional work outside the initial flood-map loading path. -->
@@ -141,6 +140,7 @@
       <h1>North Wildwood Flood Mapper</h1>
       <p id="nwLoaderStatus" class="nw-loader-status">Preparing forecast and map data…</p>
       <div class="nw-loader-progress" aria-hidden="true"><span id="nwLoaderProgress"></span></div>
+      <button id="nwLoaderRetry" type="button" hidden>Retry loading map</button>
     </div>
   </div>
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
@@ -725,12 +725,12 @@
     </div>
   </div>
 
-  <div id="exportProgressOverlay" class="export-progress-overlay" hidden aria-live="polite" aria-busy="true">
-    <div class="export-progress-card" role="status">
+  <div id="exportProgressOverlay" class="export-progress-overlay" hidden aria-busy="false">
+    <div class="export-progress-card" role="dialog" aria-modal="true" aria-labelledby="exportProgressTitle" aria-describedby="exportProgressMessage" tabindex="-1">
       <button id="exportProgressCloseBtn" class="export-progress-close centered-close-control" type="button" aria-label="Hide export progress">×</button>
       <div class="export-progress-wheel" aria-hidden="true"></div>
-      <div class="export-progress-title">Preparing export</div>
-      <div id="exportProgressMessage" class="export-progress-message">Preparing export...</div>
+      <div id="exportProgressTitle" class="export-progress-title">Preparing export</div>
+      <div id="exportProgressMessage" class="export-progress-message" role="status" aria-live="polite">Preparing export...</div>
       <div class="export-progress-bar" aria-hidden="true"><div id="exportProgressFill" class="export-progress-fill"></div></div>
       <div id="exportProgressPercent" class="export-progress-percent">0%</div>
     </div>
@@ -753,11 +753,12 @@
 
 
 
+  <script src="assets/north-wildwood-loading.js?v=20261027-lines1"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js"></script>
   <script src="https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js"></script>
 
-  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=7ba8cc7cb6ac3cc1"></script>
+  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=494500184d201e0b"></script>
 
 <script data-nww-script="script-005" src="./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52"></script>
 
@@ -765,11 +766,11 @@
 <script data-nww-script="script-006" src="./assets/app/alert-interaction.js?v=b02a3674db55dfda"></script>
 
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261026-holistic1"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1"></script>
 <script src="./assets/road-impacts.js?v=20261002-road-impacts-default-off"></script>
 
-<script defer src="./assets/modal-focus.js?v=20261026-holistic1"></script>
-<script data-nww-script="script-007" src="./assets/app/town-config.js?v=db88749650384439"></script>
+<script defer src="./assets/modal-focus.js?v=20261027-lines1"></script>
+<script data-nww-script="script-007" src="./assets/app/town-config.js?v=68d7a72bb351d569"></script>
 
 
 <script src="assets/avalon-mobile.js?v=20261026-holistic1"></script>

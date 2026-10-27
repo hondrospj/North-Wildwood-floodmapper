@@ -59,11 +59,19 @@
       while (stack.length && !dialogs.includes(stack.at(-1).dialog)) restoreTarget = stack.pop().restore;
       // Remove closed lower dialogs without disturbing an open nested dialog.
       for (let index = stack.length - 1; index >= 0; index--) {
-        if (!dialogs.includes(stack[index].dialog)) stack.splice(index, 1);
+        if (!dialogs.includes(stack[index].dialog)) {
+          const closed = stack[index];
+          // Completion can close progress while a nested dialog remains open.
+          // Its eventual close must restore the original visible trigger.
+          for (const child of stack.slice(index + 1)) {
+            if (child.restore && closed.dialog.contains(child.restore)) child.restore = closed.restore;
+          }
+          stack.splice(index, 1);
+        }
       }
       for (const dialog of dialogs) {
         if (stack.some(item => item.dialog === dialog)) continue;
-        const candidate = stack.length ? previousFocus : (lastTrigger || previousFocus);
+        const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);
         stack.push({ dialog, restore: candidate && !dialog.contains(candidate) ? candidate : null });
         lastTrigger = null;
       }
