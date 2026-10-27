@@ -9,6 +9,7 @@
   let previousFocus = document.activeElement;
   let lastTrigger = null;
   let syncing = false;
+  let pendingRestore = null;
 
   function visible(element) {
     return element.isConnected && !element.closest('[hidden],[aria-hidden="true"]') &&
@@ -46,6 +47,34 @@
     target.focus({ preventScroll: true });
   }
 
+  function restoreFocus(targets) {
+    const request = { targets, cancelled: false };
+    pendingRestore = request;
+    function attempt(framesLeft) {
+      if (pendingRestore !== request) return;
+      const dialog = stack.at(-1)?.dialog;
+      const candidates = targets.filter(target => (!dialog || dialog.contains(target)) && visible(target));
+      const first = candidates[0];
+      if ((request.cancelled || first?.closest('[inert]')) && framesLeft > 0) {
+        // A drawer owner may restore its role and inert state in its next
+        // layout pass. Keep its visible opener ahead of an outer fallback.
+        // Cancelled moves retain only that fallback context for the same two
+        // frames, so a restored parent can still return to its outer trigger.
+        requestAnimationFrame(() => {
+          if (pendingRestore !== request) return;
+          sync();
+          attempt(framesLeft - 1);
+        });
+        return;
+      }
+      if (request.cancelled) { pendingRestore = null; return; }
+      const target = candidates.find(candidate => !candidate.closest('[inert]'));
+      pendingRestore = null;
+      target?.focus({ preventScroll: true });
+    }
+    attempt(2);
+  }
+
   function sync() {
     if (syncing) return stack.at(-1)?.dialog;
     syncing = true;
@@ -76,9 +105,13 @@
       }
       for (const dialog of dialogs) {
         if (stack.some(item => item.dialog === dialog)) continue;
+        const pendingTargets = pendingRestore?.targets || [];
+        // Reappearing parents inherit the outer fallback chain. An unrelated
+        // new modal cancels the pending focus move while retaining fallbacks.
+        if (pendingRestore && !pendingTargets.some(target => dialog.contains(target))) pendingRestore.cancelled = true;
         const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);
         stack.push({ dialog, restore: [...new Set([
-          ...(candidate && !dialog.contains(candidate) ? [candidate] : []), ...restoreTargets
+          ...(candidate && !dialog.contains(candidate) ? [candidate] : []), ...restoreTargets, ...pendingTargets
         ])] });
         lastTrigger = null;
       }
@@ -90,11 +123,7 @@
         // Never restore that parent's trigger outside the newly active modal,
         // or replace focus that the user has already moved inside it.
         const focusedInside = top && top.dialog.contains(document.activeElement);
-        const restoreTarget = restoreTargets.find(target => (!top || top.dialog.contains(target)) &&
-          visible(target) && !target.closest('[inert]'));
-        if (!focusedInside && restoreTarget) {
-          restoreTarget.focus({ preventScroll: true });
-        }
+        if (!focusedInside && restoreTargets.length) restoreFocus(restoreTargets);
         if (top && !top.dialog.contains(document.activeElement)) focusFirst(top.dialog);
       }
       return top?.dialog;
@@ -104,6 +133,7 @@
   }
 
   document.addEventListener("pointerdown", event => {
+    if (pendingRestore) pendingRestore.cancelled = true;
     lastTrigger = event.target.closest('button,a[href],input,select,[tabindex]');
   }, true);
   document.addEventListener("focusin", event => {
@@ -112,6 +142,7 @@
     previousFocus = document.activeElement;
   }, true);
   document.addEventListener("keydown", event => {
+    if (pendingRestore) pendingRestore.cancelled = true;
     const dialog = sync();
     if (!dialog || event.key !== "Tab") return;
     const items = controls(dialog);

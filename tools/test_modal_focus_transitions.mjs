@@ -76,7 +76,42 @@ try {
     assert.equal(await page.evaluate(()=>document.activeElement.id),'launch','An actually closed parent needs its original outer trigger');
     assert.equal(await page.locator('#launch').evaluate(el=>el.inert),false);
   }
+  // The actual drawer owner can demote/set inert before the child ledger is
+  // synchronized, then restore the open drawer in the following layout RAF.
+  for(const interruption of ['none','pointerdown','keydown','new-modal']){
+    await page.locator('#launch').focus();
+    await page.evaluate(()=>{
+      const drawer=document.getElementById('drawer');drawer.hidden=false;drawer.setAttribute('aria-modal','true');
+      document.dispatchEvent(new Event('nww:modalchange'));document.getElementById('openChild').focus();
+      drawer.inert=true;drawer.removeAttribute('aria-modal');document.getElementById('child').hidden=false;
+      document.dispatchEvent(new Event('nww:modalchange'));
+    });
+    await page.evaluate(interruption=>{
+      document.getElementById('child').hidden=true;document.dispatchEvent(new Event('nww:modalchange'));
+      if(interruption==='pointerdown')document.getElementById('launch').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));
+      if(interruption==='keydown')document.getElementById('launch').dispatchEvent(new KeyboardEvent('keydown',{key:'Shift',bubbles:true}));
+      if(interruption==='new-modal'){
+        document.getElementById('nested').hidden=false;document.dispatchEvent(new Event('nww:modalchange'));
+      }
+      requestAnimationFrame(()=>{
+        if(!document.getElementById('nested').hidden)return;
+        const drawer=document.getElementById('drawer');drawer.inert=false;drawer.setAttribute('aria-modal','true');
+      });
+    },interruption);
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    assert.equal(await page.evaluate(()=>document.activeElement.id),
+      interruption==='none'?'openChild':interruption==='new-modal'?'warningClose':'drawerFirst',
+      `Deferred opener restoration must respect ${interruption}`);
+    if(interruption==='new-modal')await page.evaluate(()=>{
+      document.getElementById('nested').hidden=true;
+      const drawer=document.getElementById('drawer');drawer.inert=false;drawer.setAttribute('aria-modal','true');
+      document.dispatchEvent(new Event('nww:modalchange'));
+    });
+    await page.evaluate(()=>{document.getElementById('drawer').hidden=true;document.dispatchEvent(new Event('nww:modalchange'));});
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'launch',`Restored parent retains its outer fallback after ${interruption}`);
+    assert.equal(await page.locator('#launch').evaluate(el=>el.inert),false);
+  }
   assert.equal(await page.locator('#offscreen').evaluate(el=>el.inert),true);
   assert.deepEqual(errors,[]);
-  console.log(`PASS ${name}: nested isolation, input focus/caret, Tab, visible demoted parent opener and closed parent fallback in both registration orders`);
+  console.log(`PASS ${name}: nested isolation, input focus/caret, Tab, demoted/closed parent fallbacks, RAF owner restoration and input/new-modal cancellation`);
 } finally { await browser.close(); }
