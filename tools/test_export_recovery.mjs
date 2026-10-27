@@ -11,6 +11,7 @@ function extract(name) {
 }
 function context(name, mocks) {
   const ctx = vm.createContext({setTimeout, clearTimeout, setInterval, clearInterval, ...mocks});
+  if (name === 'waitForExportRasterLayerReady') vm.runInContext(extract('retryExportRasterLayerTiles'), ctx);
   vm.runInContext(extract(name), ctx);
   return ctx;
 }
@@ -103,6 +104,34 @@ const rasterLayer = {isLoading:()=>!tilesReady,getContainer:()=>({querySelectorA
 await raster.waitForExportRasterLayerReady(rasterLayer);
 tile.naturalWidth=0;
 await assert.rejects(raster.waitForExportRasterLayerReady(rasterLayer), /map tile could not load/);
+
+// A retry reuses the attached layer/options and exact camera, including its
+// position among same-pane peers. Removed optional layers cannot be revived.
+{
+  const calls=[],options={pane:'roadsPane',opacity:0.98,tileSize:512,zoomOffset:-1};
+  const before={},after={};
+  const pane={children:[],insertBefore(node,sibling){
+    this.children=this.children.filter(child=>child!==node);
+    const index=sibling?this.children.indexOf(sibling):this.children.length;
+    this.children.splice(index,0,node);node.parentNode=this;
+  }};
+  let container={parentNode:pane,nextSibling:after};pane.children=[before,container,after];after.parentNode=pane;
+  const layer={options,getContainer:()=>container};
+  const camera={zoom:14.743299527888258,center:{lat:39.005,lng:-74.8}};
+  let attached=true;
+  const map={
+    hasLayer:candidate=>candidate===layer&&attached,
+    removeLayer(candidate){assert.equal(candidate,layer);calls.push('remove');attached=false;pane.children=pane.children.filter(child=>child!==container);container.parentNode=null;},
+    addLayer(candidate){assert.equal(candidate,layer);calls.push('add');attached=true;layer.tileZoom=Math.round(camera.zoom);container={parentNode:pane};pane.children.push(container);},
+  };
+  const ctx=context('retryExportRasterLayerTiles',{exportMap:map});
+  assert.equal(ctx.retryExportRasterLayerTiles(layer),true);
+  assert.deepEqual(calls,['remove','add']);assert.deepEqual(pane.children,[before,container,after]);
+  assert.equal(layer.options,options);assert.equal(layer.tileZoom,15);assert.equal(attached,true);
+  assert.deepEqual(camera,{zoom:14.743299527888258,center:{lat:39.005,lng:-74.8}});
+  attached=false;assert.equal(ctx.retryExportRasterLayerTiles(layer),false);
+  assert.deepEqual(calls,['remove','add'],'An optional layer removed by a newer setting must stay removed');
+}
 
 // The upstream vector layer throws when removed before style initialization.
 let readyListener = true, fallbackCount = 0;

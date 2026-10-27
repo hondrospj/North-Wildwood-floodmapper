@@ -15,10 +15,19 @@ const browser=await engine.launch({headless:true,
 const retained=process.env.NWW_AUDIT_OUTPUT;
 const output=retained||fs.mkdtempSync(path.join(os.tmpdir(),'nww-worker-cancel-'));
 fs.mkdirSync(output,{recursive:true});
-const result={browser:name,version:browser.version(),checks:[],states:[],errors:[],consoleErrors:[]};
+const result={browser:name,version:browser.version(),checks:[],states:[],errors:[],consoleErrors:[],consoleWarnings:[]};
 const page=await browser.newPage({viewport:{width:1440,height:1000},acceptDownloads:true});
 page.setDefaultTimeout(30000);page.on('pageerror',error=>result.errors.push(error.message));
-page.on('console',message=>{if(message.type()==='error')result.consoleErrors.push(message.text());});
+const warningDetails=[];
+page.on('console',message=>{
+  if(message.type()==='error')result.consoleErrors.push(message.text());
+  if(message.type()==='warning'){
+    const entry={message:message.text(),errors:[]};result.consoleWarnings.push(entry);
+    warningDetails.push(Promise.all(message.args().map(handle=>handle.evaluate(value=>
+      value instanceof Error?{name:value.name,message:value.message,stack:value.stack}:null).catch(()=>null)))
+      .then(errors=>{entry.errors=errors.filter(Boolean);}));
+  }
+});
 let release;const gate=new Promise(resolve=>{release=resolve;});let requests=0;
 const held=async route=>{requests++;await gate;await route.abort().catch(()=>{});};
 await page.route('**/gif.worker.js',held);
@@ -28,6 +37,19 @@ const state=label=>page.evaluate(label=>({label,busy:exportInProgress,cancelled:
   workerPending:!!gifWorkerLoadRequest,workerCached:!!gifWorkerUrlPromise,encoderPresent:!!activeGifExport,
   basemapLoading:exportBasemapColorLayer?.isLoading?.()??null,
   vectorLoaded:exportBasemapColorLayer?._maplibreGL?._glMap?.loaded?.()??null}),label);
+async function requireReadyPreview(label){
+  // A terminal preview error is actionable and must be diagnosed immediately,
+  // rather than hidden behind a long wait for a state it cannot reach unaided.
+  await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:180000});
+  const preview=await page.evaluate(()=>({state:document.getElementById('exportPreview')?.dataset.state,
+    status:document.getElementById('exportPreviewStatus')?.textContent,
+    retryVisible:!document.getElementById('exportPreviewRetryBtn')?.hidden,
+    format:getDownloadFormatValue(),scope:getDownloadScopeValue(),range:validateDownloadRangeForExport(),
+    libraries:document.body.dataset.exportLibraries}));
+  result.states.push({label,...preview});
+  await Promise.allSettled(warningDetails);
+  assert.equal(preview.state,'ready',`Preview did not become ready: ${JSON.stringify({preview,warnings:result.consoleWarnings})}`);
+}
 const diagnostics=setInterval(()=>{
   state(`periodic-${Date.now()}`).then(snapshot=>{
     if(snapshot.busy)result.states.push(snapshot);
@@ -60,11 +82,15 @@ function inspectGif(bytes){
 try{
   await page.goto(process.env.NWW_TEST_URL||'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
+  // Isolate worker cancellation from the optional road-label provider. Use the
+  // real UI; the basemap, flood renderer and downloaded GIF remain unmocked.
+  if(await page.locator('#roadsToggle').getAttribute('aria-checked')==='true')await page.locator('#roadsToggle').click();
+  assert.equal(await page.locator('#roadsToggle').getAttribute('aria-checked'),'false');
   await page.locator('#openDownloadModalBtn').click();
   await selectTwoFrameRange();
   await page.locator('#downloadBtn').click();
   await page.locator('#exportAspectSquareBtn').click();
-  await page.waitForFunction(()=>document.getElementById('exportPreview').dataset.state==='ready',{},{timeout:180000});
+  await requireReadyPreview('initial-preview');
   assert.equal(await page.evaluate(()=>getDownloadFrameItems().length),2);
   const datum=await page.evaluate(()=>currentDatum);
   await page.locator('#downloadBtn').click();
@@ -97,7 +123,7 @@ try{
   // retry fixture at two frames as well, rather than encoding the full forecast.
   await selectTwoFrameRange();
   await page.locator('#downloadBtn').click();
-  await page.waitForFunction(()=>document.getElementById('exportPreview').dataset.state==='ready',{},{timeout:180000});
+  await requireReadyPreview('retry-preview');
   assert.equal(await page.evaluate(()=>getDownloadFrameItems().length),2);
   const downloading=page.waitForEvent('download',{timeout:240000});
   downloading.catch(()=>{});
@@ -124,6 +150,7 @@ try{
 }
 finally{
   clearInterval(diagnostics);
+  await Promise.allSettled(warningDetails);
   release();await browser.close();
   if(retained)fs.writeFileSync(path.join(output,`${name}-worker-browser.json`),JSON.stringify(result,null,2));
   else fs.rmSync(output,{recursive:true,force:true});

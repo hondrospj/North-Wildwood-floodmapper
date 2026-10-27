@@ -441,61 +441,86 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
 
 // A failed preview tile is retried on the same reused map, then reused by a real capture.
 {
-  let clock = 0, redraws = 0;
+  let clock = 0, retries = 0;
   const tile = { complete: true, naturalWidth: 0 };
   const layer = {
     isLoading: () => !tile.complete,
     getContainer: () => ({ querySelectorAll: () => [tile] }),
-    redraw() { redraws++; tile.complete = false; },
+    redraw() { assert.fail("Fractional tile grids must not use Leaflet redraw"); },
+  };
+  let attached = true;
+  const map = { zoom: 14.743299527888258,
+    hasLayer: value => value === layer && attached,
+    removeLayer(value) { assert.equal(value, layer); attached = false; },
+    addLayer(value) { assert.equal(value, layer); attached = true; retries++; tile.complete = false; },
   };
   const ctx = vm.createContext({
+    exportMap: map,
     Date: { now: () => clock }, throwIfExportCancelled: noop,
     requestAnimationFrame: callback => callback(),
     wait: async ms => { clock += ms; tile.complete = true; tile.naturalWidth = 256; },
   });
+  vm.runInContext(nativeFunction("retryExportRasterLayerTiles"), ctx);
   vm.runInContext(nativeFunction("waitForExportRasterLayerReady"), ctx);
   await ctx.waitForExportRasterLayerReady(layer);
-  assert.equal(redraws, 1, "Retry a failed tile without changing extent");
+  assert.equal(retries, 1, "Retry the same attached layer without changing extent");
+  assert.equal(map.zoom, 14.743299527888258);
   await ctx.waitForExportRasterLayerReady(layer);
-  assert.equal(redraws, 1, "A later capture reuses successfully recovered map tiles");
+  assert.equal(retries, 1, "A later capture reuses successfully recovered map tiles");
 }
 
-// Persistent tile failure is bounded to one redraw per request, and later requests may retry.
+// Persistent tile failure is bounded to one retry per request, and later requests may retry.
 {
-  let clock = 0, redraws = 0, recover = false;
+  let clock = 0, retries = 0, recover = false;
   const tile = { complete: true, naturalWidth: 0 };
   const layer = {
     isLoading: () => false, getContainer: () => ({ querySelectorAll: () => [tile] }),
-    redraw() { redraws++; if (recover) tile.naturalWidth = 256; },
+    redraw() { assert.fail("Fractional tile grids must not use Leaflet redraw"); },
+  };
+  let attached = true;
+  const map = {
+    hasLayer: value => value === layer && attached,
+    removeLayer(value) { assert.equal(value, layer); attached = false; },
+    addLayer(value) { assert.equal(value, layer); attached = true; retries++; if (recover) tile.naturalWidth = 256; },
   };
   const ctx = vm.createContext({
+    exportMap: map,
     Date: { now: () => clock }, throwIfExportCancelled: noop,
     requestAnimationFrame: callback => callback(), wait: async ms => { clock += ms; },
   });
+  vm.runInContext(nativeFunction("retryExportRasterLayerTiles"), ctx);
   vm.runInContext(nativeFunction("waitForExportRasterLayerReady"), ctx);
   await assert.rejects(ctx.waitForExportRasterLayerReady(layer), /map tile could not load/);
-  assert.equal(redraws, 1, "Do not retry a persistently failing tile forever");
+  assert.equal(retries, 1, "Do not retry a persistently failing tile forever");
   recover = true; await ctx.waitForExportRasterLayerReady(layer);
-  assert.equal(redraws, 2, "A failed preview must not poison a later download retry");
+  assert.equal(retries, 2, "A failed preview must not poison a later download retry");
 }
 
-// Redrawing does not restart the readiness deadline or ignore export cancellation.
+// Retrying does not restart the readiness deadline or ignore export cancellation.
 for (const outcome of ["timeout", "cancel"]) {
-  let clock = 0, redraws = 0, cancelled = false;
+  let clock = 0, retries = 0, cancelled = false;
   const tile = { complete: true, naturalWidth: 0 };
   const layer = {
     isLoading: () => true, getContainer: () => ({ querySelectorAll: () => [tile] }),
-    redraw() { redraws++; tile.complete = false; },
+    redraw() { assert.fail("Fractional tile grids must not use Leaflet redraw"); },
+  };
+  let attached = true;
+  const map = {
+    hasLayer: value => value === layer && attached,
+    removeLayer(value) { assert.equal(value, layer); attached = false; },
+    addLayer(value) { assert.equal(value, layer); attached = true; retries++; tile.complete = false; },
   };
   const ctx = vm.createContext({
+    exportMap: map,
     Date: { now: () => clock }, requestAnimationFrame: callback => callback(),
     throwIfExportCancelled: () => { if (cancelled) throw Object.assign(new Error("Export cancelled."), { name: "AbortError" }); },
     wait: async ms => { clock += ms; if (outcome === "cancel") cancelled = true; },
   });
+  vm.runInContext(nativeFunction("retryExportRasterLayerTiles"), ctx);
   vm.runInContext(nativeFunction("waitForExportRasterLayerReady"), ctx);
   await assert.rejects(ctx.waitForExportRasterLayerReady(layer, 150),
     outcome === "cancel" ? /Export cancelled/ : /map background is still loading/);
-  assert.equal(redraws, 1);
+  assert.equal(retries, 1);
   assert.equal(clock, outcome === "cancel" ? 100 : 200, "Retain the original deadline while retrying");
 }
 

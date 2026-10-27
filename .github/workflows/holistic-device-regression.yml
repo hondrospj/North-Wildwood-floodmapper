@@ -79,6 +79,8 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Startup recovery and text regressions failed' }
             node tools/test_north_wildwood_line_map_browser.mjs
             if ($LASTEXITCODE -ne 0) { throw 'Map frame recovery regressions failed' }
+            node tools/test_north_wildwood_export_road_failure_browser.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Export road-provider recovery regressions failed' }
             node tools/test_north_wildwood_export_worker_browser.mjs
             if ($LASTEXITCODE -ne 0) { throw 'Export worker recovery regressions failed' }
             node tools/test_city_gauge_dashboard.mjs

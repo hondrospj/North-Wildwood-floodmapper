@@ -16,7 +16,7 @@ const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
 const LINE_FIX_AUDIT_PATH = "tools/fixtures/north-wildwood-20261027-line-fixes.json";
-const LINE_FIX_AUDIT_SHA256 = "2328e660222ac31c7cd32e1ce1bf79ed3cc41dc9f2ad2aade7628afbe067b148";
+const LINE_FIX_AUDIT_SHA256 = "ee105b3ca7ed357c43efa95805fd9c17705b15e6b26dd379e9bb919a147aa615";
 const lineFixText = read(LINE_FIX_AUDIT_PATH);
 assert.equal(sha256(lineFixText), LINE_FIX_AUDIT_SHA256,
   "The October 27 fixes must retain their exact independently reviewed inverse fragments");
