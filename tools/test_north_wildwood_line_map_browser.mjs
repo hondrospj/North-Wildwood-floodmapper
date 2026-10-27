@@ -18,6 +18,7 @@ const url = process.env.NWW_TEST_URL || 'http://127.0.0.1:8773/index.html';
 const output = process.env.NWW_AUDIT_OUTPUT;
 if (output) fs.mkdirSync(output,{recursive:true});
 const checks = [], observations = [], errors = [];
+let playbackTelemetry = null;
 async function newPage() {
   const page = await browser.newPage({viewport:{width:1440,height:900}});
   page.setDefaultTimeout(90000);
@@ -84,21 +85,79 @@ try {
   {
     const page = await newPage();
     try {
+      await page.clock.install();
       await ready(page);
-      // Native browser timers and the maintained playback methods, with only
-      // the frame completion deferred to make pause/restart deterministic.
+      // Install before navigation so every app timer shares this clock. The
+      // pause precedes the race; later GPU/query pages retain their real clocks.
+      await page.clock.pauseAt(await page.evaluate(()=>Date.now()+60000));
       await page.evaluate(()=>{
-        window.__mapOriginalStep = stepPlaybackForward;
-        window.__mapSteps = [];
-        stepPlaybackForward = ()=>new Promise(resolve=>window.__mapSteps.push(resolve));
-        startPlayback();stopPlayback();startPlayback();
-        window.__mapSteps[0]();window.__mapSteps[1]();
+        window.__mapPlaybackOriginal={start:startPlayback,step:stepPlaybackForward,clear:clearPlaybackTimer};
+        window.__mapPlaybackTrace={events:[],sessions:[]};
+        clearPlaybackTimer=function(...args){
+          __mapPlaybackTrace.events.push({action:window.__mapPlaybackAction||'external',
+            generation:playbackGeneration,timer:playTimer,at:performance.now(),stack:new Error().stack});
+          return __mapPlaybackOriginal.clear.apply(this,args);
+        };
       });
-      await page.waitForTimeout(1200);
-      const requests = await page.evaluate(()=>window.__mapSteps.length);
-      await page.evaluate(()=>{stopPlayback();for(const done of window.__mapSteps) done();stepPlaybackForward=window.__mapOriginalStep;});
-      assert.equal(requests,3,'Pause/restart scheduled duplicate playback loops');
-      checks.push({scenario:'pause/restart keeps one native playback loop',requests});
+      const sessions=[];
+      for(const mutant of [false,true]){
+        const delay=await page.evaluate(async mutant=>{
+          window.__mapPlaybackAction='prepare';stopPlayback();
+          for(const item of window.__mapSteps||[])item.resolve();
+          await Promise.all((window.__mapSteps||[]).map(item=>item.promise));
+          startPlayback=__mapPlaybackOriginal.start;
+          if(mutant){
+            const source=startPlayback.toString();
+            if((source.match(/generation !== playbackGeneration/g)||[]).length!==3)
+              throw new Error('Playback negative control needs the three maintained generation guards');
+            startPlayback=(0,eval)(`(${source.replaceAll(' || generation !== playbackGeneration','')
+              .replace('if (generation !== playbackGeneration) return;','')})`);
+          }
+          window.__mapSteps=[];
+          stepPlaybackForward=()=>{
+            let resolve;const promise=new Promise(done=>resolve=done);
+            __mapSteps.push({resolve,promise});return promise;
+          };
+          window.__mapPlaybackAction='start-old';startPlayback();
+          window.__mapPlaybackAction='pause-old';stopPlayback();
+          window.__mapPlaybackAction='start-new';startPlayback();
+          window.__mapPlaybackAction=null;
+          const held=__mapSteps.slice();held.forEach(item=>item.resolve());
+          await Promise.all(held.map(item=>item.promise));
+          return Math.max(PLAYBACK_MINIMUM_FRAME_DELAY_MS,getPlaybackFrameDurationMs());
+        },mutant);
+        await page.clock.runFor(delay-1);
+        assert.equal(await page.evaluate(()=>__mapSteps.length),2,'Held frame continuations must wait for their controlled deadline');
+        await page.clock.runFor(1);
+        const state=await page.evaluate(mutant=>{
+          const state={mutant,requests:__mapSteps.length,generation:playbackGeneration,timer:playTimer,
+            at:performance.now(),visibility:document.visibilityState,frame:floodFrameState,
+            externalStops:__mapPlaybackTrace.events.filter(event=>event.action==='external')};
+          __mapPlaybackTrace.sessions.push(state);return state;
+        },mutant);
+        assert.deepEqual(state.externalStops,[],`Playback session was externally stopped: ${JSON.stringify(state)}`);
+        assert.equal(state.requests,mutant?4:3,`Wrong playback loop count at the controlled frame deadline: ${JSON.stringify(state)}`);
+        sessions.push({...state,delay});
+      }
+      checks.push({scenario:'controlled-clock pause/restart keeps one playback loop',requests:sessions[0].requests,
+        oldGenerationNegativeControlRequests:sessions[1].requests,sessions});
+    } finally {
+      playbackTelemetry=await page.evaluate(async()=>{
+        if(!window.__mapPlaybackOriginal)return null;
+        window.__mapPlaybackAction='cleanup';stopPlayback();
+        for(const item of window.__mapSteps||[])item.resolve();
+        await Promise.all((window.__mapSteps||[]).map(item=>item.promise));
+        startPlayback=__mapPlaybackOriginal.start;stepPlaybackForward=__mapPlaybackOriginal.step;
+        clearPlaybackTimer=__mapPlaybackOriginal.clear;
+        return __mapPlaybackTrace;
+      }).catch(error=>({captureError:error.message}));
+      await page.close();
+    }
+  }
+  {
+    const page = await newPage();
+    try {
+      await ready(page);
       // Built-in storm shapes are stable across daily forecast refreshes.
       await modeledFlood(page);
 
@@ -236,7 +295,7 @@ try {
   }
   assert.deepEqual(errors,[]);
 } finally {
-  const result={browser:name,version:browser.version(),checks,observations,errors};
+  const result={browser:name,version:browser.version(),checks,observations,errors,playbackTelemetry};
   if (output) fs.writeFileSync(path.join(output,`${name}-line-map-browser.json`),JSON.stringify(result,null,2));
   console.log(JSON.stringify(result,null,2));await browser.close();
 }
