@@ -26,6 +26,7 @@ function extractFunction(name, sourceText = source) {
 
 const parserBlockingScripts = [...source.matchAll(/<script\s+src="([^"]+)"/g)].map(match => match[1].replace(/&(?:county|stability)=[^&]+/g, ''));
 assert.deepEqual(parserBlockingScripts, [
+  "assets/north-wildwood-loading.js?v=20261027-lines1",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",

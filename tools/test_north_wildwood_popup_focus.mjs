@@ -10,7 +10,9 @@ const body = source.match(/updatePersistentDepthQueryPopup = function \(\) \{([\
 assert.ok(body, 'The actual popup refresh wrapper must be present');
 const fallbackLifetimeSource = source.match(/  function closeOutdatedFallbackBuildingPopup\(\) \{[\s\S]*?\n  \}/)?.[0];
 assert.ok(fallbackLifetimeSource, 'The actual fallback popup lifetime helper must be present');
-const refresh = new Function('env', `with(env) { ${fallbackLifetimeSource}\n ${body}\n }`);
+const discardSource = source.match(/  function discardObsoleteFloodFrame3d\(\) \{[\s\S]*?\n  \}/)?.[0];
+assert.ok(discardSource, 'The actual pending GPU-frame cleanup must be present');
+const refresh = new Function('env', `with(env) { ${discardSource}\n ${fallbackLifetimeSource}\n ${body}\n }`);
 
 function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, throws = false } = {}) {
   const document = { activeElement: null };
@@ -45,7 +47,7 @@ function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, thro
   const env = {
     glPopup, document, persistentFloodPopup: { getContent: () => changed ? 'new reading' : 'old reading' },
     lastGlPopupHtml: 'old reading',
-    fallbackBuildingPopup: null, fallbackBuildingRenderToken: null, lastRenderToken: 1, floodFrameState: 'ready',
+    fallbackBuildingPopup: null, fallbackBuildingRenderToken: null, pendingFlood3dRequest: null, lastRenderToken: 1, floodFrameState: 'ready',
     originalUpdatePersistentDepthQueryPopup: () => { calls.original++; return 'original result'; },
     syncGlPopupLayout: () => calls.layout++,
   };

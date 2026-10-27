@@ -7,25 +7,32 @@ const source = fs.readFileSync(new URL('../assets/north-wildwood-loading.js', im
 const html = readAppSource(new URL('../index.html', import.meta.url));
 assert.match(html, /<body\b[^>]*\bclass="[^"]*\bnw-app-loading\b/);
 assert.match(html, /id="nwSiteLoader" role="status"/);
-assert.match(html, /<script\b(?=[^>]*\bdefer\b)[^>]*\bsrc="assets\/north-wildwood-loading\.js/,
-  'The shipped document must actually connect the original deferred loading-screen controller');
+const loaderTag = html.match(/<script\b[^>]*\bsrc="assets\/north-wildwood-loading\.js[^>]*>/)?.[0];
+assert.ok(loaderTag, 'The loading-screen controller must be connected');
+assert.doesNotMatch(loaderTag, /\b(?:defer|async)\b/, 'The watchdog must start before blocking core scripts');
+assert.ok(html.indexOf(loaderTag) > html.indexOf('id="exportStage"'));
+assert.ok(html.indexOf(loaderTag) < html.indexOf('<script src="https://unpkg.com/leaflet@'));
 assert.doesNotMatch(html, /#nwSiteLoader\s*\{[^}]*display\s*:\s*none\s*!important/,
   'No unconditional important CSS override may disconnect the visible splash');
 
-function fixture({ready = false, reducedMotion = false} = {}) {
+function fixture({ready = false, reducedMotion = false, dependenciesReady = true, parsing = false} = {}) {
   const classes = new Set(['nw-app-loading', ...(ready ? ['nw-app-ready'] : [])]);
   const timers = new Map();
   const intervals = new Map();
   let now = 0;
   let nextTimer = 0, callback, disconnected = false;
+  const events = new Map();
   const body = {dataset:{}, classList:{contains: name => classes.has(name), remove: name => classes.delete(name)}};
   const app = {inert:false, setAttribute(name, value) { this[name] = value; }};
   const toggle = {inert:false}, legend = {inert:false};
   const progress = {dataset:{}, style:{}}, status = {textContent:'Preparing forecast and map data…'};
   const loader = {hidden:false, classList:{add(name) { loader[name] = true; }}, setAttribute(name, value) { this[name] = value; }, addEventListener() {}};
+  const retry = {hidden:true, disabled:false, focusCount:0, focus() { this.focusCount++; }, addEventListener(type, fn) { this[type] = fn; }};
+  let reloads = 0;
   const context = {
-    document:{readyState:'complete', body, getElementById:id => ({app, nwSiteLoader:loader, mobileControlsToggle:toggle, legendDock:legend, nwLoaderProgress:progress, nwLoaderStatus:status})[id]},
-    window:{matchMedia:() => ({matches:reducedMotion})},
+    document:{readyState:parsing?'loading':'complete', body, getElementById:id => ({app, nwSiteLoader:loader, mobileControlsToggle:toggle, legendDock:legend, nwLoaderProgress:progress, nwLoaderStatus:status, nwLoaderRetry:retry})[id]},
+    window:{matchMedia:() => ({matches:reducedMotion}), floodmapperMapDependenciesReady:dependenciesReady,
+      addEventListener(type, fn) { events.set(type, fn); }, removeEventListener(type) { events.delete(type); }, location:{reload() {reloads++;}}},
     performance:{now:() => now},
     MutationObserver:class { constructor(fn) { callback = fn; } observe() {} disconnect() { disconnected = true; } },
     setTimeout(fn, ms) { const id = ++nextTimer; timers.set(id, {fn,ms}); return id; },
@@ -34,7 +41,8 @@ function fixture({ready = false, reducedMotion = false} = {}) {
     clearInterval(id) { intervals.delete(id); }
   };
   vm.runInNewContext(source, context);
-  return {body, app, loader, toggle, legend, progress, status, classes, timers, intervals,
+  return {body, app, loader, toggle, legend, progress, status, classes, timers, intervals, retry, events,
+    reloads:() => reloads,
     advanceTime(ms) { now += ms; }, tickProgress() { [...intervals.values()][0].fn(); },
     signalReady() { classes.add('nw-app-ready'); callback(); },
     disconnected:() => disconnected, runTimer(ms) { const [id,timer] = [...timers].find(([,timer]) => timer.ms === ms); timers.delete(id); timer.fn(); }};
@@ -88,4 +96,26 @@ assert.equal(stalled.intervals.size, 0);
 assert.equal(stalled.classes.has('nw-app-ready'), false, 'The fallback must not falsely mark the map ready');
 stalled.signalReady();
 assert.equal(stalled.body.dataset.siteLoader, 'timeout', 'Late completion must not restart the overlay');
-console.log('Passed original progress, completion timing, focus handoff, reduced motion and stalled-request recovery');
+
+const core = fixture({dependenciesReady:false, parsing:true, reducedMotion:true});
+assert.equal(core.app.inert, true, 'Watchdog initializes while the parser is waiting on a core script');
+core.tickProgress();
+core.runTimer(20000);
+assert.equal(core.body.dataset.siteLoader, 'dependency-error');
+assert.equal(core.loader.hidden, false);
+assert.equal(core.app.inert, true, 'Incomplete controls stay isolated');
+assert.equal(core.retry.hidden, false);
+assert.equal(core.retry.focusCount, 1);
+assert.match(core.status.textContent, /could not load/);
+assert.equal(core.intervals.size, 0);
+core.signalReady();
+assert.equal(core.loader.hidden, true, 'Late successful startup recovers without a reload');
+assert.equal(core.app.inert, false);
+
+const failed = fixture({dependenciesReady:false, parsing:true});
+failed.events.get('nww:map-dependency-error')();
+assert.equal(failed.retry.hidden, false, 'Failed dependencies expose immediate retry');
+failed.retry.click();
+assert.equal(failed.retry.disabled, true);
+assert.equal(failed.reloads(), 1);
+console.log('Passed loading lifecycle, parser-stalled core recovery, failure retry, and late successful startup');

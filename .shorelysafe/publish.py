@@ -126,7 +126,7 @@ def main():
     parser.add_argument('--app',required=True,help='An application ID, or all')
     parser.add_argument('--sources',type=Path,default=ROOT/'sources')
     parser.add_argument('--connection',type=Path)
-    parser.add_argument('--catalog',type=Path,default=ROOT/'shorelysafe-products/apps.json')
+    parser.add_argument('--catalog',type=Path,default=ROOT/'apps.json')
     parser.add_argument('--dry-run',action='store_true')
     parser.add_argument('--clone-missing',action='store_true')
     args=parser.parse_args()

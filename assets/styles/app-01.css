@@ -1737,6 +1737,23 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
 }
 /* One ordering and one set of dimensions for every renderer. */
 @layer floodmapper-unified-polish {
+ /* Native minimum font sizes can wrap every choice group onto more lines.
+    Keep each control's normal minimum size while its row grows with its text. */
+ html body[data-floodmapper-unified] #leftPanel :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle,.return-interval-grid) {
+   height:auto!important;max-height:none!important;align-items:stretch!important;
+ }
+ html body[data-floodmapper-unified] #leftPanel :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle,.return-interval-grid) > button {
+   height:auto!important;max-height:none!important;min-width:0!important;
+   white-space:normal!important;overflow-wrap:anywhere!important;overflow:visible!important;
+ }
+ @media(max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
+  html body[data-floodmapper-unified] #leftPanel #timelineIntervalToggle,
+  html body[data-floodmapper-unified] #leftPanel :is(.button-grid-2,.button-grid-3,.segmented-control,#timelineIntervalToggle) > button {
+    min-height:48px!important;
+  }
+  html body[data-floodmapper-unified] #nwwMobileControlHeader h2 {line-height:1.714285714!important;}
+  html body[data-floodmapper-unified] #nwwMobileControlHeader p {line-height:1.333333333!important;}
+ }
  html body[data-floodmapper-unified] #nativeRoadNamesHint {display:none!important;}
  html body[data-floodmapper-unified] #roadImpactsKey[hidden] {display:none!important;}
  html body[data-floodmapper-unified] .top-tide-more-btn .unified-more-plus {color:#60a5fa!important;background:transparent!important;border:0!important;box-shadow:none!important;width:auto!important;height:auto!important;}

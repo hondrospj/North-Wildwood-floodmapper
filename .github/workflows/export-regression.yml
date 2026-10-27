@@ -44,6 +44,9 @@ jobs:
             assets/export-preview.js
             assets/north-wildwood-font.css
             assets/north-wildwood-loading.js
+            assets/north-wildwood-loading.css
+            assets/modal-focus.js
+            assets/3d/north-wildwood-3d.js
             assets/app/
             assets/styles/
             tools/app/
@@ -60,6 +63,7 @@ jobs:
             tools/fixtures/north-wildwood-loader-restore.json
             tools/fixtures/north-wildwood-20261026-bug-fixes.json
             tools/fixtures/north-wildwood-20261026-holistic-fixes.json
+            tools/fixtures/north-wildwood-20261027-line-fixes.json
             tools/fixtures/north-wildwood-export-dst.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs
@@ -88,3 +92,4 @@ jobs:
           node tools/test_export_streaming.mjs
           node tools/test_export_history.mjs
           node tools/test_export_frame_recovery.mjs
+          node tools/test_export_worker_cancellation.mjs

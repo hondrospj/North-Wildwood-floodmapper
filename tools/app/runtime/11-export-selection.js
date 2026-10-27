@@ -13,12 +13,36 @@
       return document.getElementById("exportProgressOverlay")?.classList.contains("open") || false;
     }
 
+    let exportProgressVisibilityVersion = 0;
+    let exportProgressReturnFocus = null;
+
     function setExportProgressVisible(isVisible) {
       const overlay = document.getElementById("exportProgressOverlay");
       if (!overlay) return;
+      const wasVisible = !overlay.hidden && overlay.classList.contains("open");
+      exportProgressVisibilityVersion += 1;
+      if (isVisible && !wasVisible && !overlay.contains(document.activeElement)) {
+        exportProgressReturnFocus = document.activeElement;
+      }
       overlay.hidden = !isVisible;
       overlay.classList.toggle("open", Boolean(isVisible));
-      overlay.setAttribute("aria-busy", String(Boolean(isVisible)));
+      overlay.setAttribute("aria-busy", String(Boolean(isVisible && exportInProgress)));
+      // Apply the shared modal isolation before assigning initial focus. The
+      // settings dialog has just closed, so waiting for its observer would
+      // leave a keyboard event free to activate a control behind this overlay.
+      document.dispatchEvent?.(new CustomEvent("nww:modalchange"));
+      if (isVisible) {
+        document.getElementById("exportProgressCloseBtn")?.focus({ preventScroll: true });
+      } else if (wasVisible) {
+        const target = exportProgressReturnFocus;
+        exportProgressReturnFocus = null;
+        // A nested dialog may already have restored its own focus. Restore
+        // our trigger only when focus was left inside the now-hidden overlay.
+        if ((!document.activeElement || document.activeElement === document.body || overlay.contains(document.activeElement)) &&
+            target?.isConnected && !target.closest("[hidden],[inert],[aria-hidden='true']") && target.getClientRects().length) {
+          target.focus({ preventScroll: true });
+        }
+      }
     }
 
     function setExportProgress(message = "", percent = null, isError = false) {
@@ -38,8 +62,9 @@
 
     function finishExportProgress(message = "", isError = false) {
       setExportProgress(message, isError ? null : 100, isError);
+      const visibilityVersion = exportProgressVisibilityVersion;
       window.setTimeout(() => {
-        if (!exportInProgress) setExportProgressVisible(false);
+        if (!exportInProgress && visibilityVersion === exportProgressVisibilityVersion) setExportProgressVisible(false);
       }, isError ? 5200 : 1600);
     }
 
@@ -60,8 +85,9 @@
 
     function finishCancelledExportProgress(message = "Export cancelled.") {
       setExportProgress(message, null, false);
+      const visibilityVersion = exportProgressVisibilityVersion;
       window.setTimeout(() => {
-        if (!exportInProgress) setExportProgressVisible(false);
+        if (!exportInProgress && visibilityVersion === exportProgressVisibilityVersion) setExportProgressVisible(false);
       }, 900);
     }
 
@@ -74,6 +100,7 @@
       const closeBtn = document.getElementById("exportProgressCloseBtn");
       if (closeBtn) closeBtn.disabled = true;
       setExportProgress("Cancelling export...", null, false);
+      cancelGifWorkerLoad();
       if (activeGifExport && typeof activeGifExport.abort === "function") {
         try { activeGifExport.abort(); } catch (_) {}
       }

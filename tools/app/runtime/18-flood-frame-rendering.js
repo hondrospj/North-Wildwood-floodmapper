@@ -79,7 +79,11 @@
           if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
           await new Promise(requestAnimationFrame);
           if (settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);
-          try { onReady(); finish(true); }
+          try {
+            const ready = await onReady();
+            if (ready === false || settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);
+            finish(true);
+          }
           catch (error) { console.warn("The flood image could not be displayed.", error); finish(false); }
         };
         const handleError = () => finish(false);

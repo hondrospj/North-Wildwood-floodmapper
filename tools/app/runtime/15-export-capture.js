@@ -154,13 +154,45 @@
       return raw;
     }
 
-    async function getSameOriginWorkerUrl(sourceUrl) {
-      const response = await fetch(sourceUrl, { mode: "cors", cache: "force-cache" });
-      if (!response.ok) {
-        throw new Error(`Could not load worker script (${response.status}).`);
-      }
-      const scriptText = await response.text();
-      return URL.createObjectURL(new Blob([scriptText], { type: "text/javascript" }));
+    function getSameOriginWorkerUrl(sourceUrl, { signal, timeoutMs = 12000 } = {}) {
+      // The deadline covers both response headers and the complete body. A
+      // separate rejection also releases Cancel when a transport ignores abort.
+      return new Promise((resolve, reject) => {
+        const controller = new AbortController();
+        let settled = false;
+        let timer = null;
+        const finish = (error, url = null) => {
+          if (settled) {
+            if (url) URL.revokeObjectURL(url);
+            return;
+          }
+          settled = true;
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", cancelled);
+          if (error) {
+            controller.abort();
+            reject(error);
+          } else {
+            resolve(url);
+          }
+        };
+        const cancelled = () => finish(makeExportCancelledError());
+        signal?.addEventListener("abort", cancelled, { once: true });
+        if (signal?.aborted) {
+          cancelled();
+          return;
+        }
+        timer = setTimeout(() => finish(new Error("The GIF worker download took too long. Please try the export again.")), timeoutMs);
+        Promise.resolve().then(async () => {
+          if (settled) return;
+          const response = await fetch(sourceUrl, { mode: "cors", cache: "force-cache", signal: controller.signal });
+          if (settled) return;
+          if (!response.ok) throw new Error(`Could not load worker script (${response.status}).`);
+          const scriptText = await response.text();
+          if (settled) return;
+          finish(null, URL.createObjectURL(new Blob([scriptText], { type: "text/javascript" })));
+        }).catch(error => finish(error));
+      });
     }
 
     async function waitForExportVectorLayerReady(layer, timeoutMs = 15000) {
@@ -331,12 +363,33 @@
       };
     }
 
+    let gifWorkerLoadRequest = null;
+
+    function cancelGifWorkerLoad() {
+      const request = gifWorkerLoadRequest;
+      if (!request) return;
+      gifWorkerLoadRequest = null;
+      if (gifWorkerUrlPromise === request.promise) gifWorkerUrlPromise = null;
+      request.controller.abort();
+    }
+
     async function getGifWorkerUrl() {
       if (gifWorkerUrlPromise) return gifWorkerUrlPromise;
-      gifWorkerUrlPromise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL).catch(error => {
-        gifWorkerUrlPromise = null;
+      const request = { controller: new AbortController(), promise: null };
+      gifWorkerLoadRequest = request;
+      request.promise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL, { signal: request.controller.signal }).then(url => {
+        if (gifWorkerLoadRequest !== request || request.controller.signal.aborted) {
+          URL.revokeObjectURL(url);
+          throw makeExportCancelledError();
+        }
+        return url;
+      }).catch(error => {
+        if (gifWorkerUrlPromise === request.promise) gifWorkerUrlPromise = null;
         throw error;
+      }).finally(() => {
+        if (gifWorkerLoadRequest === request) gifWorkerLoadRequest = null;
       });
+      gifWorkerUrlPromise = request.promise;
       return gifWorkerUrlPromise;
     }
 

@@ -221,7 +221,7 @@ for (const outcome of ['cancel-resolve', 'cancel-reject', 'archive-error', 'succ
   const ctx = context(['setDownloadBusy', 'makeExportCancelledError', 'throwIfExportCancelled',
     'cancelCurrentExport', 'isExportCancelledError', 'downloadCurrentSelection'], {
     document: { getElementById: node, querySelectorAll: () => [] },
-    exportInProgress: false, exportCancelRequested: false, activeGifExport: null, exportViewportBounds: null,
+    exportInProgress: false, exportCancelRequested: false, activeGifExport: null, exportViewportBounds: null, cancelGifWorkerLoad: noop,
     currentDataMode: 'observed', getActiveMapBounds: () => ({}), floodFrameState: 'ready',
     setExportProgressVisible: noop, setExportProgress: message => { progress = message; },
     setDownloadStatus: message => { node('downloadStatus').textContent = message; },

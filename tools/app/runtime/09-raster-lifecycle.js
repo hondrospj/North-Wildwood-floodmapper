@@ -1,13 +1,49 @@
+    function awaitRasterRequest(request) {
+      // The decoded grid may be shared with the interactive map. Cancel only
+      // this export's wait; the shared transport has its own bounded deadline.
+      if (typeof exportInProgress === "undefined" || !exportInProgress) return request;
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        let timer = null;
+        const finish = (error, value) => {
+          if (settled) return;
+          settled = true;
+          if (timer !== null) window.clearInterval(timer);
+          error ? reject(error) : resolve(value);
+        };
+        const cancel = () => {
+          if (!exportCancelRequested) return;
+          const error = new Error("Export cancelled.");
+          error.name = "AbortError";
+          finish(error);
+        };
+        timer = window.setInterval(cancel, 80);
+        Promise.resolve(request).then(value => finish(null, value), error => finish(error));
+        cancel();
+      });
+    }
+
     function getDrainageRasterImage(url) {
       if (!url) return Promise.resolve(null);
-      if (drainageRasterImageCache.has(url)) return drainageRasterImageCache.get(url);
+      if (drainageRasterImageCache.has(url)) return awaitRasterRequest(drainageRasterImageCache.get(url));
       const releaseRaster = retainRasterObjectUrl(url);
       const promise = new Promise(resolve => {
         const image = new Image();
+        let settled = false;
+        const timer = window.setTimeout(() => finish(null), 20000);
+        const finish = value => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          image.onload = image.onerror = null;
+          releaseRaster();
+          if (!value) { try { image.src = ""; } catch (_) {} }
+          resolve(value);
+        };
         image.crossOrigin = "anonymous";
         image.decoding = "async";
-        image.onload = () => { releaseRaster(); resolve(image); };
-        image.onerror = () => { releaseRaster(); resolve(null); };
+        image.onload = () => finish(image);
+        image.onerror = () => finish(null);
         image.src = url;
       }).then(image => {
         // A failed decode must not prevent the next request from retrying.
@@ -20,7 +56,7 @@
       while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {
         drainageRasterImageCache.delete(drainageRasterImageCache.keys().next().value);
       }
-      return promise;
+      return awaitRasterRequest(promise);
     }
 
     function canvasToDrainageObjectUrl(canvas) {
@@ -138,7 +174,7 @@
       // The resolved depth-frame URL identifies the exact mask to reuse.
       const key = JSON.stringify([stageToCode(stage), depthRecord?.url || "no-uncertainty"]);
       const cache = bathtubStageOverlayCache;
-      if (cache.has(key)) return cache.get(key);
+      if (cache.has(key)) return awaitRasterRequest(cache.get(key));
       const releaseDepth = retainRasterObjectUrl(depthRecord?.url);
       const request = (async () => {
         try {
@@ -175,11 +211,15 @@
           releaseDepth();
         }
       })().catch(error => {
+        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+          if (cache.get(key) === request) cache.delete(key);
+          throw error;
+        }
         console.warn("Could not build Flood Stages with its Flood Depth uncertainty areas.", error);
         return null;
       });
       cache.set(key, request);
-      const record = await request;
+      const record = await awaitRasterRequest(request);
       if (cache !== bathtubStageOverlayCache) {
         retireRasterObjectUrl(record?.url);
         return null;
@@ -256,7 +296,7 @@
         const cached = fillingCompositeCache.get(key);
         fillingCompositeCache.delete(key);
         fillingCompositeCache.set(key, cached);
-        return cached;
+        return awaitRasterRequest(cached);
       }
 
       const request = (async () => {
@@ -323,12 +363,16 @@
           addedPixelCount
         };
       })().catch(error => {
+        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+          if (fillingCompositeCache.get(key) === request) fillingCompositeCache.delete(key);
+          throw error;
+        }
         console.warn("Could not build the continuous filling raster; using the lower catalog raster.", error);
         return lowerRecord;
       });
 
       fillingCompositeCache.set(key, request);
-      const record = await request;
+      const record = await awaitRasterRequest(request);
       return cacheFillingComposite(key, record);
     }
 
@@ -368,7 +412,7 @@
           const cached = drainageCompositeCache.get(key);
           drainageCompositeCache.delete(key);
           drainageCompositeCache.set(key, cached);
-          return cached;
+          return awaitRasterRequest(cached);
         }
 
         const request = (async () => {
@@ -420,12 +464,16 @@
             retainedPixelCount: addedPixelCount
           };
         })().catch(error => {
+          if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+            if (drainageCompositeCache.get(key) === request) drainageCompositeCache.delete(key);
+            throw error;
+          }
           console.warn("Could not build the history-aware drainage raster; using the static phase raster.", error);
           return baseRecord;
         });
 
         drainageCompositeCache.set(key, request);
-        const record = await request;
+        const record = await awaitRasterRequest(request);
         return cacheDrainageComposite(key, record);
       } finally {
         releaseRaster?.();

@@ -17,7 +17,26 @@ const url = process.env.NWW_TEST_URL || 'http://127.0.0.1:8765/index.html';
 const checks = [], errors = [], observations = [];
 let exportProfile = null;
 const output = process.env.NWW_AUDIT_OUTPUT;
+const traceInert = process.env.NWW_TRACE_INERT === '1';
+const tracedPages = [], inertDiagnostics = [];
 if (output) fs.mkdirSync(output,{recursive:true});
+async function captureInert(page,label) {
+  if (!traceInert || page.isClosed()) return;
+  const snapshot=await page.evaluate(()=>{
+    const describe=element=>({id:element.id,tag:element.tagName,role:element.getAttribute('role'),
+      modal:element.getAttribute('aria-modal'),hidden:element.hidden,ariaHidden:element.getAttribute('aria-hidden'),
+      inert:element.inert,inertAncestor:element.closest('[inert]')?.id || null,
+      display:getComputedStyle(element).display,visibility:getComputedStyle(element).visibility,
+      rects:element.getClientRects().length});
+    return {url:location.href,classes:document.body.className,loader:document.body.dataset.siteLoader,
+      frame:document.body.dataset.floodFrame,active:document.activeElement?.id,
+      controls:['app','mobileControlsToggle','leftPanel','mapperTutorial','mapperTutorialCard','legendDock','nwSiteLoader']
+        .map(id=>document.getElementById(id)).filter(Boolean).map(describe),
+      dialogs:[...document.querySelectorAll('[role="dialog"],[aria-modal="true"],dialog[open]')].map(describe),
+      trace:window.__nwwInertTrace || []};
+  }).catch(error=>({error:error.message}));
+  inertDiagnostics.push({label,viewport:page.viewportSize(),...snapshot});
+}
 async function finishProfile() {
   const session=exportProfile;exportProfile=null;
   if(!session)return;
@@ -29,6 +48,37 @@ async function finishProfile() {
 }
 async function pageFor(options) {
   const page = await browser.newPage(options);
+  if (traceInert) {
+    tracedPages.push(page);
+    await page.addInitScript(()=>{
+      const trace=window.__nwwInertTrace=[];
+      const record=entry=>{
+        trace.push({at:performance.now(),focus:document.activeElement?.id,
+          loader:document.body?.dataset.siteLoader,classes:document.body?.className,...entry});
+        if(trace.length>500)trace.shift();
+      };
+      const property=Object.getOwnPropertyDescriptor(HTMLElement.prototype,'inert');
+      Object.defineProperty(HTMLElement.prototype,'inert',{...property,set(value){
+        if(['app','mobileControlsToggle','legendDock','leftPanel','mapperTutorial','mapperTutorialCard'].includes(this.id))
+          record({type:'inert-write',id:this.id,old:property.get.call(this),value:!!value,stack:new Error().stack});
+        property.set.call(this,value);
+      }});
+      for(const type of ['pointerdown','focusin','focusout','click','nww:modalchange'])
+        document.addEventListener(type,event=>record({type,target:event.target?.id || event.target?.tagName}),true);
+      // Attribute snapshots avoid forced layout inside the inert setter, which
+      // could otherwise change the native focus timing being investigated.
+      document.addEventListener('DOMContentLoaded',()=>{
+        const observer=new MutationObserver(records=>{
+          for(const mutation of records)record({type:'attribute',id:mutation.target.id,
+            attribute:mutation.attributeName,value:mutation.target.getAttribute(mutation.attributeName)});
+        });
+        for(const id of ['leftPanel','mapperTutorial','mapperTutorialCard','nwSiteLoader']){
+          const element=document.getElementById(id);
+          if(element)observer.observe(element,{attributes:true,attributeFilter:['class','hidden','aria-hidden','role','aria-modal']});
+        }
+      },{once:true});
+    });
+  }
   page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.stack || error.message));
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
@@ -111,6 +161,7 @@ try {
   assert.equal(await desktop.locator('#exportStage').evaluate(el=>el.inert),true);
   checks.push('offscreen export stage is inert and excluded from keyboard interaction');
   await graphics(desktop);
+  await captureInert(desktop,'desktop complete');
   await desktop.close();
 
   const mobile=await pageFor({viewport:{width:844,height:390},hasTouch:true,...(name==='firefox'?{}:{isMobile:true})});
@@ -156,11 +207,18 @@ try {
     if(await mobile.locator('#mobileControlsClose').isVisible())await mobile.locator('#mobileControlsClose').click();
   }
   checks.push('12 immediate mobile date edits retain focus/caret using keyboard events');
-  await snapshot(mobile,'mobile');await mobile.close();
+  await snapshot(mobile,'mobile');await captureInert(mobile,'mobile complete');await mobile.close();
   assert.deepEqual(errors,[]);checks.push('no uncaught browser errors');
 } finally {
   await finishProfile();
-  const result={browser:name,version:browser.version(),channel:name==='chromium'?(process.env.NWW_CHROMIUM_CHANNEL||(process.env.CHROME_PATH?'installed-chrome':'chromium-headless-shell')):name,checks,observations,errors};
+  if(traceInert){
+    for(const page of tracedPages)if(!page.isClosed()){
+      await captureInert(page,'unfinished page at suite exit');
+      if(output)await page.screenshot({path:path.join(output,`${name}-ui-failure.png`),timeout:5000}).catch(()=>{});
+    }
+    if(output)fs.writeFileSync(path.join(output,`${name}-inert-diagnostics.json`),JSON.stringify(inertDiagnostics,null,2));
+  }
+  const result={browser:name,version:browser.version(),channel:name==='chromium'?(process.env.NWW_CHROMIUM_CHANNEL||(process.env.CHROME_PATH?'installed-chrome':'chromium-headless-shell')):name,checks,observations,errors,...(traceInert?{inertDiagnostics}: {})};
   if(output)fs.writeFileSync(path.join(output,`${name}-ui.json`),JSON.stringify(result,null,2));
   console.log(JSON.stringify(result,null,2));await browser.close();
 }

@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 from datetime import datetime, timezone
+from frame_alignment import load_guidance_frames
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -220,19 +221,6 @@ def grid_centres(
     return np.column_stack((x_grid.ravel(), y_grid.ravel()))
 
 
-def load_guidance_frames(
-    guidance: dict[str, Any],
-    scenario: str,
-    frame_count: int,
-) -> list[dict[str, Any]]:
-    frames = guidance["scenarios"][scenario][:frame_count]
-    if len(frames) != frame_count:
-        raise RuntimeError(
-            f"Run has {frame_count} frames but guidance has only {len(frames)}"
-        )
-    return frames
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
@@ -297,10 +285,14 @@ def main() -> None:
     frame_count, triangle_count = stage_frames.shape
     if triangle_count != len(centroid_coordinates):
         raise RuntimeError("Stage array and hydraulic mesh do not align")
+    frame_statistics = json.loads((hydraulic_directory / "frame_statistics.json").read_text())
+    if len(frame_statistics) != frame_count:
+        raise RuntimeError("Recorded solver times and stage array do not align")
     guidance_frames = load_guidance_frames(
         guidance,
         args.scenario,
-        frame_count,
+        frame_statistics,
+        run_manifest.get("runOptions", {}).get("constant_stage_m"),
     )
 
     computational_path = ROOT / config["terrain"]["computationalDem"]

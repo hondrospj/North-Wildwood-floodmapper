@@ -3694,16 +3694,52 @@ function setDatumHelpOpen(isOpen) {
       return Array.from(selected.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
     }
 
+    function awaitRasterRequest(request) {
+      // The decoded grid may be shared with the interactive map. Cancel only
+      // this export's wait; the shared transport has its own bounded deadline.
+      if (typeof exportInProgress === "undefined" || !exportInProgress) return request;
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        let timer = null;
+        const finish = (error, value) => {
+          if (settled) return;
+          settled = true;
+          if (timer !== null) window.clearInterval(timer);
+          error ? reject(error) : resolve(value);
+        };
+        const cancel = () => {
+          if (!exportCancelRequested) return;
+          const error = new Error("Export cancelled.");
+          error.name = "AbortError";
+          finish(error);
+        };
+        timer = window.setInterval(cancel, 80);
+        Promise.resolve(request).then(value => finish(null, value), error => finish(error));
+        cancel();
+      });
+    }
+
     function getDrainageRasterImage(url) {
       if (!url) return Promise.resolve(null);
-      if (drainageRasterImageCache.has(url)) return drainageRasterImageCache.get(url);
+      if (drainageRasterImageCache.has(url)) return awaitRasterRequest(drainageRasterImageCache.get(url));
       const releaseRaster = retainRasterObjectUrl(url);
       const promise = new Promise(resolve => {
         const image = new Image();
+        let settled = false;
+        const timer = window.setTimeout(() => finish(null), 20000);
+        const finish = value => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          image.onload = image.onerror = null;
+          releaseRaster();
+          if (!value) { try { image.src = ""; } catch (_) {} }
+          resolve(value);
+        };
         image.crossOrigin = "anonymous";
         image.decoding = "async";
-        image.onload = () => { releaseRaster(); resolve(image); };
-        image.onerror = () => { releaseRaster(); resolve(null); };
+        image.onload = () => finish(image);
+        image.onerror = () => finish(null);
         image.src = url;
       }).then(image => {
         // A failed decode must not prevent the next request from retrying.
@@ -3716,7 +3752,7 @@ function setDatumHelpOpen(isOpen) {
       while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {
         drainageRasterImageCache.delete(drainageRasterImageCache.keys().next().value);
       }
-      return promise;
+      return awaitRasterRequest(promise);
     }
 
     function canvasToDrainageObjectUrl(canvas) {
@@ -3834,7 +3870,7 @@ function setDatumHelpOpen(isOpen) {
       // The resolved depth-frame URL identifies the exact mask to reuse.
       const key = JSON.stringify([stageToCode(stage), depthRecord?.url || "no-uncertainty"]);
       const cache = bathtubStageOverlayCache;
-      if (cache.has(key)) return cache.get(key);
+      if (cache.has(key)) return awaitRasterRequest(cache.get(key));
       const releaseDepth = retainRasterObjectUrl(depthRecord?.url);
       const request = (async () => {
         try {
@@ -3871,11 +3907,15 @@ function setDatumHelpOpen(isOpen) {
           releaseDepth();
         }
       })().catch(error => {
+        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+          if (cache.get(key) === request) cache.delete(key);
+          throw error;
+        }
         console.warn("Could not build Flood Stages with its Flood Depth uncertainty areas.", error);
         return null;
       });
       cache.set(key, request);
-      const record = await request;
+      const record = await awaitRasterRequest(request);
       if (cache !== bathtubStageOverlayCache) {
         retireRasterObjectUrl(record?.url);
         return null;
@@ -3952,7 +3992,7 @@ function setDatumHelpOpen(isOpen) {
         const cached = fillingCompositeCache.get(key);
         fillingCompositeCache.delete(key);
         fillingCompositeCache.set(key, cached);
-        return cached;
+        return awaitRasterRequest(cached);
       }
 
       const request = (async () => {
@@ -4019,12 +4059,16 @@ function setDatumHelpOpen(isOpen) {
           addedPixelCount
         };
       })().catch(error => {
+        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+          if (fillingCompositeCache.get(key) === request) fillingCompositeCache.delete(key);
+          throw error;
+        }
         console.warn("Could not build the continuous filling raster; using the lower catalog raster.", error);
         return lowerRecord;
       });
 
       fillingCompositeCache.set(key, request);
-      const record = await request;
+      const record = await awaitRasterRequest(request);
       return cacheFillingComposite(key, record);
     }
 
@@ -4064,7 +4108,7 @@ function setDatumHelpOpen(isOpen) {
           const cached = drainageCompositeCache.get(key);
           drainageCompositeCache.delete(key);
           drainageCompositeCache.set(key, cached);
-          return cached;
+          return awaitRasterRequest(cached);
         }
 
         const request = (async () => {
@@ -4116,12 +4160,16 @@ function setDatumHelpOpen(isOpen) {
             retainedPixelCount: addedPixelCount
           };
         })().catch(error => {
+          if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+            if (drainageCompositeCache.get(key) === request) drainageCompositeCache.delete(key);
+            throw error;
+          }
           console.warn("Could not build the history-aware drainage raster; using the static phase raster.", error);
           return baseRecord;
         });
 
         drainageCompositeCache.set(key, request);
-        const record = await request;
+        const record = await awaitRasterRequest(request);
         return cacheDrainageComposite(key, record);
       } finally {
         releaseRaster?.();
@@ -5065,12 +5113,36 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       return document.getElementById("exportProgressOverlay")?.classList.contains("open") || false;
     }
 
+    let exportProgressVisibilityVersion = 0;
+    let exportProgressReturnFocus = null;
+
     function setExportProgressVisible(isVisible) {
       const overlay = document.getElementById("exportProgressOverlay");
       if (!overlay) return;
+      const wasVisible = !overlay.hidden && overlay.classList.contains("open");
+      exportProgressVisibilityVersion += 1;
+      if (isVisible && !wasVisible && !overlay.contains(document.activeElement)) {
+        exportProgressReturnFocus = document.activeElement;
+      }
       overlay.hidden = !isVisible;
       overlay.classList.toggle("open", Boolean(isVisible));
-      overlay.setAttribute("aria-busy", String(Boolean(isVisible)));
+      overlay.setAttribute("aria-busy", String(Boolean(isVisible && exportInProgress)));
+      // Apply the shared modal isolation before assigning initial focus. The
+      // settings dialog has just closed, so waiting for its observer would
+      // leave a keyboard event free to activate a control behind this overlay.
+      document.dispatchEvent?.(new CustomEvent("nww:modalchange"));
+      if (isVisible) {
+        document.getElementById("exportProgressCloseBtn")?.focus({ preventScroll: true });
+      } else if (wasVisible) {
+        const target = exportProgressReturnFocus;
+        exportProgressReturnFocus = null;
+        // A nested dialog may already have restored its own focus. Restore
+        // our trigger only when focus was left inside the now-hidden overlay.
+        if ((!document.activeElement || document.activeElement === document.body || overlay.contains(document.activeElement)) &&
+            target?.isConnected && !target.closest("[hidden],[inert],[aria-hidden='true']") && target.getClientRects().length) {
+          target.focus({ preventScroll: true });
+        }
+      }
     }
 
     function setExportProgress(message = "", percent = null, isError = false) {
@@ -5090,8 +5162,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
     function finishExportProgress(message = "", isError = false) {
       setExportProgress(message, isError ? null : 100, isError);
+      const visibilityVersion = exportProgressVisibilityVersion;
       window.setTimeout(() => {
-        if (!exportInProgress) setExportProgressVisible(false);
+        if (!exportInProgress && visibilityVersion === exportProgressVisibilityVersion) setExportProgressVisible(false);
       }, isError ? 5200 : 1600);
     }
 
@@ -5112,8 +5185,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
     function finishCancelledExportProgress(message = "Export cancelled.") {
       setExportProgress(message, null, false);
+      const visibilityVersion = exportProgressVisibilityVersion;
       window.setTimeout(() => {
-        if (!exportInProgress) setExportProgressVisible(false);
+        if (!exportInProgress && visibilityVersion === exportProgressVisibilityVersion) setExportProgressVisible(false);
       }, 900);
     }
 
@@ -5126,6 +5200,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       const closeBtn = document.getElementById("exportProgressCloseBtn");
       if (closeBtn) closeBtn.disabled = true;
       setExportProgress("Cancelling export...", null, false);
+      cancelGifWorkerLoad();
       if (activeGifExport && typeof activeGifExport.abort === "function") {
         try { activeGifExport.abort(); } catch (_) {}
       }
@@ -7273,6 +7348,7 @@ function updateExportSegmentedUI() {
         activeGifExport = null;
       }
       exportInProgress = isBusy;
+      document.getElementById("exportProgressOverlay")?.setAttribute("aria-busy", String(Boolean(isBusy)));
       const btn = document.getElementById("downloadBtn");
       const btnLabel = document.getElementById("downloadBtnLabel");
       const progressCloseBtn = document.getElementById("exportProgressCloseBtn");
@@ -7306,6 +7382,7 @@ function updateExportSegmentedUI() {
       if (progressCloseBtn) {
         progressCloseBtn.disabled = false;
         progressCloseBtn.classList.toggle("is-cancel-action", isBusy);
+        progressCloseBtn.classList.toggle("centered-close-control", !isBusy);
         progressCloseBtn.textContent = isBusy ? "Cancel" : "×";
         progressCloseBtn.setAttribute("aria-label", isBusy ? "Cancel export" : "Hide export progress");
         progressCloseBtn.title = isBusy ? "Cancel export" : "Hide export progress";
@@ -7495,13 +7572,45 @@ function updateExportSegmentedUI() {
       return raw;
     }
 
-    async function getSameOriginWorkerUrl(sourceUrl) {
-      const response = await fetch(sourceUrl, { mode: "cors", cache: "force-cache" });
-      if (!response.ok) {
-        throw new Error(`Could not load worker script (${response.status}).`);
-      }
-      const scriptText = await response.text();
-      return URL.createObjectURL(new Blob([scriptText], { type: "text/javascript" }));
+    function getSameOriginWorkerUrl(sourceUrl, { signal, timeoutMs = 12000 } = {}) {
+      // The deadline covers both response headers and the complete body. A
+      // separate rejection also releases Cancel when a transport ignores abort.
+      return new Promise((resolve, reject) => {
+        const controller = new AbortController();
+        let settled = false;
+        let timer = null;
+        const finish = (error, url = null) => {
+          if (settled) {
+            if (url) URL.revokeObjectURL(url);
+            return;
+          }
+          settled = true;
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", cancelled);
+          if (error) {
+            controller.abort();
+            reject(error);
+          } else {
+            resolve(url);
+          }
+        };
+        const cancelled = () => finish(makeExportCancelledError());
+        signal?.addEventListener("abort", cancelled, { once: true });
+        if (signal?.aborted) {
+          cancelled();
+          return;
+        }
+        timer = setTimeout(() => finish(new Error("The GIF worker download took too long. Please try the export again.")), timeoutMs);
+        Promise.resolve().then(async () => {
+          if (settled) return;
+          const response = await fetch(sourceUrl, { mode: "cors", cache: "force-cache", signal: controller.signal });
+          if (settled) return;
+          if (!response.ok) throw new Error(`Could not load worker script (${response.status}).`);
+          const scriptText = await response.text();
+          if (settled) return;
+          finish(null, URL.createObjectURL(new Blob([scriptText], { type: "text/javascript" })));
+        }).catch(error => finish(error));
+      });
     }
 
     async function waitForExportVectorLayerReady(layer, timeoutMs = 15000) {
@@ -7672,12 +7781,33 @@ function updateExportSegmentedUI() {
       };
     }
 
+    let gifWorkerLoadRequest = null;
+
+    function cancelGifWorkerLoad() {
+      const request = gifWorkerLoadRequest;
+      if (!request) return;
+      gifWorkerLoadRequest = null;
+      if (gifWorkerUrlPromise === request.promise) gifWorkerUrlPromise = null;
+      request.controller.abort();
+    }
+
     async function getGifWorkerUrl() {
       if (gifWorkerUrlPromise) return gifWorkerUrlPromise;
-      gifWorkerUrlPromise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL).catch(error => {
-        gifWorkerUrlPromise = null;
+      const request = { controller: new AbortController(), promise: null };
+      gifWorkerLoadRequest = request;
+      request.promise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL, { signal: request.controller.signal }).then(url => {
+        if (gifWorkerLoadRequest !== request || request.controller.signal.aborted) {
+          URL.revokeObjectURL(url);
+          throw makeExportCancelledError();
+        }
+        return url;
+      }).catch(error => {
+        if (gifWorkerUrlPromise === request.promise) gifWorkerUrlPromise = null;
         throw error;
+      }).finally(() => {
+        if (gifWorkerLoadRequest === request) gifWorkerLoadRequest = null;
       });
+      gifWorkerUrlPromise = request.promise;
       return gifWorkerUrlPromise;
     }
 
@@ -8850,7 +8980,11 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
           if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
           await new Promise(requestAnimationFrame);
           if (settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);
-          try { onReady(); finish(true); }
+          try {
+            const ready = await onReady();
+            if (ready === false || settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);
+            finish(true);
+          }
           catch (error) { console.warn("The flood image could not be displayed.", error); finish(false); }
         };
         const handleError = () => finish(false);
@@ -10267,10 +10401,15 @@ function formatSelectedObservedDate(dateStr) {
         );
 
         pendingFloodLayer = nextLayer;
-        return await waitForRecoveryFloodLayer(nextLayer, token, () => {
+        return await waitForRecoveryFloodLayer(nextLayer, token, async () => {
+          // Leaflet also backs the visible WebGL map. Its hidden image being
+          // decoded is only the first half of a frame commit in pitched 3D.
+          if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
+              !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;
+          if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;
           nextLayer.setOpacity(overlayOpacity);
           nextLayer._floodmapperFrame = frameMetadata;
-        currentFloodLayer = nextLayer;
+          currentFloodLayer = nextLayer;
           floodFrameState = "ready";
           document.body.dataset.floodFrame = "ready";
           pendingFloodLayer = null;
@@ -10329,7 +10468,10 @@ function formatSelectedObservedDate(dateStr) {
         pane: "floodPane"
       });
       pendingFloodLayer = nextLayer;
-      return await waitForRecoveryFloodLayer(nextLayer, token, () => {
+      return await waitForRecoveryFloodLayer(nextLayer, token, async () => {
+        if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
+            !await window.NORTH_WILDWOOD_3D.prepareFloodFrame(nextLayer, frameMetadata, token)) return false;
+        if (token !== lastRenderToken || pendingFloodLayer !== nextLayer || !map.hasLayer(nextLayer)) return false;
         nextLayer.setOpacity(overlayOpacity);
         nextLayer._floodmapperFrame = frameMetadata;
         currentFloodLayer = nextLayer;
@@ -11676,7 +11818,9 @@ function populateCalendarSelectors() {
       if (isOpen) document.getElementById("playbackStillThereContinueBtn")?.focus();
     }
 
+    let playbackGeneration = 0;
     function clearPlaybackTimer() {
+      ++playbackGeneration;
       if (playTimer) {
         clearTimeout(playTimer);
         clearInterval(playTimer);
@@ -11779,18 +11923,20 @@ function startPlayback() {
 
       playTimer = setTimeout(() => {}, 0);
       updatePlayPauseButton();
+      const generation = playbackGeneration;
 
       const loop = async () => {
-        if (!playTimer) return;
+        if (!playTimer || generation !== playbackGeneration) return;
         const frameStartedAt = performance.now();
         try {
           await stepPlaybackForward();
         } catch (err) {
+          if (generation !== playbackGeneration) return;
           toast(err?.message || String(err));
           stopPlayback();
           return;
         }
-        if (!playTimer) return;
+        if (!playTimer || generation !== playbackGeneration) return;
         const renderDurationMs = performance.now() - frameStartedAt;
         const nextFrameDelayMs = Math.max(
           PLAYBACK_MINIMUM_FRAME_DELAY_MS,
@@ -12465,6 +12611,22 @@ function startPlayback() {
     function loadDepthQueryPng(url) {
       return new Promise((resolve, reject) => {
         const image = new Image();
+        let settled = false;
+        const timer = window.setTimeout(() => {
+          const error = new Error("Packed depth-query PNG took too long to load. Please try again.");
+          error.name = "TimeoutError";
+          finish(error);
+        }, 20000);
+        const finish = (error, grid) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          image.onload = image.onerror = null;
+          if (error) {
+            try { image.src = ""; } catch (_) {}
+            reject(error);
+          } else resolve(grid);
+        };
         image.crossOrigin = "anonymous";
         image.decoding = "async";
         image.onload = () => {
@@ -12475,16 +12637,16 @@ function startPlayback() {
             const context = canvas.getContext("2d", { willReadFrequently: true });
             if (!context) throw new Error("Could not create the depth-query canvas.");
             context.drawImage(image, 0, 0);
-            resolve({
+            finish(null, {
               width: canvas.width,
               height: canvas.height,
               values: context.getImageData(0, 0, canvas.width, canvas.height).data
             });
           } catch (error) {
-            reject(error);
+            finish(error);
           }
         };
-        image.onerror = () => reject(new Error("Packed depth-query PNG could not be loaded."));
+        image.onerror = () => finish(new Error("Packed depth-query PNG could not be loaded."));
         image.src = url;
       });
     }
@@ -12492,7 +12654,7 @@ function startPlayback() {
     async function getDepthQueryGrid() {
       if (!DEPTH_QUERY_PNG_URL) return null;
       if (!depthQueryGridPromise) {
-        depthQueryGridPromise = (async () => {
+        const request = (async () => {
           let lastError = null;
           for (let attempt = 0; attempt < 2; attempt += 1) {
             try {
@@ -12500,28 +12662,33 @@ function startPlayback() {
               if (attempt) url.searchParams.set("_retry", String(Date.now()));
               return await loadDepthQueryPng(url.href);
             } catch (error) {
+              // A stalled transport has already used its full deadline. Let
+              // the frame controller/user retry instead of doubling that wait.
+              if (error?.name === "TimeoutError") throw error;
               lastError = error;
             }
           }
           throw lastError || new Error("Packed depth-query PNG is unavailable.");
         })().catch(error => {
-          depthQueryGridPromise = null;
+          if (depthQueryGridPromise === request) depthQueryGridPromise = null;
           throw error;
         });
+        depthQueryGridPromise = request;
       }
-      return depthQueryGridPromise;
+      return awaitRasterRequest(depthQueryGridPromise);
     }
 
     async function getDevelopedQueryGrid() {
       if (!DEVELOPED_QUERY_PNG_URL) return null;
       if (!developedQueryGridPromise) {
-        developedQueryGridPromise = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)
+        const request = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)
           .catch(error => {
-            developedQueryGridPromise = null;
+            if (developedQueryGridPromise === request) developedQueryGridPromise = null;
             throw error;
           });
+        developedQueryGridPromise = request;
       }
-      return developedQueryGridPromise;
+      return awaitRasterRequest(developedQueryGridPromise);
     }
 
     async function getDepthQueryImage() {

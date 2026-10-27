@@ -194,7 +194,7 @@ for (const result of ['parcel', 'missing', 'failed']) {
 {
   const active = new Set();
   const context = {
-    fallbackBuildingPopup: null, fallbackBuildingRenderToken: null, lastRenderToken: 10, floodFrameState: 'ready',
+    fallbackBuildingPopup: null, fallbackBuildingRenderToken: null, pendingFlood3dRequest: null, lastRenderToken: 10, floodFrameState: 'ready',
     glPopup: null, persistentFloodPopup: null,
     map: { hasLayer: value => active.has(value), removeLayer(value) { active.delete(value); value.removed?.(); if (context.persistentFloodPopup === value) context.persistentFloodPopup = null; } },
     buildBuildingPopupHtml: () => 'building card',
@@ -202,7 +202,7 @@ for (const result of ['parcel', 'missing', 'failed']) {
     updatePersistentDepthQueryPopup() {},
     clearFloodLayer() { context.floodFrameState = 'unavailable'; }, syncFloodLayer3d() {}
   };
-  load(context, ['openFallbackBuildingPopup', 'closeOutdatedFallbackBuildingPopup']);
+  load(context, ['openFallbackBuildingPopup', 'closeOutdatedFallbackBuildingPopup', 'discardObsoleteFloodFrame3d']);
   const updateStart = source.indexOf('  var originalUpdatePersistentDepthQueryPopup =');
   vm.runInContext(source.slice(updateStart, source.indexOf('  window.NORTH_WILDWOOD_3D =', updateStart)), context);
   vm.runInContext(wrapper('originalClearFloodLayer', 'originalApplyOverlayOpacity'), context);

@@ -115,7 +115,7 @@ def render_identity(root: Path, config: dict, simulation: dict) -> dict:
         "render": config["render"],
         "presentation": {key: config.get(key) for key in ("modelId", "town", "verticalDatum", "verticalUnits")},
         "inputs": input_records(root, [config["terrain"]["computationalDem"], config["terrain"]["displayDem"]]),
-        "builders": input_records(root, ["model/src/render_physics.py", "model/src/validate_products.py", "model/src/cache_contract.py"]),
+        "builders": input_records(root, ["model/src/render_physics.py", "model/src/frame_alignment.py", "model/src/validate_products.py", "model/src/cache_contract.py"]),
         "dependencies": dependency_versions(("numpy", "scipy", "rasterio", "Pillow", "pyproj")),
     })
 

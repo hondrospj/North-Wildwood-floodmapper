@@ -9,6 +9,7 @@
   let previousFocus = document.activeElement;
   let lastTrigger = null;
   let syncing = false;
+  let pendingRestore = null;
 
   function visible(element) {
     return element.isConnected && !element.closest('[hidden],[aria-hidden="true"]') &&
@@ -46,6 +47,34 @@
     target.focus({ preventScroll: true });
   }
 
+  function restoreFocus(targets) {
+    const request = { targets, cancelled: false };
+    pendingRestore = request;
+    function attempt(framesLeft) {
+      if (pendingRestore !== request) return;
+      const dialog = stack.at(-1)?.dialog;
+      const candidates = targets.filter(target => (!dialog || dialog.contains(target)) && visible(target));
+      const first = candidates[0];
+      if ((request.cancelled || first?.closest('[inert]')) && framesLeft > 0) {
+        // A drawer owner may restore its role and inert state in its next
+        // layout pass. Keep its visible opener ahead of an outer fallback.
+        // Cancelled moves retain only that fallback context for the same two
+        // frames, so a restored parent can still return to its outer trigger.
+        requestAnimationFrame(() => {
+          if (pendingRestore !== request) return;
+          sync();
+          attempt(framesLeft - 1);
+        });
+        return;
+      }
+      if (request.cancelled) { pendingRestore = null; return; }
+      const target = candidates.find(candidate => !candidate.closest('[inert]'));
+      pendingRestore = null;
+      target?.focus({ preventScroll: true });
+    }
+    attempt(2);
+  }
+
   function sync() {
     if (syncing) return stack.at(-1)?.dialog;
     syncing = true;
@@ -55,16 +84,35 @@
       // Subscribe then as well, so closing it restores background interactivity.
       dialogs.forEach(watchDialog);
       const oldTop = stack.at(-1);
-      let restoreTarget = null;
-      while (stack.length && !dialogs.includes(stack.at(-1).dialog)) restoreTarget = stack.pop().restore;
+      let restoreTargets = [];
+      while (stack.length && !dialogs.includes(stack.at(-1).dialog)) {
+        restoreTargets = [...new Set([...restoreTargets, ...stack.pop().restore])];
+      }
       // Remove closed lower dialogs without disturbing an open nested dialog.
       for (let index = stack.length - 1; index >= 0; index--) {
-        if (!dialogs.includes(stack[index].dialog)) stack.splice(index, 1);
+        if (!dialogs.includes(stack[index].dialog)) {
+          const closed = stack[index];
+          // A missing parent may be demoted while still visibly open, or may
+          // really have closed. Preserve the child's specific opener and keep
+          // the parent's trigger as a fallback to evaluate at final close.
+          for (const child of stack.slice(index + 1)) {
+            if (child.restore.some(target => closed.dialog.contains(target))) {
+              child.restore = [...new Set([...child.restore, ...closed.restore])];
+            }
+          }
+          stack.splice(index, 1);
+        }
       }
       for (const dialog of dialogs) {
         if (stack.some(item => item.dialog === dialog)) continue;
-        const candidate = stack.length ? previousFocus : (lastTrigger || previousFocus);
-        stack.push({ dialog, restore: candidate && !dialog.contains(candidate) ? candidate : null });
+        const pendingTargets = pendingRestore?.targets || [];
+        // Reappearing parents inherit the outer fallback chain. An unrelated
+        // new modal cancels the pending focus move while retaining fallbacks.
+        if (pendingRestore && !pendingTargets.some(target => dialog.contains(target))) pendingRestore.cancelled = true;
+        const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);
+        stack.push({ dialog, restore: [...new Set([
+          ...(candidate && !dialog.contains(candidate) ? [candidate] : []), ...restoreTargets, ...pendingTargets
+        ])] });
         lastTrigger = null;
       }
       const top = stack.at(-1);
@@ -75,10 +123,7 @@
         // Never restore that parent's trigger outside the newly active modal,
         // or replace focus that the user has already moved inside it.
         const focusedInside = top && top.dialog.contains(document.activeElement);
-        if (!focusedInside && restoreTarget && (!top || top.dialog.contains(restoreTarget)) &&
-            visible(restoreTarget) && !restoreTarget.closest('[inert]')) {
-          restoreTarget.focus({ preventScroll: true });
-        }
+        if (!focusedInside && restoreTargets.length) restoreFocus(restoreTargets);
         if (top && !top.dialog.contains(document.activeElement)) focusFirst(top.dialog);
       }
       return top?.dialog;
@@ -88,6 +133,7 @@
   }
 
   document.addEventListener("pointerdown", event => {
+    if (pendingRestore) pendingRestore.cancelled = true;
     lastTrigger = event.target.closest('button,a[href],input,select,[tabindex]');
   }, true);
   document.addEventListener("focusin", event => {
@@ -96,6 +142,7 @@
     previousFocus = document.activeElement;
   }, true);
   document.addEventListener("keydown", event => {
+    if (pendingRestore) pendingRestore.cancelled = true;
     const dialog = sync();
     if (!dialog || event.key !== "Tab") return;
     const items = controls(dialog);

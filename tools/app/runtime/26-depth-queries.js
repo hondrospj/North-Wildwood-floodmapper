@@ -1,6 +1,22 @@
     function loadDepthQueryPng(url) {
       return new Promise((resolve, reject) => {
         const image = new Image();
+        let settled = false;
+        const timer = window.setTimeout(() => {
+          const error = new Error("Packed depth-query PNG took too long to load. Please try again.");
+          error.name = "TimeoutError";
+          finish(error);
+        }, 20000);
+        const finish = (error, grid) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          image.onload = image.onerror = null;
+          if (error) {
+            try { image.src = ""; } catch (_) {}
+            reject(error);
+          } else resolve(grid);
+        };
         image.crossOrigin = "anonymous";
         image.decoding = "async";
         image.onload = () => {
@@ -11,16 +27,16 @@
             const context = canvas.getContext("2d", { willReadFrequently: true });
             if (!context) throw new Error("Could not create the depth-query canvas.");
             context.drawImage(image, 0, 0);
-            resolve({
+            finish(null, {
               width: canvas.width,
               height: canvas.height,
               values: context.getImageData(0, 0, canvas.width, canvas.height).data
             });
           } catch (error) {
-            reject(error);
+            finish(error);
           }
         };
-        image.onerror = () => reject(new Error("Packed depth-query PNG could not be loaded."));
+        image.onerror = () => finish(new Error("Packed depth-query PNG could not be loaded."));
         image.src = url;
       });
     }
@@ -28,7 +44,7 @@
     async function getDepthQueryGrid() {
       if (!DEPTH_QUERY_PNG_URL) return null;
       if (!depthQueryGridPromise) {
-        depthQueryGridPromise = (async () => {
+        const request = (async () => {
           let lastError = null;
           for (let attempt = 0; attempt < 2; attempt += 1) {
             try {
@@ -36,28 +52,33 @@
               if (attempt) url.searchParams.set("_retry", String(Date.now()));
               return await loadDepthQueryPng(url.href);
             } catch (error) {
+              // A stalled transport has already used its full deadline. Let
+              // the frame controller/user retry instead of doubling that wait.
+              if (error?.name === "TimeoutError") throw error;
               lastError = error;
             }
           }
           throw lastError || new Error("Packed depth-query PNG is unavailable.");
         })().catch(error => {
-          depthQueryGridPromise = null;
+          if (depthQueryGridPromise === request) depthQueryGridPromise = null;
           throw error;
         });
+        depthQueryGridPromise = request;
       }
-      return depthQueryGridPromise;
+      return awaitRasterRequest(depthQueryGridPromise);
     }
 
     async function getDevelopedQueryGrid() {
       if (!DEVELOPED_QUERY_PNG_URL) return null;
       if (!developedQueryGridPromise) {
-        developedQueryGridPromise = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)
+        const request = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)
           .catch(error => {
-            developedQueryGridPromise = null;
+            if (developedQueryGridPromise === request) developedQueryGridPromise = null;
             throw error;
           });
+        developedQueryGridPromise = request;
       }
-      return developedQueryGridPromise;
+      return awaitRasterRequest(developedQueryGridPromise);
     }
 
     async function getDepthQueryImage() {
