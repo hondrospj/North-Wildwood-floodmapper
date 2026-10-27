@@ -155,6 +155,26 @@
     {
       "id": "tools-app-runtime-15-export-capture.js-2",
       "source": "tools/app/runtime/15-export-capture.js",
+      "beforeSource": "      }\n      throw new Error(\"The map background is still loading. Please try the export again.\");\n    }\n\n    async function waitForExportRasterLayerReady(layer, timeoutMs = 30000) {\n      if (!layer || typeof layer.isLoading !== \"function\") return;\n      const deadline = Date.now() + timeoutMs;\n      let retriedFailedTiles = false;\n",
+      "afterSource": "      }\n      throw new Error(\"The map background is still loading. Please try the export again.\");\n    }\n\n    function retryExportRasterLayerTiles(layer) {\n      const mapInstance = typeof exportMap === \"undefined\" ? null : exportMap;\n      if (!mapInstance || typeof mapInstance.hasLayer !== \"function\" || !mapInstance.hasLayer(layer)\n          || typeof mapInstance.removeLayer !== \"function\" || typeof mapInstance.addLayer !== \"function\") return false;\n      const previousContainer = layer.getContainer?.();\n      const parent = previousContainer?.parentNode;\n      const nextSibling = previousContainer?.nextSibling;\n      // Leaflet 1.9.4 redraw() uses the fractional camera zoom as its tile\n      // grid zoom. Reattaching uses onAdd/_setView's rounded grid instead, so\n      // integer service levels and x/y stay aligned without moving the camera.\n      mapInstance.removeLayer(layer);\n      mapInstance.addLayer(layer);\n      const container = layer.getContainer?.();\n      if (parent && container?.parentNode === parent) {\n        parent.insertBefore(container, nextSibling?.parentNode === parent ? nextSibling : null);\n      }\n      return true;\n    }\n\n    async function waitForExportRasterLayerReady(layer, timeoutMs = 30000) {\n      if (!layer || typeof layer.isLoading !== \"function\") return;\n      const deadline = Date.now() + timeoutMs;\n      let retriedFailedTiles = false;\n",
+      "beforeSha256": "c16f2fb90fb94c02b1a62a271f09aa3c686a8a1d1d19187603aed53080e1f43e",
+      "afterSha256": "8dcd27e0dfd015a0249914a89e76c324ada1aecf01ad1174253638d5450ea65c",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-15-export-capture.js-3",
+      "source": "tools/app/runtime/15-export-capture.js",
+      "beforeSource": "        const tiles = Array.from(layer.getContainer()?.querySelectorAll(\"img.leaflet-tile, canvas.leaflet-tile\") || []);\n        if (tiles.some(tile => tile.complete && !tile.naturalWidth)) {\n          // A preview and its download share this layer. Re-request failed tiles\n          // once so a transient preview failure cannot poison the next capture.\n          if (!retriedFailedTiles && typeof layer.redraw === \"function\") {\n            retriedFailedTiles = true;\n            layer.redraw();\n            await wait(100);\n            continue;\n          }\n          throw new Error(\"A map tile could not load. Please try the export again.\");\n",
+      "afterSource": "        const tiles = Array.from(layer.getContainer()?.querySelectorAll(\"img.leaflet-tile, canvas.leaflet-tile\") || []);\n        if (tiles.some(tile => tile.complete && !tile.naturalWidth)) {\n          // A preview and its download share this layer. Re-request failed tiles\n          // once so a transient preview failure cannot poison the next capture.\n          if (!retriedFailedTiles && retryExportRasterLayerTiles(layer)) {\n            retriedFailedTiles = true;\n            await wait(100);\n            continue;\n          }\n          throw new Error(\"A map tile could not load. Please try the export again.\");\n",
+      "beforeSha256": "6f19f3e3a7353efbe568cedd533ac052ea40520ecba535fb5c57f2e40e6201dd",
+      "afterSha256": "1685b9b4e9b8c33d62cdbafcaabe206aff686c184ed6b8351dfefb7a07dbbf7d",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-15-export-capture.js-4",
+      "source": "tools/app/runtime/15-export-capture.js",
       "beforeSource": "        }\n      };\n    }\n\n    async function getGifWorkerUrl() {\n      if (gifWorkerUrlPromise) return gifWorkerUrlPromise;\n      gifWorkerUrlPromise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL).catch(error => {\n        gifWorkerUrlPromise = null;\n        throw error;\n      });\n      return gifWorkerUrlPromise;\n    }\n\n    function downloadBlob(blob, filename) {\n",
       "afterSource": "        }\n      };\n    }\n\n    let gifWorkerLoadRequest = null;\n\n    function cancelGifWorkerLoad() {\n      const request = gifWorkerLoadRequest;\n      if (!request) return;\n      gifWorkerLoadRequest = null;\n      if (gifWorkerUrlPromise === request.promise) gifWorkerUrlPromise = null;\n      request.controller.abort();\n    }\n\n    async function getGifWorkerUrl() {\n      if (gifWorkerUrlPromise) return gifWorkerUrlPromise;\n      const request = { controller: new AbortController(), promise: null };\n      gifWorkerLoadRequest = request;\n      request.promise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL, { signal: request.controller.signal }).then(url => {\n        if (gifWorkerLoadRequest !== request || request.controller.signal.aborted) {\n          URL.revokeObjectURL(url);\n          throw makeExportCancelledError();\n        }\n        return url;\n      }).catch(error => {\n        if (gifWorkerUrlPromise === request.promise) gifWorkerUrlPromise = null;\n        throw error;\n      }).finally(() => {\n        if (gifWorkerLoadRequest === request) gifWorkerLoadRequest = null;\n      });\n      gifWorkerUrlPromise = request.promise;\n      return gifWorkerUrlPromise;\n    }\n\n    function downloadBlob(blob, filename) {\n",
       "beforeSha256": "74c457a6e46667f4be92579f72c04cbe2cf8c4ce4c0c0a883e0593799133ec63",
@@ -501,7 +521,7 @@
     {
       "source": "tools/app/runtime/15-export-capture.js",
       "beforeSha256": "b3ed9321fd0341cc05d4e82cd6565082f5e68e72685f912bfae32aa1cd8e7332",
-      "afterSha256": "6665ada385590926ec3d934140fb951b6080fdd891bacd87ae5632e9d84a633b"
+      "afterSha256": "a07f847d3633095da6b14302d7e23f001700b110cd8c915bde0c8db30cf807be"
     },
     {
       "source": "tools/app/runtime/18-flood-frame-rendering.js",

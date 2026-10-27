@@ -35,6 +35,15 @@ focus, city-gauge DST/races/outages, generator freshness, and model time alignme
 Linux browser and required Windows browser jobs run the relevant application
 checks in addition to the existing release gate.
 
+Release validation also reproduced a failed-raster retry bug at fractional export
+zooms. Leaflet 1.9.4's `redraw()` could emit fractional tile service levels after
+an outage, so Retry could keep failing after the provider recovered. The exporter
+now reattaches the same raster layer to rebuild an integer tile grid, preserving
+the camera, layer options, pane order, and selection. A strict provider fixture
+rejects fractional levels and verifies visible failure followed by real Retry
+recovery. The worker test chooses Road names off through the interface, keeping
+its actual GIF and cancellation checks independent of that optional provider.
+
 The model tests use tiny products and perform no new full hydraulic simulation,
 scientific calibration, or physics publication. Phone/touch viewport emulation
 does not establish physical phone or Lenovo hardware coverage.

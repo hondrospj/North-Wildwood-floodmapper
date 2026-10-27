@@ -7630,6 +7630,25 @@ function updateExportSegmentedUI() {
       throw new Error("The map background is still loading. Please try the export again.");
     }
 
+    function retryExportRasterLayerTiles(layer) {
+      const mapInstance = typeof exportMap === "undefined" ? null : exportMap;
+      if (!mapInstance || typeof mapInstance.hasLayer !== "function" || !mapInstance.hasLayer(layer)
+          || typeof mapInstance.removeLayer !== "function" || typeof mapInstance.addLayer !== "function") return false;
+      const previousContainer = layer.getContainer?.();
+      const parent = previousContainer?.parentNode;
+      const nextSibling = previousContainer?.nextSibling;
+      // Leaflet 1.9.4 redraw() uses the fractional camera zoom as its tile
+      // grid zoom. Reattaching uses onAdd/_setView's rounded grid instead, so
+      // integer service levels and x/y stay aligned without moving the camera.
+      mapInstance.removeLayer(layer);
+      mapInstance.addLayer(layer);
+      const container = layer.getContainer?.();
+      if (parent && container?.parentNode === parent) {
+        parent.insertBefore(container, nextSibling?.parentNode === parent ? nextSibling : null);
+      }
+      return true;
+    }
+
     async function waitForExportRasterLayerReady(layer, timeoutMs = 30000) {
       if (!layer || typeof layer.isLoading !== "function") return;
       const deadline = Date.now() + timeoutMs;
@@ -7640,9 +7659,8 @@ function updateExportSegmentedUI() {
         if (tiles.some(tile => tile.complete && !tile.naturalWidth)) {
           // A preview and its download share this layer. Re-request failed tiles
           // once so a transient preview failure cannot poison the next capture.
-          if (!retriedFailedTiles && typeof layer.redraw === "function") {
+          if (!retriedFailedTiles && retryExportRasterLayerTiles(layer)) {
             retriedFailedTiles = true;
-            layer.redraw();
             await wait(100);
             continue;
           }
