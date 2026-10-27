@@ -50,6 +50,7 @@ jobs:
       # legacy headless shell is a separate binary, unlike an installed browser.
       NWW_CHROMIUM_CHANNEL: chromium
       NWW_PROFILE_EXPORT_OPEN: '1'
+      NWW_TRACE_INERT: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -192,17 +192,35 @@ try {
   {
     const page = await newPage(), held = [];
     const pattern = '**/NorthWildwoodHydraulicQuery5ft.png*';
+    const faultNonce = `${Date.now()}-${Math.random()}`;
+    let signalHeld;
+    const faultIntercepted = new Promise(resolve=>signalHeld=resolve);
     try {
       await ready(page);await modeledFlood(page);
-      // The fixture may have already decoded this shared grid while preparing
-      // the modeled depth frame. Force a fresh consumer request for the fault.
-      await page.route(pattern,route=>held.push(route));
+      // Preparing the modeled frame may already decode this URL. Resetting
+      // only the application promise does not guarantee a network request in
+      // every engine: use an uncached URL and establish interception explicitly.
+      await page.route(pattern,route=>{
+        if (new URL(route.request().url()).searchParams.get('_map_deadline_fixture')!==faultNonce) return route.continue();
+        held.push(route);signalHeld();
+      });
       const before=await snapshot(page);
-      await page.evaluate(()=>{depthQueryGridPromise=null;window.__mapQueryDone=false;switchOverlayMode('dynamic').then(()=>window.__mapQueryDone=true);});
-      const started=Date.now();await page.waitForFunction(()=>!!depthQueryGridPromise);
+      const started=Date.now();
+      await page.evaluate(nonce=>{
+        const queryUrl=new URL(DEPTH_QUERY_PNG_URL);queryUrl.searchParams.set('_map_deadline_fixture',nonce);
+        DEPTH_QUERY_PNG_URL=queryUrl.href;depthQueryGridPromise=null;bathtubStageOverlayCache=new Map();
+        window.__mapQueryDone=false;switchOverlayMode('dynamic').then(()=>window.__mapQueryDone=true);
+      },faultNonce);
+      let interceptionDeadline;
+      try {
+        await Promise.race([faultIntercepted,new Promise((_,reject)=>{
+          interceptionDeadline=setTimeout(()=>reject(new Error('Query deadline fixture never intercepted its fresh image request')),15000);
+        })]);
+      } finally {clearTimeout(interceptionDeadline);}
+      await page.waitForFunction(()=>!!depthQueryGridPromise);
       await page.waitForFunction(()=>window.__mapQueryDone,{}, {timeout:65000});
       const failed=await snapshot(page);
-      assert.equal(failed.flood,'failed');assert.ok(held.length>0);assert.ok(failed.statusVisible);
+      assert.equal(failed.flood,'failed',JSON.stringify({heldRequests:held.length,...failed}));assert.ok(held.length>0);assert.ok(failed.statusVisible);
       for (const key of ['index','stage','time']) assert.equal(failed[key],before[key],key);
       assert.match(failed.status,/previous image and time are still shown/i);
       assert.equal(await page.evaluate(()=>depthQueryGridPromise),null);

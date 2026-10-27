@@ -55,16 +55,21 @@
       // Subscribe then as well, so closing it restores background interactivity.
       dialogs.forEach(watchDialog);
       const oldTop = stack.at(-1);
-      let restoreTarget = null;
-      while (stack.length && !dialogs.includes(stack.at(-1).dialog)) restoreTarget = stack.pop().restore;
+      let restoreTargets = [];
+      while (stack.length && !dialogs.includes(stack.at(-1).dialog)) {
+        restoreTargets = [...new Set([...restoreTargets, ...stack.pop().restore])];
+      }
       // Remove closed lower dialogs without disturbing an open nested dialog.
       for (let index = stack.length - 1; index >= 0; index--) {
         if (!dialogs.includes(stack[index].dialog)) {
           const closed = stack[index];
-          // Completion can close progress while a nested dialog remains open.
-          // Its eventual close must restore the original visible trigger.
+          // A missing parent may be demoted while still visibly open, or may
+          // really have closed. Preserve the child's specific opener and keep
+          // the parent's trigger as a fallback to evaluate at final close.
           for (const child of stack.slice(index + 1)) {
-            if (child.restore && closed.dialog.contains(child.restore)) child.restore = closed.restore;
+            if (child.restore.some(target => closed.dialog.contains(target))) {
+              child.restore = [...new Set([...child.restore, ...closed.restore])];
+            }
           }
           stack.splice(index, 1);
         }
@@ -72,7 +77,9 @@
       for (const dialog of dialogs) {
         if (stack.some(item => item.dialog === dialog)) continue;
         const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);
-        stack.push({ dialog, restore: candidate && !dialog.contains(candidate) ? candidate : null });
+        stack.push({ dialog, restore: [...new Set([
+          ...(candidate && !dialog.contains(candidate) ? [candidate] : []), ...restoreTargets
+        ])] });
         lastTrigger = null;
       }
       const top = stack.at(-1);
@@ -83,8 +90,9 @@
         // Never restore that parent's trigger outside the newly active modal,
         // or replace focus that the user has already moved inside it.
         const focusedInside = top && top.dialog.contains(document.activeElement);
-        if (!focusedInside && restoreTarget && (!top || top.dialog.contains(restoreTarget)) &&
-            visible(restoreTarget) && !restoreTarget.closest('[inert]')) {
+        const restoreTarget = restoreTargets.find(target => (!top || top.dialog.contains(target)) &&
+          visible(target) && !target.closest('[inert]'));
+        if (!focusedInside && restoreTarget) {
           restoreTarget.focus({ preventScroll: true });
         }
         if (top && !top.dialog.contains(document.activeElement)) focusFirst(top.dialog);
