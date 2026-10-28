@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "f75b03edb4af59d6001e089d28bf22cd14077a23",
+  "purpose": "Render readable, accurately placed local export road names in the shared family; retain reference labels outside the town without duplicates.",
+  "changes": [
+    {
+      "id": "tools-app-runtime-10-map-geometry-and-layers.js-1",
+      "source": "tools/app/runtime/10-map-geometry-and-layers.js",
+      "beforeSource": "              context.filter = \"none\";\n              if (this.options.roadLabelHalo > 0) {\n                addRoadLabelHalo(context, size.x, size.y, this.options.roadLabelHalo);\n              }\n              tile.complete = true; tile.naturalWidth = size.x;\n              done(null, tile);\n            } catch (error) { tile.complete = true; done(error, tile); }\n          };\n",
+      "afterSource": "              context.filter = \"none\";\n              if (this.options.roadLabelHalo > 0) {\n                addRoadLabelHalo(context, size.x, size.y, this.options.roadLabelHalo);\n              }\n              if (this.options.roadLabelTownMask) {\n                window.NORTH_WILDWOOD_EXPORT_ROADS.maskReferenceTile(context, coords, this, municipalBoundaryRings);\n              }\n              tile.complete = true; tile.naturalWidth = size.x;\n              done(null, tile);\n            } catch (error) { tile.complete = true; done(error, tile); }\n          };\n",
+      "beforeSha256": "a34b482cf7b3d8f9c3cbe1d1963d946510da9da4ef51dbd36c928cf00c69b5f3",
+      "afterSha256": "6d06eae6e69265a7c9cbe05e9bdbfdb2ab4e00f010758aa232b57bc6d1e5a950",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-16-export-map.js-1",
+      "source": "tools/app/runtime/16-export-map.js",
+      "beforeSource": "        zoomOffset: -1,\n        maxNativeZoom: 20,\n        roadLabelFilter: \"grayscale(1) contrast(1.15)\",\n        roadLabelHalo: 2,\n        subdomains: \"abcd\",\n        crossOrigin: true,\n        opacity: 0,\n        updateWhenIdle: true,\n",
+      "afterSource": "        zoomOffset: -1,\n        maxNativeZoom: 20,\n        roadLabelFilter: \"grayscale(1) contrast(1.15)\",\n        roadLabelHalo: 2,\n        roadLabelTownMask: true,\n        subdomains: \"abcd\",\n        crossOrigin: true,\n        opacity: 0,\n        updateWhenIdle: true,\n",
+      "beforeSha256": "f6c39f39b02fde9c27846f3959b68b36247fb6e21026610a6c8c0f91b58b4321",
+      "afterSha256": "295af5cc50f4080b720fb0bf40d45373c241013c2112de873a3c469a2d34385c",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-16-export-map.js-2",
+      "source": "tools/app/runtime/16-export-map.js",
+      "beforeSource": "      const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;\n      exportRoadsLayer.setOpacity(showLabels ? 0.98 : 0);\n      const pane = exportMap.getPane(\"roadsPane\");\n      if (pane) pane.classList.toggle(\"roads-dark\", showLabels);\n    }\n\n    function updateExportBoundaryVisibility() {\n      if (!exportMap) return;\n",
+      "afterSource": "      const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;\n      exportRoadsLayer.setOpacity(showLabels ? 0.98 : 0);\n      const pane = exportMap.getPane(\"roadsPane\");\n      if (pane) pane.classList.toggle(\"roads-dark\", showLabels);\n      const aspect = getExportAspectConfig();\n      window.NORTH_WILDWOOD_EXPORT_ROADS?.redraw(exportMap, {\n        enabled: showLabels,\n        unit: Math.min(aspect.width, aspect.height) / 1080,\n        fontFamily: getComputedStyle(document.body).fontFamily\n      });\n    }\n\n    async function prepareExportRoadNames() {\n      if (!document.getElementById(\"roadsToggle\")?.classList.contains(\"on\")) return;\n      const labels = window.NORTH_WILDWOOD_EXPORT_ROADS;\n      if (!labels) throw new Error(\"Road names could not load. Reload the page and try again.\");\n      await awaitRasterRequest(labels.load());\n      throwIfExportCancelled();\n    }\n\n    function updateExportBoundaryVisibility() {\n      if (!exportMap) return;\n",
+      "beforeSha256": "3041d3091c7e8baa4990543eab17aadb6e28ef526ca3a48657a4fe414e35a925",
+      "afterSha256": "3efafcdffbfada28a754ab8366ef2a32cc7c61ec3f4deaa867302be1bec501dc",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-16-export-map.js-3",
+      "source": "tools/app/runtime/16-export-map.js",
+      "beforeSource": "\n    let exportFrameViewPrimed = false;\n    async function prepareExportFrame(item, options = {}) {\n      await ensureExportMunicipalBoundary();\n      applyExportStageAspect(getDownloadAspectValue());\n      const mapInstance = ensureExportMap();\n      const isFirstFrame = !!options.isFirstFrame;\n      mapInstance.invalidateSize(false);\n",
+      "afterSource": "\n    let exportFrameViewPrimed = false;\n    async function prepareExportFrame(item, options = {}) {\n      await ensureExportMunicipalBoundary();\n      await prepareExportRoadNames();\n      applyExportStageAspect(getDownloadAspectValue());\n      const mapInstance = ensureExportMap();\n      const isFirstFrame = !!options.isFirstFrame;\n      mapInstance.invalidateSize(false);\n",
+      "beforeSha256": "7e147c3110e41c3622ab5821c76d4d6aa991861b134fa172dc5e0a0a604e7030",
+      "afterSha256": "4999782dc71751046c0420205c98fe524e5bd999fe5d22f39fb5b4c5cf5d3b8c",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-runtime-17-export-encoding.js-1",
+      "source": "tools/app/runtime/17-export-encoding.js",
+      "beforeSource": "\n\n    async function captureFastGifBaseCanvas(firstItem) {\n      await ensureExportMunicipalBoundary();\n      const mapInstance = ensureExportMap();\n      applyExportStageAspect(getDownloadAspectValue());\n      mapInstance.invalidateSize(false);\n      updateExportLegend(firstItem?.entry);\n      updateExportBoundaryVisibility();\n      await updateExportParcelsLayer();\n      updateExportRoadLayerAppearance();\n      fitExportMapToSelectedExtent(mapInstance);\n\n      if (exportFloodLayer && mapInstance.hasLayer(exportFloodLayer)) {\n        mapInstance.removeLayer(exportFloodLayer);\n      }\n",
+      "afterSource": "\n\n    async function captureFastGifBaseCanvas(firstItem) {\n      await ensureExportMunicipalBoundary();\n      await prepareExportRoadNames();\n      const mapInstance = ensureExportMap();\n      applyExportStageAspect(getDownloadAspectValue());\n      mapInstance.invalidateSize(false);\n      updateExportLegend(firstItem?.entry);\n      updateExportBoundaryVisibility();\n      await updateExportParcelsLayer();\n      fitExportMapToSelectedExtent(mapInstance);\n      updateExportRoadLayerAppearance();\n\n      if (exportFloodLayer && mapInstance.hasLayer(exportFloodLayer)) {\n        mapInstance.removeLayer(exportFloodLayer);\n      }\n",
+      "beforeSha256": "f3871d19be364d40ccfd55271736c74337d04c47ca3435f5adea81b314df34b8",
+      "afterSha256": "a5e0f3d18b7ad4d05a518d84184082545904d6811c8fdce26dd0eb36077b921e",
+      "kind": "script",
+      "entryId": "script-004"
+    },
+    {
+      "id": "tools-app-index.template.html-1",
+      "source": "tools/app/index.template.html",
+      "beforeSource": "      </div>\n      <section id=\"exportLegendDock\" class=\"export-stage-legend\"></section>\n      <div id=\"exportTimestampLabel\" class=\"export-stage-timestamp\">--</div>\n      </div>\n      <div id=\"exportMapAttribution\" style=\"position:absolute;left:6px;bottom:6px;z-index:900;max-width:calc(100% - 12px);padding:2px 4px;background:rgba(255,255,255,.88);color:#263445;font:12px/1.2 Arial,sans-serif;pointer-events:none;\">Map: Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors</div>\n    </div>\n  </div>\n\n\n",
+      "afterSource": "      </div>\n      <section id=\"exportLegendDock\" class=\"export-stage-legend\"></section>\n      <div id=\"exportTimestampLabel\" class=\"export-stage-timestamp\">--</div>\n      </div>\n      <div id=\"exportMapAttribution\" style=\"position:absolute;left:6px;bottom:6px;z-index:900;max-width:calc(100% - 12px);padding:2px 4px;background:rgba(255,255,255,.88);color:#263445;font:12px/1.2 Arial,sans-serif;pointer-events:none;\">Map: Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors · Local road names: NJOGIS</div>\n    </div>\n  </div>\n\n\n",
+      "beforeSha256": "40655b361a3d078c9864ab11c2fd310ec3db7829b1aace8602d8927a8b2ee896",
+      "afterSha256": "450ee870dc57388b0cc77d026d66d5dbf592544fac44afbced2ec9d9f9e9dd5e",
+      "kind": "template",
+      "entryId": null
+    },
+    {
+      "id": "tools-app-index.template.html-2",
+      "source": "tools/app/index.template.html",
+      "beforeSource": "\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=20261027-lines2\"></script>\n<!-- nww:script:script-007 -->\n\n",
+      "afterSource": "\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b1548e18708ab202\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=20261027-lines2\"></script>\n<!-- nww:script:script-007 -->\n\n",
+      "beforeSha256": "146516675a6c870629e7d3a2500a337aac200ef46f2f21f9a586e49591964a09",
+      "afterSha256": "f253724ead697db825af7032cc2a46cae19e49eecd774976956d1e74e86403d5",
+      "kind": "template",
+      "entryId": null
+    }
+  ],
+  "files": [
+    {
+      "source": "tools/app/runtime/10-map-geometry-and-layers.js",
+      "beforeSha256": "9f7042371e3b1d2fa809db639f44cf87e4def9a90ce86190daf0f388a57b8ad1",
+      "afterSha256": "9c0f04b2e0878daec6f7934572bb3357df728b86e3668e6e0cdf5f92cbba71fe"
+    },
+    {
+      "source": "tools/app/runtime/16-export-map.js",
+      "beforeSha256": "f4f809deb377505d8ccd2adca3ae881bf291159700ad53eb5f2a773d7f8a91a4",
+      "afterSha256": "f192914c81a33fd5c8cc49a91e9392c80a9ff717d66681b16a9b412c5c72f0fa"
+    },
+    {
+      "source": "tools/app/runtime/17-export-encoding.js",
+      "beforeSha256": "f8f7fde8052e5de1369b41774f8d0bb1516ae8ff9d573c08595e7f066212a65f",
+      "afterSha256": "4dc6479c6df744bfd97c14de5b4d388946a90deee566cfdc4d9f988b27ed1d45"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "238413b0b45f89c79667f7be119f2dcac4288dc4e35242401078b24a25b4af63",
+      "afterSha256": "405acaec03d70d3631088635b16dfd84aec92a835267ce1bdbf8cd1c806c8d30"
+    }
+  ],
+  "module": {
+    "source": "assets/export-road-labels.js",
+    "bytes": 17132,
+    "sha256": "b1548e18708ab202779aaffddaab023250f36be8adff375ab1b50eeb53c7567a"
+  },
+  "data": {
+    "source": "assets/roads/north-wildwood-road-centerlines.geojson",
+    "bytes": 187681,
+    "sha256": "7bd6517a807b7eff297d4f877371b977d5059bd0ddc37f2abf982f1bf1ae20fa"
+  },
+  "scriptTag": "<script defer src=\"./assets/export-road-labels.js?v=b1548e18708ab202\"></script>"
+}

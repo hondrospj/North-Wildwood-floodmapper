@@ -15,6 +15,44 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+const ROAD_LABEL_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-road-labels.json";
+const ROAD_LABEL_AUDIT_SHA256 = "d132d4886f946fc8ad6a0cf4c052b56249f7bbc346afce6e6d266bdd12f871c0";
+const roadLabelText = read(ROAD_LABEL_AUDIT_PATH);
+assert.equal(sha256(roadLabelText), ROAD_LABEL_AUDIT_SHA256,
+  "The export road-label audit must retain its exact reviewed inverse fragments");
+const roadLabelAudit = JSON.parse(roadLabelText);
+assert.equal(roadLabelAudit.schemaVersion, 1);
+assert.equal(roadLabelAudit.baselineCommit, "f75b03edb4af59d6001e089d28bf22cd14077a23");
+assert.deepEqual(roadLabelAudit.files.map(file => file.source), [
+  "tools/app/runtime/10-map-geometry-and-layers.js",
+  "tools/app/runtime/16-export-map.js",
+  "tools/app/runtime/17-export-encoding.js",
+  "tools/app/index.template.html"
+], "The road-label inverse may cover only its three export integration sources, dependency insertion and attribution");
+const ROAD_LABEL_FUNCTIONS = new Map([
+  ["tools/app/runtime/10-map-geometry-and-layers.js", ["createRoadLabelLayer"]],
+  ["tools/app/runtime/16-export-map.js", ["ensureExportMap", "updateExportRoadLayerAppearance", "prepareExportRoadNames", "prepareExportFrame"]],
+  ["tools/app/runtime/17-export-encoding.js", ["captureFastGifBaseCanvas"]]
+]);
+const ROAD_LABEL_ATTRIBUTION_BEFORE = "Map: Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors";
+const ROAD_LABEL_ATTRIBUTION_AFTER = ROAD_LABEL_ATTRIBUTION_BEFORE + " · Local road names: NJOGIS";
+assert.equal(new Set(roadLabelAudit.changes.map(block => block.id)).size, roadLabelAudit.changes.length);
+assert.deepEqual([...new Set(roadLabelAudit.changes.map(block => block.source))],
+  roadLabelAudit.files.map(file => file.source), "Every road-label diff must remain in its declared source");
+for (const block of roadLabelAudit.changes) {
+  const isRuntime = ROAD_LABEL_FUNCTIONS.has(block.source);
+  assert.equal(block.kind, isRuntime ? "script" : "template");
+  assert.equal(block.entryId, isRuntime ? "script-004" : null);
+}
+assert.equal(roadLabelAudit.module.source, "assets/export-road-labels.js");
+assert.equal(roadLabelAudit.data.source, "assets/roads/north-wildwood-road-centerlines.geojson");
+for (const asset of [roadLabelAudit.module, roadLabelAudit.data]) {
+  const source = read(asset.source);
+  assert.equal(Buffer.byteLength(source), asset.bytes, `${asset.source} must retain its reviewed byte count`);
+  assert.equal(sha256(source), asset.sha256, `${asset.source} changed outside the reviewed road-label implementation`);
+}
+new vm.Script(read(roadLabelAudit.module.source), { filename: roadLabelAudit.module.source });
+for (const file of roadLabelAudit.files) auditedRoadLabelRead(file.source);
 const LINE_FIX_AUDIT_PATH = "tools/fixtures/north-wildwood-20261027-line-fixes.json";
 const LINE_FIX_AUDIT_SHA256 = "ee105b3ca7ed357c43efa95805fd9c17705b15e6b26dd379e9bb919a147aa615";
 const lineFixText = read(LINE_FIX_AUDIT_PATH);
@@ -336,10 +374,57 @@ function auditedHolisticRead(relative) {
   return auditedIssueFixFragments(auditedLineRead(relative), blocks, relative);
 }
 
+// The October 28 export label change is inverted before every earlier audit.
+// Full-file hashes bound each contextual replacement to the reviewed diff;
+// neither a whole runtime block nor a legacy fixture becomes exempt.
+function auditedRoadLabelRead(relative) {
+  const source = read(relative);
+  const blocks = roadLabelAudit.changes.filter(block => block.source === relative);
+  const restored = auditedIssueFixFragments(source, blocks, relative);
+  const file = roadLabelAudit.files.find(file => file.source === relative);
+  if (file) {
+    assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its exact road-label integration`);
+    assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-road-label byte`);
+    const names = ROAD_LABEL_FUNCTIONS.get(relative);
+    if (names) {
+      const strip = (text, before) => {
+        for (const name of names) {
+          const expression = new RegExp(`^    (?:async )?function ${name}\\([^]*?^    }\\n\\n?`, "gm");
+          const matches = [...text.matchAll(expression)];
+          assert.equal(matches.length, before && name === "prepareExportRoadNames" ? 0 : 1,
+            `${relative} ${name} must retain its reviewed function ownership`);
+          text = text.replace(expression, "");
+        }
+        return text;
+      };
+      assert.equal(strip(source, false), strip(restored, true),
+        `${relative} road labels may modify only the explicitly named export functions`);
+    } else {
+      assert.equal(source.split(ROAD_LABEL_ATTRIBUTION_AFTER).length - 1, 1,
+        "The new local road-name source must appear once in export attribution");
+      assert.equal(restored.split(ROAD_LABEL_ATTRIBUTION_BEFORE).length - 1, 1,
+        "The original map attribution must be restored exactly once");
+      assert.equal(source.replace(roadLabelAudit.scriptTag + "\n", "")
+        .replace(ROAD_LABEL_ATTRIBUTION_AFTER, ROAD_LABEL_ATTRIBUTION_BEFORE), restored,
+        "The road-label template change may add only its reviewed dependency and local-source credit");
+    }
+  }
+  return restored;
+}
+
+function auditedRoadLabelSource(kind, entry, source) {
+  const blocks = roadLabelAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
+  for (const block of blocks) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared export integration source`);
+    auditedRoadLabelRead(block.source);
+  }
+  return auditedIssueFixFragments(source, blocks, entry.id);
+}
+
 function auditedLineRead(relative) {
   const blocks = [...lineFixAudit.changes, ...lineFixAudit.externalChanges, ...lineFixAudit.templateChanges]
     .filter(block => block.source === relative);
-  const source = read(relative);
+  const source = auditedRoadLabelRead(relative);
   const restored = auditedIssueFixFragments(source, blocks, relative);
   const file = lineFixAudit.files.find(file => file.source === relative);
   if (file) {
@@ -377,6 +462,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedRoadLabelSource(kind, entry, source);
   source = auditedLineSource(kind, entry, source);
   source = auditedHolisticSource(kind, entry, source);
   source = auditedIssueFixSource(kind, entry, source);
@@ -451,6 +537,15 @@ function token(kind, id) {
 
 auditFontFamilyStylesheet();
 auditedFontFamilyTemplate(published, "Generated HTML");
+const roadLabelTag = roadLabelAudit.scriptTag;
+assert.match(roadLabelTag, /^<script\b[^>]*><\/script>$/);
+const roadLabelAttributes = attributes(roadLabelTag.slice(0, roadLabelTag.indexOf(">") + 1));
+assert.equal(roadLabelAttributes.size, 2, "Export road labels may add only src and defer attributes");
+assert.ok(roadLabelAttributes.has("defer"), "Export road labels must not block startup parsing");
+referencedOutput(roadLabelAttributes.get("src"), roadLabelAudit.module.source);
+for (const [label, document] of [["Template", template], ["Published HTML", published]]) {
+  assert.equal(document.split(roadLabelTag).length - 1, 1, `${label} must include the reviewed export road-label dependency once`);
+}
 assert.equal(baseline.schemaVersion, 1);
 assert.equal(manifest.version, 1);
 assert.equal(manifest.baselineCommit, baseline.baselineCommit,
@@ -675,7 +770,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes inverses; remaining UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -688,6 +783,7 @@ if (process.argv.includes("--self-test")) {
       "tools/fixtures/north-wildwood-view-pill-surface.json",
       "tools/fixtures/north-wildwood-loader-restore.json", BUG_FIX_AUDIT_PATH, HOLISTIC_FIX_AUDIT_PATH, loaderRestore.controller.source,
       LINE_FIX_AUDIT_PATH, ...lineFixAudit.files.map(file => file.source),
+      ROAD_LABEL_AUDIT_PATH, roadLabelAudit.module.source, roadLabelAudit.data.source,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -701,6 +797,20 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened export road-label inverse audit", path.join(scratch, ROAD_LABEL_AUDIT_PATH),
+        JSON.stringify({ ...roadLabelAudit, changes: [...roadLabelAudit.changes, roadLabelAudit.changes[0]] })],
+      ["altered export road-label implementation", path.join(scratch, roadLabelAudit.module.source),
+        read(roadLabelAudit.module.source) + "\n// Unreviewed label behavior\n"],
+      ["altered road-label geographic source", path.join(scratch, roadLabelAudit.data.source),
+        read(roadLabelAudit.data.source) + "\n"],
+      ["altered road-label integration fragment", path.join(scratch, roadLabelAudit.changes[0].source),
+        read(roadLabelAudit.changes[0].source).replace(roadLabelAudit.changes[0].afterSource,
+          roadLabelAudit.changes[0].afterSource + "\n// Unreviewed road-label integration\n")],
+      ["dropped export road-label dependency", scratchHtml, published.replace(roadLabelTag, "")],
+      ["asynchronous export road-label dependency", path.join(scratch, "tools/app/index.template.html"),
+        template.replace(roadLabelTag, roadLabelTag.replace("<script", "<script async"))],
+      ["stale export road-label cache version", path.join(scratch, "tools/app/index.template.html"),
+        template.replace(roadLabelTag, roadLabelTag.replace(/\?v=[a-f0-9]+/, "?v=unreviewed"))],
       ["broadened October 27 inverse audit", path.join(scratch, LINE_FIX_AUDIT_PATH),
         JSON.stringify({ ...lineFixAudit, changes: [...lineFixAudit.changes, lineFixAudit.changes[0]] })],
       ["altered October 27 correctness fragment", path.join(scratch, lineFixAudit.changes[0].source),

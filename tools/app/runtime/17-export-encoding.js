@@ -202,14 +202,15 @@
 
     async function captureFastGifBaseCanvas(firstItem) {
       await ensureExportMunicipalBoundary();
+      await prepareExportRoadNames();
       const mapInstance = ensureExportMap();
       applyExportStageAspect(getDownloadAspectValue());
       mapInstance.invalidateSize(false);
       updateExportLegend(firstItem?.entry);
       updateExportBoundaryVisibility();
       await updateExportParcelsLayer();
-      updateExportRoadLayerAppearance();
       fitExportMapToSelectedExtent(mapInstance);
+      updateExportRoadLayerAppearance();
 
       if (exportFloodLayer && mapInstance.hasLayer(exportFloodLayer)) {
         mapInstance.removeLayer(exportFloodLayer);

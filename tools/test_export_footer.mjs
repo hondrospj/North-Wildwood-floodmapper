@@ -174,6 +174,7 @@ function boundaryHarness() {
     makeExportBoundaryMask:()=>{counts.mask++;return layer('mask');},
     makeExportBoundaryVector:()=>{counts.outline++;return layer('outline');},
     applyExportStageAspect(){},getDownloadAspectValue:()=> '1:1',
+    prepareExportRoadNames(){},
     updateExportLegend(){},updateExportParcelsLayer(){},fitExportMapToSelectedExtent(){},
     updateExportTimestampLabel(){},updateExportRoadLayerAppearance(){},
     getStageValue:()=>5,getOverlayStage:x=>x,getHydraulicPhaseForEntry:()=> 'filling',
@@ -248,5 +249,5 @@ function boundaryHarness() {
   assert.equal(options.fillOpacity,0.62);
   assert.equal(options.stroke,false);
 }
-assert.match(extract('captureFastGifBaseCanvas'),/await ensureExportMunicipalBoundary\(\);\s*const mapInstance = ensureExportMap/);
+assert.match(extract('captureFastGifBaseCanvas'),/await ensureExportMunicipalBoundary\(\);\s*await prepareExportRoadNames\(\);\s*const mapInstance = ensureExportMap/);
 console.log('PASS export boundary readiness: one shared request, no early/all-gray capture, failed-load retry, stale map repair and authoritative geometry updates.');
