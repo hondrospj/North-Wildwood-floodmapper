@@ -1,5 +1,6 @@
-// Actual app, local NJOGIS geometry, rendering and PNG/GIF encoders. Only the
-// local street-data HTTP boundary is controlled for the explicit outage case.
+// Actual app, local NJOGIS geometry, rendering and PNG/GIF encoders. The street
+// fault uses its own context after strict native model readiness. The normal
+// cold-export context has independent caches and never installs a route.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,9 +18,6 @@ const retained = process.env.NWW_AUDIT_OUTPUT;
 const output = retained || fs.mkdtempSync(path.join(os.tmpdir(),'nww-street-labels-'));
 fs.mkdirSync(output,{recursive:true});
 const result = {browser:name,version:browser.version(),checks:[],states:[],errors:[],warnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
-let phase='startup';
-let failures=0,successfulRequests=0;
-const roadDataResponses=[];
 const roadDataPattern='**/assets/roads/north-wildwood-road-centerlines.geojson';
 const isRoadData=url=>new URL(url).pathname.endsWith('/assets/roads/north-wildwood-road-centerlines.geojson');
 const record=(list,value)=>{list.push(value);if(list.length>80)list.shift();};
@@ -27,45 +25,98 @@ const diagnosticUrl=value=>{
   try{const url=new URL(value);for(const key of [...url.searchParams.keys()])if(/token|key|secret/i.test(key))url.searchParams.set(key,'[redacted]');return url.href;}
   catch{return String(value);}
 };
-const isHydraulicImage=url=>/\/assets\/hydraulic-[^/]+\/.*\.(?:png|webp)(?:\?|$)/i.test(url);
-const floodRequestIds=new WeakMap();let nextFloodRequestId=0;
-const floodRequestId=request=>{if(!floodRequestIds.has(request))floodRequestIds.set(request,++nextFloodRequestId);return floodRequestIds.get(request);};
-const page = await browser.newPage({viewport:{width:1440,height:1000},acceptDownloads:true});
-page.setDefaultTimeout(30000);
-page.on('pageerror',error=>result.errors.push(error.message));
-page.on('console',message=>{if(message.type() === 'warning')result.warnings.push(message.text());});
-page.on('request',request=>{
-  if(isHydraulicImage(request.url()))record(result.floodTransport,{id:floodRequestId(request),phase,event:'requested',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType()});
-});
-page.on('response',response=>{
-  if(isRoadData(response.url())&&response.status()===200){
-    successfulRequests++;
-    roadDataResponses.push(response.json().then(data=>({status:response.status(),type:data.type,features:data.features?.length})).catch(error=>({error:error.message})));
+const modelImageKey=value=>{const url=new URL(value);url.search='';url.hash='';return url.href;};
+result.sessions=[];
+let page=null,activeSession=null;
+function saveState(state){
+  const value={session:activeSession.name,...state};
+  result.states.push(value);activeSession.log.states.push(value);
+}
+async function startSession(name){
+  const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
+  const ownedPage=await context.newPage();
+  const log={name,routeEverInstalled:false,states:[],errors:[],warnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
+  const session={name,context,page:ownedPage,log,phase:'startup',failures:0,successfulRequests:0,roadDataResponses:[],modelImages:new Set(),requestIds:new WeakMap(),nextRequestId:0};
+  const observed=(key,value)=>{
+    record(log[key],value);
+    record(result[key],typeof value==='string'?`[${name}] ${value}`:{session:name,...value});
+  };
+  const isModel=url=>session.modelImages.has(modelImageKey(url))||/\/assets\/hydraulic-[^/]+\/.*\.(?:png|webp)(?:\?|$)/i.test(url);
+  const requestId=request=>{if(!session.requestIds.has(request))session.requestIds.set(request,++session.nextRequestId);return session.requestIds.get(request);};
+  ownedPage.setDefaultTimeout(30000);
+  ownedPage.on('pageerror',error=>observed('errors',error.message));
+  ownedPage.on('console',message=>{if(message.type()==='warning')observed('warnings',message.text());});
+  ownedPage.on('request',request=>{
+    if(isModel(request.url()))observed('floodTransport',{id:requestId(request),phase:session.phase,event:'requested',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType()});
+  });
+  ownedPage.on('response',response=>{
+    if(isRoadData(response.url())&&response.status()===200){
+      session.successfulRequests++;
+      session.roadDataResponses.push(response.json().then(data=>({status:response.status(),type:data.type,features:data.features?.length})).catch(error=>({error:error.message})));
+    }
+    if(response.status()>=400)observed('httpErrors',{phase:session.phase,observedAt:new Date().toISOString(),url:diagnosticUrl(response.url()),status:response.status(),resourceType:response.request().resourceType()});
+    if(isModel(response.url())){
+      const headers=response.headers();
+      observed('floodTransport',{id:requestId(response.request()),phase:session.phase,event:'headers',observedAt:new Date().toISOString(),url:diagnosticUrl(response.url()),status:response.status(),contentLength:headers['content-length'],contentType:headers['content-type']});
+    }
+  });
+  ownedPage.on('requestfinished',request=>{
+    if(isModel(request.url()))observed('floodTransport',{id:requestId(request),phase:session.phase,event:'finished',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),timing:request.timing()});
+  });
+  ownedPage.on('requestfailed',request=>observed('requestFailures',{phase:session.phase,observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType(),failure:request.failure()?.errorText}));
+  result.sessions.push(log);page=ownedPage;activeSession=session;
+  await page.goto(process.env.NWW_TEST_URL||'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded',timeout:90000});
+  await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
+  if(await page.locator('#roadsToggle').getAttribute('aria-checked')!=='true')await page.locator('#roadsToggle').click();
+  const modelInputs=await page.evaluate(()=>({queryUrl:DEPTH_QUERY_PNG_URL,developedUrl:DEVELOPED_QUERY_PNG_URL,
+    queryCached:!!depthQueryGridPromise,developedCached:!!developedQueryGridPromise,exportMapCreated:!!exportMap,
+    performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now()}));
+  for(const url of [modelInputs.queryUrl,modelInputs.developedUrl])if(url)session.modelImages.add(modelImageKey(url));
+  saveState({label:'initial-model-inputs',...modelInputs});
+  return session;
+}
+async function strictModelReadiness(){
+  activeSession.phase='native-model-prerequisites';
+  const model=await page.evaluate(async()=>{
+    const started=performance.now();
+    try{
+      const [query,developed]=await Promise.all([getDepthQueryGrid(),getDevelopedQueryGrid()]);
+      const pixel={x:1311,y:1694};
+      const summarize=grid=>({width:grid.width,height:grid.height,length:grid.values.length,
+        rgba:[...grid.values.slice((pixel.y*grid.width+pixel.x)*4,(pixel.y*grid.width+pixel.x)*4+4)]});
+      const corners=getConfiguredWorldFileCornersLatLng().map(corner=>L.CRS.EPSG3857.project(corner));
+      const u=(pixel.x+.5)/query.width,v=(pixel.y+.5)/query.height;
+      const point={x:corners[0].x+(corners[1].x-corners[0].x)*u+(corners[3].x-corners[0].x)*v,
+        y:corners[0].y+(corners[1].y-corners[0].y)*u+(corners[3].y-corners[0].y)*v};
+      const location=L.CRS.EPSG3857.unproject(point);
+      const sample=await samplePackedDepthGrid(location.lat,location.lng);
+      return{ok:true,elapsedMs:performance.now()-started,expectedSize:getWorldFileRasterSize(),
+        query:summarize(query),developed:summarize(developed),pixel,location,sample,
+        performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now()};
+    }catch(error){return{ok:false,elapsedMs:performance.now()-started,error:{name:error.name,message:error.message}};}
+  });
+  saveState({label:'strict-native-model-prerequisites',...model});
+  assert.equal(model.ok,true,JSON.stringify(model));
+  for(const key of ['query','developed']){
+    assert.equal(model[key].width,model.expectedSize.width);assert.equal(model[key].height,model.expectedSize.height);
+    assert.equal(model[key].length,model[key].width*model[key].height*4);
   }
-  if(response.status()>=400)record(result.httpErrors,{phase,observedAt:new Date().toISOString(),url:diagnosticUrl(response.url()),status:response.status(),resourceType:response.request().resourceType()});
-  if(isHydraulicImage(response.url())){
-    const headers=response.headers();
-    record(result.floodTransport,{id:floodRequestId(response.request()),phase,event:'headers',observedAt:new Date().toISOString(),url:diagnosticUrl(response.url()),status:response.status(),contentLength:headers['content-length'],contentType:headers['content-type']});
-  }
-});
-page.on('requestfinished',request=>{
-  if(isHydraulicImage(request.url()))record(result.floodTransport,{id:floodRequestId(request),phase,event:'finished',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),timing:request.timing()});
-});
-page.on('requestfailed',request=>record(result.requestFailures,{phase,observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType(),failure:request.failure()?.errorText}));
-const streetDataOutage=route=>{
-  failures++;return route.fulfill({status:503,contentType:'text/plain',body:'Controlled local street-data outage'});
-};
+  assert.deepEqual(model.query.rgba,[128,62,112,255]);assert.deepEqual(model.developed.rgba,[8,192,255,255]);
+  assert.equal(model.sample.elevation,6.2);assert.equal(model.sample.connectionStage,6.2);
+  assert.equal(model.sample.developedFlag,true);assert.equal(model.sample.sourceDistanceFt,2240);
+}
 
 async function terminal(label) {
-  phase=label;
+  activeSession.phase=label;
   await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:180000});
   const state = await page.evaluate(()=>({state:document.getElementById('exportPreview')?.dataset.state,
     status:document.getElementById('exportPreviewStatus')?.textContent,
     format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),extent:getDownloadExtentValue(),
     dimensions:getExportAspectConfig(),busy:exportInProgress,
+    performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now(),
     floodResourceTiming:performance.getEntriesByType('resource').filter(entry=>/\/assets\/hydraulic-[^/]+\/.*\.(?:png|webp)(?:\?|$)/i.test(entry.name)).slice(-12).map(entry=>({name:entry.name,startTime:entry.startTime,duration:entry.duration,responseStart:entry.responseStart,responseEnd:entry.responseEnd,transferSize:entry.transferSize,encodedBodySize:entry.encodedBodySize,decodedBodySize:entry.decodedBodySize})),
     floodImage:(()=>{const image=exportFloodLayer?.getElement?.();return image?{src:image.currentSrc||image.src,complete:image.complete,naturalWidth:image.naturalWidth,naturalHeight:image.naturalHeight}:null;})()}));
-  result.states.push({label,...state});
+  saveState({label,...state});
   console.log(`Street-label proof: ${label}: ${state.state}`);
   return state;
 }
@@ -143,7 +194,7 @@ async function layout(label,minimum=8) {
   for(let a=0;a<state.labels.length;a++)for(let b=a+1;b<state.labels.length;b++){
     assert.ok(separated(state.labels[a].box,state.labels[b].box),`${label}: overlapping ${state.labels[a].text}/${state.labels[b].text}`);
   }
-  result.states.push({label,...state});
+  saveState({label,...state});
   if(retained)await page.screenshot({path:path.join(output,`${name}-street-${label}.png`)});
   return state;
 }
@@ -183,38 +234,59 @@ async function verifyDownloadedInk(file,label) {
   },{url:`data:${mime};base64,${bytes.toString('base64')}`});
   assert.ok(checked.expected>100,`${label}: no measurable local street lettering`);
   assert.ok(checked.ratio>0.90,`${label}: exported lettering lost pixels (${JSON.stringify(checked)})`);
-  result.states.push({label,file:path.basename(file),bytes:bytes.length,...checked});
+  saveState({label,file:path.basename(file),bytes:bytes.length,...checked});
   return checked;
 }
 
 try{
-  await page.goto(process.env.NWW_TEST_URL||'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded',timeout:90000});
-  await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
-  if(await page.locator('#roadsToggle').getAttribute('aria-checked')!=='true')await page.locator('#roadsToggle').click();
+  // The street-data fault has its own BrowserContext. Its real scientific
+  // inputs must pass their native loaders before this unrelated fault begins.
+  const fault=await startSession('street-data-fault');
+  await strictModelReadiness();
+  const streetDataOutage=route=>{
+    fault.failures++;return route.fulfill({status:503,contentType:'text/plain',body:'Controlled local street-data outage'});
+  };
+  fault.log.routeEverInstalled=true;
   await page.route(roadDataPattern,streetDataOutage);
+  saveState({label:'local-data-fault-installed',observedAt:new Date().toISOString(),...await page.evaluate(()=>({performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now()}))});
   await page.locator('#openDownloadModalBtn').click();
   await page.locator('#exportFormatPngBtn').click();await singleFrame();await review();
   await page.locator('#exportAspectSquareBtn').click();await page.locator('#exportExtentTownBtn').click();
   const failed=await terminal('local-data-outage');
-  assert.equal(failed.state,'error');assert.ok(failures>0);
+  assert.equal(failed.state,'error');assert.ok(fault.failures>0);
   assert.equal(await page.locator('#exportPreviewRetryBtn').isEnabled(),true);
   assert.equal(await page.locator('#downloadBtn').isEnabled(),true);
-  // Any installed Playwright route disables normal HTTP caching for the page.
-  // End the controlled fault before Retry so the real dataset and remaining
-  // eight-layout export checks use ordinary browser transport/cache behavior.
-  const previousSuccessfulRequests=successfulRequests;
-  const previousRoadResponses=roadDataResponses.length;
+  const previousSuccessfulRequests=fault.successfulRequests;
+  const previousRoadResponses=fault.roadDataResponses.length;
   await page.unroute(roadDataPattern,streetDataOutage);
-  result.states.push({label:'local-data-fault-removed',failures,observedAt:new Date().toISOString()});
+  saveState({label:'local-data-fault-removed',failures:fault.failures,observedAt:new Date().toISOString(),...await page.evaluate(()=>({performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now()}))});
   await page.locator('#exportPreviewRetryBtn').click();await ready('local-data-recovered');
-  assert.ok(successfulRequests>previousSuccessfulRequests);
-  const receivedRoadData=await Promise.all(roadDataResponses.slice(previousRoadResponses));
+  assert.ok(fault.successfulRequests>previousSuccessfulRequests);
+  const receivedRoadData=await Promise.all(fault.roadDataResponses.slice(previousRoadResponses));
   assert.ok(receivedRoadData.length>0);
   for(const data of receivedRoadData)assert.deepEqual(data,{status:200,type:'FeatureCollection',features:603},'Retry must receive the actual local street dataset');
-  result.states.push({label:'actual-street-data-response',successfulRequests,responses:receivedRoadData});
+  saveState({label:'actual-street-data-response',successfulRequests:fault.successfulRequests,responses:receivedRoadData});
   result.checks.push('A local street-data 503 produces a retryable error, and actual Retry fetches the data and renders the preview');
+  await fault.context.close();fault.log.closed=true;page=null;activeSession=null;
 
-  await page.locator('#exportExtentCurrentBtn').click();await ready('broad-current-view');
+  // A fresh context has independent HTTP/model caches and never installs a
+  // route. Its first actual UI export exercises the cold normal PNG path.
+  const normal=await startSession('normal-route-free');
+  const initial=await page.evaluate(()=>({queryCached:!!depthQueryGridPromise,developedCached:!!developedQueryGridPromise,exportMapCreated:!!exportMap}));
+  assert.deepEqual(initial,{queryCached:false,developedCached:false,exportMapCreated:false});
+  const preference=await page.evaluate(()=>{
+    document.getElementById('downloadFormatSelect').value='png';
+    document.getElementById('downloadAspectSelect').value='1:1';
+    updateExportSegmentedUI();
+    return{format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),queryCached:!!depthQueryGridPromise,
+      developedCached:!!developedQueryGridPromise,exportMapCreated:!!exportMap};
+  });
+  assert.deepEqual(preference,{format:'png',aspect:'1:1',...initial});
+  assert.equal(normal.log.routeEverInstalled,false);
+  saveState({label:'cold-normal-png-preference',...preference});
+  await page.locator('#openDownloadModalBtn').click();await singleFrame();await review();
+  await ready('broad-current-view');
+  assert.equal(await page.evaluate(()=>getExportAspectConfig().width),2160);
   const overview=await layout('broad-current-view',6);
   for(const major of ['New Jersey Avenue','West Spruce Avenue']){
     assert.ok(overview.labels.some(street=>street.name===major),`The default current view must retain ${major}`);
@@ -276,7 +348,7 @@ try{
     }
     canvas.width=canvas.height=1;return{opaque,mapOpaque,bounds:{minX,minY,maxX,maxY},mapSize:size};
   });
-  result.states.push({label:'roads-disabled-capture',...hiddenCapture});
+  saveState({label:'roads-disabled-capture',...hiddenCapture});
   assert.equal(hiddenCapture.mapOpaque,0,'The isolated road-label capture must contain no geographic labels when disabled');
   await page.locator('#downloadModalCloseBtn').click();await page.locator('#roadsToggle').click();
   await page.locator('#openDownloadModalBtn').click();await singleFrame();await review();await ready('roads-reenabled');
@@ -297,7 +369,7 @@ try{
   assert.deepEqual(result.errors,[]);result.passed=true;
 }catch(error){
   result.failure=error.stack;result.passed=false;
-  if(retained)await page.screenshot({path:path.join(output,`${name}-street-label-failure.png`)}).catch(()=>{});
+  if(retained&&page&&!page.isClosed())await page.screenshot({path:path.join(output,`${name}-street-label-failure.png`)}).catch(()=>{});
   throw error;
 }finally{
   await browser.close();
