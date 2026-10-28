@@ -194,29 +194,33 @@ function classifyPendingProviderPreviewRetry(state, warning, context) {
       error?.name!=='Error'||error.message!=='The map background is still loading. Please try the export again.')return no('different-actual-error');
   const attached=layer=>layer?.mapContains===true&&layer.ownsMap===true&&layer.mapMissing===false&&
     layer.containerPresent===true&&layer.containerAttached===true;
-  const map=state.basemap;
-  if(!attached(map)||map.kind!=='raster')return no('basemap-not-owned-attached-raster');
-  let service;
-  try{service=new URL(map.url);}catch{return no('different-basemap-provider');}
-  if(service.protocol!=='https:'||service.hostname!=='server.arcgisonline.com'||
-      !service.pathname.startsWith('/ArcGIS/rest/services/World_Street_Map/MapServer/tile/'))return no('different-basemap-provider');
-  const nativeTiles=layer=>{
-    const native=layer?.native,tiles=native?.tiles;
-    return Array.isArray(tiles)&&tiles.length>0&&tiles.every(tile=>typeof tile.complete==='boolean'&&Number.isInteger(tile.naturalWidth)&&tile.naturalWidth>=0)&&native.count===tiles.length&&native.failed===0&&
-      native.pending===tiles.filter(tile=>!tile.complete).length&&native.ready===tiles.filter(tile=>tile.complete&&tile.naturalWidth>0).length&&
-      native.ready+native.pending===native.count;
+  const provider=(layer,name,path)=>{
+    if(!attached(layer)||layer.kind!=='raster')return no(`${name}-not-owned-attached-raster`);
+    let service;
+    try{service=new URL(layer.url);}catch{return no(`different-${name}-provider`);}
+    if(service.protocol!=='https:'||service.hostname!=='server.arcgisonline.com'||!service.pathname.startsWith(path))return no(`different-${name}-provider`);
+    const native=layer.native,tiles=native?.tiles,tracked=layer.tracked,records=tracked?.tiles;
+    const validTile=tile=>tile&&typeof tile.complete==='boolean'&&Number.isInteger(tile.naturalWidth)&&tile.naturalWidth>=0&&(!tile.complete||tile.naturalWidth>0);
+    if(!Array.isArray(tiles)||!tiles.length||!tiles.every(validTile)||native.count!==tiles.length||native.failed!==0||
+        native.complete!==tiles.filter(tile=>tile.complete).length||native.pending!==tiles.filter(tile=>!tile.complete).length||
+        native.ready!==tiles.filter(tile=>tile.complete).length||native.ready+native.pending!==native.count)return no(`${name}-invalid-native-tiles`);
+    if(!Array.isArray(records)||!records.length||tracked.count!==records.length||!records.every(validTile))return no(`${name}-invalid-tracked-tiles`);
+    const current=records.filter(tile=>tile.current===true);
+    if(!Number.isInteger(layer.tileZoom)||!current.length||tracked.current!==current.length||
+        current.some(tile=>tile.coords?.z!==layer.tileZoom))return no(`${name}-invalid-current-tiles`);
+    const pending=native.pending>0,currentPending=current.some(tile=>!tile.complete);
+    if(pending?layer.isLoading!==true||!currentPending:layer.isLoading!==false||currentPending)return no(`${name}-stale-loading-state`);
+    return{eligible:true,pendingTiles:native.pending,readyTiles:native.ready,totalTiles:native.count};
   };
-  if(map.isLoading!==true||!nativeTiles(map)||!(map.native.pending>0))return no('basemap-not-genuinely-pending');
-  const current=map.tracked?.tiles?.filter(tile=>tile.current===true);
-  if(!Number.isInteger(map.tileZoom)||!current?.length||map.tracked.current!==current.length||
-      current.some(tile=>typeof tile.complete!=='boolean'||tile.coords?.z!==map.tileZoom||tile.complete&&!(tile.naturalWidth>0))||
-      !current.some(tile=>!tile.complete))return no('no-current-pending-basemap-tiles');
-  const roads=state.roads;
-  if(!attached(roads)||roads.kind!=='raster'||roads.isLoading!==false||!nativeTiles(roads)||roads.native.pending!==0||
-      roads.native.ready!==roads.native.count)return no('roads-not-ready');
+  const basemap=provider(state.basemap,'basemap','/ArcGIS/rest/services/World_Street_Map/MapServer/tile/');
+  if(!basemap.eligible)return basemap;
+  const roads=provider(state.roads,'roads','/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/');
+  if(!roads.eligible)return roads;
+  const pendingProviders=['basemap','roads'].filter(name=>({basemap,roads})[name].pendingTiles>0);
+  if(!pendingProviders.length)return no('no-pending-provider');
   const flood=state.floodImage;
   if(flood?.complete!==true||!flood.src||!(flood.naturalWidth>0)||!(flood.naturalHeight>0))return no('flood-not-ready');
-  return{eligible:true,reason:'genuine-pending-basemap',pendingTiles:map.native.pending,readyTiles:map.native.ready,totalTiles:map.native.count};
+  return{eligible:true,reason:'genuine-pending-provider',pendingProviders,basemap,roads};
 }
 async function ready(label) {
   let state = await terminal(label);
