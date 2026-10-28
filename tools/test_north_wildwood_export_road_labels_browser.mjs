@@ -37,7 +37,7 @@ async function startSession(name){
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
   const ownedPage=await context.newPage();
   const log={name,routeEverInstalled:false,states:[],errors:[],warnings:[],previewWarnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
-  const session={name,context,page:ownedPage,log,phase:'startup',failures:0,roadDataRequests:0,successfulRequests:0,roadDataResponses:[],modelImages:new Set(),requestIds:new WeakMap(),nextRequestId:0,coldPreviewReady:false,pendingProviderRetries:0};
+  const session={name,context,page:ownedPage,log,phase:'startup',failures:0,roadDataRequests:0,successfulRequests:0,roadDataResponses:[],modelImages:new Set(),requestIds:new WeakMap(),nextRequestId:0,coldPreviewReady:false,pendingProviderRetries:0,retriedPreviewActions:new Set()};
   const observed=(key,value)=>{
     record(log[key],value);
     record(result[key],typeof value==='string'?`[${name}] ${value}`:{session:name,...value});
@@ -53,13 +53,14 @@ async function startSession(name){
     // Firefox's text may contain only "Error". Capture its actual browser
     // object, retaining arrival order even when argument evaluation completes
     // out of order across different preview jobs.
-    const detail={session:name,phase:session.phase,text:message.text(),errors:[],captureErrors:[]};
+    const detail={session:name,phase:session.phase,observedAt:new Date().toISOString(),text:message.text(),errors:[],captureErrors:[]};
     record(log.previewWarnings,detail);record(result.previewWarnings,detail);
     pendingPreviewWarnings.push(Promise.all(message.args().map(handle=>handle.evaluate(value=>
-      value instanceof Error?{name:value.name,message:value.message,stack:value.stack}:null)
+      value instanceof Error?{name:value.name,message:value.message,stack:value.stack,exportRasterReadiness:value.exportRasterReadiness||null}:null)
       .catch(error=>({captureError:error.message})))).then(values=>{
       detail.errors=values.filter(value=>value?.name);
       detail.captureErrors=values.filter(value=>value?.captureError).map(value=>value.captureError);
+      detail.capturedAt=new Date().toISOString();
     }));
   });
   ownedPage.on('request',request=>{
@@ -146,7 +147,7 @@ async function terminal(label) {
       const container=layer.getContainer?.(),gl=layer._maplibreGL?._glMap;
       const native=[...(container?.querySelectorAll('img.leaflet-tile, canvas.leaflet-tile')||[])];
       const tracked=Object.values(layer._tiles||{});
-      return{kind:typeof layer._createMaplibreLayer==='function'?'vector':'raster',url:typeof layer._url==='string'?publicUrl(layer._url):null,
+      return{layerId:layer._leaflet_id??null,kind:typeof layer._createMaplibreLayer==='function'?'vector':'raster',url:typeof layer._url==='string'?publicUrl(layer._url):null,
         mapContains:safely(()=>exportMap.hasLayer(layer)),ownsMap:layer._map===exportMap,mapMissing:!layer._map,
         containerPresent:!!container,containerAttached:!!container?.isConnected,
         isLoading:safely(()=>layer.isLoading?.()),tileZoom:layer._tileZoom,
@@ -182,21 +183,31 @@ async function terminal(label) {
 }
 // A live provider can exceed its unchanged deadline on the first cold preview
 // or a later aspect. Retain that native failure and exercise the existing UI
-// recovery once per session. Other errors remain hard failures, and every final
-// rendering/download assertion is still required.
+// recovery once per fixed preview action, only with synchronous pending-tile
+// evidence from that actual deadline. Every final output assertion is required.
 function classifyPendingProviderPreviewRetry(state, warning, context) {
   const no=reason=>({eligible:false,reason});
   if(context?.name!=='normal-route-free'||context.routeEverInstalled!==false)return no('context-not-route-free');
   if(typeof context.coldPreviewReady!=='boolean')return no('cold-preview-state-unproven');
-  if(context.pendingProviderRetries!==0)return no('retry-budget-used');
+  const actions=['broad-current-view','town-restored','Png-1:1','Png-4:5','Png-16:9','Png-9:16',
+    'Gif-1:1','Gif-4:5','Gif-16:9','Gif-9:16','png-download-ready','gif-download-ready',
+    'roads-disabled','roads-reenabled','current-crop'];
+  if(!actions.includes(context.actionId))return no('unknown-preview-action');
+  const used=context.retriedPreviewActions;
+  if(!Array.isArray(used)||used.length>actions.length||new Set(used).size!==used.length||used.some(id=>!actions.includes(id))||
+      !Number.isInteger(context.pendingProviderRetries)||context.pendingProviderRetries!==used.length)return no('invalid-retry-budget');
+  if(used.includes(context.actionId))return no('preview-action-retry-used');
+  if(used.length>=actions.length)return no('retry-action-cap');
   if(state?.state!=='error'||state.busy!==false)return no('not-idle-preview-error');
   const error=warning?.errors?.at(-1);
-  if(warning?.session!==context.name||!Array.isArray(warning.captureErrors)||warning.captureErrors.length||
+  if(warning?.session!==context.name||warning.phase!==context.actionId||!Array.isArray(warning.captureErrors)||warning.captureErrors.length||
       error?.name!=='Error'||error.message!=='The map background is still loading. Please try the export again.')return no('different-actual-error');
+  const deadline=error.exportRasterReadiness;
+  if(deadline?.schemaVersion!==1||deadline.reason!=='deadline'||!Number.isFinite(deadline.observedAt)||deadline.observedAt<=0)return no('missing-original-raster-deadline');
   const attached=layer=>layer?.mapContains===true&&layer.ownsMap===true&&layer.mapMissing===false&&
     layer.containerPresent===true&&layer.containerAttached===true;
   const provider=(layer,name,path)=>{
-    if(!attached(layer)||layer.kind!=='raster')return no(`${name}-not-owned-attached-raster`);
+    if(!attached(layer)||layer.kind!=='raster'||!Number.isSafeInteger(layer.layerId)||layer.layerId<=0)return no(`${name}-not-owned-attached-raster`);
     let service;
     try{service=new URL(layer.url);}catch{return no(`different-${name}-provider`);}
     if(service.protocol!=='https:'||service.hostname!=='server.arcgisonline.com'||!service.pathname.startsWith(path))return no(`different-${name}-provider`);
@@ -213,33 +224,53 @@ function classifyPendingProviderPreviewRetry(state, warning, context) {
     if(pending?layer.isLoading!==true||!currentPending:layer.isLoading!==false||currentPending)return no(`${name}-stale-loading-state`);
     return{eligible:true,pendingTiles:native.pending,readyTiles:native.ready,totalTiles:native.count};
   };
-  const basemap=provider(state.basemap,'basemap','/ArcGIS/rest/services/World_Street_Map/MapServer/tile/');
+  const paths={basemap:'/ArcGIS/rest/services/World_Street_Map/MapServer/tile/',roads:'/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/'};
+  let originalUrl;
+  try{originalUrl=new URL(deadline.layer?.url);}catch{return no('invalid-original-provider');}
+  const originalRole=Object.keys(paths).find(name=>originalUrl.pathname.startsWith(paths[name]));
+  if(!originalRole)return no('unknown-original-provider');
+  const original=provider(deadline.layer,`original-${originalRole}`,paths[originalRole]);
+  if(!original.eligible)return original;
+  if(original.pendingTiles===0)return no('original-deadline-already-ready');
+  const basemap=provider(state.basemap,'basemap',paths.basemap);
   if(!basemap.eligible)return basemap;
-  const roads=provider(state.roads,'roads','/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/');
+  const roads=provider(state.roads,'roads',paths.roads);
   if(!roads.eligible)return roads;
   const pendingProviders=['basemap','roads'].filter(name=>({basemap,roads})[name].pendingTiles>0);
-  if(!pendingProviders.length)return no('no-pending-provider');
+  if(deadline.layer.layerId!==state[originalRole].layerId||deadline.layer.tileZoom!==state[originalRole].tileZoom||
+      originalUrl.href!==new URL(state[originalRole].url).href)return no('different-current-dependency');
   const flood=state.floodImage;
   if(flood?.complete!==true||!flood.src||!(flood.naturalWidth>0)||!(flood.naturalHeight>0))return no('flood-not-ready');
-  return{eligible:true,reason:'genuine-pending-provider',pendingProviders,basemap,roads};
+  return{eligible:true,reason:'original-raster-deadline-pending',originalProvider:originalRole,original,pendingProviders,basemap,roads};
 }
 async function ready(label) {
   let state = await terminal(label);
+  const firstAttemptReady=state.state==='ready';
+  let providerRetryUsed=false;
   if(state.state==='error'){
     const warning=activeSession.log.previewWarnings.at(-1);
     const context={name:activeSession.name,routeEverInstalled:activeSession.log.routeEverInstalled,
-      coldPreviewReady:activeSession.coldPreviewReady,pendingProviderRetries:activeSession.pendingProviderRetries};
+      coldPreviewReady:activeSession.coldPreviewReady,actionId:label,pendingProviderRetries:activeSession.pendingProviderRetries,
+      retriedPreviewActions:[...activeSession.retriedPreviewActions]};
     const classification=classifyPendingProviderPreviewRetry(state,warning,context);
     saveState({label:`${label}-provider-retry-classification`,classification,context,warning});
     if(classification.eligible){
-      activeSession.pendingProviderRetries++;activeSession.log.pendingProviderRetries=activeSession.pendingProviderRetries;
+      activeSession.retriedPreviewActions.add(label);activeSession.pendingProviderRetries++;
+      activeSession.log.pendingProviderRetries=activeSession.pendingProviderRetries;
+      activeSession.log.retriedPreviewActions=[...activeSession.retriedPreviewActions];
+      providerRetryUsed=true;
       assert.equal(await page.locator('#exportPreviewRetryBtn').isVisible(),true);
       assert.equal(await page.locator('#exportPreviewRetryBtn').isEnabled(),true);
-      saveState({label:`${label}-provider-ui-retry`,attempt:activeSession.pendingProviderRetries,classification});
+      saveState({label:`${label}-provider-ui-retry`,actionId:label,attemptForAction:1,totalRetries:activeSession.pendingProviderRetries,classification});
       await page.locator('#exportPreviewRetryBtn').click({noWaitAfter:true});
-      // Deliberately not recursive: a second error cannot spend another Retry.
+      // No recursion: a second error for this action remains a hard failure.
       state=await terminal(`${label}-after-provider-retry`);
     }
+  }
+  saveState({label:`${label}-attempt-result`,actionId:label,firstAttemptReady,providerRetryUsed,finalState:state.state});
+  if(activeSession.name==='normal-route-free'&&label==='broad-current-view'){
+    activeSession.log.coldPreviewFirstAttemptReady=firstAttemptReady;
+    activeSession.log.coldPreviewRecovered=providerRetryUsed&&state.state==='ready';
   }
   assert.equal(state.state,'ready',JSON.stringify({state,warnings:result.warnings}));
   return state;
@@ -449,7 +480,7 @@ try{
     assert.ok(overview.labels.some(street=>street.name===major),`The default current view must retain ${major}`);
   }
   normal.coldPreviewReady=true;normal.log.coldPreviewReady=true;
-  saveState({label:'cold-normal-preview-proven',pendingProviderRetries:normal.pendingProviderRetries,routeEverInstalled:normal.log.routeEverInstalled});
+  saveState({label:'cold-normal-preview-proven',firstAttemptReady:normal.log.coldPreviewFirstAttemptReady,providerRecoveryUsed:normal.log.coldPreviewRecovered,pendingProviderRetries:normal.pendingProviderRetries,routeEverInstalled:normal.log.routeEverInstalled});
   // This only changes the map framing. Its actual pointer action is checked
   // by Playwright; avoid its unrelated navigation epilogue during map work.
   assert.equal(await page.evaluate(()=>getDownloadExtentValue()),'current');

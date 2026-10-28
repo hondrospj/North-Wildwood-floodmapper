@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "d37d186d7e992597704494c8ad0f878f02c9fc64",
+  "purpose": "Check raster readiness once at the unchanged deadline without another wait and retain immutable original failure-state metadata; preserve all neighboring export and scientific code.",
+  "function": "waitForExportRasterLayerReady",
+  "files": [
+    {
+      "source": "tools/app/runtime/15-export-capture.js",
+      "beforeSha256": "707280f88cd50cb03695c378941a5188dc99ed53b38f8d84f310285b92256ae2",
+      "afterSha256": "fa213ba44128db8b4d3375b7b62287369cfc59ed37d43699bcc9e53afe2c8098"
+    }
+  ],
+  "changes": [
+    {
+      "id": "export-provider-readiness-1",
+      "source": "tools/app/runtime/15-export-capture.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "          return;\n        }\n        await wait(100);\n      }\n      throw new Error(\"The map background is still loading. Please try the export again.\");\n    }\n\n    function useExportFallbackBasemap(expectedLayer = exportBasemapColorLayer) {\n      if (expectedLayer !== exportBasemapColorLayer) return;\n",
+      "afterSource": "          return;\n        }\n        await wait(100);\n      }\n      throwIfExportCancelled();\n      const container = layer.getContainer();\n      const tiles = Array.from(container?.querySelectorAll(\"img.leaflet-tile, canvas.leaflet-tile\") || []);\n      const loading = layer.isLoading();\n      // A load can finish during the last polling interval. Check once more\n      // before reporting the deadline, without adding a wait or grace period.\n      if (!loading && tiles.length && tiles.every(tile => tile.complete && tile.naturalWidth > 0)) {\n        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));\n        return;\n      }\n      const error = new Error(\"The map background is still loading. Please try the export again.\");\n      try {\n        const mapInstance = typeof exportMap === \"undefined\" ? null : exportMap;\n        const native = tiles.map(tile => ({\n          tag: typeof tile.tagName === \"string\" ? tile.tagName : null,\n          complete: !!tile.complete, naturalWidth: Number(tile.naturalWidth) || 0,\n          naturalHeight: Number(tile.naturalHeight) || 0\n        }));\n        const tracked = Object.values(layer._tiles || {}).map(tile => ({\n          current: !!tile.current, loaded: Number(tile.loaded) || null, active: !!tile.active,\n          coords: tile.coords ? {\n            x: Number.isFinite(tile.coords.x) ? tile.coords.x : null,\n            y: Number.isFinite(tile.coords.y) ? tile.coords.y : null,\n            z: Number.isFinite(tile.coords.z) ? tile.coords.z : null\n          } : null,\n          complete: !!tile.el?.complete, naturalWidth: Number(tile.el?.naturalWidth) || 0\n        }));\n        const freeze = value => {\n          if (value && typeof value === \"object\") {\n            Object.values(value).forEach(freeze);\n            Object.freeze(value);\n          }\n          return value;\n        };\n        error.exportRasterReadiness = freeze({\n          schemaVersion: 1, reason: \"deadline\", observedAt: Date.now(),\n          layer: {\n            layerId: Number(layer._leaflet_id) || null, kind: \"raster\",\n            url: typeof layer._url === \"string\" ? layer._url : null,\n            mapContains: !!mapInstance && mapInstance.hasLayer(layer),\n            ownsMap: !!mapInstance && layer._map === mapInstance, mapMissing: !layer._map,\n            containerPresent: !!container, containerAttached: !!container?.isConnected,\n            isLoading: typeof loading === \"boolean\" ? loading : null,\n            tileZoom: Number.isFinite(layer._tileZoom) ? layer._tileZoom : null,\n            native: {\n              count: native.length, complete: native.filter(tile => tile.complete).length,\n              ready: native.filter(tile => tile.complete && tile.naturalWidth > 0).length,\n              pending: native.filter(tile => !tile.complete).length,\n              failed: native.filter(tile => tile.complete && !tile.naturalWidth).length, tiles: native\n            },\n            tracked: {\n              count: tracked.length, current: tracked.filter(tile => tile.current).length,\n              loaded: tracked.filter(tile => tile.loaded).length, active: tracked.filter(tile => tile.active).length,\n              tiles: tracked\n            }\n          }\n        });\n      } catch (_) { /* Diagnostic capture must preserve the original error. */ }\n      throw error;\n    }\n\n    function useExportFallbackBasemap(expectedLayer = exportBasemapColorLayer) {\n      if (expectedLayer !== exportBasemapColorLayer) return;\n",
+      "beforeSha256": "9036c453425414aafefb314aac784c89a8aa46c3f2457263b4926dcc88d4caf4",
+      "afterSha256": "8479795baf29f7e2af6e4c77eeadba1b0271afa9b7f26f5b53f9fa272b1a6d54"
+    }
+  ]
+}

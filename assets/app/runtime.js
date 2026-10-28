@@ -7719,7 +7719,65 @@ function updateExportSegmentedUI() {
         }
         await wait(100);
       }
-      throw new Error("The map background is still loading. Please try the export again.");
+      throwIfExportCancelled();
+      const container = layer.getContainer();
+      const tiles = Array.from(container?.querySelectorAll("img.leaflet-tile, canvas.leaflet-tile") || []);
+      const loading = layer.isLoading();
+      // A load can finish during the last polling interval. Check once more
+      // before reporting the deadline, without adding a wait or grace period.
+      if (!loading && tiles.length && tiles.every(tile => tile.complete && tile.naturalWidth > 0)) {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return;
+      }
+      const error = new Error("The map background is still loading. Please try the export again.");
+      try {
+        const mapInstance = typeof exportMap === "undefined" ? null : exportMap;
+        const native = tiles.map(tile => ({
+          tag: typeof tile.tagName === "string" ? tile.tagName : null,
+          complete: !!tile.complete, naturalWidth: Number(tile.naturalWidth) || 0,
+          naturalHeight: Number(tile.naturalHeight) || 0
+        }));
+        const tracked = Object.values(layer._tiles || {}).map(tile => ({
+          current: !!tile.current, loaded: Number(tile.loaded) || null, active: !!tile.active,
+          coords: tile.coords ? {
+            x: Number.isFinite(tile.coords.x) ? tile.coords.x : null,
+            y: Number.isFinite(tile.coords.y) ? tile.coords.y : null,
+            z: Number.isFinite(tile.coords.z) ? tile.coords.z : null
+          } : null,
+          complete: !!tile.el?.complete, naturalWidth: Number(tile.el?.naturalWidth) || 0
+        }));
+        const freeze = value => {
+          if (value && typeof value === "object") {
+            Object.values(value).forEach(freeze);
+            Object.freeze(value);
+          }
+          return value;
+        };
+        error.exportRasterReadiness = freeze({
+          schemaVersion: 1, reason: "deadline", observedAt: Date.now(),
+          layer: {
+            layerId: Number(layer._leaflet_id) || null, kind: "raster",
+            url: typeof layer._url === "string" ? layer._url : null,
+            mapContains: !!mapInstance && mapInstance.hasLayer(layer),
+            ownsMap: !!mapInstance && layer._map === mapInstance, mapMissing: !layer._map,
+            containerPresent: !!container, containerAttached: !!container?.isConnected,
+            isLoading: typeof loading === "boolean" ? loading : null,
+            tileZoom: Number.isFinite(layer._tileZoom) ? layer._tileZoom : null,
+            native: {
+              count: native.length, complete: native.filter(tile => tile.complete).length,
+              ready: native.filter(tile => tile.complete && tile.naturalWidth > 0).length,
+              pending: native.filter(tile => !tile.complete).length,
+              failed: native.filter(tile => tile.complete && !tile.naturalWidth).length, tiles: native
+            },
+            tracked: {
+              count: tracked.length, current: tracked.filter(tile => tile.current).length,
+              loaded: tracked.filter(tile => tile.loaded).length, active: tracked.filter(tile => tile.active).length,
+              tiles: tracked
+            }
+          }
+        });
+      } catch (_) { /* Diagnostic capture must preserve the original error. */ }
+      throw error;
     }
 
     function useExportFallbackBasemap(expectedLayer = exportBasemapColorLayer) {
