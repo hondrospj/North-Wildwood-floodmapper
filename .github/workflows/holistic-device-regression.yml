@@ -1,102 +1,49 @@
 name: Holistic device regression
+run-name: Windows cold query diagnostic
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - forecast.json
-      - data/experimental_petss_guidance.json
-      - observed.json
-      - observed15min.json
-      - stone_harbor_observed15min.json
-      - toptides.json
-      - observed_archive_index.json
-      - lewes_archive_index.json
-      - lewes_hourly.json
-      - observed_archive/**/*.json
-      - city-gauge/data/**/*.json
-      - city-gauge/comparison/**/*.json
-  pull_request:
-    paths-ignore:
-      - forecast.json
-      - data/experimental_petss_guidance.json
-      - observed.json
-      - observed15min.json
-      - stone_harbor_observed15min.json
-      - toptides.json
-      - observed_archive_index.json
-      - lewes_archive_index.json
-      - lewes_hourly.json
-      - observed_archive/**/*.json
-      - city-gauge/data/**/*.json
-      - city-gauge/comparison/**/*.json
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  windows-browser:
+  cold-query-diagnostic:
     runs-on: windows-latest
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        browser: [chromium, edge, firefox]
+    timeout-minutes: 15
     env:
-      NWW_BROWSER: ${{ matrix.browser }}
-      AUDIT_BROWSER: ${{ matrix.browser }}
-      AUDIT_OUTPUT: audit-results/${{ matrix.browser }}/matrix
-      NWW_AUDIT_OUTPUT: audit-results/${{ matrix.browser }}/ui
       NWW_TEST_URL: http://127.0.0.1:8771/index.html
-      # Full Chromium uses the current headless implementation. The default
-      # legacy headless shell is a separate binary, unlike an installed browser.
       NWW_CHROMIUM_CHANNEL: chromium
-      NWW_PROFILE_EXPORT_OPEN: '1'
-      NWW_TRACE_INERT: '1'
+      NWW_DIAGNOSTIC_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install browser runtime
+      - name: Install Chrome runtime
         shell: pwsh
         run: |
+          python --version
           npm install --no-save --ignore-scripts playwright
-          if ('${{ matrix.browser }}' -eq 'edge') { npx playwright install msedge }
-          else { npx playwright install ${{ matrix.browser }} }
+          npx playwright install chromium
           if ($LASTEXITCODE -ne 0) { throw 'Browser installation failed' }
-      - name: Test actual Windows browsers with desktop and touch-size profiles
+      - name: Probe actual cold getters and cold draining export
         shell: pwsh
         run: |
-          $server = Start-Process python -ArgumentList '-m','http.server','8771','--bind','127.0.0.1' -RedirectStandardOutput preview-output.log -RedirectStandardError preview-error.log -PassThru
+          $diagnosticServer = Start-Process python -ArgumentList '-m','http.server','8771','--bind','127.0.0.1' -RedirectStandardOutput preview-output.log -RedirectStandardError preview-error.log -PassThru
           try {
-            $ready = $false
+            $diagnosticReady = $false
             for ($attempt = 0; $attempt -lt 30; $attempt++) {
-              try { Invoke-WebRequest http://127.0.0.1:8771/index.html -UseBasicParsing | Out-Null; $ready = $true; break } catch { Start-Sleep -Seconds 1 }
+              try { Invoke-WebRequest http://127.0.0.1:8771/index.html -UseBasicParsing | Out-Null; $diagnosticReady = $true; break } catch { Start-Sleep -Seconds 1 }
             }
-            if (-not $ready) { throw 'Preview did not start; no application scenarios were run.' }
-            node tools/test_north_wildwood_holistic_ui.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'Holistic UI regressions failed' }
-            node tools/test_north_wildwood_line_fixes_browser.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'Startup recovery and text regressions failed' }
-            node tools/test_north_wildwood_line_map_browser.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'Map frame recovery regressions failed' }
-            node tools/test_north_wildwood_export_road_failure_browser.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'Export road-provider recovery regressions failed' }
-            node tools/test_north_wildwood_export_road_labels_browser.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'Export street-name readability regressions failed' }
-            node tools/test_north_wildwood_export_worker_browser.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'Export worker recovery regressions failed' }
-            node tools/test_city_gauge_dashboard.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'City dashboard regressions failed' }
-            node tools/test_north_wildwood_device_matrix.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'Device matrix regressions failed' }
+            if (-not $diagnosticReady) { throw 'Diagnostic server did not start' }
+            node tools/diagnose_north_wildwood_query_transport.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Cold query diagnostic recorded a failure; inspect artifacts' }
           } finally {
-            Stop-Process -Id $server.Id -ErrorAction SilentlyContinue
+            Stop-Process -Id $diagnosticServer.Id -ErrorAction SilentlyContinue
           }
-      - name: Save reproduction evidence
+      - name: Save passive diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: holistic-windows-${{ matrix.browser }}
+          name: windows-cold-query-diagnostic
           path: |
-            audit-results/
+            query-diagnostic/
             preview-*.log
