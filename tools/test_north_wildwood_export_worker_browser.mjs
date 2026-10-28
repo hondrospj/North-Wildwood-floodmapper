@@ -62,8 +62,9 @@ async function selectTwoFrameRange(){
     return{date:`${p.month}/${p.day}/${p.year}`,time:`${pad2(Number(p.hour24))}:${p.minute}`};
   });
   await page.locator('#downloadEndDateText').fill(end.date);
-  await page.locator('#downloadEndDateText').press('Tab');
+  await page.locator('#downloadEndDateText').press('Tab',{noWaitAfter:true});
   await page.locator('#downloadEndTimeSelect').selectOption(end.time);
+  assert.equal(await page.evaluate(()=>getRangeInputDate('downloadEndInput')?.getTime()-getRangeInputDate('downloadStartInput')?.getTime()),3600000);
 }
 function inspectGif(bytes){
   assert.match(bytes.subarray(0,6).toString(),/^GIF8[79]a$/);

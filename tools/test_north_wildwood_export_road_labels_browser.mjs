@@ -180,13 +180,14 @@ async function terminal(label) {
   console.log(`Street-label proof: ${label}: ${state.state}`);
   return state;
 }
-// A live provider can exceed its unchanged deadline after a previous successful
-// cold preview. Exercise the existing UI recovery once; every other error and
-// every final rendering/download assertion remains a hard failure.
+// A live provider can exceed its unchanged deadline on the first cold preview
+// or a later aspect. Retain that native failure and exercise the existing UI
+// recovery once per session. Other errors remain hard failures, and every final
+// rendering/download assertion is still required.
 function classifyPendingProviderPreviewRetry(state, warning, context) {
   const no=reason=>({eligible:false,reason});
   if(context?.name!=='normal-route-free'||context.routeEverInstalled!==false)return no('context-not-route-free');
-  if(context.coldPreviewReady!==true)return no('cold-preview-not-proven');
+  if(typeof context.coldPreviewReady!=='boolean')return no('cold-preview-state-unproven');
   if(context.pendingProviderRetries!==0)return no('retry-budget-used');
   if(state?.state!=='error'||state.busy!==false)return no('not-idle-preview-error');
   const error=warning?.errors?.at(-1);
@@ -235,7 +236,7 @@ async function ready(label) {
       assert.equal(await page.locator('#exportPreviewRetryBtn').isVisible(),true);
       assert.equal(await page.locator('#exportPreviewRetryBtn').isEnabled(),true);
       saveState({label:`${label}-provider-ui-retry`,attempt:activeSession.pendingProviderRetries,classification});
-      await page.locator('#exportPreviewRetryBtn').click();
+      await page.locator('#exportPreviewRetryBtn').click({noWaitAfter:true});
       // Deliberately not recursive: a second error cannot spend another Retry.
       state=await terminal(`${label}-after-provider-retry`);
     }
@@ -243,12 +244,16 @@ async function ready(label) {
   assert.equal(state.state,'ready',JSON.stringify({state,warnings:result.warnings}));
   return state;
 }
+// These dialog actions never navigate. Preserve trusted input/hit checks and
+// explicit state/output assertions, without Playwright's navigation epilogue.
 async function singleFrame() {
   const date=await page.locator('#downloadStartDateText').inputValue();
   const time=await page.locator('#downloadStartTimeSelect').inputValue();
   await page.locator('#downloadEndDateText').fill(date);
-  await page.locator('#downloadEndDateText').press('Tab');
+  await page.locator('#downloadEndDateText').press('Tab',{noWaitAfter:true});
   await page.locator('#downloadEndTimeSelect').selectOption(time);
+  const applied=await page.evaluate(()=>({start:getRangeInputDate('downloadStartInput')?.getTime(),end:getRangeInputDate('downloadEndInput')?.getTime(),frames:getDownloadFrameItems().length}));
+  assert.ok(Number.isFinite(applied.start));assert.equal(applied.end,applied.start);assert.equal(applied.frames,1);
 }
 async function twoFrames() {
   const end=await page.evaluate(()=>{
@@ -256,8 +261,10 @@ async function twoFrames() {
     return{date:`${parts.month}/${parts.day}/${parts.year}`,time:`${pad2(Number(parts.hour24))}:${parts.minute}`};
   });
   await page.locator('#downloadEndDateText').fill(end.date);
-  await page.locator('#downloadEndDateText').press('Tab');
+  await page.locator('#downloadEndDateText').press('Tab',{noWaitAfter:true});
   await page.locator('#downloadEndTimeSelect').selectOption(end.time);
+  const applied=await page.evaluate(()=>({duration:getRangeInputDate('downloadEndInput')?.getTime()-getRangeInputDate('downloadStartInput')?.getTime(),frames:getDownloadFrameItems().length}));
+  assert.equal(applied.duration,3600000);assert.equal(applied.frames,2);
 }
 function gifFrames(bytes) {
   let offset=13+((bytes[10]&128)?3*(1<<((bytes[10]&7)+1)):0),count=0;
@@ -271,11 +278,11 @@ function gifFrames(bytes) {
   throw Error('Missing GIF trailer');
 }
 async function review() {
-  if(await page.locator('#downloadModal').getAttribute('data-export-step')!=='review')await page.locator('#downloadBtn').click();
+  if(await page.locator('#downloadModal').getAttribute('data-export-step')!=='review')await page.locator('#downloadBtn').click({noWaitAfter:true});
 }
 async function format(value) {
-  if(await page.locator('#downloadModal').getAttribute('data-export-step')==='review')await page.locator('#exportReviewBackBtn').click();
-  await page.locator(`#exportFormat${value}Btn`).click();
+  if(await page.locator('#downloadModal').getAttribute('data-export-step')==='review')await page.locator('#exportReviewBackBtn').click({noWaitAfter:true});
+  await page.locator(`#exportFormat${value}Btn`).click({noWaitAfter:true});
   await review();
 }
 async function layout(label,minimum=8) {
@@ -318,7 +325,7 @@ async function layout(label,minimum=8) {
 }
 async function download(label) {
   const downloading=page.waitForEvent('download',{timeout:240000});downloading.catch(()=>{});
-  await page.locator('#downloadBtn').click();
+  await page.locator('#downloadBtn').click({noWaitAfter:true});
   const failed=page.waitForFunction(()=>!exportInProgress&&document.getElementById('downloadStatus')?.classList.contains('error'),{},{timeout:240000,polling:100})
     .then(async()=>{throw Error(`Street-label export failed: ${await page.locator('#downloadStatus').textContent()}`);});
   failed.catch(()=>{});
@@ -373,7 +380,7 @@ try{
     return{format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),extent:getDownloadExtentValue()};
   });
   assert.deepEqual(faultPreference,{format:'png',aspect:'1:1',extent:'town'});
-  await page.locator('#openDownloadModalBtn').click();await singleFrame();await review();
+  await page.locator('#openDownloadModalBtn').click({noWaitAfter:true});await singleFrame();await review();
   const preflight=await ready('road-disabled-prerequisites');
   assert.equal(preflight.format,'png');assert.equal(preflight.aspect,'1:1');assert.equal(preflight.extent,'town');
   assert.equal(preflight.dimensions.width,2160);assert.equal(preflight.dimensions.height,2160);
@@ -382,7 +389,7 @@ try{
   assert.equal(fault.roadDataRequests,0,'A roads-OFF preview must not warm the local street JSON before its fault');
   assert.equal(fault.log.routeEverInstalled,false);
   saveState({label:'road-disabled-preflight-verified',roadDataRequests:fault.roadDataRequests,routeEverInstalled:fault.log.routeEverInstalled});
-  await page.locator('#downloadModalCloseBtn').click();
+  await page.locator('#downloadModalCloseBtn').click({noWaitAfter:true});
   const streetDataOutage=route=>{
     fault.failures++;return route.fulfill({status:503,contentType:'text/plain',body:'Controlled local street-data outage'});
   };
@@ -392,7 +399,7 @@ try{
   const faultWarningStart=fault.log.previewWarnings.length;
   await page.locator('#roadsToggle').click();
   assert.equal(await page.locator('#roadsToggle').getAttribute('aria-checked'),'true');
-  await page.locator('#openDownloadModalBtn').click();
+  await page.locator('#openDownloadModalBtn').click({noWaitAfter:true});
   await singleFrame();await review();
   const failed=await terminal('local-data-outage');
   assert.equal(failed.state,'error');assert.ok(fault.failures>0);
@@ -409,7 +416,7 @@ try{
   const previousRoadResponses=fault.roadDataResponses.length;
   await page.unroute(roadDataPattern,streetDataOutage);
   saveState({label:'local-data-fault-removed',failures:fault.failures,observedAt:new Date().toISOString(),...await page.evaluate(()=>({performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now()}))});
-  await page.locator('#exportPreviewRetryBtn').click();await ready('local-data-recovered');
+  await page.locator('#exportPreviewRetryBtn').click({noWaitAfter:true});await ready('local-data-recovered');
   assert.ok(fault.successfulRequests>previousSuccessfulRequests);
   const receivedRoadData=await Promise.all(fault.roadDataResponses.slice(previousRoadResponses));
   assert.ok(receivedRoadData.length>0);
@@ -434,7 +441,7 @@ try{
   assert.deepEqual(preference,{format:'png',aspect:'1:1',...initial});
   assert.equal(normal.log.routeEverInstalled,false);
   saveState({label:'cold-normal-png-preference',...preference});
-  await page.locator('#openDownloadModalBtn').click();await singleFrame();await review();
+  await page.locator('#openDownloadModalBtn').click({noWaitAfter:true});await singleFrame();await review();
   await ready('broad-current-view');
   assert.equal(await page.evaluate(()=>getExportAspectConfig().width),2160);
   const overview=await layout('broad-current-view',6);
@@ -457,7 +464,7 @@ try{
   for(const kind of ['Png','Gif']){
     await format(kind);
     for(const [button,aspect] of buttons){
-      await page.locator(`#exportAspect${button}Btn`).click();await ready(`${kind}-${aspect}`);
+      await page.locator(`#exportAspect${button}Btn`).click({noWaitAfter:true});await ready(`${kind}-${aspect}`);
       const state=await layout(`${kind}-${aspect.replace(':','x')}`);
       assert.equal(state.dimensions.value,aspect);
       const identity=await page.evaluate(reference=>({sameSource:exportFloodLayer._url===reference.source,
@@ -469,7 +476,7 @@ try{
   result.checks.push('Actual preview layout has readable, upright, fully bounded and non-overlapping shared-font labels in all four PNG and GIF aspect ratios');
   result.checks.push('All eight layout previews retain the same owned completed flood image while the camera and output dimensions change');
 
-  await format('Png');await page.locator('#exportAspectSquareBtn').click();
+  await format('Png');await page.locator('#exportAspectSquareBtn').click({noWaitAfter:true});
   await ready('png-download-ready');
   const png=await download('street-names');
   assert.deepEqual([...fs.readFileSync(png).subarray(0,8)],[137,80,78,71,13,10,26,10]);
@@ -477,8 +484,8 @@ try{
   result.checks.push('The downloaded 2160px PNG preserves actual dark street-name glyphs above the flood overlay');
 
   await page.waitForFunction(()=>document.getElementById('exportProgressOverlay').hidden,{},{timeout:10000});
-  await page.locator('#openDownloadModalBtn').click();await twoFrames();await review();
-  await format('Gif');await page.locator('#exportAspectSquareBtn').click();
+  await page.locator('#openDownloadModalBtn').click({noWaitAfter:true});await twoFrames();await review();
+  await format('Gif');await page.locator('#exportAspectSquareBtn').click({noWaitAfter:true});
   await page.locator('#exportExtentTownBtn').click({noWaitAfter:true});
   const gifTown=await ready('gif-download-ready');
   assert.equal(gifTown.extent,'town');
@@ -492,7 +499,7 @@ try{
 
   await page.waitForFunction(()=>document.getElementById('exportProgressOverlay').hidden,{},{timeout:10000});
   await page.locator('#roadsToggle').click();assert.equal(await page.locator('#roadsToggle').getAttribute('aria-checked'),'false');
-  await page.locator('#openDownloadModalBtn').click();await singleFrame();await review();await ready('roads-disabled');
+  await page.locator('#openDownloadModalBtn').click({noWaitAfter:true});await singleFrame();await review();await ready('roads-disabled');
   const hidden=await page.evaluate(()=>{
     const canvas=exportMap.getPane('roadsPane').querySelector('.nww-export-road-labels');
     let layer;exportMap.eachLayer(candidate=>{if(candidate._canvas===canvas&&typeof candidate.getLabels==='function')layer=candidate;});
@@ -511,12 +518,12 @@ try{
   });
   saveState({label:'roads-disabled-capture',...hiddenCapture});
   assert.equal(hiddenCapture.mapOpaque,0,'The isolated road-label capture must contain no geographic labels when disabled');
-  await page.locator('#downloadModalCloseBtn').click();await page.locator('#roadsToggle').click();
-  await page.locator('#openDownloadModalBtn').click();await singleFrame();await review();await ready('roads-reenabled');
+  await page.locator('#downloadModalCloseBtn').click({noWaitAfter:true});await page.locator('#roadsToggle').click();
+  await page.locator('#openDownloadModalBtn').click({noWaitAfter:true});await singleFrame();await review();await ready('roads-reenabled');
   await layout('roads-reenabled');
   result.checks.push('Road names OFF hides local glyphs and reference tiles, then ON restores local names on the existing export map');
 
-  await page.locator('#downloadModalCloseBtn').click();
+  await page.locator('#downloadModalCloseBtn').click({noWaitAfter:true});
   // Apply the actual main map camera, then capture that current-view extent.
   await page.evaluate(()=>{
     const center=[-74.8005,39.002];
@@ -524,8 +531,8 @@ try{
     if(gl&&document.body.classList.contains('map-3d-ready'))gl.jumpTo({center,zoom:15.8,pitch:0,bearing:0});
     else map.setView([center[1],center[0]],15.8,{animate:false});
   });
-  await page.locator('#openDownloadModalBtn').click();await singleFrame();await review();
-  await page.locator('#exportExtentCurrentBtn').click();await ready('current-crop');await layout('current-crop',3);
+  await page.locator('#openDownloadModalBtn').click({noWaitAfter:true});await singleFrame();await review();
+  await page.locator('#exportExtentCurrentBtn').click({noWaitAfter:true});await ready('current-crop');await layout('current-crop',3);
   result.checks.push('A close current-view crop relocates labels to visible street stretches without clipping or overlap');
   assert.deepEqual(result.errors,[]);result.passed=true;
 }catch(error){

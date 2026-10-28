@@ -23,12 +23,14 @@ const roadsPending=fixture();roadsPending.state.basemap=layer(roadsPending.state
 assert.deepEqual(classify(roadsPending).pendingProviders,['roads']);assert.equal(classify(roadsPending).eligible,true);
 const bothPending=fixture();bothPending.state.basemap=layer(bothPending.state.basemap.url,96,0);bothPending.state.roads=layer(bothPending.state.roads.url,35,0);
 assert.deepEqual(classify(bothPending).pendingProviders,['basemap','roads']);assert.equal(classify(bothPending).eligible,true);
+const firstCold=fixture();firstCold.context.coldPreviewReady=false;
+assert.equal(classify(firstCold).eligible,true);assert.deepEqual(classify(firstCold).pendingProviders,['basemap']);
 const negatives=[
  ['street-fault context',f=>f.context.name='street-data-fault'],
  ['routed normal context',f=>f.context.routeEverInstalled=true],
  ['route status missing',f=>delete f.context.routeEverInstalled],
- ['first cold preview',f=>f.context.coldPreviewReady=false],
- ['first success unproven',f=>delete f.context.coldPreviewReady],
+ ['invalid cold-preview state',f=>f.context.coldPreviewReady='false'],
+ ['missing cold-preview state',f=>delete f.context.coldPreviewReady],
  ['one retry already used',f=>f.context.pendingProviderRetries=1],
  ['more than one retry used',f=>f.context.pendingProviderRetries=2],
  ['missing retry budget',f=>delete f.context.pendingProviderRetries],
@@ -97,4 +99,6 @@ for(const[name,change]of negatives){const f=fixture();change(f);assert.equal(cla
 // The same context can spend one budget, independent of the next aspect.
 const consumed=fixture();assert.equal(classify(consumed).eligible,true);consumed.context.pendingProviderRetries++;
 for(const aspect of ['1:1','4:5','16:9','9:16']){consumed.state.aspect=aspect;assert.equal(classify(consumed).eligible,false,`Budget must not reset for ${aspect}`);}
-console.log(`PASS pending-provider UI Retry: three provider positives, ${negatives.length} rejected states, strict cold preview and one shared context budget.`);
+firstCold.context.pendingProviderRetries=1;
+assert.deepEqual(classify(firstCold),{eligible:false,reason:'retry-budget-used'},'A cold attempt must use the same one-Retry budget');
+console.log(`PASS pending-provider UI Retry: four provider positives, ${negatives.length} rejected states, explicit cold-state metadata and one shared cold/later context budget.`);

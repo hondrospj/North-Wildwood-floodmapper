@@ -73,9 +73,10 @@ for (const profile of profiles) {
     const input = page.locator('#downloadStartDateText');
     await input.fill('10/26/2026'); await input.press('End'); await input.press('ArrowLeft'); await input.press('ArrowLeft'); await input.press('Backspace'); await input.press('0');
     assert.equal(await input.inputValue(), '10/26/2026');
-    await input.fill('03/07/2026'); await page.locator('#downloadStartDateText').press('Tab');
+    await input.fill('03/07/2026'); await page.locator('#downloadStartDateText').press('Tab',{noWaitAfter:true});
+    assert.equal(await page.locator('#downloadStartInput').inputValue().then(value=>value.slice(0,10)), '2026-03-07');
     await page.locator('#downloadStartTimeSelect').selectOption('02:30');
-    await input.fill('03/08/2026'); await page.locator('#downloadStartDateText').press('Tab');
+    await input.fill('03/08/2026'); await page.locator('#downloadStartDateText').press('Tab',{noWaitAfter:true});
     assert.equal(await input.getAttribute('aria-invalid'), 'true');
     assert.equal(await page.evaluate(() => getRangeInputDate('downloadStartInput')), null);
     await page.locator('#downloadModalCloseBtn').click();
