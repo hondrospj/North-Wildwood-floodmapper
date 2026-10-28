@@ -60,6 +60,8 @@ jobs:
           node tools/test_north_wildwood_address_recovery.mjs
           node tools/test_north_wildwood_export_dates.mjs
           node tools/test_export_date_time_picker.mjs
+          node tools/test_export_logo_readiness.mjs
+          node tools/test_export_pending_provider_retry.mjs
           node tools/test_north_wildwood_top_tides_and_live_observations.mjs
           node tools/test_north_wildwood_renderer_regressions.mjs index.html
           node tools/test_north_wildwood_legend_keyboard.mjs index.html

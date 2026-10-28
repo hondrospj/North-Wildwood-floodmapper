@@ -29,26 +29,69 @@
     }
 
     async function waitForExportChromeReady() {
+      function loadLogoSource(img, expectedSrc, assignSource) {
+        return new Promise((resolve, reject) => {
+          let settled = false;
+          let decoding = false;
+          const failure = () => new Error("The export logo could not load. Please try again.");
+          const ready = () => img.complete && img.naturalWidth > 0 && img.naturalHeight > 0
+            && img.currentSrc === expectedSrc && img.src === expectedSrc;
+          const finish = error => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeout);
+            clearInterval(cancelTimer);
+            img.removeEventListener("load", check);
+            img.removeEventListener("error", onError);
+            if (error) reject(error);
+            else resolve();
+          };
+          const check = () => {
+            if (settled || decoding) return;
+            try {
+              throwIfExportCancelled();
+              if (img.src !== expectedSrc) throw failure();
+              if (!ready()) return;
+              decoding = true;
+              // Firefox can decode the previous current image while the new
+              // source is pending. Decode only after this exact source loads.
+              Promise.resolve(typeof img.decode === "function" ? img.decode() : undefined)
+                .then(() => {
+                  throwIfExportCancelled();
+                  if (!ready()) throw failure();
+                  finish();
+                }).catch(finish);
+            } catch (error) { finish(error); }
+          };
+          const onError = () => finish(failure());
+          const timeout = setTimeout(() => finish(failure()), 20000);
+          const cancelTimer = setInterval(() => {
+            try { throwIfExportCancelled(); } catch (error) { finish(error); }
+          }, 100);
+          img.addEventListener("load", check);
+          img.addEventListener("error", onError);
+          try { if (assignSource) assignSource(); check(); }
+          catch (error) { finish(error); }
+        });
+      }
+
       const partner = document.getElementById("exportPartnerLogo");
       const brand = document.getElementById("mapTitlePartnerLogo");
-      if (partner && !partner.getAttribute?.("src")) {
-        const source = partner.dataset?.exportBrandSrc || brand?.getAttribute?.("src");
-        if (source) setExportLogoImage("exportPartnerLogo", source, brand?.alt || "ShorelySafe");
-      }
-      for (const id of ["exportTownLogo", "exportPartnerLogo"]) {
-        const image = document.getElementById(id);
-        if (image) image.loading = "eager";
-      }
-      const images = [
-        document.getElementById("exportTownLogo"),
-        document.getElementById("exportPartnerLogo")
-      ];
+      const pendingPartnerSource = partner && !partner.getAttribute?.("src")
+        ? partner.dataset?.exportBrandSrc || brand?.getAttribute?.("src") : "";
+      const images = [document.getElementById("exportTownLogo"), partner];
       await Promise.all(images.map(async img => {
-        if (!img?.src || !img.classList.contains("is-visible") || img.style.display === "none") return;
-        if (!img.src.startsWith("data:")) {
-          const source = await getExportImageElement(img.src);
+        if (!img) return;
+        const initializePartner = img === partner && !!pendingPartnerSource;
+        const sourceUrl = initializePartner ? pendingPartnerSource : img.src;
+        if (!sourceUrl || (!initializePartner && (!img.classList.contains("is-visible") || img.style.display === "none"))) return;
+        img.loading = "eager";
+        throwIfExportCancelled();
+        let expectedSrc = sourceUrl;
+        if (!sourceUrl.startsWith("data:")) {
+          const source = await getExportImageElement(sourceUrl);
           throwIfExportCancelled();
-          if (!source) throw new Error("The export logo could not load. Please try again.");
+          if (!source || !source.naturalWidth || !source.naturalHeight) throw new Error("The export logo could not load. Please try again.");
           const canvas = document.createElement("canvas");
           try {
             canvas.width = source.naturalWidth;
@@ -56,17 +99,17 @@
             const context = canvas.getContext("2d");
             if (!context) throw new Error("Could not prepare the export logo.");
             context.drawImage(source, 0, 0);
-            // html2canvas otherwise fetches the remote logo again for every
-            // capture and silently omits it when that second request is slow.
-            img.src = canvas.toDataURL("image/png");
+            // Inline before assigning the live node, avoiding a duplicate
+            // request and html2canvas's later fetch of the original URL.
+            expectedSrc = canvas.toDataURL("image/png");
           } finally {
             canvas.width = 1;
             canvas.height = 1;
           }
         }
-        if (typeof img.decode === "function") await img.decode();
-        else await waitForImageElementReady(img);
-        throwIfExportCancelled();
+        await loadLogoSource(img, expectedSrc, initializePartner
+          ? () => setExportLogoImage("exportPartnerLogo", expectedSrc, brand?.alt || "ShorelySafe")
+          : img.src === expectedSrc ? null : () => { img.src = expectedSrc; });
       }));
     }
 
