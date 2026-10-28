@@ -80,8 +80,8 @@ async function format(value) {
 async function layout(label,minimum=8) {
   const state=await page.evaluate(()=>{
     const canvas=exportMap.getPane('roadsPane').querySelector('.nww-export-road-labels');
-    const layer=window.NORTH_WILDWOOD_EXPORT_ROADS.attach(exportMap);
-    return{labels:layer.getLabels(),width:canvas?.width,height:canvas?.height,
+    let layer;exportMap.eachLayer(candidate=>{if(candidate._canvas===canvas&&typeof candidate.getLabels==='function')layer=candidate;});
+    return{labels:layer?.getLabels()||[],width:canvas?.width,height:canvas?.height,
       family:canvas?.dataset.fontFamily,bodyFamily:getComputedStyle(document.body).fontFamily,
       visible:canvas ? getComputedStyle(canvas).display!=='none' : false,
       dimensions:getExportAspectConfig(),zoom:exportMap.getZoom()};
@@ -123,8 +123,9 @@ async function download(label) {
 async function verifyDownloadedInk(file,label) {
   const bytes=fs.readFileSync(file),mime=/\.gif$/i.test(file)?'image/gif':'image/png';
   const checked=await page.evaluate(async({url})=>{
-    const labels=window.NORTH_WILDWOOD_EXPORT_ROADS.attach(exportMap).getLabels();
     const source=exportMap.getPane('roadsPane').querySelector('.nww-export-road-labels');
+    let layer;exportMap.eachLayer(candidate=>{if(candidate._canvas===source&&typeof candidate.getLabels==='function')layer=candidate;});
+    const labels=layer.getLabels();
     const ink=source.getContext('2d').getImageData(0,0,source.width,source.height).data;
     const image=new Image();image.src=url;await image.decode();
     const copy=document.createElement('canvas');copy.width=image.naturalWidth;copy.height=image.naturalHeight;
@@ -202,9 +203,11 @@ try{
   await page.waitForFunction(()=>document.getElementById('exportProgressOverlay').hidden,{},{timeout:10000});
   await page.locator('#roadsToggle').click();assert.equal(await page.locator('#roadsToggle').getAttribute('aria-checked'),'false');
   await page.locator('#openDownloadModalBtn').click();await singleFrame();await review();await ready('roads-disabled');
-  const hidden=await page.evaluate(()=>({count:window.NORTH_WILDWOOD_EXPORT_ROADS.attach(exportMap).getLabels().length,
-    display:getComputedStyle(exportMap.getPane('roadsPane').querySelector('.nww-export-road-labels')).display,
-    rasterOpacity:exportRoadsLayer.options.opacity}));
+  const hidden=await page.evaluate(()=>{
+    const canvas=exportMap.getPane('roadsPane').querySelector('.nww-export-road-labels');
+    let layer;exportMap.eachLayer(candidate=>{if(candidate._canvas===canvas&&typeof candidate.getLabels==='function')layer=candidate;});
+    return{count:layer.getLabels().length,display:getComputedStyle(canvas).display,rasterOpacity:exportRoadsLayer.options.opacity};
+  });
   assert.deepEqual(hidden,{count:0,display:'none',rasterOpacity:0});
   const hiddenCapture=await page.evaluate(async()=>{
     const canvas=await captureExportRoadLabelsCanvas();
