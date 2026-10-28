@@ -1,5 +1,5 @@
 name: Holistic device regression
-run-name: Windows cold query diagnostic
+run-name: Windows bounded road outage cold query diagnostic
 on:
   workflow_dispatch:
 permissions:
@@ -11,6 +11,7 @@ jobs:
     env:
       NWW_TEST_URL: http://127.0.0.1:8771/index.html
       NWW_CHROMIUM_CHANNEL: chromium
+      NWW_DIAGNOSTIC_CASE: 03-bounded-outage-retry
       NWW_DIAGNOSTIC_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4

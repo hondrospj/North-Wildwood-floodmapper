@@ -18,7 +18,7 @@ for(const [key,file] of [['query','NorthWildwoodHydraulicQuery5ft.png'],['develo
   Object.assign(expected[key],{bytes:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex')});
 }
 const result={startedAt:new Date().toISOString(),sourceBaseline:'6405fe5c3fff7712ee9473d83033c17b4557d3e6',diagnosticCommit:process.env.NWW_DIAGNOSTIC_SHA,
-  scope:'Actual application and assets. No routes, interception, mocks, cache overrides, application timer changes or retries. Application getter deadline remains20s. Independent raw probes also have20s observation deadlines.',
+  requestedCase:process.env.NWW_DIAGNOSTIC_CASE||'original-two',scope:process.env.NWW_DIAGNOSTIC_CASE?'Actual application. Only local road-JSON503 is controlled until the initial error, then hook removed before actual Retry. No query/IMG interception, cache overrides or deadline changes.':'Actual application and assets. No routes, interception, mocks, cache overrides, application timer changes or retries. Application getter deadline remains20s.',
   environment:{platform:process.platform,arch:process.arch,node:process.version,cpus:os.cpus().length,totalMemory:os.totalmem(),freeMemory:os.freemem()},expected,cases:[]};
 const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{channel:process.env.NWW_CHROMIUM_CHANNEL||'chromium'}),args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 result.browser=browser.version();
@@ -37,6 +37,7 @@ async function snapshot(page){return page.evaluate(()=>{
     floodImage:(()=>{const i=exportFloodLayer?.getElement?.();return i?{src:i.currentSrc||i.src,complete:i.complete,width:i.naturalWidth,height:i.naturalHeight,ready:exportFloodLayer._nwwExportFloodReady}:null;})()};
 });}
 async function runCase(name,fn){
+  if(process.env.NWW_DIAGNOSTIC_CASE&&process.env.NWW_DIAGNOSTIC_CASE!==name)return;
   const item={name,startedAt:new Date().toISOString(),events:[],cdp:[],errors:[],warnings:[]};result.cases.push(item);
   const context=await browser.newContext({viewport:{width:1440,height:1000}});let page;
   try{
@@ -103,8 +104,36 @@ try{
     checkPixels(grids[0],expected.query);checkPixels(grids[1],expected.developed);item.decodedGrids=grids;
   });
 
+  if(process.env.NWW_DIAGNOSTIC_CASE==='03-bounded-outage-retry')await runCase('03-bounded-outage-retry',async(page,item)=>{
+    assert.equal(item.before.queryCached,false,'Bounded503 flow must begin with cold model');
+    if(await page.locator('#roadsToggle').getAttribute('aria-checked')!=='true')await page.locator('#roadsToggle').click();
+    const pattern='**/assets/roads/north-wildwood-road-centerlines.geojson';let failures=0;const roadResponses=[];
+    page.on('response',response=>{if(new URL(response.url()).pathname.endsWith('/assets/roads/north-wildwood-road-centerlines.geojson')&&response.status()===200)roadResponses.push(response.json().then(data=>({status:response.status(),type:data.type,features:data.features?.length})));});
+    const outage=route=>{failures++;item.events.push({event:'controlled-road503',observedAt:new Date().toISOString()});return route.fulfill({status:503,contentType:'text/plain',body:'Controlled local street-data outage'});};
+    await page.route(pattern,outage);item.faultInstalled=await snapshot(page);
+    await page.locator('#openDownloadModalBtn').click();await page.locator('#exportFormatPngBtn').click();
+    const date=await page.locator('#downloadStartDateText').inputValue(),time=await page.locator('#downloadStartTimeSelect').inputValue();
+    await page.locator('#downloadEndDateText').fill(date);await page.locator('#downloadEndTimeSelect').focus();await page.locator('#downloadEndTimeSelect').selectOption(time);
+    if(await page.locator('#downloadModal').getAttribute('data-export-step')!=='review')await page.locator('#downloadBtn').click();
+    await page.locator('#exportAspectSquareBtn').click();await page.locator('#exportExtentTownBtn').click();
+    item.modalOpened=await snapshot(page);
+    await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:180000});
+    item.initialFailure=await page.evaluate(()=>({state:document.getElementById('exportPreview').dataset.state,status:document.getElementById('exportPreviewStatus').textContent,clock:{dateNow:Date.now(),performanceNow:performance.now(),timeOrigin:performance.timeOrigin}}));
+    assert.equal(item.initialFailure.state,'error');assert.ok(failures>0);assert.equal(await page.locator('#exportPreviewRetryBtn').isEnabled(),true);assert.equal(await page.locator('#downloadBtn').isEnabled(),true);
+    item.beforeFaultRemoval=await snapshot(page);await page.unroute(pattern,outage);item.faultRemoved=await snapshot(page);
+    await page.evaluate(()=>document.getElementById('exportPreviewRetryBtn').addEventListener('click',()=>{window.__queryDiagnostic.retryClickClock={dateNow:Date.now(),performanceNow:performance.now(),timeOrigin:performance.timeOrigin};},{once:true}));
+    await page.locator('#exportPreviewRetryBtn').click();
+    await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:180000});
+    item.measurements=await page.evaluate(()=>({state:document.getElementById('exportPreview').dataset.state,status:document.getElementById('exportPreviewStatus').textContent,clock:{dateNow:Date.now(),performanceNow:performance.now(),timeOrigin:performance.timeOrigin},format:getDownloadFormatValue(),dimensions:getExportAspectConfig()}));
+    item.roadResponses=await Promise.all(roadResponses);item.controlledFailures=failures;
+    assert.equal(item.measurements.state,'ready',JSON.stringify(item.measurements));assert.equal(item.measurements.dimensions.width,2160);assert.equal(item.measurements.dimensions.height,2160);
+    assert.ok(item.roadResponses.length>0);for(const response of item.roadResponses)assert.deepEqual(response,{status:200,type:'FeatureCollection',features:603});
+    const grids=await page.evaluate(async expected=>{const [q,d]=await Promise.all([getDepthQueryGrid(),getDevelopedQueryGrid()]);return[q,d].map((g,i)=>({width:g.width,height:g.height,length:g.values.length,samples:expected[i?'developed':'query'].samples.map(({x,y})=>({x,y,rgba:[...g.values.slice((y*g.width+x)*4,(y*g.width+x)*4+4)]}))}));},expected);
+    checkPixels(grids[0],expected.query);checkPixels(grids[1],expected.developed);item.decodedGrids=grids;
+  });
+
 }finally{
-  await browser.close();result.completedAt=new Date().toISOString();result.passed=result.cases.length===2&&result.cases.every(c=>c.passed);
+  await browser.close();result.completedAt=new Date().toISOString();result.passed=result.cases.length===(process.env.NWW_DIAGNOSTIC_CASE?1:2)&&result.cases.every(c=>c.passed);
   fs.writeFileSync(path.join(output,'summary.json'),JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify({passed:result.passed,browser:result.browser,cases:result.cases.map(c=>({name:c.name,passed:c.passed,failure:c.failure}))},null,2));
   if(!result.passed)process.exitCode=1;
