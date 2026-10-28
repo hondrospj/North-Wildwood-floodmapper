@@ -1,6 +1,6 @@
 // Actual app, local NJOGIS geometry, rendering and PNG/GIF encoders. The street
-// fault uses its own context after strict native model readiness. The normal
-// cold-export context has independent caches and never installs a route.
+// fault uses its own context after native models and a real roads-OFF preview.
+// The normal cold-export context has independent caches and never installs a route.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -36,7 +36,7 @@ async function startSession(name){
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
   const ownedPage=await context.newPage();
   const log={name,routeEverInstalled:false,states:[],errors:[],warnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
-  const session={name,context,page:ownedPage,log,phase:'startup',failures:0,successfulRequests:0,roadDataResponses:[],modelImages:new Set(),requestIds:new WeakMap(),nextRequestId:0};
+  const session={name,context,page:ownedPage,log,phase:'startup',failures:0,roadDataRequests:0,successfulRequests:0,roadDataResponses:[],modelImages:new Set(),requestIds:new WeakMap(),nextRequestId:0};
   const observed=(key,value)=>{
     record(log[key],value);
     record(result[key],typeof value==='string'?`[${name}] ${value}`:{session:name,...value});
@@ -47,6 +47,7 @@ async function startSession(name){
   ownedPage.on('pageerror',error=>observed('errors',error.message));
   ownedPage.on('console',message=>{if(message.type()==='warning')observed('warnings',message.text());});
   ownedPage.on('request',request=>{
+    if(isRoadData(request.url())){session.roadDataRequests++;log.roadDataRequests=session.roadDataRequests;}
     if(isModel(request.url()))observed('floodTransport',{id:requestId(request),phase:session.phase,event:'requested',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType()});
   });
   ownedPage.on('response',response=>{
@@ -109,13 +110,47 @@ async function strictModelReadiness(){
 async function terminal(label) {
   activeSession.phase=label;
   await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:180000});
-  const state = await page.evaluate(()=>({state:document.getElementById('exportPreview')?.dataset.state,
+  const state = await page.evaluate(()=>{
+    const safely=read=>{try{return read();}catch(error){return{error:error.message};}};
+    const publicUrl=value=>{
+      if(typeof value!=='string')return value;
+      try{const url=new URL(value);for(const key of [...url.searchParams.keys()])if(/token|key|secret/i.test(key))url.searchParams.set(key,'[redacted]');return url.href;}
+      catch{return value;}
+    };
+    const layerState=layer=>{
+      if(!layer)return null;
+      const container=layer.getContainer?.(),gl=layer._maplibreGL?._glMap;
+      const native=[...(container?.querySelectorAll('img.leaflet-tile, canvas.leaflet-tile')||[])];
+      const tracked=Object.values(layer._tiles||{});
+      return{kind:typeof layer._createMaplibreLayer==='function'?'vector':'raster',url:typeof layer._url==='string'?publicUrl(layer._url):null,
+        mapContains:safely(()=>exportMap.hasLayer(layer)),ownsMap:layer._map===exportMap,mapMissing:!layer._map,
+        containerPresent:!!container,containerAttached:!!container?.isConnected,
+        isLoading:safely(()=>layer.isLoading?.()),tileZoom:layer._tileZoom,
+        native:{count:native.length,complete:native.filter(tile=>tile.complete).length,
+          ready:native.filter(tile=>tile.complete&&tile.naturalWidth>0).length,
+          failed:native.filter(tile=>tile.complete&&!tile.naturalWidth).length,
+          pending:native.filter(tile=>!tile.complete).length,
+          tiles:native.map(tile=>({tag:tile.tagName,complete:!!tile.complete,naturalWidth:tile.naturalWidth||0,naturalHeight:tile.naturalHeight||0,
+            width:tile.width,height:tile.height,src:tile.tagName==='IMG'?publicUrl(tile.currentSrc||tile.src):null}))},
+        tracked:{count:tracked.length,current:tracked.filter(tile=>tile.current).length,loaded:tracked.filter(tile=>tile.loaded).length,
+          active:tracked.filter(tile=>tile.active).length,
+          tiles:tracked.map(tile=>({current:!!tile.current,loaded:tile.loaded||null,active:!!tile.active,
+            coords:tile.coords?{x:tile.coords.x,y:tile.coords.y,z:tile.coords.z}:null,
+            complete:!!tile.el?.complete,naturalWidth:tile.el?.naturalWidth||0}))},
+        vector:gl?{loaded:safely(()=>gl.loaded()),tilesLoaded:safely(()=>gl.areTilesLoaded())}:null};
+    };
+    const resource=entry=>({name:publicUrl(entry.name),startTime:entry.startTime,duration:entry.duration,responseStart:entry.responseStart,responseEnd:entry.responseEnd,
+      transferSize:entry.transferSize,encodedBodySize:entry.encodedBodySize,decodedBodySize:entry.decodedBodySize});
+    return{state:document.getElementById('exportPreview')?.dataset.state,
     status:document.getElementById('exportPreviewStatus')?.textContent,
     format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),extent:getDownloadExtentValue(),
     dimensions:getExportAspectConfig(),busy:exportInProgress,
     performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now(),
     floodResourceTiming:performance.getEntriesByType('resource').filter(entry=>/\/assets\/hydraulic-[^/]+\/.*\.(?:png|webp)(?:\?|$)/i.test(entry.name)).slice(-12).map(entry=>({name:entry.name,startTime:entry.startTime,duration:entry.duration,responseStart:entry.responseStart,responseEnd:entry.responseEnd,transferSize:entry.transferSize,encodedBodySize:entry.encodedBodySize,decodedBodySize:entry.decodedBodySize})),
-    floodImage:(()=>{const image=exportFloodLayer?.getElement?.();return image?{src:image.currentSrc||image.src,complete:image.complete,naturalWidth:image.naturalWidth,naturalHeight:image.naturalHeight}:null;})()}));
+    exportDependencies:performance.getEntriesByType('resource').filter(entry=>/cdn\.jsdelivr\.net|unpkg\.com|VectorTileServer|World_Street_Map|World_Transportation/i.test(entry.name)).slice(-50).map(resource),
+    basemap:safely(()=>layerState(exportBasemapColorLayer)),roads:safely(()=>layerState(exportRoadsLayer)),
+    floodImage:(()=>{const image=exportFloodLayer?.getElement?.();return image?{src:image.currentSrc||image.src,complete:image.complete,naturalWidth:image.naturalWidth,naturalHeight:image.naturalHeight}:null;})()};
+  });
   saveState({label,...state});
   console.log(`Street-label proof: ${label}: ${state.state}`);
   return state;
@@ -239,21 +274,49 @@ async function verifyDownloadedInk(file,label) {
 }
 
 try{
-  // The street-data fault has its own BrowserContext. Its real scientific
-  // inputs must pass their native loaders before this unrelated fault begins.
+  // Complete a real roads-OFF PNG before installing any route. This proves the
+  // scientific inputs, CDN encoder and basemap through their existing loaders,
+  // while leaving the local road JSON genuinely cold for the intended fault.
   const fault=await startSession('street-data-fault');
   await strictModelReadiness();
+  assert.equal(fault.log.routeEverInstalled,false);assert.equal(fault.roadDataRequests,0);
+  await page.locator('#roadsToggle').click();
+  assert.equal(await page.locator('#roadsToggle').getAttribute('aria-checked'),'false');
+  const faultPreference=await page.evaluate(()=>{
+    document.getElementById('downloadFormatSelect').value='png';
+    document.getElementById('downloadAspectSelect').value='1:1';
+    document.getElementById('downloadExtentSelect').value='town';
+    updateExportSegmentedUI();
+    return{format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),extent:getDownloadExtentValue()};
+  });
+  assert.deepEqual(faultPreference,{format:'png',aspect:'1:1',extent:'town'});
+  await page.locator('#openDownloadModalBtn').click();await singleFrame();await review();
+  const preflight=await ready('road-disabled-prerequisites');
+  assert.equal(preflight.format,'png');assert.equal(preflight.aspect,'1:1');assert.equal(preflight.extent,'town');
+  assert.equal(preflight.dimensions.width,2160);assert.equal(preflight.dimensions.height,2160);
+  assert.equal(preflight.floodImage.complete,true);assert.ok(preflight.floodImage.naturalWidth>0);
+  assert.equal(await page.locator('#roadsToggle').getAttribute('aria-checked'),'false');
+  assert.equal(fault.roadDataRequests,0,'A roads-OFF preview must not warm the local street JSON before its fault');
+  assert.equal(fault.log.routeEverInstalled,false);
+  saveState({label:'road-disabled-preflight-verified',roadDataRequests:fault.roadDataRequests,routeEverInstalled:fault.log.routeEverInstalled});
+  await page.locator('#downloadModalCloseBtn').click();
   const streetDataOutage=route=>{
     fault.failures++;return route.fulfill({status:503,contentType:'text/plain',body:'Controlled local street-data outage'});
   };
   fault.log.routeEverInstalled=true;
   await page.route(roadDataPattern,streetDataOutage);
   saveState({label:'local-data-fault-installed',observedAt:new Date().toISOString(),...await page.evaluate(()=>({performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now()}))});
+  const faultWarningStart=fault.log.warnings.length;
+  await page.locator('#roadsToggle').click();
+  assert.equal(await page.locator('#roadsToggle').getAttribute('aria-checked'),'true');
   await page.locator('#openDownloadModalBtn').click();
-  await page.locator('#exportFormatPngBtn').click();await singleFrame();await review();
-  await page.locator('#exportAspectSquareBtn').click();await page.locator('#exportExtentTownBtn').click();
+  await singleFrame();await review();
   const failed=await terminal('local-data-outage');
   assert.equal(failed.state,'error');assert.ok(fault.failures>0);
+  const lastFaultWarning=fault.log.warnings.slice(faultWarningStart).filter(message=>/Export preview could not be rendered/.test(message)).at(-1);
+  assert.match(lastFaultWarning||'',/The export road names could not load/i,'The controlled fault must fail specifically on its local street-data dependency');
+  saveState({label:'intended-street-data-failure',warning:lastFaultWarning,failures:fault.failures,roadDataRequests:fault.roadDataRequests});
+  console.log('Street-label proof: intended local street-data failure verified');
   assert.equal(await page.locator('#exportPreviewRetryBtn').isEnabled(),true);
   assert.equal(await page.locator('#downloadBtn').isEnabled(),true);
   const previousSuccessfulRequests=fault.successfulRequests;
@@ -266,6 +329,7 @@ try{
   assert.ok(receivedRoadData.length>0);
   for(const data of receivedRoadData)assert.deepEqual(data,{status:200,type:'FeatureCollection',features:603},'Retry must receive the actual local street dataset');
   saveState({label:'actual-street-data-response',successfulRequests:fault.successfulRequests,responses:receivedRoadData});
+  console.log('Street-label proof: Retry received the actual 200/603 street dataset');
   result.checks.push('A local street-data 503 produces a retryable error, and actual Retry fetches the data and renders the preview');
   await fault.context.close();fault.log.closed=true;page=null;activeSession=null;
 
