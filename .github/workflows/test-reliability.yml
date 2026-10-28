@@ -136,7 +136,7 @@ jobs:
       - name: Real application, responsive and rapid-interaction regressions
         shell: bash
         run: |
-          python3 -m http.server 8765 --bind 127.0.0.1 >preview-output.log 2>&1 &
+          python3 tools/serve_north_wildwood_test.py 8765 --bind 127.0.0.1 --access-log preview-access.log 2>preview-error.log &
           preview_pid=$!
           trap 'kill "$preview_pid"' EXIT
           for attempt in {1..30}; do
