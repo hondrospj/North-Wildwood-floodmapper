@@ -38,7 +38,7 @@ try{
     for(const type of ['pointerdown','pointerup','click'])element.addEventListener(type,event=>{
       if(type==='pointerdown')window.previewGesturePressed=true;
       if(type==='pointerup')window.previewGesturePressed=false;
-      window.previewGestureEvents.push({type,target:event.target.id,at:performance.now(),...snapshot()});
+      window.previewGestureEvents.push({type,target:event.target.id,trusted:event.isTrusted,at:performance.now(),...snapshot()});
     },true);
     element.addEventListener('pointerdown',()=>{
       window.previewGestureBefore=snapshot();
@@ -46,16 +46,24 @@ try{
       requestAnimationFrame(()=>requestAnimationFrame(()=>{window.previewGestureDuring=snapshot();}));
     },{once:true});
   });
-  // A locator gesture verifies visibility and hit-testing before dispatch. Raw
-  // page.mouse coordinates do not perform those checks in mobile emulation.
-  await control.click({delay:400});
-  // Software compositing can postpone rAF polling even after the sample was
-  // recorded. Timer polling observes it without weakening the held-state check.
-  await page.waitForFunction(()=>window.previewGestureDuring,{},{timeout:30000,polling:50});
+  // Validate the real locator's visibility, stability and hit target before
+  // trusted mouse input. Hold the button until the actual render sample exists;
+  // software compositing can postpone two animation frames beyond a fixed delay.
+  await control.click({trial:true});
+  const box=await control.boundingBox();
+  assert.ok(box,'The format control needs a visible hit target');
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+  try{
+    await page.mouse.down();
+    await page.waitForFunction(()=>window.previewGestureDuring,{},{timeout:30000,polling:50});
+  }finally{
+    await page.mouse.up();
+  }
   const {before,during,events}=await page.evaluate(()=>({before:window.previewGestureBefore,during:window.previewGestureDuring,events:window.previewGestureEvents}));
   console.log('Preview gesture geometry',JSON.stringify({before,during,events}));
   assert.equal(before.hit,'exportFormatPngBtn');
   assert.equal(during.pressed,true,'The real capture must complete during the held gesture');
+  assert.ok(events.every(event=>event.trusted),'The held gesture must use trusted browser input');
   assert.ok(Math.abs(before.x-during.x)<1&&Math.abs(before.y-during.y)<1,'Preview completion moved the format control during a held gesture');
   await page.waitForFunction(()=>document.getElementById('downloadFormatSelect').value==='png',{},{timeout:30000,polling:50});
   assert.equal(await control.getAttribute('aria-pressed'),'true');
