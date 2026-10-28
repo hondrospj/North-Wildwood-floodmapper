@@ -122,6 +122,39 @@ for (const label of broad) {
 }
 for (let a=0;a<broad.length;a++) for(let b=a+1;b<broad.length;b++) assert.equal(overlaps(broad[a].box,broad[b].box),false);
 
+// Linux WebKit 27.2's hosted failure used this exact fractional Leaflet camera
+// and integer pixel origin. Its New Jersey width was260.1708984375px at30px,
+// wider than the Mac font. Sweep the nearby W Spruce metrics whose eligible
+// straight window previously fell between the19 fixed fractional candidates.
+const hostedZoom=14.743299527888594,hostedOrigin={x:2050693,y:2682369};
+const hostedProject=([lng,lat])=>({
+  x:Math.round((lng+180)/360*256*2**hostedZoom)-hostedOrigin.x,
+  y:Math.round((1-Math.log(Math.tan(Math.PI/4+lat*Math.PI/360))/Math.PI)/2*256*2**hostedZoom)-hostedOrigin.y
+});
+const hostedMetrics30={
+  'New Jersey Ave':260.1708984375,'Delaware Ave':231.3720703125,
+  'Atlantic Ave':204.345703125,'Ocean Ave':177.7294921875,'E 2nd Ave':167.138671875
+};
+for (let shortWidth=134;shortWidth<=142;shortWidth++) {
+  const metrics=(text,size)=>text==='W Spruce'?shortWidth*size/26
+    :hostedMetrics30[text]?hostedMetrics30[text]*size/30:text.length*size*.52*1.2;
+  const labels=layout(realPaths,hostedProject,{x:2160,y:1674},{unit:2},metrics);
+  const spruce=labels.find(label=>label.name==='West Spruce Avenue');
+  assert.ok(spruce,`A${shortWidth}px street name must find its valid straight window between fixed fractions`);
+  assert.equal(spruce.text,'W Spruce');assert.equal(spruce.fontSize,26);assert.ok(Math.abs(spruce.width-shortWidth)<1e-9);
+  // The real canvas measures at its configured 15px/unit font; it ignores the
+  // optional size argument. Layout must scale that measurement for fallbacks.
+  const canvasLabels=layout(realPaths,hostedProject,{x:2160,y:1674},{unit:2},text=>metrics(text,30));
+  assert.equal(JSON.stringify(canvasLabels),JSON.stringify(labels));
+  const jersey=labels.find(label=>label.name==='New Jersey Avenue');
+  assert.equal(jersey.x,1055.5952849543178,'An existing accepted major placement stays unchanged');
+  assert.equal(jersey.y,965.5127700491962);assert.equal(jersey.fontSize,30);assert.equal(jersey.width,260.1708984375);
+  for(let a=0;a<labels.length;a++) {
+    assert.ok(labels[a].box.every(point=>point.x>=0&&point.y>=0&&point.x<=2160&&point.y<=1674));
+    for(let b=a+1;b<labels.length;b++)assert.equal(overlaps(labels[a].box,labels[b].box),false);
+  }
+}
+
 // A tile mask uses Leaflet's tile-grid zoom, not the provider's zoomOffset.
 // This keeps a 512px/offset-1 tile geographically aligned, including holes.
 const ops=[];
@@ -153,4 +186,4 @@ await new Promise(resolve=>setImmediate(resolve));
 assert.equal(await transport.api.load(),retry,'Late timed-out body must not replace successful retry');
 assert.equal(fetches,2);
 
-console.log(JSON.stringify({status:'passed',checks:['name-preserving abbreviations','reversed joins, disjoint roads, branches and loops','visible clipped straight stretches','oriented collisions and upright full labels','deterministic GIF positions and PNG scaling','real town coverage at eight dimensions','broad-view major roads with directional suffix fallback','geographic tile masking before load with holes','stalled-body deadline, shared load, retry and stale-body isolation'],realCoverage:counts},null,2));
+console.log(JSON.stringify({status:'passed',checks:['name-preserving abbreviations','reversed joins, disjoint roads, branches and loops','visible clipped straight stretches','oriented collisions and upright full labels','deterministic GIF positions and PNG scaling','real town coverage at eight dimensions','broad-view major roads with directional suffix fallback','hosted fractional camera and wider font metrics without moving an accepted major','geographic tile masking before load with holes','stalled-body deadline, shared load, retry and stale-body isolation'],realCoverage:counts},null,2));

@@ -16,11 +16,21 @@ const browser = await playwright[name === 'edge' ? 'chromium' : name].launch({he
 const retained = process.env.NWW_AUDIT_OUTPUT;
 const output = retained || fs.mkdtempSync(path.join(os.tmpdir(),'nww-street-labels-'));
 fs.mkdirSync(output,{recursive:true});
-const result = {browser:name,version:browser.version(),checks:[],states:[],errors:[],warnings:[]};
+const result = {browser:name,version:browser.version(),checks:[],states:[],errors:[],warnings:[],httpErrors:[],requestFailures:[]};
+let phase='startup';
+const record=(list,value)=>{list.push(value);if(list.length>80)list.shift();};
+const diagnosticUrl=value=>{
+  try{const url=new URL(value);for(const key of [...url.searchParams.keys()])if(/token|key|secret/i.test(key))url.searchParams.set(key,'[redacted]');return url.href;}
+  catch{return String(value);}
+};
 const page = await browser.newPage({viewport:{width:1440,height:1000},acceptDownloads:true});
 page.setDefaultTimeout(30000);
 page.on('pageerror',error=>result.errors.push(error.message));
 page.on('console',message=>{if(message.type() === 'warning')result.warnings.push(message.text());});
+page.on('response',response=>{
+  if(response.status()>=400)record(result.httpErrors,{phase,observedAt:new Date().toISOString(),url:diagnosticUrl(response.url()),status:response.status(),resourceType:response.request().resourceType()});
+});
+page.on('requestfailed',request=>record(result.requestFailures,{phase,observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType(),failure:request.failure()?.errorText}));
 let outage = true, failures = 0, successfulRequests = 0;
 await page.route('**/assets/roads/north-wildwood-road-centerlines.geojson',route=>{
   if(outage){failures++;return route.fulfill({status:503,contentType:'text/plain',body:'Controlled local street-data outage'});}
@@ -28,11 +38,13 @@ await page.route('**/assets/roads/north-wildwood-road-centerlines.geojson',route
 });
 
 async function terminal(label) {
+  phase=label;
   await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:180000});
   const state = await page.evaluate(()=>({state:document.getElementById('exportPreview')?.dataset.state,
     status:document.getElementById('exportPreviewStatus')?.textContent,
     format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),extent:getDownloadExtentValue(),
-    dimensions:getExportAspectConfig(),busy:exportInProgress}));
+    dimensions:getExportAspectConfig(),busy:exportInProgress,
+    floodImage:(()=>{const image=exportFloodLayer?.getElement?.();return image?{src:image.currentSrc||image.src,complete:image.complete,naturalWidth:image.naturalWidth,naturalHeight:image.naturalHeight}:null;})()}));
   result.states.push({label,...state});
   console.log(`Street-label proof: ${label}: ${state.state}`);
   return state;
@@ -81,10 +93,17 @@ async function layout(label,minimum=8) {
   const state=await page.evaluate(()=>{
     const canvas=exportMap.getPane('roadsPane').querySelector('.nww-export-road-labels');
     let layer;exportMap.eachLayer(candidate=>{if(candidate._canvas===canvas&&typeof candidate.getLabels==='function')layer=candidate;});
+    const family=canvas?.dataset.fontFamily,unit=Math.min(getExportAspectConfig().width,getExportAspectConfig().height)/1080;
+    const scratch=document.createElement('canvas').getContext('2d');
+    const fontMetrics=[15,13].map(size=>{
+      scratch.font=`600 ${size*unit}px ${family}`;
+      return{size:size*unit,font:scratch.font,full:scratch.measureText('W Spruce Ave').width,short:scratch.measureText('W Spruce').width};
+    });
     return{labels:layer?.getLabels()||[],width:canvas?.width,height:canvas?.height,
-      family:canvas?.dataset.fontFamily,bodyFamily:getComputedStyle(document.body).fontFamily,
+      family,bodyFamily:getComputedStyle(document.body).fontFamily,
       visible:canvas ? getComputedStyle(canvas).display!=='none' : false,
-      dimensions:getExportAspectConfig(),zoom:exportMap.getZoom()};
+      dimensions:getExportAspectConfig(),zoom:exportMap.getZoom(),center:exportMap.getCenter(),pixelOrigin:exportMap.getPixelOrigin(),
+      contextFont:canvas?.getContext('2d').font,fontMetrics,devicePixelRatio:window.devicePixelRatio};
   });
   assert.equal(state.family,state.bodyFamily,'Street names must use the shared mapper font family');
   assert.equal(state.visible,true);assert.ok(state.labels.length>=minimum,`${label}: only ${state.labels.length} street names`);

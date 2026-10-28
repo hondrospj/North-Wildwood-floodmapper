@@ -204,32 +204,51 @@
         // Avenue suffix can fit a short straight stretch on the northern spit.
         if (/ Ave$/.test(path.text)) variants.push({ text: path.text.replace(/ Ave$/, ""), fontSize: 13 * unit });
       }
+      function place(text, fontSize, width, centerDistance) {
+        const half = width / 2 + 2 * unit;
+        if (centerDistance < half || centerDistance + half > length) return false;
+        const startDistance = centerDistance - half, endDistance = centerDistance + half;
+        const a = at(startDistance), b = at(endDistance), center = at(centerDistance);
+        const chord = Math.hypot(b.x - a.x, b.y - a.y);
+        if (chord < half * 2 * 0.97) return false;
+        const samples = [a,b];
+        for (let index = 1; index < points.length - 1; index += 1) if (cumulative[index] > startDistance && cumulative[index] < endDistance) samples.push(points[index]);
+        const departure = Math.max(...samples.map(point => Math.abs((b.x - a.x) * (a.y - point.y) - (a.x - point.x) * (b.y - a.y)) / chord));
+        if (departure > 2.5 * unit) return false;
+        let angle = Math.atan2(b.y - a.y, b.x - a.x);
+        if (angle > Math.PI / 2) angle -= Math.PI;
+        if (angle < -Math.PI / 2) angle += Math.PI;
+        const box = corners(center.x, center.y, width + (halo + padding) * 2, fontSize * 1.15 + (halo + padding) * 2, angle);
+        if (box.some(point => point.x < 3 * unit || point.y < 3 * unit || point.x > size.x - 3 * unit || point.y > size.y - 3 * unit)) return false;
+        if (accepted.some(label => overlaps(label.box, box))) return false;
+        const sameName = accepted.filter(label => label.name === path.name);
+        if (sameName.length >= 2 || sameName.some(label => Math.hypot(label.x - center.x, label.y - center.y) < 420 * unit)) return false;
+        accepted.push({ name: path.name, text, x: center.x, y: center.y, angle, width, fontSize, halo, box });
+        return true;
+      }
+      // Keep every placement already found by the usual fractions and font
+      // variants. Only an otherwise missing major street needs this extra work.
       for (const { text, fontSize } of variants) {
-        const width = measure(text, fontSize);
-        for (const fraction of fractions) {
-          const centerDistance = length * fraction, half = width / 2 + 2 * unit;
-          if (centerDistance < half || centerDistance + half > length) continue;
-          const startDistance = centerDistance - half, endDistance = centerDistance + half;
-          const a = at(startDistance), b = at(endDistance), center = at(centerDistance);
-          const chord = Math.hypot(b.x - a.x, b.y - a.y);
-          if (chord < half * 2 * 0.97) continue;
-          const samples = [a,b];
-          for (let index = 1; index < points.length - 1; index += 1) if (cumulative[index] > startDistance && cumulative[index] < endDistance) samples.push(points[index]);
-          const departure = Math.max(...samples.map(point => Math.abs((b.x - a.x) * (a.y - point.y) - (a.x - point.x) * (b.y - a.y)) / chord));
-          if (departure > 2.5 * unit) continue;
-          let angle = Math.atan2(b.y - a.y, b.x - a.x);
-          if (angle > Math.PI / 2) angle -= Math.PI;
-          if (angle < -Math.PI / 2) angle += Math.PI;
-          const box = corners(center.x, center.y, width + (halo + padding) * 2, fontSize * 1.15 + (halo + padding) * 2, angle);
-          if (box.some(point => point.x < 3 * unit || point.y < 3 * unit || point.x > size.x - 3 * unit || point.y > size.y - 3 * unit)) continue;
-          if (accepted.some(label => overlaps(label.box, box))) continue;
-          const sameName = accepted.filter(label => label.name === path.name);
-          if (sameName.length >= 2 || sameName.some(label => Math.hypot(label.x - center.x, label.y - center.y) < 420 * unit)) continue;
-          accepted.push({ name: path.name, text, x: center.x, y: center.y, angle, width, fontSize, halo, box });
-          placed = true;
-          break;
-        }
+        const width = measure(text, 15 * unit) * fontSize / (15 * unit);
+        for (const fraction of fractions) if (place(text, fontSize, width, length * fraction)) { placed = true; break; }
         if (placed) break;
+      }
+      if (!placed && priority(path.name)) {
+        for (const { text, fontSize } of variants) {
+          const width = measure(text, 15 * unit) * fontSize / (15 * unit), half = width / 2 + 2 * unit;
+          if (half * 2 > length) continue;
+          // Fonts available on another operating system can widen a name until
+          // its eligible straight window falls between the fractional samples.
+          // Try window ends at actual road vertices, then a bounded pixel grid;
+          // every candidate still passes the same geometry and collision rules.
+          const centers = new Set(cumulative.flatMap(distance => [distance, distance - half, distance + half]));
+          const step = Math.max(unit, (length - half * 2) / 4096);
+          for (let distance = half; distance <= length - half; distance += step) centers.add(distance);
+          const ordered = [...centers].filter(distance => distance >= half && distance <= length - half)
+            .sort((one,two) => Math.abs(one - length / 2) - Math.abs(two - length / 2) || one - two);
+          for (const distance of ordered) if (place(text, fontSize, width, distance)) { placed = true; break; }
+          if (placed) break;
+        }
       }
     }
     return accepted;
