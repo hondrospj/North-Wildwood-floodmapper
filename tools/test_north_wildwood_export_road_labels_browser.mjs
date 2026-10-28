@@ -17,7 +17,8 @@ const browser = await playwright[name === 'edge' ? 'chromium' : name].launch({he
 const retained = process.env.NWW_AUDIT_OUTPUT;
 const output = retained || fs.mkdtempSync(path.join(os.tmpdir(),'nww-street-labels-'));
 fs.mkdirSync(output,{recursive:true});
-const result = {browser:name,version:browser.version(),checks:[],states:[],errors:[],warnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
+const result = {browser:name,version:browser.version(),checks:[],states:[],errors:[],warnings:[],previewWarnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
+const pendingPreviewWarnings=[];
 const roadDataPattern='**/assets/roads/north-wildwood-road-centerlines.geojson';
 const isRoadData=url=>new URL(url).pathname.endsWith('/assets/roads/north-wildwood-road-centerlines.geojson');
 const record=(list,value)=>{list.push(value);if(list.length>80)list.shift();};
@@ -35,7 +36,7 @@ function saveState(state){
 async function startSession(name){
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
   const ownedPage=await context.newPage();
-  const log={name,routeEverInstalled:false,states:[],errors:[],warnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
+  const log={name,routeEverInstalled:false,states:[],errors:[],warnings:[],previewWarnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
   const session={name,context,page:ownedPage,log,phase:'startup',failures:0,roadDataRequests:0,successfulRequests:0,roadDataResponses:[],modelImages:new Set(),requestIds:new WeakMap(),nextRequestId:0};
   const observed=(key,value)=>{
     record(log[key],value);
@@ -45,7 +46,22 @@ async function startSession(name){
   const requestId=request=>{if(!session.requestIds.has(request))session.requestIds.set(request,++session.nextRequestId);return session.requestIds.get(request);};
   ownedPage.setDefaultTimeout(30000);
   ownedPage.on('pageerror',error=>observed('errors',error.message));
-  ownedPage.on('console',message=>{if(message.type()==='warning')observed('warnings',message.text());});
+  ownedPage.on('console',message=>{
+    if(message.type()!=='warning')return;
+    observed('warnings',message.text());
+    if(!/Export preview could not be rendered/.test(message.text()))return;
+    // Firefox's text may contain only "Error". Capture its actual browser
+    // object, retaining arrival order even when argument evaluation completes
+    // out of order across different preview jobs.
+    const detail={session:name,phase:session.phase,text:message.text(),errors:[],captureErrors:[]};
+    record(log.previewWarnings,detail);record(result.previewWarnings,detail);
+    pendingPreviewWarnings.push(Promise.all(message.args().map(handle=>handle.evaluate(value=>
+      value instanceof Error?{name:value.name,message:value.message,stack:value.stack}:null)
+      .catch(error=>({captureError:error.message})))).then(values=>{
+      detail.errors=values.filter(value=>value?.name);
+      detail.captureErrors=values.filter(value=>value?.captureError).map(value=>value.captureError);
+    }));
+  });
   ownedPage.on('request',request=>{
     if(isRoadData(request.url())){session.roadDataRequests++;log.roadDataRequests=session.roadDataRequests;}
     if(isModel(request.url()))observed('floodTransport',{id:requestId(request),phase:session.phase,event:'requested',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType()});
@@ -107,9 +123,17 @@ async function strictModelReadiness(){
   assert.equal(model.sample.developedFlag,true);assert.equal(model.sample.sourceDistanceFt,2240);
 }
 
+async function flushPreviewWarnings(){
+  let completed=0;
+  while(completed<pendingPreviewWarnings.length){
+    const pending=pendingPreviewWarnings.slice(completed);completed=pendingPreviewWarnings.length;
+    await Promise.all(pending);
+  }
+}
 async function terminal(label) {
   activeSession.phase=label;
   await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:180000});
+  await flushPreviewWarnings();
   const state = await page.evaluate(()=>{
     const safely=read=>{try{return read();}catch(error){return{error:error.message};}};
     const publicUrl=value=>{
@@ -151,6 +175,7 @@ async function terminal(label) {
     basemap:safely(()=>layerState(exportBasemapColorLayer)),roads:safely(()=>layerState(exportRoadsLayer)),
     floodImage:(()=>{const image=exportFloodLayer?.getElement?.();return image?{src:image.currentSrc||image.src,complete:image.complete,naturalWidth:image.naturalWidth,naturalHeight:image.naturalHeight}:null;})()};
   });
+  await flushPreviewWarnings();
   saveState({label,...state});
   console.log(`Street-label proof: ${label}: ${state.state}`);
   return state;
@@ -306,16 +331,19 @@ try{
   fault.log.routeEverInstalled=true;
   await page.route(roadDataPattern,streetDataOutage);
   saveState({label:'local-data-fault-installed',observedAt:new Date().toISOString(),...await page.evaluate(()=>({performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now()}))});
-  const faultWarningStart=fault.log.warnings.length;
+  const faultWarningStart=fault.log.previewWarnings.length;
   await page.locator('#roadsToggle').click();
   assert.equal(await page.locator('#roadsToggle').getAttribute('aria-checked'),'true');
   await page.locator('#openDownloadModalBtn').click();
   await singleFrame();await review();
   const failed=await terminal('local-data-outage');
   assert.equal(failed.state,'error');assert.ok(fault.failures>0);
-  const lastFaultWarning=fault.log.warnings.slice(faultWarningStart).filter(message=>/Export preview could not be rendered/.test(message)).at(-1);
-  assert.match(lastFaultWarning||'',/The export road names could not load/i,'The controlled fault must fail specifically on its local street-data dependency');
-  saveState({label:'intended-street-data-failure',warning:lastFaultWarning,failures:fault.failures,roadDataRequests:fault.roadDataRequests});
+  await flushPreviewWarnings();
+  const lastFaultWarning=fault.log.previewWarnings.slice(faultWarningStart).at(-1);
+  const lastFaultError=lastFaultWarning?.errors.at(-1);
+  assert.equal(lastFaultError?.message,'The export road names could not load. Please try again.',
+    'The controlled fault must fail specifically on its actual local street-data Error');
+  saveState({label:'intended-street-data-failure',warning:lastFaultWarning.text,error:lastFaultError,failures:fault.failures,roadDataRequests:fault.roadDataRequests});
   console.log('Street-label proof: intended local street-data failure verified');
   assert.equal(await page.locator('#exportPreviewRetryBtn').isEnabled(),true);
   assert.equal(await page.locator('#downloadBtn').isEnabled(),true);
