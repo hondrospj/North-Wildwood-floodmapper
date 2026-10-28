@@ -28,7 +28,7 @@ const ranking = () => page.evaluate(() => topTideEvents.map(event => ({
 const selectedInstant = () => page.evaluate(() => getRangeInputDate('downloadStartInput')?.toISOString() || null);
 async function fillDate(value) {
   await page.locator('#downloadStartDateText').fill(value);
-  await page.locator('#downloadStartDateText').press('Tab');
+  await page.locator('#downloadStartDateText').press('Tab',{noWaitAfter:true});
 }
 
 try {
@@ -71,8 +71,9 @@ try {
   assert.equal(await dateInput.inputValue(), '10/26/2Y26');
   await dateInput.press('0');
   assert.equal(await dateInput.inputValue(), '10/26/2026');
-  await page.locator('#downloadStartDateText').press('Tab');
+  await page.locator('#downloadStartDateText').press('Tab',{noWaitAfter:true});
   assert.equal(await dateInput.inputValue(), '10/26/2026');
+  assert.equal(await page.locator('#downloadStartInput').inputValue().then(value=>value.slice(0,10)), '2026-10-26');
   checks.push('Backspace/retype preserves every untouched date digit');
 
   // Choose 02:30 on the preceding day, then edit the date to spring-forward.
@@ -116,9 +117,10 @@ try {
   await fillDate('12/31/2025');
   await page.locator('#downloadStartTimeSelect').selectOption('23:00');
   await page.locator('#downloadEndDateText').fill('12/31/2025');
-  await page.locator('#downloadEndDateText').press('Tab');
+  await page.locator('#downloadEndDateText').press('Tab',{noWaitAfter:true});
   await page.locator('#downloadEndTimeSelect').selectOption('23:00');
   assert.equal(await selectedInstant(), '2026-01-01T04:00:00.000Z');
+  assert.equal(await page.evaluate(()=>getRangeInputDate('downloadEndInput')?.toISOString()), '2026-01-01T04:00:00.000Z');
   await page.locator('#downloadBtn').click(); // Per-session settings review.
   // This case isolates cancellable archive preparation. Pending-preview
   // cancellation has its own regression; finish its real rendering first.
