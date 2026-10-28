@@ -102,6 +102,7 @@
         maxNativeZoom: 20,
         roadLabelFilter: "grayscale(1) contrast(1.15)",
         roadLabelHalo: 2,
+        roadLabelTownMask: true,
         subdomains: "abcd",
         crossOrigin: true,
         opacity: 0,
@@ -246,6 +247,20 @@
       exportRoadsLayer.setOpacity(showLabels ? 0.98 : 0);
       const pane = exportMap.getPane("roadsPane");
       if (pane) pane.classList.toggle("roads-dark", showLabels);
+      const aspect = getExportAspectConfig();
+      window.NORTH_WILDWOOD_EXPORT_ROADS?.redraw(exportMap, {
+        enabled: showLabels,
+        unit: Math.min(aspect.width, aspect.height) / 1080,
+        fontFamily: getComputedStyle(document.body).fontFamily
+      });
+    }
+
+    async function prepareExportRoadNames() {
+      if (!document.getElementById("roadsToggle")?.classList.contains("on")) return;
+      const labels = window.NORTH_WILDWOOD_EXPORT_ROADS;
+      if (!labels) throw new Error("Road names could not load. Reload the page and try again.");
+      await awaitRasterRequest(labels.load());
+      throwIfExportCancelled();
     }
 
     function updateExportBoundaryVisibility() {
@@ -423,6 +438,7 @@
     let exportFrameViewPrimed = false;
     async function prepareExportFrame(item, options = {}) {
       await ensureExportMunicipalBoundary();
+      await prepareExportRoadNames();
       applyExportStageAspect(getDownloadAspectValue());
       const mapInstance = ensureExportMap();
       const isFirstFrame = !!options.isFirstFrame;

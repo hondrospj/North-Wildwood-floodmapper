@@ -891,6 +891,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
               if (this.options.roadLabelHalo > 0) {
                 addRoadLabelHalo(context, size.x, size.y, this.options.roadLabelHalo);
               }
+              if (this.options.roadLabelTownMask) {
+                window.NORTH_WILDWOOD_EXPORT_ROADS.maskReferenceTile(context, coords, this, municipalBoundaryRings);
+              }
               tile.complete = true; tile.naturalWidth = size.x;
               done(null, tile);
             } catch (error) { tile.complete = true; done(error, tile); }

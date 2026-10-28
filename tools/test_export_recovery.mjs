@@ -24,6 +24,7 @@ for (const failurePoint of ['waitForExportMapReady', 'captureExportCanvas']) {
   const ctx = context('captureFastGifBaseCanvas', {
     document:{getElementById:id => nodes[id]},
     ensureExportMunicipalBoundary:noop,
+    prepareExportRoadNames:noop,
     ensureExportMap:() => ({invalidateSize:noop,hasLayer:()=>false}),
     applyExportStageAspect:noop,getDownloadAspectValue:()=> 'viewport',
     updateExportLegend:noop,updateExportBoundaryVisibility:noop,updateExportParcelsLayer:noop,
@@ -39,6 +40,41 @@ for (const failurePoint of ['waitForExportMapReady', 'captureExportCanvas']) {
   ctx[failurePoint] = success;
   await ctx.captureFastGifBaseCanvas({entry:{}});
   assert.deepEqual(Object.values(nodes).map(n => n.style.visibility), original);
+}
+
+// The export can cross the road-label zoom threshold when its area/aspect
+// changes. Apply visibility to the fitted camera, in both directions, before
+// freezing the GIF's reusable road-label canvas.
+for (const [beforeZoom, fittedZoom] of [[9, 12], [12, 9]]) {
+  let zoom = beforeZoom, rasterOpacity = null, localEnabled = null;
+  const nodes = Object.fromEntries(['exportTimestampLabel', 'exportLegendDock', 'exportLogoStrip']
+    .map(id => [id, {style:{visibility:''}}]));
+  nodes.roadsToggle = {classList:{contains:()=>true}};
+  const map = {invalidateSize:noop,hasLayer:()=>false,getZoom:()=>zoom,
+    getPane:()=>({classList:{toggle:noop}})};
+  const ctx = context('captureFastGifBaseCanvas', {
+    document:{body:{},getElementById:id=>nodes[id]},
+    window:{NORTH_WILDWOOD_EXPORT_ROADS:{redraw:(target,options)=>{
+      assert.equal(target,map);localEnabled=options.enabled;
+    }}},
+    getComputedStyle:()=>({fontFamily:'Inter, sans-serif'}),
+    ensureExportMunicipalBoundary:noop,prepareExportRoadNames:noop,ensureExportMap:()=>map,
+    exportMap:map,exportRoadsLayer:{setOpacity:value=>{rasterOpacity=value;}},ROAD_LABEL_ZOOM:10,
+    getExportAspectConfig:()=>({width:1080,height:1080}),
+    applyExportStageAspect:noop,getDownloadAspectValue:()=> '1:1',
+    updateExportLegend:noop,updateExportBoundaryVisibility:noop,updateExportParcelsLayer:noop,
+    fitExportMapToSelectedExtent:target=>{assert.equal(target,map);zoom=fittedZoom;},
+    exportFloodLayer:null,waitForExportMapReady:noop,waitForStableRender:noop,
+    captureExportCanvas:()=>({}),captureExportMapForegroundCanvas:noop,
+    captureExportRoadLabelsCanvas:noop,captureExportChromeCanvas:noop,
+    updateExportTimestampLabel:noop,getExportOverlayRect:()=>({}),
+  });
+  vm.runInContext(extract('updateExportRoadLayerAppearance'),ctx);
+  await ctx.captureFastGifBaseCanvas({entry:{}});
+  assert.equal(rasterOpacity,fittedZoom>=10 ? 0.98 : 0,
+    'GIF raster road visibility must use the selected export camera');
+  assert.equal(localEnabled,fittedZoom>=10,
+    'GIF local road-name visibility must use the selected export camera');
 }
 
 // Exercise cached synchronous image loads, image errors, and failed preloads.
@@ -186,4 +222,4 @@ assert.equal(clone.isOutsideExportStage(stage),false);
 assert.equal(clone.isOutsideExportStage(element('STYLE')),false);
 assert.equal(clone.isOutsideExportStage(element('LINK')),false);
 assert.equal(clone.isOutsideExportStage({parentElement:{},tagName:'DIV'}),false);
-console.log('PASS export recovery: interrupted captures, missing images, vector/raster readiness, safe fallback, cancellation, worker retry and inline logos.');
+console.log('PASS export recovery: interrupted captures, fitted-camera road visibility, missing images, vector/raster readiness, safe fallback, cancellation, worker retry and inline logos.');

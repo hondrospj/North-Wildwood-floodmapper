@@ -5069,6 +5069,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
               if (this.options.roadLabelHalo > 0) {
                 addRoadLabelHalo(context, size.x, size.y, this.options.roadLabelHalo);
               }
+              if (this.options.roadLabelTownMask) {
+                window.NORTH_WILDWOOD_EXPORT_ROADS.maskReferenceTile(context, coords, this, municipalBoundaryRings);
+              }
               tile.complete = true; tile.naturalWidth = size.x;
               done(null, tile);
             } catch (error) { tile.complete = true; done(error, tile); }
@@ -7944,6 +7947,7 @@ function updateExportSegmentedUI() {
         maxNativeZoom: 20,
         roadLabelFilter: "grayscale(1) contrast(1.15)",
         roadLabelHalo: 2,
+        roadLabelTownMask: true,
         subdomains: "abcd",
         crossOrigin: true,
         opacity: 0,
@@ -8088,6 +8092,20 @@ function updateExportSegmentedUI() {
       exportRoadsLayer.setOpacity(showLabels ? 0.98 : 0);
       const pane = exportMap.getPane("roadsPane");
       if (pane) pane.classList.toggle("roads-dark", showLabels);
+      const aspect = getExportAspectConfig();
+      window.NORTH_WILDWOOD_EXPORT_ROADS?.redraw(exportMap, {
+        enabled: showLabels,
+        unit: Math.min(aspect.width, aspect.height) / 1080,
+        fontFamily: getComputedStyle(document.body).fontFamily
+      });
+    }
+
+    async function prepareExportRoadNames() {
+      if (!document.getElementById("roadsToggle")?.classList.contains("on")) return;
+      const labels = window.NORTH_WILDWOOD_EXPORT_ROADS;
+      if (!labels) throw new Error("Road names could not load. Reload the page and try again.");
+      await awaitRasterRequest(labels.load());
+      throwIfExportCancelled();
     }
 
     function updateExportBoundaryVisibility() {
@@ -8265,6 +8283,7 @@ function updateExportSegmentedUI() {
     let exportFrameViewPrimed = false;
     async function prepareExportFrame(item, options = {}) {
       await ensureExportMunicipalBoundary();
+      await prepareExportRoadNames();
       applyExportStageAspect(getDownloadAspectValue());
       const mapInstance = ensureExportMap();
       const isFirstFrame = !!options.isFirstFrame;
@@ -8620,14 +8639,15 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
 
     async function captureFastGifBaseCanvas(firstItem) {
       await ensureExportMunicipalBoundary();
+      await prepareExportRoadNames();
       const mapInstance = ensureExportMap();
       applyExportStageAspect(getDownloadAspectValue());
       mapInstance.invalidateSize(false);
       updateExportLegend(firstItem?.entry);
       updateExportBoundaryVisibility();
       await updateExportParcelsLayer();
-      updateExportRoadLayerAppearance();
       fitExportMapToSelectedExtent(mapInstance);
+      updateExportRoadLayerAppearance();
 
       if (exportFloodLayer && mapInstance.hasLayer(exportFloodLayer)) {
         mapInstance.removeLayer(exportFloodLayer);
