@@ -54,9 +54,10 @@
 <link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261021-tablet1">
 <link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261021-tablet1">
 <link rel="stylesheet" href="assets/north-wildwood-calendar.css?v=20261021-tablet1">
+<link rel="stylesheet" href="assets/export-date-time-picker.css?v=9a8f640254cba6b4">
 <link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261021-tablet1">
 <!-- Load the complete layout before rendering any controls. -->
-<link rel="stylesheet" data-nww-style-bundle="app-05" href="./assets/styles/app-05.css?v=ae1e2666179b1a93">
+<link rel="stylesheet" data-nww-style-bundle="app-05" href="./assets/styles/app-05.css?v=f184d43873dcb792">
 <!-- nww:style:style-014 -->
 <!-- nww:style:style-015 -->
 <!-- nww:style:style-016 -->
@@ -742,12 +743,12 @@
       <div id="exportFooter" class="export-stage-footer">
       <div id="exportLogoStrip" class="export-stage-logo-strip" aria-hidden="true">
         <img id="exportTownLogo" class="export-stage-logo export-stage-logo-town" src="" alt="" loading="lazy" decoding="async" style="display:none;" />
-        <img id="exportPartnerLogo" class="export-stage-logo export-stage-logo-shorelysafe" src="" alt="" loading="lazy" decoding="async" style="display:none;" />
+        <img id="exportPartnerLogo" class="export-stage-logo export-stage-logo-shorelysafe" data-export-brand-src="./assets/shorelysafe-logo-export.jpg" src="" alt="" loading="lazy" decoding="async" style="display:none;" />
       </div>
       <section id="exportLegendDock" class="export-stage-legend"></section>
       <div id="exportTimestampLabel" class="export-stage-timestamp">--</div>
       </div>
-      <div id="exportMapAttribution" style="position:absolute;left:6px;bottom:6px;z-index:900;max-width:calc(100% - 12px);padding:2px 4px;background:rgba(255,255,255,.88);color:#263445;font:12px/1.2 Arial,sans-serif;pointer-events:none;">Map: Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors · Local road names: NJOGIS</div>
+      <div id="exportMapAttribution" style="position:absolute;left:6px;bottom:6px;z-index:900;max-width:calc(100% - 12px);padding:2px 4px;background:rgba(255,255,255,.88);color:#263445;font-family:inherit;font-size:12px;line-height:1.2;pointer-events:none;">Map: Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors · Local road names: NJOGIS</div>
     </div>
   </div>
 
@@ -758,7 +759,7 @@
   <script src="https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js"></script>
   <script src="https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js"></script>
 
-  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=96e53146db28cf61"></script>
+  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=0b544f343a483f17"></script>
 
 <script data-nww-script="script-005" src="./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52"></script>
 
@@ -780,7 +781,8 @@
 <script defer src="assets/north-wildwood-mobile.js?v=20261026-holistic1"></script>
 
 <script src="assets/export-area.js?v=20261023-3" id="floodmapper-export-area"></script>
-<script defer src="assets/export-preview.js?v=20261026-holistic1" id="floodmapper-export-preview"></script>
+<script defer src="assets/export-preview.js?v=ec4a166266cddc38" id="floodmapper-export-preview"></script>
+<script defer src="assets/export-date-time-picker.js?v=2ec97d8f2362ce74" id="floodmapper-export-date-time-picker"></script>
 
 
 

@@ -170,6 +170,95 @@ function harness() {
   assert.equal(nodes.exportPreviewCanvas.children.length, 1);
 }
 
+// End/speed changes leave the first-frame pixels intact and publish no spinner.
+{
+  const { ctx, state, nodes, tick } = harness();
+  ctx.setDownloadModalOpen(true); await tick();
+  const first = nodes.exportPreviewCanvas.children[0];
+  state.validation.range.endDate = new Date("2026-10-03T00:00Z");
+  ctx.getDownloadSpeedValue = () => "fast";
+  ctx.updateDownloadSummary();
+  assert.equal(nodes.exportPreview.dataset.state, "ready", "Unchanged first frames must stay ready synchronously");
+  assert.equal(nodes.exportPreviewCanvas.children[0], first);
+  await tick();
+  assert.equal(state.captures.length, 1, "End and playback settings must not recapture the first frame");
+}
+
+// Returning to a cached frame cancels a different in-flight frame's publication.
+{
+  const { ctx, state, nodes, tick } = harness();
+  const originalFrame = state.frame;
+  ctx.setDownloadModalOpen(true); await tick();
+  const originalCanvas = nodes.exportPreviewCanvas.children[0];
+  const delayed = deferred();
+  state.frame = { entry: { label: "A different time" }, index: 1 };
+  state.capture = () => delayed.promise;
+  ctx.updateDownloadSummary(); await tick();
+  state.frame = originalFrame;
+  ctx.updateDownloadSummary();
+  assert.equal(nodes.exportPreview.dataset.state, "ready");
+  assert.equal(nodes.exportPreviewCanvas.children[0], originalCanvas);
+  const stale = canvas("late different time");
+  delayed.resolve(stale); await flush(); await tick();
+  assert.equal(stale.width, 1, "The late uncached capture must be released");
+  assert.equal(nodes.exportPreviewCanvas.children[0], originalCanvas);
+  assert.equal(state.captures.length, 2);
+}
+
+// Cached publication also preserves an active gesture barrier.
+{
+  const { ctx, state, nodes, tick, dispatch } = harness();
+  const originalFrame = state.frame;
+  ctx.setDownloadModalOpen(true); await tick();
+  const delayed = deferred(); state.capture = () => delayed.promise;
+  state.frame = { entry: { label: "New time during gesture" }, index: 1 };
+  ctx.updateDownloadSummary(); await tick();
+  dispatch("pointerdown");
+  state.frame = originalFrame; ctx.updateDownloadSummary();
+  assert.equal(nodes.exportPreview.dataset.state, "loading", "A cached frame must preserve held-pointer geometry too");
+  dispatch("pointerup"); dispatch("click"); await tick(0);
+  assert.equal(nodes.exportPreview.dataset.state, "ready");
+  delayed.resolve(canvas("obsolete")); await flush();
+}
+
+// A retina preview has enough physical pixels for its actual contained size.
+{
+  const { ctx, state, tick } = harness();
+  ctx.devicePixelRatio = 2;
+  ctx.setDownloadModalOpen(true); await tick();
+  assert.equal(state.captures[0].scale, 960 / 2700);
+  assert.equal(state.captures[0].omitAttribution, true, "Preview credits belong in the nearby HTML, not the bitmap");
+}
+
+// A larger preview is recaptured sharply; smaller views retain the larger image.
+{
+  const { ctx, state, nodes, tick, dispatchWindow } = harness();
+  ctx.setDownloadModalOpen(true); await tick();
+  nodes.exportPreviewCanvas.getBoundingClientRect = () => ({ width: 1200, height: 1200 });
+  state.capture = async () => ({ ...canvas("larger"), width: 960, height: 1200 });
+  dispatchWindow("resize"); await tick();
+  assert.equal(state.captures.length, 2);
+  nodes.exportPreviewCanvas.getBoundingClientRect = () => ({ width: 320, height: 240 });
+  dispatchWindow("resize"); await tick();
+  assert.equal(state.captures.length, 2, "A smaller viewport can reuse the sharper cached image");
+}
+
+// Reopening before a same-frame capture settles must queue a fresh generation.
+{
+  const { ctx, state, nodes, tick } = harness();
+  const delayed = deferred();
+  state.capture = async () => state.captures.length === 1 ? delayed.promise : canvas("reopened");
+  ctx.setDownloadModalOpen(true); await tick();
+  ctx.setDownloadModalOpen(false);
+  ctx.setDownloadModalOpen(true); await tick();
+  const stale = canvas("closed job"); delayed.resolve(stale);
+  await flush(); await tick();
+  assert.equal(stale.width, 1);
+  assert.equal(state.captures.length, 2);
+  assert.equal(nodes.exportPreview.dataset.state, "ready");
+  assert.equal(nodes.exportPreviewCanvas.children[0].marker, "reopened");
+}
+
 // Valid forecast-only previews do not depend on any historical transport.
 {
   const { ctx, state, nodes, tick } = harness();
@@ -247,6 +336,7 @@ for (const ending of ["pointercancel", "blur", "no-click"]) {
   const stale = canvas("old-setting");
   state.capture = async () => state.captures.length === 1 ? stale : canvas("new-setting");
   ctx.setDownloadModalOpen(true); dispatch("pointerdown"); await tick();
+  state.frame = { entry: { label: "Changed first frame" }, index: 1 };
   ctx.updateDownloadSummary(); await tick();
   assert.equal(state.prepared.length, 1, "Keep the shared stage serialized while publication waits");
   dispatch("pointerup"); dispatch("click"); await tick(0);
@@ -423,10 +513,10 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
 
 // Capture accepts thumbnail scale only when requested; normal downloads retain their scale.
 {
-  const scales = [];
+  const scales = [], filters = [];
   const ctx = vm.createContext({
     document: { getElementById: () => ({}) },
-    html2canvas: async (_stage, options) => { scales.push(options.scale); return canvas("capture"); },
+    html2canvas: async (_stage, options) => { scales.push(options.scale); filters.push(options.ignoreElements); return canvas("capture"); },
     waitForExportChromeReady: async () => {}, getExportCaptureScale: () => 1,
     isOutsideExportStage: () => false,
   });
@@ -435,6 +525,10 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   await ctx.captureExportCanvas({ scale: 0.25 });
   assert.equal(scales[0], 1, "Default PNG/GIF capture resolution must not change");
   assert.equal(scales[1], 0.25);
+  assert.equal(filters[0]({ id: "exportMapAttribution" }), false, "Downloads retain source credits");
+  await ctx.captureExportCanvas({ omitAttribution: true });
+  assert.equal(filters.at(-1)({ id: "exportMapAttribution" }), true);
+  assert.equal(filters.at(-1)({ id: "exportLegendDock" }), false, "Only the attribution is omitted from preview capture");
   for (const scale of [0, -1, Infinity, NaN]) await ctx.captureExportCanvas({ scale });
   assert.ok(scales.slice(2).every(scale => scale === 1), "Invalid thumbnail scales must retain the normal export scale");
 }
