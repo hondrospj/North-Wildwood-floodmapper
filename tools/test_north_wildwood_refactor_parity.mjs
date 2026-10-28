@@ -15,6 +15,69 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+const PREVIEW_POLISH_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-preview-polish.json";
+const PREVIEW_POLISH_AUDIT_SHA256 = "437dc173478053243979a4a340d8626222df60d4fec96989eca9fbeeae97f263";
+const previewPolishText = read(PREVIEW_POLISH_AUDIT_PATH);
+assert.equal(sha256(previewPolishText), PREVIEW_POLISH_AUDIT_SHA256,
+  "Export preview polish must retain its exact separately reviewed inverse and asset pins");
+const previewPolishAudit = JSON.parse(previewPolishText);
+assert.equal(previewPolishAudit.schemaVersion, 1);
+assert.equal(previewPolishAudit.baselineCommit, "4c9a9691a9fe10c036792bec0f765e13a92d5fe6");
+const PREVIEW_POLISH_FUNCTIONS = new Map([
+  ["assets/export-preview.js", ["sourceId", "previewRequest", "rememberPreview", "previewScale", "publishPreview", "restorePreview",
+    "renderReviewStep", "clearCanvas", "schedulePreview", "renderPreview", "startPreview", "init"]],
+  ["tools/app/runtime/13-export-range.js", ["getExportFooterLayout"]],
+  ["tools/app/runtime/15-export-capture.js", ["waitForExportChromeReady"]],
+  ["tools/app/runtime/16-export-map.js", ["updateExportLegend", "captureExportCanvas"]]
+]);
+const PREVIEW_POLISH_NEW_FUNCTIONS = new Set(["sourceId", "previewRequest", "rememberPreview", "previewScale", "publishPreview", "restorePreview"]);
+const PREVIEW_POLISH_DECLARATIONS = "  let activePreviewKey = null;\n  let activePreviewGeneration = null;\n  let displayedPreviewKey = null;\n"
+  + "  const previewCache = new Map();\n  const sourceIds = new WeakMap();\n  let nextSourceId = 0;\n";
+const PREVIEW_POLISH_RESIZE_LISTENER = '  window.addEventListener?.("resize", schedulePreview);\n';
+const PREVIEW_POLISH_SELECTORS = [
+  "#exportStageFrame #exportFooter .export-stage-logo",
+  "#exportStageFrame #exportFooter .export-stage-logo:only-child",
+  "#exportStageFrame #exportFooter .export-depth-key-ends",
+  "#exportStageFrame #exportFooter .export-depth-key-ends span",
+  "#exportStageFrame #exportFooter .export-depth-key-ends span:nth-child(2):not(:last-child)",
+  "#exportStageFrame #exportFooter .export-depth-key-ends-three",
+  "#exportStageFrame #exportFooter .export-depth-key-ends-three span:nth-child(2)",
+  "#exportStageFrame #exportFooter .export-depth-key-ends-three span:last-child"
+];
+assert.deepEqual(previewPolishAudit.functions, Object.fromEntries(PREVIEW_POLISH_FUNCTIONS));
+assert.equal(previewPolishAudit.previewDeclarations, PREVIEW_POLISH_DECLARATIONS);
+assert.equal(previewPolishAudit.previewAssignment, "setDownloadModalOpen");
+assert.equal(previewPolishAudit.previewResizeListener, PREVIEW_POLISH_RESIZE_LISTENER);
+assert.deepEqual(previewPolishAudit.cssSelectors, PREVIEW_POLISH_SELECTORS);
+assert.deepEqual(previewPolishAudit.files.map(file => [file.source, file.kind, file.entryId]), [
+  ["assets/export-preview.js", "external", null],
+  ["tools/app/runtime/13-export-range.js", "script", "script-004"],
+  ["tools/app/runtime/15-export-capture.js", "script", "script-004"],
+  ["tools/app/runtime/16-export-map.js", "script", "script-004"],
+  ["tools/app/styles/style-081.css", "style", "style-081"],
+  ["tools/app/index.template.html", "template", null]
+], "Preview polish may cover only the reviewed UI owners and dependency fragments");
+assert.deepEqual([...new Set(previewPolishAudit.changes.map(block => block.source))],
+  previewPolishAudit.files.map(file => file.source));
+assert.equal(new Set(previewPolishAudit.changes.map(block => block.id)).size, previewPolishAudit.changes.length);
+for (const block of previewPolishAudit.changes) {
+  const file = previewPolishAudit.files.find(file => file.source === block.source);
+  assert.equal(block.kind, file.kind);
+  assert.equal(block.entryId, file.entryId);
+}
+assert.deepEqual(previewPolishAudit.assets.map(asset => asset.source), [
+  "assets/export-date-time-picker.js", "assets/export-date-time-picker.css", "assets/shorelysafe-logo-export.jpg"
+]);
+for (const asset of previewPolishAudit.assets) {
+  const bytes = fs.readFileSync(localPath(asset.source));
+  assert.equal(bytes.length, asset.bytes, `${asset.source} must retain its reviewed asset byte count`);
+  assert.equal(sha256(bytes), asset.sha256, `${asset.source} changed outside the reviewed preview polish`);
+  if (asset.source.endsWith(".js")) new vm.Script(bytes.toString("utf8"), { filename: asset.source });
+}
+const brandAsset = previewPolishAudit.assets[2];
+assert.equal(brandAsset.bytes, 366696);
+assert.equal(brandAsset.sha256, "d8fc9307306509bc9a94eba64d3ed123abb4d4c953effc66d3824f066aee3801");
+for (const file of previewPolishAudit.files) auditedPreviewPolishRead(file.source);
 const FRAME_REUSE_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-frame-reuse.json";
 const FRAME_REUSE_AUDIT_SHA256 = "9797c14583eafc9374f5070820b2428f0108c67af7a8055466e364c90feefe32";
 const frameReuseText = read(FRAME_REUSE_AUDIT_PATH);
@@ -408,12 +471,125 @@ function auditedHolisticRead(relative) {
   return auditedIssueFixFragments(auditedLineRead(relative), blocks, relative);
 }
 
+// Restore the separately reviewed UI polish before every older inverse,
+// including the independently pinned external preview init/CSS/markup.
+function auditedPreviewPolishRead(relative) {
+  const source = read(relative);
+  const file = previewPolishAudit.files.find(file => file.source === relative);
+  if (!file) return source;
+  const blocks = previewPolishAudit.changes.filter(block => block.source === relative);
+  const restored = auditedIssueFixFragments(source, blocks, relative);
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its exact preview-polish diff`);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-polish byte`);
+  const names = PREVIEW_POLISH_FUNCTIONS.get(relative);
+  if (names) {
+    const strip = (text, before) => {
+      const external = relative === "assets/export-preview.js";
+      const indent = external ? "  " : "    ";
+      for (const name of names) {
+        const expression = new RegExp(`^${indent}(?:async )?function ${name}\\([^]*?^${indent}}\\n\\n?`, "gm");
+        assert.equal([...text.matchAll(expression)].length,
+          before && external && PREVIEW_POLISH_NEW_FUNCTIONS.has(name) ? 0 : 1,
+          `${relative} ${name} must retain its explicit UI ownership`);
+        text = text.replace(expression, "");
+      }
+      if (external) {
+        const assignment = /^  setDownloadModalOpen = function \([^]*?^  };\n\n?/gm;
+        assert.equal([...text.matchAll(assignment)].length, 1, "Preview polish must retain one modal wrapper");
+        text = text.replace(assignment, "");
+        assert.equal(text.split(PREVIEW_POLISH_DECLARATIONS).length - 1, before ? 0 : 1,
+          "Preview polish may add only the reviewed cache declarations");
+        text = text.replace(PREVIEW_POLISH_DECLARATIONS, "");
+        assert.equal(text.split(PREVIEW_POLISH_RESIZE_LISTENER).length - 1, before ? 0 : 1,
+          "Preview polish may add only the reviewed resize registration");
+        text = text.replace(PREVIEW_POLISH_RESIZE_LISTENER, "");
+      }
+      return text;
+    };
+    assert.equal(strip(source, false), strip(restored, true),
+      `${relative} preview polish may change only its explicitly named UI owners`);
+  } else if (file.kind === "style") {
+    const strip = text => {
+      for (const selector of PREVIEW_POLISH_SELECTORS) {
+        const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        text = text.replace(new RegExp(`^  ${escaped} \\{[^\\n]*}\\n`, "gm"), "");
+      }
+      return text;
+    };
+    assert.equal(strip(source), strip(restored), "Only the reviewed export footer selectors may change");
+  } else {
+    const strip = text => {
+      for (const [name, expression] of [
+        ["brand", /<img\b[^>]*\bid="exportPartnerLogo"[^>]*>/g],
+        ["attribution", /<div\b[^>]*\bid="exportMapAttribution"[^>]*>[^]*?<\/div>/g],
+        ["preview-cache", /<script\b[^>]*\bsrc="(?:\.\/)?assets\/export-preview\.js(?:\?[^"\s]*)?"[^>]*><\/script>/g]
+      ]) {
+        assert.equal([...text.matchAll(expression)].length, 1, `Retain the ${name} template owner once`);
+        text = text.replace(expression, `<!-- UI-POLISH-${name} -->`);
+      }
+      return text.replace(/^[ \t]*<script\b[^>]*\bsrc="(?:\.\/)?assets\/export-date-time-picker\.js(?:\?[^"\s]*)?"[^>]*><\/script>\n/gm, "")
+        .replace(/^[ \t]*<link\b[^>]*\bhref="(?:\.\/)?assets\/export-date-time-picker\.css(?:\?[^"\s]*)?"[^>]*>\n/gm, "");
+    };
+    assert.equal(strip(source), strip(restored),
+      "Preview polish may change only brand/credit markup, preview cache version and the picker dependencies");
+  }
+  return restored;
+}
+
+function auditedPreviewPolishSource(kind, entry, source) {
+  const blocks = previewPolishAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
+  for (const block of blocks) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared UI authoring source`);
+    auditedPreviewPolishRead(block.source);
+  }
+  return auditedIssueFixFragments(source, blocks, entry.id);
+}
+
+function auditPreviewPolishDependencies(document, label) {
+  const tags = previewPolishAudit.tags;
+  assert.equal(tags.preview.before.length, 1);
+  assert.equal(tags.preview.after.length, 1);
+  assert.equal(tags.pickerScript.before.length, 0);
+  assert.equal(tags.pickerScript.after.length, 1);
+  assert.equal(tags.pickerStyle.before.length, 0);
+  assert.equal(tags.pickerStyle.after.length, 1);
+  assert.notEqual(tags.preview.before[0], tags.preview.after[0], "Changed preview code must change its cache version");
+  assert.equal(tags.preview.before[0].replace(/\?v=[^"\s]+/, "?v=VERSION"),
+    tags.preview.after[0].replace(/\?v=[^"\s]+/, "?v=VERSION"), "Preview cache updates must preserve execution/id attributes");
+  for (const [name, assetSource, id] of [
+    ["preview", "assets/export-preview.js", "floodmapper-export-preview"],
+    ["pickerScript", "assets/export-date-time-picker.js", "floodmapper-export-date-time-picker"],
+    ["pickerStyle", "assets/export-date-time-picker.css", null]
+  ]) {
+    const tag = tags[name].after[0];
+    assert.equal(document.split(tag).length - 1, 1, `${label} must retain the exact ${name} dependency once`);
+    const attrs = attributes(tag.slice(0, tag.indexOf(">") + 1));
+    const attribute = id ? "src" : "href";
+    if (id) {
+      assert.ok(attrs.has("defer"), `${name} must not block startup`);
+      assert.equal(attrs.get("id"), id);
+      assert.equal(attrs.size, 3);
+    } else {
+      assert.equal(attrs.get("rel"), "stylesheet");
+      assert.equal(attrs.size, 2);
+    }
+    const url = new URL(attrs.get(attribute), "https://parity.invalid/");
+    assert.equal(url.pathname, "/" + assetSource);
+    const asset = previewPolishAudit.assets.find(asset => asset.source === assetSource)
+      || previewPolishAudit.files.find(file => file.source === assetSource);
+    assert.equal(url.searchParams.get("v"), (asset.sha256 || asset.afterSha256).slice(0, 16),
+      `${name} must reference the actual reviewed content version`);
+  }
+  assert.ok(document.indexOf(tags.pickerScript.after[0]) > document.indexOf(tags.preview.after[0]),
+    `${label} picker initialization must follow the deferred preview initializer`);
+}
+
 // Reusing an owned, ready export image is a separate runtime-only follow-up.
 // Invert its exact contextual diff before the unchanged feature/placement
 // audits, and prove that all neighboring rendering and scientific code stays
 // identical to the independently pinned application baseline.
 function auditedFrameReuseRead(relative) {
-  const source = read(relative);
+  const source = auditedPreviewPolishRead(relative);
   const blocks = frameReuseAudit.changes.filter(block => block.source === relative);
   const restored = auditedIssueFixFragments(source, blocks, relative);
   const file = frameReuseAudit.files.find(file => file.source === relative);
@@ -560,6 +736,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedPreviewPolishSource(kind, entry, source);
   source = auditedFrameReuseSource(kind, entry, source);
   source = auditedRoadLabelSource(kind, entry, source);
   source = auditedLineSource(kind, entry, source);
@@ -635,6 +812,8 @@ function token(kind, id) {
 }
 
 auditFontFamilyStylesheet();
+auditPreviewPolishDependencies(template, "Source template");
+auditPreviewPolishDependencies(published, "Generated HTML");
 auditedFontFamilyTemplate(published, "Generated HTML");
 const roadLabelTag = roadLabelAudit.scriptTag;
 assert.match(roadLabelTag, /^<script\b[^>]*><\/script>$/);
@@ -891,6 +1070,7 @@ if (process.argv.includes("--self-test")) {
       ROAD_LABEL_AUDIT_PATH, roadLabelAudit.module.source, roadLabelAudit.data.source,
       PLACEMENT_AUDIT_PATH,
       FRAME_REUSE_AUDIT_PATH,
+      PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -904,6 +1084,18 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened preview-polish inverse", path.join(scratch, PREVIEW_POLISH_AUDIT_PATH),
+        JSON.stringify({ ...previewPolishAudit, changes: [...previewPolishAudit.changes, previewPolishAudit.changes[0]] })],
+      ["altered reviewed preview cache helper", path.join(scratch, "assets/export-preview.js"),
+        read("assets/export-preview.js").replace("  function sourceId(value) {", "  function sourceId(value) {\n    // Unreviewed cache behavior")],
+      ["altered science outside preview-polish owners", path.join(scratch, "tools/app/runtime/16-export-map.js"),
+        read("tools/app/runtime/16-export-map.js").replace("formatStageForDisplay(rawStage)", "formatStageForDisplay(rawStage + 2)")],
+      ["altered date-time picker asset", path.join(scratch, previewPolishAudit.assets[0].source),
+        read(previewPolishAudit.assets[0].source) + "\n// Unreviewed date/time behavior\n"],
+      ["altered high-resolution branding asset", path.join(scratch, brandAsset.source),
+        Buffer.concat([fs.readFileSync(localPath(brandAsset.source)), Buffer.from("unreviewed")])],
+      ["dropped date-time picker dependency", scratchHtml,
+        published.replace(previewPolishAudit.tags.pickerScript.after[0], "")],
       ["broadened export frame-reuse inverse", path.join(scratch, FRAME_REUSE_AUDIT_PATH),
         JSON.stringify({ ...frameReuseAudit, changes: [...frameReuseAudit.changes, frameReuseAudit.changes[0]] })],
       ["altered export frame-reuse function", path.join(scratch, frameReuseAudit.files[0].source),
@@ -1059,8 +1251,9 @@ if (process.argv.includes("--self-test")) {
       ["altered original welcome controller", path.join(scratch, loaderRestore.controller.source),
         read(loaderRestore.controller.source) + "\n// Unapproved loader behavior\n"],
     ];
+    assert.equal(cases.length, 79, "Retain all 73 legacy mutations and the six preview-polish mutations");
     for (const [name, target, altered] of cases) {
-      const before = fs.readFileSync(target, "utf8");
+      const before = fs.readFileSync(target);
       fs.writeFileSync(target, altered);
       const result = run();
       fs.writeFileSync(target, before);

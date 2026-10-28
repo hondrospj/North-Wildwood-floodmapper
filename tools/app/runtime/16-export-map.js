@@ -186,7 +186,7 @@
             </div>
             <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Uncertainty areas followed by connected modeled flood depth from shallow to deep"}">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
-              <div class="export-depth-key-ends" aria-hidden="true">
+              <div class="export-depth-key-ends${isPhysicsDepth ? "" : " export-depth-key-ends-three"}" aria-hidden="true">
                 <span>${isPhysicsDailyMaximum ? "Daily max" : isPhysicsDepth ? "Shallow" : "Uncertain"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
               </div>
             </div>
@@ -533,7 +533,8 @@
         removeContainer: true,
         foreignObjectRendering: false,
         imageTimeout: 20000,
-        ignoreElements: isOutsideExportStage,
+        ignoreElements: element => isOutsideExportStage(element)
+          || (options.omitAttribution === true && element.id === "exportMapAttribution"),
         scale: captureScale
       });
     }

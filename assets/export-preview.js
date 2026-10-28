@@ -15,11 +15,114 @@
   const publicationWaiters = new Set();
   let gestureSettling = false;
   let gestureTimer = null;
+  let activePreviewKey = null;
+  let activePreviewGeneration = null;
+  let displayedPreviewKey = null;
+  const previewCache = new Map();
+  const sourceIds = new WeakMap();
+  let nextSourceId = 0;
 
   const node = id => document.getElementById(id);
   const available = () => isDownloadModalOpen() && !exportRequested && !exportInProgress;
   const fresh = token => token === generation && available();
   const release = canvas => { if (canvas) canvas.width = canvas.height = 1; };
+
+  function sourceId(value) {
+    if (!value || typeof value !== "object") return null;
+    if (!sourceIds.has(value)) sourceIds.set(value, ++nextSourceId);
+    return sourceIds.get(value);
+  }
+
+  function previewRequest() {
+    try {
+      if (getDownloadScopeValue() === "current" && floodFrameState !== "ready") return null;
+      if (!validateDownloadRangeForExport().ok) return null;
+      const item = getDownloadFrameItems()[0];
+      if (!item) return null;
+      const config = getExportAspectConfig();
+      const extent = getDownloadExtentValue();
+      const bounds = extent === "custom" ? window.FLOODMAPPER_EXPORT_AREA?.getBounds?.()
+        : extent === "current" ? (typeof exportViewportBounds !== "undefined" && exportViewportBounds)
+          || (typeof getActiveMapBounds === "function" ? getActiveMapBounds() : null) : null;
+      const layers = ["roadsToggle", "satelliteToggle", "buildingsToggle", "parcelsToggle"].map(id => {
+        const element = node(id);
+        return [id, element?.classList.contains("on") || element?.getAttribute("aria-checked") === "true"];
+      });
+      const key = JSON.stringify({
+        entry: item.entry, index: item.index,
+        phase: typeof getHydraulicPhaseForEntry === "function"
+          ? getHydraulicPhaseForEntry(item.entry, item.index, item.series) : null,
+        source: typeof currentSeriesHours !== "undefined" ? sourceId(currentSeriesHours) : null,
+        rawSource: typeof currentRawSeriesHours !== "undefined" ? sourceId(currentRawSeriesHours) : null,
+        dataMode: currentDataMode,
+        overlay: typeof currentOverlayMode !== "undefined" ? currentOverlayMode : null,
+        datum: typeof currentDatum !== "undefined" ? currentDatum : null,
+        opacity: typeof overlayOpacity !== "undefined" ? overlayOpacity : node("opacitySlider")?.value,
+        dimensions: [config.width, config.height], extent,
+        bounds: bounds ? [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()] : null,
+        layers,
+        font: typeof getComputedStyle === "function" ? getComputedStyle(document.body).fontFamily : null,
+        pixelRatio: Math.min(window.devicePixelRatio || 1, 2)
+      });
+      return { key, item, config };
+    } catch (_) {
+      // Missing historical inputs still use the normal availability/error path.
+      return null;
+    }
+  }
+
+  function rememberPreview(key, canvas) {
+    if (!key) return;
+    const old = previewCache.get(key);
+    if (old && old !== canvas) release(old);
+    previewCache.delete(key);
+    previewCache.set(key, canvas);
+    while (previewCache.size > 3) {
+      const oldest = previewCache.keys().next().value;
+      release(previewCache.get(oldest));
+      previewCache.delete(oldest);
+    }
+  }
+
+  function previewScale(config) {
+    const viewport = node("exportPreviewCanvas").getBoundingClientRect();
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    return Math.min(1, Math.max(1, viewport.width) * pixelRatio / config.width,
+      Math.max(1, viewport.height) * pixelRatio / config.height);
+  }
+
+  function publishPreview(canvas, key, config) {
+    clearCanvas();
+    node("exportPreviewCanvas").appendChild(canvas);
+    displayedPreviewKey = key;
+    showState("ready", `${config.width} × ${config.height}`);
+  }
+
+  function restorePreview(request) {
+    const canvas = request && previewCache.get(request.key);
+    if (!canvas) return false;
+    const scale = previewScale(request.config);
+    if (canvas.width + 2 < request.config.width * scale
+      || canvas.height + 2 < request.config.height * scale) return false;
+    clearTimeout(timer);
+    timer = null;
+    pending = false;
+    const token = ++generation;
+    if (displayedPreviewKey === request.key && node("exportPreviewCanvas").children.length
+      && (!gestureSettling || node("exportPreview").dataset.state === "ready")) {
+      showState("ready", `${request.config.width} × ${request.config.height}`);
+      return true;
+    }
+    const publish = () => {
+      if (!fresh(token)) return;
+      previewCache.delete(request.key);
+      previewCache.set(request.key, canvas);
+      publishPreview(canvas, request.key, request.config);
+    };
+    if (gestureSettling) waitForPreviewGesture().then(publish);
+    else publish();
+    return true;
+  }
 
   function finishPreviewGesture() {
     clearTimeout(gestureTimer);
@@ -64,6 +167,7 @@
     if (document.hidden) invalidate();
     else if (available()) schedulePreview();
   });
+  window.addEventListener?.("resize", schedulePreview);
 
   function renderReviewStep() {
     const modal = node("downloadModal");
@@ -89,6 +193,8 @@
     if (areaStatus) areaStatus.hidden = true;
     const custom = node("exportExtentCustomBtn");
     if (custom) custom.textContent = getDownloadExtentValue() === "custom" ? "Edit area" : "Choose area";
+    const config = getExportAspectConfig();
+    node("exportPreview")?.style.setProperty("--export-preview-aspect", `${config.width} / ${config.height}`);
   }
 
   function reviewSettings() {
@@ -100,8 +206,11 @@
   function clearCanvas() {
     const mount = node("exportPreviewCanvas");
     if (!mount) return;
-    Array.from(mount.children).forEach(release);
+    Array.from(mount.children).forEach(canvas => {
+      if (![...previewCache.values()].includes(canvas)) release(canvas);
+    });
     mount.replaceChildren();
+    displayedPreviewKey = null;
   }
 
   function showState(state, message) {
@@ -124,6 +233,9 @@
 
   function schedulePreview() {
     if (!available()) return;
+    const request = previewRequest();
+    if (restorePreview(request)) return;
+    if (request && activeJob && activePreviewKey === request.key && activePreviewGeneration === generation) return;
     generation++;
     pending = true;
     clearTimeout(timer);
@@ -131,7 +243,7 @@
     timer = setTimeout(() => {
       timer = null;
       startPreview();
-    }, 250);
+    }, 0);
   }
 
   async function renderPreview(token) {
@@ -160,28 +272,32 @@
       if (fresh(token)) showState("empty", "No frames are available for this time range.");
       return;
     }
+    const request = previewRequest();
+    activePreviewKey = request?.key || null;
+    if (restorePreview(request)) return;
     await ensureExportLibraries("png", 1);
     if (!fresh(token)) return;
     // A fresh first frame reapplies the chosen bounds, legend, layers and logos.
     await prepareExportFrame(item, { isFirstFrame: true });
     if (!fresh(token)) return;
     const config = getExportAspectConfig();
-    const scale = Math.min(1, 800 / config.width, 600 / config.height);
-    const canvas = await captureExportCanvas({ scale });
+    const scale = previewScale(config);
+    const canvas = await captureExportCanvas({ scale, omitAttribution: true });
     if (!fresh(token)) { release(canvas); return; }
     await waitForPreviewGesture();
     if (!fresh(token)) { release(canvas); return; }
     canvas.setAttribute("role", "img");
     canvas.setAttribute("aria-label", "Preview of the selected North Wildwood export area");
-    clearCanvas();
-    node("exportPreviewCanvas").appendChild(canvas);
-    showState("ready", `${config.width} × ${config.height}`);
+    publishPreview(canvas, request?.key || null, config);
+    rememberPreview(request?.key, canvas);
   }
 
   function startPreview() {
     if (activeJob || !pending || !available()) return;
     pending = false;
     const token = generation;
+    activePreviewGeneration = token;
+    activePreviewKey = previewRequest()?.key || null;
     activeJob = renderPreview(token).catch(error => {
       if (!fresh(token)) return;
       clearCanvas();
@@ -189,6 +305,8 @@
       console.warn("Export preview could not be rendered.", error);
     }).finally(() => {
       activeJob = null;
+      activePreviewKey = null;
+      activePreviewGeneration = null;
       if (pending && timer === null && available()) startPreview();
     });
   }
@@ -219,7 +337,11 @@
     const result = originalOpen(open, ...args);
     renderReviewStep();
     if (open) schedulePreview();
-    else clearCanvas();
+    else {
+      clearCanvas();
+      previewCache.forEach(release);
+      previewCache.clear();
+    }
     return result;
   };
 
@@ -281,10 +403,13 @@
       #downloadModal #exportPreview{grid-row:1;margin:0;min-width:0;padding:12px;border:1px solid #40516b;border-radius:14px;background:#101c2d;color:#eaf0ff}
       #downloadModal .export-preview-heading{display:flex;justify-content:flex-end;margin-bottom:8px;min-height:16px}
       #downloadModal #exportPreviewFrameLabel{font-size:12px;font-weight:500;color:#bac8df}
-      #downloadModal .export-preview-image{position:relative;display:grid;place-items:center;height:220px;border-radius:8px;overflow:hidden;background:#080f1a}
+      #downloadModal .export-preview-image{position:relative;display:grid;place-items:center;height:auto;aspect-ratio:var(--export-preview-aspect,16 / 9);min-height:180px;max-height:min(560px,62dvh);border-radius:8px;overflow:hidden;background:#080f1a}
       #downloadModal #exportPreviewCanvas{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}
       #downloadModal #exportPreviewCanvas canvas{display:block;width:100%!important;height:100%!important;min-width:0;object-fit:contain}
-      #downloadModal #exportPreview:not([data-state="ready"]) canvas{visibility:hidden}
+      #downloadModal #exportPreview:is([data-state="empty"],[data-state="error"]) canvas{visibility:hidden}
+      #downloadModal .export-preview-credits{margin-top:8px;font-size:11px;line-height:1.45;color:#aebed4}
+      #downloadModal .export-preview-credits summary{cursor:pointer;width:fit-content;padding:4px 0}
+      #downloadModal .export-preview-credits p{margin:5px 0 0}
       #downloadModal #exportPreview[data-state="loading"] .export-preview-image::after{content:"";position:absolute;width:28px;height:28px;border:3px solid #40516b;border-top-color:#60a5fa;border-radius:50%;animation:export-preview-spin 1s linear infinite}
       #downloadModal .export-preview-caption{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;min-height:20px;font-size:12px;line-height:1.4;color:#bac8df}
       #downloadModal #exportPreview[data-state="ready"] .export-preview-caption{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
@@ -315,7 +440,7 @@
         #downloadModal .export-preview-layout{grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:20px}
         #downloadModal #exportPreview{grid-column:1;grid-row:1;position:sticky;top:0}
         #downloadModal .export-preview-layout>.download-grid{grid-column:2;grid-row:1;min-height:min(590px,65dvh)}
-        #downloadModal .export-preview-image{height:min(520px,57dvh)}
+        #downloadModal .export-preview-image{max-height:min(560px,62dvh)}
       }
     `;
     document.head.appendChild(style);
@@ -327,6 +452,14 @@
     preview.dataset.state = "loading";
     preview.setAttribute("aria-label", "Export preview");
     preview.innerHTML = `<div class="export-preview-heading"><span id="exportPreviewFrameLabel">First frame</span></div><div class="export-preview-image"><div id="exportPreviewCanvas"></div></div><figcaption class="export-preview-caption"><span id="exportPreviewStatus" role="status" aria-live="polite">Preparing preview…</span><button id="exportPreviewRetryBtn" type="button" hidden>Retry</button></figcaption><div class="export-preview-area"><span id="exportPreviewAreaLabel">Current view</span><button id="exportChangeAreaBtn" type="button">Change area</button></div>`;
+    const credits = document.createElement("details");
+    credits.className = "export-preview-credits";
+    const creditLabel = document.createElement("summary");
+    creditLabel.textContent = "Map credits";
+    const creditText = document.createElement("p");
+    creditText.textContent = node("exportMapAttribution")?.textContent || "Map: Esri and contributors. Local road names: NJOGIS.";
+    credits.append(creditLabel, creditText);
+    preview.appendChild(credits);
     layout.append(preview, grid);
     const basic = document.createElement("section");
     basic.id = "exportBasicFields";

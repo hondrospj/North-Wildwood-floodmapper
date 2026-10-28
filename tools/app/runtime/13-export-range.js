@@ -153,7 +153,7 @@
       const h = Math.max(2, Math.round(height));
       const unit = Math.max(0.125, Math.min(w / 1200, h / 900));
       const stacked = w < h * 1.1;
-      const footerHeight = Math.max(1, Math.round(Math.min(h * 0.4, (stacked ? 270 : 178) * unit)));
+      const footerHeight = Math.max(1, Math.round(Math.min(h * 0.4, (stacked ? 270 : 194) * unit)));
       const mapHeight = h - footerHeight;
       const pad = Math.round(24 * unit);
       const gap = Math.round(16 * unit);
@@ -168,9 +168,9 @@
           ? { x: pad, y: mapHeight + Math.round(156 * unit), width: w - pad * 2, height: Math.round(90 * unit) }
           : { x: rightX, y: mapHeight + Math.round(16 * unit), width: w - rightX - pad, height: Math.round(90 * unit) },
         branding: stacked
-          ? { x: w - pad - brandWidth, y: mapHeight + Math.round(22 * unit), width: brandWidth, height: Math.round(55 * unit) }
-          : { x: rightX, y: mapHeight + Math.round(117 * unit), width: w - rightX - pad, height: Math.round(34 * unit) },
-        attribution: { x: pad, y: h - Math.round(18 * unit), size: Math.max(2, Math.round(9 * unit)) }
+          ? { x: w - pad - brandWidth, y: mapHeight + Math.round(22 * unit), width: brandWidth, height: Math.round(80 * unit) }
+          : { x: rightX, y: mapHeight + Math.round(108 * unit), width: w - rightX - pad, height: Math.round(58 * unit) },
+        attribution: { x: pad, y: h - Math.round(18 * unit), size: Math.max(3, Math.round(11 * unit)) }
       };
     }
 

@@ -42,6 +42,9 @@ jobs:
             index.html
             assets/export-area.js
             assets/export-preview.js
+            assets/export-date-time-picker.js
+            assets/export-date-time-picker.css
+            assets/shorelysafe-logo-export.jpg
             assets/export-road-labels.js
             assets/roads/north-wildwood-road-centerlines.geojson
             assets/north-wildwood-font.css
@@ -69,6 +72,7 @@ jobs:
             tools/fixtures/north-wildwood-20261028-export-road-labels.json
             tools/fixtures/north-wildwood-20261028-road-label-placement.json
             tools/fixtures/north-wildwood-20261028-export-frame-reuse.json
+            tools/fixtures/north-wildwood-20261028-export-preview-polish.json
             tools/fixtures/north-wildwood-export-dst.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs

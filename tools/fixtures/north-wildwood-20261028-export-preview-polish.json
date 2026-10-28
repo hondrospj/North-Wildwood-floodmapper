@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "4c9a9691a9fe10c036792bec0f765e13a92d5fe6",
+  "purpose": "Improve export preview reuse, sampling, date/time selection, footer lettering and branding; retain explicit static-download credits and unchanged scientific/rendering behavior outside reviewed UI owners.",
+  "functions": {
+    "assets/export-preview.js": [
+      "sourceId",
+      "previewRequest",
+      "rememberPreview",
+      "previewScale",
+      "publishPreview",
+      "restorePreview",
+      "renderReviewStep",
+      "clearCanvas",
+      "schedulePreview",
+      "renderPreview",
+      "startPreview",
+      "init"
+    ],
+    "tools/app/runtime/13-export-range.js": [
+      "getExportFooterLayout"
+    ],
+    "tools/app/runtime/15-export-capture.js": [
+      "waitForExportChromeReady"
+    ],
+    "tools/app/runtime/16-export-map.js": [
+      "updateExportLegend",
+      "captureExportCanvas"
+    ]
+  },
+  "previewDeclarations": "  let activePreviewKey = null;\n  let activePreviewGeneration = null;\n  let displayedPreviewKey = null;\n  const previewCache = new Map();\n  const sourceIds = new WeakMap();\n  let nextSourceId = 0;\n",
+  "previewAssignment": "setDownloadModalOpen",
+  "previewResizeListener": "  window.addEventListener?.(\"resize\", schedulePreview);\n",
+  "cssSelectors": [
+    "#exportStageFrame #exportFooter .export-stage-logo",
+    "#exportStageFrame #exportFooter .export-stage-logo:only-child",
+    "#exportStageFrame #exportFooter .export-depth-key-ends",
+    "#exportStageFrame #exportFooter .export-depth-key-ends span",
+    "#exportStageFrame #exportFooter .export-depth-key-ends span:nth-child(2):not(:last-child)",
+    "#exportStageFrame #exportFooter .export-depth-key-ends-three",
+    "#exportStageFrame #exportFooter .export-depth-key-ends-three span:nth-child(2)",
+    "#exportStageFrame #exportFooter .export-depth-key-ends-three span:last-child"
+  ],
+  "files": [
+    {
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSha256": "1b936eee7f788c1086ee07d71f828c1a0e61830b8a4e229a05b6000b57cf87d5",
+      "afterSha256": "ec4a166266cddc38a64609f107747c3100692706c7d3a1e217940a03916912f4"
+    },
+    {
+      "source": "tools/app/runtime/13-export-range.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "8d356f3512e46951d2dd02056286b10e52c7a95bbed21656b5caa614635a2fbc",
+      "afterSha256": "c5c6bce54c0f9038e353d046e80ad4334f7ee96d3ed1ead5f4c029fd4c918106"
+    },
+    {
+      "source": "tools/app/runtime/15-export-capture.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "a07f847d3633095da6b14302d7e23f001700b110cd8c915bde0c8db30cf807be",
+      "afterSha256": "560e09c06a2a983c362421309af8f3e1b44163be4c096205dfdeb04200a50b31"
+    },
+    {
+      "source": "tools/app/runtime/16-export-map.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "813c531e4dab7df78fb52b71772ce022372fe441d2df9833b3eceddf4d8ef9d5",
+      "afterSha256": "a53d59747580fdb6d005aa55a2ed120c4f8b4bfd987b61e472dc81a0c20663c4"
+    },
+    {
+      "source": "tools/app/styles/style-081.css",
+      "kind": "style",
+      "entryId": "style-081",
+      "beforeSha256": "9de049adafde61871064ed4a2d74c0f4df7c14befdff65fd4b9f7059738d558e",
+      "afterSha256": "aa4f92c75057feaba8d861ceadcf4192e9da9862f31e73774c05d7685aeb2c1f"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "kind": "template",
+      "entryId": null,
+      "beforeSha256": "61fa9677c49b80194a2a48d543476d1e1bb432cea651d47e38a7f3b534b35338",
+      "afterSha256": "145382d5bd2694e87ba2c65fc326011d15f83d235cf9dd8acfa7399c6fd44739"
+    }
+  ],
+  "assets": [
+    {
+      "source": "assets/export-date-time-picker.js",
+      "bytes": 22647,
+      "sha256": "2ec97d8f2362ce74cd83480c25b960d3198f23a309deb8407a2e6aa2f6228ebf"
+    },
+    {
+      "source": "assets/export-date-time-picker.css",
+      "bytes": 5499,
+      "sha256": "9a8f640254cba6b42263eb4eac8521c4c0a1b705548d12be2e1a86ed740f8dbf"
+    },
+    {
+      "source": "assets/shorelysafe-logo-export.jpg",
+      "bytes": 366696,
+      "sha256": "d8fc9307306509bc9a94eba64d3ed123abb4d4c953effc66d3824f066aee3801"
+    }
+  ],
+  "changes": [
+    {
+      "id": "assets-export-preview.js-preview-polish-1",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "  const gesturePointers = new Set();\n  const publicationWaiters = new Set();\n  let gestureSettling = false;\n  let gestureTimer = null;\n\n  const node = id => document.getElementById(id);\n  const available = () => isDownloadModalOpen() && !exportRequested && !exportInProgress;\n  const fresh = token => token === generation && available();\n  const release = canvas => { if (canvas) canvas.width = canvas.height = 1; };\n\n  function finishPreviewGesture() {\n    clearTimeout(gestureTimer);\n    gestureTimer = null;\n",
+      "afterSource": "  const gesturePointers = new Set();\n  const publicationWaiters = new Set();\n  let gestureSettling = false;\n  let gestureTimer = null;\n  let activePreviewKey = null;\n  let activePreviewGeneration = null;\n  let displayedPreviewKey = null;\n  const previewCache = new Map();\n  const sourceIds = new WeakMap();\n  let nextSourceId = 0;\n\n  const node = id => document.getElementById(id);\n  const available = () => isDownloadModalOpen() && !exportRequested && !exportInProgress;\n  const fresh = token => token === generation && available();\n  const release = canvas => { if (canvas) canvas.width = canvas.height = 1; };\n\n  function sourceId(value) {\n    if (!value || typeof value !== \"object\") return null;\n    if (!sourceIds.has(value)) sourceIds.set(value, ++nextSourceId);\n    return sourceIds.get(value);\n  }\n\n  function previewRequest() {\n    try {\n      if (getDownloadScopeValue() === \"current\" && floodFrameState !== \"ready\") return null;\n      if (!validateDownloadRangeForExport().ok) return null;\n      const item = getDownloadFrameItems()[0];\n      if (!item) return null;\n      const config = getExportAspectConfig();\n      const extent = getDownloadExtentValue();\n      const bounds = extent === \"custom\" ? window.FLOODMAPPER_EXPORT_AREA?.getBounds?.()\n        : extent === \"current\" ? (typeof exportViewportBounds !== \"undefined\" && exportViewportBounds)\n          || (typeof getActiveMapBounds === \"function\" ? getActiveMapBounds() : null) : null;\n      const layers = [\"roadsToggle\", \"satelliteToggle\", \"buildingsToggle\", \"parcelsToggle\"].map(id => {\n        const element = node(id);\n        return [id, element?.classList.contains(\"on\") || element?.getAttribute(\"aria-checked\") === \"true\"];\n      });\n      const key = JSON.stringify({\n        entry: item.entry, index: item.index,\n        phase: typeof getHydraulicPhaseForEntry === \"function\"\n          ? getHydraulicPhaseForEntry(item.entry, item.index, item.series) : null,\n        source: typeof currentSeriesHours !== \"undefined\" ? sourceId(currentSeriesHours) : null,\n        rawSource: typeof currentRawSeriesHours !== \"undefined\" ? sourceId(currentRawSeriesHours) : null,\n        dataMode: currentDataMode,\n        overlay: typeof currentOverlayMode !== \"undefined\" ? currentOverlayMode : null,\n        datum: typeof currentDatum !== \"undefined\" ? currentDatum : null,\n        opacity: typeof overlayOpacity !== \"undefined\" ? overlayOpacity : node(\"opacitySlider\")?.value,\n        dimensions: [config.width, config.height], extent,\n        bounds: bounds ? [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()] : null,\n        layers,\n        font: typeof getComputedStyle === \"function\" ? getComputedStyle(document.body).fontFamily : null,\n        pixelRatio: Math.min(window.devicePixelRatio || 1, 2)\n      });\n      return { key, item, config };\n    } catch (_) {\n      // Missing historical inputs still use the normal availability/error path.\n      return null;\n    }\n  }\n\n  function rememberPreview(key, canvas) {\n    if (!key) return;\n    const old = previewCache.get(key);\n    if (old && old !== canvas) release(old);\n    previewCache.delete(key);\n    previewCache.set(key, canvas);\n    while (previewCache.size > 3) {\n      const oldest = previewCache.keys().next().value;\n      release(previewCache.get(oldest));\n      previewCache.delete(oldest);\n    }\n  }\n\n  function previewScale(config) {\n    const viewport = node(\"exportPreviewCanvas\").getBoundingClientRect();\n    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);\n    return Math.min(1, Math.max(1, viewport.width) * pixelRatio / config.width,\n      Math.max(1, viewport.height) * pixelRatio / config.height);\n  }\n\n  function publishPreview(canvas, key, config) {\n    clearCanvas();\n    node(\"exportPreviewCanvas\").appendChild(canvas);\n    displayedPreviewKey = key;\n    showState(\"ready\", `${config.width} × ${config.height}`);\n  }\n\n  function restorePreview(request) {\n    const canvas = request && previewCache.get(request.key);\n    if (!canvas) return false;\n    const scale = previewScale(request.config);\n    if (canvas.width + 2 < request.config.width * scale\n      || canvas.height + 2 < request.config.height * scale) return false;\n    clearTimeout(timer);\n    timer = null;\n    pending = false;\n    const token = ++generation;\n    if (displayedPreviewKey === request.key && node(\"exportPreviewCanvas\").children.length\n      && (!gestureSettling || node(\"exportPreview\").dataset.state === \"ready\")) {\n      showState(\"ready\", `${request.config.width} × ${request.config.height}`);\n      return true;\n    }\n    const publish = () => {\n      if (!fresh(token)) return;\n      previewCache.delete(request.key);\n      previewCache.set(request.key, canvas);\n      publishPreview(canvas, request.key, request.config);\n    };\n    if (gestureSettling) waitForPreviewGesture().then(publish);\n    else publish();\n    return true;\n  }\n\n  function finishPreviewGesture() {\n    clearTimeout(gestureTimer);\n    gestureTimer = null;\n",
+      "beforeSha256": "3706b7e22b996200e95e8c539556c4c220b0c9db98badcbba2b4fd9fb55cfada",
+      "afterSha256": "eb2ff492ca5e65bc040825f0bd8d879e38d7e8a7162b05e920f702521acea3f7"
+    },
+    {
+      "id": "assets-export-preview.js-preview-polish-2",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "  document.addEventListener(\"visibilitychange\", () => {\n    if (document.hidden) invalidate();\n    else if (available()) schedulePreview();\n  });\n\n  function renderReviewStep() {\n    const modal = node(\"downloadModal\");\n    if (modal) modal.dataset.exportStep = settingsReviewed ? \"review\" : \"area\";\n",
+      "afterSource": "  document.addEventListener(\"visibilitychange\", () => {\n    if (document.hidden) invalidate();\n    else if (available()) schedulePreview();\n  });\n  window.addEventListener?.(\"resize\", schedulePreview);\n\n  function renderReviewStep() {\n    const modal = node(\"downloadModal\");\n    if (modal) modal.dataset.exportStep = settingsReviewed ? \"review\" : \"area\";\n",
+      "beforeSha256": "dc839caa5a43adc07d82171ebc1c5ad15fe836a2fb6bbb8cd6f910a8a85f37c1",
+      "afterSha256": "4d7652a3b8e86287b54ae93bd65a9675cbd9ee4481109ad5ef8cc580ee8a7e8f"
+    },
+    {
+      "id": "assets-export-preview.js-preview-polish-3",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "    const areaStatus = node(\"exportAreaStatus\");\n    if (areaStatus) areaStatus.hidden = true;\n    const custom = node(\"exportExtentCustomBtn\");\n    if (custom) custom.textContent = getDownloadExtentValue() === \"custom\" ? \"Edit area\" : \"Choose area\";\n  }\n\n  function reviewSettings() {\n    settingsReviewed = true;\n",
+      "afterSource": "    const areaStatus = node(\"exportAreaStatus\");\n    if (areaStatus) areaStatus.hidden = true;\n    const custom = node(\"exportExtentCustomBtn\");\n    if (custom) custom.textContent = getDownloadExtentValue() === \"custom\" ? \"Edit area\" : \"Choose area\";\n    const config = getExportAspectConfig();\n    node(\"exportPreview\")?.style.setProperty(\"--export-preview-aspect\", `${config.width} / ${config.height}`);\n  }\n\n  function reviewSettings() {\n    settingsReviewed = true;\n",
+      "beforeSha256": "e67455a866e9cb7d80fdb68a2e993a4698038d2387b4ccedb6faaf6ca2e193d7",
+      "afterSha256": "7daf19a3f1284cfb0097fb3269deddc726f5d423aaa86e3e65c36c1b08932a37"
+    },
+    {
+      "id": "assets-export-preview.js-preview-polish-4",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "\n  function clearCanvas() {\n    const mount = node(\"exportPreviewCanvas\");\n    if (!mount) return;\n    Array.from(mount.children).forEach(release);\n    mount.replaceChildren();\n  }\n\n  function showState(state, message) {\n    const preview = node(\"exportPreview\");\n",
+      "afterSource": "\n  function clearCanvas() {\n    const mount = node(\"exportPreviewCanvas\");\n    if (!mount) return;\n    Array.from(mount.children).forEach(canvas => {\n      if (![...previewCache.values()].includes(canvas)) release(canvas);\n    });\n    mount.replaceChildren();\n    displayedPreviewKey = null;\n  }\n\n  function showState(state, message) {\n    const preview = node(\"exportPreview\");\n",
+      "beforeSha256": "cad58bda5d71fbfa19310b97c53c0a867b90ef15e09a930ee735b8b3c14e4228",
+      "afterSha256": "8ba1caf95fdf0bc7783f1f873e0c9f95188ec706fc78415116489a8dad0c4c75"
+    },
+    {
+      "id": "assets-export-preview.js-preview-polish-5",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "  }\n\n  function schedulePreview() {\n    if (!available()) return;\n    generation++;\n    pending = true;\n    clearTimeout(timer);\n    showState(\"loading\", \"Updating preview…\");\n    timer = setTimeout(() => {\n      timer = null;\n      startPreview();\n    }, 250);\n  }\n\n  async function renderPreview(token) {\n    if (getDownloadScopeValue() === \"current\" && floodFrameState !== \"ready\") {\n",
+      "afterSource": "  }\n\n  function schedulePreview() {\n    if (!available()) return;\n    const request = previewRequest();\n    if (restorePreview(request)) return;\n    if (request && activeJob && activePreviewKey === request.key && activePreviewGeneration === generation) return;\n    generation++;\n    pending = true;\n    clearTimeout(timer);\n    showState(\"loading\", \"Updating preview…\");\n    timer = setTimeout(() => {\n      timer = null;\n      startPreview();\n    }, 0);\n  }\n\n  async function renderPreview(token) {\n    if (getDownloadScopeValue() === \"current\" && floodFrameState !== \"ready\") {\n",
+      "beforeSha256": "c747df8cb67f11595b0879d528835660d228c429fa8b003c9e9dbf2db23c8478",
+      "afterSha256": "b409fd52a0fdbc911dd618b99d16679686f54b17f60b25d0fd5e5557e44fab03"
+    },
+    {
+      "id": "assets-export-preview.js-preview-polish-6",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "    if (!item) {\n      if (fresh(token)) showState(\"empty\", \"No frames are available for this time range.\");\n      return;\n    }\n    await ensureExportLibraries(\"png\", 1);\n    if (!fresh(token)) return;\n    // A fresh first frame reapplies the chosen bounds, legend, layers and logos.\n    await prepareExportFrame(item, { isFirstFrame: true });\n    if (!fresh(token)) return;\n    const config = getExportAspectConfig();\n    const scale = Math.min(1, 800 / config.width, 600 / config.height);\n    const canvas = await captureExportCanvas({ scale });\n    if (!fresh(token)) { release(canvas); return; }\n    await waitForPreviewGesture();\n    if (!fresh(token)) { release(canvas); return; }\n    canvas.setAttribute(\"role\", \"img\");\n    canvas.setAttribute(\"aria-label\", \"Preview of the selected North Wildwood export area\");\n    clearCanvas();\n    node(\"exportPreviewCanvas\").appendChild(canvas);\n    showState(\"ready\", `${config.width} × ${config.height}`);\n  }\n\n  function startPreview() {\n    if (activeJob || !pending || !available()) return;\n    pending = false;\n    const token = generation;\n    activeJob = renderPreview(token).catch(error => {\n      if (!fresh(token)) return;\n      clearCanvas();\n      showState(\"error\", \"Preview couldn’t load. Try again, or download your map.\");\n      console.warn(\"Export preview could not be rendered.\", error);\n    }).finally(() => {\n      activeJob = null;\n      if (pending && timer === null && available()) startPreview();\n    });\n  }\n\n",
+      "afterSource": "    if (!item) {\n      if (fresh(token)) showState(\"empty\", \"No frames are available for this time range.\");\n      return;\n    }\n    const request = previewRequest();\n    activePreviewKey = request?.key || null;\n    if (restorePreview(request)) return;\n    await ensureExportLibraries(\"png\", 1);\n    if (!fresh(token)) return;\n    // A fresh first frame reapplies the chosen bounds, legend, layers and logos.\n    await prepareExportFrame(item, { isFirstFrame: true });\n    if (!fresh(token)) return;\n    const config = getExportAspectConfig();\n    const scale = previewScale(config);\n    const canvas = await captureExportCanvas({ scale, omitAttribution: true });\n    if (!fresh(token)) { release(canvas); return; }\n    await waitForPreviewGesture();\n    if (!fresh(token)) { release(canvas); return; }\n    canvas.setAttribute(\"role\", \"img\");\n    canvas.setAttribute(\"aria-label\", \"Preview of the selected North Wildwood export area\");\n    publishPreview(canvas, request?.key || null, config);\n    rememberPreview(request?.key, canvas);\n  }\n\n  function startPreview() {\n    if (activeJob || !pending || !available()) return;\n    pending = false;\n    const token = generation;\n    activePreviewGeneration = token;\n    activePreviewKey = previewRequest()?.key || null;\n    activeJob = renderPreview(token).catch(error => {\n      if (!fresh(token)) return;\n      clearCanvas();\n      showState(\"error\", \"Preview couldn’t load. Try again, or download your map.\");\n      console.warn(\"Export preview could not be rendered.\", error);\n    }).finally(() => {\n      activeJob = null;\n      activePreviewKey = null;\n      activePreviewGeneration = null;\n      if (pending && timer === null && available()) startPreview();\n    });\n  }\n\n",
+      "beforeSha256": "7ef2105ccb9a4fbd6cfb9703ada117c5c01475c388664ff33095866cc03633b9",
+      "afterSha256": "7a1dca1dc615a06a92daaf0a27b2d596af17b4e00ca491a8f2fbe0d977f2a321"
+    },
+    {
+      "id": "assets-export-preview.js-preview-polish-7",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "    settingsReviewed = false;\n    const result = originalOpen(open, ...args);\n    renderReviewStep();\n    if (open) schedulePreview();\n    else clearCanvas();\n    return result;\n  };\n\n  const originalDownload = downloadCurrentSelection;\n",
+      "afterSource": "    settingsReviewed = false;\n    const result = originalOpen(open, ...args);\n    renderReviewStep();\n    if (open) schedulePreview();\n    else {\n      clearCanvas();\n      previewCache.forEach(release);\n      previewCache.clear();\n    }\n    return result;\n  };\n\n  const originalDownload = downloadCurrentSelection;\n",
+      "beforeSha256": "e2d5b3f6ad55dbbc92800c8d16af718616c071e84f1b728ef8c0043f1a4eac8b",
+      "afterSha256": "f0de868c9f5411c65648de6ba8ef1f8971622aa9f1527644f0e188fea28a504d"
+    },
+    {
+      "id": "assets-export-preview.js-preview-polish-8",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "      #downloadModal .export-preview-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}\n      #downloadModal #exportPreview{grid-row:1;margin:0;min-width:0;padding:12px;border:1px solid #40516b;border-radius:14px;background:#101c2d;color:#eaf0ff}\n      #downloadModal .export-preview-heading{display:flex;justify-content:flex-end;margin-bottom:8px;min-height:16px}\n      #downloadModal #exportPreviewFrameLabel{font-size:12px;font-weight:500;color:#bac8df}\n      #downloadModal .export-preview-image{position:relative;display:grid;place-items:center;height:220px;border-radius:8px;overflow:hidden;background:#080f1a}\n      #downloadModal #exportPreviewCanvas{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}\n      #downloadModal #exportPreviewCanvas canvas{display:block;width:100%!important;height:100%!important;min-width:0;object-fit:contain}\n      #downloadModal #exportPreview:not([data-state=\"ready\"]) canvas{visibility:hidden}\n      #downloadModal #exportPreview[data-state=\"loading\"] .export-preview-image::after{content:\"\";position:absolute;width:28px;height:28px;border:3px solid #40516b;border-top-color:#60a5fa;border-radius:50%;animation:export-preview-spin 1s linear infinite}\n      #downloadModal .export-preview-caption{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;min-height:20px;font-size:12px;line-height:1.4;color:#bac8df}\n      #downloadModal #exportPreview[data-state=\"ready\"] .export-preview-caption{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}\n      #downloadModal #exportPreviewRetryBtn{border:1px solid #60a5fa;border-radius:8px;background:transparent;color:#b8d8ff;padding:8px 12px;font:inherit;cursor:pointer;min-height:40px}\n",
+      "afterSource": "      #downloadModal .export-preview-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}\n      #downloadModal #exportPreview{grid-row:1;margin:0;min-width:0;padding:12px;border:1px solid #40516b;border-radius:14px;background:#101c2d;color:#eaf0ff}\n      #downloadModal .export-preview-heading{display:flex;justify-content:flex-end;margin-bottom:8px;min-height:16px}\n      #downloadModal #exportPreviewFrameLabel{font-size:12px;font-weight:500;color:#bac8df}\n      #downloadModal .export-preview-image{position:relative;display:grid;place-items:center;height:auto;aspect-ratio:var(--export-preview-aspect,16 / 9);min-height:180px;max-height:min(560px,62dvh);border-radius:8px;overflow:hidden;background:#080f1a}\n      #downloadModal #exportPreviewCanvas{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}\n      #downloadModal #exportPreviewCanvas canvas{display:block;width:100%!important;height:100%!important;min-width:0;object-fit:contain}\n      #downloadModal #exportPreview:is([data-state=\"empty\"],[data-state=\"error\"]) canvas{visibility:hidden}\n      #downloadModal .export-preview-credits{margin-top:8px;font-size:11px;line-height:1.45;color:#aebed4}\n      #downloadModal .export-preview-credits summary{cursor:pointer;width:fit-content;padding:4px 0}\n      #downloadModal .export-preview-credits p{margin:5px 0 0}\n      #downloadModal #exportPreview[data-state=\"loading\"] .export-preview-image::after{content:\"\";position:absolute;width:28px;height:28px;border:3px solid #40516b;border-top-color:#60a5fa;border-radius:50%;animation:export-preview-spin 1s linear infinite}\n      #downloadModal .export-preview-caption{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;min-height:20px;font-size:12px;line-height:1.4;color:#bac8df}\n      #downloadModal #exportPreview[data-state=\"ready\"] .export-preview-caption{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}\n      #downloadModal #exportPreviewRetryBtn{border:1px solid #60a5fa;border-radius:8px;background:transparent;color:#b8d8ff;padding:8px 12px;font:inherit;cursor:pointer;min-height:40px}\n",
+      "beforeSha256": "a54add09e3cc1ae4ddb141b47e877a98c39dbaaa860ebdda9bbd919ba42f3b89",
+      "afterSha256": "30f03450fd0b3921adbfeb5169fc625d673f7f14f7ba8ec11fdbd198ef252090"
+    },
+    {
+      "id": "assets-export-preview.js-preview-polish-9",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "        #downloadModal .download-modal-card{width:min(1120px,calc(100vw - 32px))!important}\n        #downloadModal .export-preview-layout{grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:20px}\n        #downloadModal #exportPreview{grid-column:1;grid-row:1;position:sticky;top:0}\n        #downloadModal .export-preview-layout>.download-grid{grid-column:2;grid-row:1;min-height:min(590px,65dvh)}\n        #downloadModal .export-preview-image{height:min(520px,57dvh)}\n      }\n    `;\n    document.head.appendChild(style);\n    const layout = document.createElement(\"div\");\n",
+      "afterSource": "        #downloadModal .download-modal-card{width:min(1120px,calc(100vw - 32px))!important}\n        #downloadModal .export-preview-layout{grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:20px}\n        #downloadModal #exportPreview{grid-column:1;grid-row:1;position:sticky;top:0}\n        #downloadModal .export-preview-layout>.download-grid{grid-column:2;grid-row:1;min-height:min(590px,65dvh)}\n        #downloadModal .export-preview-image{max-height:min(560px,62dvh)}\n      }\n    `;\n    document.head.appendChild(style);\n    const layout = document.createElement(\"div\");\n",
+      "beforeSha256": "29c6e201e7087e3b24ef995fee1f83fa34c02f0d6828f96a24bde0092d977edb",
+      "afterSha256": "9a616bfbb389794f73a6f36885e4df54ae29af0fdb0b731a9c355ea64934704a"
+    },
+    {
+      "id": "assets-export-preview.js-preview-polish-10",
+      "source": "assets/export-preview.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSource": "    preview.id = \"exportPreview\";\n    preview.dataset.state = \"loading\";\n    preview.setAttribute(\"aria-label\", \"Export preview\");\n    preview.innerHTML = `<div class=\"export-preview-heading\"><span id=\"exportPreviewFrameLabel\">First frame</span></div><div class=\"export-preview-image\"><div id=\"exportPreviewCanvas\"></div></div><figcaption class=\"export-preview-caption\"><span id=\"exportPreviewStatus\" role=\"status\" aria-live=\"polite\">Preparing preview…</span><button id=\"exportPreviewRetryBtn\" type=\"button\" hidden>Retry</button></figcaption><div class=\"export-preview-area\"><span id=\"exportPreviewAreaLabel\">Current view</span><button id=\"exportChangeAreaBtn\" type=\"button\">Change area</button></div>`;\n    layout.append(preview, grid);\n    const basic = document.createElement(\"section\");\n    basic.id = \"exportBasicFields\";\n    basic.className = \"export-step-fields\";\n",
+      "afterSource": "    preview.id = \"exportPreview\";\n    preview.dataset.state = \"loading\";\n    preview.setAttribute(\"aria-label\", \"Export preview\");\n    preview.innerHTML = `<div class=\"export-preview-heading\"><span id=\"exportPreviewFrameLabel\">First frame</span></div><div class=\"export-preview-image\"><div id=\"exportPreviewCanvas\"></div></div><figcaption class=\"export-preview-caption\"><span id=\"exportPreviewStatus\" role=\"status\" aria-live=\"polite\">Preparing preview…</span><button id=\"exportPreviewRetryBtn\" type=\"button\" hidden>Retry</button></figcaption><div class=\"export-preview-area\"><span id=\"exportPreviewAreaLabel\">Current view</span><button id=\"exportChangeAreaBtn\" type=\"button\">Change area</button></div>`;\n    const credits = document.createElement(\"details\");\n    credits.className = \"export-preview-credits\";\n    const creditLabel = document.createElement(\"summary\");\n    creditLabel.textContent = \"Map credits\";\n    const creditText = document.createElement(\"p\");\n    creditText.textContent = node(\"exportMapAttribution\")?.textContent || \"Map: Esri and contributors. Local road names: NJOGIS.\";\n    credits.append(creditLabel, creditText);\n    preview.appendChild(credits);\n    layout.append(preview, grid);\n    const basic = document.createElement(\"section\");\n    basic.id = \"exportBasicFields\";\n    basic.className = \"export-step-fields\";\n",
+      "beforeSha256": "ca13b2034ff50055b92d34b6ac4641d994ca483a225cf3be147455fc4e645b02",
+      "afterSha256": "bccf9b578d2e9020dc4400c8056985929b7e6cfd94485317ae6bd6ec929fff39"
+    },
+    {
+      "id": "tools-app-runtime-13-export-range.js-preview-polish-1",
+      "source": "tools/app/runtime/13-export-range.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      const w = Math.max(2, Math.round(width));\n      const h = Math.max(2, Math.round(height));\n      const unit = Math.max(0.125, Math.min(w / 1200, h / 900));\n      const stacked = w < h * 1.1;\n      const footerHeight = Math.max(1, Math.round(Math.min(h * 0.4, (stacked ? 270 : 178) * unit)));\n      const mapHeight = h - footerHeight;\n      const pad = Math.round(24 * unit);\n      const gap = Math.round(16 * unit);\n      const brandWidth = Math.round(240 * unit);\n",
+      "afterSource": "      const w = Math.max(2, Math.round(width));\n      const h = Math.max(2, Math.round(height));\n      const unit = Math.max(0.125, Math.min(w / 1200, h / 900));\n      const stacked = w < h * 1.1;\n      const footerHeight = Math.max(1, Math.round(Math.min(h * 0.4, (stacked ? 270 : 194) * unit)));\n      const mapHeight = h - footerHeight;\n      const pad = Math.round(24 * unit);\n      const gap = Math.round(16 * unit);\n      const brandWidth = Math.round(240 * unit);\n",
+      "beforeSha256": "77180460d9609da8452420d3c66271879baa75a4fb7c9806194d15b8f64be4cb",
+      "afterSha256": "edc466bb2caaf576643696100f9cbfac7b5567f383d4a08f3106356324994221"
+    },
+    {
+      "id": "tools-app-runtime-13-export-range.js-preview-polish-2",
+      "source": "tools/app/runtime/13-export-range.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "        legend: stacked\n          ? { x: pad, y: mapHeight + Math.round(156 * unit), width: w - pad * 2, height: Math.round(90 * unit) }\n          : { x: rightX, y: mapHeight + Math.round(16 * unit), width: w - rightX - pad, height: Math.round(90 * unit) },\n        branding: stacked\n          ? { x: w - pad - brandWidth, y: mapHeight + Math.round(22 * unit), width: brandWidth, height: Math.round(55 * unit) }\n          : { x: rightX, y: mapHeight + Math.round(117 * unit), width: w - rightX - pad, height: Math.round(34 * unit) },\n        attribution: { x: pad, y: h - Math.round(18 * unit), size: Math.max(2, Math.round(9 * unit)) }\n      };\n    }\n\n    function getExportViewportConfigForRatio(ratio, longEdge) {\n",
+      "afterSource": "        legend: stacked\n          ? { x: pad, y: mapHeight + Math.round(156 * unit), width: w - pad * 2, height: Math.round(90 * unit) }\n          : { x: rightX, y: mapHeight + Math.round(16 * unit), width: w - rightX - pad, height: Math.round(90 * unit) },\n        branding: stacked\n          ? { x: w - pad - brandWidth, y: mapHeight + Math.round(22 * unit), width: brandWidth, height: Math.round(80 * unit) }\n          : { x: rightX, y: mapHeight + Math.round(108 * unit), width: w - rightX - pad, height: Math.round(58 * unit) },\n        attribution: { x: pad, y: h - Math.round(18 * unit), size: Math.max(3, Math.round(11 * unit)) }\n      };\n    }\n\n    function getExportViewportConfigForRatio(ratio, longEdge) {\n",
+      "beforeSha256": "1febd9a64e50ce524192ba7031907218f06ef27179b79d297f205ede5dd2881a",
+      "afterSha256": "bc576a44e684a31be350d3fb0abb2d4f93740946197a184d95b0d6a91a4c9251"
+    },
+    {
+      "id": "tools-app-runtime-15-export-capture.js-preview-polish-1",
+      "source": "tools/app/runtime/15-export-capture.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "\n    async function waitForExportChromeReady() {\n      const partner = document.getElementById(\"exportPartnerLogo\");\n      const brand = document.getElementById(\"mapTitlePartnerLogo\");\n      if (partner && !partner.getAttribute?.(\"src\") && brand?.getAttribute?.(\"src\")) {\n        setExportLogoImage(\"exportPartnerLogo\", brand.src, brand.alt || \"ShorelySafe\");\n      }\n      for (const id of [\"exportTownLogo\", \"exportPartnerLogo\"]) {\n        const image = document.getElementById(id);\n        if (image) image.loading = \"eager\";\n",
+      "afterSource": "\n    async function waitForExportChromeReady() {\n      const partner = document.getElementById(\"exportPartnerLogo\");\n      const brand = document.getElementById(\"mapTitlePartnerLogo\");\n      if (partner && !partner.getAttribute?.(\"src\")) {\n        const source = partner.dataset?.exportBrandSrc || brand?.getAttribute?.(\"src\");\n        if (source) setExportLogoImage(\"exportPartnerLogo\", source, brand?.alt || \"ShorelySafe\");\n      }\n      for (const id of [\"exportTownLogo\", \"exportPartnerLogo\"]) {\n        const image = document.getElementById(id);\n        if (image) image.loading = \"eager\";\n",
+      "beforeSha256": "f6d5f1c6926bfc06cc8c364f90586b6f5fe6467c2fc32c990f70544a924da19b",
+      "afterSha256": "c2c659c087367c75b51461d1cb4cdc80c170bb344d9b7d3482398236a9ce8ccf"
+    },
+    {
+      "id": "tools-app-runtime-16-export-map.js-preview-polish-1",
+      "source": "tools/app/runtime/16-export-map.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "              <strong>Depth</strong>\n            </div>\n            <div class=\"export-depth-key-scale\" aria-label=\"${isPhysicsDailyMaximum ? \"Modeled daily maximum flood depth\" : isPhysicsDepth ? \"Modeled depth at this exact time\" : \"Uncertainty areas followed by connected modeled flood depth from shallow to deep\"}\">\n              <div class=\"export-depth-key-gradient\" aria-hidden=\"true\"></div>\n              <div class=\"export-depth-key-ends\" aria-hidden=\"true\">\n                <span>${isPhysicsDailyMaximum ? \"Daily max\" : isPhysicsDepth ? \"Shallow\" : \"Uncertain\"}</span>${isPhysicsDepth ? \"\" : \"<span>Shallow</span>\"}<span>Deep</span>\n              </div>\n            </div>\n          </div>\n",
+      "afterSource": "              <strong>Depth</strong>\n            </div>\n            <div class=\"export-depth-key-scale\" aria-label=\"${isPhysicsDailyMaximum ? \"Modeled daily maximum flood depth\" : isPhysicsDepth ? \"Modeled depth at this exact time\" : \"Uncertainty areas followed by connected modeled flood depth from shallow to deep\"}\">\n              <div class=\"export-depth-key-gradient\" aria-hidden=\"true\"></div>\n              <div class=\"export-depth-key-ends${isPhysicsDepth ? \"\" : \" export-depth-key-ends-three\"}\" aria-hidden=\"true\">\n                <span>${isPhysicsDailyMaximum ? \"Daily max\" : isPhysicsDepth ? \"Shallow\" : \"Uncertain\"}</span>${isPhysicsDepth ? \"\" : \"<span>Shallow</span>\"}<span>Deep</span>\n              </div>\n            </div>\n          </div>\n",
+      "beforeSha256": "9a317a3fe83d5235b0cfa64fdb20b4cf248eeb2d4e68f5b14ccb9123b9640178",
+      "afterSha256": "04f1fd3470ffd631e744e9ca7b79af326b3c518b5142dcd9f2c1786f7f22a6e9"
+    },
+    {
+      "id": "tools-app-runtime-16-export-map.js-preview-polish-2",
+      "source": "tools/app/runtime/16-export-map.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "        logging: false,\n        removeContainer: true,\n        foreignObjectRendering: false,\n        imageTimeout: 20000,\n        ignoreElements: isOutsideExportStage,\n        scale: captureScale\n      });\n    }\n\n",
+      "afterSource": "        logging: false,\n        removeContainer: true,\n        foreignObjectRendering: false,\n        imageTimeout: 20000,\n        ignoreElements: element => isOutsideExportStage(element)\n          || (options.omitAttribution === true && element.id === \"exportMapAttribution\"),\n        scale: captureScale\n      });\n    }\n\n",
+      "beforeSha256": "8259124e3394a856a9c55ec7fdf8057765794754f7e2354fe0878c19d0f35e0f",
+      "afterSha256": "4f9396f00e31e53bc41c7db45e05b7b4dde4b26e9fd5ed5e6e0d4860b243105c"
+    },
+    {
+      "id": "tools-app-styles-style-081.css-preview-polish-1",
+      "source": "tools/app/styles/style-081.css",
+      "kind": "style",
+      "entryId": "style-081",
+      "beforeSource": "  #exportStageFrame #exportFooter :is(#exportTimestampLabel,#exportLegendDock,#exportLogoStrip) {position:absolute !important;right:auto !important;bottom:auto !important;transform:none !important;min-width:0 !important;max-width:none !important;min-height:0 !important;margin:0 !important;padding:0 !important;border:0 !important;border-radius:0 !important;background:transparent !important;box-shadow:none !important;box-sizing:border-box !important;overflow:hidden !important;}\n  #exportStageFrame #exportFooter #exportTimestampLabel {text-align:left !important;white-space:normal !important;}\n  #exportStageFrame #exportFooter #exportTimestampLabel span {position:absolute;left:0;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0;}\n  #exportStageFrame #exportFooter #exportLogoStrip {display:flex;align-items:center;justify-content:flex-end;gap:var(--export-footer-gap) !important;}\n  #exportStageFrame #exportFooter .export-stage-logo {width:auto !important;height:auto !important;min-width:0 !important;max-width:48% !important;max-height:100% !important;object-fit:contain !important;}\n  #exportStageFrame #exportFooter .export-stage-logo:only-child {max-width:100% !important;}\n  #exportStageFrame #exportFooter .export-depth-key {display:grid;gap:var(--export-key-gap) !important;}\n  #exportStageFrame #exportFooter .export-depth-key-heading strong {font-size:var(--export-key-title) !important;line-height:1.25 !important;font-weight:750 !important;letter-spacing:0 !important;}\n  #exportStageFrame #exportFooter .export-depth-key-scale {display:grid;gap:var(--export-key-gap) !important;}\n  #exportStageFrame #exportFooter .export-depth-key-gradient {height:var(--export-key-bar) !important;border-width:1px !important;}\n  #exportStageFrame #exportFooter .export-depth-key-ends {font-size:var(--export-key-label) !important;line-height:1.2 !important;letter-spacing:0 !important;text-transform:none !important;}\n  #exportStageFrame #exportFooter .export-depth-key-ends {position:relative;}\n  #exportStageFrame #exportFooter .export-depth-key-ends span {white-space:nowrap;}\n  #exportStageFrame #exportFooter .export-depth-key-ends span:nth-child(2):not(:last-child) {position:absolute;left:calc(18% + 8px);}\n  #exportStageFrame #exportFooter .export-depth-key-note {display:none !important;}\n  @layer floodmapper-unified-base {\n    html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock .stage-legend-scale {font-size:var(--export-key-label) !important;line-height:1.2 !important;gap:var(--export-footer-gap) !important;}\n    html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock :is(.stage-legend-green,.stage-legend-gradient) {height:var(--export-key-bar) !important;margin-top:var(--export-key-gap) !important;border-width:1px !important;}\n",
+      "afterSource": "  #exportStageFrame #exportFooter :is(#exportTimestampLabel,#exportLegendDock,#exportLogoStrip) {position:absolute !important;right:auto !important;bottom:auto !important;transform:none !important;min-width:0 !important;max-width:none !important;min-height:0 !important;margin:0 !important;padding:0 !important;border:0 !important;border-radius:0 !important;background:transparent !important;box-shadow:none !important;box-sizing:border-box !important;overflow:hidden !important;}\n  #exportStageFrame #exportFooter #exportTimestampLabel {text-align:left !important;white-space:normal !important;}\n  #exportStageFrame #exportFooter #exportTimestampLabel span {position:absolute;left:0;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0;}\n  #exportStageFrame #exportFooter #exportLogoStrip {display:flex;align-items:center;justify-content:flex-end;gap:var(--export-footer-gap) !important;}\n  #exportStageFrame #exportFooter .export-stage-logo {width:auto !important;height:auto !important;min-width:0 !important;max-width:100% !important;max-height:100% !important;object-fit:contain !important;flex-shrink:1;}\n  #exportStageFrame #exportFooter .export-depth-key {display:grid;gap:var(--export-key-gap) !important;}\n  #exportStageFrame #exportFooter .export-depth-key-heading strong {font-size:var(--export-key-title) !important;line-height:1.25 !important;font-weight:750 !important;letter-spacing:0 !important;}\n  #exportStageFrame #exportFooter .export-depth-key-scale {display:grid;gap:var(--export-key-gap) !important;}\n  #exportStageFrame #exportFooter .export-depth-key-gradient {height:var(--export-key-bar) !important;border-width:1px !important;}\n  #exportStageFrame #exportFooter .export-depth-key-ends {font-size:var(--export-key-label) !important;line-height:1.2 !important;letter-spacing:0 !important;text-transform:none !important;}\n  #exportStageFrame #exportFooter .export-depth-key-ends {position:relative;gap:var(--export-footer-gap) !important;}\n  #exportStageFrame #exportFooter .export-depth-key-ends-three {display:grid !important;grid-template-columns:minmax(max-content,18%) minmax(max-content,1fr) max-content;align-items:center;}\n  #exportStageFrame #exportFooter .export-depth-key-ends span {white-space:nowrap;}\n  #exportStageFrame #exportFooter .export-depth-key-ends-three span:nth-child(2) {position:static;justify-self:start;}\n  #exportStageFrame #exportFooter .export-depth-key-ends-three span:last-child {justify-self:end;}\n  #exportStageFrame #exportFooter .export-depth-key-note {display:none !important;}\n  @layer floodmapper-unified-base {\n    html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock .stage-legend-scale {font-size:var(--export-key-label) !important;line-height:1.2 !important;gap:var(--export-footer-gap) !important;}\n    html body[data-shorelysafe-ui] #exportStageFrame #exportFooter #exportLegendDock :is(.stage-legend-green,.stage-legend-gradient) {height:var(--export-key-bar) !important;margin-top:var(--export-key-gap) !important;border-width:1px !important;}\n",
+      "beforeSha256": "4183c6b091045ca65b0606f9edaa19bd87a35d871669591ae9de8d696b3b0ea4",
+      "afterSha256": "51d31e6782e286d2a1f2ac31ab9d45de2961d9ee17995a81467b256a7d2a17e2"
+    },
+    {
+      "id": "tools-app-index.template.html-preview-polish-1",
+      "source": "tools/app/index.template.html",
+      "kind": "template",
+      "entryId": null,
+      "beforeSource": "<!-- nww:style:style-012 -->\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-layers.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-controls.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-calendar.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-type.css?v=20261021-tablet1\">\n<!-- Load the complete layout before rendering any controls. -->\n<!-- nww:style:style-013 -->\n<!-- nww:style:style-014 -->\n",
+      "afterSource": "<!-- nww:style:style-012 -->\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-layers.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-controls.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-calendar.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/export-date-time-picker.css?v=9a8f640254cba6b4\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-type.css?v=20261021-tablet1\">\n<!-- Load the complete layout before rendering any controls. -->\n<!-- nww:style:style-013 -->\n<!-- nww:style:style-014 -->\n",
+      "beforeSha256": "48d0dff01509dc9109ae043db16679677b3fbb2c7407bffe4cffe304f7bb8343",
+      "afterSha256": "95ba2a6ce76dd3f3125c0f61b8118521a3af04365c6df1910169530bc261bb48"
+    },
+    {
+      "id": "tools-app-index.template.html-preview-polish-2",
+      "source": "tools/app/index.template.html",
+      "kind": "template",
+      "entryId": null,
+      "beforeSource": "      <div id=\"exportMap\" class=\"export-stage-map\"></div>\n      <div id=\"exportFooter\" class=\"export-stage-footer\">\n      <div id=\"exportLogoStrip\" class=\"export-stage-logo-strip\" aria-hidden=\"true\">\n        <img id=\"exportTownLogo\" class=\"export-stage-logo export-stage-logo-town\" src=\"\" alt=\"\" loading=\"lazy\" decoding=\"async\" style=\"display:none;\" />\n        <img id=\"exportPartnerLogo\" class=\"export-stage-logo export-stage-logo-shorelysafe\" src=\"\" alt=\"\" loading=\"lazy\" decoding=\"async\" style=\"display:none;\" />\n      </div>\n      <section id=\"exportLegendDock\" class=\"export-stage-legend\"></section>\n      <div id=\"exportTimestampLabel\" class=\"export-stage-timestamp\">--</div>\n      </div>\n      <div id=\"exportMapAttribution\" style=\"position:absolute;left:6px;bottom:6px;z-index:900;max-width:calc(100% - 12px);padding:2px 4px;background:rgba(255,255,255,.88);color:#263445;font:12px/1.2 Arial,sans-serif;pointer-events:none;\">Map: Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors · Local road names: NJOGIS</div>\n    </div>\n  </div>\n\n\n",
+      "afterSource": "      <div id=\"exportMap\" class=\"export-stage-map\"></div>\n      <div id=\"exportFooter\" class=\"export-stage-footer\">\n      <div id=\"exportLogoStrip\" class=\"export-stage-logo-strip\" aria-hidden=\"true\">\n        <img id=\"exportTownLogo\" class=\"export-stage-logo export-stage-logo-town\" src=\"\" alt=\"\" loading=\"lazy\" decoding=\"async\" style=\"display:none;\" />\n        <img id=\"exportPartnerLogo\" class=\"export-stage-logo export-stage-logo-shorelysafe\" data-export-brand-src=\"./assets/shorelysafe-logo-export.jpg\" src=\"\" alt=\"\" loading=\"lazy\" decoding=\"async\" style=\"display:none;\" />\n      </div>\n      <section id=\"exportLegendDock\" class=\"export-stage-legend\"></section>\n      <div id=\"exportTimestampLabel\" class=\"export-stage-timestamp\">--</div>\n      </div>\n      <div id=\"exportMapAttribution\" style=\"position:absolute;left:6px;bottom:6px;z-index:900;max-width:calc(100% - 12px);padding:2px 4px;background:rgba(255,255,255,.88);color:#263445;font-family:inherit;font-size:12px;line-height:1.2;pointer-events:none;\">Map: Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors · Local road names: NJOGIS</div>\n    </div>\n  </div>\n\n\n",
+      "beforeSha256": "d80ceeb249f7991787ca3365e239097e6a4a49e4d17b1529c24a490789895372",
+      "afterSha256": "7514bb2bdbd66c6b35e6f5677029618a16f2c70f5e5b4fd8fa0b806375eebcd8"
+    },
+    {
+      "id": "tools-app-index.template.html-preview-polish-3",
+      "source": "tools/app/index.template.html",
+      "kind": "template",
+      "entryId": null,
+      "beforeSource": "\n<script defer src=\"assets/north-wildwood-mobile.js?v=20261026-holistic1\"></script>\n\n<script src=\"assets/export-area.js?v=20261023-3\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=20261026-holistic1\" id=\"floodmapper-export-preview\"></script>\n\n\n\n<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay / flood camera\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue beach\",\"short\":\"15th Avenue beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n",
+      "afterSource": "\n<script defer src=\"assets/north-wildwood-mobile.js?v=20261026-holistic1\"></script>\n\n<script src=\"assets/export-area.js?v=20261023-3\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=ec4a166266cddc38\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=2ec97d8f2362ce74\" id=\"floodmapper-export-date-time-picker\"></script>\n\n\n\n<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay / flood camera\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue beach\",\"short\":\"15th Avenue beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n",
+      "beforeSha256": "186ca924972139850f3007b018ded5892c07abbf38f18547912f73669a2ea1fc",
+      "afterSha256": "c02f6d08df4e64873b3719688edd00f45aafb6280e3a678c2cf28cca286c7d3a"
+    }
+  ],
+  "tags": {
+    "preview": {
+      "before": [
+        "<script defer src=\"assets/export-preview.js?v=20261026-holistic1\" id=\"floodmapper-export-preview\"></script>"
+      ],
+      "after": [
+        "<script defer src=\"assets/export-preview.js?v=ec4a166266cddc38\" id=\"floodmapper-export-preview\"></script>"
+      ]
+    },
+    "pickerScript": {
+      "before": [],
+      "after": [
+        "<script defer src=\"assets/export-date-time-picker.js?v=2ec97d8f2362ce74\" id=\"floodmapper-export-date-time-picker\"></script>"
+      ]
+    },
+    "pickerStyle": {
+      "before": [],
+      "after": [
+        "<link rel=\"stylesheet\" href=\"assets/export-date-time-picker.css?v=9a8f640254cba6b4\">"
+      ]
+    }
+  }
+}

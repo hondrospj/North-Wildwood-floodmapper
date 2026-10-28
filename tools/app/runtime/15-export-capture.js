@@ -31,8 +31,9 @@
     async function waitForExportChromeReady() {
       const partner = document.getElementById("exportPartnerLogo");
       const brand = document.getElementById("mapTitlePartnerLogo");
-      if (partner && !partner.getAttribute?.("src") && brand?.getAttribute?.("src")) {
-        setExportLogoImage("exportPartnerLogo", brand.src, brand.alt || "ShorelySafe");
+      if (partner && !partner.getAttribute?.("src")) {
+        const source = partner.dataset?.exportBrandSrc || brand?.getAttribute?.("src");
+        if (source) setExportLogoImage("exportPartnerLogo", source, brand?.alt || "ShorelySafe");
       }
       for (const id of ["exportTownLogo", "exportPartnerLogo"]) {
         const image = document.getElementById(id);

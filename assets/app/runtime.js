@@ -5988,7 +5988,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       const h = Math.max(2, Math.round(height));
       const unit = Math.max(0.125, Math.min(w / 1200, h / 900));
       const stacked = w < h * 1.1;
-      const footerHeight = Math.max(1, Math.round(Math.min(h * 0.4, (stacked ? 270 : 178) * unit)));
+      const footerHeight = Math.max(1, Math.round(Math.min(h * 0.4, (stacked ? 270 : 194) * unit)));
       const mapHeight = h - footerHeight;
       const pad = Math.round(24 * unit);
       const gap = Math.round(16 * unit);
@@ -6003,9 +6003,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
           ? { x: pad, y: mapHeight + Math.round(156 * unit), width: w - pad * 2, height: Math.round(90 * unit) }
           : { x: rightX, y: mapHeight + Math.round(16 * unit), width: w - rightX - pad, height: Math.round(90 * unit) },
         branding: stacked
-          ? { x: w - pad - brandWidth, y: mapHeight + Math.round(22 * unit), width: brandWidth, height: Math.round(55 * unit) }
-          : { x: rightX, y: mapHeight + Math.round(117 * unit), width: w - rightX - pad, height: Math.round(34 * unit) },
-        attribution: { x: pad, y: h - Math.round(18 * unit), size: Math.max(2, Math.round(9 * unit)) }
+          ? { x: w - pad - brandWidth, y: mapHeight + Math.round(22 * unit), width: brandWidth, height: Math.round(80 * unit) }
+          : { x: rightX, y: mapHeight + Math.round(108 * unit), width: w - rightX - pad, height: Math.round(58 * unit) },
+        attribution: { x: pad, y: h - Math.round(18 * unit), size: Math.max(3, Math.round(11 * unit)) }
       };
     }
 
@@ -7452,8 +7452,9 @@ function updateExportSegmentedUI() {
     async function waitForExportChromeReady() {
       const partner = document.getElementById("exportPartnerLogo");
       const brand = document.getElementById("mapTitlePartnerLogo");
-      if (partner && !partner.getAttribute?.("src") && brand?.getAttribute?.("src")) {
-        setExportLogoImage("exportPartnerLogo", brand.src, brand.alt || "ShorelySafe");
+      if (partner && !partner.getAttribute?.("src")) {
+        const source = partner.dataset?.exportBrandSrc || brand?.getAttribute?.("src");
+        if (source) setExportLogoImage("exportPartnerLogo", source, brand?.alt || "ShorelySafe");
       }
       for (const id of ["exportTownLogo", "exportPartnerLogo"]) {
         const image = document.getElementById(id);
@@ -8031,7 +8032,7 @@ function updateExportSegmentedUI() {
             </div>
             <div class="export-depth-key-scale" aria-label="${isPhysicsDailyMaximum ? "Modeled daily maximum flood depth" : isPhysicsDepth ? "Modeled depth at this exact time" : "Uncertainty areas followed by connected modeled flood depth from shallow to deep"}">
               <div class="export-depth-key-gradient" aria-hidden="true"></div>
-              <div class="export-depth-key-ends" aria-hidden="true">
+              <div class="export-depth-key-ends${isPhysicsDepth ? "" : " export-depth-key-ends-three"}" aria-hidden="true">
                 <span>${isPhysicsDailyMaximum ? "Daily max" : isPhysicsDepth ? "Shallow" : "Uncertain"}</span>${isPhysicsDepth ? "" : "<span>Shallow</span>"}<span>Deep</span>
               </div>
             </div>
@@ -8378,7 +8379,8 @@ function updateExportSegmentedUI() {
         removeContainer: true,
         foreignObjectRendering: false,
         imageTimeout: 20000,
-        ignoreElements: isOutsideExportStage,
+        ignoreElements: element => isOutsideExportStage(element)
+          || (options.omitAttribution === true && element.id === "exportMapAttribution"),
         scale: captureScale
       });
     }
