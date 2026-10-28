@@ -1,0 +1,76 @@
+name: Refresh North Wildwood deployed data without changing UI
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Validate the generated-data overlay without publication
+        type: boolean
+        required: false
+        default: false
+  workflow_run:
+    workflows:
+      - Update North Wildwood city gauge archive
+      - Update North Wildwood observed
+      - Update North Wildwood forecast
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: shorelysafe-publish
+  cancel-in-progress: false
+jobs:
+  refresh-data:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       vars.SHORELYSAFE_DATA_PUBLICATION_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          lfs: false
+          persist-credentials: false
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.shorelysafe/apps.json
+            /.shorelysafe/publish_generated_data.py
+            /tools/release_gate.py
+            /tools/release_data.py
+            /tools/release_schemas.py
+            /tools/observation_quality.py
+            /tools/validate_observed_contract.py
+            /forecast.json
+            /data/experimental_petss_guidance.json
+            /observed.json
+            /observed15min.json
+            /stone_harbor_observed15min.json
+            /toptides.json
+            /observed_archive_index.json
+            /lewes_archive_index.json
+            /lewes_hourly.json
+            /observed_archive/**/*.json
+            /city-gauge/data/**/*.json
+            /city-gauge/comparison/**/*.json
+      - name: Validate and publish generated data over the current deployed UI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHORELYSAFE_TOKEN: ${{ secrets.SHORELYSAFE_PUBLISH_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            python3 .shorelysafe/publish_generated_data.py --app floodmapper--north-wildwood --dry-run
+          else
+            python3 .shorelysafe/publish_generated_data.py --app floodmapper--north-wildwood
+          fi
+      - name: Retain data-contract and UI-preservation receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: north-wildwood-data-overlay-receipt
+          path: data-overlay-publication-receipt.json
+          if-no-files-found: ignore
