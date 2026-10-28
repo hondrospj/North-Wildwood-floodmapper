@@ -135,7 +135,7 @@ const hostedMetrics30={
   'New Jersey Ave':260.1708984375,'Delaware Ave':231.3720703125,
   'Atlantic Ave':204.345703125,'Ocean Ave':177.7294921875,'E 2nd Ave':167.138671875
 };
-for (let shortWidth=134;shortWidth<=142;shortWidth++) {
+for (const shortWidth of [...Array.from({length:9},(_,index)=>134+index),139.4453125]) {
   const metrics=(text,size)=>text==='W Spruce'?shortWidth*size/26
     :hostedMetrics30[text]?hostedMetrics30[text]*size/30:text.length*size*.52*1.2;
   const labels=layout(realPaths,hostedProject,{x:2160,y:1674},{unit:2},metrics);
