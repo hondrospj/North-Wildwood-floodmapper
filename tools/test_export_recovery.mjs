@@ -10,7 +10,7 @@ function extract(name) {
   return match[0];
 }
 function context(name, mocks) {
-  const ctx = vm.createContext({setTimeout, clearTimeout, setInterval, clearInterval, ...mocks});
+  const ctx = vm.createContext({setTimeout, clearTimeout, setInterval, clearInterval, URL, ...mocks});
   if (name === 'waitForExportRasterLayerReady') vm.runInContext(extract('retryExportRasterLayerTiles'), ctx);
   vm.runInContext(extract(name), ctx);
   return ctx;
@@ -92,11 +92,167 @@ for (const outcome of ['cached', 'error', 'preload-error']) {
     preloadImage:async()=> outcome === 'preload-error' ? null : 'flood.webp',
     throwIfExportCancelled:noop,exportMap:{hasLayer:()=>false},exportFloodLayer:null,
     overlayOpacity:0.75,currentDataMode:'forecast',currentRawSeriesHours:[],
+    APP_BASE:new URL('https://example.test/mapper/'),floodOverlayGeometryMode:'axis-aligned',
+    floodLatLngBounds:{getSouth:()=>39,getWest:()=>-75,getNorth:()=>40,getEast:()=>-74},
+    getConfiguredWorldFileCornersLatLng:()=>null,
     createHydraulicImageOverlay:()=>layer,
   });
   if (outcome === 'cached') await ctx.setExportFloodLayer('depth', 5);
   else await assert.rejects(ctx.setExportFloodLayer('depth', 5), /flood image could not load/);
   assert.equal(handlers.size, 0, 'Remove image listeners on success and failure');
+}
+
+// A successfully decoded export frame belongs to one renderer and one complete
+// source/geometry identity. Changing its aspect must keep that actual image;
+// URL-only caching still creates the redundant image request that stalled on
+// hosted Windows. Reuse must never conceal a changed, failed or pending frame.
+function floodFrameHarness({affine=true,url='flood.webp'}={}) {
+  const bounds=(south=39,west=-75,north=40,east=-74)=>({getSouth:()=>south,getWest:()=>west,getNorth:()=>north,getEast:()=>east});
+  const state={url,bounds:bounds(),corners:affine?[{lat:40,lng:-75},{lat:40.1,lng:-74},{lat:39,lng:-73.9},{lat:38.9,lng:-75}]:null,
+    pixels:{width:2186,height:2824},geometryMode:affine?'world-file':'axis-aligned',physics:false,cancelled:false,outcome:'cached',preload:true};
+  const counts={created:0,preloads:0,adds:0,removes:0,opacity:0},layers=[],attached=new Set(),timers=new Map(),intervals=new Map();
+  let timerId=0,ctx;
+  const map={hasLayer:layer=>attached.has(layer),removeLayer:layer=>{counts.removes++;attached.delete(layer);layer._map=null;}};
+  const make=(url,extent,options,kind)=>{
+    counts.created++;
+    const handlers=new Map(),image={complete:false,naturalWidth:0,naturalHeight:0};
+    const layer={_url:url,options:{...options},bounds:extent,kind,_map:null,
+      _worldFileAffine:kind==='hydraulic'&&!!state.corners,
+      _worldFileCorners:kind==='hydraulic'&&state.corners?state.corners.map(point=>({...point})):undefined,
+      _pixelWidth:state.pixels.width,_pixelHeight:state.pixels.height,
+      once(name,handler){handlers.set(name,handler);return this;},off(name){handlers.delete(name);return this;},
+      getElement:()=>image,getBounds(){return this.bounds;},
+      setOpacity(value){counts.opacity++;this.options.opacity=value;return this;},
+      addTo(target){
+        assert.equal(target,ctx.exportMap);counts.adds++;attached.add(this);this._map=target;
+        if(image.complete&&image.naturalWidth>0)return this;
+        if(state.outcome==='pending')return this;
+        if(state.outcome==='invalid-load'){handlers.get('load')?.();return this;}
+        image.complete=true;image.naturalWidth=state.outcome==='error'?0:2186;image.naturalHeight=image.naturalWidth?2824:0;
+        handlers.get(state.outcome==='error'?'error':'load')?.();return this;
+      },handlers,image,
+    };
+    layers.push(layer);return layer;
+  };
+  ctx=context('setExportFloodLayer',{
+    APP_BASE:new URL('https://example.test/mapper/'),
+    ensureExportMap:noop,exportMap:map,exportFloodLayer:null,overlayOpacity:.75,
+    currentDataMode:'forecast',currentRawSeriesHours:[],floodLatLngBounds:state.bounds,floodOverlayGeometryMode:state.geometryMode,
+    getPhysicsAssetForEntry:()=>state.physics?{}:null,getPhysicsDisplayRecord:asset=>asset?{url:state.url}:null,
+    getActivePhysicsManifest:()=>({boundsWgs84:[[state.bounds.getSouth(),state.bounds.getWest()],[state.bounds.getNorth(),state.bounds.getEast()]]}),
+    getHydraulicOverlayRecord:async()=>({url:state.url}),
+    ensureOverlayBounds:async()=>{ctx.floodLatLngBounds=state.bounds;ctx.floodOverlayGeometryMode=state.geometryMode;},
+    getConfiguredWorldFileCornersLatLng:()=>state.corners?.map(point=>({...point}))||null,
+    getWorldFileRasterSize:()=>({...state.pixels}),
+    preloadImage:async()=>{counts.preloads++;return typeof state.preload==='function'?state.preload():state.preload?state.url:null;},
+    throwIfExportCancelled:()=>{if(state.cancelled)throw Object.assign(Error('Export cancelled'),{name:'AbortError'});},
+    createHydraulicImageOverlay:(url,options)=>make(url,ctx.floodLatLngBounds,options,'hydraulic'),
+    L:{imageOverlay:(url,extent,options)=>make(url,extent,options,'physics'),latLngBounds:(sw,ne)=>bounds(sw[0],sw[1],ne[0],ne[1])},
+    setTimeout:(callback,delay)=>{assert.equal(delay,20000);const id=++timerId;timers.set(id,callback);return id;},
+    clearTimeout:id=>timers.delete(id),
+    setInterval:(callback,delay)=>{assert.equal(delay,100);const id=++timerId;intervals.set(id,callback);return id;},
+    clearInterval:id=>intervals.delete(id),
+  });
+  return{ctx,state,counts,layers,map,bounds,timers,intervals};
+}
+
+for(const affine of [false,true]) {
+  const h=floodFrameHarness({affine});await h.ctx.setExportFloodLayer('depth',5);
+  const layer=h.ctx.exportFloodLayer,image=layer.getElement();assert.equal(layer._nwwExportFloodReady,true);
+  h.ctx.overlayOpacity=.42;
+  await h.ctx.setExportFloodLayer('depth',5);
+  assert.equal(h.ctx.exportFloodLayer,layer);assert.equal(layer.getElement(),image);
+  assert.equal(layer.options.opacity,.42);assert.equal(h.counts.created,1);assert.equal(h.counts.preloads,1);assert.equal(h.counts.adds,1);
+  h.map.removeLayer(layer);
+  await h.ctx.setExportFloodLayer('depth',5);
+  assert.equal(h.ctx.exportFloodLayer,layer);assert.equal(layer.getElement(),image);assert.equal(h.map.hasLayer(layer),true);
+  assert.equal(h.counts.created,1);assert.equal(h.counts.preloads,1);assert.equal(h.counts.adds,2);
+  h.state.url='https://example.test/mapper/flood.webp';
+  await h.ctx.setExportFloodLayer('depth',5);
+  assert.equal(h.ctx.exportFloodLayer,layer,'Relative and absolute spellings of the same resolved URL share the decoded image');
+  assert.equal(h.counts.created,1);
+  assert.equal(h.timers.size+h.intervals.size+layer.handlers.size,0);
+}
+
+for(const mutation of ['source','bounds','corners','pixels','geometry-mode','geometry-kind','class','physics-kind','overlay-mode',
+  'native-source','native-bounds','native-corners','native-pixels','native-class','native-pane','native-map','native-affine','owner','pending-image','error-image','unverified-layer']) {
+  const h=floodFrameHarness({affine:!['bounds','physics-kind'].includes(mutation)});
+  await h.ctx.setExportFloodLayer('depth',5);const original=h.ctx.exportFloodLayer;
+  let mode='depth';
+  if(mutation==='source')h.state.url='next.webp';
+  if(mutation==='bounds')h.state.bounds=h.bounds(38,-75,40,-74);
+  if(mutation==='corners')h.state.corners[0].lat+=.01;
+  if(mutation==='pixels')h.state.pixels.width+=1;
+  if(mutation==='geometry-mode')h.state.geometryMode='axis-aligned';
+  if(mutation==='geometry-kind')h.state.corners=null;
+  if(mutation==='class')h.ctx.currentDataMode='return-interval';
+  if(mutation==='physics-kind')h.state.physics=true;
+  if(mutation==='overlay-mode')mode='dynamic';
+  if(mutation==='native-source')original._url='external.webp';
+  if(mutation==='native-bounds')original.bounds=h.bounds(38,-75,40,-74);
+  if(mutation==='native-corners')original._worldFileCorners[0].lat+=.01;
+  if(mutation==='native-pixels')original._pixelHeight+=1;
+  if(mutation==='native-class')original.options.className='external-class';
+  if(mutation==='native-pane')original.options.pane='differentPane';
+  if(mutation==='native-map')original._map={};
+  if(mutation==='native-affine')original._worldFileAffine=false;
+  if(mutation==='owner')original._nwwExportFloodOwner={};
+  if(mutation==='pending-image'){original.image.complete=false;original.image.naturalWidth=0;}
+  if(mutation==='error-image')original.image.naturalWidth=0;
+  if(mutation==='unverified-layer')original._nwwExportFloodReady=false;
+  await h.ctx.setExportFloodLayer(mode,5);
+  assert.notEqual(h.ctx.exportFloodLayer,original,`${mutation} must load its actual image instead of reusing stale frame state`);
+  assert.equal(h.counts.created,2);assert.equal(h.counts.preloads,2);
+}
+
+// Physics frames remain axis aligned even where the hydraulic catalog has an
+// affine grid, and two physics URLs/bounds must not alias one another.
+{
+  const h=floodFrameHarness();h.state.physics=true;
+  await h.ctx.setExportFloodLayer('depth',5);const original=h.ctx.exportFloodLayer;
+  assert.equal(original._worldFileAffine,false);await h.ctx.setExportFloodLayer('depth',5);assert.equal(h.ctx.exportFloodLayer,original);
+  h.state.bounds=h.bounds(38,-75,40,-74);await h.ctx.setExportFloodLayer('depth',5);assert.notEqual(h.ctx.exportFloodLayer,original);
+}
+for(const url of ['blob:https://example.test/same-frame','data:image/png;base64,same-frame']) {
+  const h=floodFrameHarness({url});await h.ctx.setExportFloodLayer('depth',5);const original=h.ctx.exportFloodLayer;
+  await h.ctx.setExportFloodLayer('depth',5);assert.equal(h.ctx.exportFloodLayer,original);assert.equal(h.counts.created,1);
+}
+
+for(const failure of ['timeout','cancel','error','invalid-load']) {
+  const h=floodFrameHarness();h.state.outcome=['timeout','cancel'].includes(failure)?'pending':failure;
+  const pending=h.ctx.setExportFloodLayer('depth',5);
+  const rejected=assert.rejects(pending,failure==='cancel'?/cancelled/:/flood image could not load/);
+  await new Promise(resolve=>setImmediate(resolve));
+  if(failure==='timeout'){assert.equal(h.timers.size,1);[...h.timers.values()][0]();}
+  if(failure==='cancel'){h.state.cancelled=true;[...h.intervals.values()][0]();}
+  await rejected;
+  const failed=h.ctx.exportFloodLayer;assert.equal(failed._nwwExportFloodReady,false);
+  assert.equal(h.timers.size+h.intervals.size+failed.handlers.size,0,'New-frame failures clean deadline/cancel timers and listeners');
+  h.state.cancelled=false;h.state.outcome='cached';
+  await h.ctx.setExportFloodLayer('depth',5);assert.notEqual(h.ctx.exportFloodLayer,failed);assert.equal(h.counts.created,2);
+}
+{
+  const h=floodFrameHarness();await h.ctx.setExportFloodLayer('depth',5);const original=h.ctx.exportFloodLayer;
+  h.state.cancelled=true;
+  await assert.rejects(h.ctx.setExportFloodLayer('depth',5),/cancelled/);
+  assert.equal(h.ctx.exportFloodLayer,original);assert.equal(h.counts.created,1);assert.equal(h.counts.preloads,1);
+}
+{
+  const h=floodFrameHarness();await h.ctx.setExportFloodLayer('depth',5);const original=h.ctx.exportFloodLayer;
+  h.state.url='unavailable-next-frame.webp';h.state.preload=false;
+  await assert.rejects(h.ctx.setExportFloodLayer('depth',5),/flood image could not load/);
+  assert.equal(h.ctx.exportFloodLayer,original);assert.equal(h.map.hasLayer(original),true);
+  assert.equal(original._nwwExportFloodReady,true,'A failed new source must retain the prior complete export frame');
+  h.state.url='flood.webp';h.state.preload=true;
+  await h.ctx.setExportFloodLayer('depth',5);assert.equal(h.ctx.exportFloodLayer,original);
+  assert.equal(h.counts.created,1);assert.equal(h.counts.preloads,2,'Returning to the retained ready frame bypasses another preload');
+}
+{
+  const h=floodFrameHarness();let release;
+  h.state.preload=()=>new Promise(resolve=>{release=resolve;});
+  const pending=h.ctx.setExportFloodLayer('depth',5);await new Promise(resolve=>setImmediate(resolve));
+  h.state.cancelled=true;release('flood.webp');await assert.rejects(pending,/cancelled/);
+  assert.equal(h.counts.created,0,'Cancel during shared preload cannot install a fresh image');
 }
 
 const frameImage = context('getExportFrameImage', {
@@ -222,4 +378,4 @@ assert.equal(clone.isOutsideExportStage(stage),false);
 assert.equal(clone.isOutsideExportStage(element('STYLE')),false);
 assert.equal(clone.isOutsideExportStage(element('LINK')),false);
 assert.equal(clone.isOutsideExportStage({parentElement:{},tagName:'DIV'}),false);
-console.log('PASS export recovery: interrupted captures, fitted-camera road visibility, missing images, vector/raster readiness, safe fallback, cancellation, worker retry and inline logos.');
+console.log('PASS export recovery: interrupted captures, fitted-camera road visibility, owned ready-frame/image reuse, affine/axis/source/physics/class identity, opacity and detached re-add, changed/pending/failed frame rejection, unchanged20s deadline and cancellation, missing images, vector/raster readiness, safe fallback, worker retry and inline logos.');

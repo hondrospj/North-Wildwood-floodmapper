@@ -8138,6 +8138,7 @@ function updateExportSegmentedUI() {
     }
 
     async function setExportFloodLayer(mode, stageValue, phase = "slack", entry = null, series = currentRawSeriesHours) {
+      throwIfExportCancelled();
       ensureExportMap();
       const physicsRecord = mode === "depth" ? getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode) : null;
       let overlayUrl = "";
@@ -8157,10 +8158,50 @@ function updateExportSegmentedUI() {
         overlayUrl = match.url;
         await ensureOverlayBounds(overlayUrl);
       }
+      throwIfExportCancelled();
+      const resolvedUrl = new URL(overlayUrl, APP_BASE).href;
+      const className = currentDataMode === "return-interval" && mode === "depth"
+        ? "return-interval-depth-overlay" : "";
+      // Reusing the decoded image avoids another browser image request for
+      // an unchanged frame when only the export area/aspect has changed.
+      // Geometry is compared by value, including the complete affine grid.
+      const geometryIdentity = (layer = null) => {
+        const bounds = layer ? layer.getBounds?.() : floodLatLngBounds;
+        const extent = bounds && [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()];
+        if (!extent?.every(Number.isFinite)) return null;
+        const corners = layer
+          ? layer._worldFileAffine === true ? layer._worldFileCorners : null
+          : physicsRecord?.url ? null : getConfiguredWorldFileCornersLatLng();
+        const affine = layer ? layer._worldFileAffine === true : Boolean(corners);
+        if (!affine) return { extent, affine: false };
+        if (!Array.isArray(corners) || corners.length !== 4) return null;
+        const coordinates = corners.map(corner => [corner.lat, corner.lng]);
+        const size = layer ? { width: layer._pixelWidth, height: layer._pixelHeight } : getWorldFileRasterSize();
+        if (!coordinates.every(point => point.every(Number.isFinite)) || ![size.width,size.height].every(value => Number.isFinite(value) && value > 0)) return null;
+        return { extent, affine: true, coordinates, width: size.width, height: size.height };
+      };
+      const geometry = geometryIdentity();
+      const identity = JSON.stringify({ url: resolvedUrl, kind: physicsRecord?.url ? "physics" : "hydraulic",
+        mode, className, geometryMode: floodOverlayGeometryMode, geometry });
+      const previousLayer = exportFloodLayer;
+      const previousImage = previousLayer?.getElement?.();
+      if (geometry && previousLayer?._nwwExportFloodReady === true && previousLayer._nwwExportFloodOwner === exportMap
+          && previousLayer._nwwExportFloodIdentity === identity
+          && (!previousLayer._map || previousLayer._map === exportMap)
+          && previousImage?.complete && previousImage.naturalWidth > 0
+          && typeof previousLayer._url === "string" && new URL(previousLayer._url, APP_BASE).href === resolvedUrl
+          && previousLayer.options?.className === className && previousLayer.options?.pane === "floodPane"
+          && JSON.stringify(geometryIdentity(previousLayer)) === JSON.stringify(geometry)) {
+        previousLayer.setOpacity(overlayOpacity);
+        if (!exportMap.hasLayer(previousLayer)) previousLayer.addTo(exportMap);
+        throwIfExportCancelled();
+        return;
+      }
       if (!await preloadImage(overlayUrl)) {
         throwIfExportCancelled();
         throw new Error("The flood image could not load. Please try the export again.");
       }
+      throwIfExportCancelled();
       if (exportFloodLayer && exportMap.hasLayer(exportFloodLayer)) {
         exportMap.removeLayer(exportFloodLayer);
       }
@@ -8171,9 +8212,7 @@ function updateExportSegmentedUI() {
           crossOrigin: true,
           zIndex: 500,
           pane: "floodPane",
-          className: currentDataMode === "return-interval" && mode === "depth"
-            ? "return-interval-depth-overlay"
-            : ""
+          className
         })
         : createHydraulicImageOverlay(overlayUrl, {
           opacity: overlayOpacity,
@@ -8181,10 +8220,11 @@ function updateExportSegmentedUI() {
           crossOrigin: true,
           zIndex: 500,
           pane: "floodPane",
-          className: currentDataMode === "return-interval" && mode === "depth"
-            ? "return-interval-depth-overlay"
-            : ""
+          className
         });
+      exportFloodLayer._nwwExportFloodReady = false;
+      exportFloodLayer._nwwExportFloodOwner = exportMap;
+      exportFloodLayer._nwwExportFloodIdentity = identity;
       await new Promise((resolve, reject) => {
         const layer = exportFloodLayer;
         let settled = false;
@@ -8195,9 +8235,16 @@ function updateExportSegmentedUI() {
           clearInterval(cancelTimer);
           layer.off("load", loaded);
           layer.off("error", failed);
+          const image = layer.getElement();
+          layer._nwwExportFloodReady = !error && Boolean(image?.complete && image.naturalWidth > 0);
           error ? reject(error) : resolve();
         };
-        const loaded = () => finish();
+        const loaded = () => {
+          try { throwIfExportCancelled(); } catch (error) { finish(error); return; }
+          const image = layer.getElement();
+          if (!image?.complete || !(image.naturalWidth > 0)) { failed(); return; }
+          finish();
+        };
         const failed = () => finish(new Error("The flood image could not load. Please try the export again."));
         const timer = setTimeout(failed, 20000);
         const cancelTimer = setInterval(() => {
