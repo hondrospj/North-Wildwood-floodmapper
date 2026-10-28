@@ -18,6 +18,10 @@ const output = retained || fs.mkdtempSync(path.join(os.tmpdir(),'nww-street-labe
 fs.mkdirSync(output,{recursive:true});
 const result = {browser:name,version:browser.version(),checks:[],states:[],errors:[],warnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
 let phase='startup';
+let failures=0,successfulRequests=0;
+const roadDataResponses=[];
+const roadDataPattern='**/assets/roads/north-wildwood-road-centerlines.geojson';
+const isRoadData=url=>new URL(url).pathname.endsWith('/assets/roads/north-wildwood-road-centerlines.geojson');
 const record=(list,value)=>{list.push(value);if(list.length>80)list.shift();};
 const diagnosticUrl=value=>{
   try{const url=new URL(value);for(const key of [...url.searchParams.keys()])if(/token|key|secret/i.test(key))url.searchParams.set(key,'[redacted]');return url.href;}
@@ -34,6 +38,10 @@ page.on('request',request=>{
   if(isHydraulicImage(request.url()))record(result.floodTransport,{id:floodRequestId(request),phase,event:'requested',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType()});
 });
 page.on('response',response=>{
+  if(isRoadData(response.url())&&response.status()===200){
+    successfulRequests++;
+    roadDataResponses.push(response.json().then(data=>({status:response.status(),type:data.type,features:data.features?.length})).catch(error=>({error:error.message})));
+  }
   if(response.status()>=400)record(result.httpErrors,{phase,observedAt:new Date().toISOString(),url:diagnosticUrl(response.url()),status:response.status(),resourceType:response.request().resourceType()});
   if(isHydraulicImage(response.url())){
     const headers=response.headers();
@@ -44,11 +52,9 @@ page.on('requestfinished',request=>{
   if(isHydraulicImage(request.url()))record(result.floodTransport,{id:floodRequestId(request),phase,event:'finished',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),timing:request.timing()});
 });
 page.on('requestfailed',request=>record(result.requestFailures,{phase,observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType(),failure:request.failure()?.errorText}));
-let outage = true, failures = 0, successfulRequests = 0;
-await page.route('**/assets/roads/north-wildwood-road-centerlines.geojson',route=>{
-  if(outage){failures++;return route.fulfill({status:503,contentType:'text/plain',body:'Controlled local street-data outage'});}
-  successfulRequests++;return route.continue();
-});
+const streetDataOutage=route=>{
+  failures++;return route.fulfill({status:503,contentType:'text/plain',body:'Controlled local street-data outage'});
+};
 
 async function terminal(label) {
   phase=label;
@@ -185,6 +191,7 @@ try{
   await page.goto(process.env.NWW_TEST_URL||'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
   if(await page.locator('#roadsToggle').getAttribute('aria-checked')!=='true')await page.locator('#roadsToggle').click();
+  await page.route(roadDataPattern,streetDataOutage);
   await page.locator('#openDownloadModalBtn').click();
   await page.locator('#exportFormatPngBtn').click();await singleFrame();await review();
   await page.locator('#exportAspectSquareBtn').click();await page.locator('#exportExtentTownBtn').click();
@@ -192,8 +199,19 @@ try{
   assert.equal(failed.state,'error');assert.ok(failures>0);
   assert.equal(await page.locator('#exportPreviewRetryBtn').isEnabled(),true);
   assert.equal(await page.locator('#downloadBtn').isEnabled(),true);
-  outage=false;await page.locator('#exportPreviewRetryBtn').click();await ready('local-data-recovered');
-  assert.ok(successfulRequests>0);
+  // Any installed Playwright route disables normal HTTP caching for the page.
+  // End the controlled fault before Retry so the real dataset and remaining
+  // eight-layout export checks use ordinary browser transport/cache behavior.
+  const previousSuccessfulRequests=successfulRequests;
+  const previousRoadResponses=roadDataResponses.length;
+  await page.unroute(roadDataPattern,streetDataOutage);
+  result.states.push({label:'local-data-fault-removed',failures,observedAt:new Date().toISOString()});
+  await page.locator('#exportPreviewRetryBtn').click();await ready('local-data-recovered');
+  assert.ok(successfulRequests>previousSuccessfulRequests);
+  const receivedRoadData=await Promise.all(roadDataResponses.slice(previousRoadResponses));
+  assert.ok(receivedRoadData.length>0);
+  for(const data of receivedRoadData)assert.deepEqual(data,{status:200,type:'FeatureCollection',features:603},'Retry must receive the actual local street dataset');
+  result.states.push({label:'actual-street-data-response',successfulRequests,responses:receivedRoadData});
   result.checks.push('A local street-data 503 produces a retryable error, and actual Retry fetches the data and renders the preview');
 
   await page.locator('#exportExtentCurrentBtn').click();await ready('broad-current-view');
