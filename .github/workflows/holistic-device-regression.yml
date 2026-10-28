@@ -1,50 +1,58 @@
 name: Holistic device regression
-run-name: Windows bounded road outage cold query diagnostic
+run-name: Windows real-file CI server burst diagnostic
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  cold-query-diagnostic:
+  http-server-burst-diagnostic:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     env:
-      NWW_TEST_URL: http://127.0.0.1:8771/index.html
-      NWW_CHROMIUM_CHANNEL: chromium
-      NWW_DIAGNOSTIC_CASE: 03-bounded-outage-retry
       NWW_DIAGNOSTIC_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/workflows/holistic-device-regression.yml
+            /tools/diagnose_north_wildwood_http_bursts.mjs
+            /tools/serve_north_wildwood_test.py
+            /assets/north-wildwood-font.css
+            /assets/export-road-labels.js
+            /assets/hydraulic-v29/COGs/North Wildwood/NorthWildwoodHydraulicQuery5ft.png
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install Chrome runtime
+      - name: Compare stock and snapshot server on actual file bursts
         shell: pwsh
         run: |
           python --version
-          npm install --no-save --ignore-scripts playwright
-          npx playwright install chromium
-          if ($LASTEXITCODE -ne 0) { throw 'Browser installation failed' }
-      - name: Probe actual cold getters and cold draining export
-        shell: pwsh
-        run: |
-          $diagnosticServer = Start-Process python -ArgumentList '-m','http.server','8771','--bind','127.0.0.1' -RedirectStandardOutput preview-output.log -RedirectStandardError preview-error.log -PassThru
+          python -c "import http.server,json; print(json.dumps({'stockQueue':http.server.ThreadingHTTPServer.request_queue_size,'stockProtocol':http.server.SimpleHTTPRequestHandler.protocol_version}))"
+          $stockServer = $null
+          $snapshotServer = $null
           try {
-            $diagnosticReady = $false
-            for ($attempt = 0; $attempt -lt 30; $attempt++) {
-              try { Invoke-WebRequest http://127.0.0.1:8771/index.html -UseBasicParsing | Out-Null; $diagnosticReady = $true; break } catch { Start-Sleep -Seconds 1 }
+            $stockServer = Start-Process python -ArgumentList '-m','http.server','8771','--bind','127.0.0.1' -RedirectStandardOutput stock-stdout.log -RedirectStandardError stock-stderr.log -PassThru
+            $snapshotServer = Start-Process python -ArgumentList 'tools/serve_north_wildwood_test.py','8772','--bind','127.0.0.1','--directory','.','--access-log','snapshot-access.log' -RedirectStandardOutput snapshot-stdout.log -RedirectStandardError snapshot-stderr.log -PassThru
+            foreach ($diagnosticPort in @(8771,8772)) {
+              $diagnosticReady = $false
+              for ($attempt = 0; $attempt -lt 20; $attempt++) {
+                try { Invoke-WebRequest "http://127.0.0.1:${diagnosticPort}/assets/north-wildwood-font.css" -UseBasicParsing | Out-Null; $diagnosticReady = $true; break } catch { Start-Sleep -Seconds 1 }
+              }
+              if (-not $diagnosticReady) { throw "Diagnostic server ${diagnosticPort} did not start" }
             }
-            if (-not $diagnosticReady) { throw 'Diagnostic server did not start' }
-            node tools/diagnose_north_wildwood_query_transport.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'Cold query diagnostic recorded a failure; inspect artifacts' }
+            node tools/diagnose_north_wildwood_http_bursts.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Burst diagnostic integrity assertion failed; inspect evidence' }
           } finally {
-            Stop-Process -Id $diagnosticServer.Id -ErrorAction SilentlyContinue
+            if ($stockServer) { Stop-Process -Id $stockServer.Id -ErrorAction SilentlyContinue }
+            if ($snapshotServer) { Stop-Process -Id $snapshotServer.Id -ErrorAction SilentlyContinue }
           }
-      - name: Save passive diagnostic evidence
+      - name: Save actual transport evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-cold-query-diagnostic
+          name: windows-http-server-burst-diagnostic
           path: |
-            query-diagnostic/
-            preview-*.log
+            http-burst-diagnostic/
+            stock-*.log
+            snapshot-*.log
