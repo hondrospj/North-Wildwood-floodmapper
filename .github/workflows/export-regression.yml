@@ -68,6 +68,7 @@ jobs:
             tools/fixtures/north-wildwood-20261027-line-fixes.json
             tools/fixtures/north-wildwood-20261028-export-road-labels.json
             tools/fixtures/north-wildwood-20261028-road-label-placement.json
+            tools/fixtures/north-wildwood-20261028-export-frame-reuse.json
             tools/fixtures/north-wildwood-export-dst.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs

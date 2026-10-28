@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "a83b6f37af3e38ac783cf2c4004636ea12f2f321",
+  "purpose": "Reuse only the owned, completely loaded export flood image with matching frame source, geometry and layer styling; preserve cancellation and bounded readiness for every new image.",
+  "changes": [
+    {
+      "id": "tools-app-runtime-16-export-map-frame-reuse-1",
+      "source": "tools/app/runtime/16-export-map.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      if (!exportMap.hasLayer(exportBoundaryMask)) exportBoundaryMask.addTo(exportMap);\n    }\n\n    async function setExportFloodLayer(mode, stageValue, phase = \"slack\", entry = null, series = currentRawSeriesHours) {\n      ensureExportMap();\n      const physicsRecord = mode === \"depth\" ? getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode) : null;\n      let overlayUrl = \"\";\n      if (physicsRecord?.url) {\n",
+      "afterSource": "      if (!exportMap.hasLayer(exportBoundaryMask)) exportBoundaryMask.addTo(exportMap);\n    }\n\n    async function setExportFloodLayer(mode, stageValue, phase = \"slack\", entry = null, series = currentRawSeriesHours) {\n      throwIfExportCancelled();\n      ensureExportMap();\n      const physicsRecord = mode === \"depth\" ? getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode) : null;\n      let overlayUrl = \"\";\n      if (physicsRecord?.url) {\n",
+      "beforeSha256": "334753d75bfd54d634d7046d1799358b2bb4a214f090827160c5037965b3ded1",
+      "afterSha256": "1bbd52119c7e58077c949883b1bd76424a62fe560d2a8257e3ef87b5c16b5453"
+    },
+    {
+      "id": "tools-app-runtime-16-export-map-frame-reuse-2",
+      "source": "tools/app/runtime/16-export-map.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "        }\n        overlayUrl = match.url;\n        await ensureOverlayBounds(overlayUrl);\n      }\n      if (!await preloadImage(overlayUrl)) {\n        throwIfExportCancelled();\n        throw new Error(\"The flood image could not load. Please try the export again.\");\n      }\n      if (exportFloodLayer && exportMap.hasLayer(exportFloodLayer)) {\n        exportMap.removeLayer(exportFloodLayer);\n      }\n      exportFloodLayer = physicsRecord?.url\n",
+      "afterSource": "        }\n        overlayUrl = match.url;\n        await ensureOverlayBounds(overlayUrl);\n      }\n      throwIfExportCancelled();\n      const resolvedUrl = new URL(overlayUrl, APP_BASE).href;\n      const className = currentDataMode === \"return-interval\" && mode === \"depth\"\n        ? \"return-interval-depth-overlay\" : \"\";\n      // Reusing the decoded image avoids another browser image request for\n      // an unchanged frame when only the export area/aspect has changed.\n      // Geometry is compared by value, including the complete affine grid.\n      const geometryIdentity = (layer = null) => {\n        const bounds = layer ? layer.getBounds?.() : floodLatLngBounds;\n        const extent = bounds && [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()];\n        if (!extent?.every(Number.isFinite)) return null;\n        const corners = layer\n          ? layer._worldFileAffine === true ? layer._worldFileCorners : null\n          : physicsRecord?.url ? null : getConfiguredWorldFileCornersLatLng();\n        const affine = layer ? layer._worldFileAffine === true : Boolean(corners);\n        if (!affine) return { extent, affine: false };\n        if (!Array.isArray(corners) || corners.length !== 4) return null;\n        const coordinates = corners.map(corner => [corner.lat, corner.lng]);\n        const size = layer ? { width: layer._pixelWidth, height: layer._pixelHeight } : getWorldFileRasterSize();\n        if (!coordinates.every(point => point.every(Number.isFinite)) || ![size.width,size.height].every(value => Number.isFinite(value) && value > 0)) return null;\n        return { extent, affine: true, coordinates, width: size.width, height: size.height };\n      };\n      const geometry = geometryIdentity();\n      const identity = JSON.stringify({ url: resolvedUrl, kind: physicsRecord?.url ? \"physics\" : \"hydraulic\",\n        mode, className, geometryMode: floodOverlayGeometryMode, geometry });\n      const previousLayer = exportFloodLayer;\n      const previousImage = previousLayer?.getElement?.();\n      if (geometry && previousLayer?._nwwExportFloodReady === true && previousLayer._nwwExportFloodOwner === exportMap\n          && previousLayer._nwwExportFloodIdentity === identity\n          && (!previousLayer._map || previousLayer._map === exportMap)\n          && previousImage?.complete && previousImage.naturalWidth > 0\n          && typeof previousLayer._url === \"string\" && new URL(previousLayer._url, APP_BASE).href === resolvedUrl\n          && previousLayer.options?.className === className && previousLayer.options?.pane === \"floodPane\"\n          && JSON.stringify(geometryIdentity(previousLayer)) === JSON.stringify(geometry)) {\n        previousLayer.setOpacity(overlayOpacity);\n        if (!exportMap.hasLayer(previousLayer)) previousLayer.addTo(exportMap);\n        throwIfExportCancelled();\n        return;\n      }\n      if (!await preloadImage(overlayUrl)) {\n        throwIfExportCancelled();\n        throw new Error(\"The flood image could not load. Please try the export again.\");\n      }\n      throwIfExportCancelled();\n      if (exportFloodLayer && exportMap.hasLayer(exportFloodLayer)) {\n        exportMap.removeLayer(exportFloodLayer);\n      }\n      exportFloodLayer = physicsRecord?.url\n",
+      "beforeSha256": "a82e83902d648d9d018882b735457d5212e7179dcb2a2c1b5c68d6e1cd2fa273",
+      "afterSha256": "1c76af10dca4c7c836b49c44c4094b0e06b7b384ab47c8cfef742eb8c97ba925"
+    },
+    {
+      "id": "tools-app-runtime-16-export-map-frame-reuse-3",
+      "source": "tools/app/runtime/16-export-map.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "          interactive: false,\n          crossOrigin: true,\n          zIndex: 500,\n          pane: \"floodPane\",\n          className: currentDataMode === \"return-interval\" && mode === \"depth\"\n            ? \"return-interval-depth-overlay\"\n            : \"\"\n        })\n        : createHydraulicImageOverlay(overlayUrl, {\n          opacity: overlayOpacity,\n          interactive: false,\n          crossOrigin: true,\n          zIndex: 500,\n          pane: \"floodPane\",\n          className: currentDataMode === \"return-interval\" && mode === \"depth\"\n            ? \"return-interval-depth-overlay\"\n            : \"\"\n        });\n      await new Promise((resolve, reject) => {\n        const layer = exportFloodLayer;\n        let settled = false;\n        const finish = error => {\n",
+      "afterSource": "          interactive: false,\n          crossOrigin: true,\n          zIndex: 500,\n          pane: \"floodPane\",\n          className\n        })\n        : createHydraulicImageOverlay(overlayUrl, {\n          opacity: overlayOpacity,\n          interactive: false,\n          crossOrigin: true,\n          zIndex: 500,\n          pane: \"floodPane\",\n          className\n        });\n      exportFloodLayer._nwwExportFloodReady = false;\n      exportFloodLayer._nwwExportFloodOwner = exportMap;\n      exportFloodLayer._nwwExportFloodIdentity = identity;\n      await new Promise((resolve, reject) => {\n        const layer = exportFloodLayer;\n        let settled = false;\n        const finish = error => {\n",
+      "beforeSha256": "ae33b93f86b3f60e8be06119bf8c43112bb93ee8420facb7f2ff7364cf4ed593",
+      "afterSha256": "18befb30005b0197e7e411b96f7ac71eedadd545e982ac1589eea88de1e2bdd3"
+    },
+    {
+      "id": "tools-app-runtime-16-export-map-frame-reuse-4",
+      "source": "tools/app/runtime/16-export-map.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "          clearTimeout(timer);\n          clearInterval(cancelTimer);\n          layer.off(\"load\", loaded);\n          layer.off(\"error\", failed);\n          error ? reject(error) : resolve();\n        };\n        const loaded = () => finish();\n        const failed = () => finish(new Error(\"The flood image could not load. Please try the export again.\"));\n        const timer = setTimeout(failed, 20000);\n        const cancelTimer = setInterval(() => {\n          try { throwIfExportCancelled(); } catch (error) { finish(error); }\n",
+      "afterSource": "          clearTimeout(timer);\n          clearInterval(cancelTimer);\n          layer.off(\"load\", loaded);\n          layer.off(\"error\", failed);\n          const image = layer.getElement();\n          layer._nwwExportFloodReady = !error && Boolean(image?.complete && image.naturalWidth > 0);\n          error ? reject(error) : resolve();\n        };\n        const loaded = () => {\n          try { throwIfExportCancelled(); } catch (error) { finish(error); return; }\n          const image = layer.getElement();\n          if (!image?.complete || !(image.naturalWidth > 0)) { failed(); return; }\n          finish();\n        };\n        const failed = () => finish(new Error(\"The flood image could not load. Please try the export again.\"));\n        const timer = setTimeout(failed, 20000);\n        const cancelTimer = setInterval(() => {\n          try { throwIfExportCancelled(); } catch (error) { finish(error); }\n",
+      "beforeSha256": "c84cd66a12a1fc8592170a02df5ab0ca7c7ad282738c585ba4415aedc57b55d7",
+      "afterSha256": "892301970f7fe4117bc3a5b53a7a5080c59b470ebc97c0093d656bccc4611fed"
+    }
+  ],
+  "files": [
+    {
+      "source": "tools/app/runtime/16-export-map.js",
+      "beforeSha256": "f192914c81a33fd5c8cc49a91e9392c80a9ff717d66681b16a9b412c5c72f0fa",
+      "afterSha256": "813c531e4dab7df78fb52b71772ce022372fe441d2df9833b3eceddf4d8ef9d5"
+    }
+  ]
+}

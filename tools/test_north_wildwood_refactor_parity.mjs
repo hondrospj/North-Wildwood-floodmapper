@@ -15,6 +15,24 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+const FRAME_REUSE_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-frame-reuse.json";
+const FRAME_REUSE_AUDIT_SHA256 = "9797c14583eafc9374f5070820b2428f0108c67af7a8055466e364c90feefe32";
+const frameReuseText = read(FRAME_REUSE_AUDIT_PATH);
+assert.equal(sha256(frameReuseText), FRAME_REUSE_AUDIT_SHA256,
+  "The export frame-reuse follow-up must retain its exact separately reviewed inverse");
+const frameReuseAudit = JSON.parse(frameReuseText);
+assert.equal(frameReuseAudit.schemaVersion, 1);
+assert.equal(frameReuseAudit.baselineCommit, "a83b6f37af3e38ac783cf2c4004636ea12f2f321");
+assert.deepEqual(frameReuseAudit.files.map(file => file.source), ["tools/app/runtime/16-export-map.js"],
+  "The frame-reuse inverse may change only its export flood-layer source");
+assert.deepEqual([...new Set(frameReuseAudit.changes.map(block => block.source))],
+  frameReuseAudit.files.map(file => file.source));
+assert.equal(new Set(frameReuseAudit.changes.map(block => block.id)).size, frameReuseAudit.changes.length);
+for (const block of frameReuseAudit.changes) {
+  assert.equal(block.kind, "script");
+  assert.equal(block.entryId, "script-004");
+}
+for (const file of frameReuseAudit.files) auditedFrameReuseRead(file.source);
 const PLACEMENT_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-road-label-placement.json";
 const PLACEMENT_AUDIT_SHA256 = "c7d2b5ccd52fffcb72a6fcdab672c24941cb676a22d4c5fc3d3bd76a46f0e0f0";
 const placementText = read(PLACEMENT_AUDIT_PATH);
@@ -390,11 +408,42 @@ function auditedHolisticRead(relative) {
   return auditedIssueFixFragments(auditedLineRead(relative), blocks, relative);
 }
 
+// Reusing an owned, ready export image is a separate runtime-only follow-up.
+// Invert its exact contextual diff before the unchanged feature/placement
+// audits, and prove that all neighboring rendering and scientific code stays
+// identical to the independently pinned application baseline.
+function auditedFrameReuseRead(relative) {
+  const source = read(relative);
+  const blocks = frameReuseAudit.changes.filter(block => block.source === relative);
+  const restored = auditedIssueFixFragments(source, blocks, relative);
+  const file = frameReuseAudit.files.find(file => file.source === relative);
+  if (file) {
+    assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its exact frame-reuse follow-up`);
+    assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-frame-reuse byte`);
+    const strip = text => {
+      const expression = /^    async function setExportFloodLayer\([^]*?^    }\n\n?/gm;
+      assert.equal([...text.matchAll(expression)].length, 1, "Frame reuse must retain one export flood-layer setter");
+      return text.replace(expression, "");
+    };
+    assert.equal(strip(source), strip(restored), "Frame reuse may alter only setExportFloodLayer()");
+  }
+  return restored;
+}
+
+function auditedFrameReuseSource(kind, entry, source) {
+  const blocks = frameReuseAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
+  for (const block of blocks) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared export runtime source`);
+    auditedFrameReuseRead(block.source);
+  }
+  return auditedIssueFixFragments(source, blocks, entry.id);
+}
+
 // Preserve the first feature audit unchanged. The hosted-font follow-up can
 // alter only layout() and its content-derived script version before that audit
 // checks every original integration and asset byte.
 function auditedPlacementRead(relative) {
-  const source = read(relative);
+  const source = auditedFrameReuseRead(relative);
   const blocks = placementAudit.changes.filter(block => block.source === relative);
   const restored = auditedIssueFixFragments(source, blocks, relative);
   const file = placementAudit.files.find(file => file.source === relative);
@@ -511,6 +560,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedFrameReuseSource(kind, entry, source);
   source = auditedRoadLabelSource(kind, entry, source);
   source = auditedLineSource(kind, entry, source);
   source = auditedHolisticSource(kind, entry, source);
@@ -825,7 +875,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement inverses; remaining UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement/frame-reuse inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -840,6 +890,7 @@ if (process.argv.includes("--self-test")) {
       LINE_FIX_AUDIT_PATH, ...lineFixAudit.files.map(file => file.source),
       ROAD_LABEL_AUDIT_PATH, roadLabelAudit.module.source, roadLabelAudit.data.source,
       PLACEMENT_AUDIT_PATH,
+      FRAME_REUSE_AUDIT_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -853,6 +904,14 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened export frame-reuse inverse", path.join(scratch, FRAME_REUSE_AUDIT_PATH),
+        JSON.stringify({ ...frameReuseAudit, changes: [...frameReuseAudit.changes, frameReuseAudit.changes[0]] })],
+      ["altered export frame-reuse function", path.join(scratch, frameReuseAudit.files[0].source),
+        read(frameReuseAudit.files[0].source).replace("    async function setExportFloodLayer(",
+          "    async function setExportFloodLayer(/* Unreviewed frame reuse */")],
+      ["altered adjacent export water-level formatter", path.join(scratch, frameReuseAudit.files[0].source),
+        read(frameReuseAudit.files[0].source).replace("    function getExportFrameWaterLevelText(",
+          "    function getExportFrameWaterLevelText(/* Unreviewed science */")],
       ["broadened road-label placement follow-up", path.join(scratch, PLACEMENT_AUDIT_PATH),
         JSON.stringify({ ...placementAudit, changes: [...placementAudit.changes, placementAudit.changes[0]] })],
       ["altered approved placement function", path.join(scratch, roadLabelAudit.module.source),

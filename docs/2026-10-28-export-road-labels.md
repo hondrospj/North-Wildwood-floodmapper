@@ -28,10 +28,18 @@ the existing roads pane across preview, PNG, and the GIF compositor.
 Fast GIF capture also updates label visibility after fitting the chosen area,
 so a camera change across the label zoom threshold uses the new zoom.
 
+Changing the export layout retains a completed flood image when its source,
+map owner, rendering mode and geometry still match. This avoids another image
+load for the same frame. Changed sources or grids continue to use the existing
+20-second image deadline and cancellation checks.
+
 Validation includes ten geometry/loading test groups, exact source parity and
 negative mutation cases, all four PNG/GIF aspect ratios in actual browsers,
 downloaded image glyph checks, a two-frame GIF, Road names OFF/ON, current-view
 cropping, local-data outage recovery, and the existing reference-tile retry test.
+Recovery fixtures also check ready-image identity, changed grids, cancellation,
+and deadlines. A controlled browser case holds a redundant image load to verify
+that layout changes can retain the already completed image.
 Hosted release checks continue to gate production publication.
 
 Commands:

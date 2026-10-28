@@ -1043,8 +1043,10 @@ assert.match(
 );
 assert.match(
   extractFunction("setExportFloodLayer"),
-  /className: currentDataMode === "return-interval" && mode === "depth"[\s\S]+return-interval-depth-overlay/
+  /const className = currentDataMode === "return-interval" && mode === "depth"\s*\? "return-interval-depth-overlay" : ""/
 );
+assert.match(extractFunction("setExportFloodLayer"), /L\.imageOverlay\(overlayUrl, floodLatLngBounds, \{[^}]+\bclassName\s*\}/);
+assert.match(extractFunction("setExportFloodLayer"), /createHydraulicImageOverlay\(overlayUrl, \{[^}]+\bclassName\s*\}/);
 assert.match(SOURCE, /record\.targetNavd88Ft \?\? record\.weightedNavd88Ft \?\? record\.naccsNavd88Ft/);
 assert.match(extractFunction("switchReturnInterval"), /await loadReturnInterval\(\)/);
 assert.doesNotMatch(extractFunction("switchReturnInterval"), /previousEntry/);

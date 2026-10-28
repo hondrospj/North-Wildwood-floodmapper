@@ -16,19 +16,32 @@ const browser = await playwright[name === 'edge' ? 'chromium' : name].launch({he
 const retained = process.env.NWW_AUDIT_OUTPUT;
 const output = retained || fs.mkdtempSync(path.join(os.tmpdir(),'nww-street-labels-'));
 fs.mkdirSync(output,{recursive:true});
-const result = {browser:name,version:browser.version(),checks:[],states:[],errors:[],warnings:[],httpErrors:[],requestFailures:[]};
+const result = {browser:name,version:browser.version(),checks:[],states:[],errors:[],warnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
 let phase='startup';
 const record=(list,value)=>{list.push(value);if(list.length>80)list.shift();};
 const diagnosticUrl=value=>{
   try{const url=new URL(value);for(const key of [...url.searchParams.keys()])if(/token|key|secret/i.test(key))url.searchParams.set(key,'[redacted]');return url.href;}
   catch{return String(value);}
 };
+const isHydraulicImage=url=>/\/assets\/hydraulic-[^/]+\/.*\.(?:png|webp)(?:\?|$)/i.test(url);
+const floodRequestIds=new WeakMap();let nextFloodRequestId=0;
+const floodRequestId=request=>{if(!floodRequestIds.has(request))floodRequestIds.set(request,++nextFloodRequestId);return floodRequestIds.get(request);};
 const page = await browser.newPage({viewport:{width:1440,height:1000},acceptDownloads:true});
 page.setDefaultTimeout(30000);
 page.on('pageerror',error=>result.errors.push(error.message));
 page.on('console',message=>{if(message.type() === 'warning')result.warnings.push(message.text());});
+page.on('request',request=>{
+  if(isHydraulicImage(request.url()))record(result.floodTransport,{id:floodRequestId(request),phase,event:'requested',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType()});
+});
 page.on('response',response=>{
   if(response.status()>=400)record(result.httpErrors,{phase,observedAt:new Date().toISOString(),url:diagnosticUrl(response.url()),status:response.status(),resourceType:response.request().resourceType()});
+  if(isHydraulicImage(response.url())){
+    const headers=response.headers();
+    record(result.floodTransport,{id:floodRequestId(response.request()),phase,event:'headers',observedAt:new Date().toISOString(),url:diagnosticUrl(response.url()),status:response.status(),contentLength:headers['content-length'],contentType:headers['content-type']});
+  }
+});
+page.on('requestfinished',request=>{
+  if(isHydraulicImage(request.url()))record(result.floodTransport,{id:floodRequestId(request),phase,event:'finished',observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),timing:request.timing()});
 });
 page.on('requestfailed',request=>record(result.requestFailures,{phase,observedAt:new Date().toISOString(),url:diagnosticUrl(request.url()),resourceType:request.resourceType(),failure:request.failure()?.errorText}));
 let outage = true, failures = 0, successfulRequests = 0;
@@ -44,6 +57,7 @@ async function terminal(label) {
     status:document.getElementById('exportPreviewStatus')?.textContent,
     format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),extent:getDownloadExtentValue(),
     dimensions:getExportAspectConfig(),busy:exportInProgress,
+    floodResourceTiming:performance.getEntriesByType('resource').filter(entry=>/\/assets\/hydraulic-[^/]+\/.*\.(?:png|webp)(?:\?|$)/i.test(entry.name)).slice(-12).map(entry=>({name:entry.name,startTime:entry.startTime,duration:entry.duration,responseStart:entry.responseStart,responseEnd:entry.responseEnd,transferSize:entry.transferSize,encodedBodySize:entry.encodedBodySize,decodedBodySize:entry.decodedBodySize})),
     floodImage:(()=>{const image=exportFloodLayer?.getElement?.();return image?{src:image.currentSrc||image.src,complete:image.complete,naturalWidth:image.naturalWidth,naturalHeight:image.naturalHeight}:null;})()}));
   result.states.push({label,...state});
   console.log(`Street-label proof: ${label}: ${state.state}`);
@@ -190,6 +204,7 @@ try{
   await page.locator('#exportExtentTownBtn').click();await ready('town-restored');
   result.checks.push('The default broad current view retains New Jersey Avenue and West Spruce Avenue in the shared font');
 
+  const completedFrame=await page.evaluateHandle(()=>({layer:exportFloodLayer,image:exportFloodLayer.getElement(),source:exportFloodLayer._url}));
   const buttons=[['Square','1:1'],['Social','4:5'],['Landscape','16:9'],['Portrait','9:16']];
   for(const kind of ['Png','Gif']){
     await format(kind);
@@ -197,9 +212,14 @@ try{
       await page.locator(`#exportAspect${button}Btn`).click();await ready(`${kind}-${aspect}`);
       const state=await layout(`${kind}-${aspect.replace(':','x')}`);
       assert.equal(state.dimensions.value,aspect);
+      const identity=await page.evaluate(reference=>({sameSource:exportFloodLayer._url===reference.source,
+        sameLayer:exportFloodLayer===reference.layer,sameImage:exportFloodLayer.getElement()===reference.image}),completedFrame);
+      assert.deepEqual(identity,{sameSource:true,sameLayer:true,sameImage:true},'A layout-only change must retain the same completed flood image');
     }
   }
+  await completedFrame.dispose();
   result.checks.push('Actual preview layout has readable, upright, fully bounded and non-overlapping shared-font labels in all four PNG and GIF aspect ratios');
+  result.checks.push('All eight layout previews retain the same owned completed flood image while the camera and output dimensions change');
 
   await format('Png');await page.locator('#exportAspectSquareBtn').click();
   await ready('png-download-ready');
