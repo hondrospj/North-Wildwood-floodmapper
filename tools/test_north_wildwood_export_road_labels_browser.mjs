@@ -439,7 +439,13 @@ try{
   }
   normal.coldPreviewReady=true;normal.log.coldPreviewReady=true;
   saveState({label:'cold-normal-preview-proven',pendingProviderRetries:normal.pendingProviderRetries,routeEverInstalled:normal.log.routeEverInstalled});
-  await page.locator('#exportExtentTownBtn').click();await ready('town-restored');
+  // This only changes the map framing. Its actual pointer action is checked
+  // by Playwright; avoid its unrelated navigation epilogue during map work.
+  assert.equal(await page.evaluate(()=>getDownloadExtentValue()),'current');
+  await page.locator('#exportExtentTownBtn').click({noWaitAfter:true});
+  const townRestored=await ready('town-restored');
+  assert.equal(townRestored.extent,'town');
+  assert.equal(await page.locator('#exportExtentTownBtn').getAttribute('aria-pressed'),'true');
   result.checks.push('The default broad current view retains New Jersey Avenue and West Spruce Avenue in the shared font');
 
   const completedFrame=await page.evaluateHandle(()=>({layer:exportFloodLayer,image:exportFloodLayer.getElement(),source:exportFloodLayer._url}));
@@ -469,7 +475,10 @@ try{
   await page.waitForFunction(()=>document.getElementById('exportProgressOverlay').hidden,{},{timeout:10000});
   await page.locator('#openDownloadModalBtn').click();await twoFrames();await review();
   await format('Gif');await page.locator('#exportAspectSquareBtn').click();
-  await page.locator('#exportExtentTownBtn').click();await ready('gif-download-ready');
+  await page.locator('#exportExtentTownBtn').click({noWaitAfter:true});
+  const gifTown=await ready('gif-download-ready');
+  assert.equal(gifTown.extent,'town');
+  assert.equal(await page.locator('#exportExtentTownBtn').getAttribute('aria-pressed'),'true');
   assert.equal(await page.evaluate(()=>getDownloadFrameItems().length),2);
   const gif=await download('street-names');
   assert.match(fs.readFileSync(gif).subarray(0,6).toString(),/^GIF8[79]a$/);
