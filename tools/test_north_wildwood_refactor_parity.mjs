@@ -15,6 +15,24 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+const LOGO_READINESS_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-logo-readiness.json";
+const LOGO_READINESS_AUDIT_SHA256 = "0f573d6c366c50e2e504aeb0e15a212d5d1388cd3c4253fb5fa6a6c98fd26e17";
+const logoReadinessText = read(LOGO_READINESS_AUDIT_PATH);
+assert.equal(sha256(logoReadinessText), LOGO_READINESS_AUDIT_SHA256,
+  "Logo readiness must retain its exact separately reviewed inverse");
+const logoReadinessAudit = JSON.parse(logoReadinessText);
+assert.equal(logoReadinessAudit.schemaVersion, 1);
+assert.equal(logoReadinessAudit.baselineCommit, "8e106aaa99f304a66f262c4f182a4829d21f2184");
+assert.equal(logoReadinessAudit.function, "waitForExportChromeReady");
+assert.deepEqual(logoReadinessAudit.files.map(file => file.source), ["tools/app/runtime/15-export-capture.js"]);
+assert.deepEqual([...new Set(logoReadinessAudit.changes.map(block => block.source))],
+  logoReadinessAudit.files.map(file => file.source));
+assert.equal(new Set(logoReadinessAudit.changes.map(block => block.id)).size, logoReadinessAudit.changes.length);
+for (const block of logoReadinessAudit.changes) {
+  assert.equal(block.kind, "script");
+  assert.equal(block.entryId, "script-004");
+}
+for (const file of logoReadinessAudit.files) auditedLogoReadinessRead(file.source);
 const PREVIEW_POLISH_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-preview-polish.json";
 const PREVIEW_POLISH_AUDIT_SHA256 = "437dc173478053243979a4a340d8626222df60d4fec96989eca9fbeeae97f263";
 const previewPolishText = read(PREVIEW_POLISH_AUDIT_PATH);
@@ -471,10 +489,36 @@ function auditedHolisticRead(relative) {
   return auditedIssueFixFragments(auditedLineRead(relative), blocks, relative);
 }
 
+function auditedLogoReadinessRead(relative) {
+  const source = read(relative);
+  const file = logoReadinessAudit.files.find(file => file.source === relative);
+  if (!file) return source;
+  const restored = auditedIssueFixFragments(source,
+    logoReadinessAudit.changes.filter(block => block.source === relative), relative);
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the exact logo-readiness diff`);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-logo-readiness byte`);
+  const strip = text => {
+    const expression = /^    async function waitForExportChromeReady\([^]*?^    }\n\n?/gm;
+    assert.equal([...text.matchAll(expression)].length, 1, "Retain one export chrome-ready owner");
+    return text.replace(expression, "");
+  };
+  assert.equal(strip(source), strip(restored), "Logo readiness may alter only waitForExportChromeReady()");
+  return restored;
+}
+
+function auditedLogoReadinessSource(kind, entry, source) {
+  const blocks = logoReadinessAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
+  for (const block of blocks) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared capture source`);
+    auditedLogoReadinessRead(block.source);
+  }
+  return auditedIssueFixFragments(source, blocks, entry.id);
+}
+
 // Restore the separately reviewed UI polish before every older inverse,
 // including the independently pinned external preview init/CSS/markup.
 function auditedPreviewPolishRead(relative) {
-  const source = read(relative);
+  const source = auditedLogoReadinessRead(relative);
   const file = previewPolishAudit.files.find(file => file.source === relative);
   if (!file) return source;
   const blocks = previewPolishAudit.changes.filter(block => block.source === relative);
@@ -736,6 +780,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedLogoReadinessSource(kind, entry, source);
   source = auditedPreviewPolishSource(kind, entry, source);
   source = auditedFrameReuseSource(kind, entry, source);
   source = auditedRoadLabelSource(kind, entry, source);
@@ -1071,6 +1116,7 @@ if (process.argv.includes("--self-test")) {
       PLACEMENT_AUDIT_PATH,
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
+      LOGO_READINESS_AUDIT_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1084,6 +1130,14 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened logo-readiness inverse", path.join(scratch, LOGO_READINESS_AUDIT_PATH),
+        JSON.stringify({ ...logoReadinessAudit, changes: [...logoReadinessAudit.changes, logoReadinessAudit.changes[0]] })],
+      ["altered reviewed logo-readiness function", path.join(scratch, "tools/app/runtime/15-export-capture.js"),
+        read("tools/app/runtime/15-export-capture.js").replace("    async function waitForExportChromeReady() {",
+          "    async function waitForExportChromeReady() {\n      // Unreviewed source readiness")],
+      ["altered raster deadline outside logo readiness", path.join(scratch, "tools/app/runtime/15-export-capture.js"),
+        read("tools/app/runtime/15-export-capture.js").replace("waitForExportRasterLayerReady(layer, timeoutMs = 30000)",
+          "waitForExportRasterLayerReady(layer, timeoutMs = 30001)")],
       ["broadened preview-polish inverse", path.join(scratch, PREVIEW_POLISH_AUDIT_PATH),
         JSON.stringify({ ...previewPolishAudit, changes: [...previewPolishAudit.changes, previewPolishAudit.changes[0]] })],
       ["altered reviewed preview cache helper", path.join(scratch, "assets/export-preview.js"),
@@ -1251,7 +1305,7 @@ if (process.argv.includes("--self-test")) {
       ["altered original welcome controller", path.join(scratch, loaderRestore.controller.source),
         read(loaderRestore.controller.source) + "\n// Unapproved loader behavior\n"],
     ];
-    assert.equal(cases.length, 79, "Retain all 73 legacy mutations and the six preview-polish mutations");
+    assert.equal(cases.length, 82, "Retain all 79 previous mutations and three logo-readiness mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       fs.writeFileSync(target, altered);

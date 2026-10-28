@@ -62,7 +62,7 @@ async function selectTwoFrameRange(){
     return{date:`${p.month}/${p.day}/${p.year}`,time:`${pad2(Number(p.hour24))}:${p.minute}`};
   });
   await page.locator('#downloadEndDateText').fill(end.date);
-  await page.locator('#downloadEndTimeSelect').focus();
+  await page.locator('#downloadEndDateText').press('Tab');
   await page.locator('#downloadEndTimeSelect').selectOption(end.time);
 }
 function inspectGif(bytes){

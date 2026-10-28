@@ -37,7 +37,7 @@ async function startSession(name){
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
   const ownedPage=await context.newPage();
   const log={name,routeEverInstalled:false,states:[],errors:[],warnings:[],previewWarnings:[],httpErrors:[],requestFailures:[],floodTransport:[]};
-  const session={name,context,page:ownedPage,log,phase:'startup',failures:0,roadDataRequests:0,successfulRequests:0,roadDataResponses:[],modelImages:new Set(),requestIds:new WeakMap(),nextRequestId:0};
+  const session={name,context,page:ownedPage,log,phase:'startup',failures:0,roadDataRequests:0,successfulRequests:0,roadDataResponses:[],modelImages:new Set(),requestIds:new WeakMap(),nextRequestId:0,coldPreviewReady:false,pendingProviderRetries:0};
   const observed=(key,value)=>{
     record(log[key],value);
     record(result[key],typeof value==='string'?`[${name}] ${value}`:{session:name,...value});
@@ -180,8 +180,62 @@ async function terminal(label) {
   console.log(`Street-label proof: ${label}: ${state.state}`);
   return state;
 }
+// A live provider can exceed its unchanged deadline after a previous successful
+// cold preview. Exercise the existing UI recovery once; every other error and
+// every final rendering/download assertion remains a hard failure.
+function classifyPendingProviderPreviewRetry(state, warning, context) {
+  const no=reason=>({eligible:false,reason});
+  if(context?.name!=='normal-route-free'||context.routeEverInstalled!==false)return no('context-not-route-free');
+  if(context.coldPreviewReady!==true)return no('cold-preview-not-proven');
+  if(context.pendingProviderRetries!==0)return no('retry-budget-used');
+  if(state?.state!=='error'||state.busy!==false)return no('not-idle-preview-error');
+  const error=warning?.errors?.at(-1);
+  if(warning?.session!==context.name||!Array.isArray(warning.captureErrors)||warning.captureErrors.length||
+      error?.name!=='Error'||error.message!=='The map background is still loading. Please try the export again.')return no('different-actual-error');
+  const attached=layer=>layer?.mapContains===true&&layer.ownsMap===true&&layer.mapMissing===false&&
+    layer.containerPresent===true&&layer.containerAttached===true;
+  const map=state.basemap;
+  if(!attached(map)||map.kind!=='raster')return no('basemap-not-owned-attached-raster');
+  let service;
+  try{service=new URL(map.url);}catch{return no('different-basemap-provider');}
+  if(service.protocol!=='https:'||service.hostname!=='server.arcgisonline.com'||
+      !service.pathname.startsWith('/ArcGIS/rest/services/World_Street_Map/MapServer/tile/'))return no('different-basemap-provider');
+  const nativeTiles=layer=>{
+    const native=layer?.native,tiles=native?.tiles;
+    return Array.isArray(tiles)&&tiles.length>0&&tiles.every(tile=>typeof tile.complete==='boolean'&&Number.isInteger(tile.naturalWidth)&&tile.naturalWidth>=0)&&native.count===tiles.length&&native.failed===0&&
+      native.pending===tiles.filter(tile=>!tile.complete).length&&native.ready===tiles.filter(tile=>tile.complete&&tile.naturalWidth>0).length&&
+      native.ready+native.pending===native.count;
+  };
+  if(map.isLoading!==true||!nativeTiles(map)||!(map.native.pending>0))return no('basemap-not-genuinely-pending');
+  const current=map.tracked?.tiles?.filter(tile=>tile.current===true);
+  if(!Number.isInteger(map.tileZoom)||!current?.length||map.tracked.current!==current.length||
+      current.some(tile=>typeof tile.complete!=='boolean'||tile.coords?.z!==map.tileZoom||tile.complete&&!(tile.naturalWidth>0))||
+      !current.some(tile=>!tile.complete))return no('no-current-pending-basemap-tiles');
+  const roads=state.roads;
+  if(!attached(roads)||roads.kind!=='raster'||roads.isLoading!==false||!nativeTiles(roads)||roads.native.pending!==0||
+      roads.native.ready!==roads.native.count)return no('roads-not-ready');
+  const flood=state.floodImage;
+  if(flood?.complete!==true||!flood.src||!(flood.naturalWidth>0)||!(flood.naturalHeight>0))return no('flood-not-ready');
+  return{eligible:true,reason:'genuine-pending-basemap',pendingTiles:map.native.pending,readyTiles:map.native.ready,totalTiles:map.native.count};
+}
 async function ready(label) {
-  const state = await terminal(label);
+  let state = await terminal(label);
+  if(state.state==='error'){
+    const warning=activeSession.log.previewWarnings.at(-1);
+    const context={name:activeSession.name,routeEverInstalled:activeSession.log.routeEverInstalled,
+      coldPreviewReady:activeSession.coldPreviewReady,pendingProviderRetries:activeSession.pendingProviderRetries};
+    const classification=classifyPendingProviderPreviewRetry(state,warning,context);
+    saveState({label:`${label}-provider-retry-classification`,classification,context,warning});
+    if(classification.eligible){
+      activeSession.pendingProviderRetries++;activeSession.log.pendingProviderRetries=activeSession.pendingProviderRetries;
+      assert.equal(await page.locator('#exportPreviewRetryBtn').isVisible(),true);
+      assert.equal(await page.locator('#exportPreviewRetryBtn').isEnabled(),true);
+      saveState({label:`${label}-provider-ui-retry`,attempt:activeSession.pendingProviderRetries,classification});
+      await page.locator('#exportPreviewRetryBtn').click();
+      // Deliberately not recursive: a second error cannot spend another Retry.
+      state=await terminal(`${label}-after-provider-retry`);
+    }
+  }
   assert.equal(state.state,'ready',JSON.stringify({state,warnings:result.warnings}));
   return state;
 }
@@ -189,7 +243,7 @@ async function singleFrame() {
   const date=await page.locator('#downloadStartDateText').inputValue();
   const time=await page.locator('#downloadStartTimeSelect').inputValue();
   await page.locator('#downloadEndDateText').fill(date);
-  await page.locator('#downloadEndTimeSelect').focus();
+  await page.locator('#downloadEndDateText').press('Tab');
   await page.locator('#downloadEndTimeSelect').selectOption(time);
 }
 async function twoFrames() {
@@ -198,7 +252,7 @@ async function twoFrames() {
     return{date:`${parts.month}/${parts.day}/${parts.year}`,time:`${pad2(Number(parts.hour24))}:${parts.minute}`};
   });
   await page.locator('#downloadEndDateText').fill(end.date);
-  await page.locator('#downloadEndTimeSelect').focus();
+  await page.locator('#downloadEndDateText').press('Tab');
   await page.locator('#downloadEndTimeSelect').selectOption(end.time);
 }
 function gifFrames(bytes) {
@@ -383,6 +437,8 @@ try{
   for(const major of ['New Jersey Avenue','West Spruce Avenue']){
     assert.ok(overview.labels.some(street=>street.name===major),`The default current view must retain ${major}`);
   }
+  normal.coldPreviewReady=true;normal.log.coldPreviewReady=true;
+  saveState({label:'cold-normal-preview-proven',pendingProviderRetries:normal.pendingProviderRetries,routeEverInstalled:normal.log.routeEverInstalled});
   await page.locator('#exportExtentTownBtn').click();await ready('town-restored');
   result.checks.push('The default broad current view retains New Jersey Avenue and West Spruce Avenue in the shared font');
 

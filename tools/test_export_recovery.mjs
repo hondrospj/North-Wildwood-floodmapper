@@ -356,7 +356,18 @@ await assert.rejects(mapReady.waitForExportMapReady(), /cancelled/);
 
 // Inline a CORS-loaded logo once so html2canvas cannot silently lose a slow CDN image.
 let logoLoads = 0;
-const logo = {src:'https://example.test/logo.jpg',style:{display:''},classList:{contains:()=>true},decode:async()=>{}};
+const logoListeners = new Map();
+const logo = {style:{display:''},classList:{contains:()=>true},decode:async()=>{},
+  complete:true,naturalWidth:400,naturalHeight:100,currentSrc:'https://example.test/logo.jpg',
+  addEventListener:(type,callback)=>logoListeners.set(type,callback),
+  removeEventListener:(type,callback)=>{if(logoListeners.get(type)===callback)logoListeners.delete(type);},
+  getAttribute:name=>name==='src'?logo.src:null,
+};
+let logoSrc='https://example.test/logo.jpg';
+Object.defineProperty(logo,'src',{get:()=>logoSrc,set:value=>{
+  logoSrc=value;logo.currentSrc=value;logo.complete=true;
+  queueMicrotask(()=>logoListeners.get('load')?.());
+}});
 const logoCanvas = {getContext:()=>({drawImage:noop}),toDataURL:()=> 'data:image/png;base64,logo'};
 const chrome = context('waitForExportChromeReady', {
   document:{getElementById:id=>id==='exportPartnerLogo'?logo:null,createElement:()=>logoCanvas},

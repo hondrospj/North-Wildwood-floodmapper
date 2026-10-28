@@ -28,7 +28,7 @@ const ranking = () => page.evaluate(() => topTideEvents.map(event => ({
 const selectedInstant = () => page.evaluate(() => getRangeInputDate('downloadStartInput')?.toISOString() || null);
 async function fillDate(value) {
   await page.locator('#downloadStartDateText').fill(value);
-  await page.locator('#downloadStartTimeSelect').focus();
+  await page.locator('#downloadStartDateText').press('Tab');
 }
 
 try {
@@ -71,7 +71,7 @@ try {
   assert.equal(await dateInput.inputValue(), '10/26/2Y26');
   await dateInput.press('0');
   assert.equal(await dateInput.inputValue(), '10/26/2026');
-  await page.locator('#downloadStartTimeSelect').focus();
+  await page.locator('#downloadStartDateText').press('Tab');
   assert.equal(await dateInput.inputValue(), '10/26/2026');
   checks.push('Backspace/retype preserves every untouched date digit');
 
@@ -116,7 +116,7 @@ try {
   await fillDate('12/31/2025');
   await page.locator('#downloadStartTimeSelect').selectOption('23:00');
   await page.locator('#downloadEndDateText').fill('12/31/2025');
-  await page.locator('#downloadEndTimeSelect').focus();
+  await page.locator('#downloadEndDateText').press('Tab');
   await page.locator('#downloadEndTimeSelect').selectOption('23:00');
   assert.equal(await selectedInstant(), '2026-01-01T04:00:00.000Z');
   await page.locator('#downloadBtn').click(); // Per-session settings review.
