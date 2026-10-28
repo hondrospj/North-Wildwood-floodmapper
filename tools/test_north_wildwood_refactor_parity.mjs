@@ -15,6 +15,22 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+const PLACEMENT_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-road-label-placement.json";
+const PLACEMENT_AUDIT_SHA256 = "c7d2b5ccd52fffcb72a6fcdab672c24941cb676a22d4c5fc3d3bd76a46f0e0f0";
+const placementText = read(PLACEMENT_AUDIT_PATH);
+assert.equal(sha256(placementText), PLACEMENT_AUDIT_SHA256,
+  "The road-label placement follow-up must retain its exact separately reviewed inverse");
+const placementAudit = JSON.parse(placementText);
+assert.equal(placementAudit.schemaVersion, 1);
+assert.equal(placementAudit.baselineCommit, "fb3561293cba61054c80d587cb6ece63ec05c881");
+assert.deepEqual(placementAudit.files.map(file => file.source), [
+  "assets/export-road-labels.js", "tools/app/index.template.html"
+], "The placement follow-up may change only the label layout and dependency cache version");
+assert.deepEqual([...new Set(placementAudit.changes.map(block => block.source))],
+  placementAudit.files.map(file => file.source));
+assert.equal(new Set(placementAudit.changes.map(block => block.id)).size, placementAudit.changes.length);
+const activeRoadLabelTag = placementAudit.afterScriptTag;
+for (const file of placementAudit.files) auditedPlacementRead(file.source);
 const ROAD_LABEL_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-road-labels.json";
 const ROAD_LABEL_AUDIT_SHA256 = "d132d4886f946fc8ad6a0cf4c052b56249f7bbc346afce6e6d266bdd12f871c0";
 const roadLabelText = read(ROAD_LABEL_AUDIT_PATH);
@@ -47,7 +63,7 @@ for (const block of roadLabelAudit.changes) {
 assert.equal(roadLabelAudit.module.source, "assets/export-road-labels.js");
 assert.equal(roadLabelAudit.data.source, "assets/roads/north-wildwood-road-centerlines.geojson");
 for (const asset of [roadLabelAudit.module, roadLabelAudit.data]) {
-  const source = read(asset.source);
+  const source = auditedPlacementRead(asset.source);
   assert.equal(Buffer.byteLength(source), asset.bytes, `${asset.source} must retain its reviewed byte count`);
   assert.equal(sha256(source), asset.sha256, `${asset.source} changed outside the reviewed road-label implementation`);
 }
@@ -374,11 +390,44 @@ function auditedHolisticRead(relative) {
   return auditedIssueFixFragments(auditedLineRead(relative), blocks, relative);
 }
 
+// Preserve the first feature audit unchanged. The hosted-font follow-up can
+// alter only layout() and its content-derived script version before that audit
+// checks every original integration and asset byte.
+function auditedPlacementRead(relative) {
+  const source = read(relative);
+  const blocks = placementAudit.changes.filter(block => block.source === relative);
+  const restored = auditedIssueFixFragments(source, blocks, relative);
+  const file = placementAudit.files.find(file => file.source === relative);
+  if (file) {
+    assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its exact placement follow-up`);
+    assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every first-feature byte`);
+    if (relative === "assets/export-road-labels.js") {
+      const strip = text => {
+        const expression = /^  function layout\([^]*?^  }\n\n?/gm;
+        assert.equal([...text.matchAll(expression)].length, 1, "The placement follow-up must retain one layout function");
+        return text.replace(expression, "");
+      };
+      assert.equal(strip(source), strip(restored), "The placement follow-up may alter only layout()");
+    } else {
+      assert.equal(source.split(placementAudit.afterScriptTag).length - 1, 1,
+        "The placement dependency must occur once");
+      assert.equal(source.replace(placementAudit.afterScriptTag, placementAudit.beforeScriptTag), restored,
+        "The placement template follow-up may alter only the road-label cache version");
+    }
+  }
+  return restored;
+}
+
+function auditedPlacementDocument(source, label) {
+  assert.equal(source.split(activeRoadLabelTag).length - 1, 1, `${label} must include the current road-label dependency once`);
+  return source.replace(activeRoadLabelTag, placementAudit.beforeScriptTag);
+}
+
 // The October 28 export label change is inverted before every earlier audit.
 // Full-file hashes bound each contextual replacement to the reviewed diff;
 // neither a whole runtime block nor a legacy fixture becomes exempt.
 function auditedRoadLabelRead(relative) {
-  const source = read(relative);
+  const source = auditedPlacementRead(relative);
   const blocks = roadLabelAudit.changes.filter(block => block.source === relative);
   const restored = auditedIssueFixFragments(source, blocks, relative);
   const file = roadLabelAudit.files.find(file => file.source === relative);
@@ -542,9 +591,15 @@ assert.match(roadLabelTag, /^<script\b[^>]*><\/script>$/);
 const roadLabelAttributes = attributes(roadLabelTag.slice(0, roadLabelTag.indexOf(">") + 1));
 assert.equal(roadLabelAttributes.size, 2, "Export road labels may add only src and defer attributes");
 assert.ok(roadLabelAttributes.has("defer"), "Export road labels must not block startup parsing");
-referencedOutput(roadLabelAttributes.get("src"), roadLabelAudit.module.source);
+referencedOutput(roadLabelAttributes.get("src"), roadLabelAudit.module.source, auditedPlacementRead(roadLabelAudit.module.source));
+assert.equal(placementAudit.beforeScriptTag, roadLabelTag, "The placement follow-up must restore the original feature dependency");
+assert.equal(placementAudit.afterScriptTag.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+  roadLabelTag.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), "The placement dependency may change only its content cache version");
+const placementAttributes = attributes(activeRoadLabelTag.slice(0, activeRoadLabelTag.indexOf(">") + 1));
+referencedOutput(placementAttributes.get("src"), roadLabelAudit.module.source);
 for (const [label, document] of [["Template", template], ["Published HTML", published]]) {
-  assert.equal(document.split(roadLabelTag).length - 1, 1, `${label} must include the reviewed export road-label dependency once`);
+  assert.equal(auditedPlacementDocument(document, label).split(roadLabelTag).length - 1, 1,
+    `${label} must include the reviewed export road-label dependency once`);
 }
 assert.equal(baseline.schemaVersion, 1);
 assert.equal(manifest.version, 1);
@@ -770,7 +825,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels inverses; remaining UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -784,6 +839,7 @@ if (process.argv.includes("--self-test")) {
       "tools/fixtures/north-wildwood-loader-restore.json", BUG_FIX_AUDIT_PATH, HOLISTIC_FIX_AUDIT_PATH, loaderRestore.controller.source,
       LINE_FIX_AUDIT_PATH, ...lineFixAudit.files.map(file => file.source),
       ROAD_LABEL_AUDIT_PATH, roadLabelAudit.module.source, roadLabelAudit.data.source,
+      PLACEMENT_AUDIT_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -797,6 +853,14 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened road-label placement follow-up", path.join(scratch, PLACEMENT_AUDIT_PATH),
+        JSON.stringify({ ...placementAudit, changes: [...placementAudit.changes, placementAudit.changes[0]] })],
+      ["altered approved placement function", path.join(scratch, roadLabelAudit.module.source),
+        read(roadLabelAudit.module.source).replace("  function layout(", "  function layout(/* Unreviewed placement */")],
+      ["altered module outside the placement function", path.join(scratch, roadLabelAudit.module.source),
+        read(roadLabelAudit.module.source).replace("Inter,", "Arial,")],
+      ["reverted placement dependency cache version", path.join(scratch, "tools/app/index.template.html"),
+        template.replace(activeRoadLabelTag, roadLabelTag)],
       ["broadened export road-label inverse audit", path.join(scratch, ROAD_LABEL_AUDIT_PATH),
         JSON.stringify({ ...roadLabelAudit, changes: [...roadLabelAudit.changes, roadLabelAudit.changes[0]] })],
       ["altered export road-label implementation", path.join(scratch, roadLabelAudit.module.source),
@@ -806,11 +870,11 @@ if (process.argv.includes("--self-test")) {
       ["altered road-label integration fragment", path.join(scratch, roadLabelAudit.changes[0].source),
         read(roadLabelAudit.changes[0].source).replace(roadLabelAudit.changes[0].afterSource,
           roadLabelAudit.changes[0].afterSource + "\n// Unreviewed road-label integration\n")],
-      ["dropped export road-label dependency", scratchHtml, published.replace(roadLabelTag, "")],
+      ["dropped export road-label dependency", scratchHtml, published.replace(activeRoadLabelTag, "")],
       ["asynchronous export road-label dependency", path.join(scratch, "tools/app/index.template.html"),
-        template.replace(roadLabelTag, roadLabelTag.replace("<script", "<script async"))],
+        template.replace(activeRoadLabelTag, activeRoadLabelTag.replace("<script", "<script async"))],
       ["stale export road-label cache version", path.join(scratch, "tools/app/index.template.html"),
-        template.replace(roadLabelTag, roadLabelTag.replace(/\?v=[a-f0-9]+/, "?v=unreviewed"))],
+        template.replace(activeRoadLabelTag, activeRoadLabelTag.replace(/\?v=[a-f0-9]+/, "?v=unreviewed"))],
       ["broadened October 27 inverse audit", path.join(scratch, LINE_FIX_AUDIT_PATH),
         JSON.stringify({ ...lineFixAudit, changes: [...lineFixAudit.changes, lineFixAudit.changes[0]] })],
       ["altered October 27 correctness fragment", path.join(scratch, lineFixAudit.changes[0].source),

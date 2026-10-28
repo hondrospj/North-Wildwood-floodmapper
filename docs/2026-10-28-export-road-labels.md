@@ -14,6 +14,11 @@ is limited, their minimum size is 13 pixels per 1080 output pixels. A final
 fallback may omit only the trailing “Ave”, retaining direction and the full
 source name internally. Wider views deliberately show fewer names.
 
+The initial fractional positions remain the first choice. Missing main-street
+names also search road vertices and a bounded grid of positions. This covers
+wider system fonts while preserving the same size, straightness, collision and
+image-boundary requirements.
+
 Reference tiles remain outside town; the municipal polygon masks their interior
 to avoid duplicate labels. Road names OFF hides both sources. Local geometry
 loads only when an export needs it, with a 15-second header/body deadline,
@@ -23,8 +28,8 @@ the existing roads pane across preview, PNG, and the GIF compositor.
 Fast GIF capture also updates label visibility after fitting the chosen area,
 so a camera change across the label zoom threshold uses the new zoom.
 
-Validation includes nine geometry/loading test groups, exact source parity and
-66 negative mutation cases, all four PNG/GIF aspect ratios in actual browsers,
+Validation includes ten geometry/loading test groups, exact source parity and
+negative mutation cases, all four PNG/GIF aspect ratios in actual browsers,
 downloaded image glyph checks, a two-frame GIF, Road names OFF/ON, current-view
 cropping, local-data outage recovery, and the existing reference-tile retry test.
 Hosted release checks continue to gate production publication.
