@@ -66,7 +66,7 @@ jobs:
       - name: Test actual Windows browsers with desktop and touch-size profiles
         shell: pwsh
         run: |
-          $server = Start-Process python -ArgumentList '-m','http.server','8771','--bind','127.0.0.1' -RedirectStandardOutput preview-output.log -RedirectStandardError preview-error.log -PassThru
+          $server = Start-Process python -ArgumentList 'tools/serve_north_wildwood_test.py','8771','--bind','127.0.0.1','--access-log','preview-access.log' -WorkingDirectory (Get-Location).Path -RedirectStandardError preview-error.log -PassThru
           try {
             $ready = $false
             for ($attempt = 0; $attempt -lt 30; $attempt++) {
