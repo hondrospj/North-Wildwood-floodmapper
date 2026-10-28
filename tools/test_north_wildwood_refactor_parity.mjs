@@ -15,6 +15,24 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+const PROVIDER_READINESS_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-provider-readiness.json";
+const PROVIDER_READINESS_AUDIT_SHA256 = "ca6a957fbbf4f6ff76b0d936a134fae2170a6395aca4eb5b34d95ecc525d3612";
+const providerReadinessText = read(PROVIDER_READINESS_AUDIT_PATH);
+assert.equal(sha256(providerReadinessText), PROVIDER_READINESS_AUDIT_SHA256,
+  "Provider readiness must retain its exact separately reviewed inverse");
+const providerReadinessAudit = JSON.parse(providerReadinessText);
+assert.equal(providerReadinessAudit.schemaVersion, 1);
+assert.equal(providerReadinessAudit.baselineCommit, "d37d186d7e992597704494c8ad0f878f02c9fc64");
+assert.equal(providerReadinessAudit.function, "waitForExportRasterLayerReady");
+assert.deepEqual(providerReadinessAudit.files.map(file => file.source), ["tools/app/runtime/15-export-capture.js"]);
+assert.deepEqual([...new Set(providerReadinessAudit.changes.map(block => block.source))],
+  providerReadinessAudit.files.map(file => file.source));
+assert.equal(new Set(providerReadinessAudit.changes.map(block => block.id)).size, providerReadinessAudit.changes.length);
+for (const block of providerReadinessAudit.changes) {
+  assert.equal(block.kind, "script");
+  assert.equal(block.entryId, "script-004");
+}
+for (const file of providerReadinessAudit.files) auditedProviderReadinessRead(file.source);
 const LOGO_READINESS_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-logo-readiness.json";
 const LOGO_READINESS_AUDIT_SHA256 = "0f573d6c366c50e2e504aeb0e15a212d5d1388cd3c4253fb5fa6a6c98fd26e17";
 const logoReadinessText = read(LOGO_READINESS_AUDIT_PATH);
@@ -489,8 +507,34 @@ function auditedHolisticRead(relative) {
   return auditedIssueFixFragments(auditedLineRead(relative), blocks, relative);
 }
 
-function auditedLogoReadinessRead(relative) {
+function auditedProviderReadinessRead(relative) {
   const source = read(relative);
+  const file = providerReadinessAudit.files.find(file => file.source === relative);
+  if (!file) return source;
+  const restored = auditedIssueFixFragments(source,
+    providerReadinessAudit.changes.filter(block => block.source === relative), relative);
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the exact provider-readiness diff`);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-provider-readiness byte`);
+  const strip = text => {
+    const expression = /^    async function waitForExportRasterLayerReady\([^]*?^    }\n\n?/gm;
+    assert.equal([...text.matchAll(expression)].length, 1, "Retain one export raster-ready owner");
+    return text.replace(expression, "");
+  };
+  assert.equal(strip(source), strip(restored), "Provider readiness may alter only waitForExportRasterLayerReady()");
+  return restored;
+}
+
+function auditedProviderReadinessSource(kind, entry, source) {
+  const blocks = providerReadinessAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
+  for (const block of blocks) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must remain in its declared capture source`);
+    auditedProviderReadinessRead(block.source);
+  }
+  return auditedIssueFixFragments(source, blocks, entry.id);
+}
+
+function auditedLogoReadinessRead(relative) {
+  const source = auditedProviderReadinessRead(relative);
   const file = logoReadinessAudit.files.find(file => file.source === relative);
   if (!file) return source;
   const restored = auditedIssueFixFragments(source,
@@ -780,6 +824,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedProviderReadinessSource(kind, entry, source);
   source = auditedLogoReadinessSource(kind, entry, source);
   source = auditedPreviewPolishSource(kind, entry, source);
   source = auditedFrameReuseSource(kind, entry, source);
@@ -1116,7 +1161,7 @@ if (process.argv.includes("--self-test")) {
       PLACEMENT_AUDIT_PATH,
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
-      LOGO_READINESS_AUDIT_PATH,
+      LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1304,8 +1349,16 @@ if (process.argv.includes("--self-test")) {
           template.match(/<script\b[^>]*\bsrc="assets\/north-wildwood-loading\.js[^>]*><\/script>/)[0].replace("<script", "<script async"))],
       ["altered original welcome controller", path.join(scratch, loaderRestore.controller.source),
         read(loaderRestore.controller.source) + "\n// Unapproved loader behavior\n"],
+      ["broadened provider-readiness inverse", path.join(scratch, PROVIDER_READINESS_AUDIT_PATH),
+        JSON.stringify({ ...providerReadinessAudit, changes: [...providerReadinessAudit.changes, providerReadinessAudit.changes[0]] })],
+      ["altered reviewed provider-readiness function", path.join(scratch, "tools/app/runtime/15-export-capture.js"),
+        read("tools/app/runtime/15-export-capture.js").replace("    async function waitForExportRasterLayerReady(",
+          "    async function waitForExportRasterLayerReady(/* Unreviewed provider readiness */")],
+      ["altered adjacent vector-readiness deadline", path.join(scratch, "tools/app/runtime/15-export-capture.js"),
+        read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
+          "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length, 82, "Retain all 79 previous mutations and three logo-readiness mutations");
+    assert.equal(cases.length, 85, "Retain all 82 previous mutations and three provider-readiness mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       fs.writeFileSync(target, altered);

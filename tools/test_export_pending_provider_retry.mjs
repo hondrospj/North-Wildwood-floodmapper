@@ -7,24 +7,33 @@ const fn=source.match(/function classifyPendingProviderPreviewRetry\([^]*?\n}/)?
 assert.ok(fn,'Classify the exact predicate used by the real browser test');
 const context=vm.createContext({URL});vm.runInContext(fn,context);
 const classify=value=>JSON.parse(JSON.stringify(context.classifyPendingProviderPreviewRetry(value.state,value.warning,value.context)));
-const layer=(url,count,ready)=>({kind:'raster',url,mapContains:true,ownsMap:true,mapMissing:false,containerPresent:true,containerAttached:true,
+const layer=(url,count,ready)=>({layerId:url.includes('/Reference/')?202:101,kind:'raster',url,mapContains:true,ownsMap:true,mapMissing:false,containerPresent:true,containerAttached:true,
  isLoading:ready<count,tileZoom:16,
  native:{count,complete:ready,ready,pending:count-ready,failed:0,tiles:Array.from({length:count},(_,i)=>({tag:'IMG',complete:i<ready,naturalWidth:i<ready?256:0}))},
  tracked:{count,current:count,tiles:Array.from({length:count},(_,i)=>({current:true,complete:i<ready,naturalWidth:i<ready?256:0,coords:{x:i,y:0,z:16}}))}});
-function fixture(){return{
- context:{name:'normal-route-free',routeEverInstalled:false,coldPreviewReady:true,pendingProviderRetries:0},
- warning:{session:'normal-route-free',text:'Export preview could not be rendered.',captureErrors:[],errors:[{name:'Error',message:'The map background is still loading. Please try the export again.'}]},
+const captureOriginal=(f,role='basemap')=>{f.warning.errors[0].exportRasterReadiness={schemaVersion:1,reason:'deadline',observedAt:1793221133000,layer:structuredClone(f.state[role])};};
+function fixture(){const f={
+ context:{name:'normal-route-free',routeEverInstalled:false,coldPreviewReady:true,actionId:'Png-16:9',pendingProviderRetries:0,retriedPreviewActions:[]},
+ warning:{session:'normal-route-free',phase:'Png-16:9',observedAt:'2026-10-28T20:58:53.395Z',text:'Export preview could not be rendered.',captureErrors:[],errors:[{name:'Error',message:'The map background is still loading. Please try the export again.'}]},
  state:{state:'error',busy:false,basemap:layer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',78,28),
   roads:layer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',28,28),
-  floodImage:{src:'https://example.test/actual-depth.webp',complete:true,naturalWidth:2186,naturalHeight:2824}}};}
-assert.deepEqual(classify(fixture()),{eligible:true,reason:'genuine-pending-provider',pendingProviders:['basemap'],
- basemap:{eligible:true,pendingTiles:50,readyTiles:28,totalTiles:78},roads:{eligible:true,pendingTiles:0,readyTiles:28,totalTiles:28}});
-const roadsPending=fixture();roadsPending.state.basemap=layer(roadsPending.state.basemap.url,78,78);roadsPending.state.roads=layer(roadsPending.state.roads.url,35,0);
-assert.deepEqual(classify(roadsPending).pendingProviders,['roads']);assert.equal(classify(roadsPending).eligible,true);
-const bothPending=fixture();bothPending.state.basemap=layer(bothPending.state.basemap.url,96,0);bothPending.state.roads=layer(bothPending.state.roads.url,35,0);
+  floodImage:{src:'https://example.test/actual-depth.webp',complete:true,naturalWidth:2186,naturalHeight:2824}}};captureOriginal(f);return f;}
+const pending={eligible:true,pendingTiles:50,readyTiles:28,totalTiles:78},ready={eligible:true,pendingTiles:0,readyTiles:28,totalTiles:28};
+assert.deepEqual(classify(fixture()),{eligible:true,reason:'original-raster-deadline-pending',originalProvider:'basemap',original:pending,pendingProviders:['basemap'],basemap:pending,roads:ready});
+const roadsPending=fixture();roadsPending.state.basemap=layer(roadsPending.state.basemap.url,78,78);roadsPending.state.roads=layer(roadsPending.state.roads.url,35,0);captureOriginal(roadsPending,'roads');
+assert.deepEqual(classify(roadsPending).pendingProviders,['roads']);assert.equal(classify(roadsPending).originalProvider,'roads');assert.equal(classify(roadsPending).eligible,true);
+const bothPending=fixture();bothPending.state.basemap=layer(bothPending.state.basemap.url,96,0);bothPending.state.roads=layer(bothPending.state.roads.url,35,0);captureOriginal(bothPending);
 assert.deepEqual(classify(bothPending).pendingProviders,['basemap','roads']);assert.equal(classify(bothPending).eligible,true);
-const firstCold=fixture();firstCold.context.coldPreviewReady=false;
-assert.equal(classify(firstCold).eligible,true);assert.deepEqual(classify(firstCold).pendingProviders,['basemap']);
+const firstCold=fixture();firstCold.context.coldPreviewReady=false;firstCold.context.actionId='broad-current-view';firstCold.warning.phase='broad-current-view';
+assert.equal(classify(firstCold).eligible,true);
+// A late diagnostic may show ready tiles. Only the independent original
+// synchronous deadline snapshot can justify recovery in that situation.
+const nowReady=fixture();nowReady.state.basemap=layer(nowReady.state.basemap.url,78,78);
+assert.equal(classify(nowReady).eligible,true);assert.deepEqual(classify(nowReady).pendingProviders,[]);
+const roadsNowReady=structuredClone(roadsPending);roadsNowReady.state.roads=layer(roadsNowReady.state.roads.url,35,35);
+assert.equal(classify(roadsNowReady).eligible,true);assert.equal(classify(roadsNowReady).originalProvider,'roads');
+const encodedUrl=fixture();encodedUrl.state.basemap.url=new URL(encodedUrl.state.basemap.url).href;
+assert.equal(classify(encodedUrl).eligible,true,'Equivalent encoded tile-template URLs identify the same layer');
 const negatives=[
  ['street-fault context',f=>f.context.name='street-data-fault'],
  ['routed normal context',f=>f.context.routeEverInstalled=true],
@@ -76,7 +85,7 @@ const negatives=[
  ['roads still loading',f=>f.state.roads.isLoading=true],
  ['roads empty',f=>f.state.roads=layer(f.state.roads.url,0,0)],
  ['roads failed tile',f=>{f.state.roads.native.tiles[0].naturalWidth=0;f.state.roads.native.failed=1;f.state.roads.native.ready--;}],
- ['both providers already ready',f=>f.state.basemap=layer(f.state.basemap.url,78,78)],
+ ['original deadline already ready',f=>f.warning.errors[0].exportRasterReadiness.layer=layer(f.state.basemap.url,78,78)],
  ['wrong roads provider service',f=>f.state.roads.url=f.state.basemap.url],
  ['wrong roads provider host',f=>f.state.roads.url=f.state.roads.url.replace('server.arcgisonline.com','example.test')],
  ['missing roads current metadata',f=>delete f.state.roads.tracked],
@@ -96,9 +105,64 @@ const negatives=[
  ['flood has no source',f=>f.state.floodImage.src=''],
 ];
 for(const[name,change]of negatives){const f=fixture();change(f);assert.equal(classify(f).eligible,false,name);}
-// The same context can spend one budget, independent of the next aspect.
-const consumed=fixture();assert.equal(classify(consumed).eligible,true);consumed.context.pendingProviderRetries++;
-for(const aspect of ['1:1','4:5','16:9','9:16']){consumed.state.aspect=aspect;assert.equal(classify(consumed).eligible,false,`Budget must not reset for ${aspect}`);}
-firstCold.context.pendingProviderRetries=1;
-assert.deepEqual(classify(firstCold),{eligible:false,reason:'retry-budget-used'},'A cold attempt must use the same one-Retry budget');
-console.log(`PASS pending-provider UI Retry: four provider positives, ${negatives.length} rejected states, explicit cold-state metadata and one shared cold/later context budget.`);
+const original=f=>f.warning.errors[0].exportRasterReadiness;
+const originalNegatives=[
+ ['missing original deadline snapshot',f=>delete f.warning.errors[0].exportRasterReadiness],
+ ['wrong original schema',f=>original(f).schemaVersion=2],
+ ['nondeadline original reason',f=>original(f).reason='tile-error'],
+ ['missing original clock',f=>delete original(f).observedAt],
+ ['invalid original clock',f=>original(f).observedAt=0],
+ ['missing original layer',f=>original(f).layer=null],
+ ['unknown original provider',f=>original(f).layer.url='https://example.test/World_Street_Map'],
+ ['wrong original provider host',f=>original(f).layer.url=original(f).layer.url.replace('server.arcgisonline.com','example.test')],
+ ['original vector layer',f=>original(f).layer.kind='vector'],
+ ['original detached container',f=>original(f).layer.containerAttached=false],
+ ['original missing container',f=>original(f).layer.containerPresent=false],
+ ['original map mismatch',f=>original(f).layer.ownsMap=false],
+ ['original map no longer contains layer',f=>original(f).layer.mapContains=false],
+ ['original pending but not loading',f=>original(f).layer.isLoading=false],
+ ['original empty native layer',f=>original(f).layer=layer(f.state.basemap.url,0,0)],
+ ['original bad native tile',f=>{const a=original(f).layer;a.native.tiles[0].naturalWidth=0;a.native.failed=1;}],
+ ['original unreported bad tile',f=>original(f).layer.native.tiles[0].naturalWidth=0],
+ ['original mismatched native count',f=>original(f).layer.native.count++],
+ ['original mismatched completion count',f=>original(f).layer.native.complete++],
+ ['original mismatched pending count',f=>original(f).layer.native.pending--],
+ ['original missing tracked layer',f=>delete original(f).layer.tracked],
+ ['original mismatched tracked count',f=>original(f).layer.tracked.count--],
+ ['original missing current tiles',f=>{const a=original(f).layer;a.tracked.tiles.forEach(t=>t.current=false);a.tracked.current=0;}],
+ ['original native pending but current all ready',f=>original(f).layer.tracked.tiles.forEach(t=>{t.complete=true;t.naturalWidth=256;})],
+ ['original stale current tile zoom',f=>original(f).layer.tracked.tiles[0].coords.z=15],
+ ['original fractional tile zoom',f=>original(f).layer.tileZoom=16.5],
+ ['original stale isLoading with ready tiles',f=>{original(f).layer=layer(f.state.basemap.url,78,78);original(f).layer.isLoading=true;}],
+ ['original ready even though later pending',f=>original(f).layer=layer(f.state.basemap.url,78,78)],
+ ['original ready and later ready',f=>{original(f).layer=layer(f.state.basemap.url,78,78);f.state.basemap=layer(f.state.basemap.url,78,78);} ],
+ ['missing original layer identity',f=>delete original(f).layer.layerId],
+ ['changed current layer identity',f=>f.state.basemap.layerId=999],
+ ['same layer moved to a new valid grid',f=>{f.state.basemap.tileZoom=17;f.state.basemap.tracked.tiles.forEach(tile=>tile.coords.z=17);}],
+ ['changed current source on same layer',f=>f.state.basemap.url+='?different-generation=1'],
+ ['missing current basemap identity',f=>delete f.state.basemap.layerId],
+ ['missing current roads identity',f=>delete f.state.roads.layerId],
+ ['warning from another action',f=>f.warning.phase='Png-9:16'],
+ ['unknown preview action',f=>f.context.actionId='unbounded-next-action'],
+ ['missing preview action',f=>delete f.context.actionId],
+ ['missing action budget ledger',f=>delete f.context.retriedPreviewActions],
+ ['duplicate actions in ledger',f=>{f.context.retriedPreviewActions=['Gif-1:1','Gif-1:1'];f.context.pendingProviderRetries=2;}],
+ ['unknown action in ledger',f=>{f.context.retriedPreviewActions=['unbounded-action'];f.context.pendingProviderRetries=1;}],
+ ['negative total retry count',f=>f.context.pendingProviderRetries=-1],
+];
+for(const[name,change]of originalNegatives){const f=fixture();change(f);assert.equal(classify(f).eligible,false,name);}
+// Each named action has one budget; changing aspect does not create an
+// unbounded retry loop and never permits a second Retry of the same action.
+const consumed=fixture();assert.equal(classify(consumed).eligible,true);
+consumed.context.retriedPreviewActions=['Png-16:9'];consumed.context.pendingProviderRetries=1;
+assert.equal(classify(consumed).eligible,false,'Same action cannot retry twice');
+consumed.context.actionId='Png-9:16';consumed.warning.phase='Png-9:16';
+assert.equal(classify(consumed).eligible,true,'A distinct fixed action has its own budget');
+consumed.context.retriedPreviewActions.push('Png-9:16');consumed.context.pendingProviderRetries=2;
+assert.equal(classify(consumed).eligible,false,'New action also stops after one Retry');
+firstCold.context.retriedPreviewActions=['broad-current-view'];firstCold.context.pendingProviderRetries=1;
+assert.equal(classify(firstCold).eligible,false,'Cold first attempt gets at most one Retry');
+const fixedActions=['broad-current-view','town-restored','Png-1:1','Png-4:5','Png-16:9','Png-9:16','Gif-1:1','Gif-4:5','Gif-16:9','Gif-9:16','png-download-ready','gif-download-ready','roads-disabled','roads-reenabled','current-crop'];
+assert.equal(fixedActions.length,15);
+for(const actionId of fixedActions){const f=fixture();f.context.actionId=actionId;f.warning.phase=actionId;f.context.retriedPreviewActions=[...fixedActions];f.context.pendingProviderRetries=15;assert.equal(classify(f).eligible,false,`Fixed cap rejects ${actionId}`);}
+console.log(`PASS pending-provider UI Retry: 7 original/current positives, ${negatives.length+originalNegatives.length} rejected states, original deadline identity, 15 fixed action budgets and duplicate-action rejection.`);

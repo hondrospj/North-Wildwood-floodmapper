@@ -4,8 +4,11 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = readAppSource(process.env.EXPORT_TEST_SOURCE || new URL('../index.html', import.meta.url));
+const rasterReadinessSource = process.env.EXPORT_TEST_SOURCE ? source
+  : fs.readFileSync(new URL('app/runtime/15-export-capture.js', import.meta.url), 'utf8');
 function extract(name) {
-  const match = source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n    }`));
+  const testedSource = name === 'waitForExportRasterLayerReady' ? rasterReadinessSource : source;
+  const match = testedSource.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n    }`));
   assert.ok(match, `Missing ${name}`);
   return match[0];
 }
@@ -296,6 +299,73 @@ const rasterLayer = {isLoading:()=>!tilesReady,getContainer:()=>({querySelectorA
 await raster.waitForExportRasterLayerReady(rasterLayer);
 tile.naturalWidth=0;
 await assert.rejects(raster.waitForExportRasterLayerReady(rasterLayer), /map tile could not load/);
+
+// A tile can finish during the final polling interval. Read its native state
+// once at the deadline, with no additional wait, before reporting an error.
+function rasterDeadlineFixture(onWait = noop) {
+  let now = 0, cancelled = false, paints = 0;
+  const waits = [];
+  const image = {tagName:'IMG',complete:false,naturalWidth:0,naturalHeight:0};
+  const container = {isConnected:true,querySelectorAll:()=>[image]};
+  const map = {hasLayer:()=>true};
+  const record = {el:image,current:true,loaded:0,active:false,coords:{x:9575,y:12522,z:15}};
+  const layer = {_leaflet_id:7,_url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    _map:map,_tileZoom:15,_tiles:{tile:record},getContainer:()=>container,
+    isLoading:()=>!image.complete};
+  const ctx = context('waitForExportRasterLayerReady', {
+    Date:{now:()=>now},exportMap:map,
+    throwIfExportCancelled:()=>{if(cancelled)throw Object.assign(Error('cancelled'),{name:'AbortError'});},
+    requestAnimationFrame:fn=>{paints++;fn();},
+    wait:async delay=>{waits.push(delay);now+=delay;onWait(image,()=>{cancelled=true;});},
+  });
+  return {ctx,layer,image,record,container,waits,paints:()=>paints};
+}
+{
+  const f=rasterDeadlineFixture(image=>{image.complete=true;image.naturalWidth=256;image.naturalHeight=256;});
+  await f.ctx.waitForExportRasterLayerReady(f.layer,100);
+  assert.deepEqual(f.waits,[100],'The last readiness check must add no grace period');
+  assert.equal(f.paints(),2,'Use the same two-paint success path');
+}
+{
+  const f=rasterDeadlineFixture();let failure;
+  await assert.rejects(f.ctx.waitForExportRasterLayerReady(f.layer,100),error=>{
+    failure=error;return error.message==='The map background is still loading. Please try the export again.';
+  });
+  const snapshot=failure.exportRasterReadiness;
+  assert.equal(snapshot.schemaVersion,1);assert.equal(snapshot.reason,'deadline');assert.equal(snapshot.observedAt,100);
+  assert.equal(snapshot.layer.url,f.layer._url);assert.equal(snapshot.layer.layerId,7);
+  assert.equal(snapshot.layer.mapContains,true);assert.equal(snapshot.layer.ownsMap,true);
+  assert.equal(snapshot.layer.containerAttached,true);assert.equal(snapshot.layer.isLoading,true);
+  assert.equal(snapshot.layer.native.count,1);assert.equal(snapshot.layer.native.complete,0);
+  assert.equal(snapshot.layer.native.pending,1);assert.equal(snapshot.layer.native.failed,0);
+  assert.equal(snapshot.layer.tracked.count,1);assert.equal(snapshot.layer.tracked.current,1);
+  assert.equal(snapshot.layer.tracked.tiles[0].coords.z,snapshot.layer.tileZoom);
+  assert.ok(Object.isFrozen(snapshot)&&Object.isFrozen(snapshot.layer.native.tiles)&&Object.isFrozen(snapshot.layer.tracked.tiles[0].coords));
+  const serialized=JSON.stringify(snapshot);
+  f.image.complete=true;f.image.naturalWidth=512;f.record.coords.z=16;f.container.isConnected=false;f.layer._url='changed';
+  assert.equal(JSON.stringify(snapshot),serialized,'Later native/provider changes cannot rewrite the original deadline evidence');
+  assert.deepEqual(f.waits,[100]);assert.equal(f.paints(),0);
+}
+{
+  const f=rasterDeadlineFixture();f.image.complete=true;
+  await assert.rejects(f.ctx.waitForExportRasterLayerReady(f.layer,100),/A map tile could not load/);
+  assert.deepEqual(f.waits,[],'Known failed images must retain their existing immediate failure path');
+}
+{
+  const f=rasterDeadlineFixture(image=>{image.complete=true;});
+  await assert.rejects(f.ctx.waitForExportRasterLayerReady(f.layer,100),error=>error.exportRasterReadiness?.layer.native.failed===1);
+  assert.equal(f.paints(),0,'A failed image arriving at the deadline must not count as ready');
+}
+{
+  const f=rasterDeadlineFixture((image,cancel)=>cancel());
+  await assert.rejects(f.ctx.waitForExportRasterLayerReady(f.layer,100),error=>error.name==='AbortError'&&!error.exportRasterReadiness);
+  assert.equal(f.paints(),0,'Cancellation must win at the deadline too');
+}
+{
+  const f=rasterDeadlineFixture();Object.defineProperty(f.layer,'_tiles',{get(){throw Error('diagnostic unavailable');}});
+  await assert.rejects(f.ctx.waitForExportRasterLayerReady(f.layer,100),error=>
+    error.message==='The map background is still loading. Please try the export again.'&&!error.exportRasterReadiness);
+}
 
 // A retry reuses the attached layer/options and exact camera, including its
 // position among same-pane peers. Removed optional layers cannot be revived.
