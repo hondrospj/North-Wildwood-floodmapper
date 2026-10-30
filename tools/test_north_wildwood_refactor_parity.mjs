@@ -15,6 +15,65 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+// Restore this separately pinned road-label presentation delta before the
+// previous audits; original terrain, flood, parcel and UI hashes stay exact.
+const SCALABLE_ROAD_AUDIT_PATH = "tools/fixtures/north-wildwood-20261030-scalable-road-labels.json";
+const SCALABLE_ROAD_AUDIT_SHA256 = "b1d67d07367a78e72ee838f7a2e6b4dbc0620cfe4528792ab7aa549a9ccf993b";
+const scalableRoadText = read(SCALABLE_ROAD_AUDIT_PATH);
+assert.equal(sha256(scalableRoadText), SCALABLE_ROAD_AUDIT_SHA256,
+  "Scalable road labels must retain the exact reviewed inverse and module pin");
+const scalableRoadAudit = JSON.parse(scalableRoadText);
+const SCALABLE_ROAD_FUNCTIONS = new Map([
+  ["tools/app/runtime/10-map-geometry-and-layers.js", ["createRoadLabelLayer"]],
+  ["tools/app/runtime/15-export-capture.js", ["waitForExportMapReady"]],
+  ["tools/app/runtime/16-export-map.js", ["updateExportRoadLayerAppearance", "captureExportCanvas"]],
+  ["tools/app/runtime/17-export-encoding.js", ["captureFastGifBaseCanvas"]],
+  ["assets/3d/north-wildwood-3d.js", ["load3dStyle", "syncRoadLabels3d", "addCore3dLayers"]],
+  ["tools/app/index.template.html", []],
+  ["tools/app/runtime/00-configuration.js", []],
+  ["assets/export-road-labels.js", ["layout", "attach"]]
+]);
+const SCALABLE_ROAD_NEW_FUNCTIONS = ["exportUsesScalableRoadLabels", "exportScalableRoadLabelsEnabled",
+  "waitForExportRoadLabelsReady"];
+const SCALABLE_ROAD_ATTRIBUTION = ">Map: Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors \u00b7 Local road names: NJOGIS</div>";
+const SCALABLE_FALLBACK_BEFORE = "    const FALLBACK_BASEMAP_URL = \"https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}\";\n";
+const SCALABLE_FALLBACK_AFTER = "    const FALLBACK_BASEMAP_URL = \"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}\";\n";
+const SCALABLE_ROAD_MARKER = "    /* Shorely scalable road-label export integration v1. */\n";
+const SCALABLE_3D_RASTER_BLOCK = "    glMap.addSource(\"nw-road-labels-source\", {\n      type: \"raster\",\n      tiles: [ROAD_LABELS_URL.replace(\"{s}\", \"a\")],\n      tileSize: 256,\n      minzoom: 11,\n      maxzoom: 20,\n      attribution: \"&copy; OpenStreetMap contributors &copy; CARTO\"\n    });\n    glMap.addLayer({\n      id: \"nw-road-labels\",\n      type: \"raster\",\n      source: \"nw-road-labels-source\",\n      minzoom: ROAD_LABEL_ZOOM,\n      layout: { visibility: visibility(layerVisible(\"roadsToggle\", true)) },\n      paint: {\n        \"raster-opacity\": 0.98, \"raster-fade-duration\": 0,\n        \"raster-saturation\": -1,\n        \"raster-brightness-min\": 0.3375, \"raster-brightness-max\": 1\n      }\n    });\n";
+const SCALABLE_3D_STYLE_COMMENT = "    // Road symbols come from the shared scalable vector style.\n";
+assert.equal(scalableRoadAudit.schemaVersion, 1);
+assert.equal(scalableRoadAudit.beforeFallback, SCALABLE_FALLBACK_BEFORE);
+assert.equal(scalableRoadAudit.afterFallback, SCALABLE_FALLBACK_AFTER);
+assert.equal(scalableRoadAudit.baselineCommit, "d78d28560b951c8a0d032b8dd5d51097201b2184");
+assert.deepEqual(scalableRoadAudit.functions, Object.fromEntries(SCALABLE_ROAD_FUNCTIONS));
+assert.deepEqual(scalableRoadAudit.newFunctions, SCALABLE_ROAD_NEW_FUNCTIONS);
+assert.deepEqual(scalableRoadAudit.files.map(file => [file.source, file.kind, file.entryId]), [
+  ["tools/app/runtime/10-map-geometry-and-layers.js", "script", "script-004"],
+  ["tools/app/runtime/15-export-capture.js", "script", "script-004"],
+  ["tools/app/runtime/16-export-map.js", "script", "script-004"],
+  ["tools/app/runtime/17-export-encoding.js", "script", "script-004"],
+  ["assets/3d/north-wildwood-3d.js", "external", null],
+  ["tools/app/index.template.html", "template", null],
+  ["tools/app/runtime/00-configuration.js", "script", "script-004"],
+  ["assets/export-road-labels.js", "external", null]
+]);
+assert.deepEqual([...new Set(scalableRoadAudit.changes.map(block => block.source))],
+  scalableRoadAudit.files.map(file => file.source));
+assert.equal(new Set(scalableRoadAudit.changes.map(block => block.id)).size, 15);
+assert.equal(scalableRoadAudit.changes.length, 15);
+for (const block of scalableRoadAudit.changes) {
+  const file = scalableRoadAudit.files.find(file => file.source === block.source);
+  assert.equal(block.kind, file.kind);
+  assert.equal(block.entryId, file.entryId);
+}
+assert.equal(scalableRoadAudit.module.source, "assets/road-labels.js");
+const scalableRoadModule = read(scalableRoadAudit.module.source);
+assert.equal(Buffer.byteLength(scalableRoadModule), scalableRoadAudit.module.bytes);
+assert.equal(sha256(scalableRoadModule), scalableRoadAudit.module.sha256,
+  "The shared vector road renderer must retain its reviewed bytes");
+new vm.Script(scalableRoadModule, { filename: scalableRoadAudit.module.source });
+for (const file of scalableRoadAudit.files) auditedScalableRoadRead(file.source);
+new vm.Script(read("assets/3d/north-wildwood-3d.js"), { filename: "assets/3d/north-wildwood-3d.js" });
 const PROVIDER_READINESS_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-provider-readiness.json";
 const PROVIDER_READINESS_AUDIT_SHA256 = "ca6a957fbbf4f6ff76b0d936a134fae2170a6395aca4eb5b34d95ecc525d3612";
 const providerReadinessText = read(PROVIDER_READINESS_AUDIT_PATH);
@@ -146,7 +205,7 @@ assert.deepEqual(placementAudit.files.map(file => file.source), [
 assert.deepEqual([...new Set(placementAudit.changes.map(block => block.source))],
   placementAudit.files.map(file => file.source));
 assert.equal(new Set(placementAudit.changes.map(block => block.id)).size, placementAudit.changes.length);
-const activeRoadLabelTag = placementAudit.afterScriptTag;
+const activeRoadLabelTag = scalableRoadAudit.afterLocalScriptTag;
 for (const file of placementAudit.files) auditedPlacementRead(file.source);
 const ROAD_LABEL_AUDIT_PATH = "tools/fixtures/north-wildwood-20261028-export-road-labels.json";
 const ROAD_LABEL_AUDIT_SHA256 = "d132d4886f946fc8ad6a0cf4c052b56249f7bbc346afce6e6d266bdd12f871c0";
@@ -205,6 +264,8 @@ assert.equal(holisticFixAudit.schemaVersion, 1);
 assert.equal(holisticFixAudit.baselineCommit, "075b294431f5bf57542a2c8850ef7b2d26320766");
 const template = read("tools/app/index.template.html");
 const published = read("index.html");
+assertScalableRoadDocument(template, "Template");
+assertScalableRoadDocument(published, "Published HTML");
 const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-ui.json"));
 const previewSource = auditedHolisticRead(previewUi.source);
 const exportPresentation = JSON.parse(read("tools/fixtures/north-wildwood-export-presentation.json"));
@@ -507,8 +568,90 @@ function auditedHolisticRead(relative) {
   return auditedIssueFixFragments(auditedLineRead(relative), blocks, relative);
 }
 
-function auditedProviderReadinessRead(relative) {
+// Full-file pins plus independent function ownership make the inverse exact:
+// no neighboring source block is exempt, including 3D terrain and buildings.
+function scalableRoadFunction(source, name, indent) {
+  const expression = new RegExp("^" + indent + "(?:async )?function " + name + "\\([^]*?^" + indent + "}\\n\\n?", "gm");
+  const matches = [...source.matchAll(expression)];
+  assert.equal(matches.length, 1, `${name} must retain one reviewed owner`);
+  return matches[0][0];
+}
+
+function auditedScalableRoadRead(relative) {
   const source = read(relative);
+  const file = scalableRoadAudit.files.find(file => file.source === relative);
+  if (!file) return source;
+  const blocks = scalableRoadAudit.changes.filter(block => block.source === relative);
+  const restored = auditedIssueFixFragments(source, blocks, relative);
+  assert.equal(Buffer.byteLength(source), file.afterBytes);
+  assert.equal(Buffer.byteLength(restored), file.beforeBytes);
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed scalable-road delta`);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-scalable-road byte`);
+  const names = SCALABLE_ROAD_FUNCTIONS.get(relative);
+  if (names.length) {
+    const indent = file.kind === "external" ? "  " : "    ";
+    if (relative === "assets/3d/north-wildwood-3d.js") {
+      const oldCore = scalableRoadFunction(restored, "addCore3dLayers", indent);
+      const newCore = scalableRoadFunction(source, "addCore3dLayers", indent);
+      assert.equal(oldCore.split(SCALABLE_3D_RASTER_BLOCK).length - 1, 1);
+      assert.equal(oldCore.replace(SCALABLE_3D_RASTER_BLOCK, SCALABLE_3D_STYLE_COMMENT), newCore,
+        "3D core changes may replace only the old raster road layer; terrain, boundary and building setup stay exact");
+    }
+    const strip = (text, before) => {
+      for (const name of names) text = text.replace(scalableRoadFunction(text, name, indent), "");
+      if (relative.endsWith("16-export-map.js")) {
+        for (const name of SCALABLE_ROAD_NEW_FUNCTIONS) {
+          if (before) assert.ok(!new RegExp("function " + name + "\\(").test(text));
+          else text = text.replace(scalableRoadFunction(text, name, indent), "");
+        }
+        if (!before) {
+          assert.equal(text.split(SCALABLE_ROAD_MARKER).length - 1, 1);
+          text = text.replace(SCALABLE_ROAD_MARKER, "");
+        }
+      }
+      return text;
+    };
+    assert.equal(strip(source, false), strip(restored, true),
+      `${relative} may change only the explicitly named road-label functions`);
+  } else if (relative.endsWith("00-configuration.js")) {
+    assert.equal(source.split(SCALABLE_FALLBACK_AFTER).length - 1, 1);
+    assert.equal(source.replace(SCALABLE_FALLBACK_AFTER, SCALABLE_FALLBACK_BEFORE), restored,
+      "The fallback change may replace only the labeled street service with unlabeled imagery");
+  } else {
+    assert.equal(source.replace(scalableRoadAudit.moduleScriptTag + "\n", "")
+      .replace(scalableRoadAudit.after3dScriptTag, scalableRoadAudit.before3dScriptTag)
+      .replace(scalableRoadAudit.afterLocalScriptTag, scalableRoadAudit.beforeLocalScriptTag), restored,
+      "The template may add only the road module and update its two content-dependent consumers");
+  }
+  return restored;
+}
+
+function auditedScalableRoadSource(kind, entry, source) {
+  const blocks = scalableRoadAudit.changes.filter(block => block.kind === kind && block.entryId === entry.id);
+  for (const block of blocks) {
+    assert.ok(entry.sources.includes(block.source), `${block.id} must stay in its declared road-label source`);
+    auditedScalableRoadRead(block.source);
+  }
+  return auditedIssueFixFragments(source, blocks, entry.id);
+}
+
+function assertScalableRoadDocument(document, label) {
+  assert.equal(document.split(SCALABLE_ROAD_ATTRIBUTION).length - 1, 1, `${label} must retain the active NJOGIS source credit`);
+  assert.equal(document.split(scalableRoadAudit.afterLocalScriptTag).length - 1, 1, `${label} must use the current enlarged local-label asset`);
+  const tag = scalableRoadAudit.moduleScriptTag;
+  assert.equal(document.split(tag).length - 1, 1, `${label} must include the reviewed vector road renderer once`);
+  const attrs = attributes(tag.trim().slice(0, tag.trim().indexOf(">") + 1));
+  assert.deepEqual([...attrs.keys()], ["src"], "The road renderer must load synchronously before classic runtime initialization");
+  assert.equal(new URL(attrs.get("src"), "https://parity.invalid/").pathname, "/assets/road-labels.js");
+  const vectorTag = '<script src="https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js"></script>';
+  assert.equal(document.split(vectorTag + "\n" + tag).length - 1, 1,
+    `${label} must load the road renderer immediately after its Esri vector dependency`);
+  assert.equal(document.split(scalableRoadAudit.after3dScriptTag).length - 1, 1,
+    `${label} must retain the reviewed 3D road consumer cache version`);
+}
+
+function auditedProviderReadinessRead(relative) {
+  const source = auditedScalableRoadRead(relative);
   const file = providerReadinessAudit.files.find(file => file.source === relative);
   if (!file) return source;
   const restored = auditedIssueFixFragments(source,
@@ -824,6 +967,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditedScalableRoadSource(kind, entry, source);
   source = auditedProviderReadinessSource(kind, entry, source);
   source = auditedLogoReadinessSource(kind, entry, source);
   source = auditedPreviewPolishSource(kind, entry, source);
@@ -1144,7 +1288,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
   }
 }
 
-console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement/frame-reuse inverses; remaining UI DOM and dependency order remain exact.`);
+console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement/frame-reuse/October-30-scalable-road-labels inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -1162,6 +1306,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js",
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1175,6 +1320,28 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["restored address-bearing fallback basemap", path.join(scratch, "tools/app/runtime/00-configuration.js"),
+        read("tools/app/runtime/00-configuration.js").replace(SCALABLE_FALLBACK_AFTER, SCALABLE_FALLBACK_BEFORE)],
+      ["dropped active NJOGIS road attribution", scratchHtml,
+        published.replace(SCALABLE_ROAD_ATTRIBUTION, SCALABLE_ROAD_ATTRIBUTION.replace(" · Local road names: NJOGIS", ""))],
+      ["broadened scalable-road inverse", path.join(scratch, SCALABLE_ROAD_AUDIT_PATH),
+        JSON.stringify({ ...scalableRoadAudit, changes: [...scalableRoadAudit.changes, scalableRoadAudit.changes[0]] })],
+      ["altered shared scalable road renderer", path.join(scratch, scalableRoadAudit.module.source),
+        scalableRoadModule + "\n// Unreviewed road-label style\n"],
+      ["altered scalable export snapshot helper", path.join(scratch, "tools/app/runtime/16-export-map.js"),
+        read("tools/app/runtime/16-export-map.js").replace("    async function waitForExportRoadLabelsReady(",
+          "    async function waitForExportRoadLabelsReady(/* Unreviewed readiness */")],
+      ["dropped scalable-road dependency", scratchHtml, published.replace(scalableRoadAudit.moduleScriptTag, "")],
+      ["asynchronous scalable-road dependency", path.join(scratch, "tools/app/index.template.html"),
+        template.replace(scalableRoadAudit.moduleScriptTag, scalableRoadAudit.moduleScriptTag.replace("<script", "<script async"))],
+      ["stale scalable-road dependency", path.join(scratch, "tools/app/index.template.html"),
+        template.replace(scalableRoadAudit.moduleScriptTag, scalableRoadAudit.moduleScriptTag.replace("?v=", "?v=unreviewed-"))],
+      ["altered 3D road-label style consumer", path.join(scratch, "assets/3d/north-wildwood-3d.js"),
+        read("assets/3d/north-wildwood-3d.js").replace("  function syncRoadLabels3d() {",
+          "  function syncRoadLabels3d() {\n    // Unreviewed road visibility")],
+      ["altered 3D terrain outside road-label owners", path.join(scratch, "assets/3d/north-wildwood-3d.js"),
+        read("assets/3d/north-wildwood-3d.js").replace("  function syncTerrainForView(pitched) {",
+          "  function syncTerrainForView(pitched) {\n    // Unreviewed terrain behavior")],
       ["broadened logo-readiness inverse", path.join(scratch, LOGO_READINESS_AUDIT_PATH),
         JSON.stringify({ ...logoReadinessAudit, changes: [...logoReadinessAudit.changes, logoReadinessAudit.changes[0]] })],
       ["altered reviewed logo-readiness function", path.join(scratch, "tools/app/runtime/15-export-capture.js"),
@@ -1218,8 +1385,8 @@ if (process.argv.includes("--self-test")) {
       ["altered road-label geographic source", path.join(scratch, roadLabelAudit.data.source),
         read(roadLabelAudit.data.source) + "\n"],
       ["altered road-label integration fragment", path.join(scratch, roadLabelAudit.changes[0].source),
-        read(roadLabelAudit.changes[0].source).replace(roadLabelAudit.changes[0].afterSource,
-          roadLabelAudit.changes[0].afterSource + "\n// Unreviewed road-label integration\n")],
+        read(roadLabelAudit.changes[0].source).replace("    function createRoadLabelLayer(url, options) {",
+          "    function createRoadLabelLayer(url, options) {\n      // Unreviewed road-label integration")],
       ["dropped export road-label dependency", scratchHtml, published.replace(activeRoadLabelTag, "")],
       ["asynchronous export road-label dependency", path.join(scratch, "tools/app/index.template.html"),
         template.replace(activeRoadLabelTag, activeRoadLabelTag.replace("<script", "<script async"))],
@@ -1358,9 +1525,10 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
           "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length, 85, "Retain all 82 previous mutations and three provider-readiness mutations");
+    assert.equal(cases.length, 95, "Retain all 85 previous mutations and ten scalable-road mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
+      assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);
       fs.writeFileSync(target, altered);
       const result = run();
       fs.writeFileSync(target, before);

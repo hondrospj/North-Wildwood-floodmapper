@@ -160,6 +160,9 @@
 
   function layout(paths, project, size, options, measure) {
     const unit = Number.isFinite(options?.unit) && options.unit > 0 ? options.unit : 1;
+    const baseSize = Number(options?.fontSize) > 0 ? Number(options.fontSize) : 15;
+    const fallbackSize = Number(options?.fallbackFontSize) > 0 ? Number(options.fallbackFontSize) : 13;
+    const maxLabels = Number(options?.maxLabelsPerName) > 0 ? Number(options.maxLabelsPerName) : 2;
     const halo = 1.8 * unit, padding = 2.5 * unit;
     const priorities = { "New Jersey Avenue": 100, "West Spruce Avenue": 95, "Central Avenue": 90,
       "New York Avenue": 85, "Delaware Avenue": 80, "Atlantic Avenue": 75, "Ocean Avenue": 70,
@@ -169,9 +172,9 @@
     for (const path of paths) {
       const projected = path.coordinates.map(project);
       if (!projected.every(point => point && Number.isFinite(point.x) && Number.isFinite(point.y))) continue;
-      const width = measure(path.text, 15 * unit);
+      const width = measure(path.text, baseSize * unit);
       if (!Number.isFinite(width) || width <= 0) continue;
-      const shortestWidth = priority(path.name) ? measure(path.text.replace(/ Ave$/, ""),13 * unit) : width;
+      const shortestWidth = priority(path.name) ? measure(path.text.replace(/ Ave$/, ""),fallbackSize * unit) : width;
       for (const points of visibleRuns(projected, size.x, size.y)) {
         const cumulative = [0];
         for (let index = 1; index < points.length; index += 1) cumulative.push(cumulative[index - 1] + Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y));
@@ -197,12 +200,17 @@
       // a modest smaller fallback retains major-road orientation at wide views.
       const fractions = [0.5,0.3,0.7,0.15,0.85,0.4,0.6,0.25,0.75,0.2,0.8,0.1,0.9,0.45,0.55,0.35,0.65,0.05,0.95];
       let placed = false;
-      const variants = [{ text: path.text, fontSize: 15 * unit }];
+      const variants = [{ text: path.text, fontSize: baseSize * unit }];
       if (priority(path.name)) {
-        variants.push({ text: path.text, fontSize: 13 * unit });
+        variants.push({ text: path.text, fontSize: fallbackSize * unit });
         // The directional street name remains intact. Dropping only a standard
         // Avenue suffix can fit a short straight stretch on the northern spit.
-        if (/ Ave$/.test(path.text)) variants.push({ text: path.text.replace(/ Ave$/, ""), fontSize: 13 * unit });
+        if (/ Ave$/.test(path.text)) variants.push({ text: path.text.replace(/ Ave$/, ""), fontSize: fallbackSize * unit });
+        for (const size of options?.priorityFallbackSizes || []) {
+          if (Number.isFinite(size) && size > 0 && size < fallbackSize) {
+            variants.push({ text: path.text.replace(/ Ave$/, ""), fontSize: size * unit });
+          }
+        }
       }
       function place(text, fontSize, width, centerDistance) {
         const half = width / 2 + 2 * unit;
@@ -221,21 +229,22 @@
         const box = corners(center.x, center.y, width + (halo + padding) * 2, fontSize * 1.15 + (halo + padding) * 2, angle);
         if (box.some(point => point.x < 3 * unit || point.y < 3 * unit || point.x > size.x - 3 * unit || point.y > size.y - 3 * unit)) return false;
         if (accepted.some(label => overlaps(label.box, box))) return false;
+        if ((options?.obstacles || []).some(obstacle => overlaps(obstacle, box))) return false;
         const sameName = accepted.filter(label => label.name === path.name);
-        if (sameName.length >= 2 || sameName.some(label => Math.hypot(label.x - center.x, label.y - center.y) < 420 * unit)) return false;
+        if (sameName.length >= maxLabels || sameName.some(label => Math.hypot(label.x - center.x, label.y - center.y) < 420 * unit)) return false;
         accepted.push({ name: path.name, text, x: center.x, y: center.y, angle, width, fontSize, halo, box });
         return true;
       }
       // Keep every placement already found by the usual fractions and font
       // variants. Only an otherwise missing major street needs this extra work.
       for (const { text, fontSize } of variants) {
-        const width = measure(text, 15 * unit) * fontSize / (15 * unit);
+        const width = measure(text, baseSize * unit) * fontSize / (baseSize * unit);
         for (const fraction of fractions) if (place(text, fontSize, width, length * fraction)) { placed = true; break; }
         if (placed) break;
       }
       if (!placed && priority(path.name)) {
         for (const { text, fontSize } of variants) {
-          const width = measure(text, 15 * unit) * fontSize / (15 * unit), half = width / 2 + 2 * unit;
+          const width = measure(text, baseSize * unit) * fontSize / (baseSize * unit), half = width / 2 + 2 * unit;
           if (half * 2 > length) continue;
           // Fonts available on another operating system can widen a name until
           // its eligible straight window falls between the fractional samples.
@@ -288,7 +297,7 @@
         const family = this.options.fontFamily || getComputedStyle(document.documentElement).getPropertyValue("--nww-ui-font-family").trim() || FONT;
         const unit = Number.isFinite(this.options.unit) && this.options.unit > 0 ? this.options.unit : 1;
         context.font = `600 ${15 * unit}px ${family}`;
-        this._labels = layout(roads, point => this._map.latLngToContainerPoint([point[1],point[0]]), size, { unit }, (text, size) => {
+        this._labels = layout(roads, point => this._map.latLngToContainerPoint([point[1],point[0]]), size, { ...this.options, unit }, (text, size) => {
           context.font = `600 ${size}px ${family}`;
           return context.measureText(text).width;
         });

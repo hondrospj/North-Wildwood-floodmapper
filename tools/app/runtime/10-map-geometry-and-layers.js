@@ -872,41 +872,12 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     // Bake the label styling into canvas tiles so PNG/GIF captures preserve it.
     // The live map keeps its soft gray style; exports can use stronger contrast.
     function createRoadLabelLayer(url, options) {
-      const SoftRoadLayer = L.TileLayer.extend({
-        createTile(coords, done) {
-          const tile = document.createElement("canvas");
-          const size = this.getTileSize();
-          tile.width = size.x; tile.height = size.y;
-          tile.complete = false; tile.naturalWidth = 0;
-          const image = new Image();
-          image.crossOrigin = "anonymous";
-          image.onload = () => {
-            try {
-              const context = tile.getContext("2d");
-              if (!context) throw new Error("The road label canvas is unavailable.");
-              context.imageSmoothingQuality = "high";
-              context.filter = this.options.roadLabelFilter || "grayscale(1) contrast(.5) brightness(1.35)";
-              context.drawImage(image, 0, 0, size.x, size.y);
-              context.filter = "none";
-              if (this.options.roadLabelHalo > 0) {
-                addRoadLabelHalo(context, size.x, size.y, this.options.roadLabelHalo);
-              }
-              if (this.options.roadLabelTownMask) {
-                window.NORTH_WILDWOOD_EXPORT_ROADS.maskReferenceTile(context, coords, this, municipalBoundaryRings);
-              }
-              tile.complete = true; tile.naturalWidth = size.x;
-              done(null, tile);
-            } catch (error) { tile.complete = true; done(error, tile); }
-          };
-          image.onerror = () => {
-            tile.complete = true;
-            done(new Error("The road reference tile could not load."), tile);
-          };
-          image.src = this.getTileUrl(coords);
-          return tile;
-        }
+      if (!window.ShorelyRoadLabels) throw new Error("The road-label renderer could not load.");
+      return window.ShorelyRoadLabels.createLayer({
+        ...options,
+        exportMode: Number(options?.minZoom) === 0,
+        includeNames: Number(options?.minZoom) !== 0
       });
-      return new SoftRoadLayer(url, options);
     }
 
     function updateRoadLayerAppearance() {

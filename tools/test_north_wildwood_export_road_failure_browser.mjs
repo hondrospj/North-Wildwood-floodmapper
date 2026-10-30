@@ -1,5 +1,5 @@
-// Full app: a selected road-label provider outage must produce a visible,
-// retryable preview error. Only that provider's HTTP boundary is controlled.
+// Full app: a real vector-road provider outage must produce a visible, retryable
+// preview error. Recovery uses genuine provider PBFs; only transport is controlled.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -15,7 +15,7 @@ const retained=process.env.NWW_AUDIT_OUTPUT;
 const output=retained||fs.mkdtempSync(path.join(os.tmpdir(),'nww-road-preview-'));
 fs.mkdirSync(output,{recursive:true});
 const result={browser:name,version:browser.version(),checks:[],states:[],errors:[],warnings:[],
-  fixture:'Road tiles first return 503, then a valid transparent 1px PNG. This tests transport recovery, not geographic road-label correctness.'};
+  fixture:'After native startup, Esri vector tiles return HTTP503. Retry then uses real provider PBFs and must render genuine road symbols on the same renderer.'};
 const page=await browser.newPage({viewport:{width:1440,height:1000}});
 page.setDefaultTimeout(30000);page.on('pageerror',error=>result.errors.push(error.message));
 const warningDetails=[];
@@ -26,15 +26,19 @@ page.on('console',message=>{
     value instanceof Error?{name:value.name,message:value.message,stack:value.stack}:null).catch(()=>null)))
     .then(errors=>{warning.errors=errors.filter(Boolean);}));
 });
-let outage=true,failedRequests=0,recoveredRequests=0,workerRequests=0,documents=0;
+let outage=true,failedRequests=0,recoveredRequests=0,recoveredResponses=0,workerRequests=0,documents=0;
 const invalidLevels=[];
-const tile=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==','base64');
-await page.route(/World_Transportation\/MapServer\/tile\//,route=>{
-  const level=new URL(route.request().url()).pathname.split('/tile/')[1]?.split('/')[0];
-  if(!/^\d+$/.test(level))invalidLevels.push({level,outage,url:route.request().url()});
-  if(outage){failedRequests++;return route.fulfill({status:503,contentType:'text/plain',body:'Controlled road-provider outage'});}
-  if(!/^\d+$/.test(level))return route.fulfill({status:400,contentType:'text/plain',body:'Tile level must be an integer'});
-  recoveredRequests++;return route.fulfill({status:200,contentType:'image/png',headers:{'access-control-allow-origin':'*'},body:tile});
+const vectorTilePattern=/\/OpenStreetMap_v2\/VectorTileServer\/tile\//i;
+async function installRoadOutage(){
+  await page.route(vectorTilePattern,route=>{
+    const parts=new URL(route.request().url()).pathname.split('/tile/')[1];
+    if(!/^\d+\/\d+\/\d+\.pbf$/.test(parts||''))invalidLevels.push({parts,outage,url:route.request().url()});
+    if(outage){failedRequests++;return route.fulfill({status:503,contentType:'text/plain',headers:{'access-control-allow-origin':'*'},body:'Controlled vector-road provider outage'});}
+    recoveredRequests++;return route.continue();
+  });
+}
+page.on('response',response=>{
+  if(!outage&&vectorTilePattern.test(response.url())&&response.status()===200)recoveredResponses++;
 });
 page.on('request',request=>{
   if(/\/gif\.worker\.js(?:\?|$)/.test(request.url()))workerRequests++;
@@ -50,41 +54,59 @@ const snapshot=label=>page.evaluate(label=>{
     downloadEnabled:!document.getElementById('downloadBtn').disabled,busy:exportInProgress,
     roadsEnabled:document.getElementById('roadsToggle').getAttribute('aria-checked'),
     camera:{zoom:exportMap?.getZoom(),lat:center?.lat,lng:center?.lng},
-    layer:{pane:exportRoadsLayer?.options.pane,tileSize:exportRoadsLayer?.options.tileSize,
-      zoomOffset:exportRoadsLayer?.options.zoomOffset,opacity:exportRoadsLayer?.options.opacity,
+    layer:{pane:exportRoadsLayer?.options.pane,opacity:exportRoadsLayer?.options.opacity,
       index:parent?[...parent.children].indexOf(container):null},
-    roadTiles:[...(exportRoadsLayer?.getContainer?.()?.querySelectorAll('canvas.leaflet-tile')||[])].map(tile=>({complete:tile.complete,width:tile.naturalWidth})),
-    selection:{mode:currentDataMode,index:currentHourIndex,time:entry.timeUtc,stage:getStageValue(entry)}};
+    roadVector:(()=>{
+      const layer=exportRoadsLayer,gl=layer?.getMaplibreMap?.(),style=gl?.getStyle?.();
+      return{renderer:layer?._shorelyRoadLabels===true,styled:layer?._roadStyled===true,
+        ready:layer?._roadReady===true,error:layer?._roadError?.message||null,
+        mounted:!!layer&&exportMap?.hasLayer(layer),styleLoaded:gl?.isStyleLoaded?.(),
+        loaded:gl?.loaded?.(),tilesLoaded:gl?.areTilesLoaded?.(),zoom:gl?.getZoom?.(),
+        layerCount:style?.layers?.length||0,
+        onlyRoadSymbols:!!style?.layers?.length&&style.layers.every(item=>item.type==='symbol'&&/^road(?:\s|\/)/i.test(item['source-layer']||'')),
+        rendered:gl?.queryRenderedFeatures?.().length||0};
+    })(),
+    selection:{mode:currentDataMode,index:currentHourIndex,time:entry.timeUtc,stage:getStageValue(entry),
+      extent:getDownloadExtentValue(),aspect:getDownloadAspectValue(),mapZoom:map.getZoom(),mapCenter:{lat:map.getCenter().lat,lng:map.getCenter().lng}}};
 },label);
 try{
   await page.goto(process.env.NWW_TEST_URL||'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
   if(await page.locator('#roadsToggle').getAttribute('aria-checked')!=='true')await page.locator('#roadsToggle').click();
+  await page.evaluate(()=>roadsLayer.whenReady({timeoutMs:45000}));
+  assert.equal(await page.evaluate(()=>!exportMap),true,'Outage must affect a genuinely cold export renderer');
+  await installRoadOutage();
   await page.locator('#openDownloadModalBtn').click();await page.locator('#exportFormatPngBtn').click();
   await page.locator('#downloadBtn').click();await page.locator('#exportAspectSquareBtn').click();
   await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:90000});
   const failed=await snapshot('controlled-outage');result.states.push(failed);
-  assert.ok(failedRequests>0);assert.equal(failed.state,'error');assert.match(failed.status,/couldn.t load|try again/i);
+  assert.ok(failedRequests>0);assert.equal(failed.state,'error');assert.match(failed.status,/couldn.t load|could not load|try again/i);
   assert.equal(failed.retryVisible,true);assert.equal(failed.retryEnabled,true);assert.equal(failed.downloadEnabled,true);assert.equal(failed.busy,false);
-  assert.equal(failed.roadsEnabled,'true');assert.ok(failed.roadTiles.some(tile=>tile.complete&&tile.width===0));
-  assert.ok(Math.abs(failed.camera.zoom-Math.round(failed.camera.zoom))>1e-6,'The fixture must exercise a fractional export camera zoom');
+  assert.equal(failed.roadsEnabled,'true');assert.equal(failed.roadVector.renderer,true);
+  assert.ok(failed.roadVector.error,'HTTP503 must reach the actual vector road renderer');
+  assert.equal(failed.roadVector.ready,false);assert.equal(failed.roadVector.mounted,true);
   assert.equal(workerRequests,0);
-  await page.evaluate(()=>{window.__failedRoadLayer=exportRoadsLayer;window.__failedRoadMap=exportMap;window.__failedRoadOptions=exportRoadsLayer.options;});
+  await page.evaluate(()=>{window.__failedRoadLayer=exportRoadsLayer;window.__failedRoadMap=exportMap;window.__failedRoadOptions=exportRoadsLayer.options;window.__failedRoadGL=exportRoadsLayer.getMaplibreMap();});
   result.checks.push('A selected road-provider 503 produces a visible preview error with enabled Retry/Download, before any GIF worker');
   if(retained)await page.screenshot({path:path.join(output,`${name}-road-outage.png`)});
   outage=false;
   await page.locator('#exportPreviewRetryBtn').click();
+  await page.waitForFunction(()=>document.getElementById('exportPreview')?.dataset.state!=='error');
   await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:90000});
   const recovered=await snapshot('retry-after-network-recovery');result.states.push(recovered);
   assert.equal(recovered.state,'ready',JSON.stringify({recovered,warnings:result.warnings}));
-  assert.ok(recoveredRequests>0);assert.equal(recovered.roadsEnabled,'true');assert.equal(recovered.downloadEnabled,true);
+  assert.ok(recoveredRequests>0);assert.ok(recoveredResponses>0,'Retry must fetch genuine successful provider vector tiles');assert.equal(recovered.roadsEnabled,'true');assert.equal(recovered.downloadEnabled,true);
   assert.deepEqual(recovered.selection,failed.selection);assert.equal(workerRequests,0);assert.equal(documents,1);
-  assert.deepEqual(recovered.camera,failed.camera);assert.deepEqual(recovered.layer,failed.layer);
-  assert.equal(await page.evaluate(()=>window.__failedRoadLayer===exportRoadsLayer&&window.__failedRoadMap===exportMap&&window.__failedRoadOptions===exportRoadsLayer.options),true);
-  assert.equal(await page.evaluate(()=>Number.isInteger(exportRoadsLayer._tileZoom)),true);
-  assert.ok(recovered.roadTiles.length>0&&recovered.roadTiles.every(tile=>tile.complete&&tile.width>0));
-  assert.deepEqual(invalidLevels,[],'Retry must retain integer tile-service levels at fractional export camera zoom');
-  result.checks.push('Actual Retry redraws the failed road tiles and produces a ready preview on the same renderer without reload or selection changes');
+  assert.deepEqual(recovered.layer,failed.layer);
+  assert.ok(Math.abs(recovered.camera.zoom-Math.round(recovered.camera.zoom))>1e-6,'Successful recovery must exercise a fractional export camera zoom');
+  assert.equal(await page.evaluate(()=>window.__failedRoadLayer===exportRoadsLayer&&window.__failedRoadMap===exportMap&&window.__failedRoadOptions===exportRoadsLayer.options&&window.__failedRoadGL===exportRoadsLayer.getMaplibreMap()),true);
+  assert.equal(recovered.roadVector.renderer,true);assert.equal(recovered.roadVector.ready,true);
+  assert.equal(recovered.roadVector.error,null);assert.equal(recovered.roadVector.styleLoaded,true);
+  assert.equal(recovered.roadVector.loaded,true);assert.equal(recovered.roadVector.tilesLoaded,true);
+  assert.equal(recovered.roadVector.onlyRoadSymbols,true);assert.ok(recovered.roadVector.rendered>0);
+  assert.ok(Math.abs(recovered.roadVector.zoom-(recovered.camera.zoom-1))<=.02,'The vector camera must match the fractional export camera');
+  assert.deepEqual(invalidLevels,[],'Vector requests must retain integer tile-service levels at a fractional camera zoom');
+  result.checks.push('Actual Retry refetches genuine vector tiles and produces a ready road preview on the same GL renderer without reload or selection changes');
   if(retained)await page.screenshot({path:path.join(output,`${name}-road-recovered.png`)});
   assert.deepEqual(result.errors,[]);
 }catch(error){
@@ -94,7 +116,7 @@ try{
   throw error;
 }finally{
   await Promise.allSettled(warningDetails);
-  result.transport={failedRequests,recoveredRequests,workerRequests,documents,invalidLevels};
+  result.transport={failedRequests,recoveredRequests,recoveredResponses,workerRequests,documents,invalidLevels};
   await browser.close();
   if(retained)fs.writeFileSync(path.join(output,`${name}-road-preview.json`),JSON.stringify(result,null,2));
   else fs.rmSync(output,{recursive:true,force:true});

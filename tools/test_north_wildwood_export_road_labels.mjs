@@ -155,6 +155,20 @@ for (const shortWidth of [...Array.from({length:9},(_,index)=>134+index),139.445
   }
 }
 
+// The hybrid policy enlarges ordinary names, reduces repeats, and preserves
+// the original small priority floor only when the broad straight path requires it.
+const hybridOptions={unit:2,fontSize:20,fallbackFontSize:18,priorityFallbackSizes:[17,16,15,14,13.25,13],maxLabelsPerName:1};
+const hybridBroad=layout(realPaths,hostedProject,{x:2160,y:1674},hybridOptions,measure);
+assert.ok(hybridBroad.some(label=>label.name==='New Jersey Avenue'&&label.fontSize===40));
+assert.ok(hybridBroad.some(label=>label.name==='West Spruce Avenue'));
+assert.equal(new Set(hybridBroad.map(label=>label.name)).size,hybridBroad.length);
+for(const label of hybridBroad)assert.ok(label.fontSize>=26&&label.fontSize<=40);
+for(let a=0;a<hybridBroad.length;a++)for(let b=a+1;b<hybridBroad.length;b++)assert.equal(overlaps(hybridBroad[a].box,hybridBroad[b].box),false);
+// Existing SAT placement also respects the active provider shield footprints.
+const obstruction=placed[0].box;
+const unobscured=layout(paths,project,{x:500,y:300},{unit:1,obstacles:[obstruction]},measure);
+assert.ok(unobscured.length>0);
+for(const label of unobscured)assert.equal(overlaps(label.box,obstruction),false);
 // A tile mask uses Leaflet's tile-grid zoom, not the provider's zoomOffset.
 // This keeps a 512px/offset-1 tile geographically aligned, including holes.
 const ops=[];

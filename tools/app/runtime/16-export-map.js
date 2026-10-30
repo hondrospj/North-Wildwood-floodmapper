@@ -239,18 +239,69 @@
       target.querySelectorAll(".legend-row-boundary").forEach(row => row.remove());
     }
 
+    /* Shorely scalable road-label export integration v1. */
+    function exportUsesScalableRoadLabels() {
+      if (typeof export3dView !== "undefined" && export3dView) return false;
+      return !!(exportRoadsLayer && window.ShorelyRoadLabels?.isLayer(exportRoadsLayer));
+    }
+
+    function exportScalableRoadLabelsEnabled() {
+      return exportUsesScalableRoadLabels()
+        && document.getElementById("roadsToggle")?.classList.contains("on")
+        && Number(exportRoadsLayer.options?.opacity || 0) > 0;
+    }
+
+    async function waitForExportRoadLabelsReady() {
+      if (!exportScalableRoadLabelsEnabled()) return;
+      throwIfExportCancelled();
+      const controller = new AbortController();
+      let cancelTimer;
+      const cancelled = new Promise((resolve, reject) => {
+        cancelTimer = setInterval(() => {
+          try { throwIfExportCancelled(); }
+          catch (error) { controller.abort(); reject(error); }
+        }, 80);
+      });
+      try {
+        await Promise.race([
+          window.ShorelyRoadLabels.whenReady(exportRoadsLayer, {
+            timeoutMs: 20000, signal: controller.signal, retry: true
+          }),
+          cancelled
+        ]);
+        throwIfExportCancelled();
+        updateExportRoadLayerAppearance();
+      } finally {
+        clearInterval(cancelTimer);
+        controller.abort();
+      }
+    }
+
     function updateExportRoadLayerAppearance() {
       if (!exportMap || !exportRoadsLayer) return;
       const roadsEnabled = document.getElementById("roadsToggle")?.classList.contains("on");
       const zoom = exportMap.getZoom() || 0;
       const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;
+      const aspect = getExportAspectConfig();
+      const unit = Math.min(aspect.width, aspect.height) / 1080;
+      const gl = exportRoadsLayer.getMaplibreMap?.();
+      const grid = gl?.style?.placement?.collisionIndex?.grid;
+      const mapRect = grid ? exportMap.getContainer().getBoundingClientRect() : null;
+      const canvasRect = gl?.getCanvas()?.getBoundingClientRect();
+      const obstacles = [];
+      if (grid && canvasRect) for (let i = 0; i < grid.boxKeys.length; i++) {
+        const [a, b, c, d] = grid.bboxes.slice(i * 4, i * 4 + 4);
+        const x1 = a - 100 + canvasRect.left - mapRect.left, x2 = c - 100 + canvasRect.left - mapRect.left;
+        const y1 = b - 100 + canvasRect.top - mapRect.top, y2 = d - 100 + canvasRect.top - mapRect.top;
+        if ([x1, y1, x2, y2].every(Number.isFinite)) obstacles.push([{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }]);
+      }
+      if (exportUsesScalableRoadLabels()) exportRoadsLayer.setExportUnit(unit);
       exportRoadsLayer.setOpacity(showLabels ? 0.98 : 0);
       const pane = exportMap.getPane("roadsPane");
       if (pane) pane.classList.toggle("roads-dark", showLabels);
-      const aspect = getExportAspectConfig();
       window.NORTH_WILDWOOD_EXPORT_ROADS?.redraw(exportMap, {
-        enabled: showLabels,
-        unit: Math.min(aspect.width, aspect.height) / 1080,
+        enabled: showLabels, unit, obstacles, fontSize: 20, fallbackFontSize: 18, maxLabelsPerName: 1,
+        priorityFallbackSizes: getDownloadExtentValue() === "current" ? [17, 16, 15, 14, 13.25, 13] : [],
         fontFamily: getComputedStyle(document.body).fontFamily
       });
     }
@@ -516,24 +567,20 @@
     }
 
     async function captureExportCanvas(options = {}) {
-      if (typeof html2canvas !== "function") {
-        throw new Error("html2canvas did not load, so map export is unavailable.");
-      }
+      if (typeof html2canvas !== "function") throw new Error("html2canvas did not load, so map export is unavailable.");
       const stage = document.getElementById("exportStageFrame");
       if (!stage) throw new Error("Export stage is unavailable.");
+      await waitForExportRoadLabelsReady();
       await waitForExportChromeReady();
+      throwIfExportCancelled();
       const captureScale = Number.isFinite(options.scale) && options.scale > 0
-        ? Math.min(options.scale, getExportCaptureScale())
-        : getExportCaptureScale();
+        ? Math.min(options.scale, getExportCaptureScale()) : getExportCaptureScale();
+      const roadPane = exportMap?.getPane("roadsPane");
       return await html2canvas(stage, {
-        backgroundColor: null,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        removeContainer: true,
-        foreignObjectRendering: false,
-        imageTimeout: 20000,
+        backgroundColor: null, useCORS: true, allowTaint: false, logging: false,
+        removeContainer: true, foreignObjectRendering: false, imageTimeout: 20000,
         ignoreElements: element => isOutsideExportStage(element)
+          || (options.omitRoadLabels === true && element === roadPane)
           || (options.omitAttribution === true && element.id === "exportMapAttribution"),
         scale: captureScale
       });

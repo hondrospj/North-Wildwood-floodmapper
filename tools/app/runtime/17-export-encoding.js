@@ -228,7 +228,7 @@
         if (logoStrip) logoStrip.style.visibility = "hidden";
         await waitForExportMapReady(80);
         await waitForStableRender();
-        baseCanvas = await captureExportCanvas();
+        baseCanvas = await captureExportCanvas({ omitRoadLabels: exportUsesScalableRoadLabels() });
       } finally {
         // A cancelled/failed capture must not hide chrome in later exports.
         if (timestamp) timestamp.style.visibility = previousTimestampVisibility;
@@ -238,7 +238,7 @@
       let mapForegroundCanvas, roadLabelsCanvas, chromeCanvas;
       try {
         mapForegroundCanvas = await captureExportMapForegroundCanvas();
-        roadLabelsCanvas = await captureExportRoadLabelsCanvas();
+        roadLabelsCanvas = await captureExportRoadLabelsCanvas(baseCanvas);
         chromeCanvas = await captureExportChromeCanvas();
         updateExportTimestampLabel(firstItem?.entry || null);
         return { baseCanvas, overlayRect: getExportOverlayRect(mapInstance), mapForegroundCanvas, roadLabelsCanvas, chromeCanvas };

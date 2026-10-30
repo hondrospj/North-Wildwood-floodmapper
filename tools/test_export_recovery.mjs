@@ -32,6 +32,7 @@ for (const failurePoint of ['waitForExportMapReady', 'captureExportCanvas']) {
     applyExportStageAspect:noop,getDownloadAspectValue:()=> 'viewport',
     updateExportLegend:noop,updateExportBoundaryVisibility:noop,updateExportParcelsLayer:noop,
     updateExportRoadLayerAppearance:noop,fitExportMapToSelectedExtent:noop,exportFloodLayer:null,
+    exportUsesScalableRoadLabels:()=>true,throwIfExportCancelled:noop,
     waitForExportMapReady:noop,waitForStableRender:noop,captureExportCanvas:()=>({}),
     captureExportMapForegroundCanvas:noop,captureExportRoadLabelsCanvas:noop,captureExportChromeCanvas:noop,
     updateExportTimestampLabel:noop,getExportOverlayRect:()=>({}),
@@ -48,7 +49,7 @@ for (const failurePoint of ['waitForExportMapReady', 'captureExportCanvas']) {
 // The export can cross the road-label zoom threshold when its area/aspect
 // changes. Apply visibility to the fitted camera, in both directions, before
 // freezing the GIF's reusable road-label canvas.
-for (const [beforeZoom, fittedZoom] of [[9, 12], [12, 9]]) {
+for (const scalable of [false, true]) for (const [beforeZoom, fittedZoom] of [[9, 12], [12, 9]]) {
   let zoom = beforeZoom, rasterOpacity = null, localEnabled = null;
   const nodes = Object.fromEntries(['exportTimestampLabel', 'exportLegendDock', 'exportLogoStrip']
     .map(id => [id, {style:{visibility:''}}]));
@@ -62,8 +63,10 @@ for (const [beforeZoom, fittedZoom] of [[9, 12], [12, 9]]) {
     }}},
     getComputedStyle:()=>({fontFamily:'Inter, sans-serif'}),
     ensureExportMunicipalBoundary:noop,prepareExportRoadNames:noop,ensureExportMap:()=>map,
-    exportMap:map,exportRoadsLayer:{setOpacity:value=>{rasterOpacity=value;}},ROAD_LABEL_ZOOM:10,
+    exportMap:map,exportRoadsLayer:{setOpacity:value=>{rasterOpacity=value;},setExportUnit:noop},ROAD_LABEL_ZOOM:10,
+    exportUsesScalableRoadLabels:()=>scalable,throwIfExportCancelled:noop,
     getExportAspectConfig:()=>({width:1080,height:1080}),
+    getDownloadExtentValue:()=> 'town',
     applyExportStageAspect:noop,getDownloadAspectValue:()=> '1:1',
     updateExportLegend:noop,updateExportBoundaryVisibility:noop,updateExportParcelsLayer:noop,
     fitExportMapToSelectedExtent:target=>{assert.equal(target,map);zoom=fittedZoom;},
@@ -75,9 +78,9 @@ for (const [beforeZoom, fittedZoom] of [[9, 12], [12, 9]]) {
   vm.runInContext(extract('updateExportRoadLayerAppearance'),ctx);
   await ctx.captureFastGifBaseCanvas({entry:{}});
   assert.equal(rasterOpacity,fittedZoom>=10 ? 0.98 : 0,
-    'GIF raster road visibility must use the selected export camera');
+    'GIF road visibility must use the selected export camera for both renderers');
   assert.equal(localEnabled,fittedZoom>=10,
-    'GIF local road-name visibility must use the selected export camera');
+    'Local street names follow the selected camera alongside vector route shields');
 }
 
 // Exercise cached synchronous image loads, image errors, and failed preloads.
@@ -410,6 +413,7 @@ fallback.useExportFallbackBasemap(pendingVector);
 assert.equal(fallbackCount,1,'Late errors from the abandoned vector layer must not replace the fallback');
 
 const mapReady = context('waitForExportMapReady', {
+  exportUsesScalableRoadLabels:()=>false,
   exportMap:{invalidateSize:noop},exportBasemapColorLayer:pendingVector,
   exportRoadsLayer:null,exportSatelliteLayer:null,exportBuildingsLayer:null,
   requestAnimationFrame:fn=>fn(), wait:async()=>{}, waitForTileLayerReady:async()=>{},

@@ -514,10 +514,13 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
 // Capture accepts thumbnail scale only when requested; normal downloads retain their scale.
 {
   const scales = [], filters = [];
+  let roadWaits = 0;
   const ctx = vm.createContext({
     document: { getElementById: () => ({}) },
     html2canvas: async (_stage, options) => { scales.push(options.scale); filters.push(options.ignoreElements); return canvas("capture"); },
     waitForExportChromeReady: async () => {}, getExportCaptureScale: () => 1,
+    waitForExportRoadLabelsReady: async () => { roadWaits++; },
+    throwIfExportCancelled: () => {}, exportMap: null,
     isOutsideExportStage: () => false,
   });
   vm.runInContext(nativeFunction("captureExportCanvas"), ctx);
@@ -531,6 +534,7 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   assert.equal(filters.at(-1)({ id: "exportLegendDock" }), false, "Only the attribution is omitted from preview capture");
   for (const scale of [0, -1, Infinity, NaN]) await ctx.captureExportCanvas({ scale });
   assert.ok(scales.slice(2).every(scale => scale === 1), "Invalid thumbnail scales must retain the normal export scale");
+  assert.equal(roadWaits, scales.length, "Every thumbnail and download waits for the active vector road renderer");
 }
 
 // A failed preview tile is retried on the same reused map, then reused by a real capture.

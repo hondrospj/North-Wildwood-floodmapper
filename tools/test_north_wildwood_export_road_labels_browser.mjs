@@ -317,27 +317,41 @@ async function format(value) {
   await review();
 }
 async function layout(label,minimum=8) {
-  const state=await page.evaluate(()=>{
+  const state=await page.evaluate(async()=>{
     const canvas=exportMap.getPane('roadsPane').querySelector('.nww-export-road-labels');
     let layer;exportMap.eachLayer(candidate=>{if(candidate._canvas===canvas&&typeof candidate.getLabels==='function')layer=candidate;});
     const family=canvas?.dataset.fontFamily,unit=Math.min(getExportAspectConfig().width,getExportAspectConfig().height)/1080;
     const scratch=document.createElement('canvas').getContext('2d');
-    const fontMetrics=[15,13].map(size=>{
+    const fontMetrics=[20,18].map(size=>{
       scratch.font=`600 ${size*unit}px ${family}`;
       return{size:size*unit,font:scratch.font,full:scratch.measureText('W Spruce Ave').width,short:scratch.measureText('W Spruce').width};
     });
-    return{labels:layer?.getLabels()||[],width:canvas?.width,height:canvas?.height,
+    const gl=exportRoadsLayer.getMaplibreMap(),vectorStyle=gl.getStyle();
+    const shieldLayers=vectorStyle.layers.map(layer=>({id:layer.id,type:layer.type,sourceLayer:layer['source-layer'],icon:layer.layout['icon-image']}));
+    const routes=[...new Set(gl.queryRenderedFeatures().map(feature=>feature.properties?._name).filter(Boolean))];
+    const paths=await window.NORTH_WILDWOOD_EXPORT_ROADS.load();
+    const spruce=paths.filter(path=>path.name==='West Spruce Avenue').map(path=>path.coordinates.map(([lng,lat])=>exportMap.latLngToContainerPoint([lat,lng])));
+    const segmentDistance=(p,a,b)=>{const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1)));return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);};
+    const route147OnSpruce=gl.queryRenderedFeatures().filter(feature=>feature.properties?._name==='NJ 147').some(feature=>{
+      const lines=feature.geometry.type==='LineString'?[feature.geometry.coordinates]:feature.geometry.coordinates;
+      return lines.some(line=>line.filter(([lng,lat])=>{const p=exportMap.latLngToContainerPoint([lat,lng]);return spruce.some(points=>points.some((a,i)=>i&&segmentDistance(p,points[i-1],a)<=8));}).length>=2);
+    });
+    return{labels:layer?.getLabels()||[],obstacles:layer?.options.obstacles||[],shieldLayers,routes,route147OnSpruce,activeVector:window.ShorelyRoadLabels.isLayer(exportRoadsLayer),width:canvas?.width,height:canvas?.height,
       family,bodyFamily:getComputedStyle(document.body).fontFamily,
       visible:canvas ? getComputedStyle(canvas).display!=='none' : false,
       dimensions:getExportAspectConfig(),zoom:exportMap.getZoom(),center:exportMap.getCenter(),pixelOrigin:exportMap.getPixelOrigin(),
       contextFont:canvas?.getContext('2d').font,fontMetrics,devicePixelRatio:window.devicePixelRatio};
   });
+  assert.equal(state.activeVector,true);
+  assert.ok(state.shieldLayers.length>0);
+  for(const layer of state.shieldLayers){assert.equal(layer.type,'symbol');assert.match(layer.id,/shield$/);assert.ok(layer.icon,'Only authoritative provider shields may join local ordinary names');}
   assert.equal(state.family,state.bodyFamily,'Street names must use the shared mapper font family');
   assert.equal(state.visible,true);assert.ok(state.labels.length>=minimum,`${label}: only ${state.labels.length} street names`);
   const unit=Math.min(state.dimensions.width,state.dimensions.height)/1080;
   for(const street of state.labels){
     assert.ok(street.name && street.text && !/^FR\s/.test(street.text));
-    assert.ok(street.fontSize>=13*unit-1e-6&&street.fontSize<=15*unit+1e-6,'Readability must retain a 13–15px size scaled to the output');
+    const minimumFont=label==='broad-current-view'?13:18;
+    assert.ok(street.fontSize>=minimumFont*unit-1e-6&&street.fontSize<=20*unit+1e-6,`${label}: ${street.name} font ${street.fontSize} must retain the reviewed scale`);
     assert.ok(street.angle>=-Math.PI/2 && street.angle<=Math.PI/2,'Street names must remain upright');
     assert.ok(street.box.every(p=>p.x>=0&&p.y>=0&&p.x<=state.width&&p.y<=state.height),`${street.text} leaves the map/footer boundary`);
   }
@@ -347,6 +361,9 @@ async function layout(label,minimum=8) {
     const a=one.map(v=>v.x*nx+v.y*ny),b=two.map(v=>v.x*nx+v.y*ny);
     return Math.max(...a)<=Math.min(...b)+1e-6 || Math.max(...b)<=Math.min(...a)+1e-6;
   }));
+  for(const street of state.labels)for(const obstacle of state.obstacles){
+    assert.ok(separated(street.box,obstacle),`${label}: ${street.text} overlaps a route shield`);
+  }
   for(let a=0;a<state.labels.length;a++)for(let b=a+1;b<state.labels.length;b++){
     assert.ok(separated(state.labels[a].box,state.labels[b].box),`${label}: overlapping ${state.labels[a].text}/${state.labels[b].text}`);
   }
@@ -476,9 +493,9 @@ try{
   await ready('broad-current-view');
   assert.equal(await page.evaluate(()=>getExportAspectConfig().width),2160);
   const overview=await layout('broad-current-view',6);
-  for(const major of ['New Jersey Avenue','West Spruce Avenue']){
-    assert.ok(overview.labels.some(street=>street.name===major),`The default current view must retain ${major}`);
-  }
+  assert.ok(overview.labels.some(street=>street.name==='New Jersey Avenue'),'The default current view must retain New Jersey Avenue');
+  assert.ok(overview.labels.some(street=>street.name==='West Spruce Avenue')||overview.route147OnSpruce,
+    'The northern spit must retain W Spruce or its genuine NJ147 route badge on the same road geometry');
   normal.coldPreviewReady=true;normal.log.coldPreviewReady=true;
   saveState({label:'cold-normal-preview-proven',firstAttemptReady:normal.log.coldPreviewFirstAttemptReady,providerRecoveryUsed:normal.log.coldPreviewRecovered,pendingProviderRetries:normal.pendingProviderRetries,routeEverInstalled:normal.log.routeEverInstalled});
   // This only changes the map framing. Its actual pointer action is checked

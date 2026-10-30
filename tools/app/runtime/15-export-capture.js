@@ -142,31 +142,26 @@
       if (!exportMap) return;
       exportMap.invalidateSize(false);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const vectorRoads = exportUsesScalableRoadLabels();
       const waits = [];
       if (exportBasemapColorLayer) waits.push(waitForTileLayerReady(exportBasemapColorLayer));
-      if (exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0) waits.push(waitForTileLayerReady(exportRoadsLayer));
-      await Promise.race([
-        Promise.all(waits),
-        wait(3800)
-      ]).catch(() => null);
-      // Esri's vector layer load event precedes the underlying WebGL render.
-      // Capturing then can produce an empty canvas, especially on phones.
+      if (!vectorRoads && exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0) waits.push(waitForTileLayerReady(exportRoadsLayer));
+      await Promise.race([Promise.all(waits), wait(3800)]).catch(() => null);
       const vectorBasemap = exportBasemapColorLayer;
       try {
         await waitForExportVectorLayerReady(vectorBasemap);
       } catch (error) {
         if (isExportCancelledError(error)) throw error;
-        // A stalled vector worker is equivalent to the vector layer's error
-        // event. Use the existing raster fallback and verify its actual tiles.
         useExportFallbackBasemap(vectorBasemap);
       }
       await Promise.all([
         waitForExportRasterLayerReady(exportBasemapColorLayer),
-        exportSatelliteLayer && exportMap.hasLayer(exportSatelliteLayer)
+        typeof exportSatelliteLayer !== "undefined" && exportSatelliteLayer && exportMap.hasLayer(exportSatelliteLayer)
           ? waitForExportRasterLayerReady(exportSatelliteLayer) : null,
-        exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0
-          ? waitForExportRasterLayerReady(exportRoadsLayer) : null,
-        exportBuildingsLayer && exportMap.hasLayer(exportBuildingsLayer)
+        vectorRoads ? waitForExportRoadLabelsReady()
+          : exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0
+            ? waitForExportRasterLayerReady(exportRoadsLayer) : null,
+        typeof exportBuildingsLayer !== "undefined" && exportBuildingsLayer && exportMap.hasLayer(exportBuildingsLayer)
           ? waitForExportVectorLayerReady(exportBuildingsLayer) : null
       ]);
       if (extraDelayMs > 0) await wait(extraDelayMs);
