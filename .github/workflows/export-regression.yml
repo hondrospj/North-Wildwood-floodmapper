@@ -78,6 +78,7 @@ jobs:
             tools/fixtures/north-wildwood-20261028-export-provider-readiness.json
             tools/fixtures/north-wildwood-20261030-scalable-road-labels.json
             tools/fixtures/north-wildwood-20261101-review-fixes.json
+            tools/fixtures/north-wildwood-20261101-road-fallback.json
             tools/fixtures/north-wildwood-export-dst.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs
@@ -100,6 +101,7 @@ jobs:
           node --check assets/road-labels.js
           node --test tools/test_scalable_road_labels.cjs
           node tools/test_export_preview.mjs
+          node tools/test_export_road_fallback_prefilter.mjs
           node tools/test_export_holistic.mjs
           node tools/test_export_availability_performance.mjs
           node tools/test_export_review.mjs

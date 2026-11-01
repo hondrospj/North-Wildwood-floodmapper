@@ -18,6 +18,22 @@ const result={browser:name,version:browser.version(),checks:[],states:[],errors:
   fixture:'After native startup, Esri vector tiles return HTTP503. Retry then uses real provider PBFs and must render genuine road symbols on the same renderer.'};
 const page=await browser.newPage({viewport:{width:1440,height:1000}});
 page.setDefaultTimeout(30000);page.on('pageerror',error=>result.errors.push(error.message));
+async function nativeAction(selector,applied,label){
+  const before=await page.evaluate(selector=>window.roadFailureInputAudit.filter(event=>event.type==='click'&&event.trusted&&event.selector===selector).length,selector);
+  // Do not wait for extra browser acknowledgements during provider I/O;
+  // verify the trusted native click and applied state below.
+  await page.locator(selector).click({noWaitAfter:true});
+  await page.waitForFunction(applied,null,{timeout:30000});
+  const audit=await page.evaluate(selector=>({
+    count:window.roadFailureInputAudit.filter(event=>event.type==='click'&&event.trusted&&event.selector===selector).length,
+    step:document.getElementById('downloadModal')?.dataset.exportStep,
+    format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),
+    activePointers:[...window.roadFailureActivePointers],events:window.roadFailureInputAudit.slice(-12)
+  }),selector);
+  assert.equal(audit.count,before+1,`${label} must follow exactly one trusted native click`);
+  assert.deepEqual(audit.activePointers,[],`${label} must complete its native pointer gesture`);
+  result.states.push({label,...audit});
+}
 const warningDetails=[];
 page.on('console',message=>{
   if(message.type()!=='warning')return;
@@ -50,6 +66,9 @@ const snapshot=label=>page.evaluate(label=>{
   const container=exportRoadsLayer?.getContainer?.(),parent=container?.parentNode;
   const center=exportMap?.getCenter();
   return{label,state:preview?.dataset.state,status:document.getElementById('exportPreviewStatus')?.textContent,
+    exportStep:document.getElementById('downloadModal')?.dataset.exportStep,
+    format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),
+    activePointers:[...(window.roadFailureActivePointers||[])],inputEvents:window.roadFailureInputAudit?.slice(-12)||[],
     retryVisible:!!retry&&!retry.hidden&&retry.getClientRects().length>0,retryEnabled:!!retry&&!retry.disabled,
     downloadEnabled:!document.getElementById('downloadBtn').disabled,busy:exportInProgress,
     roadsEnabled:document.getElementById('roadsToggle').getAttribute('aria-checked'),
@@ -72,12 +91,24 @@ const snapshot=label=>page.evaluate(label=>{
 try{
   await page.goto(process.env.NWW_TEST_URL||'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
-  if(await page.locator('#roadsToggle').getAttribute('aria-checked')!=='true')await page.locator('#roadsToggle').click();
+  if(await page.locator('#roadsToggle').getAttribute('aria-checked')!=='true')await page.locator('#roadsToggle').click({noWaitAfter:true});
   await page.evaluate(()=>roadsLayer.whenReady({timeoutMs:45000}));
+  await page.evaluate(()=>{
+    window.roadFailureInputAudit=[];window.roadFailureActivePointers=new Set();
+    for(const type of ['pointerdown','pointerup','pointercancel','click'])document.addEventListener(type,event=>{
+      if(type==='pointerdown')window.roadFailureActivePointers.add(event.pointerId);
+      if(type==='pointerup'||type==='pointercancel')window.roadFailureActivePointers.delete(event.pointerId);
+      const button=event.target.closest('button');
+      window.roadFailureInputAudit.push({type,trusted:event.isTrusted,selector:button?.id?'#'+button.id:'',
+        pointerId:event.pointerId,at:performance.now(),step:document.getElementById('downloadModal')?.dataset.exportStep});
+    },true);
+  });
   assert.equal(await page.evaluate(()=>!exportMap),true,'Outage must affect a genuinely cold export renderer');
   await installRoadOutage();
-  await page.locator('#openDownloadModalBtn').click();await page.locator('#exportFormatPngBtn').click();
-  await page.locator('#downloadBtn').click();await page.locator('#exportAspectSquareBtn').click();
+  await nativeAction('#openDownloadModalBtn',()=>document.getElementById('downloadModal')?.classList.contains('open'),'export-opened');
+  await nativeAction('#exportFormatPngBtn',()=>getDownloadFormatValue()==='png','png-selected');
+  await nativeAction('#downloadBtn',()=>document.getElementById('downloadModal')?.dataset.exportStep==='review','review-opened');
+  await nativeAction('#exportAspectSquareBtn',()=>getDownloadAspectValue()==='1:1','square-selected');
   await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:90000});
   const failed=await snapshot('controlled-outage');result.states.push(failed);
   assert.ok(failedRequests>0);assert.equal(failed.state,'error');assert.match(failed.status,/couldn.t load|could not load|try again/i);
@@ -90,8 +121,7 @@ try{
   result.checks.push('A selected road-provider 503 produces a visible preview error with enabled Retry/Download, before any GIF worker');
   if(retained)await page.screenshot({path:path.join(output,`${name}-road-outage.png`)});
   outage=false;
-  await page.locator('#exportPreviewRetryBtn').click();
-  await page.waitForFunction(()=>document.getElementById('exportPreview')?.dataset.state!=='error');
+  await nativeAction('#exportPreviewRetryBtn',()=>document.getElementById('exportPreview')?.dataset.state!=='error','retry-started');
   await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:90000});
   const recovered=await snapshot('retry-after-network-recovery');result.states.push(recovered);
   assert.equal(recovered.state,'ready',JSON.stringify({recovered,warnings:result.warnings}));
