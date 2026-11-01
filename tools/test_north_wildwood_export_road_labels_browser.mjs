@@ -177,7 +177,9 @@ async function terminal(label) {
   activeSession.phase=label;
   await page.waitForFunction(()=>['ready','error','empty'].includes(document.getElementById('exportPreview')?.dataset.state),{},{timeout:180000});
   await flushPreviewWarnings();
-  const state = await page.evaluate(()=>{
+  const warning=activeSession.log.previewWarnings.at(-1);
+  const inspectCompanions=activeSession.name==='normal-route-free'&&activeSession.log.routeEverInstalled===false&&warning?.session===activeSession.name&&warning.phase===label&&warning.errors.at(-1)?.message==='The map background is still loading. Please try the export again.';
+  const state = await page.evaluate(inspectCompanions=>{
     const safely=read=>{try{return read();}catch(error){return{error:error.message};}};
     const publicUrl=value=>{
       if(typeof value!=='string')return value;
@@ -206,18 +208,55 @@ async function terminal(label) {
             complete:!!tile.el?.complete,naturalWidth:tile.el?.naturalWidth||0}))},
         vector:gl?{loaded:safely(()=>gl.loaded()),tilesLoaded:safely(()=>gl.areTilesLoaded())}:null};
     };
+    // Observe existing renderers only. Never load, redraw, or capture a layer
+    // to make a failed preview eligible for its one native UI Retry.
+    const companions=()=>{
+      const layer=exportRoadsLayer,gl=layer?.getMaplibreMap?.(),style=gl?.getStyle?.(),container=layer?.getContainer?.(),canvas=gl?.getCanvas?.();
+      const size=exportMap.getSize(),center=exportMap.getCenter(),glCenter=gl?.getCenter?.();
+      const adjustedLng=glCenter?glCenter.lng+(((center.lng-glCenter.lng+180)%360+360)%360)-180:NaN;
+      const a=gl?.project?.({lng:adjustedLng,lat:center.lat}),b=gl?.project?.(glCenter);
+      const localCanvases=[...exportMap.getPane('roadsPane').querySelectorAll('.nww-export-road-labels')];
+      const local=localCanvases[0],owners=[];
+      exportMap.eachLayer(candidate=>{if(candidate._canvas===local&&typeof candidate.getLabels==='function')owners.push(candidate);});
+      const owner=owners[0],labels=owner?.getLabels?.()||[],rect=local?.getBoundingClientRect(),mapRect=exportMap.getContainer().getBoundingClientRect();
+      const context=local?.getContext('2d');let originClean=false,nonblank=false;
+      if(context){context.getImageData(0,0,1,1);originClean=true;
+        const box=labels[0]?.box;
+        if(box?.length===4){const x=Math.max(0,Math.floor(Math.min(...box.map(p=>p.x)))),y=Math.max(0,Math.floor(Math.min(...box.map(p=>p.y))));
+          const w=Math.min(512,local.width-x,Math.ceil(Math.max(...box.map(p=>p.x)))-x),h=Math.min(512,local.height-y,Math.ceil(Math.max(...box.map(p=>p.y)))-y);
+          if(w>0&&h>0){const pixels=context.getImageData(x,y,w,h).data;for(let i=3;i<pixels.length;i+=4)if(pixels[i]){nonblank=true;break;}}}}
+      return{map:{id:exportMap._leaflet_id,zoom:exportMap.getZoom(),center:{lat:center.lat,lng:center.lng},width:size.x,height:size.y},
+        reference:{known:window.ShorelyRoadLabels?.isLayer(layer)===true,version:window.ShorelyRoadLabels?.VERSION,
+          source:window.ShorelyRoadLabels?.SOURCE,mounted:layer?._roadMounted,styled:layer?._roadStyled,ready:layer?._roadReady,
+          error:layer?._roadError?.message||null,opacity:layer?.options.opacity,containerOpacity:container?Number(getComputedStyle(container).opacity):null,
+          styleLoaded:gl?.isStyleLoaded?.(),loaded:gl?.loaded?.(),tilesLoaded:gl?.areTilesLoaded?.(),contextLost:gl?.painter?.context?.gl?.isContextLost?.(),
+          canvasAttached:!!canvas?.isConnected&&!!container?.contains(canvas),canvasWidth:canvas?.width,canvasHeight:canvas?.height,
+          styleVersion:style?.metadata?.['shorelysafe:road-labels'],styleUnit:style?.metadata?.['shorelysafe:export-unit'],
+          onlyShields:!!style?.layers?.length&&style.layers.every(item=>item.type==='symbol'&&/^road(?:\s|\/)/i.test(item['source-layer']||'')&&/shield$/i.test(item.id)&&!!item.layout?.['icon-image']),
+          sources:Object.values(style?.sources||{}).map(source=>({type:source.type,url:source.url,tiles:source.tiles})),
+          glZoom:gl?.getZoom?.(),centerPixelDelta:a&&b?Math.hypot(a.x-b.x,a.y-b.y):null},
+        local:{canvasCount:localCanvases.length,ownerCount:owners.length,layerId:owner?._leaflet_id,mapContains:!!owner&&exportMap.hasLayer(owner),ownsMap:owner?._map===exportMap,
+          attached:!!local?.isConnected,visible:!!local&&getComputedStyle(local).display!=='none'&&getComputedStyle(local).visibility!=='hidden',enabled:owner?.options.enabled,
+          width:local?.width,height:local?.height,positionDelta:rect?Math.hypot(rect.left-mapRect.left,rect.top-mapRect.top):null,
+          unit:owner?.options.unit,expectedUnit:Math.min(getExportAspectConfig().width,getExportAspectConfig().height)/1080,
+          family:local?.dataset.fontFamily,bodyFamily:getComputedStyle(document.body).fontFamily,
+          labelCount:Number(local?.dataset.labelCount),labels:labels.length,
+          geometryValid:labels.length>0&&labels.every(label=>label.name&&label.text&&Number.isFinite(label.fontSize)&&label.fontSize>0&&Array.isArray(label.box)&&label.box.length===4&&label.box.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.x>=0&&p.y>=0&&p.x<=size.x&&p.y<=size.y)),originClean,nonblank}};
+    };
     const resource=entry=>({name:publicUrl(entry.name),startTime:entry.startTime,duration:entry.duration,responseStart:entry.responseStart,responseEnd:entry.responseEnd,
       transferSize:entry.transferSize,encodedBodySize:entry.encodedBodySize,decodedBodySize:entry.decodedBodySize});
     return{state:document.getElementById('exportPreview')?.dataset.state,
     status:document.getElementById('exportPreviewStatus')?.textContent,
     format:getDownloadFormatValue(),aspect:getDownloadAspectValue(),extent:getDownloadExtentValue(),
     dimensions:getExportAspectConfig(),busy:exportInProgress,
-    performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now(),
+    performanceTimeOrigin:performance.timeOrigin,performanceNow:performance.now(),capturedAt:Date.now(),
     floodResourceTiming:performance.getEntriesByType('resource').filter(entry=>/\/assets\/hydraulic-[^/]+\/.*\.(?:png|webp)(?:\?|$)/i.test(entry.name)).slice(-12).map(entry=>({name:entry.name,startTime:entry.startTime,duration:entry.duration,responseStart:entry.responseStart,responseEnd:entry.responseEnd,transferSize:entry.transferSize,encodedBodySize:entry.encodedBodySize,decodedBodySize:entry.decodedBodySize})),
     exportDependencies:performance.getEntriesByType('resource').filter(entry=>/cdn\.jsdelivr\.net|unpkg\.com|VectorTileServer|World_Street_Map|World_Transportation/i.test(entry.name)).slice(-50).map(resource),
     basemap:safely(()=>layerState(exportBasemapColorLayer)),roads:safely(()=>layerState(exportRoadsLayer)),
+    companions:inspectCompanions&&document.getElementById('exportPreview')?.dataset.state==='error'?safely(companions):null,
     floodImage:(()=>{const image=exportFloodLayer?.getElement?.();return image?{src:image.currentSrc||image.src,complete:image.complete,naturalWidth:image.naturalWidth,naturalHeight:image.naturalHeight}:null;})()};
-  });
+  },inspectCompanions);
+  if(inspectCompanions&&state.state==='error')state.streetDataResponses=await Promise.all(activeSession.roadDataResponses);
   await flushPreviewWarnings();
   saveState({label,...state});
   console.log(`Street-label proof: ${label}: ${state.state}`);
@@ -266,9 +305,49 @@ function classifyPendingProviderPreviewRetry(state, warning, context) {
     if(pending?layer.isLoading!==true||!currentPending:layer.isLoading!==false||currentPending)return no(`${name}-stale-loading-state`);
     return{eligible:true,pendingTiles:native.pending,readyTiles:native.ready,totalTiles:native.count};
   };
-  const paths={basemap:'/ArcGIS/rest/services/World_Street_Map/MapServer/tile/',roads:'/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/'};
   let originalUrl;
   try{originalUrl=new URL(deadline.layer?.url);}catch{return no('invalid-original-provider');}
+  const imagery='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/%7Bz%7D/%7By%7D/%7Bx%7D';
+  if(originalUrl.href===imagery){
+    const warningAt=Date.parse(warning.observedAt);
+    if(!Number.isFinite(state.performanceTimeOrigin)||!Number.isFinite(state.capturedAt)||!Number.isFinite(warningAt)||state.performanceTimeOrigin<=0||
+      deadline.observedAt<state.performanceTimeOrigin||deadline.observedAt>warningAt||warningAt>state.capturedAt)return no('different-original-context-clock');
+    const path='/ArcGIS/rest/services/World_Imagery/MapServer/tile/';
+    const original=provider(deadline.layer,'original-basemap',path);
+    if(!original.eligible)return original;
+    if(original.pendingTiles===0)return no('original-deadline-already-ready');
+    const basemap=provider(state.basemap,'basemap',path);
+    if(!basemap.eligible)return basemap;
+    if(new URL(state.basemap.url).href!==imagery||deadline.layer.layerId!==state.basemap.layerId||deadline.layer.tileZoom!==state.basemap.tileZoom)return no('different-current-dependency');
+    const grid=layer=>{
+      const tiles=layer.tracked.tiles.filter(tile=>tile.current);
+      if(tiles.some(({coords:c})=>!c||![c.x,c.y,c.z].every(Number.isInteger)||c.x<0||c.y<0||c.z<0||c.z>24||c.x>=2**c.z||c.y>=2**c.z))return null;
+      const keys=tiles.map(({coords:c})=>`${c.x}/${c.y}/${c.z}`).sort();
+      return new Set(keys).size===keys.length?keys:null;
+    };
+    const before=grid(deadline.layer),current=grid(state.basemap);
+    if(!before||!current||JSON.stringify(before)!==JSON.stringify(current))return no('different-current-tile-grid');
+    const roads=state.roads,c=state.companions,r=c?.reference,m=c?.map,l=c?.local;
+    const source='https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer',version='20261030-large-roads-v1';
+    const positive=value=>Number.isFinite(value)&&value>0;
+    if(!attached(roads)||roads.kind!=='vector'||!Number.isSafeInteger(roads.layerId)||roads.layerId<=0||roads.layerId===state.basemap.layerId||roads.isLoading!==false||
+      roads.vector?.loaded!==true||roads.vector.tilesLoaded!==true||r?.known!==true||r.version!==version||r.source!==source||r.mounted!==true||r.styled!==true||r.ready!==true||r.error!==null||
+      !positive(r.opacity)||r.opacity>1||!positive(r.containerOpacity)||r.containerOpacity>1||r.styleLoaded!==true||r.loaded!==true||r.tilesLoaded!==true||r.contextLost!==false||
+      r.canvasAttached!==true||!positive(r.canvasWidth)||!positive(r.canvasHeight)||r.styleVersion!==version||r.onlyShields!==true||
+      !Array.isArray(r.sources)||r.sources.length!==1||r.sources[0]?.type!=='vector'||r.sources[0].url!==`${source}?f=json`||
+      JSON.stringify(r.sources[0].tiles)!==JSON.stringify([`${source}/tile/{z}/{y}/{x}.pbf`]))return no('unhealthy-reference-vector');
+    if(!Number.isSafeInteger(m?.id)||m.id<=0||!positive(m.width)||!positive(m.height)||![m.zoom,m.center?.lat,m.center?.lng,r.glZoom,r.centerPixelDelta].every(Number.isFinite)||
+      Math.abs(r.glZoom-(m.zoom-1))>.02||r.centerPixelDelta<0||r.centerPixelDelta>1)return no('different-reference-view');
+    if(l?.canvasCount!==1||l.ownerCount!==1||!Number.isSafeInteger(l.layerId)||l.layerId<=0||[roads.layerId,state.basemap.layerId].includes(l.layerId)||
+      l.mapContains!==true||l.ownsMap!==true||l.attached!==true||l.visible!==true||l.enabled!==true||l.width!==Math.ceil(m.width)||l.height!==Math.ceil(m.height)||
+      !Number.isFinite(l.positionDelta)||l.positionDelta<0||l.positionDelta>1||!positive(l.unit)||l.unit!==l.expectedUnit||r.styleUnit!==l.unit||
+      !l.family||l.family!==l.bodyFamily||!Number.isSafeInteger(l.labels)||l.labels<=0||l.labelCount!==l.labels||l.geometryValid!==true||l.originClean!==true||l.nonblank!==true)return no('unhealthy-local-street-canvas');
+    if(!Array.isArray(state.streetDataResponses)||!state.streetDataResponses.length||state.streetDataResponses.some(response=>response?.status!==200||response.type!=='FeatureCollection'||response.features!==603))return no('unproven-local-street-data');
+    const flood=state.floodImage;
+    if(flood?.complete!==true||!flood.src||!positive(flood.naturalWidth)||!positive(flood.naturalHeight))return no('flood-not-ready');
+    return{eligible:true,reason:'original-imagery-deadline-pending',originalProvider:'basemap',original,pendingProviders:basemap.pendingTiles?['basemap']:[],basemap,roads:{eligible:true,kind:'vector',ready:true,layerId:roads.layerId}};
+  }
+  const paths={basemap:'/ArcGIS/rest/services/World_Street_Map/MapServer/tile/',roads:'/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/'};
   const originalRole=Object.keys(paths).find(name=>originalUrl.pathname.startsWith(paths[name]));
   if(!originalRole)return no('unknown-original-provider');
   const original=provider(deadline.layer,`original-${originalRole}`,paths[originalRole]);
