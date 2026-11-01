@@ -1,6 +1,6 @@
 {
   "schema": "north-wildwood-city-gauge-index-v1",
-  "generatedAt": "2026-10-31T06:26:04.923Z",
+  "generatedAt": "2026-11-01T06:27:21.227Z",
   "sensor": {
     "id": 1005,
     "name": "North Wildwood Tide",
@@ -15,7 +15,7 @@
     "owner": "City of North Wildwood",
     "system": "Datawise municipal weather station",
     "endpoint": "http://173.15.136.30/datawise/DashBoards/getSingleSensorData.php",
-    "retrievedAt": "2026-10-31T06:23:33.099Z",
+    "retrievedAt": "2026-11-01T06:24:56.711Z",
     "datumConversionSource": "https://ready.northwildwood.com/wp-content/uploads/2021/02/2021-OEM-NGVD88-MLLW-reference-1.pdf"
   },
   "coverage": {
