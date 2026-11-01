@@ -5,7 +5,7 @@
  const panel=document.getElementById('leftPanel'),rail=document.getElementById('rightRail'),timeline=document.getElementById('timelineDock'),app=document.getElementById('app');
  if(!panel||!rail||!timeline||body.dataset.unifiedUiReady===VERSION)return;
  body.dataset.unifiedUiReady=VERSION;body.dataset.floodmapperUnified=VERSION;body.dataset.countyViewport=VERSION;
- const mobile=matchMedia('(max-width:900px), (max-height:560px) and (pointer:coarse), (max-width:1366px) and (any-pointer:coarse)');
+ const mobile=matchMedia('(max-width:900px), (max-height:560px), (max-height:560px) and (pointer:coarse), (max-width:1366px) and (any-pointer:coarse)');
  const owned=new WeakMap(),bound=new WeakSet();
  const layerOrder=[['satelliteToggle','Satellite'],['roadImpactsToggle','Road Impacts'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadsToggle','Road names'],['webcamsToggle','Cameras']];
  const groups={forecast:'.data-source-card,#forecastScenarioCard,#returnIntervalCard,#timelineIntervalCard,#calendarCard,.mobile-top-tides-card,.top-tides-card',map:'.overlay-card,.datum-card,.opacity-card,.layers-card',tools:'#townAddressCard,#downloadCard,#mapperTutorialBtn,#avalonTourBtn'};
@@ -69,6 +69,20 @@
   for(let i=0;i<desired.length;i++)if(list.children[i]!==desired[i])list.insertBefore(desired[i],list.children[i]||null);
   const hint=document.getElementById('nativeRoadNamesHint');if(hint&&!hint.hidden)hint.hidden=true;
  }
+ function ensureReturnPeriodSelect(){
+  const card=document.getElementById('returnIntervalCard');if(!card)return;
+  const buttons=[...card.querySelectorAll('button[data-return-years]')];if(!buttons.length)return;
+  let select=document.getElementById('nwwCompactReturnPeriod');
+  if(!select){
+   select=document.createElement('select');select.id='nwwCompactReturnPeriod';select.className='nww-compact-return-period';
+   select.setAttribute('aria-label','Modeled flood frequency');
+   for(const button of buttons){const option=document.createElement('option');option.value=button.dataset.returnYears;option.textContent=(button.getAttribute('aria-label')||button.textContent).replace(/ modeled flood$/i,'');select.append(option);}
+   select.addEventListener('change',()=>buttons.find(button=>button.dataset.returnYears===select.value)?.click());card.append(select);
+  }
+  for(const option of select.options){const button=buttons.find(button=>button.dataset.returnYears===option.value);option.disabled=!!button?.disabled;}
+  const selected=buttons.find(button=>button.classList.contains('active')||button.getAttribute('aria-pressed')==='true');
+  if(selected&&select.value!==selected.dataset.returnYears)select.value=selected.dataset.returnYears;
+ }
  function setDrawer(open,returnFocus=true){
   const generation=++drawerFocusGeneration;
   if(!mobile.matches)open=false;
@@ -95,7 +109,7 @@
   attr(document.getElementById('mobileControlsToggle'),'aria-expanded',String(open));
  }
  function normalize(){
-  ensureControlButtons();ensureHeader();ensureDays();ensureLayers();
+  ensureControlButtons();ensureHeader();ensureDays();ensureLayers();ensureReturnPeriodSelect();
   const title=panel.querySelector('.data-source-card h2');text(title,'Flood Data');
   const downloadCard=document.getElementById('downloadCard');if(downloadCard?.getAttribute('role')==='button'){downloadCard.removeAttribute('role');downloadCard.removeAttribute('tabindex');downloadCard.removeAttribute('aria-label');}
   for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower end'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper end'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);
@@ -123,8 +137,11 @@
  function layout(){
   frame=0;normalize();reparent();layoutPasses++;
   const compact=mobile.matches;
+  const bubble=document.getElementById('timelineBubble');
+  for(const key of ['left','right','max-width','transform'])bubble?.style.removeProperty(key);
   for(const pane of [panel,rail]){set(pane,'zoom','1');set(pane,'transform','none');set(pane,'min-width','0px');}
   if(compact){
+   body.removeAttribute('data-sidebar-density');body.removeAttribute('data-sidebar-fit');
    const vv=window.visualViewport,viewport=vv&&Math.abs((vv.scale||1)-1)<.01?vv:{height:innerHeight,width:innerWidth,offsetTop:0,offsetLeft:0};
    const computed=getComputedStyle(safeProbe),safe={top:parseFloat(computed.paddingTop)||0,right:parseFloat(computed.paddingRight)||0,bottom:parseFloat(computed.paddingBottom)||0,left:parseFloat(computed.paddingLeft)||0};
    const top=Math.max(0,viewport.offsetTop||0)+safe.top+8,left=Math.max(0,viewport.offsetLeft||0)+safe.left+8,right=Math.max(0,innerWidth-(viewport.offsetLeft||0)-(viewport.width||innerWidth))+safe.right+8,bottom=Math.max(0,innerHeight-(viewport.offsetTop||0)-(viewport.height||innerHeight))+safe.bottom+8;
@@ -137,17 +154,33 @@
   }else{
    for(const key of ['top','left','right','bottom','height'])body.style.removeProperty('--cm-'+key);
    set(timeline,'position','fixed');set(timeline,'left','16px');set(timeline,'right','16px');set(timeline,'bottom','16px');set(timeline,'height','112px');set(timeline,'min-height','112px');set(timeline,'max-height','112px');
-   const bubbleRect=document.getElementById('timelineBubble')?.getBoundingClientRect();
-   const controlsBottom=Math.min(timeline.getBoundingClientRect().top-28,bubbleRect?.height?bubbleRect.top-12:Infinity);
-   const available=Math.max(100,controlsBottom-16);
-   for(const [pane,width]of [[panel,300],[rail,280]])for(const [key,value]of Object.entries({position:'absolute',top:'16px',bottom:'auto',left:pane===panel?'16px':'auto',right:pane===rail?'16px':'auto',width:width+'px','max-width':width+'px',height:'auto','max-height':available+'px','min-height':'0px','overflow-y':'auto','overflow-x':'hidden',display:'flex'}))set(pane,key,value);
+   for(const [pane,width]of [[panel,300],[rail,280]])for(const [key,value]of Object.entries({position:'absolute',top:'16px',bottom:'auto',left:pane===panel?'16px':'auto',right:pane===rail?'16px':'auto',width:width+'px','max-width':width+'px',height:'auto','max-height':'none','min-height':'0px','overflow-y':'visible','overflow-x':'visible',display:'flex'}))set(pane,key,value);
+   const bubbleRect=bubble?.getBoundingClientRect(),timelineRect=timeline.getBoundingClientRect();
+   let available=Math.max(100,Math.min(timelineRect.top-28,bubbleRect?.height?bubbleRect.top-12:Infinity)-16);
+   const fits=()=>[panel,rail].every(pane=>Math.ceil(pane.scrollHeight)<=available+1);
+   let density='normal';attr(body,'data-sidebar-density',density);
+   if(!fits()){density='compact';attr(body,'data-sidebar-density',density);}
+   if(!fits()){
+    const left=panel.getBoundingClientRect().right+12,right=rail.getBoundingClientRect().left-12;
+    if(bubbleRect?.height&&right-left>=bubbleRect.width){
+     set(bubble,'left',((left+right)/2-timelineRect.left)+'px');set(bubble,'right','auto');
+     set(bubble,'max-width',(right-left)+'px');set(bubble,'transform','translateX(-50%)');
+     available=Math.max(100,timelineRect.top-12-16);
+    }
+   }
+   if(!fits()){density='tight';attr(body,'data-sidebar-density',density);set(rail,'display','grid');}
+   const fitted=fits();attr(body,'data-sidebar-fit',fitted?'fit':'bounded');
+   for(const pane of [panel,rail]){set(pane,'max-height',fitted?'none':available+'px');set(pane,'overflow-y',fitted?'visible':'auto');set(pane,'overflow-x','hidden');if(fitted)pane.scrollTop=0;}
+   const focused=document.activeElement,select=document.getElementById('nwwCompactReturnPeriod');
+   if(density==='tight'&&focused?.matches('#returnIntervalCard [data-return-years]'))select?.focus({preventScroll:true});
+   else if(density!=='tight'&&focused===select)document.querySelector('#returnIntervalCard [data-return-years].active')?.focus({preventScroll:true});
    const navWidth=document.getElementById('nwDefaultNavControl')?.getBoundingClientRect().width||document.getElementById('countyStandaloneView')?.getBoundingClientRect().width||48;
    const title=document.getElementById('mapTitleBadge'),l=panel.getBoundingClientRect().right+20,r=rail.getBoundingClientRect().left-navWidth-28;if(title){set(title,'left',((l+r)/2)+'px');set(title,'right','auto');set(title,'top','16px');set(title,'max-width',Math.max(100,r-l)+'px');set(title,'transform','translateX(-50%)');}
    const nav=document.getElementById('nwDefaultNavControl'),standaloneButton=document.getElementById('countyStandaloneView');const navRight=innerWidth-rail.getBoundingClientRect().left+14;
    if(nav){set(nav,'right',navRight+'px');set(nav,'left','auto');set(nav,'top','16px');}
    if(standaloneButton)set(standaloneButton,'right',navRight+'px');body.style.setProperty('--county-nav-right',navRight+'px');
   }
-  for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge')])saveStyle(e);
+  for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge'),bubble])saveStyle(e);
   body.dataset.unifiedLayoutPasses=String(layoutPasses);body.dataset.unifiedLayout=compact?'mobile':'desktop';
  }
  function schedule(){if(!frame)frame=requestAnimationFrame(layout);}
@@ -169,10 +202,11 @@
  const observer=new MutationObserver(records=>{if(records.some(m=>m.type!=='attributes'||m.attributeName!=='style'||owned.get(m.target)!==m.target.getAttribute('style')))schedule();});
  for(const e of [panel,rail,timeline])observer.observe(e,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','hidden','aria-current','data-nww-section']});
  const geometryObserver=new MutationObserver(records=>{if(records.some(m=>owned.get(m.target)!==m.target.getAttribute('style')))schedule();});
- for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge')])if(e)geometryObserver.observe(e,{attributes:true,attributeFilter:['style']});
+ for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge'),document.getElementById('timelineBubble')])if(e)geometryObserver.observe(e,{attributes:true,attributeFilter:['style']});
  observer.observe(body,{attributes:true,attributeFilter:['class']});
  for(const modal of document.querySelectorAll('[role="dialog"],dialog,.download-modal,.datum-modal'))if(modal!==panel)observer.observe(modal,{attributes:true,attributeFilter:['class','hidden','open','aria-modal','style']});
- new ResizeObserver(schedule).observe(timeline);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});
+ const resizeObserver=new ResizeObserver(schedule);for(const element of [timeline,panel,rail])resizeObserver.observe(element);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});
+ document.fonts?.ready.then(schedule);document.fonts?.addEventListener?.('loadingdone',schedule);
  addEventListener('load',schedule,{once:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});
  layout();
 })();
