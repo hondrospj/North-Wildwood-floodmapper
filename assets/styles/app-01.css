@@ -1955,7 +1955,7 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
  html body[data-floodmapper-unified]:is([data-sidebar-density="compact"],[data-sidebar-density="tight"]):not(.mobile-optimized) #rightRail#rightRail #topTideList {
   display:flex!important;flex-direction:column!important;gap:3px!important;min-height:0!important;margin:0!important;padding:0!important;
  }
- html body[data-floodmapper-unified]:is([data-sidebar-density="compact"],[data-sidebar-density="tight"]):not(.mobile-optimized) #rightRail#rightRail #topTideList:not(:has(.top-tide-item)) {min-height:90px!important;}
+ html body[data-floodmapper-unified]:is([data-sidebar-density="compact"],[data-sidebar-density="tight"]):not(.mobile-optimized) #rightRail#rightRail #topTideList:not(:has(.top-tide-item)) {min-height:calc(3 * var(--sidebar-button) + 6px)!important;}
  html body[data-floodmapper-unified]:is([data-sidebar-density="compact"],[data-sidebar-density="tight"]):not(.mobile-optimized) #rightRail#rightRail .top-tide-item {
   min-height:28px!important;padding:3px 4px!important;gap:3px!important;
  }

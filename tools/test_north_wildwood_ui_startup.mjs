@@ -278,7 +278,7 @@ try {
   const failures=[];
   const viewports=[
     {width:1440,height:1000}, {width:1512,height:945,dpr:2},
-    {width:1200,height:800}, {width:1024,height:1000}, {width:1440,height:650},
+    {width:1200,height:800}, {width:1024,height:1000}, {width:1440,height:650}, {width:1024,height:576},
     {width:390,height:844,mobile:true,dpr:2}, {width:320,height:568,mobile:true,dpr:2},
   ];
   const selected=process.env.NWW_UI_STARTUP_ONLY

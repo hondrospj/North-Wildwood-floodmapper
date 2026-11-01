@@ -18,7 +18,7 @@ const manifest = JSON.parse(read("tools/app/manifest.json"));
 // Restore only the reviewed responsive presentation before every prior audit.
 const ADAPTIVE_SIDEBAR_PATH = "tools/fixtures/north-wildwood-20261101-adaptive-sidebar.json";
 const adaptiveSidebarText = read(ADAPTIVE_SIDEBAR_PATH);
-assert.equal(sha256(adaptiveSidebarText), "e28be3e21ce738a8eab898ae1dcb7ff49bc765d4c1a99c32175e3f0ac317e995",
+assert.equal(sha256(adaptiveSidebarText), "8e44e6a7c602ae8ed2710c44db1089b32fefa68d20415b207459b473f40217eb",
   "The adaptive sidebar inverse must retain its exact reviewed fixture");
 const adaptiveSidebar = JSON.parse(adaptiveSidebarText);
 assert.equal(adaptiveSidebar.schemaVersion, 1);
