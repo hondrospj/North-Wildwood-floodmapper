@@ -32,12 +32,14 @@ async function heldTutorialClose(){
     };
     const record=(type,event)=>trace.events.push({type,isTrusted:event.isTrusted,clientX:event.clientX,clientY:event.clientY,
       target:event.target.id,targetButton:event.target.closest('button')?.id,...sample()});
-    const down=event=>{record('pointerdown',event);held=true;requestAnimationFrame(frame);};
-    const up=event=>{record('pointerup',event);held=false;};
-    const click=event=>record('click',event);
-    document.addEventListener('pointerdown',down,{capture:true,once:true});
-    document.addEventListener('pointerup',up,{capture:true,once:true});
-    document.addEventListener('click',click,{capture:true,once:true});
+    const down=event=>{if(!close.contains(event.target))return;record('pointerdown',event);held=true;document.removeEventListener('pointerdown',down,true);requestAnimationFrame(frame);};
+    const up=event=>{if(!held)return;record('pointerup',event);held=false;document.removeEventListener('pointerup',up,true);};
+    // A delayed click from opening the tour is not part of this gesture.
+    // After the Close's pointerup, retain even a wrong Card click as evidence.
+    const click=event=>{if(!trace.events.some(e=>e.type==='pointerup'))return;record('click',event);document.removeEventListener('click',click,true);};
+    document.addEventListener('pointerdown',down,true);
+    document.addEventListener('pointerup',up,true);
+    document.addEventListener('click',click,true);
     window.stopHeldTutorialCloseAudit=()=>{held=false;document.removeEventListener('pointerdown',down,true);document.removeEventListener('pointerup',up,true);document.removeEventListener('click',click,true);};
   });
   try{
