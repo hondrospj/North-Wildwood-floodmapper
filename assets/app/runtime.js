@@ -14278,8 +14278,27 @@ function startPlayback() {
       }) || document.querySelector(selector);
     }
 
+    const mapperTutorialGesturePointers = new Set();
+    let mapperTutorialGestureSettling = false;
+    let mapperTutorialGestureTimer = null;
+    let mapperTutorialPositionPending = false;
+
+    function finishMapperTutorialGesture(applyPending = true) {
+      clearTimeout(mapperTutorialGestureTimer);
+      mapperTutorialGestureTimer = null;
+      mapperTutorialGesturePointers.clear();
+      mapperTutorialGestureSettling = false;
+      const pending = mapperTutorialPositionPending;
+      mapperTutorialPositionPending = false;
+      if (applyPending && pending) positionMapperTutorial();
+    }
+
     function positionMapperTutorial() {
       if (document.getElementById("mapperTutorial")?.hidden !== false) return;
+      if (mapperTutorialGestureSettling) {
+        mapperTutorialPositionPending = true;
+        return;
+      }
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
       const target = step ? getVisibleTutorialTarget(step.target) : null;
       const spotlight = document.getElementById("mapperTutorialSpotlight");
@@ -14348,6 +14367,7 @@ function startPlayback() {
       const next = document.getElementById("mapperTutorialNext");
       back.disabled = mapperTutorialIndex === 0;
       next.textContent = mapperTutorialIndex === MAPPER_TUTORIAL_STEPS.length - 1 ? "Finish" : "Next";
+      positionMapperTutorial();
       window.setTimeout(async () => {
         if (!isCurrentStep()) return;
         try { await tutorialModePromise; } catch (err) {}
@@ -14364,6 +14384,7 @@ function startPlayback() {
     function setMapperTutorialOpen(open, startIndex = 0) {
       const tutorial = document.getElementById("mapperTutorial");
       if (!tutorial) return;
+      finishMapperTutorialGesture(false);
       ++mapperTutorialGeneration;
       tutorial.hidden = !open;
       tutorial.setAttribute("aria-hidden", open ? "false" : "true");
@@ -14381,6 +14402,30 @@ function startPlayback() {
     }
 
     function wireMapperTutorial() {
+      document.addEventListener("pointerdown", event => {
+        if (document.getElementById("mapperTutorial")?.hidden !== false ||
+            !document.getElementById("mapperTutorialCard")?.contains(event.target)) return;
+        clearTimeout(mapperTutorialGestureTimer);
+        mapperTutorialGestureTimer = null;
+        mapperTutorialGesturePointers.add(event.pointerId);
+        mapperTutorialGestureSettling = true;
+      }, true);
+      document.addEventListener("pointerup", event => {
+        if (!mapperTutorialGesturePointers.delete(event.pointerId) || mapperTutorialGesturePointers.size) return;
+        // A compatibility click may follow pointerup in a later browser task.
+        mapperTutorialGestureTimer = setTimeout(finishMapperTutorialGesture, 500);
+      }, true);
+      document.addEventListener("click", () => {
+        if (!mapperTutorialGestureSettling || mapperTutorialGesturePointers.size) return;
+        clearTimeout(mapperTutorialGestureTimer);
+        mapperTutorialGestureTimer = setTimeout(finishMapperTutorialGesture, 0);
+      }, true);
+      document.addEventListener("pointercancel", event => {
+        if (mapperTutorialGesturePointers.delete(event.pointerId) && !mapperTutorialGesturePointers.size) {
+          finishMapperTutorialGesture();
+        }
+      }, true);
+      window.addEventListener("blur", () => finishMapperTutorialGesture());
       document.getElementById("mapperTutorialBtn")?.addEventListener("click", () => setMapperTutorialOpen(true, 0));
       document.getElementById("mapperTutorialClose")?.addEventListener("click", () => setMapperTutorialOpen(false));
       document.getElementById("mapperTutorialBack")?.addEventListener("click", () => {

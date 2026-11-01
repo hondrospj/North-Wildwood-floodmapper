@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "b8fd68830f97d2d08f90d4c7f364410be1b6324e",
+  "files": [
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "1bfa09609594b4a57d0e762ce7de0594ce23eb36850b29aa0c44b9363b1a03cf",
+      "afterSha256": "51c46fe6b71f9bda9c46cff792c62e0b8df5f559a3c1ec5618197c4a68a28ef1"
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "kind": "generated",
+      "entryId": "script-004",
+      "beforeSha256": "9c4c04e77349e798e5ffa683ffdaa8b72773605527db005309663886acf27348",
+      "afterSha256": "1ee43e8029b6026edad10741a3c4e8fdf44bbd92767cb7cd85b044144f219e21"
+    },
+    {
+      "source": "index.html",
+      "kind": "document",
+      "entryId": null,
+      "beforeSha256": "ffb559a3be8a3db2f42863c365bf71ada92990529fc0bef6f004652d2289499f",
+      "afterSha256": "be449b1407a605d8c4dd1607aa909ead1fc92d9537a196254a76882f2617bb8f"
+    }
+  ],
+  "changes": [
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "id": "tutorial-gesture-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "    }\n\n    function positionMapperTutorial() {\n      if (document.getElementById(\"mapperTutorial\")?.hidden !== false) return;\n      const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];\n      const target = step ? getVisibleTutorialTarget(step.target) : null;\n",
+      "afterSource": "    }\n\n    const mapperTutorialGesturePointers = new Set();\n    let mapperTutorialGestureSettling = false;\n    let mapperTutorialGestureTimer = null;\n    let mapperTutorialPositionPending = false;\n\n    function finishMapperTutorialGesture(applyPending = true) {\n      clearTimeout(mapperTutorialGestureTimer);\n      mapperTutorialGestureTimer = null;\n      mapperTutorialGesturePointers.clear();\n      mapperTutorialGestureSettling = false;\n      const pending = mapperTutorialPositionPending;\n      mapperTutorialPositionPending = false;\n      if (applyPending && pending) positionMapperTutorial();\n    }\n\n    function positionMapperTutorial() {\n      if (document.getElementById(\"mapperTutorial\")?.hidden !== false) return;\n      if (mapperTutorialGestureSettling) {\n        mapperTutorialPositionPending = true;\n        return;\n      }\n      const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];\n      const target = step ? getVisibleTutorialTarget(step.target) : null;\n"
+    },
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "id": "tutorial-gesture-2",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      back.disabled = mapperTutorialIndex === 0;\n      next.textContent = mapperTutorialIndex === MAPPER_TUTORIAL_STEPS.length - 1 ? \"Finish\" : \"Next\";\n      window.setTimeout(async () => {\n        if (!isCurrentStep()) return;\n",
+      "afterSource": "      back.disabled = mapperTutorialIndex === 0;\n      next.textContent = mapperTutorialIndex === MAPPER_TUTORIAL_STEPS.length - 1 ? \"Finish\" : \"Next\";\n      positionMapperTutorial();\n      window.setTimeout(async () => {\n        if (!isCurrentStep()) return;\n"
+    },
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "id": "tutorial-gesture-3",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      const tutorial = document.getElementById(\"mapperTutorial\");\n      if (!tutorial) return;\n      ++mapperTutorialGeneration;\n      tutorial.hidden = !open;\n",
+      "afterSource": "      const tutorial = document.getElementById(\"mapperTutorial\");\n      if (!tutorial) return;\n      finishMapperTutorialGesture(false);\n      ++mapperTutorialGeneration;\n      tutorial.hidden = !open;\n"
+    },
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "id": "tutorial-gesture-4",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "\n    function wireMapperTutorial() {\n      document.getElementById(\"mapperTutorialBtn\")?.addEventListener(\"click\", () => setMapperTutorialOpen(true, 0));\n      document.getElementById(\"mapperTutorialClose\")?.addEventListener(\"click\", () => setMapperTutorialOpen(false));\n",
+      "afterSource": "\n    function wireMapperTutorial() {\n      document.addEventListener(\"pointerdown\", event => {\n        if (document.getElementById(\"mapperTutorial\")?.hidden !== false ||\n            !document.getElementById(\"mapperTutorialCard\")?.contains(event.target)) return;\n        clearTimeout(mapperTutorialGestureTimer);\n        mapperTutorialGestureTimer = null;\n        mapperTutorialGesturePointers.add(event.pointerId);\n        mapperTutorialGestureSettling = true;\n      }, true);\n      document.addEventListener(\"pointerup\", event => {\n        if (!mapperTutorialGesturePointers.delete(event.pointerId) || mapperTutorialGesturePointers.size) return;\n        // A compatibility click may follow pointerup in a later browser task.\n        mapperTutorialGestureTimer = setTimeout(finishMapperTutorialGesture, 500);\n      }, true);\n      document.addEventListener(\"click\", () => {\n        if (!mapperTutorialGestureSettling || mapperTutorialGesturePointers.size) return;\n        clearTimeout(mapperTutorialGestureTimer);\n        mapperTutorialGestureTimer = setTimeout(finishMapperTutorialGesture, 0);\n      }, true);\n      document.addEventListener(\"pointercancel\", event => {\n        if (mapperTutorialGesturePointers.delete(event.pointerId) && !mapperTutorialGesturePointers.size) {\n          finishMapperTutorialGesture();\n        }\n      }, true);\n      window.addEventListener(\"blur\", () => finishMapperTutorialGesture());\n      document.getElementById(\"mapperTutorialBtn\")?.addEventListener(\"click\", () => setMapperTutorialOpen(true, 0));\n      document.getElementById(\"mapperTutorialClose\")?.addEventListener(\"click\", () => setMapperTutorialOpen(false));\n"
+    }
+  ],
+  "documentTags": [
+    {
+      "output": "assets/app/runtime.js",
+      "beforeSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=9c4c04e77349e798\"></script>",
+      "afterSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=1ee43e8029b6026e\"></script>"
+    }
+  ]
+}
