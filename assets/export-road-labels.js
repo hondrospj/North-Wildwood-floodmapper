@@ -162,6 +162,8 @@
     const unit = Number.isFinite(options?.unit) && options.unit > 0 ? options.unit : 1;
     const baseSize = Number(options?.fontSize) > 0 ? Number(options.fontSize) : 15;
     const fallbackSize = Number(options?.fallbackFontSize) > 0 ? Number(options.fallbackFontSize) : 13;
+    const priorityMinimumSize = Math.min(baseSize, fallbackSize,
+      ...(options?.priorityFallbackSizes || []).filter(size => Number.isFinite(size) && size > 0 && size < fallbackSize));
     const maxLabels = Number(options?.maxLabelsPerName) > 0 ? Number(options.maxLabelsPerName) : 2;
     const halo = 1.8 * unit, padding = 2.5 * unit;
     const priorities = { "New Jersey Avenue": 100, "West Spruce Avenue": 95, "Central Avenue": 90,
@@ -174,7 +176,8 @@
       if (!projected.every(point => point && Number.isFinite(point.x) && Number.isFinite(point.y))) continue;
       const width = measure(path.text, baseSize * unit);
       if (!Number.isFinite(width) || width <= 0) continue;
-      const shortestWidth = priority(path.name) ? measure(path.text.replace(/ Ave$/, ""),fallbackSize * unit) : width;
+      const shortestWidth = priority(path.name)
+        ? measure(path.text.replace(/ Ave$/, ""),baseSize * unit) * priorityMinimumSize / baseSize : width;
       for (const points of visibleRuns(projected, size.x, size.y)) {
         const cumulative = [0];
         for (let index = 1; index < points.length; index += 1) cumulative.push(cumulative[index - 1] + Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y));

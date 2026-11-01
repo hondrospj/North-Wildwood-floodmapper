@@ -342,6 +342,7 @@ async function layout(label,minimum=8) {
       dimensions:getExportAspectConfig(),zoom:exportMap.getZoom(),center:exportMap.getCenter(),pixelOrigin:exportMap.getPixelOrigin(),
       contextFont:canvas?.getContext('2d').font,fontMetrics,devicePixelRatio:window.devicePixelRatio};
   });
+  saveState({label,...state});
   assert.equal(state.activeVector,true);
   assert.ok(state.shieldLayers.length>0);
   for(const layer of state.shieldLayers){assert.equal(layer.type,'symbol');assert.match(layer.id,/shield$/);assert.ok(layer.icon,'Only authoritative provider shields may join local ordinary names');}
@@ -367,7 +368,6 @@ async function layout(label,minimum=8) {
   for(let a=0;a<state.labels.length;a++)for(let b=a+1;b<state.labels.length;b++){
     assert.ok(separated(state.labels[a].box,state.labels[b].box),`${label}: overlapping ${state.labels[a].text}/${state.labels[b].text}`);
   }
-  saveState({label,...state});
   if(retained)await page.screenshot({path:path.join(output,`${name}-street-${label}.png`)});
   return state;
 }
@@ -492,8 +492,14 @@ try{
   await page.locator('#openDownloadModalBtn').click({noWaitAfter:true});await singleFrame();await review();
   await ready('broad-current-view');
   assert.equal(await page.evaluate(()=>getExportAspectConfig().width),2160);
-  const overview=await layout('broad-current-view',6);
-  assert.ok(overview.labels.some(street=>street.name==='New Jersey Avenue'),'The default current view must retain New Jersey Avenue');
+  // Large labels and shield collisions fit a different count with each system
+  // font. Pin the important road coverage as well as density and legibility.
+  const overview=await layout('broad-current-view',5);
+  for(const street of ['New Jersey Avenue','Delaware Avenue','Atlantic Avenue','Ocean Avenue']){
+    assert.ok(overview.labels.some(label=>label.name===street),`The default current view must retain ${street}`);
+  }
+  assert.equal(new Set(overview.labels.map(label=>label.name)).size,overview.labels.length,
+    'The broad view must use one label per road rather than repeats to meet its coverage check');
   assert.ok(overview.labels.some(street=>street.name==='West Spruce Avenue')||overview.route147OnSpruce,
     'The northern spit must retain W Spruce or its genuine NJ147 route badge on the same road geometry');
   normal.coldPreviewReady=true;normal.log.coldPreviewReady=true;

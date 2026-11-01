@@ -15,6 +15,45 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+// The fallback fix changes only layout's early length check and its cache key.
+// Validate actual bytes/version first, then restore the previous audited inputs.
+const ROAD_FALLBACK_PATH = "tools/fixtures/north-wildwood-20261101-road-fallback.json";
+const roadFallbackText = read(ROAD_FALLBACK_PATH);
+assert.equal(sha256(roadFallbackText), "fa159c746924ad0720100563da32e89bcf08860e20f2ab1407d1510594c3f4e4");
+const roadFallback = JSON.parse(roadFallbackText);
+assert.equal(roadFallback.schemaVersion, 1);
+assert.equal(roadFallback.baselineCommit, "0fbdfc1a3f5ac9d3350cda5fbdb41f3d326ff799");
+assert.equal(roadFallback.function, "layout");
+assert.equal(roadFallback.module, "assets/export-road-labels.js");
+assert.deepEqual(roadFallback.files.map(file => file.source), [roadFallback.module, "tools/app/index.template.html", "index.html"]);
+function roadFallbackDocument(source) {
+  assert.equal(source.split(roadFallback.afterScriptTag).length - 1, 1, "The fallback renderer must use its reviewed content cache key once");
+  return source.replace(roadFallback.afterScriptTag, roadFallback.beforeScriptTag);
+}
+function auditedRoadFallbackRead(relative) {
+  const source = read(relative);
+  const file = roadFallback.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its reviewed fallback fix`);
+  let restored;
+  if (relative === roadFallback.module) {
+    for (const text of [roadFallback.beforeSource, roadFallback.afterSource]) {
+      const matches = [...text.matchAll(/^  function layout\([^\n]*\) \{\n[^]*?^  }\n/gm)];
+      assert.equal(matches.length, 1);
+      assert.equal(matches[0][0], text, "The fallback inverse must cover only layout");
+    }
+    assert.equal(source.split(roadFallback.afterSource).length - 1, 1);
+    restored = source.replace(roadFallback.afterSource, roadFallback.beforeSource);
+  } else restored = roadFallbackDocument(source);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every original fallback byte`);
+  return restored;
+}
+assert.equal(roadFallback.afterScriptTag.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+  roadFallback.beforeScriptTag.replace(/\?v=[a-f0-9]+/, "?v=VERSION"));
+const roadFallbackCacheVersion = roadFallback.afterScriptTag.match(/\?v=([a-f0-9]+)/)?.[1];
+assert.equal(roadFallbackCacheVersion, sha256(read(roadFallback.module)).slice(0, 16),
+  "The actual fallback cache key must match the actual renderer content");
+for (const file of roadFallback.files) auditedRoadFallbackRead(file.source);
 // Reverse only the ten reviewed bug-fix functions before all previous audits.
 // Full-file pins reject edits beside those functions; older fixtures stay exact.
 const REVIEW_FIX_PATH = "tools/fixtures/north-wildwood-20261101-review-fixes.json";
@@ -48,7 +87,7 @@ function reviewFixFragments(source, blocks) {
   return source;
 }
 function auditedReviewFixRead(relative) {
-  const source = read(relative);
+  const source = auditedRoadFallbackRead(relative);
   const file = reviewFix.files.find(file => file.source === relative);
   if (!file) return source;
   const blocks = reviewFix.changes.filter(block => block.source === relative);
@@ -311,8 +350,8 @@ assert.equal(sha256(holisticFixText), "359b8237b258a4e5dfbbc966e1729c0359bdfd9ca
 const holisticFixAudit = JSON.parse(holisticFixText);
 assert.equal(holisticFixAudit.schemaVersion, 1);
 assert.equal(holisticFixAudit.baselineCommit, "075b294431f5bf57542a2c8850ef7b2d26320766");
-const template = read("tools/app/index.template.html");
-const published = read("index.html");
+const template = auditedRoadFallbackRead("tools/app/index.template.html");
+const published = auditedRoadFallbackRead("index.html");
 assertScalableRoadDocument(template, "Template");
 assertScalableRoadDocument(published, "Published HTML");
 const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-ui.json"));
@@ -1109,7 +1148,7 @@ assert.equal(placementAudit.beforeScriptTag, roadLabelTag, "The placement follow
 assert.equal(placementAudit.afterScriptTag.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
   roadLabelTag.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), "The placement dependency may change only its content cache version");
 const placementAttributes = attributes(activeRoadLabelTag.slice(0, activeRoadLabelTag.indexOf(">") + 1));
-referencedOutput(placementAttributes.get("src"), roadLabelAudit.module.source);
+referencedOutput(placementAttributes.get("src"), roadLabelAudit.module.source, auditedRoadFallbackRead(roadLabelAudit.module.source));
 for (const [label, document] of [["Template", template], ["Published HTML", published]]) {
   assert.equal(auditedPlacementDocument(document, label).split(roadLabelTag).length - 1, 1,
     `${label} must include the reviewed export road-label dependency once`);
@@ -1356,7 +1395,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1366,10 +1405,21 @@ if (process.argv.includes("--self-test")) {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
     assert.equal(run().status, 0, "The unmodified scratch copy must pass before mutation checks");
+    // Mutation inputs must use actual current documents/cache tags, not inverses.
+    const template = read("tools/app/index.template.html"), published = read("index.html");
+    const activeRoadLabelTag = roadFallback.afterScriptTag;
     const scratchHtml = path.join(scratch, "index.html");
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened road fallback inverse", path.join(scratch, ROAD_FALLBACK_PATH),
+        JSON.stringify({ ...roadFallback, afterSource: roadFallback.afterSource + "\n" })],
+      ["altered road fallback minimum", path.join(scratch, roadFallback.module),
+        read(roadFallback.module).replace("Math.min(baseSize, fallbackSize,", "Math.max(baseSize, fallbackSize,")],
+      ["unreviewed adjacent road module change", path.join(scratch, roadFallback.module),
+        read(roadFallback.module) + "\n// Unreviewed adjacent fallback change\n"],
+      ["stale road fallback cache key", path.join(scratch, "tools/app/index.template.html"),
+        template.replace(roadFallback.afterScriptTag, roadFallback.beforeScriptTag)],
       ["broadened November 1 bug-fix inverse", path.join(scratch, REVIEW_FIX_PATH),
         JSON.stringify({ ...reviewFix, changes: [...reviewFix.changes, reviewFix.changes[0]] })],
       ["changed reviewed reload guard", path.join(scratch, reviewFix.files[0].source),
@@ -1581,7 +1631,7 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
           "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length, 98, "Retain all 95 previous mutations and three November 1 bug-fix mutations");
+    assert.equal(cases.length, 102, "Retain all 98 previous mutations and four road fallback mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);

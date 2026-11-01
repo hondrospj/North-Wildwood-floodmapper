@@ -164,6 +164,25 @@ assert.ok(hybridBroad.some(label=>label.name==='West Spruce Avenue'));
 assert.equal(new Set(hybridBroad.map(label=>label.name)).size,hybridBroad.length);
 for(const label of hybridBroad)assert.ok(label.fontSize>=26&&label.fontSize<=40);
 for(let a=0;a<hybridBroad.length;a++)for(let b=a+1;b<hybridBroad.length;b++)assert.equal(overlaps(hybridBroad[a].box,hybridBroad[b].box),false);
+
+// A wider system font can legitimately fit fewer large, unique names at the
+// same broad camera. Protect geographic coverage and readability explicitly;
+// do not require an extra name that would collide with the accepted streets.
+const wideHybrid=layout(realPaths,hostedProject,{x:2160,y:1674},hybridOptions,
+  (text,size)=>text.length*size*.624);
+assert.ok(wideHybrid.length>=5,'A broad view with wider glyphs retains useful unique-road coverage');
+assert.equal(new Set(wideHybrid.map(label=>label.name)).size,wideHybrid.length);
+for(const name of ['New Jersey Avenue','West Spruce Avenue','Delaware Avenue','Atlantic Avenue','Ocean Avenue']){
+  assert.ok(wideHybrid.some(label=>label.name===name),`Wide-glyph current views retain ${name}`);
+}
+for(let a=0;a<wideHybrid.length;a++){
+  const label=wideHybrid[a];
+  assert.ok(label.fontSize>=26&&label.fontSize<=40,'Wider glyphs keep the reviewed 13–20px/unit font range');
+  assert.ok(label.box.every(point=>point.x>=0&&point.y>=0&&point.x<=2160&&point.y<=1674),
+    'Wide-glyph street names remain within the map');
+  for(let b=a+1;b<wideHybrid.length;b++)assert.equal(overlaps(label.box,wideHybrid[b].box),false,
+    'Wide-glyph street names remain collision-free');
+}
 // Existing SAT placement also respects the active provider shield footprints.
 const obstruction=placed[0].box;
 const unobscured=layout(paths,project,{x:500,y:300},{unit:1,obstacles:[obstruction]},measure);
