@@ -1873,6 +1873,12 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
 
 /* Enlarged browser text keeps a full-width, scrollable desktop arrangement. */
 @layer floodmapper-unified-polish {
+ html body[data-floodmapper-unified][data-sidebar-fit="bounded"][data-sidebar-density="normal"] #leftPanel#leftPanel :is(.section-title,#legendHeader) {
+  height:auto!important;min-height:min-content!important;max-height:none!important;
+ }
+ html body[data-floodmapper-unified][data-sidebar-fit="bounded"][data-sidebar-density="normal"] #leftPanel#leftPanel :is(.section-title,#legendHeader) :is(h2,h3) {
+  line-height:1.5!important;
+ }
  html body[data-floodmapper-unified][data-sidebar-fit="bounded"][data-sidebar-density="normal"] #leftPanel#leftPanel #legendDock {
   height:auto!important;min-height:0!important;max-height:none!important;grid-template-rows:auto auto!important;overflow:visible!important;
  }
