@@ -12258,7 +12258,7 @@ function startPlayback() {
             checkedAt: unavailable ? lastSuccessfulNwsAlerts?.checkedAt : new Date().toISOString() };
         }
         const shown = floodAlerts;
-        const state = unavailable ? (lastSuccessfulNwsAlerts ? "stale" : "unavailable") : shown.length ? "active" : "none";
+        const state = unavailable ? (lastSuccessfulNwsAlerts?.checkedAt || shown.length ? "stale" : "unavailable") : shown.length ? "active" : "none";
         document.body.dataset.nwsAlertState = state;
         const primary = shown[0]?.properties || {};
         const checked = lastSuccessfulNwsAlerts?.checkedAt;

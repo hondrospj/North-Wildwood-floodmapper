@@ -74,4 +74,7 @@ responses = { NJZ024: new Error('offline'), NJC009: new Error('offline') };
 assert.equal(await context.checkNwsAlerts(), 'stale');
 assert.equal(banner.at(-1)[1], 'Coastal Flood Warning', 'A first partial response must be cached before any fully successful check');
 assert.equal(banner.at(-1)[3], 1);
+context.lastSuccessfulNwsAlerts = null;
+responses = { NJZ024: [], NJC009: new Error('offline') };
+assert.equal(await context.checkNwsAlerts(), 'unavailable', 'A first incomplete empty response is unknown, without a previous alert or complete check');
 console.log('Alert per-zone outage retention, authoritative all-clear, partial-first cache, expiry, deduplication, and recovery passed');

@@ -19,7 +19,7 @@ const manifest = JSON.parse(read("tools/app/manifest.json"));
 // Full-file pins reject edits beside those functions; older fixtures stay exact.
 const REVIEW_FIX_PATH = "tools/fixtures/north-wildwood-20261101-review-fixes.json";
 const reviewFixText = read(REVIEW_FIX_PATH);
-assert.equal(sha256(reviewFixText), "92998490e371d9d64e451ee8323099af9d59aba632b4725a4b821eb0aacac0ba");
+assert.equal(sha256(reviewFixText), "430555a79159caeeae2496dd73cdfeebd0a668833aa92f627c5d513434c2cf32");
 const reviewFix = JSON.parse(reviewFixText);
 const REVIEW_FIX_OWNERS = {
   "tools/app/runtime/01-physics-manifests.js": ["loadPhysicsForecast"],
