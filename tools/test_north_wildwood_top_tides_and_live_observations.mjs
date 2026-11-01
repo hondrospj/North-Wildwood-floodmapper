@@ -158,7 +158,7 @@ const calls = [];
 let releaseIndex;
 const heldIndex = new Promise(resolve => { releaseIndex = resolve; });
 const warmup = vm.createContext({
-  console, Promise, topTideEvents: [],
+  console, Promise, archiveGeneration: 0, topTideEvents: [],
   loadHistoricalTopTides: async () => { calls.push("crests"); },
   ensureObserved15MinuteArchive: async () => { calls.push("index"); await heldIndex; },
   ensureObservedArchiveYear: async () => { throw new Error("Replay must stay on demand"); },

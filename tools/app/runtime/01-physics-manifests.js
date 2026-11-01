@@ -41,8 +41,10 @@
       if (Object.keys(physicsForecastManifests).length && !force) {
         return getActivePhysicsManifest();
       }
+      const generation = archiveGeneration;
       const pointerUrl = physicsPointerUrl();
       const pointer = await fetchJson(pointerUrl);
+      if (generation !== archiveGeneration) throw new Error("Physics request superseded by Reload");
       const manifestUrls = pointer?.manifestUrls && typeof pointer.manifestUrls === "object"
         ? pointer.manifestUrls
         : (pointer?.manifestUrl ? { [pointer.scenario || "mean"]: pointer.manifestUrl } : {});
@@ -71,6 +73,7 @@
         }
         return [scenario, hydratePhysicsManifest(manifest, manifestUrl)];
       }));
+      if (generation !== archiveGeneration) throw new Error("Physics request superseded by Reload");
       physicsForecastManifests = Object.fromEntries(hydrated);
       physicsQueryImageCache = new Map();
       return getActivePhysicsManifest() || hydrated[0]?.[1] || null;

@@ -875,8 +875,10 @@ function cloneStyleObject(value) {
       if (Object.keys(physicsForecastManifests).length && !force) {
         return getActivePhysicsManifest();
       }
+      const generation = archiveGeneration;
       const pointerUrl = physicsPointerUrl();
       const pointer = await fetchJson(pointerUrl);
+      if (generation !== archiveGeneration) throw new Error("Physics request superseded by Reload");
       const manifestUrls = pointer?.manifestUrls && typeof pointer.manifestUrls === "object"
         ? pointer.manifestUrls
         : (pointer?.manifestUrl ? { [pointer.scenario || "mean"]: pointer.manifestUrl } : {});
@@ -905,6 +907,7 @@ function cloneStyleObject(value) {
         }
         return [scenario, hydratePhysicsManifest(manifest, manifestUrl)];
       }));
+      if (generation !== archiveGeneration) throw new Error("Physics request superseded by Reload");
       physicsForecastManifests = Object.fromEntries(hydrated);
       physicsQueryImageCache = new Map();
       return getActivePhysicsManifest() || hydrated[0]?.[1] || null;
@@ -9988,17 +9991,22 @@ function formatSelectedObservedDate(dateStr) {
     async function loadHistoricalTopTides() {
       if (historicTopTideEntries.length) return historicTopTideEntries;
       if (historicalTopTidesPromise) return historicalTopTidesPromise;
-      historicalTopTidesPromise = fetchJson(TOP_TIDES_URL, { cache: "default" })
+      const generation = archiveGeneration;
+      const request = fetchJson(TOP_TIDES_URL, { cache: "default" })
         .then(data => {
+          if (generation !== archiveGeneration) throw new Error("Historical crest request superseded by Reload");
           const rows = Array.isArray(data?.toptides) ? data.toptides : Array.isArray(data) ? data : [];
           historicTopTideEntries = rows.map(normalizeTopTidesJsonEntry).filter(Boolean);
           return historicTopTideEntries;
         })
         .catch(error => {
-          historicalTopTidesPromise = null;
-          historicTopTideEntries = [];
+          if (historicalTopTidesPromise === request) {
+            historicalTopTidesPromise = null;
+            historicTopTideEntries = [];
+          }
           throw error;
         });
+      historicalTopTidesPromise = request;
       return historicalTopTidesPromise;
     }
 
@@ -10911,6 +10919,7 @@ function formatSelectedObservedDate(dateStr) {
       }
       if (!options.deferPhysicsCatalog && (!Object.keys(physicsForecastManifests).length || options.forceRefresh)) {
         await loadPhysicsForecast(Boolean(options.forceRefresh)).catch(error => {
+          if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return;
           console.warn("Physics forecast is not published yet; using the phase-aware atlas.", error);
           physicsForecastManifests = {};
         });
@@ -11153,6 +11162,7 @@ function formatSelectedObservedDate(dateStr) {
 
     async function extendObservedArchiveThroughToday() {
       if (!observedData || typeof observedData !== "object") return;
+      const generation = archiveGeneration;
       const today = getTodayNyDateKey();
       const latest = getObservedArchiveLatestDateKey();
       if (!today || (latest && compareDateKeys(latest, today) >= 0)) return;
@@ -11160,8 +11170,10 @@ function formatSelectedObservedDate(dateStr) {
       const startDate = addDaysToDateKey(latest, 1) || today;
       try {
         const liveDays = await fetchRecentUsgsObservedDays(startDate, today);
+        if (generation !== archiveGeneration) return false;
         liveDays.forEach(addOrMergeObservedDayRecord);
       } catch (err) {
+        if (generation !== archiveGeneration) return false;
         console.warn("Observed live USGS backfill failed; filling calendar placeholders through today.", err);
       }
 
@@ -11174,8 +11186,10 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     async function loadObserved() {
+      const generation = archiveGeneration;
       if (!observedData) {
         const compactArchive = await ensureObserved15MinuteArchive();
+        if (generation !== archiveGeneration) return false;
         observedData = buildObservedIndexFrom15MinuteArchive(compactArchive);
         observedDaysCache = null;
         clearExportAvailabilityCache();
@@ -11183,8 +11197,10 @@ function formatSelectedObservedDate(dateStr) {
 
 
       await extendObservedArchiveThroughToday();
+      if (generation !== archiveGeneration) return false;
 
       if (!historicTopTideEntries.length) await loadHistoricalTopTides();
+      if (generation !== archiveGeneration) return false;
       mergeHistoricalCrestsIntoObservedIndex();
       rebuildObservedHourLookup();
 
@@ -11855,6 +11871,7 @@ function populateCalendarSelectors() {
         topTideEvents = [];
         if (observedData) {
           await loadObserved();
+          if (generation !== archiveGeneration) return null;
         } else {
           topTideEvents = buildTopTideEvents();
           renderTopTides();
@@ -11875,15 +11892,18 @@ function populateCalendarSelectors() {
     }
 
     function scheduleTopTidesListWarmup() {
+      const generation = archiveGeneration;
       const start = async () => {
         try {
           await Promise.all([
             loadHistoricalTopTides(),
             ensureObserved15MinuteArchive().catch(() => null)
           ]);
+          if (generation !== archiveGeneration) return;
           topTideEvents = buildTopTideEvents();
           renderTopTides();
         } catch (error) {
+          if (generation !== archiveGeneration) return;
           console.warn("Historical high-tide summary will retry when requested.", error);
         }
       };
@@ -11912,13 +11932,17 @@ function populateCalendarSelectors() {
     }
 
     function scheduleForecastCatalogWarmup() {
+      const generation = archiveGeneration;
       const start = async () => {
+        if (generation !== archiveGeneration) return;
         if (document.body.dataset.initialFloodFrame !== "ready") return;
         document.body.dataset.forecastCatalog = "loading";
         try {
           await loadPhysicsForecast(false);
+          if (generation !== archiveGeneration) return;
           document.body.dataset.forecastCatalog = "ready";
         } catch (error) {
+          if (generation !== archiveGeneration) return;
           document.body.dataset.forecastCatalog = "unavailable";
           console.warn("Forecast catalog will load when it is next requested.", error);
         }
@@ -12187,28 +12211,54 @@ function startPlayback() {
               const code = String(url || "").split("/").pop();
               if (code) zoneCodes.add(code);
             });
-          } catch (error) { incomplete = true; }
+          } catch (error) {
+            incomplete = true;
+            // A failed point lookup can still refresh zones discovered earlier.
+            for (const zoneCode of lastSuccessfulNwsAlerts?.byZone?.keys() || []) zoneCodes.add(zoneCode);
+          }
         }
         const allFeatures = [];
+        const cachedFeatures = [];
+        const byZone = new Map();
         await Promise.all(Array.from(zoneCodes, async zoneCode => {
           try {
             const alerts = await fetchJson(`https://api.weather.gov/alerts/active?zone=${encodeURIComponent(zoneCode)}`,
               { timeoutMs: 15000 });
             if (!Array.isArray(alerts?.features)) throw new Error("Invalid alert response");
+            byZone.set(zoneCode, alerts.features);
             allFeatures.push(...alerts.features);
-          } catch (error) { incomplete = true; }
+          } catch (error) {
+            incomplete = true;
+            const cached = lastSuccessfulNwsAlerts?.byZone?.get(zoneCode);
+            if (cached) {
+              byZone.set(zoneCode, cached);
+              cachedFeatures.push(...cached);
+            }
+          }
         }));
+        // Only failed zones reuse cached alerts. A healthy empty response is
+        // authoritative for its own zone; fresh copies win across zone overlap.
+        const candidates = allFeatures.concat(cachedFeatures);
+        const now = Date.now();
         const seen = new Set();
-        const floodAlerts = allFeatures.filter(feature => {
+        const floodAlerts = candidates.filter(feature => {
           const id = String(feature?.id || feature?.properties?.id || "");
           if (id && seen.has(id)) return false;
           if (id) seen.add(id);
+          const expires = Date.parse(feature?.properties?.expires || "");
+          if (Number.isFinite(expires) && expires <= now) return false;
           return /(coastal flood|storm surge|lakeshore flood|flood warning|flood watch|flood advisory)/i.test(feature?.properties?.event || "");
         });
+        const alertPriority = feature => /warning/i.test(feature?.properties?.event || "") ? 3
+          : /watch/i.test(feature?.properties?.event || "") ? 2 : 1;
+        floodAlerts.sort((a, b) => alertPriority(b) - alertPriority(a));
         const unavailable = incomplete || !zoneCodes.size;
-        if (!unavailable) lastSuccessfulNwsAlerts = { features: floodAlerts, checkedAt: new Date().toISOString() };
-        const shown = floodAlerts.length ? floodAlerts : unavailable ? (lastSuccessfulNwsAlerts?.features || []) : [];
-        const state = unavailable ? (lastSuccessfulNwsAlerts ? "stale" : "unavailable") : shown.length ? "active" : "none";
+        if (byZone.size || lastSuccessfulNwsAlerts) {
+          lastSuccessfulNwsAlerts = { features: floodAlerts, byZone,
+            checkedAt: unavailable ? lastSuccessfulNwsAlerts?.checkedAt : new Date().toISOString() };
+        }
+        const shown = floodAlerts;
+        const state = unavailable ? (lastSuccessfulNwsAlerts?.checkedAt || shown.length ? "stale" : "unavailable") : shown.length ? "active" : "none";
         document.body.dataset.nwsAlertState = state;
         const primary = shown[0]?.properties || {};
         const checked = lastSuccessfulNwsAlerts?.checkedAt;
