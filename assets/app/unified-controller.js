@@ -169,7 +169,10 @@
     }
    }
    if(!fits()){density='tight';attr(body,'data-sidebar-density',density);set(rail,'display','grid');}
-   const fitted=fits();attr(body,'data-sidebar-fit',fitted?'fit':'bounded');
+   const fitted=fits();
+   // Enlarged browser fonts need the full-width rows when tightening cannot fit.
+   if(!fitted&&density==='tight'){density='normal';attr(body,'data-sidebar-density',density);set(rail,'display','flex');}
+   attr(body,'data-sidebar-fit',fitted?'fit':'bounded');
    for(const pane of [panel,rail]){set(pane,'max-height',fitted?'none':available+'px');set(pane,'overflow-y',fitted?'visible':'auto');set(pane,'overflow-x','hidden');if(fitted)pane.scrollTop=0;}
    const focused=document.activeElement,select=document.getElementById('nwwCompactReturnPeriod');
    if(density==='tight'&&focused?.matches('#returnIntervalCard [data-return-years]'))select?.focus({preventScroll:true});

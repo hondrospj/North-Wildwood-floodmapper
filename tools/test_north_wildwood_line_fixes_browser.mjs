@@ -38,6 +38,94 @@ async function choiceText(page,selector,expectedIds) {
     inside(c.button,c.group)&&(!c.card||inside(c.button,c.card))),JSON.stringify(choices));
   return choices;
 }
+async function modeledChoiceText(page) {
+  const years=[1,2,5,10,20,50,100,200,500,1000,2000,5000,10000];
+  const expectedIds=years.map(years=>`return${years}Btn`);
+  const select=page.locator('#nwwCompactReturnPeriod');
+  if(!await select.isVisible())return choiceText(page,'.return-interval-grid button',expectedIds);
+  const choices=await select.evaluate(e=>{
+    const style=getComputedStyle(e),box=e.getBoundingClientRect();
+    const probe=document.createElement('span');
+    Object.assign(probe.style,{position:'fixed',visibility:'hidden',whiteSpace:'pre',font:style.font,letterSpacing:style.letterSpacing});
+    document.body.append(probe);
+    try{
+      // Native popup options have no portable DOM rectangles. A real text
+      // Range retains Firefox's minimum-font setting, unlike canvas metrics.
+      return [...e.options].map(option=>{
+        probe.textContent=option.textContent;
+        const range=document.createRange();range.selectNodeContents(probe);const text=range.getBoundingClientRect();
+        const button=document.getElementById(`return${option.value}Btn`);
+        return{id:button?.id,value:option.value,label:option.textContent,
+          expectedLabel:(button?.getAttribute('aria-label')||button?.textContent||'').replace(/ modeled flood$/i,''),
+          disabled:option.disabled,expectedDisabled:!!button?.disabled,
+          width:box.width,height:box.height,textWidth:text.width,textHeight:text.height,font:style.font};
+      });
+    }finally{probe.remove();}
+  });
+  assert.deepEqual(choices.map(c=>c.id).sort(),[...expectedIds].sort(),'The visible native selector must retain every modeled choice');
+  assert.ok(choices.every(c=>c.label===c.expectedLabel&&c.disabled===c.expectedDisabled),JSON.stringify(choices));
+  assert.ok(choices.every(c=>c.textWidth<=c.width+1&&c.textHeight<=c.height+1),JSON.stringify(choices));
+  const restore=await select.inputValue();
+  await select.selectOption('20');
+  await page.waitForFunction(()=>currentReturnIntervalYears===20&&floodFrameState==='ready',{}, {timeout:90000});
+  assert.equal(await select.inputValue(),'20','The native modeled choice must activate the actual scenario');
+  await select.selectOption(restore);
+  await page.waitForFunction(years=>currentReturnIntervalYears===Number(years)&&floodFrameState==='ready',restore, {timeout:90000});
+  return choices;
+}
+async function sidebarLabelText(page) {
+  const labels=await page.evaluate(()=>{
+    const rect=a=>({left:a.left,top:a.top,right:a.right,bottom:a.bottom,width:a.width,height:a.height});
+    const textRects=e=>{const range=document.createRange();range.selectNodeContents(e);return [...range.getClientRects()].map(rect);};
+    const shown=e=>e&&e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden';
+    return{
+      layers:[...document.querySelectorAll('#rightRail .layer-item,#mobileRailMount .layer-item')].filter(shown).map(row=>{
+        const label=row.querySelector('.layer-name'),toggle=row.querySelector('.toggle');
+        return{label:label.textContent.trim(),row:rect(row.getBoundingClientRect()),region:rect(label.getBoundingClientRect()),overflowY:getComputedStyle(label).overflowY,text:textRects(label),toggle:rect(toggle.getBoundingClientRect())};
+      }),
+      sections:[...document.querySelectorAll('#leftPanel .overlay-card,#leftPanel .datum-card,#leftPanel .opacity-card,#leftPanel #timelineIntervalCard')].filter(shown).map(card=>{
+        const title=card.querySelector('.section-title h2'),controls=card.querySelector('.button-grid-2,.segmented-control,.control-row,#timelineIntervalToggle');
+        return{title:title.textContent.trim(),text:textRects(title),controls:rect(controls.getBoundingClientRect())};
+      })
+    };
+  });
+  const inside=(a,b)=>a.left>=b.left-1.5&&a.right<=b.right+1.5&&a.top>=b.top-1.5&&a.bottom<=b.bottom+1.5;
+  const overlaps=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1.5&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1.5;
+  assert.ok(labels.layers.length>0,'The selected map section must expose its layer labels');
+  for(const layer of labels.layers){
+    // Font ink can extend beyond a line box without clipping. The full row
+    // must contain it, and its horizontal label region must clear the switch.
+    assert.ok(layer.text.length&&layer.text.every(text=>inside(text,layer.row)&&text.left>=layer.region.left-1.5&&text.right<=layer.region.right+1.5&&
+      (layer.overflowY==='visible'||inside(text,layer.region))&&!overlaps(text,layer.toggle)),JSON.stringify(layer));
+    for(const other of labels.layers)if(other!==layer)assert.ok(layer.text.every(text=>other.text.every(otherText=>!overlaps(text,otherText))),JSON.stringify({layer,other}));
+  }
+  assert.ok(labels.sections.length>0,'The selected map section must expose its main section titles');
+  for(const section of labels.sections)assert.ok(section.text.length&&section.text.every(text=>!overlaps(text,section.controls)),JSON.stringify(section));
+  if(await page.locator('body').evaluate(e=>e.dataset.unifiedLayout==='desktop'&&e.dataset.sidebarFit==='bounded')){
+    await page.locator('#legendDock').scrollIntoViewIfNeeded();
+    const key=await page.locator('#legendDock').evaluate(e=>{
+      const rect=a=>({left:a.left,top:a.top,right:a.right,bottom:a.bottom});
+      return{card:rect(e.getBoundingClientRect()),labels:[...e.querySelectorAll('.depth-legend-labels > *')].map(label=>{
+        const range=document.createRange();range.selectNodeContents(label);
+        return{label:label.textContent,box:rect(label.getBoundingClientRect()),text:[...range.getClientRects()].map(rect)};
+      })};
+    });
+    assert.deepEqual(key.labels.map(l=>l.label),['Uncertain','Shallow','Deep']);
+    for(const label of key.labels){
+      assert.ok(label.text.length&&label.text.every(text=>inside(text,label.box)&&inside(text,key.card)),JSON.stringify(key));
+      for(const other of key.labels)if(other!==label)assert.ok(label.text.every(text=>other.text.every(otherText=>!overlaps(text,otherText))),JSON.stringify(key));
+    }
+    const reachable=[];
+    for(const id of ['legendHelpBtn','townAddressInput','townAddressSearchBtn','townAddressClearBtn']){
+      const control=page.locator('#'+id);await control.scrollIntoViewIfNeeded();
+      const target=await control.evaluate(e=>{const r=e.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{id:e.id,reachable:hit===e||e.contains(hit),left:r.left,top:r.top,right:r.right,bottom:r.bottom,viewport:{right:innerWidth,bottom:innerHeight}};});
+      assert.ok(target.reachable&&target.left>=0&&target.top>=0&&target.right<=target.viewport.right+1&&target.bottom<=target.viewport.bottom+1,JSON.stringify(target));reachable.push(target);
+    }
+    const address=await choiceText(page,'#townAddressSearchBtn,#townAddressClearBtn',['townAddressSearchBtn','townAddressClearBtn']);
+    labels.bounded={key,address,reachable};
+  }
+  return labels;
+}
 async function headerText(page) {
   const header=await page.locator('#nwwMobileControlHeader').evaluate(e=>{
     const rect=a=>({left:a.left,top:a.top,right:a.right,bottom:a.bottom,width:a.width,height:a.height});
@@ -118,15 +206,15 @@ try {
     if(mobile)await page.getByRole('tab',{name:'Map layers',exact:true}).click();
     const mapChoices=await choiceText(page,'.overlay-card .button-grid-2 button,.datum-card .segmented-control button',
       ['depthModeBtn','dynamicModeBtn','datumMllwBtn','datumNavd88Btn']);
+    const sidebarLabels=await sidebarLabelText(page);
     if (output) await page.screenshot({path:path.join(output,`${name}-text-${viewport.width}-map.png`)});
     if(mobile)await page.getByRole('tab',{name:'Flood data',exact:true}).click();
     await page.locator('#returnIntervalDataBtn').click();
     await page.waitForFunction(()=>currentDataMode==='return-interval'&&floodFrameState==='ready',{}, {timeout:90000});
     if(mobile&&!await page.locator('body').evaluate(e=>e.classList.contains('mobile-controls-open')))await page.locator('#mobileControlsToggle').click();
-    const modeledChoices=await choiceText(page,'.return-interval-grid button',
-      [1,2,5,10,20,50,100,200,500,1000,2000,5000,10000].map(years=>`return${years}Btn`));
+    const modeledChoices=await modeledChoiceText(page);
     if (output) await page.screenshot({path:path.join(output,`${name}-text-${viewport.width}-modeled.png`)});
-    results.push({scenario:`choice text ${viewport.width}`,nativeMinimumFont:name==='firefox'?minimumFont:null,choices,mapChoices,modeledChoices,header});
+    results.push({scenario:`choice text ${viewport.width}`,nativeMinimumFont:name==='firefox'?minimumFont:null,choices,mapChoices,modeledChoices,sidebarLabels,header});
     await page.close();
   }
 } finally {

@@ -207,17 +207,30 @@ async function checkStartup(width,height=1000,mobile=false) {
       assert.ok(audit.visibleSamples.some(sample => sample.ready),
         'The probe must continue through the controller layout');
       assertPaintedStartupFrames(audit.visibleSamples,final,width,staticCards);
-      // The wrapper may clip vertically as real forecast timestamp metadata
-      // establishes the bubble height. That must only reserve clear space;
-      // it must not resize/reflow the cards or leave the drawer unscrollable.
+      // Fitted controls keep their natural height. A centered timestamp can
+      // free sidebar height, but neither fitted nor bounded controls may
+      // overlap the timestamp or timeline in the actual painted geometry.
       const {timeline,bubble} = final.paneSizing;
       assert.ok(timeline && bubble,'The finished pane must share the actual timeline geometry');
-      const clearanceBottom=Math.min(timeline.y - 28,bubble.height ? bubble.y - 12 : Infinity);
-      const availableHeight=Math.max(100,clearanceBottom - final.pane.y);
-      assertNear(parseFloat(final.paneSizing.maxHeight),availableHeight,
-        `${width}x${height} pane reserve must follow the real timestamp/dock clearance`);
-      assert.ok(final.pane.y + final.pane.height <= clearanceBottom + tolerance,
-        `${width}x${height} clipped pane must clear the timestamp bubble and timeline dock`);
+      const overlapsX=(a,b) => a.x < b.x+b.width-tolerance && b.x < a.x+a.width-tolerance;
+      const overlaps=(a,b) => overlapsX(a,b) && a.y < b.y+b.height-tolerance && b.y < a.y+a.height-tolerance;
+      const besideBubble=bubble.height>0 && !overlapsX(final.pane,bubble);
+      const clearanceBottom=Math.min(timeline.y-12,
+        bubble.height && !besideBubble ? bubble.y-12 : Infinity);
+      assert.ok(!overlaps(final.pane,timeline) && !overlaps(final.pane,bubble),
+        `${width}x${height} pane must not intersect the timestamp bubble or timeline dock`);
+      assert.ok(final.pane.y >= -tolerance && final.pane.y+final.pane.height <= clearanceBottom+tolerance,
+        `${width}x${height} pane must remain contained above the timestamp bubble and timeline dock`);
+      if (final.paneSizing.maxHeight==='none') {
+        assert.ok(final.paneSizing.scrollHeight <= final.paneSizing.clientHeight+tolerance,
+          'Unbounded fitted controls must expose all of their content');
+      } else {
+        const reservedBottom=Math.min(timeline.y-(besideBubble ? 12 : 28),
+          bubble.height && !besideBubble ? bubble.y-12 : Infinity);
+        const availableHeight=Math.max(100,reservedBottom-final.pane.y);
+        assertNear(parseFloat(final.paneSizing.maxHeight),availableHeight,
+          `${width}x${height} bounded pane reserve must follow the real timestamp/dock clearance`);
+      }
       if (final.paneSizing.scrollHeight > final.paneSizing.clientHeight + tolerance) {
         assert.equal(final.paneSizing.overflowY,'auto','Clipped controls must remain vertically scrollable');
         await page.locator('#leftPanel').hover();

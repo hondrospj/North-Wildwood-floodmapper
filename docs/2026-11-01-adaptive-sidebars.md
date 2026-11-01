@@ -6,7 +6,7 @@ The unified controller now measures both sidebars against the available space ab
 
 The timestamp can move into the space between the sidebars to free vertical room. Resizing, font loading, changing modes, and content changes all trigger another fit calculation. Primary desktop text stays at least 12px and controls retain at least 24px targets; the app does not scale the entire interface with CSS zoom or transforms.
 
-Windows at most 560 CSS pixels tall use the existing tabbed controls drawer. Narrow screens and touch laptops retain their existing drawer policy. The short, wide presentation includes a labeled Controls button, a collapsible Key, and readable timeline day labels. Drawer tabs retain 44px targets. Expanded lists and unusually constrained or enlarged content can still scroll inside the drawer or bounded sidebar.
+Windows at most 560 CSS pixels tall use the existing tabbed controls drawer. Narrow screens and touch laptops retain their existing drawer policy. The short, wide presentation includes a labeled Controls button, a collapsible Key, and readable timeline day labels. Drawer tabs retain 44px targets. If enlarged text still cannot fit, desktop sidebars restore full-width rows and scroll instead of retaining compressed columns. Legend labels and address controls wrap in that fallback. Expanded lists and unusually constrained content can still scroll inside the drawer or bounded sidebar.
 
 ## Validation
 
