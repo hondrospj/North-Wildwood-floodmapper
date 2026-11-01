@@ -12,6 +12,7 @@
       }
       if (!options.deferPhysicsCatalog && (!Object.keys(physicsForecastManifests).length || options.forceRefresh)) {
         await loadPhysicsForecast(Boolean(options.forceRefresh)).catch(error => {
+          if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return;
           console.warn("Physics forecast is not published yet; using the phase-aware atlas.", error);
           physicsForecastManifests = {};
         });
@@ -254,6 +255,7 @@
 
     async function extendObservedArchiveThroughToday() {
       if (!observedData || typeof observedData !== "object") return;
+      const generation = archiveGeneration;
       const today = getTodayNyDateKey();
       const latest = getObservedArchiveLatestDateKey();
       if (!today || (latest && compareDateKeys(latest, today) >= 0)) return;
@@ -261,8 +263,10 @@
       const startDate = addDaysToDateKey(latest, 1) || today;
       try {
         const liveDays = await fetchRecentUsgsObservedDays(startDate, today);
+        if (generation !== archiveGeneration) return false;
         liveDays.forEach(addOrMergeObservedDayRecord);
       } catch (err) {
+        if (generation !== archiveGeneration) return false;
         console.warn("Observed live USGS backfill failed; filling calendar placeholders through today.", err);
       }
 
@@ -275,8 +279,10 @@
     }
 
     async function loadObserved() {
+      const generation = archiveGeneration;
       if (!observedData) {
         const compactArchive = await ensureObserved15MinuteArchive();
+        if (generation !== archiveGeneration) return false;
         observedData = buildObservedIndexFrom15MinuteArchive(compactArchive);
         observedDaysCache = null;
         clearExportAvailabilityCache();
@@ -284,8 +290,10 @@
 
 
       await extendObservedArchiveThroughToday();
+      if (generation !== archiveGeneration) return false;
 
       if (!historicTopTideEntries.length) await loadHistoricalTopTides();
+      if (generation !== archiveGeneration) return false;
       mergeHistoricalCrestsIntoObservedIndex();
       rebuildObservedHourLookup();
 

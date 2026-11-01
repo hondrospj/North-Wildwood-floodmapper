@@ -386,17 +386,22 @@ function formatSelectedObservedDate(dateStr) {
     async function loadHistoricalTopTides() {
       if (historicTopTideEntries.length) return historicTopTideEntries;
       if (historicalTopTidesPromise) return historicalTopTidesPromise;
-      historicalTopTidesPromise = fetchJson(TOP_TIDES_URL, { cache: "default" })
+      const generation = archiveGeneration;
+      const request = fetchJson(TOP_TIDES_URL, { cache: "default" })
         .then(data => {
+          if (generation !== archiveGeneration) throw new Error("Historical crest request superseded by Reload");
           const rows = Array.isArray(data?.toptides) ? data.toptides : Array.isArray(data) ? data : [];
           historicTopTideEntries = rows.map(normalizeTopTidesJsonEntry).filter(Boolean);
           return historicTopTideEntries;
         })
         .catch(error => {
-          historicalTopTidesPromise = null;
-          historicTopTideEntries = [];
+          if (historicalTopTidesPromise === request) {
+            historicalTopTidesPromise = null;
+            historicTopTideEntries = [];
+          }
           throw error;
         });
+      historicalTopTidesPromise = request;
       return historicalTopTidesPromise;
     }
 

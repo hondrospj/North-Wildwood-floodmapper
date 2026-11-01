@@ -1,5 +1,11 @@
 # North Wildwood application sources
 
+The November 1 follow-up uses the exact function inverses in
+`north-wildwood-20261101-review-fixes.json`. It covers drawer section scrolling,
+obsolete requests after Reload, and per-zone alert outage/expiry handling.
+Every previous fixture remains pinned; the new layer restores full original
+file hashes before the earlier audits. See `docs/2026-11-01-review-fixes.md`.
+
 `index.template.html` owns the unchanged HTML controls and layout. The manifest
 records each original inline block, its attributes and its source files.
 

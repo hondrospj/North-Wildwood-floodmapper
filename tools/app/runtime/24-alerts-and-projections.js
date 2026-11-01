@@ -22,27 +22,53 @@
               const code = String(url || "").split("/").pop();
               if (code) zoneCodes.add(code);
             });
-          } catch (error) { incomplete = true; }
+          } catch (error) {
+            incomplete = true;
+            // A failed point lookup can still refresh zones discovered earlier.
+            for (const zoneCode of lastSuccessfulNwsAlerts?.byZone?.keys() || []) zoneCodes.add(zoneCode);
+          }
         }
         const allFeatures = [];
+        const cachedFeatures = [];
+        const byZone = new Map();
         await Promise.all(Array.from(zoneCodes, async zoneCode => {
           try {
             const alerts = await fetchJson(`https://api.weather.gov/alerts/active?zone=${encodeURIComponent(zoneCode)}`,
               { timeoutMs: 15000 });
             if (!Array.isArray(alerts?.features)) throw new Error("Invalid alert response");
+            byZone.set(zoneCode, alerts.features);
             allFeatures.push(...alerts.features);
-          } catch (error) { incomplete = true; }
+          } catch (error) {
+            incomplete = true;
+            const cached = lastSuccessfulNwsAlerts?.byZone?.get(zoneCode);
+            if (cached) {
+              byZone.set(zoneCode, cached);
+              cachedFeatures.push(...cached);
+            }
+          }
         }));
+        // Only failed zones reuse cached alerts. A healthy empty response is
+        // authoritative for its own zone; fresh copies win across zone overlap.
+        const candidates = allFeatures.concat(cachedFeatures);
+        const now = Date.now();
         const seen = new Set();
-        const floodAlerts = allFeatures.filter(feature => {
+        const floodAlerts = candidates.filter(feature => {
           const id = String(feature?.id || feature?.properties?.id || "");
           if (id && seen.has(id)) return false;
           if (id) seen.add(id);
+          const expires = Date.parse(feature?.properties?.expires || "");
+          if (Number.isFinite(expires) && expires <= now) return false;
           return /(coastal flood|storm surge|lakeshore flood|flood warning|flood watch|flood advisory)/i.test(feature?.properties?.event || "");
         });
+        const alertPriority = feature => /warning/i.test(feature?.properties?.event || "") ? 3
+          : /watch/i.test(feature?.properties?.event || "") ? 2 : 1;
+        floodAlerts.sort((a, b) => alertPriority(b) - alertPriority(a));
         const unavailable = incomplete || !zoneCodes.size;
-        if (!unavailable) lastSuccessfulNwsAlerts = { features: floodAlerts, checkedAt: new Date().toISOString() };
-        const shown = floodAlerts.length ? floodAlerts : unavailable ? (lastSuccessfulNwsAlerts?.features || []) : [];
+        if (byZone.size || lastSuccessfulNwsAlerts) {
+          lastSuccessfulNwsAlerts = { features: floodAlerts, byZone,
+            checkedAt: unavailable ? lastSuccessfulNwsAlerts?.checkedAt : new Date().toISOString() };
+        }
+        const shown = floodAlerts;
         const state = unavailable ? (lastSuccessfulNwsAlerts ? "stale" : "unavailable") : shown.length ? "active" : "none";
         document.body.dataset.nwsAlertState = state;
         const primary = shown[0]?.properties || {};

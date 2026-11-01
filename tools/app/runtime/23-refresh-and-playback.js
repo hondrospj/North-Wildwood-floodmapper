@@ -17,6 +17,7 @@
         topTideEvents = [];
         if (observedData) {
           await loadObserved();
+          if (generation !== archiveGeneration) return null;
         } else {
           topTideEvents = buildTopTideEvents();
           renderTopTides();
@@ -37,15 +38,18 @@
     }
 
     function scheduleTopTidesListWarmup() {
+      const generation = archiveGeneration;
       const start = async () => {
         try {
           await Promise.all([
             loadHistoricalTopTides(),
             ensureObserved15MinuteArchive().catch(() => null)
           ]);
+          if (generation !== archiveGeneration) return;
           topTideEvents = buildTopTideEvents();
           renderTopTides();
         } catch (error) {
+          if (generation !== archiveGeneration) return;
           console.warn("Historical high-tide summary will retry when requested.", error);
         }
       };
@@ -74,13 +78,17 @@
     }
 
     function scheduleForecastCatalogWarmup() {
+      const generation = archiveGeneration;
       const start = async () => {
+        if (generation !== archiveGeneration) return;
         if (document.body.dataset.initialFloodFrame !== "ready") return;
         document.body.dataset.forecastCatalog = "loading";
         try {
           await loadPhysicsForecast(false);
+          if (generation !== archiveGeneration) return;
           document.body.dataset.forecastCatalog = "ready";
         } catch (error) {
+          if (generation !== archiveGeneration) return;
           document.body.dataset.forecastCatalog = "unavailable";
           console.warn("Forecast catalog will load when it is next requested.", error);
         }

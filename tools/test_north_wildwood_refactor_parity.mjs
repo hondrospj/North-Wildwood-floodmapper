@@ -15,6 +15,55 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+// Reverse only the ten reviewed bug-fix functions before all previous audits.
+// Full-file pins reject edits beside those functions; older fixtures stay exact.
+const REVIEW_FIX_PATH = "tools/fixtures/north-wildwood-20261101-review-fixes.json";
+const reviewFixText = read(REVIEW_FIX_PATH);
+assert.equal(sha256(reviewFixText), "92998490e371d9d64e451ee8323099af9d59aba632b4725a4b821eb0aacac0ba");
+const reviewFix = JSON.parse(reviewFixText);
+const REVIEW_FIX_OWNERS = {
+  "tools/app/runtime/01-physics-manifests.js": ["loadPhysicsForecast"],
+  "tools/app/runtime/19-observed-history.js": ["loadHistoricalTopTides"],
+  "tools/app/runtime/21-forecast-and-observed-loading.js": ["loadForecast", "extendObservedArchiveThroughToday", "loadObserved"],
+  "tools/app/runtime/23-refresh-and-playback.js": ["warmBackgroundData", "scheduleTopTidesListWarmup", "scheduleForecastCatalogWarmup"],
+  "tools/app/runtime/24-alerts-and-projections.js": ["checkNwsAlerts"],
+  "tools/app/unified-controller.js": ["selectSection"]
+};
+assert.equal(reviewFix.schemaVersion, 1);
+assert.equal(reviewFix.baselineCommit, "4720fc5b24aec1dde0ccf0ef65f07446c28b3764");
+assert.deepEqual(Object.fromEntries(reviewFix.files.map(file => [file.source, file.functions])), REVIEW_FIX_OWNERS);
+assert.equal(reviewFix.changes.length, 10);
+function reviewFixFragments(source, blocks) {
+  for (const block of blocks) {
+    const indent = block.source.endsWith("unified-controller.js") ? " " : "    ";
+    const expression = new RegExp("^" + indent + "(?:async )?function " + block.function + "\\([^\\n]*\\)\\s*\\{\\n[^]*?^" + indent + "}\\n", "gm");
+    for (const text of [block.beforeSource, block.afterSource]) {
+      const matches = [...text.matchAll(expression)];
+      assert.equal(matches.length, 1, `${block.function} must have exactly one reviewed function owner`);
+      assert.equal(matches[0][0], text, `${block.function} must not exempt adjacent code`);
+    }
+    assert.equal(source.split(block.afterSource).length - 1, 1, `${block.function} must retain its exact reviewed fix once`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+function auditedReviewFixRead(relative) {
+  const source = read(relative);
+  const file = reviewFix.files.find(file => file.source === relative);
+  if (!file) return source;
+  const blocks = reviewFix.changes.filter(block => block.source === relative);
+  assert.deepEqual(blocks.map(block => block.function), REVIEW_FIX_OWNERS[relative]);
+  const entry = manifest.scripts.find(entry => entry.sources.includes(relative));
+  for (const block of blocks) {
+    assert.equal(block.kind, "script");
+    assert.equal(block.entryId, entry.id);
+  }
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its reviewed bug fixes`);
+  const restored = reviewFixFragments(source, blocks);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every original byte`);
+  return restored;
+}
+for (const file of reviewFix.files) auditedReviewFixRead(file.source);
 // Restore this separately pinned road-label presentation delta before the
 // previous audits; original terrain, flood, parcel and UI hashes stay exact.
 const SCALABLE_ROAD_AUDIT_PATH = "tools/fixtures/north-wildwood-20261030-scalable-road-labels.json";
@@ -578,7 +627,7 @@ function scalableRoadFunction(source, name, indent) {
 }
 
 function auditedScalableRoadRead(relative) {
-  const source = read(relative);
+  const source = auditedReviewFixRead(relative);
   const file = scalableRoadAudit.files.find(file => file.source === relative);
   if (!file) return source;
   const blocks = scalableRoadAudit.changes.filter(block => block.source === relative);
@@ -967,6 +1016,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = reviewFixFragments(source, reviewFix.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = auditedScalableRoadSource(kind, entry, source);
   source = auditedProviderReadinessSource(kind, entry, source);
   source = auditedLogoReadinessSource(kind, entry, source);
@@ -1306,7 +1356,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js",
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1320,6 +1370,12 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened November 1 bug-fix inverse", path.join(scratch, REVIEW_FIX_PATH),
+        JSON.stringify({ ...reviewFix, changes: [...reviewFix.changes, reviewFix.changes[0]] })],
+      ["changed reviewed reload guard", path.join(scratch, reviewFix.files[0].source),
+        read(reviewFix.files[0].source).replace("generation !== archiveGeneration", "generation === archiveGeneration")],
+      ["changed code beside reviewed alert function", path.join(scratch, "tools/app/runtime/24-alerts-and-projections.js"),
+        read("tools/app/runtime/24-alerts-and-projections.js") + "\n// Unreviewed adjacent change\n"],
       ["restored address-bearing fallback basemap", path.join(scratch, "tools/app/runtime/00-configuration.js"),
         read("tools/app/runtime/00-configuration.js").replace(SCALABLE_FALLBACK_AFTER, SCALABLE_FALLBACK_BEFORE)],
       ["dropped active NJOGIS road attribution", scratchHtml,
@@ -1525,7 +1581,7 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
           "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length, 95, "Retain all 85 previous mutations and ten scalable-road mutations");
+    assert.equal(cases.length, 98, "Retain all 95 previous mutations and three November 1 bug-fix mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);

@@ -21,9 +21,10 @@
  function leaflet(){return typeof map!=='undefined'?map:null;}
  function standalone(){return window.COUNTY_STANDALONE_3D?.getMap?.()||null;}
  function selectSection(group,focus=false){
-  if(!Object.hasOwn(groups,group))group='forecast';chosenSection=group;
+  if(!Object.hasOwn(groups,group))group='forecast';const changed=chosenSection!==group;chosenSection=group;
   if(panel.dataset.nwwSection!==group)panel.dataset.nwwSection=group;
   for(const tab of panel.querySelectorAll('#nwwMobileControlHeader [role="tab"]')){const on=tab.dataset.group===group;attr(tab,'aria-selected',String(on));tab.tabIndex=on?0:-1;if(on&&focus)tab.focus({preventScroll:true});}
+  if(changed)panel.scrollTop=0;
  }
  function ensureControlButtons(){
   for(const [id,label]of [['mobileControlsToggle','Controls'],['mobileControlsClose','×']]){const copies=[...document.querySelectorAll('[id="'+id+'"]')];let button=copies.shift();for(const duplicate of copies)duplicate.remove();if(!button){button=document.createElement('button');button.id=id;button.type='button';button.textContent=label;(id==='mobileControlsClose'?panel:body).append(button);}attr(button,'aria-label',id==='mobileControlsClose'?'Close controls':'Open map controls');if(id==='mobileControlsToggle'){attr(button,'aria-controls','leftPanel');attr(button,'aria-expanded',String(body.classList.contains('mobile-controls-open')));}}
