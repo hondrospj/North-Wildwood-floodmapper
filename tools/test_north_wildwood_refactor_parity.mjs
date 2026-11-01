@@ -15,6 +15,80 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+// Restore only the reviewed tutorial gesture presentation before all prior audits.
+const TUTORIAL_GESTURE_PATH = "tools/fixtures/north-wildwood-20261101-tutorial-gesture.json";
+const tutorialGestureText = read(TUTORIAL_GESTURE_PATH);
+assert.equal(sha256(tutorialGestureText), "347cf4c08aad8f8ce525f3089021241b3424a3282d15392df6502e8a79b900b6",
+  "The tutorial gesture inverse must retain its exact reviewed fixture");
+const tutorialGesture = JSON.parse(tutorialGestureText);
+assert.equal(tutorialGesture.schemaVersion, 1);
+assert.equal(tutorialGesture.baselineCommit, "b8fd68830f97d2d08f90d4c7f364410be1b6324e");
+const TUTORIAL_GESTURE_SOURCE = "tools/app/runtime/28-tutorial-and-events.js";
+const TUTORIAL_GESTURE_OUTPUT = "assets/app/runtime.js";
+assert.deepEqual(tutorialGesture.files.map(file => [file.source, file.kind, file.entryId]), [
+  [TUTORIAL_GESTURE_SOURCE, "script", "script-004"],
+  [TUTORIAL_GESTURE_OUTPUT, "generated", "script-004"],
+  ["index.html", "document", null]
+]);
+assert.deepEqual(tutorialGesture.documentTags.map(tag => tag.output), [TUTORIAL_GESTURE_OUTPUT]);
+assert.ok(tutorialGesture.changes.length > 0);
+const tutorialEntry = manifest.scripts.find(entry => entry.id === "script-004");
+assert.ok(tutorialEntry.sources.includes(TUTORIAL_GESTURE_SOURCE));
+assert.equal(tutorialEntry.output, TUTORIAL_GESTURE_OUTPUT);
+for (const block of tutorialGesture.changes) {
+  assert.equal(block.source, TUTORIAL_GESTURE_SOURCE);
+  assert.equal(block.kind, "script");assert.equal(block.entryId, "script-004");
+}
+for (const tag of tutorialGesture.documentTags) {
+  assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+    tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+    "Tutorial HTML may update only the existing runtime bundle cache key");
+  const actual = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
+  referencedOutput(actual.get("src"), TUTORIAL_GESTURE_OUTPUT);
+}
+function tutorialGestureFragments(source, blocks) {
+  for (const block of blocks) {
+    const label = block.id || block.output;
+    assert.ok(block.afterSource.length, `${label} must use an exact nonempty reviewed fragment`);
+    assert.equal(source.split(block.afterSource).length - 1, 1,
+      `${label} tutorial gesture fragment must occur exactly once`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+function assertTutorialGestureOwnership(source, restored) {
+  const strip = (text, before) => {
+    for (const name of ["finishMapperTutorialGesture", "positionMapperTutorial", "renderMapperTutorialStep", "setMapperTutorialOpen", "wireMapperTutorial"]) {
+      const expression = new RegExp("^    function " + name + "\\([^\\n]*\\) \\{\\n[^]*?^    }\\n(?:\\n)?", "gm");
+      assert.equal([...text.matchAll(expression)].length, before && name === "finishMapperTutorialGesture" ? 0 : 1,
+        `${name} must retain its explicit tutorial presentation owner`);
+      text = text.replace(expression, "");
+    }
+    const state = "    const mapperTutorialGesturePointers = new Set();\n" +
+      "    let mapperTutorialGestureSettling = false;\n" +
+      "    let mapperTutorialGestureTimer = null;\n" +
+      "    let mapperTutorialPositionPending = false;\n\n";
+    assert.equal(text.split(state).length - 1, before ? 0 : 1,
+      "Tutorial gesture state must retain only its four declared presentation fields");
+    return text.replace(state, "");
+  };
+  assert.equal(strip(source, false), strip(restored, true),
+    "Tutorial gestures may change only their five declared functions and four state fields");
+}
+function auditedTutorialGestureRead(relative) {
+  const source = read(relative);
+  const file = tutorialGesture.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its reviewed tutorial gesture fix`);
+  const restored = file.kind === "document"
+    ? tutorialGestureFragments(source, tutorialGesture.documentTags)
+    : tutorialGestureFragments(source, tutorialGesture.changes);
+  if (file.kind !== "document") assertTutorialGestureOwnership(source, restored);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-tutorial-gesture byte`);
+  return restored;
+}
+for (const file of tutorialGesture.files) auditedTutorialGestureRead(file.source);
+
 // Restore only the reviewed responsive presentation before every prior audit.
 const ADAPTIVE_SIDEBAR_PATH = "tools/fixtures/north-wildwood-20261101-adaptive-sidebar.json";
 const adaptiveSidebarText = read(ADAPTIVE_SIDEBAR_PATH);
@@ -90,7 +164,7 @@ function assertAdaptiveOwnership(relative, source, restored) {
   }
 }
 function auditedAdaptiveSidebarRead(relative) {
-  const source = read(relative);
+  const source = auditedTutorialGestureRead(relative);
   const file = adaptiveSidebar.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its reviewed adaptive presentation`);
@@ -1152,6 +1226,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = tutorialGestureFragments(source, tutorialGesture.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = adaptiveSidebarFragments(source, adaptiveSidebar.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = reviewFixFragments(source, reviewFix.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = auditedScalableRoadSource(kind, entry, source);
@@ -1493,7 +1568,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1510,6 +1585,16 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened tutorial gesture inverse", path.join(scratch, TUTORIAL_GESTURE_PATH),
+        JSON.stringify({ ...tutorialGesture, changes: [...tutorialGesture.changes, tutorialGesture.changes[0]] })],
+      ["disabled tutorial gesture guard", path.join(scratch, TUTORIAL_GESTURE_SOURCE),
+        read(TUTORIAL_GESTURE_SOURCE).replace("      if (mapperTutorialGestureSettling) {", "      if (false) {")],
+      ["changed code beside tutorial gesture owners", path.join(scratch, TUTORIAL_GESTURE_SOURCE),
+        read(TUTORIAL_GESTURE_SOURCE) + "\n// Unreviewed adjacent tutorial change\n"],
+      ["changed generated tutorial runtime", path.join(scratch, TUTORIAL_GESTURE_OUTPUT),
+        read(TUTORIAL_GESTURE_OUTPUT) + "\n// Unreviewed generated tutorial change\n"],
+      ["stale tutorial runtime cache key", scratchHtml,
+        published.replace(tutorialGesture.documentTags[0].afterSource, tutorialGesture.documentTags[0].beforeSource)],
       ["broadened adaptive-sidebar inverse", path.join(scratch, ADAPTIVE_SIDEBAR_PATH),
         JSON.stringify({ ...adaptiveSidebar, changes: [...adaptiveSidebar.changes, adaptiveSidebar.changes[0]] })],
       ["changed adaptive fit guard", path.join(scratch, "tools/app/unified-controller.js"),
@@ -1739,7 +1824,7 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
           "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length, 107, "Retain all 102 previous mutations and five adaptive-sidebar mutations");
+    assert.equal(cases.length, 112, "Retain all 107 previous mutations and five tutorial-gesture mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);

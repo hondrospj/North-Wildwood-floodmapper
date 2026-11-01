@@ -19,6 +19,43 @@ async function activate(selector){
   }
   await control[touch?'tap':'click']();
 }
+async function heldTutorialClose(){
+  await page.evaluate(()=>{
+    const close=document.getElementById('mapperTutorialClose'),card=document.getElementById('mapperTutorialCard');
+    const trace=window.heldTutorialCloseAudit={events:[],samples:[]};let held=false,last;
+    const rect=e=>{const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};};
+    const sample=()=>({at:performance.now(),close:rect(close),card:rect(card),connected:close.isConnected,
+      sameNode:document.getElementById('mapperTutorialClose')===close});
+    const frame=()=>{if(!held)return;const value=sample(),signature=JSON.stringify([value.close,value.card,value.connected,value.sameNode]);
+      if(signature!==last){trace.samples.push(value);if(trace.samples.length>64)trace.samples.shift();last=signature;}
+      requestAnimationFrame(frame);
+    };
+    const record=(type,event)=>trace.events.push({type,isTrusted:event.isTrusted,clientX:event.clientX,clientY:event.clientY,
+      target:event.target.id,targetButton:event.target.closest('button')?.id,...sample()});
+    const down=event=>{if(!close.contains(event.target))return;record('pointerdown',event);held=true;document.removeEventListener('pointerdown',down,true);requestAnimationFrame(frame);};
+    const up=event=>{if(!held)return;record('pointerup',event);held=false;document.removeEventListener('pointerup',up,true);};
+    // A delayed click from opening the tour is not part of this gesture.
+    // After the Close's pointerup, retain even a wrong Card click as evidence.
+    const click=event=>{if(!trace.events.some(e=>e.type==='pointerup'))return;record('click',event);document.removeEventListener('click',click,true);};
+    document.addEventListener('pointerdown',down,true);
+    document.addEventListener('pointerup',up,true);
+    document.addEventListener('click',click,true);
+    window.stopHeldTutorialCloseAudit=()=>{held=false;document.removeEventListener('pointerdown',down,true);document.removeEventListener('pointerup',up,true);document.removeEventListener('click',click,true);};
+  });
+  try{
+    // Hold the actual pointer through the tutorial's real120/360ms placement
+    // callbacks. No settling sleep or replacement click can hide a moved hit target.
+    await page.locator('#mapperTutorialClose').click({delay:400});
+    await page.waitForFunction(()=>window.heldTutorialCloseAudit.events.some(e=>e.type==='click'),{},{timeout:3000});
+    const trace=await page.evaluate(()=>window.heldTutorialCloseAudit);
+    const down=trace.events.find(e=>e.type==='pointerdown'),up=trace.events.find(e=>e.type==='pointerup'),click=trace.events.find(e=>e.type==='click');
+    const samples=[...trace.samples,down,up].filter(Boolean);
+    const stable=down&&up&&click&&up.at-down.at>=350&&[down,up,click].every(e=>e.isTrusted&&e.targetButton==='mapperTutorialClose')&&
+      samples.every(s=>s.connected&&s.sameNode&&['x','y','width','height'].every(k=>Math.abs(s.close[k]-down.close[k])<=1.1));
+    if(!stable)throw Error('Held tutorial Close moved, changed identity, or lost its native click: '+JSON.stringify(trace));
+    console.log('Held tutorial Close400ms passed: trusted gesture, stable rectangle and original node');
+  }finally{await page.evaluate(()=>window.stopHeldTutorialCloseAudit?.());}
+}
 try{
   await page.goto(process.env.NWW_TEST_URL || 'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready'),{},{timeout:90000});
@@ -27,7 +64,9 @@ try{
     window.controlAudit=[];
     for(const type of ['pointerdown','pointerup','click'])document.addEventListener(type,event=>{
       const button=event.target.closest('button'),rect=button?.getBoundingClientRect();
-      window.controlAudit.push({type,id:event.target.id,button:button?.id,body:document.body.className,at:performance.now(),connected:event.target.isConnected,inert:!!event.target.closest('[inert]'),active:document.activeElement?.id,rect:rect&&{x:rect.x,y:rect.y,width:rect.width,height:rect.height}});
+      if(type==='pointerdown'&&button?.id==='mapperTutorialClose')window.tutorialCloseGestureNode=button;
+      const close=window.tutorialCloseGestureNode,closeRect=close?.getBoundingClientRect();
+      window.controlAudit.push({type,id:event.target.id,button:button?.id,body:document.body.className,at:performance.now(),isTrusted:event.isTrusted,clientX:event.clientX,clientY:event.clientY,connected:event.target.isConnected,inert:!!event.target.closest('[inert]'),active:document.activeElement?.id,rect:rect&&{x:rect.x,y:rect.y,width:rect.width,height:rect.height},closeConnected:close?.isConnected,closeSameNode:close?document.getElementById('mapperTutorialClose')===close:null,closeRect:closeRect&&{x:closeRect.x,y:closeRect.y,width:closeRect.width,height:closeRect.height}});
       if(window.controlAudit.length>30)window.controlAudit.shift();
     },true);
     new MutationObserver(records=>{
@@ -56,12 +95,13 @@ try{
     await activate('#calendarPopoverCloseBtn');
     if(await page.locator('#observedCalendarCloseBtn').isVisible())await activate('#observedCalendarCloseBtn');
     await activate('#mapperTutorialBtn');
-    await activate('#mapperTutorialClose');
+    if(!touch&&i===0)await heldTutorialClose();else await activate('#mapperTutorialClose');
+    await page.waitForFunction(()=>!document.body.classList.contains('tutorial-active'),{},{timeout:3000});
     if(await page.locator('body').evaluate(el=>el.classList.contains('mobile-controls-open')))await activate('#mobileControlsClose');
     console.log(`${touch?'touch':'mouse'} interaction cycle ${i+1} passed`);
   }
   if(errors.length)throw Error('Uncaught errors: '+errors.join('; '));
 }catch(error){
-  console.error(JSON.stringify(await page.evaluate(()=>({events:window.controlAudit,body:document.body.className,calendar:document.getElementById('calendarPopover')?.className,tourParent:document.getElementById('mapperTutorialBtn')?.parentElement.id})),null,2));
+  console.error(JSON.stringify(await page.evaluate(()=>({events:window.controlAudit,heldClose:window.heldTutorialCloseAudit,body:document.body.className,calendar:document.getElementById('calendarPopover')?.className,tourParent:document.getElementById('mapperTutorialBtn')?.parentElement.id})),null,2));
   throw error;
 }finally{await browser.close();}
