@@ -77,6 +77,9 @@ function fixture(compact = true) {
     text: () => {}, set: () => {},
     ensureControlButtons: () => {}, ensureHeader: () => {},
     ensureDays: () => {}, ensureLayers: () => {},
+    // This fixture isolates the legend; modeled controls are covered by the
+    // real-browser adaptive sidebar regression alongside the other controls.
+    ensureReturnPeriodSelect: () => {},
   };
   const onKey = new Function('env', 'event', `with (env) { ${keyboardBody}\n }`);
   const normalize = new Function('env', `with (env) { ${normalizeSource}\n normalize(); }`);

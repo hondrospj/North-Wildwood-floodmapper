@@ -83,7 +83,8 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
         return {fontFamily:s.fontFamily,fontSize:s.fontSize,fontWeight:s.fontWeight,lineHeight:s.lineHeight};
       };
       const capture=node=>rendered(node)?{...bounds(node),painted:painted(node)}:null;
-      const wrapper=node=>rendered(node)?{...capture(node),maxHeight:getComputedStyle(node).maxHeight}:null;
+      const wrapper=node=>rendered(node)?{...capture(node),maxHeight:getComputedStyle(node).maxHeight,
+        overflowY:getComputedStyle(node).overflowY,clientHeight:node.clientHeight,scrollHeight:node.scrollHeight}:null;
       const byId=id=>capture(document.getElementById(id));
       window.__captureUiStartup=()=>{
         const title=document.getElementById('mapTitleBadge'),rail=document.getElementById('rightRail');
@@ -176,6 +177,9 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
     const check=(ok,label,detail)=>{if(!ok)failures.push({label,...(detail?{detail}:{})});};
     const near=(actual,expected,label)=>check(Number.isFinite(actual)&&Number.isFinite(expected)&&Math.abs(actual-expected)<=tolerance,label,{actual,expected});
     const rect=(actual,expected,label,keys=['x','y','width','height'])=>{
+      // The splash intentionally masks content while adaptive density and
+      // data settle. Only a change to pixels actually painted is a UI jump.
+      if(!actual?.painted)return;
       check(!!expected,label+' remains present');
       if(actual&&expected)for(const key of keys)near(actual[key],expected[key],label+' '+key);
     };
@@ -197,8 +201,22 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
       }
       for(const key of ['title','titleText','nav','timeline','play'])if(sample[key]?.painted)rect(sample[key],final[key],prefix+' '+key);
       if(!mobile)for(const key of ['left','rail'])if(sample[key]?.painted) {
-        rect(sample[key],final[key],prefix+' '+key+' wrapper');
-        near(parseFloat(sample[key].maxHeight),parseFloat(final[key]?.maxHeight),prefix+' '+key+' wrapper max-height');
+        const pane=sample[key],target=final[key];
+        rect(pane,target,prefix+' '+key+' wrapper');
+        if(pane.maxHeight==='none'||target?.maxHeight==='none'){
+          check(pane.maxHeight===target?.maxHeight,prefix+' '+key+' wrapper max-height',{actual:pane.maxHeight,expected:target?.maxHeight});
+          check(pane.scrollHeight<=pane.clientHeight+tolerance,prefix+' '+key+' fitted contents need no internal scroll',pane);
+        }else{
+          const cap=parseFloat(pane.maxHeight);
+          near(cap,parseFloat(target?.maxHeight),prefix+' '+key+' wrapper max-height');
+          check(pane.height<=cap+tolerance,prefix+' '+key+' bounded wrapper respects its cap',pane);
+          if(pane.scrollHeight>pane.clientHeight+tolerance)check(/auto|scroll/.test(pane.overflowY),prefix+' '+key+' bounded contents remain scrollable',pane);
+        }
+        check(pane.x>=-tolerance&&pane.y>=-tolerance&&pane.x+pane.width<=width+tolerance&&pane.y+pane.height<=height+tolerance,
+          prefix+' '+key+' wrapper stays inside the viewport',pane);
+        const intersects=other=>other?.painted&&Math.min(pane.x+pane.width,other.x+other.width)-Math.max(pane.x,other.x)>tolerance&&
+          Math.min(pane.y+pane.height,other.y+other.height)-Math.max(pane.y,other.y)>tolerance;
+        check(!intersects(sample.timeline)&&!intersects(sample.bubble),prefix+' '+key+' wrapper clears the timeline and timestamp',{pane,timeline:sample.timeline,bubble:sample.bubble});
       }
       if(sample.title?.painted) {
         check(JSON.stringify(sample.titleFont)===JSON.stringify(final.titleFont),prefix+' title uses final typography',{actual:sample.titleFont,expected:final.titleFont});
@@ -260,7 +278,7 @@ try {
   const failures=[];
   const viewports=[
     {width:1440,height:1000}, {width:1512,height:945,dpr:2},
-    {width:1200,height:800}, {width:1024,height:1000}, {width:1440,height:650},
+    {width:1200,height:800}, {width:1024,height:1000}, {width:1440,height:650}, {width:1024,height:576},
     {width:390,height:844,mobile:true,dpr:2}, {width:320,height:568,mobile:true,dpr:2},
   ];
   const selected=process.env.NWW_UI_STARTUP_ONLY

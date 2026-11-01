@@ -15,6 +15,102 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+// Restore only the reviewed responsive presentation before every prior audit.
+const ADAPTIVE_SIDEBAR_PATH = "tools/fixtures/north-wildwood-20261101-adaptive-sidebar.json";
+const adaptiveSidebarText = read(ADAPTIVE_SIDEBAR_PATH);
+assert.equal(sha256(adaptiveSidebarText), "8e44e6a7c602ae8ed2710c44db1089b32fefa68d20415b207459b473f40217eb",
+  "The adaptive sidebar inverse must retain its exact reviewed fixture");
+const adaptiveSidebar = JSON.parse(adaptiveSidebarText);
+assert.equal(adaptiveSidebar.schemaVersion, 1);
+assert.equal(adaptiveSidebar.baselineCommit, "0748bddc9102de3d8e99c1dde071f67a3d632070");
+assert.deepEqual(adaptiveSidebar.files.map(file => [file.source, file.kind, file.entryId]), [
+  ["tools/app/unified-controller.js", "script", "script-011"],
+  ["tools/app/platform.js", "script", "script-003"],
+  ["tools/app/styles/style-002.css", "style", "style-002"],
+  ["index.html", "document", null]
+]);
+assert.deepEqual(adaptiveSidebar.documentTags.map(tag => tag.output),
+  ["assets/app/platform.js", "assets/app/unified-controller.js", "assets/styles/app-01.css"]);
+for (const tag of adaptiveSidebar.documentTags) {
+  assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+    tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+    "Adaptive HTML may update only the existing bundle content cache keys");
+  const actual = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
+  referencedOutput(actual.get("src") || actual.get("href"), tag.output);
+}
+function adaptiveSidebarFragments(source, blocks) {
+  for (const block of blocks) {
+    const label = block.id || block.output;
+    assert.ok(block.afterSource.length, `${label} must use an exact nonempty reviewed fragment`);
+    assert.equal(source.split(block.afterSource).length - 1, 1,
+      `${label} adaptive presentation fragment must occur exactly once`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+function adaptiveFunction(source, name, optional = false) {
+  const expression = new RegExp("^ function " + name + "\\([^\\n]*\\)\\s*\\{\\n[^]*?^ }\\n", "gm");
+  const matches = [...source.matchAll(expression)];
+  assert.equal(matches.length, optional ? 0 : 1, `${name} must retain its explicit presentation owner`);
+  return matches[0]?.[0] || "";
+}
+function assertAdaptiveOwnership(relative, source, restored) {
+  if (relative === "tools/app/unified-controller.js") {
+    const strip = (text, before) => {
+      for (const name of ["ensureReturnPeriodSelect", "normalize", "layout"]) {
+        text = text.replace(adaptiveFunction(text, name, before && name === "ensureReturnPeriodSelect"), "");
+      }
+      for (const expression of [
+        /^ const mobile=matchMedia\([^\n]*\);\n/gm,
+        /^ for\(const e of \[panel,rail,timeline,document\.getElementById\('mapTitleBadge'\)[^\n]*geometryObserver\.observe\([^\n]*\);\n/gm,
+        /^ (?:new ResizeObserver\(schedule\)\.observe\(timeline\)|const resizeObserver=new ResizeObserver\(schedule\))[^\n]*\n/gm
+      ]) {
+        assert.equal([...text.matchAll(expression)].length, 1, "Adaptive layout observation must have one declared owner");
+        text = text.replace(expression, "");
+      }
+      const fonts = /^ document\.fonts\?\.ready\.then\(schedule\);[^\n]*\n/gm;
+      assert.equal([...text.matchAll(fonts)].length, before ? 0 : 1);
+      return text.replace(fonts, "");
+    };
+    assert.equal(strip(source, false), strip(restored, true),
+      "Adaptive presentation may change only its modeled select, normalization, geometry, media and observation owners");
+  } else if (relative === "tools/app/platform.js") {
+    assert.equal(source.replace('(max-width:900px), (max-height:560px),', '(max-width:900px),'), restored,
+      "Platform presentation may add only the short-window drawer media condition");
+  } else if (relative === "tools/app/styles/style-002.css") {
+    const marker = "\n\n/* Fit the familiar sidebars to shorter desktop windows without scaling text. */";
+    assert.equal(source.split(marker).length - 1, 1, "The responsive density stylesheet must have one scoped append");
+    let prefix = source.slice(0, source.indexOf(marker));
+    prefix = prefix.replaceAll('(max-height:560px) and (pointer:coarse), (max-height:560px) {',
+      '(max-height:560px) and (pointer:coarse) {');
+    prefix = prefix.replace('(max-height:500px) and (pointer:coarse), (min-width:901px) and (max-height:560px){',
+      '(max-height:500px) and (pointer:coarse){');
+    assert.equal(prefix, restored,
+      "Adaptive CSS may append the reviewed density rules and add only the three short-window media conditions");
+  }
+}
+function auditedAdaptiveSidebarRead(relative) {
+  const source = read(relative);
+  const file = adaptiveSidebar.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its reviewed adaptive presentation`);
+  let restored;
+  if (file.kind === "document") {
+    restored = adaptiveSidebarFragments(source, adaptiveSidebar.documentTags);
+  } else {
+    const blocks = adaptiveSidebar.changes.filter(block => block.source === relative);
+    for (const block of blocks) {
+      assert.equal(block.kind, file.kind);assert.equal(block.entryId, file.entryId);
+      assert.ok(manifest[file.kind + "s"].some(entry => entry.id === block.entryId && entry.sources.includes(relative)));
+    }
+    restored = adaptiveSidebarFragments(source, blocks);
+    assertAdaptiveOwnership(relative, source, restored);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-adaptive byte`);
+  return restored;
+}
+for (const file of adaptiveSidebar.files) auditedAdaptiveSidebarRead(file.source);
+
 // The fallback fix changes only layout's early length check and its cache key.
 // Validate actual bytes/version first, then restore the previous audited inputs.
 const ROAD_FALLBACK_PATH = "tools/fixtures/north-wildwood-20261101-road-fallback.json";
@@ -31,7 +127,7 @@ function roadFallbackDocument(source) {
   return source.replace(roadFallback.afterScriptTag, roadFallback.beforeScriptTag);
 }
 function auditedRoadFallbackRead(relative) {
-  const source = read(relative);
+  const source = auditedAdaptiveSidebarRead(relative);
   const file = roadFallback.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its reviewed fallback fix`);
@@ -351,7 +447,8 @@ const holisticFixAudit = JSON.parse(holisticFixText);
 assert.equal(holisticFixAudit.schemaVersion, 1);
 assert.equal(holisticFixAudit.baselineCommit, "075b294431f5bf57542a2c8850ef7b2d26320766");
 const template = auditedRoadFallbackRead("tools/app/index.template.html");
-const published = auditedRoadFallbackRead("index.html");
+// Prior full-file pins use the inverse, but generated cache checks use actual current bundle tags.
+const published = roadFallbackDocument(read("index.html"));
 assertScalableRoadDocument(template, "Template");
 assertScalableRoadDocument(published, "Published HTML");
 const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-ui.json"));
@@ -531,7 +628,7 @@ function auditedUiStartupFragments(source, blocks, label) {
 function auditedUiStartupSource(kind, entry, source) {
   if (kind === "style" && entry.id === "style-002") {
     assert.ok(entry.sources.includes(uiStartup.cssSource), "Startup UI CSS must remain in its declared stylesheet");
-    auditedUiStartupFragments(read(uiStartup.cssSource), uiStartup.cssChanges, "Source");
+    auditedUiStartupFragments(auditedAdaptiveSidebarRead(uiStartup.cssSource), uiStartup.cssChanges, "Source");
     source = auditedUiStartupFragments(source, uiStartup.cssChanges, "Stylesheet");
   }
   for (const block of uiStartup.scriptChanges.filter(block => block.kind === kind && block.entryId === entry.id)) {
@@ -1055,6 +1152,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = adaptiveSidebarFragments(source, adaptiveSidebar.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = reviewFixFragments(source, reviewFix.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = auditedScalableRoadSource(kind, entry, source);
   source = auditedProviderReadinessSource(kind, entry, source);
@@ -1395,7 +1493,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1412,6 +1510,16 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened adaptive-sidebar inverse", path.join(scratch, ADAPTIVE_SIDEBAR_PATH),
+        JSON.stringify({ ...adaptiveSidebar, changes: [...adaptiveSidebar.changes, adaptiveSidebar.changes[0]] })],
+      ["changed adaptive fit guard", path.join(scratch, "tools/app/unified-controller.js"),
+        read("tools/app/unified-controller.js").replace("const fitted=fits();", "const fitted=true;")],
+      ["changed controller beside adaptive owners", path.join(scratch, "tools/app/unified-controller.js"),
+        read("tools/app/unified-controller.js") + "\n// Unreviewed adjacent adaptive change\n"],
+      ["changed readable sidebar font floor", path.join(scratch, "tools/app/styles/style-002.css"),
+        read("tools/app/styles/style-002.css").replace("--sidebar-text:12px", "--sidebar-text:8px")],
+      ["stale adaptive bundle cache key", scratchHtml,
+        published.replace(adaptiveSidebar.documentTags[0].afterSource, adaptiveSidebar.documentTags[0].beforeSource)],
       ["broadened road fallback inverse", path.join(scratch, ROAD_FALLBACK_PATH),
         JSON.stringify({ ...roadFallback, afterSource: roadFallback.afterSource + "\n" })],
       ["altered road fallback minimum", path.join(scratch, roadFallback.module),
@@ -1631,7 +1739,7 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
           "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length, 102, "Retain all 98 previous mutations and four road fallback mutations");
+    assert.equal(cases.length, 107, "Retain all 102 previous mutations and five adaptive-sidebar mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);

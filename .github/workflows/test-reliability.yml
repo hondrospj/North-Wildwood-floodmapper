@@ -176,6 +176,7 @@ jobs:
           NWW_TOUCH=1 node tools/test_north_wildwood_mobile_interactions.mjs
           node tools/test_north_wildwood_audit_regressions.mjs
           node tools/test_north_wildwood_responsive.mjs
+          node tools/test_north_wildwood_adaptive_sidebar_fit.mjs
       - name: Save reproduction evidence
         if: always()
         uses: actions/upload-artifact@v4
