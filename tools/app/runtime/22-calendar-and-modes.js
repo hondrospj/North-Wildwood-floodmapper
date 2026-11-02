@@ -355,11 +355,11 @@ function populateCalendarSelectors() {
       if (!topTideEvents[index]) throw new Error("Top 10 flood crest not available.");
       stopPlayback();
       let floodSelectionToken = cancelPendingFloodFrame();
+      // A click on the currently active data mode still cancels this pending
+      // historical selection. Only this request may clear its owner stamp.
+      loadTopTideEvent.pendingSelectionGeneration = generation;
 
       try {
-      currentBaseModeBeforeTopTide = currentDataMode;
-      currentDataMode = "observed";
-      updateDataModeButtons();
       if (!observedData) await warmBackgroundData();
       if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
       let event = topTideEvents[index];
@@ -387,6 +387,9 @@ function populateCalendarSelectors() {
         topTideEvents = buildTopTideEvents();
         event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;
       }
+      currentBaseModeBeforeTopTide = currentDataMode;
+      currentDataMode = "observed";
+      updateDataModeButtons();
       currentViewType = "top-tide";
       currentTopTideIndex = Math.max(0, topTideEvents.indexOf(event));
       currentSelectedLabel = `Flood #${event.rank}`;
@@ -444,6 +447,10 @@ function populateCalendarSelectors() {
       } catch (error) {
         if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
         throw error;
+      } finally {
+        if (loadTopTideEvent.pendingSelectionGeneration === generation) {
+          loadTopTideEvent.pendingSelectionGeneration = null;
+        }
       }
     }
 
@@ -535,7 +542,8 @@ function populateCalendarSelectors() {
       let modeFailureGeneration = null;
       let modeFailureRequest = null;
       try {
-      if (mode === currentDataMode && currentViewType !== "top-tide" && currentSeriesHours.length) return;
+      if (mode === currentDataMode && currentViewType !== "top-tide" && currentSeriesHours.length
+          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
       const generation = ++selectionGeneration;
       modeFailureGeneration = generation;
       ++lastRenderToken;

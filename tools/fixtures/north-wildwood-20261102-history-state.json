@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "617f4bc21aefc8ba95eb48ed3aea35ac136e01f4",
+  "files": [
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "79a946db82b99d8b716a55a8d5a6872df522091bde3e3a1998b9be2cf129caf0",
+      "afterSha256": "3a6e6d7eb5a5f84a7ac26fbf262eb9808ed3d090325311dda74ef3201c9de6d6"
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "kind": "generated",
+      "entryId": "script-004",
+      "beforeSha256": "d98824d368e52068953c4c3c10ce70c4877607cfa0b9e38f4d83291ea53b7d39",
+      "afterSha256": "cf30fe1b899c2d2cb65f976929196372398e439cc743f0fd558c80862d521387"
+    },
+    {
+      "source": "index.html",
+      "kind": "document",
+      "entryId": null,
+      "beforeSha256": "6b5d83b8fe8962c6340709865f8563a5f995e2f2424c6b9f275d1aa945ee8b5c",
+      "afterSha256": "09c8f71c3dd5509393f9268b28dd2f8f6829575ffbbd7432c7a64f8fb6443a63"
+    }
+  ],
+  "changes": [
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "id": "history-state-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      if (!topTideEvents[index]) throw new Error(\"Top 10 flood crest not available.\");\n      stopPlayback();\n      let floodSelectionToken = cancelPendingFloodFrame();\n\n      try {\n      currentBaseModeBeforeTopTide = currentDataMode;\n      currentDataMode = \"observed\";\n      updateDataModeButtons();\n      if (!observedData) await warmBackgroundData();\n      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n      let event = topTideEvents[index];\n",
+      "afterSource": "      if (!topTideEvents[index]) throw new Error(\"Top 10 flood crest not available.\");\n      stopPlayback();\n      let floodSelectionToken = cancelPendingFloodFrame();\n      // A click on the currently active data mode still cancels this pending\n      // historical selection. Only this request may clear its owner stamp.\n      loadTopTideEvent.pendingSelectionGeneration = generation;\n\n      try {\n      if (!observedData) await warmBackgroundData();\n      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n      let event = topTideEvents[index];\n"
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "id": "history-state-2",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "        topTideEvents = buildTopTideEvents();\n        event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;\n      }\n      currentViewType = \"top-tide\";\n      currentTopTideIndex = Math.max(0, topTideEvents.indexOf(event));\n      currentSelectedLabel = `Flood #${event.rank}`;\n",
+      "afterSource": "        topTideEvents = buildTopTideEvents();\n        event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;\n      }\n      currentBaseModeBeforeTopTide = currentDataMode;\n      currentDataMode = \"observed\";\n      updateDataModeButtons();\n      currentViewType = \"top-tide\";\n      currentTopTideIndex = Math.max(0, topTideEvents.indexOf(event));\n      currentSelectedLabel = `Flood #${event.rank}`;\n"
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "id": "history-state-3",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      } catch (error) {\n        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n        throw error;\n      }\n    }\n\n",
+      "afterSource": "      } catch (error) {\n        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n        throw error;\n      } finally {\n        if (loadTopTideEvent.pendingSelectionGeneration === generation) {\n          loadTopTideEvent.pendingSelectionGeneration = null;\n        }\n      }\n    }\n\n"
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "id": "history-state-4",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      let modeFailureGeneration = null;\n      let modeFailureRequest = null;\n      try {\n      if (mode === currentDataMode && currentViewType !== \"top-tide\" && currentSeriesHours.length) return;\n      const generation = ++selectionGeneration;\n      modeFailureGeneration = generation;\n      ++lastRenderToken;\n",
+      "afterSource": "      let modeFailureGeneration = null;\n      let modeFailureRequest = null;\n      try {\n      if (mode === currentDataMode && currentViewType !== \"top-tide\" && currentSeriesHours.length\n          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;\n      const generation = ++selectionGeneration;\n      modeFailureGeneration = generation;\n      ++lastRenderToken;\n"
+    }
+  ],
+  "documentTags": [
+    {
+      "output": "assets/app/runtime.js",
+      "documents": [
+        "index.html"
+      ],
+      "beforeSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=d98824d368e52068\"></script>",
+      "afterSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=cf30fe1b899c2d2c\"></script>"
+    }
+  ]
+}

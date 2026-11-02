@@ -83,6 +83,7 @@ jobs:
             tools/fixtures/north-wildwood-20261101-adaptive-sidebar.json
             tools/fixtures/north-wildwood-20261101-tutorial-gesture.json
             tools/fixtures/north-wildwood-20261102-audit-logic.json
+            tools/fixtures/north-wildwood-20261102-history-state.json
             tools/fixtures/north-wildwood-export-dst.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs

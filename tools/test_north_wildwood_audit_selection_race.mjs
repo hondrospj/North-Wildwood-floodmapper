@@ -7,6 +7,7 @@ import {fileURLToPath} from 'node:url';
 
 const runtimeDir = process.env.NORTH_WILDWOOD_AUDIT_RUNTIME_ROOT || path.join(path.dirname(fileURLToPath(import.meta.url)), 'app/runtime');
 const source = fs.readFileSync(path.join(runtimeDir, '22-calendar-and-modes.js'), 'utf8');
+const presentationSource = fs.readFileSync(path.join(runtimeDir, '05-presentation.js'), 'utf8');
 function extract(name) {
   const match = source.match(new RegExp(`^    (?:async )?function ${name}\\([^\\n]*\\) \\{\\n.*?^    \\}`, 'ms'));
   assert.ok(match, name); return match[0];
@@ -33,7 +34,7 @@ function setup(stage = 'archive') {
     currentSeriesHours: [oldEntry], currentRawSeriesHours: [oldEntry], currentHourIndex: 0,
     currentBaseModeBeforeTopTide: '', currentTopTideIndex: null, selectedObservedDate: '',
     currentSelectedLabel: 'Mean', currentSelectedSubLabel: '', currentRangeLabel: '', currentMonthKey: '',
-    stopPlayback() {}, cancelPendingFloodFrame() {return ++c.lastRenderToken;},
+    stopPlayback() {}, cancelPendingFloodFrame(invalidate = true) {if (invalidate) c.lastRenderToken++; return c.lastRenderToken;},
     updateDataModeButtons() {}, updateModeButtons() {}, toast() {},
     warmBackgroundData: () => stage === 'warmup' ? hold.promise : Promise.resolve(),
     getObservedArchiveSourceForDate: () => stage === 'lewes-index' ? 'lewes' : 'stone-harbor',
@@ -57,6 +58,67 @@ function setup(stage = 'archive') {
   });
   vm.runInContext(extract('loadTopTideEvent') + '\n' + extract('switchOverlayMode'), c);
   return {c, calls, hold, oldEntry, events};
+}
+
+function attachModeControls(c, mode = 'forecast') {
+  const nodes = new Map();
+  const classList = () => {
+    const values = new Set();
+    return {toggle(name, active) {if (active) values.add(name); else values.delete(name);},
+      contains: name => values.has(name)};
+  };
+  c.document = {body: {dataset: {}, classList: classList()}, getElementById(id) {
+    if (!nodes.has(id)) nodes.set(id, {classList: classList(), dataset: {}, style: {}, hidden: false, value: '', textContent: ''});
+    return nodes.get(id);
+  }};
+  Object.assign(c, {
+    getForecastScenarioLabel: () => 'Mean', getReturnIntervalLabel: () => '10-Year',
+    setObservedCalendarOpen() {}, updateForecastScenarioButtons() {}, updateReturnIntervalButtons() {},
+    updateObservedResolutionUI() {}, updateDownloadModeCopy() {}, syncLeftPanelLayout() {},
+    renderSelectionMeta() {}, renderTimelineMeta() {}, renderTimelineDays() {}, setFloodFrameStatus() {}
+  });
+  const update = presentationSource.match(/^    function updateDataModeButtons\([^\n]*\) \{\n.*?^    \}/ms);
+  assert.ok(update);
+  vm.runInContext(update[0] + '\n' + extract('switchDataMode'), c);
+  c.currentDataMode = mode;
+  c.currentFloodLayer = null;
+  c.currentViewType = mode === 'observed' ? 'observed-day' : mode;
+  c.currentBaseModeBeforeTopTide = 'prior-base-mode';
+  const entry = {timeUtc: '2026-11-02T12:00:00Z', stageFt: 2, marker: `previous ${mode}`};
+  c.currentSeriesHours = [entry]; c.currentRawSeriesHours = [entry]; c.displayedEntry = entry;
+  c.updateDataModeButtons();
+  return {
+    assertMode(expected) {
+      assert.equal(c.currentDataMode, expected);
+      for (const [name, id] of [['forecast', 'forecastDataBtn'], ['observed', 'observedDataBtn'], ['return-interval', 'returnIntervalDataBtn']]) {
+        assert.equal(nodes.get(id).classList.contains('active'), expected === name, `${id} must match the committed mode`);
+      }
+      assert.equal(nodes.get('dataModePill').textContent, expected === 'forecast' ? 'Mean' : expected === 'observed' ? 'Observed' : '10-Year');
+      assert.equal(nodes.get('forecastScenarioCard').hidden, expected !== 'forecast');
+      assert.equal(nodes.get('returnIntervalCard').style.display, expected === 'return-interval' ? '' : 'none');
+      assert.equal(nodes.get('calendarCard').classList.contains('active'), expected === 'observed');
+      assert.equal(nodes.get('leftPanel').dataset.dataMode, expected);
+      assert.equal(c.document.body.classList.contains('observed-mode'), expected === 'observed');
+      assert.equal(c.document.body.classList.contains('return-interval-mode'), expected === 'return-interval');
+    }
+  };
+}
+
+function navigationStubs(c) {
+  const loads = {forecast: 0, observed: 0, 'return-interval': 0, history: 0};
+  const apply = mode => {
+    loads[mode]++;
+    const entry = {timeUtc: '2026-11-02T12:00:00Z', stageFt: 2, marker: `reselected ${mode}`};
+    c.currentRawSeriesHours = [entry]; c.currentSeriesHours = [entry]; c.currentHourIndex = 0;
+    c.currentViewType = mode === 'observed' ? 'observed-day' : mode;
+    c.currentTopTideIndex = null; c.currentSelectedLabel = mode;
+  };
+  c.loadForecast = async () => apply('forecast');
+  c.loadReturnInterval = async () => apply('return-interval');
+  c.loadObservedDay = async () => apply('observed');
+  c.warmBackgroundData = async () => {loads.history++; c.observedData = {};};
+  c.getLatestObservedDate = () => '2026-11-02';
+  return loads;
 }
 
 // Exact audit trigger: switch Depth/Stages while the historical shard waits.
@@ -143,6 +205,100 @@ for (const outcome of ['success', 'failure']) {
   assert.equal(calls.renders.length, 1);
   assert.equal(calls.lists, 1); assert.equal(calls.warmups, 1);
   cases++;
+}
+
+// Before the historical selection commits, keep the real active mode, pill,
+// cards, and panel classes aligned with the map and timeline. An asset preload
+// failure is optional; other active failures leave the prior selection intact.
+for (const mode of ['forecast', 'observed', 'return-interval']) {
+  for (const stage of ['warmup', 'lewes-index', 'archive', 'crest-image']) {
+    for (const outcome of ['cancelled-success', 'cancelled-failure', 'active-failure', 'active-success']) {
+      const {c, calls, hold} = setup(stage);
+      const controls = attachModeControls(c, mode);
+      const previousSeries = c.currentSeriesHours, previousView = c.currentViewType;
+      const pending = c.loadTopTideEvent(0); await tick();
+      controls.assertMode(mode);
+      assert.equal(c.currentBaseModeBeforeTopTide, 'prior-base-mode');
+      assert.equal(c.currentViewType, previousView); assert.equal(c.currentSeriesHours, previousSeries);
+      assert.equal(c.loadTopTideEvent.pendingSelectionGeneration, c.selectionGeneration);
+      if (outcome.startsWith('cancelled')) await c.switchOverlayMode('dynamic');
+      if (outcome.endsWith('failure')) hold.reject(new Error(`Mode-state ${stage} failure`));
+      else hold.resolve(true);
+      const commits = outcome === 'active-success' || (outcome === 'active-failure' && stage === 'crest-image');
+      if (outcome === 'active-failure' && stage !== 'crest-image') await assert.rejects(pending, /Mode-state/);
+      else if (outcome.startsWith('cancelled')) assert.equal(await pending, false);
+      else await pending;
+      assert.equal(c.loadTopTideEvent.pendingSelectionGeneration, null);
+      controls.assertMode(commits ? 'observed' : mode);
+      assert.equal(c.currentViewType, commits ? 'top-tide' : previousView);
+      assert.equal(c.currentBaseModeBeforeTopTide, commits ? mode : 'prior-base-mode');
+      if (!commits) {
+        assert.equal(c.currentSeriesHours, previousSeries);
+        assert.equal(c.displayedEntry, previousSeries[0]);
+        assert.equal(calls.warmups, 0);
+      }
+      cases++;
+    }
+  }
+}
+
+// Explicitly reselecting the currently active mode while history waits means
+// cancel that history request. The same idle click remains a request-free no-op.
+for (const mode of ['forecast', 'observed', 'return-interval']) {
+  for (const stage of ['warmup', 'lewes-index', 'archive', 'crest-image']) {
+    for (const outcome of ['success', 'failure']) {
+      const {c, calls, hold} = setup(stage);
+      const controls = attachModeControls(c, mode);
+      const pending = c.loadTopTideEvent(0); await tick();
+      const tideGeneration = c.selectionGeneration;
+      const loads = navigationStubs(c);
+      await c.switchDataMode(mode);
+      assert.equal(loads[mode], 1, 'An active-mode click must navigate when a historical selection is pending');
+      assert(c.selectionGeneration > tideGeneration);
+      controls.assertMode(mode);
+      const latestSeries = c.currentSeriesHours, renders = calls.renders.length, warmups = calls.warmups;
+      if (outcome === 'success') hold.resolve(true); else hold.reject(new Error('Reselected mode cancelled history'));
+      assert.equal(await pending, false);
+      assert.equal(c.currentSeriesHours, latestSeries);
+      assert.equal(c.currentSeriesHours[0].marker, `reselected ${mode}`);
+      assert.equal(c.currentViewType, mode === 'observed' ? 'observed-day' : mode);
+      assert.equal(calls.renders.length, renders); assert.equal(calls.warmups, warmups);
+      assert.equal(c.loadTopTideEvent.pendingSelectionGeneration, null);
+      controls.assertMode(mode);
+      const idleGeneration = c.selectionGeneration, idleToken = c.lastRenderToken;
+      await c.switchDataMode(mode);
+      assert.equal(loads[mode], 1, 'An idle active-mode click must retain the existing no-request fast path');
+      assert.equal(c.selectionGeneration, idleGeneration); assert.equal(c.lastRenderToken, idleToken);
+      cases++;
+    }
+  }
+}
+
+// An older completion/failure cannot clear the newer request's owner stamp.
+// The still-pending newer request must remain cancellable by an active-mode click.
+for (const oldOutcome of ['success', 'failure']) {
+  for (const latestOutcome of ['success', 'failure']) {
+    const {c, calls, events} = setup('none');
+    const controls = attachModeControls(c);
+    const old = deferred(), latest = deferred();
+    c.ensureObservedArchiveForDate = date => date === events[0].dateKey ? old.promise : latest.promise;
+    const oldRequest = c.loadTopTideEvent(0); await tick();
+    const latestRequest = c.loadTopTideEvent(1); await tick();
+    const owner = c.loadTopTideEvent.pendingSelectionGeneration;
+    if (oldOutcome === 'success') old.resolve(true); else old.reject(new Error('Obsolete owner failed'));
+    assert.equal(await oldRequest, false);
+    assert.equal(c.loadTopTideEvent.pendingSelectionGeneration, owner, 'Older finally must not clear the newer owner');
+    controls.assertMode('forecast');
+    const loads = navigationStubs(c); await c.switchDataMode('forecast');
+    assert.equal(loads.forecast, 1);
+    const latestSeries = c.currentSeriesHours, renders = calls.renders.length;
+    if (latestOutcome === 'success') latest.resolve(true); else latest.reject(new Error('Cancelled newer owner failed'));
+    assert.equal(await latestRequest, false);
+    assert.equal(c.currentSeriesHours, latestSeries); assert.equal(calls.renders.length, renders);
+    assert.equal(c.loadTopTideEvent.pendingSelectionGeneration, null);
+    controls.assertMode('forecast');
+    cases++;
+  }
 }
 
 console.log(`${cases} audit historical-selection cancellation and reverse-order cases passed.`);
