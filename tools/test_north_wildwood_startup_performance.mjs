@@ -34,7 +34,7 @@ assert.deepEqual(parserBlockingScripts, [
   "./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&roadlabels=20261030-v1",
   "./assets/road-impacts.js?v=20261002-road-impacts-default-off",
   "assets/avalon-mobile.js?v=20261026-holistic1",
-  "assets/export-area.js?v=20261023-3",
+  "assets/export-area.js?v=5a855541ebdd2d2d",
 ]);
 
 assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+jszip[\s\S]+geotiff/);

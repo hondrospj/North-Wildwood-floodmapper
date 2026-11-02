@@ -375,14 +375,24 @@
 
     async function ensureObservedArchiveForDate(dateStr) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ""))) return false;
+      const generation = archiveGeneration;
       const source = getObservedArchiveSourceForDate(dateStr);
       await ensureObservedArchiveYear(source, String(dateStr).slice(0, 4));
+      if (generation !== archiveGeneration) return false;
       // The final three quarter-hours need the next measured hourly endpoint.
       // Usually it is in the same shard; December 31 also needs the next year.
       const nextDate = addDaysToDateKey(dateStr, 1);
       if (source === "lewes" && nextDate.slice(0, 4) !== dateStr.slice(0, 4)
           && getObservedArchiveSourceForDate(nextDate) === source) {
         await ensureObservedArchiveYear(source, nextDate.slice(0, 4));
+      }
+      if (generation !== archiveGeneration) return false;
+      // Background history stays cached, but today's gauge readings keep
+      // advancing. Reuse the live cooldown when this date is selected again.
+      if (source === "stone-harbor" && typeof extendObservedArchiveThroughToday === "function"
+          && dateStr === getTodayNyDateKey()) {
+        await extendObservedArchiveThroughToday();
+        if (generation !== archiveGeneration) return false;
       }
       return (source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate).has(dateStr);
     }
@@ -487,7 +497,7 @@
         quarterHourIndex: idx,
         classification: dayRecord?.classification || entry.classification || "none",
         peakNAVD88: dayRecord?.peakNAVD88 ?? entry.peakNAVD88,
-        sourceResolutionMinutes
+        sourceResolutionMinutes: entry.isLiveObservedBackfill ? entry.sourceResolutionMinutes : sourceResolutionMinutes
       })));
     }
 

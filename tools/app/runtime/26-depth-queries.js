@@ -375,21 +375,41 @@
       return promise;
     }
 
-    async function samplePhysicsDepth(asset, lat, lon) {
-      const bounds = getActivePhysicsManifest()?.boundsWgs84;
-      if (!asset?.query?.url || !Array.isArray(bounds) || bounds.length !== 2) return null;
+    function latLngToPhysicsQueryPixel(manifest, lat, lon, width, height) {
+      const bounds = manifest?.boundsWgs84;
+      if (manifest?.schema !== "north-wildwood-physics-forecast-v2" ||
+          manifest?.image?.crs !== "EPSG:3857" ||
+          manifest?.image?.coordinateSystem !== "web-mercator" ||
+          !Array.isArray(bounds) || bounds.length !== 2 ||
+          ![lat, lon, width, height].every(Number.isFinite) ||
+          width <= 0 || height <= 0) return null;
       const south = Number(bounds[0]?.[0]);
       const west = Number(bounds[0]?.[1]);
       const north = Number(bounds[1]?.[0]);
       const east = Number(bounds[1]?.[1]);
       if (
         ![south, west, north, east].every(Number.isFinite) ||
+        west >= east || south >= north || south <= -85.05112878 || north >= 85.05112878 ||
         lat < south || lat > north || lon < west || lon > east
       ) return null;
+      const mercY = latitude => Math.log(Math.tan(Math.PI / 4 + latitude * Math.PI / 360));
+      const u = (lon - west) / (east - west);
+      const v = (mercY(north) - mercY(lat)) / (mercY(north) - mercY(south));
+      if (!Number.isFinite(u) || !Number.isFinite(v) || u < 0 || v < 0 || u >= 1 || v >= 1) return null;
+      return { x: Math.floor(u * width), y: Math.floor(v * height) };
+    }
+
+    async function samplePhysicsDepth(asset, lat, lon) {
+      if (!asset?.query?.url) return null;
+      const manifest = getActivePhysicsManifest();
+      // Check the schema and extent before requesting any image. Native-grid
+      // v1 products cannot be safely sampled as Web Mercator pixels.
+      if (!latLngToPhysicsQueryPixel(manifest, lat, lon, 1, 1)) return null;
       const image = await preloadPhysicsQueryImage(asset.query);
-      const x = Math.floor(((lon - west) / (east - west)) * image.naturalWidth);
-      const y = Math.floor(((north - lat) / (north - south)) * image.naturalHeight);
-      if (x < 0 || y < 0 || x >= image.naturalWidth || y >= image.naturalHeight) return null;
+      if (!image || image.naturalWidth !== manifest.image.width || image.naturalHeight !== manifest.image.height) return null;
+      const point = latLngToPhysicsQueryPixel(manifest, lat, lon, image.naturalWidth, image.naturalHeight);
+      if (!point) return null;
+      const { x, y } = point;
       const canvas = document.createElement("canvas");
       canvas.width = 1;
       canvas.height = 1;

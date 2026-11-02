@@ -16,8 +16,9 @@ function deferred() {
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const pointer = cycle => ({status: 'complete', cycleId: cycle, manifestUrls: {mean: `${cycle}.json`}});
-const manifest = cycle => ({status: 'complete', schema: 'north-wildwood-physics-forecast-v1',
-  cycleId: cycle, scenario: 'mean', boundsWgs84: [0, 0, 1, 1],
+const manifest = cycle => ({status: 'complete', schema: 'north-wildwood-physics-forecast-v2',
+  cycleId: cycle, scenario: 'mean', boundsWgs84: [[0, 0], [1, 1]],
+  image: {width: 1, height: 1, crs: 'EPSG:3857', coordinateSystem: 'web-mercator'},
   frames: [{visible: {path: 'visible.png'}, impact: {path: 'impact.png'}, query: {path: 'query.png'}}],
   dailyMaximums: [{visible: {path: 'daily.png'}, impact: {path: 'daily-impact.png'}, query: {path: 'daily-query.png'}}]});
 let cases = 0;

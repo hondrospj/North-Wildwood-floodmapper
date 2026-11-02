@@ -81,6 +81,12 @@ Each scenario writes:
 - `daily-max/*.png`: cellwise maxima over every 15-minute frame in the local
   calendar day.
 
+Version 2 manifests describe a shared north-up EPSG:3857 image grid. Native
+terrain depths, wet masks and first-arrival impact codes use nearest-neighbor
+sampling onto that grid, preserving source-cell values and categorical masks.
+Image bounds describe pixel edges; browser queries use Mercator coordinates.
+Version 1 native-grid products require rendering again before browser use.
+
 The one-hour dashboard view uses exact hourly source points from the same run.
 Daily mode uses the true cellwise daily maximum. A published pointer names all
 three scenario manifests and is promoted only after their assets, hashes,
@@ -118,7 +124,9 @@ boundary guidance, terrain files, effective mesh/solver/friction settings,
 builder code, and dependency versions. Renderer settings and implementation have
 a separate identity, so a render-only change can reuse available hydraulic
 states. If those large states were removed after publication, the pipeline
-reruns the simulation before rendering again. Legacy manifests without these
+reruns the simulation before rendering again. Pruning retains the small
+`hydraulic/frame_statistics.json` file needed for independent revalidation;
+older pruned runs missing it are rebuilt before validation. Legacy manifests without these
 identities are rebuilt once. The already-published shortcut also checks the
 effective identities, rather than only the PETSS cycle identifier.
 

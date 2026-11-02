@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import tempfile
 from datetime import datetime, timezone
@@ -94,6 +95,37 @@ def frame_local_date(time_utc: str, time_zone: ZoneInfo) -> str:
     return value.astimezone(time_zone).date().isoformat()
 
 
+def validate_web_grid(manifest: dict[str, Any]) -> tuple[int, int]:
+    """Check that PNG edges and browser Mercator bounds describe one grid."""
+    image = manifest.get("image") or {}
+    if (manifest.get("schema") != "north-wildwood-physics-forecast-v2"
+            or image.get("crs") != "EPSG:3857"
+            or image.get("coordinateSystem") != "web-mercator"):
+        raise RuntimeError("Unsupported physics image grid; rerender these products")
+    width, height = image.get("width"), image.get("height")
+    if type(width) is not int or type(height) is not int or min(width, height) <= 0:
+        raise RuntimeError("Invalid physics image dimensions")
+    try:
+        a, b, c, d, e, f = map(float, image["transform"])
+        (south, west), (north, east) = manifest["boundsWgs84"]
+        south, west, north, east = map(float, (south, west, north, east))
+        if (not all(math.isfinite(value) for value in (a, b, c, d, e, f, south, west, north, east))
+                or a <= 0 or e >= 0 or b != 0 or d != 0
+                or not (-180 <= west < east <= 180)
+                or not (-85.05112878 < south < north < 85.05112878)):
+            raise ValueError("Invalid Web Mercator transform or bounds")
+        radius = 6378137.0
+        merc_y = lambda latitude: radius * math.log(math.tan(math.pi / 4 + math.radians(latitude) / 2))
+        projected_bounds = (radius * math.radians(west), merc_y(south),
+                            radius * math.radians(east), merc_y(north))
+        pixel_bounds = (c, f + e * height, c + a * width, f)
+        if any(abs(actual - expected) > 1e-5 for actual, expected in zip(pixel_bounds, projected_bounds)):
+            raise ValueError("PNG pixel edges do not match the browser bounds")
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError(f"Invalid physics image georeferencing: {error}") from error
+    return height, width
+
+
 def validate_scenario(
     config: dict[str, Any],
     cycle_id: str,
@@ -109,6 +141,7 @@ def validate_scenario(
         raise RuntimeError(f"{scenario} cycle mismatch")
     if run_manifest.get("scenario") != scenario or manifest.get("scenario") != scenario:
         raise RuntimeError(f"{scenario} scenario mismatch")
+    render_shape = validate_web_grid(manifest)
     if run_manifest["output"]["frameCount"] != manifest["frameCount"]:
         raise RuntimeError(f"{scenario} frame count mismatch")
     maximum_speed = float(run_manifest["qualitySummary"]["maximumSpeedMps"])
@@ -181,6 +214,8 @@ def validate_scenario(
             + query_path.stat().st_size
         )
         depth_mm, wet = decode_query(query_path)
+        if depth_mm.shape != render_shape:
+            raise RuntimeError(f"Query/image grid shape mismatch at {scenario} frame {index}")
         with Image.open(visible_path) as visible_image:
             visible_codes = np.asarray(visible_image, dtype=np.uint8)
         with Image.open(impact_path) as impact_image:
@@ -225,6 +260,8 @@ def validate_scenario(
         visible_path = verify_file_record(public_directory, record["visible"])
         impact_path = verify_file_record(public_directory, record["impact"])
         actual_depth_mm, actual_wet = decode_query(query_path)
+        if actual_depth_mm.shape != render_shape:
+            raise RuntimeError(f"{scenario} {date_local} daily query/image grid shape mismatch")
         with Image.open(visible_path) as visible_image:
             visible_codes = np.asarray(visible_image, dtype=np.uint8)
         with Image.open(impact_path) as impact_image:

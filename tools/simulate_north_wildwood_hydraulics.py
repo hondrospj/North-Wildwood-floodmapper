@@ -141,8 +141,8 @@ def parse_args() -> argparse.Namespace:
         "--draining-only",
         action="store_true",
         help=(
-            "Reuse filling/slack arrays from the existing output state package, "
-            "then solve and render only draining assets"
+            "Solve a coherent complete state package and render only draining "
+            "assets; add --reuse-complete-state to skip the solve"
         ),
     )
     parser.add_argument(
@@ -1783,15 +1783,11 @@ def main() -> None:
         / "North Wildwood"
         / "NorthWildwoodHydraulicStates.json.png"
     )
-    reusable_static_state = (
-        state_path if args.draining_only and not args.reuse_complete_state else None
-    )
     reusable_complete_state = state_path if args.reuse_complete_state else None
-    required_state = reusable_complete_state or reusable_static_state
-    if required_state is not None and not required_state.is_file():
+    if reusable_complete_state is not None and not reusable_complete_state.is_file():
         raise FileNotFoundError(
             "State reuse requires an existing hydraulic state package at "
-            f"{required_state}"
+            f"{reusable_complete_state}"
         )
     if reusable_complete_state is not None:
         phases, diagnostics = load_complete_state(
@@ -1814,7 +1810,7 @@ def main() -> None:
             "routing edges are not needed"
         )
         solver = HydraulicSolver(zones, edges)
-        phases, diagnostics = simulate(solver, reusable_static_state)
+        phases, diagnostics = simulate(solver)
         write_state_asset(state_path, phases, graph_manifest, diagnostics)
     render_manifest = None
     render_summary = None

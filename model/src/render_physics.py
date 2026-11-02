@@ -8,6 +8,7 @@ from cache_contract import identity_matches, render_identity, simulation_identit
 import argparse
 import hashlib
 import json
+import math
 import os
 import shutil
 from datetime import datetime, timezone
@@ -19,9 +20,9 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import rasterio
 from PIL import Image
-from pyproj import Transformer
 from rasterio.enums import Resampling
-from rasterio.warp import reproject
+from rasterio.transform import array_bounds, from_origin
+from rasterio.warp import calculate_default_transform, reproject, transform_bounds
 from scipy.spatial import cKDTree
 
 
@@ -29,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = ROOT / "model/config/north_wildwood.json"
 METRES_TO_FEET = 3.280839895013123
 QUERY_MAX_DEPTH_MM = 65535
+WEB_CRS = "EPSG:3857"
 
 DEPTH_BREAKS_FT = np.array(
     [0.10, 0.25, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00],
@@ -194,18 +196,64 @@ def image_bounds_wgs84(
     right = transform.c + column_slice.stop * transform.a
     top = transform.f + row_slice.start * transform.e
     bottom = transform.f + row_slice.stop * transform.e
-    transformer = Transformer.from_crs(source_crs, "EPSG:4326", always_xy=True)
-    corners = [
-        transformer.transform(left, bottom),
-        transformer.transform(left, top),
-        transformer.transform(right, bottom),
-        transformer.transform(right, top),
-    ]
-    west = min(point[0] for point in corners)
-    east = max(point[0] for point in corners)
-    south = min(point[1] for point in corners)
-    north = max(point[1] for point in corners)
+    west, south, east, north = transform_bounds(
+        source_crs, "EPSG:4326", left, bottom, right, top, densify_pts=21
+    )
     return [[south, west], [north, east]]
+
+
+def web_render_grid(source_profile: dict[str, Any]) -> dict[str, Any]:
+    """Cover the native crop with one north-up browser-compatible pixel grid.
+
+    Leaflet places ordinary image overlays in Web Mercator. Native projected
+    pixels cannot be positioned by their geographic bounding rectangle: their
+    rows and columns generally rotate with respect to that rectangle.
+    """
+    width, height = source_profile["width"], source_profile["height"]
+    bounds = array_bounds(height, width, source_profile["transform"])
+    suggested, _, _ = calculate_default_transform(
+        source_profile["crs"], WEB_CRS, width, height, *bounds
+    )
+    left, bottom, right, top = transform_bounds(
+        source_profile["crs"], WEB_CRS, *bounds, densify_pts=21
+    )
+    resolution = abs(suggested.a)
+    return {
+        "width": int(math.ceil((right - left) / resolution)),
+        "height": int(math.ceil((top - bottom) / resolution)),
+        "transform": from_origin(left, top, resolution, resolution),
+        "crs": WEB_CRS,
+    }
+
+
+def warp_to_web_grid(
+    source: np.ndarray,
+    source_profile: dict[str, Any],
+    destination_profile: dict[str, Any],
+) -> np.ndarray:
+    """Sample a fixed native cell for every output pixel, including dry cells.
+
+    Nearest neighbor preserves modeled depths and categorical first arrivals.
+    Zero is valid dry/background data, so it must participate in sampling;
+    treating zero as source nodata would fill dry cells from wet neighbors.
+    The municipal validity mask is warped separately on this same grid.
+    """
+    destination = np.zeros(
+        (destination_profile["height"], destination_profile["width"]),
+        dtype=source.dtype,
+    )
+    reproject(
+        source=source,
+        destination=destination,
+        src_transform=source_profile["transform"],
+        src_crs=source_profile["crs"],
+        dst_transform=destination_profile["transform"],
+        dst_crs=destination_profile["crs"],
+        dst_nodata=0,
+        resampling=Resampling.nearest,
+        num_threads=4,
+    )
+    return destination
 
 
 def grid_centres(
@@ -310,14 +358,27 @@ def main() -> None:
         terrain_profile,
     )
     row_slice, column_slice = crop_for_mask(full_display_mask)
-    display_mask = full_display_mask[row_slice, column_slice]
+    native_display_mask = full_display_mask[row_slice, column_slice]
     terrain = terrain[row_slice, column_slice]
-    render_shape = terrain.shape
+    native_shape = terrain.shape
+    native_profile = {
+        **terrain_profile,
+        "height": native_shape[0],
+        "width": native_shape[1],
+        "transform": terrain_profile["transform"] * rasterio.Affine.translation(
+            column_slice.start, row_slice.start
+        ),
+    }
+    web_profile = web_render_grid(native_profile)
+    render_shape = (web_profile["height"], web_profile["width"])
+    display_mask = warp_to_web_grid(
+        native_display_mask.astype(np.uint8), native_profile, web_profile
+    ).astype(bool)
     bounds = image_bounds_wgs84(
-        terrain_profile["transform"],
-        row_slice,
-        column_slice,
-        terrain_profile["crs"],
+        web_profile["transform"],
+        slice(0, render_shape[0]),
+        slice(0, render_shape[1]),
+        web_profile["crs"],
     )
 
     cache_key = spatial_lookup_fingerprint(centroid_coordinates, terrain_profile["transform"],
@@ -325,11 +386,11 @@ def main() -> None:
     index_cache = ROOT / "model/cache" / f"nearest_triangle_{cache_key}.npy"
     if index_cache.is_file():
         nearest_triangle = np.load(index_cache, mmap_mode="r")
-        if nearest_triangle.shape != render_shape:
+        if nearest_triangle.shape != native_shape:
             raise RuntimeError(f"Stale nearest-triangle cache: {index_cache}")
     else:
         print(
-            f"Mapping {render_shape[0] * render_shape[1]:,} render cells "
+            f"Mapping {native_shape[0] * native_shape[1]:,} native terrain cells "
             f"to {triangle_count:,} hydraulic triangles."
         )
         centres = grid_centres(
@@ -339,7 +400,7 @@ def main() -> None:
         )
         tree = cKDTree(centroid_coordinates)
         _, indices = tree.query(centres, workers=-1)
-        nearest_triangle = indices.reshape(render_shape).astype(np.int32)
+        nearest_triangle = indices.reshape(native_shape).astype(np.int32)
         index_cache.parent.mkdir(parents=True, exist_ok=True)
         temporary_cache = index_cache.with_suffix(".npy.incomplete")
         with temporary_cache.open("wb") as stream:
@@ -363,7 +424,7 @@ def main() -> None:
     current_day_impact = np.zeros(render_shape, dtype=np.uint8)
     current_day_first_time: str | None = None
     current_day_last_time: str | None = None
-    impact_arrival_codes = np.zeros(render_shape, dtype=np.uint8)
+    impact_arrival_codes = np.zeros(native_shape, dtype=np.uint8)
 
     def flush_daily_maximum() -> None:
         nonlocal current_day_maximum, current_day_impact
@@ -404,21 +465,31 @@ def main() -> None:
         hydraulic_wet = hydraulic_depth >= minimum_depth
         mapped_stage = stage_centroid[nearest_triangle]
         mapped_hydraulic_wet = hydraulic_wet[nearest_triangle]
-        depth = np.maximum(mapped_stage - terrain, 0.0).astype(np.float32)
-        wet = display_mask & mapped_hydraulic_wet & (depth >= minimum_depth)
+        native_depth = np.maximum(mapped_stage - terrain, 0.0).astype(np.float32)
+        native_wet = native_display_mask & mapped_hydraulic_wet & (native_depth >= minimum_depth)
+        native_depth[~native_wet] = 0.0
+        newly_wet = native_wet & (impact_arrival_codes == 0)
+        impact_arrival_codes[newly_wet] = impact_code(
+            float(guidance_frame["navd88Ft"]),
+            impact_thresholds,
+        )
+        depth = warp_to_web_grid(native_depth, native_profile, web_profile)
+        wet = display_mask & warp_to_web_grid(
+            native_wet.astype(np.uint8), native_profile, web_profile
+        ).astype(bool)
         depth[~wet] = 0.0
+        frame_impact = warp_to_web_grid(
+            np.where(native_wet, impact_arrival_codes, 0).astype(np.uint8),
+            native_profile,
+            web_profile,
+        )
 
         filename = compact_timestamp(guidance_frame["timeUtc"]) + ".png"
         visible_path = visible_directory / filename
         impact_path = impact_directory / filename
         query_path = query_directory / filename
-        newly_wet = wet & (impact_arrival_codes == 0)
-        impact_arrival_codes[newly_wet] = impact_code(
-            float(guidance_frame["navd88Ft"]),
-            impact_thresholds,
-        )
         write_visible_png(visible_path, depth, wet)
-        write_impact_png(impact_path, impact_arrival_codes, wet)
+        write_impact_png(impact_path, frame_impact, wet)
         write_query_png(query_path, depth, wet)
         frame_records.append(
             {
@@ -450,7 +521,7 @@ def main() -> None:
         np.maximum(current_day_maximum, depth, out=current_day_maximum)
         np.maximum(
             current_day_impact,
-            np.where(wet, impact_arrival_codes, 0),
+            frame_impact,
             out=current_day_impact,
         )
 
@@ -463,7 +534,7 @@ def main() -> None:
     flush_daily_maximum()
 
     public_manifest = {
-        "schema": "north-wildwood-physics-forecast-v1",
+        "schema": "north-wildwood-physics-forecast-v2",
         "status": "complete",
         "modelId": config["modelId"],
         "town": config["town"],
@@ -480,9 +551,14 @@ def main() -> None:
         "image": {
             "width": render_shape[1],
             "height": render_shape[0],
+            "crs": WEB_CRS,
+            "coordinateSystem": "web-mercator",
+            "transform": list(web_profile["transform"])[:6],
+            "pixelSizeM": abs(web_profile["transform"].a),
             "sourceCrs": terrain_profile["crs"],
             "sourcePixelSizeM": abs(terrain_profile["transform"].a),
-            "leafletPlacement": "geographic bounding rectangle",
+            "resampling": "nearest native terrain cell for depth, wet mask and impact",
+            "leafletPlacement": "EPSG:3857 pixel edges expressed as WGS84 bounds",
             "displayMask": "valid footprint of the municipal North Wildwood DEM",
         },
         "visibleEncoding": {

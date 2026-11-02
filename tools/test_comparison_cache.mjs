@@ -14,7 +14,9 @@ try {
   assert.deepEqual(await existingPayload(2020,identity,directory),payload);
   assert.equal(await existingPayload(2020,cacheIdentity(corrected),directory),null,'same-count corrected levels invalidate comparison');
   assert.equal(await existingPayload(2020,{...identity,policySha256:'changed-policy'},directory),null,'policy changes invalidate comparison');
-  assert.equal(await existingPayload(new Date().getUTCFullYear(),identity,directory),null,'current year always refreshes USGS data');
+  const currentYear = new Date().getUTCFullYear();
+  await fs.writeFile(path.join(directory,`${currentYear}.json`),JSON.stringify(payload));
+  assert.equal(await existingPayload(currentYear,identity,directory),null,'current year always refreshes USGS data');
   delete payload.cacheIdentity;await fs.writeFile(target,JSON.stringify(payload));
   assert.equal(await existingPayload(2020,identity,directory),null,'legacy count-only caches rebuild');
   console.log('5 comparison cache checks passed');

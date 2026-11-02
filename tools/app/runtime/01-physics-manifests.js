@@ -1,8 +1,25 @@
+    function physicsCycleIdFromUtc(value) {
+      // The producer names hourly cycles YYYYMMDDTHH00Z, without seconds.
+      // Reject missing zones and normalized invalid dates before selecting a
+      // cycle-specific pointer; Date.parse alone accepts dates such as Feb 30.
+      const parts = typeof value === "string" && value.match(
+        /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?(Z|[+-](\d{2}):(\d{2}))$/
+      );
+      if (!parts || Number(parts[2]) > 23 || Number(parts[3]) > 59 ||
+          Number(parts[4] || 0) > 59 || (parts[5] && !/^0+$/.test(parts[5])) ||
+          Number(parts[7] || 0) > 23 || Number(parts[8] || 0) > 59) return "";
+      const midnight = Date.parse(`${parts[1]}T00:00:00Z`);
+      const timestamp = Date.parse(value);
+      if (!Number.isFinite(midnight) || new Date(midnight).toISOString().slice(0, 10) !== parts[1] ||
+          !Number.isFinite(timestamp)) return "";
+      const cycle = new Date(timestamp);
+      if (cycle.getUTCMinutes() || cycle.getUTCSeconds() || cycle.getUTCMilliseconds()) return "";
+      const iso = cycle.toISOString();
+      return /^\d{4}-/.test(iso) ? iso.slice(0, 16).replace(/[-:]/g, "") + "Z" : "";
+    }
+
     function physicsPointerUrl() {
-      const forecastCycle = Date.parse(forecastData?.petssCycleUtc || "");
-      const cycleId = Number.isFinite(forecastCycle)
-        ? new Date(forecastCycle).toISOString().replace(/[-:]/g, "").replace(/\.000Z$/, "Z")
-        : "";
+      const cycleId = physicsCycleIdFromUtc(forecastData?.petssCycleUtc);
       const cyclePointerPath = PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE && cycleId
         ? PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE.replaceAll("{cycleId}", cycleId)
         : "";
@@ -43,6 +60,7 @@
       }
       const generation = archiveGeneration;
       const pointerUrl = physicsPointerUrl();
+      if (!pointerUrl) return null;
       const pointer = await fetchJson(pointerUrl);
       if (generation !== archiveGeneration) throw new Error("Physics request superseded by Reload");
       const manifestUrls = pointer?.manifestUrls && typeof pointer.manifestUrls === "object"
@@ -58,7 +76,9 @@
           records.every(record => record?.visible?.path && record?.impact?.path && record?.query?.path);
         if (
           manifest?.status !== "complete" ||
-          manifest?.schema !== "north-wildwood-physics-forecast-v1" ||
+          manifest?.schema !== "north-wildwood-physics-forecast-v2" ||
+          manifest?.image?.crs !== "EPSG:3857" ||
+          manifest?.image?.coordinateSystem !== "web-mercator" ||
           !Array.isArray(manifest?.boundsWgs84) ||
           !recordsValid(manifest?.frames) ||
           !recordsValid(manifest?.dailyMaximums)

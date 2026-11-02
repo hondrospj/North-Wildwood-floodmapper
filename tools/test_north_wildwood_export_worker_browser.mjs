@@ -108,7 +108,6 @@ try{
   assert.equal(await page.evaluate(()=>document.activeElement.id),'exportProgressCloseBtn');
   assert.equal(await page.evaluate(()=>currentDatum),datum);
   result.checks.push('Blocking progress immediately focuses Cancel and prevents background keyboard/datum access');
-  if(retained)await page.screenshot({path:path.join(output,`${name}-worker-held.png`)});
   await page.locator('#exportProgressCloseBtn').click();
   await page.waitForFunction(()=>!exportInProgress,{},{timeout:3000,polling:25});
   result.states.push(await state('cancelled'));
@@ -118,6 +117,7 @@ try{
   assert.equal(await page.evaluate(()=>document.getElementById('app').inert),false);
   assert.equal(await page.evaluate(()=>document.activeElement.id),'openDownloadModalBtn');
   result.checks.push('Cancel releases a stalled worker request within three seconds and restores focus/background access');
+  if(retained)await page.screenshot({path:path.join(output,`${name}-worker-cancelled.png`)});
   release();await page.unroute('**/gif.worker.js',held);
   await page.locator('#openDownloadModalBtn').click();
   // Opening intentionally reseeds the range to the main timeline. Keep the

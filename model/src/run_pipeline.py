@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import math
 import os
 import re
 import shutil
@@ -118,13 +119,19 @@ def discard_published_hydraulic_states(
     current_cycle: str,
     scenarios: list[str],
 ) -> list[str]:
-    """Keep finished products but remove large transient centroid-state arrays."""
+    """Remove large transient arrays, retaining solver times for revalidation."""
     deleted: list[str] = []
     for scenario in scenarios:
         hydraulic = ROOT / "model/runs" / current_cycle / scenario / "hydraulic"
         if hydraulic.is_dir():
-            shutil.rmtree(hydraulic)
-            deleted.append(hydraulic.relative_to(ROOT).as_posix())
+            for path in hydraulic.iterdir():
+                if path.name == "frame_statistics.json" and path.is_file():
+                    continue
+                if path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
+                deleted.append(path.relative_to(ROOT).as_posix())
     return deleted
 
 
@@ -147,13 +154,41 @@ def hydraulic_is_complete(cycle_id: str, scenario: str, expected_identity: dict)
 
 def hydraulic_state_is_renderable(cycle_id: str, scenario: str) -> bool:
     hydraulic = ROOT / "model/runs" / cycle_id / scenario / "hydraulic"
-    return all(
+    return hydraulic_statistics_are_complete(cycle_id, scenario) and all(
         path.is_file() and path.stat().st_size > 0
         for path in (
             hydraulic / "stage_centroid_m.npy",
             hydraulic / "mesh.npz",
         )
     )
+
+
+def hydraulic_statistics_are_complete(cycle_id: str, scenario: str) -> bool:
+    """A pruned run still needs its recorded output times to validate products.
+
+    Older pipeline versions removed this small file together with the arrays.
+    Such a run must be rebuilt; product metadata cannot stand in for solver
+    output that has never been checked against it.
+    """
+    directory = ROOT / "model/runs" / cycle_id / scenario
+    try:
+        output = read_json(directory / "run_manifest.json")["output"]
+        statistics = read_json(directory / "hydraulic/frame_statistics.json")
+        count, interval = int(output["frameCount"]), float(output["intervalSeconds"])
+        return (
+            count > 0
+            and math.isfinite(interval)
+            and interval > 0
+            and isinstance(statistics, list)
+            and len(statistics) == count
+            and all(
+                math.isfinite(float(row["modelTimeSeconds"]))
+                and abs(float(row["modelTimeSeconds"]) - index * interval) <= 1e-6
+                for index, row in enumerate(statistics)
+            )
+        )
+    except (OSError, ValueError, KeyError, TypeError, OverflowError):
+        return False
 
 
 def public_products_are_complete(cycle_id: str, scenario: str, expected_identity: dict) -> bool:
@@ -295,6 +330,8 @@ def main() -> None:
             simulation, rendered = expected[scenario]
             hydraulic_complete = hydraulic_is_complete(cycle_id, scenario, simulation)
             public_complete = public_products_are_complete(cycle_id, scenario, rendered)
+            if hydraulic_complete and not hydraulic_statistics_are_complete(cycle_id, scenario):
+                hydraulic_complete = False
             if (
                 hydraulic_complete
                 and not public_complete

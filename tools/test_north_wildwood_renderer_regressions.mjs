@@ -130,7 +130,9 @@ function physicsFixture(pixel = [0, 0, 0, 255]) {
     renderedFloodPixelCache: null, scheduleRasterObjectUrlCleanup() {},
     requestedTimelineSelection: null, cancelTimelineSelection() {}, updateNsiStructureImpactLayer() {},
     getPhysicsAssetForEntry: entry => entry?.physicsFrame || null,
-    getActivePhysicsManifest: () => ({ boundsWgs84: [[39, -75], [40, -74]], cycleId: 'test-cycle' }),
+    getActivePhysicsManifest: () => ({ schema: 'north-wildwood-physics-forecast-v2',
+      image: {width: 2, height: 2, crs: 'EPSG:3857', coordinateSystem: 'web-mercator'},
+      boundsWgs84: [[39, -75], [40, -74]], cycleId: 'test-cycle' }),
     preloadPhysicsQueryImage: async () => ({ naturalWidth: 2, naturalHeight: 2 }),
     escapeTownAddressHtml: value => String(value), buildDepthQueryValueHtml: value => String(value),
     map: { hasLayer: layer => layers.has(layer), removeLayer(layer) { layers.delete(layer); layer.removed = true; } },
@@ -142,7 +144,7 @@ function physicsFixture(pixel = [0, 0, 0, 255]) {
     sampleRenderedFloodPixel: () => null, getHydraulicPhaseForEntry: () => 'slack',
     getDepthQueryDisplayDepth: () => 3, buildDepthQueryPopupHtml: value => '<div class="depth-query-popup">' + (value == null ? 'N/A' : value) + '</div>',
   });
-  load(context, ['formatWaterDepth', 'samplePhysicsDepth', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup']);
+  load(context, ['formatWaterDepth', 'latLngToPhysicsQueryPixel', 'samplePhysicsDepth', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup']);
   return { context, popups, notices, layers };
 }
 await test('A physics point outside coverage is unavailable, while a covered dry pixel remains dry', async () => {
