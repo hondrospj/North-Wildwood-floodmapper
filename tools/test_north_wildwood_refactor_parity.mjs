@@ -15,6 +15,65 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+// Invert only the reviewed history-selection transaction; retain every UI byte.
+const HISTORY_STATE_PATH = "tools/fixtures/north-wildwood-20261102-history-state.json";
+const historyStateText = read(HISTORY_STATE_PATH);
+assert.equal(sha256(historyStateText), "7214aac195fcfb314e58d06029f58b9638c8b70f45b282cbbe8d9d8e8a16dd38",
+  "The history-state inverse must retain its exact reviewed fixture");
+const historyState = JSON.parse(historyStateText);
+assert.equal(historyState.schemaVersion, 1);
+assert.equal(historyState.baselineCommit, "617f4bc21aefc8ba95eb48ed3aea35ac136e01f4");
+const HISTORY_STATE_SOURCE = "tools/app/runtime/22-calendar-and-modes.js";
+const HISTORY_STATE_OUTPUT = "assets/app/runtime.js";
+const HISTORY_STATE_FUNCTIONS = ["loadTopTideEvent", "switchDataMode"];
+assert.deepEqual(historyState.files.map(file => [file.source, file.kind, file.entryId]), [
+  [HISTORY_STATE_SOURCE, "script", "script-004"],
+  [HISTORY_STATE_OUTPUT, "generated", "script-004"],
+  ["index.html", "document", null]
+]);
+const historyStateEntry = manifest.scripts.find(entry => entry.id === "script-004");
+assert.equal(historyStateEntry.output, HISTORY_STATE_OUTPUT);
+assert.ok(historyStateEntry.sources.includes(HISTORY_STATE_SOURCE));
+assert.ok(historyState.changes.length > 0);
+for (const block of historyState.changes) {
+  assert.equal(block.source, HISTORY_STATE_SOURCE);
+  assert.equal(block.kind, "script");assert.equal(block.entryId, "script-004");
+}
+assert.deepEqual(historyState.documentTags.map(tag => [tag.output, tag.documents]), [[HISTORY_STATE_OUTPUT, ["index.html"]]]);
+for (const tag of historyState.documentTags) {
+  assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+    "The history transaction may change only the existing runtime cache key, without UI attributes");
+  const attrs = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
+  referencedOutput(attrs.get("src"), tag.output);
+}
+function historyStateFragments(source, blocks) {
+  for (const block of blocks) {
+    const label = block.id || block.output;
+    assert.ok(block.afterSource.length, `${label} must retain an exact nonempty state fragment`);
+    assert.equal(source.split(block.afterSource).length - 1, 1, `${label} state fragment must occur exactly once`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+function assertHistoryStateOwnership(source, restored) {
+  const strip = text => {
+    for (const name of HISTORY_STATE_FUNCTIONS) text = text.replace(auditLogicFunction(text, name, 4), "");
+    return text;
+  };
+  assert.equal(strip(source), strip(restored),
+    "History transactions may change only loadTopTideEvent and switchDataMode; other code and declarations remain exact");
+}
+function auditedHistoryStateRead(relative) {
+  const source = read(relative), file = historyState.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed history transaction`);
+  const restored = historyStateFragments(source, file.kind === "document" ? historyState.documentTags : historyState.changes);
+  if (file.kind === "script") assertHistoryStateOwnership(source, restored);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-history-transaction byte`);
+  return restored;
+}
+for (const file of historyState.files) auditedHistoryStateRead(file.source);
+
 // Invert only the reviewed November 2 logic corrections; retain every UI byte.
 const AUDIT_LOGIC_PATH = "tools/fixtures/north-wildwood-20261102-audit-logic.json";
 const auditLogicText = read(AUDIT_LOGIC_PATH);
@@ -52,7 +111,8 @@ for (const tag of auditLogic.documentTags) {
   assert.equal(tag.afterSource.replace(/\?v=[^"']+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[^"']+/, "?v=VERSION"),
     "Logic fixes may change only the existing runtime/export-area cache keys, without UI attributes");
   const attrs = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
-  referencedOutput(attrs.get("src"), tag.output);
+  referencedOutput(attrs.get("src"), tag.output,
+    tag.output === AUDIT_LOGIC_RUNTIME ? auditedHistoryStateRead(tag.output) : read(tag.output));
 }
 function auditLogicFragments(source, blocks) {
   for (const block of blocks) {
@@ -99,7 +159,7 @@ function auditLogicExternalDocument(source) {
   return auditLogicFragments(source, auditLogic.documentTags.filter(tag => tag.output === AUDIT_LOGIC_MODULE));
 }
 function auditedAuditLogicRead(relative) {
-  const source = read(relative), file = auditLogic.files.find(file => file.source === relative);
+  const source = auditedHistoryStateRead(relative), file = auditLogic.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed logic fixes`);
   let blocks;
@@ -1323,6 +1383,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = historyStateFragments(source, historyState.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = auditLogicFragments(source, auditLogic.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = tutorialGestureFragments(source, tutorialGesture.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = adaptiveSidebarFragments(source, adaptiveSidebar.changes.filter(block => block.kind === kind && block.entryId === entry.id));
@@ -1666,7 +1727,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1683,6 +1744,30 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened history transaction ownership", path.join(scratch, HISTORY_STATE_PATH),
+        JSON.stringify({ ...historyState, changes: [...historyState.changes, { ...historyState.changes[0], source: "tools/app/runtime/00-configuration.js" }] })],
+      ["committed observed mode before historical archive wait", path.join(scratch, HISTORY_STATE_SOURCE),
+        read(HISTORY_STATE_SOURCE).replace("      if (!observedData) await warmBackgroundData();", '      currentDataMode = "observed";\n      if (!observedData) await warmBackgroundData();')],
+      ["dropped pending historical selection owner", path.join(scratch, HISTORY_STATE_SOURCE),
+        read(HISTORY_STATE_SOURCE).replace("loadTopTideEvent.pendingSelectionGeneration = generation;", "loadTopTideEvent.pendingSelectionGeneration = null;")],
+      ["ignored active-mode historical cancellation", path.join(scratch, HISTORY_STATE_SOURCE),
+        read(HISTORY_STATE_SOURCE).replace("&& loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;", "&& loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration || true) return;")],
+      ["cleared another historical selection owner", path.join(scratch, HISTORY_STATE_SOURCE),
+        read(HISTORY_STATE_SOURCE).replace("if (loadTopTideEvent.pendingSelectionGeneration === generation) {", "if (true) {")],
+      ["dropped historical wait selection generation guard", path.join(scratch, HISTORY_STATE_SOURCE),
+        read(HISTORY_STATE_SOURCE).replace("      if (!observedData) await warmBackgroundData();\n      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;", "      if (!observedData) await warmBackgroundData();\n      if (floodSelectionToken !== lastRenderToken) return false;")],
+      ["dropped historical mode button commit", path.join(scratch, HISTORY_STATE_SOURCE),
+        read(HISTORY_STATE_SOURCE).replace('      currentBaseModeBeforeTopTide = currentDataMode;\n      currentDataMode = "observed";\n      updateDataModeButtons();', '      currentBaseModeBeforeTopTide = currentDataMode;\n      currentDataMode = "observed";')],
+      ["changed source beside history transaction owners", path.join(scratch, HISTORY_STATE_SOURCE),
+        read(HISTORY_STATE_SOURCE) + "\n// Unreviewed adjacent history change\n"],
+      ["changed generated history transaction runtime", path.join(scratch, HISTORY_STATE_OUTPUT),
+        read(HISTORY_STATE_OUTPUT) + "\n// Unreviewed generated history change\n"],
+      ["stale history transaction runtime cache key", scratchHtml,
+        published.replace(historyState.documentTags[0].afterSource, historyState.documentTags[0].beforeSource)],
+      ["changed UI markup during history transaction fix", path.join(scratch, "tools/app/index.template.html"),
+        template.replace("<h2>Forecast range</h2>", "<h2>Unreviewed history interface</h2>")],
+      ["changed UI font during history transaction fix", path.join(scratch, "tools/app/styles/style-002.css"),
+        read("tools/app/styles/style-002.css").replace("--sidebar-text:12px", "--sidebar-text:10px")],
       ["broadened audit logic ownership", path.join(scratch, AUDIT_LOGIC_PATH),
         JSON.stringify({ ...auditLogic, changes: [...auditLogic.changes, { ...auditLogic.changes[0], source: "tools/app/runtime/02-data-and-datums.js" }] })],
       ["dropped physics cycle minute guard", path.join(scratch, AUDIT_LOGIC_OWNERS[0][0]),
@@ -1706,7 +1791,7 @@ if (process.argv.includes("--self-test")) {
       ["changed export area beside approved caller", path.join(scratch, AUDIT_LOGIC_MODULE),
         read(AUDIT_LOGIC_MODULE) + "\n// Unreviewed area module change\n"],
       ["stale audit runtime cache key", scratchHtml,
-        published.replace(auditLogic.documentTags[0].afterSource, auditLogic.documentTags[0].beforeSource)],
+        published.replace(historyState.documentTags[0].afterSource, auditLogic.documentTags[0].beforeSource)],
       ["stale export-area source cache key", path.join(scratch, "tools/app/index.template.html"),
         template.replace(auditLogic.documentTags[1].afterSource, auditLogic.documentTags[1].beforeSource)],
       ["changed UI font during logic audit", path.join(scratch, "tools/app/styles/style-002.css"),
@@ -1724,7 +1809,7 @@ if (process.argv.includes("--self-test")) {
       ["changed generated tutorial runtime", path.join(scratch, TUTORIAL_GESTURE_OUTPUT),
         read(TUTORIAL_GESTURE_OUTPUT) + "\n// Unreviewed generated tutorial change\n"],
       ["stale tutorial runtime cache key", scratchHtml,
-        published.replace(auditLogic.documentTags[0].afterSource, tutorialGesture.documentTags[0].beforeSource)],
+        published.replace(historyState.documentTags[0].afterSource, tutorialGesture.documentTags[0].beforeSource)],
       ["broadened adaptive-sidebar inverse", path.join(scratch, ADAPTIVE_SIDEBAR_PATH),
         JSON.stringify({ ...adaptiveSidebar, changes: [...adaptiveSidebar.changes, adaptiveSidebar.changes[0]] })],
       ["changed adaptive fit guard", path.join(scratch, "tools/app/unified-controller.js"),
@@ -1954,7 +2039,7 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
           "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length, 128, "Retain all 112 previous mutations and sixteen logic/UI boundary mutations");
+    assert.equal(cases.length, 140, "Retain all 128 previous mutations and twelve history transaction/UI boundary mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);
