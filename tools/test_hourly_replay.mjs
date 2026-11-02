@@ -19,6 +19,7 @@ const day={date,isLewesSurrogate:canonical,entries:Array.from({length:24},(_,h)=
 const nextDay={date:nextDate,isLewesSurrogate:canonical,entries:[sample(1440,24)]};
 const days=new Map([[date,day],[nextDate,nextDay]]);
 const c=vm.createContext({Date,Math,Number,Map,Set,Promise,console,
+ archiveGeneration:0,
  lewesHourlyDaysByDate:new Map(),observed15MinuteDaysByDate:new Map(),
  MIN_DEPTH_STAGE:-10,MAX_STAGE:20,floorToCatalogStep:v=>v,
  DATUM_OFFSETS:{MLLW:2.13},currentDatum:'MLLW',currentOverlayMode:'depth',
