@@ -832,11 +832,28 @@ function cloneStyleObject(value) {
     let currentTimelineIntervalMinutes = 60;
     let currentRawSeriesHours = [];
 
+    function physicsCycleIdFromUtc(value) {
+      // The producer names hourly cycles YYYYMMDDTHH00Z, without seconds.
+      // Reject missing zones and normalized invalid dates before selecting a
+      // cycle-specific pointer; Date.parse alone accepts dates such as Feb 30.
+      const parts = typeof value === "string" && value.match(
+        /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?(Z|[+-](\d{2}):(\d{2}))$/
+      );
+      if (!parts || Number(parts[2]) > 23 || Number(parts[3]) > 59 ||
+          Number(parts[4] || 0) > 59 || (parts[5] && !/^0+$/.test(parts[5])) ||
+          Number(parts[7] || 0) > 23 || Number(parts[8] || 0) > 59) return "";
+      const midnight = Date.parse(`${parts[1]}T00:00:00Z`);
+      const timestamp = Date.parse(value);
+      if (!Number.isFinite(midnight) || new Date(midnight).toISOString().slice(0, 10) !== parts[1] ||
+          !Number.isFinite(timestamp)) return "";
+      const cycle = new Date(timestamp);
+      if (cycle.getUTCMinutes() || cycle.getUTCSeconds() || cycle.getUTCMilliseconds()) return "";
+      const iso = cycle.toISOString();
+      return /^\d{4}-/.test(iso) ? iso.slice(0, 16).replace(/[-:]/g, "") + "Z" : "";
+    }
+
     function physicsPointerUrl() {
-      const forecastCycle = Date.parse(forecastData?.petssCycleUtc || "");
-      const cycleId = Number.isFinite(forecastCycle)
-        ? new Date(forecastCycle).toISOString().replace(/[-:]/g, "").replace(/\.000Z$/, "Z")
-        : "";
+      const cycleId = physicsCycleIdFromUtc(forecastData?.petssCycleUtc);
       const cyclePointerPath = PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE && cycleId
         ? PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE.replaceAll("{cycleId}", cycleId)
         : "";
@@ -877,6 +894,7 @@ function cloneStyleObject(value) {
       }
       const generation = archiveGeneration;
       const pointerUrl = physicsPointerUrl();
+      if (!pointerUrl) return null;
       const pointer = await fetchJson(pointerUrl);
       if (generation !== archiveGeneration) throw new Error("Physics request superseded by Reload");
       const manifestUrls = pointer?.manifestUrls && typeof pointer.manifestUrls === "object"
@@ -892,7 +910,9 @@ function cloneStyleObject(value) {
           records.every(record => record?.visible?.path && record?.impact?.path && record?.query?.path);
         if (
           manifest?.status !== "complete" ||
-          manifest?.schema !== "north-wildwood-physics-forecast-v1" ||
+          manifest?.schema !== "north-wildwood-physics-forecast-v2" ||
+          manifest?.image?.crs !== "EPSG:3857" ||
+          manifest?.image?.coordinateSystem !== "web-mercator" ||
           !Array.isArray(manifest?.boundsWgs84) ||
           !recordsValid(manifest?.frames) ||
           !recordsValid(manifest?.dailyMaximums)
@@ -1745,14 +1765,31 @@ function parseStoredLocalNyToDate(timeEST) {
 
     function getObservedSourceHoursForDay(dayRecord) {
       const dateStr = dayRecord?.date || dayRecord?.d;
+      const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];
       if (dayRecord?.isLewesSurrogate) {
         const compact = dayRecord?.lewesCompactDay || lewesHourlyDaysByDate.get(dateStr);
         if (compact) return applyObservedCrestToSource(dayRecord, decodeLewesHourlyDay({ ...dayRecord, lewesCompactDay: compact }));
       } else if (dateStr) {
         const quarterDay = observed15MinuteDaysByDate.get(dateStr);
+        const live = (dense.length ? dense : (Array.isArray(dayRecord?.hours) ? dayRecord.hours : []))
+          .filter(entry => entry?.isLiveObservedBackfill && Number.isFinite(getStageValue(entry)));
+        if (live.length) {
+          const byTime = new Map((quarterDay ? decodeObserved15MinuteDay(quarterDay) : [])
+            .map(entry => [entryTimeMs(entry), entry]));
+          // IV readings are six-minute measurements. Only exact quarter-hour
+          // readings are measured anchors; interpolate the intervening slots
+          // within the same thirty-minute gap limit as the primary archive.
+          const fresh = buildQuarterHourTimelineSeries(live, {
+            kind: "observed", observedDate: dateStr, fillMissingSlots: false,
+            requireExactSamples: true, sourceResolutionMinutes: 6, maxGapMinutes: 30
+          });
+          fresh.forEach(entry => byTime.set(entryTimeMs(entry), entry.isInterpolatedTimelineFrame
+            ? { ...entry, observationQuality: "I" } : entry));
+          return applyObservedCrestToSource(dayRecord, Array.from(byTime.entries())
+            .sort((a, b) => a[0] - b[0]).map(([, entry]) => entry));
+        }
         if (quarterDay?.v?.some(value => value != null)) return applyObservedCrestToSource(dayRecord, decodeObserved15MinuteDay(quarterDay));
       }
-      const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];
       if (dense.length) return dense;
       const fallbackPeak = normalizeStageValue(dayRecord?.peakNAVD88);
       if (Number.isFinite(fallbackPeak) && dayRecord?.date) {
@@ -1872,6 +1909,7 @@ function parseStoredLocalNyToDate(timeEST) {
       const exactBySlot = new Map();
       valid.forEach(item => {
         const slot = Math.round(item.t / stepMs) * stepMs;
+        if (options.requireExactSamples && item.t !== slot) return;
         if (Math.abs(item.t - slot) > stepMs / 2) return;
         const existing = exactBySlot.get(slot);
         if (!existing || Math.abs(item.t - slot) < Math.abs(existing.t - slot)) exactBySlot.set(slot, item);
@@ -1884,7 +1922,8 @@ function parseStoredLocalNyToDate(timeEST) {
         if (exact && Number.isFinite(getStageValue(exact.entry))) {
           out.push(setTimelineSlotFields({
             ...exact.entry,
-            sourceResolutionMinutes
+            sourceResolutionMinutes: exact.entry.isLiveObservedBackfill
+              ? exact.entry.sourceResolutionMinutes : sourceResolutionMinutes
           }, slot, intervalMinutes, options));
           continue;
         }
@@ -2348,14 +2387,24 @@ function parseStoredLocalNyToDate(timeEST) {
 
     async function ensureObservedArchiveForDate(dateStr) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ""))) return false;
+      const generation = archiveGeneration;
       const source = getObservedArchiveSourceForDate(dateStr);
       await ensureObservedArchiveYear(source, String(dateStr).slice(0, 4));
+      if (generation !== archiveGeneration) return false;
       // The final three quarter-hours need the next measured hourly endpoint.
       // Usually it is in the same shard; December 31 also needs the next year.
       const nextDate = addDaysToDateKey(dateStr, 1);
       if (source === "lewes" && nextDate.slice(0, 4) !== dateStr.slice(0, 4)
           && getObservedArchiveSourceForDate(nextDate) === source) {
         await ensureObservedArchiveYear(source, nextDate.slice(0, 4));
+      }
+      if (generation !== archiveGeneration) return false;
+      // Background history stays cached, but today's gauge readings keep
+      // advancing. Reuse the live cooldown when this date is selected again.
+      if (source === "stone-harbor" && typeof extendObservedArchiveThroughToday === "function"
+          && dateStr === getTodayNyDateKey()) {
+        await extendObservedArchiveThroughToday();
+        if (generation !== archiveGeneration) return false;
       }
       return (source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate).has(dateStr);
     }
@@ -2460,7 +2509,7 @@ function parseStoredLocalNyToDate(timeEST) {
         quarterHourIndex: idx,
         classification: dayRecord?.classification || entry.classification || "none",
         peakNAVD88: dayRecord?.peakNAVD88 ?? entry.peakNAVD88,
-        sourceResolutionMinutes
+        sourceResolutionMinutes: entry.isLiveObservedBackfill ? entry.sourceResolutionMinutes : sourceResolutionMinutes
       })));
     }
 
@@ -2582,7 +2631,7 @@ function setDatumHelpOpen(isOpen) {
     }
 
     let downloadModalGeneration = 0;
-    function setDownloadModalOpen(isOpen) {
+    function setDownloadModalOpen(isOpen, { preserveRange = false } = {}) {
       const modal = document.getElementById("downloadModal");
       const btn = document.getElementById("openDownloadModalBtn");
       if (!modal || !btn) return;
@@ -2597,7 +2646,7 @@ function setDatumHelpOpen(isOpen) {
         updateDownloadModeCopy();
         updateExportSegmentedUI();
         applyExportStageAspect(getDownloadAspectValue());
-        syncDownloadRangeInputs(true);
+        syncDownloadRangeInputs(!preserveRange);
         updateDownloadSummary();
         ensureExportArchiveAvailability().then(() => {
           if (generation !== downloadModalGeneration || modal.hidden) return;
@@ -11054,6 +11103,22 @@ function formatSelectedObservedDate(dateStr) {
 
       const existing = observedData.days[existingIndex] || {};
       const existingHours = Array.isArray(existing.hours) ? existing.hours : [];
+      if (dayRecord.liveBackfilled) {
+        // Repeated IV responses may correct an existing reading or contain
+        // fewer readings. Reconcile by instant, retaining earlier valid data.
+        const byTime = new Map();
+        [...existingHours, ...nextHours].forEach(hour => {
+          const time = entryTimeMs(hour);
+          if (Number.isFinite(time) && Number.isFinite(getStageValue(hour))) byTime.set(time, hour);
+        });
+        const hours = Array.from(byTime.entries()).sort((a, b) => a[0] - b[0]).map(([, hour]) => hour);
+        const next = { ...existing, ...dayRecord, hours, timelineRawHours: hours, generatedPlaceholderDay: false };
+        const stages = [...hours, ...getObservedSourceHoursForDay(next)].map(getStageValue).filter(Number.isFinite);
+        next.peakNAVD88 = stages.length ? Math.max(...stages) : existing.peakNAVD88;
+        next.classification = classifyFloodStage(next.peakNAVD88);
+        observedData.days[existingIndex] = next;
+        return;
+      }
       const existingValid = existingHours.filter(hour => Number.isFinite(getStageValue(hour))).length;
       const nextValid = nextHours.filter(hour => Number.isFinite(getStageValue(hour))).length;
 
@@ -11100,6 +11165,11 @@ function formatSelectedObservedDate(dateStr) {
               value: n,
               observationInterval: "instantaneous",
               source: "usgs-iv-live",
+              sourceStationId: String(getUsgsObservedSiteId()),
+              sourceResolutionMinutes: 6,
+              observationQuality: "M",
+              isMeasuredQuarterHourArchive: minuteIndex % 15 === 0 && dt.getUTCSeconds() === 0 && dt.getUTCMilliseconds() === 0,
+              isInterpolatedTimelineFrame: false,
               isLiveObservedBackfill: true,
               isMissingObservedHour: false
             });
@@ -11143,7 +11213,7 @@ function formatSelectedObservedDate(dateStr) {
       url.searchParams.set("startDT", startInstant ? usgsIso(startInstant) : startDate);
       url.searchParams.set("endDT", usgsIso(endInstant));
       url.searchParams.set("siteStatus", "all");
-      const data = await fetchJson(url.href);
+      const data = await fetchJson(url.href, { timeoutMs: 15000 });
       return normalizeUsgsIvObservedDays(data);
     }
 
@@ -11165,24 +11235,46 @@ function formatSelectedObservedDate(dateStr) {
       const generation = archiveGeneration;
       const today = getTodayNyDateKey();
       const latest = getObservedArchiveLatestDateKey();
-      if (!today || (latest && compareDateKeys(latest, today) >= 0)) return;
+      if (!today || (latest && compareDateKeys(latest, today) > 0)) return;
 
-      const startDate = addDaysToDateKey(latest, 1) || today;
-      try {
-        const liveDays = await fetchRecentUsgsObservedDays(startDate, today);
-        if (generation !== archiveGeneration) return false;
-        liveDays.forEach(addOrMergeObservedDayRecord);
-      } catch (err) {
-        if (generation !== archiveGeneration) return false;
-        console.warn("Observed live USGS backfill failed; filling calendar placeholders through today.", err);
+      // A published row for today is still mutable. Keep the request on this
+      // archive object so Reload discards both its cooldown and pending work.
+      const archive = observedData;
+      let refresh = archive.liveObservedRefresh;
+      if (!refresh || refresh.generation !== generation) {
+        refresh = archive.liveObservedRefresh = { generation, date: today, nextRefreshAt: 0, promise: null };
       }
+      if (refresh.promise) return refresh.promise;
+      if (refresh.date === today && Date.now() < refresh.nextRefreshAt) return;
+      let startDate = latest && compareDateKeys(latest, today) < 0 ? addDaysToDateKey(latest, 1) : today;
+      if (refresh.retryStartDate && compareDateKeys(refresh.retryStartDate, startDate) < 0) startDate = refresh.retryStartDate;
+      refresh.date = today;
 
-      ensureObservedDatePlaceholders(startDate, today);
+      const request = (async () => {
+        let succeeded = false;
+        try {
+          const liveDays = await fetchRecentUsgsObservedDays(startDate, today);
+          if (generation !== archiveGeneration || archive !== observedData) return false;
+          liveDays.forEach(addOrMergeObservedDayRecord);
+          succeeded = true;
+        } catch (err) {
+          if (generation !== archiveGeneration || archive !== observedData) return false;
+          console.warn("Observed live USGS backfill failed; filling calendar placeholders through today.", err);
+        }
 
-      observedData.archiveEndDate = today;
-      observedData.endDate = today;
-      observedDaysCache = null;
-      clearExportAvailabilityCache();
+        ensureObservedDatePlaceholders(startDate, today);
+        archive.archiveEndDate = today;
+        archive.endDate = today;
+        observedDaysCache = null;
+        clearExportAvailabilityCache();
+        refresh.retryStartDate = succeeded ? null : startDate;
+        refresh.nextRefreshAt = Date.now() + (succeeded ? 15 * 60000 : 60000);
+        return true;
+      })().finally(() => {
+        if (refresh.promise === request) refresh.promise = null;
+      });
+      refresh.promise = request;
+      return request;
     }
 
     async function loadObserved() {
@@ -11578,15 +11670,14 @@ function populateCalendarSelectors() {
       const generation = ++selectionGeneration;
       if (!topTideEvents[index]) throw new Error("Top 10 flood crest not available.");
       stopPlayback();
-      const floodSelectionToken = cancelPendingFloodFrame();
+      let floodSelectionToken = cancelPendingFloodFrame();
 
+      try {
       currentBaseModeBeforeTopTide = currentDataMode;
       currentDataMode = "observed";
       updateDataModeButtons();
       if (!observedData) await warmBackgroundData();
-      if (floodSelectionToken !== lastRenderToken) return false;
-
-      if (generation !== selectionGeneration) return;
+      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
       let event = topTideEvents[index];
       const requestedDate = event.dateKey || event.entry?.observedDate || null;
       if (requestedDate) {
@@ -11597,7 +11688,7 @@ function populateCalendarSelectors() {
         // leaving the first replay stuck at "Maximum extent" until the user
         // changes the timeline interval.
         if (archiveSource === "lewes") await ensureLewesArchiveIndex();
-        if (generation !== selectionGeneration) return;
+        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
         const crestStage = getOverlayStage(event.peakStage);
         const crestAssetPromise = crestStage == null
           ? Promise.resolve(null)
@@ -11608,7 +11699,7 @@ function populateCalendarSelectors() {
           ensureObservedArchiveForDate(requestedDate),
           crestAssetPromise,
         ]);
-        if (generation !== selectionGeneration) return;
+        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
         topTideEvents = buildTopTideEvents();
         event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;
       }
@@ -11658,10 +11749,18 @@ function populateCalendarSelectors() {
       document.getElementById("hourSlider").value = String(currentHourIndex);
 
       await renderCalendar();
-      if (floodSelectionToken !== lastRenderToken) return false;
-      await renderHour(currentHourIndex);
+      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+      const rendering = renderHour(currentHourIndex);
+      // renderHour creates its own render token synchronously.
+      floodSelectionToken = lastRenderToken;
+      await rendering;
+      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
       renderTopTides();
       scheduleHistoricalTopTideWarmup();
+      } catch (error) {
+        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+        throw error;
+      }
     }
 
     async function setTimelineIntervalMinutes(minutes) {
@@ -13236,21 +13335,41 @@ function startPlayback() {
       return promise;
     }
 
-    async function samplePhysicsDepth(asset, lat, lon) {
-      const bounds = getActivePhysicsManifest()?.boundsWgs84;
-      if (!asset?.query?.url || !Array.isArray(bounds) || bounds.length !== 2) return null;
+    function latLngToPhysicsQueryPixel(manifest, lat, lon, width, height) {
+      const bounds = manifest?.boundsWgs84;
+      if (manifest?.schema !== "north-wildwood-physics-forecast-v2" ||
+          manifest?.image?.crs !== "EPSG:3857" ||
+          manifest?.image?.coordinateSystem !== "web-mercator" ||
+          !Array.isArray(bounds) || bounds.length !== 2 ||
+          ![lat, lon, width, height].every(Number.isFinite) ||
+          width <= 0 || height <= 0) return null;
       const south = Number(bounds[0]?.[0]);
       const west = Number(bounds[0]?.[1]);
       const north = Number(bounds[1]?.[0]);
       const east = Number(bounds[1]?.[1]);
       if (
         ![south, west, north, east].every(Number.isFinite) ||
+        west >= east || south >= north || south <= -85.05112878 || north >= 85.05112878 ||
         lat < south || lat > north || lon < west || lon > east
       ) return null;
+      const mercY = latitude => Math.log(Math.tan(Math.PI / 4 + latitude * Math.PI / 360));
+      const u = (lon - west) / (east - west);
+      const v = (mercY(north) - mercY(lat)) / (mercY(north) - mercY(south));
+      if (!Number.isFinite(u) || !Number.isFinite(v) || u < 0 || v < 0 || u >= 1 || v >= 1) return null;
+      return { x: Math.floor(u * width), y: Math.floor(v * height) };
+    }
+
+    async function samplePhysicsDepth(asset, lat, lon) {
+      if (!asset?.query?.url) return null;
+      const manifest = getActivePhysicsManifest();
+      // Check the schema and extent before requesting any image. Native-grid
+      // v1 products cannot be safely sampled as Web Mercator pixels.
+      if (!latLngToPhysicsQueryPixel(manifest, lat, lon, 1, 1)) return null;
       const image = await preloadPhysicsQueryImage(asset.query);
-      const x = Math.floor(((lon - west) / (east - west)) * image.naturalWidth);
-      const y = Math.floor(((north - lat) / (north - south)) * image.naturalHeight);
-      if (x < 0 || y < 0 || x >= image.naturalWidth || y >= image.naturalHeight) return null;
+      if (!image || image.naturalWidth !== manifest.image.width || image.naturalHeight !== manifest.image.height) return null;
+      const point = latLngToPhysicsQueryPixel(manifest, lat, lon, image.naturalWidth, image.naturalHeight);
+      if (!point) return null;
+      const { x, y } = point;
       const canvas = document.createElement("canvas");
       canvas.width = 1;
       canvas.height = 1;

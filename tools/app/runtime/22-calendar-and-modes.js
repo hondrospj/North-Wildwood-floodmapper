@@ -354,15 +354,14 @@ function populateCalendarSelectors() {
       const generation = ++selectionGeneration;
       if (!topTideEvents[index]) throw new Error("Top 10 flood crest not available.");
       stopPlayback();
-      const floodSelectionToken = cancelPendingFloodFrame();
+      let floodSelectionToken = cancelPendingFloodFrame();
 
+      try {
       currentBaseModeBeforeTopTide = currentDataMode;
       currentDataMode = "observed";
       updateDataModeButtons();
       if (!observedData) await warmBackgroundData();
-      if (floodSelectionToken !== lastRenderToken) return false;
-
-      if (generation !== selectionGeneration) return;
+      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
       let event = topTideEvents[index];
       const requestedDate = event.dateKey || event.entry?.observedDate || null;
       if (requestedDate) {
@@ -373,7 +372,7 @@ function populateCalendarSelectors() {
         // leaving the first replay stuck at "Maximum extent" until the user
         // changes the timeline interval.
         if (archiveSource === "lewes") await ensureLewesArchiveIndex();
-        if (generation !== selectionGeneration) return;
+        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
         const crestStage = getOverlayStage(event.peakStage);
         const crestAssetPromise = crestStage == null
           ? Promise.resolve(null)
@@ -384,7 +383,7 @@ function populateCalendarSelectors() {
           ensureObservedArchiveForDate(requestedDate),
           crestAssetPromise,
         ]);
-        if (generation !== selectionGeneration) return;
+        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
         topTideEvents = buildTopTideEvents();
         event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;
       }
@@ -434,10 +433,18 @@ function populateCalendarSelectors() {
       document.getElementById("hourSlider").value = String(currentHourIndex);
 
       await renderCalendar();
-      if (floodSelectionToken !== lastRenderToken) return false;
-      await renderHour(currentHourIndex);
+      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+      const rendering = renderHour(currentHourIndex);
+      // renderHour creates its own render token synchronously.
+      floodSelectionToken = lastRenderToken;
+      await rendering;
+      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
       renderTopTides();
       scheduleHistoricalTopTideWarmup();
+      } catch (error) {
+        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+        throw error;
+      }
     }
 
     async function setTimelineIntervalMinutes(minutes) {

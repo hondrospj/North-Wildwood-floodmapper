@@ -271,6 +271,17 @@ def historic_flood_count(sorted_peaks: list[float], elevation_ft: float) -> int:
     return len(sorted_peaks) - bisect.bisect_right(sorted_peaks, threshold)
 
 
+def model_elevation_record(first_floor: float, cdf: dict) -> tuple[float, int, int | None]:
+    """Use the same first-floor grid threshold for NSI joins and refreshes."""
+    grid = [float(value) for value in cdf.get("elevationGridFtNavd88", [])]
+    if not grid:
+        return round(first_floor, 1), -1, None
+    index = min(range(len(grid)), key=lambda candidate: abs(grid[candidate] - first_floor))
+    counts = cdf.get("historicFloodEventCountByElevation") or []
+    historic_count = int(counts[index]) if index < len(counts) else None
+    return grid[index], index, historic_count
+
+
 def _smoothed_cdf_from_histogram(
     histogram: np.ndarray,
     kernel_fft: np.ndarray,
@@ -759,6 +770,14 @@ def refresh_existing_parcel_counts(path: Path, events: list[dict], cdf: dict) ->
         if elevation is None or not math.isfinite(float(elevation)):
             continue
         properties["historicFloodEventCount"] = historic_flood_count(peak_levels, float(elevation))
+        first_floor = properties.get("nsi2026ModeledFirstFloorNavd88Ft")
+        if first_floor is not None and math.isfinite(float(first_floor)):
+            model_floor, model_index, historic_count = model_elevation_record(float(first_floor), cdf)
+            if model_index < 0 or historic_count is None:
+                raise ValueError("First-floor history refresh requires the matching CDF elevation/count grid")
+            properties["nsi2026ModelElevationNavd88Ft"] = model_floor
+            properties["nsi2026ModelElevationIndex"] = model_index
+            properties["nsi2026HistoricFirstFloorExceedanceCount"] = historic_count
         properties["minimumFloodDepthFt"] = MINIMUM_FLOOD_DEPTH_FT
         properties["historicStartDate"] = cdf["observedArchive"]["startDate"]
         properties["historicEndDate"] = cdf["observedArchive"]["endDate"]

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from osgeo import ogr
 
-from build_parcel_alerts import DemSampler
+from build_parcel_alerts import DemSampler, model_elevation_record
 
 
 NSI_STRUCTURES_URL = "https://nsi.sec.usace.army.mil/nsiapi/structures?fmt=fc"
@@ -270,16 +270,6 @@ def parcel_grid_cells(envelope: tuple[float, float, float, float]):
     for col in range(col_min, col_max + 1):
         for row in range(row_min, row_max + 1):
             yield col, row
-
-
-def model_elevation_record(first_floor: float, cdf: dict) -> tuple[float, int, int | None]:
-    grid = [float(value) for value in cdf.get("elevationGridFtNavd88", [])]
-    if not grid:
-        return round(first_floor, 1), -1, None
-    index = min(range(len(grid)), key=lambda candidate: abs(grid[candidate] - first_floor))
-    counts = cdf.get("historicFloodEventCountByElevation") or []
-    historic_count = int(counts[index]) if index < len(counts) else None
-    return grid[index], index, historic_count
 
 
 def augment_parcels(parcel_payload: dict, structures: list[dict], cdf: dict) -> dict:

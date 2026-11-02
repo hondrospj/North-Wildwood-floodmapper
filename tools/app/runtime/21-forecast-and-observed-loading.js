@@ -147,6 +147,22 @@
 
       const existing = observedData.days[existingIndex] || {};
       const existingHours = Array.isArray(existing.hours) ? existing.hours : [];
+      if (dayRecord.liveBackfilled) {
+        // Repeated IV responses may correct an existing reading or contain
+        // fewer readings. Reconcile by instant, retaining earlier valid data.
+        const byTime = new Map();
+        [...existingHours, ...nextHours].forEach(hour => {
+          const time = entryTimeMs(hour);
+          if (Number.isFinite(time) && Number.isFinite(getStageValue(hour))) byTime.set(time, hour);
+        });
+        const hours = Array.from(byTime.entries()).sort((a, b) => a[0] - b[0]).map(([, hour]) => hour);
+        const next = { ...existing, ...dayRecord, hours, timelineRawHours: hours, generatedPlaceholderDay: false };
+        const stages = [...hours, ...getObservedSourceHoursForDay(next)].map(getStageValue).filter(Number.isFinite);
+        next.peakNAVD88 = stages.length ? Math.max(...stages) : existing.peakNAVD88;
+        next.classification = classifyFloodStage(next.peakNAVD88);
+        observedData.days[existingIndex] = next;
+        return;
+      }
       const existingValid = existingHours.filter(hour => Number.isFinite(getStageValue(hour))).length;
       const nextValid = nextHours.filter(hour => Number.isFinite(getStageValue(hour))).length;
 
@@ -193,6 +209,11 @@
               value: n,
               observationInterval: "instantaneous",
               source: "usgs-iv-live",
+              sourceStationId: String(getUsgsObservedSiteId()),
+              sourceResolutionMinutes: 6,
+              observationQuality: "M",
+              isMeasuredQuarterHourArchive: minuteIndex % 15 === 0 && dt.getUTCSeconds() === 0 && dt.getUTCMilliseconds() === 0,
+              isInterpolatedTimelineFrame: false,
               isLiveObservedBackfill: true,
               isMissingObservedHour: false
             });
@@ -236,7 +257,7 @@
       url.searchParams.set("startDT", startInstant ? usgsIso(startInstant) : startDate);
       url.searchParams.set("endDT", usgsIso(endInstant));
       url.searchParams.set("siteStatus", "all");
-      const data = await fetchJson(url.href);
+      const data = await fetchJson(url.href, { timeoutMs: 15000 });
       return normalizeUsgsIvObservedDays(data);
     }
 
@@ -258,24 +279,46 @@
       const generation = archiveGeneration;
       const today = getTodayNyDateKey();
       const latest = getObservedArchiveLatestDateKey();
-      if (!today || (latest && compareDateKeys(latest, today) >= 0)) return;
+      if (!today || (latest && compareDateKeys(latest, today) > 0)) return;
 
-      const startDate = addDaysToDateKey(latest, 1) || today;
-      try {
-        const liveDays = await fetchRecentUsgsObservedDays(startDate, today);
-        if (generation !== archiveGeneration) return false;
-        liveDays.forEach(addOrMergeObservedDayRecord);
-      } catch (err) {
-        if (generation !== archiveGeneration) return false;
-        console.warn("Observed live USGS backfill failed; filling calendar placeholders through today.", err);
+      // A published row for today is still mutable. Keep the request on this
+      // archive object so Reload discards both its cooldown and pending work.
+      const archive = observedData;
+      let refresh = archive.liveObservedRefresh;
+      if (!refresh || refresh.generation !== generation) {
+        refresh = archive.liveObservedRefresh = { generation, date: today, nextRefreshAt: 0, promise: null };
       }
+      if (refresh.promise) return refresh.promise;
+      if (refresh.date === today && Date.now() < refresh.nextRefreshAt) return;
+      let startDate = latest && compareDateKeys(latest, today) < 0 ? addDaysToDateKey(latest, 1) : today;
+      if (refresh.retryStartDate && compareDateKeys(refresh.retryStartDate, startDate) < 0) startDate = refresh.retryStartDate;
+      refresh.date = today;
 
-      ensureObservedDatePlaceholders(startDate, today);
+      const request = (async () => {
+        let succeeded = false;
+        try {
+          const liveDays = await fetchRecentUsgsObservedDays(startDate, today);
+          if (generation !== archiveGeneration || archive !== observedData) return false;
+          liveDays.forEach(addOrMergeObservedDayRecord);
+          succeeded = true;
+        } catch (err) {
+          if (generation !== archiveGeneration || archive !== observedData) return false;
+          console.warn("Observed live USGS backfill failed; filling calendar placeholders through today.", err);
+        }
 
-      observedData.archiveEndDate = today;
-      observedData.endDate = today;
-      observedDaysCache = null;
-      clearExportAvailabilityCache();
+        ensureObservedDatePlaceholders(startDate, today);
+        archive.archiveEndDate = today;
+        archive.endDate = today;
+        observedDaysCache = null;
+        clearExportAvailabilityCache();
+        refresh.retryStartDate = succeeded ? null : startDate;
+        refresh.nextRefreshAt = Date.now() + (succeeded ? 15 * 60000 : 60000);
+        return true;
+      })().finally(() => {
+        if (refresh.promise === request) refresh.promise = null;
+      });
+      refresh.promise = request;
+      return request;
     }
 
     async function loadObserved() {

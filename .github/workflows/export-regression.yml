@@ -40,6 +40,7 @@ jobs:
         with:
           sparse-checkout: |
             index.html
+            city-gauge/index.html
             assets/export-area.js
             assets/export-preview.js
             assets/export-date-time-picker.js
@@ -81,6 +82,7 @@ jobs:
             tools/fixtures/north-wildwood-20261101-road-fallback.json
             tools/fixtures/north-wildwood-20261101-adaptive-sidebar.json
             tools/fixtures/north-wildwood-20261101-tutorial-gesture.json
+            tools/fixtures/north-wildwood-20261102-audit-logic.json
             tools/fixtures/north-wildwood-export-dst.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs

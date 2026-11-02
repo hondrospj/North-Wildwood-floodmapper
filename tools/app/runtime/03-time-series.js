@@ -373,14 +373,31 @@ function parseStoredLocalNyToDate(timeEST) {
 
     function getObservedSourceHoursForDay(dayRecord) {
       const dateStr = dayRecord?.date || dayRecord?.d;
+      const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];
       if (dayRecord?.isLewesSurrogate) {
         const compact = dayRecord?.lewesCompactDay || lewesHourlyDaysByDate.get(dateStr);
         if (compact) return applyObservedCrestToSource(dayRecord, decodeLewesHourlyDay({ ...dayRecord, lewesCompactDay: compact }));
       } else if (dateStr) {
         const quarterDay = observed15MinuteDaysByDate.get(dateStr);
+        const live = (dense.length ? dense : (Array.isArray(dayRecord?.hours) ? dayRecord.hours : []))
+          .filter(entry => entry?.isLiveObservedBackfill && Number.isFinite(getStageValue(entry)));
+        if (live.length) {
+          const byTime = new Map((quarterDay ? decodeObserved15MinuteDay(quarterDay) : [])
+            .map(entry => [entryTimeMs(entry), entry]));
+          // IV readings are six-minute measurements. Only exact quarter-hour
+          // readings are measured anchors; interpolate the intervening slots
+          // within the same thirty-minute gap limit as the primary archive.
+          const fresh = buildQuarterHourTimelineSeries(live, {
+            kind: "observed", observedDate: dateStr, fillMissingSlots: false,
+            requireExactSamples: true, sourceResolutionMinutes: 6, maxGapMinutes: 30
+          });
+          fresh.forEach(entry => byTime.set(entryTimeMs(entry), entry.isInterpolatedTimelineFrame
+            ? { ...entry, observationQuality: "I" } : entry));
+          return applyObservedCrestToSource(dayRecord, Array.from(byTime.entries())
+            .sort((a, b) => a[0] - b[0]).map(([, entry]) => entry));
+        }
         if (quarterDay?.v?.some(value => value != null)) return applyObservedCrestToSource(dayRecord, decodeObserved15MinuteDay(quarterDay));
       }
-      const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];
       if (dense.length) return dense;
       const fallbackPeak = normalizeStageValue(dayRecord?.peakNAVD88);
       if (Number.isFinite(fallbackPeak) && dayRecord?.date) {
@@ -500,6 +517,7 @@ function parseStoredLocalNyToDate(timeEST) {
       const exactBySlot = new Map();
       valid.forEach(item => {
         const slot = Math.round(item.t / stepMs) * stepMs;
+        if (options.requireExactSamples && item.t !== slot) return;
         if (Math.abs(item.t - slot) > stepMs / 2) return;
         const existing = exactBySlot.get(slot);
         if (!existing || Math.abs(item.t - slot) < Math.abs(existing.t - slot)) exactBySlot.set(slot, item);
@@ -512,7 +530,8 @@ function parseStoredLocalNyToDate(timeEST) {
         if (exact && Number.isFinite(getStageValue(exact.entry))) {
           out.push(setTimelineSlotFields({
             ...exact.entry,
-            sourceResolutionMinutes
+            sourceResolutionMinutes: exact.entry.isLiveObservedBackfill
+              ? exact.entry.sourceResolutionMinutes : sourceResolutionMinutes
           }, slot, intervalMinutes, options));
           continue;
         }

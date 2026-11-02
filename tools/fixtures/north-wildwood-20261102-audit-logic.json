@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "6e97c247867016bbc0c27d60f2841a1f0b65b5b1",
+  "files": [
+    {
+      "source": "tools/app/runtime/01-physics-manifests.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "1e2bb220d87addca92fdba249f486ed8775801a1fec28a4bae16bad58cd467ab",
+      "afterSha256": "3abde24a853752f222d88e65e25aa67b9fe9bb7df34408f7133da1e3b7aa5085"
+    },
+    {
+      "source": "tools/app/runtime/03-time-series.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "ab758bebd50c7df7aff18bf5c334d85872e8d08e7664653ec5a04a113a819bab",
+      "afterSha256": "d16f76eca4548d389994f7fedd333cf8c9f2256f1bf018ab80da310713be953a"
+    },
+    {
+      "source": "tools/app/runtime/04-observation-archives.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "63fe798ae5e02c71305bd85fd2b4503fa435a281b985e445541a3c22ccc9d97d",
+      "afterSha256": "58c18bcbbf0a811be7ffcf50ada8ed59b52834ba45066414bca007888ba997af"
+    },
+    {
+      "source": "tools/app/runtime/05-presentation.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "4b47d864781125bd25ae6d5e6c31fe3e521a439cc7f6e03983d4113355106976",
+      "afterSha256": "0875ccfe58f34eb9f7fbde06b9f6b211fd4b947ff4842cfe6bac931b434355fa"
+    },
+    {
+      "source": "tools/app/runtime/21-forecast-and-observed-loading.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "212865a497ece4aa03115a3a0d128961016a5767a5aa81b1a7e59199523140e3",
+      "afterSha256": "49295848285bc6f1701b1f44975565958c15bd626eed434f40ca850c2b069c8b"
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "4d3d37ab96b48602b19ed6bfb020586b448c1bea927cbf7cdcb78bcc93f88d53",
+      "afterSha256": "79a946db82b99d8b716a55a8d5a6872df522091bde3e3a1998b9be2cf129caf0"
+    },
+    {
+      "source": "tools/app/runtime/26-depth-queries.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "73787793dfb4f605a680d15b672a755522cfe32f12319d68895d6d1ffda8cdfa",
+      "afterSha256": "6e50ca57f88ad8fe5f40b2f0270c513554ac0dc35cd9a54c9a6f2d89d1a2f6c1"
+    },
+    {
+      "source": "assets/export-area.js",
+      "kind": "module",
+      "entryId": null,
+      "beforeSha256": "46258efb7883ea69160c41e924ae4a003046ef51e92e2540f7e93141b94e8098",
+      "afterSha256": "5a855541ebdd2d2d53981d037933e09e3e803be411827cad4a947d8a39f88d69"
+    },
+    {
+      "source": "city-gauge/index.html",
+      "kind": "script-document",
+      "entryId": null,
+      "beforeSha256": "4cb6264e1075eeaa104568bff5112b102deec137497e93c3593c45e509c79e5e",
+      "afterSha256": "15608ae4ce5faa8f2b966cb48db32dc6f2338aa081609af45f2ccc4d5b96aeac"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "kind": "template",
+      "entryId": null,
+      "beforeSha256": "e67bd9cbef0c53b8f2f4869319dde17c4d97c6a006f5c390b72afe96197e141d",
+      "afterSha256": "9d86b7cfb62028cc95220908f6416f27d578e537f510e57b839903dfbc4dd87d"
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "kind": "generated",
+      "entryId": "script-004",
+      "beforeSha256": "1ee43e8029b6026edad10741a3c4e8fdf44bbd92767cb7cd85b044144f219e21",
+      "afterSha256": "d98824d368e52068953c4c3c10ce70c4877607cfa0b9e38f4d83291ea53b7d39"
+    },
+    {
+      "source": "index.html",
+      "kind": "document",
+      "entryId": null,
+      "beforeSha256": "be449b1407a605d8c4dd1607aa909ead1fc92d9537a196254a76882f2617bb8f",
+      "afterSha256": "6b5d83b8fe8962c6340709865f8563a5f995e2f2424c6b9f275d1aa945ee8b5c"
+    }
+  ],
+  "changes": [
+    {
+      "source": "tools/app/runtime/01-physics-manifests.js",
+      "id": "01-physics-manifests-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "    function physicsPointerUrl() {\n      const forecastCycle = Date.parse(forecastData?.petssCycleUtc || \"\");\n      const cycleId = Number.isFinite(forecastCycle)\n        ? new Date(forecastCycle).toISOString().replace(/[-:]/g, \"\").replace(/\\.000Z$/, \"Z\")\n        : \"\";\n      const cyclePointerPath = PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE && cycleId\n        ? PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE.replaceAll(\"{cycleId}\", cycleId)\n        : \"\";\n",
+      "afterSource": "    function physicsCycleIdFromUtc(value) {\n      // The producer names hourly cycles YYYYMMDDTHH00Z, without seconds.\n      // Reject missing zones and normalized invalid dates before selecting a\n      // cycle-specific pointer; Date.parse alone accepts dates such as Feb 30.\n      const parts = typeof value === \"string\" && value.match(\n        /^(\\d{4}-\\d{2}-\\d{2})T(\\d{2}):(\\d{2})(?::(\\d{2})(?:\\.(\\d+))?)?(Z|[+-](\\d{2}):(\\d{2}))$/\n      );\n      if (!parts || Number(parts[2]) > 23 || Number(parts[3]) > 59 ||\n          Number(parts[4] || 0) > 59 || (parts[5] && !/^0+$/.test(parts[5])) ||\n          Number(parts[7] || 0) > 23 || Number(parts[8] || 0) > 59) return \"\";\n      const midnight = Date.parse(`${parts[1]}T00:00:00Z`);\n      const timestamp = Date.parse(value);\n      if (!Number.isFinite(midnight) || new Date(midnight).toISOString().slice(0, 10) !== parts[1] ||\n          !Number.isFinite(timestamp)) return \"\";\n      const cycle = new Date(timestamp);\n      if (cycle.getUTCMinutes() || cycle.getUTCSeconds() || cycle.getUTCMilliseconds()) return \"\";\n      const iso = cycle.toISOString();\n      return /^\\d{4}-/.test(iso) ? iso.slice(0, 16).replace(/[-:]/g, \"\") + \"Z\" : \"\";\n    }\n\n    function physicsPointerUrl() {\n      const cycleId = physicsCycleIdFromUtc(forecastData?.petssCycleUtc);\n      const cyclePointerPath = PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE && cycleId\n        ? PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE.replaceAll(\"{cycleId}\", cycleId)\n        : \"\";\n"
+    },
+    {
+      "source": "tools/app/runtime/01-physics-manifests.js",
+      "id": "01-physics-manifests-2",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      }\n      const generation = archiveGeneration;\n      const pointerUrl = physicsPointerUrl();\n      const pointer = await fetchJson(pointerUrl);\n      if (generation !== archiveGeneration) throw new Error(\"Physics request superseded by Reload\");\n      const manifestUrls = pointer?.manifestUrls && typeof pointer.manifestUrls === \"object\"\n",
+      "afterSource": "      }\n      const generation = archiveGeneration;\n      const pointerUrl = physicsPointerUrl();\n      if (!pointerUrl) return null;\n      const pointer = await fetchJson(pointerUrl);\n      if (generation !== archiveGeneration) throw new Error(\"Physics request superseded by Reload\");\n      const manifestUrls = pointer?.manifestUrls && typeof pointer.manifestUrls === \"object\"\n"
+    },
+    {
+      "source": "tools/app/runtime/01-physics-manifests.js",
+      "id": "01-physics-manifests-3",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "          records.every(record => record?.visible?.path && record?.impact?.path && record?.query?.path);\n        if (\n          manifest?.status !== \"complete\" ||\n          manifest?.schema !== \"north-wildwood-physics-forecast-v1\" ||\n          !Array.isArray(manifest?.boundsWgs84) ||\n          !recordsValid(manifest?.frames) ||\n          !recordsValid(manifest?.dailyMaximums)\n",
+      "afterSource": "          records.every(record => record?.visible?.path && record?.impact?.path && record?.query?.path);\n        if (\n          manifest?.status !== \"complete\" ||\n          manifest?.schema !== \"north-wildwood-physics-forecast-v2\" ||\n          manifest?.image?.crs !== \"EPSG:3857\" ||\n          manifest?.image?.coordinateSystem !== \"web-mercator\" ||\n          !Array.isArray(manifest?.boundsWgs84) ||\n          !recordsValid(manifest?.frames) ||\n          !recordsValid(manifest?.dailyMaximums)\n"
+    },
+    {
+      "source": "tools/app/runtime/03-time-series.js",
+      "id": "03-time-series-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "\n    function getObservedSourceHoursForDay(dayRecord) {\n      const dateStr = dayRecord?.date || dayRecord?.d;\n      if (dayRecord?.isLewesSurrogate) {\n        const compact = dayRecord?.lewesCompactDay || lewesHourlyDaysByDate.get(dateStr);\n        if (compact) return applyObservedCrestToSource(dayRecord, decodeLewesHourlyDay({ ...dayRecord, lewesCompactDay: compact }));\n      } else if (dateStr) {\n        const quarterDay = observed15MinuteDaysByDate.get(dateStr);\n        if (quarterDay?.v?.some(value => value != null)) return applyObservedCrestToSource(dayRecord, decodeObserved15MinuteDay(quarterDay));\n      }\n      const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];\n      if (dense.length) return dense;\n      const fallbackPeak = normalizeStageValue(dayRecord?.peakNAVD88);\n      if (Number.isFinite(fallbackPeak) && dayRecord?.date) {\n",
+      "afterSource": "\n    function getObservedSourceHoursForDay(dayRecord) {\n      const dateStr = dayRecord?.date || dayRecord?.d;\n      const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];\n      if (dayRecord?.isLewesSurrogate) {\n        const compact = dayRecord?.lewesCompactDay || lewesHourlyDaysByDate.get(dateStr);\n        if (compact) return applyObservedCrestToSource(dayRecord, decodeLewesHourlyDay({ ...dayRecord, lewesCompactDay: compact }));\n      } else if (dateStr) {\n        const quarterDay = observed15MinuteDaysByDate.get(dateStr);\n        const live = (dense.length ? dense : (Array.isArray(dayRecord?.hours) ? dayRecord.hours : []))\n          .filter(entry => entry?.isLiveObservedBackfill && Number.isFinite(getStageValue(entry)));\n        if (live.length) {\n          const byTime = new Map((quarterDay ? decodeObserved15MinuteDay(quarterDay) : [])\n            .map(entry => [entryTimeMs(entry), entry]));\n          // IV readings are six-minute measurements. Only exact quarter-hour\n          // readings are measured anchors; interpolate the intervening slots\n          // within the same thirty-minute gap limit as the primary archive.\n          const fresh = buildQuarterHourTimelineSeries(live, {\n            kind: \"observed\", observedDate: dateStr, fillMissingSlots: false,\n            requireExactSamples: true, sourceResolutionMinutes: 6, maxGapMinutes: 30\n          });\n          fresh.forEach(entry => byTime.set(entryTimeMs(entry), entry.isInterpolatedTimelineFrame\n            ? { ...entry, observationQuality: \"I\" } : entry));\n          return applyObservedCrestToSource(dayRecord, Array.from(byTime.entries())\n            .sort((a, b) => a[0] - b[0]).map(([, entry]) => entry));\n        }\n        if (quarterDay?.v?.some(value => value != null)) return applyObservedCrestToSource(dayRecord, decodeObserved15MinuteDay(quarterDay));\n      }\n      if (dense.length) return dense;\n      const fallbackPeak = normalizeStageValue(dayRecord?.peakNAVD88);\n      if (Number.isFinite(fallbackPeak) && dayRecord?.date) {\n"
+    },
+    {
+      "source": "tools/app/runtime/03-time-series.js",
+      "id": "03-time-series-2",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      const exactBySlot = new Map();\n      valid.forEach(item => {\n        const slot = Math.round(item.t / stepMs) * stepMs;\n        if (Math.abs(item.t - slot) > stepMs / 2) return;\n        const existing = exactBySlot.get(slot);\n        if (!existing || Math.abs(item.t - slot) < Math.abs(existing.t - slot)) exactBySlot.set(slot, item);\n",
+      "afterSource": "      const exactBySlot = new Map();\n      valid.forEach(item => {\n        const slot = Math.round(item.t / stepMs) * stepMs;\n        if (options.requireExactSamples && item.t !== slot) return;\n        if (Math.abs(item.t - slot) > stepMs / 2) return;\n        const existing = exactBySlot.get(slot);\n        if (!existing || Math.abs(item.t - slot) < Math.abs(existing.t - slot)) exactBySlot.set(slot, item);\n"
+    },
+    {
+      "source": "tools/app/runtime/03-time-series.js",
+      "id": "03-time-series-3",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "        if (exact && Number.isFinite(getStageValue(exact.entry))) {\n          out.push(setTimelineSlotFields({\n            ...exact.entry,\n            sourceResolutionMinutes\n          }, slot, intervalMinutes, options));\n          continue;\n        }\n",
+      "afterSource": "        if (exact && Number.isFinite(getStageValue(exact.entry))) {\n          out.push(setTimelineSlotFields({\n            ...exact.entry,\n            sourceResolutionMinutes: exact.entry.isLiveObservedBackfill\n              ? exact.entry.sourceResolutionMinutes : sourceResolutionMinutes\n          }, slot, intervalMinutes, options));\n          continue;\n        }\n"
+    },
+    {
+      "source": "tools/app/runtime/04-observation-archives.js",
+      "id": "04-observation-archives-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "\n    async function ensureObservedArchiveForDate(dateStr) {\n      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(dateStr || \"\"))) return false;\n      const source = getObservedArchiveSourceForDate(dateStr);\n      await ensureObservedArchiveYear(source, String(dateStr).slice(0, 4));\n      // The final three quarter-hours need the next measured hourly endpoint.\n      // Usually it is in the same shard; December 31 also needs the next year.\n      const nextDate = addDaysToDateKey(dateStr, 1);\n      if (source === \"lewes\" && nextDate.slice(0, 4) !== dateStr.slice(0, 4)\n          && getObservedArchiveSourceForDate(nextDate) === source) {\n        await ensureObservedArchiveYear(source, nextDate.slice(0, 4));\n      }\n      return (source === \"lewes\" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate).has(dateStr);\n    }\n",
+      "afterSource": "\n    async function ensureObservedArchiveForDate(dateStr) {\n      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(dateStr || \"\"))) return false;\n      const generation = archiveGeneration;\n      const source = getObservedArchiveSourceForDate(dateStr);\n      await ensureObservedArchiveYear(source, String(dateStr).slice(0, 4));\n      if (generation !== archiveGeneration) return false;\n      // The final three quarter-hours need the next measured hourly endpoint.\n      // Usually it is in the same shard; December 31 also needs the next year.\n      const nextDate = addDaysToDateKey(dateStr, 1);\n      if (source === \"lewes\" && nextDate.slice(0, 4) !== dateStr.slice(0, 4)\n          && getObservedArchiveSourceForDate(nextDate) === source) {\n        await ensureObservedArchiveYear(source, nextDate.slice(0, 4));\n      }\n      if (generation !== archiveGeneration) return false;\n      // Background history stays cached, but today's gauge readings keep\n      // advancing. Reuse the live cooldown when this date is selected again.\n      if (source === \"stone-harbor\" && typeof extendObservedArchiveThroughToday === \"function\"\n          && dateStr === getTodayNyDateKey()) {\n        await extendObservedArchiveThroughToday();\n        if (generation !== archiveGeneration) return false;\n      }\n      return (source === \"lewes\" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate).has(dateStr);\n    }\n"
+    },
+    {
+      "source": "tools/app/runtime/04-observation-archives.js",
+      "id": "04-observation-archives-2",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "        quarterHourIndex: idx,\n        classification: dayRecord?.classification || entry.classification || \"none\",\n        peakNAVD88: dayRecord?.peakNAVD88 ?? entry.peakNAVD88,\n        sourceResolutionMinutes\n      })));\n    }\n\n",
+      "afterSource": "        quarterHourIndex: idx,\n        classification: dayRecord?.classification || entry.classification || \"none\",\n        peakNAVD88: dayRecord?.peakNAVD88 ?? entry.peakNAVD88,\n        sourceResolutionMinutes: entry.isLiveObservedBackfill ? entry.sourceResolutionMinutes : sourceResolutionMinutes\n      })));\n    }\n\n"
+    },
+    {
+      "source": "tools/app/runtime/05-presentation.js",
+      "id": "05-presentation-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "    }\n\n    let downloadModalGeneration = 0;\n    function setDownloadModalOpen(isOpen) {\n      const modal = document.getElementById(\"downloadModal\");\n      const btn = document.getElementById(\"openDownloadModalBtn\");\n      if (!modal || !btn) return;\n",
+      "afterSource": "    }\n\n    let downloadModalGeneration = 0;\n    function setDownloadModalOpen(isOpen, { preserveRange = false } = {}) {\n      const modal = document.getElementById(\"downloadModal\");\n      const btn = document.getElementById(\"openDownloadModalBtn\");\n      if (!modal || !btn) return;\n"
+    },
+    {
+      "source": "tools/app/runtime/05-presentation.js",
+      "id": "05-presentation-2",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "        updateDownloadModeCopy();\n        updateExportSegmentedUI();\n        applyExportStageAspect(getDownloadAspectValue());\n        syncDownloadRangeInputs(true);\n        updateDownloadSummary();\n        ensureExportArchiveAvailability().then(() => {\n          if (generation !== downloadModalGeneration || modal.hidden) return;\n",
+      "afterSource": "        updateDownloadModeCopy();\n        updateExportSegmentedUI();\n        applyExportStageAspect(getDownloadAspectValue());\n        syncDownloadRangeInputs(!preserveRange);\n        updateDownloadSummary();\n        ensureExportArchiveAvailability().then(() => {\n          if (generation !== downloadModalGeneration || modal.hidden) return;\n"
+    },
+    {
+      "source": "tools/app/runtime/21-forecast-and-observed-loading.js",
+      "id": "21-forecast-and-observed-loading-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "\n      const existing = observedData.days[existingIndex] || {};\n      const existingHours = Array.isArray(existing.hours) ? existing.hours : [];\n      const existingValid = existingHours.filter(hour => Number.isFinite(getStageValue(hour))).length;\n      const nextValid = nextHours.filter(hour => Number.isFinite(getStageValue(hour))).length;\n\n",
+      "afterSource": "\n      const existing = observedData.days[existingIndex] || {};\n      const existingHours = Array.isArray(existing.hours) ? existing.hours : [];\n      if (dayRecord.liveBackfilled) {\n        // Repeated IV responses may correct an existing reading or contain\n        // fewer readings. Reconcile by instant, retaining earlier valid data.\n        const byTime = new Map();\n        [...existingHours, ...nextHours].forEach(hour => {\n          const time = entryTimeMs(hour);\n          if (Number.isFinite(time) && Number.isFinite(getStageValue(hour))) byTime.set(time, hour);\n        });\n        const hours = Array.from(byTime.entries()).sort((a, b) => a[0] - b[0]).map(([, hour]) => hour);\n        const next = { ...existing, ...dayRecord, hours, timelineRawHours: hours, generatedPlaceholderDay: false };\n        const stages = [...hours, ...getObservedSourceHoursForDay(next)].map(getStageValue).filter(Number.isFinite);\n        next.peakNAVD88 = stages.length ? Math.max(...stages) : existing.peakNAVD88;\n        next.classification = classifyFloodStage(next.peakNAVD88);\n        observedData.days[existingIndex] = next;\n        return;\n      }\n      const existingValid = existingHours.filter(hour => Number.isFinite(getStageValue(hour))).length;\n      const nextValid = nextHours.filter(hour => Number.isFinite(getStageValue(hour))).length;\n\n"
+    },
+    {
+      "source": "tools/app/runtime/21-forecast-and-observed-loading.js",
+      "id": "21-forecast-and-observed-loading-2",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "              value: n,\n              observationInterval: \"instantaneous\",\n              source: \"usgs-iv-live\",\n              isLiveObservedBackfill: true,\n              isMissingObservedHour: false\n            });\n",
+      "afterSource": "              value: n,\n              observationInterval: \"instantaneous\",\n              source: \"usgs-iv-live\",\n              sourceStationId: String(getUsgsObservedSiteId()),\n              sourceResolutionMinutes: 6,\n              observationQuality: \"M\",\n              isMeasuredQuarterHourArchive: minuteIndex % 15 === 0 && dt.getUTCSeconds() === 0 && dt.getUTCMilliseconds() === 0,\n              isInterpolatedTimelineFrame: false,\n              isLiveObservedBackfill: true,\n              isMissingObservedHour: false\n            });\n"
+    },
+    {
+      "source": "tools/app/runtime/21-forecast-and-observed-loading.js",
+      "id": "21-forecast-and-observed-loading-3",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      url.searchParams.set(\"startDT\", startInstant ? usgsIso(startInstant) : startDate);\n      url.searchParams.set(\"endDT\", usgsIso(endInstant));\n      url.searchParams.set(\"siteStatus\", \"all\");\n      const data = await fetchJson(url.href);\n      return normalizeUsgsIvObservedDays(data);\n    }\n\n",
+      "afterSource": "      url.searchParams.set(\"startDT\", startInstant ? usgsIso(startInstant) : startDate);\n      url.searchParams.set(\"endDT\", usgsIso(endInstant));\n      url.searchParams.set(\"siteStatus\", \"all\");\n      const data = await fetchJson(url.href, { timeoutMs: 15000 });\n      return normalizeUsgsIvObservedDays(data);\n    }\n\n"
+    },
+    {
+      "source": "tools/app/runtime/21-forecast-and-observed-loading.js",
+      "id": "21-forecast-and-observed-loading-4",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      const generation = archiveGeneration;\n      const today = getTodayNyDateKey();\n      const latest = getObservedArchiveLatestDateKey();\n      if (!today || (latest && compareDateKeys(latest, today) >= 0)) return;\n\n      const startDate = addDaysToDateKey(latest, 1) || today;\n      try {\n        const liveDays = await fetchRecentUsgsObservedDays(startDate, today);\n        if (generation !== archiveGeneration) return false;\n        liveDays.forEach(addOrMergeObservedDayRecord);\n      } catch (err) {\n        if (generation !== archiveGeneration) return false;\n        console.warn(\"Observed live USGS backfill failed; filling calendar placeholders through today.\", err);\n      }\n\n      ensureObservedDatePlaceholders(startDate, today);\n\n      observedData.archiveEndDate = today;\n      observedData.endDate = today;\n      observedDaysCache = null;\n      clearExportAvailabilityCache();\n    }\n\n    async function loadObserved() {\n",
+      "afterSource": "      const generation = archiveGeneration;\n      const today = getTodayNyDateKey();\n      const latest = getObservedArchiveLatestDateKey();\n      if (!today || (latest && compareDateKeys(latest, today) > 0)) return;\n\n      // A published row for today is still mutable. Keep the request on this\n      // archive object so Reload discards both its cooldown and pending work.\n      const archive = observedData;\n      let refresh = archive.liveObservedRefresh;\n      if (!refresh || refresh.generation !== generation) {\n        refresh = archive.liveObservedRefresh = { generation, date: today, nextRefreshAt: 0, promise: null };\n      }\n      if (refresh.promise) return refresh.promise;\n      if (refresh.date === today && Date.now() < refresh.nextRefreshAt) return;\n      let startDate = latest && compareDateKeys(latest, today) < 0 ? addDaysToDateKey(latest, 1) : today;\n      if (refresh.retryStartDate && compareDateKeys(refresh.retryStartDate, startDate) < 0) startDate = refresh.retryStartDate;\n      refresh.date = today;\n\n      const request = (async () => {\n        let succeeded = false;\n        try {\n          const liveDays = await fetchRecentUsgsObservedDays(startDate, today);\n          if (generation !== archiveGeneration || archive !== observedData) return false;\n          liveDays.forEach(addOrMergeObservedDayRecord);\n          succeeded = true;\n        } catch (err) {\n          if (generation !== archiveGeneration || archive !== observedData) return false;\n          console.warn(\"Observed live USGS backfill failed; filling calendar placeholders through today.\", err);\n        }\n\n        ensureObservedDatePlaceholders(startDate, today);\n        archive.archiveEndDate = today;\n        archive.endDate = today;\n        observedDaysCache = null;\n        clearExportAvailabilityCache();\n        refresh.retryStartDate = succeeded ? null : startDate;\n        refresh.nextRefreshAt = Date.now() + (succeeded ? 15 * 60000 : 60000);\n        return true;\n      })().finally(() => {\n        if (refresh.promise === request) refresh.promise = null;\n      });\n      refresh.promise = request;\n      return request;\n    }\n\n    async function loadObserved() {\n"
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "id": "22-calendar-and-modes-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      const generation = ++selectionGeneration;\n      if (!topTideEvents[index]) throw new Error(\"Top 10 flood crest not available.\");\n      stopPlayback();\n      const floodSelectionToken = cancelPendingFloodFrame();\n\n      currentBaseModeBeforeTopTide = currentDataMode;\n      currentDataMode = \"observed\";\n      updateDataModeButtons();\n      if (!observedData) await warmBackgroundData();\n      if (floodSelectionToken !== lastRenderToken) return false;\n\n      if (generation !== selectionGeneration) return;\n      let event = topTideEvents[index];\n      const requestedDate = event.dateKey || event.entry?.observedDate || null;\n      if (requestedDate) {\n",
+      "afterSource": "      const generation = ++selectionGeneration;\n      if (!topTideEvents[index]) throw new Error(\"Top 10 flood crest not available.\");\n      stopPlayback();\n      let floodSelectionToken = cancelPendingFloodFrame();\n\n      try {\n      currentBaseModeBeforeTopTide = currentDataMode;\n      currentDataMode = \"observed\";\n      updateDataModeButtons();\n      if (!observedData) await warmBackgroundData();\n      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n      let event = topTideEvents[index];\n      const requestedDate = event.dateKey || event.entry?.observedDate || null;\n      if (requestedDate) {\n"
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "id": "22-calendar-and-modes-2",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "        // leaving the first replay stuck at \"Maximum extent\" until the user\n        // changes the timeline interval.\n        if (archiveSource === \"lewes\") await ensureLewesArchiveIndex();\n        if (generation !== selectionGeneration) return;\n        const crestStage = getOverlayStage(event.peakStage);\n        const crestAssetPromise = crestStage == null\n          ? Promise.resolve(null)\n",
+      "afterSource": "        // leaving the first replay stuck at \"Maximum extent\" until the user\n        // changes the timeline interval.\n        if (archiveSource === \"lewes\") await ensureLewesArchiveIndex();\n        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n        const crestStage = getOverlayStage(event.peakStage);\n        const crestAssetPromise = crestStage == null\n          ? Promise.resolve(null)\n"
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "id": "22-calendar-and-modes-3",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "          ensureObservedArchiveForDate(requestedDate),\n          crestAssetPromise,\n        ]);\n        if (generation !== selectionGeneration) return;\n        topTideEvents = buildTopTideEvents();\n        event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;\n      }\n",
+      "afterSource": "          ensureObservedArchiveForDate(requestedDate),\n          crestAssetPromise,\n        ]);\n        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n        topTideEvents = buildTopTideEvents();\n        event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;\n      }\n"
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "id": "22-calendar-and-modes-4",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n\n      await renderCalendar();\n      if (floodSelectionToken !== lastRenderToken) return false;\n      await renderHour(currentHourIndex);\n      renderTopTides();\n      scheduleHistoricalTopTideWarmup();\n    }\n\n    async function setTimelineIntervalMinutes(minutes) {\n",
+      "afterSource": "      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n\n      await renderCalendar();\n      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n      const rendering = renderHour(currentHourIndex);\n      // renderHour creates its own render token synchronously.\n      floodSelectionToken = lastRenderToken;\n      await rendering;\n      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n      renderTopTides();\n      scheduleHistoricalTopTideWarmup();\n      } catch (error) {\n        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;\n        throw error;\n      }\n    }\n\n    async function setTimelineIntervalMinutes(minutes) {\n"
+    },
+    {
+      "source": "tools/app/runtime/26-depth-queries.js",
+      "id": "26-depth-queries-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSource": "      return promise;\n    }\n\n    async function samplePhysicsDepth(asset, lat, lon) {\n      const bounds = getActivePhysicsManifest()?.boundsWgs84;\n      if (!asset?.query?.url || !Array.isArray(bounds) || bounds.length !== 2) return null;\n      const south = Number(bounds[0]?.[0]);\n      const west = Number(bounds[0]?.[1]);\n      const north = Number(bounds[1]?.[0]);\n      const east = Number(bounds[1]?.[1]);\n      if (\n        ![south, west, north, east].every(Number.isFinite) ||\n        lat < south || lat > north || lon < west || lon > east\n      ) return null;\n      const image = await preloadPhysicsQueryImage(asset.query);\n      const x = Math.floor(((lon - west) / (east - west)) * image.naturalWidth);\n      const y = Math.floor(((north - lat) / (north - south)) * image.naturalHeight);\n      if (x < 0 || y < 0 || x >= image.naturalWidth || y >= image.naturalHeight) return null;\n      const canvas = document.createElement(\"canvas\");\n      canvas.width = 1;\n      canvas.height = 1;\n",
+      "afterSource": "      return promise;\n    }\n\n    function latLngToPhysicsQueryPixel(manifest, lat, lon, width, height) {\n      const bounds = manifest?.boundsWgs84;\n      if (manifest?.schema !== \"north-wildwood-physics-forecast-v2\" ||\n          manifest?.image?.crs !== \"EPSG:3857\" ||\n          manifest?.image?.coordinateSystem !== \"web-mercator\" ||\n          !Array.isArray(bounds) || bounds.length !== 2 ||\n          ![lat, lon, width, height].every(Number.isFinite) ||\n          width <= 0 || height <= 0) return null;\n      const south = Number(bounds[0]?.[0]);\n      const west = Number(bounds[0]?.[1]);\n      const north = Number(bounds[1]?.[0]);\n      const east = Number(bounds[1]?.[1]);\n      if (\n        ![south, west, north, east].every(Number.isFinite) ||\n        west >= east || south >= north || south <= -85.05112878 || north >= 85.05112878 ||\n        lat < south || lat > north || lon < west || lon > east\n      ) return null;\n      const mercY = latitude => Math.log(Math.tan(Math.PI / 4 + latitude * Math.PI / 360));\n      const u = (lon - west) / (east - west);\n      const v = (mercY(north) - mercY(lat)) / (mercY(north) - mercY(south));\n      if (!Number.isFinite(u) || !Number.isFinite(v) || u < 0 || v < 0 || u >= 1 || v >= 1) return null;\n      return { x: Math.floor(u * width), y: Math.floor(v * height) };\n    }\n\n    async function samplePhysicsDepth(asset, lat, lon) {\n      if (!asset?.query?.url) return null;\n      const manifest = getActivePhysicsManifest();\n      // Check the schema and extent before requesting any image. Native-grid\n      // v1 products cannot be safely sampled as Web Mercator pixels.\n      if (!latLngToPhysicsQueryPixel(manifest, lat, lon, 1, 1)) return null;\n      const image = await preloadPhysicsQueryImage(asset.query);\n      if (!image || image.naturalWidth !== manifest.image.width || image.naturalHeight !== manifest.image.height) return null;\n      const point = latLngToPhysicsQueryPixel(manifest, lat, lon, image.naturalWidth, image.naturalHeight);\n      if (!point) return null;\n      const { x, y } = point;\n      const canvas = document.createElement(\"canvas\");\n      canvas.width = 1;\n      canvas.height = 1;\n"
+    },
+    {
+      "source": "assets/export-area.js",
+      "id": "export-area-1",
+      "kind": "module",
+      "entryId": null,
+      "beforeSource": "    modal.hidden = true;\n    modal.setAttribute(\"aria-hidden\", \"true\");\n    pendingBounds = null;\n    setDownloadModalOpen(true);\n    previousFocus?.focus({ preventScroll: true });\n    requestAnimationFrame(() => previousFocus?.focus({ preventScroll: true }));\n  }\n",
+      "afterSource": "    modal.hidden = true;\n    modal.setAttribute(\"aria-hidden\", \"true\");\n    pendingBounds = null;\n    setDownloadModalOpen(true, { preserveRange: true });\n    previousFocus?.focus({ preventScroll: true });\n    requestAnimationFrame(() => previousFocus?.focus({ preventScroll: true }));\n  }\n"
+    },
+    {
+      "source": "city-gauge/index.html",
+      "id": "index-1",
+      "kind": "script-document",
+      "entryId": null,
+      "beforeSource": "      function flush(){if(!first)return;const picked=[first,minimum,maximum,last].filter(Boolean).sort((a,b)=>a.seq-b.seq),seen=new Set();for(const point of picked)if(!seen.has(point.seq)){seen.add(point.seq);output.push(point)}first=last=minimum=maximum=null;bucket=-1}\n      for(let index=from;index<to;index++){const point=points[index];if(!point.valid){flush();output.push(null);previous=null;continue}if(previous&&point.time-previous.time>GAP_MS){flush();output.push(null)}const nextBucket=Math.floor((point.time-t0)/Math.max(1,t1-t0)*pixelWidth);if(bucket!==-1&&nextBucket!==bucket)flush();if(bucket===-1)bucket=nextBucket;if(!first)first=point;last=point;if(!minimum||point.value<minimum.value)minimum=point;if(!maximum||point.value>maximum.value)maximum=point;previous=point}flush();return output\n    }\n    function comparisonSeries(t0,t1,pixelWidth){const points=state.comparisonPoints,from=Math.max(0,lowerBound(points,t0)-1),to=Math.min(points.length,lowerBound(points,t1)+1),count=to-from;if(count<=pixelWidth*4)return points.slice(from,to);const step=Math.max(1,Math.ceil(count/(pixelWidth*3))),output=[];let previous=null;for(let i=from;i<to;i++){const point=points[i];if(previous&&point.time-previous.time>GAP_MS)output.push(null);if((i-from)%step===0||i===to-1)output.push(point);previous=point}return output}\n    function axisLabel(time,span){const options=span<=3*86400000?{month:\"short\",day:\"numeric\",hour:\"numeric\"}:span<=45*86400000?{month:\"short\",day:\"numeric\"}:span<=400*86400000?{month:\"short\",year:\"2-digit\"}:{year:\"numeric\"};return new Intl.DateTimeFormat(\"en-US\",{...options,timeZone:\"America/New_York\"}).format(new Date(time))}\n    function draw(){\n      const canvas=$(\"chart\"),box=canvas.parentElement.getBoundingClientRect(),w=Math.max(320,box.width),h=Math.max(360,box.height),dpr=devicePixelRatio||1;canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.width=w+\"px\";canvas.style.height=h+\"px\";const c=canvas.getContext(\"2d\");c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);state.plotArea=null;if(!state.chartPoints.length)return;\n",
+      "afterSource": "      function flush(){if(!first)return;const picked=[first,minimum,maximum,last].filter(Boolean).sort((a,b)=>a.seq-b.seq),seen=new Set();for(const point of picked)if(!seen.has(point.seq)){seen.add(point.seq);output.push(point)}first=last=minimum=maximum=null;bucket=-1}\n      for(let index=from;index<to;index++){const point=points[index];if(!point.valid){flush();output.push(null);previous=null;continue}if(previous&&point.time-previous.time>GAP_MS){flush();output.push(null)}const nextBucket=Math.floor((point.time-t0)/Math.max(1,t1-t0)*pixelWidth);if(bucket!==-1&&nextBucket!==bucket)flush();if(bucket===-1)bucket=nextBucket;if(!first)first=point;last=point;if(!minimum||point.value<minimum.value)minimum=point;if(!maximum||point.value>maximum.value)maximum=point;previous=point}flush();return output\n    }\n    function comparisonSeries(t0,t1,pixelWidth){const points=state.comparisonPoints,from=Math.max(0,lowerBound(points,t0)-1),to=Math.min(points.length,lowerBound(points,t1)+1),count=to-from,step=count<=pixelWidth*4?1:Math.max(1,Math.ceil(count/(pixelWidth*3))),output=[];let previous=null;for(let i=from;i<to;i++){const point=points[i];if(previous&&point.time-previous.time>GAP_MS)output.push(null);if((i-from)%step===0||i===to-1)output.push(point);previous=point}return output}\n    function axisLabel(time,span){const options=span<=3*86400000?{month:\"short\",day:\"numeric\",hour:\"numeric\"}:span<=45*86400000?{month:\"short\",day:\"numeric\"}:span<=400*86400000?{month:\"short\",year:\"2-digit\"}:{year:\"numeric\"};return new Intl.DateTimeFormat(\"en-US\",{...options,timeZone:\"America/New_York\"}).format(new Date(time))}\n    function draw(){\n      const canvas=$(\"chart\"),box=canvas.parentElement.getBoundingClientRect(),w=Math.max(320,box.width),h=Math.max(360,box.height),dpr=devicePixelRatio||1;canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.width=w+\"px\";canvas.style.height=h+\"px\";const c=canvas.getContext(\"2d\");c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);state.plotArea=null;if(!state.chartPoints.length)return;\n"
+    }
+  ],
+  "documentTags": [
+    {
+      "output": "assets/app/runtime.js",
+      "documents": [
+        "index.html"
+      ],
+      "beforeSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=1ee43e8029b6026e\"></script>",
+      "afterSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=d98824d368e52068\"></script>"
+    },
+    {
+      "output": "assets/export-area.js",
+      "documents": [
+        "tools/app/index.template.html",
+        "index.html"
+      ],
+      "beforeSource": "<script src=\"assets/export-area.js?v=20261023-3\" id=\"floodmapper-export-area\"></script>",
+      "afterSource": "<script src=\"assets/export-area.js?v=5a855541ebdd2d2d\" id=\"floodmapper-export-area\"></script>"
+    }
+  ]
+}

@@ -24,7 +24,7 @@
     }
 
     let downloadModalGeneration = 0;
-    function setDownloadModalOpen(isOpen) {
+    function setDownloadModalOpen(isOpen, { preserveRange = false } = {}) {
       const modal = document.getElementById("downloadModal");
       const btn = document.getElementById("openDownloadModalBtn");
       if (!modal || !btn) return;
@@ -39,7 +39,7 @@
         updateDownloadModeCopy();
         updateExportSegmentedUI();
         applyExportStageAspect(getDownloadAspectValue());
-        syncDownloadRangeInputs(true);
+        syncDownloadRangeInputs(!preserveRange);
         updateDownloadSummary();
         ensureExportArchiveAvailability().then(() => {
           if (generation !== downloadModalGeneration || modal.hidden) return;

@@ -983,7 +983,7 @@ assert.match(SOURCE, /data-map-click-mode="depth"/);
 assert.match(SOURCE, /id="mapClickBuildingBtn"[^>]+aria-label="Building Info"/);
 assert.match(SOURCE, /id="mapClickDepthBtn"[^>]+aria-label="Flood Depth"/);
 assert.match(SOURCE, /mapClickMode === "building" && parcelInfoInteractionEnabled\(\)/);
-assert.match(SOURCE, /north-wildwood-physics-forecast-v1/);
+assert.match(SOURCE, /north-wildwood-physics-forecast-v2/);
 assert.match(SOURCE, /"physicsForecastPointerPath": null/);
 assert.match(SOURCE, /"physicsForecastCyclePointerTemplatePath": null/);
 assert.match(extractFunction("physicsPointerUrl"), /forecastData\?\.petssCycleUtc/);

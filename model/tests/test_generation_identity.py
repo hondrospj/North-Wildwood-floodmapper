@@ -93,11 +93,17 @@ def make_fixture(root):
                 "boundaryStageNavd88M": frame["navd88M"], "boundaryStageNavd88Ft": frame["navd88Ft"],
                 "wetPixelCount": 1, "maximumDepthM": (i + 1) / 10, **files})
         write_json(public / "manifest.json", {
+            "schema": "north-wildwood-physics-forecast-v2",
             "status": "complete", "cycleId": CYCLE, "scenario": scenario,
             "simulationIdentitySha256": simulation["sha256"], "renderIdentity": rendered,
             "frameCount": 2, "frameIntervalSeconds": 900, "frames": products,
             "dailyMaximums": [{"dateLocal": "2026-10-26", **{k: products[-1][k] for k in ("visible", "impact", "query")}}],
-            "image": {"width": 1, "height": 1}, "boundsWgs84": [[38.99, -74.82], [39.03, -74.78]],
+            "image": {"width": 1, "height": 1, "crs": "EPSG:3857", "coordinateSystem": "web-mercator",
+                      "transform": [6378137 * math.radians(.04), 0, 6378137 * math.radians(-74.82), 0,
+                                    6378137 * math.log(math.tan(math.pi/4 + math.radians(38.99)/2)) -
+                                    6378137 * math.log(math.tan(math.pi/4 + math.radians(39.03)/2)),
+                                    6378137 * math.log(math.tan(math.pi/4 + math.radians(39.03)/2))]},
+            "boundsWgs84": [[38.99, -74.82], [39.03, -74.78]],
         })
     return config, guidance
 
@@ -219,6 +225,61 @@ class GenerationIdentityTests(unittest.TestCase):
         commands, _ = self.call_pipeline(config)
         self.assertEqual(sum("model/src/run_anuga.py" in cmd for _, cmd in commands), 3)
         self.assertEqual(sum("model/src/render_physics.py" in cmd for _, cmd in commands), 3)
+
+    def test_pruning_retains_statistics_and_revalidates_actual_products(self):
+        self.validate()
+        removed = pipeline.discard_published_hydraulic_states(CYCLE, self.config["petss"]["scenarios"])
+        self.assertEqual(len(removed), 6)
+        for scenario in self.config["petss"]["scenarios"]:
+            hydraulic = self.root / "model/runs" / CYCLE / scenario / "hydraulic"
+            self.assertEqual([path.name for path in hydraulic.iterdir()], ["frame_statistics.json"])
+            self.assertTrue(pipeline.hydraulic_statistics_are_complete(CYCLE, scenario))
+            self.assertFalse(pipeline.hydraulic_state_is_renderable(CYCLE, scenario))
+        commands = []
+        def execute(label, command):
+            commands.append(command)
+            self.assertIn("model/src/validate_products.py", command)
+            self.validate()
+            return 0.
+        argv = ["run_pipeline.py", "--config", str(self.config_path), "--skip-fetch", "--no-publish"]
+        with mock.patch.object(sys, "argv", argv), mock.patch.object(pipeline, "run_step", side_effect=execute), contextlib.redirect_stdout(io.StringIO()):
+            pipeline.main()
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(json.loads((self.root / "model/state/last_pipeline.json").read_text())["status"], "complete-local")
+
+    def test_old_pruned_or_invalid_statistics_rebuild_before_validation(self):
+        for kind in ("missing", "truncated", "malformed", "wrong_times"):
+            with self.subTest(kind=kind):
+                for scenario in self.config["petss"]["scenarios"]:
+                    directory = self.root / "model/runs" / CYCLE / scenario / "hydraulic"
+                    if directory.exists():
+                        shutil.rmtree(directory)
+                    if kind != "missing":
+                        value = {"truncated": [{"modelTimeSeconds": 0}], "malformed": {},
+                                 "wrong_times": [{"modelTimeSeconds": 0}, {"modelTimeSeconds": 450}]}[kind]
+                        write_json(directory / "frame_statistics.json", value)
+                    self.assertFalse(pipeline.hydraulic_statistics_are_complete(CYCLE, scenario))
+                commands, _ = self.call_pipeline()
+                runs = [cmd for _, cmd in commands if "model/src/run_anuga.py" in cmd]
+                self.assertEqual(len(runs), 3)
+                self.assertTrue(all("--force" in cmd for cmd in runs))
+                self.assertEqual(sum("model/src/render_physics.py" in cmd for _, cmd in commands), 3)
+                self.assertIn("model/src/validate_products.py", commands[-1][1])
+                # A direct validator still fails closed until a real solver
+                # rebuild replaces the missing/malformed prerequisite.
+                with self.assertRaises((FileNotFoundError, RuntimeError, TypeError)):
+                    self.validate()
+
+    def test_validator_rejects_native_or_inconsistent_web_grid(self):
+        path = self.root / "model/runs" / CYCLE / "mean/public/manifest.json"
+        original = json.loads(path.read_text())
+        for field, value in (("schema", "north-wildwood-physics-forecast-v1"), ("image", {**original["image"], "crs": "EPSG:6347"}),
+                             ("boundsWgs84", [[38.98, -74.82], [39.03, -74.78]]), ("image", {**original["image"], "width": 2})):
+            with self.subTest(field=field, value=value):
+                write_json(path, {**original, field: value})
+                with self.assertRaisesRegex(RuntimeError, "grid|georeferencing"):
+                    self.validate()
+        write_json(path, original)
 
     def test_renderer_implementation_change_invalidates_only_render(self):
         path = self.root / "model/src/render_physics.py"

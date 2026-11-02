@@ -74,6 +74,7 @@ const interpolated=c.makeInterpolatedTimelineEntry(before,{t:start+3600000,entry
 assert.equal(interpolated.isFittedCrestFrame,false);assert.equal(interpolated.isOfficialCrestFrame,false);
 // December 31 must preload the next year's real midnight endpoint.
 const calls=[];
+c.archiveGeneration=0;
 Object.assign(c,{getObservedArchiveSourceForDate:()=> 'lewes',ensureObservedArchiveYear:async(...a)=>calls.push(a),lewesHourlyDaysByDate:new Map([['1962-12-31',{}]]),observed15MinuteDaysByDate:new Map()});
 vm.runInContext(extract('ensureObservedArchiveForDate'),c);
 assert.equal(await c.ensureObservedArchiveForDate('1962-12-31'),true);

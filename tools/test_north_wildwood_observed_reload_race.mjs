@@ -79,6 +79,7 @@ for (const stage of ['index', 'crests']) {
     c.ensureObserved15MinuteArchive = () => hold.promise;
   } else {
     c.observedData.archiveEndDate = '2026-11-01';
+    c.observedData.liveObservedRefresh = {generation: 1, date: '2026-11-01', nextRefreshAt: Infinity, promise: null};
     c.loadHistoricalTopTides = () => hold.promise;
   }
   const loading = c.loadObserved();

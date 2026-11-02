@@ -15,6 +15,103 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+// Invert only the reviewed November 2 logic corrections; retain every UI byte.
+const AUDIT_LOGIC_PATH = "tools/fixtures/north-wildwood-20261102-audit-logic.json";
+const auditLogicText = read(AUDIT_LOGIC_PATH);
+assert.equal(sha256(auditLogicText), "0b31eadfe5b91f9b6c2fad977fe07fd1d52b2c2ca3562e5b37dee24d53bec73f", "The logic inverse must retain its exact reviewed fixture");
+const auditLogic = JSON.parse(auditLogicText);
+assert.equal(auditLogic.schemaVersion, 1);
+assert.equal(auditLogic.baselineCommit, "6e97c247867016bbc0c27d60f2841a1f0b65b5b1");
+const AUDIT_LOGIC_OWNERS = [
+  ["tools/app/runtime/01-physics-manifests.js", ["physicsCycleIdFromUtc", "physicsPointerUrl", "loadPhysicsForecast"], ["physicsCycleIdFromUtc"]],
+  ["tools/app/runtime/03-time-series.js", ["getObservedSourceHoursForDay", "buildQuarterHourTimelineSeries"], []],
+  ["tools/app/runtime/04-observation-archives.js", ["ensureObservedArchiveForDate", "buildObservedCanonicalSeries"], []],
+  ["tools/app/runtime/05-presentation.js", ["setDownloadModalOpen"], []],
+  ["tools/app/runtime/21-forecast-and-observed-loading.js", ["addOrMergeObservedDayRecord", "normalizeUsgsIvObservedDays", "fetchRecentUsgsObservedDays", "extendObservedArchiveThroughToday"], []],
+  ["tools/app/runtime/22-calendar-and-modes.js", ["loadTopTideEvent"], []],
+  ["tools/app/runtime/26-depth-queries.js", ["latLngToPhysicsQueryPixel", "samplePhysicsDepth"], ["latLngToPhysicsQueryPixel"]]
+];
+const AUDIT_LOGIC_RUNTIME = "assets/app/runtime.js", AUDIT_LOGIC_MODULE = "assets/export-area.js", AUDIT_LOGIC_CITY = "city-gauge/index.html";
+const auditLogicRuntimeEntry = manifest.scripts.find(entry => entry.id === "script-004");
+assert.equal(auditLogicRuntimeEntry.output, AUDIT_LOGIC_RUNTIME);
+for (const [relative] of AUDIT_LOGIC_OWNERS) assert.ok(auditLogicRuntimeEntry.sources.includes(relative));
+assert.deepEqual(auditLogic.files.map(file => [file.source, file.kind, file.entryId]), [
+  ...AUDIT_LOGIC_OWNERS.map(([relative]) => [relative, "script", "script-004"]),
+  [AUDIT_LOGIC_MODULE, "module", null], [AUDIT_LOGIC_CITY, "script-document", null],
+  ["tools/app/index.template.html", "template", null], [AUDIT_LOGIC_RUNTIME, "generated", "script-004"], ["index.html", "document", null]
+]);
+for (const block of auditLogic.changes) {
+  const file = auditLogic.files.find(file => file.source === block.source);
+  assert.ok(file && ["script", "module", "script-document"].includes(file.kind));
+  assert.equal(block.kind, file.kind);assert.equal(block.entryId, file.entryId);
+}
+assert.deepEqual(auditLogic.documentTags.map(tag => [tag.output, tag.documents]), [
+  [AUDIT_LOGIC_RUNTIME, ["index.html"]], [AUDIT_LOGIC_MODULE, ["tools/app/index.template.html", "index.html"]]
+]);
+for (const tag of auditLogic.documentTags) {
+  assert.equal(tag.afterSource.replace(/\?v=[^"']+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[^"']+/, "?v=VERSION"),
+    "Logic fixes may change only the existing runtime/export-area cache keys, without UI attributes");
+  const attrs = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
+  referencedOutput(attrs.get("src"), tag.output);
+}
+function auditLogicFragments(source, blocks) {
+  for (const block of blocks) {
+    const label = block.id || block.output;
+    assert.ok(block.afterSource.length, `${label} must retain an exact nonempty logic fragment`);
+    assert.equal(source.split(block.afterSource).length - 1, 1, `${label} logic fragment must occur exactly once`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+function auditLogicFunction(source, name, indent, absent = false) {
+  const expression = new RegExp("^" + " ".repeat(indent) + "(?:async )?function " + name + "\\([^\\n]*\\) \\{\\n[^]*?^" + " ".repeat(indent) + "}\\n(?:\\n)?", "gm");
+  const matches = [...source.matchAll(expression)];
+  assert.equal(matches.length, absent ? 0 : 1, `${name} must retain its one declared logic owner`);
+  return matches[0]?.[0] || "";
+}
+function assertAuditLogicOwnership(relative, source, restored) {
+  const owner = AUDIT_LOGIC_OWNERS.find(([path]) => path === relative);
+  if (owner) {
+    const strip = (text, before) => {
+      for (const name of owner[1]) text = text.replace(auditLogicFunction(text, name, 4, before && owner[2].includes(name)), "");
+      return text;
+    };
+    assert.equal(strip(source, false), strip(restored, true), `${relative} may change only its explicitly reviewed functions`);
+  } else if (relative === AUDIT_LOGIC_MODULE) {
+    const changed = "setDownloadModalOpen(true, { preserveRange: true });", original = "setDownloadModalOpen(true);";
+    const functionSource = auditLogicFunction(source, "closePicker", 2);
+    assert.equal(functionSource.split(changed).length - 1, 1);
+    assert.equal(source.split(changed).length - 1, 1);
+    assert.equal(source.replace(changed, original), restored, "The area module may change only its one preserveRange caller option");
+  } else if (relative === AUDIT_LOGIC_CITY) {
+    const expression = /^    function comparisonSeries\([^\n]*}\n/gm;
+    const strip = text => {
+      const matches = [...text.matchAll(expression)];assert.equal(matches.length, 1);
+      const match = matches[0], start = text.lastIndexOf("<script", match.index), end = text.indexOf("</script>", start);
+      assert.ok(start >= 0 && match.index > text.indexOf(">", start) && match.index + match[0].length <= end,
+        "The city comparison fix must remain inside its existing script");
+      return text.replace(match[0], "");
+    };
+    assert.equal(strip(source), strip(restored), "Every city dashboard HTML/CSS/UI byte outside comparisonSeries must remain unchanged");
+  }
+}
+function auditLogicExternalDocument(source) {
+  return auditLogicFragments(source, auditLogic.documentTags.filter(tag => tag.output === AUDIT_LOGIC_MODULE));
+}
+function auditedAuditLogicRead(relative) {
+  const source = read(relative), file = auditLogic.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed logic fixes`);
+  let blocks;
+  if (["document", "template"].includes(file.kind)) blocks = auditLogic.documentTags.filter(tag => tag.documents.includes(relative));
+  else blocks = auditLogic.changes.filter(block => file.kind === "generated" ? block.kind === "script" : block.source === relative);
+  const restored = auditLogicFragments(source, blocks);
+  if (["script", "module", "script-document"].includes(file.kind)) assertAuditLogicOwnership(relative, source, restored);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every original pre-audit byte`);
+  return restored;
+}
+for (const file of auditLogic.files) auditedAuditLogicRead(file.source);
+
 // Restore only the reviewed tutorial gesture presentation before all prior audits.
 const TUTORIAL_GESTURE_PATH = "tools/fixtures/north-wildwood-20261101-tutorial-gesture.json";
 const tutorialGestureText = read(TUTORIAL_GESTURE_PATH);
@@ -44,7 +141,7 @@ for (const tag of tutorialGesture.documentTags) {
     tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
     "Tutorial HTML may update only the existing runtime bundle cache key");
   const actual = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
-  referencedOutput(actual.get("src"), TUTORIAL_GESTURE_OUTPUT);
+  referencedOutput(actual.get("src"), TUTORIAL_GESTURE_OUTPUT, auditedAuditLogicRead(TUTORIAL_GESTURE_OUTPUT));
 }
 function tutorialGestureFragments(source, blocks) {
   for (const block of blocks) {
@@ -76,7 +173,7 @@ function assertTutorialGestureOwnership(source, restored) {
     "Tutorial gestures may change only their five declared functions and four state fields");
 }
 function auditedTutorialGestureRead(relative) {
-  const source = read(relative);
+  const source = auditedAuditLogicRead(relative);
   const file = tutorialGesture.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside its reviewed tutorial gesture fix`);
@@ -522,7 +619,7 @@ assert.equal(holisticFixAudit.schemaVersion, 1);
 assert.equal(holisticFixAudit.baselineCommit, "075b294431f5bf57542a2c8850ef7b2d26320766");
 const template = auditedRoadFallbackRead("tools/app/index.template.html");
 // Prior full-file pins use the inverse, but generated cache checks use actual current bundle tags.
-const published = roadFallbackDocument(read("index.html"));
+const published = roadFallbackDocument(auditLogicExternalDocument(read("index.html")));
 assertScalableRoadDocument(template, "Template");
 assertScalableRoadDocument(published, "Published HTML");
 const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-ui.json"));
@@ -1226,6 +1323,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = auditLogicFragments(source, auditLogic.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = tutorialGestureFragments(source, tutorialGesture.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = adaptiveSidebarFragments(source, adaptiveSidebar.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = reviewFixFragments(source, reviewFix.changes.filter(block => block.kind === kind && block.entryId === entry.id));
@@ -1568,7 +1666,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1585,6 +1683,38 @@ if (process.argv.includes("--self-test")) {
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
     const cases = [
+      ["broadened audit logic ownership", path.join(scratch, AUDIT_LOGIC_PATH),
+        JSON.stringify({ ...auditLogic, changes: [...auditLogic.changes, { ...auditLogic.changes[0], source: "tools/app/runtime/02-data-and-datums.js" }] })],
+      ["dropped physics cycle minute guard", path.join(scratch, AUDIT_LOGIC_OWNERS[0][0]),
+        read(AUDIT_LOGIC_OWNERS[0][0]).replace("if (cycle.getUTCMinutes() || cycle.getUTCSeconds() || cycle.getUTCMilliseconds())", "if (cycle.getUTCSeconds() || cycle.getUTCMilliseconds())")],
+      ["changed physics manifest CRS guard", path.join(scratch, AUDIT_LOGIC_OWNERS[0][0]),
+        read(AUDIT_LOGIC_OWNERS[0][0]).replace('manifest?.image?.crs !== "EPSG:3857"', 'manifest?.image?.crs !== "EPSG:4326"')],
+      ["dropped exact live observation anchor guard", path.join(scratch, AUDIT_LOGIC_OWNERS[1][0]),
+        read(AUDIT_LOGIC_OWNERS[1][0]).replace("if (options.requireExactSamples && item.t !== slot) return;", "if (false) return;")],
+      ["changed observed refresh identity guard", path.join(scratch, AUDIT_LOGIC_OWNERS[4][0]),
+        read(AUDIT_LOGIC_OWNERS[4][0]).replace("archive !== observedData", "archive === observedData")],
+      ["dropped area return range preservation", path.join(scratch, AUDIT_LOGIC_MODULE),
+        read(AUDIT_LOGIC_MODULE).replace("setDownloadModalOpen(true, { preserveRange: true });", "setDownloadModalOpen(true, { preserveRange: false });")],
+      ["changed comparison gap sampling", path.join(scratch, AUDIT_LOGIC_CITY),
+        read(AUDIT_LOGIC_CITY).replace("step=count<=pixelWidth*4?1:", "step=count<=pixelWidth*4?2:")],
+      ["restored linear latitude physics query", path.join(scratch, AUDIT_LOGIC_OWNERS[6][0]),
+        read(AUDIT_LOGIC_OWNERS[6][0]).replace("(mercY(north) - mercY(lat)) / (mercY(north) - mercY(south))", "(north - lat) / (north - south)")],
+      ["changed adjacent audited runtime source", path.join(scratch, AUDIT_LOGIC_OWNERS[6][0]),
+        read(AUDIT_LOGIC_OWNERS[6][0]) + "\n// Unreviewed adjacent logic change\n"],
+      ["changed generated audited runtime", path.join(scratch, AUDIT_LOGIC_RUNTIME),
+        read(AUDIT_LOGIC_RUNTIME) + "\n// Unreviewed generated logic change\n"],
+      ["changed export area beside approved caller", path.join(scratch, AUDIT_LOGIC_MODULE),
+        read(AUDIT_LOGIC_MODULE) + "\n// Unreviewed area module change\n"],
+      ["stale audit runtime cache key", scratchHtml,
+        published.replace(auditLogic.documentTags[0].afterSource, auditLogic.documentTags[0].beforeSource)],
+      ["stale export-area source cache key", path.join(scratch, "tools/app/index.template.html"),
+        template.replace(auditLogic.documentTags[1].afterSource, auditLogic.documentTags[1].beforeSource)],
+      ["changed UI font during logic audit", path.join(scratch, "tools/app/styles/style-002.css"),
+        read("tools/app/styles/style-002.css").replace("--sidebar-text:12px", "--sidebar-text:11px")],
+      ["changed mapper UI label during logic audit", path.join(scratch, "tools/app/index.template.html"),
+        template.replace("<h2>Forecast range</h2>", "<h2>Unreviewed forecast</h2>")],
+      ["changed city UI title beside script fix", path.join(scratch, AUDIT_LOGIC_CITY),
+        read(AUDIT_LOGIC_CITY).replace("<title>", "<title>Unreviewed ")],
       ["broadened tutorial gesture inverse", path.join(scratch, TUTORIAL_GESTURE_PATH),
         JSON.stringify({ ...tutorialGesture, changes: [...tutorialGesture.changes, tutorialGesture.changes[0]] })],
       ["disabled tutorial gesture guard", path.join(scratch, TUTORIAL_GESTURE_SOURCE),
@@ -1594,7 +1724,7 @@ if (process.argv.includes("--self-test")) {
       ["changed generated tutorial runtime", path.join(scratch, TUTORIAL_GESTURE_OUTPUT),
         read(TUTORIAL_GESTURE_OUTPUT) + "\n// Unreviewed generated tutorial change\n"],
       ["stale tutorial runtime cache key", scratchHtml,
-        published.replace(tutorialGesture.documentTags[0].afterSource, tutorialGesture.documentTags[0].beforeSource)],
+        published.replace(auditLogic.documentTags[0].afterSource, tutorialGesture.documentTags[0].beforeSource)],
       ["broadened adaptive-sidebar inverse", path.join(scratch, ADAPTIVE_SIDEBAR_PATH),
         JSON.stringify({ ...adaptiveSidebar, changes: [...adaptiveSidebar.changes, adaptiveSidebar.changes[0]] })],
       ["changed adaptive fit guard", path.join(scratch, "tools/app/unified-controller.js"),
@@ -1824,7 +1954,7 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
           "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length, 112, "Retain all 107 previous mutations and five tutorial-gesture mutations");
+    assert.equal(cases.length, 128, "Retain all 112 previous mutations and sixteen logic/UI boundary mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);

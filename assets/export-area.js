@@ -231,7 +231,7 @@
     modal.hidden = true;
     modal.setAttribute("aria-hidden", "true");
     pendingBounds = null;
-    setDownloadModalOpen(true);
+    setDownloadModalOpen(true, { preserveRange: true });
     previousFocus?.focus({ preventScroll: true });
     requestAnimationFrame(() => previousFocus?.focus({ preventScroll: true }));
   }
