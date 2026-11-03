@@ -14,7 +14,7 @@ jobs:
   webkit-format-diagnostic:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/diag/north-wildwood-webkit-format-20261103'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
@@ -44,9 +44,13 @@ jobs:
             npm --version
             python3 --version
           } | tee "$NWW_AUDIT_OUTPUT/runner-versions.log"
+      # Vendor-documented stable baseline comparison for WebKit regression #43426:
+      # https://github.com/microsoft/playwright/issues/43426
+      # Compare the unchanged full suite with 1.63.0/r2359; this does not claim
+      # an upstream patch or change any required release check.
       - name: Install the exact diagnostic browser runtime
         run: |
-          npm install --no-save --package-lock=false playwright@1.64.1 2>&1 | tee "$NWW_AUDIT_OUTPUT/install.log"
+          npm install --no-save --package-lock=false playwright@1.63.0 2>&1 | tee "$NWW_AUDIT_OUTPUT/install.log"
           npx --no-install playwright install --with-deps webkit 2>&1 | tee -a "$NWW_AUDIT_OUTPUT/install.log"
           npx --no-install playwright --version | tee "$NWW_AUDIT_OUTPUT/playwright-version.log"
           node --input-type=module <<'JS' | tee "$NWW_AUDIT_OUTPUT/browser-version.json"
@@ -63,13 +67,14 @@ jobs:
           try {
             const actualBrowserVersion = browser.version();
             console.log(JSON.stringify({packageVersion, metadata, actualBrowserVersion, executable: webkit.executablePath()}, null, 2));
-            assert.equal(packageVersion, '1.64.1', 'The diagnostic must use the pinned Playwright package');
-            assert.match(actualBrowserVersion, /^27\.2(?:\.|$)/, 'The diagnostic must reproduce the failed Linux WebKit27.2 engine');
+            assert.equal(packageVersion, '1.63.0', 'The diagnostic must use the exact pinned stable baseline package');
+            assert.equal(metadata.revision, '2359', 'The stable baseline WebKit revision must match the recorded package metadata');
+            assert.match(actualBrowserVersion, /^26\.6(?:\.|$)/, 'The stable baseline engine family must match the expected Linux WebKit26.6 metadata');
           } finally {
             await browser.close();
           }
           JS
-      - name: Serve the unchanged application and diagnose native export format clicks
+      - name: Run the unchanged full export road-label suite with the stable baseline engine
         run: |
           python3 tools/serve_north_wildwood_test.py 8765 --bind 127.0.0.1 \
             --access-log "$NWW_AUDIT_OUTPUT/preview-access.log" \
@@ -88,7 +93,8 @@ jobs:
             printf 'Diagnostic application server did not become ready.\n' >&2
             exit 1
           fi
-          node tools/diag_webkit_export_format.mjs 2>&1 | tee "$NWW_AUDIT_OUTPUT/diagnostic.log"
+          printf '%s  %s\n' '132471479dd0de5d6ae56125e53625d489c954a686d3929874ea691707c0250f' 'tools/test_north_wildwood_export_road_labels_browser.mjs' | sha256sum --check --strict | tee "$NWW_AUDIT_OUTPUT/test-integrity.log"
+          node tools/test_north_wildwood_export_road_labels_browser.mjs 2>&1 | tee "$NWW_AUDIT_OUTPUT/diagnostic.log"
       - name: Retain diagnostic evidence on success or failure
         if: always()
         uses: actions/upload-artifact@v4
