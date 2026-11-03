@@ -523,7 +523,7 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
     throwIfExportCancelled: () => {}, exportMap: null,
     isOutsideExportStage: () => false,
   });
-  vm.runInContext(nativeFunction("captureExportCanvas"), ctx);
+  vm.runInContext(nativeFunction("captureExportElement") + "\n" + nativeFunction("captureExportCanvas"), ctx);
   await ctx.captureExportCanvas();
   await ctx.captureExportCanvas({ scale: 0.25 });
   assert.equal(scales[0], 1, "Default PNG/GIF capture resolution must not change");

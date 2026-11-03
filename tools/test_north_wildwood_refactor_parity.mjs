@@ -15,6 +15,77 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+// Release only the owned html2canvas clone buffers after the reviewed capture.
+const CLONE_CLEANUP_PATH = "tools/fixtures/north-wildwood-20261103-export-clone-cleanup.json";
+const cloneCleanupText = read(CLONE_CLEANUP_PATH);
+assert.equal(sha256(cloneCleanupText), "2b6e8246bd8423376f5fda3d2cc13fbf20c10fcb4a9cefab35af80011ce97bea",
+  "The clone-cleanup inverse must retain its exact reviewed fixture");
+const cloneCleanup = JSON.parse(cloneCleanupText);
+assert.equal(cloneCleanup.schemaVersion, 1);
+assert.equal(cloneCleanup.baselineCommit, "f54a3b521eae87487992379635e6433c1df1000c");
+const CLONE_CLEANUP_SOURCE = "tools/app/runtime/16-export-map.js", CLONE_CLEANUP_RUNTIME = "assets/app/runtime.js";
+const CLONE_CLEANUP_FUNCTIONS = ["captureExportElement", "captureExportCanvas", "captureExportLayerCanvas"];
+assert.deepEqual(cloneCleanup.files.map(file => [file.source, file.kind, file.entryId]), [
+  [CLONE_CLEANUP_SOURCE, "script", "script-004"], [CLONE_CLEANUP_RUNTIME, "generated-script", "script-004"], ["index.html", "document", null]
+]);
+const cloneCleanupRuntimeEntry = manifest.scripts.find(entry => entry.id === "script-004");
+assert.equal(cloneCleanupRuntimeEntry.output, CLONE_CLEANUP_RUNTIME);
+assert.ok(cloneCleanupRuntimeEntry.sources.includes(CLONE_CLEANUP_SOURCE));
+assert.deepEqual(cloneCleanup.changes.map(block => block.functionOwner), CLONE_CLEANUP_FUNCTIONS);
+for (const block of cloneCleanup.changes) {
+  assert.equal(block.source, CLONE_CLEANUP_SOURCE);assert.equal(block.kind, "script");assert.equal(block.entryId, "script-004");
+  assert.ok(auditLogicFunction(read(CLONE_CLEANUP_SOURCE), block.functionOwner, 4).includes(block.afterSource),
+    "Every cleanup fragment must remain in its exact capture function");
+}
+assert.equal(cloneCleanup.changes[0].beforeSource, "");
+assert.equal(cloneCleanup.changes[0].afterSource, auditLogicFunction(read(CLONE_CLEANUP_SOURCE), CLONE_CLEANUP_FUNCTIONS[0], 4),
+  "The only new declaration is the exact reviewed capture helper");
+for (const [index, indent] of [[1, 6], [2, 8]]) {
+  const block = cloneCleanup.changes[index];
+  assert.equal(block.beforeSource, `\n${" ".repeat(indent)}return await html2canvas(stage, {\n`);
+  assert.equal(block.afterSource, block.beforeSource.replace("html2canvas", "captureExportElement"),
+    "Existing capture callers may change only the renderer delegation, retaining every capture option");
+}
+assert.deepEqual(cloneCleanup.documentTags.map(tag => [tag.output, tag.documents]), [[CLONE_CLEANUP_RUNTIME, ["index.html"]]]);
+for (const tag of cloneCleanup.documentTags) {
+  assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+    "Clone cleanup may change only the existing runtime content cache key");
+  const attrs = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
+  referencedOutput(attrs.get("src"), tag.output);
+}
+function cloneCleanupFragments(source, blocks) {
+  for (const block of blocks) {
+    const label = block.id || block.output;
+    assert.ok(block.afterSource.length, `${label} must retain an exact nonempty cleanup fragment`);
+    assert.equal(source.split(block.afterSource).length - 1, 1, `${label} cleanup fragment must occur exactly once`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+function assertCloneCleanupOwnership(source, restored) {
+  const strip = (text, before) => {
+    for (const name of CLONE_CLEANUP_FUNCTIONS) {
+      text = text.replace(auditLogicFunction(text, name, 4, before && name === "captureExportElement"), "");
+    }
+    return text;
+  };
+  assert.equal(strip(source, false), strip(restored, true),
+    "Only the owned-clone helper and its two existing capture callers may change; all other declarations remain exact");
+  for (const block of cloneCleanup.changes.slice(1)) {
+    assert.ok(auditLogicFunction(restored, block.functionOwner, 4).includes(block.beforeSource));
+  }
+}
+function auditedCloneCleanupRead(relative) {
+  const source = read(relative), file = cloneCleanup.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed clone cleanup`);
+  const restored = cloneCleanupFragments(source, file.kind === "document" ? cloneCleanup.documentTags : cloneCleanup.changes);
+  if (file.kind === "script") assertCloneCleanupOwnership(source, restored);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-cleanup byte`);
+  return restored;
+}
+for (const file of cloneCleanup.files) auditedCloneCleanupRead(file.source);
+
 // Invert only the reviewed November 3 dialog stacking, Escape and accessible-state fixes.
 const UI_DIALOGS_PATH = "tools/fixtures/north-wildwood-20261103-ui-dialogs.json";
 const uiDialogsText = read(UI_DIALOGS_PATH);
@@ -74,7 +145,7 @@ for (const tag of uiDialogs.documentTags) {
   assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
     "Dialog fixes may change only the existing runtime/CSS content cache keys");
   const attrs = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
-  referencedOutput(attrs.get(tag.output === UI_DIALOGS_RUNTIME ? "src" : "href"), tag.output);
+  referencedOutput(attrs.get(tag.output === UI_DIALOGS_RUNTIME ? "src" : "href"), tag.output, auditedCloneCleanupRead(tag.output));
 }
 function uiDialogsFragments(source, blocks) {
   for (const block of blocks) {
@@ -105,7 +176,7 @@ function uiDialogsDocument(source) {
   return uiDialogsFragments(source, uiDialogsTemplateBlocks);
 }
 function auditedUiDialogsRead(relative) {
-  const source = read(relative), file = uiDialogs.files.find(file => file.source === relative);
+  const source = auditedCloneCleanupRead(relative), file = uiDialogs.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed UI-dialog fixes`);
   let blocks;
@@ -1488,6 +1559,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = cloneCleanupFragments(source, cloneCleanup.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = uiDialogsFragments(source, uiDialogs.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = historyStateFragments(source, historyState.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = auditLogicFragments(source, auditLogic.changes.filter(block => block.kind === kind && block.entryId === entry.id));
@@ -1833,7 +1905,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1849,6 +1921,44 @@ if (process.argv.includes("--self-test")) {
     const scratchHtml = path.join(scratch, "index.html");
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
+    const activeRuntimeTag = cloneCleanup.documentTags[0].afterSource;
+    const captureSource = read(CLONE_CLEANUP_SOURCE);
+    const cloneCleanupCases = [
+      ["broadened clone-cleanup inverse ownership", path.join(scratch, CLONE_CLEANUP_PATH),
+        JSON.stringify({ ...cloneCleanup, changes: [...cloneCleanup.changes, { ...cloneCleanup.changes[0], source: "tools/app/runtime/00-configuration.js" }] })],
+      ["released the returned capture canvas", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace("canvas !== result && ", "")],
+      ["released the caller-supplied canvas", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace("canvas !== options.canvas && ", "")],
+      ["accepted a frame from another source document", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace("frame?.ownerDocument === sourceDocument", "frame?.ownerDocument !== sourceDocument")],
+      ["accepted the live document as a capture clone", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace("clone && clone !== sourceDocument", "clone")],
+      ["skipped cloned canvas buffer release", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace("canvas.width = canvas.height = 1;", "void canvas;")],
+      ["missed canvases added by onclone", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace('          clonedDocument.querySelectorAll("canvas").forEach(canvas => clonedCanvases.add(canvas));\n', "")],
+      ["dropped the caller onclone promise", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace('if (typeof onclone === "function") return onclone(clone, clonedElement);',
+          'if (typeof onclone === "function") void onclone(clone, clonedElement);')],
+      ["changed existing capture scale with cleanup", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace("scale: captureScale", "scale: captureScale * 2")],
+      ["bypassed cleanup in the main capture caller", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace(cloneCleanup.changes[1].afterSource, cloneCleanup.changes[1].beforeSource)],
+      ["bypassed cleanup in the layer capture caller", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace(cloneCleanup.changes[2].afterSource, cloneCleanup.changes[2].beforeSource)],
+      ["added an unreviewed capture declaration", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource + "\n    const unreviewedCaptureStorage = [];\n"],
+      ["omitted cleanup from the generated runtime", path.join(scratch, CLONE_CLEANUP_RUNTIME),
+        read(CLONE_CLEANUP_RUNTIME).replace(cloneCleanup.changes[0].afterSource, "")],
+      ["retained the pre-cleanup runtime cache key", scratchHtml,
+        published.replace(activeRuntimeTag, cloneCleanup.documentTags[0].beforeSource)],
+      ["removed the owned-frame cleanup guard", path.join(scratch, CLONE_CLEANUP_SOURCE),
+        captureSource.replace("if (clonedFrame?.contentDocument === clonedDocument)", "if (clonedFrame)")],
+      ["changed visible export wording with clone cleanup", scratchHtml,
+        published.replace(">Export Map</button>", ">Unreviewed export label</button>")],
+    ];
+    assert.equal(cloneCleanupCases.length, 16, "Retain all sixteen owned-clone/capture/UI boundary mutations");
     const uiDialogCases = [
       ["broadened dialog inverse ownership", path.join(scratch, UI_DIALOGS_PATH),
         JSON.stringify({ ...uiDialogs, changes: [...uiDialogs.changes, { ...uiDialogs.changes[0], source: "tools/app/runtime/00-configuration.js" }] })],
@@ -1879,12 +1989,13 @@ if (process.argv.includes("--self-test")) {
       ["changed generated dialog CSS", path.join(scratch, UI_DIALOGS_CSS),
         read(UI_DIALOGS_CSS) + "\nbody{font-family:Arial}\n"],
       ["stale dialog runtime cache key", scratchHtml,
-        published.replace(uiDialogs.documentTags[0].afterSource, uiDialogs.documentTags[0].beforeSource)],
+        published.replace(activeRuntimeTag, uiDialogs.documentTags[0].beforeSource)],
       ["stale dialog CSS cache key", scratchHtml,
         published.replace(uiDialogs.documentTags[1].afterSource, uiDialogs.documentTags[1].beforeSource)],
     ];
     assert.equal(uiDialogCases.length, 16, "Retain all sixteen dialog/accessibility/UI boundary mutations");
     const cases = [
+      ...cloneCleanupCases,
       ...uiDialogCases,
       ["broadened history transaction ownership", path.join(scratch, HISTORY_STATE_PATH),
         JSON.stringify({ ...historyState, changes: [...historyState.changes, { ...historyState.changes[0], source: "tools/app/runtime/00-configuration.js" }] })],
@@ -1905,7 +2016,7 @@ if (process.argv.includes("--self-test")) {
       ["changed generated history transaction runtime", path.join(scratch, HISTORY_STATE_OUTPUT),
         read(HISTORY_STATE_OUTPUT) + "\n// Unreviewed generated history change\n"],
       ["stale history transaction runtime cache key", scratchHtml,
-        published.replace(uiDialogs.documentTags[0].afterSource, historyState.documentTags[0].beforeSource)],
+        published.replace(activeRuntimeTag, historyState.documentTags[0].beforeSource)],
       ["changed UI markup during history transaction fix", path.join(scratch, "tools/app/index.template.html"),
         template.replace("<h2>Forecast range</h2>", "<h2>Unreviewed history interface</h2>")],
       ["changed UI font during history transaction fix", path.join(scratch, "tools/app/styles/style-002.css"),
@@ -1933,7 +2044,7 @@ if (process.argv.includes("--self-test")) {
       ["changed export area beside approved caller", path.join(scratch, AUDIT_LOGIC_MODULE),
         read(AUDIT_LOGIC_MODULE) + "\n// Unreviewed area module change\n"],
       ["stale audit runtime cache key", scratchHtml,
-        published.replace(uiDialogs.documentTags[0].afterSource, auditLogic.documentTags[0].beforeSource)],
+        published.replace(activeRuntimeTag, auditLogic.documentTags[0].beforeSource)],
       ["stale export-area source cache key", path.join(scratch, "tools/app/index.template.html"),
         template.replace(auditLogic.documentTags[1].afterSource, auditLogic.documentTags[1].beforeSource)],
       ["changed UI font during logic audit", path.join(scratch, "tools/app/styles/style-002.css"),
@@ -1951,7 +2062,7 @@ if (process.argv.includes("--self-test")) {
       ["changed generated tutorial runtime", path.join(scratch, TUTORIAL_GESTURE_OUTPUT),
         read(TUTORIAL_GESTURE_OUTPUT) + "\n// Unreviewed generated tutorial change\n"],
       ["stale tutorial runtime cache key", scratchHtml,
-        published.replace(uiDialogs.documentTags[0].afterSource, tutorialGesture.documentTags[0].beforeSource)],
+        published.replace(activeRuntimeTag, tutorialGesture.documentTags[0].beforeSource)],
       ["broadened adaptive-sidebar inverse", path.join(scratch, ADAPTIVE_SIDEBAR_PATH),
         JSON.stringify({ ...adaptiveSidebar, changes: [...adaptiveSidebar.changes, adaptiveSidebar.changes[0]] })],
       ["changed adaptive fit guard", path.join(scratch, "tools/app/unified-controller.js"),
@@ -2181,8 +2292,9 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
           "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length - uiDialogCases.length, 140, "Retain all 128 previous mutations and twelve history transaction/UI boundary mutations");
-    assert.equal(cases.length, 156, "Retain all 140 previous mutations plus sixteen dialog/accessibility/UI boundary mutations");
+    assert.equal(cases.length - uiDialogCases.length - cloneCleanupCases.length, 140, "Retain all 128 previous mutations and twelve history transaction/UI boundary mutations");
+    assert.equal(cases.length - cloneCleanupCases.length, 156, "Retain all 140 previous mutations plus sixteen dialog/accessibility/UI boundary mutations");
+    assert.equal(cases.length, 172, "Retain all 156 previous mutations plus sixteen owned-clone/capture/UI boundary mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);

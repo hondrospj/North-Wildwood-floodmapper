@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "f54a3b521eae87487992379635e6433c1df1000c",
+  "files": [
+    {
+      "source": "tools/app/runtime/16-export-map.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "53b5a63608cbb10a3daa5af1235555a5eff780ff177a4d0217588f1c63ad325e",
+      "afterSha256": "89b4dc6b61832f9f130f8b57bd7431ff850a913995d99ca59d36f4749fe64d59"
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "kind": "generated-script",
+      "entryId": "script-004",
+      "beforeSha256": "8caea6bff0e2a553ef97a787dc85e0880b65ad028d863ef84a9011bffd573e77",
+      "afterSha256": "771157aaef5964f4f10f53bdd5890720c0259a622ec7082f86a88657bc563e8b"
+    },
+    {
+      "source": "index.html",
+      "kind": "document",
+      "entryId": null,
+      "beforeSha256": "6313623096744e6164af48eb51fb34d8cab74839408d22da8ab588e13f94134b",
+      "afterSha256": "e50738e91fb4c859f5144843c8a324a5b78b432d48686191db1f2c4cc53d41ef"
+    }
+  ],
+  "changes": [
+    {
+      "source": "tools/app/runtime/16-export-map.js",
+      "id": "export-clone-owned-helper",
+      "kind": "script",
+      "entryId": "script-004",
+      "functionOwner": "captureExportElement",
+      "beforeSource": "",
+      "afterSource": "    async function captureExportElement(element, options = {}) {\n      const sourceDocument = element.ownerDocument;\n      const onclone = options.onclone;\n      let clonedDocument = null;\n      let clonedFrame = null;\n      let result = null;\n      const clonedCanvases = new Set();\n      try {\n        result = await html2canvas(element, {\n          ...options,\n          onclone(clone, clonedElement) {\n            const frame = clone?.defaultView?.frameElement;\n            if (clone && clone !== sourceDocument && frame?.ownerDocument === sourceDocument\n                && frame.contentDocument === clone) {\n              clonedDocument = clone;\n              clonedFrame = frame;\n              clone.querySelectorAll(\"canvas\").forEach(canvas => clonedCanvases.add(canvas));\n            }\n            if (typeof onclone === \"function\") return onclone(clone, clonedElement);\n          }\n        });\n        return result;\n      } finally {\n        if (clonedDocument) {\n          clonedDocument.querySelectorAll(\"canvas\").forEach(canvas => clonedCanvases.add(canvas));\n          for (const canvas of clonedCanvases) {\n            if (canvas !== result && canvas !== options.canvas && canvas.ownerDocument === clonedDocument) {\n              canvas.width = canvas.height = 1;\n            }\n          }\n        }\n        if (clonedFrame?.contentDocument === clonedDocument) clonedFrame.remove();\n      }\n    }\n\n"
+    },
+    {
+      "source": "tools/app/runtime/16-export-map.js",
+      "id": "export-clone-delegate-captureExportCanvas",
+      "kind": "script",
+      "entryId": "script-004",
+      "functionOwner": "captureExportCanvas",
+      "beforeSource": "\n      return await html2canvas(stage, {\n",
+      "afterSource": "\n      return await captureExportElement(stage, {\n"
+    },
+    {
+      "source": "tools/app/runtime/16-export-map.js",
+      "id": "export-clone-delegate-captureExportLayerCanvas",
+      "kind": "script",
+      "entryId": "script-004",
+      "functionOwner": "captureExportLayerCanvas",
+      "beforeSource": "\n        return await html2canvas(stage, {\n",
+      "afterSource": "\n        return await captureExportElement(stage, {\n"
+    }
+  ],
+  "documentTags": [
+    {
+      "output": "assets/app/runtime.js",
+      "documents": [
+        "index.html"
+      ],
+      "beforeSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=8caea6bff0e2a553\"></script>",
+      "afterSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=771157aaef5964f4\"></script>"
+    }
+  ]
+}
