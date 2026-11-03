@@ -8536,6 +8536,41 @@ function updateExportSegmentedUI() {
       await waitForStableRender();
     }
 
+    async function captureExportElement(element, options = {}) {
+      const sourceDocument = element.ownerDocument;
+      const onclone = options.onclone;
+      let clonedDocument = null;
+      let clonedFrame = null;
+      let result = null;
+      const clonedCanvases = new Set();
+      try {
+        result = await html2canvas(element, {
+          ...options,
+          onclone(clone, clonedElement) {
+            const frame = clone?.defaultView?.frameElement;
+            if (clone && clone !== sourceDocument && frame?.ownerDocument === sourceDocument
+                && frame.contentDocument === clone) {
+              clonedDocument = clone;
+              clonedFrame = frame;
+              clone.querySelectorAll("canvas").forEach(canvas => clonedCanvases.add(canvas));
+            }
+            if (typeof onclone === "function") return onclone(clone, clonedElement);
+          }
+        });
+        return result;
+      } finally {
+        if (clonedDocument) {
+          clonedDocument.querySelectorAll("canvas").forEach(canvas => clonedCanvases.add(canvas));
+          for (const canvas of clonedCanvases) {
+            if (canvas !== result && canvas !== options.canvas && canvas.ownerDocument === clonedDocument) {
+              canvas.width = canvas.height = 1;
+            }
+          }
+        }
+        if (clonedFrame?.contentDocument === clonedDocument) clonedFrame.remove();
+      }
+    }
+
     async function captureExportCanvas(options = {}) {
       if (typeof html2canvas !== "function") throw new Error("html2canvas did not load, so map export is unavailable.");
       const stage = document.getElementById("exportStageFrame");
@@ -8546,7 +8581,7 @@ function updateExportSegmentedUI() {
       const captureScale = Number.isFinite(options.scale) && options.scale > 0
         ? Math.min(options.scale, getExportCaptureScale()) : getExportCaptureScale();
       const roadPane = exportMap?.getPane("roadsPane");
-      return await html2canvas(stage, {
+      return await captureExportElement(stage, {
         backgroundColor: null, useCORS: true, allowTaint: false, logging: false,
         removeContainer: true, foreignObjectRendering: false, imageTimeout: 20000,
         ignoreElements: element => isOutsideExportStage(element)
@@ -8588,7 +8623,7 @@ function updateExportSegmentedUI() {
         stage.style.background = "transparent";
         if (mapEl) mapEl.style.background = "transparent";
         const captureScale = getExportCaptureScale();
-        return await html2canvas(stage, {
+        return await captureExportElement(stage, {
           backgroundColor: null,
           useCORS: true,
           allowTaint: false,
