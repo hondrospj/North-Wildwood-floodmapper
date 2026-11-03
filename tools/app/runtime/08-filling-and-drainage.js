@@ -327,7 +327,10 @@
       if (!phase.startsWith("draining") || !Number.isFinite(crestStage) ||
           crestStage < MINOR_FLOOD_FT || !Number.isFinite(currentTime) || !Number.isFinite(crestTime)) return [];
 
-      const rows = (Array.isArray(series) ? series : [])
+      const visible = Array.isArray(series) ? series : [];
+      const antecedents = entry?.hydraulicAntecedents ||
+        visible.find(row => Array.isArray(row.hydraulicAntecedents))?.hydraulicAntecedents || [];
+      const rows = antecedents.concat(visible)
         .filter(row => {
           const time = entryTimeMs(row);
           return Number.isFinite(time) && time >= crestTime && time < currentTime && Number.isFinite(getStageValue(row));

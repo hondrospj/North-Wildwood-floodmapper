@@ -11,10 +11,111 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const read = relative => fs.readFileSync(localPath(relative), "utf8");
+const readRaw = relative => fs.readFileSync(localPath(relative), "utf8");
+const read = relative => readDeepReviewed(relative);
 const sha256 = source => createHash("sha256").update(source).digest("hex");
-const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
-const manifest = JSON.parse(read("tools/app/manifest.json"));
+const baseline = JSON.parse(readRaw("tools/fixtures/north-wildwood-refactor-baseline.json"));
+const manifest = JSON.parse(readRaw("tools/app/manifest.json"));
+
+// Invert only the reviewed deep state/data fixes. Every prior audit reads its
+// exact input bytes; this leading layer separately pins the real current files.
+const DEEP_REVIEW_PATH = "tools/fixtures/north-wildwood-20261103-deep-fixes.json";
+const deepReviewedText = readRaw(DEEP_REVIEW_PATH);
+assert.equal(sha256(deepReviewedText), "fdd12441798319f48629c376a4d174775034cbceebc602a2e2eece2924740860",
+  "The deep-fix inverse must retain its exact reviewed fixture");
+const deepReviewed = JSON.parse(deepReviewedText);
+assert.equal(deepReviewed.schemaVersion, 1);
+assert.equal(deepReviewed.baselineCommit, "debf97d7aace528cd46ba94721904bf0a3a417ac");
+const DEEP_RUNTIME = "assets/app/runtime.js", DEEP_3D = "assets/3d/north-wildwood-3d.js";
+const DEEP_TEMPLATE = "tools/app/index.template.html";
+const DEEP_OWNERS = [
+  ["tools/app/runtime/03-time-series.js", ["buildObservedDailyMaximumSeries"]],
+  ["tools/app/runtime/04-observation-archives.js", ["ensureObservedArchiveForDate", "ensureObservedArchiveRange", "buildObservedCanonicalSeries"]],
+  ["tools/app/runtime/06-inundation-catalog.js", ["annotateHydraulicSeries"]],
+  ["tools/app/runtime/08-filling-and-drainage.js", ["getDrainageRetentionMilestones"]],
+  ["tools/app/runtime/13-export-range.js", ["getDownloadRangeSummaryFrameCount"]],
+  ["tools/app/runtime/17-export-encoding.js", ["buildHourlyRangeFrameItems"]],
+  ["tools/app/runtime/22-calendar-and-modes.js", ["loadObservedDay", "setTimelineIntervalMinutes", "switchDataMode"]],
+  ["tools/app/runtime/25-structures-and-parcels.js", ["setNsiStructuresEnabled", "ensureParcelAssets", "loadParcelBoundaryLayer", "setParcelsEnabled"]],
+  [DEEP_3D, ["updateImageLayer", "syncParcels3d", "buildingGeometryPolygons3d", "buildingGeometrySegments3d",
+    "buildingPointOnSegment3d", "buildingGeometryContainsPoint3d", "buildingInteriorPoint3d", "buildingSegmentParts3d",
+    "buildingFootprintFitsParcel3d", "resolveClickedBuildingParcel3d", "wire3dInteractions", "setParcelsEnabled="]]
+];
+const DEEP_NEW_FUNCTIONS = ["loadParcelBoundaryLayer", "buildingGeometryPolygons3d", "buildingGeometrySegments3d",
+  "buildingPointOnSegment3d", "buildingGeometryContainsPoint3d", "buildingInteriorPoint3d", "buildingSegmentParts3d",
+  "buildingFootprintFitsParcel3d", "resolveClickedBuildingParcel3d"];
+assert.deepEqual(deepReviewed.files.map(file => [file.source, file.kind, file.entryId]), [
+  ...DEEP_OWNERS.map(([relative]) => [relative, relative === DEEP_3D ? "external" : "script", relative === DEEP_3D ? null : "script-004"]),
+  [DEEP_RUNTIME, "generated-script", "script-004"], [DEEP_TEMPLATE, "template", null], ["index.html", "document", null]
+]);
+assert.deepEqual(deepReviewed.changes.map(block => [block.source, block.functionOwner]),
+  DEEP_OWNERS.flatMap(([relative, names]) => names.map(name => [relative, name])));
+const deepRuntimeEntry = manifest.scripts.find(entry => entry.id === "script-004");
+assert.equal(deepRuntimeEntry.output, DEEP_RUNTIME);
+for (const [relative] of DEEP_OWNERS.filter(([relative]) => relative !== DEEP_3D)) assert.ok(deepRuntimeEntry.sources.includes(relative));
+function deepOwnedFunction(source, name, indent, absent = false) {
+  const assignment = name.endsWith("=");
+  const head = assignment ? name.slice(0, -1) + " = async function \\(\\)" : "(?:async )?function " + name + "\\([^\\n]*\\)";
+  const expression = new RegExp("^" + " ".repeat(indent) + head + " \\{\\n[^]*?^" + " ".repeat(indent) + (assignment ? "};" : "}") + "\\n(?:\\n)?", "gm");
+  const matches = [...source.matchAll(expression)];
+  assert.equal(matches.length, absent ? 0 : 1, `${name} must retain its exact deep-fix function owner`);
+  return matches[0]?.[0] || "";
+}
+for (const block of deepReviewed.changes) {
+  const external = block.source === DEEP_3D;
+  assert.equal(block.kind, external ? "external" : "script");assert.equal(block.entryId, external ? null : "script-004");
+  assert.equal(block.afterSource, deepOwnedFunction(readRaw(block.source), block.functionOwner, external ? 2 : 4));
+  assert.equal(sha256(block.afterSource), block.afterSha256);
+  assert.equal(block.beforeSource === "", DEEP_NEW_FUNCTIONS.includes(block.functionOwner),
+    "Only the nine reviewed new helpers may introduce declarations");
+}
+assert.deepEqual(deepReviewed.documentTags.map(tag => [tag.output, tag.documents]), [
+  [DEEP_RUNTIME, ["index.html"]], [DEEP_3D, [DEEP_TEMPLATE, "index.html"]]
+]);
+for (const tag of deepReviewed.documentTags) {
+  const attrs = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
+  if (tag.output === DEEP_RUNTIME) {
+    assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+      "Deep runtime fixes may change only the existing content cache key");
+    referencedOutput(attrs.get("src"), tag.output, readRaw(tag.output));
+  } else {
+    assert.equal(tag.afterSource.replace(/&deep=[a-f0-9]{16}(?=")/, ""), tag.beforeSource,
+      "The 3D dependency may add only its exact deep-fix content cache key");
+    const url = new URL(attrs.get("src"), "https://north-wildwood-parity.invalid/");
+    assert.equal(url.origin, "https://north-wildwood-parity.invalid");
+    assert.equal(url.pathname.slice(1), DEEP_3D);assert.equal(url.hash, "");
+    assert.equal(url.searchParams.get("deep"), sha256(readRaw(DEEP_3D)).slice(0, 16));
+  }
+}
+function deepReviewedFragments(source, blocks) {
+  for (const block of blocks) {
+    assert.ok(block.afterSource.length);
+    assert.equal(source.split(block.afterSource).length - 1, 1, `${block.functionOwner || block.output} must retain one exact deep-fix fragment`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+function readDeepReviewed(relative) {
+  const source = readRaw(relative), file = deepReviewed.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed deep fixes`);
+  const blocks = file.kind === "generated-script" ? deepReviewed.changes.filter(block => block.kind === "script")
+    : ["template", "document"].includes(file.kind) ? deepReviewed.documentTags.filter(tag => tag.documents.includes(relative))
+    : deepReviewed.changes.filter(block => block.source === relative);
+  const restored = deepReviewedFragments(source, blocks);
+  if (["script", "external"].includes(file.kind)) {
+    const names = DEEP_OWNERS.find(([name]) => name === relative)[1], indent = relative === DEEP_3D ? 2 : 4;
+    const strip = (text, before) => {
+      for (const name of names) text = text.replace(deepOwnedFunction(text, name, indent, before && DEEP_NEW_FUNCTIONS.includes(name)), "");
+      return text;
+    };
+    assert.equal(strip(source, false), strip(restored, true), `${relative} may change only its reviewed function declarations and wrapper`);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-deep-fix byte`);
+  return restored;
+}
+for (const file of deepReviewed.files) readDeepReviewed(file.source);
+
 // Release only the owned html2canvas clone buffers after the reviewed capture.
 const CLONE_CLEANUP_PATH = "tools/fixtures/north-wildwood-20261103-export-clone-cleanup.json";
 const cloneCleanupText = read(CLONE_CLEANUP_PATH);
@@ -1890,6 +1991,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
 console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement/frame-reuse/October-30-scalable-road-labels inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
+  const read = readRaw;
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
   try {
     for (const relative of ["tools/app", "assets/app", "assets/styles", "assets/export-preview.js", FONT_FAMILY_SOURCE,
@@ -1905,7 +2007,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1921,8 +2023,73 @@ if (process.argv.includes("--self-test")) {
     const scratchHtml = path.join(scratch, "index.html");
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
-    const activeRuntimeTag = cloneCleanup.documentTags[0].afterSource;
+    const activeRuntimeTag = deepReviewed.documentTags.find(tag => tag.output === DEEP_RUNTIME).afterSource;
     const captureSource = read(CLONE_CLEANUP_SOURCE);
+    const deepFunctionCase = (name, relative, owner, mutate) => {
+      const source = read(relative), block = deepReviewed.changes.find(block => block.source === relative && block.functionOwner === owner);
+      assert.ok(block, `${name}: a mutation must name one reviewed function`);
+      return [name, path.join(scratch, relative), source.replace(block.afterSource, mutate(block.afterSource, block))];
+    };
+    const deepCases = [
+      ["broadened deep-fix owner list", path.join(scratch, DEEP_REVIEW_PATH),
+        JSON.stringify({...deepReviewed, changes:[...deepReviewed.changes, {...deepReviewed.changes[0], source:"tools/app/runtime/00-configuration.js"}]})],
+      deepFunctionCase("lost native daily-peak hydraulic context", DEEP_OWNERS[0][0], "buildObservedDailyMaximumSeries",
+        source => source.replace('"hydraulicAntecedents"', '"unreviewedAntecedents"')),
+      deepFunctionCase("lost prior-year archive context", DEEP_OWNERS[1][0], "ensureObservedArchiveForDate",
+        source => source.replace('[previousDate, nextDate]', '[nextDate]')),
+      deepFunctionCase("omitted first export-day archive context", DEEP_OWNERS[1][0], "ensureObservedArchiveRange",
+        source => source.replace('await ensureObservedArchiveForDate(startKey < endKey ? startKey : endKey);', '')),
+      deepFunctionCase("lost preceding crest at midnight", DEEP_OWNERS[1][0], "buildObservedCanonicalSeries",
+        source => source.replace('source = preceding.concat(source);', 'source = source;')),
+      deepFunctionCase("crossed historical gauge identity", DEEP_OWNERS[1][0], "buildObservedCanonicalSeries",
+        source => source.replace('Boolean(previousDay.isLewesSurrogate) === Boolean(dayRecord?.isLewesSurrogate)', 'true')),
+      deepFunctionCase("dropped historical reannotation antecedents", DEEP_OWNERS[2][0], "annotateHydraulicSeries",
+        source => source.replace('const rows = antecedents.concat(selected);', 'const rows = selected;')),
+      deepFunctionCase("dropped draining retention antecedents", DEEP_OWNERS[3][0], "getDrainageRetentionMilestones",
+        source => source.replace('const rows = antecedents.concat(visible)', 'const rows = visible')),
+      deepFunctionCase("restored fractional-hour summary overcount", DEEP_OWNERS[4][0], "getDownloadRangeSummaryFrameCount",
+        (source, block) => block.beforeSource),
+      deepFunctionCase("allowed an hourly frame before the selected start", DEEP_OWNERS[5][0], "buildHourlyRangeFrameItems",
+        source => source.replace('time >= range.startMs && ', '')),
+      deepFunctionCase("anchored hourly exports to a fractional start", DEEP_OWNERS[5][0], "buildHourlyRangeFrameItems",
+        source => source.replace('Math.ceil(range.startMs / hourMs) * hourMs', 'range.startMs')),
+      deepFunctionCase("lost pending observed selection ownership", DEEP_OWNERS[6][0], "loadObservedDay",
+        source => source.replace('loadObservedDay.pendingSelection = { generation, dateStr };', '')),
+      deepFunctionCase("cancelled a pending observed day on cadence choice", DEEP_OWNERS[6][0], "setTimelineIntervalMinutes",
+        source => source.replace('if (observedSelectionPending) {', 'if (false) {')),
+      deepFunctionCase("lost pending observed-mode generation", DEEP_OWNERS[6][0], "switchDataMode",
+        source => source.replace('switchDataMode.pendingObservedSelectionGeneration = generation;', '')),
+      deepFunctionCase("overwrote building-layer interaction ownership", DEEP_OWNERS[7][0], "setNsiStructuresEnabled",
+        (source, block) => block.beforeSource),
+      deepFunctionCase("tied parcel metadata to image success", DEEP_OWNERS[7][0], "ensureParcelAssets",
+        (source, block) => block.beforeSource),
+      deepFunctionCase("accepted an undecoded parcel boundary", DEEP_OWNERS[7][0], "loadParcelBoundaryLayer",
+        source => source.replace('await image.decode();', 'void image.decode();')),
+      deepFunctionCase("allowed a stale parcel error to evict its replacement", DEEP_OWNERS[7][0], "loadParcelBoundaryLayer",
+        source => source.replace('if (parcelsLayer === layer) parcelsLayer = null;', 'parcelsLayer = null;')),
+      deepFunctionCase("skipped parcel boundary readiness", DEEP_OWNERS[7][0], "setParcelsEnabled",
+        source => source.replace('await loadParcelBoundaryLayer(layer);', '')),
+      deepFunctionCase("prevented retry of a failed 3D image", DEEP_3D, "updateImageLayer",
+        source => source.replace(' || options.reload === true', '')),
+      deepFunctionCase("used a clipped rendered roof for property lookup", DEEP_3D, "resolveClickedBuildingParcel3d",
+        source => source.replace('var feature = fullFeatures[0],', 'var feature = renderedFeature,')),
+      deepFunctionCase("accepted overlapping roof-to-parcel identities", DEEP_3D, "resolveClickedBuildingParcel3d",
+        source => source.replace('if (candidates.length === 1)', 'if (candidates.length >= 1)')),
+      deepFunctionCase("omitted the 3D parcel source retry request", DEEP_3D, "setParcelsEnabled=",
+        source => source.replace('syncParcels3d(Boolean(arguments[0]));', 'syncParcels3d();')),
+      ["added an unreviewed deep-fix global", path.join(scratch, DEEP_OWNERS[0][0]), read(DEEP_OWNERS[0][0]) + '\nvar unreviewedDeepGlobal = true;\n'],
+      ["stale generated deep export function", path.join(scratch, DEEP_RUNTIME),
+        read(DEEP_RUNTIME).replace(deepReviewed.changes.find(block => block.functionOwner === 'buildHourlyRangeFrameItems').afterSource,
+          deepReviewed.changes.find(block => block.functionOwner === 'buildHourlyRangeFrameItems').beforeSource)],
+      ["stale deep runtime content key", scratchHtml,
+        published.replace(activeRuntimeTag, deepReviewed.documentTags[0].beforeSource)],
+      ["omitted deep 3D cache key from template", path.join(scratch, DEEP_TEMPLATE),
+        template.replace(deepReviewed.documentTags[1].afterSource, deepReviewed.documentTags[1].beforeSource)],
+      ["stale deep 3D cache key in published HTML", scratchHtml,
+        published.replace(deepReviewed.documentTags[1].afterSource, deepReviewed.documentTags[1].afterSource.replace(/&deep=[a-f0-9]{16}/, '&deep=0000000000000000'))],
+      ["changed visible labels with deep fixes", scratchHtml, published.replace('>Export Map</button>', '>Unreviewed export text</button>')]
+    ];
+    assert.equal(deepCases.length, 29, "Retain the deep data/state, renderer, cache and UI boundary mutations");
     const cloneCleanupCases = [
       ["broadened clone-cleanup inverse ownership", path.join(scratch, CLONE_CLEANUP_PATH),
         JSON.stringify({ ...cloneCleanup, changes: [...cloneCleanup.changes, { ...cloneCleanup.changes[0], source: "tools/app/runtime/00-configuration.js" }] })],
@@ -2295,7 +2462,9 @@ if (process.argv.includes("--self-test")) {
     assert.equal(cases.length - uiDialogCases.length - cloneCleanupCases.length, 140, "Retain all 128 previous mutations and twelve history transaction/UI boundary mutations");
     assert.equal(cases.length - cloneCleanupCases.length, 156, "Retain all 140 previous mutations plus sixteen dialog/accessibility/UI boundary mutations");
     assert.equal(cases.length, 172, "Retain all 156 previous mutations plus sixteen owned-clone/capture/UI boundary mutations");
-    for (const [name, target, altered] of cases) {
+    const allCases = [...cases, ...deepCases];
+    assert.equal(allCases.length, 201, "Preserve all 172 earlier cases and append 29 deep-fix mutations");
+    for (const [name, target, altered] of allCases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);
       fs.writeFileSync(target, altered);
@@ -2306,7 +2475,7 @@ if (process.argv.includes("--self-test")) {
       assert.match(result.stderr, /AssertionError/, `${name}: rejection must come from a parity assertion`);
     }
     assert.equal(run().status, 0, "Restoring the scratch files must restore a passing check");
-    console.log(`Parity mutation checks passed: ${cases.length} dropped, moved, altered or stale artifacts were rejected.`);
+    console.log(`Parity mutation checks passed: ${allCases.length} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

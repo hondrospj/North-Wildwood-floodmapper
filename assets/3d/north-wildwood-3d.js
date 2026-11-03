@@ -256,7 +256,7 @@
     var source = glMap.getSource(options.sourceId);
     var signature = JSON.stringify([options.url, options.coordinates]);
     if (source && typeof source.updateImage === "function") {
-      if (imageLayerVersions.get(source) !== signature) {
+      if (imageLayerVersions.get(source) !== signature || options.reload === true) {
         source.updateImage({ url: options.url, coordinates: options.coordinates });
         imageLayerVersions.set(source, signature);
       }
@@ -1004,7 +1004,7 @@
     }
   }
 
-  function syncParcels3d() {
+  function syncParcels3d(reload) {
     if (!glMap || !glStyleReady) return;
     var enabled = layerVisible("parcelsToggle", false);
     var coordinates = configuredWorldFileCoordinates();
@@ -1015,6 +1015,7 @@
       url: PARCEL_BOUNDARY_PNG_URL,
       coordinates: coordinates,
       opacity: 0.78,
+      reload: enabled && reload === true,
       visible: enabled
     });
   }
@@ -1095,6 +1096,154 @@
     return Number.isFinite(minimumLng) && Number.isFinite(minimumLat)
       ? [(minimumLng + maximumLng) / 2, (minimumLat + maximumLat) / 2]
       : null;
+  }
+
+  function buildingGeometryPolygons3d(geometry) {
+    return geometry?.type === "Polygon" ? [geometry.coordinates]
+      : geometry?.type === "MultiPolygon" ? geometry.coordinates : [];
+  }
+
+  function buildingGeometrySegments3d(geometry) {
+    return buildingGeometryPolygons3d(geometry).flatMap(function (polygon) {
+      return polygon.flatMap(function (ring) {
+        return ring.map(function (point, index) { return [point, ring[(index + 1) % ring.length]]; });
+      });
+    });
+  }
+
+  function buildingPointOnSegment3d(point, a, b) {
+    var epsilon = 1e-10;
+    var dx = b[0] - a[0], dy = b[1] - a[1];
+    var length = Math.hypot(dx, dy);
+    return length > 0 && Math.abs(dx * (point[1] - a[1]) - dy * (point[0] - a[0])) <= epsilon * length &&
+      point[0] >= Math.min(a[0], b[0]) - epsilon && point[0] <= Math.max(a[0], b[0]) + epsilon &&
+      point[1] >= Math.min(a[1], b[1]) - epsilon && point[1] <= Math.max(a[1], b[1]) + epsilon;
+  }
+
+  function buildingGeometryContainsPoint3d(geometry, point, boundaryIncluded) {
+    if (buildingGeometrySegments3d(geometry).some(function (segment) {
+      return buildingPointOnSegment3d(point, segment[0], segment[1]);
+    })) return Boolean(boundaryIncluded);
+    return pointInsideMunicipalGeometry(point, geometry);
+  }
+
+  function buildingInteriorPoint3d(geometry) {
+    var segments = buildingGeometrySegments3d(geometry);
+    var selected = null, widest = 0;
+    var heights = Array.from(new Set(segments.flatMap(function (segment) {
+      return [segment[0][1], segment[1][1]];
+    }))).sort(function (a, b) { return a - b; });
+    // A bounding-box center can lie outside a concave footprint or in its
+    // courtyard. Scan between vertices and choose an actual interior point.
+    for (var index = 1; index < heights.length; index += 1) {
+      var y = (heights[index - 1] + heights[index]) / 2;
+      var xs = segments.filter(function (segment) {
+        return (segment[0][1] > y) !== (segment[1][1] > y);
+      }).map(function (segment) {
+        var a = segment[0], b = segment[1];
+        return a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]);
+      }).sort(function (a, b) { return a - b; });
+      for (var cursor = 1; cursor < xs.length; cursor += 1) {
+        var point = [(xs[cursor - 1] + xs[cursor]) / 2, y];
+        var width = xs[cursor] - xs[cursor - 1];
+        if (width > widest && buildingGeometryContainsPoint3d(geometry, point, false)) {
+          selected = point;
+          widest = width;
+        }
+      }
+    }
+    return selected;
+  }
+
+  function buildingSegmentParts3d(segment, boundaries) {
+    var a = segment[0], b = segment[1], dx = b[0] - a[0], dy = b[1] - a[1];
+    var values = [0, 1];
+    boundaries.forEach(function (edge) {
+      var c = edge[0], d = edge[1], ex = d[0] - c[0], ey = d[1] - c[1];
+      var denominator = dx * ey - dy * ex;
+      if (Math.abs(denominator) < 1e-20) {
+        var lengthSquared = dx * dx + dy * dy;
+        if (lengthSquared && Math.abs(dx * (c[1] - a[1]) - dy * (c[0] - a[0])) < 1e-20) {
+          [c, d].forEach(function (point) {
+            var position = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / lengthSquared;
+            if (position > 0 && position < 1) values.push(position);
+          });
+        }
+        return;
+      }
+      var t = ((c[0] - a[0]) * ey - (c[1] - a[1]) * ex) / denominator;
+      var u = ((c[0] - a[0]) * dy - (c[1] - a[1]) * dx) / denominator;
+      if (t > 0 && t < 1 && u >= 0 && u <= 1) values.push(t);
+    });
+    values.sort(function (one, two) { return one - two; });
+    return values.concat(values.slice(1).map(function (value, index) {
+      return (value + values[index]) / 2;
+    })).map(function (value) { return [a[0] + dx * value, a[1] + dy * value]; });
+  }
+
+  function buildingFootprintFitsParcel3d(footprint, parcel) {
+    var footprintSegments = buildingGeometrySegments3d(footprint);
+    var parcelSegments = buildingGeometrySegments3d(parcel);
+    if (!footprintSegments.length || !parcelSegments.length) return false;
+    var bounds = function (segments) {
+      var points = segments.map(function (segment) { return segment[0]; });
+      return [Math.min(...points.map(function (point) { return point[0]; })),
+        Math.min(...points.map(function (point) { return point[1]; })),
+        Math.max(...points.map(function (point) { return point[0]; })),
+        Math.max(...points.map(function (point) { return point[1]; }))];
+    };
+    var inner = bounds(footprintSegments), outer = bounds(parcelSegments), epsilon = 1e-10;
+    if (inner[0] < outer[0] - epsilon || inner[1] < outer[1] - epsilon ||
+        inner[2] > outer[2] + epsilon || inner[3] > outer[3] + epsilon) return false;
+    var outerEdges = buildingGeometryPolygons3d(footprint).flatMap(function (polygon) {
+      return polygon[0].map(function (point, index, ring) { return [point, ring[(index + 1) % ring.length]]; });
+    });
+    if (!outerEdges.every(function (segment) {
+      return buildingSegmentParts3d(segment, parcelSegments).every(function (point) {
+        return buildingGeometryContainsPoint3d(parcel, point, true);
+      });
+    })) return false;
+    // A parcel hole wholly inside a building has no outer-edge intersection.
+    // Reject it unless the same area is also a hole in the building footprint.
+    return buildingGeometryPolygons3d(parcel).every(function (polygon) {
+      return polygon.slice(1).every(function (ring) {
+        return ring.every(function (point, index) {
+          return buildingSegmentParts3d([point, ring[(index + 1) % ring.length]], footprintSegments)
+            .every(function (sample) { return !buildingGeometryContainsPoint3d(footprint, sample, false); });
+        });
+      });
+    });
+  }
+
+  async function resolveClickedBuildingParcel3d(renderedFeature) {
+    var footprintId = String(renderedFeature?.properties?.footprintId || "");
+    var fullFeatures = (buildingData?.features || []).filter(function (feature) {
+      return footprintId && String(feature.properties?.footprintId || "") === footprintId;
+    });
+    // Rendered vector-tile geometry can be clipped at a tile edge. Its full
+    // municipal source feature is the only geometry used for property lookup.
+    if (fullFeatures.length !== 1) return { feature: renderedFeature, point: null, parcel: null };
+    var feature = fullFeatures[0], point = buildingInteriorPoint3d(feature.geometry);
+    var result = { feature: feature, point: point, parcel: null };
+    if (!point) return result;
+    await ensureParcelAssets();
+    var identified = parcelFeatures.filter(function (parcel) {
+      return String(parcel.properties?.nsi2026FootprintId || "") === footprintId;
+    });
+    // The explicit NSI footprint association survives small differences
+    // between footprint and parcel surveys. Confirm an actual interior point
+    // belongs to that parcel before accepting its unique identity.
+    if (identified.length === 1 && buildingGeometryContainsPoint3d(identified[0].geometry, point, true)) {
+      result.parcel = identified[0];
+      return result;
+    }
+    var candidates = (identified.length ? identified : parcelFeatures).filter(function (parcel) {
+      return buildingFootprintFitsParcel3d(feature.geometry, parcel.geometry);
+    });
+    // Shared parcels can contain several buildings; duplicated/overlapping
+    // property records require a unique footprint identity or a safe fallback.
+    if (candidates.length === 1) result.parcel = candidates[0];
+    return result;
   }
 
   function finiteBuildingNumber(value) {
@@ -1660,22 +1809,20 @@
             return queryGeneration === mapQueryGeneration && queryMode === mapClickMode &&
               queryRenderToken === lastRenderToken && layerVisible("buildingsToggle", false);
           };
+          var selectedBuilding = { feature: rendered[0], point: null, parcel: null };
           try {
-            var parcelFeature = await findParcelFeatureForLocation(
-              event.lngLat.lat,
-              event.lngLat.lng,
-              { allowNearest: false }
-            );
+            selectedBuilding = await resolveClickedBuildingParcel3d(rendered[0]);
             if (!isCurrentQuery()) return;
-            if (parcelFeature) {
-              openParcelFloodPrompt(parcelFeature, L.latLng(event.lngLat.lat, event.lngLat.lng));
+            if (selectedBuilding.parcel) {
+              openParcelFloodPrompt(selectedBuilding.parcel, L.latLng(selectedBuilding.point[1], selectedBuilding.point[0]));
               return;
             }
           } catch (_) {}
           if (!isCurrentQuery()) return;
           openFallbackBuildingPopup(
-            L.latLng(event.lngLat.lat, event.lngLat.lng),
-            rendered[0].properties
+            selectedBuilding.point ? L.latLng(selectedBuilding.point[1], selectedBuilding.point[0])
+              : L.latLng(event.lngLat.lat, event.lngLat.lng),
+            selectedBuilding.feature.properties
           );
           return;
         }
@@ -2286,7 +2433,9 @@
   var originalSetParcelsEnabled = setParcelsEnabled;
   setParcelsEnabled = async function () {
     var result = await originalSetParcelsEnabled.apply(this, arguments);
-    syncParcels3d();
+    // A fresh successful enable also retries a failed native image source.
+    // Its unchanged URL/geometry must not certify an earlier failed request.
+    syncParcels3d(Boolean(arguments[0]));
     suspendLeafletVisualLayers();
     return result;
   };

@@ -266,7 +266,13 @@
     }
 
     function annotateHydraulicSeries(series = []) {
-      const rows = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      const selected = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      // Historical day timelines retain their preceding measurements as
+      // context, including when Top 10 or an off-grid export reannotates them.
+      const history = selected.find(entry => Array.isArray(entry.hydraulicAntecedents))?.hydraulicAntecedents || [];
+      const firstTime = entryTimeMs(selected[0]);
+      const antecedents = history.filter(entry => Number.isFinite(firstTime) && entryTimeMs(entry) < firstTime);
+      const rows = antecedents.concat(selected);
       const phases = rows.map((entry, index) => (
         Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : "slack"
       ));
@@ -289,7 +295,7 @@
           hydraulicCrestStageFt: getStageValue(crestEntry),
           hydraulicElapsedMinutes: getHydraulicElapsedMinutes(rows, crestIndex, index)
         };
-      });
+      }).slice(antecedents.length);
     }
 
     function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {

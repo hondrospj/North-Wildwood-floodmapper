@@ -1997,7 +1997,24 @@ function parseStoredLocalNyToDate(timeEST) {
         const entries = getObservedSourceHoursForDay(day);
         const daily = buildDailyMaximumSeries(entries, { kind: "observed" })[0];
         if (daily) {
-          out.push({ ...daily, observedDate: dateKey, peakNAVD88: getStageValue(daily) });
+          const canonical = buildObservedCanonicalSeries(day, dateKey);
+          const time = entryTimeMs(daily);
+          let peak = canonical.find(entry => entryTimeMs(entry) === time && getStageValue(entry) === getStageValue(daily));
+          if (!peak && Number.isFinite(time)) {
+            // A six-minute measured peak may fall between timeline slots.
+            // Keep its native instant and stage while resolving its tide phase.
+            peak = annotateHydraulicSeries([
+              ...canonical.filter(entry => entryTimeMs(entry) !== time), daily
+            ].sort((a, b) => entryTimeMs(a) - entryTimeMs(b))).find(entry => entryTimeMs(entry) === time);
+          }
+          const resolved = { ...daily };
+          for (const field of ["hydraulicPhase", "hydraulicPhaseCanonical", "hydraulicCrestIndex",
+            "hydraulicCrestTimeUtc", "hydraulicCrestStageFt", "hydraulicElapsedMinutes", "hydraulicAntecedents"]) {
+            if (peak && field in peak) resolved[field] = peak[field];
+          }
+          out.push({ ...resolved, observedDate: dateKey, peakNAVD88: getStageValue(daily),
+            observationInterval: "daily", timelineIntervalMinutes: 1440,
+            isDailyMaximum: true, dailyMaximumKind: "observed" });
         } else if (Number.isFinite(normalizeStageValue(day.peakNAVD88))) {
           out.push({
             navd88StageFt: Number(day.peakNAVD88), stageFt: Number(day.peakNAVD88), value: Number(day.peakNAVD88),
@@ -2391,12 +2408,17 @@ function parseStoredLocalNyToDate(timeEST) {
       const source = getObservedArchiveSourceForDate(dateStr);
       await ensureObservedArchiveYear(source, String(dateStr).slice(0, 4));
       if (generation !== archiveGeneration) return false;
-      // The final three quarter-hours need the next measured hourly endpoint.
-      // Usually it is in the same shard; December 31 also needs the next year.
+      // Hydraulic history crosses calendar boundaries. Load adjacent shards
+      // before constructing a day so January 1 has its preceding crest and
+      // December 31 has the next same-gauge endpoint.
+      const previousDate = addDaysToDateKey(dateStr, -1);
       const nextDate = addDaysToDateKey(dateStr, 1);
-      if (source === "lewes" && nextDate.slice(0, 4) !== dateStr.slice(0, 4)
-          && getObservedArchiveSourceForDate(nextDate) === source) {
-        await ensureObservedArchiveYear(source, nextDate.slice(0, 4));
+      for (const adjacentDate of [previousDate, nextDate]) {
+        if (adjacentDate.slice(0, 4) !== dateStr.slice(0, 4)
+            && getObservedArchiveSourceForDate(adjacentDate) === source) {
+          await ensureObservedArchiveYear(source, adjacentDate.slice(0, 4));
+          if (generation !== archiveGeneration) return false;
+        }
       }
       if (generation !== archiveGeneration) return false;
       // Background history stays cached, but today's gauge readings keep
@@ -2424,7 +2446,8 @@ function parseStoredLocalNyToDate(timeEST) {
         const [source, year] = key.split(":");
         return ensureObservedArchiveYear(source, year);
       }));
-      await ensureObservedArchiveForDate(finalKey);
+      await ensureObservedArchiveForDate(startKey < endKey ? startKey : endKey);
+      if (startKey !== endKey) await ensureObservedArchiveForDate(finalKey);
     }
 
     function decodeLewesHourlyDay(dayRecord) {
@@ -2478,6 +2501,24 @@ function parseStoredLocalNyToDate(timeEST) {
       if (source.length && source.every(entry => entry.isDailyPeakOnly)) return source;
       const start = parseStoredLocalNyToDate(`${dateStr}T00:00`);
       const end = parseStoredLocalNyToDate(`${dateStr}T23:45`);
+      let contextStart = start;
+      const previousDate = addDaysToDateKey(dateStr, -1);
+      const previousDay = getObservedDayRecord(previousDate);
+      // Keep the existing eight-hour crest search on the same gauge. Missing
+      // observations stay missing; the normal interpolation gap limit applies.
+      if (start && previousDay && Boolean(previousDay.isLewesSurrogate) === Boolean(dayRecord?.isLewesSurrogate)) {
+        const firstStation = source.find(entry => !entry.isDailyPeakOnly && Number.isFinite(getStageValue(entry)))?.sourceStationId;
+        const preceding = getObservedSourceHoursForDay(previousDay).filter(entry => {
+          const time = entryTimeMs(entry);
+          return !entry.isDailyPeakOnly && Number.isFinite(time) &&
+            time >= start.getTime() - 8 * 60 * 60 * 1000 && time < start.getTime() &&
+            (!firstStation || !entry.sourceStationId || entry.sourceStationId === firstStation);
+        });
+        if (preceding.length) {
+          contextStart = new Date(start.getTime() - 8 * 60 * 60 * 1000);
+          source = preceding.concat(source);
+        }
+      }
       if (dayRecord?.isLewesSurrogate) {
         const nextDate = addDaysToDateKey(dateStr, 1);
         const nextDay = getObservedDayRecord(nextDate);
@@ -2494,7 +2535,7 @@ function parseStoredLocalNyToDate(timeEST) {
       const series = buildQuarterHourTimelineSeries(source, {
         kind: "observed",
         observedDate: dateStr,
-        startMs: start ? start.getTime() : null,
+        startMs: contextStart ? contextStart.getTime() : null,
         endMs: end ? end.getTime() : null,
         sourceResolutionMinutes,
         fillMissingSlots: true,
@@ -2503,14 +2544,17 @@ function parseStoredLocalNyToDate(timeEST) {
         maxGapMinutes: dayRecord?.isLewesSurrogate ? 60 : 30
       });
 
-      return annotateHydraulicSeries(series.map((entry, idx) => ({
+      const annotated = annotateHydraulicSeries(series);
+      const antecedents = start ? annotated.filter(entry => entryTimeMs(entry) < start.getTime()) : [];
+      return annotated.filter(entry => !start || entryTimeMs(entry) >= start.getTime()).map((entry, idx) => ({
         ...entry,
+        ...(antecedents.length ? { hydraulicAntecedents: antecedents } : {}),
         observedDate: dateStr,
         quarterHourIndex: idx,
         classification: dayRecord?.classification || entry.classification || "none",
         peakNAVD88: dayRecord?.peakNAVD88 ?? entry.peakNAVD88,
         sourceResolutionMinutes: entry.isLiveObservedBackfill ? entry.sourceResolutionMinutes : sourceResolutionMinutes
-      })));
+      }));
     }
 
     function sampleCanonicalHydraulicSeries(entries = [], intervalMinutes = getTimelineIntervalMinutes()) {
@@ -3082,7 +3126,13 @@ function setDatumHelpOpen(isOpen) {
     }
 
     function annotateHydraulicSeries(series = []) {
-      const rows = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      const selected = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      // Historical day timelines retain their preceding measurements as
+      // context, including when Top 10 or an off-grid export reannotates them.
+      const history = selected.find(entry => Array.isArray(entry.hydraulicAntecedents))?.hydraulicAntecedents || [];
+      const firstTime = entryTimeMs(selected[0]);
+      const antecedents = history.filter(entry => Number.isFinite(firstTime) && entryTimeMs(entry) < firstTime);
+      const rows = antecedents.concat(selected);
       const phases = rows.map((entry, index) => (
         Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : "slack"
       ));
@@ -3105,7 +3155,7 @@ function setDatumHelpOpen(isOpen) {
           hydraulicCrestStageFt: getStageValue(crestEntry),
           hydraulicElapsedMinutes: getHydraulicElapsedMinutes(rows, crestIndex, index)
         };
-      });
+      }).slice(antecedents.length);
     }
 
     function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {
@@ -3736,7 +3786,10 @@ function setDatumHelpOpen(isOpen) {
       if (!phase.startsWith("draining") || !Number.isFinite(crestStage) ||
           crestStage < MINOR_FLOOD_FT || !Number.isFinite(currentTime) || !Number.isFinite(crestTime)) return [];
 
-      const rows = (Array.isArray(series) ? series : [])
+      const visible = Array.isArray(series) ? series : [];
+      const antecedents = entry?.hydraulicAntecedents ||
+        visible.find(row => Array.isArray(row.hydraulicAntecedents))?.hydraulicAntecedents || [];
+      const rows = antecedents.concat(visible)
         .filter(row => {
           const time = entryTimeMs(row);
           return Number.isFinite(time) && time >= crestTime && time < currentTime && Number.isFinite(getStageValue(row));
@@ -6342,6 +6395,9 @@ function getDownloadArchiveBounds() {
         return Math.max(1, keys.size);
       }
       const stepMs = interval.minutes * 60 * 1000;
+      if (interval.value === "hourly") {
+        return Math.max(0, Math.floor(endMs / stepMs) - Math.ceil(startMs / stepMs) + 1);
+      }
       return Math.max(1, Math.floor((endMs - startMs) / stepMs) + 1);
     }
 
@@ -8691,12 +8747,22 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
     }
 
     function buildHourlyRangeFrameItems(entries, range, sourceSeries = new Map()) {
-      if (!Array.isArray(entries) || !entries.length || !range) return [];
-      const sorted = entries.slice().sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+      if (!Array.isArray(entries) || !entries.length || !range ||
+          !Number.isFinite(range.startMs) || !Number.isFinite(range.endMs) || range.endMs < range.startMs) return [];
+      // Source data is padded for interpolation by the other export cadences.
+      // An hourly frame keeps its real source timestamp and must remain inside
+      // the user's exact bounds, including fractional-minute endpoints.
+      const sorted = entries.filter(entry => {
+        const time = entryTimeMs(entry);
+        return Number.isFinite(time) && time >= range.startMs && time <= range.endMs;
+      }).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
       const usedKeys = new Set();
       const items = [];
       const hourMs = 60 * 60 * 1000;
-      for (let slotMs = range.startMs; slotMs <= range.endMs + 1000; slotMs += hourMs) {
+      // UTC hour slots distinguish both occurrences of a repeated New York
+      // hour and never invent a reading in the missing spring-forward hour.
+      const firstSlotMs = Math.ceil(range.startMs / hourMs) * hourMs;
+      for (let slotMs = firstSlotMs; slotMs <= range.endMs; slotMs += hourMs) {
         const match = findClosestExportEntryForSlot(sorted, slotMs, usedKeys, 31 * 60 * 1000);
         if (!match) continue;
         usedKeys.add(match.key);
@@ -11601,12 +11667,14 @@ function populateCalendarSelectors() {
     }
 
     async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
-      const floodSelectionToken = cancelPendingFloodFrame();
+      cancelPendingFloodFrame();
       const generation = ++selectionGeneration;
+      loadObservedDay.pendingSelection = { generation, dateStr };
+      try {
       try {
         await ensureObservedArchiveForDate(dateStr);
       } catch (error) {
-        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+        if (generation !== selectionGeneration) return false;
         const failedMode = "observed";
         const failedLabel = failedMode === "forecast" ? "Forecast" : failedMode === "return-interval" ? "Modeled flood" : "Observed";
         currentDataMode = failedMode;
@@ -11631,7 +11699,6 @@ function populateCalendarSelectors() {
         toast(message);
         return false;
       }
-      if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
       const dayRecord = getObservedDayRecord(dateStr);
       if (!dayRecord) {
@@ -11665,6 +11732,9 @@ function populateCalendarSelectors() {
       currentDataMode = "observed";
       updateDataModeButtons();
 
+      // Once data is committed, an interval change must rebuild this series
+      // rather than only updating the cadence of a still-pending request.
+      if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;
       selectedObservedDate = dateStr;
       currentMonthKey = dateStr.slice(0, 7);
       topTideEvents = buildTopTideEvents();
@@ -11700,10 +11770,13 @@ function populateCalendarSelectors() {
       document.getElementById("hourSlider").value = String(currentHourIndex);
 
       await renderCalendar();
-      if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
       await renderHour(currentHourIndex);
+      if (generation !== selectionGeneration) return false;
       renderTopTides();
+      } finally {
+        if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;
+      }
     }
 
     async function loadTopTideEvent(index, preferredEntry = null) {
@@ -11817,6 +11890,20 @@ function populateCalendarSelectors() {
       if (nextMinutes === previousMinutes) return;
 
       const referenceEntry = currentSeriesHours[currentHourIndex] || null;
+      // Interval and overlay choices belong to the pending observed selection.
+      // They must not cancel its data request before it has a timeline to render.
+      const observedSelectionPending = currentDataMode === "observed" && (
+        loadObservedDay.pendingSelection?.generation === selectionGeneration ||
+        switchDataMode.pendingObservedSelectionGeneration === selectionGeneration
+      );
+      if (observedSelectionPending) {
+        stopPlayback();
+        toast("");
+        currentTimelineIntervalMinutes = nextMinutes;
+        updateTimelineIntervalUI();
+        overlayPreloadGeneration += 1;
+        return;
+      }
       const generation = ++selectionGeneration;
       const floodSelectionToken = cancelPendingFloodFrame();
       stopPlayback();
@@ -11934,6 +12021,7 @@ function populateCalendarSelectors() {
       }
 
       currentDataMode = "observed";
+      switchDataMode.pendingObservedSelectionGeneration = generation;
       updateDataModeButtons();
       const preferredObservedDate = currentViewType === "top-tide" ? null : selectedObservedDate;
       // The old image may remain visible while loading, but its forecast
@@ -11957,10 +12045,8 @@ function populateCalendarSelectors() {
         : "Loading observed history…";
       setFloodFrameStatus(loadingMessage, "info");
       await warmBackgroundData();
-      if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
       await renderCalendar();
-      if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
 
       const defaultDate = preferredObservedDate || getLatestObservedDate();
@@ -11971,7 +12057,7 @@ function populateCalendarSelectors() {
         throw new Error("No observed dates were found in observed.json.");
       }
       } catch (error) {
-        if (modeFailureToken !== lastRenderToken || currentDataMode !== mode) return false;
+        if ((mode !== "observed" && modeFailureToken !== lastRenderToken) || currentDataMode !== mode) return false;
         if (modeFailureGeneration !== null && modeFailureGeneration !== selectionGeneration) return false;
         const failedMode = mode;
         const failedLabel = failedMode === "forecast" ? "Forecast" : failedMode === "return-interval" ? "Modeled flood" : "Observed";
@@ -11996,6 +12082,10 @@ function populateCalendarSelectors() {
         if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
         toast(message);
         return false;
+      } finally {
+        if (switchDataMode.pendingObservedSelectionGeneration === modeFailureGeneration) {
+          switchDataMode.pendingObservedSelectionGeneration = null;
+        }
       }
     }
 
@@ -12902,6 +12992,9 @@ function startPlayback() {
         toast("");
         return;
       }
+      // Choose the layer's default interaction when it is requested. A later
+      // explicit depth choice must survive the asynchronous asset completion.
+      setMapClickMode("building", { closePopup: false });
       let layer;
       try {
         layer = await ensureNsiStructureAssets();
@@ -12912,15 +13005,23 @@ function startPlayback() {
       if (generation !== nsiLayerGeneration) return;
       updateNsiStructureImpactLayer();
       if (!map.hasLayer(layer)) layer.addTo(map);
-      setMapClickMode("building", { closePopup: false });
       toast("Crawlspace/Garage impacts: red is above, gold is close, cyan is below.");
     }
 
     async function ensureParcelAssets() {
-      if (parcelLoadPromise) return parcelLoadPromise;
-      parcelLoadPromise = (async () => {
-        const geojson = await fetchJson(PARCELS_URL, { cache: "force-cache" });
-        parcelFeatures = Array.isArray(geojson?.features) ? geojson.features : [];
+      // Parcel matching needs only metadata. Keep it available even when the
+      // independent boundary image fails, and reuse it for an image retry.
+      if (!parcelLoadPromise) {
+        parcelLoadPromise = fetchJson(PARCELS_URL, { cache: "force-cache" })
+          .then(geojson => {
+            parcelFeatures = Array.isArray(geojson?.features) ? geojson.features : [];
+          }).catch(err => {
+            parcelLoadPromise = null;
+            throw err;
+          });
+      }
+      await parcelLoadPromise;
+      if (!parcelsLayer) {
         parcelsLayer = createHydraulicImageOverlay(PARCEL_BOUNDARY_PNG_URL, {
           pane: "parcelsPane",
           opacity: 0.78,
@@ -12928,12 +13029,45 @@ function startPlayback() {
           crossOrigin: true,
           zIndex: 610
         });
-        return parcelsLayer;
-      })().catch(err => {
-        parcelLoadPromise = null;
-        throw err;
-      });
-      return parcelLoadPromise;
+      }
+      return parcelsLayer;
+    }
+
+    function loadParcelBoundaryLayer(layer) {
+      if (!layer._floodmapperParcelLoadPromise) {
+        layer._floodmapperParcelLoadPromise = new Promise((resolve, reject) => {
+          let settled = false;
+          const finish = error => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timer);
+            layer.off("load", loaded);
+            layer.off("error", failed);
+            if (error) {
+              if (map.hasLayer(layer)) map.removeLayer(layer);
+              const image = layer.getElement?.();
+              if (image) { try { image.src = ""; } catch (_) {} }
+              // A late error from a retired image cannot evict its replacement.
+              if (parcelsLayer === layer) parcelsLayer = null;
+              reject(error);
+            } else resolve(layer);
+          };
+          const failed = () => finish(new Error("Parcels could not be loaded. Please try again."));
+          const loaded = async () => {
+            const image = layer.getElement?.();
+            if (!image?.naturalWidth || !image?.naturalHeight) { failed(); return; }
+            try {
+              if (typeof image.decode === "function") await image.decode();
+              finish();
+            } catch (_) { failed(); }
+          };
+          const timer = window.setTimeout(() => finish(new Error("Parcels took too long to load. Please try again.")), 20000);
+          layer.on("load", loaded);
+          layer.on("error", failed);
+        });
+      }
+      if (!map.hasLayer(layer)) layer.addTo(map);
+      return layer._floodmapperParcelLoadPromise;
     }
 
     async function setParcelsEnabled(enabled) {
@@ -12951,16 +13085,17 @@ function startPlayback() {
         toast("");
         return;
       }
+      setMapClickMode("building", { closePopup: false });
       let layer;
       try {
         layer = await ensureParcelAssets();
+        if (generation !== parcelLayerGeneration) return;
+        await loadParcelBoundaryLayer(layer);
       } catch (error) {
         if (generation !== parcelLayerGeneration) return;
         throw error;
       }
       if (generation !== parcelLayerGeneration) return;
-      if (!map.hasLayer(layer)) layer.addTo(map);
-      setMapClickMode("building", { closePopup: false });
       toast("");
     }
 

@@ -379,12 +379,17 @@
       const source = getObservedArchiveSourceForDate(dateStr);
       await ensureObservedArchiveYear(source, String(dateStr).slice(0, 4));
       if (generation !== archiveGeneration) return false;
-      // The final three quarter-hours need the next measured hourly endpoint.
-      // Usually it is in the same shard; December 31 also needs the next year.
+      // Hydraulic history crosses calendar boundaries. Load adjacent shards
+      // before constructing a day so January 1 has its preceding crest and
+      // December 31 has the next same-gauge endpoint.
+      const previousDate = addDaysToDateKey(dateStr, -1);
       const nextDate = addDaysToDateKey(dateStr, 1);
-      if (source === "lewes" && nextDate.slice(0, 4) !== dateStr.slice(0, 4)
-          && getObservedArchiveSourceForDate(nextDate) === source) {
-        await ensureObservedArchiveYear(source, nextDate.slice(0, 4));
+      for (const adjacentDate of [previousDate, nextDate]) {
+        if (adjacentDate.slice(0, 4) !== dateStr.slice(0, 4)
+            && getObservedArchiveSourceForDate(adjacentDate) === source) {
+          await ensureObservedArchiveYear(source, adjacentDate.slice(0, 4));
+          if (generation !== archiveGeneration) return false;
+        }
       }
       if (generation !== archiveGeneration) return false;
       // Background history stays cached, but today's gauge readings keep
@@ -412,7 +417,8 @@
         const [source, year] = key.split(":");
         return ensureObservedArchiveYear(source, year);
       }));
-      await ensureObservedArchiveForDate(finalKey);
+      await ensureObservedArchiveForDate(startKey < endKey ? startKey : endKey);
+      if (startKey !== endKey) await ensureObservedArchiveForDate(finalKey);
     }
 
     function decodeLewesHourlyDay(dayRecord) {
@@ -466,6 +472,24 @@
       if (source.length && source.every(entry => entry.isDailyPeakOnly)) return source;
       const start = parseStoredLocalNyToDate(`${dateStr}T00:00`);
       const end = parseStoredLocalNyToDate(`${dateStr}T23:45`);
+      let contextStart = start;
+      const previousDate = addDaysToDateKey(dateStr, -1);
+      const previousDay = getObservedDayRecord(previousDate);
+      // Keep the existing eight-hour crest search on the same gauge. Missing
+      // observations stay missing; the normal interpolation gap limit applies.
+      if (start && previousDay && Boolean(previousDay.isLewesSurrogate) === Boolean(dayRecord?.isLewesSurrogate)) {
+        const firstStation = source.find(entry => !entry.isDailyPeakOnly && Number.isFinite(getStageValue(entry)))?.sourceStationId;
+        const preceding = getObservedSourceHoursForDay(previousDay).filter(entry => {
+          const time = entryTimeMs(entry);
+          return !entry.isDailyPeakOnly && Number.isFinite(time) &&
+            time >= start.getTime() - 8 * 60 * 60 * 1000 && time < start.getTime() &&
+            (!firstStation || !entry.sourceStationId || entry.sourceStationId === firstStation);
+        });
+        if (preceding.length) {
+          contextStart = new Date(start.getTime() - 8 * 60 * 60 * 1000);
+          source = preceding.concat(source);
+        }
+      }
       if (dayRecord?.isLewesSurrogate) {
         const nextDate = addDaysToDateKey(dateStr, 1);
         const nextDay = getObservedDayRecord(nextDate);
@@ -482,7 +506,7 @@
       const series = buildQuarterHourTimelineSeries(source, {
         kind: "observed",
         observedDate: dateStr,
-        startMs: start ? start.getTime() : null,
+        startMs: contextStart ? contextStart.getTime() : null,
         endMs: end ? end.getTime() : null,
         sourceResolutionMinutes,
         fillMissingSlots: true,
@@ -491,14 +515,17 @@
         maxGapMinutes: dayRecord?.isLewesSurrogate ? 60 : 30
       });
 
-      return annotateHydraulicSeries(series.map((entry, idx) => ({
+      const annotated = annotateHydraulicSeries(series);
+      const antecedents = start ? annotated.filter(entry => entryTimeMs(entry) < start.getTime()) : [];
+      return annotated.filter(entry => !start || entryTimeMs(entry) >= start.getTime()).map((entry, idx) => ({
         ...entry,
+        ...(antecedents.length ? { hydraulicAntecedents: antecedents } : {}),
         observedDate: dateStr,
         quarterHourIndex: idx,
         classification: dayRecord?.classification || entry.classification || "none",
         peakNAVD88: dayRecord?.peakNAVD88 ?? entry.peakNAVD88,
         sourceResolutionMinutes: entry.isLiveObservedBackfill ? entry.sourceResolutionMinutes : sourceResolutionMinutes
-      })));
+      }));
     }
 
     function sampleCanonicalHydraulicSeries(entries = [], intervalMinutes = getTimelineIntervalMinutes()) {

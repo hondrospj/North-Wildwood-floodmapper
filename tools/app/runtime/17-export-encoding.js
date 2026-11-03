@@ -1,10 +1,20 @@
     function buildHourlyRangeFrameItems(entries, range, sourceSeries = new Map()) {
-      if (!Array.isArray(entries) || !entries.length || !range) return [];
-      const sorted = entries.slice().sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+      if (!Array.isArray(entries) || !entries.length || !range ||
+          !Number.isFinite(range.startMs) || !Number.isFinite(range.endMs) || range.endMs < range.startMs) return [];
+      // Source data is padded for interpolation by the other export cadences.
+      // An hourly frame keeps its real source timestamp and must remain inside
+      // the user's exact bounds, including fractional-minute endpoints.
+      const sorted = entries.filter(entry => {
+        const time = entryTimeMs(entry);
+        return Number.isFinite(time) && time >= range.startMs && time <= range.endMs;
+      }).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
       const usedKeys = new Set();
       const items = [];
       const hourMs = 60 * 60 * 1000;
-      for (let slotMs = range.startMs; slotMs <= range.endMs + 1000; slotMs += hourMs) {
+      // UTC hour slots distinguish both occurrences of a repeated New York
+      // hour and never invent a reading in the missing spring-forward hour.
+      const firstSlotMs = Math.ceil(range.startMs / hourMs) * hourMs;
+      for (let slotMs = firstSlotMs; slotMs <= range.endMs; slotMs += hourMs) {
         const match = findClosestExportEntryForSlot(sorted, slotMs, usedKeys, 31 * 60 * 1000);
         if (!match) continue;
         usedKeys.add(match.key);

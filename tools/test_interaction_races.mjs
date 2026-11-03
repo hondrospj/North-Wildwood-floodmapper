@@ -41,6 +41,7 @@ function setup() {
     map: {hasLayer: l => layers.has(l), removeLayer: l => layers.delete(l), getZoom: () => 14,
       setView() {state.viewChanges++;}},
     ensureMap() {}, updateMapClickModeControl() {}, setMapClickMode() {}, toast() {},
+    loadParcelBoundaryLayer: async layer => { layer.addTo(); return layer; },
     parcelLayerGeneration: 0, nsiLayerGeneration: 0, townAddressSearchGeneration: 0, townAddressLookupController: null,
     parcelsLayer: null, nsiStructuresLayer: null, updateNsiStructureImpactLayer() {}, townAddressMarker: null,
     normalizeTownAddressQuery: v => v, getTownAddressDisplayName: () => 'North Wildwood',
