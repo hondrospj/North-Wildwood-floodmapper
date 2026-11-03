@@ -94,8 +94,10 @@
     active = null;
     previous.panel.remove();
     previous.anchor.setAttribute("aria-expanded", "false");
+    if (previous.kind === "date") getExportDateEditorElements(previous.prefix).dateText?.setAttribute("aria-expanded", "false");
     document.getElementById(`download${previous.prefix === "end" ? "End" : "Start"}CalendarBtn`)?.setAttribute("aria-expanded", "false");
-    if (restoreFocus && previous.anchor.isConnected) previous.anchor.focus({ preventScroll: true });
+    const returnFocus = previous.returnFocus || previous.anchor;
+    if (restoreFocus && returnFocus.isConnected) returnFocus.focus({ preventScroll: true });
   }
   function position() {
     if (!active) return;
@@ -130,6 +132,11 @@
     heading.append(title, button("×", "Close date and time picker", () => close(true)));
     panel.append(heading); card.append(panel);
     anchor.setAttribute("aria-expanded", "true"); anchor.setAttribute("aria-controls", ID);
+    if (kind === "date") {
+      for (const trigger of [getExportDateEditorElements(prefix).dateText, document.getElementById(`download${prefix === "end" ? "End" : "Start"}CalendarBtn`)]) {
+        trigger?.setAttribute("aria-expanded", "true"); trigger?.setAttribute("aria-controls", ID);
+      }
+    }
     active = { prefix, kind, anchor, panel };
     return active;
   }
@@ -198,12 +205,13 @@
     if (focusedDay && target) target.focus({preventScroll:true});
     else if (focusedControl) [...nav.children].find(element=>element.getAttribute("aria-label")===focusedControl)?.focus({preventScroll:true});
   }
-  function openDate(prefix, focusCalendar = true) {
+  function openDate(prefix, focusCalendar = true, opener = null) {
     if (currentDataMode === "return-interval") return;
     const editor = getExportDateEditorElements(prefix);
     const anchor = focusCalendar ? document.getElementById(`download${prefix === "end" ? "End" : "Start"}CalendarBtn`) : editor.dateText;
     if (!anchor || editor.dateText.disabled) return;
     const state = create(prefix,"date",anchor); if (!state) return;
+    state.returnFocus = opener || anchor;
     state.cursor = getRangeInputDate(editor.canonical.id) || new Date();
     renderCalendar(state, focusCalendar ? dayKey(state.cursor) : "");
     Promise.resolve(ensureExportArchiveAvailability()).then(() => {
@@ -272,11 +280,12 @@
       const calendarButton = document.getElementById(`download${cap}CalendarBtn`);
       if (!editor.dateText || !editor.timeSelect || !calendarButton) continue;
       editor.datePicker.hidden = true; editor.datePicker.tabIndex = -1;
+      editor.dateText.setAttribute("role","combobox");
       for (const anchor of [calendarButton,editor.dateText]) { anchor.setAttribute("aria-haspopup","dialog"); anchor.setAttribute("aria-expanded","false"); }
       calendarButton.addEventListener("click",event => {event.preventDefault();event.stopImmediatePropagation();openDate(prefix);},true);
       editor.dateText.addEventListener("click",() => openDate(prefix,false));
       editor.dateText.addEventListener("keydown",event => {
-        if(event.key === "ArrowDown"){event.preventDefault();openDate(prefix);}
+        if(event.key === "ArrowDown"){event.preventDefault();openDate(prefix,true,editor.dateText);}
         else if (/^\d$/.test(event.key) || ["Backspace","Delete"].includes(event.key)) close();
       });
       const wrap = node("div","nww-export-time-control"); editor.timeSelect.before(wrap); wrap.append(editor.timeSelect);

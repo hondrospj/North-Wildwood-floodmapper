@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "6b309913d6620ffd0367cd57b7f2a2c3eb6f98d0",
+  "files": [
+    {
+      "source": "assets/export-date-time-picker.js",
+      "kind": "external",
+      "entryId": null,
+      "beforeSha256": "2ec97d8f2362ce74cd83480c25b960d3198f23a309deb8407a2e6aa2f6228ebf",
+      "afterSha256": "7d1dc5752a5f256914b9571528814bde53c9828a4e989d382bd2ca4a378ae86b"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "kind": "template",
+      "entryId": null,
+      "beforeSha256": "846a363d5a96bdb39eab4fe6a57d79504147424e088b58e1d8f02716768dd21f",
+      "afterSha256": "d03238277dcfa4b910f0048597871eb2c1f710f8475178849aec9acf964b6272"
+    },
+    {
+      "source": "index.html",
+      "kind": "document",
+      "entryId": null,
+      "beforeSha256": "62164e2c3a2b92bbe5e90906b0510e1ece38e124d3b883c22a6d31702c13d882",
+      "afterSha256": "a2684d60e35a754413f717f49fd363ff67da430f1e8625d96ac7f8544af8f7eb"
+    }
+  ],
+  "changes": [
+    {
+      "id": "date-popup-close-state",
+      "source": "assets/export-date-time-picker.js",
+      "kind": "external",
+      "entryId": null,
+      "functionOwner": "close",
+      "beforeSource": "    previous.anchor.setAttribute(\"aria-expanded\", \"false\");\n    document.getElementById(`download${previous.prefix === \"end\" ? \"End\" : \"Start\"}CalendarBtn`)?.setAttribute(\"aria-expanded\", \"false\");\n    if (restoreFocus && previous.anchor.isConnected) previous.anchor.focus({ preventScroll: true });\n",
+      "afterSource": "    previous.anchor.setAttribute(\"aria-expanded\", \"false\");\n    if (previous.kind === \"date\") getExportDateEditorElements(previous.prefix).dateText?.setAttribute(\"aria-expanded\", \"false\");\n    document.getElementById(`download${previous.prefix === \"end\" ? \"End\" : \"Start\"}CalendarBtn`)?.setAttribute(\"aria-expanded\", \"false\");\n    const returnFocus = previous.returnFocus || previous.anchor;\n    if (restoreFocus && returnFocus.isConnected) returnFocus.focus({ preventScroll: true });\n",
+      "beforeSha256": "a649f2b895f9e5f50a36d5dd30b276fd69b7855f2c92cf6d0942930e55fcec15",
+      "afterSha256": "a1a43c095d409fdaf84d0ca18d1fa3cb0fd292ab1f41ce409ddd51d3fc17b901"
+    },
+    {
+      "id": "date-popup-open-state",
+      "source": "assets/export-date-time-picker.js",
+      "kind": "external",
+      "entryId": null,
+      "functionOwner": "create",
+      "beforeSource": "    anchor.setAttribute(\"aria-expanded\", \"true\"); anchor.setAttribute(\"aria-controls\", ID);\n",
+      "afterSource": "    anchor.setAttribute(\"aria-expanded\", \"true\"); anchor.setAttribute(\"aria-controls\", ID);\n    if (kind === \"date\") {\n      for (const trigger of [getExportDateEditorElements(prefix).dateText, document.getElementById(`download${prefix === \"end\" ? \"End\" : \"Start\"}CalendarBtn`)]) {\n        trigger?.setAttribute(\"aria-expanded\", \"true\"); trigger?.setAttribute(\"aria-controls\", ID);\n      }\n    }\n",
+      "beforeSha256": "b9a825012c044d889ed526d81a8d51e05d01bcb7825734e57fad95f6e2ad365d",
+      "afterSha256": "51c495f49b2b48b6ae6fb3944fa283e590e47de95d001761436762be9912652b"
+    },
+    {
+      "id": "editable-date-combobox-role",
+      "source": "assets/export-date-time-picker.js",
+      "kind": "external",
+      "entryId": null,
+      "functionOwner": "init",
+      "beforeSource": "      editor.datePicker.hidden = true; editor.datePicker.tabIndex = -1;\n",
+      "afterSource": "      editor.datePicker.hidden = true; editor.datePicker.tabIndex = -1;\n      editor.dateText.setAttribute(\"role\",\"combobox\");\n",
+      "beforeSha256": "813c1bbd01050aa4aff7c5d6a97467625fbbf2c83fa2c638ea8c0952be74b92b",
+      "afterSha256": "2b137800d8e5baaf5d457af4f41665ba389366c504dc8bb5a090dc7eec909947"
+    },
+    {
+      "id": "date-popup-invocation-owner",
+      "source": "assets/export-date-time-picker.js",
+      "kind": "external",
+      "entryId": null,
+      "functionOwner": "openDate",
+      "beforeSource": "  function openDate(prefix, focusCalendar = true) {\n    if (currentDataMode === \"return-interval\") return;\n    const editor = getExportDateEditorElements(prefix);\n    const anchor = focusCalendar ? document.getElementById(`download${prefix === \"end\" ? \"End\" : \"Start\"}CalendarBtn`) : editor.dateText;\n    if (!anchor || editor.dateText.disabled) return;\n    const state = create(prefix,\"date\",anchor); if (!state) return;\n",
+      "afterSource": "  function openDate(prefix, focusCalendar = true, opener = null) {\n    if (currentDataMode === \"return-interval\") return;\n    const editor = getExportDateEditorElements(prefix);\n    const anchor = focusCalendar ? document.getElementById(`download${prefix === \"end\" ? \"End\" : \"Start\"}CalendarBtn`) : editor.dateText;\n    if (!anchor || editor.dateText.disabled) return;\n    const state = create(prefix,\"date\",anchor); if (!state) return;\n    state.returnFocus = opener || anchor;\n",
+      "beforeSha256": "c8633af6543386148337fa850d4a2f04608b4d33d4ee5abbc6e8aaf769b608e7",
+      "afterSha256": "eb2ea275e601a745bd336012b33ba52edd995bbef555f104e7610c6605024b8f"
+    },
+    {
+      "id": "date-combobox-keyboard-focus",
+      "source": "assets/export-date-time-picker.js",
+      "kind": "external",
+      "entryId": null,
+      "functionOwner": "init",
+      "beforeSource": "        if(event.key === \"ArrowDown\"){event.preventDefault();openDate(prefix);}\n",
+      "afterSource": "        if(event.key === \"ArrowDown\"){event.preventDefault();openDate(prefix,true,editor.dateText);}\n",
+      "beforeSha256": "7a0c3392349b314d564d146a844ff1782ae972ce53f20b2614d019708a518cc7",
+      "afterSha256": "2fb21013858f301ee19df51d1b52e44548c772e7b4a82ff592356e084deafbad"
+    },
+    {
+      "id": "named-map-region",
+      "source": "tools/app/index.template.html",
+      "kind": "template",
+      "entryId": null,
+      "functionOwner": null,
+      "beforeSource": "<div id=\"map3d\" aria-label=\"Interactive 3D North Wildwood flood map\">",
+      "afterSource": "<div id=\"map3d\" role=\"region\" aria-label=\"Interactive 3D North Wildwood flood map\">",
+      "beforeSha256": "74543e3e467dd067601cc88e18cc7c45d1908d79530e22de577565c6f564caf9",
+      "afterSha256": "7c654fc677b589ea2b8c3b2bcb7511d6e4d835ceeec6d478f2fab0603f04fe3f"
+    }
+  ],
+  "documentTags": [
+    {
+      "output": "assets/export-date-time-picker.js",
+      "documents": [
+        "tools/app/index.template.html",
+        "index.html"
+      ],
+      "beforeSource": "<script defer src=\"assets/export-date-time-picker.js?v=2ec97d8f2362ce74\" id=\"floodmapper-export-date-time-picker\"></script>",
+      "afterSource": "<script defer src=\"assets/export-date-time-picker.js?v=7d1dc5752a5f2569\" id=\"floodmapper-export-date-time-picker\"></script>"
+    }
+  ]
+}
