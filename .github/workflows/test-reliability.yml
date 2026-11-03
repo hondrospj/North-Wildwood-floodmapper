@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       max-parallel: 3
       matrix:
-        scenario: [current, no-backdrop, baseline-ui]
+        scenario: [current, release-capture-clones, no-artifact-screenshots]
     defaults:
       run:
         shell: bash
@@ -53,26 +53,22 @@ jobs:
           } | tee "$NWW_AUDIT_OUTPUT/runner-versions.log"
       - name: Select the diagnostic public UI and record unchanged data hashes
         run: |
-          git fetch --no-tags --depth=1 origin 0030d7f806502c364a22ee0fef687a36109a470a 80d0aee1b2ff506f634b31998d360576c06aaac5
+          git fetch --no-tags --depth=1 origin 0030d7f806502c364a22ee0fef687a36109a470a
           python3 - <<'PY_SCENARIO'
           import hashlib, json, os, subprocess
           from pathlib import Path
           scenario = os.environ["DIAG_SCENARIO"]
           app_ref = "0030d7f806502c364a22ee0fef687a36109a470a"
-          baseline_ref = "80d0aee1b2ff506f634b31998d360576c06aaac5"
           public_files = ["index.html", "assets/app/runtime.js", "assets/styles/app-03.css"]
           data_files = ["forecast.json", "observed.json", "observed15min.json"]
-          assert scenario in {"current", "no-backdrop", "baseline-ui"}
-          public_ref = baseline_ref if scenario == "baseline-ui" else app_ref
-          if scenario == "baseline-ui":
-              for name in public_files:
-                  Path(name).write_bytes(subprocess.check_output(["git", "show", public_ref + ":" + name]))
+          assert scenario in {"current", "release-capture-clones", "no-artifact-screenshots"}
+          public_ref = app_ref
           for name in public_files:
               assert Path(name).read_bytes() == subprocess.check_output(["git", "show", public_ref + ":" + name]), name
           for name in data_files:
               assert Path(name).read_bytes() == subprocess.check_output(["git", "show", app_ref + ":" + name]), name
           changed = subprocess.check_output(["git", "diff", "--name-only", "HEAD"], text=True).splitlines()
-          assert set(changed) == (set(public_files) if scenario == "baseline-ui" else set()), changed
+          assert changed == [], changed
           result = {"scenario": scenario, "publicCommit": public_ref, "dataCommit": app_ref,
                     "changedTrackedFiles": changed,
                     "publicSha256": {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in public_files},

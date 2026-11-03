@@ -498,7 +498,10 @@ async function layout(label,minimum=8) {
   for(let a=0;a<state.labels.length;a++)for(let b=a+1;b<state.labels.length;b++){
     assert.ok(separated(state.labels[a].box,state.labels[b].box),`${label}: overlapping ${state.labels[a].text}/${state.labels[b].text}`);
   }
-  if(retained)await page.screenshot({path:path.join(output,`${name}-street-${label}.png`)});
+  if(retained){
+    if(scenario==='no-artifact-screenshots')mark('ARTIFACT_SCREENSHOT_SKIPPED',{label});
+    else await page.screenshot({path:path.join(output,`${name}-street-${label}.png`)});
+  }
   return state;
 }
 async function download(label) {
@@ -544,7 +547,7 @@ async function verifyDownloadedInk(file,label) {
 
 const journal=[];
 const scenario=process.env.DIAG_SCENARIO || 'current';
-assert.ok(['current','no-backdrop','baseline-ui'].includes(scenario));
+assert.ok(['current','release-capture-clones','no-artifact-screenshots'].includes(scenario));
 function mark(stage,details={}) {
  const row={at:new Date().toISOString(),stage,...details};journal.push(row);
  fs.appendFileSync(path.join(output,'journal.jsonl'),JSON.stringify(row)+'\n');
@@ -589,12 +592,18 @@ async function filters(label) {
   return rows;
  }),10000);
  mark('filters:'+label,{count:data.length,visible:data.filter(x=>x.visible).length,layers:data});save();
- if(scenario==='no-backdrop')assert.equal(data.length,0,'The diagnostic filter-off control must actually disable all backdrop filters');
 }
 async function diagnosticSetup(){
  page.on('crash',()=>mark('PAGE_CRASH'));
  page.on('framenavigated',frame=>mark('frame-navigation',{main:frame===page.mainFrame(),url:diagnosticUrl(frame.url())}));
- page.on('console',message=>{if(message.text().startsWith('NWW_DIAGNOSTIC_MUTATIONS'))mark('mutation-report',{text:message.text()});});
+ page.on('console',message=>{
+  const text=message.text();
+  if(text.startsWith('NWW_DIAGNOSTIC_MUTATIONS'))mark('mutation-report',{text});
+  if(text.startsWith('NWW_DIAGNOSTIC_CAPTURE ')){
+   try{const event=JSON.parse(text.slice('NWW_DIAGNOSTIC_CAPTURE '.length));mark('capture-release-event',event);processes('capture-'+event.id+'-'+event.phase);save();}
+   catch(error){mark('capture-event-diagnostic-failed',{error:String(error)});}
+  }
+ });
  await step('install-readonly-mutation-ledger',()=>page.evaluate(()=>{
   const stats=window.__nwwDiagnosticMutation={count:0,reports:0,counts:{}};
   new MutationObserver(records=>{
@@ -602,14 +611,62 @@ async function diagnosticSetup(){
    if(stats.count>=2000*(stats.reports+1)&&stats.reports<6){stats.reports++;console.log('NWW_DIAGNOSTIC_MUTATIONS '+JSON.stringify({count:stats.count,top:Object.entries(stats.counts).sort((a,b)=>b[1]-a[1]).slice(0,12)}));}
   }).observe(document.body,{attributes:true,subtree:true,attributeFilter:['style','class','hidden','disabled','inert']});
  }));
- if(scenario==='no-backdrop')await step('disable-filters-DIAGNOSTIC-ONLY',()=>page.evaluate(()=>{
-  const style=document.createElement('style');style.textContent='@layer nwwDiagnosticOverride { *, *::before, *::after { backdrop-filter:none !important; -webkit-backdrop-filter:none !important; } }';document.head.prepend(style);
-  let count=0;
-  for(const el of document.querySelectorAll('body *')){const s=getComputedStyle(el),v=s.backdropFilter||s.getPropertyValue('-webkit-backdrop-filter');if(v&&v!=='none'){el.style.setProperty('backdrop-filter','none','important');el.style.setProperty('-webkit-backdrop-filter','none','important');count++;}}
-  return count;
- }));
  await filters('initial-'+scenario);
 }
+async function installCloneReleaseProbe() {
+ const installed=await step('install-clone-release-DIAGNOSTIC-ONLY',()=>page.evaluate(()=>{
+  const liveDocument=document,original=window.html2canvas;
+  if(typeof original!=='function')throw Error('The first native PNG must load the real html2canvas before wrapping');
+  const stats=window.__nwwCaptureReleaseStats={started:0,completed:0,releasedCanvases:0,proofFailures:0};
+  const budget=canvases=>({count:canvases.length,backingBytes:canvases.reduce((sum,c)=>sum+c.width*c.height*4,0)});
+  const emit=(phase,data)=>console.info('NWW_DIAGNOSTIC_CAPTURE '+JSON.stringify({phase,at:Date.now(),...data}));
+  window.html2canvas=function(...callArgs) {
+   const [element,options={}]=callArgs;
+   const id=++stats.started,liveBefore=new Set(liveDocument.querySelectorAll('canvas')),clones=[],frames=new Map();
+   let returned=null,status='pending';
+   const callerOnclone=options.onclone;
+   const captureOptions={...options,onclone:async function(...args){
+    const clonedDocument=args[0];
+    try {return typeof callerOnclone==='function'?await Reflect.apply(callerOnclone,this,args):undefined;}
+    finally {
+     const frame=clonedDocument?.defaultView?.frameElement;
+     const owned=clonedDocument!==liveDocument&&!!frame&&frame.ownerDocument===liveDocument&&frame.contentDocument===clonedDocument;
+     if(frame)frames.set(frame,{owned,connectedAtClone:frame.isConnected});
+     for(const canvas of clonedDocument?.querySelectorAll('canvas')||[])clones.push({canvas,clonedDocument,frame,owned});
+     emit('cloned',{id,cloneCanvas:budget(clones.map(x=>x.canvas)),ownedFrames:frames.size,liveCanvas:budget([...liveDocument.querySelectorAll('canvas')]),frameCount:liveDocument.querySelectorAll('iframe').length});
+    }
+   }};
+   const cleanup=()=>{
+    try {
+     const protectedCanvases=[...liveDocument.querySelectorAll('canvas'),...(returned?[returned]:[])].map(canvas=>({canvas,width:canvas.width,height:canvas.height}));
+     const cloneCanvas=budget(clones.map(x=>x.canvas)),frameProof=[];let released=0,releasedBytes=0,skipped=0;
+     for(const [frame,proof]of frames){
+      const attachedAfterSettle=frame.isConnected;let removedOwnedFrame=false;
+      if(proof.owned&&frame.isConnected&&(status!=='resolved'||options.removeContainer!==false)){frame.remove();removedOwnedFrame=true;}
+      frameProof.push({...proof,attachedAfterSettle,removedOwnedFrame,detachedBeforeRelease:proof.owned&&!frame.isConnected});
+     }
+     for(const item of clones){
+      const c=item.canvas,safe=item.owned&&item.clonedDocument!==liveDocument&&c.ownerDocument===item.clonedDocument&&c.ownerDocument!==liveDocument&&item.frame&&!item.frame.isConnected&&!liveBefore.has(c)&&c!==returned;
+      if(!safe){skipped++;continue;}
+      releasedBytes+=c.width*c.height*4;c.width=0;c.height=0;released++;
+     }
+     const liveAndReturnedPreserved=protectedCanvases.every(x=>x.canvas.width===x.width&&x.canvas.height===x.height);
+     if(skipped||!liveAndReturnedPreserved||frameProof.some(x=>!x.detachedBeforeRelease))stats.proofFailures++;
+     stats.completed++;stats.releasedCanvases+=released;
+     emit('settled-release',{id,status,cloneCanvas,released,releasedBytes,skipped,frameProof,liveAndReturnedPreserved,returnedSize:returned?{width:returned.width,height:returned.height}:null,liveCanvas:budget([...liveDocument.querySelectorAll('canvas')]),frameCount:liveDocument.querySelectorAll('iframe').length});
+    }catch(error){stats.completed++;stats.proofFailures++;emit('cleanup-error',{id,error:String(error)});}
+    finally{clones.length=0;frames.clear();liveBefore.clear();returned=null;}
+   };
+   emit('start',{id,liveCanvas:budget([...liveBefore]),frameCount:liveDocument.querySelectorAll('iframe').length});
+   let pending;
+   try{pending=Reflect.apply(original,this,[element,captureOptions,...callArgs.slice(2)]);}catch(error){status='synchronous-error';cleanup();throw error;}
+   return Promise.resolve(pending).then(canvas=>{returned=canvas;status='resolved';return canvas;},error=>{status='rejected';throw error;}).finally(cleanup);
+  };
+  return {installed:window.html2canvas!==original,afterFirstReadyPng:true,unwrappedCapturesAtLeast:1};
+ }));
+ mark('clone-release-installed',installed);save();
+}
+
 let exitCode=0;
 mark('SCENARIO',{scenario});
 let sample=0;const sampler=setInterval(()=>processes('sample-'+(sample++%16)),5000);
@@ -631,6 +688,7 @@ try {
   saveState({label:'cold-normal-png-preference',...preference});
   await page.locator('#openDownloadModalBtn').click({noWaitAfter:true,delay:50});await singleFrame();await review();
   await ready('broad-current-view');
+  if(scenario==='release-capture-clones')await installCloneReleaseProbe();
   assert.equal(await page.evaluate(()=>getExportAspectConfig().width),2160);
   // Large labels and shield collisions fit a different count with each system
   // font. Pin the important road coverage as well as density and legibility.
@@ -669,10 +727,18 @@ try {
    });
   }
  }
- await completedFrame.dispose();result.passed=true;mark('ALL_DIAGNOSTIC_TRANSITIONS_PASSED');
+ await completedFrame.dispose();
+ if(scenario==='release-capture-clones'){
+  const stats=await step('clone-release-final-proof',()=>page.evaluate(()=>window.__nwwCaptureReleaseStats));
+  mark('clone-release-final-proof',stats);assert.ok(stats.started>0&&stats.completed>0&&stats.releasedCanvases>0);assert.equal(stats.proofFailures,0);assert.equal(stats.started,stats.completed);
+ }
+ result.passed=true;mark('ALL_DIAGNOSTIC_TRANSITIONS_PASSED');
 } catch(error) {
  exitCode=1;result.passed=false;result.failure=error.stack;mark('DIAGNOSTIC_FAILURE',{error:error.stack});processes('failure');save();
- if(page)await step('failure-screenshot',()=>page.screenshot({path:path.join(output,'failure.png')}),3000).catch(()=>{});
+ if(page){
+  if(scenario==='no-artifact-screenshots')mark('ARTIFACT_SCREENSHOT_SKIPPED',{label:'failure'});
+  else await step('failure-screenshot',()=>page.screenshot({path:path.join(output,'failure.png')}),3000).catch(()=>{});
+ }
 } finally {
  save();clearInterval(sampler);await step('browser-close',()=>browser.close(),5000).catch(()=>{});save();clearTimeout(hardDeadline);
  console.log(JSON.stringify({diagnosticOnly:true,passed:result.passed,failure:result.failure,output}));
