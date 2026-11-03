@@ -154,7 +154,10 @@ function clickFixture() {
     persistentFloodPopup: null, map: { on() {}, hasLayer: value => popups.has(value), removeLayer: value => popups.delete(value) },
     document: { body: { classList: { contains: () => true } } }, maplibregl: { Popup: FakePopup },
     window: { addEventListener() {} }, layerVisible: () => buildings,
-    findParcelFeatureForLocation: () => { const request = deferred(); requests.push(request); return request.promise; },
+    resolveClickedBuildingParcel3d: feature => {
+      const request = deferred(); requests.push(request);
+      return request.promise.then(parcel => ({feature, point: [-74.8, 39.006], parcel}));
+    },
     openParcelFloodPrompt: feature => opened.push(feature.id), openFallbackBuildingPopup: () => opened.push('fallback'),
     handleDepthQueryClick: () => { ++context.mapQueryGeneration; opened.push('depth'); },
     L: { latLng: (lat, lng) => ({ lat, lng }) }, sync3dViewToLeaflet() {}, syncLeafletViewTo3d() {}, syncGlPopupLayout() {}

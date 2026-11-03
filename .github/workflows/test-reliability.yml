@@ -62,6 +62,10 @@ jobs:
           node tools/test_export_date_time_picker.mjs
           node tools/test_north_wildwood_export_warning.mjs
           node tools/test_export_clone_cleanup.mjs
+          node tools/test_north_wildwood_deep_core_history.mjs
+          node tools/test_north_wildwood_deep_core_loading.mjs
+          node tools/test_north_wildwood_deep_layers.mjs
+          node tools/test_north_wildwood_deep_export.mjs
           node tools/test_export_logo_readiness.mjs
           node tools/test_export_pending_provider_retry.mjs
           node tools/test_north_wildwood_top_tides_and_live_observations.mjs
@@ -171,6 +175,9 @@ jobs:
           node tools/test_north_wildwood_export_road_failure_browser.mjs
           node tools/test_north_wildwood_export_area_range_browser.mjs
           node tools/test_north_wildwood_ui_dialogs_browser.mjs
+          node tools/test_north_wildwood_deep_core_browser.mjs
+          node tools/test_north_wildwood_deep_layers_browser.mjs
+          node tools/test_north_wildwood_deep_export_browser.mjs
           node tools/test_north_wildwood_export_road_labels_browser.mjs
           node tools/test_north_wildwood_export_worker_browser.mjs
           node tools/test_city_gauge_dashboard.mjs

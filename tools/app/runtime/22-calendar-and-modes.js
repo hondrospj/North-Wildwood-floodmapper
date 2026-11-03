@@ -245,12 +245,14 @@ function populateCalendarSelectors() {
     }
 
     async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
-      const floodSelectionToken = cancelPendingFloodFrame();
+      cancelPendingFloodFrame();
       const generation = ++selectionGeneration;
+      loadObservedDay.pendingSelection = { generation, dateStr };
+      try {
       try {
         await ensureObservedArchiveForDate(dateStr);
       } catch (error) {
-        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+        if (generation !== selectionGeneration) return false;
         const failedMode = "observed";
         const failedLabel = failedMode === "forecast" ? "Forecast" : failedMode === "return-interval" ? "Modeled flood" : "Observed";
         currentDataMode = failedMode;
@@ -275,7 +277,6 @@ function populateCalendarSelectors() {
         toast(message);
         return false;
       }
-      if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
       const dayRecord = getObservedDayRecord(dateStr);
       if (!dayRecord) {
@@ -309,6 +310,9 @@ function populateCalendarSelectors() {
       currentDataMode = "observed";
       updateDataModeButtons();
 
+      // Once data is committed, an interval change must rebuild this series
+      // rather than only updating the cadence of a still-pending request.
+      if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;
       selectedObservedDate = dateStr;
       currentMonthKey = dateStr.slice(0, 7);
       topTideEvents = buildTopTideEvents();
@@ -344,10 +348,13 @@ function populateCalendarSelectors() {
       document.getElementById("hourSlider").value = String(currentHourIndex);
 
       await renderCalendar();
-      if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
       await renderHour(currentHourIndex);
+      if (generation !== selectionGeneration) return false;
       renderTopTides();
+      } finally {
+        if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;
+      }
     }
 
     async function loadTopTideEvent(index, preferredEntry = null) {
@@ -461,6 +468,20 @@ function populateCalendarSelectors() {
       if (nextMinutes === previousMinutes) return;
 
       const referenceEntry = currentSeriesHours[currentHourIndex] || null;
+      // Interval and overlay choices belong to the pending observed selection.
+      // They must not cancel its data request before it has a timeline to render.
+      const observedSelectionPending = currentDataMode === "observed" && (
+        loadObservedDay.pendingSelection?.generation === selectionGeneration ||
+        switchDataMode.pendingObservedSelectionGeneration === selectionGeneration
+      );
+      if (observedSelectionPending) {
+        stopPlayback();
+        toast("");
+        currentTimelineIntervalMinutes = nextMinutes;
+        updateTimelineIntervalUI();
+        overlayPreloadGeneration += 1;
+        return;
+      }
       const generation = ++selectionGeneration;
       const floodSelectionToken = cancelPendingFloodFrame();
       stopPlayback();
@@ -578,6 +599,7 @@ function populateCalendarSelectors() {
       }
 
       currentDataMode = "observed";
+      switchDataMode.pendingObservedSelectionGeneration = generation;
       updateDataModeButtons();
       const preferredObservedDate = currentViewType === "top-tide" ? null : selectedObservedDate;
       // The old image may remain visible while loading, but its forecast
@@ -601,10 +623,8 @@ function populateCalendarSelectors() {
         : "Loading observed history…";
       setFloodFrameStatus(loadingMessage, "info");
       await warmBackgroundData();
-      if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
       await renderCalendar();
-      if (floodSelectionToken !== lastRenderToken) return false;
       if (generation !== selectionGeneration) return;
 
       const defaultDate = preferredObservedDate || getLatestObservedDate();
@@ -615,7 +635,7 @@ function populateCalendarSelectors() {
         throw new Error("No observed dates were found in observed.json.");
       }
       } catch (error) {
-        if (modeFailureToken !== lastRenderToken || currentDataMode !== mode) return false;
+        if ((mode !== "observed" && modeFailureToken !== lastRenderToken) || currentDataMode !== mode) return false;
         if (modeFailureGeneration !== null && modeFailureGeneration !== selectionGeneration) return false;
         const failedMode = mode;
         const failedLabel = failedMode === "forecast" ? "Forecast" : failedMode === "return-interval" ? "Modeled flood" : "Observed";
@@ -640,6 +660,10 @@ function populateCalendarSelectors() {
         if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
         toast(message);
         return false;
+      } finally {
+        if (switchDataMode.pendingObservedSelectionGeneration === modeFailureGeneration) {
+          switchDataMode.pendingObservedSelectionGeneration = null;
+        }
       }
     }
 

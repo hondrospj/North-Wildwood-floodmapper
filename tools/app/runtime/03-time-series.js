@@ -605,7 +605,24 @@ function parseStoredLocalNyToDate(timeEST) {
         const entries = getObservedSourceHoursForDay(day);
         const daily = buildDailyMaximumSeries(entries, { kind: "observed" })[0];
         if (daily) {
-          out.push({ ...daily, observedDate: dateKey, peakNAVD88: getStageValue(daily) });
+          const canonical = buildObservedCanonicalSeries(day, dateKey);
+          const time = entryTimeMs(daily);
+          let peak = canonical.find(entry => entryTimeMs(entry) === time && getStageValue(entry) === getStageValue(daily));
+          if (!peak && Number.isFinite(time)) {
+            // A six-minute measured peak may fall between timeline slots.
+            // Keep its native instant and stage while resolving its tide phase.
+            peak = annotateHydraulicSeries([
+              ...canonical.filter(entry => entryTimeMs(entry) !== time), daily
+            ].sort((a, b) => entryTimeMs(a) - entryTimeMs(b))).find(entry => entryTimeMs(entry) === time);
+          }
+          const resolved = { ...daily };
+          for (const field of ["hydraulicPhase", "hydraulicPhaseCanonical", "hydraulicCrestIndex",
+            "hydraulicCrestTimeUtc", "hydraulicCrestStageFt", "hydraulicElapsedMinutes", "hydraulicAntecedents"]) {
+            if (peak && field in peak) resolved[field] = peak[field];
+          }
+          out.push({ ...resolved, observedDate: dateKey, peakNAVD88: getStageValue(daily),
+            observationInterval: "daily", timelineIntervalMinutes: 1440,
+            isDailyMaximum: true, dailyMaximumKind: "observed" });
         } else if (Number.isFinite(normalizeStageValue(day.peakNAVD88))) {
           out.push({
             navd88StageFt: Number(day.peakNAVD88), stageFt: Number(day.peakNAVD88), value: Number(day.peakNAVD88),

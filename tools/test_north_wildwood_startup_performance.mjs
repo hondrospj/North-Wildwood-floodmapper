@@ -5,10 +5,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = readAppSource(path.join(here, "..", "index.html"));
+const rendererSource = fs.readFileSync(path.join(here, "..", "assets/3d/north-wildwood-3d.js"), "utf8");
+const rendererVersion = createHash("sha256").update(rendererSource).digest("hex").slice(0, 16);
 
 function extractFunction(name, sourceText = source) {
   const source = sourceText;
@@ -31,7 +34,7 @@ assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
   "assets/road-labels.js?v=01f9684394f0ac9f",
-  "./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&roadlabels=20261030-v1",
+  `./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&roadlabels=20261030-v1&deep=${rendererVersion}`,
   "./assets/road-impacts.js?v=20261002-road-impacts-default-off",
   "assets/avalon-mobile.js?v=20261026-holistic1",
   "assets/export-area.js?v=5a855541ebdd2d2d",
@@ -97,7 +100,6 @@ assert.doesNotMatch(startupPreload, /loadOptionalScript\(/);
 assert.doesNotMatch(startupPreload, /scheduleNorthWildwood3dWarmup\(\)/);
 assert.match(startupPreload, /map3dDeferredWarmup = "on-demand-no-background-camera-traversal"/);
 
-const rendererSource = fs.readFileSync(path.join(here, "..", "assets/3d/north-wildwood-3d.js"), "utf8");
 const preloadRenderer = extractFunction("preload3dAssets", rendererSource);
 assert.doesNotMatch(rendererSource, /warm3dCamera|warmCameras/);
 for (const warmCamera of [undefined, false, "core", "deferred"]) {

@@ -479,6 +479,9 @@ function getDownloadArchiveBounds() {
         return Math.max(1, keys.size);
       }
       const stepMs = interval.minutes * 60 * 1000;
+      if (interval.value === "hourly") {
+        return Math.max(0, Math.floor(endMs / stepMs) - Math.ceil(startMs / stepMs) + 1);
+      }
       return Math.max(1, Math.floor((endMs - startMs) / stepMs) + 1);
     }
 

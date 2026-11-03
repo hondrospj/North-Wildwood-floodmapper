@@ -147,6 +147,9 @@
         toast("");
         return;
       }
+      // Choose the layer's default interaction when it is requested. A later
+      // explicit depth choice must survive the asynchronous asset completion.
+      setMapClickMode("building", { closePopup: false });
       let layer;
       try {
         layer = await ensureNsiStructureAssets();
@@ -157,15 +160,23 @@
       if (generation !== nsiLayerGeneration) return;
       updateNsiStructureImpactLayer();
       if (!map.hasLayer(layer)) layer.addTo(map);
-      setMapClickMode("building", { closePopup: false });
       toast("Crawlspace/Garage impacts: red is above, gold is close, cyan is below.");
     }
 
     async function ensureParcelAssets() {
-      if (parcelLoadPromise) return parcelLoadPromise;
-      parcelLoadPromise = (async () => {
-        const geojson = await fetchJson(PARCELS_URL, { cache: "force-cache" });
-        parcelFeatures = Array.isArray(geojson?.features) ? geojson.features : [];
+      // Parcel matching needs only metadata. Keep it available even when the
+      // independent boundary image fails, and reuse it for an image retry.
+      if (!parcelLoadPromise) {
+        parcelLoadPromise = fetchJson(PARCELS_URL, { cache: "force-cache" })
+          .then(geojson => {
+            parcelFeatures = Array.isArray(geojson?.features) ? geojson.features : [];
+          }).catch(err => {
+            parcelLoadPromise = null;
+            throw err;
+          });
+      }
+      await parcelLoadPromise;
+      if (!parcelsLayer) {
         parcelsLayer = createHydraulicImageOverlay(PARCEL_BOUNDARY_PNG_URL, {
           pane: "parcelsPane",
           opacity: 0.78,
@@ -173,12 +184,45 @@
           crossOrigin: true,
           zIndex: 610
         });
-        return parcelsLayer;
-      })().catch(err => {
-        parcelLoadPromise = null;
-        throw err;
-      });
-      return parcelLoadPromise;
+      }
+      return parcelsLayer;
+    }
+
+    function loadParcelBoundaryLayer(layer) {
+      if (!layer._floodmapperParcelLoadPromise) {
+        layer._floodmapperParcelLoadPromise = new Promise((resolve, reject) => {
+          let settled = false;
+          const finish = error => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timer);
+            layer.off("load", loaded);
+            layer.off("error", failed);
+            if (error) {
+              if (map.hasLayer(layer)) map.removeLayer(layer);
+              const image = layer.getElement?.();
+              if (image) { try { image.src = ""; } catch (_) {} }
+              // A late error from a retired image cannot evict its replacement.
+              if (parcelsLayer === layer) parcelsLayer = null;
+              reject(error);
+            } else resolve(layer);
+          };
+          const failed = () => finish(new Error("Parcels could not be loaded. Please try again."));
+          const loaded = async () => {
+            const image = layer.getElement?.();
+            if (!image?.naturalWidth || !image?.naturalHeight) { failed(); return; }
+            try {
+              if (typeof image.decode === "function") await image.decode();
+              finish();
+            } catch (_) { failed(); }
+          };
+          const timer = window.setTimeout(() => finish(new Error("Parcels took too long to load. Please try again.")), 20000);
+          layer.on("load", loaded);
+          layer.on("error", failed);
+        });
+      }
+      if (!map.hasLayer(layer)) layer.addTo(map);
+      return layer._floodmapperParcelLoadPromise;
     }
 
     async function setParcelsEnabled(enabled) {
@@ -196,16 +240,17 @@
         toast("");
         return;
       }
+      setMapClickMode("building", { closePopup: false });
       let layer;
       try {
         layer = await ensureParcelAssets();
+        if (generation !== parcelLayerGeneration) return;
+        await loadParcelBoundaryLayer(layer);
       } catch (error) {
         if (generation !== parcelLayerGeneration) return;
         throw error;
       }
       if (generation !== parcelLayerGeneration) return;
-      if (!map.hasLayer(layer)) layer.addTo(map);
-      setMapClickMode("building", { closePopup: false });
       toast("");
     }
 

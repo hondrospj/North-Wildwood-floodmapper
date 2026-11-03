@@ -133,6 +133,7 @@ function intervalContext(extra = {}) {
   const c = create(['setTimelineIntervalMinutes'], {
     selectionGeneration: 10, lastRenderToken: 20, overlayPreloadGeneration: 0,
     currentTimelineIntervalMinutes: 60,
+    switchDataMode() {},
     currentSeriesHours: [{observedDate: '2026-10-01', timeUtc: '2026-10-01T01:00Z'}],
     currentHourIndex: 0, currentDataMode: 'observed', currentViewType: 'top-tide', currentTopTideIndex: 0,
     currentFloodLayer: {}, floodFrameState: 'ready', document: {body: {dataset: {}}}, setFloodFrameStatus() {},
