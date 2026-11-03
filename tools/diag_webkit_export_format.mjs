@@ -436,6 +436,7 @@ async function review() {
 }
 async function format(value) {
   mark('format-begin',{value});
+  if(value==='Gif')await filters('before-Back-Gif');
   const current=await step('format-read-step',()=>page.locator('#downloadModal').getAttribute('data-export-step'));
   if(current==='review')await step('format-native-Back',()=>page.locator('#exportReviewBackBtn').click({noWaitAfter:true,delay:50}));
   await state('after-Back-'+value);
@@ -542,6 +543,8 @@ async function verifyDownloadedInk(file,label) {
 
 
 const journal=[];
+const scenario=process.env.DIAG_SCENARIO || 'current';
+assert.ok(['current','no-backdrop','baseline-ui'].includes(scenario));
 function mark(stage,details={}) {
  const row={at:new Date().toISOString(),stage,...details};journal.push(row);
  fs.appendFileSync(path.join(output,'journal.jsonl'),JSON.stringify(row)+'\n');
@@ -549,8 +552,8 @@ function mark(stage,details={}) {
 }
 function processes(label) {
  try {
-  const rows=execFileSync('ps',['-eo','pid,ppid,pcpu,pmem,stat,comm,wchan:25'],{encoding:'utf8',timeout:3000}).split('\n');
-  fs.writeFileSync(path.join(output,label+'-processes.txt'),rows.filter((line,i)=>i===0||/WebKit|MiniBrowser|node|playwright|python/i.test(line)).join('\n'));
+  const rows=execFileSync('ps',['-eLo','pid,lwp,ppid,pcpu,rss,stat,comm,wchan:25'],{encoding:'utf8',timeout:3000}).split('\n');
+  fs.writeFileSync(path.join(output,label+'-processes.txt'),rows.join('\n'));
  } catch(error) {mark('process-diagnostic-failed',{error:error.message});}
 }
 function save() {fs.writeFileSync(path.join(output,'diagnostic.json'),JSON.stringify({...result,journal},null,2));}
@@ -574,10 +577,46 @@ async function state(label) {
  })),4000);
  mark('state:'+label,value);save();return value;
 }
+async function filters(label) {
+ const data=await step('filters:'+label,()=>page.evaluate(()=>{
+  const rows=[];
+  for(const el of document.querySelectorAll('body *'))for(const pseudo of [null,'::before','::after']){
+   const style=getComputedStyle(el,pseudo),value=style.backdropFilter||style.getPropertyValue('-webkit-backdrop-filter');
+   if(!value||value==='none')continue;
+   const r=el.getBoundingClientRect();
+   rows.push({id:el.id,tag:el.tagName,pseudo,value,visible:!!el.getClientRects().length&&style.display!=='none'&&style.visibility!=='hidden',rect:{x:r.x,y:r.y,width:r.width,height:r.height}});
+  }
+  return rows;
+ }),10000);
+ mark('filters:'+label,{count:data.length,visible:data.filter(x=>x.visible).length,layers:data});save();
+ if(scenario==='no-backdrop')assert.equal(data.length,0,'The diagnostic filter-off control must actually disable all backdrop filters');
+}
+async function diagnosticSetup(){
+ page.on('crash',()=>mark('PAGE_CRASH'));
+ page.on('framenavigated',frame=>mark('frame-navigation',{main:frame===page.mainFrame(),url:diagnosticUrl(frame.url())}));
+ page.on('console',message=>{if(message.text().startsWith('NWW_DIAGNOSTIC_MUTATIONS'))mark('mutation-report',{text:message.text()});});
+ await step('install-readonly-mutation-ledger',()=>page.evaluate(()=>{
+  const stats=window.__nwwDiagnosticMutation={count:0,reports:0,counts:{}};
+  new MutationObserver(records=>{
+   for(const record of records){stats.count++;const key=(record.target.id||record.target.tagName)+':'+record.attributeName;if(Object.keys(stats.counts).length<300||key in stats.counts)stats.counts[key]=(stats.counts[key]||0)+1;}
+   if(stats.count>=2000*(stats.reports+1)&&stats.reports<6){stats.reports++;console.log('NWW_DIAGNOSTIC_MUTATIONS '+JSON.stringify({count:stats.count,top:Object.entries(stats.counts).sort((a,b)=>b[1]-a[1]).slice(0,12)}));}
+  }).observe(document.body,{attributes:true,subtree:true,attributeFilter:['style','class','hidden','disabled','inert']});
+ }));
+ if(scenario==='no-backdrop')await step('disable-filters-DIAGNOSTIC-ONLY',()=>page.evaluate(()=>{
+  const style=document.createElement('style');style.textContent='@layer nwwDiagnosticOverride { *, *::before, *::after { backdrop-filter:none !important; -webkit-backdrop-filter:none !important; } }';document.head.prepend(style);
+  let count=0;
+  for(const el of document.querySelectorAll('body *')){const s=getComputedStyle(el),v=s.backdropFilter||s.getPropertyValue('-webkit-backdrop-filter');if(v&&v!=='none'){el.style.setProperty('backdrop-filter','none','important');el.style.setProperty('-webkit-backdrop-filter','none','important');count++;}}
+  return count;
+ }));
+ await filters('initial-'+scenario);
+}
 let exitCode=0;
+mark('SCENARIO',{scenario});
+let sample=0;const sampler=setInterval(()=>processes('sample-'+(sample++%16)),5000);
 const hardDeadline=setTimeout(()=>{mark('TOTAL_DEADLINE');processes('total-deadline');save();process.exit(2);},360000);
 try {
   const normal=await step('normal-session-open',()=>startSession('normal-route-free'),90000);
+  await diagnosticSetup();
   const initial=await page.evaluate(()=>({queryCached:!!depthQueryGridPromise,developedCached:!!developedQueryGridPromise,exportMapCreated:!!exportMap}));
   assert.deepEqual(initial,{queryCached:false,developedCached:false,exportMapCreated:false});
   const preference=await page.evaluate(()=>{
@@ -635,7 +674,7 @@ try {
  exitCode=1;result.passed=false;result.failure=error.stack;mark('DIAGNOSTIC_FAILURE',{error:error.stack});processes('failure');save();
  if(page)await step('failure-screenshot',()=>page.screenshot({path:path.join(output,'failure.png')}),3000).catch(()=>{});
 } finally {
- save();await step('browser-close',()=>browser.close(),5000).catch(()=>{});save();clearTimeout(hardDeadline);
+ save();clearInterval(sampler);await step('browser-close',()=>browser.close(),5000).catch(()=>{});save();clearTimeout(hardDeadline);
  console.log(JSON.stringify({diagnosticOnly:true,passed:result.passed,failure:result.failure,output}));
  process.exit(exitCode);
 }

@@ -14,14 +14,20 @@ jobs:
   webkit-format-diagnostic:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/diag/north-wildwood-webkit-format-20261103'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        scenario: [current, no-backdrop, baseline-ui]
     defaults:
       run:
         shell: bash
     env:
       NWW_BROWSER: webkit
       NWW_TEST_URL: http://127.0.0.1:8765/index.html
-      NWW_AUDIT_OUTPUT: diagnostic-results/webkit-format
+      NWW_AUDIT_OUTPUT: diagnostic-results/${{ matrix.scenario }}
+      DIAG_SCENARIO: ${{ matrix.scenario }}
       DEBUG: pw:api
     steps:
       - name: Check out the isolated diagnostic branch
@@ -37,6 +43,7 @@ jobs:
           mkdir -p "$NWW_AUDIT_OUTPUT"
           {
             date -u +'%Y-%m-%dT%H:%M:%SZ'
+            printf 'DIAG_SCENARIO=%s\n' "$DIAG_SCENARIO"
             git rev-parse HEAD
             uname -a
             cat /etc/os-release
@@ -44,13 +51,38 @@ jobs:
             npm --version
             python3 --version
           } | tee "$NWW_AUDIT_OUTPUT/runner-versions.log"
-      # Vendor-documented stable baseline comparison for WebKit regression #43426:
-      # https://github.com/microsoft/playwright/issues/43426
-      # Compare the unchanged full suite with 1.63.0/r2359; this does not claim
-      # an upstream patch or change any required release check.
+      - name: Select the diagnostic public UI and record unchanged data hashes
+        run: |
+          git fetch --no-tags --depth=1 origin 0030d7f806502c364a22ee0fef687a36109a470a 80d0aee1b2ff506f634b31998d360576c06aaac5
+          python3 - <<'PY_SCENARIO'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          scenario = os.environ["DIAG_SCENARIO"]
+          app_ref = "0030d7f806502c364a22ee0fef687a36109a470a"
+          baseline_ref = "80d0aee1b2ff506f634b31998d360576c06aaac5"
+          public_files = ["index.html", "assets/app/runtime.js", "assets/styles/app-03.css"]
+          data_files = ["forecast.json", "observed.json", "observed15min.json"]
+          assert scenario in {"current", "no-backdrop", "baseline-ui"}
+          public_ref = baseline_ref if scenario == "baseline-ui" else app_ref
+          if scenario == "baseline-ui":
+              for name in public_files:
+                  Path(name).write_bytes(subprocess.check_output(["git", "show", public_ref + ":" + name]))
+          for name in public_files:
+              assert Path(name).read_bytes() == subprocess.check_output(["git", "show", public_ref + ":" + name]), name
+          for name in data_files:
+              assert Path(name).read_bytes() == subprocess.check_output(["git", "show", app_ref + ":" + name]), name
+          changed = subprocess.check_output(["git", "diff", "--name-only", "HEAD"], text=True).splitlines()
+          assert set(changed) == (set(public_files) if scenario == "baseline-ui" else set()), changed
+          result = {"scenario": scenario, "publicCommit": public_ref, "dataCommit": app_ref,
+                    "changedTrackedFiles": changed,
+                    "publicSha256": {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in public_files},
+                    "dataSha256": {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in data_files}}
+          (Path(os.environ["NWW_AUDIT_OUTPUT"]) / "scenario-files.json").write_text(json.dumps(result, indent=2) + "\n")
+          print(json.dumps(result))
+          PY_SCENARIO
       - name: Install the exact diagnostic browser runtime
         run: |
-          npm install --no-save --package-lock=false playwright@1.63.0 2>&1 | tee "$NWW_AUDIT_OUTPUT/install.log"
+          npm install --no-save --package-lock=false playwright@1.64.1 2>&1 | tee "$NWW_AUDIT_OUTPUT/install.log"
           npx --no-install playwright install --with-deps webkit 2>&1 | tee -a "$NWW_AUDIT_OUTPUT/install.log"
           npx --no-install playwright --version | tee "$NWW_AUDIT_OUTPUT/playwright-version.log"
           node --input-type=module <<'JS' | tee "$NWW_AUDIT_OUTPUT/browser-version.json"
@@ -67,14 +99,14 @@ jobs:
           try {
             const actualBrowserVersion = browser.version();
             console.log(JSON.stringify({packageVersion, metadata, actualBrowserVersion, executable: webkit.executablePath()}, null, 2));
-            assert.equal(packageVersion, '1.63.0', 'The diagnostic must use the exact pinned stable baseline package');
-            assert.equal(metadata.revision, '2359', 'The stable baseline WebKit revision must match the recorded package metadata');
-            assert.match(actualBrowserVersion, /^26\.6(?:\.|$)/, 'The stable baseline engine family must match the expected Linux WebKit26.6 metadata');
+            assert.equal(packageVersion, '1.64.1', 'The diagnostic must use the exact pinned comparison package');
+            assert.equal(metadata.revision, '2370', 'The comparison WebKit revision must match the recorded package metadata');
+            assert.match(actualBrowserVersion, /^27\.2(?:\.|$)/, 'The comparison engine family must match the expected Linux WebKit27.2 metadata');
           } finally {
             await browser.close();
           }
           JS
-      - name: Run the unchanged full export road-label suite with the stable baseline engine
+      - name: Run the bounded native export-format diagnostic scenario
         run: |
           python3 tools/serve_north_wildwood_test.py 8765 --bind 127.0.0.1 \
             --access-log "$NWW_AUDIT_OUTPUT/preview-access.log" \
@@ -94,12 +126,12 @@ jobs:
             exit 1
           fi
           printf '%s  %s\n' '132471479dd0de5d6ae56125e53625d489c954a686d3929874ea691707c0250f' 'tools/test_north_wildwood_export_road_labels_browser.mjs' | sha256sum --check --strict | tee "$NWW_AUDIT_OUTPUT/test-integrity.log"
-          node tools/test_north_wildwood_export_road_labels_browser.mjs 2>&1 | tee "$NWW_AUDIT_OUTPUT/diagnostic.log"
+          node tools/diag_webkit_export_format.mjs 2>&1 | tee "$NWW_AUDIT_OUTPUT/diagnostic.log"
       - name: Retain diagnostic evidence on success or failure
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: isolated-webkit-format-${{ github.run_id }}-${{ github.run_attempt }}
+          name: isolated-webkit-format-${{ matrix.scenario }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: diagnostic-results/
           if-no-files-found: warn
           retention-days: 7
