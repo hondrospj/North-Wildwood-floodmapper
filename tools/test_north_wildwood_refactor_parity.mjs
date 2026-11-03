@@ -17,6 +17,119 @@ const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(readRaw("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(readRaw("tools/app/manifest.json"));
 
+// Invert only the invisible map-region and date-combobox semantics. Current
+// files are pinned before every older audit sees its exact previous input.
+const ARIA_SEMANTICS_PATH = "tools/fixtures/north-wildwood-20261103-aria-semantics.json";
+const ariaSemanticsText = readRaw(ARIA_SEMANTICS_PATH);
+assert.equal(sha256(ariaSemanticsText), "ca6e139a541d995a50c6779850191f9b04623af646867424c063cc63fa4634b1",
+  "The semantic inverse must retain its exact reviewed fixture");
+const ariaSemantics = JSON.parse(ariaSemanticsText);
+assert.equal(ariaSemantics.schemaVersion, 1);
+assert.equal(ariaSemantics.baselineCommit, "6b309913d6620ffd0367cd57b7f2a2c3eb6f98d0");
+const ARIA_SEMANTICS_PICKER = "assets/export-date-time-picker.js";
+const ARIA_SEMANTICS_TEMPLATE = "tools/app/index.template.html";
+const ARIA_SEMANTICS_OWNERS = ["close", "create", "openDate", "init"];
+assert.deepEqual(ariaSemantics.files.map(file => [file.source, file.kind, file.entryId]), [
+  [ARIA_SEMANTICS_PICKER, "external", null], [ARIA_SEMANTICS_TEMPLATE, "template", null], ["index.html", "document", null]
+]);
+assert.deepEqual(ariaSemantics.changes.map(block => [block.id, block.source, block.kind, block.functionOwner, block.entryId]), [
+  ["date-popup-close-state", ARIA_SEMANTICS_PICKER, "external", "close", null],
+  ["date-popup-open-state", ARIA_SEMANTICS_PICKER, "external", "create", null],
+  ["editable-date-combobox-role", ARIA_SEMANTICS_PICKER, "external", "init", null],
+  ["date-popup-invocation-owner", ARIA_SEMANTICS_PICKER, "external", "openDate", null],
+  ["date-combobox-keyboard-focus", ARIA_SEMANTICS_PICKER, "external", "init", null],
+  ["named-map-region", ARIA_SEMANTICS_TEMPLATE, "template", null, null]
+]);
+const ariaCloseAnchor = '    previous.anchor.setAttribute("aria-expanded", "false");\n' +
+  '    document.getElementById(`download${previous.prefix === "end" ? "End" : "Start"}CalendarBtn`)?.setAttribute("aria-expanded", "false");\n' +
+  '    if (restoreFocus && previous.anchor.isConnected) previous.anchor.focus({ preventScroll: true });\n';
+assert.equal(ariaSemantics.changes[0].beforeSource, ariaCloseAnchor);
+assert.equal(ariaSemantics.changes[0].afterSource, ariaCloseAnchor
+  .replace('    previous.anchor.setAttribute("aria-expanded", "false");\n',
+    '    previous.anchor.setAttribute("aria-expanded", "false");\n' +
+    '    if (previous.kind === "date") getExportDateEditorElements(previous.prefix).dateText?.setAttribute("aria-expanded", "false");\n')
+  .replace('    if (restoreFocus && previous.anchor.isConnected) previous.anchor.focus({ preventScroll: true });\n',
+    '    const returnFocus = previous.returnFocus || previous.anchor;\n' +
+    '    if (restoreFocus && returnFocus.isConnected) returnFocus.focus({ preventScroll: true });\n'));
+const ariaOpenAnchor = '    anchor.setAttribute("aria-expanded", "true"); anchor.setAttribute("aria-controls", ID);\n';
+assert.equal(ariaSemantics.changes[1].beforeSource, ariaOpenAnchor);
+assert.equal(ariaSemantics.changes[1].afterSource, ariaOpenAnchor +
+  '    if (kind === "date") {\n' +
+  '      for (const trigger of [getExportDateEditorElements(prefix).dateText, document.getElementById(`download${prefix === "end" ? "End" : "Start"}CalendarBtn`)]) {\n' +
+  '        trigger?.setAttribute("aria-expanded", "true"); trigger?.setAttribute("aria-controls", ID);\n' +
+  '      }\n' +
+  '    }\n');
+const ariaDateEditor = '      editor.datePicker.hidden = true; editor.datePicker.tabIndex = -1;\n';
+assert.equal(ariaSemantics.changes[2].beforeSource, ariaDateEditor);
+assert.equal(ariaSemantics.changes[2].afterSource, ariaDateEditor + '      editor.dateText.setAttribute("role","combobox");\n');
+const ariaPopupOwner = '  function openDate(prefix, focusCalendar = true) {\n' +
+  '    if (currentDataMode === "return-interval") return;\n' +
+  '    const editor = getExportDateEditorElements(prefix);\n' +
+  '    const anchor = focusCalendar ? document.getElementById(`download${prefix === "end" ? "End" : "Start"}CalendarBtn`) : editor.dateText;\n' +
+  '    if (!anchor || editor.dateText.disabled) return;\n' +
+  '    const state = create(prefix,"date",anchor); if (!state) return;\n';
+assert.equal(ariaSemantics.changes[3].beforeSource, ariaPopupOwner);
+assert.equal(ariaSemantics.changes[3].afterSource, ariaPopupOwner
+  .replace('focusCalendar = true)', 'focusCalendar = true, opener = null)') + '    state.returnFocus = opener || anchor;\n',
+  "Only an explicit invoking element may alter the popup's focus-return owner");
+const ariaDateKeydown = '        if(event.key === "ArrowDown"){event.preventDefault();openDate(prefix);}\n';
+assert.equal(ariaSemantics.changes[4].beforeSource, ariaDateKeydown);
+assert.equal(ariaSemantics.changes[4].afterSource, ariaDateKeydown.replace('openDate(prefix)', 'openDate(prefix,true,editor.dateText)'),
+  "ArrowDown retains its existing calendar focus behavior and records the invoking combobox");
+assert.equal(ariaSemantics.changes[5].beforeSource,
+  '<div id="map3d" aria-label="Interactive 3D North Wildwood flood map">');
+assert.equal(ariaSemantics.changes[5].afterSource,
+  ariaSemantics.changes[5].beforeSource.replace('id="map3d"', 'id="map3d" role="region"'),
+  "The named map may add only the region role, retaining every label and visual attribute");
+function ariaSemanticsOwner(source, name) {
+  const expression = new RegExp("^  function " + name + "\\([^\\n]*\\) \\{\\n[^]*?^  }\\n(?:\\n)?", "gm");
+  const matches = [...source.matchAll(expression)];
+  assert.equal(matches.length, 1, `${name} must retain its exact date-picker function owner`);
+  return matches[0][0];
+}
+for (const block of ariaSemantics.changes) {
+  assert.equal(sha256(block.beforeSource), block.beforeSha256);
+  assert.equal(sha256(block.afterSource), block.afterSha256);
+  if (block.kind === "external") {
+    assert.ok(ariaSemanticsOwner(readRaw(block.source), block.functionOwner).includes(block.afterSource),
+      "Each semantic fragment must remain inside its existing picker function");
+  }
+}
+assert.deepEqual(ariaSemantics.documentTags.map(tag => [tag.output, tag.documents]),
+  [[ARIA_SEMANTICS_PICKER, [ARIA_SEMANTICS_TEMPLATE, "index.html"]]]);
+for (const tag of ariaSemantics.documentTags) {
+  assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+    "The picker dependency may change only its exact content cache key");
+  const attrs = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
+  referencedOutput(attrs.get("src"), tag.output, readRaw(tag.output));
+}
+function readAriaSemanticsReviewed(relative) {
+  const source = readRaw(relative), file = ariaSemantics.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed invisible semantics`);
+  const blocks = file.kind === "external" ? ariaSemantics.changes.filter(block => block.kind === "external")
+    : [...ariaSemantics.changes.filter(block => block.kind === "template"), ...ariaSemantics.documentTags];
+  let restored = source;
+  for (const block of blocks) {
+    assert.ok(block.afterSource.length);
+    assert.equal(restored.split(block.afterSource).length - 1, 1,
+      `${block.id || block.output} must retain one exact semantic fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  if (file.kind === "external") {
+    const strip = text => {
+      for (const name of ARIA_SEMANTICS_OWNERS) text = text.replace(ariaSemanticsOwner(text, name), "");
+      return text;
+    };
+    assert.equal(strip(source), strip(restored),
+      "Only close/create/openDate/init semantic role, state and focus fragments may change; every other picker byte remains exact");
+    for (const block of blocks) assert.ok(ariaSemanticsOwner(restored, block.functionOwner).includes(block.beforeSource));
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-semantics byte`);
+  return restored;
+}
+for (const file of ariaSemantics.files) readAriaSemanticsReviewed(file.source);
+
 // Invert only the reviewed deep state/data fixes. Every prior audit reads its
 // exact input bytes; this leading layer separately pins the real current files.
 const DEEP_REVIEW_PATH = "tools/fixtures/north-wildwood-20261103-deep-fixes.json";
@@ -64,7 +177,7 @@ function deepOwnedFunction(source, name, indent, absent = false) {
 for (const block of deepReviewed.changes) {
   const external = block.source === DEEP_3D;
   assert.equal(block.kind, external ? "external" : "script");assert.equal(block.entryId, external ? null : "script-004");
-  assert.equal(block.afterSource, deepOwnedFunction(readRaw(block.source), block.functionOwner, external ? 2 : 4));
+  assert.equal(block.afterSource, deepOwnedFunction(readAriaSemanticsReviewed(block.source), block.functionOwner, external ? 2 : 4));
   assert.equal(sha256(block.afterSource), block.afterSha256);
   assert.equal(block.beforeSource === "", DEEP_NEW_FUNCTIONS.includes(block.functionOwner),
     "Only the nine reviewed new helpers may introduce declarations");
@@ -77,14 +190,14 @@ for (const tag of deepReviewed.documentTags) {
   if (tag.output === DEEP_RUNTIME) {
     assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
       "Deep runtime fixes may change only the existing content cache key");
-    referencedOutput(attrs.get("src"), tag.output, readRaw(tag.output));
+    referencedOutput(attrs.get("src"), tag.output, readAriaSemanticsReviewed(tag.output));
   } else {
     assert.equal(tag.afterSource.replace(/&deep=[a-f0-9]{16}(?=")/, ""), tag.beforeSource,
       "The 3D dependency may add only its exact deep-fix content cache key");
     const url = new URL(attrs.get("src"), "https://north-wildwood-parity.invalid/");
     assert.equal(url.origin, "https://north-wildwood-parity.invalid");
     assert.equal(url.pathname.slice(1), DEEP_3D);assert.equal(url.hash, "");
-    assert.equal(url.searchParams.get("deep"), sha256(readRaw(DEEP_3D)).slice(0, 16));
+    assert.equal(url.searchParams.get("deep"), sha256(readAriaSemanticsReviewed(DEEP_3D)).slice(0, 16));
   }
 }
 function deepReviewedFragments(source, blocks) {
@@ -96,7 +209,7 @@ function deepReviewedFragments(source, blocks) {
   return source;
 }
 function readDeepReviewed(relative) {
-  const source = readRaw(relative), file = deepReviewed.files.find(file => file.source === relative);
+  const source = readAriaSemanticsReviewed(relative), file = deepReviewed.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed deep fixes`);
   const blocks = file.kind === "generated-script" ? deepReviewed.changes.filter(block => block.kind === "script")
@@ -856,7 +969,8 @@ assert.deepEqual(previewPolishAudit.assets.map(asset => asset.source), [
   "assets/export-date-time-picker.js", "assets/export-date-time-picker.css", "assets/shorelysafe-logo-export.jpg"
 ]);
 for (const asset of previewPolishAudit.assets) {
-  const bytes = fs.readFileSync(localPath(asset.source));
+  const bytes = asset.source === ARIA_SEMANTICS_PICKER
+    ? Buffer.from(readAriaSemanticsReviewed(asset.source), "utf8") : fs.readFileSync(localPath(asset.source));
   assert.equal(bytes.length, asset.bytes, `${asset.source} must retain its reviewed asset byte count`);
   assert.equal(sha256(bytes), asset.sha256, `${asset.source} changed outside the reviewed preview polish`);
   if (asset.source.endsWith(".js")) new vm.Script(bytes.toString("utf8"), { filename: asset.source });
@@ -2007,7 +2121,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -2020,6 +2134,7 @@ if (process.argv.includes("--self-test")) {
     // Mutation inputs must use actual current documents/cache tags, not inverses.
     const template = read("tools/app/index.template.html"), published = read("index.html");
     const activeRoadLabelTag = roadFallback.afterScriptTag;
+    const activePickerTag = ariaSemantics.documentTags[0].afterSource;
     const scratchHtml = path.join(scratch, "index.html");
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
@@ -2295,7 +2410,7 @@ if (process.argv.includes("--self-test")) {
       ["altered high-resolution branding asset", path.join(scratch, brandAsset.source),
         Buffer.concat([fs.readFileSync(localPath(brandAsset.source)), Buffer.from("unreviewed")])],
       ["dropped date-time picker dependency", scratchHtml,
-        published.replace(previewPolishAudit.tags.pickerScript.after[0], "")],
+        published.replace(activePickerTag, "")],
       ["broadened export frame-reuse inverse", path.join(scratch, FRAME_REUSE_AUDIT_PATH),
         JSON.stringify({ ...frameReuseAudit, changes: [...frameReuseAudit.changes, frameReuseAudit.changes[0]] })],
       ["altered export frame-reuse function", path.join(scratch, frameReuseAudit.files[0].source),
@@ -2464,6 +2579,62 @@ if (process.argv.includes("--self-test")) {
     assert.equal(cases.length, 172, "Retain all 156 previous mutations plus sixteen owned-clone/capture/UI boundary mutations");
     const allCases = [...cases, ...deepCases];
     assert.equal(allCases.length, 201, "Preserve all 172 earlier cases and append 29 deep-fix mutations");
+    const semanticsTemplate = readRaw(ARIA_SEMANTICS_TEMPLATE), semanticsPublished = readRaw("index.html");
+    const semanticsPicker = readRaw(ARIA_SEMANTICS_PICKER);
+    const semanticsMap = ariaSemantics.changes.find(block => block.id === "named-map-region");
+    const semanticsCache = ariaSemantics.documentTags[0];
+    const semanticsPickerCase = (name, id, mutate) => {
+      const block = ariaSemantics.changes.find(block => block.id === id);
+      assert.ok(block && block.kind === "external", `${name}: name one exact picker fragment`);
+      return [name, path.join(scratch, ARIA_SEMANTICS_PICKER), semanticsPicker.replace(block.afterSource, mutate(block.afterSource, block))];
+    };
+    const ariaSemanticsCases = [
+      ["broadened invisible semantic inverse ownership", path.join(scratch, ARIA_SEMANTICS_PATH),
+        JSON.stringify({...ariaSemantics, changes:[...ariaSemantics.changes, {...ariaSemantics.changes[0], functionOwner:"openTime"}]})],
+      ["omitted the source 3D region role", path.join(scratch, ARIA_SEMANTICS_TEMPLATE),
+        semanticsTemplate.replace(semanticsMap.afterSource, semanticsMap.beforeSource)],
+      ["changed the 3D landmark to a different role", path.join(scratch, ARIA_SEMANTICS_TEMPLATE),
+        semanticsTemplate.replace(semanticsMap.afterSource, semanticsMap.afterSource.replace('role="region"', 'role="application"'))],
+      ["changed the original 3D accessible map name", path.join(scratch, ARIA_SEMANTICS_TEMPLATE),
+        semanticsTemplate.replace('aria-label="Interactive 3D North Wildwood flood map"', 'aria-label="Unreviewed map name"')],
+      semanticsPickerCase("omitted the editable date combobox role", "editable-date-combobox-role", (source, block) => block.beforeSource),
+      semanticsPickerCase("misrepresented the editable date as a button", "editable-date-combobox-role",
+        source => source.replace('"role","combobox"', '"role","button"')),
+      semanticsPickerCase("lost date combobox state on calendar-button opening", "date-popup-open-state", (source, block) => block.beforeSource),
+      semanticsPickerCase("mirrored popup state to the wrong date editor", "date-popup-open-state",
+        source => source.replace('getExportDateEditorElements(prefix).dateText', 'getExportDateEditorElements(prefix === "end" ? "start" : "end").dateText')),
+      semanticsPickerCase("associated the combobox with a nonexistent popup", "date-popup-open-state",
+        source => source.replace('trigger?.setAttribute("aria-controls", ID)', 'trigger?.setAttribute("aria-controls", "unreviewedPopup")')),
+      semanticsPickerCase("left the closed date combobox expanded", "date-popup-close-state",
+        source => source.replace('dateText?.setAttribute("aria-expanded", "false")', 'dateText?.setAttribute("aria-expanded", "true")')),
+      semanticsPickerCase("lost the keyboard combobox invocation owner", "date-combobox-keyboard-focus", (source, block) => block.beforeSource),
+      semanticsPickerCase("ignored the explicit popup focus-return owner", "date-popup-invocation-owner", (source, block) => block.beforeSource),
+      semanticsPickerCase("returned focus to the positioning button instead of the invoking input", "date-popup-close-state",
+        source => source.replace('previous.returnFocus || previous.anchor', 'previous.anchor')),
+      ["changed unrelated date-picker cache behavior", path.join(scratch, ARIA_SEMANTICS_PICKER),
+        semanticsPicker.replace('stageMaps.size >= 4', 'stageMaps.size >= 5')],
+      semanticsPickerCase("changed the existing date keyboard shortcut", "date-combobox-keyboard-focus",
+        source => source.replace('event.key === "ArrowDown"', 'event.key === "ArrowUp"')),
+      ["added an unreviewed date-picker global", path.join(scratch, ARIA_SEMANTICS_PICKER),
+        semanticsPicker + '\nvar unreviewedSemanticGlobal = true;\n'],
+      ["changed the shared font with semantic fixes", path.join(scratch, FONT_FAMILY_SOURCE),
+        readRaw(FONT_FAMILY_SOURCE) + '\nbody { font-family: serif; }\n'],
+      ["changed visible map layout with semantic fixes", path.join(scratch, ARIA_SEMANTICS_TEMPLATE),
+        semanticsTemplate.replace(semanticsMap.afterSource, semanticsMap.afterSource.replace('role="region"', 'role="region" style="padding:1px"'))],
+      ["omitted the generated 3D region role", scratchHtml,
+        semanticsPublished.replace(semanticsMap.afterSource, semanticsMap.beforeSource)],
+      ["retained the old picker source cache key", path.join(scratch, ARIA_SEMANTICS_TEMPLATE),
+        semanticsTemplate.replace(semanticsCache.afterSource, semanticsCache.beforeSource)],
+      ["retained the old generated picker cache key", scratchHtml,
+        semanticsPublished.replace(semanticsCache.afterSource, semanticsCache.beforeSource)],
+      ["used a picker cache key unrelated to its bytes", scratchHtml,
+        semanticsPublished.replace(semanticsCache.afterSource, semanticsCache.afterSource.replace(/\?v=[a-f0-9]+/, '?v=0000000000000000'))],
+      ["changed unrelated runtime with semantic fixes", path.join(scratch, DEEP_RUNTIME),
+        readRaw(DEEP_RUNTIME) + '\nvar unreviewedSemanticRuntime = true;\n']
+    ];
+    assert.equal(ariaSemanticsCases.length, 23, "Retain all semantic role/state/focus, exact owner, cache, font and UI boundary mutations");
+    allCases.push(...ariaSemanticsCases);
+    assert.equal(allCases.length, 224, "Preserve all 201 earlier cases and append 23 invisible-semantic boundary mutations");
     for (const [name, target, altered] of allCases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);

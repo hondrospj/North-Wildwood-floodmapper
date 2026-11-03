@@ -87,6 +87,7 @@ jobs:
             tools/fixtures/north-wildwood-20261103-ui-dialogs.json
             tools/fixtures/north-wildwood-20261103-export-clone-cleanup.json
             tools/fixtures/north-wildwood-20261103-deep-fixes.json
+            tools/fixtures/north-wildwood-20261103-aria-semantics.json
             tools/fixtures/north-wildwood-export-dst.json
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs
