@@ -429,6 +429,13 @@
 
       document.addEventListener("keydown", e => {
         if (e.key === "Escape") {
+          const rangeWarning = document.getElementById("exportOrderModal");
+          if (rangeWarning && !rangeWarning.hidden) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            closeExportDateOrderPopup();
+            return;
+          }
           setDatumHelpOpen(false);
           setInfoModalOpen(false);
           setDownloadModalOpen(false);

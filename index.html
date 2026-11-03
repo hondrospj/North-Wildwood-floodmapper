@@ -39,7 +39,7 @@
   <script data-nww-script="script-003" src="./assets/app/platform.js?v=be7a7d894330018d"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <link rel="stylesheet" data-nww-style-bundle="app-03" href="./assets/styles/app-03.css?v=e2ac34eeeb7b6327">
+  <link rel="stylesheet" data-nww-style-bundle="app-03" href="./assets/styles/app-03.css?v=b4b3e4ef99ab671d">
 
   <!-- nww:style:style-009 -->
 
@@ -170,9 +170,9 @@
           <span id="dataModePill" class="nww-status-value" hidden>Forecast</span>
         </div>
         <div class="button-grid-2 data-source-options">
-          <button id="forecastDataBtn" class="active" type="button">Forecast</button>
-          <button id="observedDataBtn" type="button">Past</button>
-          <button id="returnIntervalDataBtn" type="button" aria-label="Modeled flood scenarios">Modeled Floods</button>
+          <button id="forecastDataBtn" class="active" type="button" aria-pressed="true">Forecast</button>
+          <button id="observedDataBtn" type="button" aria-pressed="false">Past</button>
+          <button id="returnIntervalDataBtn" type="button" aria-label="Modeled flood scenarios" aria-pressed="false">Modeled Floods</button>
         </div>
       </section>
 
@@ -225,8 +225,8 @@
           <span id="overlayModePill" class="nww-status-value" hidden>Flood Depth</span>
         </div>
         <div class="button-grid-2">
-          <button id="depthModeBtn" class="active" type="button">Flood Depth</button>
-          <button id="dynamicModeBtn" type="button">Flood Stages</button>
+          <button id="depthModeBtn" class="active" type="button" aria-pressed="true">Flood Depth</button>
+          <button id="dynamicModeBtn" type="button" aria-pressed="false">Flood Stages</button>
         </div>
       </section>
 
@@ -760,7 +760,7 @@
   <script src="https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js"></script>
   <script src="assets/road-labels.js?v=01f9684394f0ac9f"></script>
 
-  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=cf30fe1b899c2d2c"></script>
+  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=8caea6bff0e2a553"></script>
 
 <script data-nww-script="script-005" src="./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52"></script>
 

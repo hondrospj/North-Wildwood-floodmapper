@@ -15,6 +15,111 @@ const read = relative => fs.readFileSync(localPath(relative), "utf8");
 const sha256 = source => createHash("sha256").update(source).digest("hex");
 const baseline = JSON.parse(read("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(read("tools/app/manifest.json"));
+// Invert only the reviewed November 3 dialog stacking, Escape and accessible-state fixes.
+const UI_DIALOGS_PATH = "tools/fixtures/north-wildwood-20261103-ui-dialogs.json";
+const uiDialogsText = read(UI_DIALOGS_PATH);
+assert.equal(sha256(uiDialogsText), "c6730d21386d7d0cac87b0d6e8ff135703ec13bfc98ac3668b3340a0faac397e",
+  "The UI-dialog inverse must retain its exact reviewed fixture");
+const uiDialogs = JSON.parse(uiDialogsText);
+assert.equal(uiDialogs.schemaVersion, 1);
+assert.equal(uiDialogs.baselineCommit, "f3f02d5d23d85ca46800fa437a15a91abc67e22f");
+const UI_DIALOGS_OWNERS = [
+  ["tools/app/runtime/05-presentation.js", ["updateModeButtons", "updateDataModeButtons"]],
+  ["tools/app/runtime/28-tutorial-and-events.js", ["wireEvents"]]
+];
+const UI_DIALOGS_RUNTIME = "assets/app/runtime.js", UI_DIALOGS_CSS = "assets/styles/app-03.css";
+const UI_DIALOGS_STYLE = "tools/app/styles/style-009.css", UI_DIALOGS_TEMPLATE = "tools/app/index.template.html";
+const UI_DIALOGS_RULE = "    #exportOrderModal{ z-index:7300; }\n";
+const UI_DIALOGS_BUTTONS = ["forecastDataBtn", "observedDataBtn", "returnIntervalDataBtn", "depthModeBtn", "dynamicModeBtn"];
+assert.deepEqual(uiDialogs.files.map(file => [file.source, file.kind, file.entryId]), [
+  ...UI_DIALOGS_OWNERS.map(([relative]) => [relative, "script", "script-004"]),
+  [UI_DIALOGS_STYLE, "style", "style-009"], [UI_DIALOGS_TEMPLATE, "template", null],
+  [UI_DIALOGS_RUNTIME, "generated-script", "script-004"], [UI_DIALOGS_CSS, "generated-style", null], ["index.html", "document", null]
+]);
+const uiDialogsRuntimeEntry = manifest.scripts.find(entry => entry.id === "script-004");
+assert.equal(uiDialogsRuntimeEntry.output, UI_DIALOGS_RUNTIME);
+for (const [relative] of UI_DIALOGS_OWNERS) assert.ok(uiDialogsRuntimeEntry.sources.includes(relative));
+const uiDialogsStyleEntry = manifest.styles.find(entry => entry.id === "style-009");
+assert.deepEqual(uiDialogsStyleEntry.sources, [UI_DIALOGS_STYLE]);
+assert.equal(uiDialogsStyleEntry.output, UI_DIALOGS_CSS);
+for (const block of uiDialogs.changes) {
+  const file = uiDialogs.files.find(file => file.source === block.source);
+  assert.ok(file && ["script", "style", "template"].includes(file.kind));
+  assert.equal(block.kind, file.kind);assert.equal(block.entryId, file.entryId);
+  if (block.kind === "script") {
+    const owner = UI_DIALOGS_OWNERS.find(([relative]) => relative === block.source);
+    assert.ok(owner && owner[1].includes(block.functionOwner), "UI runtime edits must retain their exact named function owner");
+    assert.ok(auditLogicFunction(read(block.source), block.functionOwner, 4).includes(block.afterSource),
+      "Each runtime inverse fragment must remain in its declared current function");
+    assert.ok(block.beforeSource.length && block.afterSource.length);
+  }
+}
+const uiDialogsCssBlocks = uiDialogs.changes.filter(block => block.kind === "style");
+assert.equal(uiDialogsCssBlocks.length, 1);
+assert.equal(uiDialogsCssBlocks[0].beforeSource, "");
+assert.equal(uiDialogsCssBlocks[0].afterSource, UI_DIALOGS_RULE,
+  "The only permitted CSS edit raises the existing range-warning layer, retaining every visual style");
+const uiDialogsTemplateBlocks = uiDialogs.changes.filter(block => block.kind === "template");
+assert.deepEqual(uiDialogsTemplateBlocks.map(block => attributes(block.afterSource.slice(0, block.afterSource.indexOf(">") + 1)).get("id")), UI_DIALOGS_BUTTONS);
+for (const block of uiDialogsTemplateBlocks) {
+  assert.equal(block.afterSource.replace(/ aria-pressed="(?:true|false)"/, ""), block.beforeSource,
+    "Semantic button defaults may add only their one aria-pressed attribute; labels, classes and all other markup stay exact");
+  const attrs = attributes(block.afterSource.slice(0, block.afterSource.indexOf(">") + 1));
+  assert.equal(attrs.get("aria-pressed"), ["forecastDataBtn", "depthModeBtn"].includes(attrs.get("id")) ? "true" : "false");
+}
+assert.deepEqual(uiDialogs.documentTags.map(tag => [tag.output, tag.documents]), [
+  [UI_DIALOGS_RUNTIME, ["index.html"]], [UI_DIALOGS_CSS, ["index.html"]]
+]);
+for (const tag of uiDialogs.documentTags) {
+  assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
+    "Dialog fixes may change only the existing runtime/CSS content cache keys");
+  const attrs = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
+  referencedOutput(attrs.get(tag.output === UI_DIALOGS_RUNTIME ? "src" : "href"), tag.output);
+}
+function uiDialogsFragments(source, blocks) {
+  for (const block of blocks) {
+    const label = block.id || block.output;
+    assert.ok(block.afterSource.length, `${label} must retain an exact nonempty dialog fragment`);
+    assert.equal(source.split(block.afterSource).length - 1, 1, `${label} dialog fragment must occur exactly once`);
+    source = source.replace(block.afterSource, block.beforeSource);
+  }
+  return source;
+}
+function assertUiDialogsOwnership(relative, source, restored) {
+  const owner = UI_DIALOGS_OWNERS.find(([name]) => name === relative);
+  if (owner) {
+    const strip = text => {
+      for (const name of owner[1]) text = text.replace(auditLogicFunction(text, name, 4), "");
+      return text;
+    };
+    assert.equal(strip(source), strip(restored), `${relative} may change only its reviewed UI functions, without new declarations`);
+    for (const block of uiDialogs.changes.filter(block => block.source === relative)) {
+      assert.ok(auditLogicFunction(restored, block.functionOwner, 4).includes(block.beforeSource),
+        "Every restored runtime fragment must stay in its existing function owner");
+    }
+  } else if (relative === UI_DIALOGS_STYLE) {
+    assert.equal(source.replace(UI_DIALOGS_RULE, ""), restored, "Every CSS byte except the one warning layer declaration remains exact");
+  }
+}
+function uiDialogsDocument(source) {
+  return uiDialogsFragments(source, uiDialogsTemplateBlocks);
+}
+function auditedUiDialogsRead(relative) {
+  const source = read(relative), file = uiDialogs.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed UI-dialog fixes`);
+  let blocks;
+  if (file.kind === "document") blocks = [...uiDialogs.documentTags, ...uiDialogsTemplateBlocks];
+  else if (file.kind === "generated-script") blocks = uiDialogs.changes.filter(block => block.kind === "script");
+  else if (file.kind === "generated-style") blocks = uiDialogsCssBlocks;
+  else blocks = uiDialogs.changes.filter(block => block.source === relative);
+  const restored = uiDialogsFragments(source, blocks);
+  if (["script", "style"].includes(file.kind)) assertUiDialogsOwnership(relative, source, restored);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-dialog-fix byte`);
+  return restored;
+}
+for (const file of uiDialogs.files) auditedUiDialogsRead(file.source);
+
 // Invert only the reviewed history-selection transaction; retain every UI byte.
 const HISTORY_STATE_PATH = "tools/fixtures/north-wildwood-20261102-history-state.json";
 const historyStateText = read(HISTORY_STATE_PATH);
@@ -44,7 +149,7 @@ for (const tag of historyState.documentTags) {
   assert.equal(tag.afterSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"), tag.beforeSource.replace(/\?v=[a-f0-9]+/, "?v=VERSION"),
     "The history transaction may change only the existing runtime cache key, without UI attributes");
   const attrs = attributes(tag.afterSource.slice(0, tag.afterSource.indexOf(">") + 1));
-  referencedOutput(attrs.get("src"), tag.output);
+  referencedOutput(attrs.get("src"), tag.output, auditedUiDialogsRead(tag.output));
 }
 function historyStateFragments(source, blocks) {
   for (const block of blocks) {
@@ -64,7 +169,7 @@ function assertHistoryStateOwnership(source, restored) {
     "History transactions may change only loadTopTideEvent and switchDataMode; other code and declarations remain exact");
 }
 function auditedHistoryStateRead(relative) {
-  const source = read(relative), file = historyState.files.find(file => file.source === relative);
+  const source = auditedUiDialogsRead(relative), file = historyState.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed history transaction`);
   const restored = historyStateFragments(source, file.kind === "document" ? historyState.documentTags : historyState.changes);
@@ -679,7 +784,7 @@ assert.equal(holisticFixAudit.schemaVersion, 1);
 assert.equal(holisticFixAudit.baselineCommit, "075b294431f5bf57542a2c8850ef7b2d26320766");
 const template = auditedRoadFallbackRead("tools/app/index.template.html");
 // Prior full-file pins use the inverse, but generated cache checks use actual current bundle tags.
-const published = roadFallbackDocument(auditLogicExternalDocument(read("index.html")));
+const published = roadFallbackDocument(auditLogicExternalDocument(uiDialogsDocument(read("index.html"))));
 assertScalableRoadDocument(template, "Template");
 assertScalableRoadDocument(published, "Published HTML");
 const previewUi = JSON.parse(read("tools/fixtures/north-wildwood-export-preview-ui.json"));
@@ -1383,6 +1488,7 @@ function auditedIssueFixSource(kind, entry, source) {
 }
 
 function auditedBaselineSource(kind, entry, source) {
+  source = uiDialogsFragments(source, uiDialogs.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = historyStateFragments(source, historyState.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = auditLogicFragments(source, auditLogic.changes.filter(block => block.kind === kind && block.entryId === entry.id));
   source = tutorialGestureFragments(source, tutorialGesture.changes.filter(block => block.kind === kind && block.entryId === entry.id));
@@ -1727,7 +1833,7 @@ if (process.argv.includes("--self-test")) {
       FRAME_REUSE_AUDIT_PATH,
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
-      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH,
+      SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH,
       boundaryStartup.featureSource, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -1743,7 +1849,43 @@ if (process.argv.includes("--self-test")) {
     const scratchHtml = path.join(scratch, "index.html");
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
+    const uiDialogCases = [
+      ["broadened dialog inverse ownership", path.join(scratch, UI_DIALOGS_PATH),
+        JSON.stringify({ ...uiDialogs, changes: [...uiDialogs.changes, { ...uiDialogs.changes[0], source: "tools/app/runtime/00-configuration.js" }] })],
+      ["dropped overlay accessible state", path.join(scratch, UI_DIALOGS_OWNERS[0][0]),
+        read(UI_DIALOGS_OWNERS[0][0]).replace('      document.getElementById("depthModeBtn").setAttribute("aria-pressed", String(currentOverlayMode === "depth"));\n', "")],
+      ["wrong data-mode accessible state", path.join(scratch, UI_DIALOGS_OWNERS[0][0]),
+        read(UI_DIALOGS_OWNERS[0][0]).replace('setAttribute("aria-pressed", String(currentDataMode === "forecast"))', 'setAttribute("aria-pressed", String(currentDataMode === "observed"))')],
+      ["removed optional modeled accessible-state guard", path.join(scratch, UI_DIALOGS_OWNERS[0][0]),
+        read(UI_DIALOGS_OWNERS[0][0]).replace('getElementById("returnIntervalDataBtn")?.setAttribute', 'getElementById("returnIntervalDataBtn").setAttribute')],
+      ["wrong initial selected mode", path.join(scratch, UI_DIALOGS_TEMPLATE),
+        template.replace(uiDialogsTemplateBlocks[0].afterSource, uiDialogsTemplateBlocks[0].afterSource.replace('aria-pressed="true"', 'aria-pressed="false"'))],
+      ["changed visible mode label with accessibility fix", path.join(scratch, UI_DIALOGS_TEMPLATE),
+        template.replace(">Flood Depth</button>", ">Unreviewed depth label</button>")],
+      ["warning hidden below desktop export", path.join(scratch, UI_DIALOGS_STYLE),
+        read(UI_DIALOGS_STYLE).replace(UI_DIALOGS_RULE, UI_DIALOGS_RULE.replace("7300", "6000"))],
+      ["unreviewed warning visual style", path.join(scratch, UI_DIALOGS_STYLE),
+        read(UI_DIALOGS_STYLE).replace(UI_DIALOGS_RULE, UI_DIALOGS_RULE.replace("z-index:7300;", "z-index:7300; opacity:0;"))],
+      ["unrelated CSS added beside warning layer", path.join(scratch, UI_DIALOGS_STYLE),
+        read(UI_DIALOGS_STYLE) + "\n#leftPanel{width:200px!important}\n"],
+      ["wrong nested warning visibility guard", path.join(scratch, UI_DIALOGS_OWNERS[1][0]),
+        read(UI_DIALOGS_OWNERS[1][0]).replace("rangeWarning && !rangeWarning.hidden", "rangeWarning && rangeWarning.hidden")],
+      ["dropped nested Escape propagation stop", path.join(scratch, UI_DIALOGS_OWNERS[1][0]),
+        read(UI_DIALOGS_OWNERS[1][0]).replace("            e.stopImmediatePropagation();\n", "")],
+      ["unrelated code beside dialog owner", path.join(scratch, UI_DIALOGS_OWNERS[1][0]),
+        read(UI_DIALOGS_OWNERS[1][0]) + "\n// Unreviewed adjacent dialog code\n"],
+      ["changed generated dialog runtime", path.join(scratch, UI_DIALOGS_RUNTIME),
+        read(UI_DIALOGS_RUNTIME) + "\n// Unreviewed generated dialog code\n"],
+      ["changed generated dialog CSS", path.join(scratch, UI_DIALOGS_CSS),
+        read(UI_DIALOGS_CSS) + "\nbody{font-family:Arial}\n"],
+      ["stale dialog runtime cache key", scratchHtml,
+        published.replace(uiDialogs.documentTags[0].afterSource, uiDialogs.documentTags[0].beforeSource)],
+      ["stale dialog CSS cache key", scratchHtml,
+        published.replace(uiDialogs.documentTags[1].afterSource, uiDialogs.documentTags[1].beforeSource)],
+    ];
+    assert.equal(uiDialogCases.length, 16, "Retain all sixteen dialog/accessibility/UI boundary mutations");
     const cases = [
+      ...uiDialogCases,
       ["broadened history transaction ownership", path.join(scratch, HISTORY_STATE_PATH),
         JSON.stringify({ ...historyState, changes: [...historyState.changes, { ...historyState.changes[0], source: "tools/app/runtime/00-configuration.js" }] })],
       ["committed observed mode before historical archive wait", path.join(scratch, HISTORY_STATE_SOURCE),
@@ -1763,7 +1905,7 @@ if (process.argv.includes("--self-test")) {
       ["changed generated history transaction runtime", path.join(scratch, HISTORY_STATE_OUTPUT),
         read(HISTORY_STATE_OUTPUT) + "\n// Unreviewed generated history change\n"],
       ["stale history transaction runtime cache key", scratchHtml,
-        published.replace(historyState.documentTags[0].afterSource, historyState.documentTags[0].beforeSource)],
+        published.replace(uiDialogs.documentTags[0].afterSource, historyState.documentTags[0].beforeSource)],
       ["changed UI markup during history transaction fix", path.join(scratch, "tools/app/index.template.html"),
         template.replace("<h2>Forecast range</h2>", "<h2>Unreviewed history interface</h2>")],
       ["changed UI font during history transaction fix", path.join(scratch, "tools/app/styles/style-002.css"),
@@ -1791,7 +1933,7 @@ if (process.argv.includes("--self-test")) {
       ["changed export area beside approved caller", path.join(scratch, AUDIT_LOGIC_MODULE),
         read(AUDIT_LOGIC_MODULE) + "\n// Unreviewed area module change\n"],
       ["stale audit runtime cache key", scratchHtml,
-        published.replace(historyState.documentTags[0].afterSource, auditLogic.documentTags[0].beforeSource)],
+        published.replace(uiDialogs.documentTags[0].afterSource, auditLogic.documentTags[0].beforeSource)],
       ["stale export-area source cache key", path.join(scratch, "tools/app/index.template.html"),
         template.replace(auditLogic.documentTags[1].afterSource, auditLogic.documentTags[1].beforeSource)],
       ["changed UI font during logic audit", path.join(scratch, "tools/app/styles/style-002.css"),
@@ -1809,7 +1951,7 @@ if (process.argv.includes("--self-test")) {
       ["changed generated tutorial runtime", path.join(scratch, TUTORIAL_GESTURE_OUTPUT),
         read(TUTORIAL_GESTURE_OUTPUT) + "\n// Unreviewed generated tutorial change\n"],
       ["stale tutorial runtime cache key", scratchHtml,
-        published.replace(historyState.documentTags[0].afterSource, tutorialGesture.documentTags[0].beforeSource)],
+        published.replace(uiDialogs.documentTags[0].afterSource, tutorialGesture.documentTags[0].beforeSource)],
       ["broadened adaptive-sidebar inverse", path.join(scratch, ADAPTIVE_SIDEBAR_PATH),
         JSON.stringify({ ...adaptiveSidebar, changes: [...adaptiveSidebar.changes, adaptiveSidebar.changes[0]] })],
       ["changed adaptive fit guard", path.join(scratch, "tools/app/unified-controller.js"),
@@ -2039,7 +2181,8 @@ if (process.argv.includes("--self-test")) {
         read("tools/app/runtime/15-export-capture.js").replace("waitForExportVectorLayerReady(layer, timeoutMs = 15000)",
           "waitForExportVectorLayerReady(layer, timeoutMs = 15001)")],
     ];
-    assert.equal(cases.length, 140, "Retain all 128 previous mutations and twelve history transaction/UI boundary mutations");
+    assert.equal(cases.length - uiDialogCases.length, 140, "Retain all 128 previous mutations and twelve history transaction/UI boundary mutations");
+    assert.equal(cases.length, 156, "Retain all 140 previous mutations plus sixteen dialog/accessibility/UI boundary mutations");
     for (const [name, target, altered] of cases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);

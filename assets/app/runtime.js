@@ -2712,6 +2712,8 @@ function setDatumHelpOpen(isOpen) {
     function updateModeButtons() {
       document.getElementById("depthModeBtn").classList.toggle("active", currentOverlayMode === "depth");
       document.getElementById("dynamicModeBtn").classList.toggle("active", currentOverlayMode === "dynamic");
+      document.getElementById("depthModeBtn").setAttribute("aria-pressed", String(currentOverlayMode === "depth"));
+      document.getElementById("dynamicModeBtn").setAttribute("aria-pressed", String(currentOverlayMode === "dynamic"));
       document.getElementById("overlayModePill").textContent =
         currentOverlayMode === "depth" ? "Flood Depth" : "Flood Stages";
       renderLegend();
@@ -2721,6 +2723,9 @@ function setDatumHelpOpen(isOpen) {
       document.getElementById("forecastDataBtn").classList.toggle("active", currentDataMode === "forecast");
       document.getElementById("observedDataBtn").classList.toggle("active", currentDataMode === "observed");
       document.getElementById("returnIntervalDataBtn")?.classList.toggle("active", currentDataMode === "return-interval");
+      document.getElementById("forecastDataBtn").setAttribute("aria-pressed", String(currentDataMode === "forecast"));
+      document.getElementById("observedDataBtn").setAttribute("aria-pressed", String(currentDataMode === "observed"));
+      document.getElementById("returnIntervalDataBtn")?.setAttribute("aria-pressed", String(currentDataMode === "return-interval"));
       document.getElementById("dataModePill").textContent = currentDataMode === "forecast"
         ? getForecastScenarioLabel()
         : currentDataMode === "return-interval"
@@ -14827,6 +14832,13 @@ function startPlayback() {
 
       document.addEventListener("keydown", e => {
         if (e.key === "Escape") {
+          const rangeWarning = document.getElementById("exportOrderModal");
+          if (rangeWarning && !rangeWarning.hidden) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            closeExportDateOrderPopup();
+            return;
+          }
           setDatumHelpOpen(false);
           setInfoModalOpen(false);
           setDownloadModalOpen(false);

@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "f3f02d5d23d85ca46800fa437a15a91abc67e22f",
+  "files": [
+    {
+      "source": "tools/app/runtime/05-presentation.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "0875ccfe58f34eb9f7fbde06b9f6b211fd4b947ff4842cfe6bac931b434355fa",
+      "afterSha256": "05c722b0f84a250ee1a8e13e84ca4665bce697f3673ec74dbcd6b539e578cd9a"
+    },
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "kind": "script",
+      "entryId": "script-004",
+      "beforeSha256": "51c46fe6b71f9bda9c46cff792c62e0b8df5f559a3c1ec5618197c4a68a28ef1",
+      "afterSha256": "f02ee9cd6cf42ff529eef54d43a055c59f03c59543b399e87a87cd17431ec623"
+    },
+    {
+      "source": "tools/app/styles/style-009.css",
+      "kind": "style",
+      "entryId": "style-009",
+      "beforeSha256": "7fada305ca92750d5ec8d2c74c38b187d364cff257b30f921d53b78dc216900f",
+      "afterSha256": "5c11f84f8306585bca3607203811cd996c801050484a5e99eaa7b999e59321ea"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "kind": "template",
+      "entryId": null,
+      "beforeSha256": "9d86b7cfb62028cc95220908f6416f27d578e537f510e57b839903dfbc4dd87d",
+      "afterSha256": "686ea2ad9c8a58eb747533ef3c3d50810505f1166b32b0ee9279ad49f95d065d"
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "kind": "generated-script",
+      "entryId": "script-004",
+      "beforeSha256": "cf30fe1b899c2d2cb65f976929196372398e439cc743f0fd558c80862d521387",
+      "afterSha256": "8caea6bff0e2a553ef97a787dc85e0880b65ad028d863ef84a9011bffd573e77"
+    },
+    {
+      "source": "assets/styles/app-03.css",
+      "kind": "generated-style",
+      "entryId": null,
+      "beforeSha256": "e2ac34eeeb7b6327d78ed52dcfbaf0c0b8b9759b1a5c675832d22f6b927edd1e",
+      "afterSha256": "b4b3e4ef99ab671d0a91e5a401009ddb22c87664a3d1b4d683a889aaf24161ac"
+    },
+    {
+      "source": "index.html",
+      "kind": "document",
+      "entryId": null,
+      "beforeSha256": "09c8f71c3dd5509393f9268b28dd2f8f6829575ffbbd7432c7a64f8fb6443a63",
+      "afterSha256": "6313623096744e6164af48eb51fb34d8cab74839408d22da8ab588e13f94134b"
+    }
+  ],
+  "changes": [
+    {
+      "source": "tools/app/runtime/05-presentation.js",
+      "id": "ui-dialog-updateModeButtons-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "functionOwner": "updateModeButtons",
+      "beforeSource": "      document.getElementById(\"depthModeBtn\").classList.toggle(\"active\", currentOverlayMode === \"depth\");\n      document.getElementById(\"dynamicModeBtn\").classList.toggle(\"active\", currentOverlayMode === \"dynamic\");\n      document.getElementById(\"overlayModePill\").textContent =\n        currentOverlayMode === \"depth\" ? \"Flood Depth\" : \"Flood Stages\";\n",
+      "afterSource": "      document.getElementById(\"depthModeBtn\").classList.toggle(\"active\", currentOverlayMode === \"depth\");\n      document.getElementById(\"dynamicModeBtn\").classList.toggle(\"active\", currentOverlayMode === \"dynamic\");\n      document.getElementById(\"depthModeBtn\").setAttribute(\"aria-pressed\", String(currentOverlayMode === \"depth\"));\n      document.getElementById(\"dynamicModeBtn\").setAttribute(\"aria-pressed\", String(currentOverlayMode === \"dynamic\"));\n      document.getElementById(\"overlayModePill\").textContent =\n        currentOverlayMode === \"depth\" ? \"Flood Depth\" : \"Flood Stages\";\n"
+    },
+    {
+      "source": "tools/app/runtime/05-presentation.js",
+      "id": "ui-dialog-updateDataModeButtons-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "functionOwner": "updateDataModeButtons",
+      "beforeSource": "      document.getElementById(\"observedDataBtn\").classList.toggle(\"active\", currentDataMode === \"observed\");\n      document.getElementById(\"returnIntervalDataBtn\")?.classList.toggle(\"active\", currentDataMode === \"return-interval\");\n      document.getElementById(\"dataModePill\").textContent = currentDataMode === \"forecast\"\n        ? getForecastScenarioLabel()\n",
+      "afterSource": "      document.getElementById(\"observedDataBtn\").classList.toggle(\"active\", currentDataMode === \"observed\");\n      document.getElementById(\"returnIntervalDataBtn\")?.classList.toggle(\"active\", currentDataMode === \"return-interval\");\n      document.getElementById(\"forecastDataBtn\").setAttribute(\"aria-pressed\", String(currentDataMode === \"forecast\"));\n      document.getElementById(\"observedDataBtn\").setAttribute(\"aria-pressed\", String(currentDataMode === \"observed\"));\n      document.getElementById(\"returnIntervalDataBtn\")?.setAttribute(\"aria-pressed\", String(currentDataMode === \"return-interval\"));\n      document.getElementById(\"dataModePill\").textContent = currentDataMode === \"forecast\"\n        ? getForecastScenarioLabel()\n"
+    },
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "id": "ui-dialog-wireEvents-1",
+      "kind": "script",
+      "entryId": "script-004",
+      "functionOwner": "wireEvents",
+      "beforeSource": "      document.addEventListener(\"keydown\", e => {\n        if (e.key === \"Escape\") {\n          setDatumHelpOpen(false);\n          setInfoModalOpen(false);\n",
+      "afterSource": "      document.addEventListener(\"keydown\", e => {\n        if (e.key === \"Escape\") {\n          const rangeWarning = document.getElementById(\"exportOrderModal\");\n          if (rangeWarning && !rangeWarning.hidden) {\n            e.preventDefault();\n            e.stopImmediatePropagation();\n            closeExportDateOrderPopup();\n            return;\n          }\n          setDatumHelpOpen(false);\n          setInfoModalOpen(false);\n"
+    },
+    {
+      "source": "tools/app/styles/style-009.css",
+      "id": "ui-dialog-warning-z-index",
+      "kind": "style",
+      "entryId": "style-009",
+      "beforeSource": "",
+      "afterSource": "    #exportOrderModal{ z-index:7300; }\n"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "id": "ui-dialog-pressed-forecastDataBtn",
+      "kind": "template",
+      "entryId": null,
+      "beforeSource": "<button id=\"forecastDataBtn\" class=\"active\" type=\"button\">Forecast</button>",
+      "afterSource": "<button id=\"forecastDataBtn\" class=\"active\" type=\"button\" aria-pressed=\"true\">Forecast</button>"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "id": "ui-dialog-pressed-observedDataBtn",
+      "kind": "template",
+      "entryId": null,
+      "beforeSource": "<button id=\"observedDataBtn\" type=\"button\">Past</button>",
+      "afterSource": "<button id=\"observedDataBtn\" type=\"button\" aria-pressed=\"false\">Past</button>"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "id": "ui-dialog-pressed-returnIntervalDataBtn",
+      "kind": "template",
+      "entryId": null,
+      "beforeSource": "<button id=\"returnIntervalDataBtn\" type=\"button\" aria-label=\"Modeled flood scenarios\">Modeled Floods</button>",
+      "afterSource": "<button id=\"returnIntervalDataBtn\" type=\"button\" aria-label=\"Modeled flood scenarios\" aria-pressed=\"false\">Modeled Floods</button>"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "id": "ui-dialog-pressed-depthModeBtn",
+      "kind": "template",
+      "entryId": null,
+      "beforeSource": "<button id=\"depthModeBtn\" class=\"active\" type=\"button\">Flood Depth</button>",
+      "afterSource": "<button id=\"depthModeBtn\" class=\"active\" type=\"button\" aria-pressed=\"true\">Flood Depth</button>"
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "id": "ui-dialog-pressed-dynamicModeBtn",
+      "kind": "template",
+      "entryId": null,
+      "beforeSource": "<button id=\"dynamicModeBtn\" type=\"button\">Flood Stages</button>",
+      "afterSource": "<button id=\"dynamicModeBtn\" type=\"button\" aria-pressed=\"false\">Flood Stages</button>"
+    }
+  ],
+  "documentTags": [
+    {
+      "output": "assets/app/runtime.js",
+      "documents": [
+        "index.html"
+      ],
+      "beforeSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=cf30fe1b899c2d2c\"></script>",
+      "afterSource": "<script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=8caea6bff0e2a553\"></script>"
+    },
+    {
+      "output": "assets/styles/app-03.css",
+      "documents": [
+        "index.html"
+      ],
+      "beforeSource": "<link rel=\"stylesheet\" data-nww-style-bundle=\"app-03\" href=\"./assets/styles/app-03.css?v=e2ac34eeeb7b6327\">",
+      "afterSource": "<link rel=\"stylesheet\" data-nww-style-bundle=\"app-03\" href=\"./assets/styles/app-03.css?v=b4b3e4ef99ab671d\">"
+    }
+  ]
+}
