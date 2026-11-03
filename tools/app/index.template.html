@@ -170,9 +170,9 @@
           <span id="dataModePill" class="nww-status-value" hidden>Forecast</span>
         </div>
         <div class="button-grid-2 data-source-options">
-          <button id="forecastDataBtn" class="active" type="button">Forecast</button>
-          <button id="observedDataBtn" type="button">Past</button>
-          <button id="returnIntervalDataBtn" type="button" aria-label="Modeled flood scenarios">Modeled Floods</button>
+          <button id="forecastDataBtn" class="active" type="button" aria-pressed="true">Forecast</button>
+          <button id="observedDataBtn" type="button" aria-pressed="false">Past</button>
+          <button id="returnIntervalDataBtn" type="button" aria-label="Modeled flood scenarios" aria-pressed="false">Modeled Floods</button>
         </div>
       </section>
 
@@ -225,8 +225,8 @@
           <span id="overlayModePill" class="nww-status-value" hidden>Flood Depth</span>
         </div>
         <div class="button-grid-2">
-          <button id="depthModeBtn" class="active" type="button">Flood Depth</button>
-          <button id="dynamicModeBtn" type="button">Flood Stages</button>
+          <button id="depthModeBtn" class="active" type="button" aria-pressed="true">Flood Depth</button>
+          <button id="dynamicModeBtn" type="button" aria-pressed="false">Flood Stages</button>
         </div>
       </section>
 

@@ -68,7 +68,12 @@ function attachModeControls(c, mode = 'forecast') {
       contains: name => values.has(name)};
   };
   c.document = {body: {dataset: {}, classList: classList()}, getElementById(id) {
-    if (!nodes.has(id)) nodes.set(id, {classList: classList(), dataset: {}, style: {}, hidden: false, value: '', textContent: ''});
+    if (!nodes.has(id)) {
+      const attributes = new Map();
+      nodes.set(id, {classList: classList(), dataset: {}, style: {}, hidden: false, value: '', textContent: '',
+        setAttribute(name, value) {attributes.set(name, String(value));},
+        getAttribute(name) {return attributes.get(name) ?? null;}});
+    }
     return nodes.get(id);
   }};
   Object.assign(c, {
@@ -92,6 +97,7 @@ function attachModeControls(c, mode = 'forecast') {
       assert.equal(c.currentDataMode, expected);
       for (const [name, id] of [['forecast', 'forecastDataBtn'], ['observed', 'observedDataBtn'], ['return-interval', 'returnIntervalDataBtn']]) {
         assert.equal(nodes.get(id).classList.contains('active'), expected === name, `${id} must match the committed mode`);
+        assert.equal(nodes.get(id).getAttribute('aria-pressed'), String(expected === name), `${id} must expose the committed mode to assistive technology`);
       }
       assert.equal(nodes.get('dataModePill').textContent, expected === 'forecast' ? 'Mean' : expected === 'observed' ? 'Observed' : '10-Year');
       assert.equal(nodes.get('forecastScenarioCard').hidden, expected !== 'forecast');
@@ -100,6 +106,12 @@ function attachModeControls(c, mode = 'forecast') {
       assert.equal(nodes.get('leftPanel').dataset.dataMode, expected);
       assert.equal(c.document.body.classList.contains('observed-mode'), expected === 'observed');
       assert.equal(c.document.body.classList.contains('return-interval-mode'), expected === 'return-interval');
+    },
+    assertOverlay(expected) {
+      for (const [name, id] of [['depth', 'depthModeBtn'], ['dynamic', 'dynamicModeBtn']]) {
+        assert.equal(nodes.get(id).classList.contains('active'), expected === name, `${id} must match the committed overlay`);
+        assert.equal(nodes.get(id).getAttribute('aria-pressed'), String(expected === name), `${id} must expose the committed overlay to assistive technology`);
+      }
     }
   };
 }
@@ -301,4 +313,40 @@ for (const oldOutcome of ['success', 'failure']) {
   }
 }
 
+// The visual and accessible selection must agree before initialization, across
+// every combination of modes, and when the optional modeled button is absent.
+let accessibleCases = 0;
+{
+  const template = fs.readFileSync(new URL('./app/index.template.html', import.meta.url), 'utf8');
+  for (const [id, active] of [['forecastDataBtn', true], ['observedDataBtn', false], ['returnIntervalDataBtn', false],
+    ['depthModeBtn', true], ['dynamicModeBtn', false]]) {
+    const tag = template.match(new RegExp(`<button id="${id}"[^>]*>`))?.[0];
+    assert.ok(tag, id);
+    assert.equal(tag.match(/aria-pressed="([^"]*)"/)?.[1], String(active), `${id} starts with its visual selected state`);
+  }
+  accessibleCases++;
+}
+{
+  const {c} = setup('none'), controls = attachModeControls(c);
+  const update = presentationSource.match(/^    function updateModeButtons\([^\n]*\) \{\n.*?^    \}/ms);
+  assert.ok(update);
+  c.renderLegend = () => {};
+  vm.runInContext(update[0], c);
+  for (const mode of ['forecast', 'observed', 'return-interval']) {
+    for (const overlay of ['depth', 'dynamic', 'depth']) {
+      c.currentDataMode = mode;
+      c.currentOverlayMode = overlay;
+      c.updateDataModeButtons(); c.updateModeButtons();
+      controls.assertMode(mode); controls.assertOverlay(overlay);
+      accessibleCases++;
+    }
+  }
+  const getElementById = c.document.getElementById;
+  c.document.getElementById = id => id === 'returnIntervalDataBtn' ? null : getElementById(id);
+  c.currentDataMode = 'forecast';
+  assert.doesNotThrow(() => c.updateDataModeButtons(), 'The optional modeled button remains optional');
+  accessibleCases++;
+}
+
 console.log(`${cases} audit historical-selection cancellation and reverse-order cases passed.`);
+console.log(`${accessibleCases} accessible mode-state cases passed.`);
