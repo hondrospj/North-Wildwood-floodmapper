@@ -18,7 +18,7 @@ const checks = [], errors = [], observations = [];
 let exportProfile = null;
 const output = process.env.NWW_AUDIT_OUTPUT;
 const traceInert = process.env.NWW_TRACE_INERT === '1';
-const tracedPages = [], inertDiagnostics = [];
+const tracedPages = [], inertDiagnostics = [], networkDiagnostics = [];
 if (output) fs.mkdirSync(output,{recursive:true});
 async function captureInert(page,label) {
   if (!traceInert || page.isClosed()) return;
@@ -48,6 +48,22 @@ async function finishProfile() {
 }
 async function pageFor(options) {
   const page = await browser.newPage(options);
+  const network={url,viewport:page.viewportSize(),events:[],droppedEvents:0};
+  networkDiagnostics.push(network);
+  const isJson=resource=>{
+    try {const parsed=new URL(resource);return parsed.origin===new URL(url).origin && /\.(?:geo)?json$/i.test(parsed.pathname);}
+    catch {return false;}
+  };
+  const record=(type,request,details={})=>{
+    if(!isJson(request.url()))return;
+    let timing;
+    try {timing=request.timing();}catch{}
+    if(network.events.length===300){network.events.shift();network.droppedEvents++;}
+    network.events.push({type,url:request.url(),at:Date.now(),timing,...details});
+  };
+  page.on('request',request=>record('request',request));
+  page.on('response',response=>record('response',response.request(),{status:response.status()}));
+  page.on('requestfailed',request=>record('requestfailed',request,{errorText:request.failure()?.errorText}));
   if (traceInert) {
     tracedPages.push(page);
     await page.addInitScript(()=>{
@@ -81,8 +97,28 @@ async function pageFor(options) {
   }
   page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.stack || error.message));
-  await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
-  await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready') && floodFrameState === 'ready',{}, {timeout:90000});
+  try {
+    await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
+    await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready') && floodFrameState === 'ready',{}, {timeout:90000});
+  } catch(error) {
+    let snapshotTimer;
+    const state=await Promise.race([page.evaluate(()=>{
+      const read=fn=>{try{return fn();}catch(error){return {error:error.message};}};
+      return {url:location.href,classes:document.body?.className,
+        forecastUrl:read(()=>FORECAST_URL),mode:read(()=>currentDataMode),
+        forecastHours:read(()=>getActiveForecastHours().length),seriesHours:read(()=>currentSeriesHours.length),
+        frame:read(()=>floodFrameState),bodyFrame:document.body?.dataset.floodFrame,
+        status:Object.fromEntries(['stageSubText','timeText','floodFrameStatus','nwSiteLoader','toastMessage']
+          .map(id=>[id,document.getElementById(id)?.textContent?.trim()])),
+        resources:performance.getEntriesByType('resource').filter(entry=>{
+          try {const parsed=new URL(entry.name);return parsed.origin===location.origin && /\.(?:geo)?json$/i.test(parsed.pathname);}
+          catch{return false;}
+        }).slice(-100).map(entry=>entry.toJSON())};
+    }),new Promise((_,reject)=>{snapshotTimer=setTimeout(()=>reject(Error('Startup diagnostic snapshot timed out')),5000);})])
+      .catch(snapshotError=>({error:snapshotError.message})).finally(()=>clearTimeout(snapshotTimer));
+    network.startupFailure={error:error.message,state};
+    throw error;
+  }
   return page;
 }
 async function snapshot(page,label) {
@@ -218,7 +254,7 @@ try {
     }
     if(output)fs.writeFileSync(path.join(output,`${name}-inert-diagnostics.json`),JSON.stringify(inertDiagnostics,null,2));
   }
-  const result={browser:name,version:browser.version(),channel:name==='chromium'?(process.env.NWW_CHROMIUM_CHANNEL||(process.env.CHROME_PATH?'installed-chrome':'chromium-headless-shell')):name,checks,observations,errors,...(traceInert?{inertDiagnostics}: {})};
+  const result={browser:name,version:browser.version(),channel:name==='chromium'?(process.env.NWW_CHROMIUM_CHANNEL||(process.env.CHROME_PATH?'installed-chrome':'chromium-headless-shell')):name,checks,observations,errors,networkDiagnostics,...(traceInert?{inertDiagnostics}: {})};
   if(output)fs.writeFileSync(path.join(output,`${name}-ui.json`),JSON.stringify(result,null,2));
   console.log(JSON.stringify(result,null,2));await browser.close();
 }
