@@ -155,6 +155,7 @@ jobs:
           node tools/test_north_wildwood_native_recovery_browser.mjs
           node tools/test_north_wildwood_export_preparation_browser.mjs
           node tools/test_city_gauge_dashboard.mjs
+          node tools/test_north_wildwood_export_road_labels_browser.mjs
       - name: Save Chromium reproduction evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -218,7 +219,8 @@ jobs:
           node tools/test_north_wildwood_deep_core_browser.mjs
           node tools/test_north_wildwood_deep_layers_browser.mjs
           node tools/test_north_wildwood_deep_export_browser.mjs
-          node tools/test_north_wildwood_export_road_labels_browser.mjs
+          # The complete Chromium street-label suite runs in contracts above.
+          if [ "$NWW_BROWSER" = "webkit" ]; then node tools/test_north_wildwood_export_road_labels_browser.mjs; fi
           node tools/test_north_wildwood_export_worker_browser.mjs
           # Chromium runs these cases in contracts, using the same browser binary,
           # while this matrix entry retains the rest of its existing full-app suite.
