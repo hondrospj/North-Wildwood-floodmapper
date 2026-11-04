@@ -11,6 +11,23 @@ const output=process.env.NWW_AUDIT_OUTPUT||fs.mkdtempSync(path.join(os.tmpdir(),
 const result={browser:name,version:browser.version(),checks:[],errors:[],areas:[],states:[]};
 const page=await browser.newPage({viewport:{width:1440,height:1000},timezoneId:'America/New_York'});page.setDefaultTimeout(30000);page.on('pageerror',e=>result.errors.push(e.message));
 const stylePattern='**/OpenStreetMap_v2/VectorTileServer/resources/styles/root.json';let styles=[];const holdStyle=route=>{styles.push(route);};
+function track3dStartupTiming(button){
+ const timing={trustedClick:false,startedAt:null,busyAt:null,finishedAt:null};
+ window.__nww3dStartupTiming=timing;
+ const observer=new MutationObserver(()=>{
+  if(!timing.trustedClick)return;
+  const busy=button.getAttribute('aria-busy');
+  if(busy==='true'&&timing.busyAt===null)timing.busyAt=performance.now();
+  if(busy==='false'&&timing.busyAt!==null&&timing.finishedAt===null){
+   timing.finishedAt=performance.now();observer.disconnect();
+  }
+ });
+ button.addEventListener('click',event=>{
+  if(!event.isTrusted)return;
+  timing.trustedClick=true;timing.startedAt=performance.now();
+ },{capture:true,once:true});
+ observer.observe(button,{attributes:true,attributeFilter:['aria-busy']});
+}
 function snapshot(){return page.evaluate(()=>{const gl=window.NORTH_WILDWOOD_3D.getMap(),source=gl?.getSource('nw-flood-drape-source');return{index:currentHourIndex,time:currentSeriesHours[currentHourIndex]?.timeUtc,url:currentFloodLayer?._url,sourceUrl:source?.url,sourceLoaded:source?.loaded(),frame:floodFrameState,mode:mapClickMode,state:window.NORTH_WILDWOOD_3D.state(),busy:document.querySelector('.nw-simple-view').getAttribute('aria-busy')};});}
 try{
  await page.route(stylePattern,holdStyle);
@@ -22,8 +39,10 @@ try{
   result.areas.push({width,height,actionsReachable:true});
  }
  await page.locator('#exportAreaApplyBtn').click();await page.locator('#downloadModalCloseBtn').click();await page.setViewportSize({width:1440,height:1000});result.checks.push('Custom-area Apply/Cancel are reachable through real hit testing at four phone portrait/landscape sizes');
- const started=Date.now();await page.locator('.nw-simple-view').click();await page.waitForFunction(()=>document.querySelector('.nw-simple-view').getAttribute('aria-busy')==='false',{},{timeout:23000});
- const fallback=await snapshot();result.states.push({label:'style-stall-fallback',elapsedMs:Date.now()-started,...fallback});assert.equal(fallback.state.ready,false);assert.equal(fallback.busy,'false');assert.equal(await page.evaluate(()=>document.body.dataset.map3d),'fallback');assert.ok(Date.now()-started<23000);
+ await page.locator('.nw-simple-view').evaluate(track3dStartupTiming);
+ const started=Date.now();await page.locator('.nw-simple-view').click();await page.waitForFunction(()=>Number.isFinite(window.__nww3dStartupTiming?.finishedAt),{},{timeout:23000});
+ const fallback=await snapshot(),timing=await page.evaluate(()=>window.__nww3dStartupTiming),elapsedMs=timing.finishedAt-timing.startedAt;
+ result.states.push({label:'style-stall-fallback',elapsedMs,driverElapsedMs:Date.now()-started,heldStyleRequests:styles.length,timing,...fallback});assert.ok(styles.length>=1,'The real configured style request is held during startup');assert.equal(timing.trustedClick,true);assert.ok(Number.isFinite(timing.startedAt)&&timing.startedAt<=timing.busyAt&&timing.busyAt<=timing.finishedAt);assert.equal(fallback.state.ready,false);assert.equal(fallback.busy,'false');assert.equal(await page.evaluate(()=>document.body.dataset.map3d),'fallback');assert.ok(elapsedMs<23000);
  const zoom=await page.evaluate(()=>map.getZoom());await page.locator('.nw-simple-zoom-in').click();await page.waitForFunction(expected=>map.getZoom()===expected,zoom+1,{timeout:3000});assert.equal(await page.evaluate(()=>map.getZoom()),zoom+1);result.checks.push('A stalled style request falls back within the complete 20-second startup budget and restores 2D zoom');
  await page.unroute(stylePattern,holdStyle);for(const route of styles)await route.abort().catch(()=>{});
  let buildingRoutes=[];const holdBuildings=route=>{buildingRoutes.push(route);};await page.route('**/NorthWildwoodBuildings3D.geojson*',holdBuildings);
