@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 
-const source = ['00-configuration','02-data-and-datums','11-export-selection','12-export-date-editors','13-export-range','17-export-encoding']
+const source = ['00-configuration','02-data-and-datums','09-raster-lifecycle','11-export-selection','12-export-date-editors','13-export-range','17-export-encoding']
   .map(name=>fs.readFileSync(new URL(`app/runtime/${name}.js`,import.meta.url),'utf8')).join('\n');
 const extract = name => {
   const match = source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n    }`));
@@ -48,7 +48,7 @@ for (const format of ['png','gif']) {
   const range={startMs:Date.parse(forecast[0].timeUtc),endMs:Date.parse(forecast[2].timeUtc)};
   let history=0,downloaded=0,error='';
   const status={textContent:''};
-  const ctx=vm.createContext({currentDataMode:'forecast',exportInProgress:false,floodFrameState:'ready',
+  const ctx=vm.createContext({currentDataMode:'forecast',exportInProgress:false,exportCancelRequested:false,floodFrameState:'ready',window:{setInterval,clearInterval},
     getForecastExportEntries:()=>forecast,getStageValue:e=>e.navd88StageFt,entryTimeMs:e=>Date.parse(e.timeUtc),
     getDownloadScopeValue:()=> 'range',getDownloadFormatValue:()=>format,getDownloadAspectValue:()=> 'viewport',
     validateDownloadRangeForExport:()=>({ok:true,range}),
@@ -62,7 +62,7 @@ for (const format of ['png','gif']) {
     isExportCancelledError:()=>false,getFriendlyExportError:e=>e.message,toast:message=>{error=message;},
     finishExportProgress:noop,updateDownloadSummary:noop,console:{error:noop},
   });
-  for(const name of ['exportRangeNeedsObservedArchive','downloadCurrentSelection'])vm.runInContext(extract(name),ctx);
+  for(const name of ['awaitRasterRequest','exportRangeNeedsObservedArchive','downloadCurrentSelection'])vm.runInContext(extract(name),ctx);
   assert.equal(ctx.exportRangeNeedsObservedArchive(range),false);
   assert.equal(ctx.exportRangeNeedsObservedArchive({...range,startMs:range.startMs-3600000}),true);
   assert.equal(ctx.exportRangeNeedsObservedArchive({...range,endMs:range.endMs+3600000}),true);

@@ -460,12 +460,12 @@
       setDownloadBusy(true, needsArchive ? "Loading the selected tide-archive year..." : "Preparing export...");
       try {
         if (needsArchive) {
-          await ensureExportArchiveAvailability();
+          await awaitRasterRequest(ensureExportArchiveAvailability());
           throwIfExportCancelled();
           const availableValidation = validateDownloadRangeForExport();
           if (!availableValidation.ok) throw new Error(availableValidation.message);
           try {
-            await ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate);
+            await awaitRasterRequest(ensureObservedArchiveRange(validation.range.startDate, validation.range.endDate));
           } catch (error) {
             throwIfExportCancelled();
             throw new Error("The selected tide-archive year could not be loaded. Please try again.", { cause: error });
@@ -482,7 +482,7 @@
         setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? "" : "s"}...`, 1, false);
         setDownloadStatus("Loading export tools...");
         setExportProgress("Loading export tools...", 1, false);
-        await ensureExportLibraries(format, frameItems.length);
+        await awaitRasterRequest(ensureExportLibraries(format, frameItems.length));
         throwIfExportCancelled();
         if (format === "png") {
           await exportPng(frameItems);

@@ -107,6 +107,16 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Export worker recovery regressions failed' }
             node tools/test_city_gauge_dashboard.mjs
             if ($LASTEXITCODE -ne 0) { throw 'City dashboard regressions failed' }
+            node tools/test_north_wildwood_pending_top_tide_browser.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Pending historical flood selection ownership failed' }
+            node tools/test_north_wildwood_modeled_export_focus_browser.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Modeled export visible initial focus failed' }
+            node tools/test_north_wildwood_consumed_navigation_browser.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Compass and timeline keyboard ownership failed' }
+            node tools/test_north_wildwood_native_recovery_browser.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Native flood image graphics recovery failed' }
+            node tools/test_north_wildwood_export_preparation_browser.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Export preparation cancellation and retry failed' }
             node tools/test_north_wildwood_device_matrix.mjs
             if ($LASTEXITCODE -ne 0) { throw 'Device matrix regressions failed' }
           } finally {

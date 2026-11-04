@@ -844,6 +844,7 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       }, { passive: false });
 
       document.addEventListener("keydown", e => {
+        if (e.defaultPrevented) return;
         if (currentDataMode !== "observed" || !currentSeriesHours.length) return;
         if (e.target?.closest?.('[role="dialog"], #calendarPopover, #mapperTutorial')) return;
         const tag = String(document.activeElement?.tagName || "").toLowerCase();

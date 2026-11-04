@@ -1,4 +1,4 @@
-// HISTORY-01: delayed Top 10 history must honor both selection and map tokens.
+// Delayed Top 10 data belongs to a selection; committed frames also honor map tokens.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -35,7 +35,7 @@ function setup(stage = 'archive') {
     currentBaseModeBeforeTopTide: '', currentTopTideIndex: null, selectedObservedDate: '',
     currentSelectedLabel: 'Mean', currentSelectedSubLabel: '', currentRangeLabel: '', currentMonthKey: '',
     stopPlayback() {}, cancelPendingFloodFrame(invalidate = true) {if (invalidate) c.lastRenderToken++; return c.lastRenderToken;},
-    updateDataModeButtons() {}, updateModeButtons() {}, toast() {},
+    updateDataModeButtons() {}, updateModeButtons() {}, toast() {}, setFloodFrameStatus() {},
     async loadReturnInterval() {},
     warmBackgroundData: () => stage === 'warmup' ? hold.promise : Promise.resolve(),
     getObservedArchiveSourceForDate: () => stage === 'lewes-index' ? 'lewes' : 'stone-harbor',
@@ -134,19 +134,48 @@ function navigationStubs(c) {
   return loads;
 }
 
-// Exact audit trigger: switch Depth/Stages while the historical shard waits.
+// Presentation controls belong to the pending historical selection, even when
+// its preceding committed selection is still the forecast.
 {
   const {c, calls, hold, oldEntry} = setup();
   const pending = c.loadTopTideEvent(0); await tick();
   await c.switchOverlayMode('dynamic');
   hold.resolve(true);
-  assert.equal(await pending, false);
-  assert.equal(c.currentSeriesHours[0], oldEntry, 'An overlay-cancelled archive must preserve the current timeline');
-  assert.equal(c.displayedEntry, oldEntry);
-  assert.equal(c.currentViewType, 'forecast');
-  assert.equal(c.currentSelectedLabel, 'Mean');
-  assert.equal(c.currentTopTideIndex, null);
-  assert.equal(calls.lists, 0); assert.equal(calls.warmups, 0);
+  await pending;
+  assert.notEqual(c.currentSeriesHours[0], oldEntry, 'The requested historical data must commit with the chosen overlay');
+  assert.equal(c.displayedEntry.marker, 'historical tide 0');
+  assert.equal(c.currentOverlayMode, 'dynamic');
+  assert.equal(c.currentViewType, 'top-tide');
+  assert.equal(c.currentSelectedLabel, 'Flood #1');
+  assert.equal(c.currentTopTideIndex, 0);
+  assert.equal(calls.lists, 1); assert.equal(calls.warmups, 1);
+  cases++;
+}
+
+// An obsolete presentation-specific crest prewarm is optional, including when
+// the user changes overlay before that image fails. Data ownership survives.
+{
+  const {c, calls, hold} = setup('crest-image');
+  const pending = c.loadTopTideEvent(0); await tick();
+  await c.switchOverlayMode('dynamic');
+  hold.reject(new Error('The previous Depth prewarm failed'));
+  await pending;
+  assert.equal(c.currentViewType, 'top-tide');
+  assert.equal(c.currentOverlayMode, 'dynamic');
+  assert.equal(c.displayedEntry.marker, 'historical tide 0');
+  assert.equal(calls.renders.length, 1);
+  cases++;
+}
+
+// A background catalog refresh may change ranks while the first request waits;
+// its identity is the clicked date, not the current occupant of the old rank.
+{
+  const {c, hold, events} = setup('warmup');
+  const pending = c.loadTopTideEvent(0); await tick();
+  c.topTideEvents = [events[1], events[0]];
+  hold.resolve(true); await pending;
+  assert.equal(c.selectedObservedDate, events[0].dateKey);
+  assert.equal(c.displayedEntry.marker, 'historical tide 0');
   cases++;
 }
 
@@ -157,7 +186,13 @@ for (const stage of ['warmup', 'lewes-index', 'archive', 'crest-image', 'calenda
     for (const cancellation of ['render-token', 'selection-generation']) {
       const {c, calls, hold} = setup(stage);
       const pending = c.loadTopTideEvent(0); await tick();
-      if (cancellation === 'render-token') c.lastRenderToken++;
+      if (cancellation === 'render-token') {
+        c.lastRenderToken++;
+        // Before the historical series commits, real source/date navigation
+        // advances the selection generation too. A presentation-only token
+        // change is not navigation. After commit, a newer frame alone suffices.
+        if (!['calendar', 'render'].includes(stage)) c.selectionGeneration++;
+      }
       else c.selectionGeneration++;
       const latest = [{marker: `newer ${stage} ${outcome}`}];
       c.currentSeriesHours = latest; c.currentRawSeriesHours = latest;
@@ -234,7 +269,10 @@ for (const mode of ['forecast', 'observed', 'return-interval']) {
       assert.equal(c.currentBaseModeBeforeTopTide, 'prior-base-mode');
       assert.equal(c.currentViewType, previousView); assert.equal(c.currentSeriesHours, previousSeries);
       assert.equal(c.loadTopTideEvent.pendingSelectionGeneration, c.selectionGeneration);
-      if (outcome.startsWith('cancelled')) await c.switchOverlayMode('dynamic');
+      if (outcome.startsWith('cancelled')) {
+        c.selectionGeneration++;
+        c.lastRenderToken++;
+      }
       if (outcome.endsWith('failure')) hold.reject(new Error(`Mode-state ${stage} failure`));
       else hold.resolve(true);
       const commits = outcome === 'active-success' || (outcome === 'active-failure' && stage === 'crest-image');

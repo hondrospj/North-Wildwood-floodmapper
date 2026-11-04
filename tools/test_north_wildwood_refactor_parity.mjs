@@ -11,10 +11,100 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readActual = relative => fs.readFileSync(localPath(relative), "utf8");
+const readCurrent = relative => fs.readFileSync(localPath(relative), "utf8");
+const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
 const read = relative => readDeepReviewed(relative);
 const sha256 = source => createHash("sha256").update(source).digest("hex");
+// Pin the physical recheck bytes first. Every previous audit still receives
+// exactly its original source through this narrowly enumerated inverse.
+const RECHECK_PATH = "tools/fixtures/north-wildwood-20261103-recheck-debug.json";
+const recheckText = readCurrent(RECHECK_PATH);
+assert.equal(sha256(recheckText), "48ced54ddb319d0a452ae3ad4c7facbb7455784a7a16c289143cad4089928fc0",
+  "The recheck inverse must retain its exact reviewed fixture");
+const recheck = JSON.parse(recheckText);
+assert.equal(recheck.schemaVersion, 1);
+assert.equal(recheck.baselineCommit, "fb2740502cbc50ceb24081f2bba78a82d422bc30");
+assert.deepEqual(recheck.files.map(file => file.source), [
+  "tools/app/runtime/02-data-and-datums.js", "tools/app/runtime/05-presentation.js",
+  "tools/app/runtime/17-export-encoding.js", "tools/app/runtime/22-calendar-and-modes.js",
+  "tools/app/runtime/28-tutorial-and-events.js", "assets/3d/north-wildwood-3d.js",
+  "city-gauge/index.html", "assets/app/runtime.js", "tools/app/index.template.html", "index.html"
+]);
+function readRecheckReviewed(relative) {
+  const source = readCurrent(relative), file = recheck.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed recheck fixes`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(sha256(block.beforeSource), block.beforeSha256);
+    assert.equal(sha256(block.afterSource), block.afterSha256);
+    assert.ok(block.beforeSource.length && block.afterSource.length);
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}:${block.afterLine} requires one exact recheck fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-recheck byte`);
+  return restored;
+}
+for (const file of recheck.files) readRecheckReviewed(file.source);
+for (const [relative, parameter, documents] of [
+  ["assets/3d/north-wildwood-3d.js", "deep", ["tools/app/index.template.html", "index.html"]],
+  ["assets/app/runtime.js", "v", ["index.html"]]
+]) {
+  for (const document of documents) {
+    const tags = [...readCurrent(document).matchAll(/<script[^>]+src="([^"]+)"[^>]*>/g)];
+    const urls = tags.map(match => new URL(match[1], "https://recheck.invalid/")).filter(url => url.pathname.slice(1) === relative);
+    assert.equal(urls.length, 1, `${document}: one exact recheck dependency for ${relative}`);
+    assert.equal(urls[0].searchParams.get(parameter), sha256(readCurrent(relative)).slice(0, 16), `${relative}: current content cache key must match its bytes`);
+  }
+}
+// Prior fragment-revert mutations keep their names and original regression
+// effects even when a newly reviewed edit lies inside their owned fragment.
+// Map only unchanged fragment boundaries through the exact leading inverse;
+// a boundary inside edited bytes is an assertion failure, never an ignored case.
+function recheckCurrentFragment(relative, fragment) {
+  const current = readCurrent(relative);
+  if (current.split(fragment).length - 1 === 1) return fragment;
+  const baseline = readActual(relative), file = recheck.files.find(file => file.source === relative);
+  assert.ok(file, `${relative}: changed mutation fragment requires an exact recheck owner`);
+  assert.equal(baseline.split(fragment).length - 1, 1, `${relative}: previous mutation fragment must be unique`);
+  const offset = (position) => {
+    let shift = 0;
+    for (const block of file.changes) {
+      const start = baseline.indexOf(block.beforeSource), end = start + block.beforeSource.length;
+      assert.ok(start >= 0);
+      if (position < start) break;
+      if (position >= end) { shift += block.afterSource.length - block.beforeSource.length; continue; }
+      let prefix = 0, suffix = 0;
+      while (prefix < Math.min(block.beforeSource.length, block.afterSource.length) && block.beforeSource[prefix] === block.afterSource[prefix]) prefix++;
+      while (suffix < Math.min(block.beforeSource.length, block.afterSource.length) - prefix && block.beforeSource.at(-suffix - 1) === block.afterSource.at(-suffix - 1)) suffix++;
+      if (position - start <= prefix) return position + shift;
+      if (position >= end - suffix) return start + shift + block.afterSource.length - (end - position);
+      // A minified function may sit between two edited lines in the same
+      // exact hunk. Its unchanged adjacent lines still identify the boundary
+      // without guessing an offset inside either changed line.
+      const local = position - start;
+      if (local === 0 || block.beforeSource[local - 1] === "\n") {
+        let forward = local, backward = local;
+        for (let lines = 0; lines < block.beforeSource.split("\n").length; lines++) {
+          forward = block.beforeSource.indexOf("\n", forward) + 1 || block.beforeSource.length;
+          backward = block.beforeSource.lastIndexOf("\n", Math.max(0, backward - 2)) + 1;
+          for (const [anchor, endBoundary] of [[block.beforeSource.slice(local, forward), false], [block.beforeSource.slice(backward, local), true]]) {
+            if (!anchor.trim() || block.beforeSource.split(anchor).length - 1 !== 1 || block.afterSource.split(anchor).length - 1 !== 1) continue;
+            return start + shift + block.afterSource.indexOf(anchor) + (endBoundary ? anchor.length : 0);
+          }
+          if (forward === block.beforeSource.length && backward === 0) break;
+        }
+      }
+      assert.fail(`${relative}: previous mutation boundary lies inside newly edited bytes`);
+    }
+    return position + shift;
+  };
+  const start = baseline.indexOf(fragment), mapped = current.slice(offset(start), offset(start + fragment.length));
+  assert.ok(mapped.length);
+  assert.equal(current.split(mapped).length - 1, 1, `${relative}: mapped current mutation fragment must be unique`);
+  return mapped;
+}
 // Pin every current follow-up byte, then invert only exact reviewed fragments.
 // All earlier fixtures and their assertions still receive their original input.
 const FOLLOWUP_PATH = "tools/fixtures/north-wildwood-20261103-followup-debug.json";
@@ -2146,6 +2236,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
 console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement/frame-reuse/October-30-scalable-road-labels inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
+  const readActual = readCurrent;
   const readRaw = readActual;
   const read = readActual;
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -2164,7 +2255,7 @@ if (process.argv.includes("--self-test")) {
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
-      boundaryStartup.featureSource, FOLLOWUP_PATH, "index.html"]) {
+      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
@@ -2216,7 +2307,7 @@ if (process.argv.includes("--self-test")) {
       deepFunctionCase("lost pending observed selection ownership", DEEP_OWNERS[6][0], "loadObservedDay",
         source => source.replace('loadObservedDay.pendingSelection = { generation, dateStr };', '')),
       deepFunctionCase("cancelled a pending observed day on cadence choice", DEEP_OWNERS[6][0], "setTimelineIntervalMinutes",
-        source => source.replace('if (observedSelectionPending || modeledSelectionPending) {', 'if (modeledSelectionPending) {')),
+        source => source.replace('observedSelectionPending || ', '')),
       deepFunctionCase("lost pending observed-mode generation", DEEP_OWNERS[6][0], "switchDataMode",
         source => source.replace('switchDataMode.pendingObservedSelectionGeneration = generation;', '')),
       deepFunctionCase("overwrote building-layer interaction ownership", DEEP_OWNERS[7][0], "setNsiStructuresEnabled",
@@ -2335,7 +2426,7 @@ if (process.argv.includes("--self-test")) {
       ["cleared another historical selection owner", path.join(scratch, HISTORY_STATE_SOURCE),
         read(HISTORY_STATE_SOURCE).replace("if (loadTopTideEvent.pendingSelectionGeneration === generation) {", "if (true) {")],
       ["dropped historical wait selection generation guard", path.join(scratch, HISTORY_STATE_SOURCE),
-        read(HISTORY_STATE_SOURCE).replace("      if (!observedData) await warmBackgroundData();\n      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;", "      if (!observedData) await warmBackgroundData();\n      if (floodSelectionToken !== lastRenderToken) return false;")],
+        read(HISTORY_STATE_SOURCE).replace("      if (!observedData) await warmBackgroundData();\n      if (generation !== selectionGeneration) return false;", "      if (!observedData) await warmBackgroundData();")],
       ["dropped historical mode button commit", path.join(scratch, HISTORY_STATE_SOURCE),
         read(HISTORY_STATE_SOURCE).replace('      currentBaseModeBeforeTopTide = currentDataMode;\n      currentDataMode = "observed";\n      updateDataModeButtons();', '      currentBaseModeBeforeTopTide = currentDataMode;\n      currentDataMode = "observed";')],
       ["changed source beside history transaction owners", path.join(scratch, HISTORY_STATE_SOURCE),
@@ -2686,13 +2777,26 @@ if (process.argv.includes("--self-test")) {
         const current = readActual(file.source);
         return [
           [`unreviewed follow-up byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed follow-up byte */\n"],
-          ...file.changes.map((block, index) => [`reverted follow-up fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(block.afterSource, block.beforeSource)])
+          ...file.changes.map((block, index) => [`reverted follow-up fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(recheckCurrentFragment(file.source, block.afterSource), block.beforeSource)])
         ];
       })
     ];
     assert.equal(followupCases.length, 66, "Retain all fourteen file boundaries and fifty-one exact follow-up fragments");
     allCases.push(...followupCases);
     assert.equal(allCases.length, 290, "Retain all 224 earlier cases and append 66 follow-up boundaries");
+    const recheckCases = [
+      ["broadened recheck inverse ownership", path.join(scratch, RECHECK_PATH), recheckText.replace('"scope":', '"unreviewedScope":')],
+      ...recheck.files.flatMap(file => {
+        const current = readCurrent(file.source);
+        return [
+          [`unreviewed recheck byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed recheck byte */\n"],
+          ...file.changes.map((block, index) => [`reverted recheck fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(block.afterSource, block.beforeSource)])
+        ];
+      })
+    ];
+    assert.equal(recheckCases.length, 50, "Retain all ten file boundaries and thirty-nine exact recheck fragments");
+    allCases.push(...recheckCases);
+    assert.equal(allCases.length, 340, "Retain all 290 earlier mutation cases and append 50 recheck boundaries");
     assert.deepEqual(allCases.filter(([, target, altered]) => fs.readFileSync(target, "utf8") === altered).map(([name]) => name), [], "Every retained mutation must alter the actual current artifact");
     for (const [name, target, altered] of allCases) {
       const before = fs.readFileSync(target);

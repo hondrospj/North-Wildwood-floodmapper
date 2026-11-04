@@ -57,6 +57,7 @@ jobs:
           node tools/check_inline_scripts.mjs
           node tools/test_interaction_races.mjs
           node tools/test_north_wildwood_3d_interactions.mjs
+          node tools/test_north_wildwood_consumed_navigation.mjs
           node tools/test_north_wildwood_address_recovery.mjs
           node tools/test_north_wildwood_export_dates.mjs
           node tools/test_export_date_time_picker.mjs
@@ -131,6 +132,37 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
           node tools/test_north_wildwood_layout.mjs
+      - name: Chromium historical selection, export, navigation, recovery and City regressions
+        env:
+          NWW_BROWSER: chromium
+          NWW_TEST_URL: http://127.0.0.1:8765/index.html
+          NWW_AUDIT_OUTPUT: audit-results/chromium/ui
+        shell: bash
+        run: |
+          python3 tools/serve_north_wildwood_test.py 8765 --bind 127.0.0.1 --access-log preview-access.log 2>preview-error.log &
+          preview_pid=$!
+          trap 'kill "$preview_pid"' EXIT
+          ready=false
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8765/index.html >/dev/null; then ready=true; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "true" ]; then echo 'Preview did not start; no application scenarios were run.' >&2; exit 1; fi
+          export CHROME_PATH="$(node --input-type=module -e 'import { chromium } from "playwright"; process.stdout.write(chromium.executablePath());')"
+          node tools/test_north_wildwood_pending_top_tide_browser.mjs
+          node tools/test_north_wildwood_modeled_export_focus_browser.mjs
+          node tools/test_north_wildwood_consumed_navigation_browser.mjs
+          node tools/test_north_wildwood_native_recovery_browser.mjs
+          node tools/test_north_wildwood_export_preparation_browser.mjs
+          node tools/test_city_gauge_dashboard.mjs
+      - name: Save Chromium reproduction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reliability-contracts-chromium
+          path: |
+            audit-results/
+            preview-*.log
   full-app-browser:
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -188,7 +220,16 @@ jobs:
           node tools/test_north_wildwood_deep_export_browser.mjs
           node tools/test_north_wildwood_export_road_labels_browser.mjs
           node tools/test_north_wildwood_export_worker_browser.mjs
-          node tools/test_city_gauge_dashboard.mjs
+          # Chromium runs these cases in contracts, using the same browser binary,
+          # while this matrix entry retains the rest of its existing full-app suite.
+          if [ "$NWW_BROWSER" = "webkit" ]; then
+            node tools/test_north_wildwood_pending_top_tide_browser.mjs
+            node tools/test_north_wildwood_modeled_export_focus_browser.mjs
+            node tools/test_north_wildwood_consumed_navigation_browser.mjs
+            node tools/test_north_wildwood_native_recovery_browser.mjs
+            node tools/test_north_wildwood_export_preparation_browser.mjs
+            node tools/test_city_gauge_dashboard.mjs
+          fi
           node tools/test_north_wildwood_holistic_ui.mjs
           node tools/test_north_wildwood_holistic_export.mjs
           node tools/test_north_wildwood_loading_browser.mjs

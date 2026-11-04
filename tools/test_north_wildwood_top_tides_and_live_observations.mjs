@@ -57,6 +57,7 @@ run(`
   stopPlayback = () => {};
   cancelPendingFloodFrame = () => ++lastRenderToken;
   updateDataModeButtons = () => {};
+  setFloodFrameStatus = () => {};
   getOverlayRecord = async () => null;
   syncSliderBounds = () => {};
   renderCalendar = async () => {};

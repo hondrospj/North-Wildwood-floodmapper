@@ -40,6 +40,7 @@
   var fallbackBuildingPopup = null;
   var fallbackBuildingRenderToken = null;
   var navControlSyncFrame = null;
+  var retryFloodRecovery3d = null;
   var syncPersistentNavControl = function () {};
 
   function schedulePersistentNavControlSync() {
@@ -1906,6 +1907,8 @@
     var generation = 0;
     var timer = null;
     var onStyleReady = null;
+    var retryRestoration = null;
+    retryFloodRecovery3d = null;
     function clearWait() {
       if (timer !== null) window.clearTimeout(timer);
       timer = null;
@@ -1919,12 +1922,14 @@
       if (!current(token)) return;
       clearWait();
       document.body.dataset.map3d = "unavailable";
-      setStatus("Flood display could not recover. Reload this page.");
+      setStatus("Flood display could not recover. Try the view button, or reload this page.");
       console.warn("The flood display could not recover after a graphics reset.", error);
     }
     mapInstance.on("webglcontextlost", function () {
       var token = ++generation;
       clearWait();
+      retryRestoration = null;
+      retryFloodRecovery3d = null;
       glStyleReady = false;
       // GPU handles belong to the lost context. MapLibre drops custom layers
       // from the recovered style, so the old layer object must not be reused.
@@ -1947,6 +1952,17 @@
         onStyleReady = null;
         try {
           glStyleReady = true;
+          // Only an established restored style can retry its flood sources.
+          // A lost context or a timed-out style must retain normal view actions.
+          retryFloodRecovery3d = function () {
+            if (glMap !== mapInstance || !glStyleReady || !retryRestoration) return Promise.resolve(false);
+            clearWait();
+            var retryToken = generation;
+            document.body.dataset.map3d = "recovering";
+            setStatus("Restoring flood display…");
+            timer = window.setTimeout(function () { failed(retryToken, new Error("Flood restoration timed out.")); }, 20000);
+            return retryRestoration();
+          };
           syncBoundary3d();
           syncFloodLayer3d();
           syncSatellite3d();
@@ -1957,32 +1973,41 @@
             while (current(token)) {
               var restoredLayer = floodPlaneLayer;
               var restoredUrl = restoredLayer && restoredLayer.url;
-              var ready = await (restoredLayer ? restoredLayer.whenReady() : true);
+              var restoredSource = mapInstance.getSource("nw-flood-drape-source");
+              var ready = await Promise.all([
+                restoredLayer ? restoredLayer.whenReady() : true,
+                restoredLayer ? waitForNativeFloodImage3d(mapInstance, restoredSource, function () {
+                  return current(token) && restoredLayer === floodPlaneLayer && restoredUrl === restoredLayer.url;
+                }) : true
+              ]);
               if (!current(token)) return false;
               // Follow a selection made during recovery. A superseded image
               // resolving cannot certify the newer texture as healthy.
-              if (restoredLayer !== floodPlaneLayer || restoredLayer && restoredUrl !== restoredLayer.url) continue;
-              if (restoredLayer && (!ready || !restoredLayer.textureReady || restoredLayer.committedUrl !== restoredUrl)) {
+              if (restoredLayer !== floodPlaneLayer || restoredLayer && restoredUrl !== restoredLayer.url ||
+                  restoredSource !== mapInstance.getSource("nw-flood-drape-source")) continue;
+              if (restoredLayer && (!ready.every(Boolean) || !restoredLayer.textureReady || restoredLayer.committedUrl !== restoredUrl)) {
                 throw new Error("The selected flood texture could not reload.");
               }
               return true;
             }
             return false;
           }
-          waitForCurrentFlood().then(function (ready) {
-            if (!current(token)) return;
-            if (!ready) return;
+          var recovery = waitForCurrentFlood().then(function (ready) {
+            if (!current(token) || !ready) return false;
             clearWait();
             document.body.dataset.map3d = "ready";
             setStatus();
             mapInstance.triggerRepaint();
             syncPersistentNavControl();
-          }).catch(function (error) { failed(token, error); });
+            return true;
+          }).catch(function (error) { failed(token, error); return false; });
           Promise.resolve(syncBuildings3d()).catch(function (error) {
             console.warn("Buildings could not refresh after graphics recovery.", error);
           });
-        } catch (error) { failed(token, error); }
+          return recovery;
+        } catch (error) { failed(token, error); return Promise.resolve(false); }
       };
+      retryRestoration = onStyleReady;
       // Restoration recreates the style asynchronously. Wait for its source
       // definitions before adding the custom flood layer again.
       mapInstance.on("style.load", onStyleReady);
@@ -2115,6 +2140,7 @@
       document.body.classList.remove("map-3d-ready");
       document.body.dataset.map3d = "fallback";
       glStyleReady = false;
+      retryFloodRecovery3d = null;
       console.warn("The 3D map could not start; the 2D map remains available.", error);
       glMapPromise = null;
       if (glMap && glMap === initialization.map) {
@@ -2394,6 +2420,14 @@
 
     launcher.addEventListener("click", function () {
       if (launcher.getAttribute("aria-busy") === "true") return;
+      if (document.body.dataset.map3d === "unavailable" && typeof retryFloodRecovery3d === "function") {
+        setModeBusy(true);
+        Promise.resolve(retryFloodRecovery3d()).finally(function () {
+          setModeBusy(false);
+          syncPersistentNavControl();
+        });
+        return;
+      }
       pendingBearing = null;
       if (!map3dReady()) activate3d(null);
       else transitionMode(!actual3dMode());
