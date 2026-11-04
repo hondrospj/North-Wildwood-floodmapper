@@ -15,7 +15,7 @@ try {
     <div id="nested" role="dialog" aria-modal="true" hidden><button id="warningClose">Warning</button></div>
     <div id="offscreen" inert><button>Never focus</button></div>`);
   await page.locator('#launch').focus();
-  await page.addScriptTag({content:fs.readFileSync(new URL('../assets/modal-focus.js',import.meta.url),'utf8')});
+  await page.addScriptTag({content:fs.readFileSync(process.env.NWW_MODAL_FOCUS_SOURCE || new URL('../assets/modal-focus.js',import.meta.url),'utf8')});
   await page.evaluate(()=>{document.getElementById('drawer').hidden=false;document.dispatchEvent(new Event('nww:modalchange'));});
   await page.locator('#openChild').focus();
   assert.equal(await page.locator('#child').evaluate(el=>el.inert),true);
@@ -111,7 +111,30 @@ try {
     assert.equal(await page.evaluate(()=>document.activeElement.id),'launch',`Restored parent retains its outer fallback after ${interruption}`);
     assert.equal(await page.locator('#launch').evaluate(el=>el.inert),false);
   }
+  // A live map refresh can replace a property-profile opener while its dialog
+  // is open. Match its stable parcel key within the original renderer only.
+  await page.evaluate(()=>{
+    for(const id of ['mirror','property']){
+      const popup=document.createElement('div');popup.id=id;popup.className='maplibregl-popup';
+      popup.innerHTML=`<button id="${id}Opener" data-focus-restore-key="parcel-profile:123">Profile</button>`;
+      document.body.append(popup);
+    }
+    document.getElementById('propertyOpener').onclick=()=>{
+      document.getElementById('child').hidden=false;document.dispatchEvent(new Event('nww:modalchange'));
+    };
+    document.getElementById('close').onclick=()=>{
+      document.getElementById('child').hidden=true;document.dispatchEvent(new Event('nww:modalchange'));
+    };
+  });
+  await page.locator('#propertyOpener').click();
+  await page.evaluate(()=>{
+    window.oldPropertyOpener=document.getElementById('propertyOpener');
+    document.getElementById('property').innerHTML='<button id="refreshedOpener" data-focus-restore-key="parcel-profile:123">Profile</button>';
+  });
+  assert.equal(await page.evaluate(()=>oldPropertyOpener.isConnected),false);
+  await page.locator('#close').click();
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'refreshedOpener','A replaced opener restores the same property in its original renderer');
   assert.equal(await page.locator('#offscreen').evaluate(el=>el.inert),true);
   assert.deepEqual(errors,[]);
-  console.log(`PASS ${name}: nested isolation, input focus/caret, Tab, demoted/closed parent fallbacks, RAF owner restoration and input/new-modal cancellation`);
+  console.log(`PASS ${name}: nested isolation, input focus/caret, Tab, parent fallbacks, RAF restoration, cancellation and replaced property opener`);
 } finally { await browser.close(); }

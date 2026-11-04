@@ -6,7 +6,7 @@
   "historicStartDate": "2007-10-01",
   "historicEndDate": "2026-08-15",
   "cdfBytes": 1328449,
-  "parcelGeoJsonBytes": 7491627,
+  "parcelGeoJsonBytes": 7491591,
   "parcelBoundaryPngBytes": 799006,
   "floodDefinition": {
     "comparison": "strictlyGreaterThan",

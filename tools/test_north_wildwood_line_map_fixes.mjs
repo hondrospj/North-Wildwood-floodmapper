@@ -101,11 +101,11 @@ for(const outcome of ['ready','failure','superseded']) {
 // GPU readiness follows precisely this pending map/layer/request, including
 // another time selection, a context reset, a removed layer, and a replacement map.
 for(const outcome of ['ready','failed','new-selection','context-loss','removed-layer','replacement-map']) {
-  const gate=deferred(),layer={_url:'new'},old={_url:'old'},mapInstance={getPitch:()=>60};let restores=0;
+  const gate=deferred(),layer={_url:'new'},old={_url:'old'},mapInstance={getPitch:()=>60,getSource:()=>({})};let restores=0;
   const plane={textureReady:true,committedUrl:'old',whenReady:()=>gate.promise};
   const c=vm.createContext({glMap:mapInstance,glStyleReady:true,lastRenderToken:10,pendingFloodLayer:layer,pendingFlood3dRequest:null,floodPlaneLayer:plane,currentFloodLayer:old,
     document:{body:{dataset:{map3d:'ready'},classList:{contains:()=>true}}},map:{hasLayer:value=>value===c.pendingFloodLayer},
-    syncFloodLayer3d(){if(!c.pendingFlood3dRequest)restores++;}});
+    waitForNativeFloodImage3d:async()=>true,syncFloodLayer3d(){if(!c.pendingFlood3dRequest)restores++;}});
   vm.runInContext(extract('prepareFloodFrame3d'),c);const job=c.prepareFloodFrame3d(layer,{stage:2},10);
   if(outcome==='new-selection')c.lastRenderToken++;
   if(outcome==='context-loss')c.glStyleReady=false;

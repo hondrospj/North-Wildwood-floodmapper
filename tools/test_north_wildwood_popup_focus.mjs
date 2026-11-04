@@ -14,7 +14,7 @@ const discardSource = source.match(/  function discardObsoleteFloodFrame3d\(\) \
 assert.ok(discardSource, 'The actual pending GPU-frame cleanup must be present');
 const refresh = new Function('env', `with(env) { ${discardSource}\n ${fallbackLifetimeSource}\n ${body}\n }`);
 
-function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, throws = false } = {}) {
+function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, throws = false, pressed = false } = {}) {
   const document = { activeElement: null };
   const calls = { setHTML: 0, autofocus: 0, focus: [], layout: 0, original: 0 };
   function element(id, classes = []) {
@@ -30,6 +30,7 @@ function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, thro
     if (selector === '.maplibregl-popup-content') return content;
     if (selector === '.maplibregl-popup-close-button') return close;
     if (selector === '.house-alert-cta') return cta;
+    if (selector === '.house-alert-cta:active') return pressed ? cta : null;
     throw new Error(`Unexpected selector: ${selector}`);
   } };
   const glPopup = {
@@ -52,7 +53,7 @@ function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, thro
     syncGlPopupLayout: () => calls.layout++,
   };
   document.activeElement = focus === 'close' ? close : focus === 'cta' ? cta : slider;
-  return { env, calls, document, slider, content, glPopup, run: () => refresh(env) };
+  return { env, calls, document, slider, content, glPopup, run: () => refresh(env), release: () => { pressed = false; } };
 }
 
 let checks = 0;
@@ -81,6 +82,17 @@ for (const focus of ['close', 'cta']) {
   f.run();
   assert.equal(f.calls.setHTML, 0, 'Unchanged readings do not rebuild the popup');
   assert.equal(f.document.activeElement, f.slider);
+  checks++;
+}
+{
+  const f = fixture({ pressed: true });
+  f.run();
+  assert.equal(f.calls.setHTML, 0, 'A held property button must remain connected until its gesture completes');
+  assert.equal(f.env.lastGlPopupHtml, 'old reading', 'Deferring a gesture must not mark the pending reading as displayed');
+  f.release();f.run();
+  assert.equal(f.calls.setHTML, 1, 'The first refresh after release catches the popup up');
+  assert.equal(f.env.lastGlPopupHtml, 'new reading');
+  assert.equal(f.document.activeElement, f.slider, 'Catch-up cannot steal external focus');
   checks++;
 }
 {

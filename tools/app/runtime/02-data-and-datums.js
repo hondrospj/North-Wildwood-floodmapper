@@ -287,55 +287,99 @@
     }
 
     async function loadReturnInterval(preferredEntry = null, options = {}) {
-      const floodSelectionToken = lastRenderToken;
       const generation = options.generation ?? ++selectionGeneration;
-      if (!returnIntervalData || options.forceRefresh) {
-        const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
-        if (generation !== selectionGeneration) return;
-        returnIntervalData = payload;
-      }
-      const record = getReturnIntervalRecord();
-      if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {
-        throw new Error(`${getReturnIntervalLabel()} synthetic storm is unavailable.`);
-      }
+      if (generation !== selectionGeneration) return false;
+      const request = { generation };
+      loadReturnInterval.pendingSelection = request;
+      try {
+        // A modeled selection owns its data request. Overlay and cadence
+        // changes may update that selection while its first response loads.
+        currentDataMode = "return-interval";
+        currentViewType = "return-interval";
+        currentTopTideIndex = null;
+        currentRawSeriesHours = [];
+        currentSeriesHours = [];
+        currentHourIndex = 0;
+        currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;
+        currentSelectedSubLabel = "";
+        currentRangeLabel = "";
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = "0";
+        renderSelectionMeta(null, null, null);
+        document.getElementById("stageSubText").textContent = "Loading modeled flood…";
+        renderTimelineMeta();
+        renderTimelineDays();
+        setFloodFrameStatus(currentFloodLayer
+          ? "Loading modeled flood… Previous flood map shown."
+          : "Loading modeled flood…", "info");
 
-      if (floodSelectionToken !== lastRenderToken) return false;
-      clearExportAvailabilityCache();
-      currentRawSeriesHours = annotateHydraulicSeries(record.series15min);
-      currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);
-      currentDataMode = "return-interval";
-      currentViewType = "return-interval";
-      currentTopTideIndex = null;
-      currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;
-      const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);
-      if (!Number.isFinite(targetNavd88Ft)) {
-        throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);
-      }
-      currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;
-      currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;
+        if (!returnIntervalData || options.forceRefresh) {
+          const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
+          if (generation !== selectionGeneration) return false;
+          returnIntervalData = payload;
+        }
+        if (generation !== selectionGeneration) return false;
+        const record = getReturnIntervalRecord();
+        if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {
+          throw new Error(`${getReturnIntervalLabel()} synthetic storm is unavailable.`);
+        }
+        const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);
+        if (!Number.isFinite(targetNavd88Ft)) {
+          throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);
+        }
 
-      syncSliderBounds();
-      currentHourIndex = preferredEntry
-        ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
-        : getPeakHourIndex(currentSeriesHours);
-      document.getElementById("hourSlider").value = String(currentHourIndex);
-      updateReturnIntervalButtons();
+        clearExportAvailabilityCache();
+        currentRawSeriesHours = annotateHydraulicSeries(record.series15min);
+        currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);
+        currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;
+        currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;
+        syncSliderBounds();
+        currentHourIndex = preferredEntry
+          ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
+          : getPeakHourIndex(currentSeriesHours);
+        document.getElementById("hourSlider").value = String(currentHourIndex);
+        updateReturnIntervalButtons();
+        return true;
+      } catch (error) {
+        if (generation !== selectionGeneration || currentDataMode !== "return-interval") return false;
+        returnIntervalData = null;
+        currentRawSeriesHours = [];
+        currentSeriesHours = [];
+        currentHourIndex = 0;
+        currentSelectedSubLabel = "";
+        currentRangeLabel = "";
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = "0";
+        clearFloodLayer();
+        renderSelectionMeta(null, null, null);
+        document.getElementById("stageSubText").textContent = "Modeled flood data could not load";
+        renderTimelineMeta();
+        renderTimelineDays();
+        reportFloodFrameFailure();
+        const message = "Modeled flood data could not load. Select a modeled flood to retry.";
+        setFloodFrameStatus(message, "error");
+        toast(message);
+        return false;
+      } finally {
+        if (loadReturnInterval.pendingSelection === request) loadReturnInterval.pendingSelection = null;
+      }
     }
 
     async function switchReturnInterval(years) {
       const requested = Number(years);
       if (!RETURN_INTERVAL_OPTIONS.includes(requested)) return;
-      if (requested === currentReturnIntervalYears && currentDataMode === "return-interval") return;
+      if (requested === currentReturnIntervalYears && currentDataMode === "return-interval" && currentSeriesHours.length) return;
       stopPlayback();
-      const floodSelectionToken = cancelPendingFloodFrame();
+      const generation = ++selectionGeneration;
+      cancelPendingFloodFrame();
       toast("");
       currentReturnIntervalYears = requested;
       currentDataMode = "return-interval";
       currentViewType = "return-interval";
       updateDataModeButtons();
       cancelPendingFloodFrame(false);
-      await loadReturnInterval();
-      if (floodSelectionToken !== lastRenderToken) return false;
+      const loaded = await loadReturnInterval(null, { generation });
+      if (generation !== selectionGeneration || loaded === false) return false;
       await renderHour(currentHourIndex);
     }
 

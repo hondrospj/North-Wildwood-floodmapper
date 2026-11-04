@@ -30,6 +30,40 @@ async function pageFor(){const page=await browser.newPage({viewport:{width:390,h
 async function ready(page){await page.waitForFunction(()=>state.loadedRange&&state.points.length>0&&!document.getElementById('load').disabled,{}, {timeout:60000});}
 async function snapshot(page,label){if(output)await page.screenshot({path:path.join(output,`${name}-city-${label}.png`)});}
 try {
+  const primaryPending=await pageFor();let releasePrimaryIndex;
+  const primaryGate=new Promise(resolve=>releasePrimaryIndex=resolve);let primaryIndexSeen;
+  const primarySeen=new Promise(resolve=>primaryIndexSeen=resolve);const pendingErrors=[];
+  primaryPending.on('pageerror',error=>pendingErrors.push(error.message));
+  await primaryPending.route('**/data/index.json',async route=>{primaryIndexSeen();await primaryGate;await route.continue();});
+  try{
+    await primaryPending.goto(url,{waitUntil:'domcontentloaded'});await requestGate(primarySeen,'primary archive index');
+    await primaryPending.evaluate(()=>{
+      window.pendingCityInputs=[];
+      for(const type of ['click','change'])document.addEventListener(type,event=>pendingCityInputs.push({
+        type,id:event.target.id,range:event.target.dataset.range,isTrusted:event.isTrusted}),true);
+    });
+    assert.equal(await primaryPending.locator('[data-range="3"]').isEnabled(),true,'Pending data preserves the existing control appearance');
+    await primaryPending.locator('[data-range="3"]').click();
+    await primaryPending.locator('[data-range="7"]').focus();await primaryPending.keyboard.press('Enter');
+    await primaryPending.locator('#month-jump').fill('2026-10');
+    await primaryPending.locator('#month-jump').focus();await primaryPending.keyboard.press('ArrowUp');await primaryPending.keyboard.press('Tab');
+    await primaryPending.locator('#start').fill('2026-01-01');await primaryPending.locator('#end').fill('2026-01-02');
+    await primaryPending.locator('#load').click();
+    assert.equal(await primaryPending.evaluate(()=>state.index),null,'The real primary index remains held during early input');
+    assert.equal(await primaryPending.evaluate(()=>state.loadSequence),0,'Pre-index interactions cannot start incomplete range loads');
+    // There are no year choices before the index arrives; cover this direct
+    // entry point separately without manufacturing an enabled year option.
+    await primaryPending.evaluate(()=>openYear(2025));
+    releasePrimaryIndex();await ready(primaryPending);
+    await primaryPending.locator('[data-range="3"]').click();
+    await primaryPending.waitForFunction(()=>state.loadedRange?.start===shiftDate(document.getElementById('end').value,-2)&&!document.getElementById('load').disabled);
+    const inputs=await primaryPending.evaluate(()=>pendingCityInputs);
+    assert.ok(inputs.some(event=>event.range==='3'&&event.isTrusted),'Exercise a trusted early range click');
+    assert.ok(inputs.some(event=>event.range==='7'&&event.isTrusted),'Exercise native keyboard button activation while pending');
+    assert.deepEqual(pendingErrors,[],'Early inputs must not dereference a pending primary index');
+    checks.push('pending primary index accepts early native input safely; controls work after the real response');
+    await snapshot(primaryPending,'primary-index-pending');
+  }finally{releasePrimaryIndex();await primaryPending.close();}
   const dst=await pageFor();await dst.goto(url);await ready(dst);
   await dst.locator('#start').fill('2025-11-02');await dst.locator('#end').fill('2025-11-02');await dst.locator('#load').click();
   await dst.waitForFunction(()=>state.loadedRange?.start==='2025-11-02'&&!document.getElementById('load').disabled);

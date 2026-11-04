@@ -1,0 +1,513 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "ec552d376a8a82a590f96f9eb6567f9685a2d02c",
+  "scope": "Exact reviewed modeled selection, native gesture and property focus, bounded 3D startup, native image readiness, compact export-area actions and parcel asset cache changes. No unrelated visual changes. Secondary city-dashboard index-loading guards preserve its appearance.",
+  "files": [
+    {
+      "source": "tools/app/runtime/02-data-and-datums.js",
+      "beforeSha256": "3aa67ae82d2d67d7a6c7dae305472fd86c665587c51ae17d3c3d1872fa2c0cc6",
+      "afterSha256": "902873fc4723ab166f4ec24e71aee4fb680989cefaa1c872eb19f67a0b835ebc",
+      "changes": [
+        {
+          "beforeLine": 287,
+          "afterLine": 287,
+          "beforeSource": "    }\n\n    async function loadReturnInterval(preferredEntry = null, options = {}) {\n      const floodSelectionToken = lastRenderToken;\n      const generation = options.generation ?? ++selectionGeneration;\n      if (!returnIntervalData || options.forceRefresh) {\n        const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));\n        if (generation !== selectionGeneration) return;\n        returnIntervalData = payload;\n      }\n      const record = getReturnIntervalRecord();\n      if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {\n        throw new Error(`${getReturnIntervalLabel()} synthetic storm is unavailable.`);\n      }\n\n      if (floodSelectionToken !== lastRenderToken) return false;\n      clearExportAvailabilityCache();\n      currentRawSeriesHours = annotateHydraulicSeries(record.series15min);\n      currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);\n      currentDataMode = \"return-interval\";\n      currentViewType = \"return-interval\";\n      currentTopTideIndex = null;\n      currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;\n      const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);\n      if (!Number.isFinite(targetNavd88Ft)) {\n        throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);\n      }\n      currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;\n      currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;\n\n      syncSliderBounds();\n      currentHourIndex = preferredEntry\n        ? findClosestEntryIndex(currentSeriesHours, preferredEntry)\n        : getPeakHourIndex(currentSeriesHours);\n      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n      updateReturnIntervalButtons();\n    }\n\n    async function switchReturnInterval(years) {\n      const requested = Number(years);\n      if (!RETURN_INTERVAL_OPTIONS.includes(requested)) return;\n      if (requested === currentReturnIntervalYears && currentDataMode === \"return-interval\") return;\n      stopPlayback();\n      const floodSelectionToken = cancelPendingFloodFrame();\n      toast(\"\");\n      currentReturnIntervalYears = requested;\n      currentDataMode = \"return-interval\";\n      currentViewType = \"return-interval\";\n      updateDataModeButtons();\n      cancelPendingFloodFrame(false);\n      await loadReturnInterval();\n      if (floodSelectionToken !== lastRenderToken) return false;\n      await renderHour(currentHourIndex);\n    }\n\n",
+          "afterSource": "    }\n\n    async function loadReturnInterval(preferredEntry = null, options = {}) {\n      const generation = options.generation ?? ++selectionGeneration;\n      if (generation !== selectionGeneration) return false;\n      const request = { generation };\n      loadReturnInterval.pendingSelection = request;\n      try {\n        // A modeled selection owns its data request. Overlay and cadence\n        // changes may update that selection while its first response loads.\n        currentDataMode = \"return-interval\";\n        currentViewType = \"return-interval\";\n        currentTopTideIndex = null;\n        currentRawSeriesHours = [];\n        currentSeriesHours = [];\n        currentHourIndex = 0;\n        currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;\n        currentSelectedSubLabel = \"\";\n        currentRangeLabel = \"\";\n        syncSliderBounds();\n        document.getElementById(\"hourSlider\").value = \"0\";\n        renderSelectionMeta(null, null, null);\n        document.getElementById(\"stageSubText\").textContent = \"Loading modeled flood\u2026\";\n        renderTimelineMeta();\n        renderTimelineDays();\n        setFloodFrameStatus(currentFloodLayer\n          ? \"Loading modeled flood\u2026 Previous flood map shown.\"\n          : \"Loading modeled flood\u2026\", \"info\");\n\n        if (!returnIntervalData || options.forceRefresh) {\n          const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));\n          if (generation !== selectionGeneration) return false;\n          returnIntervalData = payload;\n        }\n        if (generation !== selectionGeneration) return false;\n        const record = getReturnIntervalRecord();\n        if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {\n          throw new Error(`${getReturnIntervalLabel()} synthetic storm is unavailable.`);\n        }\n        const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);\n        if (!Number.isFinite(targetNavd88Ft)) {\n          throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);\n        }\n\n        clearExportAvailabilityCache();\n        currentRawSeriesHours = annotateHydraulicSeries(record.series15min);\n        currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);\n        currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;\n        currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;\n        syncSliderBounds();\n        currentHourIndex = preferredEntry\n          ? findClosestEntryIndex(currentSeriesHours, preferredEntry)\n          : getPeakHourIndex(currentSeriesHours);\n        document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n        updateReturnIntervalButtons();\n        return true;\n      } catch (error) {\n        if (generation !== selectionGeneration || currentDataMode !== \"return-interval\") return false;\n        returnIntervalData = null;\n        currentRawSeriesHours = [];\n        currentSeriesHours = [];\n        currentHourIndex = 0;\n        currentSelectedSubLabel = \"\";\n        currentRangeLabel = \"\";\n        syncSliderBounds();\n        document.getElementById(\"hourSlider\").value = \"0\";\n        clearFloodLayer();\n        renderSelectionMeta(null, null, null);\n        document.getElementById(\"stageSubText\").textContent = \"Modeled flood data could not load\";\n        renderTimelineMeta();\n        renderTimelineDays();\n        reportFloodFrameFailure();\n        const message = \"Modeled flood data could not load. Select a modeled flood to retry.\";\n        setFloodFrameStatus(message, \"error\");\n        toast(message);\n        return false;\n      } finally {\n        if (loadReturnInterval.pendingSelection === request) loadReturnInterval.pendingSelection = null;\n      }\n    }\n\n    async function switchReturnInterval(years) {\n      const requested = Number(years);\n      if (!RETURN_INTERVAL_OPTIONS.includes(requested)) return;\n      if (requested === currentReturnIntervalYears && currentDataMode === \"return-interval\" && currentSeriesHours.length) return;\n      stopPlayback();\n      const generation = ++selectionGeneration;\n      cancelPendingFloodFrame();\n      toast(\"\");\n      currentReturnIntervalYears = requested;\n      currentDataMode = \"return-interval\";\n      currentViewType = \"return-interval\";\n      updateDataModeButtons();\n      cancelPendingFloodFrame(false);\n      const loaded = await loadReturnInterval(null, { generation });\n      if (generation !== selectionGeneration || loaded === false) return false;\n      await renderHour(currentHourIndex);\n    }\n\n",
+          "beforeSha256": "4a6e39634e9606b6f71caa12a1398304c63ea034b3a2bfcc8b6c2d5f1d1778d3",
+          "afterSha256": "93eb934d5eb074ba08261f30388a051106fb2da253d74fca1004aa63c500edf4"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "beforeSha256": "6c5b163f78ba600def00f494bd58ed1f431284d0bcf8b7fa14bff21d8a2e490c",
+      "afterSha256": "a00640b566f7767a6282888d6903dae1ff7e5144f5bea7d8d3110a9145bbb22f",
+      "changes": [
+        {
+          "beforeLine": 468,
+          "afterLine": 468,
+          "beforeSource": "      if (nextMinutes === previousMinutes) return;\n\n      const referenceEntry = currentSeriesHours[currentHourIndex] || null;\n      // Interval and overlay choices belong to the pending observed selection.\n      // They must not cancel its data request before it has a timeline to render.\n      const observedSelectionPending = currentDataMode === \"observed\" && (\n        loadObservedDay.pendingSelection?.generation === selectionGeneration ||\n        switchDataMode.pendingObservedSelectionGeneration === selectionGeneration\n      );\n      if (observedSelectionPending) {\n        stopPlayback();\n        toast(\"\");\n        currentTimelineIntervalMinutes = nextMinutes;\n",
+          "afterSource": "      if (nextMinutes === previousMinutes) return;\n\n      const referenceEntry = currentSeriesHours[currentHourIndex] || null;\n      // Interval choices belong to a pending data selection. They must not\n      // cancel its request or preserve a timestamp from the previous mode.\n      const observedSelectionPending = currentDataMode === \"observed\" && (\n        loadObservedDay.pendingSelection?.generation === selectionGeneration ||\n        switchDataMode.pendingObservedSelectionGeneration === selectionGeneration\n      );\n      const modeledSelectionPending = currentDataMode === \"return-interval\" &&\n        loadReturnInterval.pendingSelection?.generation === selectionGeneration;\n      if (observedSelectionPending || modeledSelectionPending) {\n        stopPlayback();\n        toast(\"\");\n        currentTimelineIntervalMinutes = nextMinutes;\n",
+          "beforeSha256": "fa60cd858bbce17d440bb225f5406d91ef9b58731acafd3b71a18627f4e566fa",
+          "afterSha256": "d5213514628fc00bc75b749b42ff6a4ca7988f8cb437fac74ae5f8a8f564e87a"
+        },
+        {
+          "beforeLine": 512,
+          "afterLine": 514,
+          "beforeSource": "        currentDataMode = \"return-interval\";\n        currentViewType = \"return-interval\";\n        updateDataModeButtons();\n        await loadReturnInterval(referenceEntry, { generation });\n        if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;\n        await renderHour(currentHourIndex);\n        return;\n      }\n",
+          "afterSource": "        currentDataMode = \"return-interval\";\n        currentViewType = \"return-interval\";\n        updateDataModeButtons();\n        const loaded = await loadReturnInterval(referenceEntry, { generation });\n        if (generation !== selectionGeneration || loaded === false) return false;\n        await renderHour(currentHourIndex);\n        return;\n      }\n",
+          "beforeSha256": "52705b5e49e8f69a6071808352e292f926056d3967541ab0de3b9f50c2243dfa",
+          "afterSha256": "225fb137a9cc2c2659efe3399ed60818f1a9f5fda48bc028cfde8f925056c8a6"
+        },
+        {
+          "beforeLine": 555,
+          "afterLine": 557,
+          "beforeSource": "      currentOverlayMode = mode;\n      updateModeButtons();\n\n      await renderHour(currentHourIndex);\n    }\n\n",
+          "afterSource": "      currentOverlayMode = mode;\n      updateModeButtons();\n\n      if (currentDataMode === \"return-interval\" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {\n        setFloodFrameStatus(currentFloodLayer\n          ? \"Loading modeled flood\u2026 Previous flood map shown.\"\n          : \"Loading modeled flood\u2026\", \"info\");\n        return;\n      }\n      await renderHour(currentHourIndex);\n    }\n\n",
+          "beforeSha256": "915693574615ab13fd36e7f53a6bd5da627c5dfc3236825424cda3578d1366a6",
+          "afterSha256": "e8c61f2a6c4d3ed50a00ce9ee3b2a10463621a42fc6eaa43d8613fe3c133bca4"
+        },
+        {
+          "beforeLine": 590,
+          "afterLine": 598,
+          "beforeSource": "        currentViewType = \"return-interval\";\n        updateDataModeButtons();\n        cancelPendingFloodFrame(false);\n        await loadReturnInterval(null, { generation });\n      if (floodSelectionToken !== lastRenderToken) return false;\n        if (generation !== selectionGeneration) return;\n        renderTopTides();\n        await renderHour(currentHourIndex);\n        return;\n",
+          "afterSource": "        currentViewType = \"return-interval\";\n        updateDataModeButtons();\n        cancelPendingFloodFrame(false);\n        const loaded = await loadReturnInterval(null, { generation });\n        if (generation !== selectionGeneration || loaded === false) return false;\n        renderTopTides();\n        await renderHour(currentHourIndex);\n        return;\n",
+          "beforeSha256": "a1133a598a60d47fa99ebdc2b6114ed98fd46c7b6755159a534134c035ce5416",
+          "afterSha256": "280cd5f9b088b1800d258933a2344a80351f81d87f7ba27ecb590eb1eace3205"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/24-alerts-and-projections.js",
+      "beforeSha256": "30b94595482fe74453e10bbce4b3caf123ea7eb67ef03ebaafa1ecf3925ce614",
+      "afterSha256": "31a00109565c4e2a1a3728c901f183d7f8714f8013cb1688230e4a607194d309",
+      "changes": [
+        {
+          "beforeLine": 173,
+          "afterLine": 173,
+          "beforeSource": "      const stage = getSelectedStageNavd88();\n      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;\n      const address = escapeTownAddressHtml(p.address || \"Selected North Wildwood parcel\");\n      const waterStatus = difference == null\n        ? \"Choose a water level to compare.\"\n        : Math.abs(difference) <= 0.1\n",
+          "afterSource": "      const stage = getSelectedStageNavd88();\n      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;\n      const address = escapeTownAddressHtml(p.address || \"Selected North Wildwood parcel\");\n      const focusRestoreKey = p.parcelId == null ? \"\" : ` data-focus-restore-key=\"${escapeTownAddressHtml(\"parcel-profile:\" + p.parcelId)}\"`;\n      const waterStatus = difference == null\n        ? \"Choose a water level to compare.\"\n        : Math.abs(difference) <= 0.1\n",
+          "beforeSha256": "81b5580da3558de409e12d6a27c4d4858e954c340dec0a0ea41cbb4d3050724d",
+          "afterSha256": "e2e713a6b6a31a8286622742298d61bab08b768edb0b44b53940aae8c7d4ba44"
+        },
+        {
+          "beforeLine": 189,
+          "afterLine": 190,
+          "beforeSource": "          '</strong></div>' +\n          '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +\n        '</div>' +\n        '<button class=\"house-alert-cta\" type=\"button\">See Flood History &amp; Projections</button>' +\n        '</div>';\n    }\n\n",
+          "afterSource": "          '</strong></div>' +\n          '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +\n        '</div>' +\n        '<button class=\"house-alert-cta\" type=\"button\"' + focusRestoreKey + '>See Flood History &amp; Projections</button>' +\n        '</div>';\n    }\n\n",
+          "beforeSha256": "f7f35919ddbd0a8fc3cc93220575e5ff606a126c248960f0647477df5d3802ae",
+          "afterSha256": "79728b7b7f81763b2a10da0e980d575a3281cc355e50fa6b0be43cd00be909ae"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/26-depth-queries.js",
+      "beforeSha256": "6e50ca57f88ad8fe5f40b2f0270c513554ac0dc35cd9a54c9a6f2d89d1a2f6c1",
+      "afterSha256": "d8e9c869c77d0c8620fdcf991e23050eff51f54f51b3a7e43b3badb9de201237",
+      "changes": [
+        {
+          "beforeLine": 579,
+          "afterLine": 579,
+          "beforeSource": "        return;\n      }\n      if (context.kind === \"building\") {\n        popup.setContent(buildHouseAlertPopup(context.feature));\n        popup.update();\n        return;\n      }\n      const displayedFrame = currentFloodLayer?._floodmapperFrame;\n",
+          "afterSource": "        return;\n      }\n      if (context.kind === \"building\") {\n        const element = popup.getElement?.();\n        const previousCta = element?.querySelector(\".house-alert-cta\");\n        // Keep the native gesture's target connected through pointer/key up.\n        // The next animation update catches the popup up after release/cancel.\n        if (previousCta?.matches(\":active\")) return;\n        const focusedCta = previousCta && document.activeElement === previousCta;\n        const focusRestoreKey = previousCta?.getAttribute(\"data-focus-restore-key\");\n        popup.setContent(buildHouseAlertPopup(context.feature));\n        popup.update();\n        if (focusedCta && focusRestoreKey && element.isConnected) {\n          const currentCta = element.querySelector(\".house-alert-cta\");\n          if (currentCta?.getAttribute(\"data-focus-restore-key\") === focusRestoreKey) {\n            currentCta.focus({ preventScroll: true });\n          }\n        }\n        return;\n      }\n      const displayedFrame = currentFloodLayer?._floodmapperFrame;\n",
+          "beforeSha256": "d914731627b67f23efbde146fb583c235bf44b056e4c459a0c514a1a7ded420e",
+          "afterSha256": "d511b3d1526bd5d533f119559b88e66e70d774ef6cd9c205d6a8f81902933428"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "beforeSha256": "f02ee9cd6cf42ff529eef54d43a055c59f03c59543b399e87a87cd17431ec623",
+      "afterSha256": "50971e4290b5ae4f6055be3165e0b8621b2ddf8d30b049713797e822805702c1",
+      "changes": [
+        {
+          "beforeLine": 292,
+          "afterLine": 292,
+          "beforeSource": "        };\n\n        const activatePlay = event => {\n          if (event) {\n            event.preventDefault();\n            event.stopPropagation();\n",
+          "afterSource": "        };\n\n        const activatePlay = event => {\n          if (playButton.disabled || (event && typeof event.button === \"number\" && event.button !== 0)) return;\n          if (event) {\n            event.preventDefault();\n            event.stopPropagation();\n",
+          "beforeSha256": "4d016ad0bd0b6bfa76b646e7e6fe6a1e441b1358593be9d59f86e1441870e68e",
+          "afterSha256": "7c27e8d9234496ac25a0a1e8bac46f1fa28c9f1e0646282c4b96b2cec8451630"
+        },
+        {
+          "beforeLine": 299,
+          "afterLine": 300,
+          "beforeSource": "          }\n\n\n          const now = performance.now ? performance.now() : Date.now();\n          const lockedUntil = Number(playButton.dataset.playLockedUntil || 0);\n          if (now < lockedUntil) return;\n          playButton.dataset.playLockedUntil = String(now + 240);\n\n          playButton.classList.add(\"just-pressed\");\n          window.setTimeout(() => playButton.classList.remove(\"just-pressed\"), 160);\n          togglePlayback(event);\n        };\n\n        playButton.addEventListener(\"pointerdown\", activatePlay, { capture:true });\n        playButton.addEventListener(\"click\", activatePlay, { capture:true });\n        playButton.addEventListener(\"keydown\", event => {\n          if (event.key === \"Enter\" || event.key === \" \") activatePlay(event);\n        });\n\n\n        document.addEventListener(\"pointerdown\", event => {\n          if (playButton.contains(event.target)) return;\n          // The enlarged hit area must not intercept dialogs or other buttons.\n          if (!event.target?.closest?.(\"#timelineDock\") || event.target.closest(\"button, input, select, a\")) return;\n",
+          "afterSource": "          }\n\n\n          playButton.classList.add(\"just-pressed\");\n          window.setTimeout(() => playButton.classList.remove(\"just-pressed\"), 160);\n          togglePlayback(event);\n        };\n\n        // Native click covers completed mouse/touch gestures and Enter/Space.\n        // Activating on pointerdown as well toggles twice after a longer press.\n        playButton.addEventListener(\"click\", activatePlay, { capture:true });\n        document.addEventListener(\"click\", event => {\n          if (playButton.contains(event.target)) return;\n          // The enlarged hit area must not intercept dialogs or other buttons.\n          if (!event.target?.closest?.(\"#timelineDock\") || event.target.closest(\"button, input, select, a\")) return;\n",
+          "beforeSha256": "7ce2d566e0535c78c7a67b27205cbb7f656f2367947126efb0d22ef619787b68",
+          "afterSha256": "b7eabc6f2d9f3f1d15a59e6aef5366466298dbe089074bbdeafff539669c1e63"
+        }
+      ]
+    },
+    {
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSha256": "da6c36b5a1f582880b803427b5534c8acaaf31177dd3e6ff2217cbb29fe903a7",
+      "afterSha256": "340ebb2af570cc7788c3cab43e1f3d59a480fd4bec99129af810eaecd48ee08c",
+      "changes": [
+        {
+          "beforeLine": 22,
+          "afterLine": 22,
+          "beforeSource": "\n  var glMap = null;\n  var glMapPromise = null;\n  var glStyleReady = false;\n  var glPopup = null;\n  var buildingData = null;\n",
+          "afterSource": "\n  var glMap = null;\n  var glMapPromise = null;\n  var glMapInitialization = null;\n  var glStyleReady = false;\n  var glPopup = null;\n  var buildingData = null;\n",
+          "beforeSha256": "e7f6d0f661bf1400cd4f99f99a9a0b68cd16925b3391780f82fad3e069913869",
+          "afterSha256": "89a36beac34c9b749ee0edd807ce62d269a46888da7d83467dd92939f891a701"
+        },
+        {
+          "beforeLine": 165,
+          "afterLine": 166,
+          "beforeSource": "    return JSON.parse(JSON.stringify(value));\n  }\n\n  async function load3dStyle() {\n    if (!mapStylePromise) {\n      mapStylePromise = fetch(ESRI_STYLE_URL, { cache: \"force-cache\" })\n        .then(function (response) {\n          if (!response.ok) throw new Error(\"The 3D basemap style could not be loaded.\");\n          return response.json();\n        })\n        .then(function (style) {\n          style.sprite = absoluteStyleAsset(style.sprite);\n          style.glyphs = absoluteStyleAsset(style.glyphs);\n",
+          "afterSource": "    return JSON.parse(JSON.stringify(value));\n  }\n\n  function fetch3dJson(url, message) {\n    // Bound the body as well as the response, even if transport ignores abort.\n    var controller = new AbortController();\n    var cancel;\n    var request = new Promise(function (resolve, reject) {\n      var settled = false;\n      var timer = window.setTimeout(function () { finish(new Error(message + \" The request timed out.\")); }, 20000);\n      function finish(error, payload) {\n        if (settled) return;\n        settled = true;\n        window.clearTimeout(timer);\n        if (error) { controller.abort(); reject(error); }\n        else resolve(payload);\n      }\n      cancel = function () { finish(new Error(message + \" The request was cancelled.\")); };\n      Promise.resolve().then(function () {\n        return fetch(url, { cache: \"force-cache\", signal: controller.signal });\n      }).then(function (response) {\n        if (!response.ok) throw new Error(message);\n        return response.json();\n      }).then(function (payload) { finish(null, payload); }, function (error) { finish(error); });\n    });\n    request.cancel = function () { cancel(); };\n    return request;\n  }\n\n  async function load3dStyle() {\n    if (!mapStylePromise) {\n      var load = fetch3dJson(ESRI_STYLE_URL, \"The 3D basemap style could not be loaded.\");\n      var request = load\n        .then(function (style) {\n          style.sprite = absoluteStyleAsset(style.sprite);\n          style.glyphs = absoluteStyleAsset(style.glyphs);\n",
+          "beforeSha256": "9b0ed7fd65817e6c437f3e9d808f18bf4e6e949c49bd9ef12696209b989cff54",
+          "afterSha256": "02c97d5704ef7d7f33b11df8f645e3db18a82bcde5d0e0001f6c13c44314f5e9"
+        },
+        {
+          "beforeLine": 188,
+          "afterLine": 212,
+          "beforeSource": "          return window.ShorelyRoadLabels.styleBasemap(geometryStyle); // shorely-road-labels-3d-v1\n        })\n        .catch(function (error) {\n          mapStylePromise = null;\n          throw error;\n        });\n    }\n    return cloneJson(await mapStylePromise);\n  }\n",
+          "afterSource": "          return window.ShorelyRoadLabels.styleBasemap(geometryStyle); // shorely-road-labels-3d-v1\n        })\n        .catch(function (error) {\n          if (mapStylePromise === request) mapStylePromise = null;\n          throw error;\n        });\n      request.cancel = load.cancel;\n      mapStylePromise = request;\n    }\n    return cloneJson(await mapStylePromise);\n  }\n",
+          "beforeSha256": "efe1afbfea9643792e39ab80fbcc46207d09b3145ef98cec29a71618a705d7a3",
+          "afterSha256": "3b6dd877ea15a01d9a510fb2b47584e7820aca0d14bd32584feca0e771c6a0fb"
+        },
+        {
+          "beforeLine": 904,
+          "afterLine": 930,
+          "beforeSource": "  }\n\n  async function prepareFloodFrame3d(layer, frame, token) {\n    if (!glMap || !document.body.classList.contains(\"map-3d-ready\") || glMap.getPitch() <= 10) return true;\n    if (!glStyleReady || document.body.dataset.map3d !== \"ready\") return false;\n    var requestedMap = glMap;\n    var request = { layer: layer, frame: frame, token: token, isCurrent: function () {\n",
+          "afterSource": "  }\n\n  async function prepareFloodFrame3d(layer, frame, token) {\n    if (!glMap || !document.body.classList.contains(\"map-3d-ready\")) return true;\n    if (!glStyleReady || document.body.dataset.map3d !== \"ready\") return false;\n    var requestedMap = glMap;\n    var request = { layer: layer, frame: frame, token: token, isCurrent: function () {\n",
+          "beforeSha256": "8be5f7b0a596bf2d3ec327175cb68462b7c95ebde955608c97722b3d0b665987",
+          "afterSha256": "b0f41b960010e0ba829ff7978c2b70e82168356bbe3f87a29af8c8c05cc00125"
+        },
+        {
+          "beforeLine": 915,
+          "afterLine": 941,
+          "beforeSource": "    var accepted = false;\n    try {\n      syncFloodLayer3d();\n      var plane = floodPlaneLayer;\n      var url = layer._url || layer.getElement?.()?.src;\n      var ready = plane ? await plane.whenReady() : false;\n      accepted = Boolean(ready && request.isCurrent() && plane === floodPlaneLayer &&\n        plane.textureReady && plane.committedUrl === url);\n      return accepted;\n    } finally {\n",
+          "afterSource": "    var accepted = false;\n    try {\n      syncFloodLayer3d();\n      var url = layer._url || layer.getElement?.()?.src;\n      var plane = floodPlaneLayer;\n      var source = requestedMap.getSource(\"nw-flood-drape-source\");\n      // Both presentations already preload this URL. Certify both before the\n      // metadata commits, including a 2D/3D change made while either is pending.\n      var ready = await Promise.all([\n        plane ? plane.whenReady() : false,\n        waitForNativeFloodImage3d(requestedMap, source, request.isCurrent)\n      ]);\n      accepted = Boolean(ready.every(Boolean) && request.isCurrent() && plane === floodPlaneLayer &&\n        plane.textureReady && plane.committedUrl === url);\n      return accepted;\n    } finally {\n",
+          "beforeSha256": "b5684ca26bc82b16b624faf28a2207b1b249113ca57ac41ec6156738b4d2341a",
+          "afterSha256": "c63fdf2bedd641a8de283d45e615266ae5919900081701f01c2ca1d8bdbcb098"
+        },
+        {
+          "beforeLine": 929,
+          "afterLine": 961,
+          "beforeSource": "        if (!accepted) syncFloodLayer3d();\n      }\n    }\n  }\n\n  function discardObsoleteFloodFrame3d() {\n",
+          "afterSource": "        if (!accepted) syncFloodLayer3d();\n      }\n    }\n  }\n\n  function waitForNativeFloodImage3d(mapInstance, source, isCurrent) {\n    return new Promise(function (resolve) {\n      var settled = false;\n      var timer = window.setTimeout(function () { finish(false); }, 20000);\n      var poll = window.setInterval(check, 100);\n      function finish(ready) {\n        if (settled) return;\n        settled = true;\n        window.clearTimeout(timer);\n        window.clearInterval(poll);\n        mapInstance.off(\"error\", failed);\n        mapInstance.off(\"sourcedata\", check);\n        if (!ready && source) imageLayerVersions.delete(source);\n        resolve(ready);\n      }\n      function failed(event) {\n        if (event && event.sourceId === \"nw-flood-drape-source\") finish(false);\n      }\n      function check() {\n        if (!isCurrent() || !source || mapInstance.getSource(\"nw-flood-drape-source\") !== source) { finish(false); return; }\n        if (source.loaded() && source.image) finish(true);\n      }\n      mapInstance.on(\"error\", failed);\n      mapInstance.on(\"sourcedata\", check);\n      check();\n    });\n  }\n\n  function discardObsoleteFloodFrame3d() {\n",
+          "beforeSha256": "d2f41b0cfd58cc0fb3f53d458348d9a23e4d28620dbe54e54451f81973343f06",
+          "afterSha256": "a19fcff16bf53954e58c8e40fd3cc0f1f4e93e74008a823ac6e510744b492a5a"
+        },
+        {
+          "beforeLine": 1386,
+          "afterLine": 1446,
+          "beforeSource": "      // permanently capturing empty URLs during script initialization.\n      var BUILDINGS_3D_URL = TOWN_CONFIG?.structures?.buildings3dPath ? new URL(TOWN_CONFIG.structures.buildings3dPath, APP_BASE).href : \"\";\n      var MUNICIPAL_BOUNDARY_3D_URL = TOWN_CONFIG?.boundary?.boundaryUrl ? new URL(TOWN_CONFIG.boundary.boundaryUrl, APP_BASE).href : \"\";\n      buildingDataPromise = Promise.all([\n        BUILDINGS_3D_URL ? fetch(BUILDINGS_3D_URL, { cache: \"force-cache\" }).then(function (response) {\n          if (!response.ok) throw new Error(\"The configured 3D building asset could not be loaded.\");\n          return response.json();\n        }) : Promise.resolve({ type: \"FeatureCollection\", features: [] }),\n        MUNICIPAL_BOUNDARY_3D_URL ? fetch(MUNICIPAL_BOUNDARY_3D_URL, { cache: \"force-cache\" }).then(function (response) {\n          if (!response.ok) throw new Error(\"The municipal boundary could not be loaded for 3D clipping.\");\n          return response.json();\n        }) : Promise.resolve({ type: \"FeatureCollection\", features: [] })\n      ])\n        .then(function (resources) {\n          var payload = resources[0];\n          var boundaryFeature = resources[1];\n",
+          "afterSource": "      // permanently capturing empty URLs during script initialization.\n      var BUILDINGS_3D_URL = TOWN_CONFIG?.structures?.buildings3dPath ? new URL(TOWN_CONFIG.structures.buildings3dPath, APP_BASE).href : \"\";\n      var MUNICIPAL_BOUNDARY_3D_URL = TOWN_CONFIG?.boundary?.boundaryUrl ? new URL(TOWN_CONFIG.boundary.boundaryUrl, APP_BASE).href : \"\";\n      var loads = [\n        BUILDINGS_3D_URL ? fetch3dJson(BUILDINGS_3D_URL, \"The configured 3D building asset could not be loaded.\")\n          : Promise.resolve({ type: \"FeatureCollection\", features: [] }),\n        MUNICIPAL_BOUNDARY_3D_URL ? fetch3dJson(MUNICIPAL_BOUNDARY_3D_URL, \"The municipal boundary could not be loaded for 3D clipping.\")\n          : Promise.resolve({ type: \"FeatureCollection\", features: [] })\n      ];\n      var request = Promise.all(loads)\n        .then(function (resources) {\n          var payload = resources[0];\n          var boundaryFeature = resources[1];\n",
+          "beforeSha256": "3b6753e9b87b03902a66e8c3734fafbb7058d3a52210a4602adc5bf30b970bb2",
+          "afterSha256": "49304b0e7944bdfc09ab87b5fc46023c2e497db131bd8740caa2bb8e9bfc209e"
+        },
+        {
+          "beforeLine": 1471,
+          "afterLine": 1528,
+          "beforeSource": "          return buildingData;\n        })\n        .catch(function (error) {\n          buildingDataPromise = null;\n          throw error;\n        });\n    }\n    return buildingDataPromise;\n  }\n\n  async function syncBuildings3d(options) {\n    if (!glMap || !glStyleReady) return;\n    if (!TOWN_CONFIG?.structures?.buildings3dPath) {\n      await window.COUNTY_3D_BUILDINGS.sync(glMap, TERRAIN_EXAGGERATION);\n      syncBuildingVisibilityForCamera();\n      placeFloodForScaleDepthPass();\n      setStatus(\"3D buildings \u2022 schematic heights\");\n",
+          "afterSource": "          return buildingData;\n        })\n        .catch(function (error) {\n          loads.forEach(function (load) { if (load.cancel) load.cancel(); });\n          if (buildingDataPromise === request) buildingDataPromise = null;\n          throw error;\n        });\n      request.cancel = function () { loads.forEach(function (load) { if (load.cancel) load.cancel(); }); };\n      buildingDataPromise = request;\n    }\n    return buildingDataPromise;\n  }\n\n  async function syncBuildings3d(options) {\n    if (!glMap || !glStyleReady) return;\n    var requestedMap = glMap;\n    if (!TOWN_CONFIG?.structures?.buildings3dPath) {\n      await window.COUNTY_3D_BUILDINGS.sync(requestedMap, TERRAIN_EXAGGERATION);\n      if (glMap !== requestedMap || !glStyleReady) return;\n      syncBuildingVisibilityForCamera();\n      placeFloodForScaleDepthPass();\n      setStatus(\"3D buildings \u2022 schematic heights\");\n",
+          "beforeSha256": "7905e0e9f47f159b730ee0ad2e95f05683d0e8771955397dde222eac5355f84c",
+          "afterSha256": "1b0f26a2c73200606128cfadb02bf921d85b1a17319677634239cc0de0e1e2da"
+        },
+        {
+          "beforeLine": 1495,
+          "afterLine": 1557,
+          "beforeSource": "    }\n    if (!glMap.getSource(\"nw-buildings-source\")) {\n      var payload = await loadBuildingData();\n      glMap.addSource(\"nw-buildings-source\", {\n        type: \"geojson\",\n        data: payload,\n",
+          "afterSource": "    }\n    if (!glMap.getSource(\"nw-buildings-source\")) {\n      var payload = await loadBuildingData();\n      if (glMap !== requestedMap || !glStyleReady) return;\n      glMap.addSource(\"nw-buildings-source\", {\n        type: \"geojson\",\n        data: payload,\n",
+          "beforeSha256": "7761fe28e11a2da865c1116f0bdb639e6670665a22cfad8c9ebf4a3d0bd45f8a",
+          "afterSha256": "6d04a336790091ae64c8ba56cee1befdd489fd3758a23d827853ca502c99b003"
+        },
+        {
+          "beforeLine": 1930,
+          "afterLine": 1993,
+          "beforeSource": "  async function ensure3dMap() {\n    if (glMapPromise) return glMapPromise;\n    if (glMap && glStyleReady) return glMap;\n    glMapPromise = (async function () {\n      await loadMapLibreRuntime();\n      var container = document.getElementById(\"map3d\");\n      if (!container) throw new Error(\"The 3D map container is unavailable.\");\n      var style = await load3dStyle();\n      var leafletCenter = map && map.getCenter ? map.getCenter() : { lng: -74.7998357, lat: 39.006945 };\n      var leafletZoom = map && map.getZoom ? map.getZoom() : 13;\n      var mobileRenderer = window.matchMedia(\"(pointer: coarse), (max-width: 900px)\").matches;\n",
+          "afterSource": "  async function ensure3dMap() {\n    if (glMapPromise) return glMapPromise;\n    if (glMap && glStyleReady) return glMap;\n    var initialization = { map: null, cancelled: false, cancelRenderer: null };\n    glMapInitialization = initialization;\n    function current() { return glMapInitialization === initialization && !initialization.cancelled; }\n    function requireCurrent() { if (!current()) throw new Error(\"The 3D initialization was superseded.\"); }\n    var startup = (async function () {\n      await loadMapLibreRuntime();\n      requireCurrent();\n      var container = document.getElementById(\"map3d\");\n      if (!container) throw new Error(\"The 3D map container is unavailable.\");\n      var style = await load3dStyle();\n      requireCurrent();\n      var leafletCenter = map && map.getCenter ? map.getCenter() : { lng: -74.7998357, lat: 39.006945 };\n      var leafletZoom = map && map.getZoom ? map.getZoom() : 13;\n      var mobileRenderer = window.matchMedia(\"(pointer: coarse), (max-width: 900px)\").matches;\n",
+          "beforeSha256": "ca67fa3d9cbd64f49e07bd8a1fc14e547857dd8675edae39f0a8f2ba5f8ece2f",
+          "afterSha256": "9d5a67e5c944a1386116deb54ab60a8be6bbd57159d664809f1cf65b5b64557a"
+        },
+        {
+          "beforeLine": 1974,
+          "afterLine": 2043,
+          "beforeSource": "        attributionControl: false,\n        canvasContextAttributes: { antialias: false }\n      });\n      if (glMap.touchZoomRotate && typeof glMap.touchZoomRotate.disableRotation === \"function\") {\n        glMap.touchZoomRotate.disableRotation();\n      }\n",
+          "afterSource": "        attributionControl: false,\n        canvasContextAttributes: { antialias: false }\n      });\n      initialization.map = glMap;\n      if (glMap.touchZoomRotate && typeof glMap.touchZoomRotate.disableRotation === \"function\") {\n        glMap.touchZoomRotate.disableRotation();\n      }\n",
+          "beforeSha256": "e16bd83b10d0028feaaddab3208e19d5ceaa71f8241a6366269eac7c282606ac",
+          "afterSha256": "42b521c624423a5a1165e62a502bc6140f7dfd2bdb134b835944c932a4cdb3ba"
+        },
+        {
+          "beforeLine": 1989,
+          "afterLine": 2059,
+          "beforeSource": "      });\n      wire3dContextRecovery(glMap);\n      await new Promise(function (resolve, reject) {\n        var timer = window.setTimeout(function () { reject(new Error(\"The 3D renderer timed out.\")); }, 20000);\n        glMap.once(\"load\", function () {\n          window.clearTimeout(timer);\n          glStyleReady = true;\n          resolve();\n        });\n      });\n      addCore3dLayers();\n      wire3dInteractions();\n      syncBoundary3d();\n",
+          "afterSource": "      });\n      wire3dContextRecovery(glMap);\n      await new Promise(function (resolve, reject) {\n        var mapInstance = initialization.map;\n        var timer = window.setTimeout(function () { finish(new Error(\"The 3D renderer timed out.\")); }, 20000);\n        var settled = false;\n        function finish(error) {\n          if (settled) return;\n          settled = true;\n          window.clearTimeout(timer);\n          if (mapInstance.off) mapInstance.off(\"load\", loaded);\n          initialization.cancelRenderer = null;\n          if (error) reject(error);\n          else { glStyleReady = true; resolve(); }\n        }\n        function loaded() {\n          if (!current()) { finish(new Error(\"The 3D initialization was superseded.\")); return; }\n          finish();\n        }\n        initialization.cancelRenderer = function () { finish(new Error(\"The 3D renderer was cancelled.\")); };\n        mapInstance.once(\"load\", loaded);\n      });\n      requireCurrent();\n      addCore3dLayers();\n      wire3dInteractions();\n      syncBoundary3d();\n",
+          "beforeSha256": "ba3e7f36fbefb8940564ae985452d44f565bf3c833e22f4bca7a2b1167eb1608",
+          "afterSha256": "5aa24f33eac63dd321e965403b609583606b24ba4b4c2d2c7ba763aebcf066e9"
+        },
+        {
+          "beforeLine": 2005,
+          "afterLine": 2088,
+          "beforeSource": "      syncParcels3d();\n      syncNsi3d();\n      await syncBuildings3d({ preload: true });\n      document.body.classList.add(\"map-3d-ready\");\n      if (townAddressMarker) setAddressMarker(townAddressMarker.getLatLng(), townAddressMarker.options.title);\n      document.body.dataset.map3d = \"ready\";\n",
+          "afterSource": "      syncParcels3d();\n      syncNsi3d();\n      await syncBuildings3d({ preload: true });\n      requireCurrent();\n      document.body.classList.add(\"map-3d-ready\");\n      if (townAddressMarker) setAddressMarker(townAddressMarker.getLatLng(), townAddressMarker.options.title);\n      document.body.dataset.map3d = \"ready\";\n",
+          "beforeSha256": "f5ad8683faa24c129aa5480f2962b9877c5354f72f570453363450e5e0bc168a",
+          "afterSha256": "da9b936608398872f0bbc22cdba9830b811f7ad7ac13e5ec572f633e37bf07c7"
+        },
+        {
+          "beforeLine": 2014,
+          "afterLine": 2098,
+          "beforeSource": "      document.body.dataset.map3dPitch = String(glMap.getPitch());\n      updateDiagnostics();\n      suspendLeafletVisualLayers();\n      requestAnimationFrame(function () { glMap.resize(); });\n      return glMap;\n    })().catch(function (error) {\n      document.body.classList.remove(\"map-3d-ready\");\n      document.body.dataset.map3d = \"fallback\";\n      glStyleReady = false;\n      console.warn(\"The 3D map could not start; the 2D map remains available.\", error);\n      glMapPromise = null;\n      if (glMap) {\n        try { glMap.remove(); } catch (_) {}\n        glMap = null;\n      }\n      if (map) map.invalidateSize();\n      return null;\n",
+          "afterSource": "      document.body.dataset.map3dPitch = String(glMap.getPitch());\n      updateDiagnostics();\n      suspendLeafletVisualLayers();\n      requestAnimationFrame(function () { if (current() && glMap === initialization.map) glMap.resize(); });\n      return glMap;\n    })();\n    // One budget covers dependencies, style, renderer and initial buildings.\n    // Superseded continuations cannot mutate a replacement map after timeout.\n    glMapPromise = new Promise(function (resolve, reject) {\n      var timer = window.setTimeout(function () { reject(new Error(\"The 3D map startup timed out.\")); }, 20000);\n      startup.then(function (value) { window.clearTimeout(timer); resolve(value); }, function (error) { window.clearTimeout(timer); reject(error); });\n    }).catch(function (error) {\n      if (!current()) return null;\n      initialization.cancelled = true;\n      if (initialization.cancelRenderer) initialization.cancelRenderer();\n      if (mapStylePromise && mapStylePromise.cancel) mapStylePromise.cancel();\n      if (buildingDataPromise && buildingDataPromise.cancel) buildingDataPromise.cancel();\n      document.body.classList.remove(\"map-3d-ready\");\n      document.body.dataset.map3d = \"fallback\";\n      glStyleReady = false;\n      console.warn(\"The 3D map could not start; the 2D map remains available.\", error);\n      glMapPromise = null;\n      if (glMap && glMap === initialization.map) {\n        try { glMap.remove(); } catch (_) {}\n        glMap = null;\n        floodPlaneLayer = null;\n        buildingCursorHandlersWired = false;\n      }\n      if (map) map.invalidateSize();\n      return null;\n",
+          "beforeSha256": "26797f3905e6805b6f43d2fb117efa8486b0d7f41afdd245cb273f2093bc6b2a",
+          "afterSha256": "9ce8d814e4f5f85f11171af9b7c7be1cc7e873cab0db47934269c22a2e076746"
+        },
+        {
+          "beforeLine": 2359,
+          "afterLine": 2456,
+          "beforeSource": "  setBuildingsEnabled = async function (enabled) {\n    var generation = ++buildingToggleGeneration;\n    var shouldEnable = Boolean(enabled);\n    var toggle = document.getElementById(\"buildingsToggle\");\n    if (toggle) {\n      toggle.classList.toggle(\"on\", shouldEnable);\n",
+          "afterSource": "  setBuildingsEnabled = async function (enabled) {\n    var generation = ++buildingToggleGeneration;\n    var shouldEnable = Boolean(enabled);\n    var queryGeneration = mapQueryGeneration;\n    var toggle = document.getElementById(\"buildingsToggle\");\n    if (toggle) {\n      toggle.classList.toggle(\"on\", shouldEnable);\n",
+          "beforeSha256": "6a6f27aedf609d8784d94f04a96c7068b8c1b99c3b1476449f54ead4b3aebaf1",
+          "afterSha256": "701088dcebc9fe64e2c3beb850a628d563a09804d89f4e7e37c8c135a674777f"
+        },
+        {
+          "beforeLine": 2374,
+          "afterLine": 2472,
+          "beforeSource": "      }\n      if (glMap && document.body.classList.contains(\"map-3d-ready\")) {\n        if (buildingsLayer && map && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);\n        if (shouldEnable) setMapClickMode(\"building\", { closePopup: false });\n        updateExportBuildingsLayer();\n        updateMapClickModeControl();\n        toast(\"\");\n",
+          "afterSource": "      }\n      if (glMap && document.body.classList.contains(\"map-3d-ready\")) {\n        if (buildingsLayer && map && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);\n        // Preserve an explicit query-mode choice made while 3D was starting.\n        if (shouldEnable && queryGeneration === mapQueryGeneration) setMapClickMode(\"building\", { closePopup: false });\n        updateExportBuildingsLayer();\n        updateMapClickModeControl();\n        toast(\"\");\n",
+          "beforeSha256": "7926bed90de844c9ed16d7dd131f5931f6ddf84e54d01a94dc81dcde7a851599",
+          "afterSha256": "c3c14c00fa3c0f20e08f0b3a368edf3f977c8bfbbf52db2d0186c0dbeb8d5ee7"
+        },
+        {
+          "beforeLine": 2512,
+          "afterLine": 2611,
+          "beforeSource": "    var result = originalUpdatePersistentDepthQueryPopup.apply(this, arguments);\n    if (glPopup && persistentFloodPopup && typeof persistentFloodPopup.getContent === \"function\") {\n      var html = String(persistentFloodPopup.getContent() || \"\");\n      if (html !== lastGlPopupHtml) {\n        var content = glPopup.getElement().querySelector(\".maplibregl-popup-content\");\n        var scrollTop = content ? content.scrollTop : 0;\n        var focusedClose = document.activeElement?.classList.contains(\"maplibregl-popup-close-button\");\n",
+          "afterSource": "    var result = originalUpdatePersistentDepthQueryPopup.apply(this, arguments);\n    if (glPopup && persistentFloodPopup && typeof persistentFloodPopup.getContent === \"function\") {\n      var html = String(persistentFloodPopup.getContent() || \"\");\n      if (html !== lastGlPopupHtml && !glPopup.getElement().querySelector(\".house-alert-cta:active\")) {\n        var content = glPopup.getElement().querySelector(\".maplibregl-popup-content\");\n        var scrollTop = content ? content.scrollTop : 0;\n        var focusedClose = document.activeElement?.classList.contains(\"maplibregl-popup-close-button\");\n",
+          "beforeSha256": "0e05b2e866656b8de8aaad4923629980aef1657785a8997560a66a4d63ac75c9",
+          "afterSha256": "6e83e094ee767ac984b806bfba13df75a25d7e1c5124d79b480867c72a9af38c"
+        }
+      ]
+    },
+    {
+      "source": "assets/modal-focus.js",
+      "beforeSha256": "a1ee2af85eab0d7b7ce0f18dc413856e1abe1271f159ad9545e780e624a64341",
+      "afterSha256": "40c445b3ddc4d4686d3f092eeee8f883b6086d3544c225dbae0e4d7484ee28d6",
+      "changes": [
+        {
+          "beforeLine": 6,
+          "afterLine": 6,
+          "beforeSource": "  const focusable = 'button:not(:disabled),a[href],input:not(:disabled):not([type=\"hidden\"]),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex=\"-1\"])';\n  const stack = [];\n  const inertBefore = new Map();\n  let previousFocus = document.activeElement;\n  let lastTrigger = null;\n  let syncing = false;\n",
+          "afterSource": "  const focusable = 'button:not(:disabled),a[href],input:not(:disabled):not([type=\"hidden\"]),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex=\"-1\"])';\n  const stack = [];\n  const inertBefore = new Map();\n  const restoreScopes = new WeakMap();\n  let previousFocus = document.activeElement;\n  let lastTrigger = null;\n  let syncing = false;\n",
+          "beforeSha256": "ae5227b10e8451676f8694dc8eebc8fe032f4aa8298886985a2d39d0f847ccd7",
+          "afterSha256": "0d2a62191f30efb8743b7799c18c90ed11bd131e59e1f72871fbd2c52afcaaba"
+        },
+        {
+          "beforeLine": 47,
+          "afterLine": 48,
+          "beforeSource": "    target.focus({ preventScroll: true });\n  }\n\n  function restoreFocus(targets) {\n    const request = { targets, cancelled: false };\n    pendingRestore = request;\n    function attempt(framesLeft) {\n      if (pendingRestore !== request) return;\n      const dialog = stack.at(-1)?.dialog;\n      const candidates = targets.filter(target => (!dialog || dialog.contains(target)) && visible(target));\n      const first = candidates[0];\n      if ((request.cancelled || first?.closest('[inert]')) && framesLeft > 0) {\n        // A drawer owner may restore its role and inert state in its next\n",
+          "afterSource": "    target.focus({ preventScroll: true });\n  }\n\n  function rememberRestoreTarget(target) {\n    const key = target.getAttribute(\"data-focus-restore-key\");\n    const scope = key && target.closest(\".leaflet-popup,.maplibregl-popup\");\n    if (scope) restoreScopes.set(target, { key, scope });\n    return target;\n  }\n\n  function currentRestoreTarget(target) {\n    if (target.isConnected) return target;\n    const saved = restoreScopes.get(target);\n    if (!saved?.scope.isConnected) return target;\n    // Animation refreshes popup contents while a property profile is open.\n    // Return to the same property's current button in the original renderer.\n    return [...saved.scope.querySelectorAll(\"[data-focus-restore-key]\")]\n      .find(element => element.getAttribute(\"data-focus-restore-key\") === saved.key) || target;\n  }\n\n  function restoreFocus(targets) {\n    const request = { targets, cancelled: false };\n    pendingRestore = request;\n    function attempt(framesLeft) {\n      if (pendingRestore !== request) return;\n      const dialog = stack.at(-1)?.dialog;\n      const candidates = targets.map(currentRestoreTarget).filter(target => (!dialog || dialog.contains(target)) && visible(target));\n      const first = candidates[0];\n      if ((request.cancelled || first?.closest('[inert]')) && framesLeft > 0) {\n        // A drawer owner may restore its role and inert state in its next\n",
+          "beforeSha256": "4e23736a88ba2db7a8293b38a49269c24a9b04c8ba2ad46cae835e8f411bc08e",
+          "afterSha256": "9741538772d54449d0c5c937cf128598cc9634ed016810be4301f7c68762da48"
+        },
+        {
+          "beforeLine": 111,
+          "afterLine": 129,
+          "beforeSource": "        if (pendingRestore && !pendingTargets.some(target => dialog.contains(target))) pendingRestore.cancelled = true;\n        const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);\n        stack.push({ dialog, restore: [...new Set([\n          ...(candidate && !dialog.contains(candidate) ? [candidate] : []), ...restoreTargets, ...pendingTargets\n        ])] });\n        lastTrigger = null;\n      }\n",
+          "afterSource": "        if (pendingRestore && !pendingTargets.some(target => dialog.contains(target))) pendingRestore.cancelled = true;\n        const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);\n        stack.push({ dialog, restore: [...new Set([\n          ...(candidate && !dialog.contains(candidate) ? [rememberRestoreTarget(candidate)] : []), ...restoreTargets, ...pendingTargets\n        ])] });\n        lastTrigger = null;\n      }\n",
+          "beforeSha256": "b4c290c069df6fcc730e017ff12d70f79a44c3217ec13a42e4751835ed7a034b",
+          "afterSha256": "63ba57eb38876afffed2e4baaf3a68482cea762555a55419b554c1720b1d19c2"
+        }
+      ]
+    },
+    {
+      "source": "assets/export-area.js",
+      "beforeSha256": "5a855541ebdd2d2d53981d037933e09e3e803be411827cad4a947d8a39f88d69",
+      "afterSha256": "529c188b8e02f08e649995757dfa3e3f1e72cef0111e2986f0fae4389c6f9149",
+      "changes": [
+        {
+          "beforeLine": 257,
+          "afterLine": 257,
+          "beforeSource": "      #exportAreaModal[hidden]{display:none!important}\n      #exportAreaModal{position:fixed;inset:0;z-index:25000;background:rgba(3,9,20,.78);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}\n      #exportAreaModal *{box-sizing:border-box}\n      .export-area-card{width:min(900px,100%);height:min(740px,calc(100dvh - 32px));display:flex;flex-direction:column;gap:12px;padding:18px;border-radius:20px;border:1px solid #415779;background:#101d32;color:#eaf0ff;box-shadow:0 24px 80px #0008}\n      .export-area-head{display:flex;align-items:center;justify-content:space-between;gap:12px}\n      .export-area-head h3{margin:0;font-size:20px}\n      #exportAreaCloseBtn{font-size:24px;min-width:44px;padding:0;line-height:1}\n",
+          "afterSource": "      #exportAreaModal[hidden]{display:none!important}\n      #exportAreaModal{position:fixed;inset:0;z-index:25000;background:rgba(3,9,20,.78);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}\n      #exportAreaModal *{box-sizing:border-box}\n      .export-area-card{width:min(900px,100%);height:min(740px,calc(100dvh - 32px));display:flex;flex-direction:column;gap:12px;padding:18px;border-radius:20px;border:1px solid #415779;background:#101d32;color:#eaf0ff;box-shadow:0 24px 80px #0008;overflow-y:auto;overscroll-behavior:contain}\n      .export-area-head{display:flex;align-items:center;justify-content:space-between;gap:12px}\n      .export-area-head h3{margin:0;font-size:20px}\n      #exportAreaCloseBtn{font-size:24px;min-width:44px;padding:0;line-height:1}\n",
+          "beforeSha256": "b33e04b0c1c2cee5c3e2da1593ea7945e61e0707f2efdcb8c5a8510bbad09d48",
+          "afterSha256": "6a3112269b3e51e3be065ca52db89ea08b44b4778ed01391d026737b42189716"
+        },
+        {
+          "beforeLine": 272,
+          "afterLine": 272,
+          "beforeSource": "      #exportAreaMap .leaflet-control-zoom a{color:#17243a;background:white}\n      .export-area-actions{justify-content:flex-end}\n      @media(max-width:600px){#exportAreaModal{padding:8px}.export-area-card{height:calc(100dvh - 16px);padding:12px;border-radius:14px;gap:10px}.export-area-head h3{font-size:18px}.export-area-tools button{flex:1}.export-area-actions button{flex:1}#downloadExtentControl button{font-size:11px;padding:7px 4px}}\n    `;\n    document.head.appendChild(style);\n    let control = document.getElementById(\"downloadExtentControl\");\n",
+          "afterSource": "      #exportAreaMap .leaflet-control-zoom a{color:#17243a;background:white}\n      .export-area-actions{justify-content:flex-end}\n      @media(max-width:600px){#exportAreaModal{padding:8px}.export-area-card{height:calc(100dvh - 16px);padding:12px;border-radius:14px;gap:10px}.export-area-head h3{font-size:18px}.export-area-tools button{flex:1}.export-area-actions button{flex:1}#downloadExtentControl button{font-size:11px;padding:7px 4px}}\n      @media(max-height:440px){.export-area-card{padding:10px;gap:8px}#exportAreaHint{min-height:0}#exportAreaMap{min-height:64px}}\n    `;\n    document.head.appendChild(style);\n    let control = document.getElementById(\"downloadExtentControl\");\n",
+          "beforeSha256": "0d68a0adf90c4127e548a05dd3aa9a47e565a2b3d67e3152a22fd85e5e268744",
+          "afterSha256": "bbf28dfe2587adb2e09d533ac147ce63aa88509786035c60e4cbd8570c5cfe3a"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/town-config.js",
+      "beforeSha256": "68d7a72bb351d56965c92bf2b10130b0a3564f972004fc87a41dd2ce68e5b0ea",
+      "afterSha256": "50eff6b9b8c34eb3018750762ca1a29eab81d909dfbc6bd5e07a43adbe5bce79",
+      "changes": [
+        {
+          "beforeLine": 180,
+          "afterLine": 180,
+          "beforeSource": "  },\n  \"parcels\": {\n    \"boundaryPngPath\": \"./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1\",\n    \"geojsonPath\": \"./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260816-nsi-2026-floor-v1\",\n    \"houseAlertCdfPath\": \"./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260816-nsi-2026-floor-v1\"\n  },\n  \"structures\": {\n",
+          "afterSource": "  },\n  \"parcels\": {\n    \"boundaryPngPath\": \"./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1\",\n    \"geojsonPath\": \"./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=868d0bc815720158\",\n    \"houseAlertCdfPath\": \"./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260816-nsi-2026-floor-v1\"\n  },\n  \"structures\": {\n",
+          "beforeSha256": "912517c02c36162a97ff902a156f83bb0726f1905cac4c721b159fa876f19e73",
+          "afterSha256": "93f647326a93f19a4d010fbbcca7b543b4fd8fd71f32171d4807b35d125a9be6"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/town-config.js",
+      "beforeSha256": "68d7a72bb351d56965c92bf2b10130b0a3564f972004fc87a41dd2ce68e5b0ea",
+      "afterSha256": "50eff6b9b8c34eb3018750762ca1a29eab81d909dfbc6bd5e07a43adbe5bce79",
+      "changes": [
+        {
+          "beforeLine": 180,
+          "afterLine": 180,
+          "beforeSource": "  },\n  \"parcels\": {\n    \"boundaryPngPath\": \"./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1\",\n    \"geojsonPath\": \"./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260816-nsi-2026-floor-v1\",\n    \"houseAlertCdfPath\": \"./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260816-nsi-2026-floor-v1\"\n  },\n  \"structures\": {\n",
+          "afterSource": "  },\n  \"parcels\": {\n    \"boundaryPngPath\": \"./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1\",\n    \"geojsonPath\": \"./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=868d0bc815720158\",\n    \"houseAlertCdfPath\": \"./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260816-nsi-2026-floor-v1\"\n  },\n  \"structures\": {\n",
+          "beforeSha256": "912517c02c36162a97ff902a156f83bb0726f1905cac4c721b159fa876f19e73",
+          "afterSha256": "93f647326a93f19a4d010fbbcca7b543b4fd8fd71f32171d4807b35d125a9be6"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "86aad33c3632791df757378c1bbabe6e87f8bad31e8ce312ae486814dd28a5e3",
+      "afterSha256": "febc867c52949f9d8979c09ef0f5096df2f53ac1735d7aba9468e23bd2842aad",
+      "changes": [
+        {
+          "beforeLine": 1338,
+          "afterLine": 1338,
+          "beforeSource": "    }\n\n    async function loadReturnInterval(preferredEntry = null, options = {}) {\n      const floodSelectionToken = lastRenderToken;\n      const generation = options.generation ?? ++selectionGeneration;\n      if (!returnIntervalData || options.forceRefresh) {\n        const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));\n        if (generation !== selectionGeneration) return;\n        returnIntervalData = payload;\n      }\n      const record = getReturnIntervalRecord();\n      if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {\n        throw new Error(`${getReturnIntervalLabel()} synthetic storm is unavailable.`);\n      }\n\n      if (floodSelectionToken !== lastRenderToken) return false;\n      clearExportAvailabilityCache();\n      currentRawSeriesHours = annotateHydraulicSeries(record.series15min);\n      currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);\n      currentDataMode = \"return-interval\";\n      currentViewType = \"return-interval\";\n      currentTopTideIndex = null;\n      currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;\n      const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);\n      if (!Number.isFinite(targetNavd88Ft)) {\n        throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);\n      }\n      currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;\n      currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;\n\n      syncSliderBounds();\n      currentHourIndex = preferredEntry\n        ? findClosestEntryIndex(currentSeriesHours, preferredEntry)\n        : getPeakHourIndex(currentSeriesHours);\n      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n      updateReturnIntervalButtons();\n    }\n\n    async function switchReturnInterval(years) {\n      const requested = Number(years);\n      if (!RETURN_INTERVAL_OPTIONS.includes(requested)) return;\n      if (requested === currentReturnIntervalYears && currentDataMode === \"return-interval\") return;\n      stopPlayback();\n      const floodSelectionToken = cancelPendingFloodFrame();\n      toast(\"\");\n      currentReturnIntervalYears = requested;\n      currentDataMode = \"return-interval\";\n      currentViewType = \"return-interval\";\n      updateDataModeButtons();\n      cancelPendingFloodFrame(false);\n      await loadReturnInterval();\n      if (floodSelectionToken !== lastRenderToken) return false;\n      await renderHour(currentHourIndex);\n    }\n\n",
+          "afterSource": "    }\n\n    async function loadReturnInterval(preferredEntry = null, options = {}) {\n      const generation = options.generation ?? ++selectionGeneration;\n      if (generation !== selectionGeneration) return false;\n      const request = { generation };\n      loadReturnInterval.pendingSelection = request;\n      try {\n        // A modeled selection owns its data request. Overlay and cadence\n        // changes may update that selection while its first response loads.\n        currentDataMode = \"return-interval\";\n        currentViewType = \"return-interval\";\n        currentTopTideIndex = null;\n        currentRawSeriesHours = [];\n        currentSeriesHours = [];\n        currentHourIndex = 0;\n        currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;\n        currentSelectedSubLabel = \"\";\n        currentRangeLabel = \"\";\n        syncSliderBounds();\n        document.getElementById(\"hourSlider\").value = \"0\";\n        renderSelectionMeta(null, null, null);\n        document.getElementById(\"stageSubText\").textContent = \"Loading modeled flood\u2026\";\n        renderTimelineMeta();\n        renderTimelineDays();\n        setFloodFrameStatus(currentFloodLayer\n          ? \"Loading modeled flood\u2026 Previous flood map shown.\"\n          : \"Loading modeled flood\u2026\", \"info\");\n\n        if (!returnIntervalData || options.forceRefresh) {\n          const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));\n          if (generation !== selectionGeneration) return false;\n          returnIntervalData = payload;\n        }\n        if (generation !== selectionGeneration) return false;\n        const record = getReturnIntervalRecord();\n        if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {\n          throw new Error(`${getReturnIntervalLabel()} synthetic storm is unavailable.`);\n        }\n        const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);\n        if (!Number.isFinite(targetNavd88Ft)) {\n          throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);\n        }\n\n        clearExportAvailabilityCache();\n        currentRawSeriesHours = annotateHydraulicSeries(record.series15min);\n        currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);\n        currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;\n        currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;\n        syncSliderBounds();\n        currentHourIndex = preferredEntry\n          ? findClosestEntryIndex(currentSeriesHours, preferredEntry)\n          : getPeakHourIndex(currentSeriesHours);\n        document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n        updateReturnIntervalButtons();\n        return true;\n      } catch (error) {\n        if (generation !== selectionGeneration || currentDataMode !== \"return-interval\") return false;\n        returnIntervalData = null;\n        currentRawSeriesHours = [];\n        currentSeriesHours = [];\n        currentHourIndex = 0;\n        currentSelectedSubLabel = \"\";\n        currentRangeLabel = \"\";\n        syncSliderBounds();\n        document.getElementById(\"hourSlider\").value = \"0\";\n        clearFloodLayer();\n        renderSelectionMeta(null, null, null);\n        document.getElementById(\"stageSubText\").textContent = \"Modeled flood data could not load\";\n        renderTimelineMeta();\n        renderTimelineDays();\n        reportFloodFrameFailure();\n        const message = \"Modeled flood data could not load. Select a modeled flood to retry.\";\n        setFloodFrameStatus(message, \"error\");\n        toast(message);\n        return false;\n      } finally {\n        if (loadReturnInterval.pendingSelection === request) loadReturnInterval.pendingSelection = null;\n      }\n    }\n\n    async function switchReturnInterval(years) {\n      const requested = Number(years);\n      if (!RETURN_INTERVAL_OPTIONS.includes(requested)) return;\n      if (requested === currentReturnIntervalYears && currentDataMode === \"return-interval\" && currentSeriesHours.length) return;\n      stopPlayback();\n      const generation = ++selectionGeneration;\n      cancelPendingFloodFrame();\n      toast(\"\");\n      currentReturnIntervalYears = requested;\n      currentDataMode = \"return-interval\";\n      currentViewType = \"return-interval\";\n      updateDataModeButtons();\n      cancelPendingFloodFrame(false);\n      const loaded = await loadReturnInterval(null, { generation });\n      if (generation !== selectionGeneration || loaded === false) return false;\n      await renderHour(currentHourIndex);\n    }\n\n",
+          "beforeSha256": "4a6e39634e9606b6f71caa12a1398304c63ea034b3a2bfcc8b6c2d5f1d1778d3",
+          "afterSha256": "93eb934d5eb074ba08261f30388a051106fb2da253d74fca1004aa63c500edf4"
+        },
+        {
+          "beforeLine": 11890,
+          "afterLine": 11934,
+          "beforeSource": "      if (nextMinutes === previousMinutes) return;\n\n      const referenceEntry = currentSeriesHours[currentHourIndex] || null;\n      // Interval and overlay choices belong to the pending observed selection.\n      // They must not cancel its data request before it has a timeline to render.\n      const observedSelectionPending = currentDataMode === \"observed\" && (\n        loadObservedDay.pendingSelection?.generation === selectionGeneration ||\n        switchDataMode.pendingObservedSelectionGeneration === selectionGeneration\n      );\n      if (observedSelectionPending) {\n        stopPlayback();\n        toast(\"\");\n        currentTimelineIntervalMinutes = nextMinutes;\n",
+          "afterSource": "      if (nextMinutes === previousMinutes) return;\n\n      const referenceEntry = currentSeriesHours[currentHourIndex] || null;\n      // Interval choices belong to a pending data selection. They must not\n      // cancel its request or preserve a timestamp from the previous mode.\n      const observedSelectionPending = currentDataMode === \"observed\" && (\n        loadObservedDay.pendingSelection?.generation === selectionGeneration ||\n        switchDataMode.pendingObservedSelectionGeneration === selectionGeneration\n      );\n      const modeledSelectionPending = currentDataMode === \"return-interval\" &&\n        loadReturnInterval.pendingSelection?.generation === selectionGeneration;\n      if (observedSelectionPending || modeledSelectionPending) {\n        stopPlayback();\n        toast(\"\");\n        currentTimelineIntervalMinutes = nextMinutes;\n",
+          "beforeSha256": "fa60cd858bbce17d440bb225f5406d91ef9b58731acafd3b71a18627f4e566fa",
+          "afterSha256": "d5213514628fc00bc75b749b42ff6a4ca7988f8cb437fac74ae5f8a8f564e87a"
+        },
+        {
+          "beforeLine": 11934,
+          "afterLine": 11980,
+          "beforeSource": "        currentDataMode = \"return-interval\";\n        currentViewType = \"return-interval\";\n        updateDataModeButtons();\n        await loadReturnInterval(referenceEntry, { generation });\n        if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;\n        await renderHour(currentHourIndex);\n        return;\n      }\n",
+          "afterSource": "        currentDataMode = \"return-interval\";\n        currentViewType = \"return-interval\";\n        updateDataModeButtons();\n        const loaded = await loadReturnInterval(referenceEntry, { generation });\n        if (generation !== selectionGeneration || loaded === false) return false;\n        await renderHour(currentHourIndex);\n        return;\n      }\n",
+          "beforeSha256": "52705b5e49e8f69a6071808352e292f926056d3967541ab0de3b9f50c2243dfa",
+          "afterSha256": "225fb137a9cc2c2659efe3399ed60818f1a9f5fda48bc028cfde8f925056c8a6"
+        },
+        {
+          "beforeLine": 11977,
+          "afterLine": 12023,
+          "beforeSource": "      currentOverlayMode = mode;\n      updateModeButtons();\n\n      await renderHour(currentHourIndex);\n    }\n\n",
+          "afterSource": "      currentOverlayMode = mode;\n      updateModeButtons();\n\n      if (currentDataMode === \"return-interval\" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {\n        setFloodFrameStatus(currentFloodLayer\n          ? \"Loading modeled flood\u2026 Previous flood map shown.\"\n          : \"Loading modeled flood\u2026\", \"info\");\n        return;\n      }\n      await renderHour(currentHourIndex);\n    }\n\n",
+          "beforeSha256": "915693574615ab13fd36e7f53a6bd5da627c5dfc3236825424cda3578d1366a6",
+          "afterSha256": "e8c61f2a6c4d3ed50a00ce9ee3b2a10463621a42fc6eaa43d8613fe3c133bca4"
+        },
+        {
+          "beforeLine": 12012,
+          "afterLine": 12064,
+          "beforeSource": "        currentViewType = \"return-interval\";\n        updateDataModeButtons();\n        cancelPendingFloodFrame(false);\n        await loadReturnInterval(null, { generation });\n      if (floodSelectionToken !== lastRenderToken) return false;\n        if (generation !== selectionGeneration) return;\n        renderTopTides();\n        await renderHour(currentHourIndex);\n        return;\n",
+          "afterSource": "        currentViewType = \"return-interval\";\n        updateDataModeButtons();\n        cancelPendingFloodFrame(false);\n        const loaded = await loadReturnInterval(null, { generation });\n        if (generation !== selectionGeneration || loaded === false) return false;\n        renderTopTides();\n        await renderHour(currentHourIndex);\n        return;\n",
+          "beforeSha256": "a1133a598a60d47fa99ebdc2b6114ed98fd46c7b6755159a534134c035ce5416",
+          "afterSha256": "280cd5f9b088b1800d258933a2344a80351f81d87f7ba27ecb590eb1eace3205"
+        },
+        {
+          "beforeLine": 12599,
+          "afterLine": 12650,
+          "beforeSource": "      const stage = getSelectedStageNavd88();\n      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;\n      const address = escapeTownAddressHtml(p.address || \"Selected North Wildwood parcel\");\n      const waterStatus = difference == null\n        ? \"Choose a water level to compare.\"\n        : Math.abs(difference) <= 0.1\n",
+          "afterSource": "      const stage = getSelectedStageNavd88();\n      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;\n      const address = escapeTownAddressHtml(p.address || \"Selected North Wildwood parcel\");\n      const focusRestoreKey = p.parcelId == null ? \"\" : ` data-focus-restore-key=\"${escapeTownAddressHtml(\"parcel-profile:\" + p.parcelId)}\"`;\n      const waterStatus = difference == null\n        ? \"Choose a water level to compare.\"\n        : Math.abs(difference) <= 0.1\n",
+          "beforeSha256": "81b5580da3558de409e12d6a27c4d4858e954c340dec0a0ea41cbb4d3050724d",
+          "afterSha256": "e2e713a6b6a31a8286622742298d61bab08b768edb0b44b53940aae8c7d4ba44"
+        },
+        {
+          "beforeLine": 12615,
+          "afterLine": 12667,
+          "beforeSource": "          '</strong></div>' +\n          '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +\n        '</div>' +\n        '<button class=\"house-alert-cta\" type=\"button\">See Flood History &amp; Projections</button>' +\n        '</div>';\n    }\n\n",
+          "afterSource": "          '</strong></div>' +\n          '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +\n        '</div>' +\n        '<button class=\"house-alert-cta\" type=\"button\"' + focusRestoreKey + '>See Flood History &amp; Projections</button>' +\n        '</div>';\n    }\n\n",
+          "beforeSha256": "f7f35919ddbd0a8fc3cc93220575e5ff606a126c248960f0647477df5d3802ae",
+          "afterSha256": "79728b7b7f81763b2a10da0e980d575a3281cc355e50fa6b0be43cd00be909ae"
+        },
+        {
+          "beforeLine": 13722,
+          "afterLine": 13774,
+          "beforeSource": "        return;\n      }\n      if (context.kind === \"building\") {\n        popup.setContent(buildHouseAlertPopup(context.feature));\n        popup.update();\n        return;\n      }\n      const displayedFrame = currentFloodLayer?._floodmapperFrame;\n",
+          "afterSource": "        return;\n      }\n      if (context.kind === \"building\") {\n        const element = popup.getElement?.();\n        const previousCta = element?.querySelector(\".house-alert-cta\");\n        // Keep the native gesture's target connected through pointer/key up.\n        // The next animation update catches the popup up after release/cancel.\n        if (previousCta?.matches(\":active\")) return;\n        const focusedCta = previousCta && document.activeElement === previousCta;\n        const focusRestoreKey = previousCta?.getAttribute(\"data-focus-restore-key\");\n        popup.setContent(buildHouseAlertPopup(context.feature));\n        popup.update();\n        if (focusedCta && focusRestoreKey && element.isConnected) {\n          const currentCta = element.querySelector(\".house-alert-cta\");\n          if (currentCta?.getAttribute(\"data-focus-restore-key\") === focusRestoreKey) {\n            currentCta.focus({ preventScroll: true });\n          }\n        }\n        return;\n      }\n      const displayedFrame = currentFloodLayer?._floodmapperFrame;\n",
+          "beforeSha256": "d914731627b67f23efbde146fb583c235bf44b056e4c459a0c514a1a7ded420e",
+          "afterSha256": "d511b3d1526bd5d533f119559b88e66e70d774ef6cd9c205d6a8f81902933428"
+        },
+        {
+          "beforeLine": 14865,
+          "afterLine": 14930,
+          "beforeSource": "        };\n\n        const activatePlay = event => {\n          if (event) {\n            event.preventDefault();\n            event.stopPropagation();\n",
+          "afterSource": "        };\n\n        const activatePlay = event => {\n          if (playButton.disabled || (event && typeof event.button === \"number\" && event.button !== 0)) return;\n          if (event) {\n            event.preventDefault();\n            event.stopPropagation();\n",
+          "beforeSha256": "4d016ad0bd0b6bfa76b646e7e6fe6a1e441b1358593be9d59f86e1441870e68e",
+          "afterSha256": "7c27e8d9234496ac25a0a1e8bac46f1fa28c9f1e0646282c4b96b2cec8451630"
+        },
+        {
+          "beforeLine": 14872,
+          "afterLine": 14938,
+          "beforeSource": "          }\n\n\n          const now = performance.now ? performance.now() : Date.now();\n          const lockedUntil = Number(playButton.dataset.playLockedUntil || 0);\n          if (now < lockedUntil) return;\n          playButton.dataset.playLockedUntil = String(now + 240);\n\n          playButton.classList.add(\"just-pressed\");\n          window.setTimeout(() => playButton.classList.remove(\"just-pressed\"), 160);\n          togglePlayback(event);\n        };\n\n        playButton.addEventListener(\"pointerdown\", activatePlay, { capture:true });\n        playButton.addEventListener(\"click\", activatePlay, { capture:true });\n        playButton.addEventListener(\"keydown\", event => {\n          if (event.key === \"Enter\" || event.key === \" \") activatePlay(event);\n        });\n\n\n        document.addEventListener(\"pointerdown\", event => {\n          if (playButton.contains(event.target)) return;\n          // The enlarged hit area must not intercept dialogs or other buttons.\n          if (!event.target?.closest?.(\"#timelineDock\") || event.target.closest(\"button, input, select, a\")) return;\n",
+          "afterSource": "          }\n\n\n          playButton.classList.add(\"just-pressed\");\n          window.setTimeout(() => playButton.classList.remove(\"just-pressed\"), 160);\n          togglePlayback(event);\n        };\n\n        // Native click covers completed mouse/touch gestures and Enter/Space.\n        // Activating on pointerdown as well toggles twice after a longer press.\n        playButton.addEventListener(\"click\", activatePlay, { capture:true });\n        document.addEventListener(\"click\", event => {\n          if (playButton.contains(event.target)) return;\n          // The enlarged hit area must not intercept dialogs or other buttons.\n          if (!event.target?.closest?.(\"#timelineDock\") || event.target.closest(\"button, input, select, a\")) return;\n",
+          "beforeSha256": "7ce2d566e0535c78c7a67b27205cbb7f656f2367947126efb0d22ef619787b68",
+          "afterSha256": "b7eabc6f2d9f3f1d15a59e6aef5366466298dbe089074bbdeafff539669c1e63"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "d03238277dcfa4b910f0048597871eb2c1f710f8475178849aec9acf964b6272",
+      "afterSha256": "2d3a628a1ec3f8096ecf547f129b19868aa79a23d0172002bc382fb7281345d8",
+      "changes": [
+        {
+          "beforeLine": 768,
+          "afterLine": 768,
+          "beforeSource": "<!-- nww:script:script-006 -->\n\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=da6c36b5a1f58288\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=20261027-lines2\"></script>\n<!-- nww:script:script-007 -->\n\n\n",
+          "afterSource": "<!-- nww:script:script-006 -->\n\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=340ebb2af570cc77\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=40c445b3ddc4d468\"></script>\n<!-- nww:script:script-007 -->\n\n\n",
+          "beforeSha256": "4d8937ed52a3d61ef12c44caa238fa0caa7c811cd1f084d961fe4827060167c2",
+          "afterSha256": "f75ee9564656b3fdab62ed501589b8a150c1dd834ec1dac8dca3d1b2ea8cc3c5"
+        },
+        {
+          "beforeLine": 781,
+          "afterLine": 781,
+          "beforeSource": "\n<script defer src=\"assets/north-wildwood-mobile.js?v=20261026-holistic1\"></script>\n\n<script src=\"assets/export-area.js?v=5a855541ebdd2d2d\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=ec4a166266cddc38\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=7d1dc5752a5f2569\" id=\"floodmapper-export-date-time-picker\"></script>\n\n",
+          "afterSource": "\n<script defer src=\"assets/north-wildwood-mobile.js?v=20261026-holistic1\"></script>\n\n<script src=\"assets/export-area.js?v=529c188b8e02f08e\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=ec4a166266cddc38\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=7d1dc5752a5f2569\" id=\"floodmapper-export-date-time-picker\"></script>\n\n",
+          "beforeSha256": "35a3f8d332f374592d70ccd868a20fc8e9aadf4c5be158838b95c8d00861a038",
+          "afterSha256": "43c49bb1aa642a236332ba46385524d3aa01fa20d3acc078941fafd6f1b58e4b"
+        }
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "a2684d60e35a754413f717f49fd363ff67da430f1e8625d96ac7f8544af8f7eb",
+      "afterSha256": "5c6570d759f9cf856ed1cd948dcdde69ed1b788cfb4ede5a0d350709daf3bf57",
+      "changes": [
+        {
+          "beforeLine": 760,
+          "afterLine": 760,
+          "beforeSource": "  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=01f9684394f0ac9f\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=86aad33c3632791d\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n",
+          "afterSource": "  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=01f9684394f0ac9f\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=febc867c52949f9d\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n",
+          "beforeSha256": "8b92f067052bbffc04d265ab85a487bbc92f4e9da46d0f44ddc15e3785b8d835",
+          "afterSha256": "49bb42bfa5a07e3f5fc28a6fc85790cd861254821e11a0ff34ff0cf36a529b33"
+        },
+        {
+          "beforeLine": 768,
+          "afterLine": 768,
+          "beforeSource": "<script data-nww-script=\"script-006\" src=\"./assets/app/alert-interaction.js?v=b02a3674db55dfda\"></script>\n\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=da6c36b5a1f58288\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=20261027-lines2\"></script>\n<script data-nww-script=\"script-007\" src=\"./assets/app/town-config.js?v=68d7a72bb351d569\"></script>\n\n\n<script src=\"assets/avalon-mobile.js?v=20261026-holistic1\"></script>\n",
+          "afterSource": "<script data-nww-script=\"script-006\" src=\"./assets/app/alert-interaction.js?v=b02a3674db55dfda\"></script>\n\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=340ebb2af570cc77\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n\n<script defer src=\"./assets/modal-focus.js?v=40c445b3ddc4d468\"></script>\n<script data-nww-script=\"script-007\" src=\"./assets/app/town-config.js?v=50eff6b9b8c34eb3\"></script>\n\n\n<script src=\"assets/avalon-mobile.js?v=20261026-holistic1\"></script>\n",
+          "beforeSha256": "c8e9e0bacd2fc0641afa75d3399725c49c5109e9282a4352850204b556576bb3",
+          "afterSha256": "1b367c623c2ad4071a257282c8a556d1dfe477e2a864f3b30b3a31e249353b32"
+        },
+        {
+          "beforeLine": 781,
+          "afterLine": 781,
+          "beforeSource": "\n<script defer src=\"assets/north-wildwood-mobile.js?v=20261026-holistic1\"></script>\n\n<script src=\"assets/export-area.js?v=5a855541ebdd2d2d\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=ec4a166266cddc38\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=7d1dc5752a5f2569\" id=\"floodmapper-export-date-time-picker\"></script>\n\n",
+          "afterSource": "\n<script defer src=\"assets/north-wildwood-mobile.js?v=20261026-holistic1\"></script>\n\n<script src=\"assets/export-area.js?v=529c188b8e02f08e\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=ec4a166266cddc38\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=7d1dc5752a5f2569\" id=\"floodmapper-export-date-time-picker\"></script>\n\n",
+          "beforeSha256": "35a3f8d332f374592d70ccd868a20fc8e9aadf4c5be158838b95c8d00861a038",
+          "afterSha256": "43c49bb1aa642a236332ba46385524d3aa01fa20d3acc078941fafd6f1b58e4b"
+        }
+      ]
+    },
+    {
+      "source": "city-gauge/index.html",
+      "beforeSha256": "15608ae4ce5faa8f2b966cb48db32dc6f2338aa081609af45f2ccc4d5b96aeac",
+      "afterSha256": "25727d7f933c7e437abaad9390981ea501b528b219a1e167770ca6a4aa531e4d",
+      "changes": [
+        {
+          "beforeLine": 166,
+          "afterLine": 166,
+          "beforeSource": "    function markSpikes(points){for(let i=1;i+1<points.length;i++){const a=points[i-1],b=points[i],c=points[i+1],close=b.time-a.time<=GAP_MS&&c.time-b.time<=GAP_MS,da=b.sourceValue-a.sourceValue,dc=b.sourceValue-c.sourceValue;if(close&&((da>=SPIKE_FT&&dc>=SPIKE_FT)||(da<=-SPIKE_FT&&dc<=-SPIKE_FT))){b.valid=false;b.spike=true}}}\n    function currentLoad(request){return request===state.loadSequence}\n    async function loadRange(){\n      const request=++state.loadSequence,start=$(\"start\").value,end=$(\"end\").value;if(!start||!end||start>end){$(\"loading\").hidden=true;$(\"load\").disabled=false;showError(\"Choose a valid date range.\");return}\n      $(\"loading\").hidden=false;$(\"load\").disabled=true;showError(\"\");\n      try{\n",
+          "afterSource": "    function markSpikes(points){for(let i=1;i+1<points.length;i++){const a=points[i-1],b=points[i],c=points[i+1],close=b.time-a.time<=GAP_MS&&c.time-b.time<=GAP_MS,da=b.sourceValue-a.sourceValue,dc=b.sourceValue-c.sourceValue;if(close&&((da>=SPIKE_FT&&dc>=SPIKE_FT)||(da<=-SPIKE_FT&&dc<=-SPIKE_FT))){b.valid=false;b.spike=true}}}\n    function currentLoad(request){return request===state.loadSequence}\n    async function loadRange(){\n      if(!state.index?.coverage)return;\n      const request=++state.loadSequence,start=$(\"start\").value,end=$(\"end\").value;if(!start||!end||start>end){$(\"loading\").hidden=true;$(\"load\").disabled=false;showError(\"Choose a valid date range.\");return}\n      $(\"loading\").hidden=false;$(\"load\").disabled=true;showError(\"\");\n      try{\n",
+          "beforeSha256": "fdc2206a057f52f093138f38d92628a1c0dbabed37bd09e15b1148fda14ec9b9",
+          "afterSha256": "68df34e21d13aa12dc60e2e14cf32c5b8c4adeb8f73d30add26ac201c67e7b67"
+        },
+        {
+          "beforeLine": 230,
+          "afterLine": 231,
+          "beforeSource": "    function annualBarAt(event){const rect=$(\"annual-chart\").getBoundingClientRect(),x=event.clientX-rect.left;return state.annualBars.find(bar=>x>=bar.x0&&x<=bar.x1)}\n    function showAnnualTip(event){const bar=annualBarAt(event),tip=$(\"annual-tip\"),rect=$(\"annual-chart\").getBoundingClientRect();if(!bar){tip.hidden=true;return}const row=bar.row;tip.innerHTML=`<b>${row.year}${row.coverage===\"partial\"?\" \u00b7 partial\":\"\"}</b>${row.total} flood events<br>Minor ${row.minor} \u00b7 Moderate ${row.moderate} \u00b7 Major ${row.major}`;tip.hidden=false;tip.style.left=clamp(event.clientX-rect.left+12,8,rect.width-tip.offsetWidth-8)+\"px\";tip.style.top=clamp(event.clientY-rect.top-58,8,rect.height-tip.offsetHeight-8)+\"px\"}\n    function renderComparison(){const index=state.comparisonIndex;if(!index){$(\"comparison-body\").innerHTML=rowEmpty(7,state.comparisonIndexError?\"The Stone Harbor comparison is temporarily unavailable.\":\"The Stone Harbor comparison is loading.\");$(\"comparison-alert\").textContent=\"The North Wildwood archive remains available while the comparison data is refreshed.\";return}const stats=index.stats,peaks=index.peaks;$(\"median-diff\").textContent=signed(stats.medianDifferenceFt)+\" ft\";$(\"mean-abs-diff\").textContent=fmt.format(stats.meanAbsoluteDifferenceFt)+\" ft\";$(\"peak-diff\").textContent=signed(peaks.medianPeakHeightDifferenceFt)+\" ft\";$(\"tide-lag\").textContent=`${signed(peaks.medianStoneHarborLagMinutes,0)} min`;$(\"comparison-body\").innerHTML=index.years.map(row=>{const spikes=row.quality?.northWildwoodIsolatedSpikesExcluded??0,status=row.status===\"review\"?'<span class=\"status-review\">Calibration review</span>':`Aligned${spikes?` \u00b7 ${spikes} spike${spikes===1?\"\":\"s\"} excluded`:\"\"}`;return `<tr><td><button class=\"year-button\" data-year=\"${row.year}\">${row.year}</button></td><td>${row.stats.pairCount.toLocaleString()}</td><td class=\"num\">${signed(row.stats.medianDifferenceFt)} ft</td><td class=\"num\">${signed(row.peaks.medianPeakHeightDifferenceFt)} ft</td><td>${row.stats.correlation?.toFixed(3)??\"\u2014\"}</td><td>${signed(row.lag.stoneHarborLagMinutes,0)} min</td><td>${status}</td></tr>`}).join(\"\");const review=index.years.filter(row=>row.status===\"review\");$(\"comparison-alert\").innerHTML=review.length?`<b>${review.map(row=>row.year).join(\", \")} requires calibration review.</b> North Wildwood\u2019s ${review[0].year} median is ${Math.abs(review[0].stats.medianDifferenceFt).toFixed(2)} ft lower than Stone Harbor and tidal-shape correlation falls to ${review[0].stats.correlation.toFixed(3)}. Those readings remain visible and are not silently corrected.`:`The gauges remain closely aligned throughout the comparison period.`}\n    async function openYear(year){const first=state.index.coverage.firstTimestamp.slice(0,10),last=state.index.coverage.lastTimestamp.slice(0,10);$(\"start\").value=String(Math.max(Number(first.replaceAll(\"-\",\"\")),Number(`${year}0101`))).replace(/^(\\d{4})(\\d{2})(\\d{2})$/,\"$1-$2-$3\");$(\"end\").value=String(Math.min(Number(last.replaceAll(\"-\",\"\")),Number(`${year}1231`))).replace(/^(\\d{4})(\\d{2})(\\d{2})$/,\"$1-$2-$3\");$(\"year-jump\").value=String(year);await loadRange();$(\"explore\").scrollIntoView({behavior:\"smooth\",block:\"start\"})}\n    function downloadCsv(){if(!state.loadedRange)return;const lines=[\"record,timestamp_local,water_level_ft_navd88,source_water_level_ft_mllw,sensor_id,status,duplicate_timestamp\",...state.points.map((p,i)=>[i+1,p.timestamp,p.value,p.sourceValue,1005,p.ambiguous?\"ambiguous_time\":p.spike?\"isolated_spike\":p.valid?\"returned\":\"flagged\",p.duplicate?\"yes\":\"no\"].join(\",\"))],blob=new Blob([lines.join(\"\\n\")],{type:\"text/csv\"}),url=URL.createObjectURL(blob),a=document.createElement(\"a\");a.href=url;a.download=`north-wildwood-city-gauge_navd88_${state.loadedRange.start}_${state.loadedRange.end}.csv`;a.click();URL.revokeObjectURL(url)}\n    async function init(){\n      try{const r=await fetch(\"./data/index.json\");if(!r.ok)throw new Error(\"The archive is still being generated.\");state.index=await r.json();const first=state.index.coverage.firstTimestamp.slice(0,10),last=state.index.coverage.lastTimestamp.slice(0,10),firstYear=Number(first.slice(0,4)),lastYear=Number(last.slice(0,4));$(\"start\").min=$(\"end\").min=first;$(\"start\").max=$(\"end\").max=last;$(\"end\").value=last;$(\"start\").value=shiftDate(last,-6);$(\"month-jump\").min=first.slice(0,7);$(\"month-jump\").max=last.slice(0,7);$(\"month-jump\").value=last.slice(0,7);$(\"year-jump\").innerHTML='<option value=\"\">Choose\u2026</option>'+Array.from({length:lastYear-firstYear+1},(_,index)=>{const year=firstYear+index;return `<option value=\"${year}\">${year}</option>`}).join(\"\");$(\"total\").textContent=state.index.coverage.recordCount.toLocaleString();$(\"span\").textContent=firstYear+\"\u2013\"+lastYear;$(\"coverage\").textContent=dateLabel(state.index.coverage.firstTimestamp)+\" through \"+dateLabel(state.index.coverage.lastTimestamp);$(\"refreshed\").textContent=dateLabel(state.index.generatedAt.slice(0,10)+\" 12:00:00\");renderAnnual();renderComparison();void loadComparisonIndex();await loadRange()}catch(error){$(\"loading\").hidden=true;showError(error.message)}\n    }\n    $(\"load\").onclick=loadRange;\n    $(\"comparison-retry\").onclick=()=>{if(state.comparisonIndex)refreshLoadedComparisons();else void loadComparisonIndex()};\n    document.querySelectorAll(\"[data-range]\").forEach(button=>button.onclick=async()=>{const last=state.index.coverage.lastTimestamp.slice(0,10),end=$(\"end\").value||last;$(\"end\").value=end;$(\"start\").value=button.dataset.range===\"all\"?state.index.coverage.firstTimestamp.slice(0,10):shiftDate(end,1-Number(button.dataset.range));await loadRange()});\n    $(\"month-jump\").onchange=async()=>{const [year,month]=$(\"month-jump\").value.split(\"-\").map(Number);if(!year)return;const first=state.index.coverage.firstTimestamp.slice(0,10),last=state.index.coverage.lastTimestamp.slice(0,10),monthStart=`${year}-${String(month).padStart(2,\"0\")}-01`,monthEnd=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);$(\"start\").value=monthStart<first?first:monthStart;$(\"end\").value=monthEnd>last?last:monthEnd;$(\"year-jump\").value=String(year);await loadRange()};\n    $(\"year-jump\").onchange=()=>$(\"year-jump\").value&&openYear(Number($(\"year-jump\").value));\n    document.querySelectorAll(\"[data-height]\").forEach(button=>button.onclick=()=>{$(\"threshold\").value=Number(button.dataset.height).toFixed(2);state.highPage=0;queryHighs()});[\"threshold\",\"separation\",\"sort\"].forEach(id=>$(id).addEventListener(\"change\",()=>{state.highPage=0;queryHighs()}));$(\"csv\").onclick=downloadCsv;\n    $(\"annual-chart\").addEventListener(\"pointermove\",showAnnualTip);$(\"annual-chart\").addEventListener(\"pointerleave\",()=>$(\"annual-tip\").hidden=true);$(\"annual-chart\").addEventListener(\"click\",event=>{const bar=annualBarAt(event);if(bar)openYear(bar.row.year)});$(\"annual-body\").addEventListener(\"click\",event=>{const row=event.target.closest(\"tr[data-year]\");if(row)openYear(Number(row.dataset.year))});\n",
+          "afterSource": "    function annualBarAt(event){const rect=$(\"annual-chart\").getBoundingClientRect(),x=event.clientX-rect.left;return state.annualBars.find(bar=>x>=bar.x0&&x<=bar.x1)}\n    function showAnnualTip(event){const bar=annualBarAt(event),tip=$(\"annual-tip\"),rect=$(\"annual-chart\").getBoundingClientRect();if(!bar){tip.hidden=true;return}const row=bar.row;tip.innerHTML=`<b>${row.year}${row.coverage===\"partial\"?\" \u00b7 partial\":\"\"}</b>${row.total} flood events<br>Minor ${row.minor} \u00b7 Moderate ${row.moderate} \u00b7 Major ${row.major}`;tip.hidden=false;tip.style.left=clamp(event.clientX-rect.left+12,8,rect.width-tip.offsetWidth-8)+\"px\";tip.style.top=clamp(event.clientY-rect.top-58,8,rect.height-tip.offsetHeight-8)+\"px\"}\n    function renderComparison(){const index=state.comparisonIndex;if(!index){$(\"comparison-body\").innerHTML=rowEmpty(7,state.comparisonIndexError?\"The Stone Harbor comparison is temporarily unavailable.\":\"The Stone Harbor comparison is loading.\");$(\"comparison-alert\").textContent=\"The North Wildwood archive remains available while the comparison data is refreshed.\";return}const stats=index.stats,peaks=index.peaks;$(\"median-diff\").textContent=signed(stats.medianDifferenceFt)+\" ft\";$(\"mean-abs-diff\").textContent=fmt.format(stats.meanAbsoluteDifferenceFt)+\" ft\";$(\"peak-diff\").textContent=signed(peaks.medianPeakHeightDifferenceFt)+\" ft\";$(\"tide-lag\").textContent=`${signed(peaks.medianStoneHarborLagMinutes,0)} min`;$(\"comparison-body\").innerHTML=index.years.map(row=>{const spikes=row.quality?.northWildwoodIsolatedSpikesExcluded??0,status=row.status===\"review\"?'<span class=\"status-review\">Calibration review</span>':`Aligned${spikes?` \u00b7 ${spikes} spike${spikes===1?\"\":\"s\"} excluded`:\"\"}`;return `<tr><td><button class=\"year-button\" data-year=\"${row.year}\">${row.year}</button></td><td>${row.stats.pairCount.toLocaleString()}</td><td class=\"num\">${signed(row.stats.medianDifferenceFt)} ft</td><td class=\"num\">${signed(row.peaks.medianPeakHeightDifferenceFt)} ft</td><td>${row.stats.correlation?.toFixed(3)??\"\u2014\"}</td><td>${signed(row.lag.stoneHarborLagMinutes,0)} min</td><td>${status}</td></tr>`}).join(\"\");const review=index.years.filter(row=>row.status===\"review\");$(\"comparison-alert\").innerHTML=review.length?`<b>${review.map(row=>row.year).join(\", \")} requires calibration review.</b> North Wildwood\u2019s ${review[0].year} median is ${Math.abs(review[0].stats.medianDifferenceFt).toFixed(2)} ft lower than Stone Harbor and tidal-shape correlation falls to ${review[0].stats.correlation.toFixed(3)}. Those readings remain visible and are not silently corrected.`:`The gauges remain closely aligned throughout the comparison period.`}\n    async function openYear(year){if(!state.index?.coverage)return;const first=state.index.coverage.firstTimestamp.slice(0,10),last=state.index.coverage.lastTimestamp.slice(0,10);$(\"start\").value=String(Math.max(Number(first.replaceAll(\"-\",\"\")),Number(`${year}0101`))).replace(/^(\\d{4})(\\d{2})(\\d{2})$/,\"$1-$2-$3\");$(\"end\").value=String(Math.min(Number(last.replaceAll(\"-\",\"\")),Number(`${year}1231`))).replace(/^(\\d{4})(\\d{2})(\\d{2})$/,\"$1-$2-$3\");$(\"year-jump\").value=String(year);await loadRange();$(\"explore\").scrollIntoView({behavior:\"smooth\",block:\"start\"})}\n    function downloadCsv(){if(!state.loadedRange)return;const lines=[\"record,timestamp_local,water_level_ft_navd88,source_water_level_ft_mllw,sensor_id,status,duplicate_timestamp\",...state.points.map((p,i)=>[i+1,p.timestamp,p.value,p.sourceValue,1005,p.ambiguous?\"ambiguous_time\":p.spike?\"isolated_spike\":p.valid?\"returned\":\"flagged\",p.duplicate?\"yes\":\"no\"].join(\",\"))],blob=new Blob([lines.join(\"\\n\")],{type:\"text/csv\"}),url=URL.createObjectURL(blob),a=document.createElement(\"a\");a.href=url;a.download=`north-wildwood-city-gauge_navd88_${state.loadedRange.start}_${state.loadedRange.end}.csv`;a.click();URL.revokeObjectURL(url)}\n    async function init(){\n      try{const r=await fetch(\"./data/index.json\");if(!r.ok)throw new Error(\"The archive is still being generated.\");state.index=await r.json();const first=state.index.coverage.firstTimestamp.slice(0,10),last=state.index.coverage.lastTimestamp.slice(0,10),firstYear=Number(first.slice(0,4)),lastYear=Number(last.slice(0,4));$(\"start\").min=$(\"end\").min=first;$(\"start\").max=$(\"end\").max=last;$(\"end\").value=last;$(\"start\").value=shiftDate(last,-6);$(\"month-jump\").min=first.slice(0,7);$(\"month-jump\").max=last.slice(0,7);$(\"month-jump\").value=last.slice(0,7);$(\"year-jump\").innerHTML='<option value=\"\">Choose\u2026</option>'+Array.from({length:lastYear-firstYear+1},(_,index)=>{const year=firstYear+index;return `<option value=\"${year}\">${year}</option>`}).join(\"\");$(\"total\").textContent=state.index.coverage.recordCount.toLocaleString();$(\"span\").textContent=firstYear+\"\u2013\"+lastYear;$(\"coverage\").textContent=dateLabel(state.index.coverage.firstTimestamp)+\" through \"+dateLabel(state.index.coverage.lastTimestamp);$(\"refreshed\").textContent=dateLabel(state.index.generatedAt.slice(0,10)+\" 12:00:00\");renderAnnual();renderComparison();void loadComparisonIndex();await loadRange()}catch(error){$(\"loading\").hidden=true;showError(error.message)}\n    }\n    $(\"load\").onclick=loadRange;\n    $(\"comparison-retry\").onclick=()=>{if(state.comparisonIndex)refreshLoadedComparisons();else void loadComparisonIndex()};\n    document.querySelectorAll(\"[data-range]\").forEach(button=>button.onclick=async()=>{if(!state.index?.coverage)return;const last=state.index.coverage.lastTimestamp.slice(0,10),end=$(\"end\").value||last;$(\"end\").value=end;$(\"start\").value=button.dataset.range===\"all\"?state.index.coverage.firstTimestamp.slice(0,10):shiftDate(end,1-Number(button.dataset.range));await loadRange()});\n    $(\"month-jump\").onchange=async()=>{if(!state.index?.coverage)return;const [year,month]=$(\"month-jump\").value.split(\"-\").map(Number);if(!year)return;const first=state.index.coverage.firstTimestamp.slice(0,10),last=state.index.coverage.lastTimestamp.slice(0,10),monthStart=`${year}-${String(month).padStart(2,\"0\")}-01`,monthEnd=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);$(\"start\").value=monthStart<first?first:monthStart;$(\"end\").value=monthEnd>last?last:monthEnd;$(\"year-jump\").value=String(year);await loadRange()};\n    $(\"year-jump\").onchange=()=>$(\"year-jump\").value&&openYear(Number($(\"year-jump\").value));\n    document.querySelectorAll(\"[data-height]\").forEach(button=>button.onclick=()=>{$(\"threshold\").value=Number(button.dataset.height).toFixed(2);state.highPage=0;queryHighs()});[\"threshold\",\"separation\",\"sort\"].forEach(id=>$(id).addEventListener(\"change\",()=>{state.highPage=0;queryHighs()}));$(\"csv\").onclick=downloadCsv;\n    $(\"annual-chart\").addEventListener(\"pointermove\",showAnnualTip);$(\"annual-chart\").addEventListener(\"pointerleave\",()=>$(\"annual-tip\").hidden=true);$(\"annual-chart\").addEventListener(\"click\",event=>{const bar=annualBarAt(event);if(bar)openYear(bar.row.year)});$(\"annual-body\").addEventListener(\"click\",event=>{const row=event.target.closest(\"tr[data-year]\");if(row)openYear(Number(row.dataset.year))});\n",
+          "beforeSha256": "cfb6d1670e156311a560b83a802a87282bf2849f7bb9d9a7937551eb01778a2e",
+          "afterSha256": "e6f5a92df1f1106a1c6bad4dd54bb385230879557d89e0a0b2ff05017dbb3eb1"
+        }
+      ]
+    }
+  ]
+}

@@ -22,6 +22,7 @@
 
   var glMap = null;
   var glMapPromise = null;
+  var glMapInitialization = null;
   var glStyleReady = false;
   var glPopup = null;
   var buildingData = null;
@@ -165,13 +166,36 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  function fetch3dJson(url, message) {
+    // Bound the body as well as the response, even if transport ignores abort.
+    var controller = new AbortController();
+    var cancel;
+    var request = new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = window.setTimeout(function () { finish(new Error(message + " The request timed out.")); }, 20000);
+      function finish(error, payload) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        if (error) { controller.abort(); reject(error); }
+        else resolve(payload);
+      }
+      cancel = function () { finish(new Error(message + " The request was cancelled.")); };
+      Promise.resolve().then(function () {
+        return fetch(url, { cache: "force-cache", signal: controller.signal });
+      }).then(function (response) {
+        if (!response.ok) throw new Error(message);
+        return response.json();
+      }).then(function (payload) { finish(null, payload); }, function (error) { finish(error); });
+    });
+    request.cancel = function () { cancel(); };
+    return request;
+  }
+
   async function load3dStyle() {
     if (!mapStylePromise) {
-      mapStylePromise = fetch(ESRI_STYLE_URL, { cache: "force-cache" })
-        .then(function (response) {
-          if (!response.ok) throw new Error("The 3D basemap style could not be loaded.");
-          return response.json();
-        })
+      var load = fetch3dJson(ESRI_STYLE_URL, "The 3D basemap style could not be loaded.");
+      var request = load
         .then(function (style) {
           style.sprite = absoluteStyleAsset(style.sprite);
           style.glyphs = absoluteStyleAsset(style.glyphs);
@@ -188,9 +212,11 @@
           return window.ShorelyRoadLabels.styleBasemap(geometryStyle); // shorely-road-labels-3d-v1
         })
         .catch(function (error) {
-          mapStylePromise = null;
+          if (mapStylePromise === request) mapStylePromise = null;
           throw error;
         });
+      request.cancel = load.cancel;
+      mapStylePromise = request;
     }
     return cloneJson(await mapStylePromise);
   }
@@ -904,7 +930,7 @@
   }
 
   async function prepareFloodFrame3d(layer, frame, token) {
-    if (!glMap || !document.body.classList.contains("map-3d-ready") || glMap.getPitch() <= 10) return true;
+    if (!glMap || !document.body.classList.contains("map-3d-ready")) return true;
     if (!glStyleReady || document.body.dataset.map3d !== "ready") return false;
     var requestedMap = glMap;
     var request = { layer: layer, frame: frame, token: token, isCurrent: function () {
@@ -915,10 +941,16 @@
     var accepted = false;
     try {
       syncFloodLayer3d();
-      var plane = floodPlaneLayer;
       var url = layer._url || layer.getElement?.()?.src;
-      var ready = plane ? await plane.whenReady() : false;
-      accepted = Boolean(ready && request.isCurrent() && plane === floodPlaneLayer &&
+      var plane = floodPlaneLayer;
+      var source = requestedMap.getSource("nw-flood-drape-source");
+      // Both presentations already preload this URL. Certify both before the
+      // metadata commits, including a 2D/3D change made while either is pending.
+      var ready = await Promise.all([
+        plane ? plane.whenReady() : false,
+        waitForNativeFloodImage3d(requestedMap, source, request.isCurrent)
+      ]);
+      accepted = Boolean(ready.every(Boolean) && request.isCurrent() && plane === floodPlaneLayer &&
         plane.textureReady && plane.committedUrl === url);
       return accepted;
     } finally {
@@ -929,6 +961,34 @@
         if (!accepted) syncFloodLayer3d();
       }
     }
+  }
+
+  function waitForNativeFloodImage3d(mapInstance, source, isCurrent) {
+    return new Promise(function (resolve) {
+      var settled = false;
+      var timer = window.setTimeout(function () { finish(false); }, 20000);
+      var poll = window.setInterval(check, 100);
+      function finish(ready) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        window.clearInterval(poll);
+        mapInstance.off("error", failed);
+        mapInstance.off("sourcedata", check);
+        if (!ready && source) imageLayerVersions.delete(source);
+        resolve(ready);
+      }
+      function failed(event) {
+        if (event && event.sourceId === "nw-flood-drape-source") finish(false);
+      }
+      function check() {
+        if (!isCurrent() || !source || mapInstance.getSource("nw-flood-drape-source") !== source) { finish(false); return; }
+        if (source.loaded() && source.image) finish(true);
+      }
+      mapInstance.on("error", failed);
+      mapInstance.on("sourcedata", check);
+      check();
+    });
   }
 
   function discardObsoleteFloodFrame3d() {
@@ -1386,16 +1446,13 @@
       // permanently capturing empty URLs during script initialization.
       var BUILDINGS_3D_URL = TOWN_CONFIG?.structures?.buildings3dPath ? new URL(TOWN_CONFIG.structures.buildings3dPath, APP_BASE).href : "";
       var MUNICIPAL_BOUNDARY_3D_URL = TOWN_CONFIG?.boundary?.boundaryUrl ? new URL(TOWN_CONFIG.boundary.boundaryUrl, APP_BASE).href : "";
-      buildingDataPromise = Promise.all([
-        BUILDINGS_3D_URL ? fetch(BUILDINGS_3D_URL, { cache: "force-cache" }).then(function (response) {
-          if (!response.ok) throw new Error("The configured 3D building asset could not be loaded.");
-          return response.json();
-        }) : Promise.resolve({ type: "FeatureCollection", features: [] }),
-        MUNICIPAL_BOUNDARY_3D_URL ? fetch(MUNICIPAL_BOUNDARY_3D_URL, { cache: "force-cache" }).then(function (response) {
-          if (!response.ok) throw new Error("The municipal boundary could not be loaded for 3D clipping.");
-          return response.json();
-        }) : Promise.resolve({ type: "FeatureCollection", features: [] })
-      ])
+      var loads = [
+        BUILDINGS_3D_URL ? fetch3dJson(BUILDINGS_3D_URL, "The configured 3D building asset could not be loaded.")
+          : Promise.resolve({ type: "FeatureCollection", features: [] }),
+        MUNICIPAL_BOUNDARY_3D_URL ? fetch3dJson(MUNICIPAL_BOUNDARY_3D_URL, "The municipal boundary could not be loaded for 3D clipping.")
+          : Promise.resolve({ type: "FeatureCollection", features: [] })
+      ];
+      var request = Promise.all(loads)
         .then(function (resources) {
           var payload = resources[0];
           var boundaryFeature = resources[1];
@@ -1471,17 +1528,22 @@
           return buildingData;
         })
         .catch(function (error) {
-          buildingDataPromise = null;
+          loads.forEach(function (load) { if (load.cancel) load.cancel(); });
+          if (buildingDataPromise === request) buildingDataPromise = null;
           throw error;
         });
+      request.cancel = function () { loads.forEach(function (load) { if (load.cancel) load.cancel(); }); };
+      buildingDataPromise = request;
     }
     return buildingDataPromise;
   }
 
   async function syncBuildings3d(options) {
     if (!glMap || !glStyleReady) return;
+    var requestedMap = glMap;
     if (!TOWN_CONFIG?.structures?.buildings3dPath) {
-      await window.COUNTY_3D_BUILDINGS.sync(glMap, TERRAIN_EXAGGERATION);
+      await window.COUNTY_3D_BUILDINGS.sync(requestedMap, TERRAIN_EXAGGERATION);
+      if (glMap !== requestedMap || !glStyleReady) return;
       syncBuildingVisibilityForCamera();
       placeFloodForScaleDepthPass();
       setStatus("3D buildings • schematic heights");
@@ -1495,6 +1557,7 @@
     }
     if (!glMap.getSource("nw-buildings-source")) {
       var payload = await loadBuildingData();
+      if (glMap !== requestedMap || !glStyleReady) return;
       glMap.addSource("nw-buildings-source", {
         type: "geojson",
         data: payload,
@@ -1930,11 +1993,17 @@
   async function ensure3dMap() {
     if (glMapPromise) return glMapPromise;
     if (glMap && glStyleReady) return glMap;
-    glMapPromise = (async function () {
+    var initialization = { map: null, cancelled: false, cancelRenderer: null };
+    glMapInitialization = initialization;
+    function current() { return glMapInitialization === initialization && !initialization.cancelled; }
+    function requireCurrent() { if (!current()) throw new Error("The 3D initialization was superseded."); }
+    var startup = (async function () {
       await loadMapLibreRuntime();
+      requireCurrent();
       var container = document.getElementById("map3d");
       if (!container) throw new Error("The 3D map container is unavailable.");
       var style = await load3dStyle();
+      requireCurrent();
       var leafletCenter = map && map.getCenter ? map.getCenter() : { lng: -74.7998357, lat: 39.006945 };
       var leafletZoom = map && map.getZoom ? map.getZoom() : 13;
       var mobileRenderer = window.matchMedia("(pointer: coarse), (max-width: 900px)").matches;
@@ -1974,6 +2043,7 @@
         attributionControl: false,
         canvasContextAttributes: { antialias: false }
       });
+      initialization.map = glMap;
       if (glMap.touchZoomRotate && typeof glMap.touchZoomRotate.disableRotation === "function") {
         glMap.touchZoomRotate.disableRotation();
       }
@@ -1989,13 +2059,26 @@
       });
       wire3dContextRecovery(glMap);
       await new Promise(function (resolve, reject) {
-        var timer = window.setTimeout(function () { reject(new Error("The 3D renderer timed out.")); }, 20000);
-        glMap.once("load", function () {
+        var mapInstance = initialization.map;
+        var timer = window.setTimeout(function () { finish(new Error("The 3D renderer timed out.")); }, 20000);
+        var settled = false;
+        function finish(error) {
+          if (settled) return;
+          settled = true;
           window.clearTimeout(timer);
-          glStyleReady = true;
-          resolve();
-        });
+          if (mapInstance.off) mapInstance.off("load", loaded);
+          initialization.cancelRenderer = null;
+          if (error) reject(error);
+          else { glStyleReady = true; resolve(); }
+        }
+        function loaded() {
+          if (!current()) { finish(new Error("The 3D initialization was superseded.")); return; }
+          finish();
+        }
+        initialization.cancelRenderer = function () { finish(new Error("The 3D renderer was cancelled.")); };
+        mapInstance.once("load", loaded);
       });
+      requireCurrent();
       addCore3dLayers();
       wire3dInteractions();
       syncBoundary3d();
@@ -2005,6 +2088,7 @@
       syncParcels3d();
       syncNsi3d();
       await syncBuildings3d({ preload: true });
+      requireCurrent();
       document.body.classList.add("map-3d-ready");
       if (townAddressMarker) setAddressMarker(townAddressMarker.getLatLng(), townAddressMarker.options.title);
       document.body.dataset.map3d = "ready";
@@ -2014,17 +2098,30 @@
       document.body.dataset.map3dPitch = String(glMap.getPitch());
       updateDiagnostics();
       suspendLeafletVisualLayers();
-      requestAnimationFrame(function () { glMap.resize(); });
+      requestAnimationFrame(function () { if (current() && glMap === initialization.map) glMap.resize(); });
       return glMap;
-    })().catch(function (error) {
+    })();
+    // One budget covers dependencies, style, renderer and initial buildings.
+    // Superseded continuations cannot mutate a replacement map after timeout.
+    glMapPromise = new Promise(function (resolve, reject) {
+      var timer = window.setTimeout(function () { reject(new Error("The 3D map startup timed out.")); }, 20000);
+      startup.then(function (value) { window.clearTimeout(timer); resolve(value); }, function (error) { window.clearTimeout(timer); reject(error); });
+    }).catch(function (error) {
+      if (!current()) return null;
+      initialization.cancelled = true;
+      if (initialization.cancelRenderer) initialization.cancelRenderer();
+      if (mapStylePromise && mapStylePromise.cancel) mapStylePromise.cancel();
+      if (buildingDataPromise && buildingDataPromise.cancel) buildingDataPromise.cancel();
       document.body.classList.remove("map-3d-ready");
       document.body.dataset.map3d = "fallback";
       glStyleReady = false;
       console.warn("The 3D map could not start; the 2D map remains available.", error);
       glMapPromise = null;
-      if (glMap) {
+      if (glMap && glMap === initialization.map) {
         try { glMap.remove(); } catch (_) {}
         glMap = null;
+        floodPlaneLayer = null;
+        buildingCursorHandlersWired = false;
       }
       if (map) map.invalidateSize();
       return null;
@@ -2359,6 +2456,7 @@
   setBuildingsEnabled = async function (enabled) {
     var generation = ++buildingToggleGeneration;
     var shouldEnable = Boolean(enabled);
+    var queryGeneration = mapQueryGeneration;
     var toggle = document.getElementById("buildingsToggle");
     if (toggle) {
       toggle.classList.toggle("on", shouldEnable);
@@ -2374,7 +2472,8 @@
       }
       if (glMap && document.body.classList.contains("map-3d-ready")) {
         if (buildingsLayer && map && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
-        if (shouldEnable) setMapClickMode("building", { closePopup: false });
+        // Preserve an explicit query-mode choice made while 3D was starting.
+        if (shouldEnable && queryGeneration === mapQueryGeneration) setMapClickMode("building", { closePopup: false });
         updateExportBuildingsLayer();
         updateMapClickModeControl();
         toast("");
@@ -2512,7 +2611,7 @@
     var result = originalUpdatePersistentDepthQueryPopup.apply(this, arguments);
     if (glPopup && persistentFloodPopup && typeof persistentFloodPopup.getContent === "function") {
       var html = String(persistentFloodPopup.getContent() || "");
-      if (html !== lastGlPopupHtml) {
+      if (html !== lastGlPopupHtml && !glPopup.getElement().querySelector(".house-alert-cta:active")) {
         var content = glPopup.getElement().querySelector(".maplibregl-popup-content");
         var scrollTop = content ? content.scrollTop : 0;
         var focusedClose = document.activeElement?.classList.contains("maplibregl-popup-close-button");

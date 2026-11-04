@@ -272,7 +272,7 @@ def historic_flood_count(sorted_peaks: list[float], elevation_ft: float) -> int:
 
 
 def model_elevation_record(first_floor: float, cdf: dict) -> tuple[float, int, int | None]:
-    """Use the same first-floor grid threshold for NSI joins and refreshes."""
+    """Use the matching CDF grid for ground and first-floor thresholds."""
     grid = [float(value) for value in cdf.get("elevationGridFtNavd88", [])]
     if not grid:
         return round(first_floor, 1), -1, None
@@ -688,7 +688,6 @@ def build_parcel_boundary_png(features: list[dict], dem_path: Path, destination:
 
 def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list[dict], cdf: dict) -> dict:
     peak_levels = sorted(float(row["navd88Ft"]) for row in events)
-    elevation_grid = cdf["elevationGridFtNavd88"]
     output_features = []
     skipped = 0
     for index, feature in enumerate(features, start=1):
@@ -704,8 +703,9 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
             skipped += 1
             continue
         historic_count = historic_flood_count(peak_levels, elevation)
-        model_elevation = min(14.0, max(0.0, round(elevation * 10) / 10))
-        grid_index = min(range(len(elevation_grid)), key=lambda i: abs(elevation_grid[i] - model_elevation))
+        model_elevation, grid_index, _ = model_elevation_record(elevation, cdf)
+        if grid_index < 0:
+            raise ValueError("Parcel projections require the matching CDF elevation grid")
         attrs = feature.get("properties", {})
         simplified = geometry.SimplifyPreserveTopology(0.0000015)
         output_features.append(
@@ -728,7 +728,7 @@ def build_parcel_geojson(features: list[dict], sampler: DemSampler, events: list
                     "analysisLon": round(float(analysis_lon), 7) if analysis_lon is not None else None,
                     "analysisLat": round(float(analysis_lat), 7) if analysis_lat is not None else None,
                     "elevationNavd88Ft": round(elevation, 2),
-                    "modelElevationNavd88Ft": elevation_grid[grid_index],
+                    "modelElevationNavd88Ft": model_elevation,
                     "modelElevationIndex": grid_index,
                     "elevationSampleMethod": sample_method,
                     "historicFloodEventCount": historic_count,
@@ -770,6 +770,17 @@ def refresh_existing_parcel_counts(path: Path, events: list[dict], cdf: dict) ->
         if elevation is None or not math.isfinite(float(elevation)):
             continue
         properties["historicFloodEventCount"] = historic_flood_count(peak_levels, float(elevation))
+        # Retain the original sampled/quantized threshold: the displayed ground
+        # elevation has only two decimals, so recomputing every tie can move a
+        # valid parcel to the adjacent grid cell. Repair the legacy 14-ft cap.
+        ground_threshold = float(properties.get("modelElevationNavd88Ft", elevation))
+        if ground_threshold == 14.0 and float(elevation) > 14.05:
+            ground_threshold = float(elevation)
+        model_ground, ground_index, _ = model_elevation_record(ground_threshold, cdf)
+        if ground_index < 0:
+            raise ValueError("Parcel projection refresh requires the matching CDF elevation grid")
+        properties["modelElevationNavd88Ft"] = model_ground
+        properties["modelElevationIndex"] = ground_index
         first_floor = properties.get("nsi2026ModeledFirstFloorNavd88Ft")
         if first_floor is not None and math.isfinite(float(first_floor)):
             model_floor, model_index, historic_count = model_elevation_record(float(first_floor), cdf)

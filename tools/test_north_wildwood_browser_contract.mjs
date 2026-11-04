@@ -1048,7 +1048,7 @@ assert.match(
 assert.match(extractFunction("setExportFloodLayer"), /L\.imageOverlay\(overlayUrl, floodLatLngBounds, \{[^}]+\bclassName\s*\}/);
 assert.match(extractFunction("setExportFloodLayer"), /createHydraulicImageOverlay\(overlayUrl, \{[^}]+\bclassName\s*\}/);
 assert.match(SOURCE, /record\.targetNavd88Ft \?\? record\.weightedNavd88Ft \?\? record\.naccsNavd88Ft/);
-assert.match(extractFunction("switchReturnInterval"), /await loadReturnInterval\(\)/);
+assert.match(extractFunction("switchReturnInterval"), /await loadReturnInterval\(null, \{ generation \}\)/);
 assert.doesNotMatch(extractFunction("switchReturnInterval"), /previousEntry/);
 assert.match(SOURCE, /<h2>Flood Data<\/h2>/);
 assert.match(SOURCE, />Modeled Floods<\/button>/);

@@ -141,3 +141,82 @@ with tempfile.TemporaryDirectory() as directory:
     assert parcel_path.read_bytes() == stable_bytes
 
 print("North Wildwood flood-history projection model checks passed.")
+
+# Fresh high-ground parcels use the current 20-ft grid, rather than the legacy
+# 14-ft ceiling. Refreshes repair that ceiling without re-quantizing the original
+# full-precision DEM sample from its rounded display value or altering NSI floors.
+grid_cdf = {
+    "elevationGridFtNavd88": model.ELEVATION_GRID_FT.tolist(),
+    "observedArchive": {"startDate": "2007-10-01", "endDate": "2026-08-15"},
+    "historicFloodEventCountByElevation": [0] * 201,
+}
+class HighGroundSampler:
+    def sample_parcel_highest_five_foot_cell(self, geometry):
+        return 16.83, "test-cell", -74.8, 39.0
+
+fresh = model.build_parcel_geojson([{
+    "type": "Feature", "properties": {"PROP_LOC": "High ground"},
+    "geometry": {"type": "Polygon", "coordinates": [[
+        [-74.8, 39.0], [-74.7999, 39.0], [-74.7999, 39.0001], [-74.8, 39.0]
+    ]]},
+}], HighGroundSampler(), [], grid_cdf)
+assert fresh["features"][0]["properties"]["modelElevationIndex"] == 168
+assert fresh["features"][0]["properties"]["modelElevationNavd88Ft"] == 16.8
+with tempfile.TemporaryDirectory() as directory:
+    parcel_path = Path(directory) / "parcels.geojson"
+    rows = [
+        {"elevationNavd88Ft": 16.83, "modelElevationNavd88Ft": 14.0, "modelElevationIndex": 140},
+        {"elevationNavd88Ft": 7.05, "modelElevationNavd88Ft": 7.1, "modelElevationIndex": 71},
+        {"elevationNavd88Ft": 21.04, "modelElevationNavd88Ft": 14.0, "modelElevationIndex": 140,
+         "nsi2026ModeledFirstFloorNavd88Ft": 7.35},
+        {"elevationNavd88Ft": 14.06, "modelElevationNavd88Ft": 14.0, "modelElevationIndex": 140},
+        {"elevationNavd88Ft": 14.10, "modelElevationNavd88Ft": 14.0, "modelElevationIndex": 140},
+        {"elevationNavd88Ft": 14.05, "modelElevationNavd88Ft": 14.0, "modelElevationIndex": 140},
+    ]
+    parcel_path.write_text(json.dumps({"features": [{"properties": row} for row in rows]}))
+    model.refresh_existing_parcel_counts(parcel_path, [], grid_cdf)
+    result = [row["properties"] for row in json.loads(parcel_path.read_text())["features"]]
+    assert result[0]["modelElevationIndex"] == 168
+    assert result[1]["modelElevationIndex"] == 71
+    assert result[2]["modelElevationIndex"] == 200
+    assert result[2]["nsi2026ModelElevationIndex"] == model.model_elevation_record(7.35, grid_cdf)[1]
+    assert result[3]["modelElevationIndex"] == 141
+    assert result[4]["modelElevationIndex"] == 141
+    assert result[5]["modelElevationIndex"] == 140, "Rounded display ties must retain the original full-precision threshold"
+    stable = parcel_path.read_bytes()
+    model.refresh_existing_parcel_counts(parcel_path, [], grid_cdf)
+    assert parcel_path.read_bytes() == stable
+print("High-ground grid construction, legacy refresh, sampled ties and NSI priority passed.")
+
+# Verify the committed migration, including every scenario, confidence band and
+# forecast year. The current high-ground tails are identical; the sixth parcel
+# still uses its NSI floor rather than its higher ground for the visible profile.
+asset_root = Path(__file__).resolve().parents[1] / "assets" / "parcel-history-v2"
+committed_cdf = json.loads((asset_root / "NorthWildwoodHouseAlertCDF.json").read_text())
+committed_parcels = json.loads((asset_root / "NorthWildwoodParcels.geojson").read_text())
+parcels_by_id = {feature["properties"]["parcelId"]: feature["properties"] for feature in committed_parcels["features"]}
+corrected_ground_indices = {
+    "0507_12_1": 168,
+    "0507_315.02_1": 150,
+    "0507_317.02_2": 173,
+    "0507_316.02_1": 192,
+    "0507_289.03_1": 150,
+    "0507_317.03_1.02": 200,
+}
+assert len(committed_cdf["annualFloodEventCount"]) == 6
+for parcel_id, ground_index in corrected_ground_indices.items():
+    properties = parcels_by_id[parcel_id]
+    assert properties["modelElevationIndex"] == ground_index
+    assert properties["modelElevationNavd88Ft"] == committed_cdf["elevationGridFtNavd88"][ground_index]
+    selected_index = properties.get("nsi2026ModelElevationIndex", ground_index)
+    previous_selected_index = properties.get("nsi2026ModelElevationIndex", 140)
+    if parcel_id == "0507_317.03_1.02":
+        assert selected_index == 73, "The occupied-floor threshold keeps priority over parcel ground"
+    else:
+        assert selected_index == ground_index
+    for scenario, record in committed_cdf["annualFloodEventCount"].items():
+        for band in ("estimate", "lower95", "upper95"):
+            actual = record[band][selected_index]
+            assert len(actual) == len(committed_cdf["years"])
+            assert actual == record[band][previous_selected_index], (parcel_id, scenario, band)
+print("All six committed high-ground metadata repairs preserve every current numeric projection and NSI priority.")

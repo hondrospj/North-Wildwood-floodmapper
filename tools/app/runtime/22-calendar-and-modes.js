@@ -468,13 +468,15 @@ function populateCalendarSelectors() {
       if (nextMinutes === previousMinutes) return;
 
       const referenceEntry = currentSeriesHours[currentHourIndex] || null;
-      // Interval and overlay choices belong to the pending observed selection.
-      // They must not cancel its data request before it has a timeline to render.
+      // Interval choices belong to a pending data selection. They must not
+      // cancel its request or preserve a timestamp from the previous mode.
       const observedSelectionPending = currentDataMode === "observed" && (
         loadObservedDay.pendingSelection?.generation === selectionGeneration ||
         switchDataMode.pendingObservedSelectionGeneration === selectionGeneration
       );
-      if (observedSelectionPending) {
+      const modeledSelectionPending = currentDataMode === "return-interval" &&
+        loadReturnInterval.pendingSelection?.generation === selectionGeneration;
+      if (observedSelectionPending || modeledSelectionPending) {
         stopPlayback();
         toast("");
         currentTimelineIntervalMinutes = nextMinutes;
@@ -512,8 +514,8 @@ function populateCalendarSelectors() {
         currentDataMode = "return-interval";
         currentViewType = "return-interval";
         updateDataModeButtons();
-        await loadReturnInterval(referenceEntry, { generation });
-        if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
+        const loaded = await loadReturnInterval(referenceEntry, { generation });
+        if (generation !== selectionGeneration || loaded === false) return false;
         await renderHour(currentHourIndex);
         return;
       }
@@ -555,6 +557,12 @@ function populateCalendarSelectors() {
       currentOverlayMode = mode;
       updateModeButtons();
 
+      if (currentDataMode === "return-interval" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {
+        setFloodFrameStatus(currentFloodLayer
+          ? "Loading modeled flood… Previous flood map shown."
+          : "Loading modeled flood…", "info");
+        return;
+      }
       await renderHour(currentHourIndex);
     }
 
@@ -590,9 +598,8 @@ function populateCalendarSelectors() {
         currentViewType = "return-interval";
         updateDataModeButtons();
         cancelPendingFloodFrame(false);
-        await loadReturnInterval(null, { generation });
-      if (floodSelectionToken !== lastRenderToken) return false;
-        if (generation !== selectionGeneration) return;
+        const loaded = await loadReturnInterval(null, { generation });
+        if (generation !== selectionGeneration || loaded === false) return false;
         renderTopTides();
         await renderHour(currentHourIndex);
         return;

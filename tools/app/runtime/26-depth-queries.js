@@ -579,8 +579,21 @@
         return;
       }
       if (context.kind === "building") {
+        const element = popup.getElement?.();
+        const previousCta = element?.querySelector(".house-alert-cta");
+        // Keep the native gesture's target connected through pointer/key up.
+        // The next animation update catches the popup up after release/cancel.
+        if (previousCta?.matches(":active")) return;
+        const focusedCta = previousCta && document.activeElement === previousCta;
+        const focusRestoreKey = previousCta?.getAttribute("data-focus-restore-key");
         popup.setContent(buildHouseAlertPopup(context.feature));
         popup.update();
+        if (focusedCta && focusRestoreKey && element.isConnected) {
+          const currentCta = element.querySelector(".house-alert-cta");
+          if (currentCta?.getAttribute("data-focus-restore-key") === focusRestoreKey) {
+            currentCta.focus({ preventScroll: true });
+          }
+        }
         return;
       }
       const displayedFrame = currentFloodLayer?._floodmapperFrame;
