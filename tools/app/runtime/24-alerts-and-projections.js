@@ -173,6 +173,7 @@
       const stage = getSelectedStageNavd88();
       const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;
       const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
+      const focusRestoreKey = p.parcelId == null ? "" : ` data-focus-restore-key="${escapeTownAddressHtml("parcel-profile:" + p.parcelId)}"`;
       const waterStatus = difference == null
         ? "Choose a water level to compare."
         : Math.abs(difference) <= 0.1
@@ -189,7 +190,7 @@
           '</strong></div>' +
           '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +
         '</div>' +
-        '<button class="house-alert-cta" type="button">See Flood History &amp; Projections</button>' +
+        '<button class="house-alert-cta" type="button"' + focusRestoreKey + '>See Flood History &amp; Projections</button>' +
         '</div>';
     }
 

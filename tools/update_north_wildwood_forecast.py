@@ -59,6 +59,7 @@ MAX_LAYER_STAGE = 20.0
 LAYER_INCREMENT = 0.1
 CYCLES_NEWEST_FIRST = (18, 12, 6, 0)
 DAYS_BACK_TO_TRY = 5
+FETCH_RETRY_BUDGET_SECONDS = 240
 
 HEADER_ALIASES = {
     "time": ["time", "valid", "validtime", "valid_time", "datetime", "date_time", "forecast_time", "src_time", "srctime"],
@@ -71,20 +72,51 @@ HEADER_ALIASES = {
 
 def fetch_bytes(url):
     last_error = None
+    # One stalled cycle must leave time to try healthy older guidance inside
+    # the scheduled job's 15-minute limit. Fast transient retries retain their
+    # existing attempt count, backoff and normal 180-second request ceiling.
+    deadline = time.monotonic() + FETCH_RETRY_BUDGET_SECONDS
     for attempt in range(1, 6):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise last_error or TimeoutError("PETSS cycle retry budget exhausted")
         try:
             req = urllib.request.Request(url, headers={"User-Agent": f"{TOWN_NAME}-floodmapper/2.0"})
-            with urllib.request.urlopen(req, timeout=180) as resp:
-                return resp.read()
+            with urllib.request.urlopen(req, timeout=min(180, remaining)) as resp:
+                chunks = []
+                read_chunk = getattr(resp, "read1", resp.read)
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError("PETSS cycle transfer budget exhausted")
+                    # HTTPResponse.read() may wait indefinitely on a body that
+                    # trickles bytes before each socket timeout. read1 returns
+                    # after one buffered/raw read, allowing the shared deadline
+                    # to be rechecked. Refresh the socket reference after each
+                    # read because the final Content-Length read may close it.
+                    sock = getattr(getattr(getattr(resp, "fp", None), "raw", None), "_sock", None)
+                    if sock is not None:
+                        sock.settimeout(min(180, remaining))
+                    chunk = read_chunk(64 * 1024)
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("PETSS cycle transfer budget exhausted")
+                    if not chunk:
+                        body = b"".join(chunks)
+                        missing = getattr(resp, "length", 0)
+                        if missing:
+                            raise http.client.IncompleteRead(body, missing)
+                        return body
+                    chunks.append(chunk)
         except urllib.error.HTTPError as exc:
             if exc.code not in {429, 500, 502, 503, 504}:
                 raise
             last_error = exc
         except (urllib.error.URLError, http.client.IncompleteRead, TimeoutError, OSError, ValueError) as exc:
             last_error = exc
-        if attempt == 5:
+        remaining = deadline - time.monotonic()
+        if attempt == 5 or remaining <= 0:
             raise last_error
-        delay = min(30.0, 2 ** attempt) + random.random() * 2.0
+        delay = min(remaining, min(30.0, 2 ** attempt) + random.random() * 2.0)
         print(f"Transient forecast fetch failure ({last_error}); retry {attempt}/5 in {delay:.1f}s")
         time.sleep(delay)
 

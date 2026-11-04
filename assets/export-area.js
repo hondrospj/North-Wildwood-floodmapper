@@ -257,7 +257,7 @@
       #exportAreaModal[hidden]{display:none!important}
       #exportAreaModal{position:fixed;inset:0;z-index:25000;background:rgba(3,9,20,.78);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
       #exportAreaModal *{box-sizing:border-box}
-      .export-area-card{width:min(900px,100%);height:min(740px,calc(100dvh - 32px));display:flex;flex-direction:column;gap:12px;padding:18px;border-radius:20px;border:1px solid #415779;background:#101d32;color:#eaf0ff;box-shadow:0 24px 80px #0008}
+      .export-area-card{width:min(900px,100%);height:min(740px,calc(100dvh - 32px));display:flex;flex-direction:column;gap:12px;padding:18px;border-radius:20px;border:1px solid #415779;background:#101d32;color:#eaf0ff;box-shadow:0 24px 80px #0008;overflow-y:auto;overscroll-behavior:contain}
       .export-area-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
       .export-area-head h3{margin:0;font-size:20px}
       #exportAreaCloseBtn{font-size:24px;min-width:44px;padding:0;line-height:1}
@@ -272,6 +272,7 @@
       #exportAreaMap .leaflet-control-zoom a{color:#17243a;background:white}
       .export-area-actions{justify-content:flex-end}
       @media(max-width:600px){#exportAreaModal{padding:8px}.export-area-card{height:calc(100dvh - 16px);padding:12px;border-radius:14px;gap:10px}.export-area-head h3{font-size:18px}.export-area-tools button{flex:1}.export-area-actions button{flex:1}#downloadExtentControl button{font-size:11px;padding:7px 4px}}
+      @media(max-height:440px){.export-area-card{padding:10px;gap:8px}#exportAreaHint{min-height:0}#exportAreaMap{min-height:64px}}
     `;
     document.head.appendChild(style);
     let control = document.getElementById("downloadExtentControl");

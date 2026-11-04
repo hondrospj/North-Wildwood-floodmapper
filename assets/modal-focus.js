@@ -6,6 +6,7 @@
   const focusable = 'button:not(:disabled),a[href],input:not(:disabled):not([type="hidden"]),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])';
   const stack = [];
   const inertBefore = new Map();
+  const restoreScopes = new WeakMap();
   let previousFocus = document.activeElement;
   let lastTrigger = null;
   let syncing = false;
@@ -47,13 +48,30 @@
     target.focus({ preventScroll: true });
   }
 
+  function rememberRestoreTarget(target) {
+    const key = target.getAttribute("data-focus-restore-key");
+    const scope = key && target.closest(".leaflet-popup,.maplibregl-popup");
+    if (scope) restoreScopes.set(target, { key, scope });
+    return target;
+  }
+
+  function currentRestoreTarget(target) {
+    if (target.isConnected) return target;
+    const saved = restoreScopes.get(target);
+    if (!saved?.scope.isConnected) return target;
+    // Animation refreshes popup contents while a property profile is open.
+    // Return to the same property's current button in the original renderer.
+    return [...saved.scope.querySelectorAll("[data-focus-restore-key]")]
+      .find(element => element.getAttribute("data-focus-restore-key") === saved.key) || target;
+  }
+
   function restoreFocus(targets) {
     const request = { targets, cancelled: false };
     pendingRestore = request;
     function attempt(framesLeft) {
       if (pendingRestore !== request) return;
       const dialog = stack.at(-1)?.dialog;
-      const candidates = targets.filter(target => (!dialog || dialog.contains(target)) && visible(target));
+      const candidates = targets.map(currentRestoreTarget).filter(target => (!dialog || dialog.contains(target)) && visible(target));
       const first = candidates[0];
       if ((request.cancelled || first?.closest('[inert]')) && framesLeft > 0) {
         // A drawer owner may restore its role and inert state in its next
@@ -111,7 +129,7 @@
         if (pendingRestore && !pendingTargets.some(target => dialog.contains(target))) pendingRestore.cancelled = true;
         const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);
         stack.push({ dialog, restore: [...new Set([
-          ...(candidate && !dialog.contains(candidate) ? [candidate] : []), ...restoreTargets, ...pendingTargets
+          ...(candidate && !dialog.contains(candidate) ? [rememberRestoreTarget(candidate)] : []), ...restoreTargets, ...pendingTargets
         ])] });
         lastTrigger = null;
       }

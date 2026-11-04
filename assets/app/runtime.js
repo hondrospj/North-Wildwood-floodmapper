@@ -1338,55 +1338,99 @@ function cloneStyleObject(value) {
     }
 
     async function loadReturnInterval(preferredEntry = null, options = {}) {
-      const floodSelectionToken = lastRenderToken;
       const generation = options.generation ?? ++selectionGeneration;
-      if (!returnIntervalData || options.forceRefresh) {
-        const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
-        if (generation !== selectionGeneration) return;
-        returnIntervalData = payload;
-      }
-      const record = getReturnIntervalRecord();
-      if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {
-        throw new Error(`${getReturnIntervalLabel()} synthetic storm is unavailable.`);
-      }
+      if (generation !== selectionGeneration) return false;
+      const request = { generation };
+      loadReturnInterval.pendingSelection = request;
+      try {
+        // A modeled selection owns its data request. Overlay and cadence
+        // changes may update that selection while its first response loads.
+        currentDataMode = "return-interval";
+        currentViewType = "return-interval";
+        currentTopTideIndex = null;
+        currentRawSeriesHours = [];
+        currentSeriesHours = [];
+        currentHourIndex = 0;
+        currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;
+        currentSelectedSubLabel = "";
+        currentRangeLabel = "";
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = "0";
+        renderSelectionMeta(null, null, null);
+        document.getElementById("stageSubText").textContent = "Loading modeled flood…";
+        renderTimelineMeta();
+        renderTimelineDays();
+        setFloodFrameStatus(currentFloodLayer
+          ? "Loading modeled flood… Previous flood map shown."
+          : "Loading modeled flood…", "info");
 
-      if (floodSelectionToken !== lastRenderToken) return false;
-      clearExportAvailabilityCache();
-      currentRawSeriesHours = annotateHydraulicSeries(record.series15min);
-      currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);
-      currentDataMode = "return-interval";
-      currentViewType = "return-interval";
-      currentTopTideIndex = null;
-      currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;
-      const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);
-      if (!Number.isFinite(targetNavd88Ft)) {
-        throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);
-      }
-      currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;
-      currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;
+        if (!returnIntervalData || options.forceRefresh) {
+          const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
+          if (generation !== selectionGeneration) return false;
+          returnIntervalData = payload;
+        }
+        if (generation !== selectionGeneration) return false;
+        const record = getReturnIntervalRecord();
+        if (!record || !Array.isArray(record.series15min) || !record.series15min.length) {
+          throw new Error(`${getReturnIntervalLabel()} synthetic storm is unavailable.`);
+        }
+        const targetNavd88Ft = Number(record.targetNavd88Ft ?? record.weightedNavd88Ft ?? record.naccsNavd88Ft);
+        if (!Number.isFinite(targetNavd88Ft)) {
+          throw new Error(`${getReturnIntervalLabel()} target water level is unavailable.`);
+        }
 
-      syncSliderBounds();
-      currentHourIndex = preferredEntry
-        ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
-        : getPeakHourIndex(currentSeriesHours);
-      document.getElementById("hourSlider").value = String(currentHourIndex);
-      updateReturnIntervalButtons();
+        clearExportAvailabilityCache();
+        currentRawSeriesHours = annotateHydraulicSeries(record.series15min);
+        currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);
+        currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;
+        currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;
+        syncSliderBounds();
+        currentHourIndex = preferredEntry
+          ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
+          : getPeakHourIndex(currentSeriesHours);
+        document.getElementById("hourSlider").value = String(currentHourIndex);
+        updateReturnIntervalButtons();
+        return true;
+      } catch (error) {
+        if (generation !== selectionGeneration || currentDataMode !== "return-interval") return false;
+        returnIntervalData = null;
+        currentRawSeriesHours = [];
+        currentSeriesHours = [];
+        currentHourIndex = 0;
+        currentSelectedSubLabel = "";
+        currentRangeLabel = "";
+        syncSliderBounds();
+        document.getElementById("hourSlider").value = "0";
+        clearFloodLayer();
+        renderSelectionMeta(null, null, null);
+        document.getElementById("stageSubText").textContent = "Modeled flood data could not load";
+        renderTimelineMeta();
+        renderTimelineDays();
+        reportFloodFrameFailure();
+        const message = "Modeled flood data could not load. Select a modeled flood to retry.";
+        setFloodFrameStatus(message, "error");
+        toast(message);
+        return false;
+      } finally {
+        if (loadReturnInterval.pendingSelection === request) loadReturnInterval.pendingSelection = null;
+      }
     }
 
     async function switchReturnInterval(years) {
       const requested = Number(years);
       if (!RETURN_INTERVAL_OPTIONS.includes(requested)) return;
-      if (requested === currentReturnIntervalYears && currentDataMode === "return-interval") return;
+      if (requested === currentReturnIntervalYears && currentDataMode === "return-interval" && currentSeriesHours.length) return;
       stopPlayback();
-      const floodSelectionToken = cancelPendingFloodFrame();
+      const generation = ++selectionGeneration;
+      cancelPendingFloodFrame();
       toast("");
       currentReturnIntervalYears = requested;
       currentDataMode = "return-interval";
       currentViewType = "return-interval";
       updateDataModeButtons();
       cancelPendingFloodFrame(false);
-      await loadReturnInterval();
-      if (floodSelectionToken !== lastRenderToken) return false;
+      const loaded = await loadReturnInterval(null, { generation });
+      if (generation !== selectionGeneration || loaded === false) return false;
       await renderHour(currentHourIndex);
     }
 
@@ -11890,13 +11934,15 @@ function populateCalendarSelectors() {
       if (nextMinutes === previousMinutes) return;
 
       const referenceEntry = currentSeriesHours[currentHourIndex] || null;
-      // Interval and overlay choices belong to the pending observed selection.
-      // They must not cancel its data request before it has a timeline to render.
+      // Interval choices belong to a pending data selection. They must not
+      // cancel its request or preserve a timestamp from the previous mode.
       const observedSelectionPending = currentDataMode === "observed" && (
         loadObservedDay.pendingSelection?.generation === selectionGeneration ||
         switchDataMode.pendingObservedSelectionGeneration === selectionGeneration
       );
-      if (observedSelectionPending) {
+      const modeledSelectionPending = currentDataMode === "return-interval" &&
+        loadReturnInterval.pendingSelection?.generation === selectionGeneration;
+      if (observedSelectionPending || modeledSelectionPending) {
         stopPlayback();
         toast("");
         currentTimelineIntervalMinutes = nextMinutes;
@@ -11934,8 +11980,8 @@ function populateCalendarSelectors() {
         currentDataMode = "return-interval";
         currentViewType = "return-interval";
         updateDataModeButtons();
-        await loadReturnInterval(referenceEntry, { generation });
-        if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
+        const loaded = await loadReturnInterval(referenceEntry, { generation });
+        if (generation !== selectionGeneration || loaded === false) return false;
         await renderHour(currentHourIndex);
         return;
       }
@@ -11977,6 +12023,12 @@ function populateCalendarSelectors() {
       currentOverlayMode = mode;
       updateModeButtons();
 
+      if (currentDataMode === "return-interval" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {
+        setFloodFrameStatus(currentFloodLayer
+          ? "Loading modeled flood… Previous flood map shown."
+          : "Loading modeled flood…", "info");
+        return;
+      }
       await renderHour(currentHourIndex);
     }
 
@@ -12012,9 +12064,8 @@ function populateCalendarSelectors() {
         currentViewType = "return-interval";
         updateDataModeButtons();
         cancelPendingFloodFrame(false);
-        await loadReturnInterval(null, { generation });
-      if (floodSelectionToken !== lastRenderToken) return false;
-        if (generation !== selectionGeneration) return;
+        const loaded = await loadReturnInterval(null, { generation });
+        if (generation !== selectionGeneration || loaded === false) return false;
         renderTopTides();
         await renderHour(currentHourIndex);
         return;
@@ -12599,6 +12650,7 @@ function startPlayback() {
       const stage = getSelectedStageNavd88();
       const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;
       const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
+      const focusRestoreKey = p.parcelId == null ? "" : ` data-focus-restore-key="${escapeTownAddressHtml("parcel-profile:" + p.parcelId)}"`;
       const waterStatus = difference == null
         ? "Choose a water level to compare."
         : Math.abs(difference) <= 0.1
@@ -12615,7 +12667,7 @@ function startPlayback() {
           '</strong></div>' +
           '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +
         '</div>' +
-        '<button class="house-alert-cta" type="button">See Flood History &amp; Projections</button>' +
+        '<button class="house-alert-cta" type="button"' + focusRestoreKey + '>See Flood History &amp; Projections</button>' +
         '</div>';
     }
 
@@ -13722,8 +13774,21 @@ function startPlayback() {
         return;
       }
       if (context.kind === "building") {
+        const element = popup.getElement?.();
+        const previousCta = element?.querySelector(".house-alert-cta");
+        // Keep the native gesture's target connected through pointer/key up.
+        // The next animation update catches the popup up after release/cancel.
+        if (previousCta?.matches(":active")) return;
+        const focusedCta = previousCta && document.activeElement === previousCta;
+        const focusRestoreKey = previousCta?.getAttribute("data-focus-restore-key");
         popup.setContent(buildHouseAlertPopup(context.feature));
         popup.update();
+        if (focusedCta && focusRestoreKey && element.isConnected) {
+          const currentCta = element.querySelector(".house-alert-cta");
+          if (currentCta?.getAttribute("data-focus-restore-key") === focusRestoreKey) {
+            currentCta.focus({ preventScroll: true });
+          }
+        }
         return;
       }
       const displayedFrame = currentFloodLayer?._floodmapperFrame;
@@ -14865,6 +14930,7 @@ function startPlayback() {
         };
 
         const activatePlay = event => {
+          if (playButton.disabled || (event && typeof event.button === "number" && event.button !== 0)) return;
           if (event) {
             event.preventDefault();
             event.stopPropagation();
@@ -14872,24 +14938,15 @@ function startPlayback() {
           }
 
 
-          const now = performance.now ? performance.now() : Date.now();
-          const lockedUntil = Number(playButton.dataset.playLockedUntil || 0);
-          if (now < lockedUntil) return;
-          playButton.dataset.playLockedUntil = String(now + 240);
-
           playButton.classList.add("just-pressed");
           window.setTimeout(() => playButton.classList.remove("just-pressed"), 160);
           togglePlayback(event);
         };
 
-        playButton.addEventListener("pointerdown", activatePlay, { capture:true });
+        // Native click covers completed mouse/touch gestures and Enter/Space.
+        // Activating on pointerdown as well toggles twice after a longer press.
         playButton.addEventListener("click", activatePlay, { capture:true });
-        playButton.addEventListener("keydown", event => {
-          if (event.key === "Enter" || event.key === " ") activatePlay(event);
-        });
-
-
-        document.addEventListener("pointerdown", event => {
+        document.addEventListener("click", event => {
           if (playButton.contains(event.target)) return;
           // The enlarged hit area must not intercept dialogs or other buttons.
           if (!event.target?.closest?.("#timelineDock") || event.target.closest("button, input, select, a")) return;

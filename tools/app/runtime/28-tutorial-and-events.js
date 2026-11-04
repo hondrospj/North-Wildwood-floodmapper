@@ -292,6 +292,7 @@
         };
 
         const activatePlay = event => {
+          if (playButton.disabled || (event && typeof event.button === "number" && event.button !== 0)) return;
           if (event) {
             event.preventDefault();
             event.stopPropagation();
@@ -299,24 +300,15 @@
           }
 
 
-          const now = performance.now ? performance.now() : Date.now();
-          const lockedUntil = Number(playButton.dataset.playLockedUntil || 0);
-          if (now < lockedUntil) return;
-          playButton.dataset.playLockedUntil = String(now + 240);
-
           playButton.classList.add("just-pressed");
           window.setTimeout(() => playButton.classList.remove("just-pressed"), 160);
           togglePlayback(event);
         };
 
-        playButton.addEventListener("pointerdown", activatePlay, { capture:true });
+        // Native click covers completed mouse/touch gestures and Enter/Space.
+        // Activating on pointerdown as well toggles twice after a longer press.
         playButton.addEventListener("click", activatePlay, { capture:true });
-        playButton.addEventListener("keydown", event => {
-          if (event.key === "Enter" || event.key === " ") activatePlay(event);
-        });
-
-
-        document.addEventListener("pointerdown", event => {
+        document.addEventListener("click", event => {
           if (playButton.contains(event.target)) return;
           // The enlarged hit area must not intercept dialogs or other buttons.
           if (!event.target?.closest?.("#timelineDock") || event.target.closest("button, input, select, a")) return;

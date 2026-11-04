@@ -12,6 +12,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const source = readAppSource(path.join(here, "..", "index.html"));
 const rendererSource = fs.readFileSync(path.join(here, "..", "assets/3d/north-wildwood-3d.js"), "utf8");
 const rendererVersion = createHash("sha256").update(rendererSource).digest("hex").slice(0, 16);
+const areaVersion = createHash("sha256").update(fs.readFileSync(path.join(here, "..", "assets/export-area.js"))).digest("hex").slice(0, 16);
 
 function extractFunction(name, sourceText = source) {
   const source = sourceText;
@@ -37,7 +38,7 @@ assert.deepEqual(parserBlockingScripts, [
   `./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&roadlabels=20261030-v1&deep=${rendererVersion}`,
   "./assets/road-impacts.js?v=20261002-road-impacts-default-off",
   "assets/avalon-mobile.js?v=20261026-holistic1",
-  "assets/export-area.js?v=5a855541ebdd2d2d",
+  `assets/export-area.js?v=${areaVersion}`,
 ]);
 
 assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+jszip[\s\S]+geotiff/);

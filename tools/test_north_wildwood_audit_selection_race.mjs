@@ -36,6 +36,7 @@ function setup(stage = 'archive') {
     currentSelectedLabel: 'Mean', currentSelectedSubLabel: '', currentRangeLabel: '', currentMonthKey: '',
     stopPlayback() {}, cancelPendingFloodFrame(invalidate = true) {if (invalidate) c.lastRenderToken++; return c.lastRenderToken;},
     updateDataModeButtons() {}, updateModeButtons() {}, toast() {},
+    async loadReturnInterval() {},
     warmBackgroundData: () => stage === 'warmup' ? hold.promise : Promise.resolve(),
     getObservedArchiveSourceForDate: () => stage === 'lewes-index' ? 'lewes' : 'stone-harbor',
     ensureLewesArchiveIndex: () => stage === 'lewes-index' ? hold.promise : Promise.resolve(),

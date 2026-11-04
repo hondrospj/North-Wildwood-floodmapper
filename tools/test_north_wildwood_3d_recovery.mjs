@@ -2,7 +2,7 @@ import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:asser
 const s=fs.readFileSync(new URL('../assets/3d/north-wildwood-3d.js', import.meta.url),'utf8');
 function fn(n){const start=s.search(new RegExp('^  (?:async )?function '+n+'\\(','m'));assert(start>=0);const end=s.indexOf('\n  }',start)+4;return s.slice(start,end);}
 const classes=new Set();const body={dataset:{},classList:{add:n=>classes.add(n),remove:n=>classes.delete(n)}};
-const ctx={glMap:null,glMapPromise:null,glStyleReady:false,document:{body,getElementById:()=>({})},map:null,window:{setTimeout,clearTimeout},console:{warn:()=>{}},MAP_MAX_ZOOM:20,DEFAULT_PITCH:0,DEFAULT_BEARING:0,TERRAIN_EXAGGERATION:4,loadMapLibreRuntime:async()=>{},load3dStyle:async()=>({}),syncBuildings3d:async()=>{throw Error('building request failed')},maplibregl:{Map:class{on(){} once(n,cb){cb()}getPitch(){return 0}remove(){this.removed=true}}}};
+const ctx={glMap:null,glMapPromise:null,glStyleReady:false,mapStylePromise:null,buildingDataPromise:null,document:{body,getElementById:()=>({})},map:null,window:{setTimeout,clearTimeout},console:{warn:()=>{}},MAP_MAX_ZOOM:20,DEFAULT_PITCH:0,DEFAULT_BEARING:0,TERRAIN_EXAGGERATION:4,loadMapLibreRuntime:async()=>{},load3dStyle:async()=>({}),syncBuildings3d:async()=>{throw Error('building request failed')},maplibregl:{Map:class{on(){} once(n,cb){cb()}getPitch(){return 0}remove(){this.removed=true}}}};
 for(const n of ['schedulePersistentNavControlSync','syncFloodPresentationMode','syncPersistentNavControl','addCore3dLayers','wire3dInteractions','wire3dContextRecovery','syncBoundary3d','syncFloodLayer3d','syncSatellite3d','syncRoadLabels3d','syncParcels3d','syncNsi3d','updateDiagnostics','suspendLeafletVisualLayers'])ctx[n]=()=>{};
 vm.createContext(ctx);vm.runInContext(fn('ensure3dMap'),ctx);await ctx.ensure3dMap();assert.equal(ctx.glMap,null);assert(!classes.has('map-3d-ready'));
 const elements=new Map();let scripts=0;const runtime={window:{setTimeout,clearTimeout},mapLibreRuntimePromise:null,MAPLIBRE_CSS_URL:'style',MAPLIBRE_JS_URL:'script',document:{getElementById:id=>elements.get(id),createElement:tag=>({tag,dataset:{},remove(){elements.delete(this.id)},addEventListener:()=>{}}),head:{appendChild:el=>{elements.set(el.id,el);if(el.tag==='script')scripts++;queueMicrotask(()=>el.tag==='script'?el.onerror():el.onload());}}}};
@@ -18,7 +18,7 @@ let failBuildings=true;
 const buildings={
   TOWN_CONFIG:null, APP_BASE:new URL('https://example.test/north-wildwood/'), URL,
   buildingData:null, buildingDataPromise:null, TERRAIN_EXAGGERATION:4,
-  document:{body:{dataset:{}}}, console,
+  document:{body:{dataset:{}}}, console, AbortController, window:{setTimeout,clearTimeout},
   buildingInsideMunicipality:()=>true,
   prepareVisualBuildingGround:features=>({values:features.map(()=>({value:2,source:'test ground'})),measuredCount:features.length,derivedCount:0,medianCount:0}),
   fetch:async url=>{
@@ -32,7 +32,7 @@ const buildings={
 };
 vm.createContext(buildings);
 // Include any module-level captured URLs, as well as the real loader.
-vm.runInContext(s.split('\n').filter(line=>/^  var (?:BUILDINGS_3D_URL|MUNICIPAL_BOUNDARY_3D_URL) =/.test(line)).join('\n')+'\n'+fn('loadBuildingData'),buildings);
+vm.runInContext(s.split('\n').filter(line=>/^  var (?:BUILDINGS_3D_URL|MUNICIPAL_BOUNDARY_3D_URL) =/.test(line)).join('\n')+'\n'+fn('fetch3dJson')+'\n'+fn('loadBuildingData'),buildings);
 buildings.TOWN_CONFIG={structures:{buildings3dPath:'./assets/Buildings.geojson?v=1'},boundary:{boundaryUrl:'./Boundaries/town.geojson'}};
 await assert.rejects(buildings.loadBuildingData(),/building asset could not be loaded/);
 assert.equal(buildings.buildingData,null);

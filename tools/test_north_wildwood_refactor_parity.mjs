@@ -11,9 +11,50 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readRaw = relative => fs.readFileSync(localPath(relative), "utf8");
+const readActual = relative => fs.readFileSync(localPath(relative), "utf8");
+const readRaw = relative => readFollowupReviewed(relative);
 const read = relative => readDeepReviewed(relative);
 const sha256 = source => createHash("sha256").update(source).digest("hex");
+// Pin every current follow-up byte, then invert only exact reviewed fragments.
+// All earlier fixtures and their assertions still receive their original input.
+const FOLLOWUP_PATH = "tools/fixtures/north-wildwood-20261103-followup-debug.json";
+const followupText = readActual(FOLLOWUP_PATH);
+assert.equal(sha256(followupText), "51ec45d7931410dfaec0257e9cc1452650e27630d18c9187d499fdfc9b5695e1",
+  "The follow-up inverse must retain its exact reviewed fixture");
+const followup = JSON.parse(followupText);
+assert.equal(followup.schemaVersion, 1);
+assert.equal(followup.baselineCommit, "ec552d376a8a82a590f96f9eb6567f9685a2d02c");
+assert.deepEqual(followup.files.map(file => file.source), [
+  "tools/app/runtime/02-data-and-datums.js", "tools/app/runtime/22-calendar-and-modes.js",
+  "tools/app/runtime/24-alerts-and-projections.js", "tools/app/runtime/26-depth-queries.js",
+  "tools/app/runtime/28-tutorial-and-events.js", "assets/3d/north-wildwood-3d.js",
+  "assets/modal-focus.js", "assets/export-area.js", "tools/app/town-config.js",
+  "assets/app/town-config.js", "assets/app/runtime.js", "tools/app/index.template.html", "index.html", "city-gauge/index.html"
+]);
+function readFollowupReviewed(relative) {
+  const source = readActual(relative), file = followup.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed follow-up fixes`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(sha256(block.beforeSource), block.beforeSha256);
+    assert.equal(sha256(block.afterSource), block.afterSha256);
+    assert.ok(block.beforeSource.length && block.afterSource.length);
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}:${block.afterLine} requires one exact owned fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-follow-up byte`);
+  return restored;
+}
+for (const file of followup.files) readFollowupReviewed(file.source);
+for (const [relative, parameter] of [["assets/3d/north-wildwood-3d.js", "deep"], ["assets/modal-focus.js", "v"], ["assets/export-area.js", "v"], ["assets/app/runtime.js", "v"], ["assets/app/town-config.js", "v"]]) {
+  for (const document of ["index.html", ...(relative.startsWith("assets/app/") ? [] : ["tools/app/index.template.html"])]) {
+    const tags = [...readActual(document).matchAll(/<script[^>]+src="([^"]+)"[^>]*>/g)];
+    const urls = tags.map(match => new URL(match[1], "https://followup.invalid/")).filter(url => url.pathname.slice(1) === relative);
+    assert.equal(urls.length, 1, `${document}: one exact dependency for ${relative}`);
+    assert.equal(urls[0].searchParams.get(parameter), sha256(readActual(relative)).slice(0, 16), `${relative}: content cache key must match its current bytes`);
+  }
+}
 const baseline = JSON.parse(readRaw("tools/fixtures/north-wildwood-refactor-baseline.json"));
 const manifest = JSON.parse(readRaw("tools/app/manifest.json"));
 
@@ -2105,7 +2146,8 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
 console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement/frame-reuse/October-30-scalable-road-labels inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
-  const read = readRaw;
+  const readRaw = readActual;
+  const read = readActual;
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
   try {
     for (const relative of ["tools/app", "assets/app", "assets/styles", "assets/export-preview.js", FONT_FAMILY_SOURCE,
@@ -2122,7 +2164,7 @@ if (process.argv.includes("--self-test")) {
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
-      boundaryStartup.featureSource, "index.html"]) {
+      boundaryStartup.featureSource, FOLLOWUP_PATH, "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
@@ -2134,16 +2176,19 @@ if (process.argv.includes("--self-test")) {
     // Mutation inputs must use actual current documents/cache tags, not inverses.
     const template = read("tools/app/index.template.html"), published = read("index.html");
     const activeRoadLabelTag = roadFallback.afterScriptTag;
+    const currentDependencyTag = output => [...template.matchAll(/<script[^>]+src="([^"]+)"[^>]*><\/script>/g)].find(match => new URL(match[1], "https://followup.invalid/").pathname.slice(1) === output)?.[0];
+    const active3dTag = currentDependencyTag(DEEP_3D), activeAreaTag = currentDependencyTag(AUDIT_LOGIC_MODULE);
     const activePickerTag = ariaSemantics.documentTags[0].afterSource;
     const scratchHtml = path.join(scratch, "index.html");
     const scriptTags = Array.from(published.matchAll(/<script\b[^>]*data-nww-script[^>]*><\/script>/g), match => match[0]);
     const styleTags = Array.from(published.matchAll(/<link\b[^>]*data-nww-style-bundle[^>]*>/g), match => match[0]);
-    const activeRuntimeTag = deepReviewed.documentTags.find(tag => tag.output === DEEP_RUNTIME).afterSource;
+    const activeRuntimeTag = scriptTags.find(tag => tag.includes("assets/app/runtime.js?"));
     const captureSource = read(CLONE_CLEANUP_SOURCE);
     const deepFunctionCase = (name, relative, owner, mutate) => {
       const source = read(relative), block = deepReviewed.changes.find(block => block.source === relative && block.functionOwner === owner);
       assert.ok(block, `${name}: a mutation must name one reviewed function`);
-      return [name, path.join(scratch, relative), source.replace(block.afterSource, mutate(block.afterSource, block))];
+      const owned = deepOwnedFunction(source, owner, relative === DEEP_3D ? 2 : 4);
+      return [name, path.join(scratch, relative), source.replace(owned, mutate(owned, block))];
     };
     const deepCases = [
       ["broadened deep-fix owner list", path.join(scratch, DEEP_REVIEW_PATH),
@@ -2171,7 +2216,7 @@ if (process.argv.includes("--self-test")) {
       deepFunctionCase("lost pending observed selection ownership", DEEP_OWNERS[6][0], "loadObservedDay",
         source => source.replace('loadObservedDay.pendingSelection = { generation, dateStr };', '')),
       deepFunctionCase("cancelled a pending observed day on cadence choice", DEEP_OWNERS[6][0], "setTimelineIntervalMinutes",
-        source => source.replace('if (observedSelectionPending) {', 'if (false) {')),
+        source => source.replace('if (observedSelectionPending || modeledSelectionPending) {', 'if (modeledSelectionPending) {')),
       deepFunctionCase("lost pending observed-mode generation", DEEP_OWNERS[6][0], "switchDataMode",
         source => source.replace('switchDataMode.pendingObservedSelectionGeneration = generation;', '')),
       deepFunctionCase("overwrote building-layer interaction ownership", DEEP_OWNERS[7][0], "setNsiStructuresEnabled",
@@ -2199,9 +2244,9 @@ if (process.argv.includes("--self-test")) {
       ["stale deep runtime content key", scratchHtml,
         published.replace(activeRuntimeTag, deepReviewed.documentTags[0].beforeSource)],
       ["omitted deep 3D cache key from template", path.join(scratch, DEEP_TEMPLATE),
-        template.replace(deepReviewed.documentTags[1].afterSource, deepReviewed.documentTags[1].beforeSource)],
+        template.replace(active3dTag, deepReviewed.documentTags[1].beforeSource)],
       ["stale deep 3D cache key in published HTML", scratchHtml,
-        published.replace(deepReviewed.documentTags[1].afterSource, deepReviewed.documentTags[1].afterSource.replace(/&deep=[a-f0-9]{16}/, '&deep=0000000000000000'))],
+        published.replace(active3dTag, active3dTag.replace(/&deep=[a-f0-9]{16}/, '&deep=0000000000000000'))],
       ["changed visible labels with deep fixes", scratchHtml, published.replace('>Export Map</button>', '>Unreviewed export text</button>')]
     ];
     assert.equal(deepCases.length, 29, "Retain the deep data/state, renderer, cache and UI boundary mutations");
@@ -2328,7 +2373,7 @@ if (process.argv.includes("--self-test")) {
       ["stale audit runtime cache key", scratchHtml,
         published.replace(activeRuntimeTag, auditLogic.documentTags[0].beforeSource)],
       ["stale export-area source cache key", path.join(scratch, "tools/app/index.template.html"),
-        template.replace(auditLogic.documentTags[1].afterSource, auditLogic.documentTags[1].beforeSource)],
+        template.replace(activeAreaTag, auditLogic.documentTags[1].beforeSource)],
       ["changed UI font during logic audit", path.join(scratch, "tools/app/styles/style-002.css"),
         read("tools/app/styles/style-002.css").replace("--sidebar-text:12px", "--sidebar-text:11px")],
       ["changed mapper UI label during logic audit", path.join(scratch, "tools/app/index.template.html"),
@@ -2635,6 +2680,20 @@ if (process.argv.includes("--self-test")) {
     assert.equal(ariaSemanticsCases.length, 23, "Retain all semantic role/state/focus, exact owner, cache, font and UI boundary mutations");
     allCases.push(...ariaSemanticsCases);
     assert.equal(allCases.length, 224, "Preserve all 201 earlier cases and append 23 invisible-semantic boundary mutations");
+    const followupCases = [
+      ["broadened follow-up inverse ownership", path.join(scratch, FOLLOWUP_PATH), followupText.replace('"scope":', '"unreviewedScope":')],
+      ...followup.files.flatMap(file => {
+        const current = readActual(file.source);
+        return [
+          [`unreviewed follow-up byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed follow-up byte */\n"],
+          ...file.changes.map((block, index) => [`reverted follow-up fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(block.afterSource, block.beforeSource)])
+        ];
+      })
+    ];
+    assert.equal(followupCases.length, 66, "Retain all fourteen file boundaries and fifty-one exact follow-up fragments");
+    allCases.push(...followupCases);
+    assert.equal(allCases.length, 290, "Retain all 224 earlier cases and append 66 follow-up boundaries");
+    assert.deepEqual(allCases.filter(([, target, altered]) => fs.readFileSync(target, "utf8") === altered).map(([name]) => name), [], "Every retained mutation must alter the actual current artifact");
     for (const [name, target, altered] of allCases) {
       const before = fs.readFileSync(target);
       assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);

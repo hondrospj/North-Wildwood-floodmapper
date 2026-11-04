@@ -2,17 +2,56 @@
 from pathlib import Path
 from datetime import datetime, timezone
 import copy
+from contextlib import contextmanager
+import http.client
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
 import importlib.util
 import io
 import json
 import tarfile
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import Mock, patch
 import urllib.error
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@contextmanager
+def local_http_response(serve):
+    """Use a private background HTTP server and stop/join every test thread."""
+    stop = threading.Event()
+    handlers = []
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = 'HTTP/1.1'
+        def do_GET(self):
+            handlers.append(threading.current_thread())
+            self.close_connection = True
+            try:
+                serve(self, stop)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass  # The client closes its response when the deadline expires.
+        def log_message(self, *args):
+            pass
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01), daemon=True)
+    thread.start()
+    try:
+        yield f'http://127.0.0.1:{server.server_port}/fixture'
+    finally:
+        stop.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+        for handler in handlers:
+            handler.join(timeout=2)
+        if thread.is_alive() or any(handler.is_alive() for handler in handlers):
+            raise RuntimeError('Local HTTP fixture left a running thread')
+
 
 def generator():
     """Import a fresh, side-effect-free instance for tests that replace globals."""
@@ -188,6 +227,107 @@ class ForecastGenerationFixtures(unittest.TestCase):
                         self.g['fetch_bytes']('https://example.invalid/fixture')
         self.assertEqual(open_url.call_count, 5)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [2.0, 4.0, 8.0, 16.0])
+
+    def test_stalled_newest_cycle_leaves_time_for_healthy_older_guidance(self):
+        clock = [0.0]
+        requests = []
+        def transport(request, timeout):
+            requests.append((request.full_url, timeout, clock[0]))
+            if 'petss.20261023/petss.t00z' in request.full_url:
+                clock[0] += timeout
+                raise TimeoutError('Latest cycle transport stalled')
+            return io.BytesIO(self.archive())
+        def advance(seconds):
+            clock[0] += seconds
+        with patch.object(self.g['urllib'].request, 'urlopen', side_effect=transport):
+            with patch.object(self.g['time'], 'monotonic', side_effect=lambda: clock[0]):
+                with patch.object(self.g['time'], 'sleep', side_effect=advance):
+                    with patch.object(self.g['random'], 'random', return_value=0):
+                        result = self.g['build_forecast'](self.NOW)
+        older = next(request for request in requests if 'petss.20261022/petss.t18z' in request[0])
+        self.assertLess(older[2], 900, 'Healthy fallback must be attempted before the workflow is killed')
+        self.assertEqual(older[2], self.g['FETCH_RETRY_BUDGET_SECONDS'])
+        self.assertEqual(result['petssCycleUtc'], '2026-10-22T18:00:00Z')
+        self.assertEqual(len(result['hours']), 85)
+        self.assertEqual([request[1] for request in requests[:2]], [180, 58])
+
+    def test_retry_budget_caps_backoff_without_waiting_past_the_deadline(self):
+        clock = [0.0]
+        def fail_near_deadline(request, timeout):
+            clock[0] += timeout - 1
+            raise urllib.error.URLError('Disconnected near the deadline')
+        with patch.dict(self.g, {'FETCH_RETRY_BUDGET_SECONDS': 1.0}):
+            with patch.object(self.g['urllib'].request, 'urlopen', side_effect=fail_near_deadline) as open_url:
+                with patch.object(self.g['time'], 'monotonic', side_effect=lambda: clock[0]):
+                    with patch.object(self.g['time'], 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0] + seconds)) as sleep:
+                        with patch.object(self.g['random'], 'random', return_value=0):
+                            with self.assertRaises(urllib.error.URLError):
+                                self.g['fetch_bytes']('https://example.invalid/fixture')
+        self.assertEqual(clock[0], 1.0)
+        self.assertEqual(open_url.call_count, 1)
+        self.assertEqual(sleep.call_args.args[0], 1.0)
+
+
+    def test_real_http_drip_body_cannot_outlive_transfer_budget(self):
+        requests = []
+        def drip(handler, stop):
+            requests.append(handler.path)
+            handler.send_response(200)
+            handler.send_header('Content-Length', '100')
+            handler.end_headers()
+            for _ in range(100):
+                handler.wfile.write(b'x')
+                handler.wfile.flush()
+                if stop.wait(0.04):
+                    break
+        with local_http_response(drip) as url:
+            with patch.dict(self.g, {'FETCH_RETRY_BUDGET_SECONDS': 0.25}):
+                started = time.perf_counter()
+                with self.assertRaises((TimeoutError, urllib.error.URLError)):
+                    self.g['fetch_bytes'](url)
+                elapsed = time.perf_counter() - started
+        self.assertEqual(len(requests), 1)
+        self.assertLess(elapsed, 1.5, 'Progressing bytes must not reset the total transfer deadline')
+
+    def test_real_http_held_body_uses_budget_remaining_after_headers(self):
+        timeouts = []
+        def held(handler, stop):
+            stop.wait(0.08)  # Headers consume part of this request's total budget.
+            handler.send_response(200)
+            handler.send_header('Content-Length', '1')
+            handler.end_headers()
+            stop.wait(3)
+        original = http.client.HTTPResponse.read1
+        def observed_read1(response, size):
+            sock = getattr(getattr(getattr(response, 'fp', None), 'raw', None), '_sock', None)
+            if sock is not None:
+                timeouts.append(sock.gettimeout())
+            return original(response, size)
+        with local_http_response(held) as url:
+            with patch.dict(self.g, {'FETCH_RETRY_BUDGET_SECONDS': 0.30}):
+                with patch.object(http.client.HTTPResponse, 'read1', new=observed_read1):
+                    with self.assertRaises((TimeoutError, urllib.error.URLError)):
+                        self.g['fetch_bytes'](url)
+        self.assertTrue(timeouts)
+        self.assertGreater(timeouts[0], 0)
+        self.assertLess(timeouts[0], 0.26, 'Body read must use the remaining budget, not a fresh timeout')
+
+    def test_real_http_truncated_body_retries_same_cycle_then_succeeds(self):
+        requests = []
+        def truncated_then_healthy(handler, stop):
+            requests.append(handler.path)
+            payload = b'partial' if len(requests) == 1 else b'healthy archive'
+            handler.send_response(200)
+            handler.send_header('Content-Length', str(len(payload) + (6 if len(requests) == 1 else 0)))
+            handler.end_headers()
+            handler.wfile.write(payload)
+            handler.wfile.flush()
+        with local_http_response(truncated_then_healthy) as url:
+            with patch.object(self.g['time'], 'sleep') as sleep:
+                with patch.object(self.g['random'], 'random', return_value=0):
+                    self.assertEqual(self.g['fetch_bytes'](url), b'healthy archive')
+        self.assertEqual(len(requests), 2)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [2.0])
 
 
 if __name__ == '__main__':

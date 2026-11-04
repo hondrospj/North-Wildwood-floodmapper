@@ -166,7 +166,7 @@
   },
   "parcels": {
     "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1",
-    "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=20260816-nsi-2026-floor-v1",
+    "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=868d0bc815720158",
     "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260816-nsi-2026-floor-v1"
   },
   "structures": {
