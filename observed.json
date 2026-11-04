@@ -7,9 +7,9 @@
   "datum": "NAVD88",
   "timeZone": "America/New_York",
   "method": "Hourly maxima derived from the city-primary composite 15-minute archive; Stone Harbor supplies missing city anchors",
-  "lastProcessedISO": "2026-11-04T04:39:41Z",
+  "lastProcessedISO": "2026-11-04T05:40:02Z",
   "archiveStartDate": "2007-10-01",
-  "archiveEndDate": "2026-11-03",
+  "archiveEndDate": "2026-11-04",
   "navd88OffsetFromMllwFt": -2.75,
   "thresholdsMLLW": {
     "minorLow": 6.0,
@@ -1681913,16 +1681913,34 @@
           "timeLocal": "2026-11-03T23:00",
           "timeEST": "2026-11-03T23:00",
           "displayTimeEST": "2026-11-03T23:00",
-          "navd88StageFt": -1.42,
-          "mllwStageFt": 1.33,
+          "navd88StageFt": -1.02,
+          "mllwStageFt": 1.73,
           "hydraulicPhase": "filling"
+        }
+      ]
+    },
+    {
+      "date": "2026-11-04",
+      "classification": "none",
+      "peakNAVD88": -0.61,
+      "peakMLLW": 2.14,
+      "hours": [
+        {
+          "hourIndex": 0,
+          "timeUtc": "2026-11-04T05:00:00Z",
+          "timeLocal": "2026-11-04T00:00",
+          "timeEST": "2026-11-04T00:00",
+          "displayTimeEST": "2026-11-04T00:00",
+          "navd88StageFt": -0.61,
+          "mllwStageFt": 2.14,
+          "hydraulicPhase": "slack"
         }
       ]
     }
   ],
   "fullArchiveBuiltISO": "2026-06-29T21:25:49Z",
   "sourceUrlTemplate": "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=01411360&parameterCd=72279&startDT=2026-06-27T21%3A00%3A00Z&endDT=2026-06-29T21%3A00%3A00Z&siteStatus=all",
-  "lastIncrementalUpdateISO": "2026-11-04T04:39:41Z",
+  "lastIncrementalUpdateISO": "2026-11-04T05:40:02Z",
   "schema": "north-wildwood-composite-gauge-hourly-v2",
   "jonasCalibration": {
     "date": "2016-01-23",
