@@ -4,7 +4,9 @@ function fn(n){const start=s.search(new RegExp('^  (?:async )?function '+n+'\\('
 const classes=new Set();const body={dataset:{},classList:{add:n=>classes.add(n),remove:n=>classes.delete(n)}};
 const ctx={glMap:null,glMapPromise:null,glStyleReady:false,mapStylePromise:null,buildingDataPromise:null,document:{body,getElementById:()=>({})},map:null,window:{setTimeout,clearTimeout},console:{warn:()=>{}},MAP_MAX_ZOOM:20,DEFAULT_PITCH:0,DEFAULT_BEARING:0,TERRAIN_EXAGGERATION:4,loadMapLibreRuntime:async()=>{},load3dStyle:async()=>({}),syncBuildings3d:async()=>{throw Error('building request failed')},maplibregl:{Map:class{on(){} once(n,cb){cb()}getPitch(){return 0}remove(){this.removed=true}}}};
 for(const n of ['schedulePersistentNavControlSync','syncFloodPresentationMode','syncPersistentNavControl','addCore3dLayers','wire3dInteractions','wire3dContextRecovery','syncBoundary3d','syncFloodLayer3d','syncSatellite3d','syncRoadLabels3d','syncParcels3d','syncNsi3d','updateDiagnostics','suspendLeafletVisualLayers'])ctx[n]=()=>{};
+ctx.retryFloodRecovery3d=()=>Promise.resolve(false);
 vm.createContext(ctx);vm.runInContext(fn('ensure3dMap'),ctx);await ctx.ensure3dMap();assert.equal(ctx.glMap,null);assert(!classes.has('map-3d-ready'));
+assert.equal(ctx.retryFloodRecovery3d,null,'Startup rollback cannot retain a retired map recovery action');
 const elements=new Map();let scripts=0;const runtime={window:{setTimeout,clearTimeout},mapLibreRuntimePromise:null,MAPLIBRE_CSS_URL:'style',MAPLIBRE_JS_URL:'script',document:{getElementById:id=>elements.get(id),createElement:tag=>({tag,dataset:{},remove(){elements.delete(this.id)},addEventListener:()=>{}}),head:{appendChild:el=>{elements.set(el.id,el);if(el.tag==='script')scripts++;queueMicrotask(()=>el.tag==='script'?el.onerror():el.onload());}}}};
 vm.createContext(runtime);vm.runInContext(fn('loadMapLibreRuntime'),runtime);await runtime.loadMapLibreRuntime().catch(()=>{});
 const retry=await Promise.race([runtime.loadMapLibreRuntime().then(()=>'resolved',()=>'rejected'),new Promise(r=>setTimeout(()=>r('still-pending'),30))]);assert.equal(retry,'rejected');assert.equal(scripts,2);
@@ -80,18 +82,20 @@ function pendingPlane(url) {
 async function flushRecovery() { for(let i=0;i<12;i++)await Promise.resolve(); }
 function recoveryHarness(planes) {
   const listeners=new Map(),timers=new Map(),statuses=[],warnings=[];
+  const nativeSource={};
   let timerId=0,styleLoaded=false,repaints=0;
   const mapInstance={
     on(name,callback){if(!listeners.has(name))listeners.set(name,new Set());listeners.get(name).add(callback);},
     off(name,callback){listeners.get(name)?.delete(callback);},
     emit(name){for(const callback of [...(listeners.get(name)||[])])callback();},
-    isStyleLoaded(){return styleLoaded;},triggerRepaint(){repaints++;}
+    isStyleLoaded(){return styleLoaded;},triggerRepaint(){repaints++;},getSource(){return nativeSource;}
   };
   const context={glMap:mapInstance,glStyleReady:true,floodPlaneLayer:pendingPlane('before-loss'),
     document:{body:{dataset:{map3d:'ready'}}},
     window:{setTimeout(callback,delay){const id=++timerId;timers.set(id,{callback,delay});return id;},clearTimeout(id){timers.delete(id);}},
     console:{warn(...args){warnings.push(args);}},setStatus(message){statuses.push(message||null);},
     syncFloodLayer3d(){context.floodPlaneLayer=planes.shift()||null;},syncBuildings3d:async()=>{},
+    waitForNativeFloodImage3d:async()=>true,
   };
   for(const name of ['syncBoundary3d','syncSatellite3d','syncRoadLabels3d','syncParcels3d','syncNsi3d','syncPersistentNavControl'])context[name]=()=>{};
   vm.createContext(context);vm.runInContext(fn('wire3dContextRecovery'),context);
@@ -104,6 +108,52 @@ function recoveryHarness(planes) {
     finish(plane,ready=true){plane.textureReady=ready;if(ready)plane.committedUrl=plane.url;plane.pending.resolve(ready);},
     get repaints(){return repaints;}
   };
+}
+
+// The launcher must only consume a usable flood-source retry. A context that
+// never restores, or a restored context without its style, has no such action.
+const actualViewClick=s.match(/launcher\.addEventListener\("click", function \(\) \{([\s\S]+?)\n    \}\);/)?.[1];
+assert.ok(actualViewClick,'Exercise the actual view-button recovery dispatch');
+for(const phase of ['lost-context','missing-style','new-loss']) {
+  const selected=pendingPlane('retry-lifetime'),h=recoveryHarness([selected]);
+  assert.equal(h.context.retryFloodRecovery3d,null,'Wiring alone cannot advertise a usable recovery action');
+  h.lose();
+  if(phase!=='lost-context')h.restore();
+  if(phase==='new-loss') {
+    h.style();h.finish(selected);await flushRecovery();
+    assert.equal(typeof h.context.retryFloodRecovery3d,'function','An established restored style can retry its sources');
+    h.lose();
+  }
+  h.deadline();
+  assert.equal(h.context.document.body.dataset.map3d,'unavailable');
+  assert.equal(h.context.retryFloodRecovery3d,null,`${phase}: an ineligible recovery cannot swallow the normal view action`);
+  let activations=0,busyCalls=0;
+  Object.assign(h.context,{launcher:{getAttribute:()=> 'false'},setModeBusy(){busyCalls++;},pendingBearing:1,
+    map3dReady:()=>false,activate3d(){activations++;},transitionMode(){assert.fail('No healthy renderer to transition');},actual3dMode:()=>false});
+  vm.runInContext('(function(){'+actualViewClick+'})()',h.context);await flushRecovery();
+  assert.equal(activations,1);assert.equal(busyCalls,0,'An absent retry must not consume a click in an empty busy cycle');
+}
+
+// A healthy GPU plane alone cannot certify the top-down native image. A failed
+// native restore remains visible as unavailable, and the existing view control
+// may retry the same selected frame after its source becomes healthy.
+for(const nativeReady of [false,true]) {
+  const selected=pendingPlane('native-and-plane'),native=deferred();
+  const h=recoveryHarness([selected,selected]);
+  h.context.waitForNativeFloodImage3d=()=>native.promise;
+  h.lose();h.restore();h.style();h.finish(selected);await flushRecovery();
+  assert.equal(h.context.document.body.dataset.map3d,'recovering','The native image is still pending after the GPU plane finishes');
+  native.resolve(nativeReady);await flushRecovery();
+  assert.equal(h.context.document.body.dataset.map3d,nativeReady?'ready':'unavailable');
+  assert.equal(h.repaints,nativeReady?1:0);
+  if(!nativeReady){
+    assert.match(h.statuses.at(-1),/could not recover/i);
+    h.context.waitForNativeFloodImage3d=async()=>true;
+    assert.equal(await h.context.retryFloodRecovery3d(),true);
+    assert.equal(h.context.document.body.dataset.map3d,'ready');
+    assert.equal(h.context.floodPlaneLayer,selected,'Retry retains the selected frame');
+  }
+  assert.equal(h.timers.size,0);
 }
 
 for(const replacement of ['new-layer','new-url']) {

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const read = name => fs.readFileSync(new URL(`app/runtime/${name}.js`, import.meta.url), 'utf8');
-const source = ['03-time-series', '04-observation-archives', '11-export-selection', '12-export-date-editors',
+const source = ['03-time-series', '04-observation-archives', '09-raster-lifecycle', '11-export-selection', '12-export-date-editors',
   '13-export-range', '14-export-calendars', '16-export-map', '17-export-encoding'].map(read).join('\n');
 const extract = name => {
   const match = source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n    }`));
@@ -14,7 +14,7 @@ const extract = name => {
 };
 const noop = () => {};
 function context(names, mocks = {}) {
-  const ctx = vm.createContext({ console, Date, Intl, Map, Set, setTimeout, clearTimeout,
+  const ctx = vm.createContext({ console, Date, Intl, Map, Set, setTimeout, clearTimeout,window:{setInterval,clearInterval},
     NY_PARTS_FORMATTER: new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York',
       year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit',
       hour12: true, timeZoneName: 'short' }),
@@ -218,7 +218,7 @@ for (const outcome of ['cancel-resolve', 'cancel-reject', 'archive-error', 'succ
     return nodes.get(id);
   };
   let modalOpen = true, progress = '', cancelled = 0, failed = 0;
-  const ctx = context(['setDownloadBusy', 'makeExportCancelledError', 'throwIfExportCancelled',
+  const ctx = context(['setDownloadBusy', 'makeExportCancelledError', 'throwIfExportCancelled', 'awaitRasterRequest',
     'cancelCurrentExport', 'isExportCancelledError', 'downloadCurrentSelection'], {
     document: { getElementById: node, querySelectorAll: () => [] },
     exportInProgress: false, exportCancelRequested: false, activeGifExport: null, exportViewportBounds: null, cancelGifWorkerLoad: noop,

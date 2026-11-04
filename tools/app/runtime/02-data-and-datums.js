@@ -195,7 +195,8 @@
 
     async function switchForecastScenario(scenario) {
       if (!FORECAST_SCENARIOS[scenario]) return;
-      if (scenario === currentForecastScenario && currentDataMode === "forecast") return;
+      if (scenario === currentForecastScenario && currentDataMode === "forecast"
+          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
       stopPlayback();
       const floodSelectionToken = cancelPendingFloodFrame();
       toast("");
@@ -368,7 +369,8 @@
     async function switchReturnInterval(years) {
       const requested = Number(years);
       if (!RETURN_INTERVAL_OPTIONS.includes(requested)) return;
-      if (requested === currentReturnIntervalYears && currentDataMode === "return-interval" && currentSeriesHours.length) return;
+      if (requested === currentReturnIntervalYears && currentDataMode === "return-interval" && currentSeriesHours.length
+          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
       stopPlayback();
       const generation = ++selectionGeneration;
       cancelPendingFloodFrame();

@@ -128,6 +128,78 @@ try {
     releaseBody();await bodyPending.locator('#comparison-retry').click();await bodyPending.waitForFunction(()=>state.comparisonIndex&&state.comparisonPoints.length>0);
     checks.push('comparison index body deadline preserves primary and supports successful retry');await snapshot(bodyPending,'index-body-retry');
   }finally{releaseBody();await bodyPending.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+  const firstDate=primaryIndex.coverage.firstTimestamp.slice(0,10),firstYear=Number(firstDate.slice(0,4));
+  const boundsPage=await pageFor();await boundsPage.goto(url);await ready(boundsPage);
+  await boundsPage.locator('#year-jump').selectOption(String(firstYear));
+  await boundsPage.waitForFunction(year=>state.loadedRange?.start.startsWith(String(year))&&!document.getElementById('load').disabled,firstYear);
+  await boundsPage.locator('#start').fill(firstDate);await boundsPage.locator('#end').fill(firstDate);await boundsPage.locator('#load').click();
+  await boundsPage.waitForFunction(day=>state.loadedRange?.start===day&&state.loadedRange?.end===day&&!document.getElementById('load').disabled,firstDate);
+  const beforeFirst=await boundsPage.evaluate(()=>state.points.length),archiveRequests=[];
+  boundsPage.on('request',request=>{if(/\/data\/\d{4}\.json/.test(request.url()))archiveRequests.push(request.url());});
+  await boundsPage.locator('[data-range="365"]').click();
+  await boundsPage.waitForFunction(day=>document.getElementById('start').value===day&&!document.getElementById('load').disabled,firstDate);
+  assert.ok(beforeFirst>0,'The actual earliest archive day contains municipal readings');
+  assert.ok(await boundsPage.evaluate(day=>state.loadedRange.start===day&&state.loadedRange.end===day&&state.points.length>0&&document.getElementById('error').hidden,firstDate),'Quick ranges clamp to the real archive coverage');
+  assert.ok(archiveRequests.every(request=>Number(request.match(/\/(\d{4})\.json/)[1])>=firstYear),'Quick range cannot request a nonexistent earlier archive year');
+  for(const width of [320,360,390,1440]){
+    await boundsPage.setViewportSize({width,height:844});await boundsPage.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    const geometry=await boundsPage.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,canvases:[...document.querySelectorAll('canvas')].map(canvas=>({width:canvas.getBoundingClientRect().width,parent:canvas.parentElement.getBoundingClientRect().width,right:canvas.getBoundingClientRect().right}))}));
+    assert.ok(geometry.scrollWidth<=geometry.viewport+1,`${width}px city dashboard has no page overflow`);
+    assert.ok(geometry.canvases.every(canvas=>canvas.width<=canvas.parent+1&&canvas.right<=geometry.viewport+1),`${width}px plots fit their actual parent`);
+  }
+  checks.push('earliest-day1-year shortcut stays inside archive; phone320/360/390 and desktop plots fit');await snapshot(boundsPage,'coverage-widths');await boundsPage.close();
+
+  const indexHeaders=await pageFor();let releaseFirstIndex,releaseRetryIndex,indexHeaderSeen,retryHeaderSeen,indexRequests=0;
+  const firstIndexGate=new Promise(resolve=>releaseFirstIndex=resolve),retryIndexGate=new Promise(resolve=>releaseRetryIndex=resolve),firstIndexSeen=new Promise(resolve=>indexHeaderSeen=resolve),retryIndexSeen=new Promise(resolve=>retryHeaderSeen=resolve);
+  await indexHeaders.route('**/data/index.json',async route=>{indexRequests++;if(indexRequests===1){indexHeaderSeen();await firstIndexGate;}else if(indexRequests===2){retryHeaderSeen();await retryIndexGate;}await route.continue().catch(()=>{});});
+  try{
+    await indexHeaders.clock.install();await indexHeaders.goto(url,{waitUntil:'domcontentloaded'});await requestGate(firstIndexSeen,'held primary index headers');
+    await indexHeaders.clock.fastForward(10001);await indexHeaders.waitForFunction(()=>document.getElementById('loading').hidden&&document.getElementById('error').textContent.includes('too long'),{},{timeout:5000});
+    assert.ok(await indexHeaders.evaluate(()=>!state.index&&!state.indexPromise&&!!state.indexError&&!document.getElementById('load').disabled),'Primary index deadline clears its request and leaves the existing Show button usable');
+    await indexHeaders.locator('#load').click();await requestGate(retryIndexSeen,'primary index retry headers');
+    await indexHeaders.locator('#load').click();await indexHeaders.locator('[data-range="3"]').click();
+    assert.equal(indexRequests,2,'Early input during a pending index retry cannot duplicate initialization');
+    assert.equal(await indexHeaders.evaluate(()=>state.loadSequence),0,'Pending retry inputs cannot begin incomplete range loads');
+    releaseRetryIndex();await ready(indexHeaders);releaseFirstIndex();
+    assert.ok(await indexHeaders.evaluate(()=>!!state.index&&!!state.plotArea&&state.points.length>0&&!state.indexError));
+    checks.push('primary index header deadline supports native Show retry and deduplicates pending retry clicks');await snapshot(indexHeaders,'primary-header-retry');
+  }finally{releaseFirstIndex();releaseRetryIndex();await indexHeaders.close();}
+
+  const shardHeaders=await pageFor();await shardHeaders.clock.install();await shardHeaders.goto(url);await ready(shardHeaders);
+  const retained=await shardHeaders.evaluate(()=>({range:{...state.loadedRange},count:state.points.length}));let releaseShard,shardSeen;
+  const shardGate=new Promise(resolve=>releaseShard=resolve),heldShardSeen=new Promise(resolve=>shardSeen=resolve);let shardRequests=0;
+  await shardHeaders.route('**/data/2025.json',async route=>{shardRequests++;if(shardRequests===1){shardSeen();await shardGate;}await route.continue().catch(()=>{});});
+  try{
+    await shardHeaders.locator('#year-jump').selectOption('2025');await requestGate(heldShardSeen,'held primary shard headers');
+    await shardHeaders.clock.fastForward(10001);await shardHeaders.waitForFunction(()=>!document.getElementById('load').disabled&&document.getElementById('error').textContent.includes('too long'),{},{timeout:5000});
+    assert.ok(await shardHeaders.evaluate(old=>state.loadedRange.start===old.range.start&&state.loadedRange.end===old.range.end&&state.points.length===old.count&&document.getElementById('loading').hidden&&!state.cache.has(2025),retained),'Failed primary shard retains truthful loaded range and has no poisoned cache');
+    const retainedCsv=shardHeaders.waitForEvent('download');await shardHeaders.locator('#csv').click();assert.ok((await retainedCsv).suggestedFilename().includes(`${retained.range.start}_${retained.range.end}`));
+    await shardHeaders.locator('#load').click();await shardHeaders.waitForFunction(()=>state.loadedRange?.start==='2025-01-01'&&!document.getElementById('load').disabled);releaseShard();
+    assert.ok(await shardHeaders.evaluate(()=>state.points.length>0&&state.points.every(point=>point.timestamp.startsWith('2025'))&&document.getElementById('error').hidden));
+    checks.push('primary shard header deadline retains chart/CSV truth and native Show retries successfully');await snapshot(shardHeaders,'primary-shard-retry');
+  }finally{releaseShard();await shardHeaders.close();}
+
+  for(const kind of ['index','shard']){
+    const payload=fs.readFileSync(new URL(kind==='index'?'../city-gauge/data/index.json':'../city-gauge/data/2024.json',import.meta.url));let releaseBody,bodySeen,first=true;
+    const bodyGate=new Promise(resolve=>releaseBody=resolve),partialSeen=new Promise(resolve=>bodySeen=resolve);
+    const primaryServer=http.createServer(async(request,response)=>{response.writeHead(200,{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});if(first){first=false;response.flushHeaders();response.write(payload.subarray(0,20));bodySeen();await bodyGate;if(!response.destroyed)response.end(payload.subarray(20));}else response.end(payload);});
+    await requestGate(new Promise((resolve,reject)=>{primaryServer.once('error',reject);primaryServer.listen(0,'127.0.0.1',resolve);}),`primary ${kind} chunked server`);
+    const bodyPage=await pageFor();
+    try{
+      await bodyPage.clock.install();
+      if(kind==='shard'){await bodyPage.goto(url);await ready(bodyPage);}
+      await bodyPage.route(kind==='index'?'**/data/index.json':'**/data/2024.json',route=>route.continue({url:`http://127.0.0.1:${primaryServer.address().port}/city-${kind}.json`}));
+      if(kind==='index')await bodyPage.goto(url,{waitUntil:'domcontentloaded'});else await bodyPage.locator('#year-jump').selectOption('2024');
+      await requestGate(partialSeen,`partial primary ${kind} JSON body`);
+      await bodyPage.clock.fastForward(10001);await bodyPage.waitForFunction(()=>!document.getElementById('load').disabled&&document.getElementById('error').textContent.includes('too long'),{},{timeout:5000});
+      assert.equal(await bodyPage.locator('#loading').isVisible(),false,'Body deadline clears the loading overlay');
+      if(kind==='index')assert.ok(await bodyPage.evaluate(()=>!state.index&&!state.indexPromise&&!!state.indexError));
+      else assert.ok(await bodyPage.evaluate(year=>state.loadedRange.start.startsWith(String(year))&&!state.cache.has(2024),latestArchiveYear),'Partial shard body cannot replace the existing committed chart');
+      await bodyPage.locator('#load').click();await ready(bodyPage);releaseBody();
+      assert.ok(await bodyPage.evaluate(expected=>state.points.length>0&&!!state.plotArea&&document.getElementById('error').hidden&&(expected==='index'||state.points.every(point=>point.timestamp.startsWith('2024'))),kind));
+      checks.push(`primary ${kind} response-body deadline remains retryable through native Show`);await snapshot(bodyPage,`primary-${kind}-body-retry`);
+    }finally{releaseBody();await bodyPage.close();primaryServer.closeAllConnections();await new Promise(resolve=>primaryServer.close(resolve));}
+  }
   assert.deepEqual(errors,[],'dashboard emits no uncaught page errors');checks.push('no uncaught browser errors');
 } finally {await browser.close();}
 const result={browser:name,checks,errors};if(output)fs.writeFileSync(path.join(output,`${name}-city-result.json`),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result,null,2));

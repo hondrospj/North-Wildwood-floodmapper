@@ -365,12 +365,16 @@ function populateCalendarSelectors() {
       // A click on the currently active data mode still cancels this pending
       // historical selection. Only this request may clear its owner stamp.
       loadTopTideEvent.pendingSelectionGeneration = generation;
+      const requestedEvent = topTideEvents[index];
+      const requestedDate = requestedEvent.dateKey || requestedEvent.entry?.observedDate || null;
+      const loadingMessage = `Loading ${requestedEvent.title || "historical flood"}… Previous flood map and time shown.`;
+      loadTopTideEvent.pendingSelectionMessage = loadingMessage;
+      setFloodFrameStatus(loadingMessage, "info");
 
       try {
       if (!observedData) await warmBackgroundData();
-      if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
-      let event = topTideEvents[index];
-      const requestedDate = event.dateKey || event.entry?.observedDate || null;
+      if (generation !== selectionGeneration) return false;
+      let event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || requestedEvent;
       if (requestedDate) {
         const archiveSource = getObservedArchiveSourceForDate(requestedDate);
         // Finish the compact Lewes day index before loading a pre-Stone Harbor
@@ -379,7 +383,7 @@ function populateCalendarSelectors() {
         // leaving the first replay stuck at "Maximum extent" until the user
         // changes the timeline interval.
         if (archiveSource === "lewes") await ensureLewesArchiveIndex();
-        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+        if (generation !== selectionGeneration) return false;
         const crestStage = getOverlayStage(event.peakStage);
         const crestAssetPromise = crestStage == null
           ? Promise.resolve(null)
@@ -390,13 +394,20 @@ function populateCalendarSelectors() {
           ensureObservedArchiveForDate(requestedDate),
           crestAssetPromise,
         ]);
-        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+        if (generation !== selectionGeneration) return false;
         topTideEvents = buildTopTideEvents();
         event = topTideEvents.find(candidate => candidate?.dateKey === requestedDate) || event;
       }
       currentBaseModeBeforeTopTide = currentDataMode;
       currentDataMode = "observed";
       updateDataModeButtons();
+      // Overlay/cadence changes belonged to this data request while it loaded.
+      // Once its series commits, later controls rebuild that historical series.
+      if (loadTopTideEvent.pendingSelectionGeneration === generation) {
+        loadTopTideEvent.pendingSelectionGeneration = null;
+        loadTopTideEvent.pendingSelectionMessage = null;
+      }
+      floodSelectionToken = lastRenderToken;
       currentViewType = "top-tide";
       currentTopTideIndex = Math.max(0, topTideEvents.indexOf(event));
       currentSelectedLabel = `Flood #${event.rank}`;
@@ -452,11 +463,13 @@ function populateCalendarSelectors() {
       renderTopTides();
       scheduleHistoricalTopTideWarmup();
       } catch (error) {
-        if (floodSelectionToken !== lastRenderToken || generation !== selectionGeneration) return false;
+        if (generation !== selectionGeneration) return false;
+        if (loadTopTideEvent.pendingSelectionGeneration !== generation && floodSelectionToken !== lastRenderToken) return false;
         throw error;
       } finally {
         if (loadTopTideEvent.pendingSelectionGeneration === generation) {
           loadTopTideEvent.pendingSelectionGeneration = null;
+          loadTopTideEvent.pendingSelectionMessage = null;
         }
       }
     }
@@ -476,7 +489,8 @@ function populateCalendarSelectors() {
       );
       const modeledSelectionPending = currentDataMode === "return-interval" &&
         loadReturnInterval.pendingSelection?.generation === selectionGeneration;
-      if (observedSelectionPending || modeledSelectionPending) {
+      const topTideSelectionPending = loadTopTideEvent.pendingSelectionGeneration === selectionGeneration;
+      if (observedSelectionPending || modeledSelectionPending || topTideSelectionPending) {
         stopPlayback();
         toast("");
         currentTimelineIntervalMinutes = nextMinutes;
@@ -557,6 +571,10 @@ function populateCalendarSelectors() {
       currentOverlayMode = mode;
       updateModeButtons();
 
+      if (loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) {
+        setFloodFrameStatus(loadTopTideEvent.pendingSelectionMessage || "Loading historical flood… Previous flood map and time shown.", "info");
+        return;
+      }
       if (currentDataMode === "return-interval" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {
         setFloodFrameStatus(currentFloodLayer
           ? "Loading modeled flood… Previous flood map shown."

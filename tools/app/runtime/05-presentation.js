@@ -54,10 +54,17 @@
           const modalCard = modal.querySelector(".download-modal-card");
           if (modalCard) modalCard.scrollTop = 0;
           const compactTouchLayout = isCompactFloodmapperLayout();
+          const visibleModeledTimeControl = ["downloadStartTimeButton", "downloadStartTimeSelect"]
+            .map(id => document.getElementById(id)).find(control => {
+              if (!control || control.disabled || control.getAttribute("aria-hidden") === "true") return false;
+              const style = getComputedStyle(control);
+              return style.display !== "none" && style.visibility !== "hidden" &&
+                Number(style.opacity) > 0 && control.getClientRects().length > 0;
+            });
           const focusTarget = compactTouchLayout
             ? document.getElementById("downloadModalCloseBtn")
             : currentDataMode === "return-interval"
-              ? document.getElementById("downloadStartTimeSelect")
+              ? visibleModeledTimeControl || document.getElementById("downloadModalCloseBtn")
               : document.getElementById("downloadStartDateText");
           try {
             focusTarget?.focus({ preventScroll: true });
