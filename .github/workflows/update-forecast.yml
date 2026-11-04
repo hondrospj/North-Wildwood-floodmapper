@@ -1,16 +1,8 @@
 name: Update North Wildwood forecast
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/update-forecast.yml
-      - tools/north_wildwood_tide_anchors.py
-      - tools/update_north_wildwood_forecast.py
-  schedule:
-    - cron: "17 * * * *"
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: write

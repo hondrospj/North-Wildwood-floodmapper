@@ -1,25 +1,7 @@
 name: Publish ShorelySafe to Cup A Joe
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - FloodMapper reliability checks
-      - Holistic device regression
-      - Export regression
-      - Depth query regression
-      - Historical replay regression
-      - Build lossless flood overlay WebP
-      - Deploy North Wildwood hydraulic v36
-      - Rebuild pre-2007 Lewes archive
-      - Trigger forecast update now
-      - Trigger observed update now
-      - Update North Wildwood city gauge archive
-      - Update North Wildwood forecast
-      - Update North Wildwood observed
-    types: [completed]
-    branches: [main]
+
 permissions:
   contents: read
   actions: read

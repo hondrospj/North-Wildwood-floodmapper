@@ -1,0 +1,36 @@
+name: Refresh North Wildwood data daily
+
+on:
+  schedule:
+    # GitHub cron uses UTC; refresh once per day after the 12Z guidance cycle.
+    - cron: "40 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+# Separate from helper locks and the publication lock to avoid nested deadlocks.
+concurrency:
+  group: north-wildwood-daily-refresh-v1
+  cancel-in-progress: false
+
+jobs:
+  archive-city-gauge:
+    uses: ./.github/workflows/update-city-gauge-archive.yml
+    secrets: inherit
+
+  update-observed:
+    needs: archive-city-gauge
+    uses: ./.github/workflows/update-observed.yml
+    secrets: inherit
+
+  update-forecast:
+    needs: update-observed
+    uses: ./.github/workflows/update-forecast.yml
+    secrets: inherit
+
+  publish-fresh-data:
+    needs: update-forecast
+    uses: ./.github/workflows/refresh-deployed-data.yml
+    secrets: inherit
