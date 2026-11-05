@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "7c470c6977ff2cab2ec3c0f777c0bc14e90d40eb",
+  "scope": "Remove the model-basis note from the projection panel and its runtime writing and clearing code. Pin the generated markup, runtime and resulting cache key.",
+  "files": [
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "8dd5cff984e53b12a3a6b96b9b5faf939f2338a9f97b84bced802e0065c4ce62",
+      "afterSha256": "1db68548b2a88f8d7fc77c928d5777f7d4220cd9f853de6ad5b81e682170b145",
+      "changes": [
+        {
+          "beforeSource": "          <h2 id=\"floodHistoryTitle\">Flood History &amp; Projections</h2>\n          <p id=\"floodHistoryAddress\">Selected North Wildwood parcel</p>\n          <p id=\"floodHistoryProvenance\" role=\"status\"></p>\n        </div>\n        <button id=\"floodHistoryCloseBtn\" class=\"flood-history-close centered-close-control\" type=\"button\" aria-label=\"Close flood history and projections\">×</button>\n",
+          "afterSource": "          <h2 id=\"floodHistoryTitle\">Flood History &amp; Projections</h2>\n          <p id=\"floodHistoryAddress\">Selected North Wildwood parcel</p>\n        </div>\n        <button id=\"floodHistoryCloseBtn\" class=\"flood-history-close centered-close-control\" type=\"button\" aria-label=\"Close flood history and projections\">×</button>\n",
+          "beforeSha256": "b44181a60d1f27d8a116b82f6f9fd08280d50459315e0c113ae48ccca1b353c9",
+          "afterSha256": "3de4a63d3292eb76f0c4d54374b19152724a20b044272ce051955e446fab9496"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/24-alerts-and-projections.js",
+      "beforeSha256": "31a00109565c4e2a1a3728c901f183d7f8714f8013cb1688230e4a607194d309",
+      "afterSha256": "f46b218905b93d846c3152538d94f93ceaccd896476f3e2821bae7fd8587c7be",
+      "changes": [
+        {
+          "beforeSource": "      if (!backdrop || !body) return;\n      address.textContent = feature?.properties?.address || \"Selected North Wildwood parcel\";\n      const provenance = document.getElementById(\"floodHistoryProvenance\");\n      if (provenance) provenance.textContent = \"\";\n      body.innerHTML = '<div class=\"flood-history-loading\" role=\"status\"><span class=\"flood-history-spinner\" aria-hidden=\"true\"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';\n      backdrop.hidden = false;\n",
+          "afterSource": "      if (!backdrop || !body) return;\n      address.textContent = feature?.properties?.address || \"Selected North Wildwood parcel\";\n      body.innerHTML = '<div class=\"flood-history-loading\" role=\"status\"><span class=\"flood-history-spinner\" aria-hidden=\"true\"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';\n      backdrop.hidden = false;\n",
+          "beforeSha256": "c776d67ddd1f98a79a77130dbf83bfc9de71fffa93d7642d587f2ac5d4e3cae4",
+          "afterSha256": "b1286b52cad84d85e58b39f11fe39a6935f84d6d9b9edb7af6c3640c9b0b4715"
+        },
+        {
+          "beforeSource": "        const data = await ensureFloodProjectionData();\n        if (selectedParcelFeature === feature && !backdrop.hidden) {\n          const notice = document.getElementById(\"floodHistoryProvenance\");\n          const basis = data.site?.name || data.sources?.observed || \"Archived model\";\n          if (notice) notice.textContent = `Model basis: ${basis}. Observations through ${data.observedArchive?.endDate || \"an unspecified date\"}. Generated ${(data.generatedUtc || \"unknown\").slice(0, 10)}.${data.qualityPolicyVersion ? \"\" : \" This older model predates the current observation quality review and is not recalculated from the selected tide archive.\"}`;\n          renderFloodHistoryProjection(feature, data);\n        }\n",
+          "afterSource": "        const data = await ensureFloodProjectionData();\n        if (selectedParcelFeature === feature && !backdrop.hidden) {\n          renderFloodHistoryProjection(feature, data);\n        }\n",
+          "beforeSha256": "73eb0c0dcd8cbc1a1f054c44310dbf47de7f8832c6fcea89a718bb0a6da99ea9",
+          "afterSha256": "4971f505985c1c389b5ebdb4ebbaa289794298f0c16972209e25cf7f4bc98d93"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "6c18eb708399b71623918bebe8869e9f34c9bbe0bdf554862c84618180bfb6a5",
+      "afterSha256": "6392e1472769b37d5d50b3764b88fe64d9c87355baa96210d3d23cd690ce6253",
+      "changes": [
+        {
+          "beforeSource": "      if (!backdrop || !body) return;\n      address.textContent = feature?.properties?.address || \"Selected North Wildwood parcel\";\n      const provenance = document.getElementById(\"floodHistoryProvenance\");\n      if (provenance) provenance.textContent = \"\";\n      body.innerHTML = '<div class=\"flood-history-loading\" role=\"status\"><span class=\"flood-history-spinner\" aria-hidden=\"true\"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';\n      backdrop.hidden = false;\n",
+          "afterSource": "      if (!backdrop || !body) return;\n      address.textContent = feature?.properties?.address || \"Selected North Wildwood parcel\";\n      body.innerHTML = '<div class=\"flood-history-loading\" role=\"status\"><span class=\"flood-history-spinner\" aria-hidden=\"true\"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';\n      backdrop.hidden = false;\n",
+          "beforeSha256": "c776d67ddd1f98a79a77130dbf83bfc9de71fffa93d7642d587f2ac5d4e3cae4",
+          "afterSha256": "b1286b52cad84d85e58b39f11fe39a6935f84d6d9b9edb7af6c3640c9b0b4715"
+        },
+        {
+          "beforeSource": "        const data = await ensureFloodProjectionData();\n        if (selectedParcelFeature === feature && !backdrop.hidden) {\n          const notice = document.getElementById(\"floodHistoryProvenance\");\n          const basis = data.site?.name || data.sources?.observed || \"Archived model\";\n          if (notice) notice.textContent = `Model basis: ${basis}. Observations through ${data.observedArchive?.endDate || \"an unspecified date\"}. Generated ${(data.generatedUtc || \"unknown\").slice(0, 10)}.${data.qualityPolicyVersion ? \"\" : \" This older model predates the current observation quality review and is not recalculated from the selected tide archive.\"}`;\n          renderFloodHistoryProjection(feature, data);\n        }\n",
+          "afterSource": "        const data = await ensureFloodProjectionData();\n        if (selectedParcelFeature === feature && !backdrop.hidden) {\n          renderFloodHistoryProjection(feature, data);\n        }\n",
+          "beforeSha256": "73eb0c0dcd8cbc1a1f054c44310dbf47de7f8832c6fcea89a718bb0a6da99ea9",
+          "afterSha256": "4971f505985c1c389b5ebdb4ebbaa289794298f0c16972209e25cf7f4bc98d93"
+        }
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "9b40586fdc5522d1ca3a7d5a6f40d3bc37f5b805c6089ae308d9902a6ee5e57d",
+      "afterSha256": "4efcb71a5a7f240866553f6b7f03d06dfd042e2022f005aa82bce149bf483f95",
+      "changes": [
+        {
+          "beforeSource": "          <h2 id=\"floodHistoryTitle\">Flood History &amp; Projections</h2>\n          <p id=\"floodHistoryAddress\">Selected North Wildwood parcel</p>\n          <p id=\"floodHistoryProvenance\" role=\"status\"></p>\n        </div>\n        <button id=\"floodHistoryCloseBtn\" class=\"flood-history-close centered-close-control\" type=\"button\" aria-label=\"Close flood history and projections\">×</button>\n",
+          "afterSource": "          <h2 id=\"floodHistoryTitle\">Flood History &amp; Projections</h2>\n          <p id=\"floodHistoryAddress\">Selected North Wildwood parcel</p>\n        </div>\n        <button id=\"floodHistoryCloseBtn\" class=\"flood-history-close centered-close-control\" type=\"button\" aria-label=\"Close flood history and projections\">×</button>\n",
+          "beforeSha256": "b44181a60d1f27d8a116b82f6f9fd08280d50459315e0c113ae48ccca1b353c9",
+          "afterSha256": "3de4a63d3292eb76f0c4d54374b19152724a20b044272ce051955e446fab9496"
+        },
+        {
+          "beforeSource": "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=6c18eb708399b716\"></script>\n",
+          "afterSource": "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=6392e1472769b37d\"></script>\n",
+          "beforeSha256": "352ac93bd645e6694ff67f2c7cbda4e798e236adff5dfdbdda5fd6ac190514cf",
+          "afterSha256": "5d6ce710766655fa03ac54a3c3baa6da22c3a86f8b5a52082047a21e102a8e66"
+        }
+      ]
+    }
+  ]
+}

@@ -16,6 +16,38 @@ const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
 const read = relative => readDeepReviewed(relative);
 const sha256 = source => createHash("sha256").update(source).digest("hex");
+// Pin the projection-note removal before the earlier audited presentation changes.
+const PROJECTION_NOTE_PATH = "tools/fixtures/north-wildwood-20261105-projection-note.json";
+const projectionNoteText = readCurrent(PROJECTION_NOTE_PATH);
+assert.equal(sha256(projectionNoteText), "facd945a32bdf06119478bb563dcb7296460a9ddbf755779e4f42cc111f31208", "Retain the exact reviewed projection-note inverse");
+const projectionNote = JSON.parse(projectionNoteText);
+assert.equal(projectionNote.schemaVersion, 1);
+assert.equal(projectionNote.baselineCommit, "7c470c6977ff2cab2ec3c0f777c0bc14e90d40eb");
+assert.deepEqual(projectionNote.files.map(file => file.source), ["tools/app/index.template.html", "tools/app/runtime/24-alerts-and-projections.js", "assets/app/runtime.js", "index.html"]);
+function readProjectionNoteReviewed(relative) {
+  const source = readCurrent(relative), file = projectionNote.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed projection-note removal`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(sha256(block.beforeSource), block.beforeSha256);
+    assert.equal(sha256(block.afterSource), block.afterSha256);
+    assert.ok(block.beforeSource.length && block.afterSource.length);
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact projection-note fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-removal byte`);
+  return restored;
+}
+for (const file of projectionNote.files) readProjectionNoteReviewed(file.source);
+// Older HTML fragment reversions still target the active runtime script tag.
+const projectionRuntimeTag = projectionNote.files.find(file => file.source === "index.html").changes
+  .find(block => block.beforeSource.includes('src="./assets/app/runtime.js?v='));
+assert.ok(projectionRuntimeTag);
+function projectionNoteCurrentFragment(relative, fragment) {
+  if (relative !== "index.html") return fragment;
+  return fragment.replace(projectionRuntimeTag.beforeSource, projectionRuntimeTag.afterSource);
+}
 // Only the explicitly requested forecast-label capitalization precedes prior audits.
 const LABEL_CASE_PATH = "tools/fixtures/north-wildwood-20261104-forecast-label-case.json";
 const labelCaseText = readCurrent(LABEL_CASE_PATH);
@@ -25,7 +57,7 @@ assert.equal(labelCase.schemaVersion, 1);
 assert.equal(labelCase.baselineCommit, "4023165cea5a7f1319c8127e31ec83914c99613d");
 assert.deepEqual(labelCase.files.map(file => file.source), ["tools/app/index.template.html", "tools/app/unified-controller.js", "assets/app/unified-controller.js", "index.html"]);
 function readForecastLabelReviewed(relative) {
-  const source = readCurrent(relative), file = labelCase.files.find(file => file.source === relative);
+  const source = readProjectionNoteReviewed(relative), file = labelCase.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside reviewed forecast-label capitalization`);
   let restored = source;
@@ -87,8 +119,8 @@ for (const [relative, parameter, documents] of [
 // Map historical mutation boundaries only through unchanged exact anchors.
 // Edited interior bytes never provide an inferred or silently skipped boundary.
 function cameraCurrentFragment(relative, fragment) {
-  const current = readCurrent(relative);
-  if (current.split(fragment).length - 1 === 1) return fragment;
+  const current = readProjectionNoteReviewed(relative);
+  if (current.split(fragment).length - 1 === 1) return projectionNoteCurrentFragment(relative, fragment);
   const baseline = read3dCameraReviewed(relative), file = cameras3d.files.find(file => file.source === relative);
   assert.ok(file, `${relative}: changed mutation fragment requires an exact 3D/camera owner`);
   assert.equal(baseline.split(fragment).length - 1, 1, `${relative}: prior mutation fragment must be unique`);
@@ -124,7 +156,7 @@ function cameraCurrentFragment(relative, fragment) {
   const start = baseline.indexOf(fragment), mapped = current.slice(offset(start), offset(start + fragment.length));
   assert.ok(mapped.length);
   assert.equal(current.split(mapped).length - 1, 1, `${relative}: mapped current 3D/camera mutation fragment must be unique`);
-  return mapped;
+  return projectionNoteCurrentFragment(relative, mapped);
 }
 // Pin the physical recheck bytes first. Every previous audit still receives
 // exactly its original source through this narrowly enumerated inverse.
@@ -2365,7 +2397,7 @@ if (process.argv.includes("--self-test")) {
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
-      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), "index.html"]) {
+      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source), "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
@@ -2913,7 +2945,7 @@ if (process.argv.includes("--self-test")) {
         const current = readCurrent(file.source);
         return [
           [`unreviewed 3D/camera byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed 3D/camera byte */\n"],
-          ...file.changes.map((block, index) => [`reverted 3D/camera fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(block.afterSource, block.beforeSource)])
+          ...file.changes.map((block, index) => [`reverted 3D/camera fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(projectionNoteCurrentFragment(file.source, block.afterSource), block.beforeSource)])
         ];
       })
     ];

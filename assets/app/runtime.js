@@ -12886,8 +12886,6 @@ function startPlayback() {
       const address = document.getElementById("floodHistoryAddress");
       if (!backdrop || !body) return;
       address.textContent = feature?.properties?.address || "Selected North Wildwood parcel";
-      const provenance = document.getElementById("floodHistoryProvenance");
-      if (provenance) provenance.textContent = "";
       body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");
@@ -12896,9 +12894,6 @@ function startPlayback() {
       try {
         const data = await ensureFloodProjectionData();
         if (selectedParcelFeature === feature && !backdrop.hidden) {
-          const notice = document.getElementById("floodHistoryProvenance");
-          const basis = data.site?.name || data.sources?.observed || "Archived model";
-          if (notice) notice.textContent = `Model basis: ${basis}. Observations through ${data.observedArchive?.endDate || "an unspecified date"}. Generated ${(data.generatedUtc || "unknown").slice(0, 10)}.${data.qualityPolicyVersion ? "" : " This older model predates the current observation quality review and is not recalculated from the selected tide archive."}`;
           renderFloodHistoryProjection(feature, data);
         }
       } catch (error) {
