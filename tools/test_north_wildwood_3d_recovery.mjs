@@ -66,6 +66,39 @@ cameraZoom=13;cameraPitch=0;camera.focusEnabledBuildings3d();assert.equal(camera
 cameraPitch=60;enabled=false;camera.focusEnabledBuildings3d();assert.equal(cameraMoves.length,1);
 console.log('Late building configuration, asset retry, and requested 3D camera regressions passed');
 
+// Enabled municipal walls are continuous across camera altitude, rotation and
+// viewport changes. The 1,000 m detail-framing target is not a render cutoff.
+for (const pitch of [0,10,10.01,60,85]) for (const on of [false,true]) {
+  const c=vm.createContext({glMap:{getPitch:()=>pitch},layerVisible:()=>on,
+    cameraIsWithinBuildingRange:()=>{throw Error('Visibility must not use altitude');}});
+  vm.runInContext(fn('buildingsShouldRenderForCamera'),c);
+  assert.equal(c.buildingsShouldRenderForCamera(),on&&pitch>10);
+}
+{
+  const c=vm.createContext({glMap:null,layerVisible:()=>true});
+  vm.runInContext(fn('buildingsShouldRenderForCamera'),c);
+  assert.equal(c.buildingsShouldRenderForCamera(),false);
+}
+for (const [generation,preference] of [[0,null],[1,true],[2,false]]) for (const initiallyOn of [false,true]) {
+  let on=initiallyOn,updates=0;
+  const attributes={},toggle={classList:{add:name=>{assert.equal(name,'on');on=true;}},setAttribute:(name,value)=>attributes[name]=value};
+  const c=vm.createContext({buildingToggleGeneration:generation,buildingVisibilityPreference:preference,layerVisible:()=>on,
+    document:{getElementById:()=>toggle},updateExportBuildingsLayer:()=>updates++,updateMapClickModeControl:()=>updates++});
+  vm.runInContext(fn('enableDefaultBuildings3d'),c);c.enableDefaultBuildings3d();
+  assert.equal(on,initiallyOn||preference!==false,'A prior explicit off choice must survive 3D entry; failed on remains retryable');
+  assert.equal(c.buildingToggleGeneration,generation,'A default is not an explicit user choice');
+  assert.equal(updates,preference!==false&&!initiallyOn?2:0);
+  if(preference!==false&&!initiallyOn)assert.equal(attributes['aria-checked'],'true');
+}
+{
+  const c=vm.createContext({buildingVisibilityPreference:null,layerVisible:()=>false,document:{getElementById:()=>null}});
+  vm.runInContext(fn('enableDefaultBuildings3d'),c);c.enableDefaultBuildings3d();
+}
+const transition=s.slice(s.indexOf('    function transitionMode('),s.indexOf('    function updateDefaultWheel('));
+assert.match(transition,/if \(desired3dMode\) enableDefaultBuildings3d\(\)/);
+assert.doesNotMatch(transition,/focusEnabledBuildings3d|zoom:/,'3D entry retains the current center and zoom');
+console.log('18 building visibility/default cases passed; camera entry preserves view and explicit layer intent');
+
 // Run the actual recovery controller with controlled MapLibre events and
 // image readiness. Unlike a timed happy-path test, these assertions hold the
 // selected image pending while old promises, loss events and deadlines fire.

@@ -17,19 +17,16 @@
   panel.setAttribute("role", "region");
   panel.setAttribute("aria-labelledby", "webcamTitle");
   panel.setAttribute("data-html2canvas-ignore", "true");
-  panel.innerHTML = `<div class="webcam-heading"><div><h2 id="webcamTitle"></h2><p id="webcamLocation"></p></div><button type="button" id="webcamClose" aria-label="Close webcam viewer">×</button></div>
+  panel.innerHTML = `<div class="webcam-heading"><h2 id="webcamTitle">Cameras</h2><button type="button" id="webcamClose" aria-label="Close camera viewer">×</button></div>
     <select id="webcamChoice" aria-label="Choose camera"></select>
     <div id="webcamFrame" class="webcam-frame"></div>
-    <div class="webcam-footer"><span id="webcamStatus" role="status" aria-live="polite"></span><button type="button" id="webcamLocate">Show location</button></div>
-    <div class="webcam-source"><span>Current view · independent of map time</span><a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Camera source ↗</a><button type="button" id="webcamRetry" aria-label="Reload camera">↻</button></div>
-    <details id="webcamOtherSources"><summary>More camera websites</summary><div></div></details>
-    <p class="webcam-disclaimer">Camera views do not establish water depth or whether a road is safe.</p>`;
+    <p id="webcamStatus" role="status" aria-live="polite" hidden></p>
+    <div class="webcam-source"><span>Current view · not map time</span><a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Source ↗</a><button type="button" id="webcamRetry" aria-label="Reload camera">↻</button></div>`;
   document.body.append(panel);
   const choice = panel.querySelector("#webcamChoice");
   const frameHost = panel.querySelector("#webcamFrame");
   const closeButton = panel.querySelector("#webcamClose");
   const status = panel.querySelector("#webcamStatus");
-  const locateButton = panel.querySelector("#webcamLocate");
   let enabled = false, selected = null, frame = null, refreshTimer = null;
   let leafletMap = null, leafletLayer = null, glMap = null, glMarkers = [];
   let returnFocus = null;
@@ -37,19 +34,14 @@
   for (const camera of cameras) {
     const option = document.createElement("option");
     option.value = camera.id;
-    option.textContent = `${camera.relation === "nearby" ? "Nearby · " : camera.relation === "regional" ? "Regional · " : ""}${camera.name}`;
+    option.textContent = `${camera.relation === "nearby" ? "Nearby · " : camera.relation === "regional" ? "Regional · " : ""}${camera.short || camera.name}`;
     choice.append(option);
   }
   choice.hidden = cameras.length < 2;
-  const otherSources = panel.querySelector("#webcamOtherSources");
-  otherSources.hidden = !config.otherSources?.length;
-  for (const source of config.otherSources || []) {
-    const link = document.createElement("a");
-    link.href = source.sourceUrl;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = source.name;
-    otherSources.querySelector("div").append(link);
+
+  function setStatus(message) {
+    status.textContent = message;
+    status.hidden = !message;
   }
 
   function clearPlayer() {
@@ -64,34 +56,32 @@
     panel.querySelector("#webcamRetry").hidden = Boolean(camera.external);
     if (camera.external) {
       panel.dataset.playerState = "external";
-      status.textContent = "Watch this camera on the city website.";
+      setStatus("");
       const notice = document.createElement("div");
       notice.className = "webcam-external";
-      const message = document.createElement("p");
-      message.textContent = `${camera.name} opens on the city’s camera page.`;
       const link = document.createElement("a");
       link.href = camera.sourceUrl;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.textContent = "Watch camera ↗";
-      notice.append(message, link);
+      link.textContent = "Watch on city website ↗";
+      notice.append(link);
       frameHost.append(notice);
       return;
     }
-    status.textContent = "Opening camera…";
+    setStatus("Opening camera…");
     panel.dataset.playerState = "loading";
     const player = document.createElement(camera.kind === "image" ? "img" : "iframe");
     player.referrerPolicy = "strict-origin-when-cross-origin";
     const unavailable = () => {
       if (frame !== player) return;
       panel.dataset.playerState = "unavailable";
-      status.textContent = "Camera unavailable · reload or open source";
+      setStatus("Camera unavailable. Reload or open source.");
     };
     player.onerror = unavailable;
     player.onload = () => {
       if (frame !== player) return;
       panel.dataset.playerState = camera.kind === "image" ? "image-open" : "player-open";
-      status.textContent = camera.kind === "image" ? "Camera image · refreshes every 60s" : "Camera player · availability shown by provider";
+      setStatus("");
       // A cross-origin player load does not establish that its video is current.
     };
     frame = player;
@@ -176,12 +166,8 @@
     if (!enabled || !camera) return;
     if (panel.hidden) returnFocus = trigger || toggle;
     selected = camera;
-    const relation = camera.relation === "nearby" ? "Nearby · " : camera.relation === "regional" ? "Regional · " : "";
-    panel.querySelector("#webcamTitle").textContent = camera.name;
-    panel.querySelector("#webcamLocation").textContent = `${relation}${camera.location}${Number.isFinite(camera.lat) && Number.isFinite(camera.lng) ? ` · ${camera.lat.toFixed(4)}, ${camera.lng.toFixed(4)}` : ""}`;
     panel.querySelector("#webcamSourceLink").href = camera.sourceUrl;
     panel.querySelector("#webcamSourceLink").title = camera.source;
-    locateButton.hidden = !Number.isFinite(camera.lat) || !Number.isFinite(camera.lng);
     choice.value = camera.id;
     mountPanel();
     panel.hidden = false;
@@ -211,7 +197,7 @@
         if (!currentMap.getPane("webcamsPane")) { currentMap.createPane("webcamsPane"); currentMap.getPane("webcamsPane").style.zIndex = "760"; }
         leafletLayer = L.layerGroup(located.map(camera => {
           const marker = L.marker([camera.lat, camera.lng], { pane: "webcamsPane", title: camera.name, alt: camera.name, bubblingMouseEvents: false, keyboard: true,
-            icon: L.divIcon({ className: "webcam-map-marker", html: icon, iconSize: [36, 36], iconAnchor: [18, 18] }) });
+            icon: L.divIcon({ className: "webcam-map-marker", html: icon, iconSize: [44, 44], iconAnchor: [22, 22] }) });
           marker.on("click", () => showCamera(camera, marker.getElement()));
           marker.on("add", () => {
             const element = marker.getElement();
@@ -242,7 +228,7 @@
         element.title = camera.name;
         element.addEventListener("click", event => { event.stopPropagation(); showCamera(camera, element); });
         element.addEventListener("dblclick", event => event.stopPropagation());
-        return new maplibregl.Marker({ element, anchor: "center" }).setLngLat([camera.lng, camera.lat]).addTo(currentGl);
+        return new maplibregl.Marker({ element, anchor: "center", pitchAlignment: "viewport", rotationAlignment: "viewport" }).setLngLat([camera.lng, camera.lat]).addTo(currentGl);
       });
     }
     if (enabled) mountPanel();
@@ -315,12 +301,7 @@
   closeButton.addEventListener("click", () => closeCamera(true));
   choice.addEventListener("change", () => showCamera(cameras.find(c => c.id === choice.value), choice));
   panel.querySelector("#webcamRetry").addEventListener("click", () => { if (selected) loadPlayer(selected); });
-  locateButton.addEventListener("click", () => {
-    if (!selected || !Number.isFinite(selected.lat) || !Number.isFinite(selected.lng)) return;
-    const currentGl = window.NORTH_WILDWOOD_3D?.getMap?.();
-    if (currentGl && document.body.classList.contains("map-3d-ready")) currentGl.flyTo({ center: [selected.lng, selected.lat], zoom: 15 });
-    else if (leafletMap) leafletMap.setView([selected.lat, selected.lng], Math.max(leafletMap.getZoom(), 15));
-  });
+
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !panel.hidden) { event.preventDefault(); closeCamera(true); }
   });

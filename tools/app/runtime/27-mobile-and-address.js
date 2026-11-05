@@ -32,7 +32,7 @@
       const toggleBuildings = () => {
         const enabled = !buildingsToggle?.classList.contains("on");
         setBuildingsEnabled(enabled).catch(error => {
-          setBuildingsEnabled(false).catch(() => {});
+          setBuildingsEnabled(false, { rollback: true }).catch(() => {});
           toast(error?.message || "Buildings could not be loaded.");
         });
       };
