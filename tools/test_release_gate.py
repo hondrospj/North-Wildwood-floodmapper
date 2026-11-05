@@ -208,12 +208,15 @@ class GeneratedAssetDispatchTests(unittest.TestCase):
                 dispatch_checks(api, SHA)
             api.post.assert_not_called()
 
-    def test_converter_explicitly_dispatches_checks_and_wakes_publisher(self):
+    def test_converter_dispatches_checks_and_publication_remains_manual(self):
         converter = (ROOT / ".github/workflows/convert-overlay-webp.yml").read_text()
         publisher = (ROOT / ".github/workflows/publish-cupajoe.yml").read_text()
         self.assertIn("actions: write", converter)
         self.assertIn('tools/release_dispatch.py --candidate "$GENERATED_SHA"', converter)
-        self.assertIn("- Build lossless flood overlay WebP", publisher)
+        triggers = publisher.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+        self.assertEqual(triggers.strip(), "workflow_dispatch:")
+        self.assertIn('python3 tools/release_gate.py --candidate "$RELEASE_SHA"', publisher)
+        self.assertIn("if: steps.gate.outputs.publish == 'true'", publisher)
 
 
 class DataPolicyTests(unittest.TestCase):

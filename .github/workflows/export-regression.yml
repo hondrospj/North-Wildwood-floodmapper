@@ -60,37 +60,7 @@ jobs:
             tools/app_source.*
             tools/build_north_wildwood_app.mjs
             tools/test_north_wildwood_refactor_parity.mjs
-            tools/fixtures/north-wildwood-refactor-baseline.json
-            tools/fixtures/north-wildwood-export-preview-ui.json
-            tools/fixtures/north-wildwood-export-presentation.json
-            tools/fixtures/north-wildwood-boundary-startup.json
-            tools/fixtures/north-wildwood-pane-startup.json
-            tools/fixtures/north-wildwood-ui-startup.json
-            tools/fixtures/north-wildwood-view-pill-surface.json
-            tools/fixtures/north-wildwood-loader-restore.json
-            tools/fixtures/north-wildwood-20261026-bug-fixes.json
-            tools/fixtures/north-wildwood-20261026-holistic-fixes.json
-            tools/fixtures/north-wildwood-20261027-line-fixes.json
-            tools/fixtures/north-wildwood-20261028-export-road-labels.json
-            tools/fixtures/north-wildwood-20261028-road-label-placement.json
-            tools/fixtures/north-wildwood-20261028-export-frame-reuse.json
-            tools/fixtures/north-wildwood-20261028-export-preview-polish.json
-            tools/fixtures/north-wildwood-20261028-export-logo-readiness.json
-            tools/fixtures/north-wildwood-20261028-export-provider-readiness.json
-            tools/fixtures/north-wildwood-20261030-scalable-road-labels.json
-            tools/fixtures/north-wildwood-20261101-review-fixes.json
-            tools/fixtures/north-wildwood-20261101-road-fallback.json
-            tools/fixtures/north-wildwood-20261101-adaptive-sidebar.json
-            tools/fixtures/north-wildwood-20261101-tutorial-gesture.json
-            tools/fixtures/north-wildwood-20261102-audit-logic.json
-            tools/fixtures/north-wildwood-20261102-history-state.json
-            tools/fixtures/north-wildwood-20261103-ui-dialogs.json
-            tools/fixtures/north-wildwood-20261103-export-clone-cleanup.json
-            tools/fixtures/north-wildwood-20261103-deep-fixes.json
-            tools/fixtures/north-wildwood-20261103-aria-semantics.json
-            tools/fixtures/north-wildwood-20261103-followup-debug.json
-            tools/fixtures/north-wildwood-20261103-recheck-debug.json
-            tools/fixtures/north-wildwood-export-dst.json
+            tools/fixtures/
             Boundaries/North Wildwood.geojson
             tools/test_export*.mjs
             tools/test_north_wildwood_export_layout.mjs
