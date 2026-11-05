@@ -112,7 +112,7 @@
   ensureControlButtons();ensureHeader();ensureDays();ensureLayers();ensureReturnPeriodSelect();
   const title=panel.querySelector('.data-source-card h2');text(title,'Flood Data');
   const downloadCard=document.getElementById('downloadCard');if(downloadCard?.getAttribute('role')==='button'){downloadCard.removeAttribute('role');downloadCard.removeAttribute('tabindex');downloadCard.removeAttribute('aria-label');}
-  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower end'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper end'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);
+  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);
   text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');
   for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');
   for(const button of document.querySelectorAll('.top-tide-more-btn')){if(button.dataset.unifiedMore!=='true'){const plus=document.createElement('span');plus.className='unified-more-plus';plus.textContent='+';const label=document.createElement('span');label.textContent='Show more';button.replaceChildren(plus,label);button.dataset.unifiedMore='true';}}
