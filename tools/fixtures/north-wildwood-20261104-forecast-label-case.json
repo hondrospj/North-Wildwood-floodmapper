@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "4023165cea5a7f1319c8127e31ec83914c99613d",
+  "scope": "Capitalize Lower End and Upper End consistently in initial and runtime forecast buttons; retain every other product byte.",
+  "files": [
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "87254fb9a44bcc34b2e883c84da30a2616417277781f132c8bae52a0d8bc5b69",
+      "afterSha256": "8dd5cff984e53b12a3a6b96b9b5faf939f2338a9f97b84bced802e0065c4ce62",
+      "changes": [
+        {
+          "beforeSource": "        </div>\n        <div class=\"button-grid-3\">\n          <button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower end</button>\n          <button id=\"forecastMeanBtn\" class=\"active\" type=\"button\" data-scenario=\"mean\">Mean</button>\n          <button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper end</button>\n        </div>\n      </section>\n",
+          "afterSource": "        </div>\n        <div class=\"button-grid-3\">\n          <button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower End</button>\n          <button id=\"forecastMeanBtn\" class=\"active\" type=\"button\" data-scenario=\"mean\">Mean</button>\n          <button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper End</button>\n        </div>\n      </section>\n",
+          "beforeSha256": "8d070641a18b0b785b3d0954247f76e1b217e3fe863e8669de726daf1a65b295",
+          "afterSha256": "6cecb69c70373a1791668d2c6275bf239e457e1e66df9c111026dd630b65ac75"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/unified-controller.js",
+      "beforeSha256": "58500d826b617802c670aaeb723772897911f844d3f706dcc2e15312de825eeb",
+      "afterSha256": "a993a170c5b9f2cdc467c2f9d65f8bd590a4b8f472d49d8ab7ad14e44e7a29a7",
+      "changes": [
+        {
+          "beforeSource": "  const title=panel.querySelector('.data-source-card h2');text(title,'Flood Data');\n  const downloadCard=document.getElementById('downloadCard');if(downloadCard?.getAttribute('role')==='button'){downloadCard.removeAttribute('role');downloadCard.removeAttribute('tabindex');downloadCard.removeAttribute('aria-label');}\n  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower end'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper end'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);\n  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');\n  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n",
+          "afterSource": "  const title=panel.querySelector('.data-source-card h2');text(title,'Flood Data');\n  const downloadCard=document.getElementById('downloadCard');if(downloadCard?.getAttribute('role')==='button'){downloadCard.removeAttribute('role');downloadCard.removeAttribute('tabindex');downloadCard.removeAttribute('aria-label');}\n  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);\n  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');\n  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n",
+          "beforeSha256": "ea297e6f3c7efb341474b7da449d3b86608af6b67a3335b128aabf604f6b6673",
+          "afterSha256": "f0e5c2e560160baf77de6e17d4720bf54c8844da8d4f5dad07b0c8e28c1cebdf"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/unified-controller.js",
+      "beforeSha256": "58500d826b617802c670aaeb723772897911f844d3f706dcc2e15312de825eeb",
+      "afterSha256": "a993a170c5b9f2cdc467c2f9d65f8bd590a4b8f472d49d8ab7ad14e44e7a29a7",
+      "changes": [
+        {
+          "beforeSource": "  const title=panel.querySelector('.data-source-card h2');text(title,'Flood Data');\n  const downloadCard=document.getElementById('downloadCard');if(downloadCard?.getAttribute('role')==='button'){downloadCard.removeAttribute('role');downloadCard.removeAttribute('tabindex');downloadCard.removeAttribute('aria-label');}\n  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower end'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper end'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);\n  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');\n  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n",
+          "afterSource": "  const title=panel.querySelector('.data-source-card h2');text(title,'Flood Data');\n  const downloadCard=document.getElementById('downloadCard');if(downloadCard?.getAttribute('role')==='button'){downloadCard.removeAttribute('role');downloadCard.removeAttribute('tabindex');downloadCard.removeAttribute('aria-label');}\n  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);\n  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');\n  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n",
+          "beforeSha256": "ea297e6f3c7efb341474b7da449d3b86608af6b67a3335b128aabf604f6b6673",
+          "afterSha256": "f0e5c2e560160baf77de6e17d4720bf54c8844da8d4f5dad07b0c8e28c1cebdf"
+        }
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "75ba66597715ee416974408e1c9b00b3cffb07ed487d7e4401f717b900889569",
+      "afterSha256": "9b40586fdc5522d1ca3a7d5a6f40d3bc37f5b805c6089ae308d9902a6ee5e57d",
+      "changes": [
+        {
+          "beforeSource": "        </div>\n        <div class=\"button-grid-3\">\n          <button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower end</button>\n          <button id=\"forecastMeanBtn\" class=\"active\" type=\"button\" data-scenario=\"mean\">Mean</button>\n          <button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper end</button>\n        </div>\n      </section>\n",
+          "afterSource": "        </div>\n        <div class=\"button-grid-3\">\n          <button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower End</button>\n          <button id=\"forecastMeanBtn\" class=\"active\" type=\"button\" data-scenario=\"mean\">Mean</button>\n          <button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper End</button>\n        </div>\n      </section>\n",
+          "beforeSha256": "8d070641a18b0b785b3d0954247f76e1b217e3fe863e8669de726daf1a65b295",
+          "afterSha256": "6cecb69c70373a1791668d2c6275bf239e457e1e66df9c111026dd630b65ac75"
+        },
+        {
+          "beforeSource": "<script id=\"shorelysafe-visible-brand-controller-20261015\" data-nww-script=\"script-010\" src=\"./assets/app/branding.js?v=5218502b14ba05c5\"></script>\n\n<script id=\"floodmapper-unified-controller-20261017\" data-ui-sha256=\"3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7\" data-nww-script=\"script-011\" src=\"./assets/app/unified-controller.js?v=58500d826b617802\"></script>\n</body>\n</html>\n",
+          "afterSource": "<script id=\"shorelysafe-visible-brand-controller-20261015\" data-nww-script=\"script-010\" src=\"./assets/app/branding.js?v=5218502b14ba05c5\"></script>\n\n<script id=\"floodmapper-unified-controller-20261017\" data-ui-sha256=\"3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7\" data-nww-script=\"script-011\" src=\"./assets/app/unified-controller.js?v=a993a170c5b9f2cd\"></script>\n</body>\n</html>\n",
+          "beforeSha256": "7e44520c2b42732081e5a7fb5b125290810ceebe154a37dc788dbb884a424de4",
+          "afterSha256": "888ff61a806e3cbaa1fc93cf10dc77f877810aa1c973ee5c31d3b9f2799e8d8a"
+        }
+      ]
+    }
+  ]
+}

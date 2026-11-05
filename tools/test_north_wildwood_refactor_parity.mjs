@@ -16,6 +16,35 @@ const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
 const read = relative => readDeepReviewed(relative);
 const sha256 = source => createHash("sha256").update(source).digest("hex");
+// Only the explicitly requested forecast-label capitalization precedes prior audits.
+const LABEL_CASE_PATH = "tools/fixtures/north-wildwood-20261104-forecast-label-case.json";
+const labelCaseText = readCurrent(LABEL_CASE_PATH);
+assert.equal(sha256(labelCaseText), "37be370e4d37b020a4e334504015f27c6d1f9b7bc6ad41a7e49c2a363a9ea023", "Retain the exact reviewed forecast-label inverse");
+const labelCase = JSON.parse(labelCaseText);
+assert.equal(labelCase.schemaVersion, 1);
+assert.equal(labelCase.baselineCommit, "4023165cea5a7f1319c8127e31ec83914c99613d");
+assert.deepEqual(labelCase.files.map(file => file.source), ["tools/app/index.template.html", "tools/app/unified-controller.js", "assets/app/unified-controller.js", "index.html"]);
+function readForecastLabelReviewed(relative) {
+  const source = readCurrent(relative), file = labelCase.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside reviewed forecast-label capitalization`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(sha256(block.beforeSource), block.beforeSha256);
+    assert.equal(sha256(block.afterSource), block.afterSha256);
+    assert.ok(block.beforeSource.length && block.afterSource.length);
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact forecast-label fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-capitalization byte`);
+  return restored;
+}
+for (const file of labelCase.files) readForecastLabelReviewed(file.source);
+const labelControllerTags = [...readCurrent("index.html").matchAll(/<script[^>]+src="([^"]+)"[^>]*>/g)]
+  .map(match => new URL(match[1], "https://label-case.invalid/"))
+  .filter(url => url.pathname === "/assets/app/unified-controller.js");
+assert.equal(labelControllerTags.length, 1);
+assert.equal(labelControllerTags[0].searchParams.get("v"), sha256(readCurrent("assets/app/unified-controller.js")).slice(0, 16));
 // The November 4 building/camera change is pinned before all prior inverses.
 // Every historical validator continues to receive its exact pre-change bytes.
 const CAMERAS_3D_PATH = "tools/fixtures/north-wildwood-20261104-3d-cameras.json";
@@ -27,7 +56,7 @@ assert.equal(cameras3d.schemaVersion, 1);
 assert.equal(cameras3d.baselineCommit, "8dac57f98a3f09d6300f1e616487a2c8ea27b98a");
 assert.deepEqual(cameras3d.files.map(file => file.source), ["assets/3d/north-wildwood-3d.js", "tools/app/runtime/10-map-geometry-and-layers.js", "tools/app/runtime/27-mobile-and-address.js", "tools/app/webcams.js", "tools/app/styles/style-012.css", "assets/app/runtime.js", "assets/app/webcams.js", "assets/styles/app-04.css", "tools/app/index.template.html", "index.html"]);
 function read3dCameraReviewed(relative) {
-  const source = readCurrent(relative), file = cameras3d.files.find(file => file.source === relative);
+  const source = readForecastLabelReviewed(relative), file = cameras3d.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed 3D/camera fixes`);
   let restored = source;
@@ -2336,7 +2365,7 @@ if (process.argv.includes("--self-test")) {
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
-      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), "index.html"]) {
+      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
