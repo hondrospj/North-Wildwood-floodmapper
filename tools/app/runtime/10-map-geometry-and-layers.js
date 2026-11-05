@@ -835,7 +835,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         buildingsLayer = makeEsriBuildingForegroundLayer("buildingsPane");
         if (!buildingsLayer) throw new Error("The exact building layer is unavailable in this browser.");
         buildingsLayer.on("error", () => {
-          setBuildingsEnabled(false).catch(() => {});
+          setBuildingsEnabled(false, { rollback: true }).catch(() => {});
           toast("The exact building layer could not be loaded.");
         });
       }

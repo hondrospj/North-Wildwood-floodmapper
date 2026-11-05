@@ -60,7 +60,7 @@ function toggleFixture({ initGate = deferred(), syncGate = null } = {}) {
   const actions = [];
   const gl = { getPitch: () => 60 };
   const context = {
-    buildingToggleGeneration: 0, mapQueryGeneration: 0, document: { body, getElementById: () => toggle },
+    buildingToggleGeneration: 0, buildingVisibilityPreference: null, mapQueryGeneration: 0, document: { body, getElementById: () => toggle },
     glMap: null, map: null, buildingsLayer: null,
     ensure3dMap: () => initGate.promise,
     setBuildingsEnabled: async value => toggle.classList.toggle('on', Boolean(value)),
@@ -81,6 +81,7 @@ function toggleFixture({ initGate = deferred(), syncGate = null } = {}) {
   test.ready(); await older;
   assert.equal(test.toggle.classList.contains('on'), false);
   assert.equal(test.toggle.attributes['aria-checked'], 'false');
+  assert.equal(test.context.buildingVisibilityPreference,false,'Explicit off while loading owns the next 3D entry');
   assert.deepEqual(test.actions, [], 'An obsolete enable cannot change mode or focus');
 }
 {
@@ -116,6 +117,8 @@ for (const fail of ['null', 'reject']) {
   const current = test.context.setBuildingsEnabled(true);
   test.initGate.resolve(null);
   await assert.rejects(current, /3D buildings could not start/, 'Current failures must still reach the UI');
+  await test.context.setBuildingsEnabled(false,{rollback:true});
+  assert.equal(test.context.buildingVisibilityPreference,true,'Failure rollback must not overwrite the explicit on preference');
   await test.context.setBuildingsEnabled(false);
   test.ready();
   test.context.ensure3dMap = async () => test.context.glMap;

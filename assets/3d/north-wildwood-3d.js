@@ -7,9 +7,9 @@
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
   var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;
-  // Full real-height geometry remains available through a 1,000 m eye
-  // altitude. Beyond that distance, wall faces become subpixel bands rather
-  // than readable 3D structures, so the clean basemap footprints take over.
+  // A requested close building view targets a 1,000 m eye altitude. This is
+  // a framing target, not a visibility cutoff: enabled buildings must remain
+  // present while the user changes zoom, pitch, bearing, or viewport size.
   var BUILDING_MAX_CAMERA_ALTITUDE_METERS = 1000;
   var BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM = 16.25;
   var WEB_MERCATOR_EARTH_CIRCUMFERENCE_METERS = 40075016.68557849;
@@ -37,6 +37,7 @@
   var syncingModeTransition = false;
   var buildingCursorHandlersWired = false;
   var buildingToggleGeneration = 0;
+  var buildingVisibilityPreference = null;
   var fallbackBuildingPopup = null;
   var fallbackBuildingRenderToken = null;
   var navControlSyncFrame = null;
@@ -743,8 +744,7 @@
       ? "unknown"
       : altitudeMeters.toFixed(1);
     // Older WebGL implementations without free-camera altitude support use a
-    // conservative zoom fallback. Supported MapLibre browsers use the exact
-    // 1,000 m eye-altitude contract, independent of screen dimensions.
+    // conservative zoom fallback for the initial close-view framing.
     return altitudeMeters === null
       ? glMap.getZoom() >= BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM
       : altitudeMeters <= BUILDING_MAX_CAMERA_ALTITUDE_METERS;
@@ -757,10 +757,10 @@
       ? Math.max(glMap.getZoom(), BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM)
       : glMap.getZoom() + Math.log2(altitudeMeters / (BUILDING_MAX_CAMERA_ALTITUDE_METERS * 0.85));
     // An explicit Buildings/3D selection should show the requested walls.
-    // Lower the camera once, keeping the user's center and bearing. Manual
-    // zooming afterwards still uses the existing 1,000 m visibility cutoff.
-    // Leaflet mirrors whole zoom levels; rounding up prevents a mobile panel
-    // resize from snapping the camera back above the visibility cutoff.
+    // Lower the camera once, keeping the user's center and bearing. Later
+    // camera changes retain the enabled geometry at every supported zoom.
+    // Leaflet mirrors whole zoom levels; rounding up retains this initial
+    // detail framing when the two renderers synchronize their zoom levels.
     glMap.jumpTo({ zoom: Math.min(MAP_MAX_ZOOM, Math.ceil(targetZoom)) });
   }
 
@@ -788,8 +788,7 @@
     return Boolean(
       glMap &&
       layerVisible("buildingsToggle", false) &&
-      glMap.getPitch() > 10 &&
-      cameraIsWithinBuildingRange()
+      glMap.getPitch() > 10
     );
   }
 
@@ -804,14 +803,11 @@
       }
     });
     var buildingsEnabled = layerVisible("buildingsToggle", false);
-    var pitched = glMap.getPitch() > 10;
     document.body.dataset.map3dBuildingVisibility = shouldRender
       ? "pitched-3d"
-      : buildingsEnabled && pitched
-        ? "over-1000m-flat"
-        : buildingsEnabled
-          ? "hidden-in-2d"
-          : "disabled";
+      : buildingsEnabled
+        ? "hidden-in-2d"
+        : "disabled";
     return shouldRender;
   }
 
@@ -1578,8 +1574,8 @@
         id: "nw-3d-buildings",
         type: "fill-extrusion",
         source: "nw-buildings-source",
-        // Visibility is governed by true camera altitude rather than a fixed
-        // zoom, so the 1,000 m cutoff behaves consistently on every viewport.
+        // Keep complete municipal geometry available throughout the supported
+        // camera range; a change of eye altitude must not flatten the town.
         minzoom: 11,
         paint: {
           "fill-extrusion-color": "#ddd7cb",
@@ -2209,6 +2205,19 @@
     };
   }
 
+  function enableDefaultBuildings3d() {
+    // Switching the camera into 3D should also show walls on a fresh map.
+    // A newer explicit Buildings choice always wins, including an off click
+    // made while the renderer or building data was still loading.
+    if (buildingVisibilityPreference === false || layerVisible("buildingsToggle", false)) return;
+    var toggle = document.getElementById("buildingsToggle");
+    if (!toggle) return;
+    toggle.classList.add("on");
+    toggle.setAttribute("aria-checked", "true");
+    updateExportBuildingsLayer();
+    updateMapClickModeControl();
+  }
+
   function install3dLauncher() {
     if (document.getElementById("nwDefaultNavControl")) return;
     var host = document.getElementById("mapWrap") || document.body;
@@ -2307,7 +2316,7 @@
       // Apply the user's requested view in one update instead of animating
       // through intermediate pitches and rebuilding terrain on every frame.
       glMap.jumpTo(camera);
-      if (desired3dMode) focusEnabledBuildings3d();
+      if (desired3dMode) enableDefaultBuildings3d();
       syncFloodPresentationMode();
       if (modeTransitionTimer) window.clearTimeout(modeTransitionTimer);
       modeTransitionTimer = window.setTimeout(finishModeTransition, 120);
@@ -2487,9 +2496,12 @@
   install3dLauncher();
 
   var originalSetBuildingsEnabled = setBuildingsEnabled;
-  setBuildingsEnabled = async function (enabled) {
+  setBuildingsEnabled = async function (enabled, options) {
     var generation = ++buildingToggleGeneration;
     var shouldEnable = Boolean(enabled);
+    // A failed load resets the switch without inventing an explicit off
+    // preference. A later 3D retry still honors the user's last real choice.
+    if (!options || !options.rollback) buildingVisibilityPreference = shouldEnable;
     var queryGeneration = mapQueryGeneration;
     var toggle = document.getElementById("buildingsToggle");
     if (toggle) {

@@ -115,6 +115,8 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Compass and timeline keyboard ownership failed' }
             node tools/test_north_wildwood_native_recovery_browser.mjs
             if ($LASTEXITCODE -ne 0) { throw 'Native flood image graphics recovery failed' }
+            node tools/test_north_wildwood_building_visibility_browser.mjs
+            if ($LASTEXITCODE -ne 0) { throw '3D building visibility and retained toggle choice failed' }
             node tools/test_north_wildwood_export_preparation_browser.mjs
             if ($LASTEXITCODE -ne 0) { throw 'Export preparation cancellation and retry failed' }
             node tools/test_north_wildwood_device_matrix.mjs

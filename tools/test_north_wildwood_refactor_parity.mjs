@@ -16,6 +16,87 @@ const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
 const read = relative => readDeepReviewed(relative);
 const sha256 = source => createHash("sha256").update(source).digest("hex");
+// The November 4 building/camera change is pinned before all prior inverses.
+// Every historical validator continues to receive its exact pre-change bytes.
+const CAMERAS_3D_PATH = "tools/fixtures/north-wildwood-20261104-3d-cameras.json";
+const cameras3dText = readCurrent(CAMERAS_3D_PATH);
+assert.equal(sha256(cameras3dText), "28db3bf510b591bbee65f18e111c91421aedabaadb36441065e565dee46ff3e2",
+  "The 3D/camera inverse must retain its exact reviewed fixture");
+const cameras3d = JSON.parse(cameras3dText);
+assert.equal(cameras3d.schemaVersion, 1);
+assert.equal(cameras3d.baselineCommit, "8dac57f98a3f09d6300f1e616487a2c8ea27b98a");
+assert.deepEqual(cameras3d.files.map(file => file.source), ["assets/3d/north-wildwood-3d.js", "tools/app/runtime/10-map-geometry-and-layers.js", "tools/app/runtime/27-mobile-and-address.js", "tools/app/webcams.js", "tools/app/styles/style-012.css", "assets/app/runtime.js", "assets/app/webcams.js", "assets/styles/app-04.css", "tools/app/index.template.html", "index.html"]);
+function read3dCameraReviewed(relative) {
+  const source = readCurrent(relative), file = cameras3d.files.find(file => file.source === relative);
+  if (!file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed 3D/camera fixes`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(sha256(block.beforeSource), block.beforeSha256);
+    assert.equal(sha256(block.afterSource), block.afterSha256);
+    assert.ok(block.beforeSource.length && block.afterSource.length);
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}:${block.afterLine} requires one exact 3D/camera fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every pre-3D/camera byte`);
+  return restored;
+}
+for (const file of cameras3d.files) read3dCameraReviewed(file.source);
+for (const [relative, parameter, documents] of [
+  ["assets/3d/north-wildwood-3d.js", "deep", ["tools/app/index.template.html", "index.html"]],
+  ["assets/app/runtime.js", "v", ["index.html"]],
+  ["assets/app/webcams.js", "v", ["index.html"]],
+  ["assets/styles/app-04.css", "v", ["index.html"]]
+]) {
+  for (const document of documents) {
+    const tags = [...readCurrent(document).matchAll(/<(?:script|link)[^>]+(?:src|href)="([^"]+)"[^>]*>/g)];
+    const urls = tags.map(match => new URL(match[1], "https://3d-cameras.invalid/")).filter(url => url.pathname.slice(1) === relative);
+    assert.equal(urls.length, 1, `${document}: one exact current 3D/camera dependency for ${relative}`);
+    assert.equal(urls[0].searchParams.get(parameter), sha256(readCurrent(relative)).slice(0, 16), `${relative}: current 3D/camera cache key must match its bytes`);
+  }
+}
+// Map historical mutation boundaries only through unchanged exact anchors.
+// Edited interior bytes never provide an inferred or silently skipped boundary.
+function cameraCurrentFragment(relative, fragment) {
+  const current = readCurrent(relative);
+  if (current.split(fragment).length - 1 === 1) return fragment;
+  const baseline = read3dCameraReviewed(relative), file = cameras3d.files.find(file => file.source === relative);
+  assert.ok(file, `${relative}: changed mutation fragment requires an exact 3D/camera owner`);
+  assert.equal(baseline.split(fragment).length - 1, 1, `${relative}: prior mutation fragment must be unique`);
+  const offset = position => {
+    let shift = 0;
+    for (const block of file.changes) {
+      const start = baseline.indexOf(block.beforeSource), end = start + block.beforeSource.length;
+      assert.ok(start >= 0);
+      if (position < start) break;
+      if (position >= end) { shift += block.afterSource.length - block.beforeSource.length; continue; }
+      let prefix = 0, suffix = 0;
+      while (prefix < Math.min(block.beforeSource.length, block.afterSource.length) && block.beforeSource[prefix] === block.afterSource[prefix]) prefix++;
+      while (suffix < Math.min(block.beforeSource.length, block.afterSource.length) - prefix && block.beforeSource.at(-suffix - 1) === block.afterSource.at(-suffix - 1)) suffix++;
+      if (position - start <= prefix) return position + shift;
+      if (position >= end - suffix) return start + shift + block.afterSource.length - (end - position);
+      const local = position - start;
+      if (local === 0 || block.beforeSource[local - 1] === "\n") {
+        let forward = local, backward = local;
+        for (let lines = 0; lines < block.beforeSource.split("\n").length; lines++) {
+          forward = block.beforeSource.indexOf("\n", forward) + 1 || block.beforeSource.length;
+          backward = block.beforeSource.lastIndexOf("\n", Math.max(0, backward - 2)) + 1;
+          for (const [anchor, endBoundary] of [[block.beforeSource.slice(local, forward), false], [block.beforeSource.slice(backward, local), true]]) {
+            if (!anchor.trim() || block.beforeSource.split(anchor).length - 1 !== 1 || block.afterSource.split(anchor).length - 1 !== 1) continue;
+            return start + shift + block.afterSource.indexOf(anchor) + (endBoundary ? anchor.length : 0);
+          }
+          if (forward === block.beforeSource.length && backward === 0) break;
+        }
+      }
+      assert.fail(`${relative}: prior mutation boundary lies inside newly edited 3D/camera bytes`);
+    }
+    return position + shift;
+  };
+  const start = baseline.indexOf(fragment), mapped = current.slice(offset(start), offset(start + fragment.length));
+  assert.ok(mapped.length);
+  assert.equal(current.split(mapped).length - 1, 1, `${relative}: mapped current 3D/camera mutation fragment must be unique`);
+  return mapped;
+}
 // Pin the physical recheck bytes first. Every previous audit still receives
 // exactly its original source through this narrowly enumerated inverse.
 const RECHECK_PATH = "tools/fixtures/north-wildwood-20261103-recheck-debug.json";
@@ -32,7 +113,7 @@ assert.deepEqual(recheck.files.map(file => file.source), [
   "city-gauge/index.html", "assets/app/runtime.js", "tools/app/index.template.html", "index.html"
 ]);
 function readRecheckReviewed(relative) {
-  const source = readCurrent(relative), file = recheck.files.find(file => file.source === relative);
+  const source = read3dCameraReviewed(relative), file = recheck.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed recheck fixes`);
   let restored = source;
@@ -52,10 +133,10 @@ for (const [relative, parameter, documents] of [
   ["assets/app/runtime.js", "v", ["index.html"]]
 ]) {
   for (const document of documents) {
-    const tags = [...readCurrent(document).matchAll(/<script[^>]+src="([^"]+)"[^>]*>/g)];
+    const tags = [...read3dCameraReviewed(document).matchAll(/<script[^>]+src="([^"]+)"[^>]*>/g)];
     const urls = tags.map(match => new URL(match[1], "https://recheck.invalid/")).filter(url => url.pathname.slice(1) === relative);
     assert.equal(urls.length, 1, `${document}: one exact recheck dependency for ${relative}`);
-    assert.equal(urls[0].searchParams.get(parameter), sha256(readCurrent(relative)).slice(0, 16), `${relative}: current content cache key must match its bytes`);
+    assert.equal(urls[0].searchParams.get(parameter), sha256(read3dCameraReviewed(relative)).slice(0, 16), `${relative}: pre-3D/camera content cache key must match its bytes`);
   }
 }
 // Prior fragment-revert mutations keep their names and original regression
@@ -63,8 +144,8 @@ for (const [relative, parameter, documents] of [
 // Map only unchanged fragment boundaries through the exact leading inverse;
 // a boundary inside edited bytes is an assertion failure, never an ignored case.
 function recheckCurrentFragment(relative, fragment) {
-  const current = readCurrent(relative);
-  if (current.split(fragment).length - 1 === 1) return fragment;
+  const current = read3dCameraReviewed(relative);
+  if (current.split(fragment).length - 1 === 1) return cameraCurrentFragment(relative, fragment);
   const baseline = readActual(relative), file = recheck.files.find(file => file.source === relative);
   assert.ok(file, `${relative}: changed mutation fragment requires an exact recheck owner`);
   assert.equal(baseline.split(fragment).length - 1, 1, `${relative}: previous mutation fragment must be unique`);
@@ -103,7 +184,7 @@ function recheckCurrentFragment(relative, fragment) {
   const start = baseline.indexOf(fragment), mapped = current.slice(offset(start), offset(start + fragment.length));
   assert.ok(mapped.length);
   assert.equal(current.split(mapped).length - 1, 1, `${relative}: mapped current mutation fragment must be unique`);
-  return mapped;
+  return cameraCurrentFragment(relative, mapped);
 }
 // Pin every current follow-up byte, then invert only exact reviewed fragments.
 // All earlier fixtures and their assertions still receive their original input.
@@ -2255,7 +2336,7 @@ if (process.argv.includes("--self-test")) {
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
-      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), "index.html"]) {
+      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
@@ -2790,13 +2871,26 @@ if (process.argv.includes("--self-test")) {
         const current = readCurrent(file.source);
         return [
           [`unreviewed recheck byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed recheck byte */\n"],
-          ...file.changes.map((block, index) => [`reverted recheck fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(block.afterSource, block.beforeSource)])
+          ...file.changes.map((block, index) => [`reverted recheck fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(cameraCurrentFragment(file.source, block.afterSource), block.beforeSource)])
         ];
       })
     ];
     assert.equal(recheckCases.length, 50, "Retain all ten file boundaries and thirty-nine exact recheck fragments");
     allCases.push(...recheckCases);
     assert.equal(allCases.length, 340, "Retain all 290 earlier mutation cases and append 50 recheck boundaries");
+    const cameras3dCases = [
+      ["broadened 3D/camera inverse ownership", path.join(scratch, CAMERAS_3D_PATH), cameras3dText.replace('"scope":', '"unreviewedScope":')],
+      ...cameras3d.files.flatMap(file => {
+        const current = readCurrent(file.source);
+        return [
+          [`unreviewed 3D/camera byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed 3D/camera byte */\n"],
+          ...file.changes.map((block, index) => [`reverted 3D/camera fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(block.afterSource, block.beforeSource)])
+        ];
+      })
+    ];
+    assert.equal(cameras3dCases.length, 47, "Retain every 3D/camera file and exact fragment boundary");
+    allCases.push(...cameras3dCases);
+    assert.equal(allCases.length, 340 + 47, "Retain all 340 earlier mutations and append the reviewed 3D/camera boundaries");
     assert.deepEqual(allCases.filter(([, target, altered]) => fs.readFileSync(target, "utf8") === altered).map(([name]) => name), [], "Every retained mutation must alter the actual current artifact");
     for (const [name, target, altered] of allCases) {
       const before = fs.readFileSync(target);

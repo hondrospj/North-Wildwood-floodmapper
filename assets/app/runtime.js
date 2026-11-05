@@ -5176,7 +5176,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         buildingsLayer = makeEsriBuildingForegroundLayer("buildingsPane");
         if (!buildingsLayer) throw new Error("The exact building layer is unavailable in this browser.");
         buildingsLayer.on("error", () => {
-          setBuildingsEnabled(false).catch(() => {});
+          setBuildingsEnabled(false, { rollback: true }).catch(() => {});
           toast("The exact building layer could not be loaded.");
         });
       }
@@ -13960,7 +13960,7 @@ function startPlayback() {
       const toggleBuildings = () => {
         const enabled = !buildingsToggle?.classList.contains("on");
         setBuildingsEnabled(enabled).catch(error => {
-          setBuildingsEnabled(false).catch(() => {});
+          setBuildingsEnabled(false, { rollback: true }).catch(() => {});
           toast(error?.message || "Buildings could not be loaded.");
         });
       };
