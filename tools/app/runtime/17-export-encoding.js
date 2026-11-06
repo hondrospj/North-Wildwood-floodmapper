@@ -33,20 +33,43 @@
 
     function buildQuarterHourRangeFrameItems(entries, range, sourceSeries = new Map()) {
       if (!Array.isArray(entries) || !entries.length || !range) return [];
-      const sourceMode = entries.find(entry => entry.exportSourceMode)?.exportSourceMode || "observed";
-      const series = buildQuarterHourTimelineSeries(entries, {
-        kind: sourceMode,
-        startMs: range.startMs,
-        endMs: range.endMs,
-        fillMissingSlots: false,
-        maxGapMinutes: 75
+      const byTime = new Map();
+      const observedDates = new Set();
+      const projected = entries.filter(entry => {
+        if (entry.exportSourceMode && entry.exportSourceMode !== "observed") return true;
+        if (entry.observedDate) observedDates.add(entry.observedDate);
+        return false;
       });
-      return series
+      // The observed timeline decides which quarter hours actually exist.
+      // In particular, the forecast's hourly interpolation cannot fill a gauge outage.
+      observedDates.forEach(dateStr => {
+        const canonical = buildObservedCanonicalSeries(getObservedDayRecord(dateStr), dateStr);
+        sourceSeries.set(`observed:${dateStr}`, canonical);
+        canonical.forEach(entry => {
+          const time = entryTimeMs(entry);
+          if (!entry.isDailyPeakOnly && Number.isFinite(getStageValue(entry)) &&
+              time >= range.startMs && time <= range.endMs) {
+            byTime.set(time, { ...entry, exportSourceMode: "observed" });
+          }
+        });
+      });
+      if (projected.length) {
+        const quarterHourMs = 15 * 60 * 1000;
+        const series = buildQuarterHourTimelineSeries(projected, {
+          kind: projected[0].exportSourceMode,
+          startMs: Math.ceil(range.startMs / quarterHourMs) * quarterHourMs,
+          endMs: range.endMs,
+          fillMissingSlots: false,
+          maxGapMinutes: 75
+        });
+        // Projected frames retain their existing priority at the same instant.
+        series.forEach(entry => byTime.set(entryTimeMs(entry), entry));
+      }
+      return Array.from(byTime.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b))
         .filter(entry => Number.isFinite(getStageValue(entry)))
         .map((entry, idx) => {
           const exportEntry = {
             ...entry,
-            exportSourceMode: entry.exportSourceMode || sourceMode,
             observationInterval: "15min",
             timelineIntervalMinutes: 15,
             exportInterval: "15min"

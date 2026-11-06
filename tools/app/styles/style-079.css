@@ -85,4 +85,8 @@
     outline:2px solid var(--fleet-accent) !important;
     outline-offset:3px !important;
   }
+  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl
+    .nw-simple-zoom-button:focus-visible {
+    outline-offset:-3px !important;
+  }
 }

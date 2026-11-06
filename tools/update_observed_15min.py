@@ -436,14 +436,20 @@ def build(args: argparse.Namespace) -> dict:
         source = parse_usgs_values(fetch_json(url))
         print(f"  {len(source):,} USGS observations")
         for day in daterange(cursor, chunk_end):
+            key = day.isoformat()
             compact, hourly = build_compact_day(day, source)
-            existing_days[day.isoformat()] = compact
+            previous = existing_days.get(key)
+            if compact["p"] is None and previous and any(value is not None for value in previous["v"]):
+                raise RuntimeError(f"Stone Harbor refresh would erase existing readings for {key}")
+            existing_days[key] = compact
             if hourly is not None:
-                hourly_updates[day.isoformat()] = hourly
+                hourly_updates[key] = hourly
         cursor = chunk_end + timedelta(days=1)
 
     sorted_days = [existing_days[key] for key in sorted(existing_days) if key <= end_date.isoformat()]
     valid_quarters = sum(sum(value is not None for value in row.get("v", [])) for row in sorted_days)
+    if not valid_quarters:
+        raise RuntimeError("Stone Harbor refresh produced no usable observations")
     total_quarters = sum(len(row.get("v", [])) for row in sorted_days)
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     payload = {

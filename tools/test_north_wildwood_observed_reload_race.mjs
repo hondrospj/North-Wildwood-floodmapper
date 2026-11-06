@@ -22,7 +22,7 @@ function context(extra = {}) {
   const c = vm.createContext({
     Promise, Map, Set, console: {warn() {}}, archiveGeneration: 1,
     observedData: {archiveEndDate: '2026-10-31', days: [{date: '2026-10-31'}]},
-    observedDaysCache: null, observedMonthKeys: [], observedFlatHours: [],
+    observed15MinuteData: null, observedDaysCache: null, observedMonthKeys: [], observedFlatHours: [],
     observedHourIndexByDateHour: new Map(), topTideEvents: [],
     getTodayNyDateKey: () => '2026-11-01',
     getObservedArchiveLatestDateKey: () => c.observedData?.archiveEndDate,

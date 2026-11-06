@@ -105,21 +105,25 @@ def test_committed_forecast():
 class ForecastGenerationFixtures(unittest.TestCase):
     """Exercise the scheduled path without NOAA access or repository writes."""
 
-    # This is the byte-for-byte CLI output from the former embedded generator
-    # at commit fef860f, with the fixture archive and fixed clock below. It
-    # freezes payload schema, numbers, row ordering, dates, and serialization.
-    LEGACY_OUTPUT_SHA256 = 'badd5aef498ead04de33f2c8f4ad40ab25caa0224f4e5991c6b9862cce28cd5e'
+    # Golden CLI bytes from the pre-cadence-check generator with the complete
+    # fixture below. Valid source cycles keep the same output contract.
+    LEGACY_OUTPUT_SHA256 = '862186574e7bb8f8864edb46b7807e98f7c596aede9d978719a18945e77363bb'
     NOW = datetime(2026, 10, 23, 3, tzinfo=timezone.utc)
 
     def setUp(self):
         self.g = generator()
         self.fixture = (ROOT / 'tools/fixtures/north-wildwood-petss-station.csv').read_bytes()
 
-    def archive(self, member='stations/8535581.csv'):
+    def complete_fixture(self):
+        return (self.fixture.replace(b'2026102304,9999,', b'2026102304,6.631,')
+                .replace(b'24.125,NaN,22.891', b'24.125,25.000,22.891')
+                .replace(b'5.450,6.325,,5.200', b'5.450,6.325,4.216,5.200'))
+
+    def archive(self, member='stations/8535581.csv', station_csv=None):
         """A tar fixture includes an almost-matching station to catch bad IDs."""
         output = io.BytesIO()
         with tarfile.open(fileobj=output, mode='w:gz') as archive:
-            for name, content in [('stations/85355810.csv', b'wrong station'), (member, self.fixture)]:
+            for name, content in [('stations/85355810.csv', b'wrong station'), (member, station_csv or self.complete_fixture())]:
                 info = tarfile.TarInfo(name)
                 info.size = len(content)
                 archive.addfile(info, io.BytesIO(content))
@@ -142,21 +146,22 @@ class ForecastGenerationFixtures(unittest.TestCase):
         self.assertEqual(data['issuedUtc'], '2026-10-23T03:00:00Z')
         self.assertEqual(data['petssCycleUtc'], '2026-10-23T00:00:00Z')
         self.assertEqual(data['forecastStartUtc'], '2026-10-23T03:00:00Z')
-        self.assertEqual(data['forecastEndUtc'], '2026-10-26T18:00:00Z')
+        self.assertEqual(data['forecastEndUtc'], '2026-10-26T15:00:00Z')
         self.assertEqual(len(data['hours']), 85)
         fetch.assert_called_once_with(
             'https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/petss.20261023/petss.t00z.csv.tar.gz')
 
     def test_alignment_rejects_missing_bounds_and_uses_last_duplicate(self):
         products = self.g['parse_station_csv'](self.fixture.decode(), self.g['ZONES'][0])
+        with self.assertRaisesRegex(RuntimeError, 'consecutive hourly timestamps'):
+            self.g['align_products'](products, self.NOW)
+        products = self.g['parse_station_csv'](self.complete_fixture().decode(), self.g['ZONES'][0])
         aligned = self.g['align_products'](products, self.NOW)
         expected_times = [row['timeUtc'] for row in aligned['mean']]
         self.assertEqual(len(expected_times), 85)
         for key in ('lowEnd', 'mean', 'highEnd'):
             self.assertEqual([row['timeUtc'] for row in aligned[key]], expected_times)
             self.assertEqual([row['hourIndex'] for row in aligned[key]], list(range(85)))
-        for hour in (4, 7, 11):
-            self.assertNotIn(f'2026-10-23T{hour:02}:00:00Z', expected_times)
         replaced = next(row for row in aligned['mean'] if row['timeUtc'] == '2026-10-23T05:00:00Z')
         self.assertEqual(replaced['rawPetssValue'], 2.345)
         self.assertEqual(replaced['navd88StageFt'], -0.4)
@@ -167,13 +172,13 @@ class ForecastGenerationFixtures(unittest.TestCase):
         with patch.dict(self.g, {'fetch_bytes': Mock(return_value=self.archive())}):
             text, member = self.g['extract_station_csv']('fixture', '8535581')
         self.assertEqual(member, 'stations/8535581.csv')
-        self.assertEqual(text, self.fixture.decode())
+        self.assertEqual(text, self.complete_fixture().decode())
         with patch.dict(self.g, {'fetch_bytes': Mock(return_value=self.archive('stations/0000000.csv'))}):
             with self.assertRaisesRegex(RuntimeError, 'station CSV 8535581.csv not found'):
                 self.g['extract_station_csv']('fixture', '8535581')
 
     def test_unusable_newest_cycle_falls_back_to_previous_cycle(self):
-        fetch = Mock(side_effect=[RuntimeError('missing station'), self.archive()])
+        fetch = Mock(side_effect=[self.archive(station_csv=self.fixture), self.archive()])
         with patch.dict(self.g, {'fetch_bytes': fetch}):
             result = self.g['build_forecast'](self.NOW)
         self.assertEqual(fetch.call_count, 2)

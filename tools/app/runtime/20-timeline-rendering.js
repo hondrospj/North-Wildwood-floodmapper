@@ -311,6 +311,22 @@
       const rawStage = getStageValue(entry);
       const displayStage = getOverlayStage(rawStage);
       const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);
+      const observedDate = entry.isDailyMaximum && currentViewType === "observed-day" &&
+        entry.observedDate !== selectedObservedDate ? entry.observedDate : null;
+      const observedDay = observedDate ? getObservedDayRecord(observedDate) : null;
+      const rawSeries = observedDay ? buildObservedCanonicalSeries(observedDay, observedDate) : currentRawSeriesHours;
+      const commitSelection = () => {
+        currentHourIndex = index;
+        if (observedDay) {
+          // The month-wide Daily Max slider can change the selected day.
+          // Commit its date and tide context only when this frame is displayed.
+          setObservedDaySelection(observedDate, observedDay);
+          currentRawSeriesHours = rawSeries;
+          renderCalendar().catch(error => toast(error.message));
+        }
+        renderSelectionMeta(entry, rawStage, displayStage);
+        renderTimelineMeta(entry);
+      };
 
       updatePersistentDepthQueryPopup({ useRenderedFlood: false });
 
@@ -319,9 +335,7 @@
       updateSliderProgress();
 
       if (displayStage == null) {
-        currentHourIndex = index;
-        renderSelectionMeta(entry, rawStage, displayStage);
-        renderTimelineMeta(entry);
+        commitSelection();
         toast(currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours)
           ? `Gauge inoperable: more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} consecutive hours are unavailable.`
           : "No observed record for this time.");
@@ -357,7 +371,7 @@
 
       const ready = await renderFloodFrameWithRetry(() => physicsAsset
         ? setPhysicsFloodLayer(physicsAsset, token, entry, hydraulicPhase)
-        : setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours), token);
+        : setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, rawSeries), token);
       if (token !== lastRenderToken || requestedSeries !== currentSeriesHours) return false;
       if (!ready) {
         requestedTimelineSelection = null;
@@ -370,10 +384,8 @@
         reportFloodFrameFailure();
         return false;
       }
-      currentHourIndex = index;
       requestedTimelineSelection = null;
-      renderSelectionMeta(entry, rawStage, displayStage);
-      renderTimelineMeta(entry);
+      commitSelection();
       updateNsiStructureImpactLayer();
       floodFrameState = "ready";
       document.body.dataset.floodFrame = "ready";

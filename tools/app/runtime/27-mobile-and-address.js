@@ -201,7 +201,9 @@
       });
       backdrop.addEventListener("click", () => setMobileControlsOpen(false));
       document.addEventListener("keydown", e => {
-        if (e.key === "Escape") setMobileControlsOpen(false);
+        if (e.key === "Escape" && !e.defaultPrevented && !document.body.hasAttribute("data-floodmapper-unified")) {
+          setMobileControlsOpen(false);
+        }
       });
       document.addEventListener("click", e => {
         if (!document.body.classList.contains("mobile-controls-open")) return;
@@ -256,6 +258,7 @@
     }
 
     let townAddressLookupController = null;
+    let townAddressPopup = null;
 
     function clearTownAddressLookup() {
       ++townAddressSearchGeneration;
@@ -271,6 +274,7 @@
       }
       townAddressMarker = null;
       window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);
+      townAddressPopup?.remove();
       input?.focus();
     }
 
@@ -656,15 +660,17 @@
           document.getElementById("townAddressInput")?.blur();
           setMobileControlsOpen(false);
         }
-        if (parcelFeature) {
-          openParcelFloodPrompt(parcelFeature, latLng);
-        } else {
-          openPersistentFloodPopup(
+        const popup = parcelFeature
+          ? openParcelFloodPrompt(parcelFeature, latLng)
+          : openPersistentFloodPopup(
             latLng,
             '<div class="town-address-popup"><strong>Closest match</strong><br>' + escapeTownAddressHtml(label) + "</div>",
             370
           );
-        }
+        townAddressPopup = popup;
+        popup.once("remove", () => {
+          if (townAddressPopup === popup) townAddressPopup = null;
+        });
         setTownAddressStatus(parcelFeature ? `Building flood profile found: ${label}` : `Closest match: ${label}`, "success");
       } catch (err) {
         if (generation !== townAddressSearchGeneration) return;

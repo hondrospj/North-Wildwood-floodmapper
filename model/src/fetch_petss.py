@@ -14,6 +14,7 @@ import tarfile
 import tempfile
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from operator import gt, lt
 from pathlib import Path
 from typing import Any
 
@@ -276,6 +277,25 @@ def atomic_write_json(path: Path, value: dict[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def enforce_scenario_order(curves: dict[str, list[dict[str, Any]]]) -> bool:
+    """Keep interpolated bounds around the mean and preserve hourly values."""
+    mean = curves.get("mean")
+    if mean is None:
+        return False
+    changed = False
+    for scenario, crosses_mean in (("lowEnd", gt), ("highEnd", lt)):
+        if scenario not in curves:
+            continue
+        for bound, center in zip(curves[scenario], mean, strict=True):
+            if crosses_mean(float(bound["mllwFt"]), float(center["mllwFt"])):
+                if bound["isHourlySourcePoint"]:
+                    raise ValueError(f"PETSS {scenario} crosses the mean at {bound['timeUtc']}")
+                for field in ("mllwFt", "navd88Ft", "navd88M"):
+                    bound[field] = center[field]
+                changed = True
+    return changed
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
@@ -301,12 +321,16 @@ def main() -> None:
             previous_cycle = datetime.fromisoformat(
                 previous["petssCycleUtc"].replace("Z", "+00:00")
             ).astimezone(timezone.utc)
-        except Exception:
+            if enforce_scenario_order(previous["scenarios"]):
+                previous["interpolation"]["scenarioOrdering"] = "Subhour bounds are limited to the mean"
+                atomic_write_json(latest_path.parent / f"petss_{previous_cycle:%Y%m%dT%H00Z}.json", previous)
+                atomic_write_json(latest_path, previous)
+        except (OSError, ValueError, KeyError, TypeError):
             previous = None
             previous_cycle = None
 
     error_messages: list[str] = []
-    selected: tuple[datetime, str, str, str, dict[str, list[tuple[datetime, float]]]] | None = None
+    selected: tuple[datetime, str, str, str, dict[str, list[dict[str, Any]]]] | None = None
     candidate_cycles = recent_cycles(
         now,
         list(petss["cyclesUtc"]),
@@ -333,7 +357,12 @@ def main() -> None:
                 cycle,
                 int(petss["forecastHours"]),
             )
-            selected = (cycle, url, member, text, hourly)
+            curves = {
+                scenario: interpolate_15_minutes(values, float(petss["navd88OffsetFromMllwFt"]))
+                for scenario, values in hourly.items()
+            }
+            enforce_scenario_order(curves)
+            selected = (cycle, url, member, text, curves)
             break
         except Exception as error:
             message = f"{utc_iso(cycle)}: {error}"
@@ -352,14 +381,7 @@ def main() -> None:
             "No usable recent PETSS cycle was found:\n" + "\n".join(error_messages)
         )
 
-    cycle, url, member, raw_text, hourly = selected
-    curves = {
-        scenario: interpolate_15_minutes(
-            values,
-            float(petss["navd88OffsetFromMllwFt"]),
-        )
-        for scenario, values in hourly.items()
-    }
+    cycle, url, member, raw_text, curves = selected
     cycle_id = cycle.strftime("%Y%m%dT%H00Z")
     first_scenario = scenarios[0]
     result = {
@@ -380,6 +402,7 @@ def main() -> None:
             "sourceIntervalSeconds": 3600,
             "outputIntervalSeconds": petss["outputIntervalSeconds"],
             "hourlySourcePointsPreservedExactly": True,
+            "scenarioOrdering": "Subhour bounds are limited to the mean",
         },
         "forecastStartUtc": curves[first_scenario][0]["timeUtc"],
         "forecastEndUtc": curves[first_scenario][-1]["timeUtc"],

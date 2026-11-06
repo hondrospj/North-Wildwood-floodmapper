@@ -72,7 +72,7 @@ if (process.env.NWW_DEEP_CASE !== 'hourly') {
   // the neighboring property rather than merely the absence of new helpers.
   const rawBuildings=JSON.parse(fs.readFileSync(path.join(repo,'assets/3d/NorthWildwoodBuildings3D.geojson'),'utf8')).features;
   const rawParcels=JSON.parse(fs.readFileSync(path.join(repo,'assets/parcel-history-v2/NorthWildwoodParcels.geojson'),'utf8')).features;
-  const clicked=rawBuildings.find(feature=>feature.properties.footprintId==='34009_118023');
+  let clicked=rawBuildings.find(feature=>feature.properties.footprintId==='34009_118023');
   let clickHandler,opened;
   Object.assign(ctx,{buildingData:{features:rawBuildings},parcelFeatures:rawParcels,
     glMap:{on(name,...args){if(name==='click')clickHandler=args.at(-1);},getLayer:()=>true,queryRenderedFeatures:()=>[clicked]},
@@ -80,10 +80,15 @@ if (process.env.NWW_DEEP_CASE !== 'hourly') {
     layerVisible:()=>true,mapClickMode:'building',mapQueryGeneration:0,lastRenderToken:1,
     sync3dViewToLeaflet(){},syncLeafletViewTo3d(){},handleDepthQueryClick(){throw Error('Expected building selection');},
     findParcelFeatureForLocation:async(lat,lng)=>rawParcels.find(feature=>ctx.pointInsideMunicipalGeometry([lng,lat],feature.geometry)),
-    openParcelFloodPrompt:parcel=>{opened=parcel.properties.parcelId;},openFallbackBuildingPopup:()=>{opened='fallback';}});
+    openParcelFloodPrompt:parcel=>{opened=parcel.properties.parcelId;},openFallbackBuildingPopup:(_point, properties)=>{opened=properties;}});
   vm.runInContext(extract(three,'wire3dInteractions'),ctx);ctx.wire3dInteractions();
   await clickHandler({point:{x:985,y:150},lngLat:{lng:-74.79706764221191,lat:39.011497839736876}});
   assert.equal(opened,'0507_128_23','A clicked 327 W Chestnut roof must not open neighboring 329 W Chestnut');checks++;
+  clicked=rawBuildings.find(feature=>feature.properties.footprintId==='34009_26741');
+  const shared=await ctx.resolveClickedBuildingParcel3d(clicked);
+  assert.equal(shared.parcel.properties.nsi2026FootprintId,'34009_26731','The clicked roof shares a parcel with the associated NSI structure');
+  await clickHandler({point:{x:720,y:465},lngLat:{lng:shared.point[0],lat:shared.point[1]}});
+  assert.equal(opened,clicked.properties,'A shared parcel cannot supply another roof’s flood facts or projections');checks++;
 
   const ring=(x1,y1,x2,y2)=>[[x1,y1],[x2,y1],[x2,y2],[x1,y2],[x1,y1]];
   const polygon=(...rings)=>({type:'Polygon',coordinates:rings});

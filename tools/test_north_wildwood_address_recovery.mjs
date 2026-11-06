@@ -17,6 +17,7 @@ function setup(fetchResult) {
   const status = { textContent: '', classList: { toggle() {} } };
   const marker = { setLatLng() {}, setIcon() {}, addTo() { return this; } };
   const popups = [];
+  let activePopup = null;
   const context = vm.createContext({
     console, Promise, URLSearchParams, AbortController,
     TOWN_CONFIG: config, townAddressSearchGeneration: 0, townAddressMarker: null,
@@ -27,7 +28,15 @@ function setup(fetchResult) {
     map: { hasLayer: () => false, setView() {}, getZoom: () => 10 }, window: {},
     L: { latLng: (lat, lng) => ({ lat, lng }), divIcon: () => ({}), marker: () => marker },
     findParcelFeatureForLocation: async () => null,
-    openPersistentFloodPopup: (point, html) => popups.push(html)
+    openPersistentFloodPopup(_point, html) {
+      activePopup?.remove();
+      let onRemove;
+      const popup = { html, removed: false, once(_event, callback) { onRemove = callback; },
+        remove() { this.removed = true; onRemove?.(); if (activePopup === this) activePopup = null; } };
+      popups.push(popup);
+      activePopup = popup;
+      return popup;
+    }
   });
   vm.runInContext(source, context);
   return { context, timers, requests, button, input, status, popups };
@@ -90,4 +99,14 @@ for (const stallBody of [false, true]) {
   assert.equal(t.popups.length, 0);
   assert.equal(t.timers.size, 0);
 }
-console.log('Address recovery passed: provider/body deadlines, partial success, clear and replacement cancellation.');
+// Clear only owns the address result. A later ordinary map popup stays open.
+for (const replacePopup of [false, true]) {
+  const t = setup(url => Promise.resolve(url.includes('arcgis') ? valid : { ok: true, json: async () => [] }));
+  await t.context.searchTownAddress(t.input.value);
+  assert.equal(t.popups[0].removed, false);
+  if (replacePopup) t.context.openPersistentFloodPopup(null, 'Independent map query');
+  t.context.clearTownAddressLookup();
+  assert.equal(t.popups[0].removed, true);
+  if (replacePopup) assert.equal(t.popups[1].removed, false);
+}
+console.log('Address recovery passed: provider/body deadlines, partial success, popup ownership, clear and replacement cancellation.');

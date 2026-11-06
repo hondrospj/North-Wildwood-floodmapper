@@ -156,8 +156,13 @@
           if (Number.isFinite(time) && Number.isFinite(getStageValue(hour))) byTime.set(time, hour);
         });
         const hours = Array.from(byTime.entries()).sort((a, b) => a[0] - b[0]).map(([, hour]) => hour);
-        const next = { ...existing, ...dayRecord, hours, timelineRawHours: hours, generatedPlaceholderDay: false };
+        const indexedPeak = existing.liveBackfilled ? existing.liveBackfillIndexedPeakNAVD88 : existing.peakNAVD88;
+        const next = { ...existing, ...dayRecord, hours, timelineRawHours: hours,
+          liveBackfillIndexedPeakNAVD88: indexedPeak, generatedPlaceholderDay: false };
         const stages = [...hours, ...getObservedSourceHoursForDay(next)].map(getStageValue).filter(Number.isFinite);
+        // The detailed shard may still be loading. A partial IV response
+        // cannot erase the published daily peak while only the index is loaded.
+        if (!observed15MinuteDaysByDate.has(dayRecord.date) && Number.isFinite(indexedPeak)) stages.push(indexedPeak);
         next.peakNAVD88 = stages.length ? Math.max(...stages) : existing.peakNAVD88;
         next.classification = classifyFloodStage(next.peakNAVD88);
         observedData.days[existingIndex] = next;
@@ -281,25 +286,36 @@
       const latest = getObservedArchiveLatestDateKey();
       if (!today || (latest && compareDateKeys(latest, today) > 0)) return;
 
-      // A published row for today is still mutable. Keep the request on this
-      // archive object so Reload discards both its cooldown and pending work.
+      // The last published day may end partway through the day. Keep its date
+      // separate from the calendar end, which advances even on a failed fetch.
       const archive = observedData;
       let refresh = archive.liveObservedRefresh;
       if (!refresh || refresh.generation !== generation) {
-        refresh = archive.liveObservedRefresh = { generation, date: today, nextRefreshAt: 0, promise: null };
+        refresh = archive.liveObservedRefresh = {
+          generation, date: today, publishedEndDate: observed15MinuteData?.archiveEndDate || latest || today,
+          nextRefreshAt: 0, promise: null
+        };
       }
       if (refresh.promise) return refresh.promise;
       if (refresh.date === today && Date.now() < refresh.nextRefreshAt) return;
-      let startDate = latest && compareDateKeys(latest, today) < 0 ? addDaysToDateKey(latest, 1) : today;
+      const publishedEndDate = refresh.publishedEndDate;
+      let startDate = today;
+      if (publishedEndDate && compareDateKeys(publishedEndDate, today) < 0) {
+        // Include the published tail on first load. Later refreshes only need
+        // a one-day overlap to pick up late readings across local midnight.
+        startDate = refresh.nextRefreshAt ? addDaysToDateKey(today, -1) : publishedEndDate;
+      }
       if (refresh.retryStartDate && compareDateKeys(refresh.retryStartDate, startDate) < 0) startDate = refresh.retryStartDate;
       refresh.date = today;
 
       const request = (async () => {
         let succeeded = false;
+        let hasReadings = false;
         try {
           const liveDays = await fetchRecentUsgsObservedDays(startDate, today);
           if (generation !== archiveGeneration || archive !== observedData) return false;
           liveDays.forEach(addOrMergeObservedDayRecord);
+          hasReadings = liveDays.length > 0;
           succeeded = true;
         } catch (err) {
           if (generation !== archiveGeneration || archive !== observedData) return false;
@@ -311,7 +327,7 @@
         archive.endDate = today;
         observedDaysCache = null;
         clearExportAvailabilityCache();
-        refresh.retryStartDate = succeeded ? null : startDate;
+        refresh.retryStartDate = hasReadings ? null : startDate;
         refresh.nextRefreshAt = Date.now() + (succeeded ? 15 * 60000 : 60000);
         return true;
       })().finally(() => {

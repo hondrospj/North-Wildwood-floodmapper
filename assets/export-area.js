@@ -185,15 +185,15 @@
     container.addEventListener("pointercancel", () => { gesture = null; firstCorner = null; });
   }
 
-  function openPicker() {
+  function openPicker(opener) {
     if (exportInProgress || !document.getElementById("exportAreaModal").hidden) return;
     const seed = selectedBounds || activeBounds();
     if (!validBounds(seed)) {
       setDownloadStatus("The map is still loading. Try choosing an area in a moment.", true);
       return;
     }
-    previousFocus = document.activeElement;
-    setDownloadModalOpen(false);
+    previousFocus = opener;
+    setDownloadModalOpen(false, { preserveReview: true });
     const modal = document.getElementById("exportAreaModal");
     modal.hidden = false;
     modal.setAttribute("aria-hidden", "false");
@@ -231,9 +231,9 @@
     modal.hidden = true;
     modal.setAttribute("aria-hidden", "true");
     pendingBounds = null;
-    setDownloadModalOpen(true, { preserveRange: true });
-    previousFocus?.focus({ preventScroll: true });
-    requestAnimationFrame(() => previousFocus?.focus({ preventScroll: true }));
+    setDownloadModalOpen(true, { preserveRange: true, preserveReview: true });
+    previousFocus?.focus();
+    previousFocus = null;
   }
 
   function applySelection() {
@@ -308,12 +308,12 @@
       if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      openPicker();
+      openPicker(event.currentTarget);
     });
     button.addEventListener("click", event => {
       event.preventDefault();
       event.stopImmediatePropagation();
-      openPicker();
+      openPicker(event.currentTarget);
     });
     control.appendChild(button);
     control.querySelectorAll("button[data-extent]").forEach(other => {
@@ -361,6 +361,7 @@
 
   window.FLOODMAPPER_EXPORT_AREA = {
     version: "20261023-3", ready: false,
+    openPicker,
     getBounds: () => copyBounds(selectedBounds),
     getJobBounds: () => copyBounds(jobBounds)
   };

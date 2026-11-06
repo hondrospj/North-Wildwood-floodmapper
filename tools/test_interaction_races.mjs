@@ -35,6 +35,11 @@ function setup() {
     return elements.get(id);
   }
   const state = {layers, viewChanges: 0, status: '', popups: 0, buildingEnables: 0, renders: []};
+  function openPopup() {
+    state.popups++;
+    let onRemove;
+    return { once(_event, callback) {onRemove = callback;}, remove() {onRemove?.();} };
+  }
   const context = vm.createContext({console, AbortController,
     document: {getElementById: el, body: {dataset: {}, classList: {contains() {return false;}}}},
     window: {NORTH_WILDWOOD_3D: {setAddressMarker() {}}},
@@ -42,13 +47,13 @@ function setup() {
       setView() {state.viewChanges++;}},
     ensureMap() {}, updateMapClickModeControl() {}, setMapClickMode() {}, toast() {},
     loadParcelBoundaryLayer: async layer => { layer.addTo(); return layer; },
-    parcelLayerGeneration: 0, nsiLayerGeneration: 0, townAddressSearchGeneration: 0, townAddressLookupController: null,
+    parcelLayerGeneration: 0, nsiLayerGeneration: 0, townAddressSearchGeneration: 0, townAddressLookupController: null, townAddressPopup: null,
     parcelsLayer: null, nsiStructuresLayer: null, updateNsiStructureImpactLayer() {}, townAddressMarker: null,
     normalizeTownAddressQuery: v => v, getTownAddressDisplayName: () => 'North Wildwood',
     setTownAddressStatus: v => state.status = v, formatTownAddressLabel: () => 'New Jersey Avenue, North Wildwood',
     findParcelFeatureForLocation: async () => null, getShorelySafeAddressIcon: () => ({}),
-    escapeTownAddressHtml: v => v, openPersistentFloodPopup() {state.popups++;},
-    setBuildingsEnabled: async () => {state.buildingEnables++;}, openParcelFloodPrompt() {state.popups++;},
+    escapeTownAddressHtml: v => v, openPersistentFloodPopup: openPopup,
+    setBuildingsEnabled: async () => {state.buildingEnables++;}, openParcelFloodPrompt: openPopup,
     fetchArcgisTownCandidates: async () => [{lat: 39.006, lon: -74.8}],
     fetchNominatimTownCandidates: async () => [], pickBestTownAddressCandidate: v => v[0],
     L: {latLng: (lat, lon) => ({lat, lon}), marker: latlng => ({latlng,

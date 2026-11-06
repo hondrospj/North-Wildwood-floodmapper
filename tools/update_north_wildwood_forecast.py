@@ -249,6 +249,9 @@ def align_products(products, forecast_start):
     kept = [t for t in common if datetime.fromisoformat(t.replace("Z", "+00:00")) >= forecast_start][: FORECAST_HOURS + 1]
     if len(kept) < 12:
         raise RuntimeError(f"only {len(kept)} usable forecast rows")
+    times = [datetime.fromisoformat(value.replace("Z", "+00:00")) for value in kept]
+    if any(after - before != timedelta(hours=1) for before, after in zip(times, times[1:])):
+        raise RuntimeError("forecast scenarios do not have consecutive hourly timestamps")
     output = {"mean": [], "lowEnd": [], "highEnd": []}
     for key in output:
         for i, time_utc in enumerate(kept):

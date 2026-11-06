@@ -1873,7 +1873,10 @@
           try {
             selectedBuilding = await resolveClickedBuildingParcel3d(rendered[0]);
             if (!isCurrentQuery()) return;
-            if (selectedBuilding.parcel) {
+            var footprintId = selectedBuilding.feature.properties?.footprintId;
+            // A shared parcel carries flood facts for only its associated NSI
+            // structure. Keep the clicked building's own facts on other roofs.
+            if (footprintId && String(selectedBuilding.parcel?.properties?.nsi2026FootprintId) === String(footprintId)) {
               openParcelFloodPrompt(selectedBuilding.parcel, L.latLng(selectedBuilding.point[1], selectedBuilding.point[0]));
               return;
             }

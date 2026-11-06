@@ -3,10 +3,18 @@
 
 from __future__ import annotations
 
+import argparse
+import json
+import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from pathlib import Path
+from unittest.mock import patch
+
+from update_historic_crests import build as build_crests
 
 from update_observed_15min import (
+    build,
     interpolate_at,
     parse_usgs_values,
     remove_isolated_spikes,
@@ -50,6 +58,23 @@ class ObservedUpdaterTests(unittest.TestCase):
 
         self.assertEqual(remove_isolated_spikes(gradual), gradual)
         self.assertEqual(remove_isolated_spikes(sustained), sustained)
+
+    def test_empty_response_keeps_previous_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "stone.json"
+            original = json.dumps({"days": [{"d": "2026-08-23", "v": [60]}]})
+            archive.write_text(original)
+            args = argparse.Namespace(output=archive, start_date=None, end_date=date(2026, 8, 23),
+                                      full=False, update_hourly=False)
+            with patch("update_observed_15min.fetch_json", return_value={"value": {"timeSeries": []}}):
+                with self.assertRaisesRegex(RuntimeError, "erase existing readings for 2026-08-23"):
+                    build(args)
+            self.assertEqual(archive.read_text(), original)
+
+    def test_empty_crest_response_stops_before_writing(self) -> None:
+        with patch("update_historic_crests.fetch_text", return_value="agency_cd\tsite_no\n5s\t15s\n"):
+            with self.assertRaisesRegex(RuntimeError, "returned no usable flood crests"):
+                build_crests()
 
     def test_does_not_bridge_distant_neighbors(self) -> None:
         distant = [(0, 0.5), (3600, 8.0), (7200, 0.6)]

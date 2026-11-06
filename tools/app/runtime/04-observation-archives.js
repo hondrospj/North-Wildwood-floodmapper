@@ -392,12 +392,17 @@
         }
       }
       if (generation !== archiveGeneration) return false;
-      // Background history stays cached, but today's gauge readings keep
-      // advancing. Reuse the live cooldown when this date is selected again.
-      if (source === "stone-harbor" && typeof extendObservedArchiveThroughToday === "function"
-          && dateStr === getTodayNyDateKey()) {
-        await extendObservedArchiveThroughToday();
-        if (generation !== archiveGeneration) return false;
+      // Recent primary dates can include unpublished readings. Reuse the
+      // live cooldown when selecting one again, including yesterday's tail.
+      if (source === "stone-harbor" && typeof extendObservedArchiveThroughToday === "function") {
+        const today = getTodayNyDateKey();
+        const refresh = observedData?.liveObservedRefresh;
+        const firstRecentDate = refresh?.retryStartDate || (refresh?.publishedEndDate &&
+          refresh.publishedEndDate < today ? addDaysToDateKey(today, -1) : today);
+        if (dateStr >= firstRecentDate && dateStr <= today) {
+          await extendObservedArchiveThroughToday();
+          if (generation !== archiveGeneration) return false;
+        }
       }
       return (source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate).has(dateStr);
     }

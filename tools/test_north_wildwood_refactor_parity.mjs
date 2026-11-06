@@ -16,6 +16,28 @@ const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
 const read = relative => readDeepReviewed(relative);
 const sha256 = source => createHash("sha256").update(source).digest("hex");
+// Reverse only the reviewed browser changes before running the original parity layers.
+const LINE_AUDIT_PATH = "tools/fixtures/north-wildwood-20261106-line-audit.json";
+const lineAuditText = readCurrent(LINE_AUDIT_PATH);
+assert.equal(sha256(lineAuditText), "38b1a95dec68f9ebf0974066dc5983097652eaf13a0aea21751631e04fa33f53",
+  "Retain the exact line audit inverse");
+const lineAudit = JSON.parse(lineAuditText);
+assert.equal(lineAudit.schemaVersion, 1);
+assert.equal(lineAudit.baselineCommit, "943c0056743d76370c81481c0354192964307187");
+const priorMutationSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mutation-snapshot");
+function readBeforeLineAudit(relative) {
+  const source = readCurrent(relative), file = lineAudit.files.find(entry => entry.source === relative);
+  if (priorMutationSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed line audit`);
+  let restored = source;
+  for (const change of file.changes) {
+    assert.equal(restored.split(change.afterSource).length - 1, 1, `${relative}: one exact line audit fragment`);
+    restored = restored.replace(change.afterSource, change.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore all pre-audit bytes`);
+  return restored;
+}
+for (const file of lineAudit.files) readBeforeLineAudit(file.source);
 // Pin the projection-note removal before the earlier audited presentation changes.
 const PROJECTION_NOTE_PATH = "tools/fixtures/north-wildwood-20261105-projection-note.json";
 const projectionNoteText = readCurrent(PROJECTION_NOTE_PATH);
@@ -25,7 +47,7 @@ assert.equal(projectionNote.schemaVersion, 1);
 assert.equal(projectionNote.baselineCommit, "7c470c6977ff2cab2ec3c0f777c0bc14e90d40eb");
 assert.deepEqual(projectionNote.files.map(file => file.source), ["tools/app/index.template.html", "tools/app/runtime/24-alerts-and-projections.js", "assets/app/runtime.js", "index.html"]);
 function readProjectionNoteReviewed(relative) {
-  const source = readCurrent(relative), file = projectionNote.files.find(file => file.source === relative);
+  const source = readBeforeLineAudit(relative), file = projectionNote.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed projection-note removal`);
   let restored = source;
@@ -2378,7 +2400,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
 console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement/frame-reuse/October-30-scalable-road-labels inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
-  const readActual = readCurrent;
+  const readActual = readBeforeLineAudit;
   const readRaw = readActual;
   const read = readActual;
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -2397,16 +2419,50 @@ if (process.argv.includes("--self-test")) {
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
-      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source), "index.html"]) {
+      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      LINE_AUDIT_PATH, ...lineAudit.files.map(file => file.source), "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
     }
-    const run = () => spawnSync(process.execPath, [fileURLToPath(import.meta.url)], {
+    const run = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
     assert.equal(run().status, 0, "The unmodified scratch copy must pass before mutation checks");
-    // Mutation inputs must use actual current documents/cache tags, not inverses.
+    const assertMutationsRejected = (cases, check) => {
+      for (const [name, target, altered] of cases) {
+        const before = fs.readFileSync(target);
+        assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);
+        fs.writeFileSync(target, altered);
+        const result = check();
+        fs.writeFileSync(target, before);
+        assert.equal(result.error, undefined, `${name}: checker must execute successfully`);
+        assert.notEqual(result.status, 0, `${name}: parity checker failed to reject the mutation`);
+        assert.match(result.stderr, /AssertionError/, `${name}: rejection must come from a parity assertion`);
+      }
+    };
+    const lineAuditCases = [
+      ["altered the line audit inverse", path.join(scratch, LINE_AUDIT_PATH), lineAuditText + " "],
+      ...lineAudit.files.flatMap(file => {
+        const current = readCurrent(file.source), target = path.join(scratch, file.source);
+        return [
+          [`unreviewed byte in ${file.source}`, target, current + "\n"],
+          ...file.changes.map((change, index) => [
+            `reverted line audit fragment ${file.source}:${index + 1}`,
+            target, current.replace(change.afterSource, change.beforeSource)
+          ])
+        ];
+      })
+    ];
+    assertMutationsRejected(lineAuditCases, run);
+    assert.equal(run().status, 0, "Restoring audited artifacts must restore a passing check");
+
+    // Run historical mutations against the byte-exact snapshot they originally targeted.
+    for (const file of lineAudit.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeLineAudit(file.source));
+    }
+    const runPrior = () => run(["--prior-mutation-snapshot"]);
+    assert.equal(runPrior().status, 0, "The restored pre-audit snapshot must pass before historical mutations");
     const template = read("tools/app/index.template.html"), published = read("index.html");
     const activeRoadLabelTag = roadFallback.afterScriptTag;
     const currentDependencyTag = output => [...template.matchAll(/<script[^>]+src="([^"]+)"[^>]*><\/script>/g)].find(match => new URL(match[1], "https://followup.invalid/").pathname.slice(1) === output)?.[0];
@@ -2929,7 +2985,7 @@ if (process.argv.includes("--self-test")) {
     const recheckCases = [
       ["broadened recheck inverse ownership", path.join(scratch, RECHECK_PATH), recheckText.replace('"scope":', '"unreviewedScope":')],
       ...recheck.files.flatMap(file => {
-        const current = readCurrent(file.source);
+        const current = readActual(file.source);
         return [
           [`unreviewed recheck byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed recheck byte */\n"],
           ...file.changes.map((block, index) => [`reverted recheck fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(cameraCurrentFragment(file.source, block.afterSource), block.beforeSource)])
@@ -2942,7 +2998,7 @@ if (process.argv.includes("--self-test")) {
     const cameras3dCases = [
       ["broadened 3D/camera inverse ownership", path.join(scratch, CAMERAS_3D_PATH), cameras3dText.replace('"scope":', '"unreviewedScope":')],
       ...cameras3d.files.flatMap(file => {
-        const current = readCurrent(file.source);
+        const current = readActual(file.source);
         return [
           [`unreviewed 3D/camera byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed 3D/camera byte */\n"],
           ...file.changes.map((block, index) => [`reverted 3D/camera fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(projectionNoteCurrentFragment(file.source, block.afterSource), block.beforeSource)])
@@ -2953,18 +3009,9 @@ if (process.argv.includes("--self-test")) {
     allCases.push(...cameras3dCases);
     assert.equal(allCases.length, 340 + 47, "Retain all 340 earlier mutations and append the reviewed 3D/camera boundaries");
     assert.deepEqual(allCases.filter(([, target, altered]) => fs.readFileSync(target, "utf8") === altered).map(([name]) => name), [], "Every retained mutation must alter the actual current artifact");
-    for (const [name, target, altered] of allCases) {
-      const before = fs.readFileSync(target);
-      assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);
-      fs.writeFileSync(target, altered);
-      const result = run();
-      fs.writeFileSync(target, before);
-      assert.equal(result.error, undefined, `${name}: checker must execute successfully`);
-      assert.notEqual(result.status, 0, `${name}: parity checker failed to reject the mutation`);
-      assert.match(result.stderr, /AssertionError/, `${name}: rejection must come from a parity assertion`);
-    }
-    assert.equal(run().status, 0, "Restoring the scratch files must restore a passing check");
-    console.log(`Parity mutation checks passed: ${allCases.length} dropped, moved, altered or stale artifacts were rejected.`);
+    assertMutationsRejected(allCases, runPrior);
+    assert.equal(runPrior().status, 0, "Restoring historical artifacts must restore a passing check");
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

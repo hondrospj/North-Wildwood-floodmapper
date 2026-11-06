@@ -24,7 +24,7 @@ function setup(stage='warmup'){
   async loadForecast(){c.currentSeriesHours=[{navd88StageFt:1}];c.currentViewType='forecast';},
   async loadReturnInterval(){c.currentSeriesHours=[{navd88StageFt:1}];c.currentViewType='return-interval';},
  });
- for(const name of ['loadObservedDay','loadTopTideEvent','switchDataMode','switchOverlayMode','setTimelineIntervalMinutes'])vm.runInContext(extract(name),c);
+ for(const name of ['setObservedDaySelection','loadObservedDay','loadTopTideEvent','switchDataMode','switchOverlayMode','setTimelineIntervalMinutes'])vm.runInContext(extract(name),c);
  return {c,hold,renders,messages};
 }
 let cases=0;

@@ -201,9 +201,33 @@ function setup(now = '2026-11-02T17:00:00Z', date = '2026-11-02') {
   advance(60001);
   responses.push(payload([['2026-11-01T12:00:00-05:00', 2]]));
   await c.extendObservedArchiveThroughToday();
-  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-11-01T04:00:00Z');
+  assert.equal(new URL(requests[0].url).searchParams.get('startDT'), '2026-10-31T04:00:00Z');
+  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-10-31T04:00:00Z');
   assert.equal(run('getObservedDayRecord("2026-11-01").hours[0].navd88StageFt'), 2);
   assert.equal(run('getObservedDayRecord("2026-11-01").generatedPlaceholderDay'), false);
+  cases++;
+}
+
+// The previous published day can end before noon. Preserve its indexed
+// peak if only the index has loaded and the IV response contains its tail.
+{
+  const {c, run, requests, responses, advance, canonical} = setup('2026-11-06T14:35:00Z', '2026-11-05');
+  run('observed15MinuteDaysByDate.delete(date); observedData.days[0].peakNAVD88 = 5;');
+  responses.push(payload([
+    ['2026-11-05T23:42:00-05:00', -1.82], ['2026-11-05T23:48:00-05:00', -1.83]
+  ]));
+  await c.extendObservedArchiveThroughToday();
+  assert.equal(new URL(requests[0].url).searchParams.get('startDT'), '2026-11-05T05:00:00Z');
+  assert.equal(canonical().at(-1).navd88StageFt, -1.825);
+  assert.equal(canonical().at(-1).observationQuality, 'I');
+  assert.equal(run('getObservedDayRecord(date).peakNAVD88'), 5);
+  c.ensureObservedArchiveYear = async () => true;
+  advance(15 * 60000);
+  responses.push(payload([['2026-11-05T23:48:00-05:00', -1.81]]));
+  await c.ensureObservedArchiveForDate('2026-11-05');
+  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-11-05T05:00:00Z');
+  assert.equal(canonical().at(-1).navd88StageFt, -1.815);
+  assert.equal(run('getObservedDayRecord(date).peakNAVD88'), 5);
   cases++;
 }
 
@@ -253,7 +277,7 @@ for (const outcome of ['success', 'failure']) {
   run('observedData.liveObservedRefresh.nextRefreshAt = Infinity');
   advance(60 * 60000); responses.push(payload([])); await c.extendObservedArchiveThroughToday();
   assert.equal(requests.length, 2);
-  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-11-03T05:00:00Z');
+  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-11-02T05:00:00Z');
   cases++;
 }
 for (const fixture of [

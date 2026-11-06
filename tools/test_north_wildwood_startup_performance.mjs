@@ -10,9 +10,12 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = readAppSource(path.join(here, "..", "index.html"));
-const rendererSource = fs.readFileSync(path.join(here, "..", "assets/3d/north-wildwood-3d.js"), "utf8");
-const rendererVersion = createHash("sha256").update(rendererSource).digest("hex").slice(0, 16);
-const areaVersion = createHash("sha256").update(fs.readFileSync(path.join(here, "..", "assets/export-area.js"))).digest("hex").slice(0, 16);
+const readAsset = relative => fs.readFileSync(path.join(here, "..", relative), "utf8");
+const contentVersion = content => createHash("sha256").update(content).digest("hex").slice(0, 16);
+const rendererSource = readAsset("assets/3d/north-wildwood-3d.js");
+const rendererVersion = contentVersion(rendererSource);
+const areaVersion = contentVersion(readAsset("assets/export-area.js"));
+const roadVersion = contentVersion(readAsset("assets/road-labels.js"));
 
 function extractFunction(name, sourceText = source) {
   const source = sourceText;
@@ -34,7 +37,7 @@ assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
-  "assets/road-labels.js?v=01f9684394f0ac9f",
+  `assets/road-labels.js?v=${roadVersion}`,
   `./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&roadlabels=20261030-v1&deep=${rendererVersion}`,
   "./assets/road-impacts.js?v=20261002-road-impacts-default-off",
   "assets/avalon-mobile.js?v=20261026-holistic1",

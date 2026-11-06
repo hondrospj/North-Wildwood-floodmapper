@@ -83,6 +83,29 @@ await test('A superseded completion cannot erase the latest pending navigation t
   assert.equal(f.context.currentHourIndex, 3);
 });
 
+await test('Daily Max commits the displayed date and tide context together', async () => {
+  const f = renderFixture();
+  const c = f.context;
+  const dates = ['2016-01-01', '2016-01-02'];
+  const canonical = [{ observedDate: dates[1], stage: 5 }];
+  Object.assign(c, {
+    currentViewType: 'observed-day', currentDataMode: 'observed', selectedObservedDate: dates[0],
+    currentSeriesHours: dates.map((observedDate, i) => ({ observedDate, isDailyMaximum: true, stage: 4 + i })),
+    getObservedDayRecord: date => ({ date, peakNAVD88: 5 }),
+    buildObservedCanonicalSeries: () => canonical, renderCalendar: async () => {},
+    topTideEvents: [], formatStageForDisplay: String, normalizeStageValue: Number
+  });
+  load(c, ['setObservedDaySelection']);
+  const loading = c.renderHour(1);
+  assert.equal(c.selectedObservedDate, dates[0], 'A pending raster must leave the displayed date intact');
+  f.gate.resolve();
+  await loading;
+  assert.equal(c.selectedObservedDate, dates[1]);
+  assert.equal(c.currentSelectedLabel, dates[1]);
+  assert.equal(c.currentSelectedSubLabel, '5 peak');
+  assert.equal(c.currentRawSeriesHours, canonical);
+});
+
 function dailyFixture(month, selectedDate, index) {
   const months = {
     '2016-01': Array.from({ length: 31 }, (_, i) => ({ observedDate: `2016-01-${String(i + 1).padStart(2, '0')}`, isDailyMaximum: true, stage: 4 })),
@@ -103,6 +126,7 @@ function dailyFixture(month, selectedDate, index) {
     renderHour: async idx => { context.currentHourIndex = idx; displayed.push(context.currentSeriesHours[idx].observedDate); },
   });
   loadOptional(context, ['getRequestedTimelineIndex', 'getTimelineSelectionIndex', 'getTimelineNavigationIndex']);
+  loadOptional(context, ['setObservedDaySelection']);
   load(context, ['getChronologicalDateIndex', 'getNeighborObservedDate', 'loadObservedDay', 'stepSeriesBy']);
   return { context, loaded, displayed };
 }

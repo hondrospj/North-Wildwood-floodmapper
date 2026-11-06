@@ -210,11 +210,14 @@ def validate_crests(payload):
     stations = records(payload, "stations")
     station_ids = {str(station.get("site_no")) for station in stations}
     require(all(re.fullmatch(r"\d+", value) for value in station_ids), "Invalid crest station")
-    for crest in records(payload, "toptides"):
+    crests = records(payload, "toptides")
+    for crest in crests:
         civil_date(crest.get("date"))
         number(crest.get("height_ft"), "crest height")
         require(crest.get("datum") == "NAVD88" and str(crest.get("site_no")) in station_ids, "Crest datum/station is inconsistent")
         require(isinstance(crest.get("station_name"), str) and crest["station_name"], "Crest station name is missing")
+    require(any(crest.get("record_type") == "USGS annual storm-tide crest" for crest in crests),
+            "Crest archive has no USGS annual storm-tide records")
 
 
 def city_sensor(payload):

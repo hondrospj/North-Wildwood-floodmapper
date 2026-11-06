@@ -244,6 +244,22 @@ function populateCalendarSelectors() {
       syncLeftPanelLayout();
     }
 
+    function setObservedDaySelection(dateStr, dayRecord) {
+      selectedObservedDate = dateStr;
+      currentMonthKey = dateStr.slice(0, 7);
+      const rankedEvent = topTideEvents.find(event => event?.dateKey === dateStr);
+      currentSelectedLabel = dateStr;
+      if (rankedEvent) {
+        currentSelectedSubLabel = `${formatStageForDisplay(rankedEvent.peakStage)} peak`;
+      } else if (dayRecord?.peakNAVD88 != null) {
+        currentSelectedSubLabel = `${formatStageForDisplay(normalizeStageValue(dayRecord.peakNAVD88))} peak`;
+      } else {
+        const derived = classifyFloodEntries(dayRecord?.hours || []);
+        currentSelectedSubLabel = derived === "none" ? "Observed" : derived.charAt(0).toUpperCase() + derived.slice(1);
+      }
+      currentRangeLabel = dateStr;
+    }
+
     async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
       cancelPendingFloodFrame();
       const generation = ++selectionGeneration;
@@ -313,26 +329,14 @@ function populateCalendarSelectors() {
       // Once data is committed, an interval change must rebuild this series
       // rather than only updating the cadence of a still-pending request.
       if (loadObservedDay.pendingSelection?.generation === generation) loadObservedDay.pendingSelection = null;
-      selectedObservedDate = dateStr;
-      currentMonthKey = dateStr.slice(0, 7);
       topTideEvents = buildTopTideEvents();
-      const rankedEvent = topTideEvents.find(event => event?.dateKey === dateStr) || null;
+      setObservedDaySelection(dateStr, dayRecord);
       currentRawSeriesHours = buildObservedCanonicalSeries(dayRecord, dateStr);
       currentSeriesHours = getTimelineIntervalMinutes() === 1440
         ? buildObservedDailyMaximumSeries(dateStr.slice(0, 7))
         : sampleCanonicalHydraulicSeries(currentRawSeriesHours, getTimelineIntervalMinutes());
       currentViewType = "observed-day";
       currentTopTideIndex = null;
-      currentSelectedLabel = dateStr;
-      currentSelectedSubLabel = rankedEvent
-        ? `${formatStageForDisplay(rankedEvent.peakStage)} peak`
-        : dayRecord.peakNAVD88 != null
-        ? `${formatStageForDisplay(normalizeStageValue(dayRecord.peakNAVD88))} peak`
-        : (() => {
-          const derived = classifyFloodEntries(Array.isArray(dayRecord.hours) ? dayRecord.hours : []);
-          return derived === "none" ? "Observed" : derived.charAt(0).toUpperCase() + derived.slice(1);
-        })();
-      currentRangeLabel = `${dateStr}`;
 
       syncSliderBounds();
       if (preferredEntry) {

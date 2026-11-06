@@ -428,6 +428,14 @@
             closeExportDateOrderPopup();
             return;
           }
+          const help = e.target?.closest?.("#infoModal, #datumModal");
+          if (help && !help.hidden) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            if (help.id === "infoModal") setInfoModalOpen(false);
+            else setDatumHelpOpen(false);
+            return;
+          }
           setDatumHelpOpen(false);
           setInfoModalOpen(false);
           setDownloadModalOpen(false);
@@ -784,7 +792,6 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
         elements.dateText.addEventListener("keydown", event => {
           if (event.key === "Enter") {
             event.preventDefault();
-            if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: true, normalize: true })) refresh();
             elements.dateText.blur();
           } else if (event.key === "Backspace") {
             event.preventDefault();
@@ -801,10 +808,10 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
           }
         });
         elements.dateText.addEventListener("blur", () => {
-          if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: false, normalize: true })) {
+          if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: true, normalize: true })) {
             refresh();
           } else {
-            syncExportDateTimeEditorFromCanonical(prefix);
+            updateDownloadSummary();
           }
         });
         elements.timeSelect.addEventListener("change", () => {

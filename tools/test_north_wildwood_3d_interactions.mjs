@@ -143,6 +143,9 @@ for (const fail of ['null', 'reject']) {
   assert.ok(!test.actions.some(action => action.startsWith('focus')));
 }
 
+const clickedFootprintId = 'clicked-footprint';
+const matchedParcel = id => ({ id, properties: { nsi2026FootprintId: clickedFootprintId } });
+
 function clickFixture() {
   const handlers = {}, requests = [], opened = [], popups = new Set();
   let buildings = true;
@@ -152,7 +155,7 @@ function clickFixture() {
     remove() { this.close?.(); }
   }
   const context = {
-    glMap: { on(name, ...args) { if (name === 'click') handlers.click = args.at(-1); }, getLayer: () => true, queryRenderedFeatures: () => [{ properties: { modeledFirstFloorNavd88Ft: 7 } }] },
+    glMap: { on(name, ...args) { if (name === 'click') handlers.click = args.at(-1); }, getLayer: () => true, queryRenderedFeatures: () => [{ properties: { footprintId: clickedFootprintId, modeledFirstFloorNavd88Ft: 7 } }] },
     glPopup: null, lastGlPopupHtml: '', mapQueryGeneration: 0, lastRenderToken: 1, mapClickMode: 'building',
     persistentFloodPopup: null, map: { on() {}, hasLayer: value => popups.has(value), removeLayer: value => popups.delete(value) },
     document: { body: { classList: { contains: () => true } } }, maplibregl: { Popup: FakePopup },
@@ -174,7 +177,7 @@ for (const supersede of ['new click', 'mode', 'frame', 'disable', 'close button'
     if (supersede.includes('close')) test.context.showGlPopup({ lat: 39, lng: -74.8 }, 'Existing card', 300);
     const older = test.click();
     if (supersede === 'new click') {
-      const latest = test.click(); test.requests[1].resolve({ id: 'latest parcel' }); await latest;
+      const latest = test.click(); test.requests[1].resolve(matchedParcel('latest parcel')); await latest;
     } else if (supersede === 'mode') {
       test.context.mapClickMode = 'depth'; await test.click();
     } else if (supersede === 'frame') ++test.context.lastRenderToken;
@@ -182,7 +185,7 @@ for (const supersede of ['new click', 'mode', 'frame', 'disable', 'close button'
     else if (supersede === 'close button') test.context.glPopup.remove();
     else test.context.closeGlPopup();
     if (result === 'failed') test.requests[0].reject(Error('Old request failed'));
-    else test.requests[0].resolve(result === 'parcel' ? { id: 'obsolete parcel' } : null);
+    else test.requests[0].resolve(result === 'parcel' ? matchedParcel('obsolete parcel') : null);
     await older;
     assert.deepEqual(test.opened, supersede === 'new click' ? ['latest parcel'] : supersede === 'mode' ? ['depth'] : [], `${supersede}/${result} must discard the obsolete result and fallback`);
   }
@@ -190,7 +193,7 @@ for (const supersede of ['new click', 'mode', 'frame', 'disable', 'close button'
 for (const result of ['parcel', 'missing', 'failed']) {
   const test = clickFixture(), pending = test.click();
   if (result === 'failed') test.requests[0].reject(Error('Current parcel request failed'));
-  else test.requests[0].resolve(result === 'parcel' ? { id: 'current parcel' } : null);
+  else test.requests[0].resolve(result === 'parcel' ? matchedParcel('current parcel') : null);
   await pending;
   assert.deepEqual(test.opened, [result === 'parcel' ? 'current parcel' : 'fallback']);
 }

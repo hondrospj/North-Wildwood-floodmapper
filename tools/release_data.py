@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Validate generated JSON without treating a data update as an application release."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import math
 from pathlib import Path
@@ -109,8 +109,8 @@ def validate_forecast(payload, now=None):
         times = []
         for hour in hours:
             timestamp = utc_time(hour.get("timeUtc"), f"{scenario} timeUtc")
-            if times and timestamp <= times[-1]:
-                raise ValueError(f"Forecast {scenario} hours must be unique and increasing")
+            if times and timestamp - times[-1] != timedelta(hours=1):
+                raise ValueError(f"Forecast {scenario} must have consecutive hourly timestamps")
             navd = finite_number(hour.get("navd88StageFt"), f"{scenario} NAVD88")
             mllw = finite_number(hour.get("mllwStageFt"), f"{scenario} MLLW")
             if abs(navd - (mllw + offset)) > 0.021:

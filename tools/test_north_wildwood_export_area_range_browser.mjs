@@ -23,6 +23,7 @@ const snapshot = () => page.evaluate(() => ({
   frames: getDownloadFrameItems().map(item => item.entry.timeUtc),
   format: getDownloadFormatValue(), aspect: getDownloadAspectValue(),
   interval: document.getElementById('downloadIntervalSelect').value, speed: getDownloadSpeedValue(),
+  step: document.getElementById('downloadModal').dataset.exportStep,
 }));
 try {
   await page.goto(process.env.NWW_TEST_URL || 'http://127.0.0.1:8765/index.html',
@@ -35,7 +36,10 @@ try {
     return dates.map(date => { const parts = getNyParts(date); return {
       date: `${parts.month}/${parts.day}/${parts.year}`, time: formatNyLocalIso(date).slice(11)}; });
   });
-  for (const [action, button] of [['Cancel', '#exportAreaCancelBtn'], ['Use this area', '#exportAreaApplyBtn']]) {
+  for (const [action, button, opener] of [
+    ['Cancel', '#exportAreaCancelBtn', 'exportExtentCustomBtn'],
+    ['Use this area', '#exportAreaApplyBtn', 'exportChangeAreaBtn'],
+  ]) {
     await page.locator('#openDownloadModalBtn').click();
     const seeded = await snapshot();
     for (const [index, prefix] of ['Start', 'End'].entries()) {
@@ -55,18 +59,19 @@ try {
     const before = await snapshot();
     assert.equal(before.valid, true);
     assert.equal(before.frames.length, 4);
-    await page.locator('#exportChangeAreaBtn').click();
+    await page.locator(`#${opener}`).click();
     await page.waitForFunction(() => !document.getElementById('exportAreaModal').hidden);
     await page.locator(button).click();
     await page.waitForFunction(() => isDownloadModalOpen());
     const after = await snapshot();
     result.ranges.push({action, before, after});
-    assert.equal(await page.evaluate(() => document.activeElement.id), 'exportChangeAreaBtn');
+    assert.equal(await page.evaluate(() => document.activeElement.id), opener);
     await page.locator('#downloadModalCloseBtn').click();
     await page.locator('#openDownloadModalBtn').click();
     const reopened = await snapshot();
     assert.equal(reopened.start, seeded.start, 'Fresh open still seeds the current timeline start');
     assert.equal(reopened.end, seeded.end, 'Fresh open still seeds the current timeline end');
+    assert.equal(reopened.step, 'area', 'Fresh open still starts on the basic step');
     result.checks.push(`${action}: fresh open reseeds the normal timeline range`);
     await page.locator('#downloadModalCloseBtn').click();
   }

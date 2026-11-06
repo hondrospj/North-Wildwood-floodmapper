@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 from cache_contract import (identity_matches, published_pointer_matches, render_identity,
                             simulation_identity, terrain_manifest_matches)
+from validate_products import verify_file_record
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -209,12 +210,10 @@ def public_products_are_complete(cycle_id: str, scenario: str, expected_identity
             and bool(frames)
             and bool(daily)
             and all(
-                all(name in frame for name in ("visible", "impact", "query"))
-                for frame in frames
-            )
-            and all(
-                all(name in day for name in ("visible", "impact", "query"))
-                for day in daily
+                verify_file_record(public_manifest.parent, row[name])
+                for group in (frames, daily)
+                for row in group
+                for name in ("visible", "impact", "query")
             )
         )
     except Exception:
@@ -362,12 +361,11 @@ def main() -> None:
             if args.force:
                 run_command.append("--force")
                 render_command.append("--force")
-            elif not hydraulic_complete and (
-                ROOT / "model/runs" / cycle_id / scenario
-            ).exists():
-                run_command.append("--force")
-            elif hydraulic_complete and not public_complete:
-                render_command.append("--force")
+            else:
+                if not hydraulic_complete and (ROOT / "model/runs" / cycle_id / scenario).exists():
+                    run_command.append("--force")
+                if not public_complete:
+                    render_command.append("--force")
             if args.force or not hydraulic_complete:
                 record_step(
                     f"Run the {scenario} nonlinear shallow-water simulation",

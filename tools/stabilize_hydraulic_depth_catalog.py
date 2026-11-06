@@ -225,9 +225,9 @@ def stabilize_catalog(
             codes[added] = wet_code_min
         elif mode == "depth":
             depth = np.maximum(stage - ground[added], 0.005)
-            codes[added] = (
-                np.digitize(depth, DEFAULT_DEPTH_BREAKS_FT, right=False)
-                + wet_code_min
+            codes[added] = np.minimum(
+                np.digitize(depth, DEFAULT_DEPTH_BREAKS_FT, right=False) + wet_code_min,
+                wet_code_max,
             ).astype(np.uint8)
         else:
             if activation is None:

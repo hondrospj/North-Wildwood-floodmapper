@@ -102,6 +102,7 @@
  function syncDrawer(){
   const open=mobile.matches&&body.classList.contains('mobile-controls-open');
   const childModal=[...document.querySelectorAll('[aria-modal="true"],dialog[open]')].some(e=>e!==panel&&!panel.contains(e)&&visible(e));
+  if(mobile.matches)set(panel,'display',open?'flex':'none');
   panel.inert=mobile.matches&&(!open||childModal);
   if(open){attr(panel,'role','dialog');if(childModal)panel.removeAttribute('aria-modal');else attr(panel,'aria-modal','true');attr(panel,'aria-label','Map controls');}
   else {panel.removeAttribute('role');panel.removeAttribute('aria-modal');attr(panel,'aria-label','Flood map controls');}
@@ -147,7 +148,7 @@
    const top=Math.max(0,viewport.offsetTop||0)+safe.top+8,left=Math.max(0,viewport.offsetLeft||0)+safe.left+8,right=Math.max(0,innerWidth-(viewport.offsetLeft||0)-(viewport.width||innerWidth))+safe.right+8,bottom=Math.max(0,innerHeight-(viewport.offsetTop||0)-(viewport.height||innerHeight))+safe.bottom+8;
    for(const [key,value]of Object.entries({top,left,right,bottom,height:Math.max(1,(viewport.height||innerHeight)-16)})){const valueText=value.toFixed(2)+'px';if(body.style.getPropertyValue('--cm-'+key)!==valueText)body.style.setProperty('--cm-'+key,valueText);}
    for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);
-   set(panel,'display',body.classList.contains('mobile-controls-open')?'flex':'none');set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');
+   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');
    for(const e of [document.getElementById('nwDefaultNavControl'),document.getElementById('countyStandaloneView')])if(e)for(const key of ['left','right','top'])e.style.removeProperty(key);
    const title=document.getElementById('mapTitleBadge');for(const key of ['left','right','top','max-width','transform'])title?.style.removeProperty(key);
    const focused=document.activeElement;if(body.classList.contains('mobile-controls-open')&&focused?.matches('input,textarea,select')&&panel.contains(focused)){const r=focused.getBoundingClientRect(),p=panel.getBoundingClientRect();if(r.bottom>p.bottom-20||r.top<p.top+130)requestAnimationFrame(()=>focused.scrollIntoView({block:'nearest',inline:'nearest'}));}

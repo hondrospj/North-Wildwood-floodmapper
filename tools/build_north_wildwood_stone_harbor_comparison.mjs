@@ -23,8 +23,9 @@ const policySha256 = sha256(Buffer.concat(await Promise.all([
   fs.readFile(new URL("../assets/municipal-time.js", import.meta.url)),
 ])));
 
-export function cacheIdentity(northContent) {
-  return { northWildwoodSha256: sha256(northContent), policySha256 };
+export function cacheIdentity({ readings, recordCount }) {
+  const comparisonInput = JSON.stringify({ readings, recordCount });
+  return { northWildwoodSha256: sha256(comparisonInput), policySha256 };
 }
 
 const epoch = globalThis.NorthWildwoodTime.municipalEpoch;
@@ -273,7 +274,7 @@ export async function existingPayload(year, identity, directory = outputDir) {
 async function buildYear(year) {
   const northContent = await fs.readFile(path.join(northDataDir, `${year}.json`));
   const northPayload = JSON.parse(northContent);
-  const identity = cacheIdentity(northContent);
+  const identity = cacheIdentity(northPayload);
   const cached = await existingPayload(year, identity);
   if (cached) {
     console.log(JSON.stringify({ year, status: "reused", pairs: cached.stats.pairCount }));

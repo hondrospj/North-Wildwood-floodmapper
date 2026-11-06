@@ -113,22 +113,45 @@ test("invalid scaling or a style without authoritative road features cannot sile
  assert.throws(()=>roads.styleRoadLabels({layers:[]}));assert.throws(()=>roads.styleRoadLabels({}));
 });
 
-function mockedLayer({ready=true,tainted=false}={}) {
+function mockedLayer({ready=true,tainted=false,bootstrapFailed=false}={}) {
  const callbacks=new Map(),nativeCallbacks=new Map(),setStyles=[],container={style:{},classList:{add(){}}};
  const source={width:1200,height:600,getBoundingClientRect:()=>({left:80,top:40,width:600,height:300})};
  const native={loaded:()=>ready,areTilesLoaded:()=>ready,getCenter:()=>({lat:40,lng:-74}),getZoom:()=>14,project:({lng,lat})=>({x:lng*2**14,y:lat*2**14}),triggerRepaint(){},getCanvas:()=>source,on(name,callback){nativeCallbacks.set(name,callback);},fire(name,event){nativeCallbacks.get(name)?.(event);},getStyle:()=>fixture(),setStyle(style,options){setStyles.push({style,options});}};
  const child={_glMap:native,_container:container,addTo(){}};
- const layer={options:{},_ready:true,_maplibreGL:child,
+ let bootstrapAttempts=0;
+ const layer={options:{},_ready:!bootstrapFailed,_maplibreGL:bootstrapFailed?null:child,
   on(name,fn){callbacks.set(name,fn);return this;},once(name,fn){callbacks.set(name,fn);return this;},off(name){callbacks.delete(name);return this;},_asyncAdd(){},
+  _createLayer(){
+   bootstrapAttempts++;
+   queueMicrotask(()=>{
+    this._ready=true;this._maplibreGL=child;
+    callbacks.get('ready')?.();this.styleCallback(fixture());
+   });
+  },
  };
  global.L={esri:{Vector:{vectorTileLayer(_url,options){layer.options={...options};layer.styleCallback=options.style;return layer;}}}};
  const calls=[];
  global.document={createElement(){return {width:0,height:0,getContext:()=>({set globalAlpha(v){calls.push(['alpha',v]);},drawImage(...args){calls.push(['draw',...args]);},getImageData(){if(tainted)throw Error('tainted');return {data:new Uint8ClampedArray(4)};}})};}};
  const wrapped=roads.createLayer({opacity:.98,exportMode:true,unit:1});
  const map={getCenter:()=>({lat:40,lng:-74}),getZoom:()=>15,getSize:()=>({x:400,y:200}),getContainer:()=>({getBoundingClientRect:()=>({left:100,top:50,width:400,height:200})}),hasLayer:()=>false};
- wrapped.onAdd(map);wrapped.styleCallback(fixture());
- return {wrapped,map,calls,container,native,setStyles};
+ wrapped.onAdd(map);
+ if(bootstrapFailed) callbacks.get('load-error')({value:new Error('Provider unavailable')});
+ else wrapped.styleCallback(fixture());
+ return {wrapped,map,calls,container,native,setStyles,getBootstrapAttempts:()=>bootstrapAttempts};
 }
+test("explicit retry restarts a failed cold Esri bootstrap once for concurrent callers",async()=>{
+ const {wrapped,container,getBootstrapAttempts}=mockedLayer({bootstrapFailed:true});
+ assert.equal(wrapped.getMaplibreMap(),null);
+ await assert.rejects(wrapped.whenReady({timeoutMs:1000}),/could not load cleanly/);
+ assert.equal(getBootstrapAttempts(),0);
+ await Promise.all([
+  wrapped.whenReady({timeoutMs:1000,retry:true}),
+  wrapped.whenReady({timeoutMs:1000,retry:true}),
+ ]);
+ assert.equal(getBootstrapAttempts(),1);
+ assert.equal(wrapped.isLoading(),false);
+ assert.equal(container.style.opacity,"0.98");
+});
 test("wrapper masks the vendor's initial unfiltered style and applies requested opacity after roads are ready",async()=>{
  const {wrapped,container}=mockedLayer();assert.equal(container.style.opacity,"0");
  assert(roads.isLayer(wrapped));assert.equal(wrapped.options.opacity,.98);await wrapped.whenReady({timeoutMs:1000});

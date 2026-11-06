@@ -21,7 +21,7 @@ from run_anuga import (  # noqa: E402
     barrier_mask_for_mesh,
     friction_from_elevation,
 )
-from fetch_petss import interpolate_15_minutes  # noqa: E402
+from fetch_petss import enforce_scenario_order, interpolate_15_minutes  # noqa: E402
 
 
 def in_memory_sampler(array: np.ndarray, resolution: float = 5.0) -> RasterSampler:
@@ -92,6 +92,33 @@ class PhysicsContractTests(unittest.TestCase):
             frame = frames[index * 4]
             self.assertTrue(frame["isHourlySourcePoint"])
             self.assertAlmostEqual(frame["mllwFt"], mllw_ft, places=4)
+
+
+    def test_interpolated_scenario_bounds_stay_around_the_mean(self) -> None:
+        origin = datetime(2026, 8, 9, 18, tzinfo=timezone.utc)
+        source = {
+            "mean": (1, 1, 1, 2),
+            "lowEnd": (1, 0, 1, 2),
+            "highEnd": (1, 2, 1, 2),
+        }
+        curves = {
+            scenario: interpolate_15_minutes([
+                (origin + timedelta(hours=index), value)
+                for index, value in enumerate(values)
+            ], -2.75)
+            for scenario, values in source.items()
+        }
+        self.assertTrue(any(lo["mllwFt"] > mean["mllwFt"]
+                            for lo, mean in zip(curves["lowEnd"], curves["mean"])))
+        self.assertTrue(enforce_scenario_order(curves))
+        self.assertFalse(enforce_scenario_order(curves))
+        for low, mean, high in zip(curves["lowEnd"], curves["mean"], curves["highEnd"]):
+            for field in ("mllwFt", "navd88Ft", "navd88M"):
+                self.assertLessEqual(low[field], mean[field])
+                self.assertLessEqual(mean[field], high[field])
+        for scenario, values in source.items():
+            self.assertEqual([frame["mllwFt"] for frame in curves[scenario] if frame["isHourlySourcePoint"]],
+                             list(values))
 
 
 if __name__ == "__main__":

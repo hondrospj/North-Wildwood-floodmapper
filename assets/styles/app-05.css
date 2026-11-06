@@ -9629,12 +9629,19 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
     outline:2px solid var(--fleet-accent) !important;
     outline-offset:3px !important;
   }
+  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl
+    .nw-simple-zoom-button:focus-visible {
+    outline-offset:-3px !important;
+  }
 }
 
 /* Keep the existing camera card surface, width and controls in short windows. */
 #webcamPanel[data-viewport-overlay="true"] {
   position:fixed;
   z-index:10050;
+}
+body.mobile-controls-open #webcamPanel[data-viewport-overlay="true"] {
+  z-index:9100;
 }
 #webcamPanel[data-viewport-overlay="true"] .webcam-heading {
   position:sticky;

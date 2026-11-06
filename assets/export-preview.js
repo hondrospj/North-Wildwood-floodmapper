@@ -320,7 +320,7 @@
   };
 
   const originalOpen = setDownloadModalOpen;
-  setDownloadModalOpen = function (open, ...args) {
+  setDownloadModalOpen = function (open, options) {
     if (!open && cancelPreviewWait) {
       // Closing is a real cancellation even when preview preparation has not
       // yet entered the exporter's progress/Cancel lifecycle.
@@ -333,8 +333,8 @@
       if (button) button.disabled = false;
     }
     invalidate();
-    settingsReviewed = false;
-    const result = originalOpen(open, ...args);
+    if (!options?.preserveReview) settingsReviewed = false;
+    const result = originalOpen(open, options);
     renderReviewStep();
     if (open) schedulePreview();
     else {
@@ -350,6 +350,10 @@
     if (exportRequested || exportInProgress) return;
     // The first action always reveals the important settings, never downloads.
     if (!settingsReviewed) {
+      if (!commitAllExportDateTimeEditors(true)) {
+        node("exportBasicFields")?.querySelector('[aria-invalid="true"]')?.focus();
+        return;
+      }
       reviewSettings();
       return;
     }
@@ -491,7 +495,9 @@
       updateExportSegmentedUI();
       node("exportFormatGifBtn")?.focus({ preventScroll: true });
     });
-    node("exportChangeAreaBtn").addEventListener("click", () => node("exportExtentCustomBtn")?.click());
+    node("exportChangeAreaBtn").addEventListener("click", event => {
+      window.FLOODMAPPER_EXPORT_AREA?.openPicker(event.currentTarget);
+    });
     node("downloadResetBtn")?.addEventListener("click", () => {
       settingsReviewed = false;
       updateExportSegmentedUI();

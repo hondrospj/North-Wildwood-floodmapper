@@ -148,7 +148,11 @@ def parse_station_rows(station: dict) -> list[dict]:
 
 def build() -> dict:
     events = [dict(event) for event in MANUAL_EVENTS]
-    events.extend(event for station in STATIONS for event in parse_station_rows(station))
+    for station in STATIONS:
+        station_events = parse_station_rows(station)
+        if not station_events:
+            raise RuntimeError(f"USGS station {station['site_no']} returned no usable flood crests")
+        events.extend(station_events)
     events = [
         event
         for event in events

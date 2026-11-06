@@ -118,6 +118,14 @@ class ArtifactSchemaTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_generated("toptides.json", payload)
 
+    def test_manual_only_crest_archive_is_rejected(self):
+        payload = committed_payload("toptides.json")
+        payload["toptides"] = [row for row in payload["toptides"]
+                               if row.get("record_type") != "USGS annual storm-tide crest"]
+        self.assertGreater(len(payload["toptides"]), 0)
+        with self.assertRaisesRegex(ValueError, "no USGS annual storm-tide records"):
+            validate_generated("toptides.json", payload)
+
     def test_city_readings_sensor_counts_and_index_paths_are_checked(self):
         for path, mutate in (
             ("city-gauge/data/2026.json", lambda data: data["readings"][0].append(99)),
@@ -191,6 +199,15 @@ class ForecastFreshnessTests(unittest.TestCase):
             validate_forecast(payload, now=TEST_NOW)
         with self.assertRaisesRegex(ValueError, "clock must identify UTC"):
             validate_forecast(forecast(), now=TEST_NOW.replace(tzinfo=None))
+
+    def test_missing_hour_in_all_scenarios_is_rejected(self):
+        payload = forecast()
+        payload["forecastEndUtc"] = "2026-10-23T14:00:00Z"
+        for scenario in payload["scenarioForecasts"].values():
+            scenario["hours"][-1]["timeUtc"] = payload["forecastEndUtc"]
+        payload["hours"] = payload["scenarioForecasts"]["mean"]["hours"]
+        with self.assertRaisesRegex(ValueError, "consecutive hourly timestamps"):
+            validate_forecast(payload, now=TEST_NOW)
 
     def test_current_committed_forecast_has_consistent_future_coverage_at_issuance(self):
         payload = committed_payload("forecast.json")

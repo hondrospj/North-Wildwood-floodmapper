@@ -161,6 +161,26 @@ function editorContext() {
   assert.equal(ctx.commitExportDateTimeEditor('start'), true);
   assert.equal(ctx.getRangeInputDate('downloadStartInput').toISOString(), '2026-03-08T07:30:00.000Z');
 }
+{
+  const { ctx, node, errors } = editorContext();
+  ctx.setRangeInputDate('downloadStartInput', new Date('2026-11-06T23:00:00Z'));
+  const input = node('downloadStartDateText');
+  for (const draft of ['02/30/2026', '11/0D/2026']) {
+    input.value = draft;
+    assert.equal(ctx.commitExportDateTimeEditor('start', { showError: true }), false);
+    assert.match(errors.at(-1), /valid date/);
+    ctx.syncExportDateTimeEditorFromCanonical('start');
+    assert.equal(input.value, draft, 'An invalid edit must survive a canonical sync');
+    assert.equal(ctx.getRangeInputDate('downloadStartInput'), null, 'The old valid date cannot be exported');
+  }
+  input.value = '11/07/2026';
+  assert.equal(ctx.commitExportDateTimeEditor('start'), true);
+  assert.equal(ctx.getRangeInputDate('downloadStartInput').toISOString(), '2026-11-07T23:00:00.000Z');
+  input.value = '02/30/2026';
+  ctx.commitExportDateTimeEditor('start');
+  ctx.setRangeInputDate('downloadStartInput', new Date('2026-11-06T23:00:00Z'));
+  assert.equal(input.value, '11/06/2026', 'An explicit reset discards the invalid draft');
+}
 
 // Keep all 100 real source instants on the shipped fall-back day. Preference
 // for a forecast at one exact instant must not delete the other 01:00 reading.
@@ -174,14 +194,18 @@ function editorContext() {
   const day = { date: fixture.day.d, hours: [] };
   let forecast = [];
   const ctx = context([...timeFunctions, 'setTimelineSlotFields', 'detectSeriesResolutionMinutes',
-    'buildQuarterHourTimelineSeries', 'decodeObserved15MinuteDay', 'getObservedRangeExportEntries',
+    'buildQuarterHourTimelineSeries', 'buildObservedCanonicalSeries', 'decodeObserved15MinuteDay', 'getObservedRangeExportEntries',
+    'makeMissingTimelineEntry', 'makeInterpolatedTimelineEntry',
     'getDownloadSourceEntries', 'findClosestExportEntryForSlot', 'buildHourlyRangeFrameItems',
     'buildQuarterHourRangeFrameItems'], {
-    currentDataMode: 'observed', getObservedDays: () => [day],
+    currentDataMode: 'observed', currentSeriesHours: [], getObservedDays: () => [day],
     getObservedSourceHoursForDay: () => day.hours, getForecastExportEntries: () => forecast,
+    getObservedDayRecord: date => date === day.date ? day : null, annotateHydraulicSeries: entries => entries,
+    addDaysToDateKey: (date, offset) => new Date(Date.parse(date) + offset * 86400000).toISOString().slice(0, 10),
     observed15MinuteData: {}, TOWN_CONFIG: { observed: { usgsGaugeId: '01411360' } },
     entryTimeMs: entry => Date.parse(entry.timeUtc), getEntryESTDate: entry => new Date(entry.timeUtc),
     getStageValue: entry => entry.navd88StageFt,
+    findClosestEntryIndex: () => 0,
     getDownloadFrameItemFromEntry: entry => ({ entry }),
   });
   day.hours = ctx.decodeObserved15MinuteDay(fixture.day);
@@ -205,6 +229,31 @@ function editorContext() {
   assert.equal(merged.length, 100);
   assert.equal(merged[4].navd88StageFt, day.hours[4].navd88StageFt);
   assert.equal(merged[8].navd88StageFt, 99);
+
+  // The same 75-minute separation is an observed outage and a permissible
+  // forecast interval. Never blend the last observed and first forecast slot.
+  const before = day.hours[8], after = day.hours[13];
+  const target = new Date(Date.parse(before.timeUtc) + 15 * 60000);
+  const single = { startMs: target.getTime(), endMs: target.getTime() };
+  const build = () => ctx.buildQuarterHourRangeFrameItems(ctx.getDownloadSourceEntries(true, target, target), single);
+  day.hours = [before, after];
+  forecast = [];
+  assert.equal(build().length, 0, 'A primary gauge outage must not produce an export frame');
+  day.hours = [before];
+  forecast = [{ ...after, exportSourceMode: 'forecast' }];
+  assert.equal(build().length, 0, 'Observed and projected readings must not bridge each other');
+  forecast = [before, after].map(entry => ({ ...entry, exportSourceMode: 'forecast' }));
+  assert.equal(build()[0].entry.exportSourceMode, 'forecast');
+  assert.equal(build()[0].entry.timeUtc, target.toISOString());
+  assert.equal(build()[0].entry.isInterpolatedTimelineFrame, true);
+
+  day.hours = [before, actual[12]];
+  day.isLewesSurrogate = true;
+  forecast = [];
+  const surrogate = build();
+  assert.equal(surrogate.length, 1, 'Adjacent surrogate hours remain replayable in export');
+  assert.equal(surrogate[0].entry.timeUtc, target.toISOString());
+  assert.equal(surrogate[0].entry.isInterpolatedTimelineFrame, true);
 }
 
 // Cancellation while the archive promise is pending must stop before creating

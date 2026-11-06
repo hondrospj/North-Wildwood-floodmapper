@@ -120,10 +120,12 @@
       const activeEditor = document.activeElement;
       const editingStart = activeEditor && activeEditor === document.getElementById("downloadStartDateText");
       const editingEnd = activeEditor && activeEditor === document.getElementById("downloadEndDateText");
-      if (force || (!editingStart && (!startEl.value || startEl.dataset.userEdited !== "1"))) {
+      if (force || (!editingStart && startEl.dataset.invalidDate !== "1" &&
+          (!startEl.value || startEl.dataset.userEdited !== "1"))) {
         setRangeInputDate("downloadStartInput", selectedRange.firstDate);
       }
-      if (force || (!editingEnd && (!endEl.value || endEl.dataset.userEdited !== "1"))) {
+      if (force || (!editingEnd && endEl.dataset.invalidDate !== "1" &&
+          (!endEl.value || endEl.dataset.userEdited !== "1"))) {
         const endDate = getDownloadFormatValue() === "png"
           ? (getRangeInputDate("downloadStartInput") || selectedRange.firstDate)
           : selectedRange.lastDate;
@@ -336,8 +338,8 @@ function syncDownloadRangeInputs(force = false) {
       if (!seededSelection && (!startEl.value || !endEl.value)) {
         const currentDate = getEntryESTDate(getDownloadCurrentEntry());
         if (currentDate) {
-          if (!startEl.value) setRangeInputDate("downloadStartInput", currentDate);
-          if (!endEl.value) setRangeInputDate("downloadEndInput", currentDate);
+          if (!startEl.value && (force || startEl.dataset.invalidDate !== "1")) setRangeInputDate("downloadStartInput", currentDate);
+          if (!endEl.value && (force || endEl.dataset.invalidDate !== "1")) setRangeInputDate("downloadEndInput", currentDate);
         }
       }
 
