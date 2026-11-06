@@ -15,30 +15,68 @@ html body .webcam-map-marker {
 }
 html body .webcam-map-marker svg { display:block; width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; }
 .webcam-map-marker:focus-visible, #webcamPanel button:focus-visible, #webcamPanel a:focus-visible, #webcamPanel select:focus-visible { outline:3px solid #e49b24; outline-offset:2px; }
-#webcamPanel { position:absolute; top:140px; left:50%; transform:translateX(-50%); z-index:9100; box-sizing:border-box; width:min(360px,calc(100% - 24px)); max-height:calc(100% - 270px); overflow:auto; overscroll-behavior:contain; border:1px solid #425069; border-radius:13px; background:#121d2d; color:#edf3ff; box-shadow:0 6px 24px #0006; padding:12px; font:12px/1.35 system-ui,sans-serif; text-align:left; cursor:default; pointer-events:auto !important; }
-#webcamPanel .webcam-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
-#webcamPanel h2 { margin:0; font-size:16px; line-height:1.25; }
-#webcamPanel button, #webcamChoice { font:inherit; color:#d9eaff; background:#213047; border:1px solid #425069; border-radius:6px; cursor:pointer; }
-#webcamPanel button { min-height:0 !important; padding:3px 6px !important; font-size:11px !important; }
-#webcamPanel #webcamClose { flex:0 0 32px; width:32px; height:32px; min-height:32px !important; padding:0 !important; font-size:23px !important; line-height:1; }
-#webcamChoice { width:100%; min-height:36px !important; margin-bottom:9px; padding:6px; font-size:12px !important; }
-#webcamPanel .webcam-frame { width:100%; aspect-ratio:16 / 9; background:#102535; border-radius:7px; overflow:hidden; }
+#webcamPanel {
+  --webcam-control-size:36px;
+  --webcam-panel-space:calc(100% - 270px);
+  --webcam-feed-limit:100dvh;
+  position:absolute; top:140px; left:50%; transform:translateX(-50%); z-index:9100;
+  box-sizing:border-box; width:min(360px,calc(100% - 24px)); max-height:var(--webcam-panel-space);
+  overflow:auto; overscroll-behavior:contain; padding:9px;
+  border:1px solid #425069; border-radius:14px; background:#121d2d; color:#edf3ff;
+  box-shadow:0 8px 28px #0007; font-size:13px; line-height:1.35; text-align:left;
+  cursor:default; pointer-events:auto !important;
+}
+#webcamPanel .webcam-heading { display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+#webcamPanel h2 { flex:1; margin:0; padding-inline:6px; font-size:15px; line-height:1.25; }
+#webcamPanel .webcam-visually-hidden { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+#webcamPanel :is(button,select) { box-sizing:border-box; font:inherit; color:inherit; border:1px solid #425069; border-radius:8px; background:#202f45; cursor:pointer; }
+#webcamPanel button {
+  flex:0 0 var(--webcam-control-size); display:grid; place-items:center;
+  width:var(--webcam-control-size); min-width:var(--webcam-control-size);
+  height:var(--webcam-control-size); min-height:var(--webcam-control-size) !important; padding:0 !important;
+}
+#webcamPanel #webcamChoice {
+  flex:1 1 auto; width:0; min-width:0; min-height:var(--webcam-control-size) !important;
+  margin:0; padding:4px 32px 4px 10px !important; font-weight:650; font-size:14px !important; color-scheme:dark;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23c2d0e3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 9px center; background-size:16px;
+  overflow:hidden; text-overflow:ellipsis;
+}
+#webcamPanel :is(button,select):hover { background-color:#2a3d57; }
+@media (forced-colors:active) {
+  #webcamPanel #webcamChoice { appearance:auto; background-image:none; padding-right:10px !important; }
+}
+#webcamPanel svg { display:block; width:17px; height:17px; flex:none; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+#webcamPanel .webcam-media { position:relative; }
+#webcamPanel .webcam-frame {
+  /* Reserve room for the two control rows, padding, borders and gaps. */
+  --webcam-controls-height:calc(2 * var(--webcam-control-size) + 33px);
+  width:100%; aspect-ratio:16 / 9;
+  max-height:min(var(--webcam-feed-limit),max(96px,var(--webcam-panel-space) - var(--webcam-controls-height)));
+  background:#0c1523; border-radius:8px; overflow:hidden;
+}
 #webcamPanel iframe, #webcamPanel .webcam-frame img { display:block; width:100%; height:100%; border:0; object-fit:contain; }
-#webcamPanel .webcam-external { box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:16px; text-align:center; }
-#webcamPanel .webcam-external a { display:inline-block; padding:10px 14px; border:1px solid #5da3ff; border-radius:7px; background:#203f60; color:#fff; font-weight:600; }
-#webcamPanel #webcamStatus { margin:8px 0 0; color:#b8cbe1; font-size:12px; }
-#webcamPanel .webcam-source { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; color:#b8cbe1; font-size:11px; }
-#webcamPanel .webcam-source > span { flex:1 1 auto; }
-#webcamPanel a { color:#93c6ff; text-decoration:underline; }
-#webcamPanel #webcamRetry { width:32px; height:32px; min-width:32px; min-height:32px !important; padding:0 !important; font-size:20px !important; line-height:1; }
+#webcamPanel #webcamStatus {
+  position:absolute; inset:0; display:grid; place-items:center; margin:0;
+  padding:8px; border-radius:8px; background:#0c1523; color:#c2d0e3; text-align:center; pointer-events:none;
+}
 #webcamPanel[data-player-state="unavailable"] #webcamStatus { color:#ffcb85; }
+#webcamPanel[data-player-state="external"] .webcam-frame {
+  display:grid; place-items:center; aspect-ratio:auto; min-height:84px; background:#18263a;
+}
+#webcamPanel .webcam-external a, #webcamPanel #webcamSourceLink {
+  display:inline-flex; align-items:center; justify-content:center; gap:5px;
+  min-height:var(--webcam-control-size); padding-inline:9px; border-radius:8px;
+  color:#b8dcff; text-decoration:none; white-space:nowrap;
+}
+#webcamPanel .webcam-external a { min-height:44px; padding-inline:14px; border:1px solid #6084ad; background:#243c57; font-weight:650; }
+#webcamPanel :is(.webcam-external a,#webcamSourceLink):hover { background:#2a3d57; text-decoration:underline; }
+#webcamPanel .webcam-source { display:flex; align-items:center; gap:4px; margin-top:5px; }
+#webcamPanel .webcam-source > span { flex:1 1 auto; padding-inline-start:3px; color:#bacade; font-size:11px; }
 @media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
-  #webcamPanel { top:85px; width:min(360px,calc(100% - 16px)); max-height:calc(100dvh - 205px); padding:10px; }
-  #webcamPanel #webcamClose { width:44px; height:44px; min-height:44px !important; flex-basis:44px; }
-  #webcamPanel #webcamRetry { width:44px; height:44px; min-height:44px !important; min-width:44px; }
-  #webcamPanel .webcam-source > a { display:flex; align-items:center; min-height:44px; }
-  #webcamChoice { min-height:44px !important; }
-  #webcamPanel .webcam-frame { max-height:34dvh; }
+  #webcamPanel { --webcam-control-size:44px; --webcam-panel-space:calc(100dvh - 205px); --webcam-feed-limit:34dvh; top:85px; width:min(360px,calc(100% - 16px)); }
+  #webcamPanel #webcamChoice { font-size:16px !important; }
 }
 body.exporting .webcam-map-marker, body.exporting #webcamPanel, .export-stage .webcam-map-marker, .export-stage #webcamPanel { display:none !important; }
 @media print { html body .webcam-map-marker, #webcamPanel { display:none !important; } }

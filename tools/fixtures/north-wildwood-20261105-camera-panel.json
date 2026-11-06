@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "ae267b4075cf59673314b5cdb80c3eeceef22675",
+  "scope": "Review the compact camera viewer, responsive placement, focus behavior and generated asset cache keys.",
+  "files": [
+    {
+      "source": "tools/app/webcams.js",
+      "beforeSha256": "fb04f9e28d16f39b972ecf10160ce3db597e4aa82b4db2681cec86e6206baeaa",
+      "afterSha256": "e8d6e34b47685f84730ceea620289b304b6f9c10dc4790d07146d0aae7eec212",
+      "changes": [
+        {
+          "beforeLine": 13,
+          "afterLine": 13,
+          "beforeSource": "  const icon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"14\" rx=\"4\"/><circle cx=\"12\" cy=\"10\" r=\"4\"/><path d=\"M12 17v4M7 21h10\"/></svg>';\n  const panel = document.createElement(\"section\");\n",
+          "afterSource": "  const icon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"14\" rx=\"4\"/><circle cx=\"12\" cy=\"10\" r=\"4\"/><path d=\"M12 17v4M7 21h10\"/></svg>';\n  const closeIcon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m6 6 12 12M18 6 6 18\"/></svg>';\n  const reloadIcon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 4v6h-6m6 0a8 8 0 1 0 .4 4\"/></svg>';\n  const externalIcon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M13 5h6v6m0-6-9 9m0-8H5v13h13v-5\"/></svg>';\n  const panel = document.createElement(\"section\");\n",
+          "beforeSha256": "430e5dbbdc57adcd2841caa46cecb65128ff1d34a435be84925c7d05caab020f",
+          "afterSha256": "813f17d4e83014365ec30637244db94c5fbc62f42962a2c8fb75fa424bf96073"
+        },
+        {
+          "beforeLine": 19,
+          "afterLine": 22,
+          "beforeSource": "  panel.setAttribute(\"data-html2canvas-ignore\", \"true\");\n  panel.innerHTML = `<div class=\"webcam-heading\"><h2 id=\"webcamTitle\">Cameras</h2><button type=\"button\" id=\"webcamClose\" aria-label=\"Close camera viewer\">×</button></div>\n    <select id=\"webcamChoice\" aria-label=\"Choose camera\"></select>\n    <div id=\"webcamFrame\" class=\"webcam-frame\"></div>\n    <p id=\"webcamStatus\" role=\"status\" aria-live=\"polite\" hidden></p>\n    <div class=\"webcam-source\"><span>Current view · not map time</span><a id=\"webcamSourceLink\" target=\"_blank\" rel=\"noopener noreferrer\">Source ↗</a><button type=\"button\" id=\"webcamRetry\" aria-label=\"Reload camera\">↻</button></div>`;\n  document.body.append(panel);\n",
+          "afterSource": "  panel.setAttribute(\"data-html2canvas-ignore\", \"true\");\n  panel.innerHTML = `<div class=\"webcam-heading\">\n      <h2 id=\"webcamTitle\" class=\"webcam-visually-hidden\">Cameras</h2>\n      <select id=\"webcamChoice\" aria-label=\"Choose camera\"></select>\n      <button type=\"button\" id=\"webcamClose\" aria-label=\"Close camera viewer\" title=\"Close\">${closeIcon}</button>\n    </div>\n    <div class=\"webcam-media\">\n      <div id=\"webcamFrame\" class=\"webcam-frame\"></div>\n      <p id=\"webcamStatus\" role=\"status\" aria-live=\"polite\" hidden></p>\n    </div>\n    <div class=\"webcam-source\">\n      <span>Separate from map time</span>\n      <a id=\"webcamSourceLink\" target=\"_blank\" rel=\"noopener noreferrer\">Source ${externalIcon}</a>\n      <button type=\"button\" id=\"webcamRetry\" aria-label=\"Reload camera\" title=\"Reload camera\">${reloadIcon}</button>\n    </div>`;\n  document.body.append(panel);\n",
+          "beforeSha256": "f74a45073dc62e6392f8d00dab93b149baf146111032b452d3c9e91434638110",
+          "afterSha256": "09a42e4260d35183d5bbbfeff9635e679ad325bbf517f33ddabbd0cc87fd49cd"
+        },
+        {
+          "beforeLine": 29,
+          "afterLine": 41,
+          "beforeSource": "  const status = panel.querySelector(\"#webcamStatus\");\n  let enabled = false, selected = null, frame = null, refreshTimer = null;\n",
+          "afterSource": "  const status = panel.querySelector(\"#webcamStatus\");\n  const actions = panel.querySelector(\".webcam-source\");\n  const sourceLink = panel.querySelector(\"#webcamSourceLink\");\n  let enabled = false, selected = null, frame = null, refreshTimer = null;\n",
+          "beforeSha256": "b21ac73f19425023330d713845341d9d84ff734bb29a32e298420322ea706304",
+          "afterSha256": "7c0d2dedb1288e00b1038a25c8cfa454384f2330378b06660cc2fd455d68d9e7"
+        },
+        {
+          "beforeLine": 40,
+          "afterLine": 54,
+          "beforeSource": "  choice.hidden = cameras.length < 2;\n\n",
+          "afterSource": "  choice.hidden = cameras.length < 2;\n  if (choice.hidden) {\n    const title = panel.querySelector(\"#webcamTitle\");\n    title.classList.remove(\"webcam-visually-hidden\");\n    title.textContent = cameras[0].short || cameras[0].name;\n  }\n\n",
+          "beforeSha256": "2853af7f11cf508c83f9c60bb7f0bb01a7dfae3f639d9e1106f670be359a15fe",
+          "afterSha256": "ca59643dfa911c6819be2fe640ee86b9fb4579a275cc15c8e9dd2c2195130f8d"
+        },
+        {
+          "beforeLine": 55,
+          "afterLine": 74,
+          "beforeSource": "    clearPlayer();\n    panel.querySelector(\"#webcamRetry\").hidden = Boolean(camera.external);\n    if (camera.external) {\n",
+          "afterSource": "    clearPlayer();\n    actions.hidden = Boolean(camera.external);\n    if (camera.external) {\n",
+          "beforeSha256": "b2a997185937c1781fafa15a1d3c05476a9eb8107aa225252e5256e42d494533",
+          "afterSha256": "2a1b6bb465eed490ae83b43ec3d1bb4fea5dd824d51198547606c3a465207c64"
+        },
+        {
+          "beforeLine": 65,
+          "afterLine": 84,
+          "beforeSource": "      link.rel = \"noopener noreferrer\";\n      link.textContent = \"Watch on city website ↗\";\n      notice.append(link);\n",
+          "afterSource": "      link.rel = \"noopener noreferrer\";\n      link.title = camera.source;\n      link.innerHTML = `Open camera ${externalIcon}`;\n      notice.append(link);\n",
+          "beforeSha256": "5784bacfa6118c3ffefceda2847477cdab6614811d077612be06eb31fc7b0896",
+          "afterSha256": "72e8dcd3507052e9fa6621255101ad447daeb0eb170a487244214ba1360eac9c"
+        },
+        {
+          "beforeLine": 70,
+          "afterLine": 90,
+          "beforeSource": "    }\n    setStatus(\"Opening camera…\");\n    panel.dataset.playerState = \"loading\";\n",
+          "afterSource": "    }\n    setStatus(\"Opening…\");\n    panel.dataset.playerState = \"loading\";\n",
+          "beforeSha256": "a5029d6d74a6216dd82514e594a302a5a18980a4cc889eaa5547ae513b7fb639",
+          "afterSha256": "79b5cc670667799e1b4360f940d86992ed4d095557d4b16e8c0fbc30aca25f28"
+        },
+        {
+          "beforeLine": 77,
+          "afterLine": 97,
+          "beforeSource": "      panel.dataset.playerState = \"unavailable\";\n      setStatus(\"Camera unavailable. Reload or open source.\");\n    };\n",
+          "afterSource": "      panel.dataset.playerState = \"unavailable\";\n      setStatus(\"Camera unavailable\");\n    };\n",
+          "beforeSha256": "70629287397f4e1a145108a10121f0be909ed00a952620db310d9a3b7ae6bfed",
+          "afterSha256": "3796294ad28a10e9c98a4500f03cb9139c4d33d4033ea89dc0a4f882d6f72eb8"
+        },
+        {
+          "beforeLine": 143,
+          "afterLine": 163,
+          "beforeSource": "    panel.style.top = `${overlay ? viewportTop + 8 : top}px`;\n    panel.style.maxHeight = `${overlay ? Math.max(1, viewportHeight - 16) : available}px`;\n    if (overlay) {\n",
+          "afterSource": "    panel.style.top = `${overlay ? viewportTop + 8 : top}px`;\n    panel.style.setProperty(\"--webcam-panel-space\", `${overlay ? Math.max(1, viewportHeight - 16) : available}px`);\n    if (overlay) {\n",
+          "beforeSha256": "940d18a079f35cbeb91fdcacd9483452b5740768a8c466086ec659eb118553f3",
+          "afterSha256": "f769f58b9e68df5979f5e7c468ad49ed0fcfa959251f2a06c3cc624053cd2ded"
+        },
+        {
+          "beforeLine": 166,
+          "afterLine": 186,
+          "beforeSource": "    if (!enabled || !camera) return;\n    if (panel.hidden) returnFocus = trigger || toggle;\n    selected = camera;\n    panel.querySelector(\"#webcamSourceLink\").href = camera.sourceUrl;\n    panel.querySelector(\"#webcamSourceLink\").title = camera.source;\n    choice.value = camera.id;\n",
+          "afterSource": "    if (!enabled || !camera) return;\n    const opening = panel.hidden;\n    if (opening) returnFocus = trigger || toggle;\n    selected = camera;\n    sourceLink.href = camera.sourceUrl;\n    sourceLink.title = camera.source;\n    choice.value = camera.id;\n",
+          "beforeSha256": "c12b03f753969328df2f88e5f2d5ccf847a3129361e2950386c5fe0b58ebdbf8",
+          "afterSha256": "59f441a86aa9ca4fc1aadf1b179a0d608e603df669b1f8f112f4defd40305944"
+        },
+        {
+          "beforeLine": 175,
+          "afterLine": 196,
+          "beforeSource": "    loadPlayer(camera);\n    requestAnimationFrame(() => { if (!panel.hidden) closeButton.focus({ preventScroll: true }); });\n  }\n",
+          "afterSource": "    loadPlayer(camera);\n    if (opening) requestAnimationFrame(() => { if (!panel.hidden) closeButton.focus({ preventScroll: true }); });\n  }\n",
+          "beforeSha256": "203e2e92a952089437191b504b973cbf2909823ba774aab16f5ef3383b2bea81",
+          "afterSha256": "36b3c8101d4bb90a28c69e07a4217a951cde2c95fb5f0a990df784910dbb8551"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-012.css",
+      "beforeSha256": "71fbb1a09469826a3bd1e1770d3988f7588bd13600ef4dac83670fcaa4556233",
+      "afterSha256": "f7362e68a1a744f36f5e68c37833c4319114a2b63a8bf6b4309d57333d8a48de",
+      "changes": [
+        {
+          "beforeLine": 17,
+          "afterLine": 17,
+          "beforeSource": ".webcam-map-marker:focus-visible, #webcamPanel button:focus-visible, #webcamPanel a:focus-visible, #webcamPanel select:focus-visible { outline:3px solid #e49b24; outline-offset:2px; }\n#webcamPanel { position:absolute; top:140px; left:50%; transform:translateX(-50%); z-index:9100; box-sizing:border-box; width:min(360px,calc(100% - 24px)); max-height:calc(100% - 270px); overflow:auto; overscroll-behavior:contain; border:1px solid #425069; border-radius:13px; background:#121d2d; color:#edf3ff; box-shadow:0 6px 24px #0006; padding:12px; font:12px/1.35 system-ui,sans-serif; text-align:left; cursor:default; pointer-events:auto !important; }\n#webcamPanel .webcam-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }\n#webcamPanel h2 { margin:0; font-size:16px; line-height:1.25; }\n#webcamPanel button, #webcamChoice { font:inherit; color:#d9eaff; background:#213047; border:1px solid #425069; border-radius:6px; cursor:pointer; }\n#webcamPanel button { min-height:0 !important; padding:3px 6px !important; font-size:11px !important; }\n#webcamPanel #webcamClose { flex:0 0 32px; width:32px; height:32px; min-height:32px !important; padding:0 !important; font-size:23px !important; line-height:1; }\n#webcamChoice { width:100%; min-height:36px !important; margin-bottom:9px; padding:6px; font-size:12px !important; }\n#webcamPanel .webcam-frame { width:100%; aspect-ratio:16 / 9; background:#102535; border-radius:7px; overflow:hidden; }\n#webcamPanel iframe, #webcamPanel .webcam-frame img { display:block; width:100%; height:100%; border:0; object-fit:contain; }\n#webcamPanel .webcam-external { box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:16px; text-align:center; }\n#webcamPanel .webcam-external a { display:inline-block; padding:10px 14px; border:1px solid #5da3ff; border-radius:7px; background:#203f60; color:#fff; font-weight:600; }\n#webcamPanel #webcamStatus { margin:8px 0 0; color:#b8cbe1; font-size:12px; }\n#webcamPanel .webcam-source { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; color:#b8cbe1; font-size:11px; }\n#webcamPanel .webcam-source > span { flex:1 1 auto; }\n#webcamPanel a { color:#93c6ff; text-decoration:underline; }\n#webcamPanel #webcamRetry { width:32px; height:32px; min-width:32px; min-height:32px !important; padding:0 !important; font-size:20px !important; line-height:1; }\n#webcamPanel[data-player-state=\"unavailable\"] #webcamStatus { color:#ffcb85; }\n@media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {\n  #webcamPanel { top:85px; width:min(360px,calc(100% - 16px)); max-height:calc(100dvh - 205px); padding:10px; }\n  #webcamPanel #webcamClose { width:44px; height:44px; min-height:44px !important; flex-basis:44px; }\n  #webcamPanel #webcamRetry { width:44px; height:44px; min-height:44px !important; min-width:44px; }\n  #webcamPanel .webcam-source > a { display:flex; align-items:center; min-height:44px; }\n  #webcamChoice { min-height:44px !important; }\n  #webcamPanel .webcam-frame { max-height:34dvh; }\n}\n",
+          "afterSource": ".webcam-map-marker:focus-visible, #webcamPanel button:focus-visible, #webcamPanel a:focus-visible, #webcamPanel select:focus-visible { outline:3px solid #e49b24; outline-offset:2px; }\n#webcamPanel {\n  --webcam-control-size:36px;\n  --webcam-panel-space:calc(100% - 270px);\n  --webcam-feed-limit:100dvh;\n  position:absolute; top:140px; left:50%; transform:translateX(-50%); z-index:9100;\n  box-sizing:border-box; width:min(360px,calc(100% - 24px)); max-height:var(--webcam-panel-space);\n  overflow:auto; overscroll-behavior:contain; padding:9px;\n  border:1px solid #425069; border-radius:14px; background:#121d2d; color:#edf3ff;\n  box-shadow:0 8px 28px #0007; font-size:13px; line-height:1.35; text-align:left;\n  cursor:default; pointer-events:auto !important;\n}\n#webcamPanel .webcam-heading { display:flex; align-items:center; gap:7px; margin-bottom:8px; }\n#webcamPanel h2 { flex:1; margin:0; padding-inline:6px; font-size:15px; line-height:1.25; }\n#webcamPanel .webcam-visually-hidden { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }\n#webcamPanel :is(button,select) { box-sizing:border-box; font:inherit; color:inherit; border:1px solid #425069; border-radius:8px; background:#202f45; cursor:pointer; }\n#webcamPanel button {\n  flex:0 0 var(--webcam-control-size); display:grid; place-items:center;\n  width:var(--webcam-control-size); min-width:var(--webcam-control-size);\n  height:var(--webcam-control-size); min-height:var(--webcam-control-size) !important; padding:0 !important;\n}\n#webcamPanel #webcamChoice {\n  flex:1 1 auto; width:0; min-width:0; min-height:var(--webcam-control-size) !important;\n  margin:0; padding:4px 32px 4px 10px !important; font-weight:650; font-size:14px !important; color-scheme:dark;\n  appearance:none;\n  background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23c2d0e3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\");\n  background-repeat:no-repeat; background-position:right 9px center; background-size:16px;\n  overflow:hidden; text-overflow:ellipsis;\n}\n#webcamPanel :is(button,select):hover { background-color:#2a3d57; }\n@media (forced-colors:active) {\n  #webcamPanel #webcamChoice { appearance:auto; background-image:none; padding-right:10px !important; }\n}\n#webcamPanel svg { display:block; width:17px; height:17px; flex:none; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }\n#webcamPanel .webcam-media { position:relative; }\n#webcamPanel .webcam-frame {\n  /* Reserve room for the two control rows, padding, borders and gaps. */\n  --webcam-controls-height:calc(2 * var(--webcam-control-size) + 33px);\n  width:100%; aspect-ratio:16 / 9;\n  max-height:min(var(--webcam-feed-limit),max(96px,var(--webcam-panel-space) - var(--webcam-controls-height)));\n  background:#0c1523; border-radius:8px; overflow:hidden;\n}\n#webcamPanel iframe, #webcamPanel .webcam-frame img { display:block; width:100%; height:100%; border:0; object-fit:contain; }\n#webcamPanel #webcamStatus {\n  position:absolute; inset:0; display:grid; place-items:center; margin:0;\n  padding:8px; border-radius:8px; background:#0c1523; color:#c2d0e3; text-align:center; pointer-events:none;\n}\n#webcamPanel[data-player-state=\"unavailable\"] #webcamStatus { color:#ffcb85; }\n#webcamPanel[data-player-state=\"external\"] .webcam-frame {\n  display:grid; place-items:center; aspect-ratio:auto; min-height:84px; background:#18263a;\n}\n#webcamPanel .webcam-external a, #webcamPanel #webcamSourceLink {\n  display:inline-flex; align-items:center; justify-content:center; gap:5px;\n  min-height:var(--webcam-control-size); padding-inline:9px; border-radius:8px;\n  color:#b8dcff; text-decoration:none; white-space:nowrap;\n}\n#webcamPanel .webcam-external a { min-height:44px; padding-inline:14px; border:1px solid #6084ad; background:#243c57; font-weight:650; }\n#webcamPanel :is(.webcam-external a,#webcamSourceLink):hover { background:#2a3d57; text-decoration:underline; }\n#webcamPanel .webcam-source { display:flex; align-items:center; gap:4px; margin-top:5px; }\n#webcamPanel .webcam-source > span { flex:1 1 auto; padding-inline-start:3px; color:#bacade; font-size:11px; }\n@media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {\n  #webcamPanel { --webcam-control-size:44px; --webcam-panel-space:calc(100dvh - 205px); --webcam-feed-limit:34dvh; top:85px; width:min(360px,calc(100% - 16px)); }\n  #webcamPanel #webcamChoice { font-size:16px !important; }\n}\n",
+          "beforeSha256": "1355d6a831abac5e1fde566406820bf6ad6ddfc7839137a2fe889a615902877a",
+          "afterSha256": "4019e14c202214b4edb863345443a75dc5cf16ddab37ca67c11c10aab76fa3f1"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/webcams.js",
+      "beforeSha256": "fb04f9e28d16f39b972ecf10160ce3db597e4aa82b4db2681cec86e6206baeaa",
+      "afterSha256": "e8d6e34b47685f84730ceea620289b304b6f9c10dc4790d07146d0aae7eec212",
+      "changes": [
+        {
+          "beforeLine": 13,
+          "afterLine": 13,
+          "beforeSource": "  const icon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"14\" rx=\"4\"/><circle cx=\"12\" cy=\"10\" r=\"4\"/><path d=\"M12 17v4M7 21h10\"/></svg>';\n  const panel = document.createElement(\"section\");\n",
+          "afterSource": "  const icon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"14\" rx=\"4\"/><circle cx=\"12\" cy=\"10\" r=\"4\"/><path d=\"M12 17v4M7 21h10\"/></svg>';\n  const closeIcon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m6 6 12 12M18 6 6 18\"/></svg>';\n  const reloadIcon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 4v6h-6m6 0a8 8 0 1 0 .4 4\"/></svg>';\n  const externalIcon = '<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M13 5h6v6m0-6-9 9m0-8H5v13h13v-5\"/></svg>';\n  const panel = document.createElement(\"section\");\n",
+          "beforeSha256": "430e5dbbdc57adcd2841caa46cecb65128ff1d34a435be84925c7d05caab020f",
+          "afterSha256": "813f17d4e83014365ec30637244db94c5fbc62f42962a2c8fb75fa424bf96073"
+        },
+        {
+          "beforeLine": 19,
+          "afterLine": 22,
+          "beforeSource": "  panel.setAttribute(\"data-html2canvas-ignore\", \"true\");\n  panel.innerHTML = `<div class=\"webcam-heading\"><h2 id=\"webcamTitle\">Cameras</h2><button type=\"button\" id=\"webcamClose\" aria-label=\"Close camera viewer\">×</button></div>\n    <select id=\"webcamChoice\" aria-label=\"Choose camera\"></select>\n    <div id=\"webcamFrame\" class=\"webcam-frame\"></div>\n    <p id=\"webcamStatus\" role=\"status\" aria-live=\"polite\" hidden></p>\n    <div class=\"webcam-source\"><span>Current view · not map time</span><a id=\"webcamSourceLink\" target=\"_blank\" rel=\"noopener noreferrer\">Source ↗</a><button type=\"button\" id=\"webcamRetry\" aria-label=\"Reload camera\">↻</button></div>`;\n  document.body.append(panel);\n",
+          "afterSource": "  panel.setAttribute(\"data-html2canvas-ignore\", \"true\");\n  panel.innerHTML = `<div class=\"webcam-heading\">\n      <h2 id=\"webcamTitle\" class=\"webcam-visually-hidden\">Cameras</h2>\n      <select id=\"webcamChoice\" aria-label=\"Choose camera\"></select>\n      <button type=\"button\" id=\"webcamClose\" aria-label=\"Close camera viewer\" title=\"Close\">${closeIcon}</button>\n    </div>\n    <div class=\"webcam-media\">\n      <div id=\"webcamFrame\" class=\"webcam-frame\"></div>\n      <p id=\"webcamStatus\" role=\"status\" aria-live=\"polite\" hidden></p>\n    </div>\n    <div class=\"webcam-source\">\n      <span>Separate from map time</span>\n      <a id=\"webcamSourceLink\" target=\"_blank\" rel=\"noopener noreferrer\">Source ${externalIcon}</a>\n      <button type=\"button\" id=\"webcamRetry\" aria-label=\"Reload camera\" title=\"Reload camera\">${reloadIcon}</button>\n    </div>`;\n  document.body.append(panel);\n",
+          "beforeSha256": "f74a45073dc62e6392f8d00dab93b149baf146111032b452d3c9e91434638110",
+          "afterSha256": "09a42e4260d35183d5bbbfeff9635e679ad325bbf517f33ddabbd0cc87fd49cd"
+        },
+        {
+          "beforeLine": 29,
+          "afterLine": 41,
+          "beforeSource": "  const status = panel.querySelector(\"#webcamStatus\");\n  let enabled = false, selected = null, frame = null, refreshTimer = null;\n",
+          "afterSource": "  const status = panel.querySelector(\"#webcamStatus\");\n  const actions = panel.querySelector(\".webcam-source\");\n  const sourceLink = panel.querySelector(\"#webcamSourceLink\");\n  let enabled = false, selected = null, frame = null, refreshTimer = null;\n",
+          "beforeSha256": "b21ac73f19425023330d713845341d9d84ff734bb29a32e298420322ea706304",
+          "afterSha256": "7c0d2dedb1288e00b1038a25c8cfa454384f2330378b06660cc2fd455d68d9e7"
+        },
+        {
+          "beforeLine": 40,
+          "afterLine": 54,
+          "beforeSource": "  choice.hidden = cameras.length < 2;\n\n",
+          "afterSource": "  choice.hidden = cameras.length < 2;\n  if (choice.hidden) {\n    const title = panel.querySelector(\"#webcamTitle\");\n    title.classList.remove(\"webcam-visually-hidden\");\n    title.textContent = cameras[0].short || cameras[0].name;\n  }\n\n",
+          "beforeSha256": "2853af7f11cf508c83f9c60bb7f0bb01a7dfae3f639d9e1106f670be359a15fe",
+          "afterSha256": "ca59643dfa911c6819be2fe640ee86b9fb4579a275cc15c8e9dd2c2195130f8d"
+        },
+        {
+          "beforeLine": 55,
+          "afterLine": 74,
+          "beforeSource": "    clearPlayer();\n    panel.querySelector(\"#webcamRetry\").hidden = Boolean(camera.external);\n    if (camera.external) {\n",
+          "afterSource": "    clearPlayer();\n    actions.hidden = Boolean(camera.external);\n    if (camera.external) {\n",
+          "beforeSha256": "b2a997185937c1781fafa15a1d3c05476a9eb8107aa225252e5256e42d494533",
+          "afterSha256": "2a1b6bb465eed490ae83b43ec3d1bb4fea5dd824d51198547606c3a465207c64"
+        },
+        {
+          "beforeLine": 65,
+          "afterLine": 84,
+          "beforeSource": "      link.rel = \"noopener noreferrer\";\n      link.textContent = \"Watch on city website ↗\";\n      notice.append(link);\n",
+          "afterSource": "      link.rel = \"noopener noreferrer\";\n      link.title = camera.source;\n      link.innerHTML = `Open camera ${externalIcon}`;\n      notice.append(link);\n",
+          "beforeSha256": "5784bacfa6118c3ffefceda2847477cdab6614811d077612be06eb31fc7b0896",
+          "afterSha256": "72e8dcd3507052e9fa6621255101ad447daeb0eb170a487244214ba1360eac9c"
+        },
+        {
+          "beforeLine": 70,
+          "afterLine": 90,
+          "beforeSource": "    }\n    setStatus(\"Opening camera…\");\n    panel.dataset.playerState = \"loading\";\n",
+          "afterSource": "    }\n    setStatus(\"Opening…\");\n    panel.dataset.playerState = \"loading\";\n",
+          "beforeSha256": "a5029d6d74a6216dd82514e594a302a5a18980a4cc889eaa5547ae513b7fb639",
+          "afterSha256": "79b5cc670667799e1b4360f940d86992ed4d095557d4b16e8c0fbc30aca25f28"
+        },
+        {
+          "beforeLine": 77,
+          "afterLine": 97,
+          "beforeSource": "      panel.dataset.playerState = \"unavailable\";\n      setStatus(\"Camera unavailable. Reload or open source.\");\n    };\n",
+          "afterSource": "      panel.dataset.playerState = \"unavailable\";\n      setStatus(\"Camera unavailable\");\n    };\n",
+          "beforeSha256": "70629287397f4e1a145108a10121f0be909ed00a952620db310d9a3b7ae6bfed",
+          "afterSha256": "3796294ad28a10e9c98a4500f03cb9139c4d33d4033ea89dc0a4f882d6f72eb8"
+        },
+        {
+          "beforeLine": 143,
+          "afterLine": 163,
+          "beforeSource": "    panel.style.top = `${overlay ? viewportTop + 8 : top}px`;\n    panel.style.maxHeight = `${overlay ? Math.max(1, viewportHeight - 16) : available}px`;\n    if (overlay) {\n",
+          "afterSource": "    panel.style.top = `${overlay ? viewportTop + 8 : top}px`;\n    panel.style.setProperty(\"--webcam-panel-space\", `${overlay ? Math.max(1, viewportHeight - 16) : available}px`);\n    if (overlay) {\n",
+          "beforeSha256": "940d18a079f35cbeb91fdcacd9483452b5740768a8c466086ec659eb118553f3",
+          "afterSha256": "f769f58b9e68df5979f5e7c468ad49ed0fcfa959251f2a06c3cc624053cd2ded"
+        },
+        {
+          "beforeLine": 166,
+          "afterLine": 186,
+          "beforeSource": "    if (!enabled || !camera) return;\n    if (panel.hidden) returnFocus = trigger || toggle;\n    selected = camera;\n    panel.querySelector(\"#webcamSourceLink\").href = camera.sourceUrl;\n    panel.querySelector(\"#webcamSourceLink\").title = camera.source;\n    choice.value = camera.id;\n",
+          "afterSource": "    if (!enabled || !camera) return;\n    const opening = panel.hidden;\n    if (opening) returnFocus = trigger || toggle;\n    selected = camera;\n    sourceLink.href = camera.sourceUrl;\n    sourceLink.title = camera.source;\n    choice.value = camera.id;\n",
+          "beforeSha256": "c12b03f753969328df2f88e5f2d5ccf847a3129361e2950386c5fe0b58ebdbf8",
+          "afterSha256": "59f441a86aa9ca4fc1aadf1b179a0d608e603df669b1f8f112f4defd40305944"
+        },
+        {
+          "beforeLine": 175,
+          "afterLine": 196,
+          "beforeSource": "    loadPlayer(camera);\n    requestAnimationFrame(() => { if (!panel.hidden) closeButton.focus({ preventScroll: true }); });\n  }\n",
+          "afterSource": "    loadPlayer(camera);\n    if (opening) requestAnimationFrame(() => { if (!panel.hidden) closeButton.focus({ preventScroll: true }); });\n  }\n",
+          "beforeSha256": "203e2e92a952089437191b504b973cbf2909823ba774aab16f5ef3383b2bea81",
+          "afterSha256": "36b3c8101d4bb90a28c69e07a4217a951cde2c95fb5f0a990df784910dbb8551"
+        }
+      ]
+    },
+    {
+      "source": "assets/styles/app-04.css",
+      "beforeSha256": "71fbb1a09469826a3bd1e1770d3988f7588bd13600ef4dac83670fcaa4556233",
+      "afterSha256": "f7362e68a1a744f36f5e68c37833c4319114a2b63a8bf6b4309d57333d8a48de",
+      "changes": [
+        {
+          "beforeLine": 17,
+          "afterLine": 17,
+          "beforeSource": ".webcam-map-marker:focus-visible, #webcamPanel button:focus-visible, #webcamPanel a:focus-visible, #webcamPanel select:focus-visible { outline:3px solid #e49b24; outline-offset:2px; }\n#webcamPanel { position:absolute; top:140px; left:50%; transform:translateX(-50%); z-index:9100; box-sizing:border-box; width:min(360px,calc(100% - 24px)); max-height:calc(100% - 270px); overflow:auto; overscroll-behavior:contain; border:1px solid #425069; border-radius:13px; background:#121d2d; color:#edf3ff; box-shadow:0 6px 24px #0006; padding:12px; font:12px/1.35 system-ui,sans-serif; text-align:left; cursor:default; pointer-events:auto !important; }\n#webcamPanel .webcam-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }\n#webcamPanel h2 { margin:0; font-size:16px; line-height:1.25; }\n#webcamPanel button, #webcamChoice { font:inherit; color:#d9eaff; background:#213047; border:1px solid #425069; border-radius:6px; cursor:pointer; }\n#webcamPanel button { min-height:0 !important; padding:3px 6px !important; font-size:11px !important; }\n#webcamPanel #webcamClose { flex:0 0 32px; width:32px; height:32px; min-height:32px !important; padding:0 !important; font-size:23px !important; line-height:1; }\n#webcamChoice { width:100%; min-height:36px !important; margin-bottom:9px; padding:6px; font-size:12px !important; }\n#webcamPanel .webcam-frame { width:100%; aspect-ratio:16 / 9; background:#102535; border-radius:7px; overflow:hidden; }\n#webcamPanel iframe, #webcamPanel .webcam-frame img { display:block; width:100%; height:100%; border:0; object-fit:contain; }\n#webcamPanel .webcam-external { box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:16px; text-align:center; }\n#webcamPanel .webcam-external a { display:inline-block; padding:10px 14px; border:1px solid #5da3ff; border-radius:7px; background:#203f60; color:#fff; font-weight:600; }\n#webcamPanel #webcamStatus { margin:8px 0 0; color:#b8cbe1; font-size:12px; }\n#webcamPanel .webcam-source { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; color:#b8cbe1; font-size:11px; }\n#webcamPanel .webcam-source > span { flex:1 1 auto; }\n#webcamPanel a { color:#93c6ff; text-decoration:underline; }\n#webcamPanel #webcamRetry { width:32px; height:32px; min-width:32px; min-height:32px !important; padding:0 !important; font-size:20px !important; line-height:1; }\n#webcamPanel[data-player-state=\"unavailable\"] #webcamStatus { color:#ffcb85; }\n@media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {\n  #webcamPanel { top:85px; width:min(360px,calc(100% - 16px)); max-height:calc(100dvh - 205px); padding:10px; }\n  #webcamPanel #webcamClose { width:44px; height:44px; min-height:44px !important; flex-basis:44px; }\n  #webcamPanel #webcamRetry { width:44px; height:44px; min-height:44px !important; min-width:44px; }\n  #webcamPanel .webcam-source > a { display:flex; align-items:center; min-height:44px; }\n  #webcamChoice { min-height:44px !important; }\n  #webcamPanel .webcam-frame { max-height:34dvh; }\n}\n",
+          "afterSource": ".webcam-map-marker:focus-visible, #webcamPanel button:focus-visible, #webcamPanel a:focus-visible, #webcamPanel select:focus-visible { outline:3px solid #e49b24; outline-offset:2px; }\n#webcamPanel {\n  --webcam-control-size:36px;\n  --webcam-panel-space:calc(100% - 270px);\n  --webcam-feed-limit:100dvh;\n  position:absolute; top:140px; left:50%; transform:translateX(-50%); z-index:9100;\n  box-sizing:border-box; width:min(360px,calc(100% - 24px)); max-height:var(--webcam-panel-space);\n  overflow:auto; overscroll-behavior:contain; padding:9px;\n  border:1px solid #425069; border-radius:14px; background:#121d2d; color:#edf3ff;\n  box-shadow:0 8px 28px #0007; font-size:13px; line-height:1.35; text-align:left;\n  cursor:default; pointer-events:auto !important;\n}\n#webcamPanel .webcam-heading { display:flex; align-items:center; gap:7px; margin-bottom:8px; }\n#webcamPanel h2 { flex:1; margin:0; padding-inline:6px; font-size:15px; line-height:1.25; }\n#webcamPanel .webcam-visually-hidden { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }\n#webcamPanel :is(button,select) { box-sizing:border-box; font:inherit; color:inherit; border:1px solid #425069; border-radius:8px; background:#202f45; cursor:pointer; }\n#webcamPanel button {\n  flex:0 0 var(--webcam-control-size); display:grid; place-items:center;\n  width:var(--webcam-control-size); min-width:var(--webcam-control-size);\n  height:var(--webcam-control-size); min-height:var(--webcam-control-size) !important; padding:0 !important;\n}\n#webcamPanel #webcamChoice {\n  flex:1 1 auto; width:0; min-width:0; min-height:var(--webcam-control-size) !important;\n  margin:0; padding:4px 32px 4px 10px !important; font-weight:650; font-size:14px !important; color-scheme:dark;\n  appearance:none;\n  background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23c2d0e3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\");\n  background-repeat:no-repeat; background-position:right 9px center; background-size:16px;\n  overflow:hidden; text-overflow:ellipsis;\n}\n#webcamPanel :is(button,select):hover { background-color:#2a3d57; }\n@media (forced-colors:active) {\n  #webcamPanel #webcamChoice { appearance:auto; background-image:none; padding-right:10px !important; }\n}\n#webcamPanel svg { display:block; width:17px; height:17px; flex:none; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }\n#webcamPanel .webcam-media { position:relative; }\n#webcamPanel .webcam-frame {\n  /* Reserve room for the two control rows, padding, borders and gaps. */\n  --webcam-controls-height:calc(2 * var(--webcam-control-size) + 33px);\n  width:100%; aspect-ratio:16 / 9;\n  max-height:min(var(--webcam-feed-limit),max(96px,var(--webcam-panel-space) - var(--webcam-controls-height)));\n  background:#0c1523; border-radius:8px; overflow:hidden;\n}\n#webcamPanel iframe, #webcamPanel .webcam-frame img { display:block; width:100%; height:100%; border:0; object-fit:contain; }\n#webcamPanel #webcamStatus {\n  position:absolute; inset:0; display:grid; place-items:center; margin:0;\n  padding:8px; border-radius:8px; background:#0c1523; color:#c2d0e3; text-align:center; pointer-events:none;\n}\n#webcamPanel[data-player-state=\"unavailable\"] #webcamStatus { color:#ffcb85; }\n#webcamPanel[data-player-state=\"external\"] .webcam-frame {\n  display:grid; place-items:center; aspect-ratio:auto; min-height:84px; background:#18263a;\n}\n#webcamPanel .webcam-external a, #webcamPanel #webcamSourceLink {\n  display:inline-flex; align-items:center; justify-content:center; gap:5px;\n  min-height:var(--webcam-control-size); padding-inline:9px; border-radius:8px;\n  color:#b8dcff; text-decoration:none; white-space:nowrap;\n}\n#webcamPanel .webcam-external a { min-height:44px; padding-inline:14px; border:1px solid #6084ad; background:#243c57; font-weight:650; }\n#webcamPanel :is(.webcam-external a,#webcamSourceLink):hover { background:#2a3d57; text-decoration:underline; }\n#webcamPanel .webcam-source { display:flex; align-items:center; gap:4px; margin-top:5px; }\n#webcamPanel .webcam-source > span { flex:1 1 auto; padding-inline-start:3px; color:#bacade; font-size:11px; }\n@media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {\n  #webcamPanel { --webcam-control-size:44px; --webcam-panel-space:calc(100dvh - 205px); --webcam-feed-limit:34dvh; top:85px; width:min(360px,calc(100% - 16px)); }\n  #webcamPanel #webcamChoice { font-size:16px !important; }\n}\n",
+          "beforeSha256": "1355d6a831abac5e1fde566406820bf6ad6ddfc7839137a2fe889a615902877a",
+          "afterSha256": "4019e14c202214b4edb863345443a75dc5cf16ddab37ca67c11c10aab76fa3f1"
+        }
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "4efcb71a5a7f240866553f6b7f03d06dfd042e2022f005aa82bce149bf483f95",
+      "afterSha256": "013dd7f45c51f26f6848003d3d0e0afeef8f1a4e6ab0485790eb9be86f2deb30",
+      "changes": [
+        {
+          "beforeLine": 53,
+          "afterLine": 53,
+          "beforeSource": "<link rel=\"stylesheet\" data-nww-style-bundle=\"app-04\" href=\"./assets/styles/app-04.css?v=71fbb1a09469826a\">\n",
+          "afterSource": "<link rel=\"stylesheet\" data-nww-style-bundle=\"app-04\" href=\"./assets/styles/app-04.css?v=f7362e68a1a744f3\">\n",
+          "beforeSha256": "0df32b157473058b4da285fc3c74d38f07e3b3b2edb8acdf4a76825fedbedccb",
+          "afterSha256": "2669cd4e4438cdb7ed94e026eacd5c9975517af9b20ae6bb1e910111ae605918"
+        },
+        {
+          "beforeLine": 790,
+          "afterLine": 790,
+          "beforeSource": "<script id=\"shorelysafeWebcamsScript\" data-nww-script=\"script-008\" src=\"./assets/app/webcams.js?v=fb04f9e28d16f39b\"></script>\n",
+          "afterSource": "<script id=\"shorelysafeWebcamsScript\" data-nww-script=\"script-008\" src=\"./assets/app/webcams.js?v=e8d6e34b47685f84\"></script>\n",
+          "beforeSha256": "d68e4d9fab64b66c8fe6de5f7a1cbb1e0ff1ad293fc272edcd5ba492d95291e6",
+          "afterSha256": "eb664eedfea90b2db12b87223471c19b8ab079a0873ebe4c30afd3622d525527"
+        }
+      ]
+    }
+  ]
+}

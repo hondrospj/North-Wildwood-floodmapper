@@ -12,7 +12,8 @@ const browser = await chromium.launch({ headless: true,
 try {
   for (const width of [1440, 390, 320]) {
     const mobile = width < 900;
-    const page = await browser.newPage({ viewport: { width, height: mobile ? 844 : 1000 }, isMobile: mobile, hasTouch: mobile });
+    const height = width === 320 ? 568 : mobile ? 844 : 1000;
+    const page = await browser.newPage({ viewport: { width, height }, isMobile: mobile, hasTouch: mobile });
     const errors = [], requests = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => { if (/ipcamlive|magicbrain/.test(request.url())) requests.push(request.url()); });
@@ -102,17 +103,22 @@ try {
       assert.equal(await page.locator('#webcamStatus').isVisible(), false,'Successful player does not repeat provider status text');
       assert.equal(await page.locator('#webcamTitle').innerText(),'Cameras');
       assert.equal(await page.locator('#webcamLocation,#webcamLocate,#webcamOtherSources,.webcam-disclaimer').count(),0,'Camera viewer omits redundant location and explanatory blocks');
-      assert.match(await page.locator('.webcam-source').innerText(),/Current view · not map time/);
+      assert.equal(await page.getByRole('region', { name: 'Cameras' }).isVisible(), true);
+      assert.equal(await page.locator('.webcam-heading #webcamChoice').isVisible(), true);
+      assert.equal(await page.locator('.webcam-source').isVisible(), !external);
+      if (!external) assert.match(await page.locator('.webcam-source').innerText(),/Separate from map time/);
       assert.ok((await page.locator('#webcamPanel').innerText()).split(/\s+/).length<=35,'Camera viewer keeps its text concise');
       assert.equal(await page.locator('#webcamRetry').isVisible(), !external);
       if (external) {
         const link = page.locator('#webcamFrame .webcam-external a');
+        assert.equal(await link.innerText(), 'Open camera');
         assert.equal(await link.getAttribute('href'), 'https://northwildwood.com/north-wildwood-surf-cams/');
         assert.equal(await link.getAttribute('target'), '_blank');
         assert.match(await link.getAttribute('rel'), /noopener/);
       }
       const box = await page.locator('#webcamPanel').boundingBox();
       assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0);
+      assert.ok(await page.locator('#webcamPanel').evaluate(el => el.scrollHeight <= el.clientHeight + 1), 'The viewer keeps its actions visible without scrolling');
       const fonts=await page.evaluate(()=>{const family=n=>getComputedStyle(n).fontFamily;return [family(document.body),family(document.getElementById('webcamTitle')),family(document.getElementById('webcamChoice'))];});
       assert.equal(new Set(fonts).size,1,'Camera controls keep the mapper font family');
       results.push({width,kind:'viewer',id,view:await page.locator('body').getAttribute('data-map-view-mode'),box,fonts,text:await page.locator('#webcamPanel').innerText()});
@@ -143,13 +149,16 @@ try {
     assert.ok(requests.some(url => url.includes('ipcamlive')));
     const oldPlayer = await page.locator('#webcamFrame iframe').elementHandle();
     const beforeBeach = requests.length;
-    await page.locator('#webcamChoice').selectOption('north-beach');
+    const cameraChoice = page.locator('#webcamChoice');
+    await cameraChoice.focus();
+    await cameraChoice.selectOption('north-beach');
     await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'external');
+    assert.equal(await cameraChoice.evaluate(el => el === document.activeElement), true, 'Switching feeds keeps focus on the chooser');
     assert.equal(await oldPlayer.evaluate(el => el.isConnected), false);
     assert.equal(await page.locator('#webcamFrame iframe').count(), 0);
     assert.equal(requests.length, beforeBeach, 'Restricted beach camera never requests an iframe');
     assert.equal(await page.locator('#webcamRetry').isVisible(), false);
-    await page.locator('#webcamChoice').selectOption('north-bay');
+    await cameraChoice.selectOption('north-bay');
     await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'player-open');
     assert.equal(requests.length, beforeBeach + 1, 'Switching back opens the bay player lazily');
     assert.equal(await page.locator('#webcamRetry').isVisible(), true);

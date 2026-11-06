@@ -11,22 +11,36 @@
   document.getElementById("webcamPanel")?.remove();
   const located = cameras.filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng));
   const icon = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="14" rx="4"/><circle cx="12" cy="10" r="4"/><path d="M12 17v4M7 21h10"/></svg>';
+  const closeIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>';
+  const reloadIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v6h-6m6 0a8 8 0 1 0 .4 4"/></svg>';
+  const externalIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 5h6v6m0-6-9 9m0-8H5v13h13v-5"/></svg>';
   const panel = document.createElement("section");
   panel.id = "webcamPanel";
   panel.hidden = true;
   panel.setAttribute("role", "region");
   panel.setAttribute("aria-labelledby", "webcamTitle");
   panel.setAttribute("data-html2canvas-ignore", "true");
-  panel.innerHTML = `<div class="webcam-heading"><h2 id="webcamTitle">Cameras</h2><button type="button" id="webcamClose" aria-label="Close camera viewer">×</button></div>
-    <select id="webcamChoice" aria-label="Choose camera"></select>
-    <div id="webcamFrame" class="webcam-frame"></div>
-    <p id="webcamStatus" role="status" aria-live="polite" hidden></p>
-    <div class="webcam-source"><span>Current view · not map time</span><a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Source ↗</a><button type="button" id="webcamRetry" aria-label="Reload camera">↻</button></div>`;
+  panel.innerHTML = `<div class="webcam-heading">
+      <h2 id="webcamTitle" class="webcam-visually-hidden">Cameras</h2>
+      <select id="webcamChoice" aria-label="Choose camera"></select>
+      <button type="button" id="webcamClose" aria-label="Close camera viewer" title="Close">${closeIcon}</button>
+    </div>
+    <div class="webcam-media">
+      <div id="webcamFrame" class="webcam-frame"></div>
+      <p id="webcamStatus" role="status" aria-live="polite" hidden></p>
+    </div>
+    <div class="webcam-source">
+      <span>Separate from map time</span>
+      <a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Source ${externalIcon}</a>
+      <button type="button" id="webcamRetry" aria-label="Reload camera" title="Reload camera">${reloadIcon}</button>
+    </div>`;
   document.body.append(panel);
   const choice = panel.querySelector("#webcamChoice");
   const frameHost = panel.querySelector("#webcamFrame");
   const closeButton = panel.querySelector("#webcamClose");
   const status = panel.querySelector("#webcamStatus");
+  const actions = panel.querySelector(".webcam-source");
+  const sourceLink = panel.querySelector("#webcamSourceLink");
   let enabled = false, selected = null, frame = null, refreshTimer = null;
   let leafletMap = null, leafletLayer = null, glMap = null, glMarkers = [];
   let returnFocus = null;
@@ -38,6 +52,11 @@
     choice.append(option);
   }
   choice.hidden = cameras.length < 2;
+  if (choice.hidden) {
+    const title = panel.querySelector("#webcamTitle");
+    title.classList.remove("webcam-visually-hidden");
+    title.textContent = cameras[0].short || cameras[0].name;
+  }
 
   function setStatus(message) {
     status.textContent = message;
@@ -53,7 +72,7 @@
 
   function loadPlayer(camera) {
     clearPlayer();
-    panel.querySelector("#webcamRetry").hidden = Boolean(camera.external);
+    actions.hidden = Boolean(camera.external);
     if (camera.external) {
       panel.dataset.playerState = "external";
       setStatus("");
@@ -63,19 +82,20 @@
       link.href = camera.sourceUrl;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.textContent = "Watch on city website ↗";
+      link.title = camera.source;
+      link.innerHTML = `Open camera ${externalIcon}`;
       notice.append(link);
       frameHost.append(notice);
       return;
     }
-    setStatus("Opening camera…");
+    setStatus("Opening…");
     panel.dataset.playerState = "loading";
     const player = document.createElement(camera.kind === "image" ? "img" : "iframe");
     player.referrerPolicy = "strict-origin-when-cross-origin";
     const unavailable = () => {
       if (frame !== player) return;
       panel.dataset.playerState = "unavailable";
-      setStatus("Camera unavailable. Reload or open source.");
+      setStatus("Camera unavailable");
     };
     player.onerror = unavailable;
     player.onload = () => {
@@ -141,7 +161,7 @@
       }
     }
     panel.style.top = `${overlay ? viewportTop + 8 : top}px`;
-    panel.style.maxHeight = `${overlay ? Math.max(1, viewportHeight - 16) : available}px`;
+    panel.style.setProperty("--webcam-panel-space", `${overlay ? Math.max(1, viewportHeight - 16) : available}px`);
     if (overlay) {
       panel.style.left = `${viewportLeft + viewportWidth / 2}px`;
       panel.style.maxWidth = `${Math.max(1, viewportWidth - 16)}px`;
@@ -164,16 +184,17 @@
 
   function showCamera(camera, trigger) {
     if (!enabled || !camera) return;
-    if (panel.hidden) returnFocus = trigger || toggle;
+    const opening = panel.hidden;
+    if (opening) returnFocus = trigger || toggle;
     selected = camera;
-    panel.querySelector("#webcamSourceLink").href = camera.sourceUrl;
-    panel.querySelector("#webcamSourceLink").title = camera.source;
+    sourceLink.href = camera.sourceUrl;
+    sourceLink.title = camera.source;
     choice.value = camera.id;
     mountPanel();
     panel.hidden = false;
     dismissMobileControls();
     loadPlayer(camera);
-    requestAnimationFrame(() => { if (!panel.hidden) closeButton.focus({ preventScroll: true }); });
+    if (opening) requestAnimationFrame(() => { if (!panel.hidden) closeButton.focus({ preventScroll: true }); });
   }
 
   function closeCamera(restoreFocus) {
