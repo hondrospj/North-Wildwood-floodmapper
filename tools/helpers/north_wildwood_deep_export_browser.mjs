@@ -42,7 +42,7 @@ export async function retryNativeParcelSource3d(page, url) {
   });
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
-  await page.locator('#buildingsToggle').click();
+  await page.locator('.nw-simple-view').click();
   await page.waitForFunction(()=>NORTH_WILDWOOD_3D.state().buildingsVisible,{},{timeout:90000});
   const before=await page.evaluate(()=>{const source=NORTH_WILDWOOD_3D.getMap().getSource('nw-parcel-source');return {sourceLoaded:source.loaded(),imageWidth:source.image?.width||0,texturePresent:!!source.texture,sourceKeys:Object.keys(source),enabled:parcelsToggle.classList.contains('on')};});
   if(!requests.length||before.imageWidth||before.enabled)throw Error(`Expected a failed hidden GL parcel image: ${JSON.stringify({before,requests})}`);

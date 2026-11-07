@@ -47,32 +47,25 @@ assert.deepEqual(requests.slice(-2),['https://example.test/north-wildwood/assets
 assert.equal(await buildings.loadBuildingData(),payload);
 assert.equal(requests.length,4);
 
-let cameraZoom=13, cameraPitch=60, enabled=true;
-const cameraMoves=[];
-const camera={
-  BUILDING_MAX_CAMERA_ALTITUDE_METERS:1000,BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM:16.25,MAP_MAX_ZOOM:22,
-  layerVisible:()=>enabled,
-  glMap:{getZoom:()=>cameraZoom,getPitch:()=>cameraPitch,jumpTo:options=>{cameraMoves.push(options);cameraZoom=options.zoom;}},
-  cameraAltitudeAboveTerrainMeters:()=>5000/Math.pow(2,cameraZoom-13),
-  cameraIsWithinBuildingRange:()=>camera.cameraAltitudeAboveTerrainMeters()<=1000
-};
-vm.createContext(camera);vm.runInContext(fn('focusEnabledBuildings3d'),camera);
-camera.focusEnabledBuildings3d();
-assert.ok(camera.cameraAltitudeAboveTerrainMeters()<=850);
-assert.equal(cameraZoom,Math.ceil(cameraZoom));
-assert.deepEqual(Object.keys(cameraMoves[0]),['zoom']);
-camera.focusEnabledBuildings3d();assert.equal(cameraMoves.length,1);
-cameraZoom=13;cameraPitch=0;camera.focusEnabledBuildings3d();assert.equal(cameraMoves.length,1);
-cameraPitch=60;enabled=false;camera.focusEnabledBuildings3d();assert.equal(cameraMoves.length,1);
-console.log('Late building configuration, asset retry, and requested 3D camera regressions passed');
+console.log('Late building configuration and asset retry regressions passed');
 
-// Enabled municipal walls are continuous across camera altitude, rotation and
-// viewport changes. The 1,000 m detail-framing target is not a render cutoff.
+// Pitch selects walls or flat footprints, with no altitude cutoff.
 for (const pitch of [0,10,10.01,60,85]) for (const on of [false,true]) {
-  const c=vm.createContext({glMap:{getPitch:()=>pitch},layerVisible:()=>on,
-    cameraIsWithinBuildingRange:()=>{throw Error('Visibility must not use altitude');}});
-  vm.runInContext(fn('buildingsShouldRenderForCamera'),c);
+  const layers = new Map([['nw-2d-buildings', 'none'], ['nw-3d-buildings', 'none']]);
+  const c=vm.createContext({
+    glMap:{
+      getPitch:()=>pitch, getLayer:id=>layers.has(id),
+      getLayoutProperty:id=>layers.get(id),
+      setLayoutProperty(id,name,value){assert.equal(name,'visibility');layers.set(id,value);}
+    },
+    document:{body:{dataset:{}}}, layerVisible:()=>on,
+    visibility:value=>value?'visible':'none'
+  });
+  for(const name of ['buildingsShouldRenderForCamera','syncBuildingVisibilityForCamera'])vm.runInContext(fn(name),c);
   assert.equal(c.buildingsShouldRenderForCamera(),on&&pitch>10);
+  c.syncBuildingVisibilityForCamera();
+  assert.equal(layers.get('nw-2d-buildings'),on&&pitch<=10?'visible':'none');
+  assert.equal(layers.get('nw-3d-buildings'),on&&pitch>10?'visible':'none');
 }
 {
   const c=vm.createContext({glMap:null,layerVisible:()=>true});
@@ -96,7 +89,7 @@ for (const [generation,preference] of [[0,null],[1,true],[2,false]]) for (const 
 }
 const transition=s.slice(s.indexOf('    function transitionMode('),s.indexOf('    function updateDefaultWheel('));
 assert.match(transition,/if \(desired3dMode\) enableDefaultBuildings3d\(\)/);
-assert.doesNotMatch(transition,/focusEnabledBuildings3d|zoom:/,'3D entry retains the current center and zoom');
+assert.doesNotMatch(transition,/\bzoom:/,'3D entry retains the current center and zoom');
 console.log('18 building visibility/default cases passed; camera entry preserves view and explicit layer intent');
 
 // Run the actual recovery controller with controlled MapLibre events and

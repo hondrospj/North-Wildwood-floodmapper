@@ -54,77 +54,85 @@ assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: '0', foun
 popup.getSelectedStageNavd88 = () => 5;
 assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /5.0 ft above/);
 
-function toggleFixture({ initGate = deferred(), syncGate = null } = {}) {
+function toggleFixture({ pitch = 0 } = {}) {
   const toggle = { classList: classList(), attributes: {}, setAttribute(key, value) { this.attributes[key] = value; } };
   const body = { classList: classList() };
   const actions = [];
-  const gl = { getPitch: () => 60 };
+  const gl = { getPitch: () => pitch, jumpTo: () => actions.push('camera move') };
   const context = {
-    buildingToggleGeneration: 0, buildingVisibilityPreference: null, mapQueryGeneration: 0, document: { body, getElementById: () => toggle },
-    glMap: null, map: null, buildingsLayer: null,
-    ensure3dMap: () => initGate.promise,
-    setBuildingsEnabled: async value => toggle.classList.toggle('on', Boolean(value)),
+    buildingToggleGeneration: 0, buildingVisibilityPreference: null, mapQueryGeneration: 0,
+    document: { body, getElementById: () => toggle, querySelector: () => ({ click: () => actions.push('view toggle') }) },
+    glMap: null, glStyleReady: false, map: null, buildingsLayer: null,
+    map3dReady: () => context.glStyleReady,
+    ensure3dMap() { throw Error('Buildings must not initialize the native renderer'); },
+    setBuildingsEnabled: async value => {
+      actions.push(value ? 'Leaflet on' : 'Leaflet off');
+      toggle.classList.toggle('on', Boolean(value));
+      toggle.setAttribute('aria-checked', String(Boolean(value)));
+    },
     setMapClickMode: () => actions.push('building mode'),
     updateExportBuildingsLayer() {}, updateMapClickModeControl() {}, toast() {},
-    syncBuildings3d: () => syncGate ? syncGate.promise : Promise.resolve(),
+    syncBuildings3d: async () => actions.push('sync buildings'),
     focusEnabledBuildings3d: () => actions.push('focus camera'), suspendLeafletVisualLayers() {},
     window: { COUNTY_3D_BUILDINGS: { focus: async () => actions.push('focus buildings') } }
   };
   vm.createContext(context);
   vm.runInContext(wrapper('originalSetBuildingsEnabled', 'originalSetSatelliteEnabled'), context);
-  return { context, toggle, actions, initGate, ready() { context.glMap = gl; body.classList.toggle('map-3d-ready', true); initGate.resolve(gl); } };
+  return {
+    context, toggle, actions,
+    ready() {
+      context.glMap = gl;
+      context.glStyleReady = true;
+      body.classList.toggle('map-3d-ready', true);
+    }
+  };
 }
 {
   const test = toggleFixture();
-  const older = test.context.setBuildingsEnabled(true);
+  await test.context.setBuildingsEnabled(true);
+  assert.equal(test.toggle.attributes['aria-checked'], 'true');
+  assert.equal(test.context.glMap, null, 'The Buildings switch works before native map startup');
   await test.context.setBuildingsEnabled(false);
-  test.ready(); await older;
-  assert.equal(test.toggle.classList.contains('on'), false);
   assert.equal(test.toggle.attributes['aria-checked'], 'false');
-  assert.equal(test.context.buildingVisibilityPreference,false,'Explicit off while loading owns the next 3D entry');
-  assert.deepEqual(test.actions, [], 'An obsolete enable cannot change mode or focus');
+  assert.deepEqual(test.actions, ['Leaflet on', 'Leaflet off']);
+  assert.equal(test.context.buildingVisibilityPreference, false, 'Explicit off owns the next manual 3D entry');
+}
+for (const pitch of [0, 60]) {
+  const test = toggleFixture({ pitch });
+  test.ready();
+  await test.context.setBuildingsEnabled(true);
+  assert.equal(test.toggle.attributes['aria-checked'], 'true');
+  await test.context.setBuildingsEnabled(false);
+  assert.equal(test.toggle.attributes['aria-checked'], 'false');
+  assert.equal(test.context.glMap.getPitch(), pitch);
+  assert.deepEqual(test.actions, ['building mode', 'sync buildings', 'sync buildings'],
+    'Buildings selects Building Info and updates native layers without touching the camera');
 }
 {
-  const test = toggleFixture();
-  const older = test.context.setBuildingsEnabled(true);
-  await test.context.setBuildingsEnabled(false);
-  const latest = test.context.setBuildingsEnabled(true);
-  test.ready(); await Promise.all([older, latest]);
-  assert.equal(test.toggle.classList.contains('on'), true);
-  assert.deepEqual(test.actions, ['building mode', 'focus buildings', 'focus camera']);
-}
-for (const fail of ['null', 'reject']) {
-  const test = toggleFixture();
-  const older = test.context.setBuildingsEnabled(true);
-  await test.context.setBuildingsEnabled(false);
-  if (fail === 'null') test.initGate.resolve(null); else test.initGate.reject(Error('Obsolete failure'));
-  await older;
-  assert.equal(test.toggle.classList.contains('on'), false, 'An obsolete failure must not reject into the latest toggle handler');
-}
-{
-  const syncGate = deferred(), started = deferred(), test = toggleFixture({ syncGate });
+  const syncGate = deferred(), started = deferred(), test = toggleFixture();
   test.context.syncBuildings3d = () => { started.resolve(); return syncGate.promise; };
   test.ready();
   const older = test.context.setBuildingsEnabled(true);
   await started.promise;
   const latest = test.context.setBuildingsEnabled(false);
-  syncGate.resolve(); await Promise.all([older, latest]);
+  syncGate.resolve();
+  await Promise.all([older, latest]);
   assert.equal(test.toggle.classList.contains('on'), false);
-  assert.ok(!test.actions.some(action => action.startsWith('focus')), 'No late focus after disable during building loading');
+  assert.equal(test.context.buildingVisibilityPreference, false);
+  assert.ok(test.actions.every(action => action === 'building mode'));
 }
 {
   const test = toggleFixture();
-  const current = test.context.setBuildingsEnabled(true);
-  test.initGate.resolve(null);
-  await assert.rejects(current, /3D buildings could not start/, 'Current failures must still reach the UI');
-  await test.context.setBuildingsEnabled(false,{rollback:true});
-  assert.equal(test.context.buildingVisibilityPreference,true,'Failure rollback must not overwrite the explicit on preference');
-  await test.context.setBuildingsEnabled(false);
   test.ready();
-  test.context.ensure3dMap = async () => test.context.glMap;
+  const sync = test.context.syncBuildings3d;
+  test.context.syncBuildings3d = async () => { throw Error('Building asset failed'); };
+  await assert.rejects(test.context.setBuildingsEnabled(true), /Building asset failed/, 'Current failures reach the UI');
+  test.context.syncBuildings3d = sync;
+  await test.context.setBuildingsEnabled(false, { rollback: true });
+  assert.equal(test.context.buildingVisibilityPreference, true, 'Failure rollback preserves the explicit on preference');
   await test.context.setBuildingsEnabled(true);
-  assert.equal(test.toggle.classList.contains('on'), true, 'A current initialization failure must allow a successful retry');
-  assert.deepEqual(test.actions, ['building mode', 'focus buildings', 'focus camera']);
+  assert.equal(test.toggle.classList.contains('on'), true, 'A current asset failure permits a successful retry');
+  assert.deepEqual(test.actions.filter(action => action !== 'building mode'), ['sync buildings', 'sync buildings']);
 }
 {
   const test = toggleFixture(), failedSync = deferred(), started = deferred();
@@ -139,15 +147,16 @@ for (const fail of ['null', 'reject']) {
   await test.context.setBuildingsEnabled(false);
   failedSync.reject(Error('Obsolete building asset failure'));
   await older;
-  assert.equal(test.toggle.classList.contains('on'), false);
-  assert.ok(!test.actions.some(action => action.startsWith('focus')));
+  assert.equal(test.toggle.classList.contains('on'), false, 'An obsolete failure cannot roll back the latest choice');
+  assert.ok(test.actions.every(action => action === 'building mode'));
 }
 
 const clickedFootprintId = 'clicked-footprint';
 const matchedParcel = id => ({ id, properties: { nsi2026FootprintId: clickedFootprintId } });
 
-function clickFixture() {
-  const handlers = {}, requests = [], opened = [], popups = new Set();
+function clickFixture(pitch = 60) {
+  const handlers = {}, requests = [], opened = [], queriedLayers = [], popups = new Set();
+  const visibleLayer = pitch > 10 ? 'nw-3d-buildings' : 'nw-2d-buildings';
   let buildings = true;
   class FakePopup {
     setLngLat() { return this; } setHTML() { return this; } addTo() { return this; }
@@ -155,7 +164,18 @@ function clickFixture() {
     remove() { this.close?.(); }
   }
   const context = {
-    glMap: { on(name, ...args) { if (name === 'click') handlers.click = args.at(-1); }, getLayer: () => true, queryRenderedFeatures: () => [{ properties: { footprintId: clickedFootprintId, modeledFirstFloorNavd88Ft: 7 } }] },
+    glMap: {
+      on(name, ...args) { if (name === 'click') handlers.click = args.at(-1); },
+      getLayer: () => true,
+      getLayoutProperty: id => id === visibleLayer ? 'visible' : 'none',
+      getPitch: () => pitch,
+      queryRenderedFeatures(point, { layers }) {
+        queriedLayers.push(...layers);
+        return layers.includes(visibleLayer)
+          ? [{ properties: { footprintId: clickedFootprintId, modeledFirstFloorNavd88Ft: 7 } }]
+          : [];
+      }
+    },
     glPopup: null, lastGlPopupHtml: '', mapQueryGeneration: 0, lastRenderToken: 1, mapClickMode: 'building',
     persistentFloodPopup: null, map: { on() {}, hasLayer: value => popups.has(value), removeLayer: value => popups.delete(value) },
     document: { body: { classList: { contains: () => true } } }, maplibregl: { Popup: FakePopup },
@@ -168,8 +188,8 @@ function clickFixture() {
     handleDepthQueryClick: () => { ++context.mapQueryGeneration; opened.push('depth'); },
     L: { latLng: (lat, lng) => ({ lat, lng }) }, sync3dViewToLeaflet() {}, syncLeafletViewTo3d() {}, syncGlPopupLayout() {}
   };
-  load(context, ['wire3dInteractions', 'showGlPopup', 'closeGlPopup']); context.wire3dInteractions();
-  return { context, requests, opened, click: () => handlers.click({ lngLat: { lat: 39.006, lng: -74.8 }, point: { x: 100, y: 100 } }), disable() { buildings = false; } };
+  load(context, ['wire3dInteractions', 'showGlPopup', 'closeGlPopup', 'buildingsShouldRenderForCamera']); context.wire3dInteractions();
+  return { context, requests, opened, queriedLayers, click: () => handlers.click({ lngLat: { lat: 39.006, lng: -74.8 }, point: { x: 100, y: 100 } }), disable() { buildings = false; } };
 }
 for (const supersede of ['new click', 'mode', 'frame', 'disable', 'close button', 'programmatic close']) {
   for (const result of ['parcel', 'missing', 'failed']) {
@@ -196,6 +216,14 @@ for (const result of ['parcel', 'missing', 'failed']) {
   else test.requests[0].resolve(result === 'parcel' ? matchedParcel('current parcel') : null);
   await pending;
   assert.deepEqual(test.opened, [result === 'parcel' ? 'current parcel' : 'fallback']);
+}
+
+{
+  const test = clickFixture(0), pending = test.click();
+  assert.deepEqual(test.queriedLayers, ['nw-2d-buildings']);
+  test.requests[0].resolve(matchedParcel('flat parcel'));
+  await pending;
+  assert.deepEqual(test.opened, ['flat parcel'], 'Flat footprints open Building Info at the current pitch');
 }
 
 // Fallback building comparisons close on navigation/unavailable frames, but
@@ -233,4 +261,4 @@ for (const result of ['parcel', 'missing', 'failed']) {
   assert.equal(context.fallbackBuildingPopup, null, 'Closing a card releases its lifetime record');
 }
 
-console.log('3D interaction regressions passed: missing floor/stage values, latest Buildings toggle, parcel click cancellation, and popup frame lifetime.');
+console.log('3D interaction regressions passed: missing floor/stage values, camera-independent Buildings toggle, flat parcel clicks, parcel click cancellation, and popup frame lifetime.');

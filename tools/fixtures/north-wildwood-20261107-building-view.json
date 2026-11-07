@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "81c37c07cabaa25cb1bce7674526e845183b3ace",
+  "files": [
+    {
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSha256": "e0632c31f169e32420a562fe307d36490220dcb0c2dc7af56f5e5d6cfee29683",
+      "afterSha256": "50c0c93c734a172559af45375abd2564a80fafdb245a33d3b9d878551c7f973f",
+      "changes": [
+        {
+          "beforeSource": "  var THREE_D_PITCH = 60;\n  var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;\n  // A requested close building view targets a 1,000 m eye altitude. This is\n  // a framing target, not a visibility cutoff: enabled buildings must remain\n  // present while the user changes zoom, pitch, bearing, or viewport size.\n  var BUILDING_MAX_CAMERA_ALTITUDE_METERS = 1000;\n  var BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM = 16.25;\n  var WEB_MERCATOR_EARTH_CIRCUMFERENCE_METERS = 40075016.68557849;\n  var MAPLIBRE_TILE_SIZE = 512;\n",
+          "afterSource": "  var THREE_D_PITCH = 60;\n  var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;\n  var WEB_MERCATOR_EARTH_CIRCUMFERENCE_METERS = 40075016.68557849;\n  var MAPLIBRE_TILE_SIZE = 512;\n"
+        },
+        {
+          "beforeSource": "  }\n\n  function addLayerBelowMask(layer) {\n    if (!glMap || glMap.getLayer(layer.id)) return;\n    glMap.addLayer(layer, glMap.getLayer(\"nw-boundary-mask\") ? \"nw-boundary-mask\" : undefined);\n  }\n\n",
+          "afterSource": "  }\n\n  function addLayerBelowMask(layer, beforeId) {\n    if (!glMap || glMap.getLayer(layer.id)) return;\n    glMap.addLayer(layer, beforeId || (glMap.getLayer(\"nw-boundary-mask\") ? \"nw-boundary-mask\" : undefined));\n  }\n\n"
+        },
+        {
+          "beforeSource": "          \"raster-fade-duration\": 0\n        }\n      });\n    }\n    if (glMap.getLayer(options.layerId)) {\n",
+          "afterSource": "          \"raster-fade-duration\": 0\n        }\n      }, options.beforeId);\n    }\n    if (glMap.getLayer(options.layerId)) {\n"
+        },
+        {
+          "beforeSource": "  }\n\n  function cameraIsWithinBuildingRange() {\n    var altitudeMeters = cameraAltitudeAboveTerrainMeters();\n    document.body.dataset.map3dCameraAltitudeMeters = altitudeMeters === null\n      ? \"unknown\"\n      : altitudeMeters.toFixed(1);\n    // Older WebGL implementations without free-camera altitude support use a\n    // conservative zoom fallback for the initial close-view framing.\n    return altitudeMeters === null\n      ? glMap.getZoom() >= BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM\n      : altitudeMeters <= BUILDING_MAX_CAMERA_ALTITUDE_METERS;\n  }\n\n  function focusEnabledBuildings3d() {\n    if (!glMap || !layerVisible(\"buildingsToggle\", false) || glMap.getPitch() <= 10 || cameraIsWithinBuildingRange()) return;\n    var altitudeMeters = cameraAltitudeAboveTerrainMeters();\n    var targetZoom = altitudeMeters === null\n      ? Math.max(glMap.getZoom(), BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM)\n      : glMap.getZoom() + Math.log2(altitudeMeters / (BUILDING_MAX_CAMERA_ALTITUDE_METERS * 0.85));\n    // An explicit Buildings/3D selection should show the requested walls.\n    // Lower the camera once, keeping the user's center and bearing. Later\n    // camera changes retain the enabled geometry at every supported zoom.\n    // Leaflet mirrors whole zoom levels; rounding up retains this initial\n    // detail framing when the two renderers synchronize their zoom levels.\n    glMap.jumpTo({ zoom: Math.min(MAP_MAX_ZOOM, Math.ceil(targetZoom)) });\n  }\n\n  function syncFloodPresentationMode() {\n    if (!glMap || !glStyleReady) return;\n",
+          "afterSource": "  }\n\n  function syncFloodPresentationMode() {\n    if (!glMap || !glStyleReady) return;\n"
+        },
+        {
+          "beforeSource": "    if (!glMap || !glMap.getLayer(\"nw-3d-buildings\")) return false;\n    var shouldRender = buildingsShouldRenderForCamera();\n    var targetVisibility = visibility(shouldRender);\n    [\"nw-3d-buildings\"].forEach(function (layerId) {\n      if (!glMap.getLayer(layerId)) return;\n      if (glMap.getLayoutProperty(layerId, \"visibility\") !== targetVisibility) {\n        glMap.setLayoutProperty(layerId, \"visibility\", targetVisibility);\n      }\n    });\n    var buildingsEnabled = layerVisible(\"buildingsToggle\", false);\n    document.body.dataset.map3dBuildingVisibility = shouldRender\n      ? \"pitched-3d\"\n      : buildingsEnabled\n        ? \"hidden-in-2d\"\n        : \"disabled\";\n    return shouldRender;\n  }\n",
+          "afterSource": "    if (!glMap || !glMap.getLayer(\"nw-3d-buildings\")) return false;\n    var shouldRender = buildingsShouldRenderForCamera();\n    var buildingsEnabled = layerVisible(\"buildingsToggle\", false);\n    var showFootprints = buildingsEnabled && !shouldRender && glMap.getLayer(\"nw-2d-buildings\");\n    function setVisibility(layerId, visible) {\n      if (!glMap.getLayer(layerId)) return;\n      var targetVisibility = visibility(visible);\n      if (glMap.getLayoutProperty(layerId, \"visibility\") !== targetVisibility) {\n        glMap.setLayoutProperty(layerId, \"visibility\", targetVisibility);\n      }\n    }\n    setVisibility(\"nw-3d-buildings\", shouldRender);\n    setVisibility(\"nw-2d-buildings\", showFootprints);\n    document.body.dataset.map3dBuildingVisibility = shouldRender\n      ? \"pitched-3d\"\n      : showFootprints ? \"flat-2d\" : \"disabled\";\n    return shouldRender;\n  }\n"
+        },
+        {
+          "beforeSource": "      coordinates: coordinates,\n      opacity: overlayOpacity,\n      visible: !pitched\n    });\n",
+          "afterSource": "      coordinates: coordinates,\n      opacity: overlayOpacity,\n      beforeId: glMap.getLayer(\"nw-2d-buildings\") ? \"nw-2d-buildings\" : undefined,\n      visible: !pitched\n    });\n"
+        },
+        {
+          "beforeSource": "      var payload = await loadBuildingData();\n      if (glMap !== requestedMap || !glStyleReady) return;\n      glMap.addSource(\"nw-buildings-source\", {\n        type: \"geojson\",\n",
+          "afterSource": "      var payload = await loadBuildingData();\n      if (glMap !== requestedMap || !glStyleReady) return;\n      if (glMap.getSource(\"nw-buildings-source\")) {\n        syncBuildingVisibilityForCamera();\n        return;\n      }\n      glMap.addSource(\"nw-buildings-source\", {\n        type: \"geojson\",\n"
+        },
+        {
+          "beforeSource": "      document.body.dataset.buildings3dSourceMaxZoom = \"18\";\n      document.body.dataset.buildings3dSourceBuffer = \"256\";\n      document.body.dataset.buildings3dMaxCameraAltitudeMeters = String(BUILDING_MAX_CAMERA_ALTITUDE_METERS);\n      addLayerBelowMask({\n        id: \"nw-3d-buildings\",\n",
+          "afterSource": "      document.body.dataset.buildings3dSourceMaxZoom = \"18\";\n      document.body.dataset.buildings3dSourceBuffer = \"256\";\n      addLayerBelowMask({\n        id: \"nw-3d-buildings\",\n"
+        },
+        {
+          "beforeSource": "        }\n      });\n      syncBuildingWaterComposite3d(getSelectedStageNavd88());\n      if (!buildingCursorHandlersWired) {\n        buildingCursorHandlersWired = true;\n        glMap.on(\"mouseenter\", \"nw-3d-buildings\", function () {\n          if (layerVisible(\"buildingsToggle\", false)) glMap.getCanvas().style.cursor = \"pointer\";\n        });\n        glMap.on(\"mouseleave\", \"nw-3d-buildings\", function () {\n          glMap.getCanvas().style.cursor = \"\";\n        });\n      }\n",
+          "afterSource": "        }\n      });\n      addLayerBelowMask({\n        id: \"nw-2d-buildings\",\n        type: \"fill\",\n        source: \"nw-buildings-source\",\n        minzoom: 11,\n        layout: { visibility: \"none\" },\n        paint: { \"fill-color\": \"#ddd7cb\", \"fill-outline-color\": \"#958e80\" }\n      });\n      syncBuildingWaterComposite3d(getSelectedStageNavd88());\n      if (!buildingCursorHandlersWired) {\n        buildingCursorHandlersWired = true;\n        [\"nw-2d-buildings\", \"nw-3d-buildings\"].forEach(function (layerId) {\n          glMap.on(\"mouseenter\", layerId, function () {\n            if (layerVisible(\"buildingsToggle\", false)) glMap.getCanvas().style.cursor = \"pointer\";\n          });\n          glMap.on(\"mouseleave\", layerId, function () {\n            glMap.getCanvas().style.cursor = \"\";\n          });\n        });\n      }\n"
+        },
+        {
+          "beforeSource": "      if (event.originalEvent?.target?.closest?.(\".maplibregl-popup\")) return;\n      var buildingsEnabled = layerVisible(\"buildingsToggle\", false);\n      if (buildingsEnabled && mapClickMode === \"building\" && glMap.getLayer(\"nw-3d-buildings\")) {\n        var buildingQueryLayers = [\"nw-3d-buildings\"].filter(function (layerId) {\n          return Boolean(glMap.getLayer(layerId));\n        });\n        var rendered = glMap.queryRenderedFeatures(event.point, { layers: buildingQueryLayers });\n        if (rendered.length) {\n          var queryGeneration = ++mapQueryGeneration;\n",
+          "afterSource": "      if (event.originalEvent?.target?.closest?.(\".maplibregl-popup\")) return;\n      var buildingsEnabled = layerVisible(\"buildingsToggle\", false);\n      var buildingLayerId = glMap.getPitch() > 10 ? \"nw-3d-buildings\" : \"nw-2d-buildings\";\n      if (buildingsEnabled && mapClickMode === \"building\" && glMap.getLayer(buildingLayerId)) {\n        var rendered = glMap.queryRenderedFeatures(event.point, { layers: [buildingLayerId] });\n        if (rendered.length) {\n          var queryGeneration = ++mapQueryGeneration;\n"
+        },
+        {
+          "beforeSource": "    // preference. A later 3D retry still honors the user's last real choice.\n    if (!options || !options.rollback) buildingVisibilityPreference = shouldEnable;\n    var queryGeneration = mapQueryGeneration;\n    var toggle = document.getElementById(\"buildingsToggle\");\n    if (toggle) {\n",
+          "afterSource": "    // preference. A later 3D retry still honors the user's last real choice.\n    if (!options || !options.rollback) buildingVisibilityPreference = shouldEnable;\n    var toggle = document.getElementById(\"buildingsToggle\");\n    if (toggle) {\n"
+        },
+        {
+          "beforeSource": "    if (!shouldEnable) ++mapQueryGeneration;\n    try {\n      if (shouldEnable) {\n        var requestedMap = await ensure3dMap();\n        if (generation !== buildingToggleGeneration) return;\n        if (!requestedMap) throw new Error(\"3D buildings could not start; the 2D map remains available.\");\n        if (requestedMap.getPitch() <= 10) document.querySelector(\"#nwDefaultNavControl .nw-simple-view\")?.click();\n      }\n      if (glMap && document.body.classList.contains(\"map-3d-ready\")) {\n        if (buildingsLayer && map && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);\n        // Preserve an explicit query-mode choice made while 3D was starting.\n        if (shouldEnable && queryGeneration === mapQueryGeneration) setMapClickMode(\"building\", { closePopup: false });\n        updateExportBuildingsLayer();\n        updateMapClickModeControl();\n",
+          "afterSource": "    if (!shouldEnable) ++mapQueryGeneration;\n    try {\n      if (glMap && document.body.classList.contains(\"map-3d-ready\")) {\n        if (buildingsLayer && map && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);\n        if (shouldEnable) setMapClickMode(\"building\", { closePopup: false });\n        updateExportBuildingsLayer();\n        updateMapClickModeControl();\n"
+        },
+        {
+          "beforeSource": "        await syncBuildings3d();\n        if (generation !== buildingToggleGeneration) return;\n        if (shouldEnable) await window.COUNTY_3D_BUILDINGS.focus(glMap);\n        if (generation !== buildingToggleGeneration) return;\n        if (shouldEnable) focusEnabledBuildings3d();\n        suspendLeafletVisualLayers();\n        return;\n      }\n      var result = await originalSetBuildingsEnabled.apply(this, arguments);\n      if (generation !== buildingToggleGeneration) return;\n      if (glMap) await syncBuildings3d();\n      if (generation !== buildingToggleGeneration) return;\n      suspendLeafletVisualLayers();\n      return result;\n    } catch (error) {\n      if (generation !== buildingToggleGeneration) return;\n",
+          "afterSource": "        await syncBuildings3d();\n        if (generation !== buildingToggleGeneration) return;\n        suspendLeafletVisualLayers();\n        return;\n      }\n      return await originalSetBuildingsEnabled.apply(this, arguments);\n    } catch (error) {\n      if (generation !== buildingToggleGeneration) return;\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/county-buildings.js",
+      "beforeSha256": "b984b3e893a0c8b1908441a0aceeec7494ae6d24f9f03aec4395cd0c45e099eb",
+      "afterSha256": "e5e8b97fc74cbcc712c5ce302bf349942d388817f760f5e3b2a2ea76fb59f1ce",
+      "changes": [
+        {
+          "beforeSource": "  }\n  const isOn=()=>document.getElementById('buildingsToggle')?.classList.contains('on');\n  function note(){\n    const toggle=document.getElementById('buildingsToggle');\n    const text='3D building footprints. Existing town building models are retained where available; other heights are schematic.';\n    if(toggle){toggle.setAttribute('aria-label','Show 3D buildings');toggle.title=text;toggle.closest('.layer-item')?.setAttribute('title',text);}\n  }\n  async function syncNative(gl,scale=4){\n",
+          "afterSource": "  }\n  const isOn=()=>document.getElementById('buildingsToggle')?.classList.contains('on');\n  function note(supportsFlat = false){\n    const toggle=document.getElementById('buildingsToggle');\n    const text=supportsFlat\n      ? 'Show buildings in the current map view.'\n      : '3D building footprints. Existing town building models are retained where available; other heights are schematic.';\n    if(toggle){toggle.setAttribute('aria-label',supportsFlat?'Show buildings':'Show 3D buildings');toggle.title=text;toggle.closest('.layer-item')?.setAttribute('title',text);}\n  }\n  async function syncNative(gl,scale=4){\n"
+        },
+        {
+          "beforeSource": "  }\n  window.COUNTY_3D_BUILDINGS={sync:syncNative,focus,boundary};\n  if(!document.getElementById('buildingsToggle'))installStandalone();else note();\n})();\n",
+          "afterSource": "  }\n  window.COUNTY_3D_BUILDINGS={sync:syncNative,focus,boundary};\n  if(!document.getElementById('buildingsToggle'))installStandalone();else note(Boolean(config().structures?.buildings3dPath));\n})();\n"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/county-buildings.js",
+      "beforeSha256": "b984b3e893a0c8b1908441a0aceeec7494ae6d24f9f03aec4395cd0c45e099eb",
+      "afterSha256": "e5e8b97fc74cbcc712c5ce302bf349942d388817f760f5e3b2a2ea76fb59f1ce",
+      "changes": [
+        {
+          "beforeSource": "  }\n  const isOn=()=>document.getElementById('buildingsToggle')?.classList.contains('on');\n  function note(){\n    const toggle=document.getElementById('buildingsToggle');\n    const text='3D building footprints. Existing town building models are retained where available; other heights are schematic.';\n    if(toggle){toggle.setAttribute('aria-label','Show 3D buildings');toggle.title=text;toggle.closest('.layer-item')?.setAttribute('title',text);}\n  }\n  async function syncNative(gl,scale=4){\n",
+          "afterSource": "  }\n  const isOn=()=>document.getElementById('buildingsToggle')?.classList.contains('on');\n  function note(supportsFlat = false){\n    const toggle=document.getElementById('buildingsToggle');\n    const text=supportsFlat\n      ? 'Show buildings in the current map view.'\n      : '3D building footprints. Existing town building models are retained where available; other heights are schematic.';\n    if(toggle){toggle.setAttribute('aria-label',supportsFlat?'Show buildings':'Show 3D buildings');toggle.title=text;toggle.closest('.layer-item')?.setAttribute('title',text);}\n  }\n  async function syncNative(gl,scale=4){\n"
+        },
+        {
+          "beforeSource": "  }\n  window.COUNTY_3D_BUILDINGS={sync:syncNative,focus,boundary};\n  if(!document.getElementById('buildingsToggle'))installStandalone();else note();\n})();\n",
+          "afterSource": "  }\n  window.COUNTY_3D_BUILDINGS={sync:syncNative,focus,boundary};\n  if(!document.getElementById('buildingsToggle'))installStandalone();else note(Boolean(config().structures?.buildings3dPath));\n})();\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "3c2b76a690c4ef2d6731f988aeb2701b8fd65cff34ec47e927a01a8218589e9f",
+      "afterSha256": "f24c379698e8af8cf3481413bfb665e4b54511a5e920bfc06345d40302fbace1",
+      "changes": [
+        {
+          "beforeSource": "\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=e0632c31f169e324\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n",
+          "afterSource": "\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=50c0c93c734a1725\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n"
+        }
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "c6165387b8ef9983fb69aed65fd1d977747bb8aab3acd90877db501b2589bf2c",
+      "afterSha256": "9e91da1219301efdbc0e5c5b584d0940c7db42610f5667d7ebe1a0ae5b598907",
+      "changes": [
+        {
+          "beforeSource": "\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=e0632c31f169e324\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n",
+          "afterSource": "\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=50c0c93c734a1725\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n"
+        },
+        {
+          "beforeSource": "<script id=\"shorelysafeWebcamsScript\" data-nww-script=\"script-008\" src=\"./assets/app/webcams.js?v=fb04f9e28d16f39b\"></script>\n\n<script id=\"county-buildings-20261015\" data-nww-script=\"script-009\" src=\"./assets/app/county-buildings.js?v=b984b3e893a0c8b1\"></script>\n\n<script id=\"shorelysafe-visible-brand-controller-20261015\" data-nww-script=\"script-010\" src=\"./assets/app/branding.js?v=5218502b14ba05c5\"></script>\n",
+          "afterSource": "<script id=\"shorelysafeWebcamsScript\" data-nww-script=\"script-008\" src=\"./assets/app/webcams.js?v=fb04f9e28d16f39b\"></script>\n\n<script id=\"county-buildings-20261015\" data-nww-script=\"script-009\" src=\"./assets/app/county-buildings.js?v=e5e8b97fc74cbcc7\"></script>\n\n<script id=\"shorelysafe-visible-brand-controller-20261015\" data-nww-script=\"script-010\" src=\"./assets/app/branding.js?v=5218502b14ba05c5\"></script>\n"
+        }
+      ]
+    }
+  ]
+}

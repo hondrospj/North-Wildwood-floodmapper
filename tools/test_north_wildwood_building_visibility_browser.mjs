@@ -24,6 +24,8 @@ async function snapshot(page,label){
     return{label,enabled:toggle.classList.contains('on'),checked:toggle.getAttribute('aria-checked'),
       visibility:gl?.getLayer('nw-3d-buildings')?gl.getLayoutProperty('nw-3d-buildings','visibility'):null,
       source:gl?.getLayer('nw-3d-buildings')?.source,
+      flatVisibility:gl?.getLayer('nw-2d-buildings')?gl.getLayoutProperty('nw-2d-buildings','visibility'):null,
+      flatRendered:gl?.getLayer('nw-2d-buildings')?gl.queryRenderedFeatures({layers:['nw-2d-buildings']}).length:0,
       count:window.NORTH_WILDWOOD_3D.getBuildingData()?.features?.length,
       rendered:gl?.getLayer('nw-3d-buildings')?gl.queryRenderedFeatures({layers:['nw-3d-buildings']}).length:0,
       pitch:gl?.getPitch(),bearing:gl?.getBearing(),zoom:gl?.getZoom(),center:gl?.getCenter(),
@@ -39,6 +41,14 @@ async function mode(page,threeD){
     return control.getAttribute('aria-busy')==='false'&&state.ready&&(state.pitch>10)===wanted;
   },threeD,{timeout:30000});await frame(page);
 }
+async function clickBuildings(page,hasTouch){
+  if(hasTouch){
+    await page.locator('#mobileControlsToggle').click();
+    await page.getByRole('tab',{name:'Map layers',exact:true}).click();
+  }
+  await page.locator('#buildingsToggle').click();
+  if(hasTouch)await page.locator('#mobileControlsClose').click();
+}
 try{
   for(const profile of [
     {name:'desktop',viewport:{width:1440,height:1000}},
@@ -51,12 +61,19 @@ try{
     await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&
       !document.getElementById('app').inert&&floodFrameState==='ready',null,{timeout:90000});
     const before=await page.evaluate(()=>({center:map.getCenter(),zoom:map.getZoom(),index:currentHourIndex,time:currentSeriesHours[currentHourIndex]?.timeUtc}));
+    await clickBuildings(page,profile.hasTouch);
+    await page.waitForFunction(()=>buildingsLayer&&map.hasLayer(buildingsLayer),null,{timeout:10000});
+    assert.equal(await page.evaluate(()=>NORTH_WILDWOOD_3D.getMap()),null);
+    assert.equal(await page.locator('#buildingsToggle').getAttribute('aria-checked'),'true');
+    assert.deepEqual(await page.evaluate(()=>({center:map.getCenter(),zoom:map.getZoom(),index:currentHourIndex,time:currentSeriesHours[currentHourIndex]?.timeUtc})),before);
+    result.checks.push(profile.name+' Buildings enables the Leaflet layer while preserving 2D');
     await page.locator('.nw-simple-view').click();
     await page.waitForFunction(()=>document.querySelector('.nw-simple-view').getAttribute('aria-busy')==='false'&&
       (NORTH_WILDWOOD_3D.state().ready||document.body.dataset.map3d==='fallback'),null,{timeout:30000});
     if(!await page.evaluate(()=>NORTH_WILDWOOD_3D.state().ready)){
       assert.equal(await page.evaluate(()=>NORTH_WILDWOOD_3D.getMap()),null);
-      assert.equal(await page.locator('#buildingsToggle').getAttribute('aria-checked'),'false');
+      assert.equal(await page.locator('#buildingsToggle').getAttribute('aria-checked'),'true');
+      assert.equal(await page.evaluate(()=>map.hasLayer(buildingsLayer)),true);
       assert.equal(await page.evaluate(()=>document.body.classList.contains('map-3d-ready')),false);
       result.fallbacks.push({profile:profile.name,message:'Native 3D unavailable: usable 2D retained; building render cases not exercised.'});
       await context.close();continue;
@@ -65,6 +82,7 @@ try{
     await page.waitForFunction(()=>NORTH_WILDWOOD_3D.getMap().queryRenderedFeatures({layers:['nw-3d-buildings']}).length>0,null,{timeout:10000});
     const first=await snapshot(page,profile.name+' first 3D');
     assert.equal(first.enabled,true);assert.equal(first.checked,'true');assert.equal(first.visibility,'visible');
+    assert.equal(first.flatVisibility,'none');
     assert.equal(first.source,'nw-buildings-source');assert.ok(first.count>4000);assert.ok(first.rendered>0);
     assert.equal(first.zoom,before.zoom,'3D entry does not teleport to a close building');
     assert.ok(Math.abs(first.center.lng-before.center.lng)<1e-6&&Math.abs(first.center.lat-before.center.lat)<1e-6);
@@ -86,27 +104,34 @@ try{
       await page.setViewportSize(profile.viewport);await frame(page);
       result.checks.push('Laptop resize retains enabled 3D geometry');
     }
-    await mode(page,false);const flat=await snapshot(page,profile.name+' 2D');
-    assert.equal(flat.enabled,true);assert.equal(flat.visibility,'none');
-    await mode(page,true);assert.equal((await snapshot(page,profile.name+' returned 3D')).visibility,'visible');
-    result.checks.push(profile.name+' 2D hides walls and return to 3D preserves the enabled layer');
-    // Use the actual existing switch, opening its compact owner on phones.
-    if(profile.hasTouch){
-      await page.locator('#mobileControlsToggle').click();
-      await page.getByRole('tab',{name:'Map layers',exact:true}).click();
-    }
-    await page.locator('#buildingsToggle').click();
+    await mode(page,false);
+    await page.waitForFunction(()=>NORTH_WILDWOOD_3D.getMap().queryRenderedFeatures({layers:['nw-2d-buildings']}).length>0,null,{timeout:10000});
+    const flat=await snapshot(page,profile.name+' native 2D');
+    assert.equal(flat.enabled,true);assert.equal(flat.visibility,'none');assert.equal(flat.flatVisibility,'visible');
+    assert.ok(flat.flatRendered>0);
+    await clickBuildings(page,profile.hasTouch);
+    await page.waitForFunction(()=>NORTH_WILDWOOD_3D.getMap().getLayoutProperty('nw-2d-buildings','visibility')==='none');
+    await clickBuildings(page,profile.hasTouch);
+    await page.waitForFunction(()=>NORTH_WILDWOOD_3D.getMap().getLayoutProperty('nw-2d-buildings','visibility')==='visible');
+    const flatEnabled=await snapshot(page,profile.name+' Buildings re-enabled in native 2D');
+    assert.equal(flatEnabled.pitch,0);assert.equal(flatEnabled.visibility,'none');
+    assert.equal(flatEnabled.zoom,flat.zoom);assert.equal(flatEnabled.bearing,flat.bearing);
+    assert.deepEqual(flatEnabled.center,flat.center);assert.equal(flatEnabled.index,flat.index);
+    await mode(page,true);
+    const pitched=await snapshot(page,profile.name+' returned 3D');
+    assert.equal(pitched.visibility,'visible');assert.equal(pitched.flatVisibility,'none');
+    result.checks.push(profile.name+' native 2D toggles flat footprints in place and manual 3D restores walls');
+    await clickBuildings(page,profile.hasTouch);
     await page.waitForFunction(()=>!document.getElementById('buildingsToggle').classList.contains('on'));
-    if(profile.hasTouch)await page.locator('#mobileControlsClose').click();
     await mode(page,false);await mode(page,true);
     const disabled=await snapshot(page,profile.name+' explicit off survives 3D return');
     assert.equal(disabled.enabled,false);assert.equal(disabled.checked,'false');assert.equal(disabled.visibility,'none');
+    assert.equal(disabled.flatVisibility,'none');
     result.checks.push(profile.name+' explicit Buildings off remains off after 2D/3D changes');
     await page.screenshot({path:path.join(output,`${name}-${profile.name}-building-visibility.png`)});
     await context.close();
   }
-  // Real error rollback must retain the requested on preference so the existing
-  // 3D button can retry, while the previous cases retain explicit off choices.
+  // A failed manual 3D start keeps the existing Leaflet selection usable.
   if(result.fallbacks.length===0){
     const context=await browser.newContext({viewport:{width:1440,height:1000},timezoneId:'America/New_York'});
     const page=await context.newPage();page.setDefaultTimeout(30000);page.on('pageerror',error=>result.errors.push(error.message));
@@ -114,15 +139,21 @@ try{
     await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&!document.getElementById('app').inert&&floodFrameState==='ready',null,{timeout:90000});
     const pattern='**/NorthWildwoodBuildings3D.geojson*';let failures=0;
     const fail=route=>{failures++;return route.fulfill({status:503,contentType:'application/json',body:'{}'});};
-    await page.route(pattern,fail);await page.locator('#buildingsToggle').click();
-    await page.waitForFunction(()=>document.body.dataset.map3d==='fallback'&&document.getElementById('buildingsToggle').getAttribute('aria-checked')==='false',null,{timeout:30000});
+    await page.route(pattern,fail);
+    await clickBuildings(page,false);
+    await page.waitForFunction(()=>buildingsLayer&&map.hasLayer(buildingsLayer));
+    assert.equal(failures,0,'Buildings in Leaflet must not request native building assets');
+    await page.locator('.nw-simple-view').click();
+    await page.waitForFunction(()=>document.body.dataset.map3d==='fallback'&&document.querySelector('.nw-simple-view').getAttribute('aria-busy')==='false',null,{timeout:30000});
     assert.ok(failures>0,'The configured building data request must genuinely fail');
+    assert.equal(await page.locator('#buildingsToggle').getAttribute('aria-checked'),'true');
+    assert.equal(await page.evaluate(()=>map.hasLayer(buildingsLayer)),true);
     await page.unroute(pattern,fail);await page.locator('.nw-simple-view').click();
     await page.waitForFunction(()=>NORTH_WILDWOOD_3D.state().ready&&NORTH_WILDWOOD_3D.state().pitch>10&&document.querySelector('.nw-simple-view').getAttribute('aria-busy')==='false',null,{timeout:30000});
     await page.waitForFunction(()=>NORTH_WILDWOOD_3D.getMap().queryRenderedFeatures({layers:['nw-3d-buildings']}).length>0,null,{timeout:20000});
-    const retried=await snapshot(page,'failed explicit enable then 3D retry');
+    const retried=await snapshot(page,'failed manual 3D start then retry');
     assert.equal(retried.enabled,true);assert.equal(retried.checked,'true');assert.equal(retried.visibility,'visible');assert.ok(retried.rendered>0);
-    result.checks.push('A real failed Buildings enable rolls back safely and the existing 3D button retries the retained on choice');
+    result.checks.push('A failed manual 3D start leaves Leaflet Buildings on and permits a successful manual retry');
     await context.close();
   }
   assert.deepEqual(result.errors,[]);result.passed=true;

@@ -84,19 +84,17 @@ assert.match(
 assert.match(THREE_D_SOURCE, /buildings3dVerticalScale = String\(TERRAIN_EXAGGERATION\)/);
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "single-extrusion-water-composite"/);
 assert.match(THREE_D_SOURCE, /FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15\.25/);
-assert.match(THREE_D_SOURCE, /BUILDING_MAX_CAMERA_ALTITUDE_METERS = 1000/);
 assert.match(THREE_D_SOURCE, /function cameraAltitudeAboveTerrainMeters\(\)/);
 assert.match(THREE_D_SOURCE, /altitudeCoordinate\.toAltitude\(\)/);
 assert.match(THREE_D_SOURCE, /new window\.maplibregl\.MercatorCoordinate\(position\.x, position\.y, position\.z\)/);
 assert.match(THREE_D_SOURCE, /getVerticalFieldOfView\(\)/);
 assert.match(THREE_D_SOURCE, /cameraToCenterPixels \* metersPerPixel \* Math\.cos\(pitchRadians\)/);
-assert.match(THREE_D_SOURCE, /function cameraIsWithinBuildingRange\(\)/);
 assert.match(THREE_D_SOURCE, /function buildingsShouldRenderForCamera\(\)/);
 const buildingVisibilityPredicate = THREE_D_SOURCE.match(/  function buildingsShouldRenderForCamera\(\) \{[\s\S]*?\n  \}/)?.[0];
 assert.match(buildingVisibilityPredicate, /layerVisible\("buildingsToggle", false\)[\s\S]+glMap\.getPitch\(\) > 10/);
 assert.doesNotMatch(buildingVisibilityPredicate, /cameraIsWithinBuildingRange|cameraAltitudeAboveTerrainMeters/,
   "Camera movement must not abruptly discard enabled building geometry at an altitude threshold");
-assert.match(THREE_D_SOURCE, /map3dBuildingVisibility = shouldRender[\s\S]+"hidden-in-2d"/);
+assert.match(THREE_D_SOURCE, /id: "nw-2d-buildings",\s*type: "fill",\s*source: "nw-buildings-source"/);
 assert.doesNotMatch(THREE_D_SOURCE, /over-1000m-flat/);
 assert.match(THREE_D_SOURCE, /if \(desired3dMode\) enableDefaultBuildings3d\(\)/);
 assert.match(THREE_D_SOURCE, /syncFloodPresentationMode\(\) \{[\s\S]+syncBuildingVisibilityForCamera\(\)/);

@@ -16,6 +16,29 @@ const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
 const read = relative => readDeepReviewed(relative);
 const sha256 = source => createHash("sha256").update(source).digest("hex");
+const priorMutationSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mutation-snapshot");
+const priorBuildingViewSnapshot = priorMutationSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-building-view-snapshot"));
+const BUILDING_VIEW_PATH = "tools/fixtures/north-wildwood-20261107-building-view.json";
+const buildingViewText = readCurrent(BUILDING_VIEW_PATH);
+assert.equal(sha256(buildingViewText), "023837cb9e8a6d4a0ccf51b5df5f2d66483d6725c5b8f087a00970ec65f1bd7c",
+  "Retain the exact building view inverse");
+const buildingView = JSON.parse(buildingViewText);
+assert.equal(buildingView.schemaVersion, 1);
+assert.equal(buildingView.baselineCommit, "81c37c07cabaa25cb1bce7674526e845183b3ace");
+function readBeforeBuildingView(relative) {
+  const source = readCurrent(relative), file = buildingView.files.find(entry => entry.source === relative);
+  if (priorBuildingViewSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed building view fix`);
+  let restored = source;
+  for (const change of file.changes) {
+    assert.equal(restored.split(change.afterSource).length - 1, 1, `${relative}: one exact building view fragment`);
+    restored = restored.replace(change.afterSource, change.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore all pre-fix bytes`);
+  return restored;
+}
+for (const file of buildingView.files) readBeforeBuildingView(file.source);
 // Reverse only the reviewed browser changes before running the original parity layers.
 const LINE_AUDIT_PATH = "tools/fixtures/north-wildwood-20261106-line-audit.json";
 const lineAuditText = readCurrent(LINE_AUDIT_PATH);
@@ -24,9 +47,8 @@ assert.equal(sha256(lineAuditText), "38b1a95dec68f9ebf0974066dc5983097652eaf13a0
 const lineAudit = JSON.parse(lineAuditText);
 assert.equal(lineAudit.schemaVersion, 1);
 assert.equal(lineAudit.baselineCommit, "943c0056743d76370c81481c0354192964307187");
-const priorMutationSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mutation-snapshot");
 function readBeforeLineAudit(relative) {
-  const source = readCurrent(relative), file = lineAudit.files.find(entry => entry.source === relative);
+  const source = readBeforeBuildingView(relative), file = lineAudit.files.find(entry => entry.source === relative);
   if (priorMutationSnapshot || !file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed line audit`);
   let restored = source;
@@ -2420,6 +2442,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      BUILDING_VIEW_PATH, ...buildingView.files.map(file => file.source),
       LINE_AUDIT_PATH, ...lineAudit.files.map(file => file.source), "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -2441,10 +2464,20 @@ if (process.argv.includes("--self-test")) {
         assert.match(result.stderr, /AssertionError/, `${name}: rejection must come from a parity assertion`);
       }
     };
+    assertMutationsRejected([
+      ["altered the building view inverse", path.join(scratch, BUILDING_VIEW_PATH), buildingViewText + " "],
+      ...buildingView.files.map(file => [
+        `unreviewed byte in ${file.source}`, path.join(scratch, file.source), readCurrent(file.source) + "\n"
+      ])
+    ], run);
+    for (const file of buildingView.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeBuildingView(file.source));
+    }
+    const runLineAudit = () => run(["--prior-building-view-snapshot"]);
     const lineAuditCases = [
       ["altered the line audit inverse", path.join(scratch, LINE_AUDIT_PATH), lineAuditText + " "],
       ...lineAudit.files.flatMap(file => {
-        const current = readCurrent(file.source), target = path.join(scratch, file.source);
+        const current = readBeforeBuildingView(file.source), target = path.join(scratch, file.source);
         return [
           [`unreviewed byte in ${file.source}`, target, current + "\n"],
           ...file.changes.map((change, index) => [
@@ -2454,8 +2487,8 @@ if (process.argv.includes("--self-test")) {
         ];
       })
     ];
-    assertMutationsRejected(lineAuditCases, run);
-    assert.equal(run().status, 0, "Restoring audited artifacts must restore a passing check");
+    assertMutationsRejected(lineAuditCases, runLineAudit);
+    assert.equal(runLineAudit().status, 0, "Restoring audited artifacts must restore a passing check");
 
     // Run historical mutations against the byte-exact snapshot they originally targeted.
     for (const file of lineAudit.files) {

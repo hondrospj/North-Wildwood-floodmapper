@@ -25,10 +25,12 @@
     return boundaryPromise;
   }
   const isOn=()=>document.getElementById('buildingsToggle')?.classList.contains('on');
-  function note(){
+  function note(supportsFlat = false){
     const toggle=document.getElementById('buildingsToggle');
-    const text='3D building footprints. Existing town building models are retained where available; other heights are schematic.';
-    if(toggle){toggle.setAttribute('aria-label','Show 3D buildings');toggle.title=text;toggle.closest('.layer-item')?.setAttribute('title',text);}
+    const text=supportsFlat
+      ? 'Show buildings in the current map view.'
+      : '3D building footprints. Existing town building models are retained where available; other heights are schematic.';
+    if(toggle){toggle.setAttribute('aria-label',supportsFlat?'Show buildings':'Show 3D buildings');toggle.title=text;toggle.closest('.layer-item')?.setAttribute('title',text);}
   }
   async function syncNative(gl,scale=4){
     if(!gl)return;
@@ -171,5 +173,5 @@
     window.COUNTY_STANDALONE_3D={getMap:()=>standaloneMap};note();
   }
   window.COUNTY_3D_BUILDINGS={sync:syncNative,focus,boundary};
-  if(!document.getElementById('buildingsToggle'))installStandalone();else note();
+  if(!document.getElementById('buildingsToggle'))installStandalone();else note(Boolean(config().structures?.buildings3dPath));
 })();

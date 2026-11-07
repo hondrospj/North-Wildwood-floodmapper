@@ -7,11 +7,6 @@
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
   var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;
-  // A requested close building view targets a 1,000 m eye altitude. This is
-  // a framing target, not a visibility cutoff: enabled buildings must remain
-  // present while the user changes zoom, pitch, bearing, or viewport size.
-  var BUILDING_MAX_CAMERA_ALTITUDE_METERS = 1000;
-  var BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM = 16.25;
   var WEB_MERCATOR_EARTH_CIRCUMFERENCE_METERS = 40075016.68557849;
   var MAPLIBRE_TILE_SIZE = 512;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
@@ -249,9 +244,9 @@
     return coordinatesFromLeafletBounds(floodLatLngBounds || getBoundaryDrivenOverlayBounds());
   }
 
-  function addLayerBelowMask(layer) {
+  function addLayerBelowMask(layer, beforeId) {
     if (!glMap || glMap.getLayer(layer.id)) return;
-    glMap.addLayer(layer, glMap.getLayer("nw-boundary-mask") ? "nw-boundary-mask" : undefined);
+    glMap.addLayer(layer, beforeId || (glMap.getLayer("nw-boundary-mask") ? "nw-boundary-mask" : undefined));
   }
 
   function removeLayerAndSource(layerId, sourceId) {
@@ -304,7 +299,7 @@
           "raster-resampling": "linear",
           "raster-fade-duration": 0
         }
-      });
+      }, options.beforeId);
     }
     if (glMap.getLayer(options.layerId)) {
       glMap.setPaintProperty(options.layerId, "raster-opacity", options.opacity);
@@ -738,32 +733,6 @@
     return Math.max(0, cameraToCenterPixels * metersPerPixel * Math.cos(pitchRadians));
   }
 
-  function cameraIsWithinBuildingRange() {
-    var altitudeMeters = cameraAltitudeAboveTerrainMeters();
-    document.body.dataset.map3dCameraAltitudeMeters = altitudeMeters === null
-      ? "unknown"
-      : altitudeMeters.toFixed(1);
-    // Older WebGL implementations without free-camera altitude support use a
-    // conservative zoom fallback for the initial close-view framing.
-    return altitudeMeters === null
-      ? glMap.getZoom() >= BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM
-      : altitudeMeters <= BUILDING_MAX_CAMERA_ALTITUDE_METERS;
-  }
-
-  function focusEnabledBuildings3d() {
-    if (!glMap || !layerVisible("buildingsToggle", false) || glMap.getPitch() <= 10 || cameraIsWithinBuildingRange()) return;
-    var altitudeMeters = cameraAltitudeAboveTerrainMeters();
-    var targetZoom = altitudeMeters === null
-      ? Math.max(glMap.getZoom(), BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM)
-      : glMap.getZoom() + Math.log2(altitudeMeters / (BUILDING_MAX_CAMERA_ALTITUDE_METERS * 0.85));
-    // An explicit Buildings/3D selection should show the requested walls.
-    // Lower the camera once, keeping the user's center and bearing. Later
-    // camera changes retain the enabled geometry at every supported zoom.
-    // Leaflet mirrors whole zoom levels; rounding up retains this initial
-    // detail framing when the two renderers synchronize their zoom levels.
-    glMap.jumpTo({ zoom: Math.min(MAP_MAX_ZOOM, Math.ceil(targetZoom)) });
-  }
-
   function syncFloodPresentationMode() {
     if (!glMap || !glStyleReady) return;
     var pitched = glMap.getPitch() > 10;
@@ -795,19 +764,20 @@
   function syncBuildingVisibilityForCamera() {
     if (!glMap || !glMap.getLayer("nw-3d-buildings")) return false;
     var shouldRender = buildingsShouldRenderForCamera();
-    var targetVisibility = visibility(shouldRender);
-    ["nw-3d-buildings"].forEach(function (layerId) {
+    var buildingsEnabled = layerVisible("buildingsToggle", false);
+    var showFootprints = buildingsEnabled && !shouldRender && glMap.getLayer("nw-2d-buildings");
+    function setVisibility(layerId, visible) {
       if (!glMap.getLayer(layerId)) return;
+      var targetVisibility = visibility(visible);
       if (glMap.getLayoutProperty(layerId, "visibility") !== targetVisibility) {
         glMap.setLayoutProperty(layerId, "visibility", targetVisibility);
       }
-    });
-    var buildingsEnabled = layerVisible("buildingsToggle", false);
+    }
+    setVisibility("nw-3d-buildings", shouldRender);
+    setVisibility("nw-2d-buildings", showFootprints);
     document.body.dataset.map3dBuildingVisibility = shouldRender
       ? "pitched-3d"
-      : buildingsEnabled
-        ? "hidden-in-2d"
-        : "disabled";
+      : showFootprints ? "flat-2d" : "disabled";
     return shouldRender;
   }
 
@@ -905,6 +875,7 @@
       url: url,
       coordinates: coordinates,
       opacity: overlayOpacity,
+      beforeId: glMap.getLayer("nw-2d-buildings") ? "nw-2d-buildings" : undefined,
       visible: !pitched
     });
     if (glMap.getSource("nw-flood-source")) removeLayerAndSource("nw-flood-overlay", "nw-flood-source");
@@ -1555,6 +1526,10 @@
     if (!glMap.getSource("nw-buildings-source")) {
       var payload = await loadBuildingData();
       if (glMap !== requestedMap || !glStyleReady) return;
+      if (glMap.getSource("nw-buildings-source")) {
+        syncBuildingVisibilityForCamera();
+        return;
+      }
       glMap.addSource("nw-buildings-source", {
         type: "geojson",
         data: payload,
@@ -1569,7 +1544,6 @@
       });
       document.body.dataset.buildings3dSourceMaxZoom = "18";
       document.body.dataset.buildings3dSourceBuffer = "256";
-      document.body.dataset.buildings3dMaxCameraAltitudeMeters = String(BUILDING_MAX_CAMERA_ALTITUDE_METERS);
       addLayerBelowMask({
         id: "nw-3d-buildings",
         type: "fill-extrusion",
@@ -1597,14 +1571,24 @@
           "fill-extrusion-vertical-gradient": false
         }
       });
+      addLayerBelowMask({
+        id: "nw-2d-buildings",
+        type: "fill",
+        source: "nw-buildings-source",
+        minzoom: 11,
+        layout: { visibility: "none" },
+        paint: { "fill-color": "#ddd7cb", "fill-outline-color": "#958e80" }
+      });
       syncBuildingWaterComposite3d(getSelectedStageNavd88());
       if (!buildingCursorHandlersWired) {
         buildingCursorHandlersWired = true;
-        glMap.on("mouseenter", "nw-3d-buildings", function () {
-          if (layerVisible("buildingsToggle", false)) glMap.getCanvas().style.cursor = "pointer";
-        });
-        glMap.on("mouseleave", "nw-3d-buildings", function () {
-          glMap.getCanvas().style.cursor = "";
+        ["nw-2d-buildings", "nw-3d-buildings"].forEach(function (layerId) {
+          glMap.on("mouseenter", layerId, function () {
+            if (layerVisible("buildingsToggle", false)) glMap.getCanvas().style.cursor = "pointer";
+          });
+          glMap.on("mouseleave", layerId, function () {
+            glMap.getCanvas().style.cursor = "";
+          });
         });
       }
       // At street scale, draw water after opaque buildings for submerged-wall
@@ -1856,11 +1840,9 @@
       // Popup controls must not also select the building beneath them.
       if (event.originalEvent?.target?.closest?.(".maplibregl-popup")) return;
       var buildingsEnabled = layerVisible("buildingsToggle", false);
-      if (buildingsEnabled && mapClickMode === "building" && glMap.getLayer("nw-3d-buildings")) {
-        var buildingQueryLayers = ["nw-3d-buildings"].filter(function (layerId) {
-          return Boolean(glMap.getLayer(layerId));
-        });
-        var rendered = glMap.queryRenderedFeatures(event.point, { layers: buildingQueryLayers });
+      var buildingLayerId = glMap.getPitch() > 10 ? "nw-3d-buildings" : "nw-2d-buildings";
+      if (buildingsEnabled && mapClickMode === "building" && glMap.getLayer(buildingLayerId)) {
+        var rendered = glMap.queryRenderedFeatures(event.point, { layers: [buildingLayerId] });
         if (rendered.length) {
           var queryGeneration = ++mapQueryGeneration;
           var queryMode = mapClickMode;
@@ -2505,7 +2487,6 @@
     // A failed load resets the switch without inventing an explicit off
     // preference. A later 3D retry still honors the user's last real choice.
     if (!options || !options.rollback) buildingVisibilityPreference = shouldEnable;
-    var queryGeneration = mapQueryGeneration;
     var toggle = document.getElementById("buildingsToggle");
     if (toggle) {
       toggle.classList.toggle("on", shouldEnable);
@@ -2513,33 +2494,18 @@
     }
     if (!shouldEnable) ++mapQueryGeneration;
     try {
-      if (shouldEnable) {
-        var requestedMap = await ensure3dMap();
-        if (generation !== buildingToggleGeneration) return;
-        if (!requestedMap) throw new Error("3D buildings could not start; the 2D map remains available.");
-        if (requestedMap.getPitch() <= 10) document.querySelector("#nwDefaultNavControl .nw-simple-view")?.click();
-      }
       if (glMap && document.body.classList.contains("map-3d-ready")) {
         if (buildingsLayer && map && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
-        // Preserve an explicit query-mode choice made while 3D was starting.
-        if (shouldEnable && queryGeneration === mapQueryGeneration) setMapClickMode("building", { closePopup: false });
+        if (shouldEnable) setMapClickMode("building", { closePopup: false });
         updateExportBuildingsLayer();
         updateMapClickModeControl();
         toast("");
         await syncBuildings3d();
         if (generation !== buildingToggleGeneration) return;
-        if (shouldEnable) await window.COUNTY_3D_BUILDINGS.focus(glMap);
-        if (generation !== buildingToggleGeneration) return;
-        if (shouldEnable) focusEnabledBuildings3d();
         suspendLeafletVisualLayers();
         return;
       }
-      var result = await originalSetBuildingsEnabled.apply(this, arguments);
-      if (generation !== buildingToggleGeneration) return;
-      if (glMap) await syncBuildings3d();
-      if (generation !== buildingToggleGeneration) return;
-      suspendLeafletVisualLayers();
-      return result;
+      return await originalSetBuildingsEnabled.apply(this, arguments);
     } catch (error) {
       if (generation !== buildingToggleGeneration) return;
       throw error;

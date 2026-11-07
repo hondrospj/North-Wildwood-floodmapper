@@ -49,8 +49,11 @@ try{
     return {webgl2:!!gl};
   });
   await page.locator('#buildingsToggle').click();
+  await page.locator('.nw-simple-view').click();
   if(result.capability.webgl2){
     await page.waitForFunction(()=>NORTH_WILDWOOD_3D.state().buildingsVisible,{},{timeout:90000});
+    // Frame the target roof explicitly for the hit test.
+    await page.evaluate(()=>NORTH_WILDWOOD_3D.getMap().jumpTo({center:[-74.7970066,39.011446],zoom:18}));
     await page.waitForFunction(()=>NORTH_WILDWOOD_3D.getMap().areTilesLoaded(),{},{timeout:90000});
     const roof=await findNativeBuildingRoof(page,'34009_118023');assert.ok(roof,'327 W Chestnut roof is rendered');assert.equal(roof.properties.address,'327 W CHESTNUT AVE');
     await page.mouse.click(...roof.point);await page.waitForFunction(()=>document.querySelector('.maplibregl-popup')?.textContent.includes('327 W CHESTNUT AVE'),{},{timeout:30000});
