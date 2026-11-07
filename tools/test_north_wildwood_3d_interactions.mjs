@@ -54,6 +54,70 @@ assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: '0', foun
 popup.getSelectedStageNavd88 = () => 5;
 assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /5.0 ft above/);
 
+// The Esri wrapper's child renderer does not exist until metadata is ready.
+const configuration = fs.readFileSync(new URL('./app/runtime/00-configuration.js', import.meta.url), 'utf8');
+const buildingLayerFactory = configuration.match(/^    function makeEsriBuildingForegroundLayer\([\s\S]+?^    }/m)?.[0];
+assert.ok(buildingLayerFactory, 'Exercise the actual Esri foreground layer factory');
+
+function esriLayerFixture(ready = false) {
+  const renderer = {};
+  const operations = [];
+  const pending = new Set();
+  const map = {
+    addLayer(layer) { assert.equal(layer, renderer); operations.push('attach'); },
+    removeLayer(layer) { assert.equal(layer, renderer); operations.push('detach'); }
+  };
+  const esriLayer = {
+    _ready: ready,
+    _maplibreGL: ready ? renderer : undefined,
+    onAdd(targetMap) {
+      const attach = () => targetMap.addLayer(this._maplibreGL);
+      if (this._ready) attach();
+      else this.once('ready', attach);
+    },
+    onRemove(targetMap) { targetMap.removeLayer(this._maplibreGL); },
+    once(event, callback) { assert.equal(event, 'ready'); pending.add(callback); },
+    off(event, callback) { assert.equal(event, 'ready'); pending.delete(callback); }
+  };
+  const L = { esri: { Vector: { vectorTileLayer: () => esriLayer } } };
+  const layer = vm.runInNewContext(buildingLayerFactory + '\nmakeEsriBuildingForegroundLayer()', {
+    window: { L }, L, ESRI_API_KEY: '', ESRI_OSM_VECTOR_TILE_URL: 'test', styleEsriBuildingForeground() {}
+  });
+  return {
+    layer, map, operations, pending,
+    finishLoading() {
+      esriLayer._ready = true;
+      esriLayer._maplibreGL = renderer;
+      for (const callback of pending) {
+        pending.delete(callback);
+        callback.call(esriLayer);
+      }
+    }
+  };
+}
+
+for (const reenable of [false, true]) {
+  const test = esriLayerFixture();
+  test.layer.onAdd(test.map);
+  assert.equal(test.pending.size, 1);
+  test.layer.onRemove(test.map);
+  assert.equal(test.pending.size, 0, 'Removing a pending layer cancels its exact ready handler');
+  if (reenable) test.layer.onAdd(test.map);
+  test.finishLoading();
+  assert.deepEqual(test.operations, reenable ? ['attach'] : [], 'Late readiness honors only the latest toggle');
+  if (reenable) {
+    test.layer.onRemove(test.map);
+    assert.deepEqual(test.operations, ['attach', 'detach']);
+  }
+}
+{
+  const test = esriLayerFixture(true);
+  test.layer.onAdd(test.map);
+  test.layer.onRemove(test.map);
+  assert.equal(test.pending.size, 0);
+  assert.deepEqual(test.operations, ['attach', 'detach'], 'A ready layer attaches and detaches immediately');
+}
+
 function toggleFixture({ pitch = 0 } = {}) {
   const toggle = { classList: classList(), attributes: {}, setAttribute(key, value) { this.attributes[key] = value; } };
   const body = { classList: classList() };
@@ -261,4 +325,4 @@ for (const result of ['parcel', 'missing', 'failed']) {
   assert.equal(context.fallbackBuildingPopup, null, 'Closing a card releases its lifetime record');
 }
 
-console.log('3D interaction regressions passed: missing floor/stage values, camera-independent Buildings toggle, flat parcel clicks, parcel click cancellation, and popup frame lifetime.');
+console.log('3D interaction regressions passed: missing floor/stage values, deferred Esri layer removal, camera-independent Buildings toggle, flat parcel clicks, parcel click cancellation, and popup frame lifetime.');

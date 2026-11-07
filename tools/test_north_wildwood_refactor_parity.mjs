@@ -21,7 +21,7 @@ const priorBuildingViewSnapshot = priorMutationSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-building-view-snapshot"));
 const BUILDING_VIEW_PATH = "tools/fixtures/north-wildwood-20261107-building-view.json";
 const buildingViewText = readCurrent(BUILDING_VIEW_PATH);
-assert.equal(sha256(buildingViewText), "023837cb9e8a6d4a0ccf51b5df5f2d66483d6725c5b8f087a00970ec65f1bd7c",
+assert.equal(sha256(buildingViewText), "afcbf5800adcd5d5bedda39f535c2c44f4f3a8fb780f4d0489fa97fa3a022013",
   "Retain the exact building view inverse");
 const buildingView = JSON.parse(buildingViewText);
 assert.equal(buildingView.schemaVersion, 1);

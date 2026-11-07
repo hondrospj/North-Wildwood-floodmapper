@@ -103,10 +103,36 @@
       ]
     },
     {
+      "source": "tools/app/runtime/00-configuration.js",
+      "beforeSha256": "c8a6897f7d6aa65978a0863daeb79a131cba1298b025dfad68d460593eb7e61e",
+      "afterSha256": "109b24101aabee0ebf50b963df75f68534fff1c24c0564fa76950d35f6a72516",
+      "changes": [
+        {
+          "beforeSource": "      };\n      if (ESRI_API_KEY) options.apikey = ESRI_API_KEY;\n      return L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);\n    }\n\n",
+          "afterSource": "      };\n      if (ESRI_API_KEY) options.apikey = ESRI_API_KEY;\n      const layer = L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);\n      const { onAdd, onRemove } = layer;\n      let pendingAdd;\n      // Esri 4.3.2 cannot remove a vector layer until its metadata creates\n      // the inner renderer. Cancel the deferred attachment on an early off.\n      layer.onAdd = function (targetMap) {\n        if (this._ready) return onAdd.call(this, targetMap);\n        pendingAdd = () => {\n          pendingAdd = null;\n          onAdd.call(this, targetMap);\n        };\n        this.once(\"ready\", pendingAdd);\n      };\n      layer.onRemove = function (targetMap) {\n        if (pendingAdd) {\n          this.off(\"ready\", pendingAdd);\n          pendingAdd = null;\n        } else if (this._ready) {\n          onRemove.call(this, targetMap);\n        }\n      };\n      return layer;\n    }\n\n"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "5400be4c3ff7f28f37fe635a4b3e0ce568993280f37a25fa235478ef785f967a",
+      "afterSha256": "649ccc414e04382b5d1486b7ef9dbed21a79e69eb50b6da1574e8b63f177852f",
+      "changes": [
+        {
+          "beforeSource": "      };\n      if (ESRI_API_KEY) options.apikey = ESRI_API_KEY;\n      return L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);\n    }\n\n",
+          "afterSource": "      };\n      if (ESRI_API_KEY) options.apikey = ESRI_API_KEY;\n      const layer = L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);\n      const { onAdd, onRemove } = layer;\n      let pendingAdd;\n      // Esri 4.3.2 cannot remove a vector layer until its metadata creates\n      // the inner renderer. Cancel the deferred attachment on an early off.\n      layer.onAdd = function (targetMap) {\n        if (this._ready) return onAdd.call(this, targetMap);\n        pendingAdd = () => {\n          pendingAdd = null;\n          onAdd.call(this, targetMap);\n        };\n        this.once(\"ready\", pendingAdd);\n      };\n      layer.onRemove = function (targetMap) {\n        if (pendingAdd) {\n          this.off(\"ready\", pendingAdd);\n          pendingAdd = null;\n        } else if (this._ready) {\n          onRemove.call(this, targetMap);\n        }\n      };\n      return layer;\n    }\n\n"
+        }
+      ]
+    },
+    {
       "source": "index.html",
       "beforeSha256": "c6165387b8ef9983fb69aed65fd1d977747bb8aab3acd90877db501b2589bf2c",
-      "afterSha256": "9e91da1219301efdbc0e5c5b584d0940c7db42610f5667d7ebe1a0ae5b598907",
+      "afterSha256": "852adf9f485f4ca8eaa470ad1fd8cf3f3ca0737c5db2bffbc31681b4c5a4a921",
       "changes": [
+        {
+          "beforeSource": "  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=5400be4c3ff7f28f\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n",
+          "afterSource": "  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=649ccc414e04382b\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n"
+        },
         {
           "beforeSource": "\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=e0632c31f169e324\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n",
           "afterSource": "\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=50c0c93c734a1725\"></script>\n<script src=\"./assets/road-impacts.js?v=20261002-road-impacts-default-off\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=7c4f3ad2243c6f25\"></script>\n"

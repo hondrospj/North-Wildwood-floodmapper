@@ -716,7 +716,28 @@ function cloneStyleObject(value) {
         style: styleEsriBuildingForeground
       };
       if (ESRI_API_KEY) options.apikey = ESRI_API_KEY;
-      return L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);
+      const layer = L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);
+      const { onAdd, onRemove } = layer;
+      let pendingAdd;
+      // Esri 4.3.2 cannot remove a vector layer until its metadata creates
+      // the inner renderer. Cancel the deferred attachment on an early off.
+      layer.onAdd = function (targetMap) {
+        if (this._ready) return onAdd.call(this, targetMap);
+        pendingAdd = () => {
+          pendingAdd = null;
+          onAdd.call(this, targetMap);
+        };
+        this.once("ready", pendingAdd);
+      };
+      layer.onRemove = function (targetMap) {
+        if (pendingAdd) {
+          this.off("ready", pendingAdd);
+          pendingAdd = null;
+        } else if (this._ready) {
+          onRemove.call(this, targetMap);
+        }
+      };
+      return layer;
     }
 
     let map = null;
