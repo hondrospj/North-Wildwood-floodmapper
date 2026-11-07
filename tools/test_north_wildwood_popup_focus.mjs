@@ -138,7 +138,7 @@ for (const target of ['close', 'cta', 'popup-text', 'map', 'synthetic']) {
   } };
   const env = {
     layerVisible: () => { layerLookups++; return false; },
-    glMap: {}, mapClickMode: 'building', L: { latLng: (lat, lng) => ({ lat, lng }) },
+    glMap: { getPitch: () => 60 }, mapClickMode: 'building', L: { latLng: (lat, lng) => ({ lat, lng }) },
     handleDepthQueryClick: () => queries++,
   };
   await onMapClick(env, event);

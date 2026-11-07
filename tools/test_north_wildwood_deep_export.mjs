@@ -75,7 +75,7 @@ if (process.env.NWW_DEEP_CASE !== 'hourly') {
   let clicked=rawBuildings.find(feature=>feature.properties.footprintId==='34009_118023');
   let clickHandler,opened;
   Object.assign(ctx,{buildingData:{features:rawBuildings},parcelFeatures:rawParcels,
-    glMap:{on(name,...args){if(name==='click')clickHandler=args.at(-1);},getLayer:()=>true,queryRenderedFeatures:()=>[clicked]},
+    glMap:{on(name,...args){if(name==='click')clickHandler=args.at(-1);},getPitch:()=>60,getLayer:()=>true,queryRenderedFeatures:()=>[clicked]},
     map:{on(){}},window:{addEventListener(){}},L:{latLng:(lat,lng)=>({lat,lng})},
     layerVisible:()=>true,mapClickMode:'building',mapQueryGeneration:0,lastRenderToken:1,
     sync3dViewToLeaflet(){},syncLeafletViewTo3d(){},handleDepthQueryClick(){throw Error('Expected building selection');},
