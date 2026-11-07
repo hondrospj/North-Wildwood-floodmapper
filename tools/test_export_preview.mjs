@@ -98,6 +98,7 @@ function harness() {
     getDownloadExtentValue: () => "current",
     getDownloadSpeedValue: () => "normal",
     getExportAspectConfig: () => ({ width: 2160, height: 2700, label: "Social 4:5" }),
+    commitAllExportDateTimeEditors: () => true,
     validateDownloadRangeForExport: () => state.validation,
     ensureExportArchiveAvailability: async () => {},
     exportRangeNeedsObservedArchive: () => true,
