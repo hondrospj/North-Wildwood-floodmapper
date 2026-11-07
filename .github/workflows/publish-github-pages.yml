@@ -1,0 +1,44 @@
+name: Publish North Wildwood Flood Mapper to GitHub Pages
+
+on:
+  push:
+    branches: [gh-pages]
+    paths:
+      - .github/workflows/publish-github-pages.yml
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out the mapper release
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 84951f91c7872c98b47417a594103f91dc410301
+          persist-credentials: false
+      - name: Verify the mapper and collect site files
+        run: |
+          node tools/build_north_wildwood_app.mjs --check
+          node tools/test_north_wildwood_3d_interactions.mjs
+          node tools/test_north_wildwood_refactor_parity.mjs
+          mkdir _site
+          cp -a .nojekyll index.html *.json Boundaries assets city-gauge data model observed_archive _site/
+      - name: Upload the mapper
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
+        with:
+          path: _site
+      - name: Publish to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
