@@ -291,7 +291,8 @@
         this._canvas.height = Math.max(1, Math.ceil(size.y));
         this._canvas.style.width = `${size.x}px`;
         this._canvas.style.height = `${size.y}px`;
-        leaflet.DomUtil.setPosition(this._canvas, this._map.containerPointToLayerPoint([0,0]));
+        const canvasOrigin = this._map.containerPointToLayerPoint([0, 0]);
+        leaflet.DomUtil.setPosition(this._canvas, canvasOrigin);
         const context = this._canvas.getContext("2d");
         this._labels = [];
         this._canvas.dataset.labelCount = "0";
@@ -300,7 +301,10 @@
         const family = this.options.fontFamily || getComputedStyle(document.documentElement).getPropertyValue("--nww-ui-font-family").trim() || FONT;
         const unit = Number.isFinite(this.options.unit) && this.options.unit > 0 ? this.options.unit : 1;
         context.font = `600 ${15 * unit}px ${family}`;
-        this._labels = layout(roads, point => this._map.latLngToContainerPoint([point[1],point[0]]), size, { ...this.options, unit }, (text, size) => {
+        // Retain subpixel road geometry so rounded vertices do not create artificial bends.
+        const pixelOrigin = this._map.getPixelOrigin().add(canvasOrigin);
+        const project = ([lng, lat]) => this._map.project([lat, lng]).subtract(pixelOrigin);
+        this._labels = layout(roads, project, size, { ...this.options, unit }, (text, size) => {
           context.font = `600 ${size}px ${family}`;
           return context.measureText(text).width;
         });
