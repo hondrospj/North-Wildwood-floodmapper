@@ -19,6 +19,7 @@ const output = process.env.NWW_AUDIT_OUTPUT;
 const profiles = [
   { name: "desktop", width: 1512, height: 945, touch: false },
   { name: "laptop", width: 1366, height: 768, touch: false },
+  { name: "short laptop", width: 1280, height: 720, touch: false },
   { name: "tablet portrait", width: 820, height: 1180, touch: true },
   { name: "tablet landscape", width: 1180, height: 820, touch: true },
   { name: "compact phone", width: 360, height: 780, touch: true }
@@ -71,6 +72,14 @@ try {
       const dateFits = await page.locator("#topTideList .top-tide-main").evaluateAll(items =>
         items.every(el => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1));
       assert.ok(dateFits, "The ten flood dates fit without wrapping or covering their water levels");
+      const listFits = await page.locator("#topTideList").evaluate(list => {
+        const bounds = list.getBoundingClientRect();
+        const card = list.closest(".top-tides-card").getBoundingClientRect();
+        return list.scrollHeight <= list.clientHeight + 1
+          && bounds.bottom <= card.bottom + 1
+          && [...list.querySelectorAll(".top-tide-item")].every(item => item.getBoundingClientRect().bottom <= bounds.bottom + 1);
+      });
+      assert.ok(listFits, "All ten flood rows fit inside the visible list without scrolling");
     }
     if (profile.touch) {
       await page.locator("#mobileControlsToggle").click();

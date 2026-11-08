@@ -8037,8 +8037,11 @@ html body #mapTitleBadge #mapTitleLogo{
         grid-template-columns:repeat(2,minmax(0,1fr)) !important;
         gap:4px !important;
       }
-      :is(#topTideList,#topTideListMobile):not(:has(.top-tide-item)) {
+      /* Five 34px rows and four 4px gaps, including while the archive loads. */
+      :is(#topTideList,#topTideListMobile) {
         min-height:186px !important;
+        max-height:none !important;
+        overflow:visible !important;
       }
       :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-item {
         display:grid !important;
