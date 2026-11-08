@@ -140,6 +140,13 @@
       const viewportPopupWidth = mobilePopup
         ? Math.max(240, Math.min(requestedPopupWidth, window.innerWidth - 28))
         : requestedPopupWidth;
+      let rightPadding = mobilePopup ? 10 : desktopRightRailWidth + 30;
+      if (String(html).includes("nsi-structure-popup")) {
+        const directionControl = document.getElementById("nwDefaultNavControl")?.getBoundingClientRect();
+        if (directionControl?.width && directionControl.left >= viewportPopupWidth + 36) {
+          rightPadding = Math.max(rightPadding, Math.ceil(window.innerWidth - directionControl.left + 12));
+        }
+      }
       const popup = L.popup({
         className: isDepthQueryPopup ? "shorely-flood-popup shorely-depth-popup" : "shorely-flood-popup",
         maxWidth: viewportPopupWidth,
@@ -151,8 +158,8 @@
         autoPan: !document.body.classList.contains("map-3d-ready"),
         autoPanPaddingTopLeft: mobilePopup ? L.point(10, 126) : L.point(16, 16),
         autoPanPaddingBottomRight: mobilePopup
-          ? L.point(10, Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shorely-mobile-timeline-height")) + 16 || 140)
-          : L.point(desktopRightRailWidth + 30, 16)
+          ? L.point(rightPadding, Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shorely-mobile-timeline-height")) + 16 || 140)
+          : L.point(rightPadding, 16)
       })
         .setLatLng(latlng)
         .setContent(html)
@@ -478,7 +485,7 @@
       address.textContent = feature?.properties?.address || "Selected North Wildwood parcel";
       document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
       document.getElementById("floodHistoryHelpText").textContent = parcel
-        ? "This estimates how often water could cover the selected share of this parcel as sea level rises. The area comes from the modeled high-tide map."
+        ? "This uses the modeled high-tide map to estimate how often water could cover the selected share. The area includes water already inside the parcel."
         : "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises.";
       body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Loading flood projections…</strong></div>';
       backdrop.hidden = false;

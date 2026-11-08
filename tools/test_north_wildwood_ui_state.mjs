@@ -149,6 +149,39 @@ await test('Ordinary within-month Daily Max navigation still advances one displa
   assert.equal(f.loaded.length, 0);
 });
 
+await test('First-floor popup reserves the direction wheel only when the remaining width fits', () => {
+  const elements = {
+    rightRail: { getBoundingClientRect: () => ({ width: 280 }) },
+    nwDefaultNavControl: { getBoundingClientRect: () => ({ left: 668, width: 92 }) }
+  };
+  let options;
+  const context = vm.createContext({
+    document: { getElementById: id => elements[id], documentElement: {}, body: { classList: { contains: () => false, add() {} } } },
+    window: { innerWidth: 1024, innerHeight: 576 },
+    map: { hasLayer: () => false }, persistentFloodPopup: null, persistentDepthQueryContext: null,
+    getComputedStyle: () => ({ getPropertyValue: () => '120px' }),
+    isCompactFloodmapperLayout: () => false,
+    L: {
+      point: (x, y) => ({ x, y }),
+      popup(value) {
+        options = value;
+        return { setLatLng() { return this; }, setContent() { return this; }, addTo() { return this; }, once() {} };
+      }
+    }
+  });
+  load(context, ['openPersistentFloodPopup']);
+  const structure = '<div class="nsi-structure-popup">Structure</div>';
+  context.openPersistentFloodPopup({}, structure, 360);
+  assert.equal(options.autoPanPaddingBottomRight.x, 368, 'Reserve the compass footprint with a 12px gap');
+  context.openPersistentFloodPopup({}, '<div class="depth-query-popup">Depth</div>', 360);
+  assert.equal(options.autoPanPaddingBottomRight.x, 310, 'Other popups preserve normal map padding');
+  context.window.innerWidth = 390;
+  context.isCompactFloodmapperLayout = () => true;
+  elements.nwDefaultNavControl.getBoundingClientRect = () => ({ left: 300, width: 78 });
+  context.openPersistentFloodPopup({}, structure, 360);
+  assert.equal(options.autoPanPaddingBottomRight.x, 10, 'Do not reserve an inset if the narrow map cannot fit the popup');
+});
+
 function nsiFixture() {
   const feature = { properties: { address: 'Example structure', localGroundNavd88Ft: 4, foundationHeightFt: 1 } };
   let popup = null, currentStyle = null, directClick = null;
