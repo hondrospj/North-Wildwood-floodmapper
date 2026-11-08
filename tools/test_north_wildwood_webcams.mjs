@@ -49,7 +49,7 @@ try {
     async function assertMarkerGeometry() {
       const rows = await page.locator('[data-webcam-marker]').evaluateAll(nodes => nodes.map(element => {
         const box = element.getBoundingClientRect(), svg = element.querySelector('svg').getBoundingClientRect(), style = getComputedStyle(element);
-        return {width:box.width,height:box.height,iconWidth:svg.width,iconHeight:svg.height,radius:style.borderRadius,background:style.backgroundColor,transition:style.transitionDuration};
+        return {width:box.width,height:box.height,iconWidth:svg.width,iconHeight:svg.height,radius:style.borderRadius,background:style.backgroundColor,opacity:style.opacity,transition:style.transitionDuration};
       }));
       assert.equal(rows.length, 2);
       results.push({width,kind:'marker-geometry',view:await page.locator('body').getAttribute('data-map-view-mode'),rows});
@@ -60,6 +60,7 @@ try {
         assert.equal(row.iconHeight,20);
         assert.equal(row.radius,'50%');
         assert.equal(row.background,'rgb(18, 73, 90)','Camera marker is opaque and distinct');
+        assert.equal(row.opacity,'1','Terrain must not dim the camera marker');
         assert.equal(row.transition,'0s','Map position changes must not animate through CSS');
       }
     }
@@ -99,20 +100,27 @@ try {
       assert.equal(requests.length, before + (external ? 0 : 1), 'Only an embeddable camera requests a feed');
       assert.equal(await page.locator('#webcamFrame iframe').count(), external ? 0 : 1);
       assert.equal(await page.locator('#webcamPanel').evaluate(el => el.parentElement.id), 'mapWrap');
-      assert.equal(await page.locator('#webcamStatus').isVisible(), false,'Successful player does not repeat provider status text');
+      assert.equal(await page.locator('#webcamStatus').isVisible(), external, 'Only a blocked feed shows a provider status');
       assert.equal(await page.locator('#webcamTitle').innerText(),'Cameras');
       assert.equal(await page.locator('#webcamLocation,#webcamLocate,#webcamOtherSources,.webcam-disclaimer').count(),0,'Camera viewer omits redundant location and explanatory blocks');
-      assert.match(await page.locator('.webcam-source').innerText(),/Current view · not map time/);
+      assert.equal(await page.locator('#webcamClose').evaluate(el => el.classList.contains('centered-close-control')), true);
+      assert.doesNotMatch(await page.locator('#webcamPanel').innerText(), /Current view|Watch on city website/i);
       assert.ok((await page.locator('#webcamPanel').innerText()).split(/\s+/).length<=35,'Camera viewer keeps its text concise');
       assert.equal(await page.locator('#webcamRetry').isVisible(), !external);
       if (external) {
-        const link = page.locator('#webcamFrame .webcam-external a');
+        assert.equal(await page.locator('#webcamFrame').isVisible(), false, 'A blocked feed does not leave a large empty player');
+        assert.equal(await page.locator('#webcamChoice option:checked').innerText(), '15th Avenue Beach');
+        assert.equal(await page.locator('#webcamStatus').innerText(), 'In-map playback unavailable.');
+        const link = page.locator('#webcamSourceLink');
         assert.equal(await link.getAttribute('href'), 'https://northwildwood.com/north-wildwood-surf-cams/');
         assert.equal(await link.getAttribute('target'), '_blank');
         assert.match(await link.getAttribute('rel'), /noopener/);
       }
       const box = await page.locator('#webcamPanel').boundingBox();
-      assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0);
+      const viewport = page.viewportSize();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0 && box.y + box.height <= viewport.height + 1);
+      assert.ok(await page.locator('#webcamPanel').evaluate(el => el.scrollHeight <= el.clientHeight + 1),
+        'The camera viewer fits its available vertical space');
       const fonts=await page.evaluate(()=>{const family=n=>getComputedStyle(n).fontFamily;return [family(document.body),family(document.getElementById('webcamTitle')),family(document.getElementById('webcamChoice'))];});
       assert.equal(new Set(fonts).size,1,'Camera controls keep the mapper font family');
       results.push({width,kind:'viewer',id,view:await page.locator('body').getAttribute('data-map-view-mode'),box,fonts,text:await page.locator('#webcamPanel').innerText()});
@@ -140,7 +148,15 @@ try {
       await page.emulateMedia({media:'screen'});
     }
     await openCamera('north-bay');
-    assert.ok(requests.some(url => url.includes('ipcamlive')));
+    const bayRequest = new URL(requests.find(url => url.includes('ipcamlive')));
+    assert.equal(bayRequest.searchParams.get('autoplay'), '1');
+    assert.equal(bayRequest.searchParams.get('mute'), '1');
+    await page.locator('#webcamFrame iframe').dispatchEvent('error');
+    assert.equal(await page.locator('#webcamFrame').isVisible(), false);
+    assert.equal(await page.locator('#webcamStatus').innerText(), 'Camera unavailable. Try again.');
+    await page.locator('#webcamRetry').click();
+    await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'player-open');
+    assert.equal(await page.locator('#webcamFrame').isVisible(), true);
     const oldPlayer = await page.locator('#webcamFrame iframe').elementHandle();
     const beforeBeach = requests.length;
     await page.locator('#webcamChoice').selectOption('north-beach');
@@ -171,8 +187,18 @@ try {
       await assertGlMarkerPosition();
       await page.locator('[data-webcam-marker="north-bay"]').hover();
       await assertGlMarkerPosition();
-      await page.evaluate(()=>window.NORTH_WILDWOOD_3D.getMap().jumpTo({bearing:90,pitch:60}));
+      await page.evaluate(() => {
+        const gl = window.NORTH_WILDWOOD_3D.getMap();
+        gl.jumpTo({ bearing: 90, pitch: 60 });
+        // Force the MapLibre occlusion branch independently of the terrain
+        // fixture. The marker must stay legible even over covered positions.
+        gl.transform.isLocationOccluded = () => true;
+        document.querySelectorAll('.maplibregl-marker[data-webcam-marker]').forEach(marker => { marker.style.opacity = '0.5'; });
+        gl.fire('moveend');
+      });
       await assertGlMarkerPosition();
+      await page.waitForFunction(() => [...document.querySelectorAll('.maplibregl-marker[data-webcam-marker]')].every(marker => marker.style.opacity === '1'));
+      await page.evaluate(() => { delete window.NORTH_WILDWOOD_3D.getMap().transform.isLocationOccluded; });
       await assertMarkerGeometry();
       await page.evaluate(()=>window.NORTH_WILDWOOD_3D.getMap().jumpTo({bearing:0,pitch:45}));
       await assertGlMarkerPosition();

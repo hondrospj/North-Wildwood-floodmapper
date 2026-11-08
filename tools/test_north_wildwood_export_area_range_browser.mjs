@@ -38,7 +38,7 @@ try {
   });
   for (const [action, button, opener] of [
     ['Cancel', '#exportAreaCancelBtn', 'exportExtentCustomBtn'],
-    ['Use this area', '#exportAreaApplyBtn', 'exportChangeAreaBtn'],
+    ['Use this area', '#exportAreaApplyBtn', 'exportExtentCustomBtn'],
   ]) {
     await page.locator('#openDownloadModalBtn').click();
     const seeded = await snapshot();

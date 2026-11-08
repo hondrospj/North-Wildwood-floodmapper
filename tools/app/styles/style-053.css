@@ -1,49 +1,145 @@
 
-  :is(.centered-close-control,.leaflet-popup-close-button){
-    --centered-close-x-color:#eaf0ff;
-    --centered-close-x-size:14px;
-    position:relative !important;
-    display:grid !important;
-    place-items:center !important;
-    box-sizing:border-box !important;
-    padding:0 !important;
-    color:transparent !important;
-    font-size:0 !important;
-    line-height:0 !important;
-    text-indent:0 !important;
+  :root {
+    --nww-pill-surface:#111826;
+    --nww-pill-outline:rgba(191,219,254,.22);
+    --nww-close-surface:#1b2739;
+    --nww-close-hover:#263850;
+    --nww-close-ink:#eaf0ff;
   }
 
-  :is(.centered-close-control,.leaflet-popup-close-button)::before,
-  :is(.centered-close-control,.leaflet-popup-close-button)::after{
-    content:"" !important;
-    position:absolute !important;
-    left:50% !important;
-    top:50% !important;
-    width:var(--centered-close-x-size) !important;
-    height:2px !important;
-    margin:0 !important;
-    border:0 !important;
-    border-radius:999px !important;
-    background:var(--centered-close-x-color) !important;
-    box-shadow:none !important;
-    pointer-events:none !important;
-    transform-origin:center !important;
-  }
+  @layer north-wildwood-pills {
+    /* Keep position, size and hit areas owned by the containing dialog. */
+    .centered-close-control:not([hidden]) {
+      position:relative;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):not([hidden]) {
+      display:grid !important;
+      place-items:center !important;
+      box-sizing:border-box !important;
+      padding:0 !important;
+      border:1px solid var(--nww-pill-outline) !important;
+      border-radius:10px !important;
+      background:var(--nww-close-surface) !important;
+      box-shadow:none !important;
+      color:transparent !important;
+      font-size:0 !important;
+      line-height:0 !important;
+      text-indent:0 !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):hover {
+      background:var(--nww-close-hover) !important;
+    }
+    :is(.leaflet-popup-close-button,.maplibregl-popup-close-button) > span {
+      display:none !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::before,
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
+      content:"" !important;
+      position:absolute !important;
+      left:50% !important;
+      top:50% !important;
+      width:14px !important;
+      height:2px !important;
+      margin:0 !important;
+      border:0 !important;
+      border-radius:999px !important;
+      background:var(--nww-close-ink) !important;
+      box-shadow:none !important;
+      pointer-events:none !important;
+      transform-origin:center !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::before {
+      transform:translate(-50%,-50%) rotate(45deg) !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
+      transform:translate(-50%,-50%) rotate(-45deg) !important;
+    }
 
-  :is(.centered-close-control,.leaflet-popup-close-button)::before{
-    transform:translate(-50%,-50%) rotate(45deg) !important;
-  }
 
-  :is(.centered-close-control,.leaflet-popup-close-button)::after{
-    transform:translate(-50%,-50%) rotate(-45deg) !important;
-  }
-
-  .leaflet-popup-close-button{
-    --centered-close-x-color:#d8f9ff;
-  }
-
-  @media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
-    :is(.centered-close-control,.leaflet-popup-close-button){
-      --centered-close-x-size:18px;
+    html body[data-shorelysafe-ui] :is(#timelineDock,#timelineBubble,#legendDock,#webcamPanel,#mapTitleBadge,
+        #floodHistoryPane,.download-modal-card,.datum-modal-card,.top-tides-modal-card,
+        .shorely-flood-popup .leaflet-popup-content-wrapper,.maplibregl-popup .maplibregl-popup-content),
+    html body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) > :is(.panel-card,.rail-card):not(.right-logo-card) {
+      background-color:var(--nww-pill-surface) !important;
+      border-color:var(--nww-pill-outline) !important;
+    }
+    html body[data-shorelysafe-ui] :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):not([hidden]) {
+      border-color:var(--nww-pill-outline) !important;
+      border-radius:10px !important;
+      background-color:var(--nww-close-surface) !important;
+    }
+    html body[data-shorelysafe-ui] :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):hover {
+      background-color:var(--nww-close-hover) !important;
+    }
+    #timelineDock #timelineFloodKey {
+      --nww-key-font:14px;
+      --nww-key-dot:12px;
+    }
+    #timelineDock #timelineFloodKey .timeline-key-label {
+      color:#f5f8ff !important;
+      font-size:var(--nww-key-font) !important;
+      line-height:1 !important;
+      font-weight:800 !important;
+    }
+    #timelineDock #timelineFloodKey .timeline-key-swatch {
+      width:var(--nww-key-dot) !important;
+      height:var(--nww-key-dot) !important;
+      min-width:var(--nww-key-dot) !important;
+      min-height:var(--nww-key-dot) !important;
+      flex:0 0 var(--nww-key-dot) !important;
+    }
+    .top-tide-inline-extra {
+      display:none !important;
+    }
+    @media (min-width:768px) and (min-height:700px) {
+      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) {
+        display:grid !important;
+        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+        gap:4px !important;
+      }
+      :is(#topTideList,#topTideListMobile):not(:has(.top-tide-item)) {
+        min-height:186px !important;
+      }
+      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-item {
+        display:grid !important;
+        grid-template-columns:auto minmax(0,1fr) !important;
+        grid-template-rows:repeat(2,14px) !important;
+        gap:0 4px !important;
+        min-height:34px !important;
+        max-height:none !important;
+        padding:2px 5px !important;
+      }
+      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-rank {
+        grid-area:1 / 1 / 3 / 2 !important;
+        align-self:center !important;
+      }
+      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-main {
+        grid-area:1 / 2 !important;
+        text-align:left !important;
+        white-space:nowrap !important;
+      }
+      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-sub {
+        grid-area:2 / 2 !important;
+        text-align:left !important;
+      }
+      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) :is(.top-tide-rank,.top-tide-main,.top-tide-sub) {
+        font-size:12px !important;
+        line-height:14px !important;
+      }
+      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-more-btn {
+        display:none !important;
+      }
+    }
+    @media (max-width:900px), (max-height:560px), (max-width:1366px) and (any-pointer:coarse) {
+      #timelineDock #timelineFloodKey {
+        --nww-key-font:11px;
+        --nww-key-dot:10px;
+      }
+    }
+    @media (max-width:360px) {
+      body[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey {
+        --nww-key-font:10px;
+        --nww-key-dot:9px;
+      }
     }
   }

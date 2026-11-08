@@ -16,6 +16,7 @@
     let PHYSICS_FORECAST_POINTER_URL = "";
     let PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE = "";
     let PARCELS_URL = "";
+    let PARCEL_AREA_STAGES_URL = "";
     let HOUSE_ALERT_CDF_URL = "";
     let PARCEL_BOUNDARY_PNG_URL = "";
     let NSI_STRUCTURES_URL = "";
@@ -126,10 +127,10 @@
     const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
     const GIF_WORKER_CDN_URL = "https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.worker.js";
     const EXPORT_GIF_ASPECTS = {
-      "4:5": { value: "4:5", width: 1080, height: 1350, pngWidth: 2160, pngHeight: 2700, label: "Social 4:5" },
-      "16:9": { value: "16:9", width: 1920, height: 1080, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
-      "9:16": { value: "9:16", width: 1080, height: 1920, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
-      "1:1": { value: "1:1", width: 1200, height: 1200, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }
+      "4:5": { value: "4:5", width: 1360, height: 1700, pngWidth: 2160, pngHeight: 2700, label: "Social 4:5" },
+      "16:9": { value: "16:9", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
+      "9:16": { value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
+      "1:1": { value: "1:1", width: 1500, height: 1500, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }
     };
     const EXPORT_PROGRESS_UPDATE_EVERY = 8;
 
@@ -362,7 +363,10 @@
     function syncExportBrandLogos(config) {
       const assets = config?.assets || {};
       setExportLogoImage("exportTownLogo", assets.titleLogoPath, assets.titleLogoAlt || config?.site?.name || "");
-      setExportLogoImage("exportPartnerLogo", assets.partnerLogoPath || assets.rightRailLogoPath, assets.partnerLogoAlt || assets.rightRailLogoAlt || "ShorelySafe");
+      const partner = document.getElementById("exportPartnerLogo");
+      const logo = assets.partnerLogoPath || assets.rightRailLogoPath;
+      setExportLogoImage("exportPartnerLogo", logo && (partner?.dataset.exportBrandSrc || logo),
+        assets.partnerLogoAlt || assets.rightRailLogoAlt || "ShorelySafe");
     }
 
     function applyTownConfig(config) {
@@ -391,6 +395,7 @@
       PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE =
         config.overlays?.physicsForecastCyclePointerTemplatePath || "";
       PARCELS_URL = optionalAppUrl(config.parcels?.geojsonPath);
+      PARCEL_AREA_STAGES_URL = optionalAppUrl(config.parcels?.areaStagesPath);
       HOUSE_ALERT_CDF_URL = optionalAppUrl(config.parcels?.houseAlertCdfPath);
       PARCEL_BOUNDARY_PNG_URL = optionalAppUrl(config.parcels?.boundaryPngPath);
       NSI_STRUCTURES_URL = config.structures?.nsi2026GeojsonPath
@@ -2761,7 +2766,6 @@ function setDatumHelpOpen(isOpen) {
       if (isOpen) {
         updateDownloadModeCopy();
         updateExportSegmentedUI();
-        applyExportStageAspect(getDownloadAspectValue());
         syncDownloadRangeInputs(!preserveRange);
         updateDownloadSummary();
         ensureExportArchiveAvailability().then(() => {
@@ -5114,6 +5118,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         updateRoadLayerAppearance();
         updateColorBasemapClip();
       });
+      map.on("zoomend", updateParcelBoundaryResolution);
       map.on("click", handleDepthQueryClick);
       updateRoadLayerAppearance();
       updateColorBasemapClip();
@@ -5152,15 +5157,21 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     function updateMapClickModeControl() {
       const control = document.getElementById("mapClickModeControl");
       const buildingButton = document.getElementById("mapClickBuildingBtn");
+      const parcelButton = document.getElementById("mapClickParcelBtn");
       const depthButton = document.getElementById("mapClickDepthBtn");
-      if (!control || !buildingButton || !depthButton) return;
+      if (!control || !buildingButton || !parcelButton || !depthButton) return;
       control.hidden = !parcelInfoInteractionEnabled();
-      buildingButton.textContent = "Building Info";
-      depthButton.textContent = "Flood Depth";
-      buildingButton.classList.toggle("active", mapClickMode === "building");
-      depthButton.classList.toggle("active", mapClickMode === "depth");
-      buildingButton.setAttribute("aria-pressed", String(mapClickMode === "building"));
-      depthButton.setAttribute("aria-pressed", String(mapClickMode === "depth"));
+      const buildingsOn = document.getElementById("buildingsToggle")?.classList.contains("on");
+      const structuresOn = document.getElementById("nsiStructuresToggle")?.classList.contains("on");
+      buildingButton.hidden = !buildingsOn && !structuresOn;
+      buildingButton.textContent = buildingsOn ? "Building Info" : "Structure Info";
+      buildingButton.setAttribute("aria-label", buildingButton.textContent);
+      parcelButton.hidden = !document.getElementById("parcelsToggle")?.classList.contains("on");
+      for (const button of [buildingButton, parcelButton, depthButton]) {
+        const active = button.dataset.mapClickMode === mapClickMode;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      }
       if (!control.hidden) requestAnimationFrame(positionMapClickModeControl);
     }
 
@@ -5175,11 +5186,20 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
     function setMapClickMode(mode, options = {}) {
       ++mapQueryGeneration;
-      mapClickMode = mode === "depth" ? "depth" : "building";
+      mapClickMode = mode === "building" || mode === "parcel" ? mode : "depth";
       updateMapClickModeControl();
       if (options.closePopup !== false && persistentFloodPopup && map?.hasLayer(persistentFloodPopup)) {
         map.removeLayer(persistentFloodPopup);
       }
+    }
+
+    function disableBuildingInfo() {
+      if (persistentDepthQueryContext?.kind === "building" && map.hasLayer(persistentFloodPopup)) {
+        map.removeLayer(persistentFloodPopup);
+      }
+      if (mapClickMode === "building" && !document.getElementById("nsiStructuresToggle")?.classList.contains("on")) {
+        setMapClickMode(document.getElementById("parcelsToggle")?.classList.contains("on") ? "parcel" : "depth");
+      } else updateMapClickModeControl();
     }
 
     async function setBuildingsEnabled(enabled) {
@@ -5193,7 +5213,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (!shouldEnable) {
         if (buildingsLayer && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
         updateExportBuildingsLayer();
-        updateMapClickModeControl();
+        disableBuildingInfo();
         toast("");
         return;
       }
@@ -6190,22 +6210,26 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       return { value: "viewport", width, height, label: "Map view", resolutionLabel: `${width} × ${height}` };
     }
 
+    function getExportViewportLongEdge() {
+      return getDownloadFormatValue() === "png" ? 2160 : 1800;
+    }
+
     function getExportViewportAspect() {
       const bounds = exportViewportBounds || getActiveMapBounds();
       const nw = bounds && L.CRS.EPSG3857.latLngToPoint(bounds.getNorthWest(), 0);
       const se = bounds && L.CRS.EPSG3857.latLngToPoint(bounds.getSouthEast(), 0);
       const ratio = nw && se ? (se.x - nw.x) / (se.y - nw.y) : 16 / 9;
-      return getExportViewportConfigForRatio(ratio, getDownloadFormatValue() === "png" ? 2160 : 1440);
+      return getExportViewportConfigForRatio(ratio, getExportViewportLongEdge());
     }
 
-    function fitExportMapToSelectedExtent(mapInstance) {
+    function fitExportMapToSelectedExtent(mapInstance, renderConfig = null) {
       if (!mapInstance) return;
       const mode = getDownloadExtentValue();
 
       if (mode === "town") {
         const townBounds = getBoundaryDrivenOverlayBounds();
         if (townBounds && (!townBounds.isValid || townBounds.isValid())) {
-          const aspect = getExportAspectConfig();
+          const aspect = renderConfig || getExportAspectConfig();
           const sidePadding = Math.round(Math.min(64, aspect.width * 0.025));
           const topPadding = sidePadding;
           mapInstance.fitBounds(townBounds, {
@@ -6253,7 +6277,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     function getExportAspectConfig(aspect = null) {
       if ((aspect || getDownloadAspectValue()) === "viewport") return getExportViewportAspect();
       const base = EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS["4:5"];
-      if (getDownloadFormatValue() !== "png") return base;
+      if (getDownloadFormatValue() !== "png") {
+        return { ...base, resolutionLabel: `${base.width} × ${base.height}` };
+      }
       return {
         ...base,
         width: base.pngWidth || base.width,
@@ -6262,8 +6288,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       };
     }
 
-    function applyExportStageAspect(aspect = null) {
-      const config = getExportAspectConfig(aspect);
+    function applyExportStageAspect(aspect = null, renderConfig = null) {
+      const config = renderConfig || getExportAspectConfig(aspect);
       const layout = getExportFooterLayout(config.width, config.height);
       const stageHost = document.getElementById("exportStage");
       const stageFrame = document.getElementById("exportStageFrame");
@@ -7505,7 +7531,6 @@ function updateExportSegmentedUI() {
       setDownloadStatus("", false);
       updateExportSegmentedUI();
       syncDownloadRangeInputs(true);
-      applyExportStageAspect("viewport");
       updateDownloadSummary();
       setTimeout(() => document.getElementById("downloadResetBtn")?.blur(), 0);
     }
@@ -7706,39 +7731,13 @@ function updateExportSegmentedUI() {
     }
 
 
-    function waitForTileLayerReady(layer, timeoutMs = 3500) {
-      return new Promise(resolve => {
-        if (!layer || typeof layer.on !== "function") {
-          resolve();
-          return;
-        }
-        let settled = false;
-        const done = () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          layer.off?.("load", done);
-          layer.off?.("tileerror", done);
-          resolve();
-        };
-        const timer = setTimeout(done, timeoutMs);
-        layer.on("load", done);
-        layer.on("tileerror", done);
-        if (typeof layer.isLoading === "function" && !layer.isLoading()) {
-          setTimeout(done, 80);
-        }
-      });
-    }
-
-    async function waitForExportMapReady(extraDelayMs = 120) {
+    async function waitForExportMapReady(extraDelayMs = 120, renderConfig = null) {
       if (!exportMap) return;
       exportMap.invalidateSize(false);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const vectorRoads = exportUsesScalableRoadLabels();
-      const waits = [];
-      if (exportBasemapColorLayer) waits.push(waitForTileLayerReady(exportBasemapColorLayer));
-      if (!vectorRoads && exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0) waits.push(waitForTileLayerReady(exportRoadsLayer));
-      await Promise.race([Promise.all(waits), wait(3800)]).catch(() => null);
+      // Leaflet's generic load event is not a readiness signal for an Esri
+      // vector layer. Use the exact vector/raster checks once per frame.
       const vectorBasemap = exportBasemapColorLayer;
       try {
         await waitForExportVectorLayerReady(vectorBasemap);
@@ -7750,7 +7749,7 @@ function updateExportSegmentedUI() {
         waitForExportRasterLayerReady(exportBasemapColorLayer),
         typeof exportSatelliteLayer !== "undefined" && exportSatelliteLayer && exportMap.hasLayer(exportSatelliteLayer)
           ? waitForExportRasterLayerReady(exportSatelliteLayer) : null,
-        vectorRoads ? waitForExportRoadLabelsReady()
+        vectorRoads ? waitForExportRoadLabelsReady(renderConfig)
           : exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0
             ? waitForExportRasterLayerReady(exportRoadsLayer) : null,
         typeof exportBuildingsLayer !== "undefined" && exportBuildingsLayer && exportMap.hasLayer(exportBuildingsLayer)
@@ -8149,7 +8148,7 @@ function updateExportSegmentedUI() {
       });
     }
 
-    function ensureExportMap() {
+    function ensureExportMap(renderConfig = null) {
       if (exportMap) return exportMap;
 
       exportMap = L.map("exportMap", {
@@ -8229,7 +8228,7 @@ function updateExportSegmentedUI() {
       // Without a valid inner ring a world mask would gray out the entire town.
       // First-frame preparation waits for geometry before this map is captured.
       if (hasValidExportBoundaryGeometry()) updateExportBoundaryVisibility();
-      fitExportMapToSelectedExtent(exportMap);
+      fitExportMapToSelectedExtent(exportMap, renderConfig);
       return exportMap;
     }
 
@@ -8364,7 +8363,7 @@ function updateExportSegmentedUI() {
         && Number(exportRoadsLayer.options?.opacity || 0) > 0;
     }
 
-    async function waitForExportRoadLabelsReady() {
+    async function waitForExportRoadLabelsReady(renderConfig = null) {
       if (!exportScalableRoadLabelsEnabled()) return;
       throwIfExportCancelled();
       const controller = new AbortController();
@@ -8383,19 +8382,19 @@ function updateExportSegmentedUI() {
           cancelled
         ]);
         throwIfExportCancelled();
-        updateExportRoadLayerAppearance();
+        updateExportRoadLayerAppearance(renderConfig);
       } finally {
         clearInterval(cancelTimer);
         controller.abort();
       }
     }
 
-    function updateExportRoadLayerAppearance() {
+    function updateExportRoadLayerAppearance(renderConfig = null) {
       if (!exportMap || !exportRoadsLayer) return;
       const roadsEnabled = document.getElementById("roadsToggle")?.classList.contains("on");
       const zoom = exportMap.getZoom() || 0;
       const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;
-      const aspect = getExportAspectConfig();
+      const aspect = renderConfig || getExportAspectConfig();
       const unit = Math.min(aspect.width, aspect.height) / 1080;
       const gl = exportRoadsLayer.getMaplibreMap?.();
       const grid = gl?.style?.placement?.collisionIndex?.grid;
@@ -8631,10 +8630,10 @@ function updateExportSegmentedUI() {
       });
     }
 
-    function updateExportTimestampLabel(entry) {
+    function updateExportTimestampLabel(entry, renderConfig = null) {
       const label = document.getElementById("exportTimestampLabel");
       if (!label) return;
-      const config = getExportAspectConfig();
+      const config = renderConfig || getExportAspectConfig();
       const layout = getExportFooterLayout(config.width, config.height);
       label.replaceChildren(...getExportTimestampRows(entry, layout).map(row => {
         const span = document.createElement("span");
@@ -8648,10 +8647,10 @@ function updateExportSegmentedUI() {
 
     let exportFrameViewPrimed = false;
     async function prepareExportFrame(item, options = {}) {
-      await ensureExportMunicipalBoundary();
-      await prepareExportRoadNames();
-      applyExportStageAspect(getDownloadAspectValue());
-      const mapInstance = ensureExportMap();
+      await Promise.all([ensureExportMunicipalBoundary(), prepareExportRoadNames()]);
+      const renderConfig = options.renderConfig || null;
+      applyExportStageAspect(getDownloadAspectValue(), renderConfig);
+      const mapInstance = ensureExportMap(renderConfig);
       const isFirstFrame = !!options.isFirstFrame;
       mapInstance.invalidateSize(false);
 
@@ -8659,12 +8658,12 @@ function updateExportSegmentedUI() {
         updateExportLegend(item.entry);
         updateExportBoundaryVisibility();
         await updateExportParcelsLayer();
-        fitExportMapToSelectedExtent(mapInstance);
+        fitExportMapToSelectedExtent(mapInstance, renderConfig);
         exportFrameViewPrimed = true;
       }
 
-      updateExportTimestampLabel(item.entry);
-      updateExportRoadLayerAppearance();
+      updateExportTimestampLabel(item.entry, renderConfig);
+      updateExportRoadLayerAppearance(renderConfig);
 
       const rawStage = getStageValue(item.entry);
       const displayStage = getOverlayStage(rawStage);
@@ -8675,7 +8674,7 @@ function updateExportSegmentedUI() {
       const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
       await setExportFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, item.entry, item.series || currentRawSeriesHours);
       mapInstance.invalidateSize(false);
-      await waitForExportMapReady(isFirstFrame ? 70 : 10);
+      await waitForExportMapReady(isFirstFrame ? 70 : 10, renderConfig);
       await waitForStableRender();
     }
 
@@ -8718,7 +8717,7 @@ function updateExportSegmentedUI() {
       if (typeof html2canvas !== "function") throw new Error("html2canvas did not load, so map export is unavailable.");
       const stage = document.getElementById("exportStageFrame");
       if (!stage) throw new Error("Export stage is unavailable.");
-      await waitForExportRoadLabelsReady();
+      if (!options.preparedRoadLabels) await waitForExportRoadLabelsReady();
       await waitForExportChromeReady();
       throwIfExportCancelled();
       const captureScale = Number.isFinite(options.scale) && options.scale > 0
@@ -8728,8 +8727,7 @@ function updateExportSegmentedUI() {
         backgroundColor: null, useCORS: true, allowTaint: false, logging: false,
         removeContainer: true, foreignObjectRendering: false, imageTimeout: 20000,
         ignoreElements: element => isOutsideExportStage(element)
-          || (options.omitRoadLabels === true && element === roadPane)
-          || (options.omitAttribution === true && element.id === "exportMapAttribution"),
+          || (options.omitRoadLabels === true && element === roadPane),
         scale: captureScale
       });
     }
@@ -8969,10 +8967,6 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
         setExportProgress(message, pct, false);
         await prepareExportFrame(item, { isFirstFrame: i === 0 });
         throwIfExportCancelled();
-        if (i === 0) {
-          await waitForExportMapReady(40);
-          throwIfExportCancelled();
-        }
         const canvas = await captureExportCanvas();
         try {
           throwIfExportCancelled();
@@ -10596,11 +10590,19 @@ function formatSelectedObservedDate(dateStr) {
       btn.dataset.sourceType = event.sourceType || "unknown";
       if (event.surrogateSource) btn.dataset.surrogateSource = event.surrogateSource;
       btn.classList.toggle("active", currentViewType === "top-tide" && currentTopTideIndex === idx);
-      btn.innerHTML = `
-        <div class="top-tide-rank">#${event.rank}</div>
-        <div class="top-tide-main">${event.title}</div>
-        <div class="top-tide-sub">${formatStageForDisplay(event.peakStage)}</div>
-      `;
+      const stage = formatStageForDisplay(event.peakStage);
+      const title = options.inline
+        ? event.title.replace(/^[A-Za-z]{4,}(?=\s+\d)/, month => month.slice(0, 3))
+        : event.title;
+      for (const [className, value] of [
+        ["top-tide-rank", `#${event.rank}`], ["top-tide-main", title], ["top-tide-sub", stage]
+      ]) {
+        const cell = document.createElement("div");
+        cell.className = className;
+        cell.textContent = value;
+        btn.appendChild(cell);
+      }
+      btn.setAttribute("aria-label", `#${event.rank} ${event.title}, ${stage}`);
       btn.addEventListener("click", () => {
         setTopTidesModalOpen(false);
         loadTopTideEvent(idx).catch(err => toast(err.message));
@@ -10654,16 +10656,18 @@ function formatSelectedObservedDate(dateStr) {
           return;
         }
 
-        topTideEvents.slice(0, TOP_TIDE_DISPLAY_COUNT).forEach((event, idx) => {
-          wrap.appendChild(createTopTideButton(event, idx));
+        topTideEvents.slice(0, TOP_TIDE_SELECT_COUNT).forEach((event, idx) => {
+          wrap.appendChild(createTopTideButton(event, idx, {
+            inline: true,
+            extraClass: idx >= TOP_TIDE_DISPLAY_COUNT ? "top-tide-inline-extra" : ""
+          }));
         });
 
         if (topTideEvents.length > TOP_TIDE_DISPLAY_COUNT) {
           const more = document.createElement("button");
           more.type = "button";
           more.className = "top-tide-more-btn";
-          more.innerHTML = '<span class="unified-more-plus">+</span><span>Show more</span>';
-          more.dataset.unifiedMore = "true";
+          more.textContent = "View All Floods";
           more.addEventListener("click", () => setTopTidesModalOpen(true));
           wrap.appendChild(more);
         }
@@ -10820,7 +10824,8 @@ function formatSelectedObservedDate(dateStr) {
     async function setFloodLayer(mode, stageValue, phase, token, entry = null, series = currentRawSeriesHours) {
       const frameEntry = typeof entry !== "undefined" && entry ? entry : currentSeriesHours[currentHourIndex];
       const frameStage = getStageValue(frameEntry);
-      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : (typeof stageValue !== "undefined" ? stageValue : null), phase: typeof phase !== "undefined" ? phase : "slack", dataMode: currentDataMode };
+      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : stageValue,
+        phase, dataMode: currentDataMode, overlayMode: mode, overlayStage: stageValue, series };
 
       let releaseRaster = null;
       try {
@@ -12712,6 +12717,9 @@ function startPlayback() {
       high: { label: "NOAA High", color: "#fb7185" }
     };
     let selectedFloodProjectionScenario = "intermediate";
+    let floodHistoryRequest = 0;
+    let parcelAreaStagesPromise = null;
+    const pendingPropertyGestureUpdates = new WeakSet();
 
     function openPersistentFloodPopup(latlng, html, maxWidth = 360) {
       if (!map) ensureMap();
@@ -12757,6 +12765,44 @@ function startPlayback() {
         }
       });
       return popup;
+    }
+
+    function deferPropertyPopupUpdate(element, refresh) {
+      const active = element?.querySelector(".house-alert-cta:active, .property-help summary:active");
+      if (!active) return false;
+      if (!pendingPropertyGestureUpdates.has(active)) {
+        pendingPropertyGestureUpdates.add(active);
+        const controller = new AbortController();
+        const finish = () => {
+          controller.abort();
+          pendingPropertyGestureUpdates.delete(active);
+          requestAnimationFrame(refresh);
+        };
+        for (const event of ["pointerup", "pointercancel", "keyup", "blur"]) {
+          window.addEventListener(event, finish, { capture: true, signal: controller.signal });
+        }
+      }
+      return true;
+    }
+
+    function updatePropertyPopup(popup, html) {
+      if (popup.getContent() === html) return;
+      const element = popup.getElement?.();
+      const selector = ".house-alert-cta, .property-help summary";
+      // Leave the control connected until its pointer or keyboard gesture ends.
+      if (deferPropertyPopupUpdate(element, () => {
+        if (persistentFloodPopup === popup) updatePersistentDepthQueryPopup();
+      })) return;
+      const controls = Array.from(element?.querySelectorAll(selector) || []);
+      const focusedIndex = controls.indexOf(document.activeElement);
+      const helpOpen = element?.querySelector(".property-help")?.open;
+      popup.setContent(html);
+      popup.update();
+      if (element?.isConnected) {
+        const help = element.querySelector(".property-help");
+        if (help) help.open = Boolean(helpOpen);
+        element.querySelectorAll(selector)[focusedIndex]?.focus({ preventScroll: true });
+      }
     }
 
     function buildHouseAlertPopup(feature) {
@@ -12820,11 +12866,39 @@ function startPlayback() {
     }
 
     function closeFloodHistoryPane() {
+      ++floodHistoryRequest;
       const backdrop = document.getElementById("floodHistoryBackdrop");
       if (!backdrop) return;
       backdrop.hidden = true;
       backdrop.setAttribute("aria-hidden", "true");
+      backdrop.querySelector(".property-help")?.removeAttribute("open");
       document.body.classList.remove("flood-history-open");
+    }
+
+    async function getParcelProjectionOptions(feature, data) {
+      if (!PARCEL_AREA_STAGES_URL) return [];
+      if (!parcelAreaStagesPromise) {
+        parcelAreaStagesPromise = fetchJson(PARCEL_AREA_STAGES_URL, { cache: "force-cache" }).catch(error => {
+          parcelAreaStagesPromise = null;
+          throw error;
+        });
+      }
+      const payload = await parcelAreaStagesPromise;
+      const expectedShares = [25, 50, 75];
+      if (payload?.schema !== "north-wildwood-parcel-area-stages-v1" ||
+          payload.catalogVersion !== OVERLAY_CACHE_VERSIONS.hydraulic ||
+          payload.sharesPercent?.length !== expectedShares.length ||
+          !expectedShares.every((share, index) => payload.sharesPercent[index] === share)) return [];
+      const stages = payload.stagesInTenthsFtNavd88?.[String(feature.id)];
+      if (!Array.isArray(stages)) return [];
+      const minimumDepth = Number(data.floodDefinition?.minimumDepthFt);
+      return expectedShares.map((share, index) => {
+        const stage = Number.isInteger(stages[index]) ? stages[index] / 10 : null;
+        // Existing CDF rows use gauge level > elevation + minimum depth.
+        const elevationIndex = stage == null ? -1 : data.elevationGridFtNavd88.findIndex(
+          value => Math.abs(Number(value) + minimumDepth - stage) < 1e-6);
+        return { share, stage, elevationIndex };
+      }).filter(option => option.elevationIndex >= 0);
     }
 
     function findProjectionElevationIndex(feature, data) {
@@ -12893,18 +12967,23 @@ function startPlayback() {
         </svg>`;
     }
 
-    function renderFloodHistoryProjection(feature, data) {
+    function renderFloodHistoryProjection(feature, data, parcelOptions = null, selectedShare = null, yearIndex = null) {
       const body = document.getElementById("floodHistoryBody");
       if (!body) return;
       const p = feature?.properties || {};
       const years = Array.isArray(data.years) ? data.years : [];
-      const elevationIndex = findProjectionElevationIndex(feature, data);
+      const parcelOption = parcelOptions?.find(option => option.share === selectedShare) || parcelOptions?.[0];
+      if (parcelOptions && !parcelOption) {
+        body.innerHTML = '<div class="flood-history-error">Parcel-area projections are unavailable within the model’s coverage.</div>';
+        return;
+      }
+      const elevationIndex = parcelOption?.elevationIndex ?? findProjectionElevationIndex(feature, data);
       const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
       const hasModeledFloor = Number.isFinite(firstFloor);
-      const historic = Number(hasModeledFloor
+      const historic = Number(parcelOption ? data.historicFloodEventCountByElevation?.[elevationIndex] : hasModeledFloor
         ? p.nsi2026HistoricFirstFloorExceedanceCount
         : p.historicFloodEventCount);
-      const defaultYearIndex = Math.max(0, years.indexOf(2050));
+      const defaultYearIndex = yearIndex ?? Math.max(0, years.indexOf(2050));
       const scenarioKey = data.annualFloodEventCount?.[selectedFloodProjectionScenario]
         ? selectedFloodProjectionScenario
         : (data.scenarioOrder || []).find(key => data.annualFloodEventCount?.[key]);
@@ -12918,17 +12997,23 @@ function startPlayback() {
       body.innerHTML = `
         <div class="flood-history-summary">
           <div class="flood-summary-item">
-            <span>${hasModeledFloor ? "Past floods above floor" : "Past floods at parcel"}</span>
+            <span>${parcelOption ? "Past Tides Above Area Threshold" : hasModeledFloor ? "Past Floods Above Floor" : "Past Floods at Parcel"}</span>
             <strong>${Number.isFinite(historic) ? historic.toLocaleString() : "—"}</strong>
           </div>
           <div class="flood-summary-item">
-            <span>${hasModeledFloor ? "Estimated occupied floor" : "Parcel ground"}</span>
-            <strong>${hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} <small>ft NAVD88</small></strong>
+            <span>${parcelOption ? "Estimated Area Threshold" : hasModeledFloor ? "Estimated Occupied Floor" : "Parcel Ground"}</span>
+            <strong>${parcelOption ? parcelOption.stage.toFixed(1) : hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} <small>ft NAVD88</small></strong>
           </div>
         </div>
         <section class="flood-history-section">
           <div class="flood-history-section-head">
-            <div><h3>${hasModeledFloor ? "Future floods above floor" : "Future floods at parcel"}</h3><p>Expected events per year · range shown</p></div>
+            <h3>${parcelOption ? "Future Floods by Parcel Area" : hasModeledFloor ? "Future Floods Above Floor" : "Future Floods at Parcel"}</h3>
+            ${parcelOption ? `<label class="flood-scenario-field flood-area-field">
+              Flooded area
+              <select id="floodProjectionAreaSelect" class="flood-scenario-select">
+                ${parcelOptions.map(option => `<option value="${option.share}"${option === parcelOption ? " selected" : ""}>At least ${option.share}%</option>`).join("")}
+              </select>
+            </label>` : ""}
             <label class="flood-scenario-field">
               Sea-level scenario
               <select id="floodProjectionScenarioSelect" class="flood-scenario-select" aria-label="Sea level projection curve">
@@ -12939,7 +13024,13 @@ function startPlayback() {
               </select>
             </label>
           </div>
-          <div id="floodProjectionChart">${renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, defaultYearIndex)}</div>
+          <div class="flood-projection-layout">
+            <div id="floodProjectionChart">${renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, defaultYearIndex)}</div>
+            <ul class="flood-projection-key" aria-label="Projection key">
+              <li><i class="projection-key-line" aria-hidden="true"></i>Floods per year</li>
+              <li><i class="projection-key-band" aria-hidden="true"></i>95% range</li>
+            </ul>
+          </div>
           <div class="flood-year-control">
             <input id="floodProjectionYearSlider" type="range" min="0" max="${Math.max(0, years.length - 1)}" value="${defaultYearIndex}" step="1" aria-label="Projection year">
             <div id="floodProjectionYearReadout" class="flood-year-readout">
@@ -12961,32 +13052,47 @@ function startPlayback() {
         if (chart) chart.innerHTML = renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, selectedIndex);
       };
       document.getElementById("floodProjectionYearSlider")?.addEventListener("input", event => updateSelectedYear(event.target.value));
+      const currentYearIndex = () => Number(document.getElementById("floodProjectionYearSlider")?.value ?? defaultYearIndex);
       document.getElementById("floodProjectionScenarioSelect")?.addEventListener("change", event => {
         selectedFloodProjectionScenario = event.target.value;
-        renderFloodHistoryProjection(feature, data);
+        renderFloodHistoryProjection(feature, data, parcelOptions, parcelOption?.share, currentYearIndex());
+        document.getElementById("floodProjectionScenarioSelect")?.focus({ preventScroll: true });
+      });
+      document.getElementById("floodProjectionAreaSelect")?.addEventListener("change", event => {
+        renderFloodHistoryProjection(feature, data, parcelOptions, Number(event.target.value), currentYearIndex());
+        document.getElementById("floodProjectionAreaSelect")?.focus({ preventScroll: true });
       });
     }
 
-    async function openFloodHistoryPane(feature) {
+    async function openFloodHistoryPane(feature, kind = "building") {
       if (!feature) return;
+      const request = ++floodHistoryRequest;
       selectedParcelFeature = feature;
       const backdrop = document.getElementById("floodHistoryBackdrop");
       const body = document.getElementById("floodHistoryBody");
       const address = document.getElementById("floodHistoryAddress");
       if (!backdrop || !body) return;
+      const parcel = kind === "parcel";
       address.textContent = feature?.properties?.address || "Selected North Wildwood parcel";
-      body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';
+      document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
+      document.getElementById("floodHistoryHelpText").textContent = parcel
+        ? "This estimates how often water could cover the selected share of this parcel as sea level rises. The area comes from the modeled high-tide map."
+        : "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises.";
+      body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Loading flood projections…</strong></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");
       document.body.classList.add("flood-history-open");
       document.getElementById("floodHistoryCloseBtn")?.focus();
       try {
         const data = await ensureFloodProjectionData();
-        if (selectedParcelFeature === feature && !backdrop.hidden) {
-          renderFloodHistoryProjection(feature, data);
+        const parcelOptions = parcel ? await getParcelProjectionOptions(feature, data) : null;
+        if (request === floodHistoryRequest && !backdrop.hidden) {
+          renderFloodHistoryProjection(feature, data, parcelOptions);
         }
       } catch (error) {
-        body.innerHTML = `<div class="flood-history-error"><strong>This projection could not be loaded.</strong><br>${escapeTownAddressHtml(error?.message || "Please try again in a moment.")}</div>`;
+        if (request === floodHistoryRequest && !backdrop.hidden) {
+          body.innerHTML = `<div class="flood-history-error"><strong>This projection could not be loaded.</strong><br>${escapeTownAddressHtml(error?.message || "Please try again in a moment.")}</div>`;
+        }
       }
     }
 
@@ -12997,9 +13103,8 @@ function startPlayback() {
         if (event.target === backdrop) closeFloodHistoryPane();
       });
       document.addEventListener("click", event => {
-        if (event.target?.closest?.(".house-alert-cta") && selectedParcelFeature) {
-          openFloodHistoryPane(selectedParcelFeature);
-        }
+        const button = event.target?.closest?.(".house-alert-cta");
+        if (button && selectedParcelFeature) openFloodHistoryPane(selectedParcelFeature, button.dataset.propertyProfile);
       });
       document.addEventListener("keydown", event => {
         if (event.key === "Escape" && backdrop && !backdrop.hidden) closeFloodHistoryPane();
@@ -13049,9 +13154,9 @@ function startPlayback() {
       const firstFloor = getNsiFirstOccupiedFloorNavd88(properties);
       if (!Number.isFinite(firstFloor) || !Number.isFinite(stage)) return "Choose a water level to compare.";
       const difference = stage - firstFloor;
-      if (difference > 0.1) return `Current water is ${formatWaterDepth(difference, 1)} above the estimated first occupied floor.`;
-      if (difference >= -0.1) return "Current water is at the estimated first occupied floor.";
-      return `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated first occupied floor.`;
+      if (difference > 0.1) return `Current water is ${formatWaterDepth(difference, 1)} above the occupied first floor.`;
+      if (difference >= -0.1) return "Current water is at the occupied first floor.";
+      return `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the occupied first floor.`;
     }
 
     function buildNsiStructurePopup(feature) {
@@ -13059,13 +13164,15 @@ function startPlayback() {
       const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
       const address = escapeTownAddressHtml(p.address || "Modeled North Wildwood structure");
       return '<div class="nsi-structure-popup">' +
-        '<span class="house-alert-kicker">Estimated floor flooding</span>' +
+        '<details class="property-help"><summary aria-label="About the first-floor estimate">?</summary>' +
+          '<p>This compares the selected water level with the estimated occupied floor.</p></details>' +
+        '<span class="house-alert-kicker">Estimated First-Floor Flooding</span>' +
         '<h3>' + address + '</h3>' +
-        '<div class="nsi-structure-grid">' +
-          '<span>Estimated first occupied floor</span><strong>' + (Number.isFinite(firstFloor) ? firstFloor.toFixed(1) + ' ft NAVD88' : '—') + '</strong>' +
-        '</div>' +
         '<div class="nsi-impact-status">' + escapeTownAddressHtml(formatNsiImpactStatus(p)) + '</div>' +
-        '<div class="house-alert-note">Screening estimate.</div>' +
+        '<div class="nsi-structure-grid">' +
+          '<span>Occupied First-Floor Elevation</span><strong>' + (Number.isFinite(firstFloor) ? firstFloor.toFixed(1) + ' ft NAVD88' : '—') + '</strong>' +
+        '</div>' +
+        '<div class="house-alert-note">Estimate</div>' +
         '</div>';
     }
 
@@ -13125,6 +13232,10 @@ function startPlayback() {
               }),
               onEachFeature: (feature, layer) => {
                 layer.on("click", event => {
+                  if (mapClickMode !== "building") {
+                    handleDepthQueryClick(event);
+                    return;
+                  }
                   if (event?.originalEvent) event.originalEvent._parcelHandled = true;
                   openNsiStructurePopup(feature, event.latlng);
                 });
@@ -13149,9 +13260,16 @@ function startPlayback() {
         toggle.setAttribute("aria-checked", String(shouldEnable));
       }
       if (!map) ensureMap();
+      const key = document.getElementById("structuralImpactsKey");
       if (!shouldEnable) {
+        if (key) key.hidden = true;
         if (nsiStructuresLayer && map.hasLayer(nsiStructuresLayer)) map.removeLayer(nsiStructuresLayer);
-        updateMapClickModeControl();
+        if (persistentDepthQueryContext?.kind === "structure" && map.hasLayer(persistentFloodPopup)) {
+          map.removeLayer(persistentFloodPopup);
+        }
+        if (mapClickMode === "building" && !document.getElementById("buildingsToggle")?.classList.contains("on")) {
+          setMapClickMode(document.getElementById("parcelsToggle")?.classList.contains("on") ? "parcel" : "depth");
+        } else updateMapClickModeControl();
         toast("");
         return;
       }
@@ -13168,7 +13286,7 @@ function startPlayback() {
       if (generation !== nsiLayerGeneration) return;
       updateNsiStructureImpactLayer();
       if (!map.hasLayer(layer)) layer.addTo(map);
-      toast("Crawlspace/Garage impacts: red is above, gold is close, cyan is below.");
+      if (key) key.hidden = false;
     }
 
     async function ensureParcelAssets() {
@@ -13233,6 +13351,24 @@ function startPlayback() {
       return layer._floodmapperParcelLoadPromise;
     }
 
+    function updateParcelBoundaryResolution() {
+      const layer = parcelsLayer;
+      if (!layer || !map?.hasLayer(layer) || !Number.isFinite(map.getZoom?.())) return;
+      const detailed = map.getZoom() >= 17 && parcelFeatures.length > 0;
+      if (detailed && !layer._parcelVector) {
+        layer._parcelVector = L.geoJSON({ type: "FeatureCollection", features: parcelFeatures }, {
+          pane: "parcelsPane",
+          renderer: L.canvas({ pane: "parcelsPane" }),
+          style: { color: "#ef4444", weight: 1.15, opacity: 0.72, fill: false },
+          interactive: false
+        });
+      }
+      const vector = layer._parcelVector;
+      if (detailed && vector && !map.hasLayer(vector)) vector.addTo(map);
+      if (!detailed && vector && map.hasLayer(vector)) map.removeLayer(vector);
+      layer.setOpacity(detailed ? 0 : 0.78);
+    }
+
     async function setParcelsEnabled(enabled) {
       const generation = ++parcelLayerGeneration;
       const shouldEnable = Boolean(enabled);
@@ -13243,12 +13379,21 @@ function startPlayback() {
       }
       if (!map) ensureMap();
       if (!shouldEnable) {
+        const vector = parcelsLayer?._parcelVector;
+        if (vector && map.hasLayer(vector)) map.removeLayer(vector);
         if (parcelsLayer && map.hasLayer(parcelsLayer)) map.removeLayer(parcelsLayer);
-        updateMapClickModeControl();
+        if (persistentDepthQueryContext?.kind === "parcel" && map.hasLayer(persistentFloodPopup)) {
+          map.removeLayer(persistentFloodPopup);
+        }
+        if (mapClickMode === "parcel") {
+          const buildingModeAvailable = document.getElementById("buildingsToggle")?.classList.contains("on") ||
+            document.getElementById("nsiStructuresToggle")?.classList.contains("on");
+          setMapClickMode(buildingModeAvailable ? "building" : "depth");
+        } else updateMapClickModeControl();
         toast("");
         return;
       }
-      setMapClickMode("building", { closePopup: false });
+      setMapClickMode("parcel", { closePopup: false });
       let layer;
       try {
         layer = await ensureParcelAssets();
@@ -13259,6 +13404,7 @@ function startPlayback() {
         throw error;
       }
       if (generation !== parcelLayerGeneration) return;
+      updateParcelBoundaryResolution();
       toast("");
     }
 
@@ -13282,6 +13428,148 @@ function startPlayback() {
         if (!Array.isArray(rings?.[0]) || !pointInRing(lon, lat, rings[0])) return false;
         return !rings.slice(1).some(hole => pointInRing(lon, lat, hole));
       });
+    }
+
+    function getParcelRasterRows(feature, width, height) {
+      const geometry = feature?.geometry;
+      const polygons = geometry?.type === "Polygon" ? [geometry.coordinates] :
+        (geometry?.type === "MultiPolygon" ? geometry.coordinates : []);
+      const project = ([lon, lat]) => latLngToWorldFileUv(lat, lon);
+      const rows = new Map();
+      let total = 0;
+      for (const polygon of polygons) {
+        const rings = polygon.map(ring => ring.map(project));
+        const points = rings.flat();
+        if (!points.length || points.some(point => !point)) continue;
+        const minY = Math.min(...points.map(point => point.v * height));
+        const maxY = Math.max(...points.map(point => point.v * height));
+        for (let y = Math.ceil(minY - 0.5); y < maxY - 0.5; y += 1) {
+          const crossing = [];
+          const center = (y + 0.5) / height;
+          for (const ring of rings) {
+            for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+              const a = ring[j], b = ring[i];
+              if ((a.v > center) === (b.v > center)) continue;
+              crossing.push((a.u + (center - a.v) * (b.u - a.u) / (b.v - a.v)) * width);
+            }
+          }
+          crossing.sort((a, b) => a - b);
+          for (let i = 0; i + 1 < crossing.length; i += 2) {
+            const start = Math.ceil(crossing[i] - 0.5);
+            const end = Math.ceil(crossing[i + 1] - 0.5);
+            if (end <= start) continue;
+            total += end - start;
+            if (y < 0 || y >= height || end <= 0 || start >= width) continue;
+            const spans = rows.get(y) || [];
+            spans.push([Math.max(0, start), Math.min(width, end)]);
+            rows.set(y, spans);
+          }
+        }
+      }
+      return { rows, total, width, height };
+    }
+
+    function measureParcelFloodPixels(footprint, grid, context) {
+      let covered = 0, wet = 0, deepest = -1, unresolvedDepth = false;
+      for (const [y, spans] of footprint.rows) {
+        for (const [start, end] of spans) {
+          const colors = context.getImageData(start, y, end - start, 1).data;
+          for (let x = start; x < end; x += 1) {
+            const offset = (y * grid.width + x) * 4;
+            if (!(grid.values[offset] || grid.values[offset + 1])) continue;
+            covered += 1;
+            const colorOffset = (x - start) * 4;
+            if (!isWetRasterPixel(colors, colorOffset)) continue;
+            wet += 1;
+            const band = DRAINAGE_DEPTH_COLORS.findIndex(color =>
+              color.every((channel, index) => Math.abs(channel - colors[colorOffset + index]) <= 3));
+            if (band < 0) unresolvedDepth = true;
+            deepest = Math.max(deepest, band);
+          }
+        }
+      }
+      return { total: footprint.total, covered, wet, deepest, unresolvedDepth };
+    }
+
+    function formatParcelDepthBand(metrics) {
+      if (!metrics.wet) return "Dry";
+      if (metrics.deepest < 0) return "Depth unavailable";
+      const low = metrics.deepest ? DRAINAGE_DEPTH_BREAKS_FT[metrics.deepest - 1] : 0;
+      const high = DRAINAGE_DEPTH_BREAKS_FT[metrics.deepest];
+      if (metrics.unresolvedDepth) return low > 0 ? `≥${low} ft` : "Depth varies";
+      return Number.isFinite(high) ? `${low}–${high} ft` : `≥${low} ft`;
+    }
+
+    function buildParcelAreaPopup(feature, metrics, loading) {
+      const address = escapeTownAddressHtml(feature?.properties?.address || "Selected North Wildwood parcel");
+      const facts = metrics?.covered
+        ? `<div class="parcel-flood-facts">
+            <div><span>${metrics.covered === metrics.total ? "Flooded Area" : "Covered Area Flooded"}</span>
+            <strong>${(100 * metrics.wet / metrics.covered).toFixed(1)}%</strong></div>
+            <div><span>Deepest Model Band</span><strong>${formatParcelDepthBand(metrics)}</strong></div>
+          </div>${metrics.covered === metrics.total ? "" : `<p class="house-alert-note">${Math.round(100 * metrics.covered / metrics.total)}% of this parcel has model coverage.</p>`}`
+        : `<p class="house-alert-note" role="status">${loading ? "Measuring the selected flood frame…" : "Parcel depth and area are unavailable for this frame."}</p>`;
+      return '<div class="house-alert-popup building-info-card parcel-area-popup">' +
+        '<span class="house-alert-kicker">Parcel Flooding</span><h3>' + address + '</h3>' + facts +
+        '<button class="house-alert-cta" data-property-profile="parcel" type="button">See Parcel Flood Projections</button></div>';
+    }
+
+    function openParcelAreaPopup(feature, latlng) {
+      selectedParcelFeature = feature;
+      const popup = openPersistentFloodPopup(latlng, buildParcelAreaPopup(feature, null, true), 460);
+      persistentDepthQueryContext = { popup, kind: "parcel", feature };
+      updatePersistentDepthQueryPopup();
+      return popup;
+    }
+
+    async function refreshParcelFloodPopup(context) {
+      const layer = currentFloodLayer;
+      const frame = layer?._floodmapperFrame;
+      if (context.layer === layer) {
+        if (context.html) updatePropertyPopup(context.popup, context.html);
+        return;
+      }
+      context.layer = layer;
+      context.html = null;
+      const isCurrent = () => persistentDepthQueryContext === context && currentFloodLayer === layer &&
+        map?.hasLayer(context.popup);
+      let metrics = null;
+      try {
+        if (frame && layer._worldFileAffine) {
+          const image = frame.overlayMode === "depth"
+            ? layer.getElement()
+            : await getHydraulicOverlayRecord("depth", frame.overlayStage, frame.phase, frame.entry, frame.series)
+              .then(record => getDrainageRasterImage(record?.url));
+          const grid = await getDepthQueryGrid();
+          if (!isCurrent()) return;
+          if (image && grid && image.naturalWidth === grid.width && image.naturalHeight === grid.height) {
+            if (!context.footprint || context.footprint.width !== grid.width || context.footprint.height !== grid.height) {
+              context.footprint = getParcelRasterRows(context.feature, grid.width, grid.height);
+            }
+            const canvas = document.createElement("canvas");
+            // Only read the parcel's rows. The decoded frame is already in memory.
+            canvas.width = grid.width;
+            canvas.height = 1;
+            const pixels = canvas.getContext("2d", { willReadFrequently: true });
+            if (pixels) {
+              metrics = measureParcelFloodPixels(context.footprint, grid, {
+                getImageData(start, y, width) {
+                  pixels.clearRect(0, 0, width, 1);
+                  pixels.drawImage(image, start, y, width, 1, 0, 0, width, 1);
+                  return pixels.getImageData(0, 0, width, 1);
+                }
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("Parcel depth and area are unavailable.", error);
+        if (context.layer === layer) delete context.layer;
+      }
+      if (isCurrent()) {
+        context.html = buildParcelAreaPopup(context.feature, metrics, false);
+        updatePropertyPopup(context.popup, context.html);
+      }
     }
 
     async function findParcelFeatureForLocation(lat, lon, options = {}) {
@@ -13872,9 +14160,11 @@ function startPlayback() {
       const popup = persistentFloodPopup;
       if (!context || !popup || context.popup !== popup || !map?.hasLayer(popup)) return;
       if (context.kind === "structure") {
-        popup.setContent(buildNsiStructurePopup(context.feature));
-        popup.update();
+        updatePropertyPopup(popup, buildNsiStructurePopup(context.feature));
         return;
+      }
+      if (context.kind === "parcel") {
+        return refreshParcelFloodPopup(context);
       }
       if (context.kind === "physics") {
         // Physics values belong to one frame; close them when navigation starts.
@@ -13885,21 +14175,7 @@ function startPlayback() {
         return;
       }
       if (context.kind === "building") {
-        const element = popup.getElement?.();
-        const previousCta = element?.querySelector(".house-alert-cta");
-        // Keep the native gesture's target connected through pointer/key up.
-        // The next animation update catches the popup up after release/cancel.
-        if (previousCta?.matches(":active")) return;
-        const focusedCta = previousCta && document.activeElement === previousCta;
-        const focusRestoreKey = previousCta?.getAttribute("data-focus-restore-key");
-        popup.setContent(buildHouseAlertPopup(context.feature));
-        popup.update();
-        if (focusedCta && focusRestoreKey && element.isConnected) {
-          const currentCta = element.querySelector(".house-alert-cta");
-          if (currentCta?.getAttribute("data-focus-restore-key") === focusRestoreKey) {
-            currentCta.focus({ preventScroll: true });
-          }
-        }
+        updatePropertyPopup(popup, buildHouseAlertPopup(context.feature));
         return;
       }
       const displayedFrame = currentFloodLayer?._floodmapperFrame;
@@ -13949,7 +14225,14 @@ function startPlayback() {
       const queryRenderToken = lastRenderToken;
       const isCurrentQuery = () => queryGeneration === mapQueryGeneration && queryMode === mapClickMode && queryRenderToken === lastRenderToken;
       try {
-        if (mapClickMode === "building" && parcelInfoInteractionEnabled()) {
+        if (queryMode === "parcel" && document.getElementById("parcelsToggle")?.classList.contains("on")) {
+          const feature = await findParcelFeatureForLocation(event.latlng.lat, event.latlng.lng, { allowNearest: false });
+          if (!isCurrentQuery() || !document.getElementById("parcelsToggle")?.classList.contains("on")) return;
+          if (feature) openParcelAreaPopup(feature, event.latlng);
+          else toast("Tap inside a parcel to see its flood estimate.");
+          return;
+        }
+        if (queryMode === "building" && parcelInfoInteractionEnabled()) {
           const nsiEnabled = document.getElementById("nsiStructuresToggle")?.classList.contains("on");
           if (nsiEnabled) {
             const structureFeature = findNsiStructureFeatureForLocation(event.latlng.lat, event.latlng.lng);
@@ -13958,12 +14241,8 @@ function startPlayback() {
               return;
             }
           }
-          const parcelLayerEnabled = Boolean(
-            document.getElementById("parcelsToggle")?.classList.contains("on") ||
-            document.getElementById("buildingsToggle")?.classList.contains("on")
-          );
-          if (!parcelLayerEnabled) {
-            toast("Tap a highlighted NSI structure point or choose Water depth.");
+          if (!document.getElementById("buildingsToggle")?.classList.contains("on")) {
+            toast("Tap a highlighted structure or choose Flood Depth.");
             return;
           }
           const parcelFeature = await findParcelFeatureForLocation(
@@ -13971,7 +14250,7 @@ function startPlayback() {
             event.latlng.lng,
             { allowNearest: false }
           );
-          if (!isCurrentQuery()) return;
+          if (!isCurrentQuery() || !document.getElementById("buildingsToggle")?.classList.contains("on")) return;
           if (parcelFeature) {
             openParcelFloodPrompt(parcelFeature, event.latlng);
             return;
@@ -14012,7 +14291,12 @@ function startPlayback() {
 
     function wireLayerToggles() {
       document.getElementById("mapClickBuildingBtn")?.addEventListener("click", () => setMapClickMode("building"));
+      document.getElementById("mapClickParcelBtn")?.addEventListener("click", () => setMapClickMode("parcel"));
       document.getElementById("mapClickDepthBtn")?.addEventListener("click", () => setMapClickMode("depth"));
+      document.getElementById("structuralImpactsKeyClose")?.addEventListener("click", () => {
+        document.getElementById("structuralImpactsKey").hidden = true;
+        document.getElementById("timelineDock")?.querySelector("#playBtn")?.focus({ preventScroll: true });
+      });
       ["roadsToggle"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -14737,7 +15021,7 @@ function startPlayback() {
       {
         title: "Control map layers",
         target: ".layers-card",
-        body: "<p>Turn the simulation boundary, road labels, or <strong>Parcels</strong> on and off. Click a parcel to see how many times that structure has flooded in the historic record.</p>"
+        body: "<p>Turn on <strong>Buildings</strong> for floor flood history and projections, or <strong>Parcels</strong> for flooded area and depth.</p>"
       },
       {
         title: "Jump to the largest floods",
@@ -15310,7 +15594,6 @@ function startPlayback() {
             if (endEl) delete endEl.dataset.userEdited;
           }
           if (!exportInProgress) setDownloadStatus("", false);
-          applyExportStageAspect(getDownloadAspectValue());
           updateExportSegmentedUI();
           scheduleExportTimePickerRender(true);
           updateDownloadSummary();
@@ -15344,7 +15627,6 @@ function startPlayback() {
           if (!input) return;
           input.value = btn.dataset.aspect || "viewport";
           if (!exportInProgress) setDownloadStatus("", false);
-          applyExportStageAspect(input.value);
           updateExportSegmentedUI();
           updateDownloadSummary();
         });
@@ -15352,7 +15634,6 @@ function startPlayback() {
 
       document.getElementById("downloadAspectSelect")?.addEventListener("change", () => {
         if (!exportInProgress) setDownloadStatus("", false);
-        applyExportStageAspect(getDownloadAspectValue());
         updateExportSegmentedUI();
         updateDownloadSummary();
       });

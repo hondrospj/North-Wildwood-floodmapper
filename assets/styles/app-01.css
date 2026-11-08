@@ -83,8 +83,6 @@
   }
   :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
   :is(.leaflet-popup-close-button,.maplibregl-popup-close-button) {
-    --centered-close-x-size:14px;
-    --centered-close-x-color:#d9faff;
     position:absolute !important;
     display:block !important;
     top:8px !important;
@@ -100,45 +98,10 @@
     min-height:32px !important;
     max-height:32px !important;
     margin:0 !important;
-    padding:0 !important;
-    border:1px solid #4b5b73 !important;
-    border-radius:10px !important;
-    background:#1c293b !important;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.08) !important;
-    color:transparent !important;
-    font-size:0 !important;
-    line-height:0 !important;
     text-decoration:none !important;
     transform:none !important;
     cursor:pointer !important;
   }
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button) > span {display:none !important;}
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button)::before,
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
-    content:"" !important;
-    position:absolute !important;
-    top:50% !important;
-    left:50% !important;
-    width:16px !important;
-    height:2px !important;
-    margin:0 !important;
-    border:0 !important;
-    border-radius:0 !important;
-    background:#d9faff !important;
-    box-shadow:none !important;
-    opacity:1 !important;
-    transform:translate(-50%,-50%) rotate(45deg) !important;
-    pointer-events:none !important;
-  }
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
-    transform:translate(-50%,-50%) rotate(-45deg) !important;
-  }
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button):hover {background:#2b3c53 !important;}
   :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
   :is(.leaflet-popup-close-button,.maplibregl-popup-close-button):focus-visible {
     outline:2px solid #7df9ff !important;

@@ -38,7 +38,6 @@
       if (isOpen) {
         updateDownloadModeCopy();
         updateExportSegmentedUI();
-        applyExportStageAspect(getDownloadAspectValue());
         syncDownloadRangeInputs(!preserveRange);
         updateDownloadSummary();
         ensureExportArchiveAvailability().then(() => {

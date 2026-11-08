@@ -16,7 +16,10 @@ assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\] \.webcam-heading
   'Scrolling the camera viewer must retain its heading and close button');
 
 function fixture(width, height, vv = null, bannerBottom = 0) {
-  const style = { removeProperty(name) { delete this[name === 'max-width' ? 'maxWidth' : name]; } };
+  const style = {
+    setProperty(name, value) { this[name] = value; },
+    removeProperty(name) { delete this[name === 'max-width' ? 'maxWidth' : name]; },
+  };
   const panel = { dataset: {}, style, parentElement: null };
   const rect = { left: 0, top: 0, right: width, bottom: height, width, height };
   const body = { classList: { contains: () => false }, append(element) { element.parentElement = this; } };
@@ -55,6 +58,7 @@ for (const item of cases) {
   assert.equal(f.panel.dataset.viewportOverlay, String(item.overlay));
   assert.equal(f.panel.parentElement, item.overlay ? f.body : f.container);
   const top = Number.parseFloat(f.panel.style.top), maxHeight = Number.parseFloat(f.panel.style.maxHeight);
+  assert.equal(f.panel.style['--webcam-panel-height'], f.panel.style.maxHeight);
   assert.ok(maxHeight >= 200, 'Viewer must retain usable scrollable height');
   assert.ok(top >= 0 && top + maxHeight <= item.height - 7, 'Viewer must fit inside the viewport');
   if (item.overlay) {

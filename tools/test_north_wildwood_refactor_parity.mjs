@@ -11,7 +11,8 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readCurrent = relative => fs.readFileSync(localPath(relative), "utf8");
+const readBytes = relative => fs.readFileSync(localPath(relative));
+const readCurrent = relative => readBeforeOvernight(relative);
 const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
 const read = relative => readDeepReviewed(relative);
@@ -19,6 +20,42 @@ const sha256 = source => createHash("sha256").update(source).digest("hex");
 const priorMutationSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mutation-snapshot");
 const priorBuildingViewSnapshot = priorMutationSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-building-view-snapshot"));
+const priorOvernightSnapshot = priorBuildingViewSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-overnight-snapshot"));
+const OVERNIGHT_PATH = "tools/fixtures/north-wildwood-20261108-overnight.json";
+const overnightText = readBytes(OVERNIGHT_PATH).toString("utf8");
+assert.equal(sha256(overnightText), "a0ae9d7739fe4895dd28acd3c50c87fa34768096c42777cccf39de9ba300943e", "Retain the exact overnight inverse");
+const overnight = JSON.parse(overnightText);
+assert.equal(overnight.schemaVersion, 1);
+assert.equal(overnight.baselineCommit, "84951f91c7872c98b47417a594103f91dc410301");
+function readBeforeOvernight(relative) {
+  const source = readBytes(relative).toString("utf8");
+  const file = overnight.files.find(entry => entry.source === relative);
+  if (priorOvernightSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed overnight work`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.ok(block.beforeSource.length && block.afterSource.length);
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact overnight fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-overnight byte`);
+  return restored;
+}
+if (!priorOvernightSnapshot) {
+  for (const file of overnight.files) readBeforeOvernight(file.source);
+  for (const file of overnight.added) {
+    assert.equal(sha256(readBytes(file.source)), file.sha256, `${file.source}: reviewed overnight asset bytes`);
+  }
+  const currentHtml = readBytes("index.html").toString("utf8");
+  const dependencies = [...currentHtml.matchAll(/<(?:script|link)[^>]+(?:src|href)="([^"]+)"[^>]*>/g)]
+    .map(match => new URL(match[1], "https://overnight.invalid/"));
+  for (const [relative, key] of Object.entries(overnight.cacheDependencies)) {
+    const urls = dependencies.filter(url => url.pathname.slice(1) === relative);
+    assert.equal(urls.length, 1, `${relative}: one published dependency`);
+    assert.equal(urls[0].searchParams.get(key), sha256(readBytes(relative)).slice(0, 16), `${relative}: exact cache version`);
+  }
+}
 const BUILDING_VIEW_PATH = "tools/fixtures/north-wildwood-20261107-building-view.json";
 const buildingViewText = readCurrent(BUILDING_VIEW_PATH);
 assert.equal(sha256(buildingViewText), "afcbf5800adcd5d5bedda39f535c2c44f4f3a8fb780f4d0489fa97fa3a022013",
@@ -2442,6 +2479,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      OVERNIGHT_PATH, ...overnight.files.map(file => file.source), ...overnight.added.map(file => file.source),
       BUILDING_VIEW_PATH, ...buildingView.files.map(file => file.source),
       LINE_AUDIT_PATH, ...lineAudit.files.map(file => file.source), "index.html"]) {
       const destination = path.join(scratch, relative);
@@ -2465,11 +2503,25 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered the overnight inverse", path.join(scratch, OVERNIGHT_PATH), overnightText + " "],
+      ...overnight.files.map(file => [
+        `unreviewed overnight byte in ${file.source}`, path.join(scratch, file.source), readBytes(file.source).toString("utf8") + "\n"
+      ]),
+      ...overnight.added.map(file => [
+        `unreviewed new overnight asset ${file.source}`, path.join(scratch, file.source), Buffer.concat([readBytes(file.source), Buffer.from([0])])
+      ])
+    ], run);
+    for (const file of overnight.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeOvernight(file.source));
+    }
+    const runBeforeOvernight = () => run(["--prior-overnight-snapshot"]);
+    assert.equal(runBeforeOvernight().status, 0, "The restored pre-overnight snapshot must pass");
+    assertMutationsRejected([
       ["altered the building view inverse", path.join(scratch, BUILDING_VIEW_PATH), buildingViewText + " "],
       ...buildingView.files.map(file => [
         `unreviewed byte in ${file.source}`, path.join(scratch, file.source), readCurrent(file.source) + "\n"
       ])
-    ], run);
+    ], runBeforeOvernight);
     for (const file of buildingView.files) {
       fs.writeFileSync(path.join(scratch, file.source), readBeforeBuildingView(file.source));
     }

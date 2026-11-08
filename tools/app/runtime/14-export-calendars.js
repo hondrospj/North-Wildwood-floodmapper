@@ -1008,7 +1008,6 @@ function updateExportSegmentedUI() {
       setDownloadStatus("", false);
       updateExportSegmentedUI();
       syncDownloadRangeInputs(true);
-      applyExportStageAspect("viewport");
       updateDownloadSummary();
       setTimeout(() => document.getElementById("downloadResetBtn")?.blur(), 0);
     }

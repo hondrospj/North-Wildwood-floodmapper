@@ -32,7 +32,7 @@ function snapshot(){return page.evaluate(()=>{const gl=window.NORTH_WILDWOOD_3D.
 try{
  await page.route(stylePattern,holdStyle);
  await page.goto(base,{waitUntil:'domcontentloaded',timeout:90000});await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
- await page.locator('#openDownloadModalBtn').click();await page.locator('#exportChangeAreaBtn').click();
+ await page.locator('#openDownloadModalBtn').click();await page.locator('#downloadBtn').click();await page.locator('#exportExtentCustomBtn').click();
  for(const[width,height]of[[844,390],[667,375],[568,320],[320,568]]){
   await page.setViewportSize({width,height});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   for(const id of ['exportAreaApplyBtn','exportAreaCancelBtn']){await page.locator('#'+id).scrollIntoViewIfNeeded();const bounds=await page.locator('#'+id).boundingBox();assert.ok(bounds.y>=0&&bounds.y+bounds.height<=height+1,`${id} reachable at ${width}x${height}`);await page.locator('#'+id).click({trial:true});}

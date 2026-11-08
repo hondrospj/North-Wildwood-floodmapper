@@ -171,7 +171,7 @@ function nsiFixture() {
     scheduleRasterObjectUrlCleanup() {},
     openPersistentFloodPopup(_latlng, text) {
       context.persistentDepthQueryContext = null;
-      popup = { html: text, setContent(value) { this.html = value; }, update() {} };
+      popup = { html: text, getContent() { return this.html; }, setContent(value) { this.html = value; }, update() {} };
       context.persistentFloodPopup = popup; layers.add(popup); return popup;
     },
     fetchJson: async () => ({ metadata: { schema: 'nsi-2026-first-floor-v1' }, features: [feature] }),
@@ -179,7 +179,7 @@ function nsiFixture() {
   });
   loadOptional(context, ['openNsiStructurePopup', 'openNsiStructureFloodPopup']);
   load(context, ['normalizeStageValue', 'formatWaterDepth', 'finiteStructureNumber', 'getNsiFirstOccupiedFloorNavd88', 'getSelectedStageNavd88',
-    'getNsiStructureImpactStyle', 'formatNsiImpactStatus', 'buildNsiStructurePopup', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup',
+    'getNsiStructureImpactStyle', 'formatNsiImpactStatus', 'buildNsiStructurePopup', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup', 'updatePropertyPopup',
     'updateNsiStructureImpactLayer', 'ensureNsiStructureAssets', 'clearFloodLayer', 'renderHour']);
   return { context, feature, layers, slider, get popup() { return popup; }, get style() { return currentStyle; }, get directClick() { return directClick; } };
 }

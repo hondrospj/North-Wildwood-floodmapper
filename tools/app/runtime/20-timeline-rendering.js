@@ -147,7 +147,8 @@
     async function setFloodLayer(mode, stageValue, phase, token, entry = null, series = currentRawSeriesHours) {
       const frameEntry = typeof entry !== "undefined" && entry ? entry : currentSeriesHours[currentHourIndex];
       const frameStage = getStageValue(frameEntry);
-      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : (typeof stageValue !== "undefined" ? stageValue : null), phase: typeof phase !== "undefined" ? phase : "slack", dataMode: currentDataMode };
+      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : stageValue,
+        phase, dataMode: currentDataMode, overlayMode: mode, overlayStage: stageValue, series };
 
       let releaseRaster = null;
       try {

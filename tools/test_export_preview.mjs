@@ -56,8 +56,8 @@ function canvas(marker) {
 
 function harness() {
   const ids = ["downloadModal", "exportPreview", "exportPreviewCanvas", "exportPreviewStatus",
-    "exportPreviewFrameLabel", "exportPreviewRetryBtn", "downloadBtn", "downloadBtnLabel",
-    "exportBasicFields", "exportReviewFields", "exportReviewBackBtn", "downloadResetBtn", "exportStepHeading"];
+    "exportPreviewRetryBtn", "downloadBtn", "downloadBtnLabel",
+    "exportBasicFields", "exportReviewFields", "exportReviewBackBtn", "downloadResetBtn", "exportStepHeading", "roadsToggle"];
   const nodes = Object.fromEntries(ids.map(id => [id, node(id)]));
   nodes.downloadModal.hidden = true;
   nodes.downloadModal.append(nodes.downloadBtn, nodes.exportPreview, nodes.exportBasicFields, nodes.exportReviewFields);
@@ -167,7 +167,9 @@ function harness() {
   assert.equal(state.prepared[0].options.isFirstFrame, true, "Always refit changed preview extents");
   assert.equal(state.libraries[0].format, "png");
   assert.equal(state.libraries[0].count, 1, "Preview needs only the image capture library");
-  assert.ok(state.captures[0].scale > 0 && state.captures[0].scale < 1, "Bound thumbnail pixels below full output resolution");
+  assert.equal(state.prepared[0].options.renderConfig.width, 384);
+  assert.equal(state.prepared[0].options.renderConfig.height, 480,
+    "Render the offscreen preview map only at the measured thumbnail resolution");
   assert.equal(nodes.exportPreviewCanvas.children.length, 1);
 }
 
@@ -227,8 +229,18 @@ function harness() {
   const { ctx, state, tick } = harness();
   ctx.devicePixelRatio = 2;
   ctx.setDownloadModalOpen(true); await tick();
-  assert.equal(state.captures[0].scale, 960 / 2700);
-  assert.equal(state.captures[0].omitAttribution, true, "Preview credits belong in the nearby HTML, not the bitmap");
+  assert.equal(state.prepared[0].options.renderConfig.width, 768);
+  assert.equal(state.prepared[0].options.renderConfig.height, 960);
+  assert.equal(state.captures[0].preparedRoadLabels, true, "The prepared preview can reuse ready road labels");
+}
+
+// Road Names retain vector detail when the visual preview is especially small.
+{
+  const { ctx, state, nodes, tick } = harness();
+  nodes.roadsToggle.classList.add("on");
+  ctx.setDownloadModalOpen(true); await tick();
+  assert.equal(state.prepared[0].options.renderConfig.width, 900);
+  assert.equal(state.prepared[0].options.renderConfig.height, 1125);
 }
 
 // A larger preview is recaptured sharply; smaller views retain the larger image.
@@ -427,7 +439,8 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   ctx.setDownloadModalOpen(false); gate.resolve(); await flush();
   assert.equal(state.captures.length, 0, `Do not capture a preview closed during ${stalledStep}`);
   assert.equal(nodes.exportPreviewCanvas.children.length, 0);
-  if (stalledStep !== "prepare") assert.equal(state.prepared.length, 0);
+  assert.equal(state.prepared.length, stalledStep === "archive" ? 0 : 1,
+    "Map preparation and the capture library overlap once the selected range is available");
 }
 
 // A download drains its active preview, clears queued work and ignores duplicate requests.
@@ -530,12 +543,12 @@ for (const stalledStep of ["archive", "library", "prepare"]) {
   assert.equal(scales[0], 1, "Default PNG/GIF capture resolution must not change");
   assert.equal(scales[1], 0.25);
   assert.equal(filters[0]({ id: "exportMapAttribution" }), false, "Downloads retain source credits");
-  await ctx.captureExportCanvas({ omitAttribution: true });
-  assert.equal(filters.at(-1)({ id: "exportMapAttribution" }), true);
-  assert.equal(filters.at(-1)({ id: "exportLegendDock" }), false, "Only the attribution is omitted from preview capture");
+  await ctx.captureExportCanvas({ preparedRoadLabels: true });
+  assert.equal(filters.at(-1)({ id: "exportMapAttribution" }), false, "A static preview retains source credits");
+  assert.equal(filters.at(-1)({ id: "exportLegendDock" }), false);
   for (const scale of [0, -1, Infinity, NaN]) await ctx.captureExportCanvas({ scale });
   assert.ok(scales.slice(2).every(scale => scale === 1), "Invalid thumbnail scales must retain the normal export scale");
-  assert.equal(roadWaits, scales.length, "Every thumbnail and download waits for the active vector road renderer");
+  assert.equal(roadWaits, scales.length - 1, "Only a prepared preview skips the duplicate road-label readiness wait");
 }
 
 // A failed preview tile is retried on the same reused map, then reused by a real capture.

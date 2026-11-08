@@ -16,6 +16,7 @@
     let PHYSICS_FORECAST_POINTER_URL = "";
     let PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE = "";
     let PARCELS_URL = "";
+    let PARCEL_AREA_STAGES_URL = "";
     let HOUSE_ALERT_CDF_URL = "";
     let PARCEL_BOUNDARY_PNG_URL = "";
     let NSI_STRUCTURES_URL = "";
@@ -126,10 +127,10 @@
     const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
     const GIF_WORKER_CDN_URL = "https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.worker.js";
     const EXPORT_GIF_ASPECTS = {
-      "4:5": { value: "4:5", width: 1080, height: 1350, pngWidth: 2160, pngHeight: 2700, label: "Social 4:5" },
-      "16:9": { value: "16:9", width: 1920, height: 1080, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
-      "9:16": { value: "9:16", width: 1080, height: 1920, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
-      "1:1": { value: "1:1", width: 1200, height: 1200, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }
+      "4:5": { value: "4:5", width: 1360, height: 1700, pngWidth: 2160, pngHeight: 2700, label: "Social 4:5" },
+      "16:9": { value: "16:9", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
+      "9:16": { value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
+      "1:1": { value: "1:1", width: 1500, height: 1500, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }
     };
     const EXPORT_PROGRESS_UPDATE_EVERY = 8;
 
@@ -362,7 +363,10 @@
     function syncExportBrandLogos(config) {
       const assets = config?.assets || {};
       setExportLogoImage("exportTownLogo", assets.titleLogoPath, assets.titleLogoAlt || config?.site?.name || "");
-      setExportLogoImage("exportPartnerLogo", assets.partnerLogoPath || assets.rightRailLogoPath, assets.partnerLogoAlt || assets.rightRailLogoAlt || "ShorelySafe");
+      const partner = document.getElementById("exportPartnerLogo");
+      const logo = assets.partnerLogoPath || assets.rightRailLogoPath;
+      setExportLogoImage("exportPartnerLogo", logo && (partner?.dataset.exportBrandSrc || logo),
+        assets.partnerLogoAlt || assets.rightRailLogoAlt || "ShorelySafe");
     }
 
     function applyTownConfig(config) {
@@ -391,6 +395,7 @@
       PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE =
         config.overlays?.physicsForecastCyclePointerTemplatePath || "";
       PARCELS_URL = optionalAppUrl(config.parcels?.geojsonPath);
+      PARCEL_AREA_STAGES_URL = optionalAppUrl(config.parcels?.areaStagesPath);
       HOUSE_ALERT_CDF_URL = optionalAppUrl(config.parcels?.houseAlertCdfPath);
       PARCEL_BOUNDARY_PNG_URL = optionalAppUrl(config.parcels?.boundaryPngPath);
       NSI_STRUCTURES_URL = config.structures?.nsi2026GeojsonPath

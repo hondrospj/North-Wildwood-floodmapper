@@ -137,7 +137,7 @@ try{
   const file=path.join(output,download.suggestedFilename());await download.saveAs(file);
   assert.equal(await download.failure(),null);
   const gif=inspectGif(fs.readFileSync(file));
-  assert.deepEqual(gif,{width:1200,height:1200,frames:[{delayMs:1000},{delayMs:1000}]});
+  assert.deepEqual(gif,{width:1500,height:1500,frames:[{delayMs:1000},{delayMs:1000}]});
   result.gif={file:path.basename(file),bytes:fs.statSync(file).size,...gif};
   await page.waitForFunction(()=>!exportInProgress,{},{timeout:90000});
   result.states.push(await state('retry-downloaded'));

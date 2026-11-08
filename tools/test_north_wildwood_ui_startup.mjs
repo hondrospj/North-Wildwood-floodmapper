@@ -191,7 +191,7 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
       check(final.title?.painted&&final.rail?.painted,'Finished title and right controls are actually revealed');
       for(const key of ['layers','tides','export','address','tour'])check(!!stages.controllerHeld.cards[key],key+' card already has its reserved startup geometry');
     }
-    const expectedRows=['satelliteToggle','roadImpactsToggle','buildingsToggle','parcelsToggle','nsiStructuresToggle','roadsToggle','webcamsToggle'];
+    const expectedRows=['satelliteToggle','buildingsToggle','parcelsToggle','nsiStructuresToggle','roadImpactsToggle','roadsToggle','webcamsToggle'];
     const validBubbleSamples=[];
     for(const sample of audit.samples) {
       const prefix=`frame ${sample.frame}${sample.ready?' ready':' early'}`;

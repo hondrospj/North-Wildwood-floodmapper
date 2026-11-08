@@ -114,39 +114,13 @@
     }
 
 
-    function waitForTileLayerReady(layer, timeoutMs = 3500) {
-      return new Promise(resolve => {
-        if (!layer || typeof layer.on !== "function") {
-          resolve();
-          return;
-        }
-        let settled = false;
-        const done = () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          layer.off?.("load", done);
-          layer.off?.("tileerror", done);
-          resolve();
-        };
-        const timer = setTimeout(done, timeoutMs);
-        layer.on("load", done);
-        layer.on("tileerror", done);
-        if (typeof layer.isLoading === "function" && !layer.isLoading()) {
-          setTimeout(done, 80);
-        }
-      });
-    }
-
-    async function waitForExportMapReady(extraDelayMs = 120) {
+    async function waitForExportMapReady(extraDelayMs = 120, renderConfig = null) {
       if (!exportMap) return;
       exportMap.invalidateSize(false);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const vectorRoads = exportUsesScalableRoadLabels();
-      const waits = [];
-      if (exportBasemapColorLayer) waits.push(waitForTileLayerReady(exportBasemapColorLayer));
-      if (!vectorRoads && exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0) waits.push(waitForTileLayerReady(exportRoadsLayer));
-      await Promise.race([Promise.all(waits), wait(3800)]).catch(() => null);
+      // Leaflet's generic load event is not a readiness signal for an Esri
+      // vector layer. Use the exact vector/raster checks once per frame.
       const vectorBasemap = exportBasemapColorLayer;
       try {
         await waitForExportVectorLayerReady(vectorBasemap);
@@ -158,7 +132,7 @@
         waitForExportRasterLayerReady(exportBasemapColorLayer),
         typeof exportSatelliteLayer !== "undefined" && exportSatelliteLayer && exportMap.hasLayer(exportSatelliteLayer)
           ? waitForExportRasterLayerReady(exportSatelliteLayer) : null,
-        vectorRoads ? waitForExportRoadLabelsReady()
+        vectorRoads ? waitForExportRoadLabelsReady(renderConfig)
           : exportRoadsLayer && Number(exportRoadsLayer.options?.opacity || 0) > 0
             ? waitForExportRasterLayerReady(exportRoadsLayer) : null,
         typeof exportBuildingsLayer !== "undefined" && exportBuildingsLayer && exportMap.hasLayer(exportBuildingsLayer)

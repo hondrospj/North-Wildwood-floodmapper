@@ -105,10 +105,10 @@ try {
     assert.equal(await download.failure(),null);
     await page.waitForFunction(()=>!exportInProgress,{}, {timeout:90000});
     const gif=inspectGif(fs.readFileSync(file));
-    assert.equal(gif.width,1200);assert.equal(gif.height,1200);
+    assert.equal(gif.width,1500);assert.equal(gif.height,1500);
     assert.equal(gif.frames.length,modeled.length);assert.ok(gif.frames.every(frame=>frame.delayMs===1000));
     result.states.push({label:'actual-gif',file:path.basename(file),...gif});
-    result.checks.push('Actual modeled GIF downloads at 1200 × 1200 with two 1,000 ms frames');
+    result.checks.push('Actual modeled GIF downloads at 1500 × 1500 with two 1,000 ms frames');
   }
   await page.close();
 

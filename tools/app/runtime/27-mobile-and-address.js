@@ -1,6 +1,11 @@
     function wireLayerToggles() {
       document.getElementById("mapClickBuildingBtn")?.addEventListener("click", () => setMapClickMode("building"));
+      document.getElementById("mapClickParcelBtn")?.addEventListener("click", () => setMapClickMode("parcel"));
       document.getElementById("mapClickDepthBtn")?.addEventListener("click", () => setMapClickMode("depth"));
+      document.getElementById("structuralImpactsKeyClose")?.addEventListener("click", () => {
+        document.getElementById("structuralImpactsKey").hidden = true;
+        document.getElementById("timelineDock")?.querySelector("#playBtn")?.focus({ preventScroll: true });
+      });
       ["roadsToggle"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -725,7 +730,7 @@
       {
         title: "Control map layers",
         target: ".layers-card",
-        body: "<p>Turn the simulation boundary, road labels, or <strong>Parcels</strong> on and off. Click a parcel to see how many times that structure has flooded in the historic record.</p>"
+        body: "<p>Turn on <strong>Buildings</strong> for floor flood history and projections, or <strong>Parcels</strong> for flooded area and depth.</p>"
       },
       {
         title: "Jump to the largest floods",

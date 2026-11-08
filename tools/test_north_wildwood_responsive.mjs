@@ -171,9 +171,14 @@ try {
       await contained(page,'#infoModal .info-modal-card',`${width} help fits`);
       await activate(page,'#infoModalCloseBtn');
       await activate(page,'#observedDataBtn');await settled(page);
-      await page.locator('.top-tide-more-btn:visible').first()[touch?'tap':'click']();
-      await contained(page,'#topTidesModal .top-tides-modal-card',`${width} top tides fits`);
-      await activate(page,'#topTidesModalCloseBtn');
+      const allFloods = page.locator('.top-tide-more-btn:visible').first();
+      if (await allFloods.isVisible()) {
+        await allFloods[touch?'tap':'click']();
+        await contained(page,'#topTidesModal .top-tides-modal-card',`${width} top tides fits`);
+        await activate(page,'#topTidesModalCloseBtn');
+      } else {
+        check(await page.locator(':is(#topTideList,#topTideListMobile) .top-tide-item:visible').count() === 10,`${width} all ten floods visible in the rail`);
+      }
       await closeDrawer(page);
     }
     await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();

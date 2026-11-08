@@ -726,11 +726,19 @@ function formatSelectedObservedDate(dateStr) {
       btn.dataset.sourceType = event.sourceType || "unknown";
       if (event.surrogateSource) btn.dataset.surrogateSource = event.surrogateSource;
       btn.classList.toggle("active", currentViewType === "top-tide" && currentTopTideIndex === idx);
-      btn.innerHTML = `
-        <div class="top-tide-rank">#${event.rank}</div>
-        <div class="top-tide-main">${event.title}</div>
-        <div class="top-tide-sub">${formatStageForDisplay(event.peakStage)}</div>
-      `;
+      const stage = formatStageForDisplay(event.peakStage);
+      const title = options.inline
+        ? event.title.replace(/^[A-Za-z]{4,}(?=\s+\d)/, month => month.slice(0, 3))
+        : event.title;
+      for (const [className, value] of [
+        ["top-tide-rank", `#${event.rank}`], ["top-tide-main", title], ["top-tide-sub", stage]
+      ]) {
+        const cell = document.createElement("div");
+        cell.className = className;
+        cell.textContent = value;
+        btn.appendChild(cell);
+      }
+      btn.setAttribute("aria-label", `#${event.rank} ${event.title}, ${stage}`);
       btn.addEventListener("click", () => {
         setTopTidesModalOpen(false);
         loadTopTideEvent(idx).catch(err => toast(err.message));
@@ -784,16 +792,18 @@ function formatSelectedObservedDate(dateStr) {
           return;
         }
 
-        topTideEvents.slice(0, TOP_TIDE_DISPLAY_COUNT).forEach((event, idx) => {
-          wrap.appendChild(createTopTideButton(event, idx));
+        topTideEvents.slice(0, TOP_TIDE_SELECT_COUNT).forEach((event, idx) => {
+          wrap.appendChild(createTopTideButton(event, idx, {
+            inline: true,
+            extraClass: idx >= TOP_TIDE_DISPLAY_COUNT ? "top-tide-inline-extra" : ""
+          }));
         });
 
         if (topTideEvents.length > TOP_TIDE_DISPLAY_COUNT) {
           const more = document.createElement("button");
           more.type = "button";
           more.className = "top-tide-more-btn";
-          more.innerHTML = '<span class="unified-more-plus">+</span><span>Show more</span>';
-          more.dataset.unifiedMore = "true";
+          more.textContent = "View All Floods";
           more.addEventListener("click", () => setTopTidesModalOpen(true));
           wrap.appendChild(more);
         }

@@ -566,9 +566,11 @@
       const popup = persistentFloodPopup;
       if (!context || !popup || context.popup !== popup || !map?.hasLayer(popup)) return;
       if (context.kind === "structure") {
-        popup.setContent(buildNsiStructurePopup(context.feature));
-        popup.update();
+        updatePropertyPopup(popup, buildNsiStructurePopup(context.feature));
         return;
+      }
+      if (context.kind === "parcel") {
+        return refreshParcelFloodPopup(context);
       }
       if (context.kind === "physics") {
         // Physics values belong to one frame; close them when navigation starts.
@@ -579,21 +581,7 @@
         return;
       }
       if (context.kind === "building") {
-        const element = popup.getElement?.();
-        const previousCta = element?.querySelector(".house-alert-cta");
-        // Keep the native gesture's target connected through pointer/key up.
-        // The next animation update catches the popup up after release/cancel.
-        if (previousCta?.matches(":active")) return;
-        const focusedCta = previousCta && document.activeElement === previousCta;
-        const focusRestoreKey = previousCta?.getAttribute("data-focus-restore-key");
-        popup.setContent(buildHouseAlertPopup(context.feature));
-        popup.update();
-        if (focusedCta && focusRestoreKey && element.isConnected) {
-          const currentCta = element.querySelector(".house-alert-cta");
-          if (currentCta?.getAttribute("data-focus-restore-key") === focusRestoreKey) {
-            currentCta.focus({ preventScroll: true });
-          }
-        }
+        updatePropertyPopup(popup, buildHouseAlertPopup(context.feature));
         return;
       }
       const displayedFrame = currentFloodLayer?._floodmapperFrame;
@@ -643,7 +631,14 @@
       const queryRenderToken = lastRenderToken;
       const isCurrentQuery = () => queryGeneration === mapQueryGeneration && queryMode === mapClickMode && queryRenderToken === lastRenderToken;
       try {
-        if (mapClickMode === "building" && parcelInfoInteractionEnabled()) {
+        if (queryMode === "parcel" && document.getElementById("parcelsToggle")?.classList.contains("on")) {
+          const feature = await findParcelFeatureForLocation(event.latlng.lat, event.latlng.lng, { allowNearest: false });
+          if (!isCurrentQuery() || !document.getElementById("parcelsToggle")?.classList.contains("on")) return;
+          if (feature) openParcelAreaPopup(feature, event.latlng);
+          else toast("Tap inside a parcel to see its flood estimate.");
+          return;
+        }
+        if (queryMode === "building" && parcelInfoInteractionEnabled()) {
           const nsiEnabled = document.getElementById("nsiStructuresToggle")?.classList.contains("on");
           if (nsiEnabled) {
             const structureFeature = findNsiStructureFeatureForLocation(event.latlng.lat, event.latlng.lng);
@@ -652,12 +647,8 @@
               return;
             }
           }
-          const parcelLayerEnabled = Boolean(
-            document.getElementById("parcelsToggle")?.classList.contains("on") ||
-            document.getElementById("buildingsToggle")?.classList.contains("on")
-          );
-          if (!parcelLayerEnabled) {
-            toast("Tap a highlighted NSI structure point or choose Water depth.");
+          if (!document.getElementById("buildingsToggle")?.classList.contains("on")) {
+            toast("Tap a highlighted structure or choose Flood Depth.");
             return;
           }
           const parcelFeature = await findParcelFeatureForLocation(
@@ -665,7 +656,7 @@
             event.latlng.lng,
             { allowNearest: false }
           );
-          if (!isCurrentQuery()) return;
+          if (!isCurrentQuery() || !document.getElementById("buildingsToggle")?.classList.contains("on")) return;
           if (parcelFeature) {
             openParcelFloodPrompt(parcelFeature, event.latlng);
             return;

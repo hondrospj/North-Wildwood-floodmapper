@@ -134,10 +134,6 @@
         setExportProgress(message, pct, false);
         await prepareExportFrame(item, { isFirstFrame: i === 0 });
         throwIfExportCancelled();
-        if (i === 0) {
-          await waitForExportMapReady(40);
-          throwIfExportCancelled();
-        }
         const canvas = await captureExportCanvas();
         try {
           throwIfExportCancelled();

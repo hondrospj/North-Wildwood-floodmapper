@@ -67,3 +67,13 @@ assert.equal(stages.get(Date.parse('2025-11-02T06:30:00Z')).stage,5);
 assert.equal(stages.has(Date.parse('2025-11-02T08:00:00Z')),false);
 assert.equal(stages.has(Date.parse('2025-11-02T12:00:00Z')),false);
 console.log('PASS export picker: canonical flood colors, quarter-hour levels, exact repeated hours, missing hours and data gaps.');
+
+const options = ["00:00", `01:30|${Date.parse('2025-11-02T05:30:00Z')}`, `01:30|${Date.parse('2025-11-02T06:30:00Z')}`,
+  "03:00", "05:00", "23:45"].map(value => ({ value }));
+const visible = picker.timeChoices(options, "2025-11-02", stages);
+assert.deepEqual(Array.from(visible, ({ option }) => option.value), options.slice(1, -1).map(o => o.value),
+  "Exclude both ends of the day outside stage coverage, retaining the exact duplicate hour");
+assert.equal(visible[2].record, undefined, "Retain the actual interior outage for an unavailable row");
+const daily = { stage: 5, instant: Date.parse("2025-11-02T04:00:00Z") };
+assert.equal(picker.timeChoices(options, "2025-11-02", new Map(), daily)[0].dateOnly, true,
+  "Keep an official date-only peak available without inventing a time");

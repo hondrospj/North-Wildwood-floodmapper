@@ -73,6 +73,8 @@ jobs:
               try { Invoke-WebRequest http://127.0.0.1:8771/index.html -UseBasicParsing | Out-Null; $ready = $true; break } catch { Start-Sleep -Seconds 1 }
             }
             if (-not $ready) { throw 'Preview did not start; no application scenarios were run.' }
+            node tools/test_north_wildwood_overnight_pills_browser.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Shared pill, font, and full flood list regressions failed' }
             node tools/test_north_wildwood_holistic_ui.mjs
             if ($LASTEXITCODE -ne 0) { throw 'Holistic UI regressions failed' }
             node tools/test_north_wildwood_adaptive_sidebar_fit.mjs

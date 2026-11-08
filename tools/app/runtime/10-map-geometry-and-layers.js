@@ -747,6 +747,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         updateRoadLayerAppearance();
         updateColorBasemapClip();
       });
+      map.on("zoomend", updateParcelBoundaryResolution);
       map.on("click", handleDepthQueryClick);
       updateRoadLayerAppearance();
       updateColorBasemapClip();
@@ -785,15 +786,21 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     function updateMapClickModeControl() {
       const control = document.getElementById("mapClickModeControl");
       const buildingButton = document.getElementById("mapClickBuildingBtn");
+      const parcelButton = document.getElementById("mapClickParcelBtn");
       const depthButton = document.getElementById("mapClickDepthBtn");
-      if (!control || !buildingButton || !depthButton) return;
+      if (!control || !buildingButton || !parcelButton || !depthButton) return;
       control.hidden = !parcelInfoInteractionEnabled();
-      buildingButton.textContent = "Building Info";
-      depthButton.textContent = "Flood Depth";
-      buildingButton.classList.toggle("active", mapClickMode === "building");
-      depthButton.classList.toggle("active", mapClickMode === "depth");
-      buildingButton.setAttribute("aria-pressed", String(mapClickMode === "building"));
-      depthButton.setAttribute("aria-pressed", String(mapClickMode === "depth"));
+      const buildingsOn = document.getElementById("buildingsToggle")?.classList.contains("on");
+      const structuresOn = document.getElementById("nsiStructuresToggle")?.classList.contains("on");
+      buildingButton.hidden = !buildingsOn && !structuresOn;
+      buildingButton.textContent = buildingsOn ? "Building Info" : "Structure Info";
+      buildingButton.setAttribute("aria-label", buildingButton.textContent);
+      parcelButton.hidden = !document.getElementById("parcelsToggle")?.classList.contains("on");
+      for (const button of [buildingButton, parcelButton, depthButton]) {
+        const active = button.dataset.mapClickMode === mapClickMode;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      }
       if (!control.hidden) requestAnimationFrame(positionMapClickModeControl);
     }
 
@@ -808,11 +815,20 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
     function setMapClickMode(mode, options = {}) {
       ++mapQueryGeneration;
-      mapClickMode = mode === "depth" ? "depth" : "building";
+      mapClickMode = mode === "building" || mode === "parcel" ? mode : "depth";
       updateMapClickModeControl();
       if (options.closePopup !== false && persistentFloodPopup && map?.hasLayer(persistentFloodPopup)) {
         map.removeLayer(persistentFloodPopup);
       }
+    }
+
+    function disableBuildingInfo() {
+      if (persistentDepthQueryContext?.kind === "building" && map.hasLayer(persistentFloodPopup)) {
+        map.removeLayer(persistentFloodPopup);
+      }
+      if (mapClickMode === "building" && !document.getElementById("nsiStructuresToggle")?.classList.contains("on")) {
+        setMapClickMode(document.getElementById("parcelsToggle")?.classList.contains("on") ? "parcel" : "depth");
+      } else updateMapClickModeControl();
     }
 
     async function setBuildingsEnabled(enabled) {
@@ -826,7 +842,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (!shouldEnable) {
         if (buildingsLayer && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
         updateExportBuildingsLayer();
-        updateMapClickModeControl();
+        disableBuildingInfo();
         toast("");
         return;
       }

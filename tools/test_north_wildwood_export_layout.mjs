@@ -37,8 +37,8 @@ assert.match(source, /compactTouchLayout[\s\S]+downloadModalCloseBtn[\s\S]+preve
 
 const socialBase = {
   value: "4:5",
-  width: 1080,
-  height: 1350,
+  width: 1360,
+  height: 1700,
   pngWidth: 2160,
   pngHeight: 2700,
   label: "Social 4:5",
@@ -56,6 +56,11 @@ const pngAspect = aspectContext.getExportAspectConfig();
 assert.equal(pngAspect.width, 2160);
 assert.equal(pngAspect.height, 2700);
 assert.equal(pngAspect.resolutionLabel, "2160 × 2700");
+aspectContext.getDownloadFormatValue = () => "gif";
+const gifAspect = aspectContext.getExportAspectConfig();
+assert.equal(gifAspect.width, 1360);
+assert.equal(gifAspect.height, 1700);
+assert.equal(gifAspect.resolutionLabel, "1360 × 1700");
 
 const townBounds = { isValid: () => true };
 let fittedBounds = null;

@@ -119,6 +119,9 @@
       high: { label: "NOAA High", color: "#fb7185" }
     };
     let selectedFloodProjectionScenario = "intermediate";
+    let floodHistoryRequest = 0;
+    let parcelAreaStagesPromise = null;
+    const pendingPropertyGestureUpdates = new WeakSet();
 
     function openPersistentFloodPopup(latlng, html, maxWidth = 360) {
       if (!map) ensureMap();
@@ -164,6 +167,44 @@
         }
       });
       return popup;
+    }
+
+    function deferPropertyPopupUpdate(element, refresh) {
+      const active = element?.querySelector(".house-alert-cta:active, .property-help summary:active");
+      if (!active) return false;
+      if (!pendingPropertyGestureUpdates.has(active)) {
+        pendingPropertyGestureUpdates.add(active);
+        const controller = new AbortController();
+        const finish = () => {
+          controller.abort();
+          pendingPropertyGestureUpdates.delete(active);
+          requestAnimationFrame(refresh);
+        };
+        for (const event of ["pointerup", "pointercancel", "keyup", "blur"]) {
+          window.addEventListener(event, finish, { capture: true, signal: controller.signal });
+        }
+      }
+      return true;
+    }
+
+    function updatePropertyPopup(popup, html) {
+      if (popup.getContent() === html) return;
+      const element = popup.getElement?.();
+      const selector = ".house-alert-cta, .property-help summary";
+      // Leave the control connected until its pointer or keyboard gesture ends.
+      if (deferPropertyPopupUpdate(element, () => {
+        if (persistentFloodPopup === popup) updatePersistentDepthQueryPopup();
+      })) return;
+      const controls = Array.from(element?.querySelectorAll(selector) || []);
+      const focusedIndex = controls.indexOf(document.activeElement);
+      const helpOpen = element?.querySelector(".property-help")?.open;
+      popup.setContent(html);
+      popup.update();
+      if (element?.isConnected) {
+        const help = element.querySelector(".property-help");
+        if (help) help.open = Boolean(helpOpen);
+        element.querySelectorAll(selector)[focusedIndex]?.focus({ preventScroll: true });
+      }
     }
 
     function buildHouseAlertPopup(feature) {
@@ -227,11 +268,39 @@
     }
 
     function closeFloodHistoryPane() {
+      ++floodHistoryRequest;
       const backdrop = document.getElementById("floodHistoryBackdrop");
       if (!backdrop) return;
       backdrop.hidden = true;
       backdrop.setAttribute("aria-hidden", "true");
+      backdrop.querySelector(".property-help")?.removeAttribute("open");
       document.body.classList.remove("flood-history-open");
+    }
+
+    async function getParcelProjectionOptions(feature, data) {
+      if (!PARCEL_AREA_STAGES_URL) return [];
+      if (!parcelAreaStagesPromise) {
+        parcelAreaStagesPromise = fetchJson(PARCEL_AREA_STAGES_URL, { cache: "force-cache" }).catch(error => {
+          parcelAreaStagesPromise = null;
+          throw error;
+        });
+      }
+      const payload = await parcelAreaStagesPromise;
+      const expectedShares = [25, 50, 75];
+      if (payload?.schema !== "north-wildwood-parcel-area-stages-v1" ||
+          payload.catalogVersion !== OVERLAY_CACHE_VERSIONS.hydraulic ||
+          payload.sharesPercent?.length !== expectedShares.length ||
+          !expectedShares.every((share, index) => payload.sharesPercent[index] === share)) return [];
+      const stages = payload.stagesInTenthsFtNavd88?.[String(feature.id)];
+      if (!Array.isArray(stages)) return [];
+      const minimumDepth = Number(data.floodDefinition?.minimumDepthFt);
+      return expectedShares.map((share, index) => {
+        const stage = Number.isInteger(stages[index]) ? stages[index] / 10 : null;
+        // Existing CDF rows use gauge level > elevation + minimum depth.
+        const elevationIndex = stage == null ? -1 : data.elevationGridFtNavd88.findIndex(
+          value => Math.abs(Number(value) + minimumDepth - stage) < 1e-6);
+        return { share, stage, elevationIndex };
+      }).filter(option => option.elevationIndex >= 0);
     }
 
     function findProjectionElevationIndex(feature, data) {
@@ -300,18 +369,23 @@
         </svg>`;
     }
 
-    function renderFloodHistoryProjection(feature, data) {
+    function renderFloodHistoryProjection(feature, data, parcelOptions = null, selectedShare = null, yearIndex = null) {
       const body = document.getElementById("floodHistoryBody");
       if (!body) return;
       const p = feature?.properties || {};
       const years = Array.isArray(data.years) ? data.years : [];
-      const elevationIndex = findProjectionElevationIndex(feature, data);
+      const parcelOption = parcelOptions?.find(option => option.share === selectedShare) || parcelOptions?.[0];
+      if (parcelOptions && !parcelOption) {
+        body.innerHTML = '<div class="flood-history-error">Parcel-area projections are unavailable within the model’s coverage.</div>';
+        return;
+      }
+      const elevationIndex = parcelOption?.elevationIndex ?? findProjectionElevationIndex(feature, data);
       const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
       const hasModeledFloor = Number.isFinite(firstFloor);
-      const historic = Number(hasModeledFloor
+      const historic = Number(parcelOption ? data.historicFloodEventCountByElevation?.[elevationIndex] : hasModeledFloor
         ? p.nsi2026HistoricFirstFloorExceedanceCount
         : p.historicFloodEventCount);
-      const defaultYearIndex = Math.max(0, years.indexOf(2050));
+      const defaultYearIndex = yearIndex ?? Math.max(0, years.indexOf(2050));
       const scenarioKey = data.annualFloodEventCount?.[selectedFloodProjectionScenario]
         ? selectedFloodProjectionScenario
         : (data.scenarioOrder || []).find(key => data.annualFloodEventCount?.[key]);
@@ -325,17 +399,23 @@
       body.innerHTML = `
         <div class="flood-history-summary">
           <div class="flood-summary-item">
-            <span>${hasModeledFloor ? "Past floods above floor" : "Past floods at parcel"}</span>
+            <span>${parcelOption ? "Past Tides Above Area Threshold" : hasModeledFloor ? "Past Floods Above Floor" : "Past Floods at Parcel"}</span>
             <strong>${Number.isFinite(historic) ? historic.toLocaleString() : "—"}</strong>
           </div>
           <div class="flood-summary-item">
-            <span>${hasModeledFloor ? "Estimated occupied floor" : "Parcel ground"}</span>
-            <strong>${hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} <small>ft NAVD88</small></strong>
+            <span>${parcelOption ? "Estimated Area Threshold" : hasModeledFloor ? "Estimated Occupied Floor" : "Parcel Ground"}</span>
+            <strong>${parcelOption ? parcelOption.stage.toFixed(1) : hasModeledFloor ? firstFloor.toFixed(1) : Number(p.elevationNavd88Ft).toFixed(1)} <small>ft NAVD88</small></strong>
           </div>
         </div>
         <section class="flood-history-section">
           <div class="flood-history-section-head">
-            <div><h3>${hasModeledFloor ? "Future floods above floor" : "Future floods at parcel"}</h3><p>Expected events per year · range shown</p></div>
+            <h3>${parcelOption ? "Future Floods by Parcel Area" : hasModeledFloor ? "Future Floods Above Floor" : "Future Floods at Parcel"}</h3>
+            ${parcelOption ? `<label class="flood-scenario-field flood-area-field">
+              Flooded area
+              <select id="floodProjectionAreaSelect" class="flood-scenario-select">
+                ${parcelOptions.map(option => `<option value="${option.share}"${option === parcelOption ? " selected" : ""}>At least ${option.share}%</option>`).join("")}
+              </select>
+            </label>` : ""}
             <label class="flood-scenario-field">
               Sea-level scenario
               <select id="floodProjectionScenarioSelect" class="flood-scenario-select" aria-label="Sea level projection curve">
@@ -346,7 +426,13 @@
               </select>
             </label>
           </div>
-          <div id="floodProjectionChart">${renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, defaultYearIndex)}</div>
+          <div class="flood-projection-layout">
+            <div id="floodProjectionChart">${renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, defaultYearIndex)}</div>
+            <ul class="flood-projection-key" aria-label="Projection key">
+              <li><i class="projection-key-line" aria-hidden="true"></i>Floods per year</li>
+              <li><i class="projection-key-band" aria-hidden="true"></i>95% range</li>
+            </ul>
+          </div>
           <div class="flood-year-control">
             <input id="floodProjectionYearSlider" type="range" min="0" max="${Math.max(0, years.length - 1)}" value="${defaultYearIndex}" step="1" aria-label="Projection year">
             <div id="floodProjectionYearReadout" class="flood-year-readout">
@@ -368,32 +454,47 @@
         if (chart) chart.innerHTML = renderProjectionChart(data, selectedFloodProjectionScenario, elevationIndex, selectedIndex);
       };
       document.getElementById("floodProjectionYearSlider")?.addEventListener("input", event => updateSelectedYear(event.target.value));
+      const currentYearIndex = () => Number(document.getElementById("floodProjectionYearSlider")?.value ?? defaultYearIndex);
       document.getElementById("floodProjectionScenarioSelect")?.addEventListener("change", event => {
         selectedFloodProjectionScenario = event.target.value;
-        renderFloodHistoryProjection(feature, data);
+        renderFloodHistoryProjection(feature, data, parcelOptions, parcelOption?.share, currentYearIndex());
+        document.getElementById("floodProjectionScenarioSelect")?.focus({ preventScroll: true });
+      });
+      document.getElementById("floodProjectionAreaSelect")?.addEventListener("change", event => {
+        renderFloodHistoryProjection(feature, data, parcelOptions, Number(event.target.value), currentYearIndex());
+        document.getElementById("floodProjectionAreaSelect")?.focus({ preventScroll: true });
       });
     }
 
-    async function openFloodHistoryPane(feature) {
+    async function openFloodHistoryPane(feature, kind = "building") {
       if (!feature) return;
+      const request = ++floodHistoryRequest;
       selectedParcelFeature = feature;
       const backdrop = document.getElementById("floodHistoryBackdrop");
       const body = document.getElementById("floodHistoryBody");
       const address = document.getElementById("floodHistoryAddress");
       if (!backdrop || !body) return;
+      const parcel = kind === "parcel";
       address.textContent = feature?.properties?.address || "Selected North Wildwood parcel";
-      body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Preparing this building’s flood profile…</strong><span>Loading the projection model only when you need it.</span></div>';
+      document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
+      document.getElementById("floodHistoryHelpText").textContent = parcel
+        ? "This estimates how often water could cover the selected share of this parcel as sea level rises. The area comes from the modeled high-tide map."
+        : "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises.";
+      body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Loading flood projections…</strong></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");
       document.body.classList.add("flood-history-open");
       document.getElementById("floodHistoryCloseBtn")?.focus();
       try {
         const data = await ensureFloodProjectionData();
-        if (selectedParcelFeature === feature && !backdrop.hidden) {
-          renderFloodHistoryProjection(feature, data);
+        const parcelOptions = parcel ? await getParcelProjectionOptions(feature, data) : null;
+        if (request === floodHistoryRequest && !backdrop.hidden) {
+          renderFloodHistoryProjection(feature, data, parcelOptions);
         }
       } catch (error) {
-        body.innerHTML = `<div class="flood-history-error"><strong>This projection could not be loaded.</strong><br>${escapeTownAddressHtml(error?.message || "Please try again in a moment.")}</div>`;
+        if (request === floodHistoryRequest && !backdrop.hidden) {
+          body.innerHTML = `<div class="flood-history-error"><strong>This projection could not be loaded.</strong><br>${escapeTownAddressHtml(error?.message || "Please try again in a moment.")}</div>`;
+        }
       }
     }
 
@@ -404,9 +505,8 @@
         if (event.target === backdrop) closeFloodHistoryPane();
       });
       document.addEventListener("click", event => {
-        if (event.target?.closest?.(".house-alert-cta") && selectedParcelFeature) {
-          openFloodHistoryPane(selectedParcelFeature);
-        }
+        const button = event.target?.closest?.(".house-alert-cta");
+        if (button && selectedParcelFeature) openFloodHistoryPane(selectedParcelFeature, button.dataset.propertyProfile);
       });
       document.addEventListener("keydown", event => {
         if (event.key === "Escape" && backdrop && !backdrop.hidden) closeFloodHistoryPane();

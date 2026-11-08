@@ -189,22 +189,26 @@
       return { value: "viewport", width, height, label: "Map view", resolutionLabel: `${width} × ${height}` };
     }
 
+    function getExportViewportLongEdge() {
+      return getDownloadFormatValue() === "png" ? 2160 : 1800;
+    }
+
     function getExportViewportAspect() {
       const bounds = exportViewportBounds || getActiveMapBounds();
       const nw = bounds && L.CRS.EPSG3857.latLngToPoint(bounds.getNorthWest(), 0);
       const se = bounds && L.CRS.EPSG3857.latLngToPoint(bounds.getSouthEast(), 0);
       const ratio = nw && se ? (se.x - nw.x) / (se.y - nw.y) : 16 / 9;
-      return getExportViewportConfigForRatio(ratio, getDownloadFormatValue() === "png" ? 2160 : 1440);
+      return getExportViewportConfigForRatio(ratio, getExportViewportLongEdge());
     }
 
-    function fitExportMapToSelectedExtent(mapInstance) {
+    function fitExportMapToSelectedExtent(mapInstance, renderConfig = null) {
       if (!mapInstance) return;
       const mode = getDownloadExtentValue();
 
       if (mode === "town") {
         const townBounds = getBoundaryDrivenOverlayBounds();
         if (townBounds && (!townBounds.isValid || townBounds.isValid())) {
-          const aspect = getExportAspectConfig();
+          const aspect = renderConfig || getExportAspectConfig();
           const sidePadding = Math.round(Math.min(64, aspect.width * 0.025));
           const topPadding = sidePadding;
           mapInstance.fitBounds(townBounds, {
@@ -252,7 +256,9 @@
     function getExportAspectConfig(aspect = null) {
       if ((aspect || getDownloadAspectValue()) === "viewport") return getExportViewportAspect();
       const base = EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS["4:5"];
-      if (getDownloadFormatValue() !== "png") return base;
+      if (getDownloadFormatValue() !== "png") {
+        return { ...base, resolutionLabel: `${base.width} × ${base.height}` };
+      }
       return {
         ...base,
         width: base.pngWidth || base.width,
@@ -261,8 +267,8 @@
       };
     }
 
-    function applyExportStageAspect(aspect = null) {
-      const config = getExportAspectConfig(aspect);
+    function applyExportStageAspect(aspect = null, renderConfig = null) {
+      const config = renderConfig || getExportAspectConfig(aspect);
       const layout = getExportFooterLayout(config.width, config.height);
       const stageHost = document.getElementById("exportStage");
       const stageFrame = document.getElementById("exportStageFrame");

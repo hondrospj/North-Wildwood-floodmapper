@@ -27,8 +27,8 @@
   };
 
   const originalFit = fitExportMapToSelectedExtent;
-  fitExportMapToSelectedExtent = function (mapInstance) {
-    if (getDownloadExtentValue() !== "custom") return originalFit(mapInstance);
+  fitExportMapToSelectedExtent = function (mapInstance, renderConfig = null) {
+    if (getDownloadExtentValue() !== "custom") return originalFit(mapInstance, renderConfig);
     if (!mapInstance) return;
     const bounds = copyBounds(chosenBounds());
     // Keep all of the chosen rectangle visible even when a different layout is selected.
@@ -49,7 +49,7 @@
     const nw = L.CRS.EPSG3857.latLngToPoint(bounds.getNorthWest(), 0);
     const se = L.CRS.EPSG3857.latLngToPoint(bounds.getSouthEast(), 0);
     const ratio = (se.x - nw.x) / (se.y - nw.y);
-    const longEdge = getDownloadFormatValue() === "png" ? 2160 : 1440;
+    const longEdge = getExportViewportLongEdge();
     return { ...getExportViewportConfigForRatio(ratio, longEdge), label: "Selected area" };
   };
 
@@ -98,7 +98,6 @@
 
   function refreshExportControls() {
     updateExportSegmentedUI();
-    applyExportStageAspect(getDownloadAspectValue());
     updateDownloadSummary();
   }
 
@@ -236,13 +235,25 @@
     previousFocus = null;
   }
 
-  function applySelection() {
-    if (!validBounds(pendingBounds) || exportInProgress) return;
-    selectedBounds = copyBounds(pendingBounds);
-    document.getElementById("downloadExtentSelect").value = "custom";
+  function setBounds(bounds) {
+    const extent = document.getElementById("downloadExtentSelect");
+    if (!extent || !validBounds(bounds) || exportInProgress) return false;
+    selectedBounds = copyBounds(bounds);
+    extent.value = "custom";
     setDownloadStatus("", false);
+    return true;
+  }
+
+  function applySelection() {
+    if (!setBounds(pendingBounds)) return;
     closePicker();
     refreshExportControls();
+  }
+
+  function setPreviewBounds(bounds) {
+    if (!isDownloadModalOpen() || !setBounds(bounds)) return false;
+    refreshExportControls();
+    return true;
   }
 
   function init() {
@@ -362,6 +373,7 @@
   window.FLOODMAPPER_EXPORT_AREA = {
     version: "20261023-3", ready: false,
     openPicker,
+    setPreviewBounds,
     getBounds: () => copyBounds(selectedBounds),
     getJobBounds: () => copyBounds(jobBounds)
   };

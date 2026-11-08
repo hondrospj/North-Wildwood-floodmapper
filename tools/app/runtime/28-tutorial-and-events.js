@@ -555,7 +555,6 @@
             if (endEl) delete endEl.dataset.userEdited;
           }
           if (!exportInProgress) setDownloadStatus("", false);
-          applyExportStageAspect(getDownloadAspectValue());
           updateExportSegmentedUI();
           scheduleExportTimePickerRender(true);
           updateDownloadSummary();
@@ -589,7 +588,6 @@
           if (!input) return;
           input.value = btn.dataset.aspect || "viewport";
           if (!exportInProgress) setDownloadStatus("", false);
-          applyExportStageAspect(input.value);
           updateExportSegmentedUI();
           updateDownloadSummary();
         });
@@ -597,7 +595,6 @@
 
       document.getElementById("downloadAspectSelect")?.addEventListener("change", () => {
         if (!exportInProgress) setDownloadStatus("", false);
-        applyExportStageAspect(getDownloadAspectValue());
         updateExportSegmentedUI();
         updateDownloadSummary();
       });

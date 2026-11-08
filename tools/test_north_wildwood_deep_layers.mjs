@@ -54,7 +54,7 @@ function fixture({ metadataGate, nsiGate, wrappers = false } = {}) {
     document: { getElementById: element }, map, ensureMap() {}, toast: value => notices.push(value),
     parcelLoadPromise: null, parcelsLayer: null, parcelFeatures: [], parcelLayerGeneration: 0,
     nsiStructuresLayer: null, nsiStructureLoadPromise: null, nsiStructureFeatures: [], nsiStructureRenderer: null, nsiLayerGeneration: 0,
-    mapQueryGeneration: 0, mapClickMode: 'depth', persistentFloodPopup: null,
+    mapQueryGeneration: 0, mapClickMode: 'depth', persistentFloodPopup: null, persistentDepthQueryContext: null,
     currentFloodLayer: null, currentSeriesHours: [{ stage: 4 }], currentHourIndex: 0,
     normalizeStageValue: value => value, getStageValue: entry => entry?.stage,
     PARCELS_URL: 'parcels.json', PARCEL_BOUNDARY_PNG_URL: 'parcel.png', NSI_STRUCTURES_URL: 'nsi.json',
@@ -165,7 +165,7 @@ for (const name of ['Parcels', 'NsiStructures']) {
     await test(`${name}${wrappers ? ' through its 3D wrapper' : ''} preserves a newer explicit repeated Flood Depth choice`, async () => {
       const gate = deferred(), f = fixture(name === 'Parcels' ? { metadataGate: gate, wrappers } : { nsiGate: gate, wrappers });
       const pending = f.context[`set${name}Enabled`](true);
-      assert.equal(f.context.mapClickMode, 'building', 'Enable chooses its default synchronously');
+      assert.equal(f.context.mapClickMode, name === 'Parcels' ? 'parcel' : 'building', 'Enable chooses its default synchronously');
       f.context.setMapClickMode('depth'); f.context.setMapClickMode('depth'); gate.resolve(); await flush();
       if (name === 'Parcels') { f.images.at(-1).fire('load'); }
       await pending; assert.equal(f.context.mapClickMode, 'depth');

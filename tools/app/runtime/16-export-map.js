@@ -36,7 +36,7 @@
       });
     }
 
-    function ensureExportMap() {
+    function ensureExportMap(renderConfig = null) {
       if (exportMap) return exportMap;
 
       exportMap = L.map("exportMap", {
@@ -116,7 +116,7 @@
       // Without a valid inner ring a world mask would gray out the entire town.
       // First-frame preparation waits for geometry before this map is captured.
       if (hasValidExportBoundaryGeometry()) updateExportBoundaryVisibility();
-      fitExportMapToSelectedExtent(exportMap);
+      fitExportMapToSelectedExtent(exportMap, renderConfig);
       return exportMap;
     }
 
@@ -251,7 +251,7 @@
         && Number(exportRoadsLayer.options?.opacity || 0) > 0;
     }
 
-    async function waitForExportRoadLabelsReady() {
+    async function waitForExportRoadLabelsReady(renderConfig = null) {
       if (!exportScalableRoadLabelsEnabled()) return;
       throwIfExportCancelled();
       const controller = new AbortController();
@@ -270,19 +270,19 @@
           cancelled
         ]);
         throwIfExportCancelled();
-        updateExportRoadLayerAppearance();
+        updateExportRoadLayerAppearance(renderConfig);
       } finally {
         clearInterval(cancelTimer);
         controller.abort();
       }
     }
 
-    function updateExportRoadLayerAppearance() {
+    function updateExportRoadLayerAppearance(renderConfig = null) {
       if (!exportMap || !exportRoadsLayer) return;
       const roadsEnabled = document.getElementById("roadsToggle")?.classList.contains("on");
       const zoom = exportMap.getZoom() || 0;
       const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;
-      const aspect = getExportAspectConfig();
+      const aspect = renderConfig || getExportAspectConfig();
       const unit = Math.min(aspect.width, aspect.height) / 1080;
       const gl = exportRoadsLayer.getMaplibreMap?.();
       const grid = gl?.style?.placement?.collisionIndex?.grid;
@@ -518,10 +518,10 @@
       });
     }
 
-    function updateExportTimestampLabel(entry) {
+    function updateExportTimestampLabel(entry, renderConfig = null) {
       const label = document.getElementById("exportTimestampLabel");
       if (!label) return;
-      const config = getExportAspectConfig();
+      const config = renderConfig || getExportAspectConfig();
       const layout = getExportFooterLayout(config.width, config.height);
       label.replaceChildren(...getExportTimestampRows(entry, layout).map(row => {
         const span = document.createElement("span");
@@ -535,10 +535,10 @@
 
     let exportFrameViewPrimed = false;
     async function prepareExportFrame(item, options = {}) {
-      await ensureExportMunicipalBoundary();
-      await prepareExportRoadNames();
-      applyExportStageAspect(getDownloadAspectValue());
-      const mapInstance = ensureExportMap();
+      await Promise.all([ensureExportMunicipalBoundary(), prepareExportRoadNames()]);
+      const renderConfig = options.renderConfig || null;
+      applyExportStageAspect(getDownloadAspectValue(), renderConfig);
+      const mapInstance = ensureExportMap(renderConfig);
       const isFirstFrame = !!options.isFirstFrame;
       mapInstance.invalidateSize(false);
 
@@ -546,12 +546,12 @@
         updateExportLegend(item.entry);
         updateExportBoundaryVisibility();
         await updateExportParcelsLayer();
-        fitExportMapToSelectedExtent(mapInstance);
+        fitExportMapToSelectedExtent(mapInstance, renderConfig);
         exportFrameViewPrimed = true;
       }
 
-      updateExportTimestampLabel(item.entry);
-      updateExportRoadLayerAppearance();
+      updateExportTimestampLabel(item.entry, renderConfig);
+      updateExportRoadLayerAppearance(renderConfig);
 
       const rawStage = getStageValue(item.entry);
       const displayStage = getOverlayStage(rawStage);
@@ -562,7 +562,7 @@
       const hydraulicPhase = getHydraulicPhaseForEntry(item.entry, item.index, item.series || currentSeriesHours);
       await setExportFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, item.entry, item.series || currentRawSeriesHours);
       mapInstance.invalidateSize(false);
-      await waitForExportMapReady(isFirstFrame ? 70 : 10);
+      await waitForExportMapReady(isFirstFrame ? 70 : 10, renderConfig);
       await waitForStableRender();
     }
 
@@ -605,7 +605,7 @@
       if (typeof html2canvas !== "function") throw new Error("html2canvas did not load, so map export is unavailable.");
       const stage = document.getElementById("exportStageFrame");
       if (!stage) throw new Error("Export stage is unavailable.");
-      await waitForExportRoadLabelsReady();
+      if (!options.preparedRoadLabels) await waitForExportRoadLabelsReady();
       await waitForExportChromeReady();
       throwIfExportCancelled();
       const captureScale = Number.isFinite(options.scale) && options.scale > 0
@@ -615,8 +615,7 @@
         backgroundColor: null, useCORS: true, allowTaint: false, logging: false,
         removeContainer: true, foreignObjectRendering: false, imageTimeout: 20000,
         ignoreElements: element => isOutsideExportStage(element)
-          || (options.omitRoadLabels === true && element === roadPane)
-          || (options.omitAttribution === true && element.id === "exportMapAttribution"),
+          || (options.omitRoadLabels === true && element === roadPane),
         scale: captureScale
       });
     }

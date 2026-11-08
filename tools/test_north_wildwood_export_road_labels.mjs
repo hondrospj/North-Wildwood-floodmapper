@@ -89,7 +89,7 @@ const worldPoints = realCoordinates.map(mercator);
 const minX=Math.min(...worldPoints.map(p=>p.x)),maxX=Math.max(...worldPoints.map(p=>p.x));
 const minY=Math.min(...worldPoints.map(p=>p.y)),maxY=Math.max(...worldPoints.map(p=>p.y));
 const counts=[];
-for (const [width,height] of [[1920,1080],[1080,1350],[1080,1920],[1200,1200],[3840,2160],[2160,2700],[2160,3840],[2160,2160]]) {
+for (const [width,height] of [[2400,1350],[1360,1700],[1350,2400],[1500,1500],[3840,2160],[2160,2700],[2160,3840],[2160,2160]]) {
   const unit=Math.min(width,height)/1080,mapHeight=height-Math.min(height*.4,(width<height*1.1?270:178)*Math.min(width/1200,height/900));
   const scale=Math.min(width/(maxX-minX),mapHeight/(maxY-minY))*.92;
   const projection=coordinate=>{const p=mercator(coordinate);return{x:(p.x-(minX+maxX)/2)*scale+width/2,y:(p.y-(minY+maxY)/2)*scale+mapHeight/2};};
