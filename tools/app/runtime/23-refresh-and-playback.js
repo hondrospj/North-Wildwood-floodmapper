@@ -39,21 +39,28 @@
 
     function scheduleTopTidesListWarmup() {
       const generation = archiveGeneration;
+      const rank = () => {
+        topTideEvents = buildTopTideEvents();
+        renderTopTides();
+      };
       const start = async () => {
+        const crests = loadHistoricalTopTides();
+        const archive = ensureObserved15MinuteArchive().catch(() => null);
+        let summaryReady = false;
         try {
-          await Promise.all([
-            loadHistoricalTopTides(),
-            ensureObserved15MinuteArchive().catch(() => null)
-          ]);
-          if (generation !== archiveGeneration) return;
-          topTideEvents = buildTopTideEvents();
-          renderTopTides();
+          await crests;
+          summaryReady = true;
         } catch (error) {
           if (generation !== archiveGeneration) return;
           console.warn("Historical high-tide summary will retry when requested.", error);
         }
+        if (generation !== archiveGeneration) return;
+        // The official crest summary can paint while the index and its larger fallback load.
+        const rankedArchive = observed15MinuteData;
+        if (summaryReady || rankedArchive) rank();
+        if (await archive && generation === archiveGeneration && observed15MinuteData !== rankedArchive) rank();
       };
-      start();
+      start().catch(error => console.warn("Historical high-tide ranking could not be displayed.", error));
     }
 
     function scheduleBackgroundDataWarmup() {

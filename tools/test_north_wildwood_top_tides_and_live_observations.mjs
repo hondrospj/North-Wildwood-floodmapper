@@ -159,23 +159,35 @@ const calls = [];
 let releaseIndex;
 const heldIndex = new Promise(resolve => { releaseIndex = resolve; });
 const warmup = vm.createContext({
-  console, Promise, archiveGeneration: 0, topTideEvents: [],
+  console, Promise, archiveGeneration: 0, observed15MinuteData: null, topTideEvents: [],
   loadHistoricalTopTides: async () => { calls.push("crests"); },
-  ensureObserved15MinuteArchive: async () => { calls.push("index"); await heldIndex; },
+  ensureObserved15MinuteArchive: async () => {
+    calls.push("index");
+    await heldIndex;
+    warmup.observed15MinuteData = index;
+    return index;
+  },
   ensureObservedArchiveYear: async () => { throw new Error("Replay must stay on demand"); },
-  buildTopTideEvents: () => { calls.push("rank"); return freshRanking; },
+  buildTopTideEvents: () => { calls.push(warmup.observed15MinuteData ? "rank with index" : "rank crests"); return freshRanking; },
   renderTopTides: () => calls.push("render")
 });
 vm.runInContext(warmupSource, warmup);
 warmup.scheduleTopTidesListWarmup();
 assert.deepEqual(calls, ["crests", "index"]);
+await new Promise(resolve => setImmediate(resolve));
+assert.deepEqual(calls, ["crests", "index", "rank crests", "render"], "The list must paint while the replay index is still pending");
 releaseIndex();
 await new Promise(resolve => setImmediate(resolve));
-assert.deepEqual(calls, ["crests", "index", "rank", "render"]);
+assert.deepEqual(calls, ["crests", "index", "rank crests", "render", "rank with index", "render"]);
 calls.length = 0;
+warmup.scheduleTopTidesListWarmup();
+await new Promise(resolve => setImmediate(resolve));
+assert.deepEqual(calls, ["crests", "index", "rank with index", "render"], "An already-loaded index must only paint once");
+calls.length = 0;
+warmup.observed15MinuteData = null;
 warmup.ensureObserved15MinuteArchive = async () => { throw new Error("Offline index"); };
 warmup.scheduleTopTidesListWarmup();
 await new Promise(resolve => setImmediate(resolve));
-assert.deepEqual(calls, ["crests", "rank", "render"], "The existing crest list must survive index failure");
+assert.deepEqual(calls, ["crests", "rank crests", "render"], "The existing crest list must survive index failure");
 
 console.log("North Wildwood stable Top 10, on-demand replay, and USGS missing-value regressions passed");

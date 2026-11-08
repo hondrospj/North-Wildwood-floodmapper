@@ -723,6 +723,7 @@ function formatSelectedObservedDate(dateStr) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = options.extraClass ? `top-tide-item ${options.extraClass}` : "top-tide-item";
+      btn.dataset.floodDate = event.dateKey || "";
       btn.dataset.sourceType = event.sourceType || "unknown";
       if (event.surrogateSource) btn.dataset.surrogateSource = event.surrogateSource;
       btn.classList.toggle("active", currentViewType === "top-tide" && currentTopTideIndex === idx);
@@ -752,6 +753,7 @@ function formatSelectedObservedDate(dateStr) {
     function renderTopTidesModal() {
       const list = document.getElementById("topTidesModalList");
       if (!list) return;
+      const focusedDate = list.contains(document.activeElement) ? document.activeElement.dataset.floodDate : "";
       list.innerHTML = "";
       const modalEvents = topTideEvents.slice(0, TOP_TIDE_SELECT_COUNT);
       if (!modalEvents.length) {
@@ -764,6 +766,10 @@ function formatSelectedObservedDate(dateStr) {
       modalEvents.forEach((event, globalIdx) => {
         list.appendChild(createTopTideButton(event, globalIdx, { extraClass: "top-tide-modal-item" }));
       });
+      if (focusedDate) {
+        const sameEvent = [...list.children].find(button => button.dataset.floodDate === focusedDate);
+        (sameEvent || document.getElementById("topTidesModalCloseBtn"))?.focus({ preventScroll: true });
+      }
     }
 
     function setTopTidesModalOpen(open, opener = null) {
@@ -787,6 +793,7 @@ function formatSelectedObservedDate(dateStr) {
       const hasMore = topTideEvents.length > TOP_TIDE_DISPLAY_COUNT;
 
       wraps.forEach(wrap => {
+        const focusedDate = wrap.contains(document.activeElement) ? document.activeElement.dataset.floodDate : "";
         const more = hasMore ? wrap.querySelector(".top-tide-more-btn") : null;
         for (const child of [...wrap.children]) {
           if (child !== more) child.remove();
@@ -801,7 +808,9 @@ function formatSelectedObservedDate(dateStr) {
         }
 
         topTideEvents.slice(0, TOP_TIDE_DISPLAY_COUNT).forEach((event, idx) => {
-          wrap.insertBefore(createTopTideButton(event, idx, { inline: true }), more);
+          const button = createTopTideButton(event, idx, { inline: true });
+          wrap.insertBefore(button, more);
+          if (focusedDate && event.dateKey === focusedDate) button.focus({ preventScroll: true });
         });
 
         if (hasMore && !more) {
