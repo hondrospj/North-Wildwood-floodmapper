@@ -70,6 +70,13 @@ try{
  assert.equal(result.states.length,24,'Every compass key/mode/overlay combination must run');
  result.checks.push('All four compass arrow keys preserve flood time/stage in Forecast, Past and Modeled Floods with both overlays');
  await page.locator('#observedDataBtn').click();await ready('observed');
+ // Use real archived readings. The wall-clock day can still be missing the next hour.
+ const archiveDay='2026-08-31';
+ await page.evaluate(date=>loadObservedDay(date),archiveDay);
+ await ready('observed');
+ assert.equal(await page.evaluate(()=>selectedObservedDate),archiveDay);
+ assert.ok(await page.evaluate(()=>currentSeriesHours.slice(0,3).every(entry=>Number.isFinite(getStageValue(entry)))),
+  'The three observed frames used for the keyboard checks must contain actual water levels');
  const slider=page.locator('#hourSlider');await slider.focus();await page.keyboard.press('Home');
  await page.waitForFunction(()=>currentHourIndex===0&&floodFrameState==='ready'&&!pendingTimelineSelection&&!requestedTimelineSelection,{},{timeout:60000});
  await page.keyboard.press('ArrowRight');
