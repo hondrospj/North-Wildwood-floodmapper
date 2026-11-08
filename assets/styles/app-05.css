@@ -9564,7 +9564,7 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
       min-height:0 !important;
     }
     html body[data-floodmapper-unified] #mapTitleBadge#mapTitleBadge #mapTitleText {
-      font-size:clamp(18px,1.8vw,26px) !important;
+      font-size:clamp(18px,1.9vw,28px) !important;
       line-height:1.15 !important;
       letter-spacing:-.5px !important;
     }
