@@ -467,7 +467,9 @@
         const popupTitle = validation.reason === "range-too-long"
           ? "Time range too long"
           : "Check export range";
-        showExportDateOrderPopup(validation.message, popupTitle);
+        // Preview preparation can outlast the activating click and disable
+        // this button briefly. Restore the warning to the actual action.
+        showExportDateOrderPopup(validation.message, popupTitle, document.getElementById("downloadBtn"));
         updateDownloadSummary();
         return;
       }

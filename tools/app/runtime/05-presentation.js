@@ -1,4 +1,4 @@
-    function setInfoModalOpen(isOpen, title = "Information", body = "") {
+    function setInfoModalOpen(isOpen, title = "Information", body = "", opener = null) {
       const modal = document.getElementById("infoModal");
       const titleEl = document.getElementById("infoModalTitle");
       const bodyEl = document.getElementById("infoModalBody");
@@ -10,17 +10,20 @@
       modal.hidden = !isOpen;
       modal.classList.toggle("open", !!isOpen);
       modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
-      if (isOpen) document.getElementById("infoModalCloseBtn")?.focus();
+      if (isOpen) {
+        if (opener) document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
+        document.getElementById("infoModalCloseBtn")?.focus();
+      }
     }
 
-    function showInfoModal(key) {
+    function showInfoModal(key, opener) {
       const copy = HELP_COPY[key];
       if (!copy) return;
-      setInfoModalOpen(true, copy.title, copy.body);
+      setInfoModalOpen(true, copy.title, copy.body, opener);
     }
 
-    function showLegendInfoModal() {
-      showInfoModal(currentOverlayMode === "dynamic" ? "stageLegend" : "depthLegend");
+    function showLegendInfoModal(opener) {
+      showInfoModal(currentOverlayMode === "dynamic" ? "stageLegend" : "depthLegend", opener);
     }
 
     let downloadModalGeneration = 0;

@@ -44,6 +44,7 @@ async function cancelWhileHeld(label){
 try{
   await page.route('**/observed_archive/stone-harbor/2025.json*',route=>{
     result.requests.push({kind:'archive',phase,url:route.request().url()});
+    if(phase==='preview')return route.continue();
     if(phase==='archive-export'){assert.equal(archiveRoute,null);archiveRoute=route;return;}
     return route.fulfill({status:503,body:'Deliberate archive outage'});
   });
@@ -60,6 +61,10 @@ try{
   await page.locator('#exportFormatPngBtn').click();
   await chooseRange([{date:'11/02/2025',time:'12:00'},{date:'11/02/2025',time:'12:00'}]);
   await review();assert.ok(result.requests.some(request=>request.kind==='archive'&&request.phase==='preview'));
+  await page.waitForFunction(()=>['ready','empty','error'].includes(document.getElementById('exportPreview').dataset.state),{},{timeout:180000});
+  // Keep the loaded readings available to the native picker. Expire only the
+  // year marker so the next Download still has to issue a real archive request.
+  assert.equal(await page.evaluate(()=>observedArchiveLoadedYears.delete('stone-harbor:2025')),true);
   phase='archive-export';await page.locator('#downloadBtn').click();
   for(let i=0;i<100&&!archiveRoute;i++)await page.waitForTimeout(50);
   assert.ok(archiveRoute,'Real Download must reach the held archive retry');

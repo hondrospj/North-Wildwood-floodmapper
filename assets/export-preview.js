@@ -273,7 +273,8 @@
     if (title) title.textContent = settingsReviewed ? `Export ${getDownloadFormatValue().toUpperCase()}` : "Export";
     if (!exportInProgress && !exportRequested) {
       const label = node("downloadBtnLabel");
-      if (label) label.textContent = settingsReviewed ? "Download" : "More options";
+      const action = settingsReviewed ? "Download" : "More options";
+      if (label && label.textContent !== action) label.textContent = action;
     }
     const area = node("exportPreviewAreaLabel");
     if (area) area.textContent = getDownloadExtentValue() === "custom" ? "Selected area"
@@ -537,6 +538,8 @@
       #downloadModal #exportReviewBackBtn{min-height:40px;border:0;border-radius:8px;padding:9px 12px;background:transparent;color:#c6d5ea;font:inherit;font-size:13px;cursor:pointer}
       #downloadModal #downloadBtn{width:100%!important;min-height:50px!important;color:white!important;background:#1d4ed8!important;border:1px solid #76adff!important}
       #downloadModal #downloadBtn:disabled{opacity:.65!important}
+      /* Keep WebKit pointer activation on the button when its label updates. */
+      #downloadModal #downloadBtn > span{pointer-events:none}
       #downloadModal .download-modal-head{margin-bottom:14px!important;align-items:start!important}
       #downloadModal #downloadAspectControl{grid-template-columns:repeat(2,minmax(0,1fr))!important}
       #downloadModal #downloadAspectControl button:last-child{grid-column:1/-1}

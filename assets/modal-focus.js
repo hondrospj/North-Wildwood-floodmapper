@@ -93,7 +93,7 @@
     attempt(2);
   }
 
-  function sync() {
+  function sync(event) {
     if (syncing) return stack.at(-1)?.dialog;
     syncing = true;
     try {
@@ -127,7 +127,11 @@
         // Reappearing parents inherit the outer fallback chain. An unrelated
         // new modal cancels the pending focus move while retaining fallbacks.
         if (pendingRestore && !pendingTargets.some(target => dialog.contains(target))) pendingRestore.cancelled = true;
-        const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);
+        const parent = stack.at(-1)?.dialog;
+        const opener = event?.detail?.opener;
+        let candidate = previousFocus;
+        if (opener && parent?.contains(opener) && visible(opener)) candidate = opener;
+        else if (!parent && lastTrigger && visible(lastTrigger)) candidate = lastTrigger;
         stack.push({ dialog, restore: [...new Set([
           ...(candidate && !dialog.contains(candidate) ? [rememberRestoreTarget(candidate)] : []), ...restoreTargets, ...pendingTargets
         ])] });

@@ -343,27 +343,27 @@
 
       document.getElementById("dataSourceHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("dataSource");
+        showInfoModal("dataSource", e.currentTarget);
       });
       document.getElementById("forecastTypeHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("forecastType");
+        showInfoModal("forecastType", e.currentTarget);
       });
       document.getElementById("returnIntervalHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("returnIntervals");
+        showInfoModal("returnIntervals", e.currentTarget);
       });
       document.getElementById("overlayHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("overlay");
+        showInfoModal("overlay", e.currentTarget);
       });
       document.getElementById("timelineDetailHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("timelineDetail");
+        showInfoModal("timelineDetail", e.currentTarget);
       });
       document.getElementById("legendHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showLegendInfoModal();
+        showLegendInfoModal(e.currentTarget);
       });
       document.getElementById("infoModalCloseBtn")?.addEventListener("click", () => setInfoModalOpen(false));
       document.getElementById("infoModal")?.addEventListener("click", e => {

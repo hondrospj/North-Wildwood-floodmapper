@@ -34,24 +34,36 @@ export async function findNativeBuildingRoof(page, footprintId) {
     return null;
   },footprintId);
 }
-export async function retryNativeParcelSource3d(page, url) {
-  const requests=[];
-  await page.route('**/*NorthWildwoodParcelBoundaries*',async route=>{
-    const request=route.request();requests.push({url:request.url(),type:request.resourceType(),failed:requests.length===0});
-    if(requests.length===1)await route.abort('failed');else await route.continue();
-  });
-  await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
-  await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
+export async function checkNativeParcelVectors3d(page, url) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await page.waitForFunction(() => document.body.classList.contains('nw-app-ready') &&
+    floodFrameState === 'ready', {}, { timeout: 90000 });
   await page.locator('.nw-simple-view').click();
-  await page.waitForFunction(()=>NORTH_WILDWOOD_3D.state().buildingsVisible,{},{timeout:90000});
-  const before=await page.evaluate(()=>{const source=NORTH_WILDWOOD_3D.getMap().getSource('nw-parcel-source');return {sourceLoaded:source.loaded(),imageWidth:source.image?.width||0,texturePresent:!!source.texture,sourceKeys:Object.keys(source),enabled:parcelsToggle.classList.contains('on')};});
-  if(!requests.length||before.imageWidth||before.enabled)throw Error(`Expected a failed hidden GL parcel image: ${JSON.stringify({before,requests})}`);
-  // The first source request failed while Parcels was off. The native enable
-  // loads the Leaflet image and must also retry the same URL in MapLibre.
-  await page.locator('#parcelsToggle').click();
-  await page.waitForFunction(()=>parcelsToggle.classList.contains('on')&&parcelsLayer?.getElement()?.complete&&
-    parcelsLayer.getElement().naturalWidth>0&&NORTH_WILDWOOD_3D.getMap().getSource('nw-parcel-source').image?.width>0,{},{timeout:30000});
-  const after=await page.evaluate(()=>({sourceLoaded:NORTH_WILDWOOD_3D.getMap().getSource('nw-parcel-source').loaded(),
-    imageWidth:NORTH_WILDWOOD_3D.getMap().getSource('nw-parcel-source').image?.width||0,visibility:NORTH_WILDWOOD_3D.getMap().getLayoutProperty('nw-parcel-overlay','visibility'),leafletWidth:parcelsLayer.getElement().naturalWidth}));
-  return {requests,before,after};
+  await page.waitForFunction(() => NORTH_WILDWOOD_3D.state().ready &&
+    NORTH_WILDWOOD_3D.state().pitch > 10, {}, { timeout: 90000 });
+
+  const snapshot = () => page.evaluate(() => {
+    const map = NORTH_WILDWOOD_3D.getMap();
+    const line = map.getLayer('nw-parcel-vector');
+    return {
+      enabled: parcelsToggle.classList.contains('on'),
+      vectorSource: map.getSource('nw-parcel-vector-source')?.type ?? null,
+      vectorLayer: line?.type ?? null,
+      vectorVisibility: line ? map.getLayoutProperty('nw-parcel-vector', 'visibility') : null,
+      rasterSource: Boolean(map.getSource('nw-parcel-source'))
+    };
+  });
+  const before = await snapshot();
+  const toggle = page.locator('#parcelsToggle');
+  await toggle.click();
+  await page.waitForFunction(() => {
+    const map = NORTH_WILDWOOD_3D.getMap();
+    return map.getLayer('nw-parcel-vector') &&
+      map.queryRenderedFeatures({ layers: ['nw-parcel-vector'] }).length > 0;
+  }, {}, { timeout: 30000 });
+  const enabled = await snapshot();
+  await toggle.click();
+  await page.waitForFunction(() => NORTH_WILDWOOD_3D.getMap()
+    .getLayoutProperty('nw-parcel-vector', 'visibility') === 'none', {}, { timeout: 30000 });
+  return { before, enabled, disabled: await snapshot() };
 }

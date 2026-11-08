@@ -30,15 +30,20 @@ function track3dStartupTiming(button){
 }
 function snapshot(){return page.evaluate(()=>{const gl=window.NORTH_WILDWOOD_3D.getMap(),source=gl?.getSource('nw-flood-drape-source');return{index:currentHourIndex,time:currentSeriesHours[currentHourIndex]?.timeUtc,url:currentFloodLayer?._url,sourceUrl:source?.url,sourceLoaded:source?.loaded(),frame:floodFrameState,mode:mapClickMode,state:window.NORTH_WILDWOOD_3D.state(),busy:document.querySelector('.nw-simple-view').getAttribute('aria-busy')};});}
 try{
- await page.route(stylePattern,holdStyle);
  await page.goto(base,{waitUntil:'domcontentloaded',timeout:90000});await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
- await page.locator('#openDownloadModalBtn').click();await page.locator('#downloadBtn').click();await page.locator('#exportExtentCustomBtn').click();
+ await page.locator('#openDownloadModalBtn').click();
+ await page.getByRole('button',{name:'More options',exact:true}).click();
+ assert.equal(await page.locator('#downloadModal').getAttribute('data-export-step'),'review','More options opens the export review');
+ await page.locator('#exportExtentCustomBtn').click();
+ await page.locator('#exportAreaModal').waitFor({state:'visible'});
  for(const[width,height]of[[844,390],[667,375],[568,320],[320,568]]){
   await page.setViewportSize({width,height});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   for(const id of ['exportAreaApplyBtn','exportAreaCancelBtn']){await page.locator('#'+id).scrollIntoViewIfNeeded();const bounds=await page.locator('#'+id).boundingBox();assert.ok(bounds.y>=0&&bounds.y+bounds.height<=height+1,`${id} reachable at ${width}x${height}`);await page.locator('#'+id).click({trial:true});}
   result.areas.push({width,height,actionsReachable:true});
  }
  await page.locator('#exportAreaApplyBtn').click();await page.locator('#downloadModalCloseBtn').click();await page.setViewportSize({width:1440,height:1000});result.checks.push('Custom-area Apply/Cancel are reachable through real hit testing at four phone portrait/landscape sizes');
+ // Keep the deliberate 3D outage separate from the export area interaction.
+ await page.route(stylePattern,holdStyle);
  await page.locator('.nw-simple-view').evaluate(track3dStartupTiming);
  const started=Date.now();await page.locator('.nw-simple-view').click();await page.waitForFunction(()=>Number.isFinite(window.__nww3dStartupTiming?.finishedAt),{},{timeout:23000});
  const fallback=await snapshot(),timing=await page.evaluate(()=>window.__nww3dStartupTiming),elapsedMs=timing.finishedAt-timing.startedAt;

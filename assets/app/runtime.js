@@ -2726,7 +2726,7 @@ function setDatumHelpOpen(isOpen) {
       }
     };
 
-    function setInfoModalOpen(isOpen, title = "Information", body = "") {
+    function setInfoModalOpen(isOpen, title = "Information", body = "", opener = null) {
       const modal = document.getElementById("infoModal");
       const titleEl = document.getElementById("infoModalTitle");
       const bodyEl = document.getElementById("infoModalBody");
@@ -2738,17 +2738,20 @@ function setDatumHelpOpen(isOpen) {
       modal.hidden = !isOpen;
       modal.classList.toggle("open", !!isOpen);
       modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
-      if (isOpen) document.getElementById("infoModalCloseBtn")?.focus();
+      if (isOpen) {
+        if (opener) document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
+        document.getElementById("infoModalCloseBtn")?.focus();
+      }
     }
 
-    function showInfoModal(key) {
+    function showInfoModal(key, opener) {
       const copy = HELP_COPY[key];
       if (!copy) return;
-      setInfoModalOpen(true, copy.title, copy.body);
+      setInfoModalOpen(true, copy.title, copy.body, opener);
     }
 
-    function showLegendInfoModal() {
-      showInfoModal(currentOverlayMode === "dynamic" ? "stageLegend" : "depthLegend");
+    function showLegendInfoModal(opener) {
+      showInfoModal(currentOverlayMode === "dynamic" ? "stageLegend" : "depthLegend", opener);
     }
 
     let downloadModalGeneration = 0;
@@ -7025,7 +7028,7 @@ function setExportAmPmValue(prefix, value) {
         : "End date must be after start date. Please choose an end date/time after the start date/time.";
     }
 
-    function showExportDateOrderPopup(message, title = "Check export range") {
+    function showExportDateOrderPopup(message, title = "Check export range", opener = null) {
       const finalMessage = message || "Please check the selected export range.";
       const modal = document.getElementById("exportOrderModal");
       const heading = document.getElementById("exportOrderModalTitle");
@@ -7035,6 +7038,7 @@ function setExportAmPmValue(prefix, value) {
       if (modal) {
         modal.hidden = false;
         modal.classList.add("open");
+        if (opener) document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
         setTimeout(() => document.getElementById("exportOrderModalOkBtn")?.focus(), 0);
       } else {
         window.alert(finalMessage);
@@ -9300,7 +9304,9 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
         const popupTitle = validation.reason === "range-too-long"
           ? "Time range too long"
           : "Check export range";
-        showExportDateOrderPopup(validation.message, popupTitle);
+        // Preview preparation can outlast the activating click and disable
+        // this button briefly. Restore the warning to the actual action.
+        showExportDateOrderPopup(validation.message, popupTitle, document.getElementById("downloadBtn"));
         updateDownloadSummary();
         return;
       }
@@ -15389,27 +15395,27 @@ function startPlayback() {
 
       document.getElementById("dataSourceHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("dataSource");
+        showInfoModal("dataSource", e.currentTarget);
       });
       document.getElementById("forecastTypeHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("forecastType");
+        showInfoModal("forecastType", e.currentTarget);
       });
       document.getElementById("returnIntervalHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("returnIntervals");
+        showInfoModal("returnIntervals", e.currentTarget);
       });
       document.getElementById("overlayHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("overlay");
+        showInfoModal("overlay", e.currentTarget);
       });
       document.getElementById("timelineDetailHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("timelineDetail");
+        showInfoModal("timelineDetail", e.currentTarget);
       });
       document.getElementById("legendHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showLegendInfoModal();
+        showLegendInfoModal(e.currentTarget);
       });
       document.getElementById("infoModalCloseBtn")?.addEventListener("click", () => setInfoModalOpen(false));
       document.getElementById("infoModal")?.addEventListener("click", e => {

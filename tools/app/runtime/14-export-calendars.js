@@ -502,7 +502,7 @@ function setExportAmPmValue(prefix, value) {
         : "End date must be after start date. Please choose an end date/time after the start date/time.";
     }
 
-    function showExportDateOrderPopup(message, title = "Check export range") {
+    function showExportDateOrderPopup(message, title = "Check export range", opener = null) {
       const finalMessage = message || "Please check the selected export range.";
       const modal = document.getElementById("exportOrderModal");
       const heading = document.getElementById("exportOrderModalTitle");
@@ -512,6 +512,7 @@ function setExportAmPmValue(prefix, value) {
       if (modal) {
         modal.hidden = false;
         modal.classList.add("open");
+        if (opener) document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
         setTimeout(() => document.getElementById("exportOrderModalOkBtn")?.focus(), 0);
       } else {
         window.alert(finalMessage);

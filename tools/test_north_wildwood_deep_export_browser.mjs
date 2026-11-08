@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
-import {setNativeExportRange,reviewNativeExport,exportSelectionSnapshot,findNativeBuildingRoof,retryNativeParcelSource3d} from './helpers/north_wildwood_deep_export_browser.mjs';
+import {setNativeExportRange,reviewNativeExport,exportSelectionSnapshot,findNativeBuildingRoof,checkNativeParcelVectors3d} from './helpers/north_wildwood_deep_export_browser.mjs';
 const playwright=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const name=process.env.NWW_BROWSER||'chromium';
 const browser=await playwright[name==='edge'?'chromium':name].launch({headless:true,
@@ -52,20 +52,24 @@ try{
   await page.locator('.nw-simple-view').click();
   if(result.capability.webgl2){
     await page.waitForFunction(()=>NORTH_WILDWOOD_3D.state().buildingsVisible,{},{timeout:90000});
-    // Frame the target roof explicitly for the hit test.
-    await page.evaluate(()=>NORTH_WILDWOOD_3D.getMap().jumpTo({center:[-74.7970066,39.011446],zoom:18}));
+    // Frame the target roof without returning the MapLibre object to Playwright.
+    await page.evaluate(() => {
+      NORTH_WILDWOOD_3D.getMap().jumpTo({ center: [-74.7970066, 39.011446], zoom: 18 });
+    });
     await page.waitForFunction(()=>NORTH_WILDWOOD_3D.getMap().areTilesLoaded(),{},{timeout:90000});
     const roof=await findNativeBuildingRoof(page,'34009_118023');assert.ok(roof,'327 W Chestnut roof is rendered');assert.equal(roof.properties.address,'327 W CHESTNUT AVE');
     await page.mouse.click(...roof.point);await page.waitForFunction(()=>document.querySelector('.maplibregl-popup')?.textContent.includes('327 W CHESTNUT AVE'),{},{timeout:30000});
     result.building={roof,popup:await page.locator('.maplibregl-popup').innerText()};assert.doesNotMatch(result.building.popup,/329 W CHESTNUT/);
     if(output)await page.screenshot({path:path.join(output,'correct-3d-building.png')});
     result.checks.push('Native pitched-roof click opens 327 W Chestnut rather than its neighboring parcel');
-    const retryPage=await browser.newPage({viewport:{width:1440,height:1000},timezoneId:'America/New_York'});
-    retryPage.on('pageerror',error=>result.errors.push(error.message));
-    result.parcelRetry=await retryNativeParcelSource3d(retryPage,process.env.NWW_TEST_URL||'http://127.0.0.1:9022/index.html');
-    assert.ok(result.parcelRetry.after.imageWidth>0);assert.equal(result.parcelRetry.after.visibility,'visible');
-    assert.ok(result.parcelRetry.requests.length>=3,'Failed GL request, decoded Leaflet image, and same-URL GL retry are distinct requests');
-    await retryPage.close();result.checks.push('A failed hidden 3D parcel image retries the same URL on native Parcels enable');
+    const parcelPage=await browser.newPage({viewport:{width:1440,height:1000},timezoneId:'America/New_York'});
+    parcelPage.on('pageerror',error=>result.errors.push(error.message));
+    result.parcelVectors=await checkNativeParcelVectors3d(parcelPage,process.env.NWW_TEST_URL||'http://127.0.0.1:9022/index.html');
+    const {before,enabled,disabled}=result.parcelVectors;
+    assert.deepEqual(before,{enabled:false,vectorSource:null,vectorLayer:null,vectorVisibility:null,rasterSource:false});
+    assert.deepEqual(enabled,{enabled:true,vectorSource:'geojson',vectorLayer:'line',vectorVisibility:'visible',rasterSource:false});
+    assert.deepEqual(disabled,{...enabled,enabled:false,vectorVisibility:'none'});
+    await parcelPage.close();result.checks.push('Native Parcels enables and hides rendered 3D parcel vectors');
   }else{
     await page.waitForFunction(()=>document.body.dataset.map3d==='fallback'&&!document.body.classList.contains('map-3d-ready')&&floodFrameState==='ready'&&map.hasLayer(currentFloodLayer),{},{timeout:90000});
     result.capability.reason='This isolated headless engine does not expose WebGL2; 3D roof and GPU-source tests were not run.';

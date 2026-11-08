@@ -135,8 +135,11 @@ async function checkViewport({width,height,mobile=false}) {
     const selected=await capture('3D selected without hover');
     assert.equal(selected.pressed,true);assert.equal(selected.hover,false);
     if(!mobile) {
-      // Tab navigation supplies real keyboard focus-visible semantics.
-      await pill.focus();await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');
+      // Mac WebKit uses Option+Tab to include buttons in sequential focus.
+      const tab = engine === webkit && process.platform === 'darwin' ? 'Alt+Tab' : 'Tab';
+      await pill.focus();
+      await page.keyboard.press(tab);
+      await page.keyboard.press(`Shift+${tab}`);
       const focused=await capture('3D keyboard focus');
       assert.equal(focused.focus,true);assert.notEqual(focused.outline,'none');
       await pill.press('Enter');

@@ -11,7 +11,7 @@ const errors=[];page.on('pageerror',error=>errors.push(error.message));
 try {
   await page.setContent(`<button id="launch">Controls</button>
     <div id="drawer" role="dialog" aria-modal="true" hidden><button id="drawerFirst">First</button><button id="openChild">Export</button></div>
-    <div id="child" role="dialog" aria-modal="true" hidden><button id="close">Close</button><input id="date"><button id="end">Last</button><button tabindex="-1" id="inactive">Inactive</button></div>
+    <div id="child" role="dialog" aria-modal="true" hidden><button id="close">Close</button><input id="date"><button id="download">Download</button><button id="end">Last</button><button tabindex="-1" id="inactive">Inactive</button></div>
     <div id="nested" role="dialog" aria-modal="true" hidden><button id="warningClose">Warning</button></div>
     <div id="offscreen" inert><button>Never focus</button></div>`);
   await page.locator('#launch').focus();
@@ -47,6 +47,31 @@ try {
     document.dispatchEvent(new Event('nww:modalchange'));
   });
   assert.equal(await page.evaluate(()=>document.activeElement.id),'end');
+  await page.evaluate(async()=>{
+    const opener=document.getElementById('download');
+    document.getElementById('date').focus();
+    opener.disabled=true;
+    // The warning may open after a preview job that outlasts the click.
+    await new Promise(resolve=>setTimeout(resolve,0));
+    document.getElementById('nested').hidden=false;
+    document.dispatchEvent(new CustomEvent('nww:modalchange',{detail:{opener}}));
+    opener.disabled=false;
+  });
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'warningClose');
+  await page.evaluate(()=>{
+    document.getElementById('nested').hidden=true;
+    document.dispatchEvent(new Event('nww:modalchange'));
+  });
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'download','A delayed warning returns to the explicit action instead of the earlier field');
+  await page.evaluate(()=>{
+    document.getElementById('date').focus();
+    const opener=document.getElementById('openChild');
+    document.getElementById('nested').hidden=false;
+    document.dispatchEvent(new CustomEvent('nww:modalchange',{detail:{opener}}));
+    document.getElementById('nested').hidden=true;
+    document.dispatchEvent(new Event('nww:modalchange'));
+  });
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'date','An explicit opener outside the parent cannot override its focused field');
   assert.equal(await page.locator('#offscreen').evaluate(el=>el.inert),true);
   await page.evaluate(()=>{
     document.getElementById('child').hidden=true;

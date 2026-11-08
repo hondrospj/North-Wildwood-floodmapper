@@ -112,12 +112,17 @@ try{
   await page.evaluate(()=>clearTownAddressLookup());
   check(await page.locator('.nw-address-marker').count()===0,'Clear leaves visible address marker behind');
 
-  // End the preceding address-search animation before arranging this test's
-  // known town-wide camera. Otherwise its delayed moveend can restore zoom 17.
-  await page.evaluate(()=>{map.stop();const active=window.NORTH_WILDWOOD_3D.getMap();active.stop();active.jumpTo({center:[-74.7999,39.0069],zoom:13,bearing:0,pitch:0});});
   await page.setViewportSize({width:1024,height:768});
   await page.setViewportSize({width:390,height:844});
   await page.waitForTimeout(900);
+  // Set the known town-wide camera after the resize and address-search motion
+  // settle, so a delayed view synchronization cannot restore the prior zoom.
+  await page.evaluate(() => {
+    map.stop();
+    const active = window.NORTH_WILDWOOD_3D.getMap();
+    active.stop();
+    active.jumpTo({ center: [-74.7999, 39.0069], zoom: 13, bearing: 0, pitch: 0 });
+  });
   const bounds=await page.evaluate(()=>({active:getActiveMapBounds().toBBoxString(),visible:window.NORTH_WILDWOOD_3D.getMap().getBounds().toArray(),zoom:window.NORTH_WILDWOOD_3D.getMap().getZoom(),legacy:map.getSize()}));
   console.log('Current View input bounds',JSON.stringify(bounds));
   check(Math.abs(bounds.zoom-13)<1e-9,'Export test camera was changed by a preceding interaction');
