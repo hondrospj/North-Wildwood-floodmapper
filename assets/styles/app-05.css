@@ -8942,7 +8942,7 @@ html body #mapTitleBadge #mapTitleLogo{
   }
   .nsi-structure-popup .property-help{position:absolute;top:7px;right:48px;z-index:2}
   html body .nsi-structure-popup{
-    box-sizing:border-box;width:min(388px,calc(100vw - 72px));max-width:388px;padding:12px;
+    box-sizing:border-box;width:min(356px,calc(100vw - 72px));max-width:356px;padding:12px;
   }
   html body .nsi-structure-popup .house-alert-kicker{padding-right:70px;font-size:12px;line-height:1.25}
   html body .nsi-structure-popup h3{padding-right:42px;overflow-wrap:anywhere}

@@ -40,6 +40,7 @@ jobs:
         with:
           sparse-checkout: |
             index.html
+            floodmapper_v2.json
             city-gauge/index.html
             assets/export-area.js
             assets/export-preview.js
@@ -50,6 +51,8 @@ jobs:
             assets/road-labels.js
             assets/roads/north-wildwood-road-centerlines.geojson
             assets/north-wildwood-font.css
+            assets/fonts/inter-4.1-*
+            assets/parcel-history-v2/NorthWildwoodParcelAreaStages.json
             assets/north-wildwood-loading.js
             assets/north-wildwood-loading.css
             assets/modal-focus.js

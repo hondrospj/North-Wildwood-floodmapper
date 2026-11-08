@@ -179,7 +179,7 @@ function nsiFixture() {
   });
   loadOptional(context, ['openNsiStructurePopup', 'openNsiStructureFloodPopup']);
   load(context, ['normalizeStageValue', 'formatWaterDepth', 'finiteStructureNumber', 'getNsiFirstOccupiedFloorNavd88', 'getSelectedStageNavd88',
-    'getNsiStructureImpactStyle', 'formatNsiImpactStatus', 'buildNsiStructurePopup', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup', 'updatePropertyPopup',
+    'getNsiStructureImpactStyle', 'formatNsiImpactStatus', 'buildNsiStructurePopup', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup', 'updatePropertyPopup', 'deferPropertyPopupUpdate',
     'updateNsiStructureImpactLayer', 'ensureNsiStructureAssets', 'clearFloodLayer', 'renderHour']);
   return { context, feature, layers, slider, get popup() { return popup; }, get style() { return currentStyle; }, get directClick() { return directClick; } };
 }

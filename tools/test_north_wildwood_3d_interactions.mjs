@@ -56,6 +56,9 @@ assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /5.
 
 // The Esri wrapper's child renderer does not exist until metadata is ready.
 const configuration = fs.readFileSync(new URL('./app/runtime/00-configuration.js', import.meta.url), 'utf8');
+const geometryRuntime = fs.readFileSync(new URL('./app/runtime/10-map-geometry-and-layers.js', import.meta.url), 'utf8');
+const disableBuildingInfo = geometryRuntime.match(/^    function disableBuildingInfo\([\s\S]+?^    }/m)?.[0];
+assert.ok(disableBuildingInfo, 'Exercise the shared building interaction cleanup');
 const buildingLayerFactory = configuration.match(/^    function makeEsriBuildingForegroundLayer\([\s\S]+?^    }/m)?.[0];
 assert.ok(buildingLayerFactory, 'Exercise the actual Esri foreground layer factory');
 
@@ -118,15 +121,22 @@ for (const reenable of [false, true]) {
   assert.deepEqual(test.operations, ['attach', 'detach'], 'A ready layer attaches and detaches immediately');
 }
 
-function toggleFixture({ pitch = 0 } = {}) {
+function toggleFixture({ pitch = 0, parcels = false, structures = false } = {}) {
   const toggle = { classList: classList(), attributes: {}, setAttribute(key, value) { this.attributes[key] = value; } };
   const body = { classList: classList() };
+  const visibleLayers = new Set();
+  const otherToggles = {
+    parcelsToggle: { classList: { contains: () => parcels } },
+    nsiStructuresToggle: { classList: { contains: () => structures } }
+  };
   const actions = [];
   const gl = { getPitch: () => pitch, jumpTo: () => actions.push('camera move') };
   const context = {
-    buildingToggleGeneration: 0, buildingVisibilityPreference: null, mapQueryGeneration: 0,
-    document: { body, getElementById: () => toggle, querySelector: () => ({ click: () => actions.push('view toggle') }) },
-    glMap: null, glStyleReady: false, map: null, buildingsLayer: null,
+    buildingToggleGeneration: 0, buildingVisibilityPreference: null, mapQueryGeneration: 0, mapClickMode: 'depth',
+    document: { body, getElementById: id => id === 'buildingsToggle' ? toggle : otherToggles[id], querySelector: () => ({ click: () => actions.push('view toggle') }) },
+    glMap: null, glStyleReady: false, buildingsLayer: null,
+    map: { hasLayer: layer => visibleLayers.has(layer), removeLayer(layer) { visibleLayers.delete(layer); layer.removed?.(); } },
+    fallbackBuildingPopup: null, persistentFloodPopup: null, persistentDepthQueryContext: null,
     map3dReady: () => context.glStyleReady,
     ensure3dMap() { throw Error('Buildings must not initialize the native renderer'); },
     setBuildingsEnabled: async value => {
@@ -134,16 +144,17 @@ function toggleFixture({ pitch = 0 } = {}) {
       toggle.classList.toggle('on', Boolean(value));
       toggle.setAttribute('aria-checked', String(Boolean(value)));
     },
-    setMapClickMode: () => actions.push('building mode'),
+    setMapClickMode: mode => { context.mapClickMode = mode; actions.push(`${mode} mode`); },
     updateExportBuildingsLayer() {}, updateMapClickModeControl() {}, toast() {},
     syncBuildings3d: async () => actions.push('sync buildings'),
     focusEnabledBuildings3d: () => actions.push('focus camera'), suspendLeafletVisualLayers() {},
     window: { COUNTY_3D_BUILDINGS: { focus: async () => actions.push('focus buildings') } }
   };
   vm.createContext(context);
+  vm.runInContext(disableBuildingInfo, context);
   vm.runInContext(wrapper('originalSetBuildingsEnabled', 'originalSetSatelliteEnabled'), context);
   return {
-    context, toggle, actions,
+    context, toggle, actions, visibleLayers,
     ready() {
       context.glMap = gl;
       context.glStyleReady = true;
@@ -169,8 +180,19 @@ for (const pitch of [0, 60]) {
   await test.context.setBuildingsEnabled(false);
   assert.equal(test.toggle.attributes['aria-checked'], 'false');
   assert.equal(test.context.glMap.getPitch(), pitch);
-  assert.deepEqual(test.actions, ['building mode', 'sync buildings', 'sync buildings'],
+  assert.deepEqual(test.actions, ['building mode', 'sync buildings', 'depth mode', 'sync buildings'],
     'Buildings selects Building Info and updates native layers without touching the camera');
+}
+for (const structures of [true, false]) {
+  const test = toggleFixture({ pitch: 60, parcels: true, structures });
+  test.ready();
+  await test.context.setBuildingsEnabled(true);
+  const popup = { removed() { test.context.fallbackBuildingPopup = null; } };
+  test.context.fallbackBuildingPopup = popup;
+  test.visibleLayers.add(popup);
+  await test.context.setBuildingsEnabled(false);
+  assert.equal(test.context.mapClickMode, structures ? 'building' : 'parcel');
+  assert.ok(!test.visibleLayers.has(popup), 'A native fallback roof popup must close when its Buildings layer turns off');
 }
 {
   const syncGate = deferred(), started = deferred(), test = toggleFixture();
@@ -183,7 +205,7 @@ for (const pitch of [0, 60]) {
   await Promise.all([older, latest]);
   assert.equal(test.toggle.classList.contains('on'), false);
   assert.equal(test.context.buildingVisibilityPreference, false);
-  assert.ok(test.actions.every(action => action === 'building mode'));
+  assert.deepEqual(test.actions, ['building mode', 'depth mode']);
 }
 {
   const test = toggleFixture();
@@ -196,7 +218,7 @@ for (const pitch of [0, 60]) {
   assert.equal(test.context.buildingVisibilityPreference, true, 'Failure rollback preserves the explicit on preference');
   await test.context.setBuildingsEnabled(true);
   assert.equal(test.toggle.classList.contains('on'), true, 'A current asset failure permits a successful retry');
-  assert.deepEqual(test.actions.filter(action => action !== 'building mode'), ['sync buildings', 'sync buildings']);
+  assert.deepEqual(test.actions.filter(action => action === 'sync buildings'), ['sync buildings', 'sync buildings']);
 }
 {
   const test = toggleFixture(), failedSync = deferred(), started = deferred();
@@ -212,7 +234,7 @@ for (const pitch of [0, 60]) {
   failedSync.reject(Error('Obsolete building asset failure'));
   await older;
   assert.equal(test.toggle.classList.contains('on'), false, 'An obsolete failure cannot roll back the latest choice');
-  assert.ok(test.actions.every(action => action === 'building mode'));
+  assert.deepEqual(test.actions, ['building mode', 'depth mode']);
 }
 
 const clickedFootprintId = 'clicked-footprint';
