@@ -149,7 +149,7 @@ await test('Ordinary within-month Daily Max navigation still advances one displa
   assert.equal(f.loaded.length, 0);
 });
 
-await test('First-floor popup reserves the direction wheel only when the remaining width fits', () => {
+await test('Map data popups reserve the direction wheel where the viewport has space', () => {
   const elements = {
     rightRail: { getBoundingClientRect: () => ({ width: 280 }) },
     nwDefaultNavControl: { getBoundingClientRect: () => ({ left: 668, width: 92 }) }
@@ -170,16 +170,20 @@ await test('First-floor popup reserves the direction wheel only when the remaini
     }
   });
   load(context, ['openPersistentFloodPopup']);
-  const structure = '<div class="nsi-structure-popup">Structure</div>';
-  context.openPersistentFloodPopup({}, structure, 360);
-  assert.equal(options.autoPanPaddingBottomRight.x, 368, 'Reserve the compass footprint with a 12px gap');
-  context.openPersistentFloodPopup({}, '<div class="depth-query-popup">Depth</div>', 360);
+  const popupTypes = ['nsi-structure-popup', 'house-alert-popup', 'depth-query-popup'];
+  for (const className of popupTypes) {
+    context.openPersistentFloodPopup({}, `<div class="${className}">Reading</div>`, 360);
+    assert.equal(options.autoPanPaddingBottomRight.x, 368, 'Reserve the compass footprint with a 12px gap');
+  }
+  context.openPersistentFloodPopup({}, '<div class="town-address-popup">Address</div>', 360);
   assert.equal(options.autoPanPaddingBottomRight.x, 310, 'Other popups preserve normal map padding');
   context.window.innerWidth = 390;
+  context.window.innerHeight = 844;
   context.isCompactFloodmapperLayout = () => true;
-  elements.nwDefaultNavControl.getBoundingClientRect = () => ({ left: 300, width: 78 });
-  context.openPersistentFloodPopup({}, structure, 360);
-  assert.equal(options.autoPanPaddingBottomRight.x, 10, 'Do not reserve an inset if the narrow map cannot fit the popup');
+  elements.nwDefaultNavControl.getBoundingClientRect = () => ({ left: 300, width: 78, height: 160, bottom: 236 });
+  context.openPersistentFloodPopup({}, '<div class="house-alert-popup">Building</div>', 460);
+  assert.equal(options.autoPanPaddingBottomRight.x, 10, 'The narrow map cannot fit the popup beside the compass');
+  assert.equal(options.autoPanPaddingTopLeft.y, 248, 'A wide popup goes below the phone controls');
 });
 
 function nsiFixture() {

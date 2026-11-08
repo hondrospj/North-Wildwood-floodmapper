@@ -101,7 +101,7 @@
     const DEFAULT_OVERLAY_MODE = "depth";
     const DEFAULT_DATA_MODE = "forecast";
     const DEFAULT_OPACITY = 0.75;
-    const TOP_TIDE_DISPLAY_COUNT = 2;
+    const TOP_TIDE_DISPLAY_COUNT = 3;
     const TOP_TIDE_SELECT_COUNT = 10;
     const TOP_TIDE_WINDOW_HOURS = 12;
     const ROAD_LABEL_ZOOM = 10;

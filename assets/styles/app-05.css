@@ -8011,6 +8011,53 @@ html body #mapTitleBadge #mapTitleLogo{
     html body[data-shorelysafe-ui] :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):hover {
       background-color:var(--nww-close-hover) !important;
     }
+
+    :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {
+      --nww-popup-close-size:36px;
+      --nww-popup-close-edge:8px;
+    }
+    .maplibregl-popup:has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {
+      /* Its native control is inside the card's 1px border. */
+      --nww-popup-close-edge:7px;
+    }
+    @media (any-pointer:coarse) {
+      :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {
+        --nww-popup-close-size:44px;
+      }
+    }
+    :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query))
+    :is(.leaflet-popup-close-button,.maplibregl-popup-close-button) {
+      position:absolute !important;
+      inset:var(--nww-popup-close-edge) var(--nww-popup-close-edge) auto auto !important;
+      z-index:12 !important;
+      width:var(--nww-popup-close-size) !important;
+      min-width:var(--nww-popup-close-size) !important;
+      max-width:var(--nww-popup-close-size) !important;
+      height:var(--nww-popup-close-size) !important;
+      min-height:var(--nww-popup-close-size) !important;
+      max-height:var(--nww-popup-close-size) !important;
+      margin:0 !important;
+      text-decoration:none !important;
+      transform:none !important;
+      cursor:pointer !important;
+    }
+    .maplibregl-popup.nw-mobile-popup:has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query))
+    .maplibregl-popup-close-button {
+      position:sticky !important;
+      right:auto !important;
+      float:right !important;
+      margin:var(--nww-popup-close-edge) var(--nww-popup-close-edge)
+        calc(-1 * (var(--nww-popup-close-size) + var(--nww-popup-close-edge))) 0 !important;
+    }
+    :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query))
+    :is(.leaflet-popup-close-button,.maplibregl-popup-close-button):focus-visible {
+      outline:2px solid #7df9ff !important;
+      outline-offset:2px !important;
+    }
+    :is(.leaflet-popup,.maplibregl-popup) :is(.depth-query-popup,.shorely-v11-depth-query) h3 {
+      padding-inline:calc(var(--nww-popup-close-size) - 6px) !important;
+    }
+
     #timelineDock #timelineFloodKey {
       --nww-key-font:14px;
       --nww-key-dot:12px;
@@ -8028,50 +8075,37 @@ html body #mapTitleBadge #mapTitleLogo{
       min-height:var(--nww-key-dot) !important;
       flex:0 0 var(--nww-key-dot) !important;
     }
-    .top-tide-inline-extra {
-      display:none !important;
+    .top-tides-card:has(#topTideList) {
+      height:auto !important;
+      min-height:0 !important;
+      max-height:none !important;
     }
-    @media (min-width:768px) and (min-height:700px) {
-      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) {
-        display:grid !important;
-        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-        gap:4px !important;
-      }
-      /* Five 34px rows and four 4px gaps, including while the archive loads. */
-      :is(#topTideList,#topTideListMobile) {
-        min-height:186px !important;
-        max-height:none !important;
-        overflow:visible !important;
-      }
-      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-item {
-        display:grid !important;
-        grid-template-columns:auto minmax(0,1fr) !important;
-        grid-template-rows:repeat(2,14px) !important;
-        gap:0 4px !important;
-        min-height:34px !important;
-        max-height:none !important;
-        padding:2px 5px !important;
-      }
-      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-rank {
-        grid-area:1 / 1 / 3 / 2 !important;
-        align-self:center !important;
-      }
-      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-main {
-        grid-area:1 / 2 !important;
-        text-align:left !important;
-        white-space:nowrap !important;
-      }
-      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-sub {
-        grid-area:2 / 2 !important;
-        text-align:left !important;
-      }
-      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) :is(.top-tide-rank,.top-tide-main,.top-tide-sub) {
-        font-size:12px !important;
-        line-height:14px !important;
-      }
-      :is(#topTideList,#topTideListMobile):has(.top-tide-inline-extra) .top-tide-more-btn {
-        display:none !important;
-      }
+    #topTideList {
+      --top-tide-preview-row:34px;
+      --top-tide-preview-gap:5px;
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) !important;
+      gap:var(--top-tide-preview-gap) !important;
+      /* Reserve the three flood rows and disclosure while the archive loads. */
+      min-height:calc(4 * var(--top-tide-preview-row) + 3 * var(--top-tide-preview-gap)) !important;
+      max-height:none !important;
+      overflow:visible !important;
+    }
+    body[data-sidebar-density="compact"] #topTideList {
+      --top-tide-preview-row:28px;
+      --top-tide-preview-gap:3px;
+    }
+    body[data-sidebar-density="tight"] #topTideList {
+      --top-tide-preview-row:24px;
+      --top-tide-preview-gap:3px;
+    }
+    #topTideList > :is(.top-tide-item,.top-tide-more-btn) {
+      box-sizing:border-box !important;
+      height:var(--top-tide-preview-row) !important;
+      min-height:var(--top-tide-preview-row) !important;
+      max-height:var(--top-tide-preview-row) !important;
+      margin:0 !important;
+      padding:2px 6px !important;
     }
     @media (max-width:900px), (max-height:560px), (max-width:1366px) and (any-pointer:coarse) {
       #timelineDock #timelineFloodKey {
@@ -8943,11 +8977,14 @@ html body #mapTitleBadge #mapTitleLogo{
     white-space:normal;color:#eaf0ff;background:#18283c;border:1px solid rgba(191,219,254,.28);
     font-size:13px !important;line-height:1.35;
   }
-  .nsi-structure-popup .property-help{position:absolute;top:7px;right:48px;z-index:2}
+  .nsi-structure-popup .property-help{
+    position:absolute;top:var(--nww-popup-close-edge,8px);
+    right:calc(var(--nww-popup-close-edge,8px) + var(--nww-popup-close-size,36px) + 6px);z-index:2;
+  }
   html body .nsi-structure-popup{
     box-sizing:border-box;width:min(356px,calc(100vw - 72px));max-width:356px;padding:12px;
   }
-  html body .nsi-structure-popup .house-alert-kicker{padding-right:70px;font-size:12px;line-height:1.25}
+  html body .nsi-structure-popup .house-alert-kicker{padding-right:calc(var(--nww-popup-close-size,36px) + 44px);font-size:12px;line-height:1.25}
   html body .nsi-structure-popup h3{padding-right:42px;overflow-wrap:anywhere}
   html body .nsi-structure-popup .nsi-impact-status{font-size:13px;margin-bottom:8px}
   html body .nsi-structure-popup .nsi-structure-grid{font-size:12px;margin-bottom:4px}
@@ -9375,45 +9412,6 @@ html body #mapTitleBadge #mapTitleLogo{
     border:0;
     background:#0b1423;
     box-shadow:none;
-  }
-  html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button{
-    --centered-close-x-size:12px;
-    --centered-close-x-color:#bdcce0;
-    top:10px !important;
-    right:10px !important;
-    width:32px !important;
-    min-width:32px !important;
-    height:32px !important;
-    min-height:32px !important;
-    border:1px solid transparent !important;
-    border-radius:8px !important;
-    background:transparent !important;
-    box-shadow:none !important;
-    color:transparent !important;
-    font-size:0 !important;
-    line-height:0 !important;
-  }
-  html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button > span{
-    display:none !important;
-  }
-  html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button:hover{
-    --centered-close-x-color:#eaf7ff;
-    border-color:rgba(189,204,224,.16) !important;
-    background:rgba(189,204,224,.08) !important;
-  }
-  html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button:focus-visible{
-    outline:2px solid #7df9ff;
-    outline-offset:2px;
-  }
-  @media (pointer:coarse){
-    html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button{
-      top:6px !important;
-      right:6px !important;
-      width:40px !important;
-      min-width:40px !important;
-      height:40px !important;
-      min-height:40px !important;
-    }
   }
 
 @media(min-width:901px) and (not (any-pointer:coarse)), (min-width:1367px) {

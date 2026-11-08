@@ -12,6 +12,7 @@ from PIL import Image
 PARCEL_PATH = Path("assets/parcel-history-v2/NorthWildwoodParcels.geojson")
 OUTPUT_PATH = Path("assets/parcel-history-v2/NorthWildwoodParcelAreaStages.json")
 SHARES = (25, 50, 75)
+ENDPOINT_SHARES = (0, 100)
 
 
 def pixels_for_geometry(geometry, corners, width, height):
@@ -84,6 +85,7 @@ def build(atlas, grid, output):
     flattened_wet = first_wet.ravel()
     flattened_coverage = coverage.ravel()
     rows = {}
+    endpoints = {}
     for feature in parcels["features"]:
         indices, total = pixels_for_geometry(feature["geometry"], corners, width, height)
         valid = indices[flattened_coverage[indices]]
@@ -92,13 +94,18 @@ def build(atlas, grid, output):
             continue
         sorted_stages = np.sort(flattened_wet[valid])
         thresholds = [int(sorted_stages[ceil(total * share / 100) - 1]) for share in SHARES]
-        rows[str(feature["id"])] = [stage if stage <= 200 else None for stage in thresholds]
+        parcel_id = str(feature["id"])
+        rows[parcel_id] = [stage if stage <= 200 else None for stage in thresholds]
+        # The 0% choice is any flooding, so it starts when the first cell is wet.
+        endpoints[parcel_id] = [int(stage) if stage <= 200 else None for stage in (sorted_stages[0], sorted_stages[-1])]
     output.write_text(json.dumps({
         "schema": "north-wildwood-parcel-area-stages-v1",
         "catalogVersion": config["overlays"]["cacheVersions"]["hydraulic"],
         "atlasPngsSha256": atlas_hash,
         "sharesPercent": SHARES,
-        "stagesInTenthsFtNavd88": rows
+        "stagesInTenthsFtNavd88": rows,
+        "endpointSharesPercent": ENDPOINT_SHARES,
+        "endpointStagesInTenthsFtNavd88": endpoints
     }, separators=(",", ":")) + "\n")
     print(f"Area stages built for {len(rows):,} parcels with complete coverage.")
 

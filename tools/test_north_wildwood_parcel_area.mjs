@@ -14,6 +14,7 @@ const ctx = vm.createContext({
   latLngToWorldFileUv: (lat, lon) => ({ u: lon, v: lat }),
   DRAINAGE_DEPTH_COLORS: [[125, 249, 255], [93, 231, 255]],
   DRAINAGE_DEPTH_BREAKS_FT: [.1, .25],
+  escapeTownAddressHtml: String,
 });
 vm.runInContext(source('08-filling-and-drainage'), ctx);
 vm.runInContext(source('25-structures-and-parcels'), ctx);
@@ -38,14 +39,21 @@ assert.equal(metrics.wet, 2);
 assert.equal(metrics.deepest, 1);
 assert.equal(metrics.unresolvedDepth, true);
 assert.equal(ctx.formatParcelDepthBand(metrics), '≥0.1 ft');
+assert.match(ctx.buildParcelAreaPopup({ properties: { address: 'Test parcel' } }, metrics, false),
+  /Maximum Flood Depth<\/span><strong>≥0\.1 ft/);
 
 const stages = JSON.parse(fs.readFileSync(new URL('../assets/parcel-history-v2/NorthWildwoodParcelAreaStages.json', import.meta.url)));
 const config = JSON.parse(fs.readFileSync(new URL('../floodmapper_v2.json', import.meta.url)));
 assert.equal(stages.catalogVersion, config.overlays.cacheVersions.hydraulic, 'Precomputed projections must match the deployed hydraulic atlas');
 assert.deepEqual(stages.stagesInTenthsFtNavd88['518840'], [73, 78, 84], '901 Atlantic Ave model area stages');
-for (const stage of Object.values(stages.stagesInTenthsFtNavd88)) {
+assert.deepEqual(stages.endpointSharesPercent, [0, 100]);
+assert.deepEqual(stages.endpointStagesInTenthsFtNavd88['518840'], [67, 96], '901 Atlantic Ave first and last wet cell');
+assert.deepEqual(Object.keys(stages.endpointStagesInTenthsFtNavd88), Object.keys(stages.stagesInTenthsFtNavd88));
+for (const [id, stage] of Object.entries(stages.stagesInTenthsFtNavd88)) {
   assert.equal(stage.length, stages.sharesPercent.length);
-  const upper = stage.map(value => value ?? Infinity);
+  const endpoints = stages.endpointStagesInTenthsFtNavd88[id];
+  assert.equal(endpoints.length, 2);
+  const upper = [endpoints[0], ...stage, endpoints[1]].map(value => value ?? Infinity);
   assert.ok(upper.every((value, index) => value >= 0 && (!index || value >= upper[index - 1])));
 }
 
@@ -56,10 +64,38 @@ ctx.fetchJson = async () => stages;
 vm.runInContext(source('24-alerts-and-projections'), ctx);
 const options = await ctx.getParcelProjectionOptions({ id: 518840 }, cdf);
 assert.deepEqual(JSON.parse(JSON.stringify(options)), [
+  { share: 0, stage: 6.7, elevationIndex: 66 },
   { share: 25, stage: 7.3, elevationIndex: 72 },
   { share: 50, stage: 7.8, elevationIndex: 77 },
   { share: 75, stage: 8.4, elevationIndex: 83 },
+  { share: 100, stage: 9.6, elevationIndex: 95 },
 ]);
+const waterfront = await ctx.getParcelProjectionOptions({ id: 515857 }, cdf);
+assert.deepEqual(JSON.parse(JSON.stringify(waterfront[0])), { share: 0, stage: 0, elevationIndex: -1 },
+  'Existing water can place the first wet cell below the CDF coverage');
+assert.equal(waterfront.at(-1).elevationIndex, 53);
+const projectionBody = { style: { setProperty() {} }, innerHTML: '' };
+ctx.document = { getElementById: id => id === 'floodHistoryBody' ? projectionBody : null };
+ctx.renderFloodHistoryProjection({ id: 518840 }, cdf, options);
+assert.match(projectionBody.innerHTML, /value="25" selected>At least 25%/);
+ctx.renderFloodHistoryProjection({ id: 518840 }, cdf, options, 0, 40);
+assert.match(projectionBody.innerHTML, /value="0" selected>Any Flooding \(&gt;0%\)/);
+assert.match(projectionBody.innerHTML, /<span>2066<\/span>/);
+ctx.renderFloodHistoryProjection({ id: 518840 }, cdf, options, 100, 40);
+assert.match(projectionBody.innerHTML, /value="100" selected>Entire Parcel \(100%\)/);
+assert.match(projectionBody.innerHTML, /<span>2066<\/span>/);
+ctx.renderFloodHistoryProjection({ id: 515857 }, cdf, waterfront);
+assert.match(projectionBody.innerHTML, /value="0" disabled>Any Flooding \(&gt;0%\) \(unavailable\)/);
+
+const { endpointSharesPercent, endpointStagesInTenthsFtNavd88, ...previousStages } = stages;
+vm.runInContext('parcelAreaStagesPromise = null', ctx);
+ctx.fetchJson = async () => previousStages;
+const previousOptions = await ctx.getParcelProjectionOptions({ id: 518840 }, cdf);
+assert.deepEqual(JSON.parse(JSON.stringify(previousOptions)), [
+  { share: 0, stage: null, elevationIndex: -1 },
+  ...JSON.parse(JSON.stringify(options.slice(1, 4))),
+  { share: 100, stage: null, elevationIndex: -1 },
+], 'Older projection data retains the three original choices');
 assert.equal((await ctx.getParcelProjectionOptions({ id: 'uncovered' }, cdf)).length, 0);
 ctx.OVERLAY_CACHE_VERSIONS.hydraulic = 'new-atlas';
 assert.equal((await ctx.getParcelProjectionOptions({ id: 518840 }, cdf)).length, 0);
@@ -81,7 +117,6 @@ Object.assign(ctx, {
   async getHydraulicOverlayRecord(...args) { depthRequests.push(args); return { url: 'selected-depth.png' }; },
   async getDrainageRasterImage(url) { assert.equal(url, 'selected-depth.png'); return null; },
   async getDepthQueryGrid() { return grid; },
-  escapeTownAddressHtml: String,
 });
 const updates = [];
 ctx.updatePropertyPopup = (target, html) => updates.push({ target, html });

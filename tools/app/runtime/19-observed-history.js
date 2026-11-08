@@ -741,6 +741,9 @@ function formatSelectedObservedDate(dateStr) {
       btn.setAttribute("aria-label", `#${event.rank} ${event.title}, ${stage}`);
       btn.addEventListener("click", () => {
         setTopTidesModalOpen(false);
+        if (btn.closest("#topTidesModalList") && document.body.classList.contains("mobile-controls-open")) {
+          setMobileControlsOpen(false);
+        }
         loadTopTideEvent(idx).catch(err => toast(err.message));
       });
       return btn;
@@ -763,26 +766,31 @@ function formatSelectedObservedDate(dateStr) {
       });
     }
 
-    function setTopTidesModalOpen(open) {
+    function setTopTidesModalOpen(open, opener = null) {
       const modal = document.getElementById("topTidesModal");
-      if (!modal) return;
+      if (!modal || modal.hidden === !open) return;
       if (modal.parentElement !== document.body) document.body.appendChild(modal);
-      if (open && document.body.classList.contains("mobile-optimized") && typeof setMobileControlsOpen === "function") {
-        setMobileControlsOpen(false);
-      }
       if (open) renderTopTidesModal();
       modal.hidden = !open;
       modal.classList.toggle("open", !!open);
       modal.setAttribute("aria-hidden", open ? "false" : "true");
       document.body.classList.toggle("top-tides-modal-open", !!open);
+      document.querySelectorAll(".top-tide-more-btn").forEach(button => {
+        button.setAttribute("aria-expanded", String(open && button === opener));
+      });
+      document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
       if (open) document.getElementById("topTidesModalCloseBtn")?.focus();
     }
 
     function renderTopTides() {
       const wraps = [document.getElementById("topTideList"), document.getElementById("topTideListMobile")].filter(Boolean);
+      const hasMore = topTideEvents.length > TOP_TIDE_DISPLAY_COUNT;
 
       wraps.forEach(wrap => {
-        wrap.innerHTML = "";
+        const more = hasMore ? wrap.querySelector(".top-tide-more-btn") : null;
+        for (const child of [...wrap.children]) {
+          if (child !== more) child.remove();
+        }
 
         if (!topTideEvents.length) {
           const empty = document.createElement("div");
@@ -792,20 +800,20 @@ function formatSelectedObservedDate(dateStr) {
           return;
         }
 
-        topTideEvents.slice(0, TOP_TIDE_SELECT_COUNT).forEach((event, idx) => {
-          wrap.appendChild(createTopTideButton(event, idx, {
-            inline: true,
-            extraClass: idx >= TOP_TIDE_DISPLAY_COUNT ? "top-tide-inline-extra" : ""
-          }));
+        topTideEvents.slice(0, TOP_TIDE_DISPLAY_COUNT).forEach((event, idx) => {
+          wrap.insertBefore(createTopTideButton(event, idx, { inline: true }), more);
         });
 
-        if (topTideEvents.length > TOP_TIDE_DISPLAY_COUNT) {
-          const more = document.createElement("button");
-          more.type = "button";
-          more.className = "top-tide-more-btn";
-          more.textContent = "View All Floods";
-          more.addEventListener("click", () => setTopTidesModalOpen(true));
-          wrap.appendChild(more);
+        if (hasMore && !more) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "top-tide-more-btn";
+          button.setAttribute("aria-controls", "topTidesModal");
+          button.setAttribute("aria-expanded", "false");
+          button.setAttribute("aria-haspopup", "dialog");
+          button.innerHTML = '<span class="unified-more-plus" aria-hidden="true">+</span><span>Show more</span>';
+          button.addEventListener("click", () => setTopTidesModalOpen(true, button));
+          wrap.appendChild(button);
         }
       });
       renderTopTidesModal();

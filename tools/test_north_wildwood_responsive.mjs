@@ -185,13 +185,12 @@ try {
       await activate(page,'#infoModalCloseBtn');
       await activate(page,'#observedDataBtn');await settled(page);
       const allFloods = page.locator('.top-tide-more-btn:visible').first();
-      if (await allFloods.isVisible()) {
-        await allFloods[touch?'tap':'click']();
-        await contained(page,'#topTidesModal .top-tides-modal-card',`${width} top tides fits`);
-        await activate(page,'#topTidesModalCloseBtn');
-      } else {
-        check(await page.locator(':is(#topTideList,#topTideListMobile) .top-tide-item:visible').count() === 10,`${width} all ten floods visible in the rail`);
-      }
+      check(await page.locator(':is(#topTideList,#topTideListMobile) .top-tide-item:visible').count() === 3,`${width} three floods visible in the preview`);
+      check(await allFloods.isVisible(),`${width} flood preview has a disclosure`);
+      await allFloods[touch?'tap':'click']();
+      await contained(page,'#topTidesModal .top-tides-modal-card',`${width} top tides fits`);
+      check(await page.locator('#topTidesModalList .top-tide-item').count() === 10,`${width} all ten floods available in the dialog`);
+      await activate(page,'#topTidesModalCloseBtn');
       await closeDrawer(page);
     }
     await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();

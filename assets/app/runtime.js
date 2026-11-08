@@ -101,7 +101,7 @@
     const DEFAULT_OVERLAY_MODE = "depth";
     const DEFAULT_DATA_MODE = "forecast";
     const DEFAULT_OPACITY = 0.75;
-    const TOP_TIDE_DISPLAY_COUNT = 2;
+    const TOP_TIDE_DISPLAY_COUNT = 3;
     const TOP_TIDE_SELECT_COUNT = 10;
     const TOP_TIDE_WINDOW_HOURS = 12;
     const ROAD_LABEL_ZOOM = 10;
@@ -10611,6 +10611,9 @@ function formatSelectedObservedDate(dateStr) {
       btn.setAttribute("aria-label", `#${event.rank} ${event.title}, ${stage}`);
       btn.addEventListener("click", () => {
         setTopTidesModalOpen(false);
+        if (btn.closest("#topTidesModalList") && document.body.classList.contains("mobile-controls-open")) {
+          setMobileControlsOpen(false);
+        }
         loadTopTideEvent(idx).catch(err => toast(err.message));
       });
       return btn;
@@ -10633,26 +10636,31 @@ function formatSelectedObservedDate(dateStr) {
       });
     }
 
-    function setTopTidesModalOpen(open) {
+    function setTopTidesModalOpen(open, opener = null) {
       const modal = document.getElementById("topTidesModal");
-      if (!modal) return;
+      if (!modal || modal.hidden === !open) return;
       if (modal.parentElement !== document.body) document.body.appendChild(modal);
-      if (open && document.body.classList.contains("mobile-optimized") && typeof setMobileControlsOpen === "function") {
-        setMobileControlsOpen(false);
-      }
       if (open) renderTopTidesModal();
       modal.hidden = !open;
       modal.classList.toggle("open", !!open);
       modal.setAttribute("aria-hidden", open ? "false" : "true");
       document.body.classList.toggle("top-tides-modal-open", !!open);
+      document.querySelectorAll(".top-tide-more-btn").forEach(button => {
+        button.setAttribute("aria-expanded", String(open && button === opener));
+      });
+      document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
       if (open) document.getElementById("topTidesModalCloseBtn")?.focus();
     }
 
     function renderTopTides() {
       const wraps = [document.getElementById("topTideList"), document.getElementById("topTideListMobile")].filter(Boolean);
+      const hasMore = topTideEvents.length > TOP_TIDE_DISPLAY_COUNT;
 
       wraps.forEach(wrap => {
-        wrap.innerHTML = "";
+        const more = hasMore ? wrap.querySelector(".top-tide-more-btn") : null;
+        for (const child of [...wrap.children]) {
+          if (child !== more) child.remove();
+        }
 
         if (!topTideEvents.length) {
           const empty = document.createElement("div");
@@ -10662,20 +10670,20 @@ function formatSelectedObservedDate(dateStr) {
           return;
         }
 
-        topTideEvents.slice(0, TOP_TIDE_SELECT_COUNT).forEach((event, idx) => {
-          wrap.appendChild(createTopTideButton(event, idx, {
-            inline: true,
-            extraClass: idx >= TOP_TIDE_DISPLAY_COUNT ? "top-tide-inline-extra" : ""
-          }));
+        topTideEvents.slice(0, TOP_TIDE_DISPLAY_COUNT).forEach((event, idx) => {
+          wrap.insertBefore(createTopTideButton(event, idx, { inline: true }), more);
         });
 
-        if (topTideEvents.length > TOP_TIDE_DISPLAY_COUNT) {
-          const more = document.createElement("button");
-          more.type = "button";
-          more.className = "top-tide-more-btn";
-          more.textContent = "View All Floods";
-          more.addEventListener("click", () => setTopTidesModalOpen(true));
-          wrap.appendChild(more);
+        if (hasMore && !more) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "top-tide-more-btn";
+          button.setAttribute("aria-controls", "topTidesModal");
+          button.setAttribute("aria-expanded", "false");
+          button.setAttribute("aria-haspopup", "dialog");
+          button.innerHTML = '<span class="unified-more-plus" aria-hidden="true">+</span><span>Show more</span>';
+          button.addEventListener("click", () => setTopTidesModalOpen(true, button));
+          wrap.appendChild(button);
         }
       });
       renderTopTidesModal();
@@ -12283,7 +12291,7 @@ function populateCalendarSelectors() {
         observedMonthKeys = [];
         observedFlatHours = [];
         observedHourIndexByDateHour = new Map();
-        topTideEvents = [];
+        // Keep the rendered flood ranking selectable while the archive loads.
         if (observedData) {
           await loadObserved();
           if (generation !== archiveGeneration) return null;
@@ -12744,11 +12752,19 @@ function startPlayback() {
       const viewportPopupWidth = mobilePopup
         ? Math.max(240, Math.min(requestedPopupWidth, window.innerWidth - 28))
         : requestedPopupWidth;
+      let topPadding = mobilePopup ? 126 : 16;
+      const bottomPadding = mobilePopup
+        ? Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shorely-mobile-timeline-height")) + 16 || 140
+        : 16;
       let rightPadding = mobilePopup ? 10 : desktopRightRailWidth + 30;
-      if (String(html).includes("nsi-structure-popup")) {
+      if (isHouseAlertPopup || isDepthQueryPopup || String(html).includes("nsi-structure-popup")) {
         const directionControl = document.getElementById("nwDefaultNavControl")?.getBoundingClientRect();
         if (directionControl?.width && directionControl.left >= viewportPopupWidth + 36) {
           rightPadding = Math.max(rightPadding, Math.ceil(window.innerWidth - directionControl.left + 12));
+        } else if (mobilePopup && directionControl?.height &&
+          directionControl.bottom + 64 <= window.innerHeight - bottomPadding) {
+          // A wide card cannot fit to the left of the controls on a phone.
+          topPadding = Math.max(topPadding, Math.ceil(directionControl.bottom + 12));
         }
       }
       const popup = L.popup({
@@ -12760,10 +12776,8 @@ function startPlayback() {
         closeButton: true,
         keepInView: !document.body.classList.contains("map-3d-ready"),
         autoPan: !document.body.classList.contains("map-3d-ready"),
-        autoPanPaddingTopLeft: mobilePopup ? L.point(10, 126) : L.point(16, 16),
-        autoPanPaddingBottomRight: mobilePopup
-          ? L.point(rightPadding, Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shorely-mobile-timeline-height")) + 16 || 140)
-          : L.point(rightPadding, 16)
+        autoPanPaddingTopLeft: L.point(mobilePopup ? 10 : 16, topPadding),
+        autoPanPaddingBottomRight: L.point(rightPadding, bottomPadding)
       })
         .setLatLng(latlng)
         .setContent(html)
@@ -12904,14 +12918,22 @@ function startPlayback() {
           !expectedShares.every((share, index) => payload.sharesPercent[index] === share)) return [];
       const stages = payload.stagesInTenthsFtNavd88?.[String(feature.id)];
       if (!Array.isArray(stages)) return [];
+      const endpoints = payload.endpointSharesPercent?.length === 2 &&
+        payload.endpointSharesPercent[0] === 0 && payload.endpointSharesPercent[1] === 100
+        ? payload.endpointStagesInTenthsFtNavd88?.[String(feature.id)] : null;
+      const thresholds = [
+        [0, endpoints?.[0]],
+        ...expectedShares.map((share, index) => [share, stages[index]]),
+        [100, endpoints?.[1]]
+      ];
       const minimumDepth = Number(data.floodDefinition?.minimumDepthFt);
-      return expectedShares.map((share, index) => {
-        const stage = Number.isInteger(stages[index]) ? stages[index] / 10 : null;
+      return thresholds.map(([share, stageTenths]) => {
+        const stage = Number.isInteger(stageTenths) ? stageTenths / 10 : null;
         // Existing CDF rows use gauge level > elevation + minimum depth.
         const elevationIndex = stage == null ? -1 : data.elevationGridFtNavd88.findIndex(
           value => Math.abs(Number(value) + minimumDepth - stage) < 1e-6);
         return { share, stage, elevationIndex };
-      }).filter(option => option.elevationIndex >= 0);
+      });
     }
 
     function findProjectionElevationIndex(feature, data) {
@@ -12985,7 +13007,10 @@ function startPlayback() {
       if (!body) return;
       const p = feature?.properties || {};
       const years = Array.isArray(data.years) ? data.years : [];
-      const parcelOption = parcelOptions?.find(option => option.share === selectedShare) || parcelOptions?.[0];
+      const supportedParcelOptions = parcelOptions?.filter(option => option.elevationIndex >= 0);
+      const parcelOption = supportedParcelOptions?.find(option => option.share === selectedShare) ??
+        supportedParcelOptions?.find(option => option.share > 0 && option.share < 100) ??
+        supportedParcelOptions?.[0];
       if (parcelOptions && !parcelOption) {
         body.innerHTML = '<div class="flood-history-error">Parcel-area projections are unavailable within the model’s coverage.</div>';
         return;
@@ -13024,7 +13049,13 @@ function startPlayback() {
             ${parcelOption ? `<label class="flood-scenario-field flood-area-field">
               Flooded area
               <select id="floodProjectionAreaSelect" class="flood-scenario-select">
-                ${parcelOptions.map(option => `<option value="${option.share}"${option === parcelOption ? " selected" : ""}>At least ${option.share}%</option>`).join("")}
+                ${parcelOptions.map(option => {
+                  const label = option.share === 0 ? "Any Flooding (&gt;0%)"
+                    : option.share === 100 ? "Entire Parcel (100%)" : `At least ${option.share}%`;
+                  const available = option.elevationIndex >= 0;
+                  const state = !available ? " disabled" : option === parcelOption ? " selected" : "";
+                  return `<option value="${option.share}"${state}>${label}${available ? "" : " (unavailable)"}</option>`;
+                }).join("")}
               </select>
             </label>` : ""}
             <label class="flood-scenario-field">
@@ -13089,7 +13120,7 @@ function startPlayback() {
       address.textContent = feature?.properties?.address || "Selected North Wildwood parcel";
       document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
       document.getElementById("floodHistoryHelpText").textContent = parcel
-        ? "This uses the modeled high-tide map to estimate how often water could cover the selected share. The area includes water already inside the parcel."
+        ? "Any Flooding means water covers more than 0% of the parcel. Projections include water already inside the parcel and require a threshold within the model’s range."
         : "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises.";
       body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Loading flood projections…</strong></div>';
       backdrop.hidden = false;
@@ -13519,7 +13550,7 @@ function startPlayback() {
         ? `<div class="parcel-flood-facts">
             <div><span>${metrics.covered === metrics.total ? "Flooded Area" : "Covered Area Flooded"}</span>
             <strong>${(100 * metrics.wet / metrics.covered).toFixed(1)}%</strong></div>
-            <div><span>Deepest Model Band</span><strong>${formatParcelDepthBand(metrics)}</strong></div>
+            <div><span>Maximum Flood Depth</span><strong>${formatParcelDepthBand(metrics)}</strong></div>
           </div>${metrics.covered === metrics.total ? "" : `<p class="house-alert-note">${Math.round(100 * metrics.covered / metrics.total)}% of this parcel has model coverage.</p>`}`
         : `<p class="house-alert-note" role="status">${loading ? "Measuring the selected flood frame…" : "Parcel depth and area are unavailable for this frame."}</p>`;
       return '<div class="house-alert-popup building-info-card parcel-area-popup">' +
@@ -15480,6 +15511,13 @@ function startPlayback() {
             closeExportDateOrderPopup();
             return;
           }
+          const topTides = document.getElementById("topTidesModal");
+          if (topTides && !topTides.hidden) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            setTopTidesModalOpen(false);
+            return;
+          }
           const help = e.target?.closest?.("#infoModal, #datumModal");
           if (help && !help.hidden) {
             e.preventDefault();
@@ -15493,7 +15531,6 @@ function startPlayback() {
           setDownloadModalOpen(false);
           if (!document.getElementById("calendarPopover")?.classList.contains("open")) setObservedCalendarOpen(false);
           setCalendarPopoverOpen(false);
-          setTopTidesModalOpen(false);
           closeExportDateOrderPopup();
           if (playbackPausedForConfirmation) stopPlayback();
           setPlaybackStillThereOpen(false);
@@ -15924,10 +15961,6 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       topTidesModal?.addEventListener("click", e => {
         if (e.target === e.currentTarget) setTopTidesModalOpen(false);
       });
-      document.addEventListener("keydown", e => {
-        if (e.key === "Escape") setTopTidesModalOpen(false);
-      });
-
       wireLayerToggles();
       wireMapperTutorial();
     }

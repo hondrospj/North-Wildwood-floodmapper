@@ -35,7 +35,8 @@ try {
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90000 });
     await page.waitForFunction(() => document.body.classList.contains("nw-app-ready")
-      && document.querySelectorAll("#topTideList .top-tide-item").length === 10, {}, { timeout: 90000 });
+      && !document.body.classList.contains("nw-app-loading")
+      && document.querySelectorAll("#topTideList .top-tide-item").length === 3, {}, { timeout: 90000 });
     await page.evaluate(() => document.fonts.ready);
     const state = await page.evaluate(() => {
       const show = selector => [...document.querySelectorAll(selector)].filter(el => el.getClientRects().length);
@@ -67,39 +68,44 @@ try {
     assert.deepEqual(state.labels.map(row => row[0]), ["No Flooding", "Minor", "Moderate", "Major"]);
     assert.ok(state.labels.every(row => row[1] === (profile.touch ? "11px" : "14px") && row[2].includes("Inter")));
     assert.deepEqual(state.labelsOrder.slice(-4), ["Structural Impacts", "Road Impacts", "Road Names", "Cameras"]);
-    if (!profile.touch) {
-      assert.equal(state.activeRailTides, 10);
-      const dateFits = await page.locator("#topTideList .top-tide-main").evaluateAll(items =>
-        items.every(el => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1));
-      assert.ok(dateFits, "The ten flood dates fit without wrapping or covering their water levels");
-      const listFits = await page.locator("#topTideList").evaluate(list => {
-        const bounds = list.getBoundingClientRect();
-        const card = list.closest(".top-tides-card").getBoundingClientRect();
-        return list.scrollHeight <= list.clientHeight + 1
-          && bounds.bottom <= card.bottom + 1
-          && [...list.querySelectorAll(".top-tide-item")].every(item => item.getBoundingClientRect().bottom <= bounds.bottom + 1);
-      });
-      assert.ok(listFits, "All ten flood rows fit inside the visible list without scrolling");
-    }
     if (profile.touch) {
       await page.locator("#mobileControlsToggle").click();
-      if (profile.width >= 768) {
-        await page.getByRole("tab", { name: "Flood data" }).click();
-        await page.locator("#observedDataBtn").click();
-        const tides = page.locator("#topTideListMobile .top-tide-item:visible");
-        await tides.first().waitFor({ state: "visible", timeout: 15000 });
-        assert.equal(await tides.count(), 10);
-        const fit = await tides.evaluateAll(items => {
-          const panel = document.getElementById("leftPanel");
-          const bounds = panel.getBoundingClientRect();
-          return { height: bounds.height, scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight,
-            max: Math.max(...items.map(item => item.getBoundingClientRect().bottom)),
-            bottom: bounds.bottom };
-        });
-        assert.ok(fit.max <= fit.bottom + 1 && fit.scrollHeight <= fit.clientHeight + 2, JSON.stringify(fit));
-      }
-      await page.getByRole("tab", { name: "Tools" }).click();
+      await page.getByRole("tab", { name: "Flood data" }).click();
+      await page.locator("#observedDataBtn").click();
     }
+    const list = page.locator(profile.touch ? "#topTideListMobile" : "#topTideList");
+    const more = list.getByRole("button", { name: "Show more", exact: true });
+    await more.waitFor({ state: "visible", timeout: 15000 });
+    assert.deepEqual(await list.locator(".top-tide-item:visible .top-tide-rank").allTextContents(), ["#1", "#2", "#3"]);
+    assert.equal(await more.locator(".unified-more-plus").textContent(), "+");
+    assert.equal(await more.getAttribute("aria-expanded"), "false");
+    const listFits = await list.evaluate(list => {
+      const bounds = list.getBoundingClientRect();
+      const card = list.closest("section").getBoundingClientRect();
+      return list.scrollHeight <= list.clientHeight + 1
+        && bounds.bottom <= card.bottom + 1
+        && [...list.querySelectorAll("button")].every(item => item.getBoundingClientRect().bottom <= bounds.bottom + 1);
+    });
+    assert.ok(listFits, "The three rows and plus button fit inside the preview");
+    if (profile.touch) await more.tap();
+    else {
+      await more.focus();
+      await page.keyboard.press("Enter");
+    }
+    const tidesDialog = page.locator("#topTidesModal");
+    await tidesDialog.waitFor({ state: "visible" });
+    assert.equal(await more.getAttribute("aria-expanded"), "true");
+    assert.deepEqual(await tidesDialog.locator(".top-tide-rank").allTextContents(),
+      Array.from({ length: 10 }, (_, index) => `#${index + 1}`));
+    const closeTides = tidesDialog.getByRole("button", { name: "Close top floods popup" });
+    assert.equal(await closeTides.evaluate(button => document.activeElement === button), true);
+    if (profile.touch) await closeTides.tap();
+    else await page.keyboard.press("Escape");
+    await tidesDialog.waitFor({ state: "hidden" });
+    assert.equal(await more.getAttribute("aria-expanded"), "false");
+    await page.waitForFunction(selector => document.activeElement === document.querySelector(selector),
+      (profile.touch ? "#topTideListMobile" : "#topTideList") + " .top-tide-more-btn");
+    if (profile.touch) await page.getByRole("tab", { name: "Tools" }).click();
     await page.locator("#openDownloadModalBtn").click();
     const controls = await page.evaluate(() => {
       const card = document.querySelector(".download-modal-card");
@@ -129,4 +135,4 @@ try {
     fs.writeFileSync(path.join(output, `overnight-pills-${name}.json`), JSON.stringify(evidence, null, 2));
   }
 }
-console.log(`Checked the shared pill theme, fixed dock size, labels, and export at ${evidence.length} ${name} viewports.`);
+console.log(`Checked the shared pill theme, fixed dock size, three-flood preview, full ranking, and export at ${evidence.length} ${name} viewports.`);

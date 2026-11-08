@@ -14,7 +14,7 @@
         observedMonthKeys = [];
         observedFlatHours = [];
         observedHourIndexByDateHour = new Map();
-        topTideEvents = [];
+        // Keep the rendered flood ranking selectable while the archive loads.
         if (observedData) {
           await loadObserved();
           if (generation !== archiveGeneration) return null;

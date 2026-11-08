@@ -428,6 +428,13 @@
             closeExportDateOrderPopup();
             return;
           }
+          const topTides = document.getElementById("topTidesModal");
+          if (topTides && !topTides.hidden) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            setTopTidesModalOpen(false);
+            return;
+          }
           const help = e.target?.closest?.("#infoModal, #datumModal");
           if (help && !help.hidden) {
             e.preventDefault();
@@ -441,7 +448,6 @@
           setDownloadModalOpen(false);
           if (!document.getElementById("calendarPopover")?.classList.contains("open")) setObservedCalendarOpen(false);
           setCalendarPopoverOpen(false);
-          setTopTidesModalOpen(false);
           closeExportDateOrderPopup();
           if (playbackPausedForConfirmation) stopPlayback();
           setPlaybackStillThereOpen(false);
@@ -872,10 +878,6 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       topTidesModal?.addEventListener("click", e => {
         if (e.target === e.currentTarget) setTopTidesModalOpen(false);
       });
-      document.addEventListener("keydown", e => {
-        if (e.key === "Escape") setTopTidesModalOpen(false);
-      });
-
       wireLayerToggles();
       wireMapperTutorial();
     }

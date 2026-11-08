@@ -140,11 +140,19 @@
       const viewportPopupWidth = mobilePopup
         ? Math.max(240, Math.min(requestedPopupWidth, window.innerWidth - 28))
         : requestedPopupWidth;
+      let topPadding = mobilePopup ? 126 : 16;
+      const bottomPadding = mobilePopup
+        ? Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shorely-mobile-timeline-height")) + 16 || 140
+        : 16;
       let rightPadding = mobilePopup ? 10 : desktopRightRailWidth + 30;
-      if (String(html).includes("nsi-structure-popup")) {
+      if (isHouseAlertPopup || isDepthQueryPopup || String(html).includes("nsi-structure-popup")) {
         const directionControl = document.getElementById("nwDefaultNavControl")?.getBoundingClientRect();
         if (directionControl?.width && directionControl.left >= viewportPopupWidth + 36) {
           rightPadding = Math.max(rightPadding, Math.ceil(window.innerWidth - directionControl.left + 12));
+        } else if (mobilePopup && directionControl?.height &&
+          directionControl.bottom + 64 <= window.innerHeight - bottomPadding) {
+          // A wide card cannot fit to the left of the controls on a phone.
+          topPadding = Math.max(topPadding, Math.ceil(directionControl.bottom + 12));
         }
       }
       const popup = L.popup({
@@ -156,10 +164,8 @@
         closeButton: true,
         keepInView: !document.body.classList.contains("map-3d-ready"),
         autoPan: !document.body.classList.contains("map-3d-ready"),
-        autoPanPaddingTopLeft: mobilePopup ? L.point(10, 126) : L.point(16, 16),
-        autoPanPaddingBottomRight: mobilePopup
-          ? L.point(rightPadding, Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--shorely-mobile-timeline-height")) + 16 || 140)
-          : L.point(rightPadding, 16)
+        autoPanPaddingTopLeft: L.point(mobilePopup ? 10 : 16, topPadding),
+        autoPanPaddingBottomRight: L.point(rightPadding, bottomPadding)
       })
         .setLatLng(latlng)
         .setContent(html)
@@ -300,14 +306,22 @@
           !expectedShares.every((share, index) => payload.sharesPercent[index] === share)) return [];
       const stages = payload.stagesInTenthsFtNavd88?.[String(feature.id)];
       if (!Array.isArray(stages)) return [];
+      const endpoints = payload.endpointSharesPercent?.length === 2 &&
+        payload.endpointSharesPercent[0] === 0 && payload.endpointSharesPercent[1] === 100
+        ? payload.endpointStagesInTenthsFtNavd88?.[String(feature.id)] : null;
+      const thresholds = [
+        [0, endpoints?.[0]],
+        ...expectedShares.map((share, index) => [share, stages[index]]),
+        [100, endpoints?.[1]]
+      ];
       const minimumDepth = Number(data.floodDefinition?.minimumDepthFt);
-      return expectedShares.map((share, index) => {
-        const stage = Number.isInteger(stages[index]) ? stages[index] / 10 : null;
+      return thresholds.map(([share, stageTenths]) => {
+        const stage = Number.isInteger(stageTenths) ? stageTenths / 10 : null;
         // Existing CDF rows use gauge level > elevation + minimum depth.
         const elevationIndex = stage == null ? -1 : data.elevationGridFtNavd88.findIndex(
           value => Math.abs(Number(value) + minimumDepth - stage) < 1e-6);
         return { share, stage, elevationIndex };
-      }).filter(option => option.elevationIndex >= 0);
+      });
     }
 
     function findProjectionElevationIndex(feature, data) {
@@ -381,7 +395,10 @@
       if (!body) return;
       const p = feature?.properties || {};
       const years = Array.isArray(data.years) ? data.years : [];
-      const parcelOption = parcelOptions?.find(option => option.share === selectedShare) || parcelOptions?.[0];
+      const supportedParcelOptions = parcelOptions?.filter(option => option.elevationIndex >= 0);
+      const parcelOption = supportedParcelOptions?.find(option => option.share === selectedShare) ??
+        supportedParcelOptions?.find(option => option.share > 0 && option.share < 100) ??
+        supportedParcelOptions?.[0];
       if (parcelOptions && !parcelOption) {
         body.innerHTML = '<div class="flood-history-error">Parcel-area projections are unavailable within the model’s coverage.</div>';
         return;
@@ -420,7 +437,13 @@
             ${parcelOption ? `<label class="flood-scenario-field flood-area-field">
               Flooded area
               <select id="floodProjectionAreaSelect" class="flood-scenario-select">
-                ${parcelOptions.map(option => `<option value="${option.share}"${option === parcelOption ? " selected" : ""}>At least ${option.share}%</option>`).join("")}
+                ${parcelOptions.map(option => {
+                  const label = option.share === 0 ? "Any Flooding (&gt;0%)"
+                    : option.share === 100 ? "Entire Parcel (100%)" : `At least ${option.share}%`;
+                  const available = option.elevationIndex >= 0;
+                  const state = !available ? " disabled" : option === parcelOption ? " selected" : "";
+                  return `<option value="${option.share}"${state}>${label}${available ? "" : " (unavailable)"}</option>`;
+                }).join("")}
               </select>
             </label>` : ""}
             <label class="flood-scenario-field">
@@ -485,7 +508,7 @@
       address.textContent = feature?.properties?.address || "Selected North Wildwood parcel";
       document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
       document.getElementById("floodHistoryHelpText").textContent = parcel
-        ? "This uses the modeled high-tide map to estimate how often water could cover the selected share. The area includes water already inside the parcel."
+        ? "Any Flooding means water covers more than 0% of the parcel. Projections include water already inside the parcel and require a threshold within the model’s range."
         : "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises.";
       body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Loading flood projections…</strong></div>';
       backdrop.hidden = false;

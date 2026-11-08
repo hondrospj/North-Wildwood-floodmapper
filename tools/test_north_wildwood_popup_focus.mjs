@@ -110,23 +110,33 @@ for (const focus of ['close', 'cta']) {
 const layoutSource = source.match(/  function syncGlPopupLayout\(\) \{[\s\S]*?\n  \}/)?.[0];
 assert.ok(layoutSource, 'The actual popup layout normalization must be present');
 const normalizeLayout = new Function('env', `with(env) { ${layoutSource}\n syncGlPopupLayout(); }`);
-for (const compact of [true, false]) {
+for (const [compact, space] of [[true, 500], [false, 500], [false, 300]]) {
   const attributes = new Map();
   const close = { setAttribute: (name, value) => attributes.set(name, value) };
   const content = { firstElementChild: null, prepend(node) { this.firstElementChild = node; } };
-  const parent = { appendChild(node) { node.parentElement = this; } };
-  const element = { parentElement: parent, classList: { toggle() {} }, querySelector(selector) {
+  const mapContainer = { appendChild(node) { node.parentElement = this; } };
+  const body = { appendChild(node) { node.parentElement = this; } };
+  const element = { parentElement: mapContainer, classList: { toggle() {} }, querySelector(selector) {
     if (selector === '.maplibregl-popup-content') return content;
     if (selector === '.maplibregl-popup-close-button') return close;
+    if (selector.startsWith('.building-info-card,')) return {};
     throw new Error(`Unexpected layout selector: ${selector}`);
   } };
   const env = {
-    glPopup: { getElement: () => element }, glMap: { getContainer: () => parent },
-    document: { body: parent }, isCompactFloodmapperLayout: () => compact,
+    glPopup: { getElement: () => element }, glMap: { getContainer: () => mapContainer },
+    document: {
+      body,
+      getElementById: id => ({
+        getBoundingClientRect: () => id === 'leftPanel' ? { right: 300 } : { left: 300 + space, width: 92 },
+      }),
+    },
+    isCompactFloodmapperLayout: () => compact,
   };
   normalizeLayout(env);
   assert.equal(attributes.get('aria-label'), 'Close popup', 'Every recreated close needs its accessible name in both layouts');
-  if (compact) assert.equal(content.firstElementChild, close, 'Compact close remains before the scrollable content');
+  const centered = compact || space === 300;
+  assert.equal(element.parentElement, centered ? body : mapContainer);
+  if (centered) assert.equal(content.firstElementChild, close, 'Centered close remains before the scrollable content');
   checks++;
 }
 

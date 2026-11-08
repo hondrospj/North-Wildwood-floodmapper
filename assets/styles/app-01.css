@@ -81,32 +81,6 @@
     line-height:inherit !important;
     letter-spacing:inherit !important;
   }
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button) {
-    position:absolute !important;
-    display:block !important;
-    top:8px !important;
-    right:8px !important;
-    bottom:auto !important;
-    left:auto !important;
-    z-index:2 !important;
-    box-sizing:border-box !important;
-    width:32px !important;
-    min-width:32px !important;
-    max-width:32px !important;
-    height:32px !important;
-    min-height:32px !important;
-    max-height:32px !important;
-    margin:0 !important;
-    text-decoration:none !important;
-    transform:none !important;
-    cursor:pointer !important;
-  }
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button):focus-visible {
-    outline:2px solid #7df9ff !important;
-    outline-offset:2px !important;
-  }
   .leaflet-popup:has(:is(.depth-query-popup,.shorely-v11-depth-query)) .leaflet-popup-tip {
     border:1px solid rgba(125,249,255,.42) !important;
     border-top:0 !important;
@@ -1612,7 +1586,6 @@ html body[data-floodmapper-reference] #nwDefaultNavControl :is(.nw-simple-view,.
  html body[data-floodmapper-reference] #leftPanel>#legendDock {position:relative!important;inset:auto!important;width:100%!important;transform:none!important;}
  html body[data-floodmapper-reference] #leftPanel>.mobile-top-tides-card {display:none!important;}
  html body[data-floodmapper-reference] #rightRail .top-tide-list {max-height:180px!important;overflow:auto!important;}
- html body[data-floodmapper-reference] #rightRail .top-tide-item:nth-child(n+3) {display:none!important;}
  html body[data-floodmapper-reference] #timelineBubble {position:absolute!important;top:auto!important;bottom:120px!important;left:24px!important;right:auto!important;width:max-content!important;min-width:0!important;max-width:calc(100vw - 48px)!important;height:auto!important;min-height:44px!important;margin:0!important;padding:9px 14px!important;display:flex!important;align-items:center!important;gap:6px!important;background:#111827!important;border:1px solid #7594ad!important;border-radius:999px!important;box-sizing:border-box!important;}
  html body[data-floodmapper-reference] #timelineBubble .timeline-bubble-current {font:800 23px/1.1 system-ui!important;white-space:nowrap!important;}
  html body[data-floodmapper-reference] #timelineBubble .timeline-bubble-stage {font:800 22px/1.1 system-ui!important;padding:3px 8px!important;}

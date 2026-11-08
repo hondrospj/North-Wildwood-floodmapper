@@ -338,11 +338,14 @@
     white-space:normal;color:#eaf0ff;background:#18283c;border:1px solid rgba(191,219,254,.28);
     font-size:13px !important;line-height:1.35;
   }
-  .nsi-structure-popup .property-help{position:absolute;top:7px;right:48px;z-index:2}
+  .nsi-structure-popup .property-help{
+    position:absolute;top:var(--nww-popup-close-edge,8px);
+    right:calc(var(--nww-popup-close-edge,8px) + var(--nww-popup-close-size,36px) + 6px);z-index:2;
+  }
   html body .nsi-structure-popup{
     box-sizing:border-box;width:min(356px,calc(100vw - 72px));max-width:356px;padding:12px;
   }
-  html body .nsi-structure-popup .house-alert-kicker{padding-right:70px;font-size:12px;line-height:1.25}
+  html body .nsi-structure-popup .house-alert-kicker{padding-right:calc(var(--nww-popup-close-size,36px) + 44px);font-size:12px;line-height:1.25}
   html body .nsi-structure-popup h3{padding-right:42px;overflow-wrap:anywhere}
   html body .nsi-structure-popup .nsi-impact-status{font-size:13px;margin-bottom:8px}
   html body .nsi-structure-popup .nsi-structure-grid{font-size:12px;margin-bottom:4px}

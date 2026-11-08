@@ -1725,6 +1725,13 @@
     var close = element.querySelector(".maplibregl-popup-close-button");
     if (close) close.setAttribute("aria-label", "Close popup");
     var compact = isCompactFloodmapperLayout();
+    if (!compact && element.querySelector(".building-info-card, .nsi-structure-popup, .depth-query-popup")) {
+      var controls = document.getElementById("nwDefaultNavControl")?.getBoundingClientRect();
+      var panel = document.getElementById("leftPanel")?.getBoundingClientRect();
+      // Reuse the centered popup when the map between the panels is too narrow
+      // for the standard 380px card. The compass would cover the close button.
+      compact = Boolean(controls?.width && controls.left - (panel?.right || 0) < 380);
+    }
     element.classList.toggle("nw-mobile-popup", compact);
     // MapLibre appends its close button after the card. Sticky positioning
     // only keeps it visible when it starts before the scrollable contents.
