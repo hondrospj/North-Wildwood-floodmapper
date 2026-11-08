@@ -235,7 +235,11 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
         check(control.placeholder===final.controls[key]?.placeholder,prefix+' '+key+' placeholder does not rewrite');
       }
       if(sample.layerRows.length) {
-        check(JSON.stringify(sample.layerRows.map(row=>row.id))===JSON.stringify(expectedRows),prefix+' layer rows use their final order',{actual:sample.layerRows.map(row=>row.id)});
+        const ids=sample.layerRows.map(row=>row.id);
+        const rowsComplete=sample.ready||sample.layerRows.some(row=>row.painted);
+        // The parser can yield midway through the list under the splash.
+        const expected=rowsComplete?expectedRows:expectedRows.slice(0,ids.length);
+        check(JSON.stringify(ids)===JSON.stringify(expected),prefix+' layer rows use their final order',{actual:ids});
         for(const row of sample.layerRows) {
           const target=final.layerRows.find(value=>value.id===row.id);
           rect(row,target,prefix+' row '+row.id);
