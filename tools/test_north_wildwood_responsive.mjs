@@ -152,11 +152,24 @@ try {
       for(const id of ['exportFormatPngBtn','exportFormatGifBtn','exportAspectSquareBtn','exportAspectPortraitBtn','exportExtentCurrentBtn','exportExtentTownBtn']){
         if(await page.locator('#'+id).count())await activate(page,'#'+id);
       }
-      const playBox=await page.locator('#playBtn').boundingBox();
-      await page.mouse.click(playBox.x+playBox.width/2,playBox.y+playBox.height/2);
-      check(!await page.evaluate(()=>Boolean(playTimer)),`${width} dialog click does not start playback`);
-      if(await page.locator('#downloadModalCloseBtn').isVisible())await activate(page,'#downloadModalCloseBtn');
-      await openDrawer(page);await activate(page,'#observedDataBtn');await settled(page);
+      // A raw click at the covered Play coordinates can activate a real
+      // foreground export button. Verify the hit target without invoking it.
+      const playIsolation=await page.locator('#playBtn').evaluate(play=>{
+        const rect=play.getBoundingClientRect();
+        const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+        return {inert:!!play.closest('[inert]'),foreground:!!hit?.closest('#downloadModal'),
+          hit:hit?.closest('button')?.id||hit?.id||hit?.className};
+      });
+      check(playIsolation.inert&&playIsolation.foreground,`${width} Export blocks background Play`,playIsolation);
+      check(!await page.evaluate(()=>Boolean(playTimer)),`${width} playback remains stopped while Export is open`);
+      await activate(page,'#downloadModalCloseBtn');
+      await page.locator('#downloadModal').waitFor({state:'hidden'});
+      await openDrawer(page);
+      await page.waitForFunction(()=>{
+        const tab=document.querySelector('#nwwMobileControlHeader [data-group="forecast"]');
+        return tab && !tab.closest('[inert]');
+      },{},{timeout:30000,polling:50});
+      await activate(page,'#observedDataBtn');await settled(page);
       if(await page.locator('#observedCalendarOpenBtn').isVisible())await activate(page,'#observedCalendarOpenBtn');await activate(page,'#calendarTitleBtn');await settled(page);
       await contained(page,'#calendarPopover',`${width} calendar fits`);
       const selectedHour=await page.evaluate(()=>currentHourIndex);
