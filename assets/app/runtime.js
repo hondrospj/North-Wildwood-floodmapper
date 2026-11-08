@@ -11959,9 +11959,6 @@ function populateCalendarSelectors() {
       loadTopTideEvent.pendingSelectionGeneration = generation;
       const requestedEvent = topTideEvents[index];
       const requestedDate = requestedEvent.dateKey || requestedEvent.entry?.observedDate || null;
-      const loadingMessage = `Loading ${requestedEvent.title || "historical flood"}… Previous flood map and time shown.`;
-      loadTopTideEvent.pendingSelectionMessage = loadingMessage;
-      setFloodFrameStatus(loadingMessage, "info");
 
       try {
       if (!observedData) await warmBackgroundData();
@@ -11997,7 +11994,6 @@ function populateCalendarSelectors() {
       // Once its series commits, later controls rebuild that historical series.
       if (loadTopTideEvent.pendingSelectionGeneration === generation) {
         loadTopTideEvent.pendingSelectionGeneration = null;
-        loadTopTideEvent.pendingSelectionMessage = null;
       }
       floodSelectionToken = lastRenderToken;
       currentViewType = "top-tide";
@@ -12061,7 +12057,6 @@ function populateCalendarSelectors() {
       } finally {
         if (loadTopTideEvent.pendingSelectionGeneration === generation) {
           loadTopTideEvent.pendingSelectionGeneration = null;
-          loadTopTideEvent.pendingSelectionMessage = null;
         }
       }
     }
@@ -12163,10 +12158,7 @@ function populateCalendarSelectors() {
       currentOverlayMode = mode;
       updateModeButtons();
 
-      if (loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) {
-        setFloodFrameStatus(loadTopTideEvent.pendingSelectionMessage || "Loading historical flood… Previous flood map and time shown.", "info");
-        return;
-      }
+      if (loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) return;
       if (currentDataMode === "return-interval" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {
         setFloodFrameStatus(currentFloodLayer
           ? "Loading modeled flood… Previous flood map shown."

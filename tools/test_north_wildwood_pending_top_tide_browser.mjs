@@ -61,7 +61,7 @@ try{
   await h.page.locator('#datumNavd88Btn').click();await h.page.locator('#intervalQuarterBtn').click();
   if(cadence!==15)await h.page.locator(cadence===60?'#intervalHourBtn':'#intervalDailyBtn').click();
   await h.page.setViewportSize({width:1280,height:850});await settled(h.page);
-  const pending=await snapshot(h.page);assert.equal(pending.pending,pending.generation);assert.equal(pending.timeText,before.timeText);assert.equal(pending.layerUrl,before.layerUrl);assert.match(pending.status,/Loading March 7, 1962.*Previous flood map and time shown/);
+  const pending=await snapshot(h.page);assert.equal(pending.pending,pending.generation);assert.equal(pending.timeText,before.timeText);assert.equal(pending.layerUrl,before.layerUrl);assert.equal(pending.status,'');
   h.gates.get(1962).release();const after=await ready(h.page,1962);assert.equal(after.interval,cadence);assert.equal(after.overlay,'dynamic');assert.equal(after.datum,'navd88');assert.equal(after.stage,7.5);assert.equal(after.count,cadence===15?96:cadence===60?24:1);assert.equal(after.pending,null);
   evidence.push({case:'presentation-controls',cadence,pending,after});
  }finally{await h.close();}}
