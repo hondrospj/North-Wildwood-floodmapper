@@ -9564,7 +9564,7 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
       min-height:0 !important;
     }
     html body[data-floodmapper-unified] #mapTitleBadge#mapTitleBadge #mapTitleText {
-      font-size:clamp(18px,1.9vw,28px) !important;
+      font-size:clamp(20px,2.15vw,31px) !important;
       line-height:1.15 !important;
       letter-spacing:-.5px !important;
     }
@@ -9581,7 +9581,7 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
   }
   @media (min-width:901px) and (max-width:1100px) and (not (any-pointer:coarse)) {
     html body[data-floodmapper-unified] #mapTitleBadge#mapTitleBadge #mapTitleText {
-      font-size:18px !important;
+      font-size:20px !important;
     }
     html body[data-floodmapper-unified] #mapTitleBadge#mapTitleBadge #mapTitlePartnerLogo {
       width:56px !important;
