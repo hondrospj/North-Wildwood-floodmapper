@@ -88,6 +88,37 @@ for (const interval of [15, 60, 1440]) {
   assert.deepEqual(ranking(), freshRanking, `Rankings must remain stable at interval ${interval}`);
 }
 
+// These actual annual gauge-height peak instants were cross-checked against
+// the USGS /peaks UTC fields. The legacy time_est field uses standard time.
+for (const [date, utc] of [
+  ["2009-11-13", "2009-11-13T10:24:00.000Z"],
+  ["2011-08-27", "2011-08-28T00:36:00.000Z"],
+  ["2011-10-29", "2011-10-29T15:42:00.000Z"],
+  ["2012-10-29", "2012-10-30T01:36:00.000Z"],
+  ["2014-04-29", "2014-04-30T02:06:00.000Z"],
+  ["2014-12-09", "2014-12-09T15:18:00.000Z"],
+]) {
+  assert.equal(run(`getEntryESTDate(historicTopTideEntries.find(entry => entry.observedDate === "${date}")).toISOString()`), utc);
+}
+assert.equal(run('historicTopTideEntries.find(entry => entry.observedDate === "1962-03-07").timeUtc'), undefined);
+context.sandy = json("observed_archive/stone-harbor/2012.json").days.find(day => day.d === "2012-10-29");
+run(`
+  {
+    const source = decodeObserved15MinuteDay(sandy);
+    const crest = historicTopTideEntries.find(entry => entry.observedDate === sandy.d);
+    const fitted = injectOfficialStoneHarborCrest(source, crest);
+    if (JSON.stringify(fitted) !== JSON.stringify(source)) throw Error("Sandy's explicitly calibrated shape must remain intact");
+    const missing = { timeUtc: "2011-08-28T00:30:00.000Z", navd88StageFt: null,
+      isMissingObservedHour: true, isMissingTimelineFrame: true };
+    const recorded = historicTopTideEntries.find(entry => entry.observedDate === "2011-08-27");
+    const [restored] = injectOfficialStoneHarborCrest([missing], recorded);
+    if (getStageValue(restored) !== 5.3 || restored.observationQuality !== "C" ||
+        restored.isMissingObservedHour || restored.isMissingTimelineFrame || restored.isMeasuredQuarterHourArchive) {
+      throw Error("A known official crest replacing a missing slot must carry crest provenance and a valid stage");
+    }
+  }
+`);
+
 // A detailed archive failure retains the indexed peak without claiming that
 // the date-only value is an official, timed storm-tide crest.
 run(`

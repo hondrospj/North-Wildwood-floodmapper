@@ -11,8 +11,6 @@ import numpy as np
 from scipy import ndimage
 
 
-WIDTH = 10_930
-HEIGHT = 14_120
 NODATA = np.int16(-32768)
 
 
@@ -25,17 +23,20 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    manifest = json.loads((args.graph / "graph_manifest.json").read_text(encoding="utf-8"))
+    shape = (int(manifest["height"]), int(manifest["width"]))
+    square_feet_per_cell = float(manifest["cellSizeFt"]) ** 2
     elevation = np.memmap(
         args.graph / "elevation10.raw",
         dtype="<i2",
         mode="r",
-        shape=(HEIGHT, WIDTH),
+        shape=shape,
     )
     source = np.memmap(
         args.graph / "source_flag.raw",
         dtype="u1",
         mode="r",
-        shape=(HEIGHT, WIDTH),
+        shape=shape,
     )
     valid = elevation != NODATA
     terrain = valid & (source == 0)
@@ -71,7 +72,7 @@ def main() -> None:
             {
                 "componentId": int(component_id),
                 "cellCount": int(counts[component_id]),
-                "acres": float(counts[component_id] / 43_560.0),
+                "acres": float(counts[component_id] * square_feet_per_cell / 43_560.0),
                 "xMin": int(x_slice.start),
                 "xMaxExclusive": int(x_slice.stop),
                 "yMin": int(y_slice.start),
@@ -83,7 +84,7 @@ def main() -> None:
         "terrainComponentCount": int(component_count),
         "enclosedComponentCount": int(enclosed_ids.size),
         "enclosedCellCount": int(counts[enclosed_ids].sum()),
-        "enclosedAcres": float(counts[enclosed_ids].sum() / 43_560.0),
+        "enclosedAcres": float(counts[enclosed_ids].sum() * square_feet_per_cell / 43_560.0),
         "largestEnclosedComponents": largest,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

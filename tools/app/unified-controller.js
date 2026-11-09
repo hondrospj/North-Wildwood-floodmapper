@@ -5,6 +5,7 @@
  const panel=document.getElementById('leftPanel'),rail=document.getElementById('rightRail'),timeline=document.getElementById('timelineDock'),app=document.getElementById('app');
  if(!panel||!rail||!timeline||body.dataset.unifiedUiReady===VERSION)return;
  body.dataset.unifiedUiReady=VERSION;body.dataset.floodmapperUnified=VERSION;body.dataset.countyViewport=VERSION;
+ const sourceCard=panel.querySelector('.data-source-card');
  const mobile=matchMedia('(max-width:900px), (max-height:560px), (max-height:560px) and (pointer:coarse), (max-width:1366px) and (any-pointer:coarse)');
  const owned=new WeakMap(),bound=new WeakSet();
  const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Road Impacts'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];
@@ -111,7 +112,7 @@
  }
  function normalize(){
   ensureControlButtons();ensureHeader();ensureDays();ensureLayers();ensureReturnPeriodSelect();
-  const title=panel.querySelector('.data-source-card h2');text(title,'Flood Data');
+  const title=sourceCard?.querySelector('h2');text(title,'Flood Data');
   const downloadCard=document.getElementById('downloadCard');if(downloadCard?.getAttribute('role')==='button'){downloadCard.removeAttribute('role');downloadCard.removeAttribute('tabindex');downloadCard.removeAttribute('aria-label');}
   for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);
   text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');
@@ -123,8 +124,9 @@
   const bubble=document.getElementById('timelineBubble');if(bubble&&bubble.style.getPropertyValue('translate')!=='none')set(bubble,'translate','none');
   const legend=document.getElementById('legendDock');if(legend){attr(legend,'aria-label','Flood map legend');if(mobile.matches){attr(legend,'role','button');legend.tabIndex=0;attr(legend,'aria-expanded',String(body.classList.contains('mobile-legend-open')));}else{legend.removeAttribute('role');legend.removeAttribute('tabindex');legend.removeAttribute('aria-expanded');}}
  }
- function reparent(){
+ function reparent(previousFocus){
   const compact=mobile.matches,legend=document.getElementById('legendDock');let mount=document.getElementById('mobileRailMount');
+  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);
   if(compact){
    if(panel.parentElement!==body)body.append(panel);if(!mount){mount=document.createElement('div');mount.id='mobileRailMount';panel.append(mount);}
    for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);
@@ -133,9 +135,16 @@
    if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);
   }
   flag(root,'county-compact',compact);syncDrawer();
+  if(!restoreLegendFocus)return null;
+  if(compact)return legend;
+  return previousFocus===legend?document.getElementById('legendHelpBtn'):previousFocus;
  }
  function layout(){
-  frame=0;normalize();reparent();layoutPasses++;
+  frame=0;
+  const previousFocus=document.activeElement;
+  normalize();
+  const focusAfterMove=reparent(previousFocus);
+  layoutPasses++;
   const compact=mobile.matches;
   const bubble=document.getElementById('timelineBubble');
   for(const key of ['left','right','max-width','transform'])bubble?.style.removeProperty(key);
@@ -147,6 +156,10 @@
    const top=Math.max(0,viewport.offsetTop||0)+safe.top+8,left=Math.max(0,viewport.offsetLeft||0)+safe.left+8,right=Math.max(0,innerWidth-(viewport.offsetLeft||0)-(viewport.width||innerWidth))+safe.right+8,bottom=Math.max(0,innerHeight-(viewport.offsetTop||0)-(viewport.height||innerHeight))+safe.bottom+8;
    for(const [key,value]of Object.entries({top,left,right,bottom,height:Math.max(1,(viewport.height||innerHeight)-16)})){const valueText=value.toFixed(2)+'px';if(body.style.getPropertyValue('--cm-'+key)!==valueText)body.style.setProperty('--cm-'+key,valueText);}
    for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);
+   const header=panel.querySelector('#nwwMobileControlHeader');
+   if(body.classList.contains('mobile-controls-open')&&header){
+    set(panel,'scroll-padding-top',`${Math.max(136,Math.ceil(header.getBoundingClientRect().height)+8)}px`);
+   }else panel.style.removeProperty('scroll-padding-top');
    set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');
    for(const e of [document.getElementById('nwDefaultNavControl'),document.getElementById('countyStandaloneView')])if(e)for(const key of ['left','right','top'])e.style.removeProperty(key);
    const title=document.getElementById('mapTitleBadge');for(const key of ['left','right','top','max-width','transform'])title?.style.removeProperty(key);
@@ -174,6 +187,10 @@
    if(!fitted&&density==='tight'){density='normal';attr(body,'data-sidebar-density',density);set(rail,'display','flex');}
    attr(body,'data-sidebar-fit',fitted?'fit':'bounded');
    for(const pane of [panel,rail]){set(pane,'max-height',fitted?'none':available+'px');set(pane,'overflow-y',fitted?'visible':'auto');set(pane,'overflow-x','hidden');if(fitted)pane.scrollTop=0;}
+   // Reserve the sticky Flood Data card when the browser scrolls a focused control into view.
+   if(!fitted&&sourceCard&&getComputedStyle(sourceCard).position==='sticky'){
+    set(panel,'scroll-padding-top',`${Math.ceil(sourceCard.getBoundingClientRect().height)+6}px`);
+   }else panel.style.removeProperty('scroll-padding-top');
    const focused=document.activeElement,select=document.getElementById('nwwCompactReturnPeriod');
    if(density==='tight'&&focused?.matches('#returnIntervalCard [data-return-years]'))select?.focus({preventScroll:true});
    else if(density!=='tight'&&focused===select)document.querySelector('#returnIntervalCard [data-return-years].active')?.focus({preventScroll:true});
@@ -183,8 +200,12 @@
    if(nav){set(nav,'right',navRight+'px');set(nav,'left','auto');set(nav,'top','16px');}
    if(standaloneButton)set(standaloneButton,'right',navRight+'px');body.style.setProperty('--county-nav-right',navRight+'px');
   }
+  if(typeof positionMapClickModeControl==='function')positionMapClickModeControl();
   for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge'),bubble])saveStyle(e);
   body.dataset.unifiedLayoutPasses=String(layoutPasses);body.dataset.unifiedLayout=compact?'mobile':'desktop';
+  if((document.activeElement===body||document.activeElement===previousFocus)&&visible(focusAfterMove)&&!focusAfterMove.closest('[inert]')){
+   focusAfterMove.focus();
+  }
  }
  function schedule(){if(!frame)frame=requestAnimationFrame(layout);}
  document.addEventListener('click',event=>{
@@ -194,21 +215,21 @@
  },true);
  document.addEventListener('keydown',event=>{
   if(!mobile.matches)return;
-  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){flag(body,'mobile-legend-open',false);document.getElementById('legendDock')?.focus();schedule();return;}
   const otherModal=[...document.querySelectorAll('[aria-modal="true"],dialog[open]')].some(e=>e!==panel&&visible(e));if(otherModal)return;
+  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',false);document.getElementById('legendDock')?.focus();schedule();return;}
   if(body.classList.contains('mobile-controls-open')){
    if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}
    else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]')].filter(e=>visible(e)&&e.tabIndex>=0&&!e.closest('[inert]')),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}
   }else if(event.target.closest('#legendDock')&&!event.target.closest('button')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}
  },true);
- document.addEventListener('nww:reveal-control',event=>{if(mobile.matches&&typeof event.detail==='string'){const element=document.querySelector(event.detail);if(element)selectSection(element.closest('[data-nww-group]')?.dataset.nwwGroup||'forecast');schedule();}});
+ document.addEventListener('nww:reveal-control',event=>{if(mobile.matches&&typeof event.detail==='string'){const element=document.querySelector(event.detail);if(element)selectSection(element.closest('[data-nww-group]')?.dataset.nwwGroup||'forecast');syncDrawer();schedule();}});
  const observer=new MutationObserver(records=>{if(records.some(m=>m.type!=='attributes'||m.attributeName!=='style'||owned.get(m.target)!==m.target.getAttribute('style')))schedule();});
  for(const e of [panel,rail,timeline])observer.observe(e,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','hidden','aria-current','data-nww-section']});
  const geometryObserver=new MutationObserver(records=>{if(records.some(m=>owned.get(m.target)!==m.target.getAttribute('style')))schedule();});
  for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge'),document.getElementById('timelineBubble')])if(e)geometryObserver.observe(e,{attributes:true,attributeFilter:['style']});
  observer.observe(body,{attributes:true,attributeFilter:['class']});
  for(const modal of document.querySelectorAll('[role="dialog"],dialog,.download-modal,.datum-modal'))if(modal!==panel)observer.observe(modal,{attributes:true,attributeFilter:['class','hidden','open','aria-modal','style']});
- const resizeObserver=new ResizeObserver(schedule);for(const element of [timeline,panel,rail])resizeObserver.observe(element);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});
+ const resizeObserver=new ResizeObserver(schedule);for(const element of [timeline,panel,rail])resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});
  document.fonts?.ready.then(schedule);document.fonts?.addEventListener?.('loadingdone',schedule);
  addEventListener('load',schedule,{once:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});
  layout();

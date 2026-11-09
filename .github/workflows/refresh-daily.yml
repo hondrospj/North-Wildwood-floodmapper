@@ -22,15 +22,20 @@ jobs:
 
   update-observed:
     needs: archive-city-gauge
+    # A failed municipal refresh leaves the last committed archive available.
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/update-observed.yml
     secrets: inherit
 
   update-forecast:
     needs: update-observed
+    # The PETSS forecast does not depend on either gauge refresh.
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/update-forecast.yml
     secrets: inherit
 
   publish-fresh-data:
     needs: update-forecast
+    if: ${{ !cancelled() && needs.update-forecast.result == 'success' }}
     uses: ./.github/workflows/refresh-deployed-data.yml
     secrets: inherit

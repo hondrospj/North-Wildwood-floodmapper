@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('app/runtime/27-mobile-and-address.js', import.meta.url), 'utf8');
+const parcelSource = fs.readFileSync(new URL('app/runtime/25-structures-and-parcels.js', import.meta.url), 'utf8');
 const configSource = fs.readFileSync(new URL('app/town-config.js', import.meta.url), 'utf8');
 const configStart = configSource.indexOf('TOWN_CONFIG = {') + 'TOWN_CONFIG = '.length;
 const config = JSON.parse(configSource.slice(configStart, configSource.indexOf('\n};', configStart) + 2));
@@ -12,19 +13,21 @@ const flush = async () => { for (let n = 0; n < 20; n++) await Promise.resolve()
 function setup(fetchResult) {
   const timers = new Map();
   const requests = [];
+  const events = {};
   const button = { disabled: false };
-  const input = { value: '100 New Jersey Ave', focus() {} };
+  const input = { value: '100 New Jersey Ave', focus() {}, addEventListener: (name, fn) => { events[name] = fn; } };
+  const form = { dataset: {}, addEventListener: (name, fn) => { events[name] = fn; } };
   const status = { textContent: '', classList: { toggle() {} } };
   const marker = { setLatLng() {}, setIcon() {}, addTo() { return this; } };
   const popups = [];
   let activePopup = null;
   const context = vm.createContext({
     console, Promise, URLSearchParams, AbortController,
-    TOWN_CONFIG: config, townAddressSearchGeneration: 0, townAddressMarker: null,
+    TOWN_CONFIG: config, townAddressSearchGeneration: 0, townAddressMarker: null, municipalBoundaryFeature: null, mapQueryGeneration: 0,
     setTimeout: (fn, ms) => { const id = {}; timers.set(id, { fn, ms }); return id; },
     clearTimeout: id => timers.delete(id),
     fetch: (url, options) => { requests.push({ url, ...options }); return fetchResult(url, options, requests.length); },
-    document: { getElementById: id => ({ townAddressSearchBtn: button, townAddressInput: input, townAddressStatus: status }[id]), body: { classList: { contains: () => false } } },
+    document: { getElementById: id => ({ townAddressForm: form, townAddressSearchBtn: button, townAddressInput: input, townAddressStatus: status }[id]), body: { classList: { contains: () => false } } },
     map: { hasLayer: () => false, setView() {}, getZoom: () => 10 }, window: {},
     L: { latLng: (lat, lng) => ({ lat, lng }), divIcon: () => ({}), marker: () => marker },
     findParcelFeatureForLocation: async () => null,
@@ -39,9 +42,12 @@ function setup(fetchResult) {
     }
   });
   vm.runInContext(source, context);
-  return { context, timers, requests, button, input, status, popups };
+  return { context, timers, requests, button, input, status, popups, events };
 }
-const valid = { ok: true, json: async () => ({ candidates: [{ location: { x: -74.8, y: 39.005 }, address: '100 New Jersey Ave, North Wildwood', score: 100 }] }) };
+const valid = { ok: true, json: async () => ({ candidates: [{
+  location: { x: -74.8, y: 39.005 }, address: '100 New Jersey Ave, North Wildwood',
+  attributes: { Addr_type: 'PointAddress' }, score: 100
+}] }) };
 const never = () => new Promise(() => {});
 
 // A response or body that never settles cannot withhold a successful peer forever.
@@ -109,4 +115,56 @@ for (const replacePopup of [false, true]) {
   assert.equal(t.popups[0].removed, true);
   if (replacePopup) assert.equal(t.popups[1].removed, false);
 }
-console.log('Address recovery passed: provider/body deadlines, partial success, popup ownership, clear and replacement cancellation.');
+// Both providers must return address-level precision for a numbered lookup.
+{
+  const {context} = setup(never);
+  const arcgis = (type, label, x = -74.79744, y = 38.99498) => ({
+    attributes: { Addr_type: type, Match_addr: label }, location: { x, y }, score: 100
+  });
+  const street = arcgis('StreetName', 'Ocean Ave, Wildwood, New Jersey, 08260');
+  const locality = arcgis('Locality', 'North Wildwood, New Jersey');
+  assert.equal(context.normalizeArcgisTownCandidate(street, '9999 Ocean Avenue'), null);
+  assert.equal(context.normalizeArcgisTownCandidate(locality, 'Totally Invalid Road'), null);
+  assert.ok(context.normalizeArcgisTownCandidate(street, 'Ocean Avenue'));
+  const exact = arcgis('PointAddress', '1601 Ocean Ave, Wildwood, New Jersey, 08260');
+  assert.equal(context.normalizeArcgisTownCandidate(exact, '160 Ocean Avenue'), null);
+  assert.equal(context.normalizeArcgisTownCandidate(exact, '1601 Oceen Avenue').streetAddress, '1601 ocean ave');
+  const nominatim = { lat: '38.99498', lon: '-74.79744', address: { road: 'Ocean Avenue', village: 'North Wildwood' } };
+  assert.equal(context.normalizeNominatimTownCandidate(nominatim, '1601 Ocean Avenue'), null);
+  nominatim.address.house_number = '1601';
+  assert.equal(context.normalizeNominatimTownCandidate(nominatim, '1601 Ocean Avenue').streetAddress, '1601 ocean ave');
+
+  for (const name of ['pointInRing', 'pointInParcelFeature']) {
+    const definition = parcelSource.match(new RegExp(`^    function ${name}\\([^\\n]*\\) \\{\\n.*?^    \\}`, 'ms'));
+    assert.ok(definition, name);
+    vm.runInContext(definition[0], context);
+  }
+  context.municipalBoundaryFeature = { geometry: { type: 'Polygon', coordinates: [
+    [[-74.8, 38.99], [-74.79, 38.99], [-74.79, 39.01], [-74.8, 39.01], [-74.8, 38.99]]
+  ] } };
+  assert.ok(context.normalizeArcgisTownCandidate(exact, '1601 Ocean Avenue'));
+  assert.equal(context.normalizeArcgisTownCandidate(
+    arcgis('PointAddress', '3101 Pacific Ave, Wildwood, New Jersey, 08260', -74.81157, 38.99118),
+    '3101 Pacific Avenue'), null);
+}
+
+// Native form wiring unlocks the second submission as soon as the user edits.
+{
+  const t = setup((url, options, count) => count <= 2 ? never() :
+    Promise.resolve(url.includes('arcgis') ? valid : { ok: true, json: async () => [] }));
+  t.context.wireTownAddressLookup();
+  t.input.value = '200 Ocean Avenue';
+  t.events.submit({ preventDefault() {} });
+  assert.equal(t.button.disabled, true);
+  t.input.value = '100 New Jersey Ave';
+  t.events.input();
+  assert.equal(t.button.disabled, false);
+  assert.ok(t.requests.every(request => request.signal.aborted));
+  t.events.submit({ preventDefault() {} });
+  await new Promise(setImmediate);
+  assert.equal(t.requests.length, 4);
+  assert.match(t.status.textContent, /100 New Jersey Ave/);
+  assert.equal(t.popups.length, 1);
+}
+
+console.log('Address recovery passed: provider precision, boundary, body deadlines, partial success, popup ownership, clear and form replacement cancellation.');

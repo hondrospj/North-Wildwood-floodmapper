@@ -351,7 +351,7 @@ function syncDownloadRangeInputs(force = false) {
 
       syncExportDateTimeEditorFromCanonical("start", { preserveActiveEdit: !force });
       syncExportDateTimeEditorFromCanonical("end", { preserveActiveEdit: !force });
-      renderExportTimePicker(true);
+      renderExportTimePicker();
     }
 
 function getDownloadRangeRequest() {
@@ -444,19 +444,27 @@ function getDownloadArchiveBounds() {
 
       if (mode === "current") {
         if (!currentEntry) return [];
-        const item = getDownloadFrameItemFromEntry(currentEntry, currentHourIndex);
+        const item = getDownloadFrameItemFromEntry(currentEntry);
         return item ? [item] : [];
       }
 
       const range = getDownloadRangeRequest();
       if (!range) return [];
 
-      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate)
+      const interval = getDownloadIntervalValue();
+      const snapshot = range.startMs === range.endMs && getDownloadFormatValue() === "png";
+      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate, { includeNativeLive: interval === "daily" || snapshot })
         .filter(entry => entryTimeMs(entry) != null)
         .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+      if (snapshot) {
+        const exact = entries.find(entry => entryTimeMs(entry) === range.startMs) ||
+          (entryTimeMs(currentEntry) === range.startMs ? currentEntry : null);
+        const item = exact && getDownloadFrameItemFromEntry(exact);
+        if (item) return [item];
+      }
       if (!entries.length) return [];
 
-      const items = buildExportRangeFrameItems(entries, range, getDownloadIntervalValue());
+      const items = buildExportRangeFrameItems(entries, range, interval);
       const frameLimit = getDownloadFrameLimit();
       if (items.length > frameLimit) {
         return items.slice(0, frameLimit);

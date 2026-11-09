@@ -67,7 +67,7 @@ function fixture(compact = true) {
     querySelectorAll: () => [],
   };
   const env = {
-    mobile: { matches: compact }, body, panel, document,
+    mobile: { matches: compact }, body, panel, document, sourceCard: null,
     timeline: { querySelectorAll: () => [] },
     groups: {}, Node: { TEXT_NODE: 3 },
     visible: () => true,

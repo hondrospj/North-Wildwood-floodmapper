@@ -82,13 +82,14 @@ if (html.includes('function v11PopupHtml(')) {
     Object.assign(context, {
       mapClickMode: 'depth', currentSeriesHours: [{}], currentHourIndex: 0,
       lastRenderToken: 0, floodFrameState: 'ready', mapQueryGeneration: 0,
+      cancelPendingTownAddressLookup: () => false,
       getPhysicsAssetForEntry: () => ({}),
       samplePhysicsDepth: async () => ({depthM: 0.1524, wet: true}),
       getActivePhysicsManifest: () => ({cycleId: 'test'}),
       openPersistentFloodPopup: (_latlng, html) => { popup = html; },
       toast: message => { throw new Error(message); }, console,
     });
-    vm.runInContext('async ' + extract('handleDepthQueryClick'), context);
+    vm.runInContext(extract('beginMapQuery') + '\nasync ' + extract('handleDepthQueryClick'), context);
     await context.handleDepthQueryClick({latlng: {lat: 1, lng: 1}});
     assert.ok(popup.replace(/<[^>]+>/g,'').includes('6 in'));
     context.samplePhysicsDepth = async () => ({depthM: 0.3048, wet: true});

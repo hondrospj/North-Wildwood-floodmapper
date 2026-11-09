@@ -403,7 +403,10 @@
     activeJob = renderPreview(token).catch(error => {
       if (!fresh(token)) return;
       clearCanvas();
-      showState("error", "Preview couldn’t load. Try again, or download your map.");
+      const knownError = error?.name === "RoadLabelRendererUnavailableError" ||
+        error?.name === "ParcelBoundaryExportUnavailableError";
+      const message = knownError ? error.message : "Preview couldn’t load. Try again, or download your map.";
+      showState("error", message);
       console.warn("Export preview could not be rendered.", error);
     }).finally(() => {
       activeJob = null;
@@ -431,6 +434,7 @@
       const cancel = cancelPreviewWait;
       cancelPreviewWait = null;
       cancel();
+      setPendingExportControls(false);
       const button = node("downloadBtn");
       if (button) button.disabled = false;
     }
@@ -446,6 +450,15 @@
     }
     return result;
   };
+
+  function setPendingExportControls(pendingExport) {
+    const review = node("exportReviewFields");
+    if (review) review.inert = pendingExport;
+    for (const id of ["exportReviewBackBtn", "downloadResetBtn"]) {
+      const button = node(id);
+      if (button) button.disabled = pendingExport;
+    }
+  }
 
   const originalDownload = downloadCurrentSelection;
   downloadCurrentSelection = async function (...args) {
@@ -470,6 +483,9 @@
     const preview = activeJob;
     try {
       if (preview) {
+        // The download uses the submitted settings after the shared renderer
+        // is released. Keep those settings fixed while Close can still cancel.
+        setPendingExportControls(true);
         const completed = await Promise.race([
           preview.then(() => true),
           new Promise(resolve => { cancelPreviewWait = () => resolve(false); })
@@ -477,11 +493,13 @@
         if (!completed || requestGeneration !== exportRequestGeneration) return;
       }
       cancelPreviewWait = null;
+      setPendingExportControls(false);
       return await originalDownload(...args);
     } finally {
       if (requestGeneration === exportRequestGeneration) {
         cancelPreviewWait = null;
         exportRequested = false;
+        setPendingExportControls(false);
         if (!exportInProgress) {
           if (button) button.disabled = false;
           updateExportSegmentedUI();
@@ -593,16 +611,14 @@
     back.textContent = "Back";
     back.hidden = true;
     actions?.prepend(back);
-    back.addEventListener("click", () => {
+    const returnToBasicStep = () => {
       settingsReviewed = false;
       updateExportSegmentedUI();
       node("exportFormatGifBtn")?.focus({ preventScroll: true });
-    });
+    };
+    back.addEventListener("click", returnToBasicStep);
     bindPreviewMap();
-    node("downloadResetBtn")?.addEventListener("click", () => {
-      settingsReviewed = false;
-      updateExportSegmentedUI();
-    });
+    node("downloadResetBtn")?.addEventListener("click", returnToBasicStep);
     const compactLabels = {
       exportFormatGifBtn: "GIF", exportFormatPngBtn: "PNG", exportExtentTownBtn: "Whole town",
       exportAspectSocialBtn: "4:5", exportAspectLandscapeBtn: "16:9", exportAspectPortraitBtn: "9:16",

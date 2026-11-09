@@ -1,4 +1,97 @@
 
+/* Keep forced-colors rules ahead of the authored control layers. */
+@layer north-wildwood-forced-colors {
+  @media (forced-colors: active) {
+    body[data-shorelysafe-ui] [role="switch"] {
+      forced-color-adjust:none;
+      box-sizing:border-box;
+      border:1px solid ButtonText !important;
+      background:ButtonFace !important;
+      transition:none !important;
+    }
+    body[data-shorelysafe-ui] [role="switch"]::after {
+      background:ButtonText !important;
+      transition:none !important;
+    }
+    body[data-shorelysafe-ui] [role="switch"][aria-checked="true"] {
+      border-color:Highlight !important;
+      background:Highlight !important;
+    }
+    body[data-shorelysafe-ui] [role="switch"][aria-checked="true"]::after {
+      background:HighlightText !important;
+    }
+    body[data-shorelysafe-ui] [role="switch"]:focus-visible {
+      outline-color:Highlight !important;
+    }
+
+    body[data-shorelysafe-ui] :is(button[aria-pressed="true"],[role="tab"][aria-selected="true"],.timeline-day[aria-current="true"]) {
+      text-decoration:underline !important;
+      text-decoration-thickness:2px !important;
+    }
+
+    /* These paints encode the same water categories as the map raster. */
+    #legendDock :is(.depth-legend-gradient,.stage-legend-green,.stage-legend-gradient),
+    #timelineDock :is(.timeline-key-swatch,.road-impacts-swatch) {
+      forced-color-adjust:none;
+      border:1px solid CanvasText !important;
+    }
+    #timelineDock .timeline-day {
+      position:relative !important;
+      background-image:none !important;
+    }
+    #timelineDock .timeline-day::after {
+      forced-color-adjust:none;
+      content:"" !important;
+      position:absolute !important;
+      inset:auto 1px 1px !important;
+      height:4px !important;
+      border:0 !important;
+      background:var(--fleet-day-gradient,var(--timeline-day-gradient,none)) !important;
+      pointer-events:none;
+    }
+    #timelineDock #hourSlider {
+      forced-color-adjust:none;
+      background-image:var(--nww-stage-gradient,linear-gradient(CanvasText,CanvasText)),
+        linear-gradient(CanvasText,CanvasText) !important;
+      background-position:center !important;
+      background-repeat:no-repeat !important;
+      background-size:calc(100% - var(--nww-thumb-size,26px)) 5px,
+        calc(100% - var(--nww-thumb-size,26px)) 7px !important;
+      outline-color:Highlight !important;
+    }
+    #timelineDock #hourSlider::-webkit-slider-thumb {
+      background:Highlight !important;
+      border-color:HighlightText !important;
+      box-shadow:none !important;
+    }
+    #timelineDock #hourSlider::-moz-range-thumb {
+      background:Highlight !important;
+      border-color:HighlightText !important;
+      box-shadow:none !important;
+    }
+
+    #timelineDock #playBtn .playTriangle {
+      forced-color-adjust:none;
+      width:13px !important;
+      height:16px !important;
+      border:0 !important;
+      background:ButtonText !important;
+      clip-path:polygon(0 0,100% 50%,0 100%);
+      filter:none !important;
+    }
+    #timelineDock #playBtn .pauseIcon::before,
+    #timelineDock #playBtn .pauseIcon::after {
+      forced-color-adjust:none;
+      background:ButtonText !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::before,
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
+      forced-color-adjust:none;
+      --nww-close-ink:ButtonText;
+    }
+  }
+}
+
 /* Shared click-depth card. Keep the existing heading, depth, units and query states. */
 @layer shorely-depth-pill {
   :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query)) {

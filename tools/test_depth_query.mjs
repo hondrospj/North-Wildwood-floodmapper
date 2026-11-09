@@ -44,6 +44,16 @@ let point=context.latLngToDepthQueryPixel(lat,-74.25,4,4);
 assert.equal(point.x,1);assert.equal(point.y,1);assert.equal(affineCalls,0);
 let sample=await context.samplePackedDepthGrid(lat,-74.25);
 assert.equal(sample.elevation,2.3);assert.equal(sample.connectionStage,3.5);
+assert.equal(sample.developedFlag,false,'A site without a developed-land grid keeps its configured default');
+context.getDevelopedQueryGrid=async()=>({width:3,height:4,values:rgba});
+assert.equal((await context.samplePackedDepthGrid(lat,-74.25)).developedFlag,null,'A misaligned companion is unknown');
+context.getDevelopedQueryGrid=async()=>{throw Error('Deliberate companion outage');};
+assert.equal((await context.samplePackedDepthGrid(lat,-74.25)).developedFlag,null,'A failed companion is unknown');
+context.getDevelopedQueryGrid=async()=>null;
+vm.runInContext(extract('getDepthQueryDisplayDepth'),context);
+context.normalizeStageValue=value=>value;
+assert.equal(context.getDepthQueryDisplayDepth({developedFlag:null},3.9,{flooded:true}),null);
+assert.equal(context.getDepthQueryDisplayDepth({developedFlag:null},3.9,{flooded:false}),0);
 assert.equal(await context.samplePackedDepthGrid(45,-74.25),null);
 assert.equal(context.latLngToDepthQueryPixel(NaN,-74.25,4,4),null);
 assert.equal(context.latLngToDepthQueryPixel(lat,-73,4,4),null);
@@ -68,6 +78,67 @@ await assert.rejects(recovery.getDepthQueryGrid(),/transient failure/);
 assert.equal(calls,2);fail=false;
 assert.equal((await recovery.getDepthQueryGrid()).width,4);
 assert.equal(calls,3);await recovery.getDepthQueryGrid();assert.equal(calls,3);
+// The GeoTIFF fallback uses physical distances, including non-square cells.
+const cogLatitude = 39;
+const cogLongitude = -74.81;
+const cogXStep = 2 / (364000 * Math.cos(cogLatitude * Math.PI / 180));
+const cogYStep = 1 / 364000;
+const cogWidth = 48;
+const cogHeight = 48;
+let cogTimer;
+let cogSignal;
+let rasterStalled = false;
+let openedCogs = 0;
+const cogImage = {
+  getBoundingBox: () => [
+    cogLongitude, cogLatitude - cogHeight * cogYStep,
+    cogLongitude + cogWidth * cogXStep, cogLatitude
+  ],
+  getWidth: () => cogWidth,
+  getHeight: () => cogHeight,
+  async readRasters({window: [left, top, right, bottom], signal}) {
+    cogSignal = signal;
+    if (rasterStalled) return new Promise(() => {});
+    const values = [];
+    for (let y = top; y < bottom; y++) {
+      for (let x = left; x < right; x++) {
+        const bulkhead = x === 20 && y === 20;
+        values.push(bulkhead ? 12 : 2.25, 7, 3.6, 0, Number(bulkhead), 0, 1);
+      }
+    }
+    return values;
+  }
+};
+const cogLibrary = { async fromUrl() { openedCogs++; return { getImage: async () => cogImage }; } };
+const cog = vm.createContext({
+  AbortController, DEPTH_QUERY_PNG_URL: '', DEPTH_QUERY_COG_URL: 'https://example.test/query.tif',
+  GeoTIFF: cogLibrary,
+  window: { GeoTIFF: cogLibrary, setTimeout(callback) { cogTimer = callback; }, clearTimeout() {} }
+});
+vm.runInContext([
+  'let depthQueryImagePromise = null;',
+  ...['awaitRasterRequest', 'readDepthCogWithDeadline', 'getDepthQueryImage',
+    'sampleDepthModelFromCog', 'sampleDepthModel'].map(extract)
+].join('\n'), cog);
+const sampleCog = (x, y) => cog.sampleDepthModel(
+  cogLatitude - (y + 0.5) * cogYStep, cogLongitude + (x + 0.5) * cogXStep
+);
+assert.equal((await sampleCog(13,14)).elevation, 12, 'Nearby bulkhead remains selectable');
+assert.equal((await sampleCog(13,10)).elevation, 2.25, 'Diagonal outside radius uses actual terrain');
+assert.equal((await sampleCog(11,20)).featureDistanceFt, null, 'A nine-pixel horizontal offset can exceed 16 feet');
+assert.equal((await sampleCog(20,20)).featureDistanceFt, 0);
+assert.equal(await sampleCog(-1,20), null);
+rasterStalled = true;
+const stalledCog = sampleCog(20,20);
+await new Promise(resolve => setImmediate(resolve));
+cogTimer();
+await assert.rejects(stalledCog, { name: 'TimeoutError' });
+assert.equal(cogSignal.aborted, true);
+assert.equal(openedCogs, 1, 'A full timeout is not retried automatically');
+rasterStalled = false;
+assert.equal((await sampleCog(20,20)).elevation, 12);
+assert.equal(openedCogs, 2, 'A later user retry reopens the failed raster');
+
 // Compile every inline script, so a small query fix cannot break application startup.
 let scripts=0;
 for(const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)){

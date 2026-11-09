@@ -196,22 +196,10 @@
     let exportCancelRequested = false;
     let activeGifExport = null;
     let gifWorkerUrlPromise = null;
-    let exportPngSelections = new Map();
-    let exportCalendarCursorDate = null;
-    let exportCalendarSelectedDayKey = "";
-    let exportRangePickMode = "start";
-    let exportStartCalendarCursorDate = null;
-    let exportEndCalendarCursorDate = null;
-    let exportStartCalendarViewMode = "month";
-    let exportEndCalendarViewMode = "month";
     let exportImageElementCache = new Map();
-    let exportAvailabilityCache = null;
     let exportAvailabilityDayMapCache = null;
     let exportAvailabilityMonthMapCache = null;
     let exportAvailabilityBoundsCache = null;
-    let exportAvailabilityHourTotalCache = null;
-    let exportEntriesForDayCache = new Map();
     let observedExportDayIndexCache = null;
     let exportTimePickerRenderRaf = null;
-    let exportTimePickerLastSignature = "";
 

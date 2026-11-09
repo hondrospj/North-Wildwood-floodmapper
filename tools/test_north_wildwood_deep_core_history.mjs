@@ -103,6 +103,27 @@ const surrogate=c.buildObservedCanonicalSeries(c.getObservedDayRecord(selectedSu
 check(surrogate[1].hydraulicCrestTimeUtc==='2025-01-01T02:00:00.000Z','Hourly surrogate context must preserve the prior local-evening crest');
 check(surrogate.length===96&&surrogate.at(-1).timeUtc==='2025-01-02T04:45:00.000Z','Surrogate interpolation must preserve day bounds and the next endpoint');
 check(c.getDrainageRetentionMilestones(surrogate[1],surrogate)[0]?.sourceStationId==='8557380','Surrogate retention must remain on its own station');
+// The primary gauge had no samples on this real date, but USGS recorded a
+// separately published annual crest with an exact time.
+const gapDate = '2009-11-13';
+const gapArchive = JSON.parse(fs.readFileSync(path.join(repo, 'observed_archive/stone-harbor/2009.json'), 'utf8'));
+const gapDay = gapArchive.days.find(row => row.d === gapDate);
+const crestArchive = JSON.parse(fs.readFileSync(path.join(repo, 'toptides.json'), 'utf8'));
+const official = c.normalizeTopTidesJsonEntry(crestArchive.toptides.find(row => row.date === gapDate), 0);
+install([{date:gapDate, peakNAVD88:5.44, hours:[], officialCrestEntry:official}]);
+c.observed15MinuteDaysByDate.set(gapDate,gapDay);
+check(gapDay.v.length===96&&gapDay.v.every(value=>value===null),'The fixture must be the actual all-missing archive day');
+const crestOnly=c.buildObservedCanonicalSeries(c.getObservedDayRecord(gapDate),gapDate);
+check(crestOnly.length===1&&crestOnly[0].isDailyPeakOnly&&crestOnly[0].peakTimeKnown,'A known crest is one frame rather than a fabricated time series');
+check(crestOnly[0].timeUtc==='2009-11-13T10:24:00.000Z'&&c.getStageValue(crestOnly[0])===5.44,'The only frame must preserve the official time and water level');
+for(const interval of [15,60])check(c.sampleCanonicalHydraulicSeries(crestOnly,interval).length===1,'Cadence must not create more observations around an isolated crest');
+const dailyCrest=c.buildObservedDailyMaximumSeries('2009-11')[0];
+check(dailyCrest.timeUtc===crestOnly[0].timeUtc&&dailyCrest.peakTimeKnown,'Daily Max must keep the official crest time');
+const crestExport=c.getDownloadFrameItemFromEntry({...dailyCrest,exportSourceMode:'observed'});
+check(crestExport.entry.timeUtc===crestOnly[0].timeUtc&&c.getStageValue(crestExport.entry)===5.44,'Export frame must retain the known official crest instant');
+install([{date:gapDate,peakNAVD88:5.44,hours:[],officialCrestEntry:{...official,crestTimeKnown:false}}]);
+const unknownCrest=c.buildObservedCanonicalSeries(c.getObservedDayRecord(gapDate),gapDate);
+check(unknownCrest.length===1&&unknownCrest[0].peakTimeKnown===false&&!unknownCrest[0].timeUtc,'The date-only fallback still does not claim an observed clock time');
 // Fetch boundary coverage: selected Jan 1 and cross-year range need the preceding
 // shard, while a source transition must not fetch a different gauge for context.
 const years=[];c.ensureObservedArchiveYear=async(source,year)=>{years.push(`${source}:${year}`);return true;};c.getTodayNyDateKey=()=> '2099-01-01';

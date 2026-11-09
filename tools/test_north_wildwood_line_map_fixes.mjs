@@ -85,7 +85,7 @@ for(const outcome of ['ready','failure','superseded']) {
   const previous=new Layer('old');active.add(previous);
   const c=vm.createContext({window:{...clock,NORTH_WILDWOOD_3D:{prepareFloodFrame:async()=>{started.resolve();return gate.promise;}}},requestAnimationFrame:fn=>queueMicrotask(fn),console,
     document:{body:{dataset:{initialFloodFrame:'ready'},classList:{contains:()=>false}}},
-    currentSeriesHours:[{stage:1}],currentRawSeriesHours:[],currentHourIndex:0,currentDataMode:'forecast',lastRenderToken:1,currentFloodLayer:previous,pendingFloodLayer:null,
+    currentSeriesHours:[{stage:1}],currentRawSeriesHours:[],currentHourIndex:0,currentDataMode:'forecast',forecastData:null,lastRenderToken:1,currentFloodLayer:previous,pendingFloodLayer:null,
     getStageValue:entry=>entry.stage,retainRasterObjectUrl:()=>()=>{},toast(){},ensureMap(){},getHydraulicOverlayRecord:async()=>({url:'new'}),preloadImage:async url=>url,ensureOverlayBounds:async()=>{},
     createHydraulicImageOverlay:url=>new Layer(url),overlayOpacity:.75,mapHasFit:true,floodLatLngBounds:{},updatePersistentDepthQueryPopup(){},markInitialFloodFrameReady(){},preloadPromiseCache:new Map(),
     map:{hasLayer:layer=>active.has(layer),removeLayer(layer){active.delete(layer);layer.handlers.get('remove')?.();}}});

@@ -24,14 +24,13 @@
           timelineIntervalMinutes: 60,
           exportInterval: "hourly"
         };
-        const fallbackIndex = exportEntry.exportSourceMode === "observed" ? match.idx : findClosestEntryIndex(currentSeriesHours, exportEntry);
-        const item = getDownloadFrameItemFromEntry(exportEntry, fallbackIndex, sourceSeries);
+        const item = getDownloadFrameItemFromEntry(exportEntry, sourceSeries);
         if (item) items.push(item);
       }
       return items;
     }
 
-    function buildQuarterHourRangeFrameItems(entries, range, sourceSeries = new Map()) {
+    function getQuarterHourExportEntries(entries, range, sourceSeries = new Map()) {
       if (!Array.isArray(entries) || !entries.length || !range) return [];
       const byTime = new Map();
       const observedDates = new Set();
@@ -66,18 +65,19 @@
         series.forEach(entry => byTime.set(entryTimeMs(entry), entry));
       }
       return Array.from(byTime.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b))
-        .filter(entry => Number.isFinite(getStageValue(entry)))
-        .map((entry, idx) => {
+        .filter(entry => Number.isFinite(getStageValue(entry)));
+    }
+
+    function buildQuarterHourRangeFrameItems(entries, range, sourceSeries = new Map()) {
+      return getQuarterHourExportEntries(entries, range, sourceSeries)
+        .map(entry => {
           const exportEntry = {
             ...entry,
             observationInterval: "15min",
             timelineIntervalMinutes: 15,
             exportInterval: "15min"
           };
-          const fallbackIndex = exportEntry.exportSourceMode === "observed"
-            ? idx
-            : findClosestEntryIndex(currentSeriesHours, exportEntry);
-          return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex, sourceSeries);
+          return getDownloadFrameItemFromEntry(exportEntry, sourceSeries);
         })
         .filter(Boolean);
     }
@@ -92,7 +92,7 @@
         ? buildReturnIntervalDailyMaximumSeries(inRange)
         : buildDailyMaximumSeries(inRange, { kind: "export" });
       return daily
-        .map((entry, idx) => {
+        .map(entry => {
           const exportEntry = {
             ...entry,
             exportSourceMode: entry.exportSourceMode || "observed",
@@ -100,10 +100,7 @@
             timelineIntervalMinutes: 1440,
             exportInterval: "daily"
           };
-          const fallbackIndex = exportEntry.exportSourceMode === "observed"
-            ? idx
-            : findClosestEntryIndex(currentSeriesHours, exportEntry);
-          return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex, sourceSeries);
+          return getDownloadFrameItemFromEntry(exportEntry, sourceSeries);
         })
         .filter(Boolean);
     }

@@ -106,7 +106,7 @@ function pendingPlane(url) {
     cancelTextureLoad(){this.pending.resolve(false);}};
 }
 async function flushRecovery() { for(let i=0;i<12;i++)await Promise.resolve(); }
-function recoveryHarness(planes) {
+function recoveryHarness(planes, visibleNativeMap = false) {
   const listeners=new Map(),timers=new Map(),statuses=[],warnings=[];
   const nativeSource={};
   let timerId=0,styleLoaded=false,repaints=0;
@@ -117,11 +117,16 @@ function recoveryHarness(planes) {
     isStyleLoaded(){return styleLoaded;},triggerRepaint(){repaints++;},getSource(){return nativeSource;}
   };
   const context={glMap:mapInstance,glStyleReady:true,floodPlaneLayer:pendingPlane('before-loss'),
-    document:{body:{dataset:{map3d:'ready'}}},
+    document:{body:{dataset:{map3d:'ready'},classList:{contains:name=>visibleNativeMap&&name==='map-3d-ready'}}},
     window:{setTimeout(callback,delay){const id=++timerId;timers.set(id,{callback,delay});return id;},clearTimeout(id){timers.delete(id);}},
     console:{warn(...args){warnings.push(args);}},setStatus(message){statuses.push(message||null);},
     syncFloodLayer3d(){context.floodPlaneLayer=planes.shift()||null;},syncBuildings3d:async()=>{},
     waitForNativeFloodImage3d:async()=>true,
+    restoreLeafletAfter3dFailure(instance){
+      assert.equal(instance,mapInstance);
+      context.glMap=null;
+      context.document.body.dataset.map3d='fallback';
+    },
   };
   for(const name of ['syncBoundary3d','syncSatellite3d','syncRoadLabels3d','syncParcels3d','syncNsi3d','syncPersistentNavControl'])context[name]=()=>{};
   vm.createContext(context);vm.runInContext(fn('wire3dContextRecovery'),context);
@@ -158,6 +163,18 @@ for(const phase of ['lost-context','missing-style','new-loss']) {
     map3dReady:()=>false,activate3d(){activations++;},transitionMode(){assert.fail('No healthy renderer to transition');},actual3dMode:()=>false});
   vm.runInContext('(function(){'+actualViewClick+'})()',h.context);await flushRecovery();
   assert.equal(activations,1);assert.equal(busyCalls,0,'An absent retry must not consume a click in an empty busy cycle');
+}
+
+// A visible renderer without a recovered style releases WebGL on timeout.
+for (const styleWasRestoring of [false,true]) {
+  const h=recoveryHarness([],true);
+  h.lose();
+  if (styleWasRestoring) h.restore();
+  h.deadline();
+  assert.equal(h.context.document.body.dataset.map3d,'fallback');
+  assert.equal(h.context.glMap,null);
+  h.lose();h.restore();h.style();await flushRecovery();
+  assert.equal(h.context.document.body.dataset.map3d,'fallback','A retired WebGL renderer cannot replace Leaflet');
 }
 
 // A healthy GPU plane alone cannot certify the top-down native image. A failed

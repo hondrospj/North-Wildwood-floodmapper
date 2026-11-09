@@ -91,27 +91,6 @@
       });
       updateExportSatelliteLayer();
 
-      exportRoadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
-        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
-        minZoom: 0,
-        maxZoom: 24,
-        // A 512px tile from one source zoom lower covers the same geography
-        // while making road names twice as large in both PNG and GIF exports.
-        tileSize: 512,
-        zoomOffset: -1,
-        maxNativeZoom: 20,
-        roadLabelFilter: "grayscale(1) contrast(1.15)",
-        roadLabelHalo: 2,
-        roadLabelTownMask: true,
-        subdomains: "abcd",
-        crossOrigin: true,
-        opacity: 0,
-        updateWhenIdle: true,
-        keepBuffer: 1,
-        className: "roads-layer",
-        pane: "roadsPane"
-      }).addTo(exportMap);
-
       updateExportBuildingsLayer();
       // Without a valid inner ring a world mask would gray out the entire town.
       // First-frame preparation waits for geometry before this map is captured.
@@ -155,25 +134,47 @@
         return;
       }
       if (!exportParcelsLayer) {
-        await preloadImage(PARCEL_BOUNDARY_PNG_URL);
-        exportParcelsLayer = createHydraulicImageOverlay(
-          PARCEL_BOUNDARY_PNG_URL,
-          {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        const cancel = setInterval(() => {
+          if (exportCancelRequested) controller.abort();
+        }, 80);
+        let objectUrl = null;
+        try {
+          throwIfExportCancelled();
+          const response = await fetch(PARCEL_BOUNDARY_PNG_URL, { cache: "force-cache", signal: controller.signal });
+          if (!response.ok) throw new Error(`Parcel boundary HTTP ${response.status}`);
+          const blob = await response.blob();
+          throwIfExportCancelled();
+          // The capture document must draw the same image without another network request.
+          objectUrl = URL.createObjectURL(blob);
+          const image = await getExportImageElement(objectUrl);
+          throwIfExportCancelled();
+          if (!image?.naturalWidth || !image.naturalHeight) throw new Error("Invalid parcel boundary image");
+          exportParcelsLayer = createHydraulicImageOverlay(PARCEL_BOUNDARY_PNG_URL, {
             pane: "parcelsPane",
             opacity: 0.78,
             interactive: false,
             crossOrigin: true,
             zIndex: 610
-          }
-        );
+          }, image);
+        } catch (cause) {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          throwIfExportCancelled();
+          const error = new Error("Parcel boundaries could not load for export. Please try again.", { cause });
+          error.name = "ParcelBoundaryExportUnavailableError";
+          throw error;
+        } finally {
+          clearTimeout(timeout);
+          clearInterval(cancel);
+        }
       }
       if (!exportMap.hasLayer(exportParcelsLayer)) exportParcelsLayer.addTo(exportMap);
     }
 
     function updateExportLegend(entry = null) {
-      const source = document.getElementById("legendDock");
       const target = document.getElementById("exportLegendDock");
-      if (!source || !target) return;
+      if (!target || !document.getElementById("legendDock")) return;
       const isDepthLegend = currentOverlayMode === "depth";
       const isPhysicsDepth = isDepthLegend && physicsForecastApplies();
       const isPhysicsDailyMaximum = isPhysicsDepth && Boolean(entry?.isDailyMaximum);
@@ -194,7 +195,6 @@
         `
         : `<div class="export-depth-key"><div class="export-depth-key-heading"><strong>Stages</strong></div><div class="stage-legend-scale"><div class="stage-legend-uncertainty"><span>Uncertain</span><div class="stage-legend-green"></div></div><div class="stage-legend-levels"><div class="stage-legend-labels"><span>Minor</span><span>Moderate</span><span>Major</span></div><div class="stage-legend-gradient"></div></div></div></div>`;
 
-      target.querySelectorAll("button, .help-btn, #legendHelpBtn").forEach(el => el.remove());
       target.classList.remove("legend-collapsed", "legend-expanded", "legend-floating-user");
       target.style.background = "#1b2536";
       target.style.border = "1px solid rgba(191,219,254,.18)";
@@ -203,40 +203,6 @@
       target.style.webkitBackdropFilter = "none";
       target.style.overflow = "visible";
 
-      const header = target.querySelector("#legendHeader, .legend-head, .legend-title-row");
-      if (header) {
-        header.style.cursor = "default";
-      }
-
-      target.querySelectorAll("[id]").forEach(el => {
-        el.removeAttribute("id");
-      });
-
-      target.querySelectorAll(".legend-body, .legend-list, .legend-row, .legend-note").forEach(el => {
-        el.style.background = "transparent";
-        el.style.boxShadow = "none";
-        el.style.filter = "none";
-        el.style.backdropFilter = "none";
-        el.style.webkitBackdropFilter = "none";
-      });
-
-      const sourceSwatches = Array.from(source.querySelectorAll(".legend-swatch"));
-      const targetSwatches = Array.from(target.querySelectorAll(".legend-swatch"));
-      targetSwatches.forEach((swatch, idx) => {
-        const sourceSwatch = sourceSwatches[idx];
-        if (!sourceSwatch) return;
-        const styles = window.getComputedStyle(sourceSwatch);
-        swatch.style.background = styles.backgroundImage && styles.backgroundImage !== "none" ? styles.backgroundImage : styles.backgroundColor;
-        swatch.style.backgroundColor = styles.backgroundColor;
-        swatch.style.borderColor = styles.borderColor;
-        swatch.style.borderWidth = styles.borderWidth;
-        swatch.style.borderStyle = styles.borderStyle;
-        swatch.style.boxShadow = "none";
-        swatch.style.filter = "none";
-        swatch.style.opacity = styles.opacity;
-      });
-
-      target.querySelectorAll(".legend-row-boundary").forEach(row => row.remove());
     }
 
     /* Shorely scalable road-label export integration v1. */
@@ -277,11 +243,39 @@
       }
     }
 
+    function mountExportRoadLayer() {
+      exportRoadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
+        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+        minZoom: 0,
+        maxZoom: 24,
+        // A 512px tile from one source zoom lower covers the same geography
+        // while making road names twice as large in both PNG and GIF exports.
+        tileSize: 512,
+        zoomOffset: -1,
+        maxNativeZoom: 20,
+        roadLabelFilter: "grayscale(1) contrast(1.15)",
+        roadLabelHalo: 2,
+        roadLabelTownMask: true,
+        subdomains: "abcd",
+        crossOrigin: true,
+        opacity: 0,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        className: "roads-layer",
+        pane: "roadsPane"
+      });
+      exportRoadsLayer?.addTo(exportMap);
+    }
+
     function updateExportRoadLayerAppearance(renderConfig = null) {
-      if (!exportMap || !exportRoadsLayer) return;
+      if (!exportMap) return;
       const roadsEnabled = document.getElementById("roadsToggle")?.classList.contains("on");
       const zoom = exportMap.getZoom() || 0;
       const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;
+      // A hidden road pane needs no WebGL context. Keep an initialized layer
+      // for later frames and retries once the selected extent can show it.
+      if (showLabels && !exportRoadsLayer) mountExportRoadLayer();
+      if (!exportRoadsLayer) return;
       const aspect = renderConfig || getExportAspectConfig();
       const unit = Math.min(aspect.width, aspect.height) / 1080;
       const gl = exportRoadsLayer.getMaplibreMap?.();
@@ -308,6 +302,11 @@
 
     async function prepareExportRoadNames() {
       if (!document.getElementById("roadsToggle")?.classList.contains("on")) return;
+      if (!hasRoadLabelRenderer()) {
+        const error = new Error("Road names could not load. Reload the page or turn off Road Names and try again.");
+        error.name = "RoadLabelRendererUnavailableError";
+        throw error;
+      }
       const labels = window.NORTH_WILDWOOD_EXPORT_ROADS;
       if (!labels) throw new Error("Road names could not load. Reload the page and try again.");
       await awaitRasterRequest(labels.load());
@@ -481,7 +480,7 @@
     }
 
     function getExportFrameDateTimeText(entry) {
-      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} · Peak time unknown`;
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} · Peak time unknown`;
       if (entry?.returnIntervalYears) {
         return getReturnIntervalStormLabel(entry.returnIntervalYears);
       }
@@ -706,13 +705,13 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       if (!Array.isArray(entries) || !entries.length || !Number.isFinite(slotMs)) return null;
       let best = null;
       let bestDiff = Infinity;
-      entries.forEach((entry, idx) => {
+      entries.forEach(entry => {
         const t = entryTimeMs(entry);
         if (t == null) return;
         const diff = Math.abs(t - slotMs);
         const key = String(t);
         if (diff <= toleranceMs && diff < bestDiff && !usedKeys.has(key)) {
-          best = { entry, idx, key, diff };
+          best = { entry, key };
           bestDiff = diff;
         }
       });

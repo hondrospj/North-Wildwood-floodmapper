@@ -49,9 +49,11 @@ jobs:
             assets/shorelysafe-logo-export.jpg
             assets/export-road-labels.js
             assets/road-labels.js
+            assets/road-impacts.js
             assets/roads/north-wildwood-road-centerlines.geojson
             assets/north-wildwood-font.css
             assets/fonts/inter-4.1-*
+            assets/hydraulic-v29/
             assets/parcel-history-v2/NorthWildwoodParcelAreaStages.json
             assets/north-wildwood-loading.js
             assets/north-wildwood-loading.css

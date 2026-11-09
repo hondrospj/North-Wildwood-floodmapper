@@ -5,7 +5,7 @@
 <head>
 <link rel="stylesheet" href="./assets/north-wildwood-font.css?v=44bc78225f5bedbc">
 <link rel="preconnect" href="https://hondrospj.github.io" crossorigin>
-<link rel="stylesheet" data-nww-style-bundle="app-01" href="./assets/styles/app-01.css?v=bb2d243cf822fa61">
+<link rel="stylesheet" data-nww-style-bundle="app-01" href="./assets/styles/app-01.css?v=4306a74fe376df5b">
 <!-- nww:style:style-002 -->
 
 
@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://basemaps.arcgis.com" crossorigin>
 <link rel="preconnect" href="https://floodmapperv1.b-cdn.net" crossorigin>
-<script id="floodmapper-startup-20261002" data-nww-script="script-001" src="./assets/app/startup.js?v=af5403bce8faa026"></script>
+<script id="floodmapper-startup-20261002" data-nww-script="script-001" src="./assets/app/startup.js?v=c5c54a9269b97901"></script>
 
 <link rel="stylesheet" data-nww-style-bundle="app-02" href="./assets/styles/app-02.css?v=4b27d8307ccfb3d1">
 
@@ -39,7 +39,7 @@
   <script data-nww-script="script-003" src="./assets/app/platform.js?v=be7a7d894330018d"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <link rel="stylesheet" data-nww-style-bundle="app-03" href="./assets/styles/app-03.css?v=b4b3e4ef99ab671d">
+  <link rel="stylesheet" data-nww-style-bundle="app-03" href="./assets/styles/app-03.css?v=a9c19868b18cbebc">
 
   <!-- nww:style:style-009 -->
 
@@ -48,16 +48,16 @@
 
 
   <!-- nww:style:style-011 -->
-  <link rel="stylesheet" href="./assets/map-status.css" />
+  <link rel="stylesheet" href="./assets/map-status.css?v=691b3e74990d9d20" />
 <link rel="stylesheet" href="assets/north-wildwood-mobile.css?v=20261026-holistic1">
-<link rel="stylesheet" data-nww-style-bundle="app-04" href="./assets/styles/app-04.css?v=1239f1d3ed0e435d">
+<link rel="stylesheet" data-nww-style-bundle="app-04" href="./assets/styles/app-04.css?v=509becaedd60dc22">
 <link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261021-tablet1">
 <link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261021-tablet1">
 <link rel="stylesheet" href="assets/north-wildwood-calendar.css?v=20261021-tablet1">
 <link rel="stylesheet" href="assets/export-date-time-picker.css?v=9a8f640254cba6b4">
 <link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261021-tablet1">
 <!-- Load the complete layout before rendering any controls. -->
-<link rel="stylesheet" data-nww-style-bundle="app-05" href="./assets/styles/app-05.css?v=4c17a8a6865f3787">
+<link rel="stylesheet" data-nww-style-bundle="app-05" href="./assets/styles/app-05.css?v=d06a61f08a046a69">
 <!-- nww:style:style-014 -->
 <!-- nww:style:style-015 -->
 <!-- nww:style:style-016 -->
@@ -506,7 +506,8 @@
 
   <div id="mapperTutorial" class="mapper-tutorial" hidden aria-hidden="true">
     <div id="mapperTutorialSpotlight" class="mapper-tutorial-spotlight" aria-hidden="true"></div>
-    <section id="mapperTutorialCard" class="mapper-tutorial-card" role="dialog" aria-modal="true" aria-labelledby="mapperTutorialTitle">
+    <section id="mapperTutorialCard" class="mapper-tutorial-card" role="dialog" aria-modal="true" aria-labelledby="mapperTutorialTitle" aria-describedby="mapperTutorialBody">
+      <span id="mapperTutorialAnnouncement" class="mapper-tutorial-announcement" role="status" aria-atomic="true"></span>
       <div class="mapper-tutorial-head">
         <span id="mapperTutorialProgress" class="mapper-tutorial-progress">1 of 9</span>
         <button id="mapperTutorialClose" class="mapper-tutorial-close centered-close-control" type="button" aria-label="Close tutorial">×</button>
@@ -601,22 +602,22 @@
       </div>
       <p id="downloadModalSub" class="download-modal-sub">Choose the timing, layout, and framing. Map view preserves the area you are viewing.</p>
       <div class="download-grid">
-        <label class="download-field export-filetype-field">
+        <div class="download-field export-filetype-field">
           File type
           <div id="downloadFormatControl" class="export-segmented" role="group" aria-label="Export file type">
             <button id="exportFormatGifBtn" type="button" class="active" data-format="gif" aria-pressed="true">Animated GIF</button>
             <button id="exportFormatPngBtn" type="button" data-format="png" aria-pressed="false">PNG Frames</button>
           </div>
-        </label>
-        <label class="download-field export-interval-field">
+        </div>
+        <div class="download-field export-interval-field">
           Frame interval
           <div id="downloadIntervalControl" class="export-segmented" role="group" aria-label="Export time interval" style="--seg-cols:3">
             <button id="exportIntervalHourlyBtn" type="button" class="active" data-export-interval="hourly" aria-pressed="true">Hourly</button>
             <button id="exportIntervalQuarterBtn" type="button" data-export-interval="15min" aria-pressed="false">15-Min</button>
             <button id="exportIntervalDailyBtn" type="button" data-export-interval="daily" aria-pressed="false">Daily Max</button>
           </div>
-        </label>
-        <label class="download-field export-layout-field">
+        </div>
+        <div class="download-field export-layout-field">
           Layout
           <div id="downloadAspectControl" class="export-segmented" role="group" aria-label="Export layout" style="--seg-cols:5">
             <button id="exportAspectViewportBtn" type="button" class="active" data-aspect="viewport" aria-pressed="true">Map view</button>
@@ -625,23 +626,23 @@
             <button id="exportAspectPortraitBtn" type="button" data-aspect="9:16" aria-pressed="false">Story 9:16</button>
             <button id="exportAspectSquareBtn" type="button" data-aspect="1:1" aria-pressed="false">Square 1:1</button>
           </div>
-        </label>
-        <label class="download-field export-framing-field">
+        </div>
+        <div class="download-field export-framing-field">
           Map framing
           <div id="downloadExtentControl" class="export-segmented" role="group" aria-label="Export map framing">
             <button id="exportExtentTownBtn" type="button" data-extent="town" aria-pressed="false">Fill North Wildwood</button>
             <button id="exportExtentCurrentBtn" type="button" data-extent="current" aria-pressed="true" class="active">Current View</button>
           </div>
           <span class="export-extent-help"><span><strong>Current View</strong> keeps the area you are viewing. Map view preserves its shape; other layouts crop from the center.</span><button id="adjustExportViewBtn" class="export-adjust-view-btn" type="button">Adjust map</button></span>
-        </label>
-        <label id="gifSpeedField" class="download-field export-speed-field">
+        </div>
+        <div id="gifSpeedField" class="download-field export-speed-field">
           GIF speed
           <div id="downloadSpeedControl" class="export-segmented" role="group" aria-label="GIF speed" style="--seg-cols:3">
             <button id="exportSpeedSlowBtn" type="button" data-speed="slow" aria-pressed="false">Slow</button>
             <button id="exportSpeedNormalBtn" type="button" class="active" data-speed="normal" aria-pressed="true">Normal</button>
             <button id="exportSpeedFastBtn" type="button" data-speed="fast" aria-pressed="false">Fast</button>
           </div>
-        </label>
+        </div>
         <section id="exportTimePicker" class="export-picker export-simple-picker" aria-label="Export time range">
           <div id="exportDataRangeText" class="export-data-range" aria-label="Available export data range"></div>
           <div id="downloadRangeFields" class="export-simple-range-grid">
@@ -776,7 +777,7 @@
   <script src="https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js"></script>
   <script src="assets/road-labels.js?v=3ad509cbb4274b6c"></script>
 
-  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=9dccf75d9935bd5d"></script>
+  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=eeb1c08cd49637ce"></script>
 
 <script data-nww-script="script-005" src="./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52"></script>
 
@@ -784,12 +785,12 @@
 <script data-nww-script="script-006" src="./assets/app/alert-interaction.js?v=b02a3674db55dfda"></script>
 
 
-<script src="./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=4ed1c082844bfb75"></script>
-<script src="./assets/road-impacts.js?v=20261002-road-impacts-default-off"></script>
+<script src="./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=5981109965ae919a"></script>
+<script src="./assets/road-impacts.js?v=2a2d81b00391a606"></script>
 <script defer src="./assets/export-road-labels.js?v=b3e11134ba8bcb33"></script>
 
-<script defer src="./assets/modal-focus.js?v=0a3517c959989570"></script>
-<script data-nww-script="script-007" src="./assets/app/town-config.js?v=cc8977f81cd3734b"></script>
+<script defer src="./assets/modal-focus.js?v=77c8d9e9efcb920b"></script>
+<script data-nww-script="script-007" src="./assets/app/town-config.js?v=150329941da8abe6"></script>
 
 
 <script src="assets/avalon-mobile.js?v=20261026-holistic1"></script>
@@ -797,19 +798,19 @@
 
 <script defer src="assets/north-wildwood-mobile.js?v=20261026-holistic1"></script>
 
-<script src="assets/export-area.js?v=d80df18216767963" id="floodmapper-export-area"></script>
-<script defer src="assets/export-preview.js?v=04eb97ef562e9818" id="floodmapper-export-preview"></script>
-<script defer src="assets/export-date-time-picker.js?v=de3c68979d0fb684" id="floodmapper-export-date-time-picker"></script>
+<script src="assets/export-area.js?v=3e1a616bdef7fa8b" id="floodmapper-export-area"></script>
+<script defer src="assets/export-preview.js?v=0a877c7168db32a9" id="floodmapper-export-preview"></script>
+<script defer src="assets/export-date-time-picker.js?v=098491bc170e7926" id="floodmapper-export-date-time-picker"></script>
 
 
 
 <div id="shorelysafeWebcamConfig" hidden>{"town":"North Wildwood","cameras":[{"id":"north-bay","name":"5th Avenue bay / flood camera","short":"5th Avenue bay","url":"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1","sourceUrl":"https://northwildwood.com/north-wildwood-surf-cams/","source":"City of North Wildwood","location":"5th Avenue boat ramp · North Wildwood · approximate site location","external":false,"description":"View the back bay and boat ramp for current tidal conditions.","lat":39.007333,"lng":-74.798667,"kind":"video","relation":"local"},{"id":"north-beach","name":"15th Avenue Beach","short":"15th Avenue Beach","url":"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station","sourceUrl":"https://northwildwood.com/north-wildwood-surf-cams/","source":"City of North Wildwood","location":"15th Avenue lifeguard station · North Wildwood · approximate site location","external":true,"description":"View current conditions on the camera provider’s website.","lat":38.99462,"lng":-74.795285,"kind":"video","relation":"local"}],"otherSources":[{"name":"15th Avenue Beach","sourceUrl":"https://northwildwood.com/north-wildwood-surf-cams/"}]}</div>
-<script id="shorelysafeWebcamsScript" data-nww-script="script-008" src="./assets/app/webcams.js?v=f98a348da30dce2f"></script>
+<script id="shorelysafeWebcamsScript" data-nww-script="script-008" src="./assets/app/webcams.js?v=e1bbfab87b236882"></script>
 
 <script id="county-buildings-20261015" data-nww-script="script-009" src="./assets/app/county-buildings.js?v=e5e8b97fc74cbcc7"></script>
 
 <script id="shorelysafe-visible-brand-controller-20261015" data-nww-script="script-010" src="./assets/app/branding.js?v=5218502b14ba05c5"></script>
 
-<script id="floodmapper-unified-controller-20261017" data-ui-sha256="3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7" data-nww-script="script-011" src="./assets/app/unified-controller.js?v=4e379057b2de81c4"></script>
+<script id="floodmapper-unified-controller-20261017" data-ui-sha256="3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7" data-nww-script="script-011" src="./assets/app/unified-controller.js?v=843e5163d68909be"></script>
 </body>
 </html>

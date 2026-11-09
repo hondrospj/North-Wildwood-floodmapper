@@ -33,7 +33,8 @@
     .mapper-tutorial-body p{margin:0 0 10px}.mapper-tutorial-body strong{color:#fff}
     .mapper-tutorial-actions{margin-top:18px}
     .mapper-tutorial-actions button{min-width:94px;min-height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#dbeafe;font-weight:850;cursor:pointer}
-    .mapper-tutorial-actions button.active{background:#2563eb;border-color:#60a5fa;color:#fff}
+    .mapper-tutorial-announcement{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+    #mapperTutorialNext{background:#2563eb;border-color:#60a5fa;color:#fff !important}
     .mapper-tutorial-actions button:disabled{opacity:.35;cursor:default}
     .house-alert-popup{color:#0f172a;min-width:275px;max-width:340px;font:13px/1.35 Inter,system-ui,sans-serif}
     .house-alert-popup h3{margin:0 0 2px;font-size:17px}
@@ -69,7 +70,7 @@
     .nsi-structure-grid{display:grid;grid-template-columns:1fr auto;gap:5px 12px;margin-bottom:10px;padding:10px 11px;border:1px solid rgba(125,249,255,.17);border-radius:12px;background:rgba(14,116,144,.12);color:#a9bad3;font-size:10px}
     .nsi-structure-grid strong{color:#fff;text-align:right}
     .nsi-impact-status{margin-bottom:8px;padding:7px 9px;border-radius:9px;background:rgba(15,31,54,.82);color:#d8e5f5;font-size:10px;font-weight:850;line-height:1.3}
-    .map-click-mode-control{position:fixed;z-index:780;top:max(72px,calc(env(safe-area-inset-top) + 64px));left:50%;display:grid;grid-auto-flow:column;grid-auto-columns:auto;align-items:center;gap:4px;padding:5px;border:1px solid rgba(125,249,255,.26);border-radius:14px;background:rgba(8,15,31,.94);box-shadow:0 14px 38px rgba(2,6,23,.42),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(14px);transform:translateX(-50%);white-space:nowrap}
+    .map-click-mode-control{position:fixed;z-index:780;left:50%;display:grid;grid-auto-flow:column;grid-auto-columns:auto;align-items:center;gap:4px;padding:5px;border:1px solid rgba(125,249,255,.26);border-radius:14px;background:rgba(8,15,31,.94);box-shadow:0 14px 38px rgba(2,6,23,.42),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(14px);transform:translateX(-50%);white-space:nowrap}
     .map-click-mode-control[hidden]{display:none!important}
     .map-click-mode-label{padding:0 5px 0 7px;color:#8fa5bf;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
     .map-click-mode-control button{min-height:31px;padding:0 11px;border:1px solid transparent;border-radius:9px;background:transparent;color:#a9bad3;font-size:10px;font-weight:900;cursor:pointer}
@@ -100,7 +101,7 @@
     .flood-year-readout{display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:baseline;padding:7px 9px;border:1px solid rgba(125,249,255,.16);border-radius:10px;background:rgba(2,6,23,.34);text-align:right}.flood-year-readout span{color:#7df9ff;font-size:9px;font-weight:900}.flood-year-readout strong{color:#fff;font-size:14px}.flood-year-readout small{grid-column:1/-1;color:#91a5bd;font-size:8px}
     .flood-history-error{padding:16px;border:1px solid rgba(251,113,133,.3);border-radius:14px;background:rgba(159,18,57,.12);color:#fecdd3;font-size:11px;line-height:1.5}
     @media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
-      .map-click-mode-control{top:max(58px,calc(env(safe-area-inset-top) + 54px));width:max-content;max-width:calc(100vw - 20px);padding:4px;border-radius:13px}
+      .map-click-mode-control{width:max-content;max-width:calc(100vw - 20px);padding:4px;border-radius:13px}
       .map-click-mode-label{display:none}.map-click-mode-control button{min-height:34px;padding:0 13px;font-size:10px}
       .timeline-interval-toggle{width:168px !important;min-width:168px !important}
       .timeline-interval-toggle button{font-size:9px !important;padding:0 3px !important}
@@ -3663,149 +3664,11 @@ html.win-compact-ui body #timelineDock .timeline-trackRow{
   grid-template-columns:minmax(0, 1fr) !important;
 }
 
-html body #timelineBubble,
-html body.observed-mode #timelineBubble,
-html.os-mac body #timelineBubble,
-html.os-windows body #timelineBubble,
-html.win-compact-ui body #timelineBubble{
-  display:inline-flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  gap:18px !important;
-  min-height:62px !important;
-  padding:13px 30px !important;
-  border-radius:999px !important;
-  font-size:30px !important;
-  line-height:1 !important;
-  font-weight:950 !important;
-  letter-spacing:-.035em !important;
-  white-space:nowrap !important;
-  max-width:calc(100vw - 80px) !important;
-  overflow:hidden !important;
-  text-overflow:ellipsis !important;
-}
 
 html body #timelineBubble .timeline-bubble-edge,
 html body.observed-mode #timelineBubble .timeline-bubble-edge{
   display:none !important;
 }
-
-html body #timelineBubble .timeline-bubble-current,
-html body.observed-mode #timelineBubble .timeline-bubble-current,
-html.os-mac body #timelineBubble .timeline-bubble-current,
-html.os-windows body #timelineBubble .timeline-bubble-current,
-html.win-compact-ui body #timelineBubble .timeline-bubble-current{
-  display:inline-block !important;
-  color:#ffffff !important;
-  font-size:clamp(27px, 2.15vw, 36px) !important;
-  line-height:.98 !important;
-  font-weight:950 !important;
-  letter-spacing:-.045em !important;
-  min-width:0 !important;
-  max-width:100% !important;
-  overflow:hidden !important;
-  text-overflow:ellipsis !important;
-  white-space:nowrap !important;
-  flex:0 1 auto !important;
-}
-
-html body #timelineBubble .timeline-bubble-stage,
-html body.observed-mode #timelineBubble .timeline-bubble-stage,
-html.os-mac body #timelineBubble .timeline-bubble-stage,
-html.os-windows body #timelineBubble .timeline-bubble-stage,
-html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
-  display:inline-flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  color:#ffffff !important;
-  font-size:clamp(24px, 1.85vw, 32px) !important;
-  line-height:.98 !important;
-  font-weight:950 !important;
-  letter-spacing:-.035em !important;
-  padding:5px 15px 6px !important;
-  border-radius:999px !important;
-  min-height:38px !important;
-  flex:0 0 auto !important;
-}
-
-
-html body #timelineBubble::after,
-html body.observed-mode #timelineBubble::after,
-html.os-mac body #timelineBubble::after,
-html.os-windows body #timelineBubble::after,
-html.win-compact-ui body #timelineBubble::after{
-  bottom:-13px !important;
-  border-left-width:13px !important;
-  border-right-width:13px !important;
-  border-top-width:13px !important;
-}
-
-
-@media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
-  html body #timelineDock,
-  html body.observed-mode #timelineDock{
-    padding-top:48px !important;
-    overflow:visible !important;
-  }
-
-  html body #timelineBubble,
-  html body.observed-mode #timelineBubble,
-  html.os-mac body #timelineBubble,
-  html.os-windows body #timelineBubble,
-  html.win-compact-ui body #timelineBubble{
-    top:-42px !important;
-    gap:10px !important;
-    min-height:44px !important;
-    padding:9px 16px !important;
-    border-radius:999px !important;
-    font-size:21px !important;
-    max-width:calc(100vw - 26px) !important;
-  }
-
-  html body #timelineBubble .timeline-bubble-current,
-  html body.observed-mode #timelineBubble .timeline-bubble-current{
-    font-size:clamp(18px, 5.25vw, 24px) !important;
-    letter-spacing:-.04em !important;
-  }
-
-  html body #timelineBubble .timeline-bubble-stage,
-  html body.observed-mode #timelineBubble .timeline-bubble-stage{
-    font-size:clamp(16px, 4.65vw, 22px) !important;
-    min-height:30px !important;
-    padding:4px 10px 5px !important;
-  }
-
-  html body #timelineBubble::after,
-  html body.observed-mode #timelineBubble::after{
-    bottom:-10px !important;
-    border-left-width:10px !important;
-    border-right-width:10px !important;
-    border-top-width:10px !important;
-  }
-}
-
-@media (max-width:420px){
-  html body #timelineBubble,
-  html body.observed-mode #timelineBubble{
-    gap:8px !important;
-    padding-left:12px !important;
-    padding-right:12px !important;
-    max-width:calc(100vw - 18px) !important;
-  }
-
-  html body #timelineBubble .timeline-bubble-current,
-  html body.observed-mode #timelineBubble .timeline-bubble-current{
-    font-size:clamp(16px, 5.0vw, 21px) !important;
-  }
-
-  html body #timelineBubble .timeline-bubble-stage,
-  html body.observed-mode #timelineBubble .timeline-bubble-stage{
-    font-size:clamp(15px, 4.55vw, 20px) !important;
-    padding-left:8px !important;
-    padding-right:8px !important;
-  }
-}
-
 
 
 html body #timelineBubble,
@@ -6138,6 +6001,11 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
   .road-impacts-swatch{width:18px;height:4px;flex:0 0 18px;border-radius:2px;background:#ef4444;box-shadow:0 0 0 1px #ffffff}
   .road-impacts-label-mobile{display:none}
   .road-impacts-status{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+  body:is([data-road-impacts-state="loading"],[data-road-impacts-state="failed"],[data-road-impacts-state="unavailable"]) #roadImpactsKey
+    :is(.road-impacts-swatch,.road-impacts-label,.road-impacts-label-mobile){display:none!important}
+  body:is([data-road-impacts-state="loading"],[data-road-impacts-state="failed"],[data-road-impacts-state="unavailable"]) #roadImpactsStatus{
+    position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;text-align:center;
+  }
   @layer shorelysafe-unified {
   html body #timelineDock #roadImpactsKey[hidden]{display:none !important}
   html body.mobile-optimized[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey{display:flex !important;gap:clamp(2px,.8vw,4px) !important}
@@ -8511,6 +8379,22 @@ html body #mapTitleBadge #mapTitleLogo{
     pointer-events:none !important;
   }
 
+  @layer floodmapper-unified-polish {
+    @media (min-width:901px) and (max-width:1100px) and (min-height:561px) and (not (any-pointer:coarse)) {
+      html:not(.county-compact) body[data-floodmapper-unified]:not(.persistent-flood-popup-open) #mapClickModeControl:not([hidden]) {
+        left:var(--map-click-mode-left,calc(50% - 40px)) !important;
+        max-width:var(--map-click-mode-width,calc(100vw - 752px)) !important;
+        display:flex !important;
+        flex-wrap:wrap;
+        justify-content:center;
+      }
+    }
+    html.county-compact body[data-floodmapper-unified] #mapClickModeControl:not([hidden]) {
+      top:auto !important;
+      bottom:var(--map-click-mode-bottom,calc(var(--cm-bottom,8px) + 190px)) !important;
+    }
+  }
+
   /* Live backdrop sampling over a moving WebGL canvas causes Chrome to
      invalidate strips of fixed UI. The existing opaque panel colors remain;
      only the expensive live blur is disabled once MapLibre owns the map. */
@@ -9201,6 +9085,32 @@ html body #mapTitleBadge #mapTitleLogo{
       max-height:calc(100dvh - 82px - var(--shorely-mobile-timeline-height, 108px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     }
   }
+  #app > .nw-short-leaflet-popup{
+    position:fixed !important;
+    top:calc(62px + env(safe-area-inset-top, 0px)) !important;
+    left:50% !important;
+    right:auto !important;
+    bottom:auto !important;
+    width:min(380px, calc(100vw - 24px)) !important;
+    margin:0;
+    transform:translateX(-50%) !important;
+    z-index:6000;
+  }
+  .map-3d-ready #app > .nw-short-leaflet-popup,
+  #app > .nw-short-leaflet-popup .leaflet-popup-tip-container{display:none}
+  #app > .nw-short-leaflet-popup .leaflet-popup-content-wrapper{padding:0}
+  #app > .nw-short-leaflet-popup .leaflet-popup-content{
+    width:100% !important;
+    box-sizing:border-box;
+    max-height:calc(100dvh - 82px - var(--shorely-mobile-timeline-height, 108px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow:auto;
+    overscroll-behavior:contain;
+  }
+  #app > .nw-short-leaflet-popup .building-info-card{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+  }
   #calendarPopover .calendar-popover-grid::after{
     content:none !important;
   }
@@ -9537,23 +9447,6 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
     html body[data-floodmapper-unified] #townAddressForm label {font-size:14px!important;line-height:1.2!important;}
   }
 }
-@layer shorelysafe-unified {
-
-  @media (min-width:1367px) and (any-pointer:coarse) {
-    html body[data-floodmapper-unified] :is(#leftPanel#leftPanel,#rightRail#rightRail) :is(h2,h3,.section-title) {font-size:16px!important;line-height:1.2!important;}
-    html body[data-floodmapper-unified] :is(#leftPanel#leftPanel,#rightRail#rightRail) button:not(.help-btn):not(.calendar-day):not(.calendar-nav-btn) {font-size:16px!important;line-height:1.15!important;min-height:44px!important;padding:6px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .layer-list {display:flex!important;flex-direction:column!important;grid-template-columns:minmax(0,1fr)!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .layer-item {min-height:44px!important;padding:6px 0!important;grid-template-columns:minmax(0,1fr) 40px!important;gap:10px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .layer-name {font-size:14px!important;line-height:1.2!important;overflow-wrap:normal!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .toggle {width:40px!important;min-width:40px!important;height:24px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .toggle::after {width:18px!important;height:18px!important;top:3px!important;left:3px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .toggle.on::after {left:19px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .top-tide-item {min-height:40px!important;padding:7px 8px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .top-tide-item > * {font-size:14px!important;line-height:1.2!important;}
-    html body[data-floodmapper-unified] :is(#leftPanel#leftPanel,#rightRail#rightRail) input {font-size:16px!important;min-height:44px!important;height:44px!important;}
-    html body[data-floodmapper-unified] #townAddressForm label {font-size:14px!important;line-height:1.2!important;}
-  }
-}
 
 @layer floodmapper-unified-polish {
   /* Keep the measured title lane and the existing compact layout. */
@@ -9654,7 +9547,6 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
 
 /* Keep the existing camera card surface, width and controls in short windows. */
 #webcamPanel[data-viewport-overlay="true"] {
-  position:fixed;
   z-index:10050;
 }
 body.mobile-controls-open #webcamPanel[data-viewport-overlay="true"] {
@@ -9665,6 +9557,11 @@ body.mobile-controls-open #webcamPanel[data-viewport-overlay="true"] {
   top:0;
   z-index:1;
   background:#121d2d;
+}
+
+/* Keep the expanded compact key above the camera until it closes. */
+body.mobile-legend-open #webcamPanel {
+  z-index:4000;
 }
 
   #exportStageFrame #exportMap {inset:0 auto auto 0 !important;width:100% !important;overflow:hidden !important;}

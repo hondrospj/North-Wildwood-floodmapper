@@ -56,10 +56,18 @@ def collect_frames(depth_root: Path) -> dict[str, list[tuple[float, Path]]]:
 
     phases = {}
     for family in LEGACY_FAMILIES:
-        paths = sorted((depth_root / family).glob("NorthWildwoodDepth*.png"))
+        directory = depth_root / family
+        paths = list(directory.glob("NorthWildwoodDepth*.png"))
         if len(paths) != 101:
             raise RuntimeError(f"Expected 101 {family} frames, found {len(paths)}")
-        phases[family] = [(index / 10, path) for index, path in enumerate(paths)]
+        frames = [
+            (code / 100, directory / f"NorthWildwoodDepthp{code:04d}.png")
+            for code in range(0, 1001, 10)
+        ]
+        for _, path in frames:
+            if not path.is_file():
+                raise RuntimeError(f"Missing atlas frame {path}")
+        phases[family] = frames
     return phases
 
 

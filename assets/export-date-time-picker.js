@@ -61,14 +61,26 @@
     return category;
   }
   function timeStages(value) {
+    if (currentDataMode === "return-interval") {
+      return new Map(getReturnIntervalExportEntries().map(entry => [
+        entryTimeMs(entry), { stage: getStageValue(entry), source: entry.exportSourceMode }
+      ]));
+    }
     const startDate = parseStoredLocalNyToDate(`${value}T00:00`);
     const endDate = parseStoredLocalNyToDate(`${value}T23:59`);
     if (!startDate || !endDate) return new Map();
     const entries = getDownloadSourceEntries(true, startDate, endDate);
-    const rows = buildQuarterHourTimelineSeries(entries, { kind: entries[0]?.exportSourceMode || getCurrentExportSourceMode(),
-      startMs: startDate.getTime(), endMs: endDate.getTime(), fillMissingSlots: false, maxGapMinutes: 75 });
-    return new Map(rows.filter(entry => Number.isFinite(getStageValue(entry)) && !entry.isDailyPeakOnly)
-      .map(entry => [entryTimeMs(entry), { stage: getStageValue(entry), source: entry.exportSourceMode || getCurrentExportSourceMode() }]));
+    const startMs = startDate.getTime(), endMs = endDate.getTime();
+    const rows = getQuarterHourExportEntries(entries, { startMs, endMs });
+    const stages = new Map(rows.map(entry => [entryTimeMs(entry), { stage: getStageValue(entry), source: entry.exportSourceMode }]));
+    for (const entry of entries) {
+      if (!entry.isDailyPeakOnly || entry.peakTimeKnown !== true) continue;
+      const crestInstant = entryTimeMs(entry);
+      if (Number.isFinite(crestInstant) && crestInstant >= startMs && crestInstant <= endMs && !stages.has(crestInstant)) {
+        stages.set(crestInstant, { stage: getStageValue(entry), source: entry.exportSourceMode, crestInstant });
+      }
+    }
+    return stages;
   }
   function optionInstant(value, isoDate) {
     const selection = getExportTimeSelection(value);
@@ -88,6 +100,22 @@
     stageMaps.set(value, {mode:currentDataMode,observed,forecast,series,stages});
     return stages;
   }
+  function revealExportAnchor(anchor) {
+    const card = anchor.closest(".download-modal-card");
+    if (!card) return;
+    anchor.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const cardBox = card.getBoundingClientRect();
+    const head = card.querySelector(".download-modal-head");
+    const actions = card.querySelector(".download-actions");
+    // Sticky modal controls can cover an element inside the scroll viewport.
+    const top = head && getComputedStyle(head).position === "sticky"
+      ? Math.max(cardBox.top, head.getBoundingClientRect().bottom) : cardBox.top;
+    const bottom = actions && getComputedStyle(actions).position === "sticky"
+      ? Math.min(cardBox.bottom, actions.getBoundingClientRect().top) : cardBox.bottom;
+    const box = anchor.getBoundingClientRect();
+    if (box.top < top) card.scrollTop += box.top - top - 4;
+    else if (box.bottom > bottom) card.scrollTop += box.bottom - bottom + 4;
+  }
   function close(restoreFocus = false) {
     if (!active) return;
     const previous = active;
@@ -97,7 +125,10 @@
     if (previous.kind === "date") getExportDateEditorElements(previous.prefix).dateText?.setAttribute("aria-expanded", "false");
     document.getElementById(`download${previous.prefix === "end" ? "End" : "Start"}CalendarBtn`)?.setAttribute("aria-expanded", "false");
     const returnFocus = previous.returnFocus || previous.anchor;
-    if (restoreFocus && returnFocus.isConnected) returnFocus.focus({ preventScroll: true });
+    if (restoreFocus && returnFocus.isConnected) {
+      returnFocus.focus({ preventScroll: true });
+      if (document.activeElement === returnFocus) revealExportAnchor(returnFocus);
+    }
   }
   function position() {
     if (!active) return;
@@ -257,12 +288,20 @@
 
   function timeChoices(options, day, stages, peak = null) {
     const first = Math.min(...stages.keys()), last = Math.max(...stages.keys());
-    return Array.from(options).flatMap(option => {
+    const choices = Array.from(options).flatMap(option => {
       const instant = optionInstant(option.value, day);
       if (peak?.instant === instant) return [{ option, record: peak, dateOnly: true }];
       if (instant == null || instant < first || instant > last) return [];
       return [{ option, record: stages.get(instant), dateOnly: false }];
     });
+    for (const [instant, record] of stages) {
+      if (record.crestInstant !== instant || choices.some(choice => choice.record === record)) continue;
+      const time = formatNyLocalIso(new Date(instant)).slice(11);
+      const option = { value: `${time}|${instant}`, textContent: formatExportTimeLabel(time), selected: false };
+      const position = choices.findIndex(choice => optionInstant(choice.option.value, day) > instant);
+      choices.splice(position < 0 ? choices.length : position, 0, { option, record, dateOnly: false });
+    }
+    return choices;
   }
 
   function renderTimes(state, stages, loading = false) {
@@ -273,9 +312,13 @@
     const list = node("div", "nww-picker-times"); list.setAttribute("role","listbox"); list.setAttribute("aria-label",`${state.prefix} time`);
     const peak = !loading && !stages.size ? dateOnlyPeak(state.day) : null;
     for (const { option, record, dateOnly } of timeChoices(editor.timeSelect.options, state.day, stages, peak)) {
+      const knownCrest = Number.isFinite(record?.crestInstant);
+      if (loading && knownCrest) continue;
       const category = severity(record?.stage);
       const choice = button("", "", () => {
-        close(); editor.timeSelect.value = option.value;
+        close();
+        if (knownCrest) populateExportTimeSelect(editor.timeSelect, option.value, state.day, new Date(record.crestInstant));
+        else editor.timeSelect.value = option.value;
         editor.timeSelect.dispatchEvent(new Event("change", {bubbles:true}));
         syncTimeButton(state.prefix); state.anchor.focus({preventScroll:true});
       });
@@ -376,7 +419,12 @@
     },true);
     new MutationObserver(() => {if(active)position();for(const prefix of ["start","end"])syncTimeButton(prefix);})
       .observe(modal,{attributes:true,subtree:true,attributeFilter:["class","hidden","disabled"]});
-    window.addEventListener("resize",position); window.addEventListener("scroll",position,true);
+    window.addEventListener("resize", () => {
+      position();
+      const focus = document.activeElement;
+      if (active?.panel.contains(focus)) focus.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+    window.addEventListener("scroll",position,true);
     window.NORTH_WILDWOOD_EXPORT_PICKER.ready = true;
   }
   window.NORTH_WILDWOOD_EXPORT_PICKER = {ready:false,openDate,openTime,close,data:{daySeverity,timeStages,optionInstant,timeChoices}};

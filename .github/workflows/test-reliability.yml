@@ -68,6 +68,7 @@ jobs:
           node tools/test_export_clone_cleanup.mjs
           node tools/test_north_wildwood_deep_core_history.mjs
           node tools/test_north_wildwood_deep_core_loading.mjs
+          node tools/test_north_wildwood_forecast_freshness.mjs
           node tools/test_north_wildwood_deep_layers.mjs
           node tools/test_north_wildwood_parcel_area.mjs
           node tools/test_north_wildwood_deep_export.mjs
@@ -102,6 +103,7 @@ jobs:
           node tools/test_north_wildwood_history_recovery.mjs
           node tools/test_north_wildwood_line_map_fixes.mjs
           node tools/test_comparison_cache.mjs
+          node tools/test_city_archive_refresh.mjs
           node tools/test_city_gauge_comparison_gaps.mjs
           node tools/test_north_wildwood_road_impacts.mjs
           node tools/test_north_wildwood_filling_transition.mjs
@@ -121,13 +123,11 @@ jobs:
           /usr/bin/python3 tools/test_north_wildwood_bathtub.py
           /usr/bin/python3 tools/test_hydraulic_mask_sequence.py
           /usr/bin/python3 tools/test_hydraulic_graph_contract.py
-          /usr/bin/python3 model/tests/test_model_contract.py
-          /usr/bin/python3 model/tests/test_cache_and_arrival.py
-          /usr/bin/python3 model/tests/test_generation_identity.py
-          /usr/bin/python3 model/tests/test_frame_alignment.py
-          /usr/bin/python3 model/tests/test_render_georeferencing.py
+          /usr/bin/python3 -m unittest discover -s model/tests
           /usr/bin/python3 tools/test_hydraulic_draining_cli.py
           /usr/bin/python3 tools/test_data_generator_fixes.py
+          /usr/bin/python3 tools/test_north_wildwood_developed_render.py
+          /usr/bin/python3 tools/test_north_wildwood_road_route_tiebreak.py
       - name: Browser layout regression
         run: |
           npm install --no-save playwright
@@ -154,8 +154,31 @@ jobs:
           node tools/test_north_wildwood_modeled_export_focus_browser.mjs
           node tools/test_north_wildwood_consumed_navigation_browser.mjs
           node tools/test_north_wildwood_native_recovery_browser.mjs
+          node tools/test_north_wildwood_native_webgl_fallback_browser.mjs
+          node tools/test_north_wildwood_daily_playback_browser.mjs
+          node tools/test_north_wildwood_forced_colors_browser.mjs
+          node tools/test_north_wildwood_startup_fallback_browser.mjs
+          node tools/test_north_wildwood_tutorial_browser.mjs
+          node tools/test_north_wildwood_road_impacts_browser.mjs
+          node tools/test_north_wildwood_legend_responsive_focus_browser.mjs
+          node tools/test_north_wildwood_forecast_freshness_browser.mjs
+          node tools/test_north_wildwood_export_resize_focus_browser.mjs
+          node tools/test_north_wildwood_camera_responsive_focus_browser.mjs
+          node tools/test_north_wildwood_leaflet_popup_responsive_focus_browser.mjs
+          node tools/test_north_wildwood_3d_popup_responsive_focus_browser.mjs
+          node tools/test_north_wildwood_popup_renderer_handoff_browser.mjs
+          node tools/test_north_wildwood_export_area_touch_cancel_browser.mjs
+          node tools/test_north_wildwood_export_parcels_browser.mjs
           node tools/test_north_wildwood_building_visibility_browser.mjs
           node tools/test_north_wildwood_export_preparation_browser.mjs
+          node tools/test_north_wildwood_mode_placement_browser.mjs
+          node tools/test_north_wildwood_export_group_captions_browser.mjs
+          node tools/test_north_wildwood_sidebar_focus_browser.mjs
+          node tools/test_north_wildwood_modal_wrap_browser.mjs
+          node tools/test_north_wildwood_calendar_modal_focus_browser.mjs
+          node tools/test_north_wildwood_responsive_focus_browser.mjs
+          node tools/test_north_wildwood_compact_focus_visibility_browser.mjs
+          node tools/test_north_wildwood_top_flood_selection_focus_browser.mjs
           node tools/test_city_gauge_dashboard.mjs
           node tools/test_north_wildwood_export_road_labels_browser.mjs
       - name: Save Chromium reproduction evidence
@@ -231,6 +254,13 @@ jobs:
             node tools/test_north_wildwood_modeled_export_focus_browser.mjs
             node tools/test_north_wildwood_consumed_navigation_browser.mjs
             node tools/test_north_wildwood_native_recovery_browser.mjs
+            node tools/test_north_wildwood_tutorial_browser.mjs
+            node tools/test_north_wildwood_road_impacts_browser.mjs
+            node tools/test_north_wildwood_legend_responsive_focus_browser.mjs
+            node tools/test_north_wildwood_forecast_freshness_browser.mjs
+            node tools/test_north_wildwood_export_resize_focus_browser.mjs
+            node tools/test_north_wildwood_camera_responsive_focus_browser.mjs
+            node tools/test_north_wildwood_leaflet_popup_responsive_focus_browser.mjs
             node tools/test_north_wildwood_building_visibility_browser.mjs
             node tools/test_north_wildwood_export_preparation_browser.mjs
             node tools/test_city_gauge_dashboard.mjs

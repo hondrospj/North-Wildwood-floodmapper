@@ -106,20 +106,35 @@
     return typeof map !== "undefined" && map ? map.getBounds() : null;
   }
 
-  function setPending(bounds) {
-    pendingBounds = validBounds(bounds) ? copyBounds(bounds) : null;
+  function renderSelection(bounds) {
     if (rectangle) pickerMap.removeLayer(rectangle);
-    rectangle = pendingBounds ? L.rectangle(pendingBounds, {
+    rectangle = validBounds(bounds) ? L.rectangle(bounds, {
       color: "#2563eb", weight: 3, fillColor: "#60a5fa", fillOpacity: 0.18, interactive: false
     }).addTo(pickerMap) : null;
+  }
+
+  function setPending(bounds) {
+    pendingBounds = validBounds(bounds) ? copyBounds(bounds) : null;
+    renderSelection(pendingBounds);
     document.getElementById("exportAreaApplyBtn").disabled = !pendingBounds;
+  }
+
+  function updateDrawingHint() {
+    document.getElementById("exportAreaHint").textContent = drawing
+      ? firstCorner ? "Now tap the opposite corner." : "Drag a box, or tap two opposite corners of the area you want."
+      : "Pan and zoom, then use the visible area. You can also draw a box.";
   }
 
   function setDrawing(enabled) {
     drawing = !!enabled;
     firstCorner = null;
-    gesture = null;
     const container = pickerMap.getContainer();
+    if (gesture) {
+      const { id } = gesture;
+      gesture = null;
+      renderSelection(pendingBounds);
+      if (container.hasPointerCapture(id)) container.releasePointerCapture(id);
+    }
     container.classList.toggle("export-area-drawing", drawing);
     if (drawing) {
       savedInteractions = ["dragging", "touchZoom", "doubleClickZoom", "boxZoom", "scrollWheelZoom"]
@@ -132,9 +147,7 @@
     const button = document.getElementById("exportAreaDrawBtn");
     button.classList.toggle("active", drawing);
     button.setAttribute("aria-pressed", String(drawing));
-    document.getElementById("exportAreaHint").textContent = drawing
-      ? "Drag a box, or tap two opposite corners of the area you want."
-      : "Pan and zoom, then use the visible area. You can also draw a box.";
+    updateDrawingHint();
   }
 
   function pointerPosition(event) {
@@ -160,7 +173,7 @@
       event.preventDefault();
       const position = pointerPosition(event);
       gesture.moved ||= gesture.point.distanceTo(position.point) >= 8;
-      if (gesture.moved) setPending(L.latLngBounds(gesture.start, position.latlng));
+      if (gesture.moved) renderSelection(L.latLngBounds(gesture.start, position.latlng));
     });
     container.addEventListener("pointerup", event => {
       if (!gesture || gesture.id !== event.pointerId) return;
@@ -175,13 +188,21 @@
         if (validBounds(bounds)) {
           setPending(bounds);
           setDrawing(false);
-        }
+        } else renderSelection(pendingBounds);
       } else {
         firstCorner = start;
-        document.getElementById("exportAreaHint").textContent = "Now tap the opposite corner.";
+        updateDrawingHint();
       }
     });
-    container.addEventListener("pointercancel", () => { gesture = null; firstCorner = null; });
+    const cancelGesture = event => {
+      if (gesture?.id !== event.pointerId) return;
+      gesture = null;
+      firstCorner = null;
+      renderSelection(pendingBounds);
+      updateDrawingHint();
+    };
+    container.addEventListener("pointercancel", cancelGesture);
+    container.addEventListener("lostpointercapture", cancelGesture);
   }
 
   function openPicker(opener) {

@@ -26,6 +26,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from release_data import validate_forecast
+
 TOWN_NAME = "North Wildwood"
 IS_SPLIT = False
 DEFAULT_ZONE_ID = "default"
@@ -161,14 +163,15 @@ def find_idx(headers, aliases, required=True):
 
 def normalize_time(value):
     raw = str(value or "").strip()
-    if re.fullmatch(r"\d{10}", raw):
-        return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:8]), int(raw[8:10]), tzinfo=timezone.utc)
-    if re.fullmatch(r"\d{12}", raw):
-        return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:8]), int(raw[8:10]), int(raw[10:12]), tzinfo=timezone.utc)
-    text = raw if raw.endswith("Z") or "+" in raw[-6:] else raw + "Z"
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
-    except Exception:
+        if re.fullmatch(r"\d{10}(?:\d{2})?", raw):
+            return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:8]), int(raw[8:10]),
+                            int(raw[10:12] or 0), tzinfo=timezone.utc)
+        if not re.match(r"\d{4}(?:-\d{2}-\d{2}|\d{4})[Tt ]\d{2}", raw):
+            return None
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    except (ValueError, OverflowError):
         return None
 
 def clean_level(value):
@@ -295,7 +298,9 @@ def build_zone_forecast(zone, now_utc):
             parsed = parse_station_csv(text, zone)
             start = max(cycle["cycleUtc"], now_utc)
             aligned = align_products(parsed, start)
-            return payload_for_zone(zone, cycle, url, member, aligned, now_utc)
+            payload = payload_for_zone(zone, cycle, url, member, aligned, now_utc)
+            validate_forecast(payload, now=now_utc)
+            return payload
         except Exception as exc:
             last_error = exc
             print(f"Rejected {zone['id']} cycle: {exc}")

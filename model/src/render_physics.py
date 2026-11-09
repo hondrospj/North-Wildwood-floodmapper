@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from cache_contract import identity_matches, render_identity, simulation_identity, spatial_lookup_fingerprint
+from output_replacement import promote_directory, recover_directory
 
 import argparse
 import hashlib
@@ -61,8 +62,11 @@ def utc_now() -> str:
 
 
 def compact_timestamp(value: str) -> str:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return parsed.astimezone(timezone.utc).strftime("%Y%m%dT%H%MZ")
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    prefix = parsed.strftime("%Y%m%dT%H%M")
+    if parsed.second or parsed.microsecond:
+        prefix += parsed.strftime("%S.%f").rstrip("0").rstrip(".")
+    return prefix + "Z"
 
 
 def sha256(path: Path) -> str:
@@ -309,6 +313,7 @@ def main() -> None:
 
     final_public = run_directory / "public"
     incomplete_public = run_directory / "public.incomplete"
+    recover_directory(final_public)
     if final_public.exists():
         if not args.force:
             manifest_path = final_public / "manifest.json"
@@ -317,7 +322,6 @@ def main() -> None:
                 print(f"Completed matching render already exists: {final_public}")
                 return
             raise RuntimeError(f"Existing render inputs/settings do not match: {final_public}. Rerun with --force to rebuild.")
-        shutil.rmtree(final_public)
     if incomplete_public.exists():
         shutil.rmtree(incomplete_public)
     incomplete_public.mkdir(parents=True)
@@ -603,7 +607,7 @@ def main() -> None:
         json.dumps(public_manifest, indent=2) + "\n",
         encoding="utf-8",
     )
-    os.replace(incomplete_public, final_public)
+    promote_directory(incomplete_public, final_public)
     print(f"Wrote {final_public}")
     print(
         f"Rendered {len(frame_records)} frames and "

@@ -15,7 +15,7 @@ html body .webcam-map-marker {
 }
 html body .webcam-map-marker svg { display:block; width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; }
 .webcam-map-marker:focus-visible, #webcamPanel button:focus-visible, #webcamPanel a:focus-visible, #webcamPanel select:focus-visible { outline:3px solid #e49b24; outline-offset:2px; }
-#webcamPanel { position:absolute; top:140px; left:50%; transform:translateX(-50%); z-index:9100; box-sizing:border-box; width:min(360px,calc(100% - 24px)); max-height:calc(100% - 270px); overflow:auto; overscroll-behavior:contain; border:1px solid #425069; border-radius:13px; background:#121d2d; color:#edf3ff; box-shadow:0 6px 24px #0006; padding:12px; font-family:inherit; font-size:12px; line-height:1.35; text-align:left; cursor:default; pointer-events:auto !important; }
+#webcamPanel { position:fixed; top:140px; left:50%; transform:translateX(-50%); z-index:9100; box-sizing:border-box; width:min(360px,calc(100% - 24px)); max-height:calc(100% - 270px); overflow:auto; overscroll-behavior:contain; border:1px solid #425069; border-radius:13px; background:#121d2d; color:#edf3ff; box-shadow:0 6px 24px #0006; padding:12px; font-family:inherit; font-size:12px; line-height:1.35; text-align:left; cursor:default; pointer-events:auto !important; }
 #webcamPanel .webcam-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
 #webcamPanel h2 { margin:0; font-size:16px; line-height:1.25; }
 #webcamPanel button, #webcamChoice { font:inherit; color:#d9eaff; background:#213047; border:1px solid #425069; border-radius:6px; cursor:pointer; }

@@ -113,7 +113,7 @@ def advance_storage(
     volume_ft3: float,
     sea_surface_ft: float,
     bottleneck: Bottleneck,
-    dt_seconds: int = DT_SECONDS,
+    dt_seconds: float = DT_SECONDS,
 ) -> float:
     basin_surface = GROUND_FT + volume_ft3 / bottleneck.storage_area_ft2
     discharge = weir_discharge_cfs(
@@ -123,40 +123,46 @@ def advance_storage(
         bottleneck.width_ft,
     )
     proposed = volume_ft3 + discharge * dt_seconds
-    # The only opening is bidirectional; never remove unavailable volume and
-    # never let one explicit step cross the source water surface.
-    source_level_volume = max(
-        0.0,
-        (sea_surface_ft - GROUND_FT) * bottleneck.storage_area_ft2,
+    if discharge == 0.0:
+        return volume_ft3
+    # Stop at the source surface on inflow. On outflow, flow can stop at
+    # the opening crest first, leaving water stored below that crest.
+    if discharge > 0.0:
+        source_level_volume = (sea_surface_ft - GROUND_FT) * bottleneck.storage_area_ft2
+        return min(proposed, source_level_volume)
+    outlet_level = max(GROUND_FT, sea_surface_ft, bottleneck.crest_ft)
+    return max(proposed, (outlet_level - GROUND_FT) * bottleneck.storage_area_ft2)
+
+
+def route_event(
+    event: Hydrograph,
+    bottleneck: Bottleneck,
+    *,
+    extra_samples_seconds: tuple[float, ...] = (),
+) -> dict[str, np.ndarray]:
+    duration_seconds = event_duration_hours(event) * 3600
+    crest_seconds = event.peak_ft / event.rise_rate_ft_per_hour * 3600
+    output_times = sorted(
+        set(range(0, math.ceil(duration_seconds), OUTPUT_SECONDS))
+        | {0.0, crest_seconds, duration_seconds, *extra_samples_seconds}
     )
-    if discharge >= 0.0:
-        return min(max(0.0, proposed), source_level_volume)
-    return max(0.0, proposed)
-
-
-def route_event(event: Hydrograph, bottleneck: Bottleneck) -> dict[str, np.ndarray]:
-    duration_seconds = round(event_duration_hours(event) * 3600)
-    output_times = np.arange(0, duration_seconds + OUTPUT_SECONDS, OUTPUT_SECONDS)
-    output_times[-1] = min(output_times[-1], duration_seconds)
-    times: list[int] = []
     stages: list[float] = []
     phases: list[str] = []
     volumes: list[float] = []
     volume = 0.0
-    output_index = 0
-    for second in range(0, duration_seconds + 1, DT_SECONDS):
-        elapsed_hours = second / 3600.0
-        phase, stage = phase_and_stage(event, elapsed_hours)
-        if second > 0:
-            volume = advance_storage(volume, stage, bottleneck)
-        while output_index < len(output_times) and second >= output_times[output_index]:
-            times.append(int(output_times[output_index]))
-            stages.append(stage)
-            phases.append(phase)
-            volumes.append(volume)
-            output_index += 1
+    clock = 0.0
+    for sample in output_times:
+        while clock < sample:
+            next_clock = min(clock + DT_SECONDS, sample)
+            _, step_stage = phase_and_stage(event, next_clock / 3600)
+            volume = advance_storage(volume, step_stage, bottleneck, next_clock - clock)
+            clock = next_clock
+        phase, stage = phase_and_stage(event, sample / 3600)
+        stages.append(stage)
+        phases.append(phase)
+        volumes.append(volume)
     return {
-        "time_seconds": np.asarray(times, dtype=np.int32),
+        "time_seconds": np.asarray(output_times, dtype=np.float64),
         "stage_ft": np.asarray(stages, dtype=np.float64),
         "phase": np.asarray(phases, dtype=object),
         "volume_ft3": np.asarray(volumes, dtype=np.float64),
@@ -195,14 +201,11 @@ def route_from_crest_to_stage(
         crest_hold_hours=hold_hours,
         fall_rate_ft_per_hour=rate_ft_per_hour,
     )
-    routed = route_event(event, bottleneck)
-    falling = np.flatnonzero(routed["phase"] == "falling")
-    if not len(falling):
-        return float(routed["volume_ft3"][-1])
-    candidates = falling[
-        np.argmin(np.abs(routed["stage_ft"][falling] - target_stage_ft))
-    ]
-    return float(routed["volume_ft3"][candidates])
+    recession_hours = (crest - max(0.0, target_stage_ft)) / rate_ft_per_hour
+    sample = (crest / rate_ft_per_hour + hold_hours + recession_hours) * 3600
+    routed = route_event(event, bottleneck, extra_samples_seconds=(sample,))
+    index = np.searchsorted(routed["time_seconds"], sample)
+    return float(routed["volume_ft3"][index])
 
 
 def predict_equilibrium(stage_ft: float, bottleneck: Bottleneck) -> float:

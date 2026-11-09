@@ -1,14 +1,95 @@
+    const MAX_FORECAST_SOURCE_AGE_MS = 72 * 60 * 60 * 1000;
+    let forecastFreshnessTimer = null;
+
+    function getForecastFreshness(data, now = Date.now()) {
+      const end = Date.parse(data?.forecastEndUtc || "");
+      const cycle = Date.parse(data?.petssCycleUtc || "");
+      if (end <= now) return { state: "expired", timestamp: data.forecastEndUtc };
+      const staleAt = cycle + MAX_FORECAST_SOURCE_AGE_MS + 1;
+      if (staleAt <= now) return { state: "stale", timestamp: data.petssCycleUtc, nextCheck: end };
+      return { state: null, nextCheck: Math.min(
+        Number.isFinite(end) ? end : Infinity,
+        Number.isFinite(staleAt) ? staleAt : Infinity
+      ) };
+    }
+
+    function getForecastSourceForNotice() {
+      return currentFloodLayer?._floodmapperFrame?.forecastSource || forecastData;
+    }
+
+    function scheduleForecastFreshnessNotice() {
+      if (forecastFreshnessTimer !== null) window.clearTimeout(forecastFreshnessTimer);
+      forecastFreshnessTimer = null;
+      updateFloodFrameStatus();
+      if (currentDataMode !== "forecast") return;
+      const now = Date.now();
+      const { nextCheck } = getForecastFreshness(getForecastSourceForNotice(), now);
+      if (Number.isFinite(nextCheck) && nextCheck > now) {
+        forecastFreshnessTimer = window.setTimeout(scheduleForecastFreshnessNotice, Math.min(nextCheck - now, 0x7fffffff));
+      }
+    }
+
     async function loadForecast(preferredEntry = null, options = {}) {
-      const forecastFailureToken = lastRenderToken;
-      let forecastFailureGeneration = null;
-      try {
       const floodSelectionToken = lastRenderToken;
       const generation = options.generation ?? ++selectionGeneration;
-      forecastFailureGeneration = generation;
-      if (!forecastData || options.forceRefresh) {
-        const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL));
-        if (generation !== selectionGeneration) return;
-        forecastData = payload;
+      if (generation !== selectionGeneration) return false;
+      loadForecast.pendingSelectionGeneration = generation;
+      const previousForecastData = forecastData;
+      let keptCachedReplay = false;
+      try {
+      const hasUsableScenario = (data, scenario) => {
+        const hours = getForecastScenarioHours(data, scenario);
+        if (!hours.length) return false;
+        const times = hours.map(entryTimeMs);
+        return (data.forecastStartUtc == null || times[0] === Date.parse(data.forecastStartUtc)) &&
+          (data.forecastEndUtc == null || times.at(-1) === Date.parse(data.forecastEndUtc)) &&
+          hours.every((entry, index) => Number.isFinite(getStageValue(entry)) && Number.isFinite(times[index]) &&
+            (index === 0 || times[index] > times[index - 1]));
+      };
+      if (!forecastData || options.forceRefresh ||
+          (!physicsForecastApplies() && !hasUsableScenario(forecastData, currentForecastScenario))) {
+        if (currentViewType !== "forecast") {
+          // Retain the previous image while data loads, but its timeline must
+          // not be rendered under the Forecast selection.
+          currentViewType = "forecast";
+          currentTopTideIndex = null;
+          currentRawSeriesHours = [];
+          currentSeriesHours = [];
+          currentHourIndex = 0;
+          currentSelectedLabel = getForecastScenarioLabel();
+          currentSelectedSubLabel = "";
+          currentRangeLabel = "";
+          syncSliderBounds();
+          renderSelectionMeta(null, null, null);
+          document.getElementById("stageSubText").textContent = "Loading forecast…";
+          renderTimelineMeta();
+          renderTimelineDays();
+        }
+        try {
+          const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL));
+          if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
+          const scenarios = Object.keys(FORECAST_SCENARIOS);
+          const usable = new Set(scenarios.filter(scenario => hasUsableScenario(payload, scenario)));
+          if (!usable.size || scenarios.some(scenario => !usable.has(scenario) && hasUsableScenario(previousForecastData, scenario))) {
+            throw new Error("The forecast response is missing usable scenario data.");
+          }
+          if (options.retryStale) {
+            const cycle = Date.parse(payload.petssCycleUtc || "");
+            const issued = Date.parse(payload.issuedUtc || "");
+            const end = Date.parse(payload.forecastEndUtc || "");
+            if (![cycle, issued, end].every(Number.isFinite) || cycle > issued || end <= issued ||
+                issued - Date.now() > 60 * 60 * 1000 || cycle < Date.parse(previousForecastData?.petssCycleUtc || "") ||
+                getForecastFreshness(payload).state) {
+              throw new Error("The updated forecast guidance has no usable current coverage.");
+            }
+          }
+          forecastData = payload;
+          scheduleForecastFreshnessNotice();
+        } catch (error) {
+          if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
+          if (!options.retryStale || !hasUsableScenario(previousForecastData, currentForecastScenario)) throw error;
+          keptCachedReplay = true;
+        }
       }
       if (!options.deferPhysicsCatalog && (!Object.keys(physicsForecastManifests).length || options.forceRefresh)) {
         await loadPhysicsForecast(Boolean(options.forceRefresh)).catch(error => {
@@ -51,16 +132,13 @@
         return false;
       }
       const currentTimeEntry = options.selectCurrent ? { timeUtc: new Date().toISOString() } : null;
-      currentHourIndex = preferredEntry
-        ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
-        : currentTimeEntry
-          ? findClosestEntryIndex(currentSeriesHours, currentTimeEntry)
-          : getPeakHourIndex(currentSeriesHours);
+      const selectionEntry = options.retryStale && !keptCachedReplay ? currentTimeEntry : preferredEntry || currentTimeEntry;
+      currentHourIndex = selectionEntry ? findClosestEntryIndex(currentSeriesHours, selectionEntry) : getPeakHourIndex(currentSeriesHours);
       document.getElementById("hourSlider").value = String(currentHourIndex);
       } catch (error) {
-        if (forecastFailureToken !== lastRenderToken) return false;
-        if (forecastFailureGeneration !== null && forecastFailureGeneration !== selectionGeneration) return false;
-        forecastData = null;
+        if (floodSelectionToken !== lastRenderToken) return false;
+        if (generation !== selectionGeneration) return false;
+        forecastData = previousForecastData;
         currentRawSeriesHours = [];
         currentSeriesHours = [];
         currentHourIndex = 0;
@@ -80,6 +158,8 @@
         if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
         toast(message);
         return false;
+      } finally {
+        if (loadForecast.pendingSelectionGeneration === generation) loadForecast.pendingSelectionGeneration = null;
       }
     }
 
@@ -354,11 +434,9 @@
       if (!historicTopTideEntries.length) await loadHistoricalTopTides();
       if (generation !== archiveGeneration) return false;
       mergeHistoricalCrestsIntoObservedIndex();
-      rebuildObservedHourLookup();
 
       const days = getObservedDays();
       observedMonthKeys = buildObservedMonthKeysFromDays(days);
-      observedFlatHours = [];
       topTideEvents = buildTopTideEvents();
       renderTopTides();
 

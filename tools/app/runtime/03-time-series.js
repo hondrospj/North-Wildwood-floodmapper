@@ -40,11 +40,6 @@
       return `${parts.year}-${parts.month}-${parts.day}T${pad2(Number(parts.hour24))}:${parts.minute}`;
     }
 
-    function roundDownToQuarterHourMs(ms) {
-      const step = 15 * 60 * 1000;
-      return Math.floor(ms / step) * step;
-    }
-
 function detectSeriesResolutionMinutes(entries = []) {
       const times = entries
         .map(entryTimeMs)
@@ -82,45 +77,6 @@ function parseStoredLocalNyToDate(timeEST) {
       return getLocalNyDateCandidates(timeEST)[0] || null;
     }
 
-    function makeObservedHourKeyFromDate(date) {
-      const parts = getNyParts(date);
-      if (!parts) return null;
-      return `${parts.year}-${parts.month}-${parts.day}-${pad2(Number(parts.hour24))}`;
-    }
-
-    function makeObservedMissingHourEntry(slotMs, options = {}) {
-      const displayTimeEST = formatNyLocalIso(new Date(slotMs));
-      const observedDate = displayTimeEST ? displayTimeEST.slice(0, 10) : (options.observedDate || selectedObservedDate || "");
-      return {
-        displayTimeEST,
-        displayTimeUtc: new Date(slotMs).toISOString(),
-        timeUtc: new Date(slotMs).toISOString(),
-        observedDate,
-        navd88StageFt: null,
-        stageFt: null,
-        value: null,
-        observationInterval: "1hour",
-        isMissingObservedHour: true,
-        sourceResolutionMinutes: null
-      };
-    }
-
-
-    function makeObservedMissingDayHourEntry(dateStr, hourIndex, options = {}) {
-      const safeHour = Math.max(0, Math.min(23, Number(hourIndex) || 0));
-      const displayTimeEST = `${dateStr}T${pad2(safeHour)}:00`;
-      return {
-        displayTimeEST,
-        observedDate: dateStr,
-        hourIndex: safeHour,
-        navd88StageFt: null,
-        stageFt: null,
-        value: null,
-        observationInterval: "1hour",
-        isMissingObservedHour: true,
-        sourceResolutionMinutes: options.sourceResolutionMinutes ?? null
-      };
-    }
 
     function getStoredEntryHourIndex(entry) {
       const raw = String(entry?.displayTimeEST || entry?.timeEST || entry?.timeEst || "");
@@ -137,47 +93,6 @@ function parseStoredLocalNyToDate(timeEST) {
 
       const direct = Number(entry?.hourIndex);
       return Number.isInteger(direct) && direct >= 0 && direct <= 23 ? direct : null;
-    }
-
-    function normalizeObservedDayHourEntry(source, dateStr, hourIndex, sourceIndex, sourceResolutionMinutes, options = {}) {
-      const safeHour = Math.max(0, Math.min(23, Number(hourIndex) || 0));
-      const stage = source?.navd88StageFt ?? source?.stageFt ?? source?.value ?? source?.waterLevel ?? source?.waterLevelNAVD88;
-      const forcedDisplayTime = `${dateStr}T${pad2(safeHour)}:00`;
-      return {
-        ...source,
-        navd88StageFt: Number.isFinite(Number(stage)) ? Number(stage) : source?.navd88StageFt,
-        displayTimeEST: options.forceArchiveHourTime
-          ? forcedDisplayTime
-          : (source?.displayTimeEST || source?.timeEST || source?.timeEst || forcedDisplayTime),
-        observedDate: dateStr,
-        hourIndex: safeHour,
-        sourceHourIndex: source?.sourceHourIndex ?? sourceIndex,
-        observationInterval: "1hour",
-        isMissingObservedHour: false,
-        sourceResolutionMinutes
-      };
-    }
-
-    function buildObservedDayDisplaySeries(dayRecord, dateStr) {
-      if (dayRecord?.isHistoricalCrestOnly) {
-        return annotateHydraulicSeries(getObservedSourceHoursForDay(dayRecord)
-          .filter(entry => Number.isFinite(getStageValue(entry)))
-          .map(entry => ({
-            ...entry,
-            observedDate: dateStr,
-            observationInterval: "crest",
-            topTideDateOnly: true,
-            isHistoricalTopTide: true,
-            isHistoricalCrestOnly: true
-          })));
-      }
-      if (getTimelineIntervalMinutes() === 1440) {
-        return buildObservedDailyMaximumSeries(dateStr.slice(0, 7));
-      }
-      return sampleCanonicalHydraulicSeries(
-        buildObservedCanonicalSeries(dayRecord, dateStr),
-        getTimelineIntervalMinutes()
-      );
     }
 
     const GAUGE_OUTAGE_THRESHOLD_HOURS = 12;
@@ -246,79 +161,6 @@ function parseStoredLocalNyToDate(timeEST) {
       return getDisplayedGaugeOutageHours(series, startIndex, endIndex) > GAUGE_OUTAGE_THRESHOLD_HOURS;
     }
 
-    function getObservedDisplaySeries(entries = [], options = {}) {
-      if (!Array.isArray(entries)) return [];
-
-      const valid = entries
-        .map((entry, idx) => ({ entry, idx, t: entryTimeMs(entry) }))
-        .filter(item => item.t != null)
-        .sort((a, b) => a.t - b.t);
-
-      const rangeStartMs = Number.isFinite(options.rangeStartMs) ? options.rangeStartMs : null;
-      const rangeEndMs = Number.isFinite(options.rangeEndMs) ? options.rangeEndMs : null;
-      const fillMissingSlots = options.fillMissingSlots !== false && rangeStartMs != null && rangeEndMs != null;
-
-      if (!valid.length) {
-        if (!fillMissingSlots) return entries.map(entry => ({ ...entry, observationInterval: "1hour" }));
-        const start = roundDownToQuarterHourMs(Math.min(rangeStartMs, rangeEndMs));
-        const end = roundDownToQuarterHourMs(Math.max(rangeStartMs, rangeEndMs));
-        const out = [];
-        for (let slot = start; slot <= end; slot += 60 * 60 * 1000) {
-          out.push(makeObservedMissingHourEntry(slot, options));
-        }
-        return out;
-      }
-
-      const sourceResolutionMinutes = detectSeriesResolutionMinutes(entries);
-      const buckets = new Map();
-      valid.forEach(({ entry, idx }) => {
-        const d = getEntryESTDate(entry);
-        if (!d) return;
-        if (rangeStartMs != null && d.getTime() < rangeStartMs - 60 * 60 * 1000) return;
-        if (rangeEndMs != null && d.getTime() > rangeEndMs + 60 * 60 * 1000) return;
-        const parts = getNyParts(d);
-        if (!parts) return;
-        const key = makeObservedHourKeyFromDate(d);
-        const minute = Number(parts.minute || 0);
-        const score = Math.abs(minute);
-        const slotIso = `${parts.year}-${parts.month}-${parts.day}T${pad2(Number(parts.hour24))}:00`;
-        const existing = buckets.get(key);
-        if (!existing || score < existing.score || (score === existing.score && idx < existing.idx)) {
-          buckets.set(key, { entry, idx, score, slotIso });
-        }
-      });
-
-      if (fillMissingSlots) {
-        const start = roundDownToQuarterHourMs(Math.min(rangeStartMs, rangeEndMs));
-        const end = roundDownToQuarterHourMs(Math.max(rangeStartMs, rangeEndMs));
-        const out = [];
-        for (let slot = start; slot <= end; slot += 60 * 60 * 1000) {
-          const key = makeObservedHourKeyFromDate(new Date(slot));
-          const item = key ? buckets.get(key) : null;
-          if (item) {
-            out.push({
-              ...item.entry,
-              displayTimeEST: item.slotIso,
-              observationInterval: "1hour",
-              sourceResolutionMinutes
-            });
-          } else {
-            out.push(makeObservedMissingHourEntry(slot, { ...options, sourceResolutionMinutes }));
-          }
-        }
-        return out;
-      }
-
-      return Array.from(buckets.values())
-        .sort((a, b) => a.slotIso.localeCompare(b.slotIso))
-        .map(item => ({
-          ...item.entry,
-          displayTimeEST: item.slotIso,
-          observationInterval: "1hour",
-          sourceResolutionMinutes
-        }));
-    }
-
     function findClosestEntryIndex(series, referenceEntry) {
       if (!Array.isArray(series) || !series.length || !referenceEntry) return 0;
       const target = entryTimeMs(referenceEntry);
@@ -371,7 +213,7 @@ function parseStoredLocalNyToDate(timeEST) {
         : injectOfficialStoneHarborCrest(entries, dayRecord.officialCrestEntry);
     }
 
-    function getObservedSourceHoursForDay(dayRecord) {
+    function getObservedSourceHoursForDay(dayRecord, { includeNativeLive = false } = {}) {
       const dateStr = dayRecord?.date || dayRecord?.d;
       const dense = Array.isArray(dayRecord?.timelineRawHours) ? dayRecord.timelineRawHours : [];
       if (dayRecord?.isLewesSurrogate) {
@@ -393,12 +235,32 @@ function parseStoredLocalNyToDate(timeEST) {
           });
           fresh.forEach(entry => byTime.set(entryTimeMs(entry), entry.isInterpolatedTimelineFrame
             ? { ...entry, observationQuality: "I" } : entry));
-          return applyObservedCrestToSource(dayRecord, Array.from(byTime.entries())
+          const source = applyObservedCrestToSource(dayRecord, Array.from(byTime.entries())
             .sort((a, b) => a[0] - b[0]).map(([, entry]) => entry));
+          if (!includeNativeLive) return source;
+          // A daily maximum can occur at a real IV instant between replay slots.
+          // Add those readings without changing the quarter-hour replay or crest override.
+          return source.concat(live.filter(entry => !byTime.has(entryTimeMs(entry))))
+            .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
         }
         if (quarterDay?.v?.some(value => value != null)) return applyObservedCrestToSource(dayRecord, decodeObserved15MinuteDay(quarterDay));
       }
       if (dense.length) return dense;
+      const official = dayRecord?.officialCrestEntry;
+      const crestTime = official?.crestTimeKnown ? getEntryESTDate(official) : null;
+      if (crestTime && Number.isFinite(getStageValue(official))) {
+        return [{
+          ...official,
+          timeUtc: crestTime.toISOString(),
+          sourceStationId: official.sourceSite,
+          observationQuality: "C",
+          observationInterval: "daily",
+          timelineIntervalMinutes: 1440,
+          topTideDateOnly: false,
+          isDailyPeakOnly: true,
+          peakTimeKnown: true
+        }];
+      }
       const fallbackPeak = normalizeStageValue(dayRecord?.peakNAVD88);
       if (Number.isFinite(fallbackPeak) && dayRecord?.date) {
         return [{
@@ -602,7 +464,7 @@ function parseStoredLocalNyToDate(timeEST) {
       for (const day of getObservedDaysForMonth(monthKey)) {
         const dateKey = day?.date;
         if (!dateKey) continue;
-        const entries = getObservedSourceHoursForDay(day);
+        const entries = getObservedSourceHoursForDay(day, { includeNativeLive: true });
         const daily = buildDailyMaximumSeries(entries, { kind: "observed" })[0];
         if (daily) {
           const canonical = buildObservedCanonicalSeries(day, dateKey);

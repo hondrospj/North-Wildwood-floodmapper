@@ -21,7 +21,7 @@
     <select id="webcamChoice" aria-label="Choose camera"></select>
     <div id="webcamFrame" class="webcam-frame"></div>
     <p id="webcamStatus" role="status" aria-live="polite" hidden></p>
-    <div class="webcam-source"><a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Camera source ↗</a><button type="button" id="webcamRetry" aria-label="Reload camera">↻</button></div>`;
+    <div class="webcam-source"><a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Camera source ↗</a><button type="button" id="webcamRetry" aria-label="Reload camera" title="Reload if the feed is blank">↻</button></div>`;
   document.body.append(panel);
   const choice = panel.querySelector("#webcamChoice");
   const frameHost = panel.querySelector("#webcamFrame");
@@ -30,6 +30,7 @@
   const sourceLink = panel.querySelector("#webcamSourceLink");
   const retryButton = panel.querySelector("#webcamRetry");
   let enabled = false, selected = null, frame = null, refreshTimer = null;
+  let openingDeadline = null;
   let leafletMap = null, leafletLayer = null, glMap = null, glMarkers = [];
   let returnFocus = null;
 
@@ -48,7 +49,9 @@
 
   function clearPlayer() {
     clearTimeout(refreshTimer);
+    clearTimeout(openingDeadline);
     refreshTimer = null;
+    openingDeadline = null;
     if (frame) { frame.onload = frame.onerror = null; frame.remove(); frame = null; }
     frameHost.replaceChildren();
   }
@@ -69,6 +72,7 @@
     player.referrerPolicy = "strict-origin-when-cross-origin";
     const unavailable = () => {
       if (frame !== player) return;
+      clearTimeout(openingDeadline);
       panel.dataset.playerState = "unavailable";
       frameHost.hidden = true;
       setStatus("Camera unavailable. Try again.");
@@ -76,12 +80,18 @@
     player.onerror = unavailable;
     player.onload = () => {
       if (frame !== player) return;
-      panel.dataset.playerState = camera.kind === "image" ? "image-open" : "player-open";
+      clearTimeout(openingDeadline);
+      // An iframe load can be a provider error document as well as a player.
+      panel.dataset.playerState = camera.kind === "image" ? "image-open" : "embed-loaded";
       frameHost.hidden = false;
       setStatus("");
-      // A cross-origin player load does not establish that its video is current.
     };
     frame = player;
+    openingDeadline = setTimeout(() => {
+      if (frame !== player) return;
+      panel.dataset.playerState = "slow";
+      setStatus("Still opening. Reload or open the source.");
+    }, 12000);
     if (camera.kind === "image") {
       player.alt = `${camera.name} — camera image`;
       const refresh = () => {
@@ -128,26 +138,30 @@
     // A short window cannot fit a player between the header and timeline.
     // Give the same viewer its own scrollable viewport above those controls.
     const overlay = available < 200 || rect.top + top < viewportTop;
-    const parent = overlay ? document.body : container;
     panel.dataset.viewportOverlay = String(overlay);
-    if (panel.parentElement !== parent) {
-      parent.append(panel);
-      if (window.L?.DomEvent) {
-        L.DomEvent.disableClickPropagation(panel);
-        L.DomEvent.disableScrollPropagation(panel);
+    // Moving a live iframe between parents can reload it and reset focus.
+    const visibleLeft = overlay ? viewportLeft : Math.max(viewportLeft, rect.left);
+    const visibleRight = overlay ? viewportLeft + viewportWidth : Math.min(viewportLeft + viewportWidth, rect.right);
+    panel.style.left = `${(visibleLeft + visibleRight) / 2}px`;
+    panel.style.maxWidth = `${Math.max(1, visibleRight - visibleLeft - 16)}px`;
+    let panelTop = overlay ? viewportTop + 8 : rect.top + top;
+    const viewportBottom = viewportTop + viewportHeight;
+    const controls = document.getElementById("mobileControlsToggle");
+    if (overlay && !panel.hidden && controls?.getClientRects().length) {
+      const viewer = panel.getBoundingClientRect();
+      const key = document.body.classList.contains("mobile-legend-open") ? null : document.getElementById("legendDock");
+      for (const control of [controls, key]) {
+        if (!control?.getClientRects().length || getComputedStyle(control).visibility === "hidden") continue;
+        const box = control.getBoundingClientRect();
+        const below = box.bottom + 8;
+        if (box.top < viewportTop + 64 && box.left < viewer.right && box.right > viewer.left &&
+            viewportBottom - below - 8 >= 200) panelTop = Math.max(panelTop, below);
       }
     }
-    panel.style.top = `${overlay ? viewportTop + 8 : top}px`;
-    const maxHeight = overlay ? Math.max(1, viewportHeight - 16) : available;
+    panel.style.top = `${panelTop}px`;
+    const maxHeight = overlay ? Math.max(1, viewportBottom - panelTop - 8) : available;
     panel.style.maxHeight = `${maxHeight}px`;
     panel.style.setProperty("--webcam-panel-height", `${maxHeight}px`);
-    if (overlay) {
-      panel.style.left = `${viewportLeft + viewportWidth / 2}px`;
-      panel.style.maxWidth = `${Math.max(1, viewportWidth - 16)}px`;
-    } else {
-      panel.style.removeProperty("left");
-      panel.style.removeProperty("max-width");
-    }
   }
 
   function syncCameraRow() {
@@ -163,7 +177,8 @@
 
   function showCamera(camera, trigger) {
     if (!enabled || !camera) return;
-    if (panel.hidden) returnFocus = trigger || toggle;
+    const opening = panel.hidden;
+    if (opening) returnFocus = trigger || toggle;
     selected = camera;
     sourceLink.href = camera.sourceUrl;
     sourceLink.title = camera.source;
@@ -172,15 +187,20 @@
     panel.hidden = false;
     dismissMobileControls();
     loadPlayer(camera);
-    requestAnimationFrame(() => { if (!panel.hidden) closeButton.focus({ preventScroll: true }); });
+    if (opening) requestAnimationFrame(() => {
+      if (!panel.hidden && selected === camera) closeButton.focus({ preventScroll: true });
+    });
   }
 
   function closeCamera(restoreFocus) {
     clearPlayer();
     panel.hidden = true;
     if (restoreFocus) {
-      const visible = el => el?.isConnected && el.getClientRects().length && !el.closest("[inert],[hidden]") && getComputedStyle(el).visibility !== "hidden";
-      const target = visible(returnFocus) ? returnFocus : visible(toggle) ? toggle : document.getElementById("mobileControlsToggle");
+      const target = [returnFocus, toggle, document.getElementById("mobileControlsToggle")].find(element => {
+        if (!element?.isConnected || element.closest("[inert],[hidden]")) return false;
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return width > 0 && height > 0 && element.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+      });
       target?.focus({ preventScroll: true });
     }
   }
@@ -302,15 +322,24 @@
   retryButton.addEventListener("click", () => { if (selected) loadPlayer(selected); });
 
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !panel.hidden) { event.preventDefault(); closeCamera(true); }
-  });
+    if (event.key !== "Escape" || panel.hidden || event.defaultPrevented) return;
+    // Read modal ownership before its Escape handler can close the dialog.
+    const modalOpen = [...document.querySelectorAll('[role="dialog"][aria-modal="true"], dialog[open]')]
+      .some(modal => !modal.closest('[hidden],[aria-hidden="true"]') && modal.getClientRects().length &&
+        getComputedStyle(modal).visibility !== "hidden");
+    if (modalOpen || document.body.classList.contains("mobile-legend-open")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeCamera(true);
+  }, true);
   new MutationObserver(syncMarkers).observe(document.body, { attributes: true, attributeFilter: ["class"] });
   window.addEventListener("load", syncMarkers);
   window.addEventListener("resize", () => { syncCameraRow(); if (!panel.hidden) mountPanel(); });
   window.visualViewport?.addEventListener("resize", () => { if (!panel.hidden) mountPanel(); });
   window.visualViewport?.addEventListener("scroll", () => { if (!panel.hidden) mountPanel(); });
   const layoutObserver = new ResizeObserver(() => { if (!panel.hidden) mountPanel(); });
-  [document.getElementById("topBanner"), document.getElementById("timelineDock")].filter(Boolean).forEach(el => layoutObserver.observe(el));
+  ["topBanner", "mapTitleBadge", "mobileControlsToggle", "legendDock", "timelineDock"].map(id => document.getElementById(id))
+    .filter(Boolean).forEach(el => layoutObserver.observe(el));
   window.addEventListener("pagehide", () => setEnabled(false));
   window.addEventListener("pageshow", event => { if (event.persisted) setEnabled(false); });
   setEnabled(false);

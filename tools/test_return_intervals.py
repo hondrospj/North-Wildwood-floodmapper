@@ -8,6 +8,9 @@ import subprocess
 import math
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
+
+import build_return_intervals as legacy
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -27,6 +30,12 @@ def parse_utc(value: str) -> datetime:
 
 
 def main() -> None:
+    with patch("sys.argv", ["build_return_intervals.py"]):
+        assert legacy.parse_args().output == Path("return_intervals_legacy_v4.json")
+    legacy_source = ("peak_dt\tgage_ht\tag_dt\tag_gage_ht\n"
+                     "10d\t8s\t10d\t8s\n"
+                     "2020-09-15\t4.20\t2020-10-12\t\n")
+    assert legacy.parse_usgs_peak_rows(legacy_source)[2020]["date"] == "2020-09-15"
     if PAYLOAD["schema"] != "nj-floodmapper-return-intervals-v2":
         raise AssertionError("Unexpected return-interval schema")
     if LEVELS["schema"] != "nj-floodmapper-return-levels-v2":

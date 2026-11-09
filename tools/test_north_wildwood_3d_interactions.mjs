@@ -246,6 +246,7 @@ function clickFixture(pitch = 60) {
   let buildings = true;
   class FakePopup {
     setLngLat() { return this; } setHTML() { return this; } addTo() { return this; }
+    getElement() { return null; }
     on(name, callback) { this[name] = callback; return this; }
     remove() { this.close?.(); }
   }
@@ -271,16 +272,19 @@ function clickFixture(pitch = 60) {
       return request.promise.then(parcel => ({feature, point: [-74.8, 39.006], parcel}));
     },
     openParcelFloodPrompt: feature => opened.push(feature.id), openFallbackBuildingPopup: () => opened.push('fallback'),
+    beginMapQuery: () => ++context.mapQueryGeneration,
     handleDepthQueryClick: () => { ++context.mapQueryGeneration; opened.push('depth'); },
     L: { latLng: (lat, lng) => ({ lat, lng }) }, sync3dViewToLeaflet() {}, syncLeafletViewTo3d() {}, syncGlPopupLayout() {}
   };
-  load(context, ['wire3dInteractions', 'showGlPopup', 'closeGlPopup', 'buildingsShouldRenderForCamera']); context.wire3dInteractions();
+  load(context, ['resize3dView', 'wire3dInteractions', 'showGlPopup', 'closeGlPopup', 'buildingsShouldRenderForCamera']); context.wire3dInteractions();
   return { context, requests, opened, queriedLayers, click: () => handlers.click({ lngLat: { lat: 39.006, lng: -74.8 }, point: { x: 100, y: 100 } }), disable() { buildings = false; } };
 }
 for (const supersede of ['new click', 'mode', 'frame', 'disable', 'close button', 'programmatic close']) {
   for (const result of ['parcel', 'missing', 'failed']) {
     const test = clickFixture();
-    if (supersede.includes('close')) test.context.showGlPopup({ lat: 39, lng: -74.8 }, 'Existing card', 300);
+    if (supersede.includes('close')) test.context.showGlPopup({
+      getLatLng: () => ({ lat: 39, lng: -74.8 }), getContent: () => 'Existing card', once() {}
+    }, 300);
     const older = test.click();
     if (supersede === 'new click') {
       const latest = test.click(); test.requests[1].resolve(matchedParcel('latest parcel')); await latest;

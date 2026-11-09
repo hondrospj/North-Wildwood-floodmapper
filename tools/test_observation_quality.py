@@ -114,10 +114,21 @@ class ObservationQualityTests(unittest.TestCase):
 
     def test_rising_benchmark_samples_crest(self):
         bottleneck=benchmark.BOTTLENECKS[0]
-        routed=benchmark.route_event(benchmark.Hydrograph(5,0.79,0,0.79),bottleneck)
+        event=benchmark.Hydrograph(5,0.79,0,0.79)
+        routed=benchmark.route_event(event,bottleneck)
         crest=int(routed["stage_ft"].argmax())
+        self.assertAlmostEqual(routed["stage_ft"][crest], event.peak_ft)
+        self.assertAlmostEqual(routed["time_seconds"][crest], event.peak_ft / event.rise_rate_ft_per_hour * 3600)
+        self.assertAlmostEqual(routed["time_seconds"][-1], benchmark.event_duration_hours(event) * 3600)
+        self.assertAlmostEqual(routed["stage_ft"][-1], 0.0)
         self.assertEqual(benchmark.route_to_stage(bottleneck,5,0.79),routed["volume_ft3"][crest])
         self.assertNotEqual(routed["volume_ft3"][crest],routed["volume_ft3"][-1])
+
+    def test_benchmark_preserves_storage_below_a_closed_crest(self):
+        opening = benchmark.Bottleneck('test opening', 3.7, 30.0, 100.0)
+        self.assertEqual(benchmark.weir_discharge_cfs(0.5, 1.25, opening.crest_ft, opening.width_ft), 0.0)
+        self.assertEqual(benchmark.advance_storage(125.0, 0.5, opening), 125.0)
+        self.assertAlmostEqual(benchmark.advance_storage(400.0, 0.5, opening, dt_seconds=3600), 370.0)
 
     def test_rebase_sign_and_qualified_trend(self):
         with tempfile.TemporaryDirectory() as d:

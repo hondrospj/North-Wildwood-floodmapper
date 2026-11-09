@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const html = readAppSource(process.argv[2] || new URL('../index.html', import.meta.url));
-const names = ['cancelPendingFloodFrame', 'switchOverlayMode', 'setParcelsEnabled', 'setNsiStructuresEnabled',
-  'searchTownAddress', 'clearTownAddressLookup'];
+const names = ['cancelPendingFloodFrame', 'getTimelineNavigationIndex', 'switchOverlayMode', 'setParcelsEnabled', 'setNsiStructuresEnabled',
+  'searchTownAddress', 'cancelPendingTownAddressLookup', 'clearTownAddressLookup'];
 const functions = names.map(name => {
   const match = html.match(new RegExp(`^    (?:async )?function ${name}\\([^\\n]*\\) \\{\\n.*?^    \\}`, 'ms'));
   assert.ok(match, name);
@@ -49,19 +49,21 @@ function setup() {
     updateParcelBoundaryResolution() {},
     loadParcelBoundaryLayer: async layer => { layer.addTo(); return layer; },
     parcelLayerGeneration: 0, nsiLayerGeneration: 0, townAddressSearchGeneration: 0, townAddressLookupController: null, townAddressPopup: null,
+    mapQueryGeneration: 0, townAddressBuildingChoiceGeneration: 0,
     parcelsLayer: null, nsiStructuresLayer: null, updateNsiStructureImpactLayer() {}, townAddressMarker: null,
     normalizeTownAddressQuery: v => v, getTownAddressDisplayName: () => 'North Wildwood',
     setTownAddressStatus: v => state.status = v, formatTownAddressLabel: () => 'New Jersey Avenue, North Wildwood',
     findParcelFeatureForLocation: async () => null, getShorelySafeAddressIcon: () => ({}),
-    escapeTownAddressHtml: v => v, openPersistentFloodPopup: openPopup,
+    escapeTownAddressHtml: v => v, normalizeTownStreetAddress: v => v, openPersistentFloodPopup: openPopup,
     setBuildingsEnabled: async () => {state.buildingEnables++;}, openParcelFloodPrompt: openPopup,
-    fetchArcgisTownCandidates: async () => [{lat: 39.006, lon: -74.8}],
+    fetchArcgisTownCandidates: async () => [{lat: 39.006, lon: -74.8, streetAddress: '100 new jersey ave'}],
     fetchNominatimTownCandidates: async () => [], pickBestTownAddressCandidate: v => v[0],
     L: {latLng: (lat, lon) => ({lat, lon}), marker: latlng => ({latlng,
       addTo() {layers.add(this); return this;}, setLatLng(p) {this.latlng = p;}, setIcon() {}})},
     lastRenderToken: 0, selectionGeneration: 0, loadTopTideEvent: () => {},
     currentFloodLayer: null, pendingFloodLayer: null, persistentDepthQueryContext: null,
-    requestedTimelineSelection: null, cancelTimelineSelection() {},
+    requestedTimelineSelection: null, pendingTimelineSelection: null,
+    cancelTimelineSelection() {context.pendingTimelineSelection = null;},
     updatePersistentDepthQueryPopup() {}, currentOverlayMode: 'depth', currentDataMode: 'observed', currentViewType: 'observed-day',
     currentTopTideIndex: null, currentHourIndex: 7, selectedObservedDate: '2016-01-23',
     currentSeriesHours: [{timeUtc: '2016-01-23T12:00:00Z', stageFt: 6.69}],
@@ -84,6 +86,16 @@ for (const view of ['observed-day', 'top-tide']) {
   assert.deepEqual(state.renders, [7]);
   await c.switchOverlayMode('dynamic'); assert.deepEqual(state.renders, [7]);
   await c.switchOverlayMode('depth'); assert.deepEqual(state.renders, [7, 7]);
+  tests++;
+}
+for (const request of ['pendingTimelineSelection', 'requestedTimelineSelection']) {
+  const {context: c, state} = setup();
+  c.currentSeriesHours = [{stageFt: 2}, {stageFt: 3}];
+  c.currentHourIndex = 0;
+  c[request] = {series: c.currentSeriesHours, index: 1};
+  await c.switchOverlayMode('dynamic');
+  assert.deepEqual(state.renders, [1], 'An overlay change must render the newer chosen time');
+  assert.equal(c[request], null);
   tests++;
 }
 for (const [fn, toggle, loader, layerVar] of [

@@ -21,7 +21,7 @@ from run_anuga import (  # noqa: E402
     barrier_mask_for_mesh,
     friction_from_elevation,
 )
-from fetch_petss import enforce_scenario_order, interpolate_15_minutes  # noqa: E402
+from fetch_petss import common_hourly_window, enforce_scenario_order, interpolate_15_minutes, parse_time  # noqa: E402
 
 
 def in_memory_sampler(array: np.ndarray, resolution: float = 5.0) -> RasterSampler:
@@ -93,6 +93,46 @@ class PhysicsContractTests(unittest.TestCase):
             self.assertTrue(frame["isHourlySourcePoint"])
             self.assertAlmostEqual(frame["mllwFt"], mllw_ft, places=4)
 
+    def test_petss_offset_and_hourly_boundary_coverage(self) -> None:
+        origin = datetime(2026, 8, 9, 18, tzinfo=timezone.utc)
+        self.assertEqual(parse_time("2026-08-09T14:00:00-04:00"), origin)
+        self.assertIsNone(parse_time("2026-08-09Z"))
+        irregular = [(origin + timedelta(minutes=minutes), 2) for minutes in (0, 30, 120)]
+        with self.assertRaisesRegex(RuntimeError, "consecutive common hourly points"):
+            common_hourly_window({"mean": irregular}, origin, 2)
+        hourly = [(origin + timedelta(hours=index), index) for index in range(3)]
+        self.assertEqual(common_hourly_window({"mean": irregular + hourly}, origin, 2)["mean"], hourly)
+
+    def test_petss_metre_order_when_rounded_feet_tie(self) -> None:
+        # Stone Harbor 8535581, Nov 8 2026 18Z PETSS cycle, 05Z–08Z.
+        origin = datetime(2026, 11, 9, 5, tzinfo=timezone.utc)
+        source = {
+            "mean": (1.095, 0.476, 0.456, 1.076),
+            "highEnd": (1.195, 0.476, 0.456, 1.076),
+        }
+        curves = {
+            scenario: interpolate_15_minutes([
+                (origin + timedelta(hours=index), value)
+                for index, value in enumerate(values)
+            ], -2.75)
+            for scenario, values in source.items()
+        }
+        mean, high = curves["mean"], curves["highEnd"]
+        mean_before = [frame.copy() for frame in mean]
+        hourly_before = [frame.copy() for frame in high if frame["isHourlySourcePoint"]]
+        hidden_crossings = [
+            index for index, (center, bound) in enumerate(zip(mean, high, strict=True))
+            if bound["navd88M"] < center["navd88M"]
+            and bound["mllwFt"] == center["mllwFt"]
+            and bound["navd88Ft"] == center["navd88Ft"]
+        ]
+        self.assertEqual(hidden_crossings, [5, 7])
+        self.assertTrue(enforce_scenario_order(curves))
+        self.assertFalse(enforce_scenario_order(curves))
+        self.assertEqual(mean, mean_before)
+        self.assertEqual([frame for frame in high if frame["isHourlySourcePoint"]], hourly_before)
+        for center, bound in zip(mean, high, strict=True):
+            self.assertGreaterEqual(bound["navd88M"], center["navd88M"])
 
     def test_interpolated_scenario_bounds_stay_around_the_mean(self) -> None:
         origin = datetime(2026, 8, 9, 18, tzinfo=timezone.utc)

@@ -32,7 +32,6 @@ ARCHIVE_START_DATE = date(2007, 10, 1)
 NAVD88_OFFSET_FROM_MLLW_FT = -2.75
 QUARTER_SECONDS = 15 * 60
 FETCH_CHUNK_DAYS = 90
-MAX_ANCHOR_DISTANCE_SECONDS = MAX_INTERPOLATION_GAP_SECONDS
 MAX_SPIKE_NEIGHBOR_GAP_SECONDS = 30 * 60
 ISOLATED_SPIKE_THRESHOLD_FT = 3.0
 THRESHOLDS_NAVD88 = {"minorLow": 3.25, "moderateLow": 4.25, "majorLow": 5.25}
@@ -78,10 +77,10 @@ def parse_usgs_values(payload: dict) -> list[tuple[int, float]]:
             for row in bucket.get("value", []):
                 try:
                     level = float(row.get("value"))
-                    stamp = datetime.fromisoformat(str(row.get("dateTime")).replace("Z", "+00:00")).astimezone(timezone.utc)
-                except Exception:
+                    stamp = datetime.fromisoformat(str(row.get("dateTime")).replace("Z", "+00:00"))
+                except (AttributeError, TypeError, ValueError):
                     continue
-                if not math.isfinite(level) or abs(level) >= 100:
+                if stamp.tzinfo is None or not math.isfinite(level) or abs(level) >= 100:
                     continue
                 values_by_second[int(stamp.timestamp())] = level
     return remove_isolated_spikes(sorted(values_by_second.items()))
@@ -136,8 +135,6 @@ def interpolate_at(anchor: int, source_seconds: list[int], source_values: list[f
         return None
     before_t, after_t = source_seconds[index - 1], source_seconds[index]
     if after_t - before_t > MAX_INTERPOLATION_GAP_SECONDS:
-        return None
-    if anchor - before_t > MAX_ANCHOR_DISTANCE_SECONDS or after_t - anchor > MAX_ANCHOR_DISTANCE_SECONDS:
         return None
     before_v, after_v = source_values[index - 1], source_values[index]
     ratio = (anchor - before_t) / (after_t - before_t)
@@ -435,12 +432,22 @@ def build(args: argparse.Namespace) -> dict:
         print(f"Fetching {cursor} through {chunk_end}")
         source = parse_usgs_values(fetch_json(url))
         print(f"  {len(source):,} USGS observations")
+        source_seconds = [second for second, _ in source]
         for day in daterange(cursor, chunk_end):
             key = day.isoformat()
-            compact, hourly = build_compact_day(day, source)
+            day_start, day_end = day_utc_bounds(day)
+            first = bisect.bisect_left(source_seconds, int(day_start.timestamp()))
+            after = bisect.bisect_left(source_seconds, int(day_end.timestamp()))
+            # Keep the nearest readings just outside the day for interpolation.
+            compact, hourly = build_compact_day(day, source[max(0, first - 1):after + 1])
             previous = existing_days.get(key)
-            if compact["p"] is None and previous and any(value is not None for value in previous["v"]):
-                raise RuntimeError(f"Stone Harbor refresh would erase existing readings for {key}")
+            if previous:
+                for index, (old, new) in enumerate(zip(previous["v"], compact["v"])):
+                    if old is None or new is not None:
+                        continue
+                    anchor = compact["u"] + index * QUARTER_SECONDS
+                    if compact["p"] is None or not source_seconds[0] <= anchor <= source_seconds[-1]:
+                        raise RuntimeError(f"Stone Harbor refresh would erase existing readings for {key}")
             existing_days[key] = compact
             if hourly is not None:
                 hourly_updates[key] = hourly

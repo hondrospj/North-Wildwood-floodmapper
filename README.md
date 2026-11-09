@@ -67,10 +67,12 @@ Both events expose complete 15-minute replays and derived hourly values.
 
 ## Return-interval storms
 
-The **Return Intervals** data source supplies synthetic 24-hour storms at every
-2015 NACCS station 11283 annual recurrence interval through 10,000 years. All
-frequency calculations are performed in feet NAVD88; MLLW is only a display
-conversion using the mapper's existing `+2.75 ft` contract.
+**Modeled Floods** uses the committed V2 levels and synthetic 24-hour storms
+in `return_interval_levels_v2.json` and `return_intervals.json`. The V2 frequency
+fit uses USGS observations, bias-corrected NOAA history, and official USGS crest
+overrides. Frequency calculations use NAVD88 feet. MLLW adds 2.75 feet for display.
+
+The table below records the older NACCS and local-gauge comparison.
 
 | Return interval | NACCS 11283 | Local gauge fit | Mapper target | Target method |
 | ---: | ---: | ---: | ---: | :--- |
@@ -114,14 +116,15 @@ convention (`NorthWildwoodDepthp0000.png` through
 `NorthWildwoodDepthp2000.png`) under versioned v37 filling, high-tide,
 15-minute release, 30-minute release, and normal-draining directories.
 
-These are stationary screening scenarios: no future sea-level-rise increment
-or trend detrending is applied. Rebuild the committed payload from the official
-NACCS, USGS, and NOAA endpoints with:
+These stationary screening scenarios use a fixed reference tide and surge
+profile. Verify the deployed V2 data contract with:
 
 ```bash
-python3 tools/build_return_intervals.py
 python3 tools/test_return_intervals.py
 ```
+
+`python3 tools/build_return_intervals.py` rebuilds the historical comparison
+from NACCS, USGS, and NOAA into `return_intervals_legacy_v4.json`.
 
 ## One-foot hydraulic model
 

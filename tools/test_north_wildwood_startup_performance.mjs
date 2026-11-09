@@ -16,6 +16,7 @@ const rendererSource = readAsset("assets/3d/north-wildwood-3d.js");
 const rendererVersion = contentVersion(rendererSource);
 const areaVersion = contentVersion(readAsset("assets/export-area.js"));
 const roadVersion = contentVersion(readAsset("assets/road-labels.js"));
+const roadImpactsVersion = contentVersion(readAsset("assets/road-impacts.js"));
 
 function extractFunction(name, sourceText = source) {
   const source = sourceText;
@@ -39,7 +40,7 @@ assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
   `assets/road-labels.js?v=${roadVersion}`,
   `./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&roadlabels=20261030-v1&deep=${rendererVersion}`,
-  "./assets/road-impacts.js?v=20261002-road-impacts-default-off",
+  `./assets/road-impacts.js?v=${roadImpactsVersion}`,
   "assets/avalon-mobile.js?v=20261026-holistic1",
   `assets/export-area.js?v=${areaVersion}`,
 ]);

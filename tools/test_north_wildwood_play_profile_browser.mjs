@@ -24,6 +24,10 @@ try{
   }
   result.renderer=await page.evaluate(()=>document.body.classList.contains('map-3d-ready')?'3d':'2d');
   const profile=()=>page.locator(`${result.renderer==='3d'?'.maplibregl-popup':'.leaflet-popup'} .house-alert-cta`);
+  // The native WebKit menu consumes subsequent test-driver mouse input.
+  await page.locator('#playBtn').evaluate(button => {
+    button.addEventListener('contextmenu', event => event.preventDefault(), {once:true});
+  });
   for(const [label,options,playing]of [['held-primary',{delay:400},true],['right',{button:'right'},false],['middle',{button:'middle'},false]]){
     await page.evaluate(()=>stopPlayback());await page.waitForTimeout(260);
     await page.locator('#playBtn').click(options);
@@ -76,13 +80,16 @@ try{
     assert.equal(state.isCta,true,'Later playback refreshes retain the restored property focus');
     assert.equal(state.key,'parcel-profile:0507_128_23');
   }
-  await profile().evaluate(button=>{window.cancelledProfileOpener=button;});
+  await page.evaluate(()=>{ window.actualProfileOpener=null; });
   const box=await profile().boundingBox();
   await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();
+  // Playback may replace the button before pointerdown. Check the button
+  // that received the trusted event, not the earlier bounding-box target.
+  await page.waitForFunction(()=>window.actualProfileOpener,{}, {timeout:15000});
   await page.waitForTimeout(700);
-  assert.equal(await page.evaluate(()=>cancelledProfileOpener.isConnected),true,'A held CTA stays connected during animation');
+  assert.equal(await page.evaluate(()=>actualProfileOpener.isConnected),true,'A held CTA stays connected during animation');
   await page.mouse.move(5,5);await page.mouse.up();
-  await page.waitForFunction(()=>!cancelledProfileOpener.isConnected,{}, {timeout:15000});
+  await page.waitForFunction(()=>!actualProfileOpener.isConnected,{}, {timeout:15000});
   assert.equal(await page.locator('#floodHistoryBackdrop').evaluate(element=>element.hidden),true,'Release outside cancels opening the profile');
   result.checks.push('Release outside cancels the property gesture; later playback refresh resumes');
   await page.evaluate(()=>stopPlayback());

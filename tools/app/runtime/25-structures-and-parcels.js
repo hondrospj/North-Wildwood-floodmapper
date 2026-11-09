@@ -124,6 +124,7 @@
                     return;
                   }
                   if (event?.originalEvent) event.originalEvent._parcelHandled = true;
+                  beginMapQuery();
                   openNsiStructurePopup(feature, event.latlng);
                 });
               }
@@ -461,12 +462,13 @@
 
     async function findParcelFeatureForLocation(lat, lon, options = {}) {
       await ensureParcelAssets();
-      const containing = parcelFeatures.find(feature => pointInParcelFeature(feature, lat, lon));
+      const features = options.matchesFeature ? parcelFeatures.filter(options.matchesFeature) : parcelFeatures;
+      const containing = features.find(feature => pointInParcelFeature(feature, lat, lon));
       if (containing) return containing;
       if (options.allowNearest === false) return null;
       let nearest = null;
       let nearestDistance = Infinity;
-      parcelFeatures.forEach(feature => {
+      features.forEach(feature => {
         const p = feature?.properties || {};
         const dLat = Number(p.centroidLat) - lat;
         const dLon = (Number(p.centroidLon) - lon) * Math.cos(lat * Math.PI / 180);

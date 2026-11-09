@@ -81,116 +81,40 @@
       return awaitRasterRequest(developedQueryGridPromise);
     }
 
-    async function getDepthQueryImage() {
-      if (!DEPTH_QUERY_COG_URL) throw new Error("Depth query COG is not configured.");
-      if (!window.GeoTIFF?.fromUrl) await ensureDepthQueryLibrary();
+    async function readDepthCogWithDeadline(read) {
+      const controller = new AbortController();
+      let timer;
+      const deadline = new Promise((_, reject) => {
+        timer = window.setTimeout(() => {
+          const error = new Error("Depth query GeoTIFF took too long to load. Please try again.");
+          error.name = "TimeoutError";
+          reject(error);
+          controller.abort();
+        }, 20000);
+      });
+      try {
+        return await Promise.race([deadline, read(controller.signal)]);
+      } finally {
+        window.clearTimeout(timer);
+      }
+    }
+
+    function getDepthQueryImage() {
       if (!depthQueryImagePromise) {
-        depthQueryImagePromise = GeoTIFF.fromUrl(DEPTH_QUERY_COG_URL)
-          .then(tiff => tiff.getImage())
-          .catch(error => {
-            depthQueryImagePromise = null;
-            throw error;
+        const request = (async () => {
+          if (!DEPTH_QUERY_COG_URL) throw new Error("Depth query COG is not configured.");
+          if (!window.GeoTIFF?.fromUrl) await ensureDepthQueryLibrary();
+          return await readDepthCogWithDeadline(async signal => {
+            const tiff = await GeoTIFF.fromUrl(DEPTH_QUERY_COG_URL, {}, signal);
+            return tiff.getImage();
           });
+        })().catch(error => {
+          if (depthQueryImagePromise === request) depthQueryImagePromise = null;
+          throw error;
+        });
+        depthQueryImagePromise = request;
       }
       return depthQueryImagePromise;
-    }
-
-    function decodeHydraulicInt16Base64(encoded) {
-      const binary = atob(String(encoded || ""));
-      const buffer = new ArrayBuffer(binary.length);
-      const bytes = new Uint8Array(buffer);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-      const view = new DataView(buffer);
-      const output = new Int16Array(binary.length / 2);
-      for (let i = 0; i < output.length; i += 1) output[i] = view.getInt16(i * 2, true);
-      return output;
-    }
-
-    async function fetchHydraulicStateContainer(url) {
-      const response = await fetch(url, { cache: "force-cache", headers: { "Accept": "application/octet-stream,*/*" } });
-      if (!response.ok) throw new Error(`Hydraulic state request failed (${response.status}).`);
-      let buffer = await response.arrayBuffer();
-      let bytes = new Uint8Array(buffer);
-      if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
-        if (typeof DecompressionStream !== "function") {
-          throw new Error("This browser cannot decompress the hydraulic state package.");
-        }
-        const decompressed = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-        buffer = await new Response(decompressed).arrayBuffer();
-        bytes = new Uint8Array(buffer);
-      }
-
-      const magic = new TextDecoder().decode(bytes.subarray(0, 8));
-      if (magic.startsWith("NWHYD2")) {
-        const headerLength = new DataView(buffer, 8, 4).getUint32(0, true);
-        const dataStart = 12 + headerLength;
-        const payload = JSON.parse(new TextDecoder().decode(bytes.subarray(12, dataStart)));
-        payload.decodedPhaseWaterSurface = {};
-        Object.entries(payload.phaseArrays || {}).forEach(([phase, record]) => {
-          const offset = Number(record?.offset) || 0;
-          const length = Number(record?.length) || 0;
-          if (payload.valueType === "int16-le") {
-            const view = new DataView(buffer, dataStart + offset, length);
-            const values = new Int16Array(length / 2);
-            for (let index = 0; index < values.length; index += 1) {
-              values[index] = view.getInt16(index * 2, true);
-            }
-            payload.decodedPhaseWaterSurface[phase] = values;
-          } else {
-            payload.decodedPhaseWaterSurface[phase] = new Uint8Array(buffer, dataStart + offset, length);
-          }
-        });
-        return payload;
-      }
-
-      const payload = JSON.parse(new TextDecoder().decode(bytes));
-      const encoded = payload?.phaseWaterSurfaceCentift || {};
-      payload.decodedPhaseWaterSurfaceCentift = {
-        filling: decodeHydraulicInt16Base64(encoded.filling),
-        slack: decodeHydraulicInt16Base64(encoded.slack),
-        draining: decodeHydraulicInt16Base64(encoded.draining)
-      };
-      return payload;
-    }
-
-    async function getHydraulicStates() {
-      if (!HYDRAULIC_STATES_URL) return null;
-      if (!hydraulicStatesPromise) {
-        hydraulicStatesPromise = fetchHydraulicStateContainer(HYDRAULIC_STATES_URL);
-      }
-      return hydraulicStatesPromise;
-    }
-
-    async function getHydraulicWaterSurfaceFt(zoneId, stage, phase) {
-      const payload = await getHydraulicStates();
-      if (!payload || !Number.isInteger(zoneId) || zoneId <= 0) return null;
-      const stageMin = Number(payload.stageMinNavd88Ft) || 0;
-      const stageMax = Number(payload.stageMaxNavd88Ft);
-      const stageStep = Number(payload.stageStepFt) || STAGE_STEP;
-      const stageCount = Number(payload.stageCount) || Math.round(
-        ((Number.isFinite(stageMax) ? stageMax : MAX_STAGE) - stageMin) / stageStep
-      ) + 1;
-      const stride = Number(payload.zoneStride) || ((Number(payload.zoneCount) || 0) + 1);
-      // Operational v20 families stop at 10 ft; higher planning levels retain
-      // v19 PNG fallbacks. Use the selected level for a masked point-depth
-      // estimate rather than silently returning the v20 10-ft state.
-      if (Number.isFinite(stageMax) && Number(stage) > stageMax + 1e-9) return Number(stage);
-      const stageIndex = Math.max(0, Math.min(stageCount - 1, Math.round((Number(stage) - stageMin) / stageStep)));
-      const binaryValues = payload.decodedPhaseWaterSurface?.[getHydraulicStatePhase(phase)];
-      if (binaryValues) {
-        const encoded = binaryValues[stageIndex * stride + zoneId];
-        if (payload.valueType === "int16-le") {
-          const drySentinel = Number(payload.drySentinelCentift ?? -32768);
-          return Number.isFinite(encoded) && encoded !== drySentinel ? encoded / 100 : null;
-        }
-        const drySentinel = Number(payload.drySentinel ?? 255);
-        const offset = Number(payload.surfaceOffsetDecifeet ?? -100);
-        return Number.isFinite(encoded) && encoded !== drySentinel ? (encoded + offset) / 10 : null;
-      }
-      const values = payload.decodedPhaseWaterSurfaceCentift?.[getHydraulicStatePhase(phase)];
-      const encoded = values?.[stageIndex * stride + zoneId];
-      const drySentinel = Number(payload.drySentinelCentift ?? -32768);
-      return Number.isFinite(encoded) && encoded !== drySentinel ? encoded / 100 : null;
     }
 
     // Query grids follow their own georeferencing, not one town's layout.
@@ -218,7 +142,7 @@
         getDepthQueryGrid(),
         getDevelopedQueryGrid().catch(error => {
           console.warn("Developed-land query mask is unavailable.", error);
-          return null;
+          return undefined;
         })
       ]);
       if (!grid || !floodLatLngBounds) return null;
@@ -244,39 +168,50 @@
         sourceFlag: false,
         hardStructureFlag: false,
         stormGrateFlag: false,
-        developedFlag: developedOffset >= 0 && developedGrid.values[developedOffset + 2] >= 128,
+        developedFlag: developedOffset >= 0
+          ? developedGrid.values[developedOffset + 2] >= 128 : developedGrid === null ? false : null,
         sourceDistanceFt: encodedSourceDistance === 65535 ? null : encodedSourceDistance,
         featureDistanceFt: null
       };
     }
 
     async function sampleDepthModelFromCog(lat, lon) {
-      const image = await getDepthQueryImage();
+      const imageRequest = getDepthQueryImage();
+      const image = await awaitRasterRequest(imageRequest);
       const bounds = image.getBoundingBox();
       const width = image.getWidth();
       const height = image.getHeight();
-      const x = Math.floor(((lon - bounds[0]) / (bounds[2] - bounds[0])) * width);
-      const y = Math.floor(((bounds[3] - lat) / (bounds[3] - bounds[1])) * height);
-      if (x < 0 || y < 0 || x >= width || y >= height) return null;
-      // A one-foot line or point is narrower than one screen pixel at ordinary
-      // map zooms. Read a sixteen-foot neighbourhood and snap only when the click
-      // is near a supplied hydraulic feature, keeping ordinary terrain clicks
-      // exact while making the narrow bulkhead cells realistically usable.
-      const featureRadiusPixels = 16;
-      const x0 = Math.max(0, x - featureRadiusPixels);
-      const y0 = Math.max(0, y - featureRadiusPixels);
-      const x1 = Math.min(width, x + featureRadiusPixels + 1);
-      const y1 = Math.min(height, y + featureRadiusPixels + 1);
+      const longitudeStep = (bounds[2] - bounds[0]) / width;
+      const latitudeStep = (bounds[3] - bounds[1]) / height;
+      const x = Math.floor((lon - bounds[0]) / longitudeStep);
+      const y = Math.floor((bounds[3] - lat) / latitudeStep);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= width || y >= height) return null;
+      // A one-foot feature can be narrower than one screen pixel at ordinary
+      // zooms. Use a physical radius so a diagonal or resampled cell cannot
+      // snap to a bulkhead or drain farther away than the intended 16 feet.
+      const feetPerDegreeLatitude = 364000;
+      const xStepFt = longitudeStep * feetPerDegreeLatitude * Math.cos(lat * Math.PI / 180);
+      const yStepFt = latitudeStep * feetPerDegreeLatitude;
+      const featureRadiusFt = 16;
+      const xRadius = Math.ceil(featureRadiusFt / xStepFt);
+      const yRadius = Math.ceil(featureRadiusFt / yStepFt);
+      const x0 = Math.max(0, x - xRadius);
+      const y0 = Math.max(0, y - yRadius);
+      const x1 = Math.min(width, x + xRadius + 1);
+      const y1 = Math.min(height, y + yRadius + 1);
       const sampleCount = 7;
       const windowWidth = x1 - x0;
-      const values = await image.readRasters({
+      const rasterRequest = readDepthCogWithDeadline(signal => image.readRasters({
         window: [x0, y0, x1, y1],
         samples: [0, 1, 2, 3, 4, 5, 6],
-        interleave: true
+        interleave: true,
+        signal
+      })).catch(error => {
+        if (depthQueryImagePromise === imageRequest) depthQueryImagePromise = null;
+        throw error;
       });
-      let sampleX = x;
-      let sampleY = y;
-      let featureDistanceFt = null;
+      const values = await awaitRasterRequest(rasterRequest);
+      let sampleOffset = ((y - y0) * windowWidth + (x - x0)) * sampleCount;
       let bestDistanceSquared = Infinity;
       for (let row = 0; row < y1 - y0; row += 1) {
         for (let column = 0; column < windowWidth; column += 1) {
@@ -289,23 +224,12 @@
           const isFeature = plausibleElevation &&
             ((hardFlag >= 0.5 && hardFlag <= 1.5) || (grateFlag >= 0.5 && grateFlag <= 1.5));
           if (!isFeature) continue;
-          const candidateX = x0 + column;
-          const candidateY = y0 + row;
-          const distanceSquared = (candidateX - x) ** 2 + (candidateY - y) ** 2;
-          if (distanceSquared < bestDistanceSquared) {
+          const distanceSquared = ((x0 + column - x) * xStepFt) ** 2 + ((y0 + row - y) * yStepFt) ** 2;
+          if (distanceSquared <= featureRadiusFt ** 2 && distanceSquared < bestDistanceSquared) {
             bestDistanceSquared = distanceSquared;
-            sampleX = candidateX;
-            sampleY = candidateY;
+            sampleOffset = offset;
           }
         }
-      }
-      const sampleOffset = ((sampleY - y0) * windowWidth + (sampleX - x0)) * sampleCount;
-      if (Number.isFinite(bestDistanceSquared)) {
-        const feetPerDegreeLatitude = 364000;
-        const feetPerDegreeLongitude = feetPerDegreeLatitude * Math.cos(lat * Math.PI / 180);
-        const xFeet = (sampleX - x) * ((bounds[2] - bounds[0]) / width) * feetPerDegreeLongitude;
-        const yFeet = (sampleY - y) * ((bounds[3] - bounds[1]) / height) * feetPerDegreeLatitude;
-        featureDistanceFt = Math.hypot(xFeet, yFeet);
       }
       const elevation = Number(values[sampleOffset]);
       const zoneId = Math.round(Number(values[sampleOffset + 1]));
@@ -323,7 +247,7 @@
         hardStructureFlag: hardStructureFlag >= 0.5,
         stormGrateFlag: stormGrateFlag >= 0.5,
         developedFlag: developedFlag >= 0.5,
-        featureDistanceFt
+        featureDistanceFt: Number.isFinite(bestDistanceSquared) ? Math.sqrt(bestDistanceSquared) : null
       };
     }
 
@@ -434,8 +358,8 @@
           try {
             return await sampleDepthModelFromCog(lat, lon);
           } catch (error) {
+            if (error?.name === "TimeoutError" || error?.name === "AbortError") throw error;
             lastError = error;
-            depthQueryImagePromise = null;
           }
         }
         throw lastError || new Error("Depth query data is unavailable.");
@@ -505,6 +429,9 @@
       if (!sample) return null;
       const stage = normalizeStageValue(stageValue);
       if (!Number.isFinite(stage)) return null;
+      // A failed or misaligned companion does not classify the terrain. A dry
+      // raster pixel is still meaningful, but a wet pixel has no point estimate.
+      if (sample.developedFlag === null) return renderedFlood?.flooded === false ? 0 : null;
       const overlayStage = getOverlayStage(stage);
       const depthStage = normalizeHydraulicPhase(phase) === "filling" ? stage : overlayStage;
       const developed = sample.developedFlag === true;
@@ -624,9 +551,14 @@
       return popup;
     }
 
+    function beginMapQuery() {
+      if (cancelPendingTownAddressLookup()) setTownAddressStatus("");
+      return ++mapQueryGeneration;
+    }
+
     async function handleDepthQueryClick(event) {
       if (event?.originalEvent?._parcelHandled || !event?.latlng) return;
-      const queryGeneration = ++mapQueryGeneration;
+      const queryGeneration = beginMapQuery();
       const queryMode = mapClickMode;
       const queryRenderToken = lastRenderToken;
       const isCurrentQuery = () => queryGeneration === mapQueryGeneration && queryMode === mapClickMode && queryRenderToken === lastRenderToken;
@@ -690,6 +622,7 @@
         }
         await openDepthQueryPopup(event.latlng, sample);
       } catch (err) {
+        if (!isCurrentQuery()) return;
         console.error("Depth query failed", err);
         toast("Depth query is temporarily unavailable.");
       }

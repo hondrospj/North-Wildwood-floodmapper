@@ -141,6 +141,8 @@ function fixture() {
 
 {
   const { ctx, ids, state } = fixture();
+  let basicFocusCount = 0;
+  ids.get("exportFormatGifBtn").focus = () => { basicFocusCount++; };
   ctx.setDownloadModalOpen(true);
   assert.equal(ids.get("downloadBtnLabel").textContent, "More options");
   assert.equal(ids.get("exportReviewFields").hidden, true);
@@ -150,10 +152,12 @@ function fixture() {
   assert.equal(ids.get("downloadBtnLabel").textContent, "Download");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1);
   await ids.get("exportReviewBackBtn").dispatch("click");
+  assert.equal(basicFocusCount, 1, "Back focuses the first basic control");
   assert.equal(ids.get("exportReviewFields").hidden, true);
   assert.equal(ids.get("downloadBtnLabel").textContent, "More options");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1, "Back requires reviewing again before downloading");
   await ids.get("downloadResetBtn").dispatch("click"); assert.equal(state.resets, 1);
+  assert.equal(basicFocusCount, 2, "Reset focuses the first basic control");
   assert.equal(ids.get("exportReviewFields").hidden, true, "A native Reset click also reinstates review");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1, "The captured native Reset listener cannot bypass review");
   ctx.setDownloadModalOpen(false); ctx.setDownloadModalOpen(true);

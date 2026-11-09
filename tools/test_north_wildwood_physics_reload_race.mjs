@@ -57,13 +57,19 @@ for (const phase of ['pointer', 'manifest']) {
 
 {
   const held = deferred(), warnings = [];
+  let started = false;
   const c = vm.createContext({Promise, Map, console: {warn: message => warnings.push(message)},
     archiveGeneration: 1, selectionGeneration: 1, lastRenderToken: 1,
-    forecastData: {}, physicsForecastManifests: {},
-    loadPhysicsForecast: () => held.promise,
+    forecastData: {hours: [{timeUtc: '2026-11-08T18:00:00Z', stageFt: 1}]},
+    currentForecastScenario: 'mean', physicsForecastManifests: {},
+    getForecastScenarioHours: data => data.hours,
+    entryTimeMs: entry => Date.parse(entry.timeUtc), getStageValue: entry => entry.stageFt,
+    physicsForecastApplies: () => false,
+    loadPhysicsForecast: () => { started = true; return held.promise; },
   });
   vm.runInContext(extract('loadForecast'), c);
   const old = c.loadForecast(null, {generation: 1});
+  assert.equal(started, true, 'The older caller must enter the pending physics load before Reload');
   c.archiveGeneration++; c.selectionGeneration++; c.lastRenderToken++;
   const fresh = {mean: manifest('new')}; c.physicsForecastManifests = fresh;
   held.reject(Error('Old pointer failed'));

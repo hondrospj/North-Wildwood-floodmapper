@@ -514,27 +514,25 @@ class DemSampler:
     def sample(self, lon: float, lat: float) -> tuple[float | None, str]:
         x, y, _ = self.transform.TransformPoint(lon, lat)
         pixel_x, pixel_y = gdal.ApplyGeoTransform(self.inv, x, y)
+        width, height = self.ds.RasterXSize, self.ds.RasterYSize
+        if not (0 <= pixel_x < width and 0 <= pixel_y < height):
+            return None, "unavailable"
         col, row = int(math.floor(pixel_x)), int(math.floor(pixel_y))
-        for radius in range(0, 11):
-            xoff = max(0, col - radius)
-            yoff = max(0, row - radius)
-            xsize = min(self.ds.RasterXSize - xoff, radius * 2 + 1)
-            ysize = min(self.ds.RasterYSize - yoff, radius * 2 + 1)
-            if xsize <= 0 or ysize <= 0:
-                continue
-            data = self.band.ReadAsArray(xoff, yoff, xsize, ysize)
-            valid = np.isfinite(data)
-            if self.nodata is not None:
-                valid &= data != self.nodata
-            if not np.any(valid):
-                continue
-            if radius == 0:
-                return float(data[0, 0]), "centroid"
-            rows, cols = np.where(valid)
-            distances = (rows + yoff - row) ** 2 + (cols + xoff - col) ** 2
-            best = int(np.argmin(distances))
-            return float(data[rows[best], cols[best]]), f"nearest-valid-cell-{radius}"
-        return None, "unavailable"
+        max_radius = 10
+        xoff, yoff = max(0, col - max_radius), max(0, row - max_radius)
+        xend, yend = min(width, col + max_radius + 1), min(height, row + max_radius + 1)
+        data = self.band.ReadAsArray(xoff, yoff, xend - xoff, yend - yoff)
+        valid = np.isfinite(data)
+        if self.nodata is not None:
+            valid &= data != self.nodata
+        rows, cols = np.where(valid)
+        if not rows.size:
+            return None, "unavailable"
+        dx, dy = cols + xoff - col, rows + yoff - row
+        best = int(np.argmin(dx ** 2 + dy ** 2))
+        radius = max(abs(dx[best]), abs(dy[best]))
+        method = f"nearest-valid-cell-{radius}" if radius else "centroid"
+        return float(data[rows[best], cols[best]]), method
 
     @staticmethod
     def _first_grid_index(start: int) -> int:

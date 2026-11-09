@@ -304,14 +304,6 @@
       text-wrap:balance;
     }
 
-    .brand-chip{
-      display:none !important;
-    }
-
-    .brand-chip::before{
-      display:none !important;
-    }
-
     .muted{
       color:var(--muted);
       font-size:11px;
@@ -537,10 +529,6 @@
       gap:7px;
     }
 
-    .stat-box:last-child{
-      grid-column:auto;
-    }
-
     .snapshot-card{
       padding:12px 14px 14px;
     }
@@ -749,9 +737,6 @@
 
     .calendar-popover select{
       font-size:12px;
-    }
-
-    .calendar-popover select{
       width:100%;
       padding:0 12px;
     }
@@ -985,53 +970,6 @@
       text-align:center;
     }
 
-    html body #nw3dLauncher{
-      position:absolute;
-      z-index:1450;
-      top:104px;
-      right:calc(var(--pj-right-rail-fit-width) + 44px);
-      display:grid !important;
-      grid-template-rows:30px auto;
-      place-items:center;
-      width:62px;
-      height:62px;
-      padding:6px 5px 5px !important;
-      border:3px solid #b7b7b7;
-      border-radius:50% !important;
-      background:rgba(47,47,47,.94);
-      box-shadow:inset 0 0 0 2px rgba(255,255,255,.20),0 2px 7px rgba(0,0,0,.44);
-      color:#fff;
-      font:900 12px/1 Arial,sans-serif !important;
-      cursor:pointer;
-      touch-action:manipulation;
-      box-sizing:border-box;
-    }
-    html body #nw3dLauncher:hover{ filter:brightness(1.08); }
-    html body #nw3dLauncher:focus-visible{
-      outline:3px solid rgba(96,165,250,.94);
-      outline-offset:3px;
-    }
-    html body #nw3dLauncher[aria-busy="true"]{ cursor:progress; opacity:.82; }
-    html body #nw3dLauncher svg{
-      width:34px;
-      height:22px;
-      color:#6aa7e1;
-      overflow:visible;
-    }
-    html body #nw3dLauncher path,
-    html body #nw3dLauncher circle{
-      fill:none;
-      stroke:currentColor;
-      stroke-width:3;
-    }
-    html body #nw3dLauncher .nw-3d-launcher-label{
-      display:block;
-      width:100%;
-      text-align:center;
-      letter-spacing:.02em;
-    }
-    html body.map-3d-ready #nw3dLauncher{ display:none !important; }
-
     html body #nwDefaultNavControl{
       position:absolute;
       z-index:1450;
@@ -1044,308 +982,6 @@
       html body #nwDefaultNavControl{
         top:96px;
       }
-    }
-
-    #map3d .nw-earth-control{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:11px;
-      width:98px;
-      height:342px;
-      margin:0;
-      overflow:visible;
-      border-radius:0;
-      background:transparent;
-      box-shadow:none;
-      color:#4285c5;
-      font-family:Arial, sans-serif;
-      user-select:none;
-      -webkit-user-select:none;
-      touch-action:none;
-      isolation:isolate;
-      pointer-events:auto;
-      filter:drop-shadow(0 2px 4px rgba(0,0,0,.46));
-    }
-
-    #map3d .nw-earth-control button{
-      -webkit-appearance:none !important;
-      appearance:none !important;
-      font-family:Arial, sans-serif !important;
-      text-indent:0 !important;
-      vertical-align:middle !important;
-      touch-action:manipulation;
-    }
-
-    #map3d .nw-earth-look{
-      position:relative;
-      flex:0 0 94px;
-      width:94px;
-      height:94px;
-      margin:0;
-      border-radius:50%;
-      border:4px solid #b7b7b7;
-      background:rgba(47,47,47,.94);
-      box-shadow:inset 0 0 0 3px rgba(255,255,255,.20),0 1px 4px rgba(0,0,0,.5);
-      box-sizing:border-box;
-    }
-
-    #map3d .nw-earth-control button:focus-visible,
-    #map3d .nw-earth-zoom-range:focus-visible{
-      outline:3px solid rgba(96,165,250,.94);
-      outline-offset:2px;
-    }
-
-    #map3d .nw-earth-north{
-      position:absolute;
-      z-index:3;
-      top:-10px;
-      left:50%;
-      width:20px !important;
-      min-width:0 !important;
-      height:20px !important;
-      min-height:0 !important;
-      margin-left:-10px;
-      padding:0;
-      border:2px solid #d7d7d7;
-      border-radius:7px !important;
-      background:#f5f5f5;
-      color:#161616;
-      display:grid !important;
-      place-items:center !important;
-      overflow:hidden !important;
-      font-size:12px !important;
-      font-style:normal !important;
-      font-weight:900 !important;
-      line-height:1 !important;
-      box-shadow:0 1px 3px rgba(0,0,0,.45);
-      box-sizing:border-box;
-      cursor:pointer;
-    }
-    #map3d .nw-earth-north span{
-      display:block;
-      width:100%;
-      transform:translateY(-.5px);
-      text-align:center;
-      line-height:1 !important;
-    }
-
-    #map3d .nw-earth-ring-dots{
-      position:absolute;
-      color:#aaa;
-      font:900 9px/1 Arial, sans-serif;
-      letter-spacing:1px;
-      pointer-events:none;
-    }
-    #map3d .nw-earth-ring-dots-left{ left:4px; top:43px; transform:rotate(90deg); }
-    #map3d .nw-earth-ring-dots-right{ right:2px; top:43px; transform:rotate(90deg); }
-    #map3d .nw-earth-ring-dots-bottom{ bottom:3px; left:39px; }
-
-    #map3d .nw-earth-look-surface,
-    #map3d .nw-earth-pan{
-      position:absolute;
-      border-radius:50%;
-      background:linear-gradient(#fff,#e3e3e3);
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 1px 3px rgba(0,0,0,.35);
-    }
-    #map3d .nw-earth-look-surface{
-      inset:17px;
-    }
-
-    #map3d .nw-earth-nav-arrow{
-      position:absolute;
-      width:20px !important;
-      min-width:0 !important;
-      height:20px !important;
-      min-height:0 !important;
-      padding:0 !important;
-      border:0 !important;
-      box-sizing:border-box !important;
-      background:transparent;
-      cursor:pointer;
-    }
-    #map3d .nw-earth-nav-arrow span{
-      position:absolute;
-      inset:5px;
-      border-top:5px solid #4285c5;
-      border-left:5px solid #4285c5;
-      filter:drop-shadow(0 1px 0 rgba(0,0,0,.14));
-      box-sizing:border-box;
-    }
-    #map3d .nw-earth-look-up,
-    #map3d .nw-earth-pan-up{ top:1px; left:50%; margin-left:-10px; }
-    #map3d .nw-earth-look-up span,
-    #map3d .nw-earth-pan-up span{ transform:rotate(45deg); }
-    #map3d .nw-earth-look-right,
-    #map3d .nw-earth-pan-right{ right:1px; top:50%; margin-top:-10px; }
-    #map3d .nw-earth-look-right span,
-    #map3d .nw-earth-pan-right span{ transform:rotate(135deg); }
-    #map3d .nw-earth-look-down,
-    #map3d .nw-earth-pan-down{ bottom:1px; left:50%; margin-left:-10px; }
-    #map3d .nw-earth-look-down span,
-    #map3d .nw-earth-pan-down span{ transform:rotate(225deg); }
-    #map3d .nw-earth-look-left,
-    #map3d .nw-earth-pan-left{ left:1px; top:50%; margin-top:-10px; }
-    #map3d .nw-earth-look-left span,
-    #map3d .nw-earth-pan-left span{ transform:rotate(315deg); }
-
-    #map3d .nw-earth-eye{
-      position:absolute;
-      top:50%;
-      left:50%;
-      z-index:2;
-      width:29px !important;
-      min-width:0 !important;
-      height:24px !important;
-      min-height:0 !important;
-      margin:-12px 0 0 -14.5px;
-      padding:2px !important;
-      border:0 !important;
-      box-sizing:border-box !important;
-      background:transparent;
-      color:#4285c5;
-      cursor:pointer;
-    }
-    #map3d .nw-earth-eye svg{ width:100%; height:100%; overflow:visible; }
-    #map3d .nw-earth-eye path,
-    #map3d .nw-earth-eye circle{ fill:none; stroke:currentColor; stroke-width:3; }
-
-    #map3d .nw-earth-pan{
-      position:relative;
-      flex:0 0 68px;
-      width:68px;
-      height:68px;
-      border:1px solid #d2d2d2;
-      box-sizing:border-box;
-    }
-    #map3d .nw-earth-hand{
-      position:absolute;
-      top:50%;
-      left:50%;
-      width:26px;
-      height:26px;
-      margin:-13px 0 0 -13px;
-      color:#4285c5;
-      pointer-events:none;
-    }
-    #map3d .nw-earth-hand svg{ width:100%; height:100%; }
-    #map3d .nw-earth-hand path{ fill:#fff; stroke:currentColor; stroke-width:2.2; stroke-linejoin:round; stroke-linecap:round; }
-
-    #map3d .nw-earth-control button:hover{
-      filter:brightness(1.08);
-    }
-
-    #map3d .nw-earth-zoom{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      flex:0 0 154px;
-      width:42px;
-      height:154px;
-      margin:0;
-      overflow:visible;
-      border-radius:0;
-      background:transparent;
-      box-shadow:none;
-      box-sizing:border-box;
-    }
-
-    #map3d .nw-earth-zoom-button{
-      z-index:2;
-      width:28px !important;
-      min-width:0 !important;
-      height:30px !important;
-      min-height:0 !important;
-      padding:0;
-      border:1px solid #cfcfcf;
-      background:linear-gradient(#fff,#e9e9e9);
-      color:#4285c5;
-      display:grid !important;
-      place-items:center !important;
-      overflow:hidden !important;
-      font-size:20px !important;
-      font-weight:700 !important;
-      line-height:1 !important;
-      box-shadow:0 1px 3px rgba(0,0,0,.36);
-      cursor:pointer;
-    }
-    #map3d .nw-earth-zoom-button span{
-      display:block;
-      width:100%;
-      line-height:1 !important;
-      text-align:center;
-      transform:translateY(-1px);
-    }
-    #map3d .nw-earth-zoom-in{ border-radius:7px 7px 2px 2px !important; }
-    #map3d .nw-earth-zoom-out{ border-radius:2px 2px 12px 12px !important; }
-
-    #map3d .nw-earth-zoom-track{
-      position:relative;
-      width:30px;
-      height:92px;
-      margin:-1px 0;
-      background:linear-gradient(90deg,transparent 12px,#aaa 12px,#aaa 13px,#f5f5f5 13px,#f5f5f5 17px,#aaa 17px,#aaa 18px,transparent 18px);
-    }
-    #map3d .nw-earth-zoom-range{
-      position:absolute;
-      top:31px;
-      left:-31px;
-      width:92px;
-      height:30px;
-      margin:0;
-      padding:0;
-      transform:rotate(-90deg);
-      transform-origin:center;
-      appearance:none;
-      -webkit-appearance:none;
-      background:transparent;
-      opacity:0;
-      cursor:pointer;
-    }
-    #map3d .nw-earth-zoom-range::-webkit-slider-runnable-track{
-      width:100%;
-      height:6px;
-      border:1px solid #aaa;
-      border-radius:4px;
-      background:#e5e5e5;
-      box-shadow:inset 0 0 0 1px #fff;
-      box-sizing:border-box;
-    }
-    #map3d .nw-earth-zoom-range::-webkit-slider-thumb{
-      -webkit-appearance:none;
-      appearance:none;
-      width:30px;
-      height:14px;
-      margin-top:-5px;
-      border:1px solid #b5b5b5;
-      border-radius:8px;
-      background:linear-gradient(#fff 0 38%,#4285c5 38% 59%,#fff 59% 100%);
-      box-shadow:0 1px 3px rgba(0,0,0,.38);
-    }
-    #map3d .nw-earth-zoom-thumb{
-      position:absolute;
-      z-index:2;
-      top:var(--nw-zoom-top, 72px);
-      left:4px;
-      width:22px;
-      height:12px;
-      border:1px solid #b5b5b5;
-      border-radius:8px;
-      background:#fff;
-      color:#4285c5;
-      display:grid;
-      place-items:center;
-      overflow:hidden;
-      font-family:Arial, sans-serif;
-      font-size:14px;
-      font-weight:900;
-      line-height:1;
-      text-align:center;
-      box-shadow:0 1px 3px rgba(0,0,0,.38);
-      box-sizing:border-box;
-      pointer-events:none;
-      transform:translateY(-50%);
     }
 
     html body .nw-simple-control{
@@ -1553,28 +1189,11 @@
     #map3d .maplibregl-popup-tip{ border-top-color:#0b1220; }
 
     @media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
-      html body #nw3dLauncher{
-        top:max(176px, calc(env(safe-area-inset-top) + 168px));
-        right:max(7px, env(safe-area-inset-right));
-        width:54px;
-        height:54px;
-        grid-template-rows:25px auto;
-        padding:5px 4px 4px !important;
-        border-width:2px;
-        font-size:11px !important;
-      }
-      html body #nw3dLauncher svg{ width:29px; height:19px; }
       html body #nwDefaultNavControl{
         top:max(66px, calc(env(safe-area-inset-top) + 54px));
         right:max(2px, env(safe-area-inset-right));
       }
       #map3dStatus{ display:none !important; }
-      #map3d .nw-earth-control{
-        width:98px;
-        height:342px;
-        transform:scale(.72);
-        transform-origin:top right;
-      }
       html body .nw-simple-control{
         width:80px;
         gap:8px;
@@ -2246,129 +1865,11 @@
       background:rgba(255,255,255,.035);
     }
 
-    .export-picker-head{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      font-size:10px;
-      font-weight:850;
-      color:var(--muted);
-      text-transform:uppercase;
-      letter-spacing:.08em;
-    }
-
-    .export-picker-head{
-      display:none !important;
-    }
-
-    .export-picker-hint{
-      display:none !important;
-    }
-
-    .export-datetime-row{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:8px;
-    }
-
-    .export-datetime-panel{
-      display:grid;
-      gap:7px;
-      padding:10px;
-      border:1px solid var(--line);
-      border-radius:16px;
-      background:rgba(255,255,255,.035);
-      min-width:0;
-    }
-
-    .export-datetime-panel.is-pick-active{
-      border-color:rgba(191,219,254,.55);
-      background:rgba(96,165,250,.075);
-      box-shadow:0 0 0 2px rgba(96,165,250,.11);
-    }
-
-    .export-inline-calendar{
-      display:grid;
-      gap:7px;
-      margin-top:4px;
-      padding:8px;
-      border-radius:15px;
-      border:1px solid rgba(255,255,255,.07);
-      background:rgba(255,255,255,.03);
-    }
-
-    .export-inline-calendar-label{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      color:#eaf0ff;
-      font-size:11px;
-      font-weight:950;
-      letter-spacing:.04em;
-      text-transform:uppercase;
-    }
-
-    .export-inline-calendar-label span:last-child{
-      color:var(--muted);
-      font-size:9px;
-      font-weight:900;
-    }
-
-    .export-pick-mode-panel{
-      display:none !important;
-    }
-
-    .export-datetime-panel .export-calendar-nav{
-      grid-template-columns:30px minmax(0,1fr) 30px;
-      gap:5px;
-    }
-
-    .export-datetime-panel .export-calendar-nav button{
-      min-height:30px;
-      border-radius:11px;
-      font-size:17px;
-    }
-
-    .export-datetime-panel .export-calendar-title{
-      min-height:30px;
-      font-size:12px;
-      border-radius:11px;
-    }
-
-    .export-datetime-panel .export-calendar-weekdays,
-    .export-datetime-panel .export-calendar-grid{
-      gap:4px;
-    }
-
-    .export-datetime-panel .export-calendar-day{
-      min-height:29px;
-      border-radius:9px;
-      font-size:11px;
-    }
-
     @media (max-width:760px){
       .download-modal-card{ width:min(620px, calc(100vw - 32px)); }
-      .export-datetime-row{ grid-template-columns:1fr; }
     }
 
-    .export-datetime-panel.is-pick-active{
-      border-color:rgba(191,219,254,.72);
-      background:linear-gradient(180deg, rgba(96,165,250,.16), rgba(255,255,255,.04));
-      box-shadow:0 0 0 2px rgba(96,165,250,.12), inset 0 1px 0 rgba(255,255,255,.08);
-    }
 
-    .export-pick-mode-panel{
-      display:grid;
-      grid-template-columns:auto minmax(0, 1fr);
-      align-items:center;
-      gap:8px;
-      padding:8px 10px;
-      border-radius:14px;
-      border:1px solid rgba(191,219,254,.14);
-      background:rgba(255,255,255,.035);
-    }
 
     .export-pick-mode-label{
       color:var(--muted);
@@ -2378,36 +1879,6 @@
       text-transform:uppercase;
       white-space:nowrap;
     }
-
-    .export-pick-mode-panel .export-segmented{
-      padding:3px;
-      gap:4px;
-      border-radius:13px;
-    }
-
-    .export-pick-mode-panel .export-segmented button{
-      min-height:32px;
-      padding:0 10px;
-      border-radius:10px;
-      font-size:12px;
-    }
-
-    .export-calendar-day.range-start::before,
-    .export-calendar-day.range-end::before{
-      position:absolute;
-      left:5px;
-      top:4px;
-      z-index:2;
-      font-size:7px;
-      line-height:1;
-      font-weight:950;
-      letter-spacing:.02em;
-      color:#eaf0ff;
-      opacity:.9;
-    }
-
-    .export-calendar-day.range-start::before{content:none;display:none;}
-    .export-calendar-day.range-end::before{content:none;display:none;}
 
     @keyframes export-selected-date-red-blink{
       0%,100%{
@@ -2431,24 +1902,12 @@
       }
     }
 
-    .export-calendar-day.range-start,
-    .export-calendar-day.range-end{
-      animation:export-selected-date-red-blink 1.15s ease-in-out 2;
-    }
 
     .export-picked-date.selected-date-flash{
       animation:export-picked-date-red-flash 1.15s ease-in-out 2;
     }
 
-    .export-calendar-key-swatch.selected-date{
-      background:rgba(248,113,113,.28);
-      border-color:#fecaca;
-      box-shadow:0 0 0 2px rgba(248,113,113,.18), 0 0 14px rgba(248,113,113,.22);
-    }
 
-    .export-calendar-day.next-pick-target{
-      box-shadow:0 0 0 2px rgba(96,165,250,.24), inset 0 1px 0 rgba(255,255,255,.16);
-    }
 
     .export-datetime-title{
       font-size:10px;
@@ -2559,44 +2018,7 @@
       font-weight:950;
     }
 
-    .export-ampm-toggle{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:5px;
-      padding:4px;
-      border:1px solid rgba(255,255,255,.09);
-      border-radius:14px;
-      background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02));
-    }
-
-    .export-ampm-toggle button{
-      min-height:34px;
-      padding:0 10px;
-      border-radius:10px;
-      border:1px solid transparent;
-      background:transparent;
-      color:#dbe8ff;
-      font-size:12px;
-      font-weight:900;
-      letter-spacing:.05em;
-      box-shadow:none;
-    }
-
-    .export-ampm-toggle button:hover:not(:disabled){
-      transform:none;
-      box-shadow:none;
-      background:rgba(255,255,255,.04);
-    }
-
-    .export-ampm-toggle button.active{
-      background:linear-gradient(180deg, rgba(96,165,250,.22), rgba(96,165,250,.12));
-      border-color:rgba(191,219,254,.55);
-      color:#eef6ff;
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
-    }
-
     @media (max-width:720px){
-      .export-datetime-row{ grid-template-columns:1fr; }
       .export-wheel-grid{ grid-template-columns:repeat(4, minmax(0, 1fr)); }
       .export-manual-input{ font-size:24px; min-height:54px; padding:0 18px; }
       .export-data-range{ display:grid; gap:2px; }
@@ -2654,36 +2076,6 @@
       padding-right:2px;
     }
 
-    .export-calendar-nav{display:grid;grid-template-columns:34px minmax(0,1fr) 34px;gap:6px;align-items:center;}
-    .export-calendar-nav button{min-height:32px;padding:0;border-radius:12px;font-size:18px;font-weight:900;}
-    .export-calendar-title{min-height:32px;display:grid;place-items:center;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.04);color:#eaf0ff;font-size:12px;font-weight:900;text-align:center;cursor:pointer;padding:0 10px;}
-    .export-calendar-title:hover{border-color:rgba(191,219,254,.35);background:rgba(255,255,255,.065);}
-    .export-calendar-grid.year-view{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
-    .export-calendar-grid.year-view .export-calendar-day{min-height:46px;font-size:13px;}
-    .export-calendar-weekdays,.export-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;}
-    .export-calendar-weekdays div{text-align:center;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;}
-    .export-calendar-day{min-height:30px;border-radius:10px;border:1px solid transparent;background:transparent;color:transparent;padding:0;font-size:11px;font-weight:900;box-shadow:none;pointer-events:none;}
-    .export-calendar-day.available{color:#dbe8ff;background:rgba(96,165,250,.12);border-color:rgba(96,165,250,.34);pointer-events:auto;}
-    .export-calendar-day.forecast-day{
-      color:#ecfff7;
-      background:linear-gradient(180deg, rgba(34,255,148,.34), rgba(16,185,129,.22));
-      border-color:rgba(52,255,166,.86);
-      box-shadow:0 0 0 1px rgba(52,255,166,.16), inset 0 1px 0 rgba(255,255,255,.16), 0 0 18px rgba(34,255,148,.16);
-    }
-    .export-calendar-day.no-data{position:relative;color:transparent;background:rgba(127,29,29,.08);border-color:rgba(248,113,113,.28);pointer-events:none;opacity:1;}
-    .export-calendar-day.no-data::before,
-    .export-calendar-day.no-data::after{content:"";position:absolute;left:18%;right:18%;top:50%;height:2px;border-radius:999px;background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,.28);}
-    .export-calendar-day.no-data::before{transform:rotate(45deg);}
-    .export-calendar-day.no-data::after{transform:rotate(-45deg);}
-    .export-calendar-day.empty{background:transparent;border-color:transparent;color:transparent;pointer-events:none;}
-    .export-calendar-day.selected{color:#fff;background:linear-gradient(180deg,rgba(96,165,250,.32),rgba(96,165,250,.18));border-color:#bfdbfe;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);}
-    .export-calendar-day.forecast-day.selected{
-      color:#ffffff;
-      background:linear-gradient(180deg, rgba(44,255,160,.50), rgba(8,166,102,.30));
-      border-color:#7cffbf;
-      box-shadow:0 0 0 2px rgba(124,255,191,.34), 0 0 24px rgba(34,255,148,.28), inset 0 2px 0 rgba(255,255,255,.28), inset 0 -9px 18px rgba(0,0,0,.16);
-      transform:translateY(-1px);
-    }
     .export-range-status{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;line-height:1.3;color:var(--muted);}
     .export-range-status span{min-width:0;padding:7px 8px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.035);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .export-range-status strong{color:#eaf0ff;}
@@ -2693,106 +2085,9 @@
     .export-hour-select-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
     .export-hour-select-row label{display:grid;gap:4px;font-size:9px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
     .export-hour-select-row select{min-height:34px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.045);color:var(--text);font-size:12px;font-weight:850;padding:0 10px;}
-    .export-calendar-day.in-range{color:#fff;background:rgba(96,165,250,.20);border-color:rgba(191,219,254,.40);}
-    .export-calendar-day.range-start,.export-calendar-day.range-end{background:linear-gradient(180deg,rgba(96,165,250,.34),rgba(96,165,250,.20));border-color:#bfdbfe;color:#fff;}
-    .export-calendar-day.forecast-day.range-start,
-    .export-calendar-day.forecast-day.range-end{
-      color:#ffffff;
-      background:linear-gradient(180deg, rgba(44,255,160,.54), rgba(8,166,102,.32));
-      border-color:#7cffbf;
-      box-shadow:0 0 0 2px rgba(124,255,191,.34), 0 0 24px rgba(34,255,148,.28), inset 0 2px 0 rgba(255,255,255,.30), inset 0 -10px 20px rgba(0,0,0,.16);
-    }
-    .export-calendar-day.available::after{
-      content:"H";
-      position:absolute;
-      top:3px;
-      right:5px;
-      font-size:7px;
-      line-height:1;
-      font-weight:950;
-      letter-spacing:.02em;
-      color:rgba(219,234,254,.58);
-      pointer-events:none;
-    }
-    .export-calendar-day.forecast-day::after{
-      content:"F";
-      color:#b7ffd7;
-      text-shadow:0 0 8px rgba(34,255,148,.75);
-    }
-    .export-picker-hint{font-size:10.5px;line-height:1.35;color:var(--muted);}
-    .export-calendar-key{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:2px;font-size:10px;font-weight:850;color:var(--muted);line-height:1.25;}
-    .export-calendar-key-item{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
-    .export-calendar-key-swatch{width:18px;height:18px;border-radius:7px;border:1px solid rgba(96,165,250,.34);background:rgba(96,165,250,.12);display:inline-block;}
-    .export-calendar-key-swatch.forecast{border-color:rgba(52,255,166,.86);background:linear-gradient(180deg, rgba(34,255,148,.42), rgba(16,185,129,.24));box-shadow:0 0 14px rgba(34,255,148,.24);}
-    .export-calendar-key-swatch.no-data{position:relative;border-color:rgba(248,113,113,.28);background:rgba(127,29,29,.08);}
-    .export-calendar-key-swatch.no-data::before,
-    .export-calendar-key-swatch.no-data::after{content:"";position:absolute;left:4px;right:4px;top:8px;height:2px;border-radius:999px;background:#ef4444;}
-    .export-calendar-key-swatch.no-data::before{transform:rotate(45deg);}
-    .export-calendar-key-swatch.no-data::after{transform:rotate(-45deg);}
-    .export-picker-hours-title{margin-top:2px;font-size:10px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
-    .export-hour-btn.range-start,.export-hour-btn.range-end{border-color:#bfdbfe;background:rgba(96,165,250,.26);color:#fff;}
-    .export-hour-btn.in-range{border-color:rgba(191,219,254,.36);background:rgba(96,165,250,.20);color:#fff;}
-
-    .export-picker-day{
-      display:grid;
-      gap:6px;
-      padding:8px;
-      border-radius:14px;
-      background:rgba(255,255,255,.035);
-      border:1px solid rgba(255,255,255,.06);
-    }
-
-    .export-picker-day-title{
-      font-size:11px;
-      font-weight:900;
-      color:#eaf0ff;
-      letter-spacing:-.01em;
-    }
-
-    .export-picker-hours{
-      display:grid;
-      grid-template-columns:repeat(4, minmax(0, 1fr));
-      gap:5px;
-    }
-
-    .export-hour-btn{
-      min-height:30px;
-      padding:0 5px;
-      border-radius:10px;
-      font-size:10.5px;
-      font-weight:850;
-      color:#dbe8ff;
-      background:rgba(255,255,255,.045);
-    }
-
-    .export-hour-btn.has-data{
-      border-color:rgba(96,165,250,.42);
-      background:rgba(96,165,250,.12);
-    }
-
-    .export-hour-btn.selected{
-      border-color:#bfdbfe;
-      background:linear-gradient(180deg, rgba(96,165,250,.30), rgba(96,165,250,.18));
-      color:#fff;
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
-    }
-
-    .export-hour-btn:disabled{
-      opacity:.42;
-      cursor:default;
-    }
 
     .export-picker.is-busy{ pointer-events:none; opacity:.62; }
 
-    .export-picker-empty{
-      padding:10px;
-      border-radius:12px;
-      color:var(--muted);
-      font-size:11px;
-      line-height:1.4;
-      background:rgba(255,255,255,.035);
-      border:1px dashed rgba(255,255,255,.14);
-    }
 
     .download-note{
       margin-top:2px;
@@ -3626,7 +2921,6 @@
       backdrop-filter:blur(12px);
       -webkit-backdrop-filter:blur(12px);
       pointer-events:auto;
-      display:none;
       align-items:center;
       justify-content:center;
       gap:10px;
@@ -9914,19 +9208,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       align-items:start;
     }
 
-    .export-calendar-panel{
-      gap:10px;
-      padding:13px;
-      border-radius:18px;
-      background:rgba(255,255,255,.04);
-      border:1px solid rgba(191,219,254,.14);
-    }
 
-    .export-calendar-panel.is-pick-active{
-      border-color:rgba(191,219,254,.36);
-      background:rgba(255,255,255,.05);
-      box-shadow:none;
-    }
 
     .export-picked-date{
       width:100%;
@@ -9972,69 +9254,6 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       text-align-last:center;
     }
 
-    .export-inline-calendar{
-      margin-top:2px;
-      padding:10px;
-      border-radius:16px;
-      background:rgba(255,255,255,.03);
-      border:1px solid rgba(255,255,255,.075);
-    }
-
-    .export-inline-calendar-label{
-      margin-bottom:8px;
-      font-size:12px;
-    }
-
-    .export-inline-calendar-label span:last-child{
-      font-size:10px;
-    }
-
-    .export-calendar-panel .export-calendar-nav{
-      grid-template-columns:34px minmax(0,1fr) 34px;
-      gap:6px;
-      margin-bottom:8px;
-    }
-
-    .export-calendar-panel .export-calendar-nav button{
-      min-height:34px;
-      border-radius:12px;
-      font-size:18px;
-    }
-
-    .export-calendar-panel .export-calendar-title{
-      min-height:34px;
-      font-size:13px;
-      border-radius:12px;
-    }
-
-    .export-calendar-panel .export-calendar-weekdays,
-    .export-calendar-panel .export-calendar-grid{
-      gap:5px;
-    }
-
-    .export-calendar-panel .export-calendar-weekdays div{
-      font-size:10px;
-    }
-
-    .export-calendar-panel .export-calendar-day{
-      min-height:34px;
-      border-radius:11px;
-      font-size:13px;
-      position:relative;
-    }
-
-    .export-calendar-day.range-start::before,
-    .export-calendar-day.range-end::before{
-      left:5px;
-      top:4px;
-      font-size:8px;
-    }
-
-    .export-calendar-key{
-      font-size:11px;
-      gap:12px;
-    }
-
     @media (max-width: 780px){
       #downloadModal .download-modal-card{
         width:min(640px, calc(100vw - 32px));
@@ -10044,67 +9263,9 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
       }
     }
 
-
-    .export-calendar-day.in-range,
-    .export-calendar-day.range-start,
-    .export-calendar-day.range-end,
-    .export-calendar-day.forecast-day.in-range,
-    .export-calendar-day.forecast-day.range-start,
-    .export-calendar-day.forecast-day.range-end{
-      color:#ffffff !important;
-      background:linear-gradient(180deg, rgba(248,113,113,.56), rgba(185,28,28,.34)) !important;
-      border-color:#fecaca !important;
-      box-shadow:0 0 0 1px rgba(248,113,113,.28), 0 0 18px rgba(248,113,113,.18), inset 0 1px 0 rgba(255,255,255,.22) !important;
-    }
-
-    .export-calendar-day.in-range:not(.range-start):not(.range-end){
-      opacity:.96;
-    }
-
-    .export-calendar-day.forecast-day.in-range::after,
-    .export-calendar-day.available.in-range::after{
-      color:rgba(255,255,255,.70) !important;
-      text-shadow:none !important;
-    }
-
-    .export-calendar-day.range-start::before,
-    .export-calendar-day.range-end::before{
-      color:#ffffff !important;
-      text-shadow:none !important;
-    }
-
-    .export-calendar-key-swatch.selected-date{
-      background:linear-gradient(180deg, rgba(248,113,113,.56), rgba(185,28,28,.34)) !important;
-      border-color:#fecaca !important;
-      box-shadow:0 0 0 2px rgba(248,113,113,.18), 0 0 14px rgba(248,113,113,.22) !important;
-    }
-
-
-    .export-calendar-panel .export-manual-input{
-      min-height:54px;
-      font-size:18px;
-      letter-spacing:-.025em;
-      text-align:center;
-      font-weight:900;
-    }
-
-    .export-calendar-panel.is-pick-active .export-manual-input{
-      border-color:rgba(191,219,254,.62);
-      box-shadow:0 0 0 2px rgba(96,165,250,.14), inset 0 1px 0 rgba(255,255,255,.08);
-      background:linear-gradient(180deg, rgba(96,165,250,.16), rgba(255,255,255,.045));
-    }
-
     .export-manual-input.selected-date-flash{
       animation:export-picked-date-red-flash 1.15s ease-in-out 2;
     }
-
-    .export-calendar-day.range-start::before,
-    .export-calendar-day.range-end::before{
-      content:none !important;
-      display:none !important;
-    }
-
-
 
     #rightRail .right-logo-card .right-logo-link{
       display:flex !important;
@@ -10507,12 +9668,6 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
         gap:10px !important;
       }
 
-      .export-calendar-panel,
-      .export-datetime-panel{
-        min-width:0 !important;
-        padding:10px !important;
-        border-radius:17px !important;
-      }
 
       .export-picked-date,
       .export-calendar-panel .export-manual-input,
@@ -10521,45 +9676,6 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
         font-size:16px !important;
         border-radius:15px !important;
         padding:0 12px !important;
-      }
-
-      .export-calendar-panel .export-calendar-nav,
-      .export-datetime-panel .export-calendar-nav{
-        grid-template-columns:44px minmax(0, 1fr) 44px !important;
-        gap:6px !important;
-      }
-
-      .export-calendar-panel .export-calendar-nav button,
-      .export-datetime-panel .export-calendar-nav button{
-        min-height:44px !important;
-        border-radius:14px !important;
-      }
-
-      .export-calendar-title,
-      .export-calendar-panel .export-calendar-title,
-      .export-datetime-panel .export-calendar-title{
-        min-height:44px !important;
-        font-size:14px !important;
-      }
-
-      .export-calendar-weekdays,
-      .export-calendar-grid,
-      .export-calendar-panel .export-calendar-weekdays,
-      .export-calendar-panel .export-calendar-grid{
-        gap:4px !important;
-      }
-
-      .export-calendar-weekdays div,
-      .export-calendar-panel .export-calendar-weekdays div{
-        font-size:9px !important;
-      }
-
-      .export-calendar-day,
-      .export-calendar-panel .export-calendar-day,
-      .export-datetime-panel .export-calendar-day{
-        min-height:clamp(34px, 9vw, 42px) !important;
-        border-radius:10px !important;
-        font-size:12px !important;
       }
 
       .export-wheel-grid{
@@ -10574,10 +9690,6 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
         border-radius:13px !important;
       }
 
-      .export-calendar-key{
-        gap:8px !important;
-        font-size:10px !important;
-      }
 
       .export-range-status{
         grid-template-columns:1fr !important;
@@ -10622,16 +9734,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
         padding:8px !important;
       }
 
-      .export-calendar-day,
-      .export-calendar-panel .export-calendar-day,
-      .export-datetime-panel .export-calendar-day{
-        min-height:32px !important;
-        font-size:11px !important;
-      }
 
-      .export-calendar-key-item{
-        white-space:normal !important;
-      }
     }
 
     @media (max-height: 560px) and (orientation: landscape) and (pointer:coarse) {
@@ -10672,10 +9775,6 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
         gap:8px !important;
       }
 
-      .export-calendar-day,
-      .export-calendar-panel .export-calendar-day{
-        min-height:28px !important;
-      }
     }
 
 
@@ -12514,8 +11613,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
         -webkit-backdrop-filter:none !important;
       }
 
-      body.mobile-optimized #timelineDock,
-      body.mobile-optimized body.observed-mode #timelineDock{
+      body.mobile-optimized #timelineDock{
         position:fixed !important;
         z-index:1700 !important;
         left:50% !important;
@@ -13006,8 +12104,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
         --pj-long-pill-h:118px;
       }
 
-      body.mobile-optimized #timelineDock,
-      body.mobile-optimized body.observed-mode #timelineDock{
+      body.mobile-optimized #timelineDock{
         width:min(78vw, 820px) !important;
         max-width:calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 42px) !important;
         height:var(--pj-long-pill-h) !important;
@@ -13228,8 +12325,7 @@ html.win-compact-ui #timelineDock .timeline-key-swatch{
     @media (orientation:landscape) and (max-height:420px){
       :root{ --pj-long-pill-h:108px; }
 
-      body.mobile-optimized #timelineDock,
-      body.mobile-optimized body.observed-mode #timelineDock{
+      body.mobile-optimized #timelineDock{
         width:min(76vw, 760px) !important;
         grid-template-rows:30px 16px 18px 22px !important;
         gap:3px !important;

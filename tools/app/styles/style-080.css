@@ -1,7 +1,6 @@
 
 /* Keep the existing camera card surface, width and controls in short windows. */
 #webcamPanel[data-viewport-overlay="true"] {
-  position:fixed;
   z-index:10050;
 }
 body.mobile-controls-open #webcamPanel[data-viewport-overlay="true"] {
@@ -12,4 +11,9 @@ body.mobile-controls-open #webcamPanel[data-viewport-overlay="true"] {
   top:0;
   z-index:1;
   background:#121d2d;
+}
+
+/* Keep the expanded compact key above the camera until it closes. */
+body.mobile-legend-open #webcamPanel {
+  z-index:4000;
 }

@@ -7,27 +7,6 @@
       await wait(EXPORT_CAPTURE_DELAY_MS);
     }
 
-    function waitForImageElementReady(img, timeoutMs = 1500) {
-      if (!img || !img.src || img.style.display === "none" || !img.classList.contains("is-visible")) {
-        return Promise.resolve();
-      }
-      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-      return new Promise(resolve => {
-        let settled = false;
-        const done = () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          img.removeEventListener("load", done);
-          img.removeEventListener("error", done);
-          resolve();
-        };
-        const timer = setTimeout(done, timeoutMs);
-        img.addEventListener("load", done, { once: true });
-        img.addEventListener("error", done, { once: true });
-      });
-    }
-
     async function waitForExportChromeReady() {
       function loadLogoSource(img, expectedSrc, assignSource) {
         return new Promise((resolve, reject) => {

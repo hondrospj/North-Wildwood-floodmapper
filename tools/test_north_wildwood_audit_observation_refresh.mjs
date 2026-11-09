@@ -11,7 +11,8 @@ const configSource = fs.readFileSync(path.join(toolDir, 'app/town-config.js'), '
 const configStart = configSource.indexOf('TOWN_CONFIG = {') + 'TOWN_CONFIG = '.length;
 const config = JSON.parse(configSource.slice(configStart, configSource.indexOf('\n};', configStart) + 2));
 const parts = ['00-configuration', '02-data-and-datums', '03-time-series', '04-observation-archives',
-  '06-inundation-catalog', '18-flood-frame-rendering', '19-observed-history', '21-forecast-and-observed-loading'];
+  '06-inundation-catalog', '11-export-selection', '13-export-range', '17-export-encoding',
+  '18-flood-frame-rendering', '19-observed-history', '21-forecast-and-observed-loading'];
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => {
   let resolve, reject;
@@ -228,6 +229,46 @@ function setup(now = '2026-11-02T17:00:00Z', date = '2026-11-02') {
   assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-11-05T05:00:00Z');
   assert.equal(canonical().at(-1).navd88StageFt, -1.815);
   assert.equal(run('getObservedDayRecord(date).peakNAVD88'), 5);
+  cases++;
+}
+
+{
+  const {c, responses, canonical} = setup('2026-11-06T14:35:00Z', '2026-11-06');
+  // Exact USGS readings around the Nov 6 native six-minute peak.
+  responses.push(payload([
+    ['2026-11-06T06:12:00-05:00', 2.65], ['2026-11-06T06:18:00-05:00', 2.66],
+    ['2026-11-06T06:24:00-05:00', 2.67], ['2026-11-06T06:30:00-05:00', 2.66]
+  ]));
+  await c.extendObservedArchiveThroughToday();
+  const peakTime = '2026-11-06T11:24:00.000Z';
+  const quarter = canonical();
+  assert.equal(quarter.length, 96);
+  assert.equal(quarter.some(entry => entry.timeUtc === peakTime), false);
+  const daily = c.buildObservedDailyMaximumSeries('2026-11')[0];
+  assert.equal(daily.timeUtc, peakTime);
+  assert.equal(daily.navd88StageFt, 2.67);
+  assert.equal(daily.observationQuality, 'M');
+  assert.equal(daily.sourceResolutionMinutes, 6);
+  assert.equal(daily.isInterpolatedTimelineFrame, false);
+  assert.equal(daily.hydraulicPhaseCanonical, true);
+
+  const startDate = new Date('2026-11-06T11:15:00Z');
+  const endDate = new Date('2026-11-06T11:30:00Z');
+  c.getDownloadRangeRequest = () => ({startDate, endDate, startMs: +startDate, endMs: +endDate});
+  c.getDownloadFrameLimit = () => 10;
+  c.getDownloadIntervalValue = () => 'daily';
+  const [exported] = c.getDownloadFrameItems('range');
+  assert.equal(exported.entry.timeUtc, daily.timeUtc);
+  assert.equal(exported.entry.navd88StageFt, daily.navd88StageFt);
+  assert.equal(exported.entry.observationQuality, daily.observationQuality);
+  assert.equal(exported.entry.hydraulicPhase, daily.hydraulicPhase);
+  c.getDownloadIntervalValue = () => '15min';
+  assert.equal(c.getDownloadFrameItems('range').some(item => item.entry.timeUtc === peakTime), false);
+  const snapshot = new Date(peakTime);
+  c.getDownloadRangeRequest = () => ({startDate:snapshot,endDate:snapshot,startMs:+snapshot,endMs:+snapshot});
+  c.getDownloadFormatValue = () => 'png';
+  c.getDownloadIntervalValue = () => 'hourly';
+  assert.equal(c.getDownloadFrameItems('range')[0].entry.timeUtc,peakTime);
   cases++;
 }
 

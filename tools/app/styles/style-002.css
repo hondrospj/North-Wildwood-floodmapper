@@ -1669,7 +1669,7 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
   html body[data-floodmapper-unified] #mobileRailMount>#downloadCard {order:10!important;}
   html body[data-floodmapper-unified] #mobileRailMount>#townAddressCard {order:20!important;}
   html body[data-floodmapper-unified] #mobileRailMount>:is(#mapperTutorialBtn,#avalonTourBtn) {order:30!important;}
-  html body[data-floodmapper-unified] #nwwMobileControlHeader {position:sticky!important;top:0!important;order:0!important;z-index:10!important;display:block!important;background:#101827!important;padding:14px 0 10px!important;flex:0 0 auto!important;}
+  html body[data-floodmapper-unified] #nwwMobileControlHeader {position:sticky!important;top:0!important;order:0!important;z-index:40!important;display:block!important;background:#101827!important;padding:14px 0 10px!important;flex:0 0 auto!important;}
   html body[data-floodmapper-unified] #leftPanel>#nwwMobileControlHeader .nww-drawer-heading {padding-right:48px!important;}
   html body[data-floodmapper-unified] #mobileControlsClose {position:fixed!important;top:calc(var(--cm-top,8px) + 10px)!important;right:calc(var(--cm-right,8px) + 10px)!important;left:auto!important;bottom:auto!important;width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important;z-index:10020!important;}
   html body[data-floodmapper-unified] #leftPanel[data-nww-section="forecast"] [data-nww-group]:not([data-nww-group="forecast"]),html body[data-floodmapper-unified] #leftPanel[data-nww-section="map"] [data-nww-group]:not([data-nww-group="map"]),html body[data-floodmapper-unified] #leftPanel[data-nww-section="tools"] [data-nww-group]:not([data-nww-group="tools"]) {display:none!important;}

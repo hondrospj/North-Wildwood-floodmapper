@@ -5,12 +5,10 @@ values are never bias-corrected by a cross-station discrepancy check.
 """
 from __future__ import annotations
 
-import calendar
 import hashlib
-import json
 import math
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -61,7 +59,10 @@ def analytical_samples(payload: dict, *, require_single_station: bool = False):
     stations = set()
     for day in payload.get("days", []):
         for index, encoded in enumerate(day.get("v", [])):
-            if encoded is None or sample_quality(day, index) not in ANALYTICAL_QUALITY_CODES:
+            if encoded is None:
+                continue
+            quality = sample_quality(day, index)
+            if quality not in ANALYTICAL_QUALITY_CODES:
                 continue
             if isinstance(encoded, bool) or not isinstance(encoded, (int, float)) or not math.isfinite(encoded):
                 continue
@@ -73,9 +74,9 @@ def analytical_samples(payload: dict, *, require_single_station: bool = False):
             if station not in {"N", "S"}:
                 raise ValueError("Qualified sample has an unknown station")
             span = spans[index]
-            if sample_quality(day, index) == "I" and (span is None or not 0 < span <= MAX_INTERPOLATION_GAP_SECONDS):
+            if quality == "I" and (span is None or not 0 < span <= MAX_INTERPOLATION_GAP_SECONDS):
                 raise ValueError("Interpolated sample exceeds the analytical gap limit")
-            if sample_quality(day, index) == "M" and span != 0:
+            if quality == "M" and span != 0:
                 raise ValueError("Measured sample has an invalid interpolation span")
             stations.add(station)
             rows.append((int(day["u"]) + index * 900, encoded / 100.0, station))

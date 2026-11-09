@@ -12,8 +12,6 @@
         if (observedCompact) mergeObservedArchiveIndex(observedCompact, "stone-harbor");
         observedDaysCache = null;
         observedMonthKeys = [];
-        observedFlatHours = [];
-        observedHourIndexByDateHour = new Map();
         // Keep the rendered flood ranking selectable while the archive loads.
         if (observedData) {
           await loadObserved();
@@ -151,8 +149,6 @@
       observedDaysCache = null;
       clearExportAvailabilityCache();
       observedMonthKeys = [];
-      observedFlatHours = [];
-      observedHourIndexByDateHour = new Map();
       topTideEvents = [];
       currentDataMode = "forecast";
       currentViewType = "forecast";
@@ -248,8 +244,7 @@
       const navigationIndex = getTimelineNavigationIndex();
       const nextIndex = navigationIndex + delta;
       if (nextIndex >= 0 && nextIndex < currentSeriesHours.length) {
-        await renderHour(nextIndex);
-        return;
+        return renderHour(nextIndex);
       }
 
       if (currentViewType === "observed-day" && selectedObservedDate) {
@@ -259,18 +254,14 @@
           : selectedObservedDate;
         const neighborDate = getNeighborObservedDate(displayedDate, delta > 0 ? 1 : -1);
         if (neighborDate) {
-          const wasPlaying = Boolean(playTimer);
-          await loadObservedDay(neighborDate, !dailyMaximum && delta > 0 ? 0 : null, null, { preservePlayback: wasPlaying });
-          if (!dailyMaximum && delta < 0 && currentSeriesHours.length) {
-            await renderHour(currentSeriesHours.length - 1);
-          }
-          if (delta > 0 && wasPlaying) {
-            playbackObservedDaysAdvanced += 1;
-            if (playbackObservedDaysAdvanced >= PLAYBACK_DAY_CONFIRMATION_INTERVAL) {
-              pausePlaybackForDayConfirmation();
-            }
-          }
-          return;
+          const playback = playTimer ? playbackGeneration : null;
+          const load = loadObservedDay(neighborDate, null, null, {
+            preservePlayback: playback !== null, dayStep: delta
+          });
+          const generation = selectionGeneration;
+          const loaded = await load;
+          return loaded !== false && generation === selectionGeneration && currentViewType === "observed-day" &&
+            selectedObservedDate === neighborDate;
         }
       }
 
@@ -282,7 +273,21 @@
     }
 
     async function stepPlaybackForward() {
-      await stepSeriesBy(1);
+      const generation = playbackGeneration;
+      const previousDate = currentViewType === "observed-day"
+        ? currentSeriesHours[currentHourIndex]?.observedDate || selectedObservedDate : null;
+      const advanced = await stepSeriesBy(1);
+      if (!playTimer || generation !== playbackGeneration) return;
+      if (!currentSeriesHours.length) {
+        stopPlayback();
+        return;
+      }
+      if (advanced === false || !previousDate || currentViewType !== "observed-day") return;
+      const nextDate = currentSeriesHours[currentHourIndex]?.observedDate || selectedObservedDate;
+      if (nextDate && nextDate > previousDate) {
+        playbackObservedDaysAdvanced += 1;
+        if (playbackObservedDaysAdvanced >= PLAYBACK_DAY_CONFIRMATION_INTERVAL) pausePlaybackForDayConfirmation();
+      }
     }
 
     function getPlaybackFrameDurationMs() {

@@ -111,7 +111,7 @@ TOWN_CONFIG = {
     "cacheVersions": {
       "depth": "20260822-mask-stabilizer-v40",
       "dynamic": "20260822-mask-stabilizer-v40",
-      "hydraulic": "20260822-mask-stabilizer-v40"
+      "hydraulic": "20261108-route-9a0fc2a74109"
     },
     "modelKind": "phase-aware developed-land conditional connectivity",
     "phaseInvariant": false,
@@ -181,7 +181,7 @@ TOWN_CONFIG = {
   "parcels": {
     "boundaryPngPath": "./assets/parcel-history-v2/NorthWildwoodParcelBoundaries.png?v=20260802-red-parcels-v1",
     "geojsonPath": "./assets/parcel-history-v2/NorthWildwoodParcels.geojson?v=868d0bc815720158",
-    "areaStagesPath": "./assets/parcel-history-v2/NorthWildwoodParcelAreaStages.json?v=20261107",
+    "areaStagesPath": "./assets/parcel-history-v2/NorthWildwoodParcelAreaStages.json?v=20261108-route-9a0fc2a74109",
     "houseAlertCdfPath": "./assets/parcel-history-v2/NorthWildwoodHouseAlertCDF.json?v=20260816-nsi-2026-floor-v1"
   },
   "structures": {
@@ -276,8 +276,14 @@ applyTownConfig(TOWN_CONFIG);
 async function preloadNorthWildwoodExperience(mainPromise) {
   // The initial 2D flood map is sufficient to make the app usable. The 3D
   // launcher owns runtime, terrain, and building loading when selected.
-  await Promise.allSettled([mainPromise]);
   if (!window.floodmapperMapDependenciesReady) return;
+  try {
+    await mainPromise;
+  } catch (error) {
+    console.error(error);
+    window.dispatchEvent(new Event('nww:map-dependency-error'));
+    return;
+  }
   document.body.dataset.sitePreload = "complete";
   document.body.dataset.sitePreloadBlockingPolicy = "initial-flood-renderer-3d-on-demand";
   document.body.dataset.sitePreloadAvoidedBytes = "3d-observed-parcels-nsi-export-libraries";
@@ -287,9 +293,4 @@ async function preloadNorthWildwoodExperience(mainPromise) {
 
 window.floodmapperMapDependenciesReady = Boolean(window.L && typeof L.map === 'function');
 if (!window.floodmapperMapDependenciesReady) window.dispatchEvent(new Event('nww:map-dependency-error'));
-const northWildwoodMainPromise = (window.floodmapperMapDependenciesReady ? main() : Promise.resolve(null)).catch(err => {
-  console.error(err);
-  toast(err.message);
-  return null;
-});
-preloadNorthWildwoodExperience(northWildwoodMainPromise);
+preloadNorthWildwoodExperience(window.floodmapperMapDependenciesReady ? main() : null);

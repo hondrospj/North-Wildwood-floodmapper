@@ -31,6 +31,10 @@ try {
   };
   await check('A short primary click activates once',()=>page.locator('#playBtn').click({delay:20}));
   await check('A held primary click activates once',()=>page.locator('#playBtn').click({delay:400}));
+  // The native WebKit menu consumes subsequent test-driver mouse input.
+  await page.locator('#playBtn').evaluate(button => {
+    button.addEventListener('contextmenu', event => event.preventDefault(), {once:true});
+  });
   for(const button of ['right','middle'])await check(`${button} click does not play`,()=>page.locator('#playBtn').click({button}),0);
   await check('Space activates once on release',async()=>{
     await page.locator('#playBtn').focus();await page.keyboard.down('Space');

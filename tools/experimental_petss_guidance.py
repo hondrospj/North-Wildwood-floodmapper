@@ -33,7 +33,10 @@ MAX_MODEL_LEAD_HOURS = 72.0
 def utc(value):
     if not isinstance(value, str):
         raise ValueError("Expected UTC timestamp")
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("Expected an explicit timestamp offset")
+    return parsed.astimezone(timezone.utc)
 
 
 def finite(value):
@@ -151,14 +154,17 @@ def build_root(data):
             continue
         time_key = "sourceTimeUtc" if adjusted else "timeUtc"
         level_key = "rawPetssTwlMllwFt" if adjusted else "twlMllwFt"
-        lower_by_time = {r.get(time_key): finite(r.get(level_key, r.get("mllwStageFt"))) for r in low_hours}
+        def source_level(row):
+            return finite(row.get(level_key) if adjusted else row.get(level_key, row.get("mllwStageFt")))
+
+        lower_by_time = {row.get(time_key): source_level(row) for row in low_hours}
         hours = []
         for row in mean_hours:
             display_time = row.get("timeUtc")
             source_time = row.get(time_key)
             if not display_time or not source_time:
                 continue
-            mean = finite(row.get(level_key, row.get("mllwStageFt")))
+            mean = source_level(row)
             lower10 = lower_by_time.get(source_time)
             if adjusted and (mean is None or lower10 is None):
                 # Never silently mix a locally shifted stage with the raw tide.

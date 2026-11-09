@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "model/src"))
 import cache_contract as cache
 import publish_bunny as publisher
+from output_replacement import recover_directory
 import run_pipeline as pipeline
 import validate_products as validator
 
@@ -42,7 +43,8 @@ def record(root, path):
 
 def make_fixture(root):
     config = copy.deepcopy(ORIGINAL)
-    for name in ("prepare_terrain.py", "run_anuga.py", "render_physics.py", "frame_alignment.py", "validate_products.py", "cache_contract.py"):
+    for name in ("prepare_terrain.py", "run_anuga.py", "render_physics.py", "frame_alignment.py", "validate_products.py",
+                 "output_replacement.py", "cache_contract.py"):
         target = root / "model/src" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "model/src" / name, target)
@@ -119,7 +121,7 @@ def main_body(name, root, config_path):
     ns = dict(argparse=argparse, Path=Path, ROOT=root, DEFAULT_CONFIG=config_path,
               json=json, np=np, math=math, shutil=shutil,
               simulation_identity=cache.simulation_identity, render_identity=cache.render_identity,
-              identity_matches=cache.identity_matches, anuga=None)
+              identity_matches=cache.identity_matches, recover_directory=recover_directory, anuga=None)
     exec(compile(ast.Module(body=[main], type_ignores=[]), name, "exec"), ns)
     return ns["main"]
 

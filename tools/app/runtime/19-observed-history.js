@@ -1,68 +1,3 @@
-    function observedDateHourKey(dateStr, hourIndex) {
-      const h = Number(hourIndex);
-      if (!dateStr || !Number.isInteger(h) || h < 0 || h > 23) return null;
-      return `${dateStr}|${pad2(h)}`;
-    }
-
-    function getStoredLocalDateHour(entry) {
-      const raw = String(entry?.displayTimeEST || entry?.timeEST || entry?.timeEst || "");
-      const match = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):/);
-      if (match) {
-        const hour = Number(match[2]);
-        if (Number.isInteger(hour) && hour >= 0 && hour <= 23) {
-          return { dateStr: match[1], hourIndex: hour };
-        }
-      }
-      const d = getEntryESTDate(entry);
-      const parts = d ? getNyParts(d) : null;
-      if (!parts) return null;
-      const hour = Number(parts.hour24);
-      if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
-      return { dateStr: `${parts.year}-${parts.month}-${parts.day}`, hourIndex: hour };
-    }
-
-    function putObservedArchiveHour(dateStr, hourIndex, entry, score, sourceIndex = null) {
-      const key = observedDateHourKey(dateStr, hourIndex);
-      if (!key || !Number.isFinite(getStageValue(entry))) return;
-      const existing = observedHourIndexByDateHour.get(key);
-      if (!existing || score > existing.score) {
-        observedHourIndexByDateHour.set(key, { entry, score, sourceIndex });
-      }
-    }
-
-    function rebuildObservedHourLookup() {
-      observedHourIndexByDateHour = new Map();
-      const rawDays = Array.isArray(observedData?.days) ? observedData.days : [];
-      rawDays.forEach(day => {
-        const dateStr = String(day?.date || "");
-        const hours = Array.isArray(day?.hours) ? day.hours : [];
-        const sourceResolutionMinutes = detectSeriesResolutionMinutes(hours);
-        const fullArchiveDay = hours.length >= 20 && (!sourceResolutionMinutes || sourceResolutionMinutes >= 45);
-        hours.forEach((entry, idx) => {
-          if (!Number.isFinite(getStageValue(entry))) return;
-
-          const local = getStoredLocalDateHour(entry);
-          if (local) {
-            putObservedArchiveHour(local.dateStr, local.hourIndex, entry, 300, idx);
-          }
-
-          if (fullArchiveDay && dateStr && idx >= 0 && idx <= 23) {
-            putObservedArchiveHour(dateStr, idx, entry, 220, idx);
-          }
-
-          const storedHour = getStoredEntryHourIndex(entry);
-          if (dateStr && storedHour != null) {
-            putObservedArchiveHour(dateStr, storedHour, entry, 180, idx);
-          }
-        });
-      });
-    }
-
-    function getObservedArchiveEntryByDateHour(dateStr, hourIndex) {
-      const key = observedDateHourKey(dateStr, hourIndex);
-      return key ? (observedHourIndexByDateHour.get(key) || null) : null;
-    }
-
     function scoreObservedDayRecord(day) {
       const hours = Array.isArray(day?.hours) ? day.hours : [];
       let validStages = 0;
@@ -252,32 +187,30 @@ function formatSelectedObservedDate(dateStr) {
       const raw = String(value || "").trim();
       if (!raw) return null;
 
+      const dateKey = (year, month, day) => {
+        const key = `${String(year).padStart(4, "0")}-${pad2(month)}-${pad2(day)}`;
+        const date = new Date(key + "T00:00:00Z");
+        return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === key ? key : null;
+      };
       let match = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-      if (match) {
-        const y = Number(match[1]);
-        const m = Number(match[2]);
-        const d = Number(match[3]);
-        if (m >= 1 && m <= 12 && d >= 1 && d <= 31) return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      }
+      if (match) return dateKey(match[1], match[2], match[3]);
 
       match = raw.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
       if (match) {
-        const m = Number(match[1]);
-        const d = Number(match[2]);
         let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());
         if (y < 100) y += 2000;
-        if (m >= 1 && m <= 12 && d >= 1 && d <= 31) return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        return dateKey(y, match[1], match[2]);
       }
 
-      const parsed = new Date(raw);
-      if (!Number.isNaN(parsed.getTime())) {
-        const y = parsed.getFullYear();
-        const m = parsed.getMonth() + 1;
-        const d = parsed.getDate();
-        return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      }
-
-      return null;
+      const monthFirst = raw.match(/^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/i);
+      const dayFirst = raw.match(/^(\d{1,2})\s+([a-z]+)\.?,?\s+(\d{4})$/i);
+      if (!monthFirst && !dayFirst) return null;
+      const [, monthText, day, year] = monthFirst || [null, dayFirst[2], dayFirst[1], dayFirst[3]];
+      const monthNames = ["january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december"];
+      const name = monthText.toLowerCase().replace(/^sept$/, "sep");
+      const month = monthNames.findIndex(full => full === name || full.slice(0, 3) === name) + 1;
+      return month ? dateKey(year, month, day) : null;
     }
 
     async function submitTypedObservedDate() {
@@ -295,35 +228,21 @@ function formatSelectedObservedDate(dateStr) {
         toast(`No observed data available for ${formatSelectedObservedDate(parsed)}.`);
         return;
       }
-      await loadObservedDay(parsed);
-      input.blur();
-    }
-
-    function buildObservedFlatHours() {
-      const flat = [];
-      getObservedDays().forEach(day => {
-        const hours = getObservedSourceHoursForDay(day);
-        const sourceResolutionMinutes = detectSeriesResolutionMinutes(hours);
-        const fullArchiveDay = hours.length >= 20 && (!sourceResolutionMinutes || sourceResolutionMinutes >= 45);
-        hours.forEach((hour, idx) => {
-          const safeHour = fullArchiveDay && idx >= 0 && idx <= 23
-            ? idx
-            : (getStoredEntryHourIndex(hour) ?? idx);
-          flat.push({
-            ...hour,
-            observedDate: day.date,
-            displayTimeEST: fullArchiveDay && safeHour >= 0 && safeHour <= 23
-              ? `${day.date}T${pad2(safeHour)}:00`
-              : (hour.displayTimeEST || hour.timeEST || hour.timeEst),
-            hourIndex: safeHour,
-            classification: day.classification || "none",
-            peakNAVD88: day.peakNAVD88,
-            sourceHourIndex: idx,
-            absoluteIndex: flat.length
-          });
-        });
-      });
-      return flat;
+      const pending = submitTypedObservedDate.pending;
+      if (pending?.date === parsed && pending.generation === selectionGeneration) return;
+      const request = { date: parsed };
+      submitTypedObservedDate.pending = request;
+      try {
+        const load = loadObservedDay(parsed);
+        request.generation = selectionGeneration;
+        const loaded = await load;
+        if (loaded === false || request.generation !== selectionGeneration || selectedObservedDate !== parsed ||
+            parseTypedObservedDate(input.value) !== parsed) return;
+        input.value = formatSelectedObservedDate(parsed);
+        input.blur();
+      } finally {
+        if (submitTypedObservedDate.pending === request) submitTypedObservedDate.pending = null;
+      }
     }
 
     function entryTimeMs(entry) {
@@ -352,9 +271,19 @@ function formatSelectedObservedDate(dateStr) {
       const height = Number(item.height_ft ?? item.heightFt ?? item.navd88 ?? item.NAVD88 ?? item.stage_ft ?? item.stageFt);
       const date = String(item.date || item.crest_date || item.crestDate || "").slice(0, 10);
       if (!Number.isFinite(height) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-      const displayDate = String(item.display_date || item.displayDate || formatTopTideDateLabelFromDateKey(date));
-      const rawTime = String(item.time_est || item.timeEST || item.crest_time || item.crestTime || "").trim();
-      const time = /^\d{2}:\d{2}$/.test(rawTime) ? rawTime : "12:00";
+      const standardTime = item.time_est || item.timeEST;
+      const rawTime = String(standardTime || item.crest_time || item.crestTime || "").trim();
+      // NWIS peak times are reported in local standard time, even in summer.
+      let crestDate = null;
+      if (/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(rawTime)) {
+        const stamp = `${date}T${rawTime}`;
+        crestDate = standardTime ? new Date(`${stamp}:00-05:00`) : parseStoredLocalNyToDate(stamp);
+      }
+      const crestTimeKnown = Number.isFinite(crestDate?.getTime());
+      const localTime = crestTimeKnown ? formatNyLocalIso(crestDate) : `${date}T12:00`;
+      const observedDate = localTime.slice(0, 10);
+      const displayDate = String((observedDate === date && (item.display_date || item.displayDate))
+        || formatTopTideDateLabelFromDateKey(observedDate));
       const sourceArea = String(item.source_area || item.sourceArea || "historical");
       const sourceSite = String(item.site_no || item.siteNo || "");
       const sourceStation = String(item.station_name || item.stationName || "");
@@ -362,14 +291,15 @@ function formatSelectedObservedDate(dateStr) {
 
       return {
         navd88StageFt: height,
-        observedDate: date,
-        displayTimeEST: `${date}T${time}`,
-        timeEST: `${date}T${time}`,
+        observedDate,
+        displayTimeEST: localTime,
+        timeEST: localTime,
+        ...(crestTimeKnown ? { timeUtc: crestDate.toISOString() } : {}),
         topTideDateOnly: true,
         topTideDisplayDate: displayDate,
         topTideSource: "historical",
         topTideSourceIndex: idx,
-        crestTimeKnown: /^\d{2}:\d{2}$/.test(rawTime),
+        crestTimeKnown,
         sourceArea,
         sourceSite,
         sourceStation,
@@ -546,6 +476,11 @@ function formatSelectedObservedDate(dateStr) {
       if (!cloned.length) return cloned;
       const officialStage = getStageValue(crestEntry);
       if (!Number.isFinite(officialStage)) return cloned;
+      // Explicit calibrated replays already have their own fitted time and shape.
+      // Their published maximum is distinct from the agency's recorded instant.
+      if (cloned.some(entry => entry.stormReplay?.crestStationId === crestEntry.sourceSite &&
+          Number(entry.stormReplay?.targetNavd88Ft) === officialStage &&
+          getStageValue(entry) === officialStage)) return cloned;
       const targetIndex = crestEntry?.crestTimeKnown
         ? findClosestEntryIndex(cloned, crestEntry)
         : getPeakHourIndex(cloned);
@@ -561,6 +496,11 @@ function formatSelectedObservedDate(dateStr) {
         officialCrestSourceSite: crestEntry.sourceSite,
         sourceStationShort: crestEntry.sourceStationShort,
         observationQuality: "C",
+        isMissingObservedHour: false,
+        isMissingTimelineFrame: false,
+        isMeasuredQuarterHourArchive: false,
+        isInterpolatedTimelineFrame: false,
+        interpolationSpanSeconds: null,
         crestTimeEstimated: !crestEntry.crestTimeKnown,
         isOfficialCrestFrame: true
       };
@@ -653,8 +593,9 @@ function formatSelectedObservedDate(dateStr) {
           const dailyEventIndex = replayable && getTimelineIntervalMinutes() === 1440
             ? series.findIndex(item => item?.observedDate === dateKey)
             : -1;
+          const useRecordedCrestTime = entry.crestTimeKnown && !canonicalSeries.some(item => item.stormReplay);
           const peakLocalIndex = replayable
-            ? (dailyEventIndex >= 0 ? dailyEventIndex : (entry.crestTimeKnown ? findClosestEntryIndex(series, entry) : getPeakHourIndex(series)))
+            ? (dailyEventIndex >= 0 ? dailyEventIndex : (useRecordedCrestTime ? findClosestEntryIndex(series, entry) : getPeakHourIndex(series)))
             : 0;
           return {
             entry,
@@ -741,10 +682,12 @@ function formatSelectedObservedDate(dateStr) {
       }
       btn.setAttribute("aria-label", `#${event.rank} ${event.title}, ${stage}`);
       btn.addEventListener("click", () => {
+        const closesDrawer = btn.closest("#topTidesModalList") && document.body.classList.contains("mobile-controls-open");
+        // Close the parent before restoring focus from the child, so the
+        // modal cannot return focus to a drawer that is about to disappear.
+        if (closesDrawer) setMobileControlsOpen(false);
         setTopTidesModalOpen(false);
-        if (btn.closest("#topTidesModalList") && document.body.classList.contains("mobile-controls-open")) {
-          setMobileControlsOpen(false);
-        }
+        if (closesDrawer) document.getElementById("mobileControlsToggle")?.focus({ preventScroll: true });
         loadTopTideEvent(idx).catch(err => toast(err.message));
       });
       return btn;

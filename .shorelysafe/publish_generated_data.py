@@ -2,10 +2,7 @@
 """Refresh approved data files while retaining every currently deployed UI blob."""
 import argparse,hashlib,json,os,re,subprocess,urllib.error,urllib.request
 from pathlib import Path
-DATA_PATHS={
- 'flooddashboard':('data/petss_forecast.csv','data/petss_forecast.json','data/petss_meta.json','data/peaks_navd88.json','data/petss_station_debug.txt'),
- 'floodmapper':('forecast.json','forecasts.json','observed.json','observedoverflow.json','toptides.json','data/experimental_petss_guidance.json'),
-}
+
 def request(site,app,token,endpoint,method='GET',value=None,raw=False):
  url=site.rstrip('/')+'/wp-json/shorelysafe/v1/apps/'+app+'/'+endpoint
  body=value if raw else (json.dumps(value).encode() if value is not None else None)

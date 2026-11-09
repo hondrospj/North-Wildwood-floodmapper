@@ -83,6 +83,52 @@ for (const scalable of [false, true]) for (const [beforeZoom, fittedZoom] of [[9
     'Local street names follow the selected camera alongside vector route shields');
 }
 
+// A cold export has no use for a hidden road renderer. Mount it once when
+// the fitted camera and current preference make road labels visible.
+{
+  let enabled = false, zoom = 12, mounts = 0, opacity = null, localEnabled = null;
+  const pane = {style:{}, classList:{toggle:noop}};
+  const map = {createPane:noop, getPane:()=>pane, getZoom:()=>zoom};
+  const roadLayer = {
+    addTo: target => {assert.equal(target, map); mounts++;},
+    setOpacity: value => {opacity = value;},
+    setExportUnit: noop,
+  };
+  const ctx = context('ensureExportMap', {
+    exportMap:null, exportBasemapColorLayer:null, exportRoadsLayer:null, exportSatelliteLayer:null,
+    L:{map:()=>map, tileLayer:()=>({})}, makeEsriBuildingBasemapLayer:()=>null,
+    useExportFallbackBasemap:noop, ESRI_WORLD_IMAGERY_URL:'imagery', ROAD_LABELS_URL:'roads', ROAD_LABEL_ZOOM:10,
+    createRoadLabelLayer:()=>roadLayer,
+    updateExportSatelliteLayer:noop, updateExportBuildingsLayer:noop, hasValidExportBoundaryGeometry:()=>false,
+    fitExportMapToSelectedExtent:noop, exportUsesScalableRoadLabels:()=>true,
+    document:{body:{}, getElementById:()=>({classList:{contains:()=>enabled}})},
+    window:{NORTH_WILDWOOD_EXPORT_ROADS:{redraw:(_, options)=>{localEnabled = options.enabled;}}},
+    getComputedStyle:()=>({fontFamily:'Inter'}), getExportAspectConfig:()=>({width:1080,height:1080}),
+    getDownloadExtentValue:()=> 'town',
+  });
+  assert.equal(ctx.ensureExportMap(), map);
+  assert.equal(mounts, 0, 'A cold map must not mount a disabled road renderer');
+  vm.runInContext(extract('mountExportRoadLayer'), ctx);
+  vm.runInContext(extract('updateExportRoadLayerAppearance'), ctx);
+  ctx.updateExportRoadLayerAppearance();
+  enabled = true;
+  zoom = 9;
+  ctx.updateExportRoadLayerAppearance();
+  assert.equal(mounts, 0, 'An extent below the road-label threshold needs no renderer');
+  zoom = 12;
+  ctx.updateExportRoadLayerAppearance();
+  ctx.updateExportRoadLayerAppearance();
+  assert.equal(mounts, 1);
+  assert.equal(ctx.exportRoadsLayer, roadLayer);
+  assert.equal(opacity, 0.98);
+  assert.equal(localEnabled, true);
+  enabled = false;
+  ctx.updateExportRoadLayerAppearance();
+  assert.equal(mounts, 1, 'Keep the existing renderer for subsequent frames and retries');
+  assert.equal(opacity, 0);
+  assert.equal(localEnabled, false);
+}
+
 // Exercise cached synchronous image loads, image errors, and failed preloads.
 for (const outcome of ['cached', 'error', 'preload-error']) {
   const handlers = new Map();

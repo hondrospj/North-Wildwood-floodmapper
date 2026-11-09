@@ -34,7 +34,7 @@ def encode(source, destinations):
             pixels = sha256(rgba.tobytes()).digest()
             size = rgba.size
             rgba.save(temporary, 'WEBP', lossless=True, exact=True, quality=100, method=4)
-        if pixel_signature(temporary) != (size, pixels):
+        if pixel_signature(temporary, expected_format='WEBP') != (size, pixels):
             raise RuntimeError(f'WebP pixel verification failed: {source}')
         os.replace(temporary, output)
     finally:
@@ -44,8 +44,10 @@ def encode(source, destinations):
     return len(destinations)
 
 
-def pixel_signature(path):
+def pixel_signature(path, expected_format=None):
     with Image.open(path) as original:
+        if expected_format is not None and original.format != expected_format:
+            raise ValueError(f'Expected {expected_format} image: {path}')
         rgba = original.convert('RGBA')
         return rgba.size, sha256(rgba.tobytes()).digest()
 
@@ -65,10 +67,10 @@ def main():
         matches = False
         if target.exists():
             try:
-                target_hash = digest(target)
-                if target_hash not in signatures:
-                    signatures[target_hash] = pixel_signature(target)
-                matches = signatures[source_hash] == signatures[target_hash]
+                target_key = ('WEBP', digest(target))
+                if target_key not in signatures:
+                    signatures[target_key] = pixel_signature(target, expected_format='WEBP')
+                matches = signatures[source_hash] == signatures[target_key]
             except (OSError, ValueError):
                 pass  # A damaged companion is rebuilt from its authoritative PNG.
         if not matches:

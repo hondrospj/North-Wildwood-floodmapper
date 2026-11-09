@@ -112,11 +112,16 @@ assert.ok(layoutSource, 'The actual popup layout normalization must be present')
 const normalizeLayout = new Function('env', `with(env) { ${layoutSource}\n syncGlPopupLayout(); }`);
 for (const [compact, space] of [[true, 500], [false, 500], [false, 300]]) {
   const attributes = new Map();
-  const close = { setAttribute: (name, value) => attributes.set(name, value) };
+  const close = {
+    setAttribute: (name, value) => attributes.set(name, value),
+    closest: () => null,
+    focus() { env.document.activeElement = this; }
+  };
   const content = { firstElementChild: null, prepend(node) { this.firstElementChild = node; } };
   const mapContainer = { appendChild(node) { node.parentElement = this; } };
-  const body = { appendChild(node) { node.parentElement = this; } };
-  const element = { parentElement: mapContainer, classList: { toggle() {} }, querySelector(selector) {
+  const body = { appendChild(node) { node.parentElement = this; env.document.activeElement = body; } };
+  const element = { parentElement: mapContainer, contains: target => target === close,
+    classList: { contains() { return false; }, toggle() {} }, querySelector(selector) {
     if (selector === '.maplibregl-popup-content') return content;
     if (selector === '.maplibregl-popup-close-button') return close;
     if (selector.startsWith('.building-info-card,')) return {};
@@ -125,7 +130,7 @@ for (const [compact, space] of [[true, 500], [false, 500], [false, 300]]) {
   const env = {
     glPopup: { getElement: () => element }, glMap: { getContainer: () => mapContainer },
     document: {
-      body,
+      body, activeElement: close,
       getElementById: id => ({
         getBoundingClientRect: () => id === 'leftPanel' ? { right: 300 } : { left: 300 + space, width: 92 },
       }),
@@ -136,6 +141,7 @@ for (const [compact, space] of [[true, 500], [false, 500], [false, 300]]) {
   assert.equal(attributes.get('aria-label'), 'Close popup', 'Every recreated close needs its accessible name in both layouts');
   const centered = compact || space === 300;
   assert.equal(element.parentElement, centered ? body : mapContainer);
+  assert.equal(env.document.activeElement, close, 'Reparenting preserves the focused Close control');
   if (centered) assert.equal(content.firstElementChild, close, 'Centered close remains before the scrollable content');
   checks++;
 }

@@ -78,10 +78,12 @@ if (process.env.NWW_DEEP_CASE !== 'hourly') {
     glMap:{on(name,...args){if(name==='click')clickHandler=args.at(-1);},getPitch:()=>60,getLayer:()=>true,queryRenderedFeatures:()=>[clicked]},
     map:{on(){}},window:{addEventListener(){}},L:{latLng:(lat,lng)=>({lat,lng})},
     layerVisible:()=>true,mapClickMode:'building',mapQueryGeneration:0,lastRenderToken:1,
+    beginMapQuery:()=>++ctx.mapQueryGeneration,
     sync3dViewToLeaflet(){},syncLeafletViewTo3d(){},handleDepthQueryClick(){throw Error('Expected building selection');},
     findParcelFeatureForLocation:async(lat,lng)=>rawParcels.find(feature=>ctx.pointInsideMunicipalGeometry([lng,lat],feature.geometry)),
     openParcelFloodPrompt:parcel=>{opened=parcel.properties.parcelId;},openFallbackBuildingPopup:(_point, properties)=>{opened=properties;}});
-  vm.runInContext(extract(three,'wire3dInteractions'),ctx);ctx.wire3dInteractions();
+  for (const name of ['resize3dView', 'wire3dInteractions']) vm.runInContext(extract(three,name),ctx);
+  ctx.wire3dInteractions();
   await clickHandler({point:{x:985,y:150},lngLat:{lng:-74.79706764221191,lat:39.011497839736876}});
   assert.equal(opened,'0507_128_23','A clicked 327 W Chestnut roof must not open neighboring 329 W Chestnut');checks++;
   clicked=rawBuildings.find(feature=>feature.properties.footprintId==='34009_26741');

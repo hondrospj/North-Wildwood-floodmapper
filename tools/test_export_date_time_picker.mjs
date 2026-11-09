@@ -4,12 +4,14 @@ import vm from 'node:vm';
 
 // Exercise the shipped picker against the existing New York clock and
 // interpolation code, rather than a second implementation of either rule.
-const runtime = ['03-time-series', '12-export-date-editors', '18-flood-frame-rendering']
+const runtime = ['03-time-series', '04-observation-archives', '12-export-date-editors',
+  '17-export-encoding', '18-flood-frame-rendering']
   .map(name => fs.readFileSync(new URL(`app/runtime/${name}.js`, import.meta.url), 'utf8')).join('\n');
 const observed = new Map();
 let forecast = [], source = [];
 const ctx = vm.createContext({Date, Intl, Map, Number, console,
   window:{}, document:{readyState:'loading',addEventListener(){}},
+  currentDataMode:'forecast',
   MINOR_FLOOD_FT:3, MODERATE_FLOOD_FT:4, MAJOR_FLOOD_FT:5,
   NY_PARTS_FORMATTER:new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',hour12:true,timeZoneName:'short'}),
   pad2:value=>String(value).padStart(2,'0'),
@@ -22,10 +24,15 @@ const ctx = vm.createContext({Date, Intl, Map, Number, console,
   getForecastExportEntriesLimited:()=>forecast,
   getDownloadSourceEntries:()=>source,
   getCurrentExportSourceMode:()=> 'forecast',
+  getObservedDayRecord: date => observed.get(date),
+  getObservedSourceHoursForDay: day => day?.hours || [],
+  addDaysToDateKey: (date, days) => new Date(Date.parse(date) + days * 86400000).toISOString().slice(0, 10),
+  annotateHydraulicSeries: entries => entries,
 });
 for (const name of ['getNyParts','formatNyLocalIso','getLocalNyDateCandidates','parseStoredLocalNyToDate',
-  'getExportTimeSelection','classifyFloodStage','detectSeriesResolutionMinutes','setTimelineSlotFields',
-  'makeMissingTimelineEntry','makeInterpolatedTimelineEntry','buildQuarterHourTimelineSeries']) {
+  'getExportTimeSelection','formatExportTimeLabel','classifyFloodStage','detectSeriesResolutionMinutes','setTimelineSlotFields',
+  'makeMissingTimelineEntry','makeInterpolatedTimelineEntry','buildQuarterHourTimelineSeries',
+  'buildObservedCanonicalSeries','getQuarterHourExportEntries']) {
   const match=runtime.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n    }`));
   assert.ok(match,`Missing canonical function ${name}`); vm.runInContext(match[0],ctx);
 }
@@ -77,3 +84,30 @@ assert.equal(visible[2].record, undefined, "Retain the actual interior outage fo
 const daily = { stage: 5, instant: Date.parse("2025-11-02T04:00:00Z") };
 assert.equal(picker.timeChoices(options, "2025-11-02", new Map(), daily)[0].dateOnly, true,
   "Keep an official date-only peak available without inventing a time");
+
+// The Stone Harbor archive has a 45-minute bracket on this date, longer
+// than the primary gauge allows. Neither missing slot is exportable.
+const gapDate = '2018-12-14';
+source = [entry(`${gapDate}T18:15:00Z`, 2), entry(`${gapDate}T19:00:00Z`, 1.66)]
+  .map(row => ({ ...row, exportSourceMode: 'observed', observedDate: gapDate }));
+observed.set(gapDate, { hours: source });
+const gapStages = picker.timeStages(gapDate);
+assert.equal(gapStages.get(Date.parse(`${gapDate}T18:15:00Z`)).stage, 2);
+assert.equal(gapStages.get(Date.parse(`${gapDate}T19:00:00Z`)).stage, 1.66);
+assert.equal(gapStages.has(Date.parse(`${gapDate}T18:30:00Z`)), false);
+assert.equal(gapStages.has(Date.parse(`${gapDate}T18:45:00Z`)), false);
+
+// A primary-gauge day with no usable replay can still have one exact annual
+// USGS crest. Its time is selectable without creating adjacent readings.
+const crestDate = '2009-11-13';
+const crestTime = '2009-11-13T10:24:00.000Z';
+source = [{ ...entry(crestTime, 5.44), observedDate: crestDate, exportSourceMode: 'observed', isDailyPeakOnly: true, peakTimeKnown: true }];
+observed.set(crestDate, { hours: source });
+const crestStages = picker.timeStages(crestDate);
+assert.equal(crestStages.size, 1);
+const crestChoices = picker.timeChoices(['05:15', '05:30'].map(value => ({value})), crestDate, crestStages);
+assert.equal(crestChoices.length, 1);
+assert.equal(crestChoices[0].option.textContent, '05:24 AM');
+assert.equal(picker.optionInstant(crestChoices[0].option.value, crestDate), Date.parse(crestTime));
+assert.equal(crestChoices[0].record.stage, 5.44);
+assert.equal(crestChoices[0].dateOnly, false);

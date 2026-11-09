@@ -91,7 +91,7 @@ try{
     result.checks.push(profile.name+' first 3D shows the municipal buildings and preserves view/time');
     if(profile.name==='desktop'){
       for(const zoom of [14.5,17])for(const bearing of [0,90,180,270]){
-        await page.evaluate(({zoom,bearing})=>NORTH_WILDWOOD_3D.getMap().jumpTo({zoom,bearing,pitch:60}),{zoom,bearing});
+        await page.evaluate(({zoom,bearing})=>{NORTH_WILDWOOD_3D.getMap().jumpTo({zoom,bearing,pitch:60});},{zoom,bearing});
         await page.waitForFunction(()=>NORTH_WILDWOOD_3D.getMap().areTilesLoaded(),null,{timeout:30000});await frame(page);
         const view=await snapshot(page,`zoom ${zoom} bearing ${bearing}`);
         assert.equal(view.visibility,'visible');assert.ok(view.rendered>0,'Enabled buildings cannot disappear above the former 1,000 m cutoff');

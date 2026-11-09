@@ -231,44 +231,50 @@
       return cacheBathtubStageOverlay(key, record);
     }
 
-    function cacheDrainageComposite(key, record) {
+    function cacheRasterComposite(cache, key, record, limit) {
       if (typeof floodCompositeBlobSizes !== "undefined" && record?.url && floodCompositeBlobSizes.has(record.url)) {
         record.compositeByteLength = floodCompositeBlobSizes.get(record.url);
         floodCompositeBlobSizes.delete(record.url);
       }
-      drainageCompositeCache.set(key, record);
+      cache.set(key, record);
       while (
-        drainageCompositeCache.size > DRAINAGE_COMPOSITE_CACHE_LIMIT ||
-        (drainageCompositeCache.size > 1 &&
-          Array.from(drainageCompositeCache.values()).reduce((bytes, item) => bytes + (item?.compositeByteLength || 0), 0) >
+        cache.size > limit ||
+        (cache.size > 1 &&
+          Array.from(cache.values()).reduce((bytes, item) => bytes + (item?.compositeByteLength || 0), 0) >
             (typeof FLOOD_COMPOSITE_CACHE_BYTE_LIMIT === "number" ? FLOOD_COMPOSITE_CACHE_BYTE_LIMIT : 128 * 1024 * 1024))
       ) {
-        const oldestKey = drainageCompositeCache.keys().next().value;
-        const oldest = drainageCompositeCache.get(oldestKey);
-        retireRasterObjectUrl(oldest?.url);
-        drainageCompositeCache.delete(oldestKey);
+        const oldestKey = cache.keys().next().value;
+        retireRasterObjectUrl(cache.get(oldestKey)?.url);
+        cache.delete(oldestKey);
       }
-      return record;
     }
 
-    function cacheFillingComposite(key, record) {
-      if (typeof floodCompositeBlobSizes !== "undefined" && record?.url && floodCompositeBlobSizes.has(record.url)) {
-        record.compositeByteLength = floodCompositeBlobSizes.get(record.url);
-        floodCompositeBlobSizes.delete(record.url);
+    function getCachedRasterComposite(cache, key, limit, fallback, build, warning) {
+      if (cache.has(key)) {
+        const cached = cache.get(key);
+        cache.delete(key);
+        cache.set(key, cached);
+        return awaitRasterRequest(cached);
       }
-      fillingCompositeCache.set(key, record);
-      while (
-        fillingCompositeCache.size > FILLING_COMPOSITE_CACHE_LIMIT ||
-        (fillingCompositeCache.size > 1 &&
-          Array.from(fillingCompositeCache.values()).reduce((bytes, item) => bytes + (item?.compositeByteLength || 0), 0) >
-            (typeof FLOOD_COMPOSITE_CACHE_BYTE_LIMIT === "number" ? FLOOD_COMPOSITE_CACHE_BYTE_LIMIT : 128 * 1024 * 1024))
-      ) {
-        const oldestKey = fillingCompositeCache.keys().next().value;
-        const oldest = fillingCompositeCache.get(oldestKey);
-        retireRasterObjectUrl(oldest?.url);
-        fillingCompositeCache.delete(oldestKey);
-      }
-      return record;
+
+      const request = build().then(record => {
+        if (cache.get(key) === request) {
+          // Missing inputs are temporary. Cache a valid unchanged raster or
+          // completed composite, and let the next selection retry a fallback.
+          if (record) cacheRasterComposite(cache, key, record, limit);
+          else cache.delete(key);
+        } else if (record && record !== fallback) {
+          retireRasterObjectUrl(record.url);
+        }
+        return record || fallback;
+      }, error => {
+        if (cache.get(key) === request) cache.delete(key);
+        if (error?.name === "AbortError" || error?.name === "TimeoutError") throw error;
+        console.warn(warning, error);
+        return fallback;
+      });
+      cache.set(key, request);
+      return awaitRasterRequest(request);
     }
 
     async function getFillingInterpolatedOverlayRecord(
@@ -292,20 +298,13 @@
         stageToCode(lowerStageFt),
         stageToCode(upperStageFt)
       ].join("|");
-      if (fillingCompositeCache.has(key)) {
-        const cached = fillingCompositeCache.get(key);
-        fillingCompositeCache.delete(key);
-        fillingCompositeCache.set(key, cached);
-        return awaitRasterRequest(cached);
-      }
-
-      const request = (async () => {
+      return getCachedRasterComposite(fillingCompositeCache, key, FILLING_COMPOSITE_CACHE_LIMIT, lowerRecord, async () => {
         const upperRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase);
         const depthRequest = mode === "depth"
           ? upperRequest
           : getOverlayRecord("depth", upperStageFt, normalizedPhase);
         const [upperRecord, depthRecord] = await Promise.all([upperRequest, depthRequest]);
-        if (!upperRecord || !depthRecord) return lowerRecord;
+        if (!upperRecord || !depthRecord) return null;
         const [lowerImage, upperImage, depthImage, developedGrid, queryGrid] = await Promise.all([
           getDrainageRasterImage(lowerRecord.url),
           getDrainageRasterImage(upperRecord.url),
@@ -313,7 +312,7 @@
           getDevelopedQueryGrid(),
           getDepthQueryGrid()
         ]);
-        if (!lowerImage || !upperImage || !depthImage || !developedGrid || !queryGrid) return lowerRecord;
+        if (!lowerImage || !upperImage || !depthImage || !developedGrid || !queryGrid) return null;
         const width = lowerImage.naturalWidth;
         const height = lowerImage.naturalHeight;
         if (upperImage.naturalWidth !== width || upperImage.naturalHeight !== height ||
@@ -321,14 +320,14 @@
             developedGrid.width !== width || developedGrid.height !== height ||
             queryGrid.width !== width || queryGrid.height !== height) {
           console.warn("Filling interpolation skipped because its raster grids do not match.");
-          return lowerRecord;
+          return null;
         }
 
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
         const context = canvas.getContext("2d", { willReadFrequently: true });
-        if (!context) return lowerRecord;
+        if (!context) return null;
         context.drawImage(lowerImage, 0, 0);
         const lowerImageData = context.getImageData(0, 0, width, height);
         context.clearRect(0, 0, width, height);
@@ -362,18 +361,7 @@
           fillingFraction: fraction,
           addedPixelCount
         };
-      })().catch(error => {
-        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
-          if (fillingCompositeCache.get(key) === request) fillingCompositeCache.delete(key);
-          throw error;
-        }
-        console.warn("Could not build the continuous filling raster; using the lower catalog raster.", error);
-        return lowerRecord;
-      });
-
-      fillingCompositeCache.set(key, request);
-      const record = await awaitRasterRequest(request);
-      return cacheFillingComposite(key, record);
+      }, "Could not build the continuous filling raster; using the lower catalog raster.");
     }
 
     async function getHydraulicOverlayRecord(mode, stageValue, phase, entry = null, series = currentRawSeriesHours) {
@@ -408,38 +396,34 @@
           entryTimeMs(entry), getStageValue(entry),
           ...milestones.map(item => `${entryTimeMs(item)}:${normalizeHydraulicPhase(item.hydraulicPhase)}:${stageToCode(getOverlayStage(getStageValue(item)))}:${getStageValue(item)}`)
         ].join("|");
-        if (drainageCompositeCache.has(key)) {
-          const cached = drainageCompositeCache.get(key);
-          drainageCompositeCache.delete(key);
-          drainageCompositeCache.set(key, cached);
-          return awaitRasterRequest(cached);
-        }
-
-        const request = (async () => {
-          const historicalRecords = (await Promise.all(milestones.map(item => {
+        return await getCachedRasterComposite(drainageCompositeCache, key, DRAINAGE_COMPOSITE_CACHE_LIMIT, baseRecord, async () => {
+          const historicalRecords = await Promise.all(milestones.map(item => {
             const itemStage = getOverlayStage(getStageValue(item));
             return itemStage == null
               ? Promise.resolve(null)
               : getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));
-          }))).filter(Boolean);
-          if (!historicalRecords.length) return baseRecord;
+          }));
+          // The first milestone supplies the crest footprint. An incomplete
+          // history must not be cached as if every hydraulic input was available.
+          if (historicalRecords.some(record => !record)) return null;
 
           const [baseImage, queryGrid, ...historyImages] = await Promise.all([
             getDrainageRasterImage(baseRecord.url),
             getDepthQueryGrid(),
             ...historicalRecords.map(record => getDrainageRasterImage(record.url))
           ]);
-          if (!baseImage || !queryGrid || historyImages.some(image => !image)) return baseRecord;
-          if (baseImage.naturalWidth !== queryGrid.width || baseImage.naturalHeight !== queryGrid.height) {
-            console.warn("Drainage retention skipped because the packed query grid does not match the flood raster.");
-            return baseRecord;
+          if (!baseImage || !queryGrid || historyImages.some(image => !image)) return null;
+          if (baseImage.naturalWidth !== queryGrid.width || baseImage.naturalHeight !== queryGrid.height ||
+              historyImages.some(image => image.naturalWidth !== queryGrid.width || image.naturalHeight !== queryGrid.height)) {
+            console.warn("Drainage retention skipped because its raster grids do not match.");
+            return null;
           }
 
           const canvas = document.createElement("canvas");
           canvas.width = baseImage.naturalWidth;
           canvas.height = baseImage.naturalHeight;
           const context = canvas.getContext("2d", { willReadFrequently: true });
-          if (!context) return baseRecord;
+          if (!context) return null;
           context.drawImage(baseImage, 0, 0);
           const currentImageData = context.getImageData(0, 0, canvas.width, canvas.height);
           const historicalPixelSets = historyImages.map(image => {
@@ -463,18 +447,7 @@
             isHistoryAwareDrainageComposite: true,
             retainedPixelCount: addedPixelCount
           };
-        })().catch(error => {
-          if (error?.name === "AbortError" || error?.name === "TimeoutError") {
-            if (drainageCompositeCache.get(key) === request) drainageCompositeCache.delete(key);
-            throw error;
-          }
-          console.warn("Could not build the history-aware drainage raster; using the static phase raster.", error);
-          return baseRecord;
-        });
-
-        drainageCompositeCache.set(key, request);
-        const record = await awaitRasterRequest(request);
-        return cacheDrainageComposite(key, record);
+        }, "Could not build the history-aware drainage raster; using the static phase raster.");
       } finally {
         releaseRaster?.();
       }

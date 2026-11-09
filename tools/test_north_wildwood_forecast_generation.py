@@ -189,6 +189,26 @@ class ForecastGenerationFixtures(unittest.TestCase):
         self.assertNotIn('zoneId', result)
         self.assertNotIn('zoneName', result)
 
+    def test_out_of_order_bounds_fall_back_before_publishing(self):
+        invalid = self.complete_fixture().replace(b'2026102304,6.631,7.865,5.756,',
+                                                  b'2026102304,6.631,5.756,7.865,')
+        self.assertNotEqual(invalid, self.complete_fixture())
+        fetch = Mock(side_effect=[self.archive(station_csv=invalid), self.archive()])
+        with patch.dict(self.g, {'fetch_bytes': fetch}):
+            result = self.g['build_forecast'](self.NOW)
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(result['petssCycleUtc'], '2026-10-22T18:00:00Z')
+
+    def test_invalid_compact_row_and_offset_timestamps(self):
+        original = self.complete_fixture()
+        fixture = original.replace(b'2026102304,', b'2026-10-23T00:00:00-04:00,')
+        fixture += b'\n2026103200,3.5,4,3,3,0\n'
+        parse = self.g['parse_station_csv']
+        zone = self.g['ZONES'][0]
+        self.assertEqual(parse(fixture.decode(), zone), parse(original.decode(), zone))
+        self.assertIsNone(self.g['normalize_time']('2026-10-23'))
+        self.assertIsNone(self.g['normalize_time']('2026-10-23Z'))
+
     def test_cycle_exhaustion_does_not_overwrite_saved_forecast(self):
         cycle = {'ymd': '20261023', 'hh': 0, 'cycleUtc': self.NOW}
         with tempfile.TemporaryDirectory() as directory:

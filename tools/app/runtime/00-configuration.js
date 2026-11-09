@@ -12,7 +12,6 @@
     let DEPTH_QUERY_PNG_URL = "";
     let DEVELOPED_QUERY_PNG_URL = "";
     let DEPTH_QUERY_COG_URL = "";
-    let HYDRAULIC_STATES_URL = "";
     let PHYSICS_FORECAST_POINTER_URL = "";
     let PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE = "";
     let PARCELS_URL = "";
@@ -388,7 +387,6 @@
       DEPTH_QUERY_COG_URL = config.overlays?.depthQueryCogPath
         ? new URL(config.overlays.depthQueryCogPath, APP_BASE).href
         : "";
-      HYDRAULIC_STATES_URL = optionalAppUrl(config.overlays?.hydraulicStatesPath);
       PHYSICS_FORECAST_POINTER_URL = config.overlays?.physicsForecastPointerPath
         ? new URL(config.overlays.physicsForecastPointerPath, APP_BASE).href
         : "";
@@ -765,7 +763,6 @@ function cloneStyleObject(value) {
     let depthQueryGridPromise = null;
     let developedQueryGridPromise = null;
     let depthQueryImagePromise = null;
-    let hydraulicStatesPromise = null;
     let physicsForecastManifests = {};
     let physicsQueryImageCache = new Map();
     let renderedFloodPixelCache = null;
@@ -834,8 +831,6 @@ function cloneStyleObject(value) {
     let observedArchiveLoadedYears = new Set();
     let observedDaysCache = null;
     let observedMonthKeys = [];
-    let observedFlatHours = [];
-    let observedHourIndexByDateHour = new Map();
     let topTideEvents = [];
     let historicTopTideEntries = [];
     let historicalTopTidesPromise = null;

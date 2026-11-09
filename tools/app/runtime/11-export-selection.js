@@ -205,7 +205,7 @@
       return "forecast";
     }
 
-    function getObservedRangeExportEntries(startDate, endDate) {
+    function getObservedRangeExportEntries(startDate, endDate, options = {}) {
       if (!startDate || !endDate) return [];
 
       const minMs = Math.min(startDate.getTime(), endDate.getTime()) - 2 * 60 * 60 * 1000;
@@ -223,7 +223,7 @@
         const dateKey = String(day?.date || "");
         if (!dateKey || dateKey < startKey || dateKey > endKey) return;
 
-        const hours = getObservedSourceHoursForDay(day);
+        const hours = getObservedSourceHoursForDay(day, options);
         hours.forEach((hour, idx) => {
           const t = entryTimeMs(hour);
           if (t == null || t < minMs || t > maxMs) return;
@@ -240,14 +240,10 @@
 
       return candidates
         .filter(entry => Number.isFinite(getStageValue(entry)))
-        .sort((a, b) => entryTimeMs(a) - entryTimeMs(b))
-        .map(entry => ({
-        ...entry,
-        exportSourceMode: "observed"
-      }));
+        .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
     }
 
-    function getDownloadSourceEntries(includeHistorical = false, startDate = null, endDate = null) {
+    function getDownloadSourceEntries(includeHistorical = false, startDate = null, endDate = null, options = {}) {
       if (currentDataMode === "return-interval") {
         const modeled = getReturnIntervalExportEntries();
         if (!startDate || !endDate) return modeled;
@@ -266,7 +262,7 @@
 
       if (startDate && endDate) {
         const combined = [
-          ...getObservedRangeExportEntries(startDate, endDate),
+          ...getObservedRangeExportEntries(startDate, endDate, options),
           ...getForecastExportEntries().filter(entry => {
             const t = entryTimeMs(entry);
             if (t == null) return false;
@@ -307,7 +303,7 @@
       };
     }
 
-    function getDownloadFrameItemFromEntry(entry, fallbackIndex = 0, sourceSeries = new Map()) {
+    function getDownloadFrameItemFromEntry(entry, sourceSeries = new Map()) {
       if (!entry) return null;
       const sourceMode = entry.exportSourceMode || currentDataMode;
       const dateStr = entry.observedDate || selectedObservedDate || "";

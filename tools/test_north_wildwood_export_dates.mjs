@@ -145,6 +145,22 @@ function editorContext() {
   assert.equal(ctx.getRangeInputDate('downloadStartInput').toISOString(), '2025-11-02T06:30:00.000Z');
 }
 {
+  const { ctx, node } = editorContext();
+  const first = '2026-06-15T13:45:00.000Z', last = '2026-06-16T13:45:00.000Z';
+  ctx.currentDataMode = 'return-interval';
+  ctx.getReturnIntervalExportEntries = () => [{timeUtc:first,offsetHours:-12},{timeUtc:last,offsetHours:12}];
+  ctx.getEntryESTDate = entry => new Date(entry.timeUtc);
+  ctx.formatReturnStormOffset = entry => String(entry.offsetHours);
+  ctx.setRangeInputDate('downloadEndInput', new Date(first));
+  const choices = node('downloadEndTimeSelect').options;
+  assert.deepEqual(choices.map(choice=>choice.value), [
+    `09:45|${Date.parse(first)}`, `09:45|${Date.parse(last)}`,
+  ]);
+  node('downloadEndTimeSelect').value = choices[1].value;
+  assert.equal(ctx.commitExportDateTimeEditor('end'),true);
+  assert.equal(ctx.getRangeInputDate('downloadEndInput').toISOString(),last);
+}
+{
   const { ctx, node, errors } = editorContext();
   ctx.setRangeInputDate('downloadStartInput', new Date('2026-03-07T07:30:00Z'));
   node('downloadStartDateText').value = '03/08/2026';
@@ -197,7 +213,7 @@ function editorContext() {
     'buildQuarterHourTimelineSeries', 'buildObservedCanonicalSeries', 'decodeObserved15MinuteDay', 'getObservedRangeExportEntries',
     'makeMissingTimelineEntry', 'makeInterpolatedTimelineEntry',
     'getDownloadSourceEntries', 'findClosestExportEntryForSlot', 'buildHourlyRangeFrameItems',
-    'buildQuarterHourRangeFrameItems'], {
+    'getQuarterHourExportEntries', 'buildQuarterHourRangeFrameItems'], {
     currentDataMode: 'observed', currentSeriesHours: [], getObservedDays: () => [day],
     getObservedSourceHoursForDay: () => day.hours, getForecastExportEntries: () => forecast,
     getObservedDayRecord: date => date === day.date ? day : null, annotateHydraulicSeries: entries => entries,

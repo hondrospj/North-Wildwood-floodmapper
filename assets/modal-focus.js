@@ -71,7 +71,11 @@
     function attempt(framesLeft) {
       if (pendingRestore !== request) return;
       const dialog = stack.at(-1)?.dialog;
-      const candidates = targets.map(currentRestoreTarget).filter(target => (!dialog || dialog.contains(target)) && visible(target));
+      const candidates = targets.map(currentRestoreTarget).flatMap(target => {
+        // In compact layout, the Key can replace a hidden legend Help opener.
+        const key = target.closest('#legendDock[tabindex="0"]');
+        return key && key !== target ? [target, key] : [target];
+      }).filter(target => (!dialog || dialog.contains(target)) && visible(target));
       const first = candidates[0];
       if ((request.cancelled || first?.closest('[inert]')) && framesLeft > 0) {
         // A drawer owner may restore its role and inert state in its next
@@ -130,7 +134,7 @@
         const parent = stack.at(-1)?.dialog;
         const opener = event?.detail?.opener;
         let candidate = previousFocus;
-        if (opener && parent?.contains(opener) && visible(opener)) candidate = opener;
+        if (opener && (!parent || parent.contains(opener)) && visible(opener)) candidate = opener;
         else if (!parent && lastTrigger && visible(lastTrigger)) candidate = lastTrigger;
         stack.push({ dialog, restore: [...new Set([
           ...(candidate && !dialog.contains(candidate) ? [rememberRestoreTarget(candidate)] : []), ...restoreTargets, ...pendingTargets
@@ -176,7 +180,7 @@
       (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) ||
       (!event.shiftKey && document.activeElement === last)) {
       event.preventDefault();
-      (event.shiftKey ? last : first).focus({ preventScroll: true });
+      (event.shiftKey ? last : first).focus();
     }
   }, true);
   const observer = new MutationObserver(sync);

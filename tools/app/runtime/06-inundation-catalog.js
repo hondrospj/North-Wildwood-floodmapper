@@ -170,11 +170,6 @@
       return supported.has(phase) ? phase : "slack";
     }
 
-    function getHydraulicStatePhase(value) {
-      const phase = normalizeHydraulicPhase(value);
-      return phase.startsWith("draining-release-") ? "draining" : phase;
-    }
-
     function getHydraulicFrameMinutes(entry, fallback = 15) {
       const explicitMinutes = Number(entry?.timelineIntervalMinutes);
       if (Number.isFinite(explicitMinutes) && explicitMinutes > 0) return explicitMinutes;

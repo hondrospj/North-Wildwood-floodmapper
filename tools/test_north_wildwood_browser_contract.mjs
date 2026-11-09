@@ -181,7 +181,6 @@ for (const name of (
     "floorToCatalogStep",
     "getOverlayStage",
     "normalizeHydraulicPhase",
-    "getHydraulicStatePhase",
     "getVerticalBathtubPenalty",
     "getPenaltyRemainingFraction",
     "getPenalizedConnectedDepth",
@@ -461,7 +460,6 @@ assert.equal(
   0,
   "Moderate flooding must fill normally after 30 minutes"
 );
-assert.equal(context.getHydraulicStatePhase("draining-release-15"), "draining");
 assert.equal(
   context.getPenalizedConnectedDepth(4.25, 4.0, true, "draining").depth,
   0.25,
@@ -698,7 +696,6 @@ assert.match(
 );
 assert.match(SOURCE, /id="satelliteToggle"/);
 assert.match(SOURCE, /World_Imagery\/MapServer\/tile/);
-assert.match(SOURCE, /payload\.valueType === "int16-le"/);
 assert.match(SOURCE, /depthQueryPngPath/);
 assert.match(SOURCE, /developedQueryPngPath/);
 assert.match(SOURCE, /sourceDistanceFt/);
@@ -791,7 +788,7 @@ assert.match(SOURCE, /:has\(#mapClickModeControl:not\(\[hidden\]\)\) #mapWrap > 
 assert.match(SOURCE, /depthQueryGridPromise = null/);
 assert.match(
   SOURCE,
-  /depthQueryImagePromise = GeoTIFF\.fromUrl[\s\S]+depthQueryImagePromise = null/
+  /GeoTIFF\.fromUrl\(DEPTH_QUERY_COG_URL, \{\}, signal\)[\s\S]+if \(depthQueryImagePromise === request\) depthQueryImagePromise = null/
 );
 assert.match(
   SOURCE,
@@ -820,7 +817,8 @@ assert.match(SOURCE, /function getExportFrameDateTimeText\(/);
 assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /15-Minute|Hourly|Daily maximum|Water level/);
 assert.match(SOURCE, /const MODELED_EXPORT_DATE_PLACEHOLDER = "xx\/xx\/xxxx"/);
 assert.match(extractFunction("syncExportDateTimeEditorFromCanonical"), /modeledDateLocked[\s\S]+MODELED_EXPORT_DATE_PLACEHOLDER/);
-assert.match(SOURCE, /function commitExportDateTimeEditor\([\s\S]+currentDataMode === "return-interval"[\s\S]+canonicalMatch/);
+assert.match(extractFunction("commitExportDateTimeEditor"),
+  /currentDataMode === "return-interval"[\s\S]+getExportTimeSelection\(elements\.timeSelect\.value\)\?\.instantMs[\s\S]+setRangeInputDate/);
 assert.match(extractFunction("getReturnIntervalStormLabel"), /`\$\{value\.toLocaleString\("en-US"\)\}-Year Storm`/);
 assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /if \(entry\?\.returnIntervalYears\)/);
 assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /formatReturnStormOffset/);
@@ -855,7 +853,7 @@ assert.match(extractFunction("renderHour"), /physics-daily-maximum-active/);
 assert.doesNotMatch(SOURCE, /Green represents uncertainty/i);
 assert.doesNotMatch(SOURCE, /Feet above ground/);
 assert.doesNotMatch(SOURCE, /class="export-depth-key-disconnected"/);
-assert.match(extractFunction("updateExportLegend"), /querySelectorAll\("\.legend-row-boundary"\)\.forEach\(row => row\.remove\(\)\)/);
+assert.doesNotMatch(extractFunction("updateExportLegend"), /class="[^"]*\blegend-row-boundary\b/);
 assert.match(SOURCE, /--boundary-color:#000000/);
 assert.match(SOURCE, /NorthWildwoodParcelBoundaries\.png\?v=20260802-red-parcels-v1/);
 assert.match(SOURCE, /opacity: 0\.78/);
@@ -1272,7 +1270,7 @@ assert.deepEqual(
   ["return-interval", "return-interval", "return-interval"],
   "Modeled export frames must not be relabeled as forecast frames"
 );
-const modeledFrameItem = modeledExportContext.getDownloadFrameItemFromEntry(modeledSources[1], 1);
+const modeledFrameItem = modeledExportContext.getDownloadFrameItemFromEntry(modeledSources[1]);
 assert.equal(modeledFrameItem.mode, "return-interval");
 assert.equal(modeledFrameItem.series.length, modeledFrames.length);
 

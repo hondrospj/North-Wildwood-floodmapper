@@ -1624,5 +1624,20 @@
     "developedPixels": 1948272,
     "bytes": 129618
   },
-  "hydraulicStates": "COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png"
+  "hydraulicStates": "COGs/North Wildwood/NorthWildwoodHydraulicStates.json.png",
+  "catalogVersion": "20261108-route-9a0fc2a74109",
+  "roadFeederRoutingCorrection": {
+    "updatedUtc": "2026-11-09T02:52:45Z",
+    "method": "Find minimum possible crest, then the shortest route among paths below or equal to that crest.",
+    "rawRendererBaselineCommit": "8827734923d475b9a6f9050085f24ea3f72af2e4",
+    "depthMaskPostpassBaselineCommit": "984cf9e412550992979b52cd4445e5b5f1264d55",
+    "depthFramesUpdated": 44,
+    "rawStageFramesUpdated": 44,
+    "changedBluePixelStageOccurrences": {
+      "removed": 1409,
+      "added": 2222
+    },
+    "slackAtlasPngsSha256": "9a0fc2a74109003fee38ba03560ded8607be03b63a96d5d362473cc5bc263b64",
+    "parcelAreaThresholdsChanged": 0
+  }
 }

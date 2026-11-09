@@ -17,7 +17,7 @@ import math
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import date
 from pathlib import Path
 
 
@@ -109,6 +109,19 @@ def normalize_time(value: str) -> str | None:
     return f"{hour:02d}:{minute:02d}"
 
 
+def read_annual_crest(row: dict) -> tuple[date, float, str | None] | None:
+    # Annual maximum gage height and peak discharge can occur on different days.
+    for prefix, height_key in (("ag", "ag_gage_ht"), ("peak", "gage_ht")):
+        try:
+            event_date = date.fromisoformat(str(row.get(f"{prefix}_dt") or "").strip())
+            height = float(row.get(height_key))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(height):
+            return event_date, height, normalize_time(row.get(f"{prefix}_tm") or "")
+    return None
+
+
 def parse_station_rows(station: dict) -> list[dict]:
     raw = fetch_text(peak_url(station["site_no"]))
     lines = [line for line in raw.splitlines() if line and not line.startswith("#")]
@@ -117,20 +130,16 @@ def parse_station_rows(station: dict) -> list[dict]:
     reader = csv.DictReader(io.StringIO("\n".join([lines[0], *lines[2:]])), delimiter="\t")
     events: list[dict] = []
     for row in reader:
-        date_value = str(row.get("ag_dt") or row.get("peak_dt") or "").strip()
-        height_raw = row.get("ag_gage_ht") or row.get("gage_ht")
-        try:
-            height = float(height_raw)
-            datetime.strptime(date_value, "%Y-%m-%d")
-        except (TypeError, ValueError):
+        crest = read_annual_crest(row)
+        if crest is None:
             continue
-        if not math.isfinite(height) or height < MINOR_FLOOD_NAVD88_FT:
+        event_date, height, time_value = crest
+        if height < MINOR_FLOOD_NAVD88_FT:
             continue
-        time_value = normalize_time(row.get("ag_tm") or row.get("peak_tm") or "")
         event = {
             "height_ft": round(height, 2),
-            "date": date_value,
-            "display_date": datetime.strptime(date_value, "%Y-%m-%d").strftime("%B %-d, %Y"),
+            "date": event_date.isoformat(),
+            "display_date": f"{event_date:%B} {event_date.day}, {event_date.year}",
             "datum": "NAVD88",
             "site_no": station["site_no"],
             "station_name": station["station_name"],

@@ -52,7 +52,7 @@ def load_zone_summary(path: Path) -> dict[str, np.ndarray]:
 
 
 def load_edges(path: Path) -> dict[str, np.ndarray]:
-    values = np.loadtxt(path, delimiter=",", skiprows=1, dtype=np.float64)
+    values = np.loadtxt(path, delimiter=",", skiprows=1, dtype=np.float64, ndmin=2, usecols=(0, 1, 2, 3))
     return {
         "a": values[:, 0].astype(np.int32),
         "b": values[:, 1].astype(np.int32),

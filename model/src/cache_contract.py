@@ -104,7 +104,8 @@ def simulation_identity(root: Path, config: dict, guidance: dict, scenario: str,
         "inputs": input_records(root, [config["terrain"]["computationalDem"],
                                         config["terrain"]["bulkheadMask"],
                                         "model/cache/terrain_manifest.json"]),
-        "builders": input_records(root, ["model/src/run_anuga.py", "model/src/cache_contract.py"]),
+        "builders": input_records(root, ["model/src/run_anuga.py", "model/src/output_replacement.py",
+                                         "model/src/cache_contract.py"]),
         "dependencies": dependency_versions(("anuga", "numpy", "scipy", "rasterio")),
     })
 
@@ -115,7 +116,9 @@ def render_identity(root: Path, config: dict, simulation: dict) -> dict:
         "render": config["render"],
         "presentation": {key: config.get(key) for key in ("modelId", "town", "verticalDatum", "verticalUnits")},
         "inputs": input_records(root, [config["terrain"]["computationalDem"], config["terrain"]["displayDem"]]),
-        "builders": input_records(root, ["model/src/render_physics.py", "model/src/frame_alignment.py", "model/src/validate_products.py", "model/src/cache_contract.py"]),
+        "builders": input_records(root, ["model/src/render_physics.py", "model/src/frame_alignment.py",
+                                         "model/src/output_replacement.py", "model/src/validate_products.py",
+                                         "model/src/cache_contract.py"]),
         "dependencies": dependency_versions(("numpy", "scipy", "rasterio", "Pillow", "pyproj")),
     })
 

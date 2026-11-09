@@ -3,11 +3,26 @@
       if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== "Stone Harbor USGS").join(" • ");
       const status = document.getElementById("floodFrameStatus");
       if (!status) return;
+      status.dataset.frameMessage = String(message || "");
+      status.dataset.frameState = state;
+      scheduleForecastFreshnessNotice();
+    }
+
+    function updateFloodFrameStatus() {
+      const status = document.getElementById("floodFrameStatus");
+      if (!status) return;
+      const freshness = currentDataMode === "forecast" ? getForecastFreshness(getForecastSourceForNotice()) : null;
+      const forecastNotice = freshness?.state === "expired"
+        ? `Forecast expired ${formatFixedESTFromUtc(freshness.timestamp, true)}. Select Forecast to check for an update.`
+        : freshness?.state === "stale"
+          ? `Forecast from ${formatFixedESTFromUtc(freshness.timestamp, true)} is over 72 hours old. Select Forecast to check for an update.`
+          : "";
+      const message = [forecastNotice, status.dataset.frameMessage].filter(Boolean).join(" ");
       const timeline = document.getElementById("timelineDock");
       const top = timeline?.getBoundingClientRect().top;
       if (Number.isFinite(top)) status.style.setProperty("--flood-status-bottom", `${Math.max(24, window.innerHeight - top + 70)}px`);
-      status.textContent = message;
-      status.dataset.state = state;
+      if (status.textContent !== message) status.textContent = message;
+      status.dataset.state = status.dataset.frameState || "info";
       status.hidden = !message;
     }
 
@@ -131,13 +146,14 @@
       if (currentFloodLayer?.setOpacity) currentFloodLayer.setOpacity(overlayOpacity);
     }
 
-    function formatFixedESTFromUtc(isoString) {
+    function formatFixedESTFromUtc(isoString, includeYear = false) {
       if (!isoString) return "--";
       const d = new Date(isoString);
       if (Number.isNaN(d.getTime())) return "--";
       const parts = getNyParts(d);
       if (!parts) return "--";
-      return `${MONTH_NAMES[Number(parts.month) - 1]} ${Number(parts.day)}, ${parts.hour}:${parts.minute} ${parts.dayPeriod || ""} ${parts.timeZoneName || "ET"}`.replace(/\s+/g, " ").trim();
+      const year = includeYear ? `, ${parts.year}` : "";
+      return `${MONTH_NAMES[Number(parts.month) - 1]} ${Number(parts.day)}${year}, ${parts.hour}:${parts.minute} ${parts.dayPeriod || ""} ${parts.timeZoneName || "ET"}`.replace(/\s+/g, " ").trim();
     }
 
 function parseStoredESTToDate(timeEST) {
@@ -156,7 +172,7 @@ function parseStoredESTToDate(timeEST) {
     }
 
     function formatHourEntryTime(entry) {
-      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry);
       const d = getEntryESTDate(entry);
@@ -165,7 +181,7 @@ function parseStoredESTToDate(timeEST) {
     }
 
     function formatHourEntryTimeCompact(entry) {
-      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak`;
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
       const d = getEntryESTDate(entry);
@@ -176,7 +192,7 @@ function parseStoredESTToDate(timeEST) {
     }
 
     function formatSnapshotTime(entry) {
-      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry);
       const est = getEntryESTDate(entry);
@@ -186,7 +202,7 @@ function parseStoredESTToDate(timeEST) {
 
 function getEntryESTDate(entry) {
       // Calendar ordering anchor only, never an asserted observation timestamp.
-      if (entry?.isDailyPeakOnly) return parseStoredLocalNyToDate(`${entry.observedDate}T00:00`);
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return parseStoredLocalNyToDate(`${entry.observedDate}T00:00`);
       const d = entry?.timeUtc
         ? new Date(entry.timeUtc)
         : entry?.displayTimeUtc
@@ -203,7 +219,7 @@ function getEntryESTDate(entry) {
     }
 
     function formatTimelineBubbleText(entry) {
-      if (entry?.isDailyPeakOnly) return isMobileTimeline() ? "Daily peak only" : `${formatSelectedObservedDate(entry.observedDate)} • Daily peak only`;
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return isMobileTimeline() ? "Daily peak only" : `${formatSelectedObservedDate(entry.observedDate)} • Daily peak only`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
       const est = getEntryESTDate(entry);

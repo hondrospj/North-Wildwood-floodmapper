@@ -89,7 +89,9 @@ def main() -> None:
         )
         expanded = expanded[y % QUERY_STRIDE : y % QUERY_STRIDE + height]
         expanded = np.repeat(expanded, QUERY_STRIDE, axis=1)
-        valid = elevation != nodata if nodata is not None else np.isfinite(elevation)
+        valid = np.isfinite(elevation)
+        if nodata is not None:
+            valid &= elevation != nodata
         marker = (
             expanded
             & valid

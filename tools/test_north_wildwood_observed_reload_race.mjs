@@ -22,8 +22,7 @@ function context(extra = {}) {
   const c = vm.createContext({
     Promise, Map, Set, console: {warn() {}}, archiveGeneration: 1,
     observedData: {archiveEndDate: '2026-10-31', days: [{date: '2026-10-31'}]},
-    observed15MinuteData: null, observedDaysCache: null, observedMonthKeys: [], observedFlatHours: [],
-    observedHourIndexByDateHour: new Map(), topTideEvents: [],
+    observed15MinuteData: null, observedDaysCache: null, observedMonthKeys: [], topTideEvents: [],
     getTodayNyDateKey: () => '2026-11-01',
     getObservedArchiveLatestDateKey: () => c.observedData?.archiveEndDate,
     addDaysToDateKey: () => '2026-11-01',
@@ -41,7 +40,6 @@ function context(extra = {}) {
     buildObservedIndexFrom15MinuteArchive: payload => payload,
     loadHistoricalTopTides: async () => {calls.push('crests');},
     mergeHistoricalCrestsIntoObservedIndex() {calls.push('merge-crests');},
-    rebuildObservedHourLookup() {calls.push('lookup');},
     getObservedDays: () => c.observedData?.days || [],
     buildObservedMonthKeysFromDays: () => ['2026-11'],
     buildTopTideEvents: () => [], renderTopTides() {calls.push('render');},
@@ -99,7 +97,7 @@ for (const stage of ['index', 'crests']) {
   await c.loadObserved();
   assert.equal(c.observedData.archiveEndDate, '2026-11-01');
   assert.equal(c.observedData.days.at(-1).date, '2026-11-01');
-  assert.deepEqual(calls, ['merge', 'placeholders', 'cache', 'crests', 'merge-crests', 'lookup', 'render', 'selectors', 'schedule']);
+  assert.deepEqual(calls, ['merge', 'placeholders', 'cache', 'crests', 'merge-crests', 'render', 'selectors', 'schedule']);
   assert.equal(c.currentMonthKey, '2026-11');
   cases++;
 }

@@ -7,6 +7,7 @@
   var DEFAULT_BEARING = 0;
   var THREE_D_PITCH = 60;
   var FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15.25;
+  var GRAPHICS_FALLBACK_NOTICE = "Map graphics were interrupted. The 2D map is active.";
   var WEB_MERCATOR_EARTH_CIRCUMFERENCE_METERS = 40075016.68557849;
   var MAPLIBRE_TILE_SIZE = 512;
   var MAPLIBRE_CSS_URL = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css";
@@ -17,6 +18,7 @@
 
   var glMap = null;
   var glMapPromise = null;
+  var failedEsriVectorSources = new WeakSet();
   var glMapInitialization = null;
   var glStyleReady = false;
   var glPopup = null;
@@ -272,6 +274,55 @@
     ].forEach(function (layer) {
       if (layer && map.hasLayer(layer)) map.removeLayer(layer);
     });
+  }
+
+  function restoreLeafletAfter3dFailure(mapInstance) {
+    var center = mapInstance.getCenter();
+    var zoom = mapInstance.getZoom();
+    if (glPopup && persistentFloodPopup !== townAddressPopup) persistentFloodPopup?.remove();
+    closeGlPopup();
+    setAddressMarker(null);
+    ++mapQueryGeneration;
+    glMap = null;
+    glMapPromise = null;
+    glMapInitialization = null;
+    glStyleReady = false;
+    floodPlaneLayer = null;
+    pendingFlood3dRequest = null;
+    retryFloodRecovery3d = null;
+    buildingCursorHandlersWired = false;
+    document.body.classList.remove("map-3d-ready");
+    document.body.dataset.map3d = "fallback";
+    if (map) map.off("moveend zoomend", syncLeafletViewTo3d);
+    try { mapInstance.remove(); } catch (_) {}
+
+    if (map) {
+      map.invalidateSize({ pan: false });
+      map.setView([center.lat, center.lng], zoom, { animate: false, reset: true });
+      [
+        basemapGrayLayer,
+        basemapColorLayer,
+        roadsLayer,
+        layerVisible("satelliteToggle", false) ? satelliteLayer : null,
+        layerVisible("parcelsToggle", false) ? parcelsLayer : null,
+        layerVisible("nsiStructuresToggle", false) ? nsiStructuresLayer : null,
+        cityBoundaryMask,
+        isTownBoundaryEnabled() ? cityBoundaryOutline : null,
+        cityBoundaryGuide
+      ].forEach(function (layer) {
+        if (layer && !map.hasLayer(layer)) layer.addTo(map);
+      });
+      if (layerVisible("buildingsToggle", false)) {
+        originalSetBuildingsEnabled(true, { preserveClickMode: true }).catch(function (error) {
+          console.warn("The 2D building layer could not be restored.", error);
+        });
+      }
+      updateParcelBoundaryResolution();
+      updateRoadLayerAppearance();
+      updateColorBasemapClip();
+    }
+    syncPersistentNavControl();
+    toast(GRAPHICS_FALLBACK_NOTICE);
   }
 
   var imageLayerVersions = new WeakMap();
@@ -983,6 +1034,15 @@
     }
   }
 
+  function retryFailedEsriRoadSource() {
+    if (!glMap || !glStyleReady || !layerVisible("roadsToggle", true)) return;
+    var source = glMap.getSource("esri");
+    if (!source || !failedEsriVectorSources.has(source) ||
+        typeof source.setTiles !== "function" || !source.tiles?.length) return;
+    failedEsriVectorSources.delete(source);
+    source.setTiles(source.tiles.slice());
+  }
+
   function boundaryGeoJson() {
     if (municipalBoundaryFeature) return municipalBoundaryFeature;
     var rings = Array.isArray(municipalBoundaryRings) ? municipalBoundaryRings : [];
@@ -1679,24 +1739,36 @@
     addressMarker = new maplibregl.Marker({ element: element }).setLngLat([Number(latlng.lng), Number(latlng.lat)]).addTo(glMap);
   }
 
-  function showGlPopup(latlng, html, maxWidth) {
-    if (!glMap || !document.body.classList.contains("map-3d-ready")) return;
+  function showGlPopup(popup, maxWidth = popup?.options.maxWidth, handoff = false) {
+    if (!popup || !glMap || !document.body.classList.contains("map-3d-ready")) return;
     closeGlPopup();
-    glPopup = new maplibregl.Popup({
+    var latlng = popup.getLatLng();
+    var html = popup.getContent();
+    var mirror = new maplibregl.Popup({
       closeButton: true,
       closeOnClick: false,
+      focusAfterOpen: !handoff,
+      className: handoff ? "nw-address-popup-handoff" : "",
       maxWidth: Math.max(240, Number(maxWidth) || 360) + "px",
       offset: 18
     })
       .setLngLat([Number(latlng.lng), Number(latlng.lat)])
       .setHTML(html)
       .addTo(glMap);
+    glPopup = mirror;
     lastGlPopupHtml = String(html || "");
+    mirror.getElement()?.addEventListener("focusin", function (event) {
+      revealGlPopupControl(event.target);
+    });
     syncGlPopupLayout();
-    glPopup.on("close", function () {
+    mirror.on("close", function () {
+      if (glPopup !== mirror) return;
       ++mapQueryGeneration;
       glPopup = null;
-      if (persistentFloodPopup && map && map.hasLayer(persistentFloodPopup)) map.removeLayer(persistentFloodPopup);
+      if (persistentFloodPopup === popup) popup.remove();
+    });
+    popup.once("remove", function () {
+      if (glPopup === mirror) closeGlPopup();
     });
   }
 
@@ -1718,10 +1790,22 @@
     if (map && map.hasLayer(popup)) map.removeLayer(popup);
   }
 
+  function revealGlPopupControl(control) {
+    var content = control.closest(".nw-mobile-popup .maplibregl-popup-content");
+    if (!content || content.scrollHeight <= content.clientHeight) return;
+    var top = content.getBoundingClientRect().top + content.clientTop;
+    var bottom = top + content.clientHeight;
+    var bounds = control.getBoundingClientRect();
+    if (bounds.top < top) content.scrollTop += bounds.top - top - 4;
+    else if (bounds.bottom > bottom) content.scrollTop += bounds.bottom - bottom + 4;
+  }
+
   function syncGlPopupLayout() {
     if (!glPopup || !glMap) return;
     var element = glPopup.getElement();
     if (!element) return;
+    var focusedControl = element.contains(document.activeElement) ? document.activeElement : null;
+    var moved = false;
     var close = element.querySelector(".maplibregl-popup-close-button");
     if (close) close.setAttribute("aria-label", "Close popup");
     var compact = isCompactFloodmapperLayout();
@@ -1732,17 +1816,37 @@
       // for the standard 380px card. The compass would cover the close button.
       compact = Boolean(controls?.width && controls.left - (panel?.right || 0) < 380);
     }
+    if (!compact && close && element.classList.contains("nw-address-popup-handoff")) {
+      // The Leaflet camera may already be panned for its popup. After the
+      // renderer or pitch changes, use the centered card if that position
+      // puts the mirrored close control behind the compass.
+      var bounds = close.getBoundingClientRect();
+      var hit = document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+      if (hit?.closest("#nwDefaultNavControl")) element.dataset.addressPopupCentered = "true";
+      compact = element.dataset.addressPopupCentered === "true";
+    }
     element.classList.toggle("nw-mobile-popup", compact);
     // MapLibre appends its close button after the card. Sticky positioning
     // only keeps it visible when it starts before the scrollable contents.
     if (compact) {
       var content = element.querySelector(".maplibregl-popup-content");
-      if (content && close && content.firstElementChild !== close) content.prepend(close);
+      if (content && close && content.firstElementChild !== close) {
+        content.prepend(close);
+        moved = true;
+      }
     }
     // Map controls live outside MapLibre's stacking context. A compact popup
     // needs its own scrollable surface above them, independent of map anchors.
     var parent = compact ? document.body : glMap.getContainer();
-    if (element.parentElement !== parent) parent.appendChild(element);
+    if (element.parentElement !== parent) {
+      parent.appendChild(element);
+      moved = true;
+    }
+    if (moved && focusedControl) {
+      if (document.activeElement === document.body && !focusedControl.closest("[inert]")) {
+        focusedControl.focus({ preventScroll: true });
+      } else if (document.activeElement === focusedControl) revealGlPopupControl(focusedControl);
+    }
   }
 
   function syncLeafletViewTo3d() {
@@ -1787,6 +1891,8 @@
     glMap.addSource("nw-terrain", {
       type: "raster-dem",
       url: TERRAIN_TILEJSON_URL,
+      // Mapterhorn's North Wildwood coverage ends at z16. Its TileJSON omits the cap.
+      maxzoom: 16,
       tileSize: 512
     });
     syncTerrainForView(glMap.getPitch() > 10);
@@ -1856,6 +1962,11 @@
     }
   }
 
+  function resize3dView() {
+    if (glMap) glMap.resize();
+    syncGlPopupLayout();
+  }
+
   function wire3dInteractions() {
     glMap.on("moveend", sync3dViewToLeaflet);
     glMap.on("dragend", function () {
@@ -1876,7 +1987,7 @@
       if (buildingsEnabled && mapClickMode === "building" && glMap.getLayer(buildingLayerId)) {
         var rendered = glMap.queryRenderedFeatures(event.point, { layers: [buildingLayerId] });
         if (rendered.length) {
-          var queryGeneration = ++mapQueryGeneration;
+          var queryGeneration = beginMapQuery();
           var queryMode = mapClickMode;
           var queryRenderToken = lastRenderToken;
           var isCurrentQuery = function () {
@@ -1909,10 +2020,7 @@
         originalEvent: event.originalEvent || {}
       });
     });
-    window.addEventListener("resize", function () {
-      if (glMap) glMap.resize();
-      syncGlPopupLayout();
-    }, { passive: true });
+    window.addEventListener("resize", resize3dView, { passive: true });
     if (map) map.on("moveend zoomend", syncLeafletViewTo3d);
   }
 
@@ -1934,11 +2042,16 @@
     function failed(token, error) {
       if (!current(token)) return;
       clearWait();
+      if (!glStyleReady && document.body.classList.contains("map-3d-ready")) {
+        restoreLeafletAfter3dFailure(mapInstance);
+        return;
+      }
       document.body.dataset.map3d = "unavailable";
       setStatus("Flood display could not recover. Try the view button, or reload this page.");
       console.warn("The flood display could not recover after a graphics reset.", error);
     }
     mapInstance.on("webglcontextlost", function () {
+      if (glMap !== mapInstance) return;
       var token = ++generation;
       clearWait();
       retryRestoration = null;
@@ -1954,6 +2067,7 @@
       timer = window.setTimeout(function () { failed(token, new Error("Graphics recovery timed out.")); }, 20000);
     });
     mapInstance.on("webglcontextrestored", function () {
+      if (glMap !== mapInstance) return;
       var token = ++generation;
       clearWait();
       document.body.dataset.map3d = "recovering";
@@ -2093,6 +2207,13 @@
       glMap.on("moveend", syncPersistentNavControl);
       syncPersistentNavControl();
       glMap.on("error", function (event) {
+        var requestUrl = event?.error?.url;
+        var esriTileError = typeof requestUrl === "string" &&
+          requestUrl.startsWith(ESRI_VECTOR_TILES.split("{z}")[0]);
+        if (glMap === initialization.map && glMap.style && (event?.sourceId === "esri" || esriTileError)) {
+          var source = glMap.getSource("esri");
+          if (source) failedEsriVectorSources.add(source);
+        }
         console.warn("North Wildwood 3D renderer warning.", event && event.error ? event.error : event);
       });
       wire3dContextRecovery(glMap);
@@ -2129,7 +2250,11 @@
       requireCurrent();
       document.body.classList.add("map-3d-ready");
       if (townAddressMarker) setAddressMarker(townAddressMarker.getLatLng(), townAddressMarker.options.title);
+      if (townAddressPopup && persistentFloodPopup === townAddressPopup) {
+        showGlPopup(townAddressPopup, undefined, true);
+      }
       document.body.dataset.map3d = "ready";
+      if (document.getElementById("toastMessage")?.textContent === GRAPHICS_FALLBACK_NOTICE) toast("");
       document.body.dataset.terrainExaggeration = String(TERRAIN_EXAGGERATION);
       document.body.dataset.map3dMaxZoom = String(MAP_MAX_ZOOM);
       document.body.dataset.map3dPixelRatio = "1";
@@ -2313,6 +2438,7 @@
       }
       sync3dViewToLeaflet();
       syncPersistentNavControl();
+      syncGlPopupLayout();
       updateDiagnostics();
     }
 
@@ -2556,9 +2682,10 @@
   };
 
   var originalUpdateRoadLayerAppearance = updateRoadLayerAppearance;
-  updateRoadLayerAppearance = function () {
+  updateRoadLayerAppearance = function (options) {
     var result = originalUpdateRoadLayerAppearance.apply(this, arguments);
     syncRoadLabels3d();
+    if (options?.retry3dRoads) retryFailedEsriRoadSource();
     suspendLeafletVisualLayers();
     return result;
   };
@@ -2616,7 +2743,7 @@
   applyOverlayOpacity = function () {
     var result = originalApplyOverlayOpacity.apply(this, arguments);
     if (floodPlaneLayer && typeof floodPlaneLayer.setOpacity === "function") floodPlaneLayer.setOpacity(overlayOpacity);
-    if (glMap && glMap.getLayer("nw-flood-drape")) {
+    if (glMap && glStyleReady && glMap.getLayer("nw-flood-drape")) {
       glMap.setPaintProperty("nw-flood-drape", "raster-opacity", overlayOpacity);
     }
     return result;
@@ -2646,11 +2773,7 @@
   var originalOpenPersistentFloodPopup = openPersistentFloodPopup;
   openPersistentFloodPopup = function (latlng, html, maxWidth) {
     var popup = originalOpenPersistentFloodPopup.apply(this, arguments);
-    showGlPopup(latlng, html, maxWidth);
-    var mirror = glPopup;
-    if (popup && mirror) popup.once("remove", function () {
-      if (glPopup === mirror) closeGlPopup();
-    });
+    showGlPopup(popup, maxWidth);
     return popup;
   };
 

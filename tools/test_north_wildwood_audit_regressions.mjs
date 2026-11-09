@@ -101,11 +101,13 @@ try{
   // Deterministic provider fixtures; real form, normalization, parcel matching,
   // marker renderer, drawer and popup paths are exercised without rate limits.
   const lat=Number(parcel.properties.centroidLat||parcel.properties.analysisLat),lon=Number(parcel.properties.centroidLon||parcel.properties.analysisLon);
-  await page.route('https://geocode.arcgis.com/**',route=>route.fulfill({json:{candidates:[{address:'1601 Ocean Avenue, North Wildwood, NJ',score:100,location:{x:lon,y:lat},attributes:{Match_addr:'1601 Ocean Avenue, North Wildwood, NJ'}}]}}));
+  await page.route('https://geocode.arcgis.com/**',route=>route.fulfill({json:{candidates:[{address:'1601 Ocean Avenue, North Wildwood, NJ',score:100,location:{x:lon,y:lat},attributes:{Match_addr:'1601 Ocean Avenue, North Wildwood, NJ',Addr_type:'PointAddress'}}]}}));
   await page.route('https://nominatim.openstreetmap.org/**',route=>route.fulfill({json:[]}));
   await page.locator('#townAddressInput').fill('1601 Ocean Avenue');
   await page.locator('#townAddressSearchBtn').tap();
-  await page.waitForFunction(()=>!document.getElementById('townAddressSearchBtn').disabled,{},{timeout:30000});
+  const addressStatus=page.locator('#townAddressStatus:is(.success,.error)');
+  await addressStatus.waitFor({state:'attached',timeout:30000});
+  check((await addressStatus.textContent()).startsWith('Building flood profile found:'),'Address fixture did not match its parcel');
   check(!await page.locator('body').evaluate(element=>element.classList.contains('mobile-controls-open')),'Address result leaves drawer open');
   check(await page.locator('#map3d .nw-address-marker').count()===1,'Address marker missing on visible renderer');
   await page.locator('.nw-mobile-popup .maplibregl-popup-close-button').tap();

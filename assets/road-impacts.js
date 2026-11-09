@@ -39,10 +39,7 @@
     if (roadLines) return roadLines;
     if (!roadPromise) {
       const url = new URL("./assets/roads/north-wildwood-road-centerlines.geojson", APP_BASE);
-      roadPromise = fetch(url.href, { cache: "force-cache" }).then(response => {
-        if (!response.ok) throw new Error("Road Impacts data could not be loaded.");
-        return response.json();
-      }).then(collection => {
+      roadPromise = fetchJson(url.href, { cache: "force-cache", timeoutMs: 15000 }).then(collection => {
         if (!Array.isArray(collection.features) || !collection.features.length) throw new Error("Road Impacts data is unavailable.");
         roadLines = collection.features.filter(feature => feature.geometry?.type === "LineString" && feature.geometry.coordinates.length > 1)
           .map(feature => ({ properties: feature.properties, coordinates: densifyRoad(feature.geometry.coordinates) }));
@@ -92,7 +89,8 @@
       gl.getSource("nw-road-impacts-source").setData(renderedData);
       glDataVersion = dataVersion;
     }
-    ["nw-road-impacts", "nw-road-impacts-halo"].forEach(id => gl.setLayoutProperty(id, "visibility", enabled ? "visible" : "none"));
+    const visibility = enabled && renderedData.features.length ? "visible" : "none";
+    ["nw-road-impacts", "nw-road-impacts-halo"].forEach(id => gl.setLayoutProperty(id, "visibility", visibility));
   }
 
   function publishData(collection) {
@@ -156,6 +154,7 @@
     if (!await getDepthQueryGrid()) throw new Error("Road water depths are unavailable.");
     return async coordinate => {
       const sample = await sampleDepthModel(coordinate[1], coordinate[0]);
+      if (sample?.developedFlag === null) throw new Error("Road terrain classification is unavailable.");
       const depthFt = getDepthQueryDisplayDepth(sample, stage, { flooded: true }, phase);
       // Tolerance excludes an exact half foot after floating-point subtraction.
       return Number.isFinite(depthFt) && depthFt > MIN_DEPTH_FT + 1e-9;
@@ -211,7 +210,7 @@
     } catch (error) {
       if (!enabled || request !== revision) return;
       publishData(EMPTY);
-      setStatus("Road impacts unavailable. Toggle off/on to retry.");
+      setStatus("Road impacts failed. Toggle off/on to retry.");
       document.body.dataset.roadImpactsState = "failed";
       console.warn("Road Impacts could not load.", error);
     }
@@ -233,14 +232,29 @@
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setEnabled(!enabled); }
   });
 
+  function roadFrameKey(layer) {
+    const frame = layer?._floodmapperFrame;
+    return frame ? JSON.stringify([
+      layer.getElement()?.src, frame.entry?.timeUtc, frame.stage, frame.phase, frame.overlayMode
+    ]) : null;
+  }
+
   const originalClearFloodLayer = clearFloodLayer;
   clearFloodLayer = function () { invalidate(); return originalClearFloodLayer.apply(this, arguments); };
   const originalRenderHour = renderHour;
   renderHour = async function () {
+    const previousLayer = currentFloodLayer;
+    const previousFrame = roadFrameKey(previousLayer);
     const pending = originalRenderHour.apply(this, arguments);
     const frameToken = lastRenderToken;
     const result = await pending;
-    if (enabled && frameToken === lastRenderToken) await refresh();
+    if (!enabled || frameToken !== lastRenderToken) return result;
+    // A retained flood frame keeps its roads while its replacement loads.
+    // Clear the old roads when the replacement becomes the displayed frame.
+    if (currentFloodLayer !== previousLayer && (!previousFrame || previousFrame !== roadFrameKey(currentFloodLayer))) {
+      invalidate();
+    }
+    if (result !== false || document.body.dataset.roadImpactsState === "loading") await refresh();
     return result;
   };
   new MutationObserver(syncLayers).observe(document.body, { attributes: true, attributeFilter: ["class"] });

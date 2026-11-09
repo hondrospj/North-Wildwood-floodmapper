@@ -130,8 +130,11 @@
         const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? "Stone Harbor USGS" : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
         const qualityNote = entry?.observationQuality === "I" || entry?.isInterpolatedTimelineFrame
           ? "Interpolated" : entry?.observationQuality === "U" || entry?.observationQuality === "unknown"
-            ? "Sampling quality not recorded" : entry?.observationQuality === "C" ? "Calibrated storm replay" : "";
-        currentSelectionQualityNote = [stationNote, qualityNote, entry?.crestTimeEstimated ? "Replay timing estimated from source tide" : "", entry?.isDailyPeakOnly ? "Daily peak only • peak time unknown" : ""].filter(Boolean).join(" • ");
+            ? "Sampling quality not recorded" : entry?.observationQuality === "C"
+              ? (entry.isDailyPeakOnly && entry.peakTimeKnown === true ? "USGS storm-tide crest" : "Calibrated storm replay") : "";
+        const peakNote = entry?.isDailyPeakOnly
+          ? (entry.peakTimeKnown === true ? "Daily peak only" : "Daily peak only • peak time unknown") : "";
+        currentSelectionQualityNote = [stationNote, qualityNote, entry?.crestTimeEstimated ? "Replay timing estimated from source tide" : "", peakNote].filter(Boolean).join(" • ");
         document.getElementById("stageSubText").textContent = [stageSub, currentSelectionQualityNote].filter(Boolean).join(" • ");
       }
       updateSnapshotWaterLevelSeverity(rawStage);
@@ -148,7 +151,9 @@
       const frameEntry = typeof entry !== "undefined" && entry ? entry : currentSeriesHours[currentHourIndex];
       const frameStage = getStageValue(frameEntry);
       const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : stageValue,
-        phase, dataMode: currentDataMode, overlayMode: mode, overlayStage: stageValue, series };
+        phase, dataMode: currentDataMode, overlayMode: mode, overlayStage: stageValue, series,
+        forecastSource: currentDataMode === "forecast" && forecastData
+          ? { petssCycleUtc: forecastData.petssCycleUtc, forecastEndUtc: forecastData.forecastEndUtc } : null };
 
       let releaseRaster = null;
       try {
@@ -240,7 +245,9 @@
     async function setPhysicsFloodLayer(asset, token, entry = null, phase = "slack") {
       const frameEntry = typeof entry !== "undefined" && entry ? entry : currentSeriesHours[currentHourIndex];
       const frameStage = getStageValue(frameEntry);
-      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : (typeof stageValue !== "undefined" ? stageValue : null), phase: typeof phase !== "undefined" ? phase : "slack", dataMode: currentDataMode };
+      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : (typeof stageValue !== "undefined" ? stageValue : null), phase: typeof phase !== "undefined" ? phase : "slack", dataMode: currentDataMode,
+        forecastSource: currentDataMode === "forecast" && forecastData
+          ? { petssCycleUtc: forecastData.petssCycleUtc, forecastEndUtc: forecastData.forecastEndUtc } : null };
 
       toast("");
       ensureMap();

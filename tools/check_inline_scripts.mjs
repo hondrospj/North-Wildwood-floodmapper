@@ -1,5 +1,4 @@
 import { readAppSource } from './app_source.mjs';
-import fs from "node:fs";
 import vm from "node:vm";
 
 const html = readAppSource(new URL("../index.html", import.meta.url));

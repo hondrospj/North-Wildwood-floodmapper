@@ -14,10 +14,15 @@ try {
     const mobile = width < 900;
     const page = await browser.newPage({ viewport: { width, height: mobile ? 844 : 1000 }, isMobile: mobile, hasTouch: mobile });
     const errors = [], requests = [];
+    let providerStatus = 200, providerGate = null;
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => { if (/ipcamlive|magicbrain/.test(request.url())) requests.push(request.url()); });
-    await page.route(/https:\/\/(g1\.ipcamlive\.com|streamer-1\.magicbrain\.io)\//,
-      route => route.fulfill({ contentType: 'text/html', body: '<p>Test camera provider</p>' }));
+    await page.route(/https:\/\/(g1\.ipcamlive\.com|streamer-1\.magicbrain\.io)\//, async route => {
+      const status = providerStatus;
+      if (providerGate) await providerGate;
+      await route.fulfill({ status, contentType: 'text/html', body: status === 200
+        ? '<p>Test camera provider</p><input aria-label="Player position" value="0">' : '' });
+    });
     page.setDefaultTimeout(20000);
     await page.goto(process.env.NWW_TEST_URL || 'http://127.0.0.1:8765/', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.body.classList.contains('nw-app-ready'), {}, { timeout: 90000 });
@@ -96,10 +101,10 @@ try {
       await marker.click({ trial: true, timeout: is3dMarker ? 60000 : 20000 });
       if (keyboard) { await marker.focus(); await page.keyboard.press('Enter'); }
       else await marker.click();
-      await page.waitForFunction(state => !document.getElementById('webcamPanel').hidden && document.getElementById('webcamPanel').dataset.playerState === state, external ? 'external' : 'player-open');
+      await page.waitForFunction(state => !document.getElementById('webcamPanel').hidden && document.getElementById('webcamPanel').dataset.playerState === state, external ? 'external' : 'embed-loaded');
       assert.equal(requests.length, before + (external ? 0 : 1), 'Only an embeddable camera requests a feed');
       assert.equal(await page.locator('#webcamFrame iframe').count(), external ? 0 : 1);
-      assert.equal(await page.locator('#webcamPanel').evaluate(el => el.parentElement.id), 'mapWrap');
+      assert.equal(await page.locator('#webcamPanel').evaluate(el => el.parentElement === document.body), true);
       assert.equal(await page.locator('#webcamStatus').isVisible(), external, 'Only a blocked feed shows a provider status');
       assert.equal(await page.locator('#webcamTitle').innerText(),'Cameras');
       assert.equal(await page.locator('#webcamLocation,#webcamLocate,#webcamOtherSources,.webcam-disclaimer').count(),0,'Camera viewer omits redundant location and explanatory blocks');
@@ -151,22 +156,100 @@ try {
     const bayRequest = new URL(requests.find(url => url.includes('ipcamlive')));
     assert.equal(bayRequest.searchParams.get('autoplay'), '1');
     assert.equal(bayRequest.searchParams.get('mute'), '1');
+    const chooser = page.locator('#webcamChoice');
+    if (width === 390) {
+      const beforeResize = [...requests];
+      const playerPosition = page.frameLocator('#webcamFrame iframe').getByRole('textbox', {name: 'Player position'});
+      await playerPosition.fill('42');
+      await chooser.focus();
+      for (const [compactWidth, compactHeight] of [[568, 320], [390, 425], [320, 420]]) {
+        await page.setViewportSize({width: compactWidth, height: compactHeight});
+        await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.viewportOverlay === 'true');
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const targets = await page.evaluate(() => ['mobileControlsToggle', 'legendDock', 'webcamClose'].map(id => {
+          const control = document.getElementById(id), box = control.getBoundingClientRect();
+          const hit = document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2);
+          return {id, reachable: control.contains(hit), hit: hit?.id || hit?.className, box: box.toJSON()};
+        }));
+        assert.ok(targets.every(target => target.reachable), JSON.stringify(targets));
+        assert.equal(await chooser.evaluate(el => el === document.activeElement), true, 'Short compact resize preserves camera focus');
+        results.push({width: compactWidth, height: compactHeight, kind: 'camera-and-header-targets', targets});
+      }
+      await page.locator('#mobileControlsToggle').tap();
+      await page.locator('#mobileControlsClose').tap();
+      const legend = page.locator('#legendDock');
+      await legend.tap();
+      await page.waitForFunction(() => document.body.classList.contains('mobile-legend-open'));
+      const keyReachable = await legend.evaluate(el => {
+        const box = el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2));
+      });
+      assert.equal(keyReachable, true, 'The expanded Key is above the camera');
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.body.classList.contains('mobile-legend-open'));
+      assert.equal(await page.locator('#webcamPanel').isVisible(), true, 'Escape closes the expanded Key only');
+      assert.equal(await playerPosition.inputValue(), '42', 'Header actions preserve the live iframe state');
+      assert.deepEqual(requests, beforeResize, 'Header actions send no second provider request');
+      await page.setViewportSize({width, height: 844});
+    }
+    if (!mobile) {
+      const playerPosition = page.frameLocator('#webcamFrame iframe').getByRole('textbox', {name: 'Player position'});
+      const beforeResize = [...requests];
+      await playerPosition.fill('42');
+      await chooser.focus();
+      await page.emulateMedia({reducedMotion: 'reduce'});
+      for (const [height, overlay] of [[460, 'true'], [1000, 'false']]) {
+        await page.setViewportSize({width, height});
+        await page.waitForFunction(expected => document.getElementById('webcamPanel').dataset.viewportOverlay === expected, overlay);
+        assert.equal(await chooser.evaluate(el => el === document.activeElement), true, 'Viewer resize preserves chooser focus');
+        assert.equal(await playerPosition.inputValue(), '42', 'Viewer resize preserves the live iframe state');
+        assert.deepEqual(requests, beforeResize, 'Viewer resize sends no second provider request');
+      }
+      await page.emulateMedia({reducedMotion: 'no-preference'});
+      await page.locator('#openDownloadModalBtn').click();
+      await page.locator('#downloadModal').waitFor({state: 'visible'});
+      await page.keyboard.press('Escape');
+      await page.locator('#downloadModal').waitFor({state: 'hidden'});
+      assert.equal(await page.locator('#webcamPanel').isVisible(), true, 'Escape belongs to the foreground modal');
+      assert.deepEqual(requests, beforeResize, 'Closing the foreground modal keeps the player connected');
+
+      providerStatus = 503;
+      const failed = page.waitForResponse(response => response.url() === bayRequest.href && response.status() === 503);
+      await page.locator('#webcamRetry').click();
+      await failed;
+      await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'embed-loaded');
+      assert.equal(await page.locator('#webcamRetry').isVisible(), true);
+      assert.equal(await page.locator('#webcamSourceLink').isVisible(), true);
+      providerStatus = 200;
+      let release;
+      providerGate = new Promise(resolve => { release = resolve; });
+      try {
+        await page.locator('#webcamRetry').click();
+        await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'slow', null, {timeout: 17000});
+        assert.match(await page.locator('#webcamStatus').innerText(), /Reload or open the source/);
+      } finally { providerGate = null; release(); }
+      await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'embed-loaded');
+      await playerPosition.waitFor({state: 'visible'});
+    }
     await page.locator('#webcamFrame iframe').dispatchEvent('error');
     assert.equal(await page.locator('#webcamFrame').isVisible(), false);
     assert.equal(await page.locator('#webcamStatus').innerText(), 'Camera unavailable. Try again.');
     await page.locator('#webcamRetry').click();
-    await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'player-open');
+    await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'embed-loaded');
     assert.equal(await page.locator('#webcamFrame').isVisible(), true);
     const oldPlayer = await page.locator('#webcamFrame iframe').elementHandle();
     const beforeBeach = requests.length;
-    await page.locator('#webcamChoice').selectOption('north-beach');
+    await chooser.focus();
+    await chooser.selectOption('north-beach');
     await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'external');
+    assert.equal(await chooser.evaluate(el => el === document.activeElement), true, 'Camera selection preserves chooser focus');
     assert.equal(await oldPlayer.evaluate(el => el.isConnected), false);
     assert.equal(await page.locator('#webcamFrame iframe').count(), 0);
     assert.equal(requests.length, beforeBeach, 'Restricted beach camera never requests an iframe');
     assert.equal(await page.locator('#webcamRetry').isVisible(), false);
-    await page.locator('#webcamChoice').selectOption('north-bay');
-    await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'player-open');
+    await chooser.selectOption('north-bay');
+    await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.playerState === 'embed-loaded');
+    assert.equal(await chooser.evaluate(el => el === document.activeElement), true, 'Switching back preserves chooser focus');
     assert.equal(requests.length, beforeBeach + 1, 'Switching back opens the bay player lazily');
     assert.equal(await page.locator('#webcamRetry').isVisible(), true);
     await page.keyboard.press('Escape');

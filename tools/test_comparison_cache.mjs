@@ -2,7 +2,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { cacheIdentity, existingPayload } from './build_north_wildwood_stone_harbor_comparison.mjs';
+import { cacheIdentity, existingPayload, parseStone } from './build_north_wildwood_stone_harbor_comparison.mjs';
+const providerReadings = [
+  {dateTime:'2026-11-08T05:00:00Z', value:null},
+  {dateTime:'2026-11-08T05:06:00Z', value:''},
+  {dateTime:'2026-11-08T05:12:00', value:'2.30'},
+  {dateTime:'2026-11-08T05:18:00Z', value:'0.00'},
+  {dateTime:'2026-11-08T00:24:00-05:00', value:'2.40'},
+];
+assert.deepEqual(parseStone({value:{timeSeries:[{values:[{value:providerReadings}]}]}}), [
+  {time:Date.parse('2026-11-08T05:18:00Z'),value:0},
+  {time:Date.parse('2026-11-08T05:24:00Z'),value:2.40},
+]);
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'nww-comparison-cache-'));
 try {
   const original = { recordCount: 2, readings: [['2020-01-01 00:00:00', 3], ['2020-01-01 00:15:00', 4]] };

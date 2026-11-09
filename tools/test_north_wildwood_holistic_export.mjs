@@ -88,10 +88,33 @@ try {
 
   await page.locator('#returnIntervalDataBtn').click();
   await page.waitForFunction(()=>currentDataMode==='return-interval' && floodFrameState==='ready');
+  const modeledBounds=await page.evaluate(()=>{
+    const entries=getReturnIntervalExportEntries();
+    return [entryTimeMs(entries[0]),entryTimeMs(entries.at(-1))];
+  });
+  await page.locator('#openDownloadModalBtn').click();
+  await page.locator('#exportFormatPngBtn').click();
+  const pngSeed=await page.evaluate(()=>({
+    times:getDownloadFrameItems().map(item=>entryTimeMs(item.entry)),
+    timeLabel:document.getElementById('downloadStartTimeButton').textContent,
+  }));
+  assert.deepEqual(pngSeed.times,[modeledBounds[0]],'The default PNG has one native frame, even between clock hours');
+  assert.match(pngSeed.timeLabel,/12 hr before peak/);
+  await page.locator('#downloadEndTimeButton').click();
+  await page.locator(`#nwwExportDateTimePicker [data-value$="|${modeledBounds[1]}"]`).click();
+  const completeModeledRange=await page.evaluate(()=>{
+    const range=getDownloadRangeRequest();
+    return [range.startMs,range.endMs];
+  });
+  assert.deepEqual(completeModeledRange,modeledBounds,'The end selector can reach the modeled time on the next civil day');
+  await page.locator('#downloadModalCloseBtn').click();
+  result.checks.push('Modeled PNG starts with one exact frame and its time selector covers the whole storm');
   await page.locator('#intervalDailyBtn').click();
   await page.waitForFunction(()=>getTimelineIntervalMinutes()===1440 && floodFrameState==='ready');
   const main=await page.evaluate(()=>currentSeriesHours.map(entry=>({time:entry.timeUtc,stage:getStageValue(entry),day:entry.syntheticStormDay})));
-  await page.locator('#openDownloadModalBtn').click();await review(page);
+  await page.locator('#openDownloadModalBtn').click();
+  await page.locator('#exportFormatGifBtn').click();
+  await review(page);
   await page.locator('#exportAspectSquareBtn').click();await page.locator('#exportIntervalDailyBtn').click();
   const modeled=await page.evaluate(()=>getDownloadFrameItems().map(item=>({time:item.entry.timeUtc,stage:getStageValue(item.entry),day:item.entry.syntheticStormDay})));
   assert.deepEqual(modeled,main);assert.equal(modeled.length,2);

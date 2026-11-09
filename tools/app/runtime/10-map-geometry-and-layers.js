@@ -131,16 +131,16 @@
       });
     }
 
-    function createHydraulicImageOverlay(url, options = {}) {
+    function createHydraulicImageOverlay(url, options = {}, source = url) {
       if (url === PARCEL_BOUNDARY_PNG_URL && TOWN_CONFIG.parcels?.worldFileCornersWgs84) {
         const raster = TOWN_CONFIG.parcels.worldFileRasterSize;
-        return new WorldFileImageOverlay(url, TOWN_CONFIG.parcels.worldFileCornersWgs84, {
+        return new WorldFileImageOverlay(source, TOWN_CONFIG.parcels.worldFileCornersWgs84, {
           ...options,
           pixelWidth: raster?.width,
           pixelHeight: raster?.height
         });
       }
-      return createWorldFileImageOverlay(url, options) || L.imageOverlay(url, floodLatLngBounds, options);
+      return createWorldFileImageOverlay(source, options) || L.imageOverlay(source, floodLatLngBounds, options);
     }
 
     function getActiveFloodOverlayCoordinates() {
@@ -719,7 +719,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       satelliteLayer = L.tileLayer(ESRI_WORLD_IMAGERY_URL, {
         attribution: "Tiles &copy; Esri",
         minZoom: 11,
-        maxZoom: 19,
+        maxNativeZoom: 19,
+        maxZoom: map.getMaxZoom(),
         crossOrigin: true,
         updateWhenIdle: true,
         keepBuffer: 1,
@@ -811,6 +812,13 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       const titleRect = title.getBoundingClientRect();
       if (!Number.isFinite(titleRect.bottom) || titleRect.height < 2) return;
       control.style.setProperty("--map-click-mode-top", `${Math.ceil(titleRect.bottom + 7)}px`);
+      if (isCompactFloodmapperLayout()) {
+        const dock = document.getElementById("timelineDock")?.getBoundingClientRect();
+        if (dock?.height) control.style.setProperty("--map-click-mode-bottom", `${Math.ceil(innerHeight - dock.top + 10)}px`);
+      } else {
+        control.style.setProperty("--map-click-mode-left", `${(titleRect.left + titleRect.right) / 2}px`);
+        control.style.setProperty("--map-click-mode-width", title.style.maxWidth || `${titleRect.width}px`);
+      }
     }
 
     function setMapClickMode(mode, options = {}) {
@@ -831,7 +839,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       } else updateMapClickModeControl();
     }
 
-    async function setBuildingsEnabled(enabled) {
+    async function setBuildingsEnabled(enabled, options = {}) {
       const shouldEnable = Boolean(enabled);
       const toggle = document.getElementById("buildingsToggle");
       if (toggle) {
@@ -856,7 +864,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         });
       }
       if (!map.hasLayer(buildingsLayer)) buildingsLayer.addTo(map);
-      setMapClickMode("building", { closePopup: false });
+      if (!options.preserveClickMode) setMapClickMode("building", { closePopup: false });
       updateExportBuildingsLayer();
       toast("");
       ensureParcelAssets().catch(error => console.warn("Building parcel matching will retry when requested.", error));
@@ -886,9 +894,14 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
     // Bake the label styling into canvas tiles so PNG/GIF captures preserve it.
+    function hasRoadLabelRenderer() {
+      return typeof window.ShorelyRoadLabels?.createLayer === "function"
+        && typeof window.L?.esri?.Vector?.vectorTileLayer === "function";
+    }
+
     // The live map keeps its soft gray style; exports can use stronger contrast.
     function createRoadLabelLayer(url, options) {
-      if (!window.ShorelyRoadLabels) throw new Error("The road-label renderer could not load.");
+      if (!hasRoadLabelRenderer()) return null;
       return window.ShorelyRoadLabels.createLayer({
         ...options,
         exportMode: Number(options?.minZoom) === 0,

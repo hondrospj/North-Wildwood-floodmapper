@@ -98,7 +98,25 @@ assert.deepEqual(JSON.parse(JSON.stringify(previousOptions)), [
 ], 'Older projection data retains the three original choices');
 assert.equal((await ctx.getParcelProjectionOptions({ id: 'uncovered' }, cdf)).length, 0);
 ctx.OVERLAY_CACHE_VERSIONS.hydraulic = 'new-atlas';
-assert.equal((await ctx.getParcelProjectionOptions({ id: 518840 }, cdf)).length, 0);
+await assert.rejects(ctx.getParcelProjectionOptions({ id: 518840 }, cdf), /needs to be refreshed/);
+let areaRequests = 0;
+ctx.fetchJson = async () => ++areaRequests === 1 ? stages : { ...stages, catalogVersion: 'new-atlas' };
+await assert.rejects(ctx.getParcelProjectionOptions({ id: 518840 }, cdf), /needs to be refreshed/);
+assert.deepEqual(JSON.parse(JSON.stringify(await ctx.getParcelProjectionOptions({ id: 518840 }, cdf))),
+  JSON.parse(JSON.stringify(options)), 'Corrected HTTP 200 area data must succeed on retry');
+assert.equal(areaRequests, 2);
+
+const corruptCdf = structuredClone(cdf);
+corruptCdf.annualFloodEventCount.intermediate.estimate[32][24] = null;
+let cdfRequests = 0;
+Object.assign(ctx, { HOUSE_ALERT_CDF_URL: 'cdf.json', houseAlertCdfData: null, houseAlertCdfPromise: null,
+  fetchJson: async () => ++cdfRequests === 1 ? corruptCdf : cdf });
+assert.equal(ctx.hasValidFloodProjectionData(cdf), true);
+await assert.rejects(ctx.ensureFloodProjectionData(), /needs to be refreshed/);
+assert.equal(ctx.houseAlertCdfData, null, 'A missing annual estimate must never be cached as zero');
+assert.equal(await ctx.ensureFloodProjectionData(), cdf);
+assert.equal(await ctx.ensureFloodProjectionData(), cdf);
+assert.equal(cdfRequests, 2, 'A corrected CDF is cached only after validation');
 
 const selectedEntry = { stage: 3.16 };
 const selectedSeries = [selectedEntry];

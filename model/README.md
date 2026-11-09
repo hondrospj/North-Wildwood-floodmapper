@@ -1,10 +1,10 @@
 # North Wildwood nonlinear shallow-water forecast
 
-The forecast path now runs a new two-dimensional hydrodynamic simulation for
-every PETSS cycle. It no longer selects a city-wide answer from a stage and
-phase lookup. Historical observations and synthetic return-interval storms
-continue to use the bundled v19 response atlas until event-specific boundary
-curves are defined and validated for them.
+This directory contains the optional two-dimensional forecast simulator.
+The public North Wildwood mapper currently uses the bundled hydraulic atlas
+for Forecast, Past, and Modeled Floods. The public town configuration has no
+physics forecast pointer. The optional pipeline below builds products from
+each PETSS cycle for local testing and separate deployment.
 
 ## Why this architecture
 

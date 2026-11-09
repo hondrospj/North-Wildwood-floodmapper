@@ -1,7 +1,10 @@
     function wireLayerToggles() {
-      document.getElementById("mapClickBuildingBtn")?.addEventListener("click", () => setMapClickMode("building"));
-      document.getElementById("mapClickParcelBtn")?.addEventListener("click", () => setMapClickMode("parcel"));
-      document.getElementById("mapClickDepthBtn")?.addEventListener("click", () => setMapClickMode("depth"));
+      for (const [id, mode] of [["mapClickBuildingBtn", "building"], ["mapClickParcelBtn", "parcel"], ["mapClickDepthBtn", "depth"]]) {
+        document.getElementById(id)?.addEventListener("click", () => {
+          if (cancelPendingTownAddressLookup()) setTownAddressStatus("");
+          setMapClickMode(mode);
+        });
+      }
       document.getElementById("structuralImpactsKeyClose")?.addEventListener("click", () => {
         document.getElementById("structuralImpactsKey").hidden = true;
         document.getElementById("timelineDock")?.querySelector("#playBtn")?.focus({ preventScroll: true });
@@ -12,7 +15,7 @@
         const toggleLayer = () => {
           el.classList.toggle("on");
           el.setAttribute("aria-checked", String(el.classList.contains("on")));
-          if (id === "roadsToggle") updateRoadLayerAppearance();
+          if (id === "roadsToggle") updateRoadLayerAppearance({ retry3dRoads: el.classList.contains("on") });
         };
         el.addEventListener("click", toggleLayer);
         el.addEventListener("keydown", event => {
@@ -35,6 +38,7 @@
       });
       const buildingsToggle = document.getElementById("buildingsToggle");
       const toggleBuildings = () => {
+        ++townAddressBuildingChoiceGeneration;
         const enabled = !buildingsToggle?.classList.contains("on");
         setBuildingsEnabled(enabled).catch(error => {
           setBuildingsEnabled(false, { rollback: true }).catch(() => {});
@@ -160,6 +164,8 @@
       const app = document.getElementById("app");
       if (!leftPanel || !rightRail || !app) return;
       const wasMobile = document.body.classList.contains("mobile-optimized");
+      const focused = document.activeElement;
+      const movingFocus = wasMobile !== isMobile && (leftPanel.contains(focused) || rightRail.contains(focused));
 
       const { mobileRailMount, closeBtn } = ensureMobileControlShell();
 
@@ -197,6 +203,12 @@
         if (mobileRailMount.parentNode) mobileRailMount.parentNode.removeChild(mobileRailMount);
       }
       syncLegendPlacement();
+      // Wait for the unified layout and modal isolation to release the moved control.
+      if (movingFocus) requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (document.activeElement !== document.body || isMobile !== isCompactFloodmapperLayout()) return;
+        const target = isMobile ? document.getElementById("mobileControlsToggle") : focused;
+        if (target?.getClientRects().length && !target.closest("[inert]")) target.focus();
+      }));
     }
 
     function wireMobileControlShell() {
@@ -264,13 +276,20 @@
 
     let townAddressLookupController = null;
     let townAddressPopup = null;
+    let townAddressBuildingChoiceGeneration = 0;
 
-    function clearTownAddressLookup() {
+    function cancelPendingTownAddressLookup() {
+      if (!townAddressLookupController) return false;
       ++townAddressSearchGeneration;
-      townAddressLookupController?.abort();
+      townAddressLookupController.abort();
       townAddressLookupController = null;
       const button = document.getElementById("townAddressSearchBtn");
       if (button) button.disabled = false;
+      return true;
+    }
+
+    function clearTownAddressLookup() {
+      cancelPendingTownAddressLookup();
       const input = document.getElementById("townAddressInput");
       if (input) input.value = "";
       setTownAddressStatus("");
@@ -311,12 +330,13 @@
       const north = Number(box.north);
       const west = Number(box.west);
       const east = Number(box.east);
-      if (![south, north, west, east].every(Number.isFinite)) return Number.isFinite(lat) && Number.isFinite(lon);
-      return Number.isFinite(lat) && Number.isFinite(lon) &&
-        lat >= south && lat <= north && lon >= west && lon <= east;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+      if ([south, north, west, east].every(Number.isFinite) &&
+          (lat < south || lat > north || lon < west || lon > east)) return false;
+      return !municipalBoundaryFeature || pointInParcelFeature(municipalBoundaryFeature, lat, lon);
     }
 
-    function normalizeTownAddressText(value) {
+    function normalizeTownAddressText(value, keepPlaceNames = false) {
       const cfg = getTownAddressConfig();
       const removable = [
         cfg.displayName,
@@ -351,8 +371,18 @@
         .replace(/\b(east|e)\b/g, "e")
         .replace(/\b(west|w)\b/g, "w")
         .replace(/[^a-z0-9\s]/g, " ");
-      if (removablePattern) cleaned = cleaned.replace(removablePattern, " ");
+      if (!keepPlaceNames && removablePattern) cleaned = cleaned.replace(removablePattern, " ");
       return cleaned.replace(/\s+/g, " ").trim();
+    }
+
+    function getTownAddressHouseNumber(value) {
+      return String(value || "").trim().match(/^\d+[a-z]?(?:-\d+[a-z]?)?(?=\s|,|$)/i)?.[0].toLowerCase() || "";
+    }
+
+    function normalizeTownStreetAddress(value) {
+      const street = String(value || "").split(",", 1)[0]
+        .replace(/\s+(?:apt|unit|suite|ste)\.?\s+.*$|\s*#.*$/i, "");
+      return normalizeTownAddressText(street, true);
     }
 
     function levenshteinTownAddress(a, b) {
@@ -438,6 +468,9 @@
 
     function normalizeNominatimTownCandidate(result, cleanQuery) {
       if (!isLikelyTownResult(result)) return null;
+      const address = result.address || {};
+      const houseNumber = getTownAddressHouseNumber(cleanQuery);
+      if (!address.road || String(address.house_number || "").toLowerCase() !== houseNumber) return null;
       const lat = Number(result.lat);
       const lon = Number(result.lon);
       const candidate = {
@@ -445,7 +478,8 @@
         lat,
         lon,
         label: formatTownAddressLabel(result),
-        address: result.address || {},
+        address,
+        streetAddress: houseNumber ? normalizeTownStreetAddress(`${address.house_number} ${address.road}`) : "",
         display_name: result.display_name || "",
         score: 0.45
       };
@@ -459,11 +493,15 @@
       if (!isInsideTownLookupBox(lat, lon)) return null;
       const attrs = candidate.attributes || {};
       const label = String(attrs.Match_addr || candidate.address || "address").replace(/,\s*USA$/i, "");
+      const houseNumber = getTownAddressHouseNumber(cleanQuery);
+      const addressTypes = houseNumber ? ["PointAddress", "Subaddress", "StreetAddress"] : ["StreetName", "StreetInt"];
+      if (!addressTypes.includes(attrs.Addr_type) || getTownAddressHouseNumber(label) !== houseNumber) return null;
       const normalized = {
         source: "arcgis",
         lat,
         lon,
         label,
+        streetAddress: houseNumber ? normalizeTownStreetAddress(label) : "",
         arcgisScore: Number(candidate.score || attrs.Score || 0),
         score: 0
       };
@@ -617,6 +655,8 @@
       }
       if (!map) ensureMap();
 
+      ++mapQueryGeneration;
+      const buildingChoice = townAddressBuildingChoiceGeneration;
       if (button) button.disabled = true;
       setTownAddressStatus(`Finding the closest ${townName} match…`);
 
@@ -636,21 +676,25 @@
         const latLng = L.latLng(match.lat, match.lon);
         const label = formatTownAddressLabel(match);
         let parcelFeature = null;
-        try {
-          parcelFeature = await findParcelFeatureForLocation(match.lat, match.lon);
-          if (generation !== townAddressSearchGeneration) return;
-          if (parcelFeature) {
-            await setBuildingsEnabled(true);
+        if (match.streetAddress) {
+          try {
+            parcelFeature = await findParcelFeatureForLocation(match.lat, match.lon, {
+              matchesFeature: feature => normalizeTownStreetAddress(feature?.properties?.address) === match.streetAddress
+            });
+            if (generation !== townAddressSearchGeneration) return;
+            if (parcelFeature && buildingChoice === townAddressBuildingChoiceGeneration) await setBuildingsEnabled(true);
+          } catch (parcelErr) {
+            if (generation !== townAddressSearchGeneration) return;
+            console.warn("House Alert parcel match was unavailable.", parcelErr);
           }
-        } catch (parcelErr) {
-          if (generation !== townAddressSearchGeneration) return;
-          console.warn("House Alert parcel match was unavailable.", parcelErr);
         }
 
         if (generation !== townAddressSearchGeneration) return;
         if (townAddressMarker && map.hasLayer(townAddressMarker)) {
           townAddressMarker.setLatLng(latLng);
-          townAddressMarker.setIcon(getShorelySafeAddressIcon());
+          townAddressMarker.options.title = label;
+          const markerElement = townAddressMarker.getElement();
+          if (markerElement) markerElement.title = label;
         } else {
           townAddressMarker = L.marker(latLng, {
             title: label,
@@ -698,6 +742,9 @@
         e.preventDefault();
         searchTownAddress(input.value);
       });
+      input.addEventListener("input", () => {
+        if (cancelPendingTownAddressLookup()) setTownAddressStatus("");
+      });
       clearBtn?.addEventListener("click", clearTownAddressLookup);
     }
 
@@ -715,7 +762,7 @@
       {
         title: "Switch to observations",
         target: ".data-source-card",
-        body: "<p>Select <strong>Observed</strong> to explore the tide-gauge archive. Use <strong>Interval</strong> in the left pane to switch among Hourly, 15-Min, and Daily Max views.</p>"
+        body: "<p>Select <strong>Past</strong> to explore the tide-gauge archive. Use <strong>Interval</strong> in the left pane to switch among Hourly, 15-Min, and Daily Max views.</p>"
       },
       {
         title: "Choose a historic flood",

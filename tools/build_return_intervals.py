@@ -40,6 +40,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from observation_quality import POLICY_VERSION, analytical_samples, annual_exposure, file_sha256
+from update_historic_crests import read_annual_crest
 
 
 NACCS_STATION_ID = 11283
@@ -231,13 +232,10 @@ def parse_usgs_peak_rows(text: str) -> dict[int, dict]:
     reader = csv.DictReader(io.StringIO("\n".join([lines[0], *lines[2:]])), delimiter="\t")
     maxima: dict[int, dict] = {}
     for row in reader:
-        date_value = str(row.get("ag_dt") or row.get("peak_dt") or "").strip()
-        height_value = row.get("ag_gage_ht") or row.get("gage_ht")
-        try:
-            event_date = date.fromisoformat(date_value)
-            height = float(height_value)
-        except (TypeError, ValueError):
+        crest = read_annual_crest(row)
+        if crest is None:
             continue
+        event_date, height, _ = crest
         year = water_year(event_date)
         record = {
             "waterYear": year,
@@ -685,7 +683,7 @@ def build(args: argparse.Namespace) -> dict:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Rebuild the historical V4 return-interval comparison")
     parser.add_argument(
         "--observed",
         type=Path,
@@ -695,7 +693,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("return_intervals.json"),
+        default=Path("return_intervals_legacy_v4.json"),
+        help="Legacy V4 output path (default: %(default)s)",
     )
     return parser.parse_args()
 

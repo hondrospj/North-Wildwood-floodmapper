@@ -27,16 +27,28 @@
     }
 
     let downloadModalGeneration = 0;
-    function setDownloadModalOpen(isOpen, { preserveRange = false } = {}) {
+    function setDownloadModalOpen(isOpen, { preserveRange = false, opener = null } = {}) {
       const modal = document.getElementById("downloadModal");
       const btn = document.getElementById("openDownloadModalBtn");
       if (!modal || !btn) return;
       const generation = ++downloadModalGeneration;
+      const wasOpen = !modal.hidden;
 
       modal.hidden = !isOpen;
       modal.classList.toggle("open", isOpen);
       btn.setAttribute("aria-expanded", String(isOpen));
-      document.dispatchEvent(new Event("nww:modalchange"));
+      document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
+      if (!isOpen && wasOpen && isCompactFloodmapperLayout()) requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (generation !== downloadModalGeneration) return;
+        const focus = document.activeElement;
+        if (focus === btn) {
+          btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+          return;
+        }
+        if (btn.getClientRects().length || (focus !== document.body && !modal.contains(focus))) return;
+        const controls = document.getElementById("mobileControlsToggle");
+        if (controls?.getClientRects().length && !controls.closest("[inert]")) controls.focus({ preventScroll: true });
+      }));
 
       if (isOpen) {
         updateDownloadModeCopy();
@@ -48,7 +60,7 @@
           // Availability may finish while a user is halfway through a date.
           // Update only picker bounds, leaving their visible edit untouched.
           syncDownloadArchivePickerBounds();
-          renderExportTimePicker(true);
+          renderExportTimePicker();
         }).catch(error => console.warn("Export history availability could not load.", error));
         // Focus while opening. A deferred callback can run after the user has
         // already entered a date and move their focus/caret to another control.
@@ -150,6 +162,7 @@
       updateReturnIntervalButtons();
       updateObservedResolutionUI();
       updateDownloadModeCopy();
+      scheduleForecastFreshnessNotice();
       syncLeftPanelLayout();
     }
 
