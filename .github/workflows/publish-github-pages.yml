@@ -16,4 +16,4 @@ jobs:
   deploy:
     uses: hondrospj/North-Wildwood-floodmapper/.github/workflows/publish-pages-data.yml@main
     with:
-      ui_sha: 37726d8ce1ee6605fca16e2ea392970830cc8a1a
+      ui_sha: 2ee340a8486c2328587ffc313191e5f97d579919
