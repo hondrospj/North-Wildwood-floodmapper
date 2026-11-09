@@ -46,6 +46,7 @@ assert.deepEqual(parserBlockingScripts, [
 ]);
 
 assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+jszip[\s\S]+geotiff/);
+assert.match(source, /html2canvas: new URL\("assets\/vendor\/html2canvas-1\.4\.1\.min\.js", APP_BASE\)\.href/);
 assert.match(extractFunction("downloadCurrentSelection"), /await awaitRasterRequest\(ensureExportLibraries\(format, frameItems\.length\)\)/);
 assert.match(extractFunction("getDepthQueryImage"), /await ensureDepthQueryLibrary\(\)/);
 

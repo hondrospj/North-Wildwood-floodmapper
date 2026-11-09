@@ -27,7 +27,7 @@
     }
 
     const OPTIONAL_SCRIPT_URLS = {
-      html2canvas: "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+      html2canvas: new URL("assets/vendor/html2canvas-1.4.1.min.js", APP_BASE).href,
       jszip: "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
       geotiff: "https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"
     };

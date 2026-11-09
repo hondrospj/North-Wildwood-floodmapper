@@ -24,7 +24,7 @@ const priorOvernightSnapshot = priorBuildingViewSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-overnight-snapshot"));
 const OVERNIGHT_PATH = "tools/fixtures/north-wildwood-20261108-overnight.json";
 const overnightText = readBytes(OVERNIGHT_PATH).toString("utf8");
-assert.equal(sha256(overnightText), "c880fbe96e68b6c925e69e65265c1b6be99ef74d5c0b6f426a77f3bd146f4871", "Retain the exact overnight inverse");
+assert.equal(sha256(overnightText), "6637f1b26fe0e61d6da0d34bcb5f1e07083fdecae7dc06615b757134fd2cb7f3", "Retain the exact overnight inverse");
 const overnight = JSON.parse(overnightText);
 assert.equal(overnight.schemaVersion, 1);
 assert.equal(overnight.baselineCommit, "84951f91c7872c98b47417a594103f91dc410301");

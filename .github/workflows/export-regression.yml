@@ -58,6 +58,8 @@ jobs:
             assets/north-wildwood-loading.js
             assets/north-wildwood-loading.css
             assets/modal-focus.js
+            assets/map-status.css
+            assets/vendor/html2canvas-1.4.1.*
             assets/3d/north-wildwood-3d.js
             assets/app/
             assets/styles/
