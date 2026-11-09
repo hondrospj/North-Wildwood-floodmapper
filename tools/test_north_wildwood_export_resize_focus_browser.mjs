@@ -38,6 +38,24 @@ try {
     page.on("pageerror", error => errors.push(error.message));
     await ready(page);
     await page.locator("#openDownloadModalBtn").press("Enter");
+    // This case tests scrolling and resize focus. Use a full forecast day so
+    // loading historical times cannot replace the list during the wheel input.
+    const forecastDate = await page.evaluate(() => {
+      const days = new Set(getForecastExportEntries().map(entry => getExportDayKeyFromDate(new Date(entryTimeMs(entry)))));
+      for (const day of days) {
+        if (!day) continue;
+        const startDate = parseStoredLocalNyToDate(`${day}T00:00`);
+        const endDate = parseStoredLocalNyToDate(`${day}T23:59`);
+        if (!exportRangeNeedsObservedArchive({ startDate, endDate })) {
+          const [year, month, date] = day.split("-");
+          return `${month}/${date}/${year}`;
+        }
+      }
+      return null;
+    });
+    assert.ok(forecastDate, "Expected a fully covered forecast day for the time list");
+    await page.locator("#downloadStartDateText").fill(forecastDate);
+    await page.locator("#downloadStartDateText").press("Tab");
     await page.locator("#downloadStartTimeButton").press("Enter");
     const option = `${picker} [role="option"]:not(:disabled)`;
     await page.locator(option).first().waitFor();
@@ -46,10 +64,9 @@ try {
     await expectFocus(page, option, lastValue);
     const endScroll = await scrollState(page);
     if (endScroll[2] > 0) {
-      const box = await page.locator(list).boundingBox();
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.locator(list).hover();
       await page.mouse.wheel(0, -160);
-      await page.waitForFunction(({ list, top }) => document.querySelector(list).scrollTop < top, { list, top: endScroll[2] });
+      await page.waitForFunction(({ list, top }) => document.querySelector(list)?.scrollTop < top, { list, top: endScroll[2] });
       await nextFrames(page);
       assert.ok((await scrollState(page))[2] < endScroll[2], "ordinary time list scrolling stays where the user left it");
       await page.keyboard.press("Home");
