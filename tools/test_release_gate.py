@@ -37,9 +37,9 @@ def evidence():
 
 
 def forecast():
-    hours = [{"timeUtc": time, "navd88StageFt": 1.0, "mllwStageFt": 3.75}
+    hours = [{"timeUtc": time, "navd88StageFt": 1.0, "mllwStageFt": 3.66}
              for time in ("2026-10-23T12:00:00Z", "2026-10-23T13:00:00Z")]
-    return {"sourceDatum": "MLLW", "mapDatum": "NAVD88", "navd88OffsetFromMllwFt": -2.75,
+    return {"sourceDatum": "MLLW", "mapDatum": "NAVD88", "navd88OffsetFromMllwFt": -2.66,
             "issuedUtc": "2026-10-23T12:00:00Z", "petssCycleUtc": "2026-10-23T06:00:00Z",
             "forecastStartUtc": hours[0]["timeUtc"], "forecastEndUtc": hours[-1]["timeUtc"],
             "scenarioForecasts": {name: {"hours": deepcopy(hours)} for name in ("mean", "lowEnd", "highEnd")},
@@ -265,7 +265,7 @@ class DataPolicyTests(unittest.TestCase):
 
     def test_crossed_scenario_envelope_is_rejected_even_with_valid_datums(self):
         data = forecast()
-        data["scenarioForecasts"]["lowEnd"]["hours"][0].update(navd88StageFt=2, mllwStageFt=4.75)
+        data["scenarioForecasts"]["lowEnd"]["hours"][0].update(navd88StageFt=2, mllwStageFt=4.66)
         with self.assertRaisesRegex(ValueError, "out of order"):
             validate_forecast(data, now=TEST_NOW)
 

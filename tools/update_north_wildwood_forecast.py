@@ -28,7 +28,11 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from release_data import validate_forecast
+from release_data import (
+    STONE_HARBOR_NAVD88_OFFSET_FT,
+    STONE_HARBOR_THRESHOLDS_MLLW,
+    validate_forecast,
+)
 
 TOWN_NAME = "North Wildwood"
 IS_SPLIT = False
@@ -43,17 +47,8 @@ ZONES = [
     "usgsGaugeId": "01411360",
     "noaaGaugeId": "8535581",
     "observedSource": "usgs",
-    "navd88OffsetFromMllwFt": -2.75,
-    "thresholdsMllw": {
-      "minorLow": 6.0,
-      "moderateLow": 7.0,
-      "majorLow": 8.0
-    },
-    "thresholdsNavd88": {
-      "minorLow": 3.25,
-      "moderateLow": 4.25,
-      "majorLow": 5.25
-    }
+    "navd88OffsetFromMllwFt": STONE_HARBOR_NAVD88_OFFSET_FT,
+    "thresholdsMllw": STONE_HARBOR_THRESHOLDS_MLLW
   }
 ]
 OUT_PATH = Path("forecast.json")

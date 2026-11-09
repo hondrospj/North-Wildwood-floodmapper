@@ -43,7 +43,7 @@ See [the reliability changes and data-quality policy](docs/2026-09-12-reliabilit
 | Moderate | 4.25 ft | 7.00 ft |
 | Major | 5.25 ft | 8.00 ft |
 
-`NAVD88 = MLLW - 2.75 ft`. Forecast guidance continues to use Stone Harbor.
+North Wildwood’s local impact categories use the city datum, `NAVD88 = MLLW - 2.75 ft`.
 Observed playback follows the USGS-first policy in `gauge_pipeline_v2.json`:
 Stone Harbor USGS site `01411360` supplies the primary 15-minute archive;
 verified NOAA Lewes hourly history supplies older coverage with the configured
@@ -296,7 +296,9 @@ modeled depth at or below 0.10 ft is shown as `0.0-0.1ft`.
   The workflow retries late files, requires all three scenarios, and keeps the
   last published forecast when a cycle cannot be validated. Manual runs can
   select a cycle or use the most recent scheduled slot, with a dry-run option.
-  The generator applies the -2.75 ft offset and selects the matching stage asset.
+  The generator converts Stone Harbor PETSS guidance to NAVD88 with the station's
+  -2.66 ft offset and selects the matching stage asset. Forecast metadata reports
+  NOAA Stone Harbor flood categories at 6.1, 7.1, and 8.1 ft MLLW.
 - The forecast workflow publishes validated data to Cup A Joe and GitHub Pages
   when `SHORELYSAFE_DATA_PUBLICATION_ENABLED` is `true`. Both sites preserve their
   approved interface during data refreshes. The observed archive has a separate

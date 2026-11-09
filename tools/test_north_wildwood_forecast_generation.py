@@ -108,9 +108,8 @@ def test_committed_forecast():
 class ForecastGenerationFixtures(unittest.TestCase):
     """Exercise the scheduled path without NOAA access or repository writes."""
 
-    # Golden CLI bytes from the pre-cadence-check generator with the complete
-    # fixture below. Valid source cycles keep the same output contract.
-    LEGACY_OUTPUT_SHA256 = '862186574e7bb8f8864edb46b7807e98f7c596aede9d978719a18945e77363bb'
+    # Golden CLI bytes for the complete fixture using NOAA Stone Harbor datums.
+    EXPECTED_OUTPUT_SHA256 = 'fa910eb83a24996249e9534d0f3a7fcd40c8b4fbd06b5b64d70ceb0a2c457a31'
     NOW = datetime(2026, 10, 23, 3, tzinfo=timezone.utc)
     TARGET = datetime(2026, 10, 23, tzinfo=timezone.utc)
     TARGET_URL = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/petss.20261023/petss.t00z.csv.tar.gz'
@@ -140,15 +139,18 @@ class ForecastGenerationFixtures(unittest.TestCase):
                 archive.addfile(info, io.BytesIO(content))
         return output.getvalue()
 
-    def test_offline_cli_matches_legacy_output_bytes(self):
+    def test_offline_cli_matches_expected_output_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / 'forecast.json'
             fetch = Mock(return_value=self.archive())
             with patch.dict(self.g, {'OUT_PATH': destination, 'fetch_bytes': fetch, 'datetime': self.FixedClock}):
                 self.g['main']()
             serialized = destination.read_bytes()
-        self.assertEqual(hashlib.sha256(serialized).hexdigest(), self.LEGACY_OUTPUT_SHA256)
+        self.assertEqual(hashlib.sha256(serialized).hexdigest(), self.EXPECTED_OUTPUT_SHA256)
         data = json.loads(serialized)
+        self.assertEqual(data['navd88OffsetFromMllwFt'], -2.66)
+        self.assertEqual(data['thresholdsMLLW'], {'minorLow': 6.1, 'moderateLow': 7.1, 'majorLow': 8.1})
+        self.assertEqual(data['thresholdsNAVD88'], {'minorLow': 3.44, 'moderateLow': 4.44, 'majorLow': 5.44})
         self.assertEqual(data['issuedUtc'], '2026-10-23T03:00:00Z')
         self.assertEqual(data['petssCycleUtc'], '2026-10-23T00:00:00Z')
         self.assertEqual(data['forecastStartUtc'], '2026-10-23T03:00:00Z')
@@ -261,7 +263,7 @@ class ForecastGenerationFixtures(unittest.TestCase):
             self.assertEqual([row['hourIndex'] for row in aligned[key]], list(range(85)))
         replaced = next(row for row in aligned['mean'] if row['timeUtc'] == '2026-10-23T05:00:00Z')
         self.assertEqual(replaced['rawPetssValue'], 2.345)
-        self.assertEqual(replaced['navd88StageFt'], -0.4)
+        self.assertEqual(replaced['navd88StageFt'], -0.31)
         with self.assertRaisesRegex(RuntimeError, 'only 11 usable forecast rows'):
             self.g['align_products']({key: rows[:11] for key, rows in aligned.items()}, self.NOW)
 

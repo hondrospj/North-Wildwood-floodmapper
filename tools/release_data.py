@@ -15,6 +15,15 @@ MAX_SOURCE_AGE_HOURS = 72
 MAX_FUTURE_CLOCK_SKEW_HOURS = 1
 RESEARCH_GUIDANCE_PATH = "data/experimental_petss_guidance.json"
 
+# NOAA Stone Harbor station 8535581 / NWPS gauge SHBN4. North Wildwood's
+# municipal gauge and local impact categories have separate reference values.
+STONE_HARBOR_NAVD88_OFFSET_FT = -2.66
+STONE_HARBOR_THRESHOLDS_MLLW = {"minorLow": 6.1, "moderateLow": 7.1, "majorLow": 8.1}
+STONE_HARBOR_THRESHOLDS_NAVD88 = {
+    key: round(level + STONE_HARBOR_NAVD88_OFFSET_FT, 2)
+    for key, level in STONE_HARBOR_THRESHOLDS_MLLW.items()
+}
+
 
 # Keep these entries aligned with paths-ignore in all four regression workflows.
 GENERATED_FILES = frozenset({
@@ -81,8 +90,8 @@ def validate_forecast(payload, now=None):
     if payload.get("sourceDatum") != "MLLW" or payload.get("mapDatum") != "NAVD88":
         raise ValueError("Forecast must explicitly identify MLLW input and NAVD88 map datums")
     offset = finite_number(payload.get("navd88OffsetFromMllwFt"), "forecast datum offset")
-    if offset != -2.75:
-        raise ValueError("Forecast datum conversion differs from the North Wildwood reference")
+    if offset != STONE_HARBOR_NAVD88_OFFSET_FT:
+        raise ValueError("Forecast datum conversion differs from the NOAA Stone Harbor reference")
     issued = utc_time(payload.get("issuedUtc"), "forecast issuedUtc")
     cycle = utc_time(payload.get("petssCycleUtc"), "forecast petssCycleUtc")
     now = datetime.now(timezone.utc) if now is None else now
@@ -160,9 +169,9 @@ def validate_operational_petss(source, now=None):
         "TWL", "ensemble_mean"
     ):
         raise ValueError("Operational forecast must use the NOAA PETSS ensemble mean")
-    if (forecast.get("thresholdsMLLW") != {"minorLow": 6.0, "moderateLow": 7.0, "majorLow": 8.0}
-        or forecast.get("thresholdsNAVD88") != {"minorLow": 3.25, "moderateLow": 4.25, "majorLow": 5.25}):
-        raise ValueError("Forecast flood thresholds differ from the North Wildwood reference")
+    if (forecast.get("thresholdsMLLW") != STONE_HARBOR_THRESHOLDS_MLLW
+        or forecast.get("thresholdsNAVD88") != STONE_HARBOR_THRESHOLDS_NAVD88):
+        raise ValueError("Forecast flood thresholds differ from the NOAA Stone Harbor reference")
 
     scenarios = forecast["scenarioForecasts"]
     if forecast.get("forecasts") != scenarios:
