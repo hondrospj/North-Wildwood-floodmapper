@@ -271,8 +271,8 @@ function classifyPendingProviderPreviewRetry(state, warning, context) {
   const no=reason=>({eligible:false,reason});
   if(context?.name!=='normal-route-free'||context.routeEverInstalled!==false)return no('context-not-route-free');
   if(typeof context.coldPreviewReady!=='boolean')return no('cold-preview-state-unproven');
-  const actions=['broad-current-view','town-restored','Png-1:1','Png-4:5','Png-16:9','Png-9:16',
-    'Gif-1:1','Gif-4:5','Gif-16:9','Gif-9:16','png-download-ready','gif-download-ready',
+  const actions=['broad-current-view','town-restored','Png-1:1','Png-16:9','Png-9:16',
+    'Gif-1:1','Gif-16:9','Gif-9:16','png-download-ready','gif-download-ready',
     'roads-disabled','roads-reenabled','current-crop'];
   if(!actions.includes(context.actionId))return no('unknown-preview-action');
   const used=context.retriedPreviewActions;
@@ -639,7 +639,7 @@ try{
   result.checks.push('The default broad current view retains New Jersey Avenue and West Spruce Avenue in the shared font');
 
   const completedFrame=await page.evaluateHandle(()=>({layer:exportFloodLayer,image:exportFloodLayer.getElement(),source:exportFloodLayer._url}));
-  const buttons=[['Square','1:1'],['Social','4:5'],['Landscape','16:9'],['Portrait','9:16']];
+  const buttons=[['Square','1:1'],['Landscape','16:9'],['Portrait','9:16']];
   for(const kind of ['Png','Gif']){
     await format(kind);
     for(const [button,aspect] of buttons){
@@ -652,8 +652,8 @@ try{
     }
   }
   await completedFrame.dispose();
-  result.checks.push('Actual preview layout has readable, upright, fully bounded and non-overlapping shared-font labels in all four PNG and GIF aspect ratios');
-  result.checks.push('All eight layout previews retain the same owned completed flood image while the camera and output dimensions change');
+  result.checks.push('Actual preview layout has readable, upright, fully bounded and non-overlapping shared-font labels in all three fixed PNG and GIF aspect ratios');
+  result.checks.push('All six layout previews retain the same owned completed flood image while the camera and output dimensions change');
 
   await format('Png');await page.locator('#exportAspectSquareBtn').click({noWaitAfter:true,delay:50});
   await ready('png-download-ready');

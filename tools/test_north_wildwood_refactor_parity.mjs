@@ -24,6 +24,43 @@ const priorOvernightSnapshot = priorBuildingViewSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-overnight-snapshot"));
 const priorLayerHelpSnapshot = priorOvernightSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-layer-help-snapshot"));
+const priorExportOptionsSnapshot = priorLayerHelpSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-export-options-snapshot"));
+const EXPORT_OPTIONS_PATH = "tools/fixtures/north-wildwood-20261109-export-options.json";
+const exportOptionsText = readBytes(EXPORT_OPTIONS_PATH).toString("utf8");
+assert.equal(sha256(exportOptionsText), "c78bce7579933943ab3381b5492d02878113f1310d64e6d0597b723fc274a978",
+  "Retain the exact export options inverse");
+const exportOptions = JSON.parse(exportOptionsText);
+assert.equal(exportOptions.schemaVersion, 1);
+assert.equal(exportOptions.baselineCommit, "7ea662c7b84b027472ef86fd64e46a2aacb97a61");
+function readBeforeExportOptions(relative) {
+  const source = readBytes(relative).toString("utf8");
+  const file = exportOptions.files.find(entry => entry.source === relative);
+  if (priorExportOptionsSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed export options`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact export options fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-export-options byte`);
+  return restored;
+}
+if (!priorExportOptionsSnapshot) {
+  for (const file of exportOptions.files) readBeforeExportOptions(file.source);
+  for (const document of ["index.html", "tools/app/index.template.html"]) {
+    const tags = [...readBytes(document).toString("utf8").matchAll(/<script[^>]+src="([^"]+)"[^>]*>/g)];
+    const urls = tags.map(match => new URL(match[1], "https://export-options.invalid/"));
+    const assets = ["assets/export-area.js", "assets/export-preview.js"];
+    if (document === "index.html") assets.push("assets/app/runtime.js");
+    for (const relative of assets) {
+      const matches = urls.filter(url => url.pathname.slice(1) === relative);
+      assert.equal(matches.length, 1, `${document}: one export dependency for ${relative}`);
+      assert.equal(matches[0].searchParams.get("v"), sha256(readBytes(relative)).slice(0, 16),
+        `${relative}: content cache key must match its current bytes`);
+    }
+  }
+}
 const LAYER_HELP_PATH = "tools/fixtures/north-wildwood-20261109-layer-help.json";
 const layerHelpText = readBytes(LAYER_HELP_PATH).toString("utf8");
 assert.equal(sha256(layerHelpText), "4e92d338f7a587111109926bb15360bca58f1efcfca6b36f12692892bbf9a805",
@@ -32,7 +69,7 @@ const layerHelp = JSON.parse(layerHelpText);
 assert.equal(layerHelp.schemaVersion, 1);
 assert.equal(layerHelp.baselineCommit, "e468e9246a496c69e81af5239c9baf483de3ddb7");
 function readBeforeLayerHelp(relative) {
-  const source = readBytes(relative).toString("utf8");
+  const source = readBeforeExportOptions(relative);
   const file = layerHelp.files.find(entry => entry.source === relative);
   if (priorLayerHelpSnapshot || !file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed layer help`);
@@ -2504,6 +2541,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      EXPORT_OPTIONS_PATH, ...exportOptions.files.map(file => file.source),
       LAYER_HELP_PATH, ...layerHelp.files.map(file => file.source),
       OVERNIGHT_PATH, ...overnight.files.map(file => file.source), ...overnight.added.map(file => file.source),
       BUILDING_VIEW_PATH, ...buildingView.files.map(file => file.source),
@@ -2529,11 +2567,22 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
-      ["altered the layer help inverse", path.join(scratch, LAYER_HELP_PATH), layerHelpText + " "],
-      ...layerHelp.files.map(file => [
-        `unreviewed layer help byte in ${file.source}`, path.join(scratch, file.source), readBytes(file.source).toString("utf8") + "\n"
+      ["altered the export options inverse", path.join(scratch, EXPORT_OPTIONS_PATH), exportOptionsText + " "],
+      ...exportOptions.files.map(file => [
+        `unreviewed export options byte in ${file.source}`, path.join(scratch, file.source), readBytes(file.source).toString("utf8") + "\n"
       ])
     ], run);
+    for (const file of exportOptions.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeExportOptions(file.source));
+    }
+    const runBeforeExportOptions = () => run(["--prior-export-options-snapshot"]);
+    assert.equal(runBeforeExportOptions().status, 0, "The restored pre-export-options snapshot must pass");
+    assertMutationsRejected([
+      ["altered the layer help inverse", path.join(scratch, LAYER_HELP_PATH), layerHelpText + " "],
+      ...layerHelp.files.map(file => [
+        `unreviewed layer help byte in ${file.source}`, path.join(scratch, file.source), readBeforeExportOptions(file.source) + "\n"
+      ])
+    ], runBeforeExportOptions);
     for (const file of layerHelp.files) {
       fs.writeFileSync(path.join(scratch, file.source), readBeforeLayerHelp(file.source));
     }

@@ -126,7 +126,6 @@
     const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
     const GIF_WORKER_CDN_URL = "https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.worker.js";
     const EXPORT_GIF_ASPECTS = {
-      "4:5": { value: "4:5", width: 1360, height: 1700, pngWidth: 2160, pngHeight: 2700, label: "Social 4:5" },
       "16:9": { value: "16:9", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
       "9:16": { value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
       "1:1": { value: "1:1", width: 1500, height: 1500, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }

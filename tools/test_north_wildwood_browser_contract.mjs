@@ -834,9 +834,9 @@ assert.match(extractFunction("fitExportMapToSelectedExtent"), /getActiveMapBound
 assert.match(extractFunction("getActiveMapBounds"), /activeMap\.getBounds\(\)/);
 assert.match(extractFunction("fitExportMapToSelectedExtent"), /mode === "town"[\s\S]+getBoundaryDrivenOverlayBounds\(\)/);
 assert.match(extractFunction("fitExportMapToSelectedExtent"), /paddingTopLeft/);
-assert.match(SOURCE, /data-aspect="4:5"[^>]+>Social 4:5</);
+assert.doesNotMatch(SOURCE, /data-aspect="4:5"|Social 4:5/);
 assert.match(SOURCE, /data-extent="town"[^>]+>Fill North Wildwood</);
-assert.match(SOURCE, /"4:5": \{ value: "4:5", width: 1360, height: 1700, pngWidth: 2160, pngHeight: 2700/);
+assert.match(SOURCE, /"9:16": \{ value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840/);
 assert.match(extractFunction("getExportAspectConfig"), /getDownloadFormatValue\(\) !== "png"/);
 assert.match(extractFunction("getExportAspectConfig"), /resolutionLabel/);
 assert.match(extractFunction("renderLegend"), /physics-daily-maximum-active/);

@@ -88,7 +88,7 @@
     if (button) {
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", String(active));
-      button.textContent = active ? "Edit selected area" : "Choose area";
+      button.textContent = active ? "Edit selected area" : "Choose Area";
     }
     const status = document.getElementById("exportAreaStatus");
     if (status) status.textContent = active
@@ -333,7 +333,7 @@
     button.setAttribute("aria-pressed", "false");
     button.setAttribute("aria-haspopup", "dialog");
     button.setAttribute("aria-controls", "exportAreaModal");
-    button.textContent = "Choose area";
+    button.textContent = "Choose Area";
     // Safari can suppress the synthetic click after this button changes its label.
     // Handle a completed touch directly; openPicker also ignores duplicate activation.
     button.addEventListener("pointerup", event => {

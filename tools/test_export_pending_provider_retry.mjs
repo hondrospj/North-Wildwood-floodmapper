@@ -257,7 +257,7 @@ consumed.context.retriedPreviewActions.push('Png-9:16');consumed.context.pending
 assert.equal(classify(consumed).eligible,false,'New action also stops after one Retry');
 firstCold.context.retriedPreviewActions=['broad-current-view'];firstCold.context.pendingProviderRetries=1;
 assert.equal(classify(firstCold).eligible,false,'Cold first attempt gets at most one Retry');
-const fixedActions=['broad-current-view','town-restored','Png-1:1','Png-4:5','Png-16:9','Png-9:16','Gif-1:1','Gif-4:5','Gif-16:9','Gif-9:16','png-download-ready','gif-download-ready','roads-disabled','roads-reenabled','current-crop'];
-assert.equal(fixedActions.length,15);
-for(const actionId of fixedActions){const f=fixture();f.context.actionId=actionId;f.warning.phase=actionId;f.context.retriedPreviewActions=[...fixedActions];f.context.pendingProviderRetries=15;assert.equal(classify(f).eligible,false,`Fixed cap rejects ${actionId}`);}
-console.log(`PASS pending-provider UI Retry: 7 existing +3 imagery positives, ${negatives.length+originalNegatives.length} unchanged +${imageryNegatives.length} imagery rejected states, original deadline/grid identity, 15 fixed action budgets and duplicate-action rejection.`);
+const fixedActions=['broad-current-view','town-restored','Png-1:1','Png-16:9','Png-9:16','Gif-1:1','Gif-16:9','Gif-9:16','png-download-ready','gif-download-ready','roads-disabled','roads-reenabled','current-crop'];
+assert.equal(fixedActions.length,13);
+for(const actionId of fixedActions){const f=fixture();f.context.actionId=actionId;f.warning.phase=actionId;f.context.retriedPreviewActions=[...fixedActions];f.context.pendingProviderRetries=fixedActions.length;assert.equal(classify(f).eligible,false,`Fixed cap rejects ${actionId}`);}
+console.log(`PASS pending-provider UI Retry: 7 existing +3 imagery positives, ${negatives.length+originalNegatives.length} unchanged +${imageryNegatives.length} imagery rejected states, original deadline/grid identity, ${fixedActions.length} fixed action budgets and duplicate-action rejection.`);

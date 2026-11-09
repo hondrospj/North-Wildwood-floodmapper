@@ -282,7 +282,7 @@
     const areaStatus = node("exportAreaStatus");
     if (areaStatus) areaStatus.hidden = true;
     const custom = node("exportExtentCustomBtn");
-    if (custom) custom.textContent = getDownloadExtentValue() === "custom" ? "Edit area" : "Choose area";
+    if (custom) custom.textContent = getDownloadExtentValue() === "custom" ? "Edit area" : "Choose Area";
     const config = getExportAspectConfig();
     node("exportPreview")?.style.setProperty("--export-preview-aspect", `${config.width} / ${config.height}`);
   }
@@ -560,7 +560,6 @@
       #downloadModal #downloadBtn > span{pointer-events:none}
       #downloadModal .download-modal-head{margin-bottom:14px!important;align-items:start!important}
       #downloadModal #downloadAspectControl{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-      #downloadModal #downloadAspectControl button:last-child{grid-column:1/-1}
       @keyframes export-preview-spin{to{transform:rotate(360deg)}}
       @media(prefers-reduced-motion:reduce){#downloadModal #exportPreview .export-preview-image::after{animation:none}}
       @media(min-width:760px){
@@ -621,7 +620,7 @@
     node("downloadResetBtn")?.addEventListener("click", returnToBasicStep);
     const compactLabels = {
       exportFormatGifBtn: "GIF", exportFormatPngBtn: "PNG", exportExtentTownBtn: "Whole town",
-      exportAspectSocialBtn: "4:5", exportAspectLandscapeBtn: "16:9", exportAspectPortraitBtn: "9:16",
+      exportAspectLandscapeBtn: "16:9", exportAspectPortraitBtn: "9:16",
       exportAspectSquareBtn: "1:1", exportIntervalQuarterBtn: "15 min"
     };
     Object.entries(compactLabels).forEach(([id, text]) => {

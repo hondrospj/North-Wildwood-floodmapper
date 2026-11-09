@@ -126,7 +126,6 @@
     const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
     const GIF_WORKER_CDN_URL = "https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.worker.js";
     const EXPORT_GIF_ASPECTS = {
-      "4:5": { value: "4:5", width: 1360, height: 1700, pngWidth: 2160, pngHeight: 2700, label: "Social 4:5" },
       "16:9": { value: "16:9", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
       "9:16": { value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
       "1:1": { value: "1:1", width: 1500, height: 1500, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }
@@ -5943,7 +5942,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       const hiddenAspect = document.getElementById("downloadAspectSelect");
       const activeAspectButton = document.querySelector("#downloadAspectControl button[data-aspect].active");
       const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || "viewport";
-      const normalized = raw === "viewport" || EXPORT_GIF_ASPECTS[raw] ? raw : "viewport";
+      const normalized = Object.hasOwn(EXPORT_GIF_ASPECTS, raw) ? raw : "viewport";
       if (hiddenAspect && hiddenAspect.value !== normalized) hiddenAspect.value = normalized;
       return normalized;
     }
@@ -6147,8 +6146,9 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
 
     function getExportAspectConfig(aspect = null) {
-      if ((aspect || getDownloadAspectValue()) === "viewport") return getExportViewportAspect();
-      const base = EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS["4:5"];
+      const selected = aspect || getDownloadAspectValue();
+      if (!Object.hasOwn(EXPORT_GIF_ASPECTS, selected)) return getExportViewportAspect();
+      const base = EXPORT_GIF_ASPECTS[selected];
       if (getDownloadFormatValue() !== "png") {
         return { ...base, resolutionLabel: `${base.width} × ${base.height}` };
       }

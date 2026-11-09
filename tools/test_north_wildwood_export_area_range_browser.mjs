@@ -54,12 +54,14 @@ try {
     }
     // Nondefault settings make unintended whole-form resets observable too.
     await page.locator('#downloadBtn').click();
+    const chooseArea = page.getByRole('button', {name: 'Choose Area', exact: true});
+    await chooseArea.waitFor({state: 'visible'});
     await page.locator('#exportAspectSquareBtn').click();
     await page.locator('#exportSpeedSlowBtn').click();
     const before = await snapshot();
     assert.equal(before.valid, true);
     assert.equal(before.frames.length, 4);
-    await page.locator(`#${opener}`).click();
+    await chooseArea.click();
     await page.waitForFunction(() => !document.getElementById('exportAreaModal').hidden);
     await page.locator(button).click();
     await page.waitForFunction(() => isDownloadModalOpen());

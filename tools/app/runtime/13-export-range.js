@@ -50,7 +50,7 @@
       const hiddenAspect = document.getElementById("downloadAspectSelect");
       const activeAspectButton = document.querySelector("#downloadAspectControl button[data-aspect].active");
       const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || "viewport";
-      const normalized = raw === "viewport" || EXPORT_GIF_ASPECTS[raw] ? raw : "viewport";
+      const normalized = Object.hasOwn(EXPORT_GIF_ASPECTS, raw) ? raw : "viewport";
       if (hiddenAspect && hiddenAspect.value !== normalized) hiddenAspect.value = normalized;
       return normalized;
     }
@@ -254,8 +254,9 @@
 
 
     function getExportAspectConfig(aspect = null) {
-      if ((aspect || getDownloadAspectValue()) === "viewport") return getExportViewportAspect();
-      const base = EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS["4:5"];
+      const selected = aspect || getDownloadAspectValue();
+      if (!Object.hasOwn(EXPORT_GIF_ASPECTS, selected)) return getExportViewportAspect();
+      const base = EXPORT_GIF_ASPECTS[selected];
       if (getDownloadFormatValue() !== "png") {
         return { ...base, resolutionLabel: `${base.width} × ${base.height}` };
       }
