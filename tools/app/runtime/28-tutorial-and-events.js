@@ -411,6 +411,12 @@
         e.stopPropagation();
         showInfoModal("overlay", e.currentTarget);
       });
+      for (const button of document.querySelectorAll("[data-layer-help]")) {
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          showInfoModal(button.dataset.layerHelp, button);
+        });
+      }
       document.getElementById("timelineDetailHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
         showInfoModal("timelineDetail", e.currentTarget);

@@ -22,6 +22,31 @@ const priorBuildingViewSnapshot = priorMutationSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-building-view-snapshot"));
 const priorOvernightSnapshot = priorBuildingViewSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-overnight-snapshot"));
+const priorLayerHelpSnapshot = priorOvernightSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-layer-help-snapshot"));
+const LAYER_HELP_PATH = "tools/fixtures/north-wildwood-20261109-layer-help.json";
+const layerHelpText = readBytes(LAYER_HELP_PATH).toString("utf8");
+assert.equal(sha256(layerHelpText), "4e92d338f7a587111109926bb15360bca58f1efcfca6b36f12692892bbf9a805",
+  "Retain the exact layer help inverse");
+const layerHelp = JSON.parse(layerHelpText);
+assert.equal(layerHelp.schemaVersion, 1);
+assert.equal(layerHelp.baselineCommit, "e468e9246a496c69e81af5239c9baf483de3ddb7");
+function readBeforeLayerHelp(relative) {
+  const source = readBytes(relative).toString("utf8");
+  const file = layerHelp.files.find(entry => entry.source === relative);
+  if (priorLayerHelpSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed layer help`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact layer help fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-layer-help byte`);
+  return restored;
+}
+if (!priorLayerHelpSnapshot) {
+  for (const file of layerHelp.files) readBeforeLayerHelp(file.source);
+}
 const OVERNIGHT_PATH = "tools/fixtures/north-wildwood-20261108-overnight.json";
 const overnightText = readBytes(OVERNIGHT_PATH).toString("utf8");
 assert.equal(sha256(overnightText), "6637f1b26fe0e61d6da0d34bcb5f1e07083fdecae7dc06615b757134fd2cb7f3", "Retain the exact overnight inverse");
@@ -29,7 +54,7 @@ const overnight = JSON.parse(overnightText);
 assert.equal(overnight.schemaVersion, 1);
 assert.equal(overnight.baselineCommit, "84951f91c7872c98b47417a594103f91dc410301");
 function readBeforeOvernight(relative) {
-  const source = readBytes(relative).toString("utf8");
+  const source = readBeforeLayerHelp(relative);
   const file = overnight.files.find(entry => entry.source === relative);
   if (priorOvernightSnapshot || !file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed overnight work`);
@@ -2479,6 +2504,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      LAYER_HELP_PATH, ...layerHelp.files.map(file => file.source),
       OVERNIGHT_PATH, ...overnight.files.map(file => file.source), ...overnight.added.map(file => file.source),
       BUILDING_VIEW_PATH, ...buildingView.files.map(file => file.source),
       LINE_AUDIT_PATH, ...lineAudit.files.map(file => file.source), "index.html"]) {
@@ -2503,14 +2529,25 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered the layer help inverse", path.join(scratch, LAYER_HELP_PATH), layerHelpText + " "],
+      ...layerHelp.files.map(file => [
+        `unreviewed layer help byte in ${file.source}`, path.join(scratch, file.source), readBytes(file.source).toString("utf8") + "\n"
+      ])
+    ], run);
+    for (const file of layerHelp.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeLayerHelp(file.source));
+    }
+    const runBeforeLayerHelp = () => run(["--prior-layer-help-snapshot"]);
+    assert.equal(runBeforeLayerHelp().status, 0, "The restored pre-layer-help snapshot must pass");
+    assertMutationsRejected([
       ["altered the overnight inverse", path.join(scratch, OVERNIGHT_PATH), overnightText + " "],
       ...overnight.files.map(file => [
-        `unreviewed overnight byte in ${file.source}`, path.join(scratch, file.source), readBytes(file.source).toString("utf8") + "\n"
+        `unreviewed overnight byte in ${file.source}`, path.join(scratch, file.source), readBeforeLayerHelp(file.source) + "\n"
       ]),
       ...overnight.added.map(file => [
         `unreviewed new overnight asset ${file.source}`, path.join(scratch, file.source), Buffer.concat([readBytes(file.source), Buffer.from([0])])
       ])
-    ], run);
+    ], runBeforeLayerHelp);
     for (const file of overnight.files) {
       fs.writeFileSync(path.join(scratch, file.source), readBeforeOvernight(file.source));
     }

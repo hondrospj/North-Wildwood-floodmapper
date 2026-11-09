@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "e468e9246a496c69e81af5239c9baf483de3ddb7",
+  "files": [
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "04be6d340d2a4fb679a2fbb6c02e46601917a6910240e7c345641d1bea5f2236",
+      "afterSha256": "ab203705acbf12970956ce66c254498ea093899298240c962ef4f9600f926e74",
+      "changes": [
+        {
+          "beforeSource": "              <div id=\"buildingsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show buildings above floodwater\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Buildings</div>\n              </div>\n",
+          "afterSource": "              <div id=\"buildingsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show buildings above floodwater\"></div>\n              <div class=\"layer-meta title-with-help\">\n                <div class=\"layer-name\">Buildings</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"buildings\" aria-label=\"About Buildings\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n              </div>\n"
+        },
+        {
+          "beforeSource": "              <div id=\"parcelsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show parcels\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Parcels</div>\n              </div>\n",
+          "afterSource": "              <div id=\"parcelsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show parcels\"></div>\n              <div class=\"layer-meta title-with-help\">\n                <div class=\"layer-name\">Parcels</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"parcels\" aria-label=\"About Parcels\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n              </div>\n"
+        },
+        {
+          "beforeSource": "              <div id=\"nsiStructuresToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show structural impacts: garage, crawlspace, first floor\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Structural Impacts</div>\n              </div>\n",
+          "afterSource": "              <div id=\"nsiStructuresToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show structural impacts: garage, crawlspace, first floor\"></div>\n              <div class=\"layer-meta title-with-help\">\n                <div class=\"layer-name\">Structural Impacts</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"structuralImpacts\" aria-label=\"About Structural Impacts\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n              </div>\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/04-observation-archives.js",
+      "beforeSha256": "25987d62ac8af6eda64334323bb13a9c98f94515e1104c8ccdd7b48e58921b3f",
+      "afterSha256": "d7ae4619483d663232107a353440790f21cfd12ea6c51b4e6665019d60627e7d",
+      "changes": [
+        {
+          "beforeSource": "      },\n      timelineDetail: {\n",
+          "afterSource": "      },\n      buildings: {\n        title: \"Buildings\",\n        body: \"<p>Shows buildings on the map. Tap one for more details.</p>\"\n      },\n      parcels: {\n        title: \"Parcels\",\n        body: \"<p>Shows property lines. Tap a lot to see how much of it may flood.</p>\"\n      },\n      structuralImpacts: {\n        title: \"Structural Impacts\",\n        body: \"<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>\"\n      },\n      timelineDetail: {\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/28-tutorial-and-events.js",
+      "beforeSha256": "29b4d563eae74a0f0c096269529d457a6bb0b40facd3c9b716e9a834b648f6d9",
+      "afterSha256": "16d14679e67d1dd839d403570769aaaee92f423c40e0075108d22cbbc97e18ce",
+      "changes": [
+        {
+          "beforeSource": "      });\n      document.getElementById(\"timelineDetailHelpBtn\")?.addEventListener(\"click\", e => {\n",
+          "afterSource": "      });\n      for (const button of document.querySelectorAll(\"[data-layer-help]\")) {\n        button.addEventListener(\"click\", event => {\n          event.stopPropagation();\n          showInfoModal(button.dataset.layerHelp, button);\n        });\n      }\n      document.getElementById(\"timelineDetailHelpBtn\")?.addEventListener(\"click\", e => {\n"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "145e5f54fd0d0adffc65c4bdb2ac8b898353aa902a93e445a999ef0434cd688c",
+      "afterSha256": "75104b85bc092c0e85450c54dc2e289ca059357e5f5a448777ca0338d38fc0de",
+      "changes": [
+        {
+          "beforeSource": "        `\n      },\n",
+          "afterSource": "        `\n      },\n      buildings: {\n        title: \"Buildings\",\n        body: \"<p>Shows buildings on the map. Tap one for more details.</p>\"\n      },\n      parcels: {\n        title: \"Parcels\",\n        body: \"<p>Shows property lines. Tap a lot to see how much of it may flood.</p>\"\n      },\n      structuralImpacts: {\n        title: \"Structural Impacts\",\n        body: \"<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>\"\n      },\n"
+        },
+        {
+          "beforeSource": "      });\n      document.getElementById(\"timelineDetailHelpBtn\")?.addEventListener(\"click\", e => {\n",
+          "afterSource": "      });\n      for (const button of document.querySelectorAll(\"[data-layer-help]\")) {\n        button.addEventListener(\"click\", event => {\n          event.stopPropagation();\n          showInfoModal(button.dataset.layerHelp, button);\n        });\n      }\n      document.getElementById(\"timelineDetailHelpBtn\")?.addEventListener(\"click\", e => {\n"
+        }
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "ae7caf64d5b2efc736c55c0af296b06a9c6161145bc9bb83fff6f4c3876224d9",
+      "afterSha256": "c29d44314b2bc9d5622f2bbd800b761b01124574656b56a0f11a05254464a894",
+      "changes": [
+        {
+          "beforeSource": "              <div id=\"buildingsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show buildings above floodwater\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Buildings</div>\n              </div>\n",
+          "afterSource": "              <div id=\"buildingsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show buildings above floodwater\"></div>\n              <div class=\"layer-meta title-with-help\">\n                <div class=\"layer-name\">Buildings</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"buildings\" aria-label=\"About Buildings\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n              </div>\n"
+        },
+        {
+          "beforeSource": "              <div id=\"parcelsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show parcels\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Parcels</div>\n              </div>\n",
+          "afterSource": "              <div id=\"parcelsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show parcels\"></div>\n              <div class=\"layer-meta title-with-help\">\n                <div class=\"layer-name\">Parcels</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"parcels\" aria-label=\"About Parcels\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n              </div>\n"
+        },
+        {
+          "beforeSource": "              <div id=\"nsiStructuresToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show structural impacts: garage, crawlspace, first floor\"></div>\n              <div class=\"layer-meta\">\n                <div class=\"layer-name\">Structural Impacts</div>\n              </div>\n",
+          "afterSource": "              <div id=\"nsiStructuresToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show structural impacts: garage, crawlspace, first floor\"></div>\n              <div class=\"layer-meta title-with-help\">\n                <div class=\"layer-name\">Structural Impacts</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"structuralImpacts\" aria-label=\"About Structural Impacts\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n              </div>\n"
+        },
+        {
+          "beforeSource": "\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=145e5f54fd0d0adf\"></script>\n\n",
+          "afterSource": "\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=75104b85bc092c0e\"></script>\n\n"
+        }
+      ]
+    }
+  ]
+}

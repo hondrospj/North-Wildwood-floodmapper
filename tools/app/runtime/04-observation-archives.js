@@ -635,6 +635,18 @@ function setDatumHelpOpen(isOpen) {
           <p><strong>Road Impacts</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
         `
       },
+      buildings: {
+        title: "Buildings",
+        body: "<p>Shows buildings on the map. Tap one for more details.</p>"
+      },
+      parcels: {
+        title: "Parcels",
+        body: "<p>Shows property lines. Tap a lot to see how much of it may flood.</p>"
+      },
+      structuralImpacts: {
+        title: "Structural Impacts",
+        body: "<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>"
+      },
       timelineDetail: {
         title: "Timeline detail",
         body: `
