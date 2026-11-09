@@ -143,6 +143,9 @@ try {
     await cameraPage.locator('[data-webcam-marker="north-beach"]').press("Enter");
     const camera = cameraPage.locator("#webcamPanel");
     await camera.waitFor();
+    // Camera opening transfers focus on the next frame. Wait for that handoff
+    // before starting the keyboard action on the tour button.
+    await expectReachableFocus(cameraPage, "webcamClose");
     await cameraPage.locator("#mapperTutorialBtn").press("Enter");
     await cameraPage.locator("#mapperTutorialCard").waitFor();
     await cameraPage.keyboard.press("Escape");
