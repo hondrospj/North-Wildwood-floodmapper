@@ -9,6 +9,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import subprocess
+import sys
 import tarfile
 import tempfile
 import threading
@@ -109,6 +112,14 @@ class ForecastGenerationFixtures(unittest.TestCase):
     # fixture below. Valid source cycles keep the same output contract.
     LEGACY_OUTPUT_SHA256 = '862186574e7bb8f8864edb46b7807e98f7c596aede9d978719a18945e77363bb'
     NOW = datetime(2026, 10, 23, 3, tzinfo=timezone.utc)
+    TARGET = datetime(2026, 10, 23, tzinfo=timezone.utc)
+    TARGET_URL = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/petss.20261023/petss.t00z.csv.tar.gz'
+    TARGET_MEMBER = 'petss.20261023/t00z.csv/8535581.csv'
+
+    class FixedClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 23, 3, 37, 48, tzinfo=timezone.utc)
 
     def setUp(self):
         self.g = generator()
@@ -130,15 +141,10 @@ class ForecastGenerationFixtures(unittest.TestCase):
         return output.getvalue()
 
     def test_offline_cli_matches_legacy_output_bytes(self):
-        class FixedClock(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return cls(2026, 10, 23, 3, 37, 48, tzinfo=timezone.utc)
-
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / 'forecast.json'
             fetch = Mock(return_value=self.archive())
-            with patch.dict(self.g, {'OUT_PATH': destination, 'fetch_bytes': fetch, 'datetime': FixedClock}):
+            with patch.dict(self.g, {'OUT_PATH': destination, 'fetch_bytes': fetch, 'datetime': self.FixedClock}):
                 self.g['main']()
             serialized = destination.read_bytes()
         self.assertEqual(hashlib.sha256(serialized).hexdigest(), self.LEGACY_OUTPUT_SHA256)
@@ -150,6 +156,97 @@ class ForecastGenerationFixtures(unittest.TestCase):
         self.assertEqual(len(data['hours']), 85)
         fetch.assert_called_once_with(
             'https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/petss.20261023/petss.t00z.csv.tar.gz')
+
+    def test_only_the_four_utc_cycle_hours_are_accepted(self):
+        for hour in (0, 6, 12, 18):
+            value = f'2026-10-23T{hour:02d}:00:00Z'
+            self.assertEqual(self.g['parse_cycle_utc'](value), self.TARGET.replace(hour=hour))
+        for value in ('2026-10-23T03:00:00Z', '2026-10-23T18:30:00Z', '2026-10-23T18:00:00-04:00',
+                      '2026-10-32T00:00:00Z'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.g['parse_cycle_utc'](value)
+
+    def test_exact_cycle_waits_for_missing_wrong_and_incomplete_archives(self):
+        missing = urllib.error.HTTPError(self.TARGET_URL, 404, 'not posted', {}, None)
+        complete = self.complete_fixture()
+        rows = complete.splitlines(keepends=True)
+        late_start = b''.join(line for line in rows if not line.startswith(b'2026-10-23T05:00:00+02:00,'))
+        fetch = Mock(side_effect=[
+            missing,
+            self.archive('petss.20261022/t18z.csv/8535581.csv'),
+            self.archive(self.TARGET_MEMBER, b''.join(rows[:30])),
+            self.archive(self.TARGET_MEMBER, late_start),
+            self.archive(self.TARGET_MEMBER),
+        ])
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / 'forecast.json'
+            destination.write_text('{"petssCycleUtc":"2026-10-22T18:00:00Z"}')
+            with patch.dict(self.g, {'OUT_PATH': destination, 'fetch_bytes': fetch, 'datetime': self.FixedClock}):
+                with patch.object(self.g['time'], 'sleep') as sleep:
+                    self.assertTrue(self.g['main'](self.TARGET))
+            result = json.loads(destination.read_text())
+            self.assertEqual(list(Path(directory).iterdir()), [destination])
+        self.assertEqual(sleep.call_count, 4)
+        self.assertEqual([call.args for call in fetch.call_args_list], [(self.TARGET_URL,)] * 5)
+        self.assertEqual(len({call.kwargs['deadline'] for call in fetch.call_args_list}), 1)
+        self.assertEqual(result['petssCycleUtc'], '2026-10-23T00:00:00Z')
+        self.assertEqual(result['sourceMember'], self.TARGET_MEMBER)
+        self.assertEqual(result['forecastStartUtc'], '2026-10-23T03:00:00Z')
+        self.assertEqual(len(result['hours']), 85)
+
+    def test_exact_cycle_deadline_retains_the_previous_forecast(self):
+        clock = [0]
+        fetch = Mock(side_effect=urllib.error.HTTPError(self.TARGET_URL, 404, 'not posted', {}, None))
+        previous = '{"petssCycleUtc":"2026-10-22T18:00:00Z"}'
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / 'forecast.json'
+            destination.write_text(previous)
+            with patch.dict(self.g, {'OUT_PATH': destination, 'fetch_bytes': fetch, 'datetime': self.FixedClock,
+                                     'EXACT_CYCLE_WAIT_SECONDS': 65}):
+                with patch.object(self.g['time'], 'monotonic', side_effect=lambda: clock[0]):
+                    with patch.object(self.g['time'], 'sleep', side_effect=lambda s: clock.__setitem__(0, clock[0] + s)):
+                        with self.assertRaisesRegex(RuntimeError, 'No usable forecast for requested PETSS cycle'):
+                            self.g['main'](self.TARGET)
+            self.assertEqual(destination.read_text(), previous)
+        self.assertEqual(clock[0], 65)
+        self.assertEqual(fetch.call_count, 3)
+
+    def test_exact_cycle_does_not_rebuild_current_or_newer_forecasts(self):
+        fetch = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / 'forecast.json'
+            for cycle in ('2026-10-23T00:00:00Z', '2026-10-23T06:00:00Z'):
+                previous = json.dumps({'petssCycleUtc': cycle})
+                destination.write_text(previous)
+                with patch.dict(self.g, {'OUT_PATH': destination, 'fetch_bytes': fetch}):
+                    self.assertFalse(self.g['main'](self.TARGET))
+                self.assertEqual(destination.read_text(), previous)
+        fetch.assert_not_called()
+
+    def test_exact_cycle_cannot_load_future_or_exhausted_guidance(self):
+        fetch = Mock()
+        with patch.dict(self.g, {'fetch_bytes': fetch, 'datetime': self.FixedClock}):
+            with self.assertRaisesRegex(ValueError, 'in the future'):
+                self.g['build_exact_forecast'](datetime(2026, 10, 23, 6, tzinfo=timezone.utc))
+            with self.assertRaisesRegex(RuntimeError, 'too old for 84 hours'):
+                self.g['build_exact_forecast'](datetime(2026, 10, 22, 6, tzinfo=timezone.utc))
+        fetch.assert_not_called()
+
+    def test_exact_cycle_cli_reports_a_no_op_to_github_actions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / 'forecast.json'
+            previous = '{"petssCycleUtc":"2026-10-23T00:00:00Z"}'
+            destination.write_text(previous)
+            github_output = Path(directory) / 'github-output'
+            result = subprocess.run(
+                [sys.executable, str(ROOT / 'tools/update_north_wildwood_forecast.py'),
+                 '--cycle-utc', '2026-10-23T00:00:00Z'],
+                check=True, cwd=directory, capture_output=True, text=True,
+                env={**os.environ, 'GITHUB_OUTPUT': str(github_output)},
+            )
+            self.assertIn('updated=false', result.stdout)
+            self.assertEqual(github_output.read_text(), 'updated=false\n')
+            self.assertEqual(destination.read_text(), previous)
 
     def test_alignment_rejects_missing_bounds_and_uses_last_duplicate(self):
         products = self.g['parse_station_csv'](self.fixture.decode(), self.g['ZONES'][0])
@@ -176,6 +273,14 @@ class ForecastGenerationFixtures(unittest.TestCase):
         with patch.dict(self.g, {'fetch_bytes': Mock(return_value=self.archive('stations/0000000.csv'))}):
             with self.assertRaisesRegex(RuntimeError, 'station CSV 8535581.csv not found'):
                 self.g['extract_station_csv']('fixture', '8535581')
+
+    def test_filled_six_minute_rows_do_not_change_hourly_guidance(self):
+        csv = self.complete_fixture().decode()
+        zone = self.g['ZONES'][0]
+        parse = self.g['parse_station_csv']
+        expected = parse(csv, zone)
+        actual = parse(csv + '\n202610230306,4.123,4.998,2.889,3.873,0.25\n', zone)
+        self.assertEqual(actual, expected)
 
     def test_unusable_newest_cycle_falls_back_to_previous_cycle(self):
         fetch = Mock(side_effect=[self.archive(station_csv=self.fixture), self.archive()])

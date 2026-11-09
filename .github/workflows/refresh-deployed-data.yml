@@ -7,6 +7,10 @@ on:
         type: boolean
         required: false
         default: false
+      override_publication_pause:
+        description: Publish this run even if automatic data publication is paused
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       dry_run:
@@ -23,11 +27,13 @@ permissions:
   actions: read
 concurrency:
   group: shorelysafe-publish
+  queue: max
   cancel-in-progress: false
 jobs:
   refresh-data:
-    # The caller owns sequencing. Keep the existing publication enable switch.
-    if: github.event_name == 'workflow_dispatch' || vars.SHORELYSAFE_DATA_PUBLICATION_ENABLED == 'true'
+    # A manually dispatched caller also honors the switch. Only a direct
+    # dispatch of this publisher offers the explicit one-time override.
+    if: github.ref == 'refs/heads/main' && (inputs.dry_run || inputs.override_publication_pause || vars.SHORELYSAFE_DATA_PUBLICATION_ENABLED == 'true')
 
     runs-on: ubuntu-latest
     timeout-minutes: 30

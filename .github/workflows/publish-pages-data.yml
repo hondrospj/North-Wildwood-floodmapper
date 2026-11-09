@@ -1,0 +1,184 @@
+name: Publish validated North Wildwood forecast to Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Verify and package the overlay without deploying it
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      ui_sha:
+        description: Exact UI pin on gh-pages when publishing a new application release
+        type: string
+        required: false
+      dry_run:
+        description: Verify and package the overlay without deploying it
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    if: github.repository == 'hondrospj/North-Wildwood-floodmapper' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/gh-pages')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    concurrency:
+      group: github-pages
+      queue: max
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+      deployment: ${{ !inputs.dry_run && (github.ref == 'refs/heads/gh-pages' || vars.SHORELYSAFE_DATA_PUBLICATION_ENABLED == 'true') }}
+    steps:
+      - name: Check the scheduled publication switch
+        if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && vars.SHORELYSAFE_DATA_PUBLICATION_ENABLED != 'true' }}
+        run: |
+          echo 'North Wildwood data publication is disabled.' >&2
+          exit 1
+
+      - name: Resolve the current UI pin and generated data after acquiring the Pages lock
+        id: snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_UI_SHA: ${{ inputs.ui_sha }}
+        run: |
+          repo="repos/$GITHUB_REPOSITORY"
+          data_sha="$(gh api "$repo/git/ref/heads/main" --jq .object.sha)"
+          pin_sha="$(gh api "$repo/git/ref/heads/gh-pages" --jq .object.sha)"
+          pin_path='.github/workflows/publish-github-pages.yml'
+          pin_workflow="$(gh api -H 'Accept: application/vnd.github.raw+json' "$repo/contents/$pin_path?ref=$pin_sha")"
+          # Accept the existing Pages workflow ref and the reusable caller's UI pin.
+          ui_sha="$(sed -nE 's/^[[:space:]]+(ref|ui_sha): ([0-9a-f]{40})[[:space:]]*$/\2/p' <<< "$pin_workflow")"
+          [[ "$data_sha" =~ ^[0-9a-f]{40}$ && "$pin_sha" =~ ^[0-9a-f]{40}$ && "$ui_sha" =~ ^[0-9a-f]{40}$ ]]
+          if [[ -n "$REQUESTED_UI_SHA" && "$REQUESTED_UI_SHA" != "$ui_sha" ]]; then
+            echo "The requested UI release no longer matches the current Pages pin." >&2
+            exit 1
+          fi
+          printf 'data_sha=%s\npin_sha=%s\nui_sha=%s\n' "$data_sha" "$pin_sha" "$ui_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the mapper release
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ steps.snapshot.outputs.ui_sha }}
+          path: release
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/assets/hydraulic-v17/
+            !/assets/hydraulic-v19/
+            !/assets/hydraulic-v20/
+
+      - name: Check out immutable forecast data
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ steps.snapshot.outputs.data_sha }}
+          path: source
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /forecast.json
+            /data/experimental_petss_guidance.json
+            /tools/pages_forecast_overlay.py
+            /tools/release_gate.py
+            /tools/release_data.py
+            /tools/release_schemas.py
+
+      - name: Require exact checks for the pinned application
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATA_SHA: ${{ steps.snapshot.outputs.data_sha }}
+          UI_SHA: ${{ steps.snapshot.outputs.ui_sha }}
+          PYTHONPATH: source/tools
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from release_data import is_generated_data
+          from release_gate import GitHub, application_ancestor, changed_files, git, wait_for_checks
+
+          release, source = Path('release'), Path('source')
+          ui_sha, data_sha = os.environ['UI_SHA'], os.environ['DATA_SHA']
+          if git(release, 'rev-parse', 'HEAD') != ui_sha or git(source, 'rev-parse', 'HEAD') != data_sha:
+              raise SystemExit('A Pages checkout differs from its immutable snapshot')
+          git(release, 'merge-base', '--is-ancestor', ui_sha, data_sha)
+          checked_sha = application_ancestor(release, ui_sha)
+          if any(not is_generated_data(path) for path in changed_files(release, checked_sha, ui_sha)):
+              raise SystemExit('The pinned Pages UI differs from the checked application')
+          api = GitHub(os.environ['GITHUB_REPOSITORY'], os.environ['GH_TOKEN'])
+          checks = wait_for_checks(api, checked_sha, timeout=0)
+          print(json.dumps({'pages_ui': ui_sha, 'checked_application': checked_sha,
+                            'data_source': data_sha, 'checks': checks}, indent=2))
+          PY
+
+      - name: Verify the mapper and collect site files
+        working-directory: release
+        run: |
+          node tools/build_north_wildwood_app.mjs --check
+          node tools/test_north_wildwood_3d_interactions.mjs
+          node tools/test_north_wildwood_refactor_parity.mjs
+          mkdir ../_site
+          cp -a .nojekyll index.html *.json Boundaries city-gauge data model observed_archive ../_site/
+          # The app uses the v29 atlas. Keep obsolete atlases out of the artifact.
+          rsync -a --exclude='/hydraulic-v17/' --exclude='/hydraulic-v19/' --exclude='/hydraulic-v20/' assets/ ../_site/assets/
+
+      - name: Validate and stage the forecast pair
+        run: python3 source/tools/pages_forecast_overlay.py source _site
+
+      - name: Upload the mapper
+        if: ${{ !inputs.dry_run }}
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
+        with:
+          path: _site
+
+      - name: Verify the release snapshots are still current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATA_SHA: ${{ steps.snapshot.outputs.data_sha }}
+          PIN_SHA: ${{ steps.snapshot.outputs.pin_sha }}
+        run: |
+          repo="repos/$GITHUB_REPOSITORY/git/ref/heads"
+          current_data="$(gh api "$repo/main" --jq .object.sha)"
+          current_pin="$(gh api "$repo/gh-pages" --jq .object.sha)"
+          if [[ "$current_data" != "$DATA_SHA" || "$current_pin" != "$PIN_SHA" ]]; then
+            echo "The Pages UI pin or forecast source advanced during packaging. Retry the publication." >&2
+            exit 1
+          fi
+
+      - name: Publish to GitHub Pages
+        if: ${{ !inputs.dry_run }}
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
+
+      - name: Verify the forecast files served by GitHub Pages
+        if: ${{ !inputs.dry_run }}
+        run: |
+          site='https://hondrospj.github.io/North-Wildwood-floodmapper/'
+          for path in forecast.json data/experimental_petss_guidance.json; do
+            for attempt in {1..12}; do
+              query="pages-proof=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$attempt"
+              if curl --fail --silent --show-error --max-time 10 -H 'Cache-Control: no-cache' \
+                "$site$path?$query" --output "$RUNNER_TEMP/pages-proof.json" \
+                && cmp -s "_site/$path" "$RUNNER_TEMP/pages-proof.json"; then
+                echo "Verified live $path"
+                break
+              fi
+              if [[ "$attempt" == 12 ]]; then
+                echo "GitHub Pages did not serve the validated $path." >&2
+                exit 1
+              fi
+              sleep 5
+            done
+          done
