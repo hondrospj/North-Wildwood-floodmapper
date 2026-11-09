@@ -26,7 +26,7 @@ jobs:
       - name: Check out the mapper release
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: b5d38f22fff3e3e3b7427b6f499c3ea1cda8a3db
+          ref: 37726d8ce1ee6605fca16e2ea392970830cc8a1a
           persist-credentials: false
       - name: Verify the mapper and collect site files
         run: |
