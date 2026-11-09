@@ -290,8 +290,17 @@ modeled depth at or below 0.10 ft is shown as `0.0-0.1ft`.
 
 ## Forecast and observed archives
 
-- `.github/workflows/update-forecast.yml` retrieves hourly PETSS/NOAA guidance,
-  applies the -2.75 ft offset, and assigns the matching static stage asset.
+- `.github/workflows/update-forecast.yml` refreshes NOAA PETSS guidance for the
+  00Z, 06Z, 12Z, and 18Z model cycles. Each refresh is scheduled six hours and
+  40 minutes after its cycle, when the NOAA station files normally have arrived.
+  The workflow retries late files, requires all three scenarios, and keeps the
+  last published forecast when a cycle cannot be validated. Manual runs can
+  select a cycle or use the most recent scheduled slot, with a dry-run option.
+  The generator applies the -2.75 ft offset and selects the matching stage asset.
+- The forecast workflow publishes validated data to Cup A Joe and GitHub Pages
+  when `SHORELYSAFE_DATA_PUBLICATION_ENABLED` is `true`. Both sites preserve their
+  approved interface during data refreshes. The observed archive has a separate
+  daily refresh.
 - `.github/workflows/update-observed.yml` maintains a clean fallback layer from
   USGS site `01411360`, parameter `72279`, then overlays the North Wildwood city
   gauge on exact 15-minute anchors. The city source wins whenever it has a

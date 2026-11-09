@@ -201,7 +201,7 @@ def main():
         return
     anchor = application_ancestor(args.source, args.candidate)
     data_changes = changed_files(args.source, anchor, args.candidate)
-    data = validate_data(args.source, data_changes)
+    data = validate_data(args.source, data_changes, operational_petss=True)
     checks = wait_for_checks(api, anchor, args.timeout, release_candidate=args.candidate)
     assert_current(api, args.candidate)
     receipt = {"releaseSha": args.candidate, "applicationSha": anchor, "repository": args.repository,

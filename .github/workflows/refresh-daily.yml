@@ -1,8 +1,8 @@
-name: Refresh North Wildwood data daily
+name: Refresh North Wildwood observed data daily
 
 on:
   schedule:
-    # GitHub cron uses UTC; refresh once per day after the 12Z guidance cycle.
+    # Keep municipal and Stone Harbor archives on their daily UTC schedule.
     - cron: "40 14 * * *"
   workflow_dispatch:
 
@@ -10,9 +10,10 @@ permissions:
   contents: write
   actions: read
 
-# Separate from helper locks and the publication lock to avoid nested deadlocks.
+# Serialize against the forecast pipeline while leaving child locks independent.
 concurrency:
-  group: north-wildwood-daily-refresh-v1
+  group: north-wildwood-generated-refresh
+  queue: max
   cancel-in-progress: false
 
 jobs:
@@ -27,15 +28,7 @@ jobs:
     uses: ./.github/workflows/update-observed.yml
     secrets: inherit
 
-  update-forecast:
-    needs: update-observed
-    # The PETSS forecast does not depend on either gauge refresh.
-    if: ${{ !cancelled() }}
-    uses: ./.github/workflows/update-forecast.yml
-    secrets: inherit
-
   publish-fresh-data:
-    needs: update-forecast
-    if: ${{ !cancelled() && needs.update-forecast.result == 'success' }}
+    needs: update-observed
     uses: ./.github/workflows/refresh-deployed-data.yml
     secrets: inherit

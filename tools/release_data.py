@@ -13,6 +13,7 @@ from release_schemas import validate_generated
 # JSON file does not reset this age: it is measured from petssCycleUtc.
 MAX_SOURCE_AGE_HOURS = 72
 MAX_FUTURE_CLOCK_SKEW_HOURS = 1
+RESEARCH_GUIDANCE_PATH = "data/experimental_petss_guidance.json"
 
 
 # Keep these entries aligned with paths-ignore in all four regression workflows.
@@ -130,17 +131,88 @@ def validate_forecast(payload, now=None):
             "remainingCoverageHours": round((end - now).total_seconds() / 3600, 3)}
 
 
-def validate_data(source, changed_paths, now=None):
+def validate_operational_petss(source, now=None):
+    """Validate the Stone Harbor PETSS forecast and its matching research sidecar."""
+    source = Path(source)
+    now = datetime.now(timezone.utc) if now is None else now
+    forecast = read_json(source / "forecast.json")
+    receipt = validate_forecast(forecast, now=now)
+    cycle = utc_time(forecast["petssCycleUtc"], "forecast petssCycleUtc")
+    issued = utc_time(forecast["issuedUtc"], "forecast issuedUtc")
+    if cycle.hour not in (0, 6, 12, 18) or any((cycle.minute, cycle.second, cycle.microsecond)):
+        raise ValueError("Forecast source must be an exact 00Z, 06Z, 12Z or 18Z PETSS cycle")
+    if utc_time(forecast["forecastStartUtc"], "forecast start") != issued:
+        raise ValueError("Forecast coverage must start at issuance")
+
+    directory = f"petss.{cycle:%Y%m%d}"
+    cycle_name = f"t{cycle:%H}z"
+    source_url = f"https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/{directory}/petss.{cycle_name}.csv.tar.gz"
+    source_member = f"{directory}/{cycle_name}.csv/8535581.csv"
+    if (forecast.get("stationId"), forecast.get("noaaGaugeId"), forecast.get("usgsGaugeId")) != (
+        "8535581", "8535581", "01411360"
+    ):
+        raise ValueError("Forecast reference station differs from the Stone Harbor gauges")
+    if (forecast.get("sourceUrl"), forecast.get("sourceMember"), forecast.get("sourceType")) != (
+        source_url, source_member, "NOMADS_PETSS_FORECAST_ONLY_station_csv_TWL_TWL10p_TWL90p"
+    ):
+        raise ValueError("Forecast source does not match the NOAA PETSS cycle and station")
+    if (forecast.get("operationalForecastProduct"), forecast.get("operationalForecastStatistic")) != (
+        "TWL", "ensemble_mean"
+    ):
+        raise ValueError("Operational forecast must use the NOAA PETSS ensemble mean")
+    if (forecast.get("thresholdsMLLW") != {"minorLow": 6.0, "moderateLow": 7.0, "majorLow": 8.0}
+        or forecast.get("thresholdsNAVD88") != {"minorLow": 3.25, "moderateLow": 4.25, "majorLow": 5.25}):
+        raise ValueError("Forecast flood thresholds differ from the North Wildwood reference")
+
+    scenarios = forecast["scenarioForecasts"]
+    if forecast.get("forecasts") != scenarios:
+        raise ValueError("Forecast scenario copies disagree")
+    for key, product, column in (("mean", "mean", "TWL"), ("lowEnd", "e90", "TWL90p"),
+                                 ("highEnd", "e10", "TWL10p")):
+        metadata = forecast.get("products", {}).get(key, {})
+        if (metadata.get("sourceUrl"), metadata.get("sourceMember"), metadata.get("petssCycleUtc"),
+            metadata.get("product")) != (source_url, source_member, forecast["petssCycleUtc"], product):
+            raise ValueError(f"Forecast {key} product does not match the issued PETSS source")
+        for hour in scenarios[key]["hours"]:
+            raw = finite_number(hour.get("rawPetssValue"), f"{key} raw PETSS level")
+            scale = finite_number(hour.get("rawPetssScale"), f"{key} raw PETSS scale")
+            mllw = hour["mllwStageFt"]
+            navd = hour["navd88StageFt"]
+            if ((hour.get("product"), hour.get("sourceColumn"), hour.get("scenario"),
+                 hour.get("sourceDatum")) != (product, column, key, "NAVD88")
+                or scale != 1.0 or hour.get("twlMllwFt") != mllw or hour.get("sourceStageFt") != navd
+                or abs(mllw - raw) > 0.005001
+                or abs(navd - (raw + forecast["navd88OffsetFromMllwFt"])) > 0.005001):
+                raise ValueError(f"Forecast {key} does not retain the issued PETSS levels")
+
+    research = read_json(source / RESEARCH_GUIDANCE_PATH)
+    validate_generated(RESEARCH_GUIDANCE_PATH, research)
+    generated = utc_time(research["generatedUtc"], "research generatedUtc")
+    if not issued <= generated <= now + timedelta(hours=MAX_FUTURE_CLOCK_SKEW_HOURS):
+        raise ValueError("Research guidance generation does not match forecast issuance")
+    zones = research["zones"]
+    if len(zones) != 1 or (
+        zones[0].get("zoneId"), zones[0].get("stationId"), zones[0].get("sourceUrl"), zones[0].get("petssCycleUtc")
+    ) != ("default", "8535581", source_url, forecast["petssCycleUtc"]):
+        raise ValueError("Research guidance does not match the issued PETSS station and cycle")
+    research_hours = zones[0].get("hours", [])
+    if [hour["validUtc"] for hour in research_hours] != [hour["timeUtc"] for hour in forecast["hours"]]:
+        raise ValueError("Research guidance hours do not match the issued forecast")
+    return receipt
+
+
+def validate_data(source, changed_paths, now=None, *, operational_petss=False):
     """Validate every changed generated file, plus the shared operational forecast."""
     source = Path(source)
     paths = sorted(set(changed_paths))
     for path in paths:
         if not is_generated_data(path):
             raise ValueError(f"Application file cannot use the generated-data release path: {path}")
-        payload = read_json(source / path)  # Missing/deleted or invalid outputs fail closed.
-        if path != "forecast.json":
-            validate_generated(path, payload)
-    forecast = validate_forecast(read_json(source / "forecast.json"), now=now)
+        if path == "forecast.json" or (operational_petss and path == RESEARCH_GUIDANCE_PATH):
+            continue  # The shared forecast validation below also checks required files.
+        validate_generated(path, read_json(source / path))
+    forecast = (validate_operational_petss(source, now=now) if operational_petss else
+                validate_forecast(read_json(source / "forecast.json"), now=now))
     if any(path in {"observed.json", "observed15min.json", "stone_harbor_observed15min.json", "observed_archive_index.json"}
            or path.startswith(("city-gauge/", "observed_archive/stone-harbor/")) for path in paths):
         from validate_observed_contract import validate

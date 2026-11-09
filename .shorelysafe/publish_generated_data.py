@@ -33,6 +33,24 @@ def overlay(base,source,paths,replacements):
  assert after['index.html']==before['index.html'],'Index changed'
  return after,payloads,changed
 
+def assert_forecast_not_older(site, app_path, deployed, candidate_cycle):
+    from release_data import utc_time
+
+    digest = deployed["sha256"]
+    size = deployed["size"]
+    if not re.fullmatch(r"[0-9a-f]{64}", digest) or type(size) is not int or not 0 < size < 67108864:
+        raise ValueError("Invalid deployed forecast manifest entry")
+    # Bypass stale caches, then verify the public bytes against the manifest
+    # read under the publication lock before trusting their cycle metadata.
+    url = site + app_path + "forecast.json?overlay_base=" + digest
+    with urllib.request.urlopen(url, timeout=30) as response:
+        raw = response.read(size + 1)
+    if len(raw) != size or hashlib.sha256(raw).hexdigest() != digest:
+        raise RuntimeError("Deployed forecast differs from its manifest; retry against the active deployment")
+    current = utc_time(json.loads(raw).get("petssCycleUtc"), "deployed forecast cycle")
+    if utc_time(candidate_cycle, "candidate forecast cycle") < current:
+        raise ValueError("Candidate forecast is older than the deployed forecast")
+
 def main():
  p=argparse.ArgumentParser();p.add_argument('--app',required=True);p.add_argument('--site',default='https://cupajoe.live');p.add_argument('--dry-run',action='store_true');args=p.parse_args()
  assert args.site=='https://cupajoe.live','Unexpected publication site'
@@ -42,7 +60,7 @@ def main():
  assert app['repository']=='hondrospj/North-Wildwood-floodmapper','Unexpected source repository'
  import sys
  sys.path.insert(0,str(root/'tools'))
- from release_data import GENERATED_FILES,GENERATED_DIRECTORIES,is_generated_data,validate_data,read_json
+ from release_data import GENERATED_FILES,GENERATED_DIRECTORIES,is_generated_data,validate_data
  from release_gate import GitHub,assert_current
  names=set(p for p in GENERATED_FILES if (root/p).is_file())
  for prefix in GENERATED_DIRECTORIES:
@@ -53,16 +71,13 @@ def main():
  source_sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
  github=GitHub(app['repository'],os.environ['GH_TOKEN'])
  assert_current(github,source_sha)
- forecast=read_json(root/'forecast.json')
- assert forecast['stationId']=='8535581' and forecast['usgsGaugeId']=='01411360','Forecast reference station changed'
- assert forecast['operationalForecastProduct']=='TWL' and forecast['operationalForecastStatistic']=='ensemble_mean','Forecast product changed'
- assert forecast['thresholdsNAVD88']=={'minorLow':3.25,'moderateLow':4.25,'majorLow':5.25},'Forecast warning thresholds changed'
- assert forecast['thresholdsMLLW']=={'minorLow':6.0,'moderateLow':7.0,'majorLow':8.0},'Tidal warning thresholds changed'
  token=os.environ['SHORELYSAFE_TOKEN'];assert token,'Publisher credential missing'
  state=request(args.site,args.app,token,'state?manifest=1');assert state.get('published')and state.get('manifest'),'No currently published UI; refusing to create a new site'
  base=state['manifest'];replacements=[('https://hondrospj.github.io/'+a['repository'].split('/')[1]+'/',a['path'])for a in apps]
  after,payloads,changed=overlay(base,root,paths,replacements)
- validation=validate_data(root,changed)
+ validation=validate_data(root,changed,operational_petss=True)
+ if 'forecast.json' in changed:
+  assert_forecast_not_older(args.site,app['path'],base['files']['forecast.json'],validation['forecast']['cycle'])
  assert_current(github,source_sha)
  result={'app':args.app,'mode':'current-manifest-data-overlay','data_source_commit':source_sha,'preserved_ui_commit':state.get('commit'),'base_deployment':state.get('deployment'),'file_count':len(after),'preserved_nondatablobs':sum(k not in paths for k in base['files']),'changed_data_files':changed,'index_sha256_before':base['files']['index.html']['sha256'],'index_sha256_after':after['index.html']['sha256'],'dry_run':args.dry_run,'data_validation':validation,'allowlisted_generated_files':len(paths)}
  print(json.dumps(result),flush=True)
