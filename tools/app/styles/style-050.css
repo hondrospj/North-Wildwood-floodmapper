@@ -50,7 +50,8 @@
       display:none !important;
     }
   }
-  @media (max-width:340px) and (max-height:390px){
+  /* At these sizes the title, map navigation and timeline leave no clear tour row. */
+  @media (max-height:319px), (max-width:440px) and (max-height:450px){
     html.county-compact body #mobileMapperTutorialBtn{
       display:none !important;
     }

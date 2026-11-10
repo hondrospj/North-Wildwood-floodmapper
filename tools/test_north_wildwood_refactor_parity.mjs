@@ -30,7 +30,7 @@ const priorJoeUiSnapshot = priorExportOptionsSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-joe-ui-snapshot"));
 const JOE_UI_PATH = "tools/fixtures/north-wildwood-20261110-joe-ui.json";
 const joeUiText = readBytes(JOE_UI_PATH).toString("utf8");
-assert.equal(sha256(joeUiText), "e4ee2a1a3a35233f6162f2c8b77873b88aba68923fc50ffe6ecd926957184ced", "Retain the exact tour, layers and export inverse");
+assert.equal(sha256(joeUiText), "2c9a71f7c7b8e1aa1830b41fe8c46bf78db56c56f6b3ca8ba25afb00ab3c2853", "Retain the exact tour, layers and export inverse");
 const joeUi = JSON.parse(joeUiText);
 assert.equal(joeUi.schemaVersion, 1);
 assert.equal(joeUi.baselineCommit, "81da0976a2ad408fd13b362671c841bc42670417");
