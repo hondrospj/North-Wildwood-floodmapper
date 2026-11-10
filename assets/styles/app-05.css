@@ -7326,7 +7326,7 @@ html body #mapTitleBadge #mapTitleLogo{
     top:calc(var(--cm-top,8px) + var(--nww-tour-title-height,44px) + 8px);
     box-sizing:border-box;
     width:auto;
-    max-width:calc(100vw - var(--cm-left,8px) - var(--cm-right,8px) - 64px);
+    max-width:calc(100vw - var(--cm-left,8px) - var(--cm-right,8px) - var(--nww-tour-nav-clearance,64px));
     min-height:44px;
     padding:6px 12px;
     border:1px solid rgba(191,219,254,.38);
@@ -7337,9 +7337,14 @@ html body #mapTitleBadge #mapTitleLogo{
   }
   @media (max-height:560px){
     html.county-compact body #mobileMapperTutorialBtn{
-      max-width:calc(100vw - var(--cm-left,8px) - var(--cm-right,8px) - 194px);
+      --nww-tour-nav-clearance:200px;
     }
     html.county-compact body:has(#mapClickModeControl:not([hidden])) #mobileMapperTutorialBtn{
+      display:none !important;
+    }
+  }
+  @media (max-width:340px) and (max-height:390px){
+    html.county-compact body #mobileMapperTutorialBtn{
       display:none !important;
     }
   }
