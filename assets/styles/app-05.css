@@ -7339,6 +7339,9 @@ html body #mapTitleBadge #mapTitleLogo{
     html.county-compact body #mobileMapperTutorialBtn{
       max-width:calc(100vw - var(--cm-left,8px) - var(--cm-right,8px) - 194px);
     }
+    html.county-compact body:has(#mapClickModeControl:not([hidden])) #mobileMapperTutorialBtn{
+      display:none !important;
+    }
   }
   body[data-tour-attention] :is(#mapperTutorialBtn,#mobileMapperTutorialBtn):not(:focus-visible){
     outline:3px solid #ff5864;

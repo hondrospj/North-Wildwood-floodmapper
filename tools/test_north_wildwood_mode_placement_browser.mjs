@@ -31,6 +31,9 @@ try {
       await page.evaluate(() => document.fonts.ready);
       const activate = selector => page.locator(selector)[touch ? "tap" : "click"]({ timeout: 10000 });
       const compact = await page.locator("#mobileControlsToggle").isVisible();
+      const shortCompact = compact && height <= 560;
+      const tourShortcut = page.locator("#mobileMapperTutorialBtn");
+      if (shortCompact) await tourShortcut.waitFor({ state: "visible" });
       if (compact) {
         await activate("#mobileControlsToggle");
         await activate('#nwwMobileControlHeader [data-group="map"]');
@@ -66,10 +69,20 @@ try {
       assert.ok(result.geometry.hits.every(row => row.reachable), JSON.stringify(result.geometry));
       assert.ok(result.geometry.control.bottom <= result.geometry.dock.top - 5, "Mode controls clear the timeline");
       assert.ok(result.geometry.control.top >= result.geometry.title.bottom + 5, "Mode controls clear the title");
+      if (shortCompact) assert.equal(await tourShortcut.isVisible(), false, "Map modes take priority over the tour shortcut on short screens");
       await activate("#mapClickDepthBtn");
       assert.equal(await page.locator("#mapClickDepthBtn").getAttribute("aria-pressed"), "true");
       await activate("#mapClickParcelBtn");
       assert.equal(await page.locator("#mapClickParcelBtn").getAttribute("aria-pressed"), "true");
+      if (shortCompact) {
+        await activate("#mobileControlsToggle");
+        await activate('#nwwMobileControlHeader [data-group="tools"]');
+        await page.locator("#mapperTutorialBtn").waitFor({ state: "visible" });
+        await activate('#nwwMobileControlHeader [data-group="map"]');
+        await activate("#parcelsToggle");
+        await activate("#mobileControlsClose");
+        await tourShortcut.waitFor({ state: "visible" });
+      }
       assert.deepEqual(result.pageErrors, []);
       result.passed = true;
     } catch (error) { result.failure = error.stack; }
