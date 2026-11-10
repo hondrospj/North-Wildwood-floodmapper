@@ -17,10 +17,49 @@
     color:#fff !important;
   }
   html body #rightRail > .layers-card{order:1 !important}
-  html body #rightRail > .top-tides-card{order:2 !important}
+  html body #rightRail > #townAddressCard{order:2 !important}
   html body #rightRail > #downloadCard{order:3 !important}
-  html body #rightRail > #townAddressCard{order:4 !important}
-  html body #rightRail > #mapperTutorialBtn{order:5 !important}
+  html body #rightRail > .top-tides-card{order:4 !important}
+  html body[data-floodmapper-unified] #rightRail > #mapperTutorialBtn#mapperTutorialBtn{order:0 !important}
+
+  #mobileMapperTutorialBtn{
+    display:none;
+  }
+  html.county-compact body:is([data-site-loader="complete"],[data-site-loader="timeout"]):not(.mobile-controls-open,.mobile-legend-open) #mobileMapperTutorialBtn{
+    display:block;
+    position:fixed;
+    z-index:6200;
+    left:var(--cm-left,8px);
+    top:calc(var(--cm-top,8px) + var(--nww-tour-title-height,44px) + 8px);
+    box-sizing:border-box;
+    width:auto;
+    max-width:calc(100vw - var(--cm-left,8px) - var(--cm-right,8px) - 64px);
+    min-height:44px;
+    padding:6px 12px;
+    border:1px solid rgba(191,219,254,.38);
+    border-radius:10px;
+    background:#171e2a;
+    color:#f2f7ff;
+    font:650 13px/1.2 system-ui,sans-serif;
+  }
+  @media (max-height:560px){
+    html.county-compact body #mobileMapperTutorialBtn{
+      max-width:calc(100vw - var(--cm-left,8px) - var(--cm-right,8px) - 194px);
+    }
+  }
+  body[data-tour-attention] :is(#mapperTutorialBtn,#mobileMapperTutorialBtn):not(:focus-visible){
+    outline:3px solid #ff5864;
+    outline-offset:-3px;
+    animation:nww-tour-outline-pulse 1.25s ease-in-out infinite;
+  }
+  @keyframes nww-tour-outline-pulse{
+    50%{outline-color:rgba(255,88,100,.36)}
+  }
+  @media (prefers-reduced-motion:reduce), (forced-colors:active){
+    body[data-tour-attention] :is(#mapperTutorialBtn,#mobileMapperTutorialBtn):not(:focus-visible){
+      animation:none;
+    }
+  }
 
   /* One key: green uncertainty flows directly into shallow-to-deep blue. */
   html body #legendDock[data-legend-mode="depth"]{

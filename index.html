@@ -5,7 +5,7 @@
 <head>
 <link rel="stylesheet" href="./assets/north-wildwood-font.css?v=44bc78225f5bedbc">
 <link rel="preconnect" href="https://hondrospj.github.io" crossorigin>
-<link rel="stylesheet" data-nww-style-bundle="app-01" href="./assets/styles/app-01.css?v=4306a74fe376df5b">
+<link rel="stylesheet" data-nww-style-bundle="app-01" href="./assets/styles/app-01.css?v=904be23a15aa397f">
 <!-- nww:style:style-002 -->
 
 
@@ -57,7 +57,7 @@
 <link rel="stylesheet" href="assets/export-date-time-picker.css?v=9a8f640254cba6b4">
 <link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261021-tablet1">
 <!-- Load the complete layout before rendering any controls. -->
-<link rel="stylesheet" data-nww-style-bundle="app-05" href="./assets/styles/app-05.css?v=d06a61f08a046a69">
+<link rel="stylesheet" data-nww-style-bundle="app-05" href="./assets/styles/app-05.css?v=5417a45a66df818c">
 <!-- nww:style:style-014 -->
 <!-- nww:style:style-015 -->
 <!-- nww:style:style-016 -->
@@ -351,6 +351,8 @@
           </a>
         </section>
 
+        <button id="mapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-rail" type="button">Take the FloodMapper tour</button>
+
         <section class="rail-card layers-card nww-layers-card">
           <div class="rail-head">
             <div>
@@ -360,8 +362,9 @@
           <div class="layer-list">
             <div class="layer-item">
               <div id="satelliteToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show satellite imagery"></div>
-              <div class="layer-meta">
+              <div class="layer-meta title-with-help">
                 <div class="layer-name">Satellite</div>
+                <button class="help-btn" type="button" data-layer-help="satellite" aria-label="About Satellite" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item">
@@ -388,37 +391,26 @@
             </div>
             <div class="layer-item">
               <div id="roadImpactsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show road impacts" title="Highlight roads with more than 0.5 ft of modeled water at the selected time"></div>
-              <div class="layer-meta">
+              <div class="layer-meta title-with-help">
                 <div class="layer-name">Road Impacts</div>
+                <button class="help-btn" type="button" data-layer-help="roadImpacts" aria-label="About Road Impacts" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item">
               <div id="roadsToggle" class="toggle on" role="switch" tabindex="0" aria-checked="true" aria-label="Show road names"></div>
-              <div class="layer-meta">
+              <div class="layer-meta title-with-help">
                 <div class="layer-name">Road Names</div>
+                <button class="help-btn" type="button" data-layer-help="roadNames" aria-label="About Road Names" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item shorelysafe-camera-item" data-html2canvas-ignore="true">
               <div id="webcamsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show cameras"></div>
-              <div class="layer-meta">
+              <div class="layer-meta title-with-help">
                 <div class="layer-name">Cameras</div>
+                <button class="help-btn" type="button" data-layer-help="cameras" aria-label="About Cameras" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
           </div>
-        </section>
-
-        <section class="rail-card top-tides-card">
-          <div class="rail-head">
-            <div>
-              <h3>Top 10 Highest Floods</h3>
-            </div>
-          </div>
-          <div id="topTideList" class="top-tide-list"></div>
-
-        </section>
-
-        <section id="downloadCard" class="rail-card download-card download-launch-card" aria-label="Export Map">
-          <button id="openDownloadModalBtn" class="download-launch-btn active" type="button" aria-expanded="false" aria-controls="downloadModal">Export Map</button>
         </section>
 
         <section id="townAddressCard" class="rail-card town-address-card" aria-label="address lookup">
@@ -438,7 +430,20 @@
           <div id="townAddressStatus" class="town-address-status" role="status" aria-live="polite"></div>
         </section>
 
-        <button id="mapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-rail" type="button">Take the FloodMapper tour</button>
+        <section id="downloadCard" class="rail-card download-card download-launch-card" aria-label="Export Map">
+          <button id="openDownloadModalBtn" class="download-launch-btn active" type="button" aria-expanded="false" aria-controls="downloadModal">Export Map</button>
+        </section>
+
+        <section class="rail-card top-tides-card">
+          <div class="rail-head">
+            <div>
+              <h3>Top 10 Highest Floods</h3>
+            </div>
+          </div>
+          <div id="topTideList" class="top-tide-list"></div>
+
+        </section>
+
 </aside>
 
       <div id="topTidesModal" class="top-tides-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="topTidesModalTitle">
@@ -506,6 +511,8 @@
       </div>
     </main>
   </div>
+
+  <button id="mobileMapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-mobile" type="button" aria-haspopup="dialog" data-html2canvas-ignore="true">Take the FloodMapper tour</button>
 
   <div id="mapperTutorial" class="mapper-tutorial" hidden aria-hidden="true">
     <div id="mapperTutorialSpotlight" class="mapper-tutorial-spotlight" aria-hidden="true"></div>
@@ -779,7 +786,7 @@
   <script src="https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js"></script>
   <script src="assets/road-labels.js?v=3ad509cbb4274b6c"></script>
 
-  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=d673e18bb7054d34"></script>
+  <script data-nww-script="script-004" src="./assets/app/runtime.js?v=f73dc31cb69cc87a"></script>
 
 <script data-nww-script="script-005" src="./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52"></script>
 
@@ -813,6 +820,6 @@
 
 <script id="shorelysafe-visible-brand-controller-20261015" data-nww-script="script-010" src="./assets/app/branding.js?v=5218502b14ba05c5"></script>
 
-<script id="floodmapper-unified-controller-20261017" data-ui-sha256="3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7" data-nww-script="script-011" src="./assets/app/unified-controller.js?v=843e5163d68909be"></script>
+<script id="floodmapper-unified-controller-20261017" data-ui-sha256="3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7" data-nww-script="script-011" src="./assets/app/unified-controller.js?v=c4251aa297a1730c"></script>
 </body>
 </html>

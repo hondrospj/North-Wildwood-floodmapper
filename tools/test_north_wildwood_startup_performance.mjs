@@ -134,6 +134,7 @@ for (const warmCamera of [undefined, false, "core", "deferred"]) {
 
 console.log("North Wildwood startup performance checks passed");
 
-assert.match(source, /GIF_WORKER_CDN_URL = "https:\/\/cdn\.jsdelivr\.net\/npm\/gif\.js\.optimized@1\.0\.1\/dist\/gif\.worker\.js"/);
+const gifWorkerVersion = contentVersion(readAsset("assets/vendor/gif.worker.js"));
+assert.ok(source.includes(`GIF_WORKER_URL = new URL("assets/vendor/gif.worker.js?v=${gifWorkerVersion}", APP_BASE).href`));
 assert.match(source, /function createStreamingGifEncoder\(/);
 assert.doesNotMatch(source, /loadOptionalScript\("gif"/);

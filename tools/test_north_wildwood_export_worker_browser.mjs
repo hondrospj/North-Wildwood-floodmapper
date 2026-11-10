@@ -30,7 +30,8 @@ page.on('console',message=>{
 });
 let release;const gate=new Promise(resolve=>{release=resolve;});let requests=0;
 const held=async route=>{requests++;await gate;await route.abort().catch(()=>{});};
-await page.route('**/gif.worker.js',held);
+const workerUrl = /\/assets\/vendor\/gif\.worker\.js\?v=[0-9a-f]{16}$/;
+await page.route(workerUrl,held);
 const state=label=>page.evaluate(label=>({label,busy:exportInProgress,cancelled:exportCancelRequested,
   focus:document.activeElement.id,datum:currentDatum,message:document.getElementById('exportProgressMessage').textContent,
   appInert:document.getElementById('app').inert,buttonDisabled:document.getElementById('exportProgressCloseBtn').disabled,
@@ -118,7 +119,7 @@ try{
   assert.equal(await page.evaluate(()=>document.activeElement.id),'openDownloadModalBtn');
   result.checks.push('Cancel releases a stalled worker request within three seconds and restores focus/background access');
   if(retained)await page.screenshot({path:path.join(output,`${name}-worker-cancelled.png`)});
-  release();await page.unroute('**/gif.worker.js',held);
+  release();await page.unroute(workerUrl,held);
   await page.locator('#openDownloadModalBtn').click();
   // Opening intentionally reseeds the range to the main timeline. Keep the
   // retry fixture at two frames as well, rather than encoding the full forecast.

@@ -268,9 +268,9 @@
   body[data-shorelysafe-ui] #leftPanel > .mobile-top-tides-card {order:9 !important;}
   body[data-shorelysafe-ui] #leftPanel > #mobileRailMount {order:10 !important;}
   body[data-shorelysafe-ui] #rightRail > .layers-card {order:1 !important;}
-  body[data-shorelysafe-ui] #rightRail > .top-tides-card {order:2 !important;}
+  body[data-shorelysafe-ui] #rightRail > :is(.town-address-card,.penns-grove-address-card) {order:2 !important;}
   body[data-shorelysafe-ui] #rightRail > #downloadCard {order:3 !important;}
-  body[data-shorelysafe-ui] #rightRail > :is(.town-address-card,.penns-grove-address-card) {order:4 !important;}
+  body[data-shorelysafe-ui] #rightRail > .top-tides-card {order:4 !important;}
   body[data-shorelysafe-ui] #rightRail > #mapperTutorialBtn {order:5 !important;}
   body[data-shorelysafe-ui] #leftPanel > #legendDock {
     position:static !important;inset:auto !important;transform:none !important;width:100% !important;
@@ -653,7 +653,7 @@
     html[data-nww-mobile-layout] body #leftPanel #mobileRailMount:empty { display:none !important; }
     html[data-nww-mobile-layout] body #leftPanel .layer-item { min-height:48px !important; padding:4px 0 !important; }
     html[data-nww-mobile-layout] body #leftPanel .toggle { min-width:44px !important; min-height:28px !important; }
-    html[data-nww-mobile-layout] body #leftPanel #townAddressCard { order:-1 !important; }
+    html[data-nww-mobile-layout] body #leftPanel #townAddressCard { order:36 !important; }
     html[data-nww-mobile-layout] body #leftPanel #townAddressInput { width:100% !important; min-width:0 !important; font-size:16px !important; }
     html[data-nww-mobile-layout] body #leftPanel button:focus-visible { outline:2px solid var(--nw-ui-blue) !important; outline-offset:2px !important; }
     html[data-nww-mobile-layout] body #leftPanel #timelineIntervalCard { display:flex !important; flex-direction:column !important; gap:8px !important; }
@@ -1801,10 +1801,10 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
  html body[data-floodmapper-unified] #leftPanel>.mobile-top-tides-card {order:80!important;}
  html body[data-floodmapper-unified] #leftPanel>#mobileRailMount {order:90!important;}
  html body[data-floodmapper-unified] #rightRail>.layers-card {order:10!important;}
- html body[data-floodmapper-unified] #rightRail>.top-tides-card {order:20!important;}
+ html body[data-floodmapper-unified] #rightRail>#townAddressCard {order:20!important;}
  html body[data-floodmapper-unified] #rightRail>#downloadCard {order:30!important;}
- html body[data-floodmapper-unified] #rightRail>#townAddressCard {order:40!important;}
- html body[data-floodmapper-unified] #rightRail>:is(#mapperTutorialBtn,#avalonTourBtn) {order:50!important;}
+ html body[data-floodmapper-unified] #rightRail>.top-tides-card {order:40!important;}
+ html body[data-floodmapper-unified] #rightRail>:is(#mapperTutorialBtn,#avalonTourBtn) {order:0!important;}
  html body[data-floodmapper-unified] :is(#leftPanel,#rightRail,#mobileRailMount) .layers-card .layer-list {display:flex!important;flex-direction:column!important;gap:0!important;}
  html body[data-floodmapper-unified] :is(#leftPanel,#rightRail,#mobileRailMount) .layers-card .layer-item {display:grid!important;grid-template-columns:minmax(0,1fr) 40px!important;min-height:36px!important;gap:10px!important;padding:6px 0!important;margin:0!important;border:0!important;border-bottom:1px solid rgba(191,219,254,.12)!important;border-radius:0!important;}
  html body[data-floodmapper-unified] .layers-card .layer-item:last-child {border-bottom:0!important;}
@@ -1864,10 +1864,10 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
   html body[data-floodmapper-unified].mobile-controls-open #leftPanel {display:flex!important;visibility:visible!important;pointer-events:auto!important;}
   html body[data-floodmapper-unified] #mobileRailMount {display:contents!important;}
   html body[data-floodmapper-unified] #mobileRailMount>.layers-card {order:35!important;}
-  html body[data-floodmapper-unified] #mobileRailMount>.top-tides-card {order:80!important;}
-  html body[data-floodmapper-unified] #mobileRailMount>#downloadCard {order:10!important;}
-  html body[data-floodmapper-unified] #mobileRailMount>#townAddressCard {order:20!important;}
-  html body[data-floodmapper-unified] #mobileRailMount>:is(#mapperTutorialBtn,#avalonTourBtn) {order:30!important;}
+  html body[data-floodmapper-unified] #mobileRailMount>#townAddressCard {order:36!important;}
+  html body[data-floodmapper-unified] #mobileRailMount>#downloadCard {order:37!important;}
+  html body[data-floodmapper-unified] #mobileRailMount>.top-tides-card {order:38!important;}
+  html body[data-floodmapper-unified] #mobileRailMount>:is(#mapperTutorialBtn,#avalonTourBtn) {order:39!important;}
   html body[data-floodmapper-unified] #nwwMobileControlHeader {position:sticky!important;top:0!important;order:0!important;z-index:40!important;display:block!important;background:#101827!important;padding:14px 0 10px!important;flex:0 0 auto!important;}
   html body[data-floodmapper-unified] #leftPanel>#nwwMobileControlHeader .nww-drawer-heading {padding-right:48px!important;}
   html body[data-floodmapper-unified] #mobileControlsClose {position:fixed!important;top:calc(var(--cm-top,8px) + 10px)!important;right:calc(var(--cm-right,8px) + 10px)!important;left:auto!important;bottom:auto!important;width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important;z-index:10020!important;}
@@ -2010,13 +2010,13 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
  }
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > * {grid-column:1 / -1!important;min-width:0!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > .layers-card {grid-row:1!important;}
- html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > .top-tides-card {grid-row:2!important;}
+ html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > #townAddressCard {grid-row:2!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > #downloadCard {grid-row:3!important;grid-column:1!important;padding:3px!important;}
+ html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > .top-tides-card {grid-row:4!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > #mapperTutorialBtn#mapperTutorialBtn {
   grid-row:3!important;grid-column:2!important;min-height:36px!important;height:auto!important;padding:3px!important;font-size:12px!important;line-height:1.2!important;
  }
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail #downloadCard #openDownloadModalBtn {min-height:28px!important;height:100%!important;padding:3px!important;font-size:12px!important;}
- html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > #townAddressCard {grid-row:4!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail .layers-card .layer-list {
   display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;column-gap:8px!important;row-gap:0!important;
  }

@@ -1,5 +1,6 @@
 import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -97,3 +98,53 @@ await images.getExportFrameImage({entry:{stage:3.39}});
 await images.getExportFrameImage({entry:{stage:3.31,physics:{url:'physics-specific-frame'}}});
 assert.deepEqual(requested, ['stage-3.31','stage-3.39','physics-specific-frame']);
 console.log('PASS bounded GIF encoding: 337 frames, transferred buffers, order, page lengths, cancellation/failure, canvas cleanup and raster identity.');
+
+// Compare the published worker's output to the exact pinned upstream worker.
+// Recover upstream from the vendored bundle without fetching a CDN in CI.
+const optimizedWorker = fs.readFileSync(new URL('../assets/vendor/gif.worker.js', import.meta.url), 'utf8');
+const upstreamWorker = optimizedWorker.split('// Upstream worker bundle, with the palette cache hook.\n')[1]
+  .replace('r=i(1),installFixedPaletteCache(r),s=function(t)', 'r=i(1),s=function(t)').trimEnd()
+  + '\n//# sourceMappingURL=gif.worker.js.map';
+assert.equal(createHash('sha256').update(upstreamWorker).digest('hex'),
+  'cba3bd1cc3c9bd3f2c93b5bced357169d904fec011c0c87bd74c38b1b0b46c15');
+
+function workerHarness(source) {
+  let result;
+  const self = { postMessage: value => { result = value; } };
+  vm.runInNewContext(source, { self });
+  return task => {
+    self.onmessage({ data: { ...task } });
+    const bytes = Buffer.concat(result.data.map((page, index) => Buffer.from(index === result.data.length - 1
+      ? page.subarray(0, result.cursor) : page)));
+    return { bytes, palette: result.globalPalette };
+  };
+}
+
+const upstream = workerHarness(upstreamWorker);
+const optimized = workerHarness(optimizedWorker);
+const width = 96, height = 64;
+const rgba = new Uint8ClampedArray(width * height * 4);
+for (let offset = 0; offset < rgba.length; offset += 4) {
+  const pixel = offset / 4;
+  const row = Math.floor(pixel / width);
+  rgba.set([(pixel % 31) * 8, (row % 16) * 17, (row % 7) * 41, 255], offset);
+}
+const gifTask = { index: 0, last: true, width, height, quality: 1, dither: false,
+  globalPalette: true, repeat: 0, transparent: null, delay: 500, canTransfer: true, data: rgba };
+const originalFirst = upstream(gifTask);
+const improvedFirst = optimized(gifTask);
+assert.deepEqual(improvedFirst.bytes, originalFirst.bytes, 'The first-frame palette is unchanged');
+assert.deepEqual([...improvedFirst.palette], [...originalFirst.palette]);
+const palette = Array.from(originalFirst.palette);
+const changedPalette = [...palette.slice(3), ...palette.slice(0, 3)];
+for (const task of [
+  { ...gifTask, globalPalette: palette, last: false },
+  { ...gifTask, globalPalette: palette, index: 1, last: false, delay: 1000 },
+  { ...gifTask, globalPalette: changedPalette, index: 2 },
+  { ...gifTask, globalPalette: palette, index: 3, dither: 'FloydSteinberg' },
+  { ...gifTask, globalPalette: palette, index: 4, transparent: 0 },
+]) {
+  assert.deepEqual(optimized(task).bytes, upstream(task).bytes,
+    `Exact GIF bytes for fixed-palette frame ${task.index}`);
+}
+console.log('PASS exact GIF worker: first-frame palette, repeat and changed palettes, delays, dithering and transparency match upstream byte-for-byte.');

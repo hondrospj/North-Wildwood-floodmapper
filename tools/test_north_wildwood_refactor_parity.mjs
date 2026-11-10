@@ -26,6 +26,47 @@ const priorLayerHelpSnapshot = priorOvernightSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-layer-help-snapshot"));
 const priorExportOptionsSnapshot = priorLayerHelpSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-export-options-snapshot"));
+const priorJoeUiSnapshot = priorExportOptionsSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-joe-ui-snapshot"));
+const JOE_UI_PATH = "tools/fixtures/north-wildwood-20261110-joe-ui.json";
+const joeUiText = readBytes(JOE_UI_PATH).toString("utf8");
+assert.equal(sha256(joeUiText), "184221e0177e8f61b7c3e278a5931caa2bb0d8172b2dc4219a76a940feda836c", "Retain the exact tour, layers and export inverse");
+const joeUi = JSON.parse(joeUiText);
+assert.equal(joeUi.schemaVersion, 1);
+assert.equal(joeUi.baselineCommit, "81da0976a2ad408fd13b362671c841bc42670417");
+function readBeforeJoeUi(relative) {
+  const source = readBytes(relative).toString("utf8");
+  const file = joeUi.files.find(entry => entry.source === relative);
+  if (priorJoeUiSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed tour, layers and export update`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact tour, layers and export fragment`);
+    restored = restored.replace(block.afterSource, () => block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-update byte`);
+  return restored;
+}
+if (!priorJoeUiSnapshot) {
+  for (const file of joeUi.files) readBeforeJoeUi(file.source);
+  for (const file of joeUi.added) {
+    assert.equal(sha256(readBytes(file.source)), file.sha256, `${file.source}: reviewed new asset bytes`);
+  }
+  const urls = [...readBytes("index.html").toString("utf8").matchAll(/<(?:script|link)[^>]+(?:src|href)="([^"]+)"[^>]*>/g)]
+    .map(match => new URL(match[1], "https://joe-ui.invalid/"));
+  for (const [relative, key] of Object.entries(joeUi.cacheDependencies)) {
+    const matches = urls.filter(url => url.pathname.slice(1) === relative);
+    assert.equal(matches.length, 1, `${relative}: one published dependency`);
+    assert.equal(matches[0].searchParams.get(key), sha256(readBytes(relative)).slice(0, 16), `${relative}: exact cache version`);
+  }
+  for (const [relative, owners] of Object.entries(joeUi.scriptCacheDependencies)) {
+    const url = `${relative}?v=${sha256(readBytes(relative)).slice(0, 16)}`;
+    for (const owner of owners) {
+      assert.ok(readBytes(owner).toString("utf8").includes(`new URL("${url}", APP_BASE)`),
+        `${owner}: load ${relative} with its current content cache key`);
+    }
+  }
+}
 const EXPORT_OPTIONS_PATH = "tools/fixtures/north-wildwood-20261109-export-options.json";
 const exportOptionsText = readBytes(EXPORT_OPTIONS_PATH).toString("utf8");
 assert.equal(sha256(exportOptionsText), "c78bce7579933943ab3381b5492d02878113f1310d64e6d0597b723fc274a978",
@@ -34,7 +75,7 @@ const exportOptions = JSON.parse(exportOptionsText);
 assert.equal(exportOptions.schemaVersion, 1);
 assert.equal(exportOptions.baselineCommit, "7ea662c7b84b027472ef86fd64e46a2aacb97a61");
 function readBeforeExportOptions(relative) {
-  const source = readBytes(relative).toString("utf8");
+  const source = readBeforeJoeUi(relative);
   const file = exportOptions.files.find(entry => entry.source === relative);
   if (priorExportOptionsSnapshot || !file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed export options`);
@@ -2541,6 +2582,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      JOE_UI_PATH, ...joeUi.files.map(file => file.source), ...joeUi.added.map(file => file.source),
       EXPORT_OPTIONS_PATH, ...exportOptions.files.map(file => file.source),
       LAYER_HELP_PATH, ...layerHelp.files.map(file => file.source),
       OVERNIGHT_PATH, ...overnight.files.map(file => file.source), ...overnight.added.map(file => file.source),
@@ -2567,11 +2609,26 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
-      ["altered the export options inverse", path.join(scratch, EXPORT_OPTIONS_PATH), exportOptionsText + " "],
-      ...exportOptions.files.map(file => [
-        `unreviewed export options byte in ${file.source}`, path.join(scratch, file.source), readBytes(file.source).toString("utf8") + "\n"
+      ["altered the tour, layers and export inverse", path.join(scratch, JOE_UI_PATH), joeUiText + " "],
+      ...joeUi.files.map(file => [
+        `unreviewed tour, layers and export byte in ${file.source}`, path.join(scratch, file.source), readBytes(file.source).toString("utf8") + "\n"
+      ]),
+      ...joeUi.added.map(file => [
+        `unreviewed new tour, layers and export asset ${file.source}`, path.join(scratch, file.source), Buffer.concat([readBytes(file.source), Buffer.from([0])])
       ])
     ], run);
+    for (const file of joeUi.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeJoeUi(file.source));
+    }
+    for (const file of joeUi.added) fs.unlinkSync(path.join(scratch, file.source));
+    const runBeforeJoeUi = () => run(["--prior-joe-ui-snapshot"]);
+    assert.equal(runBeforeJoeUi().status, 0, "The restored pre-update snapshot must pass");
+    assertMutationsRejected([
+      ["altered the export options inverse", path.join(scratch, EXPORT_OPTIONS_PATH), exportOptionsText + " "],
+      ...exportOptions.files.map(file => [
+        `unreviewed export options byte in ${file.source}`, path.join(scratch, file.source), readBeforeJoeUi(file.source) + "\n"
+      ])
+    ], runBeforeJoeUi);
     for (const file of exportOptions.files) {
       fs.writeFileSync(path.join(scratch, file.source), readBeforeExportOptions(file.source));
     }

@@ -351,6 +351,8 @@
           </a>
         </section>
 
+        <button id="mapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-rail" type="button">Take the FloodMapper tour</button>
+
         <section class="rail-card layers-card nww-layers-card">
           <div class="rail-head">
             <div>
@@ -360,8 +362,9 @@
           <div class="layer-list">
             <div class="layer-item">
               <div id="satelliteToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show satellite imagery"></div>
-              <div class="layer-meta">
+              <div class="layer-meta title-with-help">
                 <div class="layer-name">Satellite</div>
+                <button class="help-btn" type="button" data-layer-help="satellite" aria-label="About Satellite" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item">
@@ -388,37 +391,26 @@
             </div>
             <div class="layer-item">
               <div id="roadImpactsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show road impacts" title="Highlight roads with more than 0.5 ft of modeled water at the selected time"></div>
-              <div class="layer-meta">
+              <div class="layer-meta title-with-help">
                 <div class="layer-name">Road Impacts</div>
+                <button class="help-btn" type="button" data-layer-help="roadImpacts" aria-label="About Road Impacts" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item">
               <div id="roadsToggle" class="toggle on" role="switch" tabindex="0" aria-checked="true" aria-label="Show road names"></div>
-              <div class="layer-meta">
+              <div class="layer-meta title-with-help">
                 <div class="layer-name">Road Names</div>
+                <button class="help-btn" type="button" data-layer-help="roadNames" aria-label="About Road Names" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item shorelysafe-camera-item" data-html2canvas-ignore="true">
               <div id="webcamsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show cameras"></div>
-              <div class="layer-meta">
+              <div class="layer-meta title-with-help">
                 <div class="layer-name">Cameras</div>
+                <button class="help-btn" type="button" data-layer-help="cameras" aria-label="About Cameras" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
           </div>
-        </section>
-
-        <section class="rail-card top-tides-card">
-          <div class="rail-head">
-            <div>
-              <h3>Top 10 Highest Floods</h3>
-            </div>
-          </div>
-          <div id="topTideList" class="top-tide-list"></div>
-
-        </section>
-
-        <section id="downloadCard" class="rail-card download-card download-launch-card" aria-label="Export Map">
-          <button id="openDownloadModalBtn" class="download-launch-btn active" type="button" aria-expanded="false" aria-controls="downloadModal">Export Map</button>
         </section>
 
         <section id="townAddressCard" class="rail-card town-address-card" aria-label="address lookup">
@@ -438,7 +430,20 @@
           <div id="townAddressStatus" class="town-address-status" role="status" aria-live="polite"></div>
         </section>
 
-        <button id="mapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-rail" type="button">Take the FloodMapper tour</button>
+        <section id="downloadCard" class="rail-card download-card download-launch-card" aria-label="Export Map">
+          <button id="openDownloadModalBtn" class="download-launch-btn active" type="button" aria-expanded="false" aria-controls="downloadModal">Export Map</button>
+        </section>
+
+        <section class="rail-card top-tides-card">
+          <div class="rail-head">
+            <div>
+              <h3>Top 10 Highest Floods</h3>
+            </div>
+          </div>
+          <div id="topTideList" class="top-tide-list"></div>
+
+        </section>
+
 </aside>
 
       <div id="topTidesModal" class="top-tides-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="topTidesModalTitle">
@@ -506,6 +511,8 @@
       </div>
     </main>
   </div>
+
+  <button id="mobileMapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-mobile" type="button" aria-haspopup="dialog" data-html2canvas-ignore="true">Take the FloodMapper tour</button>
 
   <div id="mapperTutorial" class="mapper-tutorial" hidden aria-hidden="true">
     <div id="mapperTutorialSpotlight" class="mapper-tutorial-spotlight" aria-hidden="true"></div>

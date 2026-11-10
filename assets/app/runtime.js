@@ -124,7 +124,7 @@
     const EXPORT_CAPTURE_SCALE = 1;
     const EXPORT_GIF_DITHER = false;
     const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
-    const GIF_WORKER_CDN_URL = "https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.worker.js";
+    const GIF_WORKER_URL = new URL("assets/vendor/gif.worker.js?v=ef4ff2db1b2c1116", APP_BASE).href;
     const EXPORT_GIF_ASPECTS = {
       "16:9": { value: "16:9", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
       "9:16": { value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
@@ -2580,6 +2580,10 @@ function setDatumHelpOpen(isOpen) {
           <p><strong>Road Impacts</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
         `
       },
+      satellite: {
+        title: "Satellite",
+        body: "<p>Shows aerial imagery beneath the flood map.</p>"
+      },
       buildings: {
         title: "Buildings",
         body: "<p>Shows buildings on the map. Tap one for more details.</p>"
@@ -2591,6 +2595,18 @@ function setDatumHelpOpen(isOpen) {
       structuralImpacts: {
         title: "Structural Impacts",
         body: "<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>"
+      },
+      roadImpacts: {
+        title: "Road Impacts",
+        body: "<p>Highlights road sections with more than 6 inches of estimated water. At bridges, the estimate is for the surface below the deck.</p>"
+      },
+      roadNames: {
+        title: "Road Names",
+        body: "<p>Shows street names so you can see which roads are near flooding.</p>"
+      },
+      cameras: {
+        title: "Cameras",
+        body: "<p>Shows camera locations. Tap a camera to see its feed or open the camera's website.</p>"
       },
       timelineDetail: {
         title: "Timeline detail",
@@ -7284,7 +7300,7 @@ function updateExportSegmentedUI() {
       if (gifWorkerUrlPromise) return gifWorkerUrlPromise;
       const request = { controller: new AbortController(), promise: null };
       gifWorkerLoadRequest = request;
-      request.promise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL, { signal: request.controller.signal }).then(url => {
+      request.promise = getSameOriginWorkerUrl(GIF_WORKER_URL, { signal: request.controller.signal }).then(url => {
         if (gifWorkerLoadRequest !== request || request.controller.signal.aborted) {
           URL.revokeObjectURL(url);
           throw makeExportCancelledError();
@@ -14543,6 +14559,7 @@ function startPlayback() {
 
     let mapperTutorialGeneration = 0;
     let mapperTutorialStartedInDrawer = false;
+    let mapperTutorialMobileOpener = null;
     function renderMapperTutorialStep(opener) {
       const generation = ++mapperTutorialGeneration;
       const isCurrentStep = () => generation === mapperTutorialGeneration &&
@@ -14588,6 +14605,8 @@ function startPlayback() {
       finishMapperTutorialGesture(false);
       const generation = ++mapperTutorialGeneration;
       if (open) {
+        mapperTutorialMobileOpener = opener?.id === "mobileMapperTutorialBtn" ? opener : null;
+        document.body.removeAttribute("data-tour-attention");
         mapperTutorialStartedInDrawer = isCompactFloodmapperLayout() &&
           document.body.classList.contains("mobile-controls-open");
       } else if (isCompactFloodmapperLayout()) {
@@ -14621,15 +14640,20 @@ function startPlayback() {
         window.removeEventListener("resize", mapperTutorialResizeHandler);
         mapperTutorialResizeHandler = null;
         document.dispatchEvent(new CustomEvent("nww:modalchange"));
-        if (isCompactFloodmapperLayout()) {
+        const mobileOpener = mapperTutorialMobileOpener;
+        mapperTutorialMobileOpener = null;
+        if (isCompactFloodmapperLayout() || mobileOpener) {
           requestAnimationFrame(() => requestAnimationFrame(() => {
-            if (generation !== mapperTutorialGeneration || !isCompactFloodmapperLayout()) return;
+            if (generation !== mapperTutorialGeneration) return;
             const active = document.activeElement;
             // Browsers can report focus on the hidden tour until the next render.
             if (!mapperTutorialStartedInDrawer &&
-                (active === document.body || active === opener || tutorial.contains(active))) {
-              const controls = document.getElementById("mobileControlsToggle");
-              if (!controls?.closest("[inert]")) controls?.focus({ preventScroll: true });
+                (active === document.body || active === opener || active === mobileOpener || tutorial.contains(active))) {
+              let fallback = opener;
+              if (isCompactFloodmapperLayout()) {
+                fallback = mobileOpener?.getClientRects().length ? mobileOpener : document.getElementById("mobileControlsToggle");
+              }
+              if (!fallback?.closest("[inert]")) fallback?.focus({ preventScroll: true });
             } else if (active === opener) {
               opener.scrollIntoView({ block: "nearest", inline: "nearest" });
             }
@@ -14663,7 +14687,19 @@ function startPlayback() {
         }
       }, true);
       window.addEventListener("blur", () => finishMapperTutorialGesture());
-      document.getElementById("mapperTutorialBtn")?.addEventListener("click", event => setMapperTutorialOpen(true, 0, event.currentTarget));
+      for (const id of ["mapperTutorialBtn", "mobileMapperTutorialBtn"]) {
+        document.getElementById(id)?.addEventListener("click", event => setMapperTutorialOpen(true, 0, event.currentTarget));
+      }
+      const loader = document.getElementById("nwSiteLoader");
+      const highlight = () => {
+        if (loader && !loader.hidden) return;
+        observer?.disconnect();
+        document.body.dataset.tourAttention = "true";
+        setTimeout(() => document.body.removeAttribute("data-tour-attention"), 5000);
+      };
+      const observer = loader && !loader.hidden ? new MutationObserver(highlight) : null;
+      if (observer) observer.observe(loader, { attributes: true, attributeFilter: ["hidden"] });
+      else highlight();
       document.getElementById("mapperTutorialClose")?.addEventListener("click", () => setMapperTutorialOpen(false));
       document.getElementById("mapperTutorialBack")?.addEventListener("click", () => {
         if (mapperTutorialIndex > 0) {
@@ -15333,9 +15369,15 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       updateDownloadSummary();
       scheduleMapTitleFit();
       if (typeof ResizeObserver === "function") {
-        const titleModeObserver = new ResizeObserver(positionMapClickModeControl);
         const titleBadge = document.getElementById("mapTitleBadge");
-        if (titleBadge) titleModeObserver.observe(titleBadge);
+        if (titleBadge) {
+          const mobileTour = document.getElementById("mobileMapperTutorialBtn");
+          const titleModeObserver = new ResizeObserver(() => {
+            positionMapClickModeControl();
+            mobileTour?.style.setProperty("--nww-tour-title-height", `${Math.ceil(titleBadge.getBoundingClientRect().height)}px`);
+          });
+          titleModeObserver.observe(titleBadge);
+        }
       }
       window.addEventListener('resize', () => {
         if (map) {
@@ -15391,8 +15433,8 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       if (mobileRailMount) {
         const exportCard = mobileRailMount.querySelector(".download-launch-card, .download-card");
         const addressCard = mobileRailMount.querySelector("#townAddressCard, .town-address-card");
-        if (exportCard && addressCard && exportCard.nextSibling !== addressCard) {
-          mobileRailMount.insertBefore(exportCard, addressCard);
+        if (exportCard && addressCard && addressCard.nextElementSibling !== exportCard) {
+          mobileRailMount.insertBefore(addressCard, exportCard);
         }
       }
     }

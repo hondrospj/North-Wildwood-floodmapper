@@ -1055,7 +1055,7 @@ assert.match(SOURCE, />Modeled Floods<\/button>/);
 assert.match(SOURCE, /<h2>How Often\?<\/h2>/);
 assert.match(SOURCE, /Every 10 Years/);
 assert.match(SOURCE, /return-interval-mode #leftPanel > #timelineIntervalCard\{order:1 !important\}/);
-assert.match(SOURCE, /#rightRail > #mapperTutorialBtn\{order:5 !important\}/);
+assert.match(SOURCE, /#rightRail > #mapperTutorialBtn#mapperTutorialBtn\{order:0 !important\}/);
 assert.match(SOURCE, /#mapperTutorialBtn\.mapper-tutorial-launch\{[\s\S]+bottom:0 !important/);
 assert.match(SOURCE, /body\.observed-mode #leftPanel \.data-source-options,[\s\S]+grid-template-columns:repeat\(3,minmax\(0,1fr\)\) !important/);
 assert.match(SOURCE, /function loadObservedDay\([\s\S]+findClosestMeasuredEntryIndex\(currentSeriesHours, preferredEntry\)/);

@@ -88,6 +88,7 @@
 
     let mapperTutorialGeneration = 0;
     let mapperTutorialStartedInDrawer = false;
+    let mapperTutorialMobileOpener = null;
     function renderMapperTutorialStep(opener) {
       const generation = ++mapperTutorialGeneration;
       const isCurrentStep = () => generation === mapperTutorialGeneration &&
@@ -133,6 +134,8 @@
       finishMapperTutorialGesture(false);
       const generation = ++mapperTutorialGeneration;
       if (open) {
+        mapperTutorialMobileOpener = opener?.id === "mobileMapperTutorialBtn" ? opener : null;
+        document.body.removeAttribute("data-tour-attention");
         mapperTutorialStartedInDrawer = isCompactFloodmapperLayout() &&
           document.body.classList.contains("mobile-controls-open");
       } else if (isCompactFloodmapperLayout()) {
@@ -166,15 +169,20 @@
         window.removeEventListener("resize", mapperTutorialResizeHandler);
         mapperTutorialResizeHandler = null;
         document.dispatchEvent(new CustomEvent("nww:modalchange"));
-        if (isCompactFloodmapperLayout()) {
+        const mobileOpener = mapperTutorialMobileOpener;
+        mapperTutorialMobileOpener = null;
+        if (isCompactFloodmapperLayout() || mobileOpener) {
           requestAnimationFrame(() => requestAnimationFrame(() => {
-            if (generation !== mapperTutorialGeneration || !isCompactFloodmapperLayout()) return;
+            if (generation !== mapperTutorialGeneration) return;
             const active = document.activeElement;
             // Browsers can report focus on the hidden tour until the next render.
             if (!mapperTutorialStartedInDrawer &&
-                (active === document.body || active === opener || tutorial.contains(active))) {
-              const controls = document.getElementById("mobileControlsToggle");
-              if (!controls?.closest("[inert]")) controls?.focus({ preventScroll: true });
+                (active === document.body || active === opener || active === mobileOpener || tutorial.contains(active))) {
+              let fallback = opener;
+              if (isCompactFloodmapperLayout()) {
+                fallback = mobileOpener?.getClientRects().length ? mobileOpener : document.getElementById("mobileControlsToggle");
+              }
+              if (!fallback?.closest("[inert]")) fallback?.focus({ preventScroll: true });
             } else if (active === opener) {
               opener.scrollIntoView({ block: "nearest", inline: "nearest" });
             }
@@ -208,7 +216,19 @@
         }
       }, true);
       window.addEventListener("blur", () => finishMapperTutorialGesture());
-      document.getElementById("mapperTutorialBtn")?.addEventListener("click", event => setMapperTutorialOpen(true, 0, event.currentTarget));
+      for (const id of ["mapperTutorialBtn", "mobileMapperTutorialBtn"]) {
+        document.getElementById(id)?.addEventListener("click", event => setMapperTutorialOpen(true, 0, event.currentTarget));
+      }
+      const loader = document.getElementById("nwSiteLoader");
+      const highlight = () => {
+        if (loader && !loader.hidden) return;
+        observer?.disconnect();
+        document.body.dataset.tourAttention = "true";
+        setTimeout(() => document.body.removeAttribute("data-tour-attention"), 5000);
+      };
+      const observer = loader && !loader.hidden ? new MutationObserver(highlight) : null;
+      if (observer) observer.observe(loader, { attributes: true, attributeFilter: ["hidden"] });
+      else highlight();
       document.getElementById("mapperTutorialClose")?.addEventListener("click", () => setMapperTutorialOpen(false));
       document.getElementById("mapperTutorialBack")?.addEventListener("click", () => {
         if (mapperTutorialIndex > 0) {
@@ -878,9 +898,15 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       updateDownloadSummary();
       scheduleMapTitleFit();
       if (typeof ResizeObserver === "function") {
-        const titleModeObserver = new ResizeObserver(positionMapClickModeControl);
         const titleBadge = document.getElementById("mapTitleBadge");
-        if (titleBadge) titleModeObserver.observe(titleBadge);
+        if (titleBadge) {
+          const mobileTour = document.getElementById("mobileMapperTutorialBtn");
+          const titleModeObserver = new ResizeObserver(() => {
+            positionMapClickModeControl();
+            mobileTour?.style.setProperty("--nww-tour-title-height", `${Math.ceil(titleBadge.getBoundingClientRect().height)}px`);
+          });
+          titleModeObserver.observe(titleBadge);
+        }
       }
       window.addEventListener('resize', () => {
         if (map) {
@@ -936,8 +962,8 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       if (mobileRailMount) {
         const exportCard = mobileRailMount.querySelector(".download-launch-card, .download-card");
         const addressCard = mobileRailMount.querySelector("#townAddressCard, .town-address-card");
-        if (exportCard && addressCard && exportCard.nextSibling !== addressCard) {
-          mobileRailMount.insertBefore(exportCard, addressCard);
+        if (exportCard && addressCard && addressCard.nextElementSibling !== exportCard) {
+          mobileRailMount.insertBefore(addressCard, exportCard);
         }
       }
     }

@@ -50,6 +50,14 @@ async function inspect(page,label){
 }
 const contained=(r,row)=>!!r&&r.width>0&&r.height>0&&r.left>=-1&&r.top>=-1&&r.right<=row.width+1&&r.bottom<=row.height+1;
 const overlaps=(a,b)=>!!a&&!!b&&Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
+async function checkRailOrder(page,parent,label){
+ const cards=await page.locator(`${parent} > :is(.layers-card,#townAddressCard,#downloadCard,.top-tides-card)`).evaluateAll(nodes=>nodes.map(node=>{
+  const rect=node.getBoundingClientRect();
+  return {name:node.id||(node.classList.contains('layers-card')?'layers':'topFloods'),top:rect.top,bottom:rect.bottom,height:rect.height};
+ }));
+ check(cards.map(card=>card.name).join(',')==='layers,townAddressCard,downloadCard,topFloods'&&
+  cards.every((card,index)=>card.height>0&&(!index||card.top>=cards[index-1].bottom-1)),label+' layers, address, export, and Top 10 follow the same visual and keyboard order',cards);
+}
 async function openDrawer(page){if(!await page.locator('body').evaluate(e=>e.classList.contains('mobile-controls-open')))await page.locator('#mobileControlsToggle').click({noWaitAfter:true});await page.locator('#nwwMobileControlHeader').waitFor({state:'visible'});}
 async function closeDrawer(page){if(await page.locator('body').evaluate(e=>e.classList.contains('mobile-controls-open'))){const close=page.locator('#mobileControlsClose');if(await close.isVisible())await close.click({noWaitAfter:true});else{check(false,'Compact drawer keeps a visible close button');await page.keyboard.press('Escape');}}}
 async function compactReadability(page,label){
@@ -91,6 +99,7 @@ async function testCompact(page,label){
  for(const [tab,control]of [['Flood data','#forecastDataBtn'],['Map layers','#satelliteToggle'],['Tools','#townAddressClearBtn']]){
   const tabControl=page.getByRole('tab',{name:tab,exact:true});
   await tabControl.click({noWaitAfter:true});await settle(page);
+  if(tab==='Map layers')await checkRailOrder(page,'#mobileRailMount',label);
   const tabBox=await tabControl.boundingBox();
   check(tabBox?.height>=43.5,label+' '+tab+' tab keeps a44px target',tabBox);
   await page.locator(control).scrollIntoViewIfNeeded();await settle(page);
@@ -112,6 +121,7 @@ async function geometryChecks(page,label,mustKeepDesktop){
  if(mustKeepDesktop)check(row.layout==='desktop',label+' preserves side-by-side controls',row);
  if(/^(Small desktop|Short wide|Phone|Zoom-equivalent|Short phone|Touch laptop)/.test(label))check(row.layout==='mobile',label+' uses a readable compact fallback',row);
  if(row.layout==='desktop'){
+  await checkRailOrder(page,'#rightRail',label);
   for(const side of ['left','right']){
    const pane=row[side];check(contained(pane.box,row),label+' '+side+' sidebar is fully on screen',row);
    check(pane.scrollHeight<=pane.clientHeight+2,label+' '+side+' primary controls fit without scrolling',row);

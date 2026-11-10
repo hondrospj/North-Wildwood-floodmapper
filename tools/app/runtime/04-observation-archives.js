@@ -635,6 +635,10 @@ function setDatumHelpOpen(isOpen) {
           <p><strong>Road Impacts</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
         `
       },
+      satellite: {
+        title: "Satellite",
+        body: "<p>Shows aerial imagery beneath the flood map.</p>"
+      },
       buildings: {
         title: "Buildings",
         body: "<p>Shows buildings on the map. Tap one for more details.</p>"
@@ -646,6 +650,18 @@ function setDatumHelpOpen(isOpen) {
       structuralImpacts: {
         title: "Structural Impacts",
         body: "<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>"
+      },
+      roadImpacts: {
+        title: "Road Impacts",
+        body: "<p>Highlights road sections with more than 6 inches of estimated water. At bridges, the estimate is for the surface below the deck.</p>"
+      },
+      roadNames: {
+        title: "Road Names",
+        body: "<p>Shows street names so you can see which roads are near flooding.</p>"
+      },
+      cameras: {
+        title: "Cameras",
+        body: "<p>Shows camera locations. Tap a camera to see its feed or open the camera's website.</p>"
       },
       timelineDetail: {
         title: "Timeline detail",

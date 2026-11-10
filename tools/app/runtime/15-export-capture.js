@@ -445,7 +445,7 @@
       if (gifWorkerUrlPromise) return gifWorkerUrlPromise;
       const request = { controller: new AbortController(), promise: null };
       gifWorkerLoadRequest = request;
-      request.promise = getSameOriginWorkerUrl(GIF_WORKER_CDN_URL, { signal: request.controller.signal }).then(url => {
+      request.promise = getSameOriginWorkerUrl(GIF_WORKER_URL, { signal: request.controller.signal }).then(url => {
         if (gifWorkerLoadRequest !== request || request.controller.signal.aborted) {
           URL.revokeObjectURL(url);
           throw makeExportCancelledError();
