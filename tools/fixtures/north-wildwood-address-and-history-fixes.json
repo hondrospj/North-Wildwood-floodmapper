@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "5c9c405e4a6bb1f39342ccbd1460137f4ee25cba",
+  "files": [
+    {
+      "source": "tools/app/runtime/19-observed-history.js",
+      "beforeSha256": "5e86eaeb4789a6675318771ad6af59dc5d0b04388feb9d22341bb7519da9ba9d",
+      "afterSha256": "0ba7b941bae395b9138777df342cf2ea8967a1708cdccd8f7d706b3078a197ad",
+      "changes": [
+        {
+          "beforeSource": "      if (match) return dateKey(match[1], match[2], match[3]);\n\n      match = raw.match(/^(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?$/);\n      if (match) {\n        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());\n        if (y < 100) y += 2000;\n        return dateKey(y, match[1], match[2]);\n      }\n\n",
+          "afterSource": "      if (match) return dateKey(match[1], match[2], match[3]);\n\n      match = raw.match(/^(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?$/)\n        || raw.match(/^(\\d{2})(\\d{2})(\\d{2}|\\d{4})$/);\n      if (match) {\n        const [, month, day, yearText] = match;\n        const currentYear = Number(getTodayNyDateKey().slice(0, 4));\n        let year = yearText ? Number(yearText) : Number((currentMonthKey || String(currentYear)).slice(0, 4));\n        if (yearText?.length === 2) {\n          year += currentYear - currentYear % 100;\n          if (year > currentYear) year -= 100;\n        }\n        return dateKey(year, month, day);\n      }\n\n"
+        },
+        {
+          "beforeSource": "      if (!parsed) {\n        input.value = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : \"\";\n        toast(\"Enter a date like Apr 19, 2026 or 04/19/2026.\");\n        return;\n      }\n",
+          "afterSource": "      if (!parsed) {\n        input.value = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : \"\";\n        toast(\"Enter a date like 04192026 or 04/19/2026.\");\n        return;\n      }\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "beforeSha256": "60c90da4a6d62fa0fe0652d1fb7a88804f2e7b777ce95baac71d9ea42f7ddadf",
+      "afterSha256": "df48e015b12dfb9172ed9122cabe61d0e9df31deb12d004d1c4a9f850f6f30c1",
+      "changes": [
+        {
+          "beforeSource": "        }];\n      } else {\n        currentSeriesHours = sampleCanonicalHydraulicSeries(\n          currentRawSeriesHours,\n          getTimelineIntervalMinutes()\n        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));\n      }\n\n",
+          "afterSource": "        }];\n      } else {\n        const interval = getTimelineIntervalMinutes();\n        const samples = sampleCanonicalHydraulicSeries(currentRawSeriesHours, interval);\n        if (interval === 60) {\n          const crest = currentRawSeriesHours[getPeakHourIndex(currentRawSeriesHours)];\n          const crestTime = entryTimeMs(crest);\n          // Keep the crest's actual timestamp when it falls between hourly samples.\n          if (Number.isFinite(getStageValue(crest)) && Number.isFinite(crestTime) &&\n              !samples.some(entry => entryTimeMs(entry) === crestTime)) {\n            samples.push(crest);\n            samples.sort((a, b) => entryTimeMs(a) - entryTimeMs(b));\n          }\n        }\n        currentSeriesHours = samples.map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));\n      }\n\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSha256": "2be0ebdb0aa60ce40dcfcbed071cdb01b5c4b538f02bd0066dc2b574674537da",
+      "afterSha256": "1acc34a8f4f393410aa9a22dbf32d5b0105f5309b4cf129b00a0159cdd79feb3",
+      "changes": [
+        {
+          "beforeSource": "    }\n\n    function clearTownAddressLookup() {\n      cancelPendingTownAddressLookup();\n      const input = document.getElementById(\"townAddressInput\");\n      if (input) input.value = \"\";\n      setTownAddressStatus(\"\");\n      if (townAddressMarker && map && map.hasLayer(townAddressMarker)) {\n        map.removeLayer(townAddressMarker);\n",
+          "afterSource": "    }\n\n    function removeTownAddressResult() {\n      if (townAddressMarker && map && map.hasLayer(townAddressMarker)) {\n        map.removeLayer(townAddressMarker);\n"
+        },
+        {
+          "beforeSource": "      window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);\n      townAddressPopup?.remove();\n      input?.focus();\n    }\n",
+          "afterSource": "      window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);\n      townAddressPopup?.remove();\n    }\n\n    function clearTownAddressLookup() {\n      cancelPendingTownAddressLookup();\n      const input = document.getElementById(\"townAddressInput\");\n      if (input) input.value = \"\";\n      setTownAddressStatus(\"\");\n      removeTownAddressResult();\n      input?.focus();\n    }\n"
+        },
+        {
+          "beforeSource": "      const generation = ++townAddressSearchGeneration;\n      townAddressLookupController?.abort();\n      const controller = new AbortController();\n      townAddressLookupController = controller;\n",
+          "afterSource": "      const generation = ++townAddressSearchGeneration;\n      townAddressLookupController?.abort();\n      removeTownAddressResult();\n      const controller = new AbortController();\n      townAddressLookupController = controller;\n"
+        },
+        {
+          "beforeSource": "\n        if (generation !== townAddressSearchGeneration) return;\n        if (townAddressMarker && map.hasLayer(townAddressMarker)) {\n          townAddressMarker.setLatLng(latLng);\n          townAddressMarker.options.title = label;\n          const markerElement = townAddressMarker.getElement();\n          if (markerElement) markerElement.title = label;\n        } else {\n          townAddressMarker = L.marker(latLng, {\n            title: label,\n            riseOnHover: true,\n            icon: getShorelySafeAddressIcon()\n          }).addTo(map);\n        }\n\n        map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });\n",
+          "afterSource": "\n        if (generation !== townAddressSearchGeneration) return;\n        townAddressMarker = L.marker(latLng, {\n          title: label,\n          riseOnHover: true,\n          icon: getShorelySafeAddressIcon()\n        }).addTo(map);\n\n        map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });\n"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "f73dc31cb69cc87a437a754616123696b496e54c5c8d0538229de1045676ddcb",
+      "afterSha256": "3af2ba1fa48ac350064bf28d8708a45b5da0b6bbd4b9325fc64549e4f8d3d2b8",
+      "changes": [
+        {
+          "beforeSource": "      if (match) return dateKey(match[1], match[2], match[3]);\n\n      match = raw.match(/^(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?$/);\n      if (match) {\n        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());\n        if (y < 100) y += 2000;\n        return dateKey(y, match[1], match[2]);\n      }\n\n",
+          "afterSource": "      if (match) return dateKey(match[1], match[2], match[3]);\n\n      match = raw.match(/^(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?$/)\n        || raw.match(/^(\\d{2})(\\d{2})(\\d{2}|\\d{4})$/);\n      if (match) {\n        const [, month, day, yearText] = match;\n        const currentYear = Number(getTodayNyDateKey().slice(0, 4));\n        let year = yearText ? Number(yearText) : Number((currentMonthKey || String(currentYear)).slice(0, 4));\n        if (yearText?.length === 2) {\n          year += currentYear - currentYear % 100;\n          if (year > currentYear) year -= 100;\n        }\n        return dateKey(year, month, day);\n      }\n\n"
+        },
+        {
+          "beforeSource": "      if (!parsed) {\n        input.value = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : \"\";\n        toast(\"Enter a date like Apr 19, 2026 or 04/19/2026.\");\n        return;\n      }\n",
+          "afterSource": "      if (!parsed) {\n        input.value = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : \"\";\n        toast(\"Enter a date like 04192026 or 04/19/2026.\");\n        return;\n      }\n"
+        },
+        {
+          "beforeSource": "        }];\n      } else {\n        currentSeriesHours = sampleCanonicalHydraulicSeries(\n          currentRawSeriesHours,\n          getTimelineIntervalMinutes()\n        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));\n      }\n\n",
+          "afterSource": "        }];\n      } else {\n        const interval = getTimelineIntervalMinutes();\n        const samples = sampleCanonicalHydraulicSeries(currentRawSeriesHours, interval);\n        if (interval === 60) {\n          const crest = currentRawSeriesHours[getPeakHourIndex(currentRawSeriesHours)];\n          const crestTime = entryTimeMs(crest);\n          // Keep the crest's actual timestamp when it falls between hourly samples.\n          if (Number.isFinite(getStageValue(crest)) && Number.isFinite(crestTime) &&\n              !samples.some(entry => entryTimeMs(entry) === crestTime)) {\n            samples.push(crest);\n            samples.sort((a, b) => entryTimeMs(a) - entryTimeMs(b));\n          }\n        }\n        currentSeriesHours = samples.map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));\n      }\n\n"
+        },
+        {
+          "beforeSource": "    }\n\n    function clearTownAddressLookup() {\n      cancelPendingTownAddressLookup();\n      const input = document.getElementById(\"townAddressInput\");\n      if (input) input.value = \"\";\n      setTownAddressStatus(\"\");\n      if (townAddressMarker && map && map.hasLayer(townAddressMarker)) {\n        map.removeLayer(townAddressMarker);\n",
+          "afterSource": "    }\n\n    function removeTownAddressResult() {\n      if (townAddressMarker && map && map.hasLayer(townAddressMarker)) {\n        map.removeLayer(townAddressMarker);\n"
+        },
+        {
+          "beforeSource": "      window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);\n      townAddressPopup?.remove();\n      input?.focus();\n    }\n",
+          "afterSource": "      window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);\n      townAddressPopup?.remove();\n    }\n\n    function clearTownAddressLookup() {\n      cancelPendingTownAddressLookup();\n      const input = document.getElementById(\"townAddressInput\");\n      if (input) input.value = \"\";\n      setTownAddressStatus(\"\");\n      removeTownAddressResult();\n      input?.focus();\n    }\n"
+        },
+        {
+          "beforeSource": "      const generation = ++townAddressSearchGeneration;\n      townAddressLookupController?.abort();\n      const controller = new AbortController();\n      townAddressLookupController = controller;\n",
+          "afterSource": "      const generation = ++townAddressSearchGeneration;\n      townAddressLookupController?.abort();\n      removeTownAddressResult();\n      const controller = new AbortController();\n      townAddressLookupController = controller;\n"
+        },
+        {
+          "beforeSource": "\n        if (generation !== townAddressSearchGeneration) return;\n        if (townAddressMarker && map.hasLayer(townAddressMarker)) {\n          townAddressMarker.setLatLng(latLng);\n          townAddressMarker.options.title = label;\n          const markerElement = townAddressMarker.getElement();\n          if (markerElement) markerElement.title = label;\n        } else {\n          townAddressMarker = L.marker(latLng, {\n            title: label,\n            riseOnHover: true,\n            icon: getShorelySafeAddressIcon()\n          }).addTo(map);\n        }\n\n        map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });\n",
+          "afterSource": "\n        if (generation !== townAddressSearchGeneration) return;\n        townAddressMarker = L.marker(latLng, {\n          title: label,\n          riseOnHover: true,\n          icon: getShorelySafeAddressIcon()\n        }).addTo(map);\n\n        map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });\n"
+        }
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "27991156f2a01a2895af2f18314c35bc29fad0d9b7b9736d935ad2eb64f6e73d",
+      "afterSha256": "2b83252362e2fdf6a4524ced578f341e17b041d9819a1dde3e77cd538237b094",
+      "changes": [
+        {
+          "beforeSource": "  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=f73dc31cb69cc87a\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n",
+          "afterSource": "  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=3af2ba1fa48ac350\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n"
+        }
+      ]
+    }
+  ]
+}
