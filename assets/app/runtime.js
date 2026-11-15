@@ -13964,17 +13964,21 @@ function startPlayback() {
       return true;
     }
 
-    function clearTownAddressLookup() {
-      cancelPendingTownAddressLookup();
-      const input = document.getElementById("townAddressInput");
-      if (input) input.value = "";
-      setTownAddressStatus("");
+    function removeTownAddressResult() {
       if (townAddressMarker && map && map.hasLayer(townAddressMarker)) {
         map.removeLayer(townAddressMarker);
       }
       townAddressMarker = null;
       window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);
       townAddressPopup?.remove();
+    }
+
+    function clearTownAddressLookup() {
+      cancelPendingTownAddressLookup();
+      const input = document.getElementById("townAddressInput");
+      if (input) input.value = "";
+      setTownAddressStatus("");
+      removeTownAddressResult();
       input?.focus();
     }
 
@@ -14318,6 +14322,7 @@ function startPlayback() {
     async function searchTownAddress(rawValue) {
       const generation = ++townAddressSearchGeneration;
       townAddressLookupController?.abort();
+      removeTownAddressResult();
       const controller = new AbortController();
       townAddressLookupController = controller;
       const button = document.getElementById("townAddressSearchBtn");
@@ -14366,18 +14371,11 @@ function startPlayback() {
         }
 
         if (generation !== townAddressSearchGeneration) return;
-        if (townAddressMarker && map.hasLayer(townAddressMarker)) {
-          townAddressMarker.setLatLng(latLng);
-          townAddressMarker.options.title = label;
-          const markerElement = townAddressMarker.getElement();
-          if (markerElement) markerElement.title = label;
-        } else {
-          townAddressMarker = L.marker(latLng, {
-            title: label,
-            riseOnHover: true,
-            icon: getShorelySafeAddressIcon()
-          }).addTo(map);
-        }
+        townAddressMarker = L.marker(latLng, {
+          title: label,
+          riseOnHover: true,
+          icon: getShorelySafeAddressIcon()
+        }).addTo(map);
 
         map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });
         window.NORTH_WILDWOOD_3D?.setAddressMarker?.(latLng, label);

@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readBytes = relative => fs.readFileSync(localPath(relative));
+const readDiskBytes = relative => fs.readFileSync(localPath(relative));
 const readCurrent = relative => readBeforeOvernight(relative);
 const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
@@ -28,6 +28,34 @@ const priorExportOptionsSnapshot = priorLayerHelpSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-export-options-snapshot"));
 const priorJoeUiSnapshot = priorExportOptionsSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-joe-ui-snapshot"));
+const priorAddressSnapshot = priorJoeUiSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-address-snapshot"));
+const ADDRESS_REPLACEMENT_PATH = "tools/fixtures/north-wildwood-address-replacement.json";
+const addressReplacementText = readDiskBytes(ADDRESS_REPLACEMENT_PATH).toString("utf8");
+assert.equal(sha256(addressReplacementText), "be22121a1f232a628688ce61de8281f8090461c4d8307b12150a71baa93d99ba",
+  "Retain the exact address replacement inverse");
+const addressReplacement = JSON.parse(addressReplacementText);
+assert.equal(addressReplacement.schemaVersion, 1);
+assert.equal(addressReplacement.baselineCommit, "5c9c405e4a6bb1f39342ccbd1460137f4ee25cba");
+function readBytes(relative) {
+  const bytes = readDiskBytes(relative);
+  const file = addressReplacement.files.find(entry => entry.source === relative);
+  if (priorAddressSnapshot || !file) return bytes;
+  assert.equal(sha256(bytes), file.afterSha256, `${relative} changed outside the address fix`);
+  let source = bytes.toString("utf8");
+  for (const change of file.changes) {
+    assert.equal(source.split(change.afterSource).length - 1, 1, `${relative}: one exact address fix fragment`);
+    source = source.replace(change.afterSource, () => change.beforeSource);
+  }
+  assert.equal(sha256(source), file.beforeSha256, `${relative}: restore every pre-address-fix byte`);
+  return Buffer.from(source, "utf8");
+}
+if (!priorAddressSnapshot) {
+  for (const file of addressReplacement.files) readBytes(file.source);
+  const version = sha256(readDiskBytes("assets/app/runtime.js")).slice(0, 16);
+  assert.ok(readDiskBytes("index.html").includes(`src="./assets/app/runtime.js?v=${version}"`),
+    "The address fix must use the current runtime cache key");
+}
 const JOE_UI_PATH = "tools/fixtures/north-wildwood-20261110-joe-ui.json";
 const joeUiText = readBytes(JOE_UI_PATH).toString("utf8");
 assert.equal(sha256(joeUiText), "2c9a71f7c7b8e1aa1830b41fe8c46bf78db56c56f6b3ca8ba25afb00ab3c2853", "Retain the exact tour, layers and export inverse");
@@ -2582,6 +2610,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      ADDRESS_REPLACEMENT_PATH, ...addressReplacement.files.map(file => file.source),
       JOE_UI_PATH, ...joeUi.files.map(file => file.source), ...joeUi.added.map(file => file.source),
       EXPORT_OPTIONS_PATH, ...exportOptions.files.map(file => file.source),
       LAYER_HELP_PATH, ...layerHelp.files.map(file => file.source),
@@ -2609,6 +2638,17 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered the address replacement inverse", path.join(scratch, ADDRESS_REPLACEMENT_PATH), addressReplacementText + " "],
+      ...addressReplacement.files.map(file => [
+        `unreviewed address fix byte in ${file.source}`, path.join(scratch, file.source), readDiskBytes(file.source).toString("utf8") + "\n"
+      ])
+    ], run);
+    for (const file of addressReplacement.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBytes(file.source));
+    }
+    const runBeforeAddress = () => run(["--prior-address-snapshot"]);
+    assert.equal(runBeforeAddress().status, 0, "The restored pre-address-fix snapshot must pass");
+    assertMutationsRejected([
       ["altered the tour, layers and export inverse", path.join(scratch, JOE_UI_PATH), joeUiText + " "],
       ...joeUi.files.map(file => [
         `unreviewed tour, layers and export byte in ${file.source}`, path.join(scratch, file.source), readBytes(file.source).toString("utf8") + "\n"
@@ -2616,7 +2656,7 @@ if (process.argv.includes("--self-test")) {
       ...joeUi.added.map(file => [
         `unreviewed new tour, layers and export asset ${file.source}`, path.join(scratch, file.source), Buffer.concat([readBytes(file.source), Buffer.from([0])])
       ])
-    ], run);
+    ], runBeforeAddress);
     for (const file of joeUi.files) {
       fs.writeFileSync(path.join(scratch, file.source), readBeforeJoeUi(file.source));
     }
