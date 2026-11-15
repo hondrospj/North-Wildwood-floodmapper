@@ -454,7 +454,10 @@ function getDownloadArchiveBounds() {
 
       const interval = getDownloadIntervalValue();
       const snapshot = range.startMs === range.endMs && getDownloadFormatValue() === "png";
-      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate, { includeNativeLive: interval === "daily" || snapshot })
+      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate, {
+        includeNativeLive: interval === "daily" || snapshot,
+        keepOverlappingForecast: interval === "15min"
+      })
         .filter(entry => entryTimeMs(entry) != null)
         .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
       if (snapshot) {

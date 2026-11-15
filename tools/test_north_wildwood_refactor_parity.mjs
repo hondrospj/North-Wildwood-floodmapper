@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readBytes = relative => fs.readFileSync(localPath(relative));
+const readLiveBytes = relative => fs.readFileSync(localPath(relative));
 const readCurrent = relative => readBeforeOvernight(relative);
 const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
@@ -28,6 +28,39 @@ const priorExportOptionsSnapshot = priorLayerHelpSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-export-options-snapshot"));
 const priorJoeUiSnapshot = priorExportOptionsSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-joe-ui-snapshot"));
+const priorMapperFixSnapshot = priorJoeUiSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mapper-fix-snapshot"));
+const MAPPER_FIX_PATH = "tools/fixtures/north-wildwood-20261115-mapper-fixes.json";
+const mapperFixText = readLiveBytes(MAPPER_FIX_PATH).toString("utf8");
+assert.equal(sha256(mapperFixText), "bcd6a747dc1a65b892e6bb3d5d49fcfc949527a9f185dadc3fb044914237795a", "Retain the exact mapper fixes inverse");
+const mapperFix = JSON.parse(mapperFixText);
+assert.equal(mapperFix.schemaVersion, 1);
+assert.equal(mapperFix.baselineCommit, "2bdbba66a396a3541271346a91d5d89cef0cfc8a");
+const mapperFixFiles = new Map(mapperFix.files.map(file => [file.source, file]));
+function readBytes(relative) {
+  const bytes = readLiveBytes(relative);
+  const file = mapperFixFiles.get(relative);
+  if (priorMapperFixSnapshot || !file) return bytes;
+  assert.equal(sha256(bytes), file.afterSha256, `${relative} changed outside the reviewed mapper fixes`);
+  let restored = bytes.toString("utf8");
+  for (const block of file.changes) {
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact mapper fix fragment`);
+    restored = restored.replace(block.afterSource, () => block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-fix byte`);
+  return Buffer.from(restored);
+}
+if (!priorMapperFixSnapshot) {
+  for (const file of mapperFix.files) readBytes(file.source);
+  const scripts = [...readLiveBytes("index.html").toString("utf8").matchAll(/<script\b[^>]+src="([^"]+)"/g)]
+    .map(match => new URL(match[1], "https://mapper-fixes.invalid/"));
+  for (const [relative, key] of Object.entries(mapperFix.cacheDependencies)) {
+    const matches = scripts.filter(url => url.pathname.slice(1) === relative);
+    assert.equal(matches.length, 1, `${relative}: one published dependency`);
+    assert.equal(matches[0].searchParams.get(key), sha256(readLiveBytes(relative)).slice(0, 16),
+      `${relative}: exact cache version`);
+  }
+}
 const JOE_UI_PATH = "tools/fixtures/north-wildwood-20261110-joe-ui.json";
 const joeUiText = readBytes(JOE_UI_PATH).toString("utf8");
 assert.equal(sha256(joeUiText), "2c9a71f7c7b8e1aa1830b41fe8c46bf78db56c56f6b3ca8ba25afb00ab3c2853", "Retain the exact tour, layers and export inverse");
@@ -2582,6 +2615,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
       JOE_UI_PATH, ...joeUi.files.map(file => file.source), ...joeUi.added.map(file => file.source),
       EXPORT_OPTIONS_PATH, ...exportOptions.files.map(file => file.source),
       LAYER_HELP_PATH, ...layerHelp.files.map(file => file.source),
@@ -2608,6 +2642,19 @@ if (process.argv.includes("--self-test")) {
         assert.match(result.stderr, /AssertionError/, `${name}: rejection must come from a parity assertion`);
       }
     };
+    const mapperFixCases = [
+      ["altered the mapper fixes inverse", path.join(scratch, MAPPER_FIX_PATH), mapperFixText + " "],
+      ...mapperFix.files.map(file => [
+        `unreviewed mapper fix byte in ${file.source}`, path.join(scratch, file.source),
+        Buffer.concat([readLiveBytes(file.source), Buffer.from("\n")])
+      ])
+    ];
+    assertMutationsRejected(mapperFixCases, run);
+    for (const file of mapperFix.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBytes(file.source));
+    }
+    const runBeforeMapperFixes = () => run(["--prior-mapper-fix-snapshot"]);
+    assert.equal(runBeforeMapperFixes().status, 0, "The restored pre-fix snapshot must pass");
     assertMutationsRejected([
       ["altered the tour, layers and export inverse", path.join(scratch, JOE_UI_PATH), joeUiText + " "],
       ...joeUi.files.map(file => [
@@ -2616,7 +2663,7 @@ if (process.argv.includes("--self-test")) {
       ...joeUi.added.map(file => [
         `unreviewed new tour, layers and export asset ${file.source}`, path.join(scratch, file.source), Buffer.concat([readBytes(file.source), Buffer.from([0])])
       ])
-    ], run);
+    ], runBeforeMapperFixes);
     for (const file of joeUi.files) {
       fs.writeFileSync(path.join(scratch, file.source), readBeforeJoeUi(file.source));
     }
@@ -3239,7 +3286,7 @@ if (process.argv.includes("--self-test")) {
     assert.deepEqual(allCases.filter(([, target, altered]) => fs.readFileSync(target, "utf8") === altered).map(([name]) => name), [], "Every retained mutation must alter the actual current artifact");
     assertMutationsRejected(allCases, runPrior);
     assert.equal(runPrior().status, 0, "Restoring historical artifacts must restore a passing check");
-    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length} dropped, moved, altered or stale artifacts were rejected.`);
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

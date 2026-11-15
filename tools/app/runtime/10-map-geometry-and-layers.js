@@ -909,7 +909,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       });
     }
 
-    function updateRoadLayerAppearance() {
+    function updateRoadLayerAppearance({ retry3dRoads: retryRoadLabels = false } = {}) {
       if (!map || !roadsLayer) return;
 
       const toggle = document.getElementById("roadsToggle");
@@ -921,5 +921,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
       const pane = map.getPane("roadsPane");
       if (pane) pane.classList.toggle("roads-dark", showLabels);
+
+      // Only an explicit enable from the Road Names switch retries a failed renderer.
+      if (retryRoadLabels && roadsEnabled && map.hasLayer(roadsLayer)) {
+        roadsLayer.whenReady({ retry: true }).catch(() => {});
+      }
     }
 

@@ -185,6 +185,48 @@ await test('A retired enable completing through the 3D wrapper syncs the current
   assert.equal(f.layers.size, 0); assert.deepEqual(f.syncs.at(-1), ['parcels', 'false']);
 });
 
+await test('Only enabling Road Names retries the mounted Leaflet renderer', async () => {
+  const f = fixture();
+  const toggle = f.element('roadsToggle');
+  const retries = [];
+  const roadsLayer = {
+    setOpacity(opacity) { this.opacity = opacity; },
+    async whenReady({ retry }) { retries.push(retry); }
+  };
+  f.context.map.getZoom = () => 15;
+  f.context.map.getPane = () => f.element('roadsPane');
+  f.context.ROAD_LABEL_ZOOM = 10;
+  f.context.roadsLayer = roadsLayer;
+  f.layers.add(roadsLayer);
+  vm.runInContext(extract(source10, 'updateRoadLayerAppearance'), f.context);
+  toggle.classList.toggle('on', true);
+
+  f.context.updateRoadLayerAppearance();
+  assert.equal(roadsLayer.opacity, 0.98);
+  assert.deepEqual(retries, [], 'Passive map updates must not retry failed sources');
+
+  toggle.click();
+  assert.equal(toggle.attrs['aria-checked'], 'false');
+  assert.equal(roadsLayer.opacity, 0);
+  assert.deepEqual(retries, []);
+
+  toggle.click();
+  assert.equal(toggle.attrs['aria-checked'], 'true');
+  assert.equal(roadsLayer.opacity, 0.98);
+  assert.deepEqual(retries, [true]);
+
+  f.context.map.getZoom = () => 9;
+  toggle.click();
+  toggle.click();
+  assert.equal(roadsLayer.opacity, 0);
+  assert.deepEqual(retries, [true, true], 'Re-enabling below the label threshold still clears a failed cache');
+
+  f.layers.delete(roadsLayer);
+  toggle.click();
+  toggle.click();
+  assert.deepEqual(retries, [true, true], 'A removed Leaflet renderer must not start network recovery');
+});
+
 for (const result of results) { console.log(`${result.passed ? 'PASS' : 'FAIL'} ${result.name}`); if (!result.passed) console.log(result.error); }
 console.log(`${results.filter(result => result.passed).length}/${results.length} deep layer cases passed: ${root}`);
 if (results.some(result => !result.passed)) process.exitCode = 1;

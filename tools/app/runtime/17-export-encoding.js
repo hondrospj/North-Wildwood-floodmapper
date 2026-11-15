@@ -61,8 +61,11 @@
           fillMissingSlots: false,
           maxGapMinutes: 75
         });
-        // Projected frames retain their existing priority at the same instant.
-        series.forEach(entry => byTime.set(entryTimeMs(entry), entry));
+        const preferObserved = currentDataMode === "observed";
+        series.forEach(entry => {
+          const time = entryTimeMs(entry);
+          if (!preferObserved || !byTime.has(time)) byTime.set(time, entry);
+        });
       }
       return Array.from(byTime.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b))
         .filter(entry => Number.isFinite(getStageValue(entry)));

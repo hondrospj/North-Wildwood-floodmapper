@@ -198,8 +198,8 @@ function editorContext() {
   assert.equal(input.value, '11/06/2026', 'An explicit reset discards the invalid draft');
 }
 
-// Keep all 100 real source instants on the shipped fall-back day. Preference
-// for a forecast at one exact instant must not delete the other 01:00 reading.
+// Keep all 100 real source instants on the shipped fall-back day. Resolve
+// overlap at the same UTC instant according to the selected source mode.
 {
   const fixture = JSON.parse(fs.readFileSync(new URL('fixtures/north-wildwood-export-dst.json', import.meta.url), 'utf8'));
   const archive = new URL(`../${fixture.source}`, import.meta.url);
@@ -209,11 +209,15 @@ function editorContext() {
   }
   const day = { date: fixture.day.d, hours: [] };
   let forecast = [];
+  let range;
+  let interval = 'hourly';
+  let format = 'gif';
   const ctx = context([...timeFunctions, 'setTimelineSlotFields', 'detectSeriesResolutionMinutes',
     'buildQuarterHourTimelineSeries', 'buildObservedCanonicalSeries', 'decodeObserved15MinuteDay', 'getObservedRangeExportEntries',
     'makeMissingTimelineEntry', 'makeInterpolatedTimelineEntry',
     'getDownloadSourceEntries', 'findClosestExportEntryForSlot', 'buildHourlyRangeFrameItems',
-    'getQuarterHourExportEntries', 'buildQuarterHourRangeFrameItems'], {
+    'getQuarterHourExportEntries', 'buildQuarterHourRangeFrameItems', 'buildDailyMaximumSeries', 'buildDailyMaximumRangeFrameItems',
+    'buildExportRangeFrameItems', 'getDownloadFrameItems'], {
     currentDataMode: 'observed', currentSeriesHours: [], getObservedDays: () => [day],
     getObservedSourceHoursForDay: () => day.hours, getForecastExportEntries: () => forecast,
     getObservedDayRecord: date => date === day.date ? day : null, annotateHydraulicSeries: entries => entries,
@@ -223,7 +227,14 @@ function editorContext() {
     getStageValue: entry => entry.navd88StageFt,
     findClosestEntryIndex: () => 0,
     getDownloadFrameItemFromEntry: entry => ({ entry }),
+    getDownloadCurrentEntry: () => null, getDownloadScopeValue: () => 'range',
+    getDownloadRangeRequest: () => range, getDownloadIntervalValue: () => interval,
+    getDownloadFormatValue: () => format, getDownloadFrameLimit: () => 337,
   });
+  const selectRange = (startDate, endDate) => {
+    range = { startDate, endDate, startMs: startDate.getTime(), endMs: endDate.getTime() };
+  };
+  const build = () => ctx.getDownloadFrameItems();
   day.hours = ctx.decodeObserved15MinuteDay(fixture.day);
   const start = ctx.parseStoredLocalNyToDate(`${day.date}T00:00`);
   const end = ctx.parseStoredLocalNyToDate(`${day.date}T23:45`);
@@ -231,27 +242,58 @@ function editorContext() {
   assert.equal(actual.length, 100);
   assert.deepEqual(Array.from(actual, entry => [entry.timeUtc, entry.navd88StageFt]),
     Array.from(day.hours, entry => [entry.timeUtc, entry.navd88StageFt]));
-  const range = { startMs: start.getTime(), endMs: end.getTime() };
-  const hourly = ctx.buildHourlyRangeFrameItems(actual, range);
+  selectRange(start, end);
+  const hourly = build();
   assert.equal(hourly.length, 25);
   assert.equal(hourly[1].entry.timeUtc, '2025-11-02T05:00:00.000Z');
   assert.equal(hourly[2].entry.timeUtc, '2025-11-02T06:00:00.000Z');
-  const quarterHourly = ctx.buildQuarterHourRangeFrameItems(actual, range);
+  interval = '15min';
+  const quarterHourly = build();
   assert.equal(quarterHourly.length, 100);
   assert.deepEqual(Array.from(quarterHourly, item => [item.entry.timeUtc, item.entry.navd88StageFt]),
     Array.from(day.hours, entry => [entry.timeUtc, entry.navd88StageFt]));
-  forecast = [{ ...day.hours[8], navd88StageFt: 99, exportSourceMode: 'forecast' }];
-  const merged = ctx.getDownloadSourceEntries(true, start, end);
-  assert.equal(merged.length, 100);
-  assert.equal(merged[4].navd88StageFt, day.hours[4].navd88StageFt);
-  assert.equal(merged[8].navd88StageFt, 99);
+  const observed = day.hours[8];
+  forecast = [{ ...observed, navd88StageFt: 99, exportSourceMode: 'forecast' }];
+  for (const mode of ['observed', 'forecast']) {
+    ctx.currentDataMode = mode;
+    selectRange(start, end);
+    const merged = ctx.getDownloadSourceEntries(true, start, end);
+    assert.equal(merged.length, 100);
+    assert.equal(merged[4].navd88StageFt, day.hours[4].navd88StageFt);
+    const expectedLevel = mode === 'observed' ? observed.navd88StageFt : 99;
+    assert.equal(merged[8].navd88StageFt, expectedLevel);
+    for (const cadence of ['hourly', '15min']) {
+      interval = cadence;
+      const frame = build().find(item => item.entry.timeUtc === observed.timeUtc);
+      assert.equal(frame.entry.navd88StageFt, expectedLevel);
+      assert.equal(frame.entry.exportSourceMode, mode);
+      if (mode === 'observed') assert.equal(frame.entry.sourceStationId, observed.sourceStationId);
+    }
+    format = 'png';
+    selectRange(new Date(observed.timeUtc), new Date(observed.timeUtc));
+    const [snapshot] = build();
+    assert.equal(snapshot.entry.navd88StageFt, expectedLevel);
+    assert.equal(snapshot.entry.exportSourceMode, mode);
+    format = 'gif';
+    interval = 'daily';
+    const [daily] = build();
+    assert.equal(daily.entry.navd88StageFt, expectedLevel);
+    assert.equal(daily.entry.exportSourceMode, mode);
+  }
+  ctx.currentDataMode = 'observed';
+  interval = '15min';
+  format = 'png';
+  day.hours = [{ ...observed, navd88StageFt: 0 }];
+  assert.equal(build()[0].entry.navd88StageFt, 0, 'A valid zero observation still wins');
+  day.hours = [{ ...observed, navd88StageFt: null }];
+  assert.equal(build()[0].entry.exportSourceMode, 'forecast', 'Missing observations fall back to an exact forecast');
+  format = 'gif';
 
   // The same 75-minute separation is an observed outage and a permissible
   // forecast interval. Never blend the last observed and first forecast slot.
-  const before = day.hours[8], after = day.hours[13];
+  const before = actual[8], after = actual[13];
   const target = new Date(Date.parse(before.timeUtc) + 15 * 60000);
-  const single = { startMs: target.getTime(), endMs: target.getTime() };
-  const build = () => ctx.buildQuarterHourRangeFrameItems(ctx.getDownloadSourceEntries(true, target, target), single);
+  selectRange(target, target);
   day.hours = [before, after];
   forecast = [];
   assert.equal(build().length, 0, 'A primary gauge outage must not produce an export frame');

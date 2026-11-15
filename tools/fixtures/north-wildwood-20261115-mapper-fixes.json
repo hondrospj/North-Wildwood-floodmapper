@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "2bdbba66a396a3541271346a91d5d89cef0cfc8a",
+  "cacheDependencies": {
+    "assets/3d/north-wildwood-3d.js": "deep",
+    "assets/app/runtime.js": "v"
+  },
+  "files": [
+    {
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSha256": "5981109965ae919a40dfcb7b81ac62f18673b159622478d48205b15d980c1fd9",
+      "afterSha256": "5a8ab82d9c5b1c2f57f1c4ba5cd17a27756fcf9c3953e340c37f9f40c2cb12ad",
+      "changes": [
+        {
+          "beforeSource": "      if (event.originalEvent?.target?.closest?.(\".maplibregl-popup\")) return;\n      var buildingsEnabled = layerVisible(\"buildingsToggle\", false);\n",
+          "afterSource": "      if (event.originalEvent?.target?.closest?.(\".maplibregl-popup\")) return;\n      if (mapClickMode === \"building\" && layerVisible(\"nsiStructuresToggle\", false) && glMap.getLayer(\"nw-nsi-points\")) {\n        var structureHits = glMap.queryRenderedFeatures(event.point, { layers: [\"nw-nsi-points\"] });\n        if (structureHits.length) {\n          beginMapQuery();\n          // The 3D ground coordinate under a dot's pixel can be closer to another structure.\n          var footprintIds = new Set(structureHits.map(hit => hit.properties?.footprintId));\n          var [structureFootprintId] = footprintIds;\n          var structure = footprintIds.size === 1 && structureFootprintId\n            ? nsiStructureFeatures.find(feature => feature.properties?.footprintId === structureFootprintId)\n            : null;\n          if (structure) {\n            var [lon, lat] = structure.geometry.coordinates;\n            openNsiStructurePopup(structure, L.latLng(lat, lon));\n          } else {\n            toast(\"Tap a single highlighted structure to see its estimate.\");\n          }\n          return;\n        }\n      }\n      var buildingsEnabled = layerVisible(\"buildingsToggle\", false);\n"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "f73dc31cb69cc87a437a754616123696b496e54c5c8d0538229de1045676ddcb",
+      "afterSha256": "e8e246c50942d3afb52be5d709c4b893d6d2ce0715e2f0c70610ca23267bd69f",
+      "changes": [
+        {
+          "beforeSource": "\n    function updateRoadLayerAppearance() {\n      if (!map || !roadsLayer) return;\n",
+          "afterSource": "\n    function updateRoadLayerAppearance({ retry3dRoads: retryRoadLabels = false } = {}) {\n      if (!map || !roadsLayer) return;\n"
+        },
+        {
+          "beforeSource": "      if (pane) pane.classList.toggle(\"roads-dark\", showLabels);\n    }\n",
+          "afterSource": "      if (pane) pane.classList.toggle(\"roads-dark\", showLabels);\n\n      // Only an explicit enable from the Road Names switch retries a failed renderer.\n      if (retryRoadLabels && roadsEnabled && map.hasLayer(roadsLayer)) {\n        roadsLayer.whenReady({ retry: true }).catch(() => {});\n      }\n    }\n"
+        },
+        {
+          "beforeSource": "      const endMs = Number.isFinite(range.endMs) ? range.endMs : range.endDate?.getTime();\n      const times = getForecastExportEntries()\n",
+          "afterSource": "      const endMs = Number.isFinite(range.endMs) ? range.endMs : range.endDate?.getTime();\n      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return true;\n      // Past exports need to check for observations even within forecast coverage.\n      if (currentDataMode === \"observed\" && startMs <= Date.now()) return true;\n      const times = getForecastExportEntries()\n"
+        },
+        {
+          "beforeSource": "        .filter(Number.isFinite);\n      if (!times.length || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return true;\n      // Forecast entries take precedence over overlapping observations in the\n      // exported series. A range wholly covered by them needs no history I/O.\n      return startMs < Math.min(...times) || endMs > Math.max(...times);\n",
+          "afterSource": "        .filter(Number.isFinite);\n      if (!times.length) return true;\n      return startMs < Math.min(...times) || endMs > Math.max(...times);\n"
+        },
+        {
+          "beforeSource": "\n        const byHour = new Map();\n        combined.forEach(entry => {\n          // A repeated fall-back wall time represents two different readings.\n          // Forecast preference applies only to the exact same instant.\n          const key = String(entryTimeMs(entry));\n          const existing = byHour.get(key);\n          if (!existing || entry.exportSourceMode === \"forecast\") {\n            byHour.set(key, entry);\n          }\n",
+          "afterSource": "\n        const preferObserved = currentDataMode === \"observed\";\n        if (preferObserved && options.keepOverlappingForecast) {\n          // Keep forecast endpoints for quarter-hour interpolation across\n          // forecast frames. The quarter-hour selection resolves the overlap.\n          return combined.sort((a, b) => entryTimeMs(a) - entryTimeMs(b));\n        }\n\n        const byInstant = new Map();\n        combined.forEach(entry => {\n          // A repeated fall-back wall time represents two different readings.\n          // Valid observations are inserted before forecasts.\n          const time = entryTimeMs(entry);\n          if (!byInstant.has(time) || (!preferObserved && entry.exportSourceMode === \"forecast\")) {\n            byInstant.set(time, entry);\n          }\n"
+        },
+        {
+          "beforeSource": "\n        return Array.from(byHour.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));\n      }\n",
+          "afterSource": "\n        return Array.from(byInstant.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));\n      }\n"
+        },
+        {
+          "beforeSource": "      const snapshot = range.startMs === range.endMs && getDownloadFormatValue() === \"png\";\n      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate, { includeNativeLive: interval === \"daily\" || snapshot })\n        .filter(entry => entryTimeMs(entry) != null)\n",
+          "afterSource": "      const snapshot = range.startMs === range.endMs && getDownloadFormatValue() === \"png\";\n      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate, {\n        includeNativeLive: interval === \"daily\" || snapshot,\n        keepOverlappingForecast: interval === \"15min\"\n      })\n        .filter(entry => entryTimeMs(entry) != null)\n"
+        },
+        {
+          "beforeSource": "        });\n        // Projected frames retain their existing priority at the same instant.\n        series.forEach(entry => byTime.set(entryTimeMs(entry), entry));\n      }\n",
+          "afterSource": "        });\n        const preferObserved = currentDataMode === \"observed\";\n        series.forEach(entry => {\n          const time = entryTimeMs(entry);\n          if (!preferObserved || !byTime.has(time)) byTime.set(time, entry);\n        });\n      }\n"
+        }
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "27991156f2a01a2895af2f18314c35bc29fad0d9b7b9736d935ad2eb64f6e73d",
+      "afterSha256": "da843564fe6ffb8ae21fbef30b4ea90790f4798268d058d19ed215f32ac874cd",
+      "changes": [
+        {
+          "beforeSource": "\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=f73dc31cb69cc87a\"></script>\n\n",
+          "afterSource": "\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=e8e246c50942d3af\"></script>\n\n"
+        },
+        {
+          "beforeSource": "\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=5981109965ae919a\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n",
+          "afterSource": "\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=5a8ab82d9c5b1c2f\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "d5e4ce31c24c0d7ca94edb7894829a6f240537066bd21d7f8e0ed59396f2e1a6",
+      "afterSha256": "79f4926f72d7b9970d6655b0a1725b16cdbdfaa1bda0902f0b6705ab166e7807",
+      "changes": [
+        {
+          "beforeSource": "\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=5981109965ae919a\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n",
+          "afterSource": "\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=5a8ab82d9c5b1c2f\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/10-map-geometry-and-layers.js",
+      "beforeSha256": "3ee56223cdd7bb7afe7b4ae8d6327398a9b01f4692c9465f429a8097831b7d88",
+      "afterSha256": "f86178a7b606b7628089921a14820cd58750c09d5d2c67db2bc9baf257163a29",
+      "changes": [
+        {
+          "beforeSource": "\n    function updateRoadLayerAppearance() {\n      if (!map || !roadsLayer) return;\n",
+          "afterSource": "\n    function updateRoadLayerAppearance({ retry3dRoads: retryRoadLabels = false } = {}) {\n      if (!map || !roadsLayer) return;\n"
+        },
+        {
+          "beforeSource": "      if (pane) pane.classList.toggle(\"roads-dark\", showLabels);\n    }\n",
+          "afterSource": "      if (pane) pane.classList.toggle(\"roads-dark\", showLabels);\n\n      // Only an explicit enable from the Road Names switch retries a failed renderer.\n      if (retryRoadLabels && roadsEnabled && map.hasLayer(roadsLayer)) {\n        roadsLayer.whenReady({ retry: true }).catch(() => {});\n      }\n    }\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/11-export-selection.js",
+      "beforeSha256": "2149fccbd2b0cb2f615081577fa18cffa7adc9f2ef6adc4afb6bfe383b81a14e",
+      "afterSha256": "4f334ce22dfe1da9548b790773eeffbd00b1ee4d824c1d076e57de728a781d16",
+      "changes": [
+        {
+          "beforeSource": "      const endMs = Number.isFinite(range.endMs) ? range.endMs : range.endDate?.getTime();\n      const times = getForecastExportEntries()\n",
+          "afterSource": "      const endMs = Number.isFinite(range.endMs) ? range.endMs : range.endDate?.getTime();\n      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return true;\n      // Past exports need to check for observations even within forecast coverage.\n      if (currentDataMode === \"observed\" && startMs <= Date.now()) return true;\n      const times = getForecastExportEntries()\n"
+        },
+        {
+          "beforeSource": "        .filter(Number.isFinite);\n      if (!times.length || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return true;\n      // Forecast entries take precedence over overlapping observations in the\n      // exported series. A range wholly covered by them needs no history I/O.\n      return startMs < Math.min(...times) || endMs > Math.max(...times);\n",
+          "afterSource": "        .filter(Number.isFinite);\n      if (!times.length) return true;\n      return startMs < Math.min(...times) || endMs > Math.max(...times);\n"
+        },
+        {
+          "beforeSource": "\n        const byHour = new Map();\n        combined.forEach(entry => {\n          // A repeated fall-back wall time represents two different readings.\n          // Forecast preference applies only to the exact same instant.\n          const key = String(entryTimeMs(entry));\n          const existing = byHour.get(key);\n          if (!existing || entry.exportSourceMode === \"forecast\") {\n            byHour.set(key, entry);\n          }\n",
+          "afterSource": "\n        const preferObserved = currentDataMode === \"observed\";\n        if (preferObserved && options.keepOverlappingForecast) {\n          // Keep forecast endpoints for quarter-hour interpolation across\n          // forecast frames. The quarter-hour selection resolves the overlap.\n          return combined.sort((a, b) => entryTimeMs(a) - entryTimeMs(b));\n        }\n\n        const byInstant = new Map();\n        combined.forEach(entry => {\n          // A repeated fall-back wall time represents two different readings.\n          // Valid observations are inserted before forecasts.\n          const time = entryTimeMs(entry);\n          if (!byInstant.has(time) || (!preferObserved && entry.exportSourceMode === \"forecast\")) {\n            byInstant.set(time, entry);\n          }\n"
+        },
+        {
+          "beforeSource": "\n        return Array.from(byHour.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));\n      }\n",
+          "afterSource": "\n        return Array.from(byInstant.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));\n      }\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/13-export-range.js",
+      "beforeSha256": "a2f2a6e9739abb4e0a10449f51f381cec75aca525491939d0e5d30b7490f0a53",
+      "afterSha256": "69e03e0a38f7947fe7d4a9993680dbbfe5e1a3a52adbdb5216776f0c86a30e12",
+      "changes": [
+        {
+          "beforeSource": "      const snapshot = range.startMs === range.endMs && getDownloadFormatValue() === \"png\";\n      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate, { includeNativeLive: interval === \"daily\" || snapshot })\n        .filter(entry => entryTimeMs(entry) != null)\n",
+          "afterSource": "      const snapshot = range.startMs === range.endMs && getDownloadFormatValue() === \"png\";\n      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate, {\n        includeNativeLive: interval === \"daily\" || snapshot,\n        keepOverlappingForecast: interval === \"15min\"\n      })\n        .filter(entry => entryTimeMs(entry) != null)\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/17-export-encoding.js",
+      "beforeSha256": "7a61107c4206d8650706c3ce1961f12048722b01abc3e1aa36935801ee4eb229",
+      "afterSha256": "27110ae44f23c1d11ec227e88e6a8f722c61bae16ad01bf04c82e2137fef664e",
+      "changes": [
+        {
+          "beforeSource": "        });\n        // Projected frames retain their existing priority at the same instant.\n        series.forEach(entry => byTime.set(entryTimeMs(entry), entry));\n      }\n",
+          "afterSource": "        });\n        const preferObserved = currentDataMode === \"observed\";\n        series.forEach(entry => {\n          const time = entryTimeMs(entry);\n          if (!preferObserved || !byTime.has(time)) byTime.set(time, entry);\n        });\n      }\n"
+        }
+      ]
+    }
+  ]
+}
