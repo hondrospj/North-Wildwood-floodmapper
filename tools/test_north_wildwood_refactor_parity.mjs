@@ -32,7 +32,7 @@ const priorMapperFixSnapshot = priorJoeUiSnapshot ||
   (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mapper-fix-snapshot"));
 const MAPPER_FIX_PATH = "tools/fixtures/north-wildwood-20261115-mapper-fixes.json";
 const mapperFixText = readLiveBytes(MAPPER_FIX_PATH).toString("utf8");
-assert.equal(sha256(mapperFixText), "bcd6a747dc1a65b892e6bb3d5d49fcfc949527a9f185dadc3fb044914237795a", "Retain the exact mapper fixes inverse");
+assert.equal(sha256(mapperFixText), "dbcb38ccbc0047a62ce70509717e8ea4c03eeb094997828bf97033142e408f17", "Retain the exact mapper fixes inverse");
 const mapperFix = JSON.parse(mapperFixText);
 assert.equal(mapperFix.schemaVersion, 1);
 assert.equal(mapperFix.baselineCommit, "2bdbba66a396a3541271346a91d5d89cef0cfc8a");

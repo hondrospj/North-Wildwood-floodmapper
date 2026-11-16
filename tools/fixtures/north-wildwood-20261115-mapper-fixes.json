@@ -20,8 +20,20 @@
     {
       "source": "assets/app/runtime.js",
       "beforeSha256": "f73dc31cb69cc87a437a754616123696b496e54c5c8d0538229de1045676ddcb",
-      "afterSha256": "e8e246c50942d3afb52be5d709c4b893d6d2ce0715e2f0c70610ca23267bd69f",
+      "afterSha256": "c26f573e25ac79032f89c35b3218dfde3fb542a1b1c46977c251dbcca2096f57",
       "changes": [
+        {
+          "beforeSource": "          && (currentSeriesHours.length || loadForecast.pendingSelectionGeneration === selectionGeneration)\n          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;\n      stopPlayback();\n      const floodSelectionToken = cancelPendingFloodFrame();\n      toast(\"\");\n      currentForecastScenario = scenario;\n",
+          "afterSource": "          && (currentSeriesHours.length || loadForecast.pendingSelectionGeneration === selectionGeneration)\n          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;\n      stopPlayback();\n      const preferredEntry = currentDataMode === \"forecast\" ? currentSeriesHours[currentHourIndex] : null;\n      const floodSelectionToken = cancelPendingFloodFrame();\n      toast(\"\");\n      currentForecastScenario = scenario;\n"
+        },
+        {
+          "beforeSource": "      updateForecastScenarioButtons();\n      updateDataModeButtons();\n      cancelPendingFloodFrame(false);\n      await loadForecast();\n      if (floodSelectionToken !== lastRenderToken) return false;\n      renderTopTides();\n      await renderHour(currentHourIndex);\n",
+          "afterSource": "      updateForecastScenarioButtons();\n      updateDataModeButtons();\n      cancelPendingFloodFrame(false);\n      await loadForecast(preferredEntry, { preserveForecastDay: true });\n      if (floodSelectionToken !== lastRenderToken) return false;\n      renderTopTides();\n      await renderHour(currentHourIndex);\n"
+        },
+        {
+          "beforeSource": "      const currentTimeEntry = options.selectCurrent ? { timeUtc: new Date().toISOString() } : null;\n      const selectionEntry = options.retryStale && !keptCachedReplay ? currentTimeEntry : preferredEntry || currentTimeEntry;\n      currentHourIndex = selectionEntry ? findClosestEntryIndex(currentSeriesHours, selectionEntry) : getPeakHourIndex(currentSeriesHours);\n      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n      } catch (error) {\n        if (floodSelectionToken !== lastRenderToken) return false;\n",
+          "afterSource": "      const currentTimeEntry = options.selectCurrent ? { timeUtc: new Date().toISOString() } : null;\n      const selectionEntry = options.retryStale && !keptCachedReplay ? currentTimeEntry : preferredEntry || currentTimeEntry;\n      currentHourIndex = selectionEntry ? findClosestEntryIndex(currentSeriesHours, selectionEntry) : getPeakHourIndex(currentSeriesHours);\n      if (options.preserveForecastDay && selectionEntry?.dailyMaximumKind === \"forecast\") {\n        const sameDay = currentSeriesHours.findIndex(entry => entry.dailyMaximumKind === \"forecast\" &&\n          entry.observedDate === selectionEntry.observedDate);\n        if (sameDay >= 0) currentHourIndex = sameDay;\n      }\n      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n      } catch (error) {\n        if (floodSelectionToken !== lastRenderToken) return false;\n"
+        },
         {
           "beforeSource": "\n    function updateRoadLayerAppearance() {\n      if (!map || !roadsLayer) return;\n",
           "afterSource": "\n    function updateRoadLayerAppearance({ retry3dRoads: retryRoadLabels = false } = {}) {\n      if (!map || !roadsLayer) return;\n"
@@ -59,8 +71,12 @@
     {
       "source": "index.html",
       "beforeSha256": "27991156f2a01a2895af2f18314c35bc29fad0d9b7b9736d935ad2eb64f6e73d",
-      "afterSha256": "da843564fe6ffb8ae21fbef30b4ea90790f4798268d058d19ed215f32ac874cd",
+      "afterSha256": "7c957c35797dab164048d3e01f31ff5b5057d6595568b40087bb2ed2ca830e0b",
       "changes": [
+        {
+          "beforeSource": "  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=e8e246c50942d3af\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n",
+          "afterSource": "  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=c26f573e25ac7903\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n"
+        },
         {
           "beforeSource": "\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=f73dc31cb69cc87a\"></script>\n\n",
           "afterSource": "\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=e8e246c50942d3af\"></script>\n\n"
@@ -79,6 +95,21 @@
         {
           "beforeSource": "\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=5981109965ae919a\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n",
           "afterSource": "\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=5a8ab82d9c5b1c2f\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/02-data-and-datums.js",
+      "beforeSha256": "ebcc413b02135fa608ea380a69926335ee308d9d77e25bc247135b44ae3ea900",
+      "afterSha256": "80247620a7d03d76438517dfb1369625a88681776c443387442fe71743041074",
+      "changes": [
+        {
+          "beforeSource": "          && (currentSeriesHours.length || loadForecast.pendingSelectionGeneration === selectionGeneration)\n          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;\n      stopPlayback();\n      const floodSelectionToken = cancelPendingFloodFrame();\n      toast(\"\");\n      currentForecastScenario = scenario;\n",
+          "afterSource": "          && (currentSeriesHours.length || loadForecast.pendingSelectionGeneration === selectionGeneration)\n          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;\n      stopPlayback();\n      const preferredEntry = currentDataMode === \"forecast\" ? currentSeriesHours[currentHourIndex] : null;\n      const floodSelectionToken = cancelPendingFloodFrame();\n      toast(\"\");\n      currentForecastScenario = scenario;\n"
+        },
+        {
+          "beforeSource": "      updateForecastScenarioButtons();\n      updateDataModeButtons();\n      cancelPendingFloodFrame(false);\n      await loadForecast();\n      if (floodSelectionToken !== lastRenderToken) return false;\n      renderTopTides();\n      await renderHour(currentHourIndex);\n",
+          "afterSource": "      updateForecastScenarioButtons();\n      updateDataModeButtons();\n      cancelPendingFloodFrame(false);\n      await loadForecast(preferredEntry, { preserveForecastDay: true });\n      if (floodSelectionToken !== lastRenderToken) return false;\n      renderTopTides();\n      await renderHour(currentHourIndex);\n"
         }
       ]
     },
@@ -139,6 +170,17 @@
         {
           "beforeSource": "        });\n        // Projected frames retain their existing priority at the same instant.\n        series.forEach(entry => byTime.set(entryTimeMs(entry), entry));\n      }\n",
           "afterSource": "        });\n        const preferObserved = currentDataMode === \"observed\";\n        series.forEach(entry => {\n          const time = entryTimeMs(entry);\n          if (!preferObserved || !byTime.has(time)) byTime.set(time, entry);\n        });\n      }\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/21-forecast-and-observed-loading.js",
+      "beforeSha256": "564a146b1de4ddf8b891f320835573e5c5e63360fc31aabdbcd5b754d14ceaa4",
+      "afterSha256": "dd9602d1f442a16136fac3ea379ed9a4a74e201260d6b7ca279c4084708a1dcb",
+      "changes": [
+        {
+          "beforeSource": "      const currentTimeEntry = options.selectCurrent ? { timeUtc: new Date().toISOString() } : null;\n      const selectionEntry = options.retryStale && !keptCachedReplay ? currentTimeEntry : preferredEntry || currentTimeEntry;\n      currentHourIndex = selectionEntry ? findClosestEntryIndex(currentSeriesHours, selectionEntry) : getPeakHourIndex(currentSeriesHours);\n      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n      } catch (error) {\n        if (floodSelectionToken !== lastRenderToken) return false;\n",
+          "afterSource": "      const currentTimeEntry = options.selectCurrent ? { timeUtc: new Date().toISOString() } : null;\n      const selectionEntry = options.retryStale && !keptCachedReplay ? currentTimeEntry : preferredEntry || currentTimeEntry;\n      currentHourIndex = selectionEntry ? findClosestEntryIndex(currentSeriesHours, selectionEntry) : getPeakHourIndex(currentSeriesHours);\n      if (options.preserveForecastDay && selectionEntry?.dailyMaximumKind === \"forecast\") {\n        const sameDay = currentSeriesHours.findIndex(entry => entry.dailyMaximumKind === \"forecast\" &&\n          entry.observedDate === selectionEntry.observedDate);\n        if (sameDay >= 0) currentHourIndex = sameDay;\n      }\n      document.getElementById(\"hourSlider\").value = String(currentHourIndex);\n      } catch (error) {\n        if (floodSelectionToken !== lastRenderToken) return false;\n"
         }
       ]
     }
