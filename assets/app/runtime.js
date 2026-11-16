@@ -1258,6 +1258,7 @@ function cloneStyleObject(value) {
           && (currentSeriesHours.length || loadForecast.pendingSelectionGeneration === selectionGeneration)
           && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
       stopPlayback();
+      const preferredEntry = currentDataMode === "forecast" ? currentSeriesHours[currentHourIndex] : null;
       const floodSelectionToken = cancelPendingFloodFrame();
       toast("");
       currentForecastScenario = scenario;
@@ -1265,7 +1266,7 @@ function cloneStyleObject(value) {
       updateForecastScenarioButtons();
       updateDataModeButtons();
       cancelPendingFloodFrame(false);
-      await loadForecast();
+      await loadForecast(preferredEntry, { preserveForecastDay: true });
       if (floodSelectionToken !== lastRenderToken) return false;
       renderTopTides();
       await renderHour(currentHourIndex);
@@ -10539,6 +10540,11 @@ function formatSelectedObservedDate(dateStr) {
       const currentTimeEntry = options.selectCurrent ? { timeUtc: new Date().toISOString() } : null;
       const selectionEntry = options.retryStale && !keptCachedReplay ? currentTimeEntry : preferredEntry || currentTimeEntry;
       currentHourIndex = selectionEntry ? findClosestEntryIndex(currentSeriesHours, selectionEntry) : getPeakHourIndex(currentSeriesHours);
+      if (options.preserveForecastDay && selectionEntry?.dailyMaximumKind === "forecast") {
+        const sameDay = currentSeriesHours.findIndex(entry => entry.dailyMaximumKind === "forecast" &&
+          entry.observedDate === selectionEntry.observedDate);
+        if (sameDay >= 0) currentHourIndex = sameDay;
+      }
       document.getElementById("hourSlider").value = String(currentHourIndex);
       } catch (error) {
         if (floodSelectionToken !== lastRenderToken) return false;

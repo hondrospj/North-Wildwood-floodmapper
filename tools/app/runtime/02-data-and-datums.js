@@ -199,6 +199,7 @@
           && (currentSeriesHours.length || loadForecast.pendingSelectionGeneration === selectionGeneration)
           && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
       stopPlayback();
+      const preferredEntry = currentDataMode === "forecast" ? currentSeriesHours[currentHourIndex] : null;
       const floodSelectionToken = cancelPendingFloodFrame();
       toast("");
       currentForecastScenario = scenario;
@@ -206,7 +207,7 @@
       updateForecastScenarioButtons();
       updateDataModeButtons();
       cancelPendingFloodFrame(false);
-      await loadForecast();
+      await loadForecast(preferredEntry, { preserveForecastDay: true });
       if (floodSelectionToken !== lastRenderToken) return false;
       renderTopTides();
       await renderHour(currentHourIndex);

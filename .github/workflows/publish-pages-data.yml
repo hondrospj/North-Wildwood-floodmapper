@@ -1,4 +1,4 @@
-name: Publish validated North Wildwood forecast to Pages
+name: Publish validated North Wildwood data to Pages
 
 on:
   workflow_dispatch:
@@ -79,7 +79,7 @@ jobs:
             !/assets/hydraulic-v19/
             !/assets/hydraulic-v20/
 
-      - name: Check out immutable forecast data
+      - name: Check out immutable forecast and observations
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ steps.snapshot.outputs.data_sha }}
@@ -89,10 +89,22 @@ jobs:
           sparse-checkout: |
             /forecast.json
             /data/experimental_petss_guidance.json
+            /observed.json
+            /observed15min.json
+            /stone_harbor_observed15min.json
+            /toptides.json
+            /observed_archive_index.json
+            /lewes_archive_index.json
+            /lewes_hourly.json
+            /observed_archive/**/*.json
+            /city-gauge/data/**/*.json
+            /city-gauge/comparison/**/*.json
             /tools/pages_forecast_overlay.py
             /tools/release_gate.py
             /tools/release_data.py
             /tools/release_schemas.py
+            /tools/observation_quality.py
+            /tools/validate_observed_contract.py
 
       - name: Require exact checks for the pinned application
         env:
@@ -134,8 +146,10 @@ jobs:
           # The app uses the v29 atlas. Keep obsolete atlases out of the artifact.
           rsync -a --exclude='/hydraulic-v17/' --exclude='/hydraulic-v19/' --exclude='/hydraulic-v20/' assets/ ../_site/assets/
 
-      - name: Validate and stage the forecast pair
-        run: python3 source/tools/pages_forecast_overlay.py source _site
+      - name: Validate and stage forecast and observation data
+        run: |
+          python3 source/tools/pages_forecast_overlay.py source _site > "$RUNNER_TEMP/pages-data.json"
+          cat "$RUNNER_TEMP/pages-data.json"
 
       - name: Upload the mapper
         if: ${{ !inputs.dry_run }}
@@ -153,7 +167,7 @@ jobs:
           current_data="$(gh api "$repo/main" --jq .object.sha)"
           current_pin="$(gh api "$repo/gh-pages" --jq .object.sha)"
           if [[ "$current_data" != "$DATA_SHA" || "$current_pin" != "$PIN_SHA" ]]; then
-            echo "The Pages UI pin or forecast source advanced during packaging. Retry the publication." >&2
+            echo "The Pages UI pin or data source advanced during packaging. Retry the publication." >&2
             exit 1
           fi
 
@@ -162,11 +176,12 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
 
-      - name: Verify the forecast files served by GitHub Pages
+      - name: Verify forecast and observation files served by GitHub Pages
         if: ${{ !inputs.dry_run }}
         run: |
           site='https://hondrospj.github.io/North-Wildwood-floodmapper/'
-          for path in forecast.json data/experimental_petss_guidance.json; do
+          latest_shard="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["observations"]["observed_archive_index.json"]["shard"])' "$RUNNER_TEMP/pages-data.json")"
+          for path in forecast.json data/experimental_petss_guidance.json observed_archive_index.json "$latest_shard"; do
             for attempt in {1..12}; do
               query="pages-proof=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$attempt"
               if curl --fail --silent --show-error --max-time 10 -H 'Cache-Control: no-cache' \
