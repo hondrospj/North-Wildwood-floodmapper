@@ -12205,14 +12205,14 @@ function startPlayback() {
       const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
       const focusRestoreKey = p.parcelId == null ? "" : ` data-focus-restore-key="${escapeTownAddressHtml("parcel-profile:" + p.parcelId)}"`;
       const waterStatus = !Number.isFinite(firstFloor)
-        ? "An occupied-floor estimate is unavailable for this parcel."
+        ? null
         : difference == null
-        ? "Choose a water level to compare."
-        : Math.abs(difference) <= 0.1
-          ? "Current water is at the estimated occupied floor."
-          : difference > 0
-            ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`
-            : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;
+          ? "Choose a water level to compare."
+          : Math.abs(difference) <= 0.1
+            ? "Current water is at the estimated occupied floor."
+            : difference > 0
+              ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`
+              : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;
       return '<div class="house-alert-popup building-info-card">' +
         '<span class="house-alert-kicker">Building</span>' +
         '<h3>' + address + '</h3>' +
@@ -12220,7 +12220,7 @@ function startPlayback() {
           '<div><span>Crawlspace / garage depth</span><strong>' +
             (Number.isFinite(crawlspaceDepth) ? formatWaterDepth(crawlspaceDepth, 1) : 'Not available') +
           '</strong></div>' +
-          '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +
+          (waterStatus ? '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' : '') +
         '</div>' +
         '<button class="house-alert-cta" type="button"' + focusRestoreKey + '>See Flood History &amp; Projections</button>' +
         '</div>';
@@ -12541,7 +12541,7 @@ function startPlayback() {
         ? "Any Flooding means water covers more than 0% of the parcel. Projections include water already inside the parcel and require a threshold within the model’s range."
         : Number.isFinite(getNsiFirstOccupiedFloorNavd88(properties))
           ? "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises."
-          : "This parcel has no occupied-floor estimate. Past tides and future estimates use parcel ground elevation.";
+          : "Past tides and future estimates use parcel ground elevation.";
       body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Loading flood projections…</strong></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");

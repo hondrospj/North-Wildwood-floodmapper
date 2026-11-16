@@ -37,14 +37,14 @@ const popup = load({
 }, ['finiteBuildingNumber', 'buildBuildingPopupHtml']);
 for (const value of [null, undefined, '', '  ', false, [], {}, NaN, Infinity, 'unavailable']) {
   const html = popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: value, foundationHeightFt: value });
-  assert.match(html, /Estimated occupied-floor elevation is unavailable/);
+  assert.doesNotMatch(html, /<p>/);
   assert.doesNotMatch(html, /Current water is/);
   assert.match(html, /<strong>—<\/strong>/);
 }
 const actualBuildings = JSON.parse(fs.readFileSync(new URL('../assets/3d/NorthWildwoodBuildings3D.geojson', import.meta.url), 'utf8'));
 const actualUnknown = actualBuildings.features.find(feature => feature.properties.modeledFirstFloorNavd88Ft === null);
 assert.ok(actualUnknown, 'Exercise a real unmatched building footprint');
-assert.doesNotMatch(popup.buildBuildingPopupHtml(actualUnknown.properties), /Current water is/);
+assert.doesNotMatch(popup.buildBuildingPopupHtml(actualUnknown.properties), /<p>/);
 for (const value of [null, undefined, '', ' ', NaN, Infinity]) {
   popup.getSelectedStageNavd88 = () => value;
   assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /Choose a water level/);
