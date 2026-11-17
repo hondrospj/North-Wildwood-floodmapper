@@ -4,7 +4,8 @@
   "cacheDependencies": {
     "assets/3d/north-wildwood-3d.js": "deep",
     "assets/app/runtime.js": "v",
-    "assets/app/unified-controller.js": "v"
+    "assets/app/unified-controller.js": "v",
+    "assets/styles/app-01.css": "v"
   },
   "files": [
     {
@@ -92,8 +93,12 @@
     {
       "source": "index.html",
       "beforeSha256": "27991156f2a01a2895af2f18314c35bc29fad0d9b7b9736d935ad2eb64f6e73d",
-      "afterSha256": "c32d189d854bde0628241fc7b18dfd621c358fa425043b46cd5939fd3a70540b",
+      "afterSha256": "fc30990201b549cdc487257e59d655c22486fbb87af5dbb2f15e00907de05128",
       "changes": [
+        {
+          "beforeSource": "<head>\n<link rel=\"stylesheet\" href=\"./assets/north-wildwood-font.css?v=44bc78225f5bedbc\">\n<link rel=\"preconnect\" href=\"https://hondrospj.github.io\" crossorigin>\n<link rel=\"stylesheet\" data-nww-style-bundle=\"app-01\" href=\"./assets/styles/app-01.css?v=904be23a15aa397f\">\n<!-- nww:style:style-002 -->\n\n\n",
+          "afterSource": "<head>\n<link rel=\"stylesheet\" href=\"./assets/north-wildwood-font.css?v=44bc78225f5bedbc\">\n<link rel=\"preconnect\" href=\"https://hondrospj.github.io\" crossorigin>\n<link rel=\"stylesheet\" data-nww-style-bundle=\"app-01\" href=\"./assets/styles/app-01.css?v=be79111ab98987bc\">\n<!-- nww:style:style-002 -->\n\n\n"
+        },
         {
           "beforeSource": "              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"roadImpactsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show road impacts\" title=\"Highlight roads with more than 0.5 ft of modeled water at the selected time\"></div>\n              <div class=\"layer-meta title-with-help\">\n                <div class=\"layer-name\">Road Impacts</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadImpacts\" aria-label=\"About Road Impacts\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n",
           "afterSource": "              </div>\n            </div>\n            <div class=\"layer-item\">\n              <div id=\"roadImpactsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show roads with 6+ inches of water\" title=\"Highlight roads with more than 0.5 ft of modeled water at the selected time\"></div>\n              <div class=\"layer-meta title-with-help\">\n                <div class=\"layer-name\">Roads with 6+ Inches of Water</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadImpacts\" aria-label=\"About Roads with 6+ Inches of Water\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n              </div>\n            </div>\n            <div class=\"layer-item\">\n"
@@ -274,6 +279,28 @@
         {
           "beforeSource": " const sourceCard=panel.querySelector('.data-source-card');\n const mobile=matchMedia('(max-width:900px), (max-height:560px), (max-height:560px) and (pointer:coarse), (max-width:1366px) and (any-pointer:coarse)');\n const owned=new WeakMap(),bound=new WeakSet();\n const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Road Impacts'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];\n const groups={forecast:'.data-source-card,#forecastScenarioCard,#returnIntervalCard,#timelineIntervalCard,#calendarCard,.mobile-top-tides-card',map:'.overlay-card,.datum-card,.opacity-card,.layers-card,.top-tides-card',tools:'#mapperTutorialBtn,#avalonTourBtn'};\n const safeProbe=document.createElement('div');safeProbe.id='unifiedSafeAreaProbe';safeProbe.setAttribute('aria-hidden','true');safeProbe.style.cssText='position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';body.append(safeProbe);\n let chosenSection=panel.dataset.nwwSection||'forecast';\n",
           "afterSource": " const sourceCard=panel.querySelector('.data-source-card');\n const mobile=matchMedia('(max-width:900px), (max-height:560px), (max-height:560px) and (pointer:coarse), (max-width:1366px) and (any-pointer:coarse)');\n const owned=new WeakMap(),bound=new WeakSet();\n const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads with 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];\n const groups={forecast:'.data-source-card,#forecastScenarioCard,#returnIntervalCard,#timelineIntervalCard,#calendarCard,.mobile-top-tides-card',map:'.overlay-card,.datum-card,.opacity-card,.layers-card,.top-tides-card',tools:'#mapperTutorialBtn,#avalonTourBtn'};\n const safeProbe=document.createElement('div');safeProbe.id='unifiedSafeAreaProbe';safeProbe.setAttribute('aria-hidden','true');safeProbe.style.cssText='position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';body.append(safeProbe);\n let chosenSection=panel.dataset.nwwSection||'forecast';\n"
+        }
+      ]
+    },
+    {
+      "source": "assets/styles/app-01.css",
+      "beforeSha256": "904be23a15aa397ff9310b65b3ec8f2668bb09a9cb3d9978df7cadfe49da3da1",
+      "afterSha256": "be79111ab98987bc96acfa942740d28500eeb899ca8d99eeecb3a755081d5078",
+      "changes": [
+        {
+          "beforeSource": " }\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#nsiStructuresToggle) {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList:not(:has(.top-tide-item)) {min-height:78px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList :is(.top-tide-item,.top-tide-more-btn) {min-height:24px!important;padding:2px 4px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .town-address-label {\n",
+          "afterSource": " }\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#nsiStructuresToggle) {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#roadImpactsToggle) {grid-column:1 / -1!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList:not(:has(.top-tide-item)) {min-height:78px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList :is(.top-tide-item,.top-tide-more-btn) {min-height:24px!important;padding:2px 4px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .town-address-label {\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-002.css",
+      "beforeSha256": "25aaa5c9c8e287fd4d32df716c8a2f24bb495f4e313fe3d99041ca29267da6da",
+      "afterSha256": "2ccb86436d7af5350728f48c6545da45b16a0d210a8d54553378149e80b65d54",
+      "changes": [
+        {
+          "beforeSource": " }\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#nsiStructuresToggle) {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList:not(:has(.top-tide-item)) {min-height:78px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList :is(.top-tide-item,.top-tide-more-btn) {min-height:24px!important;padding:2px 4px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .town-address-label {\n",
+          "afterSource": " }\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#nsiStructuresToggle) {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#roadImpactsToggle) {grid-column:1 / -1!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList:not(:has(.top-tide-item)) {min-height:78px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList :is(.top-tide-item,.top-tide-more-btn) {min-height:24px!important;padding:2px 4px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .town-address-label {\n"
         }
       ]
     }
