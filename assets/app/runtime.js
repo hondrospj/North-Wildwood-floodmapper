@@ -2578,7 +2578,7 @@ function setDatumHelpOpen(isOpen) {
         body: `
           <p><strong>Flood Depth</strong> shows the estimated water depth above the ground, in inches below 1 foot and feet at 1 foot or more.</p>
           <p><strong>Flood Stages</strong> groups flooding as minor, moderate, or major.</p>
-          <p><strong>Road Impacts</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
+          <p><strong>Roads with 6+ Inches of Water</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
         `
       },
       satellite: {
@@ -2598,7 +2598,7 @@ function setDatumHelpOpen(isOpen) {
         body: "<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>"
       },
       roadImpacts: {
-        title: "Road Impacts",
+        title: "Roads with 6+ Inches of Water",
         body: "<p>Highlights road sections with more than 6 inches of estimated water. At bridges, the estimate is for the surface below the deck.</p>"
       },
       roadNames: {

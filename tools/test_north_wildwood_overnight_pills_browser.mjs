@@ -67,7 +67,7 @@ try {
     assert.ok(state.box.x >= 0 && state.box.y >= 0 && state.box.right <= state.viewport[0] && state.box.bottom <= state.viewport[1]);
     assert.deepEqual(state.labels.map(row => row[0]), ["No Flooding", "Minor", "Moderate", "Major"]);
     assert.ok(state.labels.every(row => row[1] === (profile.touch ? "11px" : "14px") && row[2].includes("Inter")));
-    assert.deepEqual(state.labelsOrder.slice(-4), ["Structural Impacts", "Road Impacts", "Road Names", "Cameras"]);
+    assert.deepEqual(state.labelsOrder.slice(-4), ["Structural Impacts", "Roads with 6+ Inches of Water", "Road Names", "Cameras"]);
     if (profile.touch) {
       await page.locator("#mobileControlsToggle").click();
       await page.getByRole("tab", { name: "Flood data" }).click();
