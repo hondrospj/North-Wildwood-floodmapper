@@ -1,85 +1,32 @@
-name: Refresh North Wildwood deployed data without changing UI
+name: Publish reviewed expired-notice delta
 on:
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Validate the generated-data overlay without publication
-        type: boolean
-        required: false
-        default: false
-      override_publication_pause:
-        description: Publish this run even if automatic data publication is paused
-        type: boolean
-        default: false
-  workflow_call:
-    inputs:
-      dry_run:
-        description: Validate the generated-data overlay without publication
-        type: boolean
-        required: false
-        default: false
-    secrets:
-      SHORELYSAFE_PUBLISH_TOKEN:
-        required: true
-
 permissions:
   contents: read
-  actions: read
 concurrency:
   group: shorelysafe-publish
-  queue: max
   cancel-in-progress: false
 jobs:
-  refresh-data:
-    # A manually dispatched caller also honors the switch. Only a direct
-    # dispatch of this publisher offers the explicit one-time override.
-    if: github.ref == 'refs/heads/main' && (inputs.dry_run || inputs.override_publication_pause || vars.SHORELYSAFE_DATA_PUBLICATION_ENABLED == 'true')
-
+  publish-reviewed-delta:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: main
-          lfs: false
+          fetch-depth: 1
           persist-credentials: false
-          filter: blob:none
           sparse-checkout-cone-mode: false
-          sparse-checkout: |
-            /.shorelysafe/apps.json
-            /.shorelysafe/publish_generated_data.py
-            /tools/release_gate.py
-            /tools/release_data.py
-            /tools/release_schemas.py
-            /tools/observation_quality.py
-            /tools/validate_observed_contract.py
-            /forecast.json
-            /data/experimental_petss_guidance.json
-            /observed.json
-            /observed15min.json
-            /stone_harbor_observed15min.json
-            /toptides.json
-            /observed_archive_index.json
-            /lewes_archive_index.json
-            /lewes_hourly.json
-            /observed_archive/**/*.json
-            /city-gauge/data/**/*.json
-            /city-gauge/comparison/**/*.json
-      - name: Validate and publish generated data over the current deployed UI
+          sparse-checkout: tools/remove_expired_notice_delta.py
+      - name: Patch only the reviewed live notice and preserve deployment data
         env:
-          GH_TOKEN: ${{ github.token }}
-          SHORELYSAFE_TOKEN: ${{ secrets.SHORELYSAFE_PUBLISH_TOKEN }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
-        run: |
-          if [ "$DRY_RUN" = "true" ]; then
-            python3 .shorelysafe/publish_generated_data.py --app floodmapper--north-wildwood --dry-run
-          else
-            python3 .shorelysafe/publish_generated_data.py --app floodmapper--north-wildwood
-          fi
-      - name: Retain data-contract and UI-preservation receipt
-        if: always()
-        uses: actions/upload-artifact@v4
+          SHORELYSAFE_PUBLISH_TOKEN: ${{ secrets.SHORELYSAFE_PUBLISH_TOKEN }}
+          APP_ID: floodmapper--north-wildwood
+          APP_ROUTE: /shorelysafe/floodmapper/north-wildwood/
+          MAPPER_NAME: North-Wildwood-floodmapper
+          SOURCE_COMMIT: 9bde23ad8000b8a406dbc0f67278fc80728fec17
+        run: python tools/remove_expired_notice_delta.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: north-wildwood-data-overlay-receipt
-          path: data-overlay-publication-receipt.json
-          if-no-files-found: ignore
+          name: expired-notice-publication-receipt
+          path: publication-receipt.json
+          if-no-files-found: error
