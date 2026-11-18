@@ -30,8 +30,12 @@
     {
       "source": "assets/app/runtime.js",
       "beforeSha256": "f73dc31cb69cc87a437a754616123696b496e54c5c8d0538229de1045676ddcb",
-      "afterSha256": "52a04b15e1fed8f7d9a5da34ce1b63117789dd63040c200ce2cd4f67477d6c20",
+      "afterSha256": "2642dbd987d5d46c031965352f4b6e3506c38eda2650f7a9f6dbce935168105e",
       "changes": [
+        {
+          "beforeSource": "      const forecastNotice = freshness?.state === \"expired\"\n        ? `Forecast expired ${formatFixedESTFromUtc(freshness.timestamp, true)}. Select Forecast to check for an update.`\n        : freshness?.state === \"stale\"\n          ? `Forecast from ${formatFixedESTFromUtc(freshness.timestamp, true)} is over 72 hours old. Select Forecast to check for an update.`\n          : \"\";",
+          "afterSource": "      const forecastNotice = freshness?.state === \"stale\"\n        ? `Forecast from ${formatFixedESTFromUtc(freshness.timestamp, true)} is over 72 hours old. Select Forecast to check for an update.`\n        : \"\";"
+        },
         {
           "beforeSource": "          && (currentSeriesHours.length || loadForecast.pendingSelectionGeneration === selectionGeneration)\n          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;\n      stopPlayback();\n      const floodSelectionToken = cancelPendingFloodFrame();\n      toast(\"\");\n      currentForecastScenario = scenario;\n",
           "afterSource": "          && (currentSeriesHours.length || loadForecast.pendingSelectionGeneration === selectionGeneration)\n          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;\n      stopPlayback();\n      const preferredEntry = currentDataMode === \"forecast\" ? currentSeriesHours[currentHourIndex] : null;\n      const floodSelectionToken = cancelPendingFloodFrame();\n      toast(\"\");\n      currentForecastScenario = scenario;\n"
@@ -93,7 +97,7 @@
     {
       "source": "index.html",
       "beforeSha256": "27991156f2a01a2895af2f18314c35bc29fad0d9b7b9736d935ad2eb64f6e73d",
-      "afterSha256": "fc30990201b549cdc487257e59d655c22486fbb87af5dbb2f15e00907de05128",
+      "afterSha256": "a3218d515bec9373f18bdb100373e57cb8872ea1863b0d881d02c1340faa4022",
       "changes": [
         {
           "beforeSource": "<head>\n<link rel=\"stylesheet\" href=\"./assets/north-wildwood-font.css?v=44bc78225f5bedbc\">\n<link rel=\"preconnect\" href=\"https://hondrospj.github.io\" crossorigin>\n<link rel=\"stylesheet\" data-nww-style-bundle=\"app-01\" href=\"./assets/styles/app-01.css?v=904be23a15aa397f\">\n<!-- nww:style:style-002 -->\n\n\n",
@@ -109,7 +113,7 @@
         },
         {
           "beforeSource": "  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=f73dc31cb69cc87a\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n",
-          "afterSource": "  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=52a04b15e1fed8f7\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n"
+          "afterSource": "  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=2642dbd987d5d46c\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n"
         },
         {
           "beforeSource": "<script data-nww-script=\"script-006\" src=\"./assets/app/alert-interaction.js?v=b02a3674db55dfda\"></script>\n\n\n<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=5981109965ae919a\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b3e11134ba8bcb33\"></script>\n\n",
@@ -301,6 +305,17 @@
         {
           "beforeSource": " }\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#nsiStructuresToggle) {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList:not(:has(.top-tide-item)) {min-height:78px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList :is(.top-tide-item,.top-tide-more-btn) {min-height:24px!important;padding:2px 4px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .town-address-label {\n",
           "afterSource": " }\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#nsiStructuresToggle) {grid-column:auto!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#roadImpactsToggle) {grid-column:1 / -1!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList:not(:has(.top-tide-item)) {min-height:78px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail #topTideList :is(.top-tide-item,.top-tide-more-btn) {min-height:24px!important;padding:2px 4px!important;}\n html body[data-floodmapper-unified][data-sidebar-density=\"tight\"]:not(.mobile-optimized) #rightRail#rightRail .town-address-label {\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/18-flood-frame-rendering.js",
+      "beforeSha256": "ecb8d365131d462ae8405457ba92aed45f54756b1a5ea51535025127efba7d4b",
+      "afterSha256": "00f1198082dba1347dad5e36181f71e39a2a33cda3d82cbd54482ff4a29b705e",
+      "changes": [
+        {
+          "beforeSource": "      const forecastNotice = freshness?.state === \"expired\"\n        ? `Forecast expired ${formatFixedESTFromUtc(freshness.timestamp, true)}. Select Forecast to check for an update.`\n        : freshness?.state === \"stale\"\n          ? `Forecast from ${formatFixedESTFromUtc(freshness.timestamp, true)} is over 72 hours old. Select Forecast to check for an update.`\n          : \"\";",
+          "afterSource": "      const forecastNotice = freshness?.state === \"stale\"\n        ? `Forecast from ${formatFixedESTFromUtc(freshness.timestamp, true)} is over 72 hours old. Select Forecast to check for an update.`\n        : \"\";"
         }
       ]
     }
