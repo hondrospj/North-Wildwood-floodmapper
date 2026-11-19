@@ -283,7 +283,7 @@ try {
       await page.waitForFunction(() => [...document.querySelectorAll('.maplibregl-marker[data-webcam-marker]')].every(marker => marker.style.opacity === '1'));
       await page.evaluate(() => { delete window.NORTH_WILDWOOD_3D.getMap().transform.isLocationOccluded; });
       await assertMarkerGeometry();
-      await page.evaluate(()=>window.NORTH_WILDWOOD_3D.getMap().jumpTo({bearing:0,pitch:45}));
+      await page.evaluate(()=>{ window.NORTH_WILDWOOD_3D.getMap().jumpTo({bearing:0,pitch:45}); });
       await assertGlMarkerPosition();
       await openCamera('north-bay');
       await page.locator('#webcamClose').click();

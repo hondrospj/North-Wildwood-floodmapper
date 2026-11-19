@@ -14,6 +14,7 @@ const readAsset = relative => fs.readFileSync(path.join(here, "..", relative), "
 const contentVersion = content => createHash("sha256").update(content).digest("hex").slice(0, 16);
 const rendererSource = readAsset("assets/3d/north-wildwood-3d.js");
 const rendererVersion = contentVersion(rendererSource);
+const loaderVersion = contentVersion(readAsset("assets/north-wildwood-loading.js"));
 const areaVersion = contentVersion(readAsset("assets/export-area.js"));
 const roadVersion = contentVersion(readAsset("assets/road-labels.js"));
 const roadImpactsVersion = contentVersion(readAsset("assets/road-impacts.js"));
@@ -34,7 +35,7 @@ function extractFunction(name, sourceText = source) {
 
 const parserBlockingScripts = [...source.matchAll(/<script\s+src="([^"]+)"/g)].map(match => match[1].replace(/&(?:county|stability)=[^&]+/g, ''));
 assert.deepEqual(parserBlockingScripts, [
-  "assets/north-wildwood-loading.js?v=20261027-lines1",
+  `assets/north-wildwood-loading.js?v=${loaderVersion}`,
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",

@@ -16,14 +16,14 @@ assert.match(html, /id="floodmapper-quiet-loading-20261119"/);
 assert.ok(html.includes('body:not([data-site-loader$="error"]):not([data-site-loader$="failed"]) #nwSiteLoader{display:none!important}'),
   'Normal loading stays hidden while real startup errors retain their recovery UI');
 
-function fixture({ready = false, reducedMotion = false, dependenciesReady = true, parsing = false} = {}) {
+function fixture({ready = false, reducedMotion = false, dependenciesReady = true, parsing = false, unified = false, layoutReady = false} = {}) {
   const classes = new Set(['nw-app-loading', ...(ready ? ['nw-app-ready'] : [])]);
   const timers = new Map();
   const intervals = new Map();
   let now = 0;
   let nextTimer = 0, callback, disconnected = false;
   const events = new Map();
-  const body = {dataset:{}, classList:{contains: name => classes.has(name), remove: name => classes.delete(name)}};
+  const body = {dataset:unified ? {floodmapperUnified:'test', ...(layoutReady ? {unifiedLayoutPasses:'1'} : {})} : {}, classList:{contains: name => classes.has(name), remove: name => classes.delete(name)}};
   const app = {inert:false, setAttribute(name, value) { this[name] = value; }};
   const toggle = {inert:false}, legend = {inert:false};
   const progress = {dataset:{}, style:{}}, status = {textContent:'Preparing forecast and map data…'};
@@ -46,6 +46,7 @@ function fixture({ready = false, reducedMotion = false, dependenciesReady = true
     reloads:() => reloads,
     advanceTime(ms) { now += ms; }, tickProgress() { [...intervals.values()][0].fn(); },
     signalReady() { classes.add('nw-app-ready'); callback(); },
+    signalLayout() { body.dataset.unifiedLayoutPasses='1'; callback(); },
     disconnected:() => disconnected, runTimer(ms) { const [id,timer] = [...timers].find(([,timer]) => timer.ms === ms); timers.delete(id); timer.fn(); }};
 }
 
@@ -119,4 +120,40 @@ assert.equal(failed.retry.hidden, false, 'Failed dependencies expose immediate r
 failed.retry.click();
 assert.equal(failed.retry.disabled, true);
 assert.equal(failed.reloads(), 1);
+
+const coreBeforeLayout = fixture({ready:true, unified:true, reducedMotion:true});
+assert.equal(coreBeforeLayout.app.inert,true,'Core readiness cannot expose controls before their measured layout');
+assert.equal(coreBeforeLayout.classes.has('nw-app-loading'),true);
+assert.notEqual(coreBeforeLayout.body.dataset.siteLoader,'complete');
+assert.equal(coreBeforeLayout.disconnected(),false,'Keep observing until the delayed layout completes');
+coreBeforeLayout.signalLayout();
+assert.equal(coreBeforeLayout.body.dataset.siteLoader,'complete');
+assert.equal(coreBeforeLayout.app.inert,false);
+assert.equal(coreBeforeLayout.toggle.inert,false);
+assert.equal(coreBeforeLayout.legend.inert,false);
+assert.equal(coreBeforeLayout.app['aria-busy'],'false');
+
+const layoutBeforeCore = fixture({unified:true,layoutReady:true,reducedMotion:true});
+assert.equal(layoutBeforeCore.app.inert,true,'A layout pass alone cannot claim that core data is ready');
+layoutBeforeCore.signalReady();
+assert.equal(layoutBeforeCore.body.dataset.siteLoader,'complete');
+assert.equal(layoutBeforeCore.app.inert,false);
+
+const missingLayout = fixture({ready:true,unified:true,reducedMotion:true});
+missingLayout.runTimer(20000);
+assert.equal(missingLayout.body.dataset.siteLoader,'timeout','A missing UI controller keeps the existing bounded recovery');
+assert.equal(missingLayout.app.inert,false);
+assert.equal(missingLayout.loader.hidden,true);
+assert.equal(missingLayout.app['aria-busy'],'false');
+missingLayout.signalLayout();
+assert.equal(missingLayout.body.dataset.siteLoader,'timeout','Late layout cannot reopen or restart the overlay');
+
+const unifiedFailure = fixture({unified:true,dependenciesReady:false,reducedMotion:true});
+unifiedFailure.events.get('nww:map-dependency-error')();
+assert.equal(unifiedFailure.retry.hidden,false);
+unifiedFailure.signalReady();
+assert.equal(unifiedFailure.app.inert,true,'Dependency recovery still waits for the first layout');
+unifiedFailure.signalLayout();
+assert.equal(unifiedFailure.body.dataset.siteLoader,'complete');
+assert.equal(unifiedFailure.app.inert,false);
 console.log('Passed loading lifecycle, parser-stalled core recovery, failure retry, and late successful startup');

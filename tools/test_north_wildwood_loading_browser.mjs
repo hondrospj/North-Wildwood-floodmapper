@@ -179,9 +179,61 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     throw error;
   } finally {releaseController();release();await context.close();}
 }
+async function delayedLayoutScenario({timeout=false}={}) {
+  const context=await browser.newContext({viewport:{width:1024,height:1000},reducedMotion:'reduce'});
+  const page=await context.newPage();page.setDefaultTimeout(30000);
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  let releaseLayout;
+  const layoutReleased=new Promise(resolve=>{releaseLayout=resolve;});
+  let navigation;
+  try {
+    await page.route('**/assets/app/unified-controller.js*',async route=>{
+      await layoutReleased;await route.continue();
+    });
+    navigation=page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
+    void navigation.catch(()=>{});
+    await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready'),null,{timeout:90000});
+    // Stay beyond the old completion pause: core readiness alone used to reveal
+    // this still-unmeasured sidebar, especially on slower WebKit renders.
+    await page.waitForTimeout(1300);
+    const pending=await page.evaluate(()=>{
+      const app=document.getElementById('app');
+      return {reason:document.body.dataset.siteLoader,passes:Number(document.body.dataset.unifiedLayoutPasses||0),
+        inert:app.inert,opacity:Number(getComputedStyle(app).opacity),busy:app.getAttribute('aria-busy')};
+    });
+    assert.equal(pending.passes,0,'Exercise actual delayed UI layout after actual core readiness');
+    assert.notEqual(pending.reason,'complete');
+    assert.equal(pending.inert,true);assert.equal(pending.opacity,0);assert.equal(pending.busy,'true');
+    await page.locator('#dataSourceHelpBtn').focus();
+    assert.equal(await page.evaluate(()=>!!document.activeElement?.closest('#app,#mobileControlsToggle,#legendDock')),false,
+      'Core readiness must not allow keyboard focus into the unfinished layout');
+    if(timeout) {
+      await page.waitForFunction(()=>document.body.dataset.siteLoader==='timeout',null,{timeout:25000});
+      assert.equal(await page.locator('#app').evaluate(app=>app.inert),false,'A missing layout controller retains the original bounded fallback');
+      assert.equal(await page.locator('#app').getAttribute('aria-busy'),'false');
+    }
+    releaseLayout();await navigation;
+    await page.waitForFunction(()=>Number(document.body.dataset.unifiedLayoutPasses)>0);
+    if(!timeout)await page.waitForFunction(()=>document.body.dataset.siteLoader==='complete');
+    assert.equal(await page.locator('body').getAttribute('data-site-loader'),timeout?'timeout':'complete',
+      'Late layout after fallback must not restart the loader');
+    assert.equal(await page.locator('#nwSiteLoader').isVisible(),false);
+    assert.equal(await page.locator('#app').evaluate(app=>app.inert),false);
+    assert.equal(await page.locator('#app').evaluate(app=>Number(getComputedStyle(app).opacity)),1);
+    await page.locator('#dataSourceHelpBtn').focus();
+    assert.equal(await page.locator('#dataSourceHelpBtn').evaluate(node=>node===document.activeElement),true);
+    assert.deepEqual(errors,[]);
+    console.log(`PASS core-ready delayed UI layout: hidden/inert until measured; ${timeout?'original20-second fallback and late recovery':'layout completion restores controls'}`);
+  } finally {
+    releaseLayout();await navigation?.catch(()=>{});await context.close();
+  }
+}
+
 try {
   await scenario({cached:true});
   await scenario({mobile:true,reduced:true});
   await scenario({reduced:true,fail:true});
   await scenario({mobile:true,reduced:true,timeout:true});
+  await delayedLayoutScenario();
+  await delayedLayoutScenario({timeout:true});
 } finally {await browser.close();}
