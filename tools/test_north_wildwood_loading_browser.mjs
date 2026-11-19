@@ -19,6 +19,9 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
   let release,received,requestedCount=0;
   const released=new Promise(resolve=>{release=resolve;});
   const requested=new Promise(resolve=>{received=resolve;});
+  let releaseController,receiveController;
+  const controllerReleased=new Promise(resolve=>{releaseController=resolve;});
+  const controllerRequested=new Promise(resolve=>{receiveController=resolve;});
   let pending,final,audit;
   try {
     if(timeout)await page.clock.install();
@@ -60,7 +63,26 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
       requestedCount++;received();await released;
       if(fail)await route.abort('failed');else await route.continue();
     });
-    await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
+    await page.route('**/north-wildwood-loading.js*',async route=>{
+      receiveController();await controllerReleased;await route.continue();
+    });
+    const navigation=page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
+    await controllerRequested;
+    await twoPaints(page);
+    const beforeController=await page.evaluate(()=>{
+      const roots=['app','topBanner','mobileControlsToggle','legendDock'].map(id=>document.getElementById(id)).filter(Boolean);
+      const controls=[...new Set(roots.flatMap(root=>[root,...root.querySelectorAll('button,a[href],input,select,[tabindex]')]))]
+        .filter(element=>element.matches('button,a[href],input,select,[tabindex]'));
+      const focusable=[];
+      for(const element of controls){element.focus({preventScroll:true});if(document.activeElement===element)focusable.push(element.id||element.tagName);}
+      return {snapshot:window.__captureLoaderBrowser(),focusable,controls:controls.length};
+    });
+    assert.ok(beforeController.controls>0,'Exercise the actual parsed controls before the readiness controller runs');
+    assert.equal(beforeController.snapshot.visible,false,'No splash before the controller arrives');
+    assert.equal(beforeController.snapshot.appOpacity,0,'Keep unfinished controls hidden until the controller makes them inert');
+    assert.deepEqual(beforeController.focusable,[],'No pre-controller control, including visible descendants, may receive focus');
+    releaseController();
+    await navigation;
     assert.ok(requestedCount>0,'Hold the real initial forecast request, not a manufactured loading state');
     await requested;
     await twoPaints(page);
@@ -123,7 +145,7 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     for(const sample of audit.samples)if(sample.loading) {
       assert.equal(sample.visible,false,'No loading splash frame during startup');
       assert.ok(sample.appOpacity===null||sample.appOpacity===0||sample.appInert,
-        'No interactive app may appear behind the pending splash');
+        'No visible interactive app may appear during startup');
     }
     for(let index=1;index<audit.samples.length;index++)assert.ok(audit.samples[index].progress>=audit.samples[index-1].progress,'Loading progress must not move backward');
     if(cached) {
@@ -140,7 +162,7 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
   } catch(error) {
     console.error(JSON.stringify({name,pending,final,requestedCount,errors,audit:audit||await page.evaluate(()=>window.__loaderBrowserAudit).catch(()=>null)},null,2));
     throw error;
-  } finally {release();await context.close();}
+  } finally {releaseController();release();await context.close();}
 }
 try {
   await scenario({cached:true});
