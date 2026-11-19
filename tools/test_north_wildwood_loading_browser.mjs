@@ -67,7 +67,13 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
       receiveController();await controllerReleased;await route.continue();
     });
     const navigation=page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
+    // Handle rejection immediately so a failed assertion followed by context
+    // cleanup cannot mask its cause with an unhandled navigation rejection.
+    void navigation.catch(()=>{});
     await controllerRequested;
+    // Chromium can request this script through its preload scanner before the
+    // parser reaches the app. Inspect only after its actual DOM position exists.
+    await page.locator('script[src*="north-wildwood-loading.js"]').waitFor({state:'attached'});
     await twoPaints(page);
     const beforeController=await page.evaluate(()=>{
       const roots=['app','topBanner','mobileControlsToggle','legendDock'].map(id=>document.getElementById(id)).filter(Boolean);
@@ -160,7 +166,7 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     assert.deepEqual(errors,[],'No uncaught errors during loader lifecycle/recovery');
     console.log(`PASS loading screen ${name}${cached?' + cached reload':''}: first paint, real pending data, inert controls, reveal and focus${timeout?', original timeout recovery':''}`);
   } catch(error) {
-    console.error(JSON.stringify({name,pending,final,requestedCount,errors,audit:audit||await page.evaluate(()=>window.__loaderBrowserAudit).catch(()=>null)},null,2));
+    console.error(JSON.stringify({name,error:error.stack||String(error),pending,final,requestedCount,errors,audit:audit||await page.evaluate(()=>window.__loaderBrowserAudit).catch(()=>null)},null,2));
     throw error;
   } finally {releaseController();release();await context.close();}
 }
