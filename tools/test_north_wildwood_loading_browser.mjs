@@ -192,7 +192,7 @@ async function delayedLayoutScenario({timeout=false}={}) {
     });
     navigation=page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
     void navigation.catch(()=>{});
-    await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready'),null,{timeout:90000});
+    await page.waitForFunction(()=>document.body?.classList.contains('nw-app-ready'),null,{timeout:90000});
     // Stay beyond the old completion pause: core readiness alone used to reveal
     // this still-unmeasured sidebar, especially on slower WebKit renders.
     await page.waitForTimeout(1300);
