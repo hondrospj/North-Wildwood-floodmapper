@@ -109,7 +109,7 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     assert.equal(pending.appInert,true,'Pending app controls must be inert');
     assert.equal(pending.toggleInert,true,'External mobile Controls button must also be inert');
     assert.equal(pending.legendInert,true,'Reparented legend must be isolated');
-    assert.equal(pending.appOpacity,1,'The neutral map layout remains visible during loading');
+    assert.equal(pending.appOpacity,0,'Preserve the original hidden-app lifecycle while startup layout settles');
     const play=await page.locator('#playBtn').boundingBox();
     await page.mouse.click(play.x+play.width/2,play.y+play.height/2);
     await page.locator('#dataSourceHelpBtn').focus();
