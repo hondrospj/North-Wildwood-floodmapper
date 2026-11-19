@@ -24,7 +24,6 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
   const controllerRequested=new Promise(resolve=>{receiveController=resolve;});
   let pending,final,audit;
   try {
-    if(timeout)await page.clock.install();
     await page.addInitScript(()=>{
       const audit=window.__loaderBrowserAudit={frames:0,samples:[],playClicks:0};
       document.addEventListener('click',event=>{if(event.target.closest?.('#playBtn'))audit.playClicks++;},true);
@@ -70,11 +69,20 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     // Handle rejection immediately so a failed assertion followed by context
     // cleanup cannot mask its cause with an unhandled navigation rejection.
     void navigation.catch(()=>{});
-    await controllerRequested;
+    await Promise.race([controllerRequested,navigation.then(()=>{throw new Error('Navigation completed without the held readiness controller');})]);
     // Chromium can request this script through its preload scanner before the
     // parser reaches the app. Inspect only after its actual DOM position exists.
     await page.locator('script[src*="north-wildwood-loading.js"]').waitFor({state:'attached'});
-    await twoPaints(page);
+    // WebKit exposes parsed DOM before preceding blocking stylesheets have
+    // joined the active cascade. Wait for the quiet sheet to be active without
+    // waiting for any expected visibility value.
+    await page.waitForFunction(()=>{
+      const sheet=document.getElementById('floodmapper-quiet-loading-20261119')?.sheet;
+      return sheet&&Array.from(document.styleSheets).includes(sheet);
+    },null,{polling:25});
+    // WebKit may suppress animation frames while this parser-blocking response
+    // is held. Computed layout and focus checks work before its first real paint.
+    // The audit still checks every real frame, including the first eligible one.
     const beforeController=await page.evaluate(()=>{
       const roots=['app','topBanner','mobileControlsToggle','legendDock'].map(id=>document.getElementById(id)).filter(Boolean);
       const controls=[...new Set(roots.flatMap(root=>[root,...root.querySelectorAll('button,a[href],input,select,[tabindex]')]))]
@@ -87,6 +95,7 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     assert.equal(beforeController.snapshot.visible,false,'No splash before the controller arrives');
     assert.equal(beforeController.snapshot.appOpacity,0,'Keep unfinished controls hidden until the controller makes them inert');
     assert.deepEqual(beforeController.focusable,[],'No pre-controller control, including visible descendants, may receive focus');
+    const controllerReleasedAt=Date.now();
     releaseController();
     await navigation;
     assert.ok(requestedCount>0,'Hold the real initial forecast request, not a manufactured loading state');
@@ -110,10 +119,10 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
       'Inert background must not receive keyboard focus');
 
     if(timeout) {
-      // Advance the real controller's original 20-second deadline, without
-      // replacing its code, readiness signal, or pending network operation.
-      await page.clock.fastForward(20001);
+      // Use the original real deadline. A mocked animation clock can sample
+      // incomplete WebKit styles before the browser is eligible to paint.
       await page.waitForFunction(()=>document.body.dataset.siteLoader==='timeout');
+      assert.ok(Date.now()-controllerReleasedAt>=20000,'Exercise the actual 20-second controller deadline');
       assert.equal(await page.locator('body').evaluate(body=>body.classList.contains('nw-app-ready')),false,
         'Timeout releases controls without claiming the forecast finished');
     } else {
