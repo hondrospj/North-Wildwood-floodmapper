@@ -651,7 +651,7 @@
         : Number.isFinite(getNsiFirstOccupiedFloorNavd88(properties))
           ? "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises."
           : "Past tides and future estimates use parcel ground elevation.";
-      body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Loading flood projections…</strong></div>';
+      body.innerHTML = '<div class="flood-history-loading" aria-hidden="true"></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");
       document.body.classList.add("flood-history-open");

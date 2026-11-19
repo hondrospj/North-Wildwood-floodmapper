@@ -12,8 +12,9 @@ assert.ok(loaderTag, 'The loading-screen controller must be connected');
 assert.doesNotMatch(loaderTag, /\b(?:defer|async)\b/, 'The watchdog must start before blocking core scripts');
 assert.ok(html.indexOf(loaderTag) > html.indexOf('id="exportStage"'));
 assert.ok(html.indexOf(loaderTag) < html.indexOf('<script src="https://unpkg.com/leaflet@'));
-assert.doesNotMatch(html, /#nwSiteLoader\s*\{[^}]*display\s*:\s*none\s*!important/,
-  'No unconditional important CSS override may disconnect the visible splash');
+assert.match(html, /id="floodmapper-quiet-loading-20261119"/);
+assert.ok(html.includes('body:not([data-site-loader$="error"]):not([data-site-loader$="failed"]) #nwSiteLoader{display:none!important}'),
+  'Normal loading stays hidden while real startup errors retain their recovery UI');
 
 function fixture({ready = false, reducedMotion = false, dependenciesReady = true, parsing = false} = {}) {
   const classes = new Set(['nw-app-loading', ...(ready ? ['nw-app-ready'] : [])]);

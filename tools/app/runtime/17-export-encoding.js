@@ -478,7 +478,7 @@
       // Close the settings dialog before showing progress so its focus/inert
       // isolation cannot disable the progress Cancel button during preparation.
       setDownloadModalOpen(false);
-      setDownloadBusy(true, needsArchive ? "Loading the selected tide-archive year..." : "Preparing export...");
+      setDownloadBusy(true, needsArchive ? "Preparing export..." : "Preparing export...");
       try {
         if (needsArchive) {
           await awaitRasterRequest(ensureExportArchiveAvailability());
@@ -501,8 +501,8 @@
         if (!frameItems.length) throw new Error("No frames are available for export.");
         const label = format === "png" ? "PNG" : `${getDownloadAspectValue()} GIF`;
         setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? "" : "s"}...`, 1, false);
-        setDownloadStatus("Loading export tools...");
-        setExportProgress("Loading export tools...", 1, false);
+        setDownloadStatus("Preparing export...");
+        setExportProgress("Preparing export...", 1, false);
         await awaitRasterRequest(ensureExportLibraries(format, frameItems.length));
         throwIfExportCancelled();
         if (format === "png") {

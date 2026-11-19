@@ -307,12 +307,12 @@
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
         renderSelectionMeta(null, null, null);
-        document.getElementById("stageSubText").textContent = "Loading modeled flood…";
+        document.getElementById("stageSubText").textContent = "";
         renderTimelineMeta();
         renderTimelineDays();
         setFloodFrameStatus(currentFloodLayer
-          ? "Loading modeled flood… Previous flood map shown."
-          : "Loading modeled flood…", "info");
+          ? ""
+          : "", "info");
 
         if (!returnIntervalData || options.forceRefresh) {
           const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));

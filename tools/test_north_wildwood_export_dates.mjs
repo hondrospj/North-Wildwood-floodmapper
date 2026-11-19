@@ -347,7 +347,7 @@ for (const outcome of ['cancel-resolve', 'cancel-reject', 'archive-error', 'succ
   const job = ctx.downloadCurrentSelection();
   assert.equal(ctx.exportInProgress, true);
   assert.equal(modalOpen, false, 'Settings isolation must release the visible progress Cancel button');
-  assert.match(progress, /archive year/);
+  assert.equal(progress, "Preparing export...");
   // Availability initialization now precedes the selected-year request.
   for (let turn = 0; turn < 5; turn++) await Promise.resolve();
   if (outcome.startsWith('cancel')) {

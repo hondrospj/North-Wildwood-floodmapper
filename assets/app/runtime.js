@@ -1366,12 +1366,12 @@ function cloneStyleObject(value) {
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
         renderSelectionMeta(null, null, null);
-        document.getElementById("stageSubText").textContent = "Loading modeled flood…";
+        document.getElementById("stageSubText").textContent = "";
         renderTimelineMeta();
         renderTimelineDays();
         setFloodFrameStatus(currentFloodLayer
-          ? "Loading modeled flood… Previous flood map shown."
-          : "Loading modeled flood…", "info");
+          ? ""
+          : "", "info");
 
         if (!returnIntervalData || options.forceRefresh) {
           const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
@@ -6660,7 +6660,7 @@ function clearExportAvailabilityCache() {
         } else if (bounds?.firstDate && bounds?.lastDate) {
           dataRangeEl.innerHTML = `<span>Available data</span><strong>${formatExportCompactDate(bounds.firstDate)} – ${formatExportCompactDate(bounds.lastDate)}</strong>`;
         } else {
-          dataRangeEl.innerHTML = `<span>Available data</span><strong>Loading…</strong>`;
+          dataRangeEl.innerHTML = `<span>Available data</span><strong>—</strong>`;
         }
       }
     }
@@ -8543,7 +8543,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       // Close the settings dialog before showing progress so its focus/inert
       // isolation cannot disable the progress Cancel button during preparation.
       setDownloadModalOpen(false);
-      setDownloadBusy(true, needsArchive ? "Loading the selected tide-archive year..." : "Preparing export...");
+      setDownloadBusy(true, needsArchive ? "Preparing export..." : "Preparing export...");
       try {
         if (needsArchive) {
           await awaitRasterRequest(ensureExportArchiveAvailability());
@@ -8566,8 +8566,8 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
         if (!frameItems.length) throw new Error("No frames are available for export.");
         const label = format === "png" ? "PNG" : `${getDownloadAspectValue()} GIF`;
         setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? "" : "s"}...`, 1, false);
-        setDownloadStatus("Loading export tools...");
-        setExportProgress("Loading export tools...", 1, false);
+        setDownloadStatus("Preparing export...");
+        setExportProgress("Preparing export...", 1, false);
         await awaitRasterRequest(ensureExportLibraries(format, frameItems.length));
         throwIfExportCancelled();
         if (format === "png") {
@@ -8597,7 +8597,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
     }
 
     function setFloodFrameStatus(message, state = "info") {
-      if (state === "loading") message = "";
+      if (state === "loading" || (state === "info" && /^Loading\b/i.test(String(message || "")))) message = "";
       if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== "Stone Harbor USGS").join(" • ");
       const status = document.getElementById("floodFrameStatus");
       if (!status) return;
@@ -8720,7 +8720,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       if (typeof floodFrameState !== "undefined") floodFrameState = "loading";
       document.body.dataset.floodFrame = "loading";
       if (persistentDepthQueryContext?.kind === "physics") updatePersistentDepthQueryPopup();
-      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "Loading the next flood map… Previous frame shown." : "Loading flood map…", "loading");
+      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "" : "", "loading");
       return lastRenderToken;
     }
 
@@ -10465,7 +10465,7 @@ function formatSelectedObservedDate(dateStr) {
           currentRangeLabel = "";
           syncSliderBounds();
           renderSelectionMeta(null, null, null);
-          document.getElementById("stageSubText").textContent = "Loading forecast…";
+          document.getElementById("stageSubText").textContent = "";
           renderTimelineMeta();
           renderTimelineDays();
         }
@@ -11420,8 +11420,8 @@ function populateCalendarSelectors() {
       if (forecastSelectionPending || loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) return;
       if (currentDataMode === "return-interval" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {
         setFloodFrameStatus(currentFloodLayer
-          ? "Loading modeled flood… Previous flood map shown."
-          : "Loading modeled flood…", "info");
+          ? ""
+          : "", "info");
         return;
       }
       await renderHour(index);
@@ -11488,12 +11488,12 @@ function populateCalendarSelectors() {
       syncSliderBounds();
       document.getElementById("hourSlider").value = "0";
       renderSelectionMeta(null, null, null);
-      document.getElementById("stageSubText").textContent = "Loading observed history…";
+      document.getElementById("stageSubText").textContent = "";
       renderTimelineMeta();
       renderTimelineDays();
       const loadingMessage = currentFloodLayer
-        ? "Loading observed history… Previous flood map shown."
-        : "Loading observed history…";
+        ? ""
+        : "";
       setFloodFrameStatus(loadingMessage, "info");
       await warmBackgroundData();
       if (generation !== selectionGeneration) return;
@@ -12540,7 +12540,7 @@ function startPlayback() {
         : Number.isFinite(getNsiFirstOccupiedFloorNavd88(properties))
           ? "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises."
           : "Past tides and future estimates use parcel ground elevation.";
-      body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Loading flood projections…</strong></div>';
+      body.innerHTML = '<div class="flood-history-loading" aria-hidden="true"></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");
       document.body.classList.add("flood-history-open");
@@ -12981,7 +12981,7 @@ function startPlayback() {
             <strong>${(100 * metrics.wet / metrics.covered).toFixed(1)}%</strong></div>
             <div><span>Maximum Flood Depth</span><strong>${formatParcelDepthBand(metrics)}</strong></div>
           </div>${metrics.covered === metrics.total ? "" : `<p class="house-alert-note">${Math.round(100 * metrics.covered / metrics.total)}% of this parcel has model coverage.</p>`}`
-        : `<p class="house-alert-note" role="status">${loading ? "Measuring the selected flood frame…" : "Parcel depth and area are unavailable for this frame."}</p>`;
+        : `<p class="house-alert-note" role="status">${loading ? "" : "Parcel depth and area are unavailable for this frame."}</p>`;
       return '<div class="house-alert-popup building-info-card parcel-area-popup">' +
         '<span class="house-alert-kicker">Parcel Flooding</span><h3>' + address + '</h3>' + facts +
         '<button class="house-alert-cta" data-property-profile="parcel" type="button">See Parcel Flood Projections</button></div>';

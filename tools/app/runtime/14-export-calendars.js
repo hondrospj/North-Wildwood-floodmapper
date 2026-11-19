@@ -225,7 +225,7 @@ function clearExportAvailabilityCache() {
         } else if (bounds?.firstDate && bounds?.lastDate) {
           dataRangeEl.innerHTML = `<span>Available data</span><strong>${formatExportCompactDate(bounds.firstDate)} – ${formatExportCompactDate(bounds.lastDate)}</strong>`;
         } else {
-          dataRangeEl.innerHTML = `<span>Available data</span><strong>Loading…</strong>`;
+          dataRangeEl.innerHTML = `<span>Available data</span><strong>—</strong>`;
         }
       }
     }

@@ -11,7 +11,27 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readLiveBytes = relative => fs.readFileSync(localPath(relative));
+const readUnreviewedBytes = relative => fs.readFileSync(localPath(relative));
+const QUIET_LOADING_PATH = "tools/fixtures/north-wildwood-20261119-quiet-loading.json";
+const quietLoadingText = readUnreviewedBytes(QUIET_LOADING_PATH).toString("utf8");
+assert.equal(createHash("sha256").update(quietLoadingText).digest("hex"), "51205dc0ee96ed9271ef795ea4bee39922b14be482cdd06ab91d33a0eeee3428", "Retain the exact quiet-loading inverse");
+const quietLoading = JSON.parse(quietLoadingText);
+const priorQuietLoadingSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-quiet-loading-snapshot");
+function readLiveBytes(relative) {
+  const bytes = readUnreviewedBytes(relative);
+  const file = quietLoading.files.find(entry => entry.source === relative);
+  if (priorQuietLoadingSnapshot || !file) return bytes;
+  const hash = text => createHash("sha256").update(text).digest("hex");
+  assert.equal(hash(bytes), file.afterSha256, `${relative}: only reviewed quiet-loading changes`);
+  let restored = bytes.toString("utf8");
+  for (const block of file.changes) {
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact quiet-loading fragment`);
+    restored = restored.replace(block.afterSource, () => block.beforeSource);
+  }
+  assert.equal(hash(restored), file.beforeSha256, `${relative}: restore all pre-loading-change bytes`);
+  return Buffer.from(restored);
+}
+if (!priorQuietLoadingSnapshot) for (const file of quietLoading.files) readLiveBytes(file.source);
 const readCurrent = relative => readBeforeOvernight(relative);
 const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
@@ -2615,6 +2635,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
       MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
       JOE_UI_PATH, ...joeUi.files.map(file => file.source), ...joeUi.added.map(file => file.source),
       EXPORT_OPTIONS_PATH, ...exportOptions.files.map(file => file.source),
@@ -2626,10 +2647,11 @@ if (process.argv.includes("--self-test")) {
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
     }
-    const run = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
+    const runCurrent = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    assert.equal(run().status, 0, "The unmodified scratch copy must pass before mutation checks");
+    const run = (args = []) => runCurrent(["--prior-quiet-loading-snapshot", ...args]);
+    assert.equal(runCurrent().status, 0, "The unmodified scratch copy must pass before mutation checks");
     const assertMutationsRejected = (cases, check) => {
       for (const [name, target, altered] of cases) {
         const before = fs.readFileSync(target);
@@ -2642,6 +2664,16 @@ if (process.argv.includes("--self-test")) {
         assert.match(result.stderr, /AssertionError/, `${name}: rejection must come from a parity assertion`);
       }
     };
+    const quietCases = [
+      ["altered quiet-loading inverse", path.join(scratch, QUIET_LOADING_PATH), quietLoadingText + " "],
+      ...quietLoading.files.map(file => [
+        `unreviewed quiet-loading byte in ${file.source}`, path.join(scratch, file.source),
+        Buffer.concat([readUnreviewedBytes(file.source), Buffer.from("\n")])
+      ])
+    ];
+    assertMutationsRejected(quietCases, runCurrent);
+    for (const file of quietLoading.files) fs.writeFileSync(path.join(scratch, file.source), readLiveBytes(file.source));
+    assert.equal(run().status, 0, "The restored pre-loading-change snapshot must pass");
     const mapperFixCases = [
       ["altered the mapper fixes inverse", path.join(scratch, MAPPER_FIX_PATH), mapperFixText + " "],
       ...mapperFix.files.map(file => [

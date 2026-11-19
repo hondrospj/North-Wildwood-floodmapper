@@ -396,7 +396,7 @@
             <strong>${(100 * metrics.wet / metrics.covered).toFixed(1)}%</strong></div>
             <div><span>Maximum Flood Depth</span><strong>${formatParcelDepthBand(metrics)}</strong></div>
           </div>${metrics.covered === metrics.total ? "" : `<p class="house-alert-note">${Math.round(100 * metrics.covered / metrics.total)}% of this parcel has model coverage.</p>`}`
-        : `<p class="house-alert-note" role="status">${loading ? "Measuring the selected flood frame…" : "Parcel depth and area are unavailable for this frame."}</p>`;
+        : `<p class="house-alert-note" role="status">${loading ? "" : "Parcel depth and area are unavailable for this frame."}</p>`;
       return '<div class="house-alert-popup building-info-card parcel-area-popup">' +
         '<span class="house-alert-kicker">Parcel Flooding</span><h3>' + address + '</h3>' + facts +
         '<button class="house-alert-cta" data-property-profile="parcel" type="button">See Parcel Flood Projections</button></div>';

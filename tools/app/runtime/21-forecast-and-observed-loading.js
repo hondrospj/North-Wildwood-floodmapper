@@ -61,7 +61,7 @@
           currentRangeLabel = "";
           syncSliderBounds();
           renderSelectionMeta(null, null, null);
-          document.getElementById("stageSubText").textContent = "Loading forecast…";
+          document.getElementById("stageSubText").textContent = "";
           renderTimelineMeta();
           renderTimelineDays();
         }

@@ -91,8 +91,8 @@ for (const starter of ['mode','year']) for (const cadence of [60,15,1440]) {
   const h=setup(), {c,requests,messages,nodes}=h;
   const pending=starter==='mode' ? c.switchDataMode('return-interval') : c.switchReturnInterval(50);
   assert.equal(requests.length,1); assert.equal(c.currentSeriesHours.length,0,'Pending Modeled must not expose Forecast data.');
-  assert.match(nodes.get('stageSubText').textContent,/Loading modeled/);
-  assert.ok(messages.some(item => /Previous flood map shown/.test(item.message)));
+  assert.equal(nodes.get('stageSubText').textContent,'','Pending modeled stage stays neutral');
+  assert.ok(messages.every(item => !/Loading|Previous flood map shown/.test(item.message)), 'No pending loading notice');
   await c.switchOverlayMode('dynamic'); await c.setTimelineIntervalMinutes(cadence);
   await c.switchOverlayMode('depth'); await c.switchOverlayMode('dynamic'); c.currentDatum='mllw';
   assert.equal(requests.length,1,'Pending cadence changes must reuse the owned request.');

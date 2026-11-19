@@ -57,7 +57,7 @@ try{
   const h=await open();try{
    await h.page.locator('#returnIntervalDataBtn').click();await h.held;
    const pending=await snapshot(h.page);assert.equal(pending.count,0);assert.equal(pending.sliderDisabled,true);
-   assert.match(pending.status,/Loading modeled flood/);assert.doesNotMatch(pending.label,/Mean/);
+   assert.equal(pending.status,'','Pending modeled map is quiet');assert.equal(pending.sub,'');assert.doesNotMatch(pending.label,/Mean/);
    await h.page.locator('#dynamicModeBtn').click();await h.page.locator('#datumNavd88Btn').click();
    if(cadence!==60)await h.page.locator(cadence===15?'#intervalQuarterBtn':'#intervalDailyBtn').click();
    assert.equal(h.requests,1);h.release();const state=await modelReady(h.page,10,cadence);

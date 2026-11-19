@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Real splash/readiness coverage; browser environment follows the full-app suite.
+// Quiet startup/readiness coverage; browser environment follows the full-app suite.
 import assert from 'node:assert/strict';
 const {chromium,webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const engine=process.env.NWW_BROWSER==='webkit' ? webkit : chromium;
@@ -65,22 +65,19 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     await requested;
     await twoPaints(page);
     pending=await page.evaluate(()=>window.__captureLoaderBrowser());
-    assert.equal(pending.visible,true,`${name}: original ShorelySafe splash must actually paint`);
+    assert.equal(pending.visible,false,`${name}: no loading splash may paint`);
     assert.equal(pending.brand,'ShorelySafe');
     assert.equal(pending.ready,false,'Pending initial data must not falsely signal readiness');
     assert.equal(pending.loading,true);assert.equal(pending.appBusy,'true');
     assert.equal(pending.appInert,true,'Pending app controls must be inert');
     assert.equal(pending.toggleInert,true,'External mobile Controls button must also be inert');
     assert.equal(pending.legendInert,true,'Reparented legend must be isolated');
-    assert.equal(pending.appOpacity,0,'No partially initialized app may show through the splash');
-    assert.ok(pending.card.width>0&&pending.card.x>=-1&&pending.card.y>=-1&&
-      pending.card.x+pending.card.width<=pending.rect.width+1&&pending.card.y+pending.card.height<=pending.rect.height+1,
-    'The original loading card must fit the desktop or mobile viewport');
+    assert.equal(pending.appOpacity,1,'The neutral map layout remains visible during loading');
     const play=await page.locator('#playBtn').boundingBox();
     await page.mouse.click(play.x+play.width/2,play.y+play.height/2);
     await page.locator('#dataSourceHelpBtn').focus();
     await page.keyboard.press('Tab');
-    assert.equal(await page.evaluate(()=>window.__loaderBrowserAudit.playClicks),0,'Overlay prevents pointer activation behind it');
+    assert.equal(await page.evaluate(()=>window.__loaderBrowserAudit.playClicks),0,'Readiness guard prevents activation of unfinished controls');
     assert.equal(await page.evaluate(()=>!!document.activeElement?.closest('#app,#mobileControlsToggle,#legendDock')),false,
       'Inert background must not receive keyboard focus');
 
@@ -93,7 +90,7 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
         'Timeout releases controls without claiming the forecast finished');
     } else {
       await page.waitForFunction(()=>Number(document.getElementById('nwLoaderProgress')?.dataset.progress)>=11);
-      assert.equal(await page.evaluate(()=>window.__captureLoaderBrowser().visible),true,'Splash stays visible while real startup is pending');
+      assert.equal(await page.evaluate(()=>window.__captureLoaderBrowser().visible),false,'Real pending startup stays quiet');
       release();
       await page.waitForFunction(()=>document.body.dataset.siteLoader==='complete',{},{timeout:90000});
     }
@@ -122,9 +119,9 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
       assert.equal(await page.locator('#nwSiteLoader').isVisible(),false);
     }
     audit=await page.evaluate(()=>{window.__loaderBrowserAudit.stopped=true;return window.__loaderBrowserAudit;});
-    assert.equal(audit.samples[0].visible,true,'The first eligible document paint must already show the loader');
+    assert.equal(audit.samples[0].visible,false,'The first eligible document paint has no loader');
     for(const sample of audit.samples)if(sample.loading) {
-      assert.equal(sample.visible,true,'No missing or blank splash frame during startup');
+      assert.equal(sample.visible,false,'No loading splash frame during startup');
       assert.ok(sample.appOpacity===null||sample.appOpacity===0||sample.appInert,
         'No interactive app may appear behind the pending splash');
     }

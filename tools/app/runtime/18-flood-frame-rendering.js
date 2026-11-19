@@ -1,5 +1,5 @@
     function setFloodFrameStatus(message, state = "info") {
-      if (state === "loading") message = "";
+      if (state === "loading" || (state === "info" && /^Loading\b/i.test(String(message || "")))) message = "";
       if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== "Stone Harbor USGS").join(" • ");
       const status = document.getElementById("floodFrameStatus");
       if (!status) return;
@@ -122,7 +122,7 @@
       if (typeof floodFrameState !== "undefined") floodFrameState = "loading";
       document.body.dataset.floodFrame = "loading";
       if (persistentDepthQueryContext?.kind === "physics") updatePersistentDepthQueryPopup();
-      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "Loading the next flood map… Previous frame shown." : "Loading flood map…", "loading");
+      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "" : "", "loading");
       return lastRenderToken;
     }
 
