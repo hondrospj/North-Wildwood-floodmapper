@@ -319,7 +319,7 @@
     {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "958bb14291f1433a6b7a031c511b759f331b30f8e19f7076e684aeaf241b0d13",
+      "afterSha256": "932d1769f1d5512d32795a63b38dd001439df9070d7938c8eea13687d421b051",
       "edits": [
         [
           210,
@@ -332,38 +332,33 @@
           "<script id=\"floodmapper-startup-20261002\" data-nww-script=\"script-001\" src=\"./assets/app/startup.js?v=c5c54a9269b97901\"></script>\n"
         ],
         [
-          56668,
-          57192,
-          ""
-        ],
-        [
-          81411,
-          81664,
+          80887,
+          81140,
           "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=28cea3996d8987cf\"></script>\n"
         ],
         [
-          81879,
-          82103,
+          81355,
+          81579,
           "<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=584631a173bcaece\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b3e11134ba8bcb33\"></script>\n"
         ],
         [
-          82177,
-          82277,
+          81653,
+          81753,
           "<script data-nww-script=\"script-007\" src=\"./assets/app/town-config.js?v=150329941da8abe6\"></script>\n"
         ],
         [
-          82528,
-          82634,
+          82004,
+          82110,
           "<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n"
         ],
         [
-          82761,
-          83975,
+          82237,
+          83451,
           "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n"
         ],
         [
-          84622,
-          84780,
+          84098,
+          84796,
           ""
         ]
       ]
@@ -371,7 +366,7 @@
     {
       "source": "tools/app/index.template.html",
       "beforeSha256": "380b3c5e261e14623857065daaddc0f8a155dcf4f96023ee6140defce61ed5b1",
-      "afterSha256": "d2da3d9953e56f24f5bc2cba7741a54fc7ad055ac9055cc596b61d49f1390b37",
+      "afterSha256": "58352f144f6599e7274eb4d164e51253788781189896c1b9a4bb5d0918b11abd",
       "edits": [
         [
           210,
@@ -399,58 +394,53 @@
           "      <div id=\"map3d\" role=\"region\" aria-label=\"Interactive 3D North Wildwood flood map\"></div>\n"
         ],
         [
-          23735,
-          24259,
-          ""
-        ],
-        [
-          24451,
-          24542,
+          23927,
+          24018,
           "              <h3 id=\"townAddressTitle\">Find a North Wildwood Address</h3>\n"
         ],
         [
-          24979,
-          25131,
+          24455,
+          24607,
           "              <button id=\"townAddressSearchBtn\" class=\"right-rail-action town-address-btn\" type=\"submit\">Search North Wildwood</button>\n"
         ],
         [
-          38097,
-          38241,
+          37573,
+          37717,
           "            <button id=\"exportExtentTownBtn\" type=\"button\" data-extent=\"town\" aria-pressed=\"false\">Fill North Wildwood</button>\n"
         ],
         [
-          44272,
-          44361,
+          43748,
+          43837,
           "          <p id=\"floodHistoryAddress\">Selected North Wildwood parcel</p>\n"
         ],
         [
-          48542,
-          48608,
+          48018,
+          48084,
           ""
         ],
         [
-          48641,
-          48710,
+          48117,
+          48186,
           ""
         ],
         [
-          48777,
-          48971,
+          48253,
+          48447,
           "<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=584631a173bcaece\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b3e11134ba8bcb33\"></script>\n"
         ],
         [
-          49327,
-          49423,
+          48803,
+          48899,
           "<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n"
         ],
         [
-          49550,
-          49626,
+          49026,
+          49102,
           "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n"
         ],
         [
-          49753,
-          49901,
+          49229,
+          49917,
           ""
         ]
       ]
@@ -743,7 +733,7 @@
   "added": [
     {
       "source": "assets/3d/elevation-contours.js",
-      "sha256": "e0fdd1e96497010c41ea2a75e8f57363641da12434d310cbf6db4fb6107ea989"
+      "sha256": "46d73b0d18324cf2be96dc9c44a30e1399d93e5fbebf14b0f7b8738cea5203fe"
     },
     {
       "source": "assets/app/hydraulic-catalog.js",
