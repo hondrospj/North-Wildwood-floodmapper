@@ -14,7 +14,7 @@ const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToP
 const readUnreviewedBytes = relative => fs.readFileSync(localPath(relative));
 const QUIET_LOADING_PATH = "tools/fixtures/north-wildwood-20261119-quiet-loading.json";
 const quietLoadingText = readUnreviewedBytes(QUIET_LOADING_PATH).toString("utf8");
-assert.equal(createHash("sha256").update(quietLoadingText).digest("hex"), "b7d632069ba843ed3abeba0ab2c20fe3d62eeca3300639924c7c6337b94950b2", "Retain the exact quiet-loading inverse");
+assert.equal(createHash("sha256").update(quietLoadingText).digest("hex"), "9ba67035219d09477f1f3a6d93f59b15629f8edb71e600b9395f9685a53a8a1e", "Retain the exact quiet-loading inverse");
 const quietLoading = JSON.parse(quietLoadingText);
 const priorQuietLoadingSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-quiet-loading-snapshot");
 function readLiveBytes(relative) {

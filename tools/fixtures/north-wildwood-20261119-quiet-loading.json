@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "baselineCommit": "2c760e4933662239bfdb5cc27e106e616de66a0f",
-  "scope": "Suppress loading presentation while preserving request state and recovery; await the existing first unified layout before normal reveal; refresh camera markers after terrain settlement.",
+  "scope": "Suppress loading presentation while preserving request state and recovery; await the existing first unified layout before normal reveal; refresh camera markers after terrain settlement. Use the same flood renderer for startup and timeline playback.",
   "files": [
     {
       "source": "assets/app/runtime.js",
       "beforeSha256": "2642dbd987d5d46c031965352f4b6e3506c38eda2650f7a9f6dbce935168105e",
-      "afterSha256": "3887aa60660ccbb6f1e760ac04010ba78b8f42b6be3bf5e7f16971a647450e28",
+      "afterSha256": "28cea3996d8987cfee2d870f4c8eac7d4f40f588699b0a593dfe4b81f8df3c17",
       "changes": [
         {
           "beforeSource": "        currentRangeLabel = \"\";\n        syncSliderBounds();\n        document.getElementById(\"hourSlider\").value = \"0\";\n        renderSelectionMeta(null, null, null);\n        document.getElementById(\"stageSubText\").textContent = \"Loading modeled flood\u2026\";\n        renderTimelineMeta();\n        renderTimelineDays();\n        setFloodFrameStatus(currentFloodLayer\n          ? \"Loading modeled flood\u2026 Previous flood map shown.\"\n          : \"Loading modeled flood\u2026\", \"info\");\n\n        if (!returnIntervalData || options.forceRefresh) {\n          const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));\n          if (generation !== selectionGeneration) return false;\n",
@@ -31,6 +31,10 @@
         {
           "beforeSource": "      }\n      if (typeof floodFrameState !== \"undefined\") floodFrameState = \"loading\";\n      document.body.dataset.floodFrame = \"loading\";\n      if (persistentDepthQueryContext?.kind === \"physics\") updatePersistentDepthQueryPopup();\n      if (typeof setFloodFrameStatus === \"function\") setFloodFrameStatus(currentFloodLayer ? \"Loading the next flood map\u2026 Previous frame shown.\" : \"Loading flood map\u2026\", \"loading\");\n      return lastRenderToken;\n    }\n\n    function clearFloodLayer() {\n",
           "afterSource": "      }\n      if (typeof floodFrameState !== \"undefined\") floodFrameState = \"loading\";\n      document.body.dataset.floodFrame = \"loading\";\n      if (persistentDepthQueryContext?.kind === \"physics\") updatePersistentDepthQueryPopup();\n      if (typeof setFloodFrameStatus === \"function\") setFloodFrameStatus(currentFloodLayer ? \"\" : \"\", \"loading\");\n      return lastRenderToken;\n    }\n\n    function clearFloodLayer() {\n"
+        },
+        {
+          "beforeSource": "      try {\n        toast(\"\");\n        ensureMap();\n\n        const match = document.body.dataset.initialFloodFrame === \"loading\" && mode === \"depth\"\n          ? await getOverlayRecord(mode, stageValue, phase)\n          : await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);\n        if (token !== lastRenderToken) return;\n\n        if (!match) {\n          toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);\n",
+          "afterSource": "      try {\n        toast(\"\");\n        ensureMap();\n\n        const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);\n        if (token !== lastRenderToken) return;\n\n        if (!match) {\n          toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);\n"
         },
         {
           "beforeSource": "          currentSelectedSubLabel = \"\";\n          currentRangeLabel = \"\";\n          syncSliderBounds();\n          renderSelectionMeta(null, null, null);\n          document.getElementById(\"stageSubText\").textContent = \"Loading forecast\u2026\";\n          renderTimelineMeta();\n          renderTimelineDays();\n        }\n        try {\n",
@@ -72,7 +76,7 @@
     {
       "source": "index.html",
       "beforeSha256": "a3218d515bec9373f18bdb100373e57cb8872ea1863b0d881d02c1340faa4022",
-      "afterSha256": "34827475441f764aa4ab024068cbc8604fa085d2362e401d7a8886d44881af53",
+      "afterSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
       "changes": [
         {
           "beforeSource": "<!-- nww:style:style-078 -->\n<!-- nww:style:style-079 -->\n<!-- nww:style:style-080 -->\n<!-- nww:style:style-081 -->\n</head>\n<body data-county-viewport=\"20261017\" data-county-mobile=\"20261015\" data-county-fix=\"20261015\" class=\"nw-app-loading\" data-flood-frame-cache=\"bounded-composites-20261008\" data-flood-frame-swap=\"decode-before-swap-20261008\" data-shorelysafe-ui=\"20261017\" data-flood-frame-resilience=\"retain-retry-20261013\" data-floodmapper-reference=\"20261017\" data-fleet-viewport-existing=\"true\" data-floodmapper-unified=\"20261017.3\">\n  <div id=\"nwSiteLoader\" role=\"status\" aria-live=\"polite\" aria-label=\"Loading North Wildwood Flood Mapper\">\n    <div class=\"nw-loader-card\">\n      <div class=\"nw-loader-spinner\" aria-hidden=\"true\"></div>\n      <div class=\"nw-loader-eyebrow\">ShorelySafe</div>\n      <h1>North Wildwood Flood Mapper</h1>\n      <p id=\"nwLoaderStatus\" class=\"nw-loader-status\">Preparing forecast and map data\u2026</p>\n      <div class=\"nw-loader-progress\" aria-hidden=\"true\"><span id=\"nwLoaderProgress\"></span></div>\n      <button id=\"nwLoaderRetry\" type=\"button\" hidden>Retry loading map</button>\n    </div>\n  </div>\n",
@@ -84,7 +88,7 @@
         },
         {
           "beforeSource": "  </div>\n\n\n\n  <script src=\"assets/north-wildwood-loading.js?v=20261027-lines1\"></script>\n  <script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=2642dbd987d5d46c\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n\n",
-          "afterSource": "  </div>\n\n\n\n  <script src=\"assets/north-wildwood-loading.js?v=d7288f205d13c615\"></script>\n  <script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=3887aa60660ccbb6\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n\n"
+          "afterSource": "  </div>\n\n\n\n  <script src=\"assets/north-wildwood-loading.js?v=d7288f205d13c615\"></script>\n  <script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js\"></script>\n  <script src=\"https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js\"></script>\n  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=28cea3996d8987cf\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n\n\n"
         },
         {
           "beforeSource": "<script defer src=\"assets/north-wildwood-mobile.js?v=20261026-holistic1\"></script>\n\n<script src=\"assets/export-area.js?v=ee1e14cc57fb8b8e\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=098491bc170e7926\" id=\"floodmapper-export-date-time-picker\"></script>\n\n\n\n<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp \u00b7 North Wildwood \u00b7 approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station \u00b7 North Wildwood \u00b7 approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider\u2019s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n<script id=\"shorelysafeWebcamsScript\" data-nww-script=\"script-008\" src=\"./assets/app/webcams.js?v=e1bbfab87b236882\"></script>\n\n<script id=\"county-buildings-20261015\" data-nww-script=\"script-009\" src=\"./assets/app/county-buildings.js?v=e5e8b97fc74cbcc7\"></script>\n\n<script id=\"shorelysafe-visible-brand-controller-20261015\" data-nww-script=\"script-010\" src=\"./assets/app/branding.js?v=5218502b14ba05c5\"></script>\n",
@@ -261,6 +265,17 @@
         {
           "beforeSource": "        element.addEventListener(\"click\", event => { event.stopPropagation(); showCamera(camera, element); });\n        element.addEventListener(\"dblclick\", event => event.stopPropagation());\n        return new maplibregl.Marker({ element, anchor: \"center\", pitchAlignment: \"viewport\", rotationAlignment: \"viewport\", opacityWhenCovered: 1 }).setLngLat([camera.lng, camera.lat]).addTo(currentGl);\n      });\n    }\n    if (enabled) mountPanel();\n  }\n\n",
           "afterSource": "        element.addEventListener(\"click\", event => { event.stopPropagation(); showCamera(camera, element); });\n        element.addEventListener(\"dblclick\", event => event.stopPropagation());\n        return new maplibregl.Marker({ element, anchor: \"center\", pitchAlignment: \"viewport\", rotationAlignment: \"viewport\", opacityWhenCovered: 1 }).setLngLat([camera.lng, camera.lat]).addTo(currentGl);\n      });\n      currentGl.on(\"idle\", refreshGlMarkerPositions);\n    }\n    if (enabled) mountPanel();\n  }\n\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/20-timeline-rendering.js",
+      "beforeSha256": "1433f848e498d88a5cbe3f64875064408ff71335c466ad99156c3d1a60775b2c",
+      "afterSha256": "bfdb52f38a25f1b0c31e5a98de772b5d418238457f823fe241f9ec7ba197d20e",
+      "changes": [
+        {
+          "beforeSource": "      try {\n        toast(\"\");\n        ensureMap();\n\n        const match = document.body.dataset.initialFloodFrame === \"loading\" && mode === \"depth\"\n          ? await getOverlayRecord(mode, stageValue, phase)\n          : await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);\n        if (token !== lastRenderToken) return;\n\n        if (!match) {\n          toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);\n",
+          "afterSource": "      try {\n        toast(\"\");\n        ensureMap();\n\n        const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);\n        if (token !== lastRenderToken) return;\n\n        if (!match) {\n          toast(`Overlay missing for ${stageValue.toFixed(1)} ft. Check your folder path or file naming.`);\n"
         }
       ]
     }

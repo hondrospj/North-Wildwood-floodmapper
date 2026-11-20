@@ -66,7 +66,9 @@ assert.match(extractFunction("syncMobileControlsLayout"), /getElementById\("mobi
 assert.match(source, /#legendDock\[data-legend-mode="dynamic"\][\s\S]+font-size:16px !important/);
 assert.match(source, /deferPhysicsCatalog: true/);
 assert.match(extractFunction("reloadAll"), /renderHour\(currentHourIndex\)[\s\S]+waitForInitialFramePaint\(\)[\s\S]+scheduleForecastCatalogWarmup\(\)/);
-assert.match(extractFunction("setFloodLayer"), /initialFloodFrame === "loading"[\s\S]+getOverlayRecord/);
+const setFloodLayer = extractFunction("setFloodLayer");
+assert.match(setFloodLayer, /getHydraulicOverlayRecord\(mode, stageValue, phase, entry, series\)/);
+assert.doesNotMatch(setFloodLayer, /getOverlayRecord\(/);
 assert.doesNotMatch(extractFunction("scheduleHistoricalTopTideWarmup"), /"dynamic"/);
 
 // Only the resolved depth frame's green pixels may replace stage colors.
