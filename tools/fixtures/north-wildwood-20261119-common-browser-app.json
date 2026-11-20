@@ -238,6 +238,43 @@
       ]
     },
     {
+      "source": "assets/app/webcams.js",
+      "beforeSha256": "fe85ef738394f52dc1dea6508249a4e177c871c271163517f6ffb31d6926b5a3",
+      "afterSha256": "1e1b6bf11b61a2d91b445afe7688b175f13bc88d8e1e3181e84df23be08780c3",
+      "edits": [
+        [
+          5542,
+          6034,
+          "    for (const id of [\"topBanner\", \"topBar\", \"mapTitleBadge\", \"mobileControlsToggle\"]) {\n"
+        ],
+        [
+          6744,
+          7134,
+          "    const bottom = Math.min(rect.bottom, viewportTop + viewportHeight, dock?.height ? dock.top : Infinity);\n"
+        ],
+        [
+          7945,
+          8030,
+          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n    if (overlay && !panel.hidden && controls?.getClientRects().length) {\n"
+        ],
+        [
+          8685,
+          8795,
+          "    const maxHeight = overlay ? Math.max(1, viewportBottom - panelTop - 8) : available;\n"
+        ],
+        [
+          9819,
+          10120,
+          "    if (opening) requestAnimationFrame(() => {\n      if (!panel.hidden && selected === camera) closeButton.focus({ preventScroll: true });\n    });\n"
+        ],
+        [
+          18899,
+          19048,
+          "  [\"topBanner\", \"mapTitleBadge\", \"mobileControlsToggle\", \"legendDock\", \"timelineDock\"].map(id => document.getElementById(id))\n"
+        ]
+      ]
+    },
+    {
       "source": "assets/export-preview.js",
       "beforeSha256": "b86f3dab1a927cad2b97db0019e713ec9ad7c9b378fa59528ffc766d9e40a121",
       "afterSha256": "f79e49b9837b59d2f2c27f58cf4b92fc3e7727ad52b8c7c0286633324d421314",
@@ -351,7 +388,7 @@
     {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "11e70d3f507620b0f9ec41b6923d9b7a844cb497ef1e3affe754b55564c5f6fb",
+      "afterSha256": "0e08ddc5fda9d5e50fb3b9323cf12d57b90756fd8152a9d03585dbd25d303203",
       "edits": [
         [
           115,
@@ -405,8 +442,8 @@
         ],
         [
           82791,
-          84005,
-          "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n"
+          84131,
+          "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n<script id=\"shorelysafeWebcamsScript\" data-nww-script=\"script-008\" src=\"./assets/app/webcams.js?v=fe85ef738394f52d\"></script>\n"
         ],
         [
           84418,
@@ -803,6 +840,43 @@
           17851,
           18093,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/webcams.js",
+      "beforeSha256": "fe85ef738394f52dc1dea6508249a4e177c871c271163517f6ffb31d6926b5a3",
+      "afterSha256": "1e1b6bf11b61a2d91b445afe7688b175f13bc88d8e1e3181e84df23be08780c3",
+      "edits": [
+        [
+          5542,
+          6034,
+          "    for (const id of [\"topBanner\", \"topBar\", \"mapTitleBadge\", \"mobileControlsToggle\"]) {\n"
+        ],
+        [
+          6744,
+          7134,
+          "    const bottom = Math.min(rect.bottom, viewportTop + viewportHeight, dock?.height ? dock.top : Infinity);\n"
+        ],
+        [
+          7945,
+          8030,
+          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n    if (overlay && !panel.hidden && controls?.getClientRects().length) {\n"
+        ],
+        [
+          8685,
+          8795,
+          "    const maxHeight = overlay ? Math.max(1, viewportBottom - panelTop - 8) : available;\n"
+        ],
+        [
+          9819,
+          10120,
+          "    if (opening) requestAnimationFrame(() => {\n      if (!panel.hidden && selected === camera) closeButton.focus({ preventScroll: true });\n    });\n"
+        ],
+        [
+          18899,
+          19048,
+          "  [\"topBanner\", \"mapTitleBadge\", \"mobileControlsToggle\", \"legendDock\", \"timelineDock\"].map(id => document.getElementById(id))\n"
         ]
       ]
     },

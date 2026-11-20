@@ -121,7 +121,13 @@
     if (!container) return;
     const rect = container.getBoundingClientRect();
     let top = innerWidth <= 900 ? 120 : 140;
-    for (const id of ["topBanner", "topBar", "mapTitleBadge", "mobileControlsToggle"]) {
+    const controls = document.getElementById("mobileControlsToggle");
+    const hasToolbar = document.documentElement.matches(".county-compact[data-nww-phone]");
+    const toolbar = hasToolbar && controls?.getClientRects().length &&
+      getComputedStyle(controls).visibility !== "hidden" ? controls.getBoundingClientRect() : null;
+    const headerIds = ["topBanner", "topBar", "mapTitleBadge"];
+    if (!hasToolbar) headerIds.push("mobileControlsToggle");
+    for (const id of headerIds) {
       const element = document.getElementById(id);
       if (!element || !element.getClientRects().length || getComputedStyle(element).visibility === "hidden") continue;
       const box = element.getBoundingClientRect();
@@ -133,7 +139,11 @@
     const viewportHeight = viewport?.height || innerHeight;
     const viewportWidth = viewport?.width || innerWidth;
     const dock = document.getElementById("timelineDock")?.getBoundingClientRect();
-    const bottom = Math.min(rect.bottom, viewportTop + viewportHeight, dock?.height ? dock.top : Infinity);
+    const viewportBottom = viewportTop + viewportHeight;
+    // Keep the camera scrollable above the map actions in short mobile windows.
+    // Resizing the same panel preserves the live iframe and its keyboard focus.
+    const toolbarTop = toolbar?.height ? toolbar.top : Infinity;
+    const bottom = Math.min(rect.bottom, viewportBottom, dock?.height ? dock.top : Infinity, toolbarTop);
     const available = bottom - rect.top - top - 12;
     // A short window cannot fit a player between the header and timeline.
     // Give the same viewer its own scrollable viewport above those controls.
@@ -145,9 +155,7 @@
     panel.style.left = `${(visibleLeft + visibleRight) / 2}px`;
     panel.style.maxWidth = `${Math.max(1, visibleRight - visibleLeft - 16)}px`;
     let panelTop = overlay ? viewportTop + 8 : rect.top + top;
-    const viewportBottom = viewportTop + viewportHeight;
-    const controls = document.getElementById("mobileControlsToggle");
-    if (overlay && !panel.hidden && controls?.getClientRects().length) {
+    if (overlay && !toolbar && !panel.hidden && controls?.getClientRects().length) {
       const viewer = panel.getBoundingClientRect();
       const key = document.body.classList.contains("mobile-legend-open") ? null : document.getElementById("legendDock");
       for (const control of [controls, key]) {
@@ -159,7 +167,7 @@
       }
     }
     panel.style.top = `${panelTop}px`;
-    const maxHeight = overlay ? Math.max(1, viewportBottom - panelTop - 8) : available;
+    const maxHeight = overlay ? Math.max(1, Math.min(viewportBottom, toolbarTop) - panelTop - 8) : available;
     panel.style.maxHeight = `${maxHeight}px`;
     panel.style.setProperty("--webcam-panel-height", `${maxHeight}px`);
   }
@@ -187,9 +195,13 @@
     panel.hidden = false;
     dismissMobileControls();
     loadPlayer(camera);
-    if (opening) requestAnimationFrame(() => {
-      if (!panel.hidden && selected === camera) closeButton.focus({ preventScroll: true });
-    });
+    if (opening) {
+      const openerFocus = document.activeElement;
+      requestAnimationFrame(() => {
+        if (!panel.hidden && selected === camera && document.activeElement === openerFocus &&
+            !panel.contains(openerFocus)) closeButton.focus({ preventScroll: true });
+      });
+    }
   }
 
   function closeCamera(restoreFocus) {
@@ -348,7 +360,7 @@
   window.visualViewport?.addEventListener("resize", () => { if (!panel.hidden) mountPanel(); });
   window.visualViewport?.addEventListener("scroll", () => { if (!panel.hidden) mountPanel(); });
   const layoutObserver = new ResizeObserver(() => { if (!panel.hidden) mountPanel(); });
-  ["topBanner", "mapTitleBadge", "mobileControlsToggle", "legendDock", "timelineDock"].map(id => document.getElementById(id))
+  ["topBanner", "mapTitleBadge", "mobileControlsToggle", "legendDock", "timelineDock", "mapClickModeControl"].map(id => document.getElementById(id))
     .filter(Boolean).forEach(el => layoutObserver.observe(el));
   window.addEventListener("pagehide", () => setEnabled(false));
   window.addEventListener("pageshow", event => { if (event.persisted) setEnabled(false); });
