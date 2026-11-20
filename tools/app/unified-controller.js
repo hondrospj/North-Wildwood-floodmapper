@@ -21,6 +21,32 @@
  function flag(e,name,value){if(e&&e.classList.contains(name)!==!!value)e.classList.toggle(name,!!value);}
  function leaflet(){return typeof map!=='undefined'?map:null;}
  function standalone(){return window.COUNTY_STANDALONE_3D?.getMap?.()||null;}
+ let boundAttribution=null;
+ function bindMapCredits(){
+  const mapInstance=leaflet();
+  const attribution=mapInstance?.attributionControl;
+  const source=attribution?.getContainer();
+  const disclosure=document.getElementById('mapCredits');
+  const credits=document.getElementById('mapCreditsSources');
+  if(!source||!disclosure||!credits||boundAttribution===attribution)return;
+  boundAttribution=attribution;
+  attribution.setPrefix(false);
+  const sync=()=>{
+   credits.replaceChildren(...Array.from(source.childNodes,child=>child.cloneNode(true)));
+   body.toggleAttribute('data-nww-credits-ready',Boolean(source.textContent.trim()));
+  };
+  sync();
+  new MutationObserver(sync).observe(source,{childList:true,characterData:true,subtree:true});
+  mapInstance.on('movestart click',()=>{disclosure.open=false;});
+  mobile.addEventListener('change',()=>{disclosure.open=false;});
+  disclosure.addEventListener('keydown',event=>{
+   if(event.key==='Escape'&&disclosure.open){
+    event.preventDefault();
+    disclosure.open=false;
+    disclosure.querySelector('summary')?.focus();
+   }
+  });
+ }
  function selectSection(group,focus=false){
   if(!Object.hasOwn(groups,group))group='forecast';const changed=chosenSection!==group;chosenSection=group;
   for(const card of document.querySelectorAll('#townAddressCard,#downloadCard'))attr(card,'data-nww-group',group==='map'?'map':'tools');
@@ -117,7 +143,7 @@
   const downloadCard=document.getElementById('downloadCard');if(downloadCard?.getAttribute('role')==='button'){downloadCard.removeAttribute('role');downloadCard.removeAttribute('tabindex');downloadCard.removeAttribute('aria-label');}
   for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);
   text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');
-  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');
+  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the Flood Mapper Tour');
   const opacity=panel.querySelector('.opacity-card .control-row'),opacityText=document.getElementById('opacityText');if(opacity&&opacityText&&opacityText.parentElement!==opacity)opacity.append(opacityText);
   attr(document.getElementById('opacitySlider'),'aria-label','Flood overlay opacity');attr(document.getElementById('hourSlider'),'aria-label',body.classList.contains('observed-mode')?'Observed flood time':body.classList.contains('return-interval-mode')?'Modeled flood time':'Flood forecast time');
   Object.entries(groups).forEach(([group,selector])=>document.querySelectorAll(selector).forEach(e=>{if(e.dataset.nwwGroup!==group)e.dataset.nwwGroup=group;}));
@@ -144,6 +170,7 @@
   frame=0;
   const previousFocus=document.activeElement;
   normalize();
+  bindMapCredits();
   const focusAfterMove=reparent(previousFocus);
   layoutPasses++;
   const compact=mobile.matches;
@@ -156,12 +183,12 @@
    const computed=getComputedStyle(safeProbe),safe={top:parseFloat(computed.paddingTop)||0,right:parseFloat(computed.paddingRight)||0,bottom:parseFloat(computed.paddingBottom)||0,left:parseFloat(computed.paddingLeft)||0};
    const top=Math.max(0,viewport.offsetTop||0)+safe.top+8,left=Math.max(0,viewport.offsetLeft||0)+safe.left+8,right=Math.max(0,innerWidth-(viewport.offsetLeft||0)-(viewport.width||innerWidth))+safe.right+8,bottom=Math.max(0,innerHeight-(viewport.offsetTop||0)-(viewport.height||innerHeight))+safe.bottom+8;
    for(const [key,value]of Object.entries({top,left,right,bottom,height:Math.max(1,(viewport.height||innerHeight)-16)})){const valueText=value.toFixed(2)+'px';if(body.style.getPropertyValue('--cm-'+key)!==valueText)body.style.setProperty('--cm-'+key,valueText);}
-   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);
+   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'var(--nww-drawer-max, none)',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);
    const header=panel.querySelector('#nwwMobileControlHeader');
    if(body.classList.contains('mobile-controls-open')&&header){
     set(panel,'scroll-padding-top',`${Math.max(136,Math.ceil(header.getBoundingClientRect().height)+8)}px`);
    }else panel.style.removeProperty('scroll-padding-top');
-   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');
+   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');for(const size of ['height','min-height','max-height'])set(timeline,size,'var(--nww-phone-dock-height, 180px)');
    for(const e of [document.getElementById('nwDefaultNavControl'),document.getElementById('countyStandaloneView')])if(e)for(const key of ['left','right','top'])e.style.removeProperty(key);
    const title=document.getElementById('mapTitleBadge');for(const key of ['left','right','top','max-width','transform'])title?.style.removeProperty(key);
    const focused=document.activeElement;if(body.classList.contains('mobile-controls-open')&&focused?.matches('input,textarea,select')&&panel.contains(focused)){const r=focused.getBoundingClientRect(),p=panel.getBoundingClientRect();if(r.bottom>p.bottom-20||r.top<p.top+130)requestAnimationFrame(()=>focused.scrollIntoView({block:'nearest',inline:'nearest'}));}

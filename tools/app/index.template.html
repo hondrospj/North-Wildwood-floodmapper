@@ -1,8 +1,11 @@
 
 <!doctype html>
 <!-- The app owns timeline metadata and legend placement; skip the hosting legacy controller. -->
-<html lang="en" data-nww-avalon-timeline data-nww-mobile-layout data-ss-ui-ready="app">
+<html lang="en" data-nww-avalon-timeline data-nww-mobile-layout data-nww-phone data-ss-ui-ready="app">
 <head>
+<meta charset="utf-8">
+<style>@layer north-wildwood-phone;</style>
+<link rel="stylesheet" href="./assets/north-wildwood-phone.css?v=shared">
 <template id="floodmapperTownData"><!-- floodmapper:profile --></template>
 <link rel="stylesheet" href="./assets/north-wildwood-font.css?v=44bc78225f5bedbc">
 <link rel="preconnect" href="https://hondrospj.github.io" crossorigin>
@@ -34,7 +37,6 @@
 <link rel="stylesheet" href="assets/north-wildwood-timeline.css?v=20261021-tablet1">
 <!-- nww:script:script-002 -->
 
-<meta charset="utf-8" />
   <title><!-- floodmapper:page-title --></title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <!-- nww:script:script-003 -->
@@ -365,7 +367,7 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
           </a>
         </section>
 
-        <button id="mapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-rail" type="button">Take the FloodMapper tour</button>
+        <button id="mapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-rail" type="button">Take the Flood Mapper Tour</button>
 
         <section class="rail-card layers-card nww-layers-card">
           <div class="rail-head">
@@ -526,7 +528,17 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
     </main>
   </div>
 
-  <button id="mobileMapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-mobile" type="button" aria-haspopup="dialog" data-html2canvas-ignore="true">Take the FloodMapper tour</button>
+  <div id="nwwMobileUtilities">
+    <button id="mobileMapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-mobile" type="button" aria-haspopup="dialog" data-html2canvas-ignore="true">Take the Flood Mapper Tour</button>
+  
+    <details id="mapCredits" data-html2canvas-ignore="true">
+      <summary><span class="nww-map-credit-provider">Esri ·&nbsp;</span>Map credits</summary>
+      <div>
+        <div id="mapCreditsSources"></div>
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap licence</a>
+      </div>
+    </details>
+  </div>
 
   <div id="mapperTutorial" class="mapper-tutorial" hidden aria-hidden="true">
     <div id="mapperTutorialSpotlight" class="mapper-tutorial-spotlight" aria-hidden="true"></div>
