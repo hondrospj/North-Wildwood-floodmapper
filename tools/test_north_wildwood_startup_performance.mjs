@@ -33,21 +33,23 @@ function extractFunction(name, sourceText = source) {
   throw new Error(`Unterminated browser function ${name}`);
 }
 
-const parserBlockingScripts = [...source.matchAll(/<script\s+src="([^"]+)"/g)].map(match => match[1].replace(/&(?:county|stability)=[^&]+/g, ''));
+const parserBlockingScripts = [...source.matchAll(/<script\s+src="([^"]+)"(?![^>]*\bdefer\b)/g)].map(match => match[1].replace(/&(?:county|stability)=[^&]+/g, ''));
 assert.deepEqual(parserBlockingScripts, [
   `assets/north-wildwood-loading.js?v=${loaderVersion}`,
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
   `assets/road-labels.js?v=${roadVersion}`,
-  `./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&roadlabels=20261030-v1&deep=${rendererVersion}`,
+  `./assets/app/raster-readers.js?v=${contentVersion(readAsset("assets/app/raster-readers.js"))}`,
+  `./assets/app/hydraulic-catalog.js?v=${contentVersion(readAsset("assets/app/hydraulic-catalog.js"))}`,
+  `./assets/3d/north-wildwood-3d.js?v=${rendererVersion}`,
   `./assets/road-impacts.js?v=${roadImpactsVersion}`,
   "assets/avalon-mobile.js?v=20261026-holistic1",
   `assets/export-area.js?v=${areaVersion}`,
 ]);
 
 assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+jszip[\s\S]+geotiff/);
-assert.match(source, /html2canvas: new URL\("assets\/vendor\/html2canvas-1\.4\.1\.min\.js", APP_BASE\)\.href/);
+assert.match(source, /html2canvas: new URL\("vendor\/html2canvas-1\.4\.1\.min\.js", UI_ASSET_BASE\)\.href/);
 assert.match(extractFunction("downloadCurrentSelection"), /await awaitRasterRequest\(ensureExportLibraries\(format, frameItems\.length\)\)/);
 assert.match(extractFunction("getDepthQueryImage"), /await ensureDepthQueryLibrary\(\)/);
 
@@ -136,6 +138,6 @@ for (const warmCamera of [undefined, false, "core", "deferred"]) {
 console.log("North Wildwood startup performance checks passed");
 
 const gifWorkerVersion = contentVersion(readAsset("assets/vendor/gif.worker.js"));
-assert.ok(source.includes(`GIF_WORKER_URL = new URL("assets/vendor/gif.worker.js?v=${gifWorkerVersion}", APP_BASE).href`));
+assert.ok(source.includes(`GIF_WORKER_URL = new URL("vendor/gif.worker.js?v=${gifWorkerVersion}", UI_ASSET_BASE).href`));
 assert.match(source, /function createStreamingGifEncoder\(/);
 assert.doesNotMatch(source, /loadOptionalScript\("gif"/);

@@ -6,11 +6,9 @@ import { readAppSource } from './app_source.mjs';
 
 const source = readAppSource(new URL('../index.html', import.meta.url));
 const officialBoundary = JSON.parse(fs.readFileSync(new URL('../Boundaries/North Wildwood.geojson', import.meta.url), 'utf8'));
-const townConfigSource = fs.readFileSync(new URL('./app/town-config.js', import.meta.url), 'utf8');
-const configContext = vm.createContext({});
-vm.runInContext(townConfigSource.slice(0, townConfigSource.indexOf('applyTownConfig(TOWN_CONFIG)')), configContext);
+const townConfig = JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
 const plain = value => JSON.parse(JSON.stringify(value));
-assert.deepEqual(plain(configContext.TOWN_CONFIG.boundary.startupFeature), officialBoundary,
+assert.deepEqual(plain(townConfig.boundary.startupFeature), officialBoundary,
   'The synchronous boundary must be the same official polygon as the published GeoJSON, not an approximation');
 
 function extractFunction(name) {
@@ -121,7 +119,7 @@ function harness() {
 // The first Leaflet draw already has the exact town outline and its cutout.
 {
   const h = harness();
-  h.context.applyTownConfig(configContext.TOWN_CONFIG);
+  h.context.applyTownConfig(townConfig);
   assert.deepEqual(plain(h.context.municipalBoundaryFeature), officialBoundary);
   const ring = h.context.municipalBoundaryRings[0];
   assert.ok(ring.length > 100, 'The startup outline must retain the real shoreline, not a bounding rectangle');
@@ -157,10 +155,10 @@ function harness() {
 {
   const h = harness();
   const extent = bounds => plain([bounds.getSouthWest(),bounds.getNorthEast()]);
-  h.context.TOWN_CONFIG = configContext.TOWN_CONFIG;
+  h.context.TOWN_CONFIG = townConfig;
   vm.runInContext(extractFunction('getBoundaryDrivenOverlayBounds'), h.context);
   const originalExtent = extent(h.context.getBoundaryDrivenOverlayBounds());
-  const {lat,lon} = configContext.TOWN_CONFIG.map.center;
+  const {lat,lon} = townConfig.map.center;
   assert.deepEqual(originalExtent, [
     {lat:lat - 0.03,lng:lon - 0.04},
     {lat:lat + 0.03,lng:lon + 0.04},

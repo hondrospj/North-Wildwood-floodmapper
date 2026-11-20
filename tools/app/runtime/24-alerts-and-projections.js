@@ -311,17 +311,17 @@
       const crawlspaceDepth = Number(p.foundationHeightFt ?? p.nsi2026FoundationHeightFt);
       const stage = getSelectedStageNavd88();
       const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;
-      const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
+      const address = escapeTownAddressHtml(p.address || `Selected ${TOWN_CONFIG.site.name} parcel`);
       const focusRestoreKey = p.parcelId == null ? "" : ` data-focus-restore-key="${escapeTownAddressHtml("parcel-profile:" + p.parcelId)}"`;
       const waterStatus = !Number.isFinite(firstFloor)
-        ? null
+        ? ""
         : difference == null
-          ? "Choose a water level to compare."
-          : Math.abs(difference) <= 0.1
-            ? "Current water is at the estimated occupied floor."
-            : difference > 0
-              ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`
-              : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;
+        ? "Choose a water level to compare."
+        : Math.abs(difference) <= 0.1
+          ? "Current water is at the estimated occupied floor."
+          : difference > 0
+            ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`
+            : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;
       return '<div class="house-alert-popup building-info-card">' +
         '<span class="house-alert-kicker">Building</span>' +
         '<h3>' + address + '</h3>' +
@@ -643,7 +643,7 @@
       if (!backdrop || !body) return;
       const parcel = kind === "parcel";
       const properties = feature.properties || {};
-      address.textContent = properties.address || "Selected North Wildwood parcel";
+      address.textContent = properties.address || `Selected ${TOWN_CONFIG.site.name} parcel`;
       document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
       const help = document.getElementById("floodHistoryHelpText");
       help.textContent = parcel

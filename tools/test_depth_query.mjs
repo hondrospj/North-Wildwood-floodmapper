@@ -11,18 +11,7 @@ const extract=name=>{
   assert.ok(match,`Missing ${name}`);return match[0];
 };
 // Parse the actual town configuration without evaluating the whole application.
-const marker='TOWN_CONFIG = {';
-const start=html.lastIndexOf(marker)+marker.length-1;
-assert.ok(start>=marker.length-1,'Town configuration is missing');
-let depth=0,quoted=false,escaped=false,end=-1;
-for(let i=start;i<html.length;i++){
-  const c=html[i];
-  if(quoted){if(escaped)escaped=false;else if(c==='\\')escaped=true;else if(c==='"')quoted=false;}
-  else if(c==='"')quoted=true;
-  else if(c==='{')depth++;
-  else if(c==='}'&&!--depth){end=i+1;break;}
-}
-const config=JSON.parse(html.slice(start,end));
+const config = JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
 const overlay=config.overlays||{};
 assert.ok(overlay.depthQueryPngPath,'Clickable depth requires a configured packed query grid');
 assert.ok(overlay.worldFileCornersWgs84||overlay.boundsWgs84,'Query grid georeferencing is missing');

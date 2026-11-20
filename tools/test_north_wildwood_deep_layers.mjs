@@ -50,6 +50,7 @@ function fixture({ metadataGate, nsiGate, wrappers = false } = {}) {
   const features = [{ geometry: { type: 'Polygon', coordinates: [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]] }, properties: { centroidLat: 1, centroidLon: 1 } }];
   const map = { hasLayer: layer => layers.has(layer), removeLayer: layer => layers.delete(layer) };
   const context = vm.createContext({ console, Promise, Error, Number, Boolean,
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config,
     window: { setTimeout(fn, ms) { timers.set(++nextTimer, { fn, ms }); return nextTimer; }, clearTimeout: id => timers.delete(id) },
     document: { getElementById: element }, map, ensureMap() {}, toast: value => notices.push(value),
     parcelLoadPromise: null, parcelsLayer: null, parcelFeatures: [], parcelLayerGeneration: 0,

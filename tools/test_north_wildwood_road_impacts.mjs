@@ -68,6 +68,7 @@ function fixture(fetchResponse,{physics=false,restoredUi=false,shortDeadline=fal
     }
   };
   vm.createContext(ctx);vm.runInContext(fetchJsonSource,ctx);vm.runInContext(source,ctx);
+  ctx.installRoadImpacts(JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config);
   return {ctx,api:ctx.window.NORTH_WILDWOOD_ROAD_IMPACTS,fetchCount:()=>fetchCount,leaf:()=>leaf,elements,depths,physicsValues,
     activateGl(){classSet.add('map-3d-ready');observer();},glSources,glLayers};
 }

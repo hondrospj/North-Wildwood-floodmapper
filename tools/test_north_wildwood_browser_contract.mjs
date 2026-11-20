@@ -10,6 +10,7 @@ import path from "node:path";
 
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const townProfile = JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
 const SOURCE = readAppSource(path.join(HERE, "..", "index.html"));
 const THREE_D_SOURCE = fs.readFileSync(path.join(HERE, "..", "assets", "3d", "north-wildwood-3d.js"), "utf8");
 const THREE_D_BUILDINGS = JSON.parse(fs.readFileSync(
@@ -37,7 +38,8 @@ assert.ok(
 );
 assert.match(THREE_D_BUILDINGS.metadata.municipalityFilter, /official North Wildwood boundary/);
 assert.match(THREE_D_BUILDINGS.metadata.geometrySources, /OSM major/);
-assert.match(THREE_D_SOURCE, /buildings3dCoverage = "north-wildwood-only"/);
+assert.equal(townProfile.compatibility.buildingsCoverage, "north-wildwood-only");
+assert.match(THREE_D_SOURCE, /buildings3dCoverage = TOWN_CONFIG\.compatibility\.buildingsCoverage/);
 assert.match(THREE_D_SOURCE, /buildings3dClippedToMunicipality = "true"/);
 assert.match(THREE_D_SOURCE, /MUNICIPAL_BOUNDARY_3D_URL = TOWN_CONFIG\?\.boundary\?\.boundaryUrl \? new URL\(TOWN_CONFIG\.boundary\.boundaryUrl, APP_BASE\)\.href : ""/);
 assert.match(SOURCE, /"boundaryUrl"\s*:\s*"(?:\.\/)?Boundaries\/North Wildwood\.geojson"/);
@@ -56,7 +58,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20261009-conflicts-1/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=[a-f0-9]{16}/);
 assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
@@ -720,9 +722,9 @@ for (const host of [
       const directRoot = new URL(atlas, "https://hondrospj.github.io/North-Wildwood-floodmapper/").href;
       const legacyRoot = `https://floodmapperv1.b-cdn.net/${family}/North%20Wildwood/v37/${suffix}`;
       const deliveryContext = vm.createContext({
+        TOWN_CONFIG: townProfile,
         URL,
         APP_BASE: new URL(host),
-        TOWN_CONFIG: { overlays: { stageCodeScale: 100, stageCodeWidth: 4 } },
         SITE_CONFIG: { depthPngPrefix: "NorthWildwoodDepth", stagePngPrefix: "NorthWildwoodStage" },
         OVERLAY_PHASE_ROOTS: { [mode]: { [phase]: [localRoot, legacyRoot] } },
         OVERLAY_ROOTS: { [mode]: [localRoot, legacyRoot] },
@@ -756,8 +758,8 @@ assert.equal(
   fs.statSync(path.join(BUNDLED_HYDRAULIC_ROOT, "COGs", "North Wildwood", "NorthWildwoodHydraulicQuery5ft.png")).size
 );
 assert.match(HYDRAULIC_ASSET_MANIFEST.eventHistoryDrainage.timelineBasis, /canonical 15-minute history/);
-assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
-assert.match(SOURCE, /"phaseInvariant": false/);
+assert.equal(townProfile.overlays.modelKind, "phase-aware developed-land conditional connectivity");
+assert.equal(townProfile.overlays.phaseInvariant, false);
 assert.match(SOURCE, /\/v37\//);
 assert.match(extractFunction("getDepthQueryDisplayDepth"), /connectionStageLimit/);
 const historicalWarmup=extractFunction("scheduleHistoricalTopTideWarmup");
@@ -983,8 +985,8 @@ assert.match(SOURCE, /id="mapClickBuildingBtn"[^>]+aria-label="Building Info"/);
 assert.match(SOURCE, /id="mapClickDepthBtn"[^>]+aria-label="Flood Depth"/);
 assert.match(SOURCE, /queryMode === "building" && parcelInfoInteractionEnabled\(\)/);
 assert.match(SOURCE, /north-wildwood-physics-forecast-v2/);
-assert.match(SOURCE, /"physicsForecastPointerPath": null/);
-assert.match(SOURCE, /"physicsForecastCyclePointerTemplatePath": null/);
+assert.equal(townProfile.overlays.physicsForecastPointerPath, null);
+assert.equal(townProfile.overlays.physicsForecastCyclePointerTemplatePath, null);
 assert.match(extractFunction("physicsPointerUrl"), /forecastData\?\.petssCycleUtc/);
 assert.match(extractFunction("physicsPointerUrl"), /replaceAll\("\{cycleId\}", cycleId\)/);
 assert.match(SOURCE, /function getPhysicsForecastDisplaySeries\(/);

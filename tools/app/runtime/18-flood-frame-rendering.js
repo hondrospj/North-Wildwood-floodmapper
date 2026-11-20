@@ -1,6 +1,6 @@
     function setFloodFrameStatus(message, state = "info") {
       if (state === "loading" || (state === "info" && /^Loading\b/i.test(String(message || "")))) message = "";
-      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== "Stone Harbor USGS").join(" • ");
+      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== `${TOWN_CONFIG.site.gaugeName} USGS`).join(" • ");
       const status = document.getElementById("floodFrameStatus");
       if (!status) return;
       status.dataset.frameMessage = String(message || "");
@@ -381,7 +381,7 @@ function getEntryESTDate(entry) {
         if (gaugeInoperable) {
           const outageHours = getDisplayedGaugeOutageHours(currentSeriesHours, group.start, group.end);
           btn.setAttribute("aria-label", `Gauge inoperable for more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} hours`);
-          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable North Wildwood or Stone Harbor gauge level`;
+          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable ${TOWN_CONFIG.observed?.gaugeOutageLabel ?? TOWN_CONFIG.site.gaugeName} gauge level`;
         }
         // The first and last frames occupy half a slider interval.
         const timelineFrameWeight = currentSeriesHours.length <= 1 ? 1

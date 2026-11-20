@@ -987,4 +987,3 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       applyMobileObservedOrdering();
       return result;
     };
-

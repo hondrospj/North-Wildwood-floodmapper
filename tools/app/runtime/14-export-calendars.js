@@ -241,7 +241,7 @@ function updateDownloadSummary() {
       const aspectConfig = getExportAspectConfig();
       const aspectLabel = aspectConfig.label;
       const resolutionLabel = format === "png" ? `, ${aspectConfig.resolutionLabel}` : "";
-      const extentLabel = getDownloadExtentValue() === "town" ? "Fill North Wildwood" : "Current View";
+      const extentLabel = getDownloadExtentValue() === "town" ? `Fill ${TOWN_CONFIG.site.name}` : "Current View";
       const speed = EXPORT_GIF_SPEEDS[getDownloadSpeedValue()]?.label || "Normal";
       const interval = getDownloadIntervalConfig();
       const frameLimit = getDownloadFrameLimit();

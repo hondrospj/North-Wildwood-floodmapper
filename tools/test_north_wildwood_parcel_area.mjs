@@ -11,6 +11,7 @@ const geometry = {
   ]
 };
 const ctx = vm.createContext({
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config,
   latLngToWorldFileUv: (lat, lon) => ({ u: lon, v: lat }),
   DRAINAGE_DEPTH_COLORS: [[125, 249, 255], [93, 231, 255]],
   DRAINAGE_DEPTH_BREAKS_FT: [.1, .25],

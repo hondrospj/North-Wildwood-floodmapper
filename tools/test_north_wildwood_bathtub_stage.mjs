@@ -29,6 +29,7 @@ const encodeGround = groundFt => {
 };
 
 const context = vm.createContext({
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config,
   MINOR_FLOOD_FT: 3.25,
   MODERATE_FLOOD_FT: 4.25,
   DRAINAGE_STAGE_COLORS: [[244, 167, 66], [231, 76, 60], [125, 60, 152]],

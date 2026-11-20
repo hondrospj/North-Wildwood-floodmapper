@@ -41,6 +41,7 @@ function setup() {
     return { once(_event, callback) {onRemove = callback;}, remove() {onRemove?.();} };
   }
   const context = vm.createContext({console, AbortController,
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config,
     document: {getElementById: el, body: {dataset: {}, classList: {contains() {return false;}}}},
     window: {NORTH_WILDWOOD_3D: {setAddressMarker() {}}},
     map: {hasLayer: l => layers.has(l), removeLayer: l => layers.delete(l), getZoom: () => 14,

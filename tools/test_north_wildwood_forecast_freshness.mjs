@@ -13,6 +13,7 @@ let now = cutoff;
 const status = {dataset:{}, style:{setProperty(){}}, textContent:'', hidden:true};
 const timers = new Map();
 const context = vm.createContext({
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config,
   Date: {parse:Date.parse, now:()=>now}, currentDataMode:'forecast', forecastData:data, currentFloodLayer:null,
   document: {getElementById:id=>id==='floodFrameStatus'?status:null},
   formatFixedESTFromUtc(value, includeYear) {assert.equal(includeYear,true);return value;},

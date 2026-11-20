@@ -15,6 +15,7 @@ function wrapper(first, next) {
   return source.slice(start, end);
 }
 function load(context, names) {
+  context.TOWN_CONFIG ??= JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
   vm.createContext(context);
   for (const name of names) vm.runInContext(extract(name), context);
   return context;

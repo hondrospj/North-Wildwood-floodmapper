@@ -31,6 +31,7 @@
     }
 
     async function ensureCanonicalDailyArchive() {
+      if (!CANONICAL_DAILY_URL) return null;
       if (canonicalDailyData) return canonicalDailyData;
       const generation = archiveGeneration;
       const payload = await fetchJson(CANONICAL_DAILY_URL, { cache: "default" });
@@ -292,10 +293,19 @@
 
     function validateArchiveDays(payload, source, { summary = false, year = null, indexedDates = [] } = {}) {
       const expectedInterval = source === "lewes" ? 60 : 15;
-      if (Number(payload?.intervalMinutes) !== expectedInterval) {
+      const legacyArchive = TOWN_CONFIG.observed?.archiveContract === "legacy";
+      const legacyIndex = legacyArchive && summary && /(?:^|-)observed-day-index-v[12]$/.test(String(payload?.schema || ""));
+      const intervalMinutes = payload?.intervalMinutes ?? (legacyIndex ? expectedInterval : NaN);
+      if (Number(intervalMinutes) !== expectedInterval) {
         throw new Error(`Invalid ${source} archive interval; expected ${expectedInterval} minutes.`);
       }
-      if (payload.source && payload.source !== source) throw new Error("Archive source mismatch.");
+      const primaryAlias = summary
+        ? String(payload.shardPathTemplate || "").match(/observed_archive\/([a-z0-9-]+)\/\{year\}\.json$/i)?.[1]
+        : observed15MinuteData?.source;
+      const publishedSource = legacyArchive ? (source === "lewes" ? configuredSurrogate().key : primaryAlias) : null;
+      if (payload.source && payload.source !== source && payload.source !== publishedSource) {
+        throw new Error("Archive source mismatch.");
+      }
       const expectedStation = source === "lewes" ? surrogateStationId() : String(TOWN_CONFIG?.observed?.usgsGaugeId);
       if (String(payload.stationId || payload.site) !== expectedStation) throw new Error("Archive gauge mismatch.");
       if (payload.datum && payload.datum !== "NAVD88") throw new Error("Archive datum mismatch.");
@@ -330,7 +340,7 @@
         }
         // The primary USGS index represents outages as explicit dates. The
         // Lewes index is legitimately sparse and must keep that coverage.
-        if (source === "stone-harbor" && dates.size !== (Date.parse(last) - Date.parse(first)) / 86400000 + 1) {
+        if (source === "stone-harbor" && (!legacyArchive || publishedArchive) && dates.size !== (Date.parse(last) - Date.parse(first)) / 86400000 + 1) {
           throw new Error("Primary archive is missing dates in its published bounds.");
         }
       }

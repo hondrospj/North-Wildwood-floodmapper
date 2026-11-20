@@ -11,7 +11,34 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readUnreviewedBytes = relative => fs.readFileSync(localPath(relative));
+const readReleaseBytes = relative => fs.readFileSync(localPath(relative));
+const SHARED_APP_PATH = "tools/fixtures/north-wildwood-20261119-common-browser-app.json";
+const priorSharedAppSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-shared-app-snapshot");
+const sharedAppText = readReleaseBytes(SHARED_APP_PATH);
+const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+assert.equal(hashReleaseBytes(sharedAppText), "bff044d57e3a5536de121994c83691964ddfe266c87cb404ff3f97fd923a4e82", "Retain the exact shared application inverse");
+const sharedApp = JSON.parse(sharedAppText);
+assert.equal(sharedApp.schemaVersion, 1);
+assert.equal(sharedApp.baselineCommit, "be43e3a29e9807658e6b19101371e374c29afa30");
+const sharedAppFiles = new Map(sharedApp.files.map(entry => [entry.source, entry]));
+function readUnreviewedBytes(relative) {
+  const bytes = readReleaseBytes(relative);
+  const entry = sharedAppFiles.get(relative);
+  if (priorSharedAppSnapshot || !entry) return bytes;
+  assert.equal(hashReleaseBytes(bytes), entry.afterSha256, `${relative}: only reviewed shared application changes`);
+  let restored = bytes;
+  for (const [start, end, before] of entry.edits.toReversed()) {
+    restored = Buffer.concat([restored.subarray(0, start), Buffer.from(before), restored.subarray(end)]);
+  }
+  assert.equal(hashReleaseBytes(restored), entry.beforeSha256, `${relative}: restore every prior application byte`);
+  return restored;
+}
+if (!priorSharedAppSnapshot) {
+  for (const file of sharedApp.files) readUnreviewedBytes(file.source);
+  for (const file of sharedApp.added) {
+    assert.equal(hashReleaseBytes(readReleaseBytes(file.source)), file.sha256, `${file.source}: reviewed shared asset`);
+  }
+}
 const QUIET_LOADING_PATH = "tools/fixtures/north-wildwood-20261119-quiet-loading.json";
 const quietLoadingText = readUnreviewedBytes(QUIET_LOADING_PATH).toString("utf8");
 assert.equal(createHash("sha256").update(quietLoadingText).digest("hex"), "9ba67035219d09477f1f3a6d93f59b15629f8edb71e600b9395f9685a53a8a1e", "Retain the exact quiet-loading inverse");
@@ -2635,6 +2662,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
       MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
       JOE_UI_PATH, ...joeUi.files.map(file => file.source), ...joeUi.added.map(file => file.source),
@@ -2647,11 +2675,12 @@ if (process.argv.includes("--self-test")) {
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
     }
-    const runCurrent = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
+    const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
+    const runCurrent = (args = []) => runRelease(["--prior-shared-app-snapshot", ...args]);
     const run = (args = []) => runCurrent(["--prior-quiet-loading-snapshot", ...args]);
-    assert.equal(runCurrent().status, 0, "The unmodified scratch copy must pass before mutation checks");
+    assert.equal(runRelease().status, 0, "The unmodified release scratch copy must pass before mutation checks");
     const assertMutationsRejected = (cases, check) => {
       for (const [name, target, altered] of cases) {
         const before = fs.readFileSync(target);
@@ -2664,6 +2693,15 @@ if (process.argv.includes("--self-test")) {
         assert.match(result.stderr, /AssertionError/, `${name}: rejection must come from a parity assertion`);
       }
     };
+    assertMutationsRejected([
+      ["modified shared application inverse", path.join(scratch, SHARED_APP_PATH), Buffer.concat([sharedAppText, Buffer.from(" ")])],
+      ...[...sharedApp.files, ...sharedApp.added].map(file => [
+        `unreviewed byte in ${file.source}`, path.join(scratch, file.source),
+        Buffer.concat([readReleaseBytes(file.source), Buffer.from("\n")])
+      ])
+    ], runRelease);
+    for (const file of sharedApp.files) fs.writeFileSync(path.join(scratch, file.source), readUnreviewedBytes(file.source));
+    assert.equal(runCurrent().status, 0, "The restored North Wildwood snapshot must pass");
     const quietCases = [
       ["altered quiet-loading inverse", path.join(scratch, QUIET_LOADING_PATH), quietLoadingText + " "],
       ...quietLoading.files.map(file => [

@@ -338,7 +338,7 @@
       // Use the identical published atlas directly; retain the local copy if
       // that host is unavailable. Live forecast JSON stays on its own route.
       const atlasPath = `${APP_BASE.pathname}assets/hydraulic-v29/`;
-      const staticBase = new URL("North-Wildwood-floodmapper/", "https://hondrospj.github.io/");
+      const staticBase = new URL(TOWN_CONFIG.staticSiteBase);
       return candidates.flatMap(candidate => {
         const url = new URL(candidate);
         if (url.origin !== APP_BASE.origin || !url.pathname.startsWith(atlasPath)) return [candidate];

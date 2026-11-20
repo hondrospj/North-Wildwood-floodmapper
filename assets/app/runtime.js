@@ -1,5 +1,6 @@
 
     const APP_BASE = new URL(".", window.location.href);
+    const UI_ASSET_BASE = new URL("../", document.currentScript?.src || new URL("assets/app/runtime.js", APP_BASE));
     let FORECAST_URL = "";
     let OBSERVED_URL = "";
     let CANONICAL_DAILY_URL = "";
@@ -27,7 +28,7 @@
     }
 
     const OPTIONAL_SCRIPT_URLS = {
-      html2canvas: new URL("assets/vendor/html2canvas-1.4.1.min.js", APP_BASE).href,
+      html2canvas: new URL("vendor/html2canvas-1.4.1.min.js", UI_ASSET_BASE).href,
       jszip: "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
       geotiff: "https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"
     };
@@ -124,7 +125,7 @@
     const EXPORT_CAPTURE_SCALE = 1;
     const EXPORT_GIF_DITHER = false;
     const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
-    const GIF_WORKER_URL = new URL("assets/vendor/gif.worker.js?v=ef4ff2db1b2c1116", APP_BASE).href;
+    const GIF_WORKER_URL = new URL("vendor/gif.worker.js?v=ef4ff2db1b2c1116", UI_ASSET_BASE).href;
     const EXPORT_GIF_ASPECTS = {
       "16:9": { value: "16:9", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
       "9:16": { value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
@@ -372,7 +373,7 @@
       TOWN_CONFIG = config;
       FORECAST_URL = new URL(config.data?.forecastPath || "./forecast.json", APP_BASE).href;
       OBSERVED_URL = new URL(config.data?.observedPath || "./observed.json", APP_BASE).href;
-      CANONICAL_DAILY_URL = new URL(config.data?.canonicalDailyPath || "./canonical_daily_v2.json", APP_BASE).href;
+      CANONICAL_DAILY_URL = optionalAppUrl(config.data?.canonicalDailyPath);
       OBSERVED_15MIN_URL = new URL(config.data?.observed15MinPath || "./observed15min.json", APP_BASE).href;
       OBSERVED_ARCHIVE_INDEX_URL = new URL(config.data?.observedArchiveIndexPath || "./observed_archive_index.json", APP_BASE).href;
       LEWES_ARCHIVE_INDEX_URL = optionalAppUrl(config.data?.surrogateArchiveIndexPath || config.data?.lewesArchiveIndexPath);
@@ -1977,6 +1978,7 @@ function parseStoredLocalNyToDate(timeEST) {
     }
 
     async function ensureCanonicalDailyArchive() {
+      if (!CANONICAL_DAILY_URL) return null;
       if (canonicalDailyData) return canonicalDailyData;
       const generation = archiveGeneration;
       const payload = await fetchJson(CANONICAL_DAILY_URL, { cache: "default" });
@@ -2238,10 +2240,19 @@ function parseStoredLocalNyToDate(timeEST) {
 
     function validateArchiveDays(payload, source, { summary = false, year = null, indexedDates = [] } = {}) {
       const expectedInterval = source === "lewes" ? 60 : 15;
-      if (Number(payload?.intervalMinutes) !== expectedInterval) {
+      const legacyArchive = TOWN_CONFIG.observed?.archiveContract === "legacy";
+      const legacyIndex = legacyArchive && summary && /(?:^|-)observed-day-index-v[12]$/.test(String(payload?.schema || ""));
+      const intervalMinutes = payload?.intervalMinutes ?? (legacyIndex ? expectedInterval : NaN);
+      if (Number(intervalMinutes) !== expectedInterval) {
         throw new Error(`Invalid ${source} archive interval; expected ${expectedInterval} minutes.`);
       }
-      if (payload.source && payload.source !== source) throw new Error("Archive source mismatch.");
+      const primaryAlias = summary
+        ? String(payload.shardPathTemplate || "").match(/observed_archive\/([a-z0-9-]+)\/\{year\}\.json$/i)?.[1]
+        : observed15MinuteData?.source;
+      const publishedSource = legacyArchive ? (source === "lewes" ? configuredSurrogate().key : primaryAlias) : null;
+      if (payload.source && payload.source !== source && payload.source !== publishedSource) {
+        throw new Error("Archive source mismatch.");
+      }
       const expectedStation = source === "lewes" ? surrogateStationId() : String(TOWN_CONFIG?.observed?.usgsGaugeId);
       if (String(payload.stationId || payload.site) !== expectedStation) throw new Error("Archive gauge mismatch.");
       if (payload.datum && payload.datum !== "NAVD88") throw new Error("Archive datum mismatch.");
@@ -2276,7 +2287,7 @@ function parseStoredLocalNyToDate(timeEST) {
         }
         // The primary USGS index represents outages as explicit dates. The
         // Lewes index is legitimately sparse and must keep that coverage.
-        if (source === "stone-harbor" && dates.size !== (Date.parse(last) - Date.parse(first)) / 86400000 + 1) {
+        if (source === "stone-harbor" && (!legacyArchive || publishedArchive) && dates.size !== (Date.parse(last) - Date.parse(first)) / 86400000 + 1) {
           throw new Error("Primary archive is missing dates in its published bounds.");
         }
       }
@@ -2742,7 +2753,7 @@ function setDatumHelpOpen(isOpen) {
       if (launchMeta) {
         launchMeta.textContent = modeled
           ? `Create a shareable animation of the full ${modeledHours}-hour modeled storm.`
-          : `Create an animation or high-resolution image sequence with North Wildwood centered.`;
+          : `Create an animation or high-resolution image sequence with ${TOWN_CONFIG.site.name} centered.`;
       }
       if (modalSub) {
         modalSub.textContent = modeled
@@ -3214,7 +3225,7 @@ function setDatumHelpOpen(isOpen) {
       // Use the identical published atlas directly; retain the local copy if
       // that host is unavailable. Live forecast JSON stays on its own route.
       const atlasPath = `${APP_BASE.pathname}assets/hydraulic-v29/`;
-      const staticBase = new URL("North-Wildwood-floodmapper/", "https://hondrospj.github.io/");
+      const staticBase = new URL(TOWN_CONFIG.staticSiteBase);
       return candidates.flatMap(candidate => {
         const url = new URL(candidate);
         if (url.origin !== APP_BASE.origin || !url.pathname.startsWith(atlasPath)) return [candidate];
@@ -4020,7 +4031,7 @@ function setDatumHelpOpen(isOpen) {
           context.putImageData(imageData, 0, 0);
           return {
             url: await canvasToDrainageObjectUrl(canvas),
-            filename: `NorthWildwoodFloodStages${stageToCode(stage)}.png`,
+            filename: `${TOWN_CONFIG.overlays.bathtubStagePngPrefix ?? TOWN_CONFIG.overlays.stagePngPrefix}${stageToCode(stage)}.png`,
             isBathtubStage: true,
             uncertainPixelCount
           };
@@ -5177,7 +5188,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       return window.ShorelyRoadLabels.createLayer({
         ...options,
         exportMode: Number(options?.minZoom) === 0,
-        includeNames: Number(options?.minZoom) !== 0
+        includeNames: Number(options?.minZoom) !== 0 || (TOWN_CONFIG.assets?.exportRoadFallback === true &&
+          !window.NORTH_WILDWOOD_EXPORT_ROADS?.hasLocalNames?.())
       });
     }
 
@@ -6676,7 +6688,7 @@ function updateDownloadSummary() {
       const aspectConfig = getExportAspectConfig();
       const aspectLabel = aspectConfig.label;
       const resolutionLabel = format === "png" ? `, ${aspectConfig.resolutionLabel}` : "";
-      const extentLabel = getDownloadExtentValue() === "town" ? "Fill North Wildwood" : "Current View";
+      const extentLabel = getDownloadExtentValue() === "town" ? `Fill ${TOWN_CONFIG.site.name}` : "Current View";
       const speed = EXPORT_GIF_SPEEDS[getDownloadSpeedValue()]?.label || "Normal";
       const interval = getDownloadIntervalConfig();
       const frameLimit = getDownloadFrameLimit();
@@ -7617,6 +7629,13 @@ function updateExportSegmentedUI() {
       const roadsEnabled = document.getElementById("roadsToggle")?.classList.contains("on");
       const zoom = exportMap.getZoom() || 0;
       const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;
+      const attribution = document.getElementById("exportMapAttribution");
+      if (attribution && TOWN_CONFIG.assets?.exportRoadFallback === true) {
+        const localSource = showLabels && window.NORTH_WILDWOOD_EXPORT_ROADS?.getAttribution?.();
+        const baseAttribution = "Map: Esri, HERE, Garmin, USGS, © OpenStreetMap contributors";
+        attribution.textContent = localSource && localSource !== "OpenStreetMap contributors"
+          ? `${baseAttribution} · Local road names: ${localSource}` : baseAttribution;
+      }
       // A hidden road pane needs no WebGL context. Keep an initialized layer
       // for later frames and retries once the selected extent can show it.
       if (showLabels && !exportRoadsLayer) mountExportRoadLayer();
@@ -8598,7 +8617,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
 
     function setFloodFrameStatus(message, state = "info") {
       if (state === "loading" || (state === "info" && /^Loading\b/i.test(String(message || "")))) message = "";
-      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== "Stone Harbor USGS").join(" • ");
+      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== `${TOWN_CONFIG.site.gaugeName} USGS`).join(" • ");
       const status = document.getElementById("floodFrameStatus");
       if (!status) return;
       status.dataset.frameMessage = String(message || "");
@@ -8979,7 +8998,7 @@ function getEntryESTDate(entry) {
         if (gaugeInoperable) {
           const outageHours = getDisplayedGaugeOutageHours(currentSeriesHours, group.start, group.end);
           btn.setAttribute("aria-label", `Gauge inoperable for more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} hours`);
-          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable North Wildwood or Stone Harbor gauge level`;
+          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable ${TOWN_CONFIG.observed?.gaugeOutageLabel ?? TOWN_CONFIG.site.gaugeName} gauge level`;
         }
         // The first and last frames occupy half a slider interval.
         const timelineFrameWeight = currentSeriesHours.length <= 1 ? 1
@@ -9558,7 +9577,7 @@ function formatSelectedObservedDate(dateStr) {
           topTideSource: "modern",
           sourceArea: "stone-harbor",
           sourceSite: String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || ""),
-          sourceStation: "Great Channel at Stone Harbor NJ",
+          sourceStation: TOWN_CONFIG.observed?.primaryStationLabel ?? TOWN_CONFIG.site.gaugeName,
           sourceStationShort: primaryGaugeName(),
           stationPriority: 3,
           isHistoricalTopTide: false
@@ -10012,7 +10031,7 @@ function formatSelectedObservedDate(dateStr) {
               : entry?.observationInterval === "crest"
                 ? `USGS crest • ${getDatumLabel()}`
                 : `${classifyFloodStage(rawStage) === "none" ? "No flooding" : `${classifyFloodStage(rawStage).charAt(0).toUpperCase() + classifyFloodStage(rawStage).slice(1)} flooding`} • ${getDatumLabel()}`;
-        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? "Stone Harbor USGS" : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
+        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? `${TOWN_CONFIG.site.gaugeName} USGS` : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
         const qualityNote = entry?.observationQuality === "I" || entry?.isInterpolatedTimelineFrame
           ? "Interpolated" : entry?.observationQuality === "U" || entry?.observationQuality === "unknown"
             ? "Sampling quality not recorded" : entry?.observationQuality === "C"
@@ -12198,17 +12217,17 @@ function startPlayback() {
       const crawlspaceDepth = Number(p.foundationHeightFt ?? p.nsi2026FoundationHeightFt);
       const stage = getSelectedStageNavd88();
       const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;
-      const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
+      const address = escapeTownAddressHtml(p.address || `Selected ${TOWN_CONFIG.site.name} parcel`);
       const focusRestoreKey = p.parcelId == null ? "" : ` data-focus-restore-key="${escapeTownAddressHtml("parcel-profile:" + p.parcelId)}"`;
       const waterStatus = !Number.isFinite(firstFloor)
-        ? null
+        ? ""
         : difference == null
-          ? "Choose a water level to compare."
-          : Math.abs(difference) <= 0.1
-            ? "Current water is at the estimated occupied floor."
-            : difference > 0
-              ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`
-              : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;
+        ? "Choose a water level to compare."
+        : Math.abs(difference) <= 0.1
+          ? "Current water is at the estimated occupied floor."
+          : difference > 0
+            ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`
+            : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;
       return '<div class="house-alert-popup building-info-card">' +
         '<span class="house-alert-kicker">Building</span>' +
         '<h3>' + address + '</h3>' +
@@ -12530,7 +12549,7 @@ function startPlayback() {
       if (!backdrop || !body) return;
       const parcel = kind === "parcel";
       const properties = feature.properties || {};
-      address.textContent = properties.address || "Selected North Wildwood parcel";
+      address.textContent = properties.address || `Selected ${TOWN_CONFIG.site.name} parcel`;
       document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
       const help = document.getElementById("floodHistoryHelpText");
       help.textContent = parcel
@@ -12632,7 +12651,7 @@ function startPlayback() {
     function buildNsiStructurePopup(feature) {
       const p = feature?.properties || {};
       const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
-      const address = escapeTownAddressHtml(p.address || "Modeled North Wildwood structure");
+      const address = escapeTownAddressHtml(p.address || `Modeled ${TOWN_CONFIG.site.name} structure`);
       return '<div class="nsi-structure-popup">' +
         '<details class="property-help"><summary aria-label="About the first-floor estimate">?</summary>' +
           '<p>This compares the selected water level with the estimated occupied floor.</p></details>' +
@@ -12685,7 +12704,11 @@ function startPlayback() {
       if (!nsiStructureLoadPromise) {
         nsiStructureLoadPromise = fetchJson(NSI_STRUCTURES_URL, { cache: "force-cache" })
           .then(payload => {
-            if (!/nsi-2026-first-floor-v1$/.test(String(payload?.metadata?.schema || ""))) {
+            const schema = String(payload?.metadata?.schema || "");
+            const configuredStructureSchema = TOWN_CONFIG.structures?.firstFloorAssetSchema;
+            const townStructures = configuredStructureSchema && schema === configuredStructureSchema &&
+              payload.type === "FeatureCollection" && Array.isArray(payload.features);
+            if (!/nsi-2026-first-floor-v1$/.test(schema) && !townStructures) {
               throw new Error("The USACE NSI 2026 structure asset needs to be refreshed.");
             }
             nsiStructureFeatures = Array.isArray(payload.features) ? payload.features : [];
@@ -12972,7 +12995,7 @@ function startPlayback() {
     }
 
     function buildParcelAreaPopup(feature, metrics, loading) {
-      const address = escapeTownAddressHtml(feature?.properties?.address || "Selected North Wildwood parcel");
+      const address = escapeTownAddressHtml(feature?.properties?.address || `Selected ${TOWN_CONFIG.site.name} parcel`);
       const facts = metrics?.covered
         ? `<div class="parcel-flood-facts">
             <div><span>${metrics.covered === metrics.total ? "Flooded Area" : "Covered Area Flooded"}</span>
@@ -15478,4 +15501,3 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       applyMobileObservedOrdering();
       return result;
     };
-

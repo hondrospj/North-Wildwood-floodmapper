@@ -49,7 +49,7 @@
     function buildNsiStructurePopup(feature) {
       const p = feature?.properties || {};
       const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
-      const address = escapeTownAddressHtml(p.address || "Modeled North Wildwood structure");
+      const address = escapeTownAddressHtml(p.address || `Modeled ${TOWN_CONFIG.site.name} structure`);
       return '<div class="nsi-structure-popup">' +
         '<details class="property-help"><summary aria-label="About the first-floor estimate">?</summary>' +
           '<p>This compares the selected water level with the estimated occupied floor.</p></details>' +
@@ -102,7 +102,11 @@
       if (!nsiStructureLoadPromise) {
         nsiStructureLoadPromise = fetchJson(NSI_STRUCTURES_URL, { cache: "force-cache" })
           .then(payload => {
-            if (!/nsi-2026-first-floor-v1$/.test(String(payload?.metadata?.schema || ""))) {
+            const schema = String(payload?.metadata?.schema || "");
+            const configuredStructureSchema = TOWN_CONFIG.structures?.firstFloorAssetSchema;
+            const townStructures = configuredStructureSchema && schema === configuredStructureSchema &&
+              payload.type === "FeatureCollection" && Array.isArray(payload.features);
+            if (!/nsi-2026-first-floor-v1$/.test(schema) && !townStructures) {
               throw new Error("The USACE NSI 2026 structure asset needs to be refreshed.");
             }
             nsiStructureFeatures = Array.isArray(payload.features) ? payload.features : [];
@@ -389,7 +393,7 @@
     }
 
     function buildParcelAreaPopup(feature, metrics, loading) {
-      const address = escapeTownAddressHtml(feature?.properties?.address || "Selected North Wildwood parcel");
+      const address = escapeTownAddressHtml(feature?.properties?.address || `Selected ${TOWN_CONFIG.site.name} parcel`);
       const facts = metrics?.covered
         ? `<div class="parcel-flood-facts">
             <div><span>${metrics.covered === metrics.total ? "Flooded Area" : "Covered Area Flooded"}</span>

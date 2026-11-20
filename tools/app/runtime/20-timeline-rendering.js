@@ -127,7 +127,7 @@
               : entry?.observationInterval === "crest"
                 ? `USGS crest • ${getDatumLabel()}`
                 : `${classifyFloodStage(rawStage) === "none" ? "No flooding" : `${classifyFloodStage(rawStage).charAt(0).toUpperCase() + classifyFloodStage(rawStage).slice(1)} flooding`} • ${getDatumLabel()}`;
-        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? "Stone Harbor USGS" : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
+        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? `${TOWN_CONFIG.site.gaugeName} USGS` : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
         const qualityNote = entry?.observationQuality === "I" || entry?.isInterpolatedTimelineFrame
           ? "Interpolated" : entry?.observationQuality === "U" || entry?.observationQuality === "unknown"
             ? "Sampling quality not recorded" : entry?.observationQuality === "C"

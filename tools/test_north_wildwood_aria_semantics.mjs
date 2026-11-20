@@ -7,7 +7,8 @@ import {fileURLToPath} from 'node:url';
 const root = process.env.NWW_ARIA_SOURCE_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const template = fs.readFileSync(path.join(root, 'tools/app/index.template.html'), 'utf8');
 const picker = fs.readFileSync(path.join(root, 'assets/export-date-time-picker.js'), 'utf8');
-assert.match(template, /<div id="map3d" role="region" aria-label="Interactive 3D North Wildwood flood map"><\/div>/);
+const output = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+assert.match(output, /<div id="map3d" role="region" aria-label="Interactive 3D North Wildwood flood map"><\/div>/);
 function extract(name) {
   const match = picker.match(new RegExp('^  function ' + name + '\\([^\\n]*\\) \\{\\n[^]*?^  }\\n', 'm'));
   assert.ok(match, `Missing actual picker owner ${name}`);

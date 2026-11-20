@@ -1692,13 +1692,13 @@
 
   function buildBuildingPopupHtml(properties) {
     var p = properties || {};
-    var address = escapeTownAddressHtml(p.address || p.osmName || "North Wildwood building");
+    var address = escapeTownAddressHtml(p.address || p.osmName || `${TOWN_CONFIG.site.name} building`);
     var crawlspaceDepth = finiteBuildingNumber(p.foundationHeightFt);
     var firstFloor = finiteBuildingNumber(p.modeledFirstFloorNavd88Ft);
     var stage = finiteBuildingNumber(getSelectedStageNavd88());
     var difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : NaN;
     var status = !Number.isFinite(firstFloor)
-      ? null
+      ? ""
       : !Number.isFinite(difference)
         ? "Choose a water level to compare."
         : Math.abs(difference) <= 0.1
@@ -1942,7 +1942,7 @@
     // footprints. Do not extrude basemap context outside North Wildwood.
     document.body.dataset.buildings3dFallbackLayers = "0";
     document.body.dataset.buildings3dContextLayers = "0";
-    document.body.dataset.buildings3dCoverage = "north-wildwood-only";
+    document.body.dataset.buildings3dCoverage = TOWN_CONFIG.compatibility.buildingsCoverage;
     document.body.dataset.buildings3dClippedToMunicipality = "true";
 
     // Road symbols come from the shared scalable vector style.
@@ -1986,7 +1986,7 @@
         var structureHits = glMap.queryRenderedFeatures(event.point, { layers: ["nw-nsi-points"] });
         if (structureHits.length) {
           beginMapQuery();
-          // The 3D ground coordinate under a dot's pixel can be closer to another structure.
+          // The ground coordinate below a 3D marker can be closer to another structure.
           var footprintIds = new Set(structureHits.map(hit => hit.properties?.footprintId));
           var [structureFootprintId] = footprintIds;
           var structure = footprintIds.size === 1 && structureFootprintId
@@ -2175,7 +2175,7 @@
       if (!container) throw new Error("The 3D map container is unavailable.");
       var style = await load3dStyle();
       requireCurrent();
-      var leafletCenter = map && map.getCenter ? map.getCenter() : { lng: -74.7998357, lat: 39.006945 };
+      var leafletCenter = map && map.getCenter ? map.getCenter() : { lng: TOWN_CONFIG.map.center.lon, lat: TOWN_CONFIG.map.center.lat };
       var leafletZoom = map && map.getZoom ? map.getZoom() : 13;
       var mobileRenderer = window.matchMedia("(pointer: coarse), (max-width: 900px)").matches;
       glMap = new maplibregl.Map({
