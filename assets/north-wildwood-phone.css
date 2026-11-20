@@ -20,6 +20,8 @@
       --phone-action-left: max(var(--cm-left, 8px),
         calc((100vw - var(--phone-dock-max) + var(--cm-left, 8px) - var(--cm-right, 8px)) / 2));
       --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 7px);
+      --phone-action-height: 44px;
+      --phone-popup-top: calc(112px + env(safe-area-inset-top, 0px));
       --phone-legend-width: min(340px, calc(100vw - var(--cm-left, 8px) - var(--cm-right, 8px)));
       --phone-tools-top: calc(var(--cm-top, 8px) + var(--phone-header-height) + 8px);
       --phone-legend-y: 133px;
@@ -30,7 +32,7 @@
       --nww-drawer-max: 480px;
     }
 
-    html[data-nww-phone] body:has(#mapClickModeControl:not([hidden])) {
+    html[data-nww-phone] body:not(.persistent-flood-popup-open):has(#mapClickModeControl:not([hidden])) {
       --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 75px);
     }
 
@@ -72,9 +74,9 @@
       top: auto !important;
       right: auto !important;
       bottom: var(--phone-action-bottom) !important;
-      height: 44px !important;
-      min-height: 44px !important;
-      max-height: 44px !important;
+      height: var(--phone-action-height) !important;
+      min-height: var(--phone-action-height) !important;
+      max-height: var(--phone-action-height) !important;
       box-sizing: border-box !important;
       padding: 0 !important;
       margin: 0 !important;
@@ -181,6 +183,18 @@
 
     html[data-nww-phone] body #toast {
       bottom: calc(var(--phone-action-bottom) + 52px) !important;
+    }
+
+    html[data-nww-phone] body > .nw-mobile-popup,
+    html[data-nww-phone] body #app > .nw-short-leaflet-popup {
+      top: var(--phone-popup-top) !important;
+    }
+
+    html[data-nww-phone] body > .nw-mobile-popup .maplibregl-popup-content,
+    html[data-nww-phone] body #app > .nw-short-leaflet-popup .leaflet-popup-content {
+      /* Scroll the card within the space above the map actions. */
+      box-sizing: border-box;
+      max-height: max(55px, calc(100dvh - var(--phone-popup-top) - var(--phone-action-bottom) - var(--phone-action-height) - 8px)) !important;
     }
 
     html[data-nww-phone] body #nwwMobileUtilities {
@@ -519,9 +533,13 @@
     html[data-nww-phone] body #mobileMapperTutorialBtn { padding-inline: 6px !important; font-size: 11px !important; }
   }
 
+  @media (max-height: 420px) {
+    html[data-nww-phone] body { --phone-popup-top: calc(62px + env(safe-area-inset-top, 0px)); }
+  }
+
   @media (orientation: landscape) and (max-height: 560px) and (min-width: 540px) {
     html[data-nww-phone] body { --phone-dock-base: 106px; --phone-legend-y: 86px; --phone-dock-max: 650px; }
-    html[data-nww-phone] body:has(#mapClickModeControl:not([hidden])) {
+    html[data-nww-phone] body:not(.persistent-flood-popup-open):has(#mapClickModeControl:not([hidden])) {
       /* The shorter viewport leaves room to share one row horizontally. */
       --phone-action-left: calc(100vw - 206px - max(var(--cm-right, 8px),
         calc((100vw - var(--phone-dock-max) + var(--cm-right, 8px) - var(--cm-left, 8px)) / 2)));

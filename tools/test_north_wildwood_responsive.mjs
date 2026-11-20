@@ -209,6 +209,13 @@ try {
       await page.evaluate(feature=>openParcelFloodPrompt(feature,map.getCenter()),parcel);
       await settled(page);
       await contained(page,'.nw-mobile-popup .maplibregl-popup-content',`${width}x${height} building popup fits`);
+      const placement=await page.locator('.nw-mobile-popup').evaluate(popup=>({
+        phone:document.documentElement.hasAttribute('data-nww-phone'),
+        popupBottom:popup.getBoundingClientRect().bottom,
+        controlsTop:document.getElementById('mobileControlsToggle').getBoundingClientRect().top,
+      }));
+      if(placement.phone) check(placement.popupBottom <= placement.controlsTop - 7,
+        `${width}x${height} building popup clears the map toolbar`,placement);
       await hitTestable(page,'.nw-mobile-popup .maplibregl-popup-close-button',`${width}x${height} popup close immediately reachable`);
       await activate(page,'.nw-mobile-popup .house-alert-cta');
       await settled(page);
