@@ -122,11 +122,7 @@
     const rect = container.getBoundingClientRect();
     let top = innerWidth <= 900 ? 120 : 140;
     const controls = document.getElementById("mobileControlsToggle");
-    const hasToolbar = document.documentElement.matches(".county-compact[data-nww-phone]");
-    const toolbar = hasToolbar && controls?.getClientRects().length &&
-      getComputedStyle(controls).visibility !== "hidden" ? controls.getBoundingClientRect() : null;
-    const headerIds = ["topBanner", "topBar", "mapTitleBadge"];
-    if (!hasToolbar) headerIds.push("mobileControlsToggle");
+    const headerIds = ["topBanner", "topBar", "mapTitleBadge", "mobileControlsToggle"];
     for (const id of headerIds) {
       const element = document.getElementById(id);
       if (!element || !element.getClientRects().length || getComputedStyle(element).visibility === "hidden") continue;
@@ -140,10 +136,7 @@
     const viewportWidth = viewport?.width || innerWidth;
     const dock = document.getElementById("timelineDock")?.getBoundingClientRect();
     const viewportBottom = viewportTop + viewportHeight;
-    // Keep the camera scrollable above the map actions in short mobile windows.
-    // Resizing the same panel preserves the live iframe and its keyboard focus.
-    const toolbarTop = toolbar?.height ? toolbar.top : Infinity;
-    const bottom = Math.min(rect.bottom, viewportBottom, dock?.height ? dock.top : Infinity, toolbarTop);
+    const bottom = Math.min(rect.bottom, viewportBottom, dock?.height ? dock.top : Infinity);
     const available = bottom - rect.top - top - 12;
     // A short window cannot fit a player between the header and timeline.
     // Give the same viewer its own scrollable viewport above those controls.
@@ -155,7 +148,7 @@
     panel.style.left = `${(visibleLeft + visibleRight) / 2}px`;
     panel.style.maxWidth = `${Math.max(1, visibleRight - visibleLeft - 16)}px`;
     let panelTop = overlay ? viewportTop + 8 : rect.top + top;
-    if (overlay && !toolbar && !panel.hidden && controls?.getClientRects().length) {
+    if (overlay && !panel.hidden && controls?.getClientRects().length) {
       const viewer = panel.getBoundingClientRect();
       const key = document.body.classList.contains("mobile-legend-open") ? null : document.getElementById("legendDock");
       for (const control of [controls, key]) {
@@ -167,7 +160,7 @@
       }
     }
     panel.style.top = `${panelTop}px`;
-    const maxHeight = overlay ? Math.max(1, Math.min(viewportBottom, toolbarTop) - panelTop - 8) : available;
+    const maxHeight = overlay ? Math.max(1, viewportBottom - panelTop - 8) : available;
     panel.style.maxHeight = `${maxHeight}px`;
     panel.style.setProperty("--webcam-panel-height", `${maxHeight}px`);
   }
@@ -191,9 +184,9 @@
     sourceLink.href = camera.sourceUrl;
     sourceLink.title = camera.source;
     choice.value = camera.id;
-    mountPanel();
     panel.hidden = false;
     dismissMobileControls();
+    mountPanel();
     loadPlayer(camera);
     if (opening) {
       const openerFocus = document.activeElement;

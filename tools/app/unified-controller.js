@@ -153,14 +153,20 @@
  }
  function reparent(previousFocus){
   const compact=mobile.matches,legend=document.getElementById('legendDock');let mount=document.getElementById('mobileRailMount');
-  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);
+  const utilities=document.getElementById('nwwMobileUtilities');
+  const toggle=document.getElementById('mobileControlsToggle');
+  const legendHost=compact?(utilities||body):panel;
+  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==legendHost;
+  if(compact&&utilities&&toggle.parentElement!==utilities)utilities.insertBefore(toggle,document.getElementById('mapCredits'));
+  if(!compact&&utilities?.contains(toggle))body.append(toggle);
   if(compact){
    if(panel.parentElement!==body)body.append(panel);if(!mount){mount=document.createElement('div');mount.id='mobileRailMount';panel.append(mount);}
-   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);
+   for(const card of [...rail.children])mount.append(card);
   }else{
    if(app&&panel.parentElement!==app)app.insertBefore(panel,app.firstChild);
-   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);
+   if(mount)for(const card of [...mount.children])rail.append(card);
   }
+  if(legend&&legend.parentElement!==legendHost)legendHost.append(legend);
   flag(root,'county-compact',compact);syncDrawer();
   if(!restoreLegendFocus)return null;
   if(compact)return legend;

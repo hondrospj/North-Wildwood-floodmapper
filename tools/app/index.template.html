@@ -177,6 +177,7 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
     </div>
     <aside id="leftPanel">
       <button id="mobileControlsClose" class="centered-close-control" type="button" aria-label="Close controls" title="Close controls">&times;</button>
+      <div id="nwwDrawerViewMode"><span>Map view</span></div>
       <section class="panel-card compact-card data-source-card">
         <div class="section-title">
           <div class="title-with-help">
@@ -532,7 +533,7 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
     <button id="mobileMapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-mobile" type="button" aria-haspopup="dialog" data-html2canvas-ignore="true">Take the Flood Mapper Tour</button>
   
     <details id="mapCredits" data-html2canvas-ignore="true">
-      <summary><span class="nww-map-credit-provider">Esri ·&nbsp;</span>Map credits</summary>
+      <summary aria-label="Map credits" title="Map credits"><span aria-hidden="true">ⓘ</span></summary>
       <div>
         <div id="mapCreditsSources"></div>
         <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap licence</a>

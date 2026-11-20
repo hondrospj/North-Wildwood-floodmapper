@@ -1,6 +1,6 @@
 /* North Wildwood's compact layout keeps the original controls and map state. */
 @layer north-wildwood-phone {
-  #mapCredits { display: none; }
+  :is(#mapCredits, #nwwDrawerViewMode) { display: none; }
   :is(#mapperTutorialBtn, #mobileMapperTutorialBtn):not(:focus-visible) {
     animation: none !important;
     outline: none !important;
@@ -9,22 +9,19 @@
   @media (max-width: 900px), (max-height: 560px), (max-width: 1366px) and (any-pointer: coarse) {
     html[data-nww-phone] body {
       --phone-surface: #111826;
-      --phone-raised: #1b2535;
-      --phone-line: #38465a;
-      --phone-label: #eaf2fc;
-      --phone-muted: #b5c6da;
-      --phone-accent: #a6d6ff;
-      --phone-shadow: 0 3px 18px #08152032;
+      --phone-raised: rgba(255, 255, 255, .05);
+      --phone-line: rgba(191, 219, 254, .22);
+      --phone-label: var(--fleet-text);
+      --phone-accent: var(--fleet-accent);
+      --phone-shadow: 0 12px 26px rgba(2, 6, 23, .15);
       --phone-header-height: 42px;
-      --phone-dock-max: 580px;
-      --phone-action-left: max(var(--cm-left, 8px),
-        calc((100vw - var(--phone-dock-max) + var(--cm-left, 8px) - var(--cm-right, 8px)) / 2));
-      --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 7px);
       --phone-action-height: 44px;
-      --phone-popup-top: calc(112px + env(safe-area-inset-top, 0px));
-      --phone-legend-width: min(340px, calc(100vw - var(--cm-left, 8px) - var(--cm-right, 8px)));
+      --phone-dock-max: 580px;
+      --phone-dock-edge: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height));
       --phone-tools-top: calc(var(--cm-top, 8px) + var(--phone-header-height) + 8px);
-      --phone-legend-y: 133px;
+      --phone-popup-top: calc(var(--phone-tools-top) + var(--phone-action-height) + 8px);
+      --phone-legend-width: min(340px, 100%);
+      --phone-legend-y: 132px;
       --phone-dock-base: 154px;
       --phone-road-space: 0px;
       --nww-phone-dock-height: calc(var(--phone-dock-base) + var(--phone-road-space));
@@ -32,21 +29,19 @@
       --nww-drawer-max: 480px;
     }
 
-    html[data-nww-phone] body:not(.persistent-flood-popup-open):has(#mapClickModeControl:not([hidden])) {
-      --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 75px);
-    }
-
     html[data-nww-phone] body:has(#roadImpactsKey:not([hidden])) { --phone-road-space: 17px; }
     html[data-nww-phone] body:has(#timelineDock[data-single-timeline-time="true"]) {
       --phone-dock-base: 119px;
-      --phone-legend-y: 100px;
+      --phone-legend-y: 98px;
     }
 
     html[data-nww-phone] body #mapTitleBadge {
       top: var(--cm-top, 8px) !important;
       left: var(--cm-left, 8px) !important;
-      right: auto !important;
+      right: var(--cm-right, 8px) !important;
       width: max-content !important;
+      margin-inline: auto !important;
+      transform: none !important;
       min-width: 0 !important;
       max-width: calc(100vw - var(--cm-left, 8px) - var(--cm-right, 8px)) !important;
       box-sizing: border-box !important;
@@ -64,54 +59,68 @@
       letter-spacing: -.015em !important;
       text-wrap: balance !important;
       white-space: normal !important;
-      color: var(--phone-label) !important;
+      color: #dbeafe !important;
       max-width: none !important;
     }
 
-    /* Give the two map actions one continuous shape near the timeline. */
-    html[data-nww-phone] body :is(#mobileControlsToggle, #legendDock:not([aria-expanded="true"])) {
-      position: fixed !important;
-      top: auto !important;
-      right: auto !important;
-      bottom: var(--phone-action-bottom) !important;
+    html[data-nww-phone] body #nwwMobileUtilities {
+      position: fixed;
+      inset: var(--phone-tools-top) var(--cm-right, 8px) auto var(--cm-left, 8px);
+      z-index: 6200;
+      display: grid;
+      grid-template-columns: minmax(0, max-content) max-content minmax(44px, 1fr) max-content;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities :is(#mobileMapperTutorialBtn, #mobileControlsToggle, #legendDock:not([aria-expanded="true"])) {
+      position: relative !important;
+      inset: auto !important;
+      box-sizing: border-box !important;
       height: var(--phone-action-height) !important;
       min-height: var(--phone-action-height) !important;
       max-height: var(--phone-action-height) !important;
-      box-sizing: border-box !important;
-      padding: 0 !important;
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
       margin: 0 !important;
       transform: none !important;
+      display: grid !important;
+      place-items: center !important;
+      padding: 0 10px !important;
+      pointer-events: auto;
       border: 1px solid var(--phone-line) !important;
-      box-shadow: var(--phone-shadow) !important;
-    }
-
-    html[data-nww-phone] body #legendDock:not([aria-expanded="true"]) {
-      left: var(--phone-action-left) !important;
-      width: 100px !important;
-      min-width: 100px !important;
-      max-width: 100px !important;
-      border-radius: 12px 0 0 12px !important;
+      border-radius: 11px !important;
       background: var(--phone-surface) !important;
       color: var(--phone-label) !important;
     }
 
-    html[data-nww-phone] body #mobileControlsToggle {
-      left: calc(var(--phone-action-left) + 100px) !important;
-      width: 106px !important;
-      min-width: 106px !important;
-      max-width: 106px !important;
-      border-radius: 0 12px 12px 0 !important;
-      background: #b9ddf9 !important;
-      color: #122c44 !important;
+    html[data-nww-phone] body #mobileMapperTutorialBtn {
+      grid-column: 1;
+      white-space: normal !important;
+      text-wrap: balance;
+      text-align: center;
+      font: 650 12px/1.15 Inter, system-ui, sans-serif !important;
     }
 
-    html[data-nww-phone] body.mobile-legend-open #mobileControlsToggle {
-      border-radius: 12px !important;
+    html[data-nww-phone] body #nwwMobileUtilities #mobileControlsToggle#mobileControlsToggle {
+      grid-column: 2;
+      min-width: 72px !important;
     }
 
-    html[data-nww-phone] body :is(#mobileControlsToggle, #legendDock:not([aria-expanded="true"]))::after {
+    html[data-nww-phone] body #nwwMobileUtilities #legendDock:not([aria-expanded="true"]) {
+      grid-column: 4;
+      min-width: 63px !important;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities :is(#mobileControlsToggle, #legendDock:not([aria-expanded="true"]))::before {
+      content: none !important;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities :is(#mobileControlsToggle, #legendDock:not([aria-expanded="true"]))::after {
       position: absolute !important;
-      inset: 0 7px 0 29px !important;
+      inset: 0 !important;
       width: auto !important;
       height: auto !important;
       min-width: 0 !important;
@@ -119,70 +128,60 @@
       display: grid !important;
       place-items: center !important;
       font: 680 13px/1 Inter, system-ui, sans-serif !important;
-      color: inherit !important;
+      color: var(--phone-label) !important;
       -webkit-text-fill-color: currentColor !important;
       text-shadow: none !important;
     }
 
-    html[data-nww-phone] body #legendDock:not([aria-expanded="true"])::after { content: "Legend" !important; }
-    html[data-nww-phone] body #mobileControlsToggle::after { content: "Controls" !important; }
+    html[data-nww-phone] body #nwwMobileUtilities #legendDock:not([aria-expanded="true"])::after { content: "Legend" !important; }
+    html[data-nww-phone] body #nwwMobileUtilities #mobileControlsToggle::after { content: "Controls" !important; }
 
-    html[data-nww-phone] body :is(#mobileControlsToggle, #legendDock:not([aria-expanded="true"]))::before {
-      content: "" !important;
-      position: absolute !important;
-      display: block !important;
-      top: 50% !important;
-      left: 13px !important;
-      width: 14px !important;
-      min-height: 0 !important;
-      border: 0 !important;
-      border-radius: 0 !important;
-      box-shadow: none !important;
-      transform: translateY(-50%) !important;
-      pointer-events: none;
-    }
-
-    html[data-nww-phone] body #legendDock:not([aria-expanded="true"])::before {
-      height: 8px !important;
-      border-radius: 2px !important;
-      background: linear-gradient(90deg, #75cc48 25%, #dba548 25% 50%, #db6178 50% 75%, #9e86ed 75%) !important;
-    }
-
-    html[data-nww-phone] body #legendDock[data-legend-mode="depth"]:not([aria-expanded="true"])::before {
-      background: linear-gradient(90deg, #63d471 0 22%, #81e4ff 22%, #3456ad 100%) !important;
-    }
-
-    html[data-nww-phone] body #mobileControlsToggle::before {
-      height: 14px !important;
-      background:
-        radial-gradient(circle, currentColor 1.6px, transparent 2px) 3px 1px / 4px 4px,
-        radial-gradient(circle, currentColor 1.6px, transparent 2px) 8px 5px / 4px 4px,
-        radial-gradient(circle, currentColor 1.6px, transparent 2px) 4px 9px / 4px 4px,
-        linear-gradient(currentColor, currentColor) 0 2.5px / 14px 1px,
-        linear-gradient(currentColor, currentColor) 0 6.5px / 14px 1px,
-        linear-gradient(currentColor, currentColor) 0 10.5px / 14px 1px !important;
-      background-repeat: no-repeat !important;
+    html[data-nww-phone] body.mobile-controls-open #nwwMobileUtilities {
+      visibility: hidden;
     }
 
     html[data-nww-phone] body.mobile-legend-open #legendDock {
-      top: auto !important;
-      bottom: calc(var(--phone-action-bottom) + 51px) !important;
-      left: min(var(--phone-action-left),
-        calc(100vw - var(--phone-legend-width) - var(--cm-right, 8px))) !important;
-      right: auto !important;
+      position: absolute !important;
+      inset: calc(100% + 8px) 0 auto auto !important;
+      box-sizing: border-box !important;
       width: var(--phone-legend-width) !important;
+      min-width: 0 !important;
       height: auto !important;
       min-height: 0 !important;
-      max-height: clamp(105px, calc(100dvh - var(--phone-action-bottom) - 75px), 360px) !important;
+      max-height: max(82px, calc(100dvh - var(--phone-popup-top) - var(--phone-dock-edge) - 8px)) !important;
       padding: 14px !important;
       overflow-y: auto !important;
+      pointer-events: auto;
       border-radius: 14px !important;
       box-shadow: var(--phone-shadow) !important;
       background: var(--phone-surface) !important;
     }
 
+    html[data-nww-phone] body.mobile-legend-open #legendDock[data-legend-mode="depth"] #legendList {
+      display: flex !important;
+      flex-direction: column;
+      gap: 6px !important;
+      height: auto !important;
+      min-height: 0 !important;
+    }
+
+    html[data-nww-phone] body.mobile-legend-open #legendDock[data-legend-mode="depth"] .depth-legend-scale {
+      height: auto !important;
+    }
+
+    html[data-nww-phone] body.mobile-legend-open #legendDock[data-legend-mode="depth"] .depth-legend-labels {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+      gap: 8px !important;
+      align-items: baseline !important;
+      font: 700 13px/1.25 Inter, system-ui, sans-serif !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+      margin: 0 0 5px !important;
+    }
+
     html[data-nww-phone] body #toast {
-      bottom: calc(var(--phone-action-bottom) + 52px) !important;
+      bottom: calc(var(--phone-dock-edge) + 12px) !important;
     }
 
     html[data-nww-phone] body > .nw-mobile-popup,
@@ -192,42 +191,14 @@
 
     html[data-nww-phone] body > .nw-mobile-popup .maplibregl-popup-content,
     html[data-nww-phone] body #app > .nw-short-leaflet-popup .leaflet-popup-content {
-      /* Scroll the card within the space above the map actions. */
       box-sizing: border-box;
-      max-height: max(55px, calc(100dvh - var(--phone-popup-top) - var(--phone-action-bottom) - var(--phone-action-height) - 8px)) !important;
-    }
-
-    html[data-nww-phone] body #nwwMobileUtilities {
-      position: fixed;
-      top: var(--phone-tools-top);
-      left: var(--cm-left, 8px);
-      right: calc(var(--cm-right, 8px) + 56px);
-      z-index: 6200;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      gap: 6px;
-      pointer-events: none;
-    }
-
-    html[data-nww-phone] body #mobileMapperTutorialBtn {
-      position: static !important;
-      min-width: 0 !important;
-      min-height: 44px !important;
-      max-width: 100% !important;
-      padding: 0 10px !important;
-      white-space: nowrap;
-      pointer-events: auto;
-      border: 1px solid var(--phone-line) !important;
-      border-radius: 11px !important;
-      background: var(--phone-surface) !important;
-      color: var(--phone-label) !important;
-      font: 600 12px/1.15 Inter, system-ui, sans-serif !important;
-      box-shadow: var(--phone-shadow) !important;
+      max-height: max(55px, calc(100dvh - var(--phone-popup-top) - var(--phone-dock-edge) - 8px)) !important;
     }
 
     html[data-nww-phone] body[data-nww-credits-ready] #mapCredits {
       display: block;
+      grid-column: 3;
+      justify-self: end;
       pointer-events: auto;
       color: var(--phone-label);
       font: 550 11px/1.4 Inter, system-ui, sans-serif;
@@ -236,12 +207,14 @@
     html[data-nww-phone] body #mapCredits summary {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      width: 44px;
       min-height: 44px;
-      padding: 0 9px;
-      border: 1px solid #536377;
+      border: 1px solid var(--phone-line);
       border-radius: 11px;
       list-style: none;
       cursor: pointer;
+      font: 600 20px/1 system-ui, sans-serif;
       color: var(--phone-label);
       background: var(--phone-surface);
       box-sizing: border-box;
@@ -250,7 +223,7 @@
     html[data-nww-phone] body #mapCredits summary::-webkit-details-marker { display: none; }
     html[data-nww-phone] body #mapCredits > div {
       position: fixed;
-      top: calc(var(--phone-tools-top) + 50px);
+      top: var(--phone-popup-top);
       left: var(--cm-left, 8px);
       width: min(304px, calc(100vw - var(--cm-left, 8px) - var(--cm-right, 8px)));
       box-sizing: border-box;
@@ -273,25 +246,42 @@
       display: none !important;
     }
 
-    html[data-nww-phone] body #nwDefaultNavControl {
-      top: var(--phone-tools-top) !important;
-      right: var(--cm-right, 8px) !important;
-      width: 48px !important;
-      gap: 6px !important;
+    html[data-nww-phone] body :is(.leaflet-control-zoom, #nwDefaultNavControl .nw-direction-wheel, #nwDefaultNavControl .nw-simple-zoom) {
+      display: none !important;
     }
 
-    html[data-nww-phone] body #nwDefaultNavControl .nw-direction-wheel {
-      width: 48px !important;
-      height: 48px !important;
-      background: var(--phone-surface) !important;
-      border-color: var(--phone-line) !important;
-      box-shadow: var(--phone-shadow) !important;
+    html[data-nww-phone] body #nwwDrawerViewMode:has(.nw-simple-view) {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 5px 12px;
+      margin: 0;
+      flex-shrink: 0;
+      order: 0;
+      border: 1px solid var(--phone-line);
+      border-radius: 12px;
+      background: var(--phone-surface);
+      color: var(--phone-label);
+      font: 650 14px/1.2 Inter, system-ui, sans-serif;
     }
 
-    html[data-nww-phone] body #nwDefaultNavControl :is(.nw-simple-view,.nw-simple-zoom) {
-      border-color: var(--phone-line) !important;
-      background: var(--phone-surface) !important;
-      box-shadow: var(--phone-shadow) !important;
+    html[data-nww-phone] body #nwwDrawerViewMode #nwDefaultNavControl {
+      position: static !important;
+      inset: auto !important;
+      transform: none !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
+      opacity: 1 !important;
+      width: auto !important;
+      height: auto !important;
+      filter: none !important;
+    }
+
+    html[data-nww-phone] body #nwwDrawerViewMode .nw-simple-view {
+      min-width: 54px !important;
+      min-height: 44px !important;
+      border-radius: 9px !important;
     }
 
     html[data-nww-phone] body #timelineDock {
@@ -319,19 +309,20 @@
     html[data-nww-phone] body #timelineDock #timelineBubble .timeline-bubble-current {
       flex: 0 1 auto !important;
       font: 700 15px/18px Inter, system-ui, sans-serif !important;
-      color: var(--phone-label) !important;
+      color: #fff !important;
       text-align: left !important;
       text-shadow: none !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineBubble .timeline-bubble-stage {
-      padding: 0 !important;
+      padding: 0 4px !important;
       min-height: 0 !important;
-      background: transparent !important;
-      border: 0 !important;
+      background: rgba(var(--nw-ui-blue-rgb), .25) !important;
+      border: 1px solid #bfdbfe !important;
+      border-radius: 999px !important;
       box-shadow: none !important;
-      font: 580 12px/15px Inter, system-ui, sans-serif !important;
-      color: var(--phone-accent) !important;
+      font: 580 12px/14px Inter, system-ui, sans-serif !important;
+      color: #f8fbff !important;
     }
 
     html[data-nww-phone] body #timelineDock :is(.timeline-step, #playBtn) {
@@ -349,17 +340,17 @@
     html[data-nww-phone] body #timelineDock #playBtn {
       right: 7px !important;
       left: auto !important;
-      background: var(--phone-accent) !important;
-      border-color: transparent !important;
+      background: linear-gradient(#fff, #edf2f7) !important;
+      border-color: #e2e8f0 !important;
     }
 
     html[data-nww-phone] body #timelineDock #playBtn .playTriangle {
-      border-left-color: #122b46 !important;
+      border-left-color: #ef4444 !important;
       filter: none !important;
     }
 
     html[data-nww-phone] body #timelineDock #playBtn .playPause::before,
-    html[data-nww-phone] body #timelineDock #playBtn .playPause::after { background: #122b46 !important; }
+    html[data-nww-phone] body #timelineDock #playBtn .playPause::after { background: #ef4444 !important; }
 
     html[data-nww-phone] body #timelineDock :is(#timelineDayTabs, .timeline-day-arrow) {
       top: 51px !important;
@@ -388,23 +379,22 @@
       justify-content: center !important;
       flex: 1 0 60px !important;
       min-width: 60px !important;
-      background: var(--phone-raised) !important;
-      background-image: none !important;
+      background: var(--accent-soft) !important;
+      background-image: var(--fleet-day-gradient, var(--timeline-day-gradient, none)) !important;
       border: 1px solid var(--phone-line) !important;
       border-radius: 10px !important;
-      color: var(--phone-label) !important;
-      text-shadow: none !important;
-      font: 690 13px/1 Inter, system-ui, sans-serif !important;
+      color: #f8fbff !important;
+      text-shadow: 0 1px 3px #000, 0 0 6px #000 !important;
+      font: 720 13px/1 Inter, system-ui, sans-serif !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineDayTabs .timeline-day.active {
-      background: #233a56 !important;
-      border-color: #74ade0 !important;
+      border-color: #f8fbff !important;
+      box-shadow: inset 0 0 0 1px #f8fbff !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineDayTabs .timeline-day::after {
-      height: 3px !important;
-      background: var(--timeline-day-gradient, #a8b9cd) !important;
+      content: none !important;
     }
 
     html[data-nww-phone] body #timelineDock .timeline-trackRow {
@@ -419,29 +409,29 @@
     html[data-nww-phone] body #timelineDock #hourSlider::-webkit-slider-thumb {
       width: 25px !important;
       height: 25px !important;
-      border: 2px solid #f1f7ff !important;
+      border: 2px solid #f8fbff !important;
       box-shadow: 0 0 0 3px #a6d6ff38 !important;
     }
     html[data-nww-phone] body #timelineDock #hourSlider::-moz-range-thumb {
       width: 25px !important;
       height: 25px !important;
-      border: 2px solid #f1f7ff !important;
+      border: 2px solid #f8fbff !important;
       box-shadow: 0 0 0 3px #a6d6ff38 !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineTimeBounds { display: none !important; }
     html[data-nww-phone] body #timelineDock #timelineFloodKey {
       top: var(--phone-legend-y) !important;
-      height: calc(16px + var(--phone-road-space)) !important;
+      height: calc(19px + var(--phone-road-space)) !important;
       max-height: none !important;
-      column-gap: clamp(6px, 2vw, 13px) !important;
-      color: var(--phone-muted) !important;
+      column-gap: clamp(5px, 1.75vw, 13px) !important;
+      color: var(--phone-label) !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineFloodKey:has(#roadImpactsKey:not([hidden])) {
       display: grid !important;
       grid-template-columns: repeat(4, max-content);
-      grid-template-rows: 16px 16px;
+      grid-template-rows: 18px 16px;
       justify-content: center !important;
       align-content: start !important;
       align-items: center !important;
@@ -454,8 +444,8 @@
     }
 
     html[data-nww-phone] body #timelineDock #timelineFloodKey .timeline-key-label {
-      color: var(--phone-muted) !important;
-      font: 580 10px/14px Inter, system-ui, sans-serif !important;
+      color: #f5f8ff !important;
+      font: 650 13px/16px Inter, system-ui, sans-serif !important;
     }
 
     html[data-nww-phone] body #downloadModal .download-modal-card {
@@ -482,7 +472,7 @@
 
     html[data-nww-phone] body #leftPanel #nwwMobileControlHeader p {
       font: 520 12px/1.333333333 Inter, system-ui, sans-serif !important;
-      color: var(--phone-muted) !important;
+      color: var(--phone-label) !important;
     }
 
     html[data-nww-phone] body #leftPanel #nwwMobileControlHeader .nww-control-tabs {
@@ -499,8 +489,8 @@
 
     html[data-nww-phone] body #leftPanel #nwwMobileControlHeader button[aria-selected="true"] {
       color: var(--phone-accent) !important;
-      border-color: #6e9bc5 !important;
-      background: #233a56 !important;
+      border-color: var(--phone-accent) !important;
+      background: var(--accent-soft) !important;
     }
 
     html[data-nww-phone] body #leftPanel :is(.panel-card,.rail-card) {
@@ -514,7 +504,7 @@
     html[data-nww-phone] body #leftPanel[data-nww-section="map"] #downloadCard { order: 3 !important; }
 
     html[data-nww-phone] body #leftPanel .layer-item {
-      border-bottom: 1px solid #324052 !important;
+      border-bottom: 1px solid var(--phone-line) !important;
       background: transparent !important;
     }
 
@@ -528,40 +518,13 @@
 
   @media (max-width: 360px) {
     html[data-nww-phone] body #mapTitleBadge #mapTitleText { font-size: 14px !important; }
-    .nww-map-credit-provider { display: none; }
-    html[data-nww-phone] body #mapCredits summary { padding-inline: 6px; }
     html[data-nww-phone] body #mobileMapperTutorialBtn { padding-inline: 6px !important; font-size: 11px !important; }
   }
 
-  @media (max-height: 420px) {
-    html[data-nww-phone] body { --phone-popup-top: calc(62px + env(safe-area-inset-top, 0px)); }
-  }
-
   @media (orientation: landscape) and (max-height: 560px) and (min-width: 540px) {
-    html[data-nww-phone] body { --phone-dock-base: 106px; --phone-legend-y: 86px; --phone-dock-max: 650px; }
-    html[data-nww-phone] body:not(.persistent-flood-popup-open):has(#mapClickModeControl:not([hidden])) {
-      /* The shorter viewport leaves room to share one row horizontally. */
-      --phone-action-left: calc(100vw - 206px - max(var(--cm-right, 8px),
-        calc((100vw - var(--phone-dock-max) + var(--cm-right, 8px) - var(--cm-left, 8px)) / 2)));
-      --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 7px);
-    }
+    html[data-nww-phone] body { --phone-dock-base: 106px; --phone-legend-y: 84px; --phone-dock-max: 650px; }
     html[data-nww-phone] body:has(#timelineDock[data-single-timeline-time="true"]) {
-      --phone-dock-base: 72px; --phone-legend-y: 52px;
-    }
-    html[data-nww-phone] body #nwDefaultNavControl {
-      display: flex !important;
-      flex-direction: row !important;
-      align-items: center !important;
-      width: auto !important;
-    }
-    html[data-nww-phone] body #nwDefaultNavControl .nw-simple-zoom {
-      width: 88px !important;
-      height: 44px !important;
-      flex-direction: row !important;
-    }
-    html[data-nww-phone] body #nwDefaultNavControl .nw-simple-zoom-button + .nw-simple-zoom-button {
-      border-top: 0 !important;
-      border-left: 1px solid var(--phone-line) !important;
+      --phone-dock-base: 72px; --phone-legend-y: 51px;
     }
     html[data-nww-phone] body #timelineDock #timelineBubble { width: 125px !important; right: auto !important; }
     html[data-nww-phone] body #timelineDock #timelineStepBack { left: 144px !important; right: auto !important; }

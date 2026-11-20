@@ -5,7 +5,7 @@
     {
       "source": "assets/3d/north-wildwood-3d.js",
       "beforeSha256": "584631a173bcaece1936658f3f93554f06d2c32a8afff5bee00563533b01461f",
-      "afterSha256": "0d6f266758e074b4fda9778e12415e517767861f6d6a77b8368964df4b695ff9",
+      "afterSha256": "e86537dcae5b45628295c3e599ad7ffc76ebf8885dc83218abb5c9ee30a38ce4",
       "edits": [
         [
           78490,
@@ -31,6 +31,11 @@
           100768,
           100905,
           "      var leafletCenter = map && map.getCenter ? map.getCenter() : { lng: -74.7998357, lat: 39.006945 };\n"
+        ],
+        [
+          122169,
+          123017,
+          "    host.appendChild(control);\n"
         ]
       ]
     },
@@ -208,7 +213,7 @@
     {
       "source": "assets/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "9d3196b623760c611f5de1415f86b31b52b4438788a7fa152d21647609704b85",
+      "afterSha256": "ecfe97952fdf21f0ef376c1d0c2dd7437cb97b736e2bada0864a58de7fdb1077",
       "edits": [
         [
           2655,
@@ -221,18 +226,38 @@
           "  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
         ],
         [
-          15831,
-          15851,
+          14923,
+          15391,
+          "  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
+        ],
+        [
+          15554,
+          15614,
+          "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
+        ],
+        [
+          15700,
+          15769,
+          "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
+        ],
+        [
+          15773,
+          15847,
           ""
         ],
         [
-          17257,
-          17555,
+          16148,
+          16168,
+          ""
+        ],
+        [
+          17574,
+          17872,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          17851,
-          18093,
+          18168,
+          18410,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
         ]
       ]
@@ -240,36 +265,41 @@
     {
       "source": "assets/app/webcams.js",
       "beforeSha256": "fe85ef738394f52dc1dea6508249a4e177c871c271163517f6ffb31d6926b5a3",
-      "afterSha256": "1e1b6bf11b61a2d91b445afe7688b175f13bc88d8e1e3181e84df23be08780c3",
+      "afterSha256": "6dbb1943bbac6a3ad89888d68e973000310a3a8d1703f5fa124e08d128100f63",
       "edits": [
         [
           5542,
-          6034,
+          5734,
           "    for (const id of [\"topBanner\", \"topBar\", \"mapTitleBadge\", \"mobileControlsToggle\"]) {\n"
         ],
         [
-          6744,
-          7134,
+          6444,
+          6595,
           "    const bottom = Math.min(rect.bottom, viewportTop + viewportHeight, dock?.height ? dock.top : Infinity);\n"
         ],
         [
-          7945,
-          8030,
-          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n    if (overlay && !panel.hidden && controls?.getClientRects().length) {\n"
+          7406,
+          7406,
+          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n"
         ],
         [
-          8685,
-          8795,
-          "    const maxHeight = overlay ? Math.max(1, viewportBottom - panelTop - 8) : available;\n"
+          9149,
+          9149,
+          "    mountPanel();\n"
         ],
         [
-          9819,
-          10120,
+          9204,
+          9222,
+          ""
+        ],
+        [
+          9246,
+          9547,
           "    if (opening) requestAnimationFrame(() => {\n      if (!panel.hidden && selected === camera) closeButton.focus({ preventScroll: true });\n    });\n"
         ],
         [
-          18899,
-          19048,
+          18326,
+          18475,
           "  [\"topBanner\", \"mapTitleBadge\", \"mobileControlsToggle\", \"legendDock\", \"timelineDock\"].map(id => document.getElementById(id))\n"
         ]
       ]
@@ -388,7 +418,7 @@
     {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "760227e33084be9aadf9eb41fad9d79482eb9d86ffe0d77a9294dbd0a6a0c005",
+      "afterSha256": "e1b31f24eaa7a4fe78b5cd7a67fcdde1040a0435090a514cee3fc7e591267505",
       "edits": [
         [
           115,
@@ -411,43 +441,48 @@
           "<meta charset=\"utf-8\" />\n"
         ],
         [
-          52676,
-          52824,
+          40978,
+          41040,
+          ""
+        ],
+        [
+          52738,
+          52886,
           "        <button id=\"mapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-rail\" type=\"button\">Take the FloodMapper tour</button>\n"
         ],
         [
-          62953,
-          63568,
+          63015,
+          63641,
           "  <button id=\"mobileMapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-mobile\" type=\"button\" aria-haspopup=\"dialog\" data-html2canvas-ignore=\"true\">Take the FloodMapper tour</button>\n"
         ],
         [
-          81441,
-          81694,
+          81514,
+          81767,
           "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=28cea3996d8987cf\"></script>\n"
         ],
         [
-          81909,
-          82133,
+          81982,
+          82206,
           "<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=584631a173bcaece\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b3e11134ba8bcb33\"></script>\n"
         ],
         [
-          82207,
-          82307,
+          82280,
+          82380,
           "<script data-nww-script=\"script-007\" src=\"./assets/app/town-config.js?v=150329941da8abe6\"></script>\n"
         ],
         [
-          82558,
-          82664,
+          82631,
+          82737,
           "<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n"
         ],
         [
-          82791,
-          84131,
+          82864,
+          84204,
           "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n<script id=\"shorelysafeWebcamsScript\" data-nww-script=\"script-008\" src=\"./assets/app/webcams.js?v=fe85ef738394f52d\"></script>\n"
         ],
         [
-          84418,
-          85350,
+          84491,
+          85423,
           "<script id=\"floodmapper-unified-controller-20261017\" data-ui-sha256=\"3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7\" data-nww-script=\"script-011\" src=\"./assets/app/unified-controller.js?v=e967d7ca203af59f\"></script>\n"
         ]
       ]
@@ -455,7 +490,7 @@
     {
       "source": "tools/app/index.template.html",
       "beforeSha256": "380b3c5e261e14623857065daaddc0f8a155dcf4f96023ee6140defce61ed5b1",
-      "afterSha256": "7f18111a4746768c418e343483711f6e11b9e925e721e0284c8a77d7695f3fe3",
+      "afterSha256": "cfd1a5f07885b1419bc4b9d3d9f33ba7e3c9fc3e34627f46603a79d1cdcd6d6a",
       "edits": [
         [
           115,
@@ -483,68 +518,73 @@
           "      <span id=\"mapTitleText\" class=\"shorely-title-text\">North Wildwood Flood Mapper</span>\n"
         ],
         [
-          18362,
-          18474,
+          8019,
+          8081,
+          ""
+        ],
+        [
+          18424,
+          18536,
           "      <div id=\"map3d\" role=\"region\" aria-label=\"Interactive 3D North Wildwood flood map\"></div>\n"
         ],
         [
-          19733,
-          19881,
+          19795,
+          19943,
           "        <button id=\"mapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-rail\" type=\"button\">Take the FloodMapper tour</button>\n"
         ],
         [
-          24059,
-          24150,
+          24121,
+          24212,
           "              <h3 id=\"townAddressTitle\">Find a North Wildwood Address</h3>\n"
         ],
         [
-          24587,
-          24739,
+          24649,
+          24801,
           "              <button id=\"townAddressSearchBtn\" class=\"right-rail-action town-address-btn\" type=\"submit\">Search North Wildwood</button>\n"
         ],
         [
-          30042,
-          30657,
+          30104,
+          30730,
           "  <button id=\"mobileMapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-mobile\" type=\"button\" aria-haspopup=\"dialog\" data-html2canvas-ignore=\"true\">Take the FloodMapper tour</button>\n"
         ],
         [
-          38117,
-          38261,
+          38190,
+          38334,
           "            <button id=\"exportExtentTownBtn\" type=\"button\" data-extent=\"town\" aria-pressed=\"false\">Fill North Wildwood</button>\n"
         ],
         [
-          44292,
-          44381,
+          44365,
+          44454,
           "          <p id=\"floodHistoryAddress\">Selected North Wildwood parcel</p>\n"
         ],
         [
-          48562,
-          48628,
+          48635,
+          48701,
           ""
         ],
         [
-          48661,
-          48730,
+          48734,
+          48803,
           ""
         ],
         [
-          48797,
-          48991,
+          48870,
+          49064,
           "<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=584631a173bcaece\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b3e11134ba8bcb33\"></script>\n"
         ],
         [
-          49347,
-          49443,
+          49420,
+          49516,
           "<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n"
         ],
         [
-          49570,
-          49646,
+          49643,
+          49719,
           "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n"
         ],
         [
-          49773,
-          50461,
+          49846,
+          50534,
           ""
         ]
       ]
@@ -814,7 +854,7 @@
     {
       "source": "tools/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "9d3196b623760c611f5de1415f86b31b52b4438788a7fa152d21647609704b85",
+      "afterSha256": "ecfe97952fdf21f0ef376c1d0c2dd7437cb97b736e2bada0864a58de7fdb1077",
       "edits": [
         [
           2655,
@@ -827,18 +867,38 @@
           "  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
         ],
         [
-          15831,
-          15851,
+          14923,
+          15391,
+          "  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
+        ],
+        [
+          15554,
+          15614,
+          "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
+        ],
+        [
+          15700,
+          15769,
+          "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
+        ],
+        [
+          15773,
+          15847,
           ""
         ],
         [
-          17257,
-          17555,
+          16148,
+          16168,
+          ""
+        ],
+        [
+          17574,
+          17872,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          17851,
-          18093,
+          18168,
+          18410,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
         ]
       ]
@@ -846,36 +906,41 @@
     {
       "source": "tools/app/webcams.js",
       "beforeSha256": "fe85ef738394f52dc1dea6508249a4e177c871c271163517f6ffb31d6926b5a3",
-      "afterSha256": "1e1b6bf11b61a2d91b445afe7688b175f13bc88d8e1e3181e84df23be08780c3",
+      "afterSha256": "6dbb1943bbac6a3ad89888d68e973000310a3a8d1703f5fa124e08d128100f63",
       "edits": [
         [
           5542,
-          6034,
+          5734,
           "    for (const id of [\"topBanner\", \"topBar\", \"mapTitleBadge\", \"mobileControlsToggle\"]) {\n"
         ],
         [
-          6744,
-          7134,
+          6444,
+          6595,
           "    const bottom = Math.min(rect.bottom, viewportTop + viewportHeight, dock?.height ? dock.top : Infinity);\n"
         ],
         [
-          7945,
-          8030,
-          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n    if (overlay && !panel.hidden && controls?.getClientRects().length) {\n"
+          7406,
+          7406,
+          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n"
         ],
         [
-          8685,
-          8795,
-          "    const maxHeight = overlay ? Math.max(1, viewportBottom - panelTop - 8) : available;\n"
+          9149,
+          9149,
+          "    mountPanel();\n"
         ],
         [
-          9819,
-          10120,
+          9204,
+          9222,
+          ""
+        ],
+        [
+          9246,
+          9547,
           "    if (opening) requestAnimationFrame(() => {\n      if (!panel.hidden && selected === camera) closeButton.focus({ preventScroll: true });\n    });\n"
         ],
         [
-          18899,
-          19048,
+          18326,
+          18475,
           "  [\"topBanner\", \"mapTitleBadge\", \"mobileControlsToggle\", \"legendDock\", \"timelineDock\"].map(id => document.getElementById(id))\n"
         ]
       ]
@@ -918,7 +983,7 @@
     },
     {
       "source": "assets/north-wildwood-phone.css",
-      "sha256": "fa1bdcda364e99175e6eb7592fdd37868988e3952187f60a031b0fa36504346c"
+      "sha256": "eb717dcfec456084183b5a878a060b5f69cda0e98ac4ebb6fa7cef3645baec83"
     },
     {
       "source": "tools/app/town-profile.json",

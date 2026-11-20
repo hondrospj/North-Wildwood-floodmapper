@@ -2647,7 +2647,22 @@
       event.preventDefault();
       applyViewpoint(bearings[event.key], 0);
     });
-    host.appendChild(control);
+    var drawerView = document.getElementById("nwwDrawerViewMode");
+    function placeViewControl() {
+      var container = drawerView && isCompactFloodmapperLayout() ? drawerView : host;
+      if (control.parentElement === container) return;
+      var focus = control.contains(document.activeElement);
+      container.appendChild(control);
+      if (focus) {
+        var target = container === drawerView && !document.body.classList.contains("mobile-controls-open")
+          ? document.getElementById("mobileControlsToggle") : launcher;
+        requestAnimationFrame(function () {
+          if (document.activeElement === document.body && !target?.closest("[inert]")) target?.focus({ preventScroll: true });
+        });
+      }
+    }
+    placeViewControl();
+    if (drawerView) floodmapperLayoutMedia.addEventListener("change", placeViewControl);
     control.dataset.wheelCameraUpdates = "raf-latest-plus-final-commit";
     control.dataset.wheelPreview3dMs = "animation-frame";
     control.dataset.wheelPreview2dMs = "animation-frame";

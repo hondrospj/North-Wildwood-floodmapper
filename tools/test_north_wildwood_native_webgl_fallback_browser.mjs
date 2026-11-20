@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { changeMapView, twoFingerMapGesture } from './browser_map_view.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -128,7 +129,7 @@ try {
       await page.waitForFunction(() => document.body.classList.contains('nw-app-ready') &&
         !document.getElementById('app').inert && floodFrameState === 'ready', null, { timeout: 90000 });
       const launcher = page.locator('.nw-simple-view');
-      await launcher.click();
+      await changeMapView(page, launcher);
       await waitForNative(page);
       if (kind === 'permanent-loss') {
         if (profile === 'desktop') {
@@ -137,7 +138,8 @@ try {
             currentFloodLayer?._floodmapperFrame?.overlayMode === 'dynamic');
         }
         await setLayerPreferences(page);
-        await page.locator('.nw-simple-zoom-in').click();
+        if (profile === 'touch') await twoFingerMapGesture(page, { spread: 65 });
+        else await page.locator('.nw-simple-zoom-in').click();
         await page.waitForFunction(() => NORTH_WILDWOOD_3D.getMap().getZoom() === map.getZoom());
       }
       const initial = await snapshot(page);
@@ -187,7 +189,8 @@ try {
         if (process.env.NWW_AUDIT_OUTPUT) {
           await page.screenshot({ path: path.join(output, `${profile}-leaflet-fallback.png`) });
         }
-        await page.locator('.nw-simple-zoom-in').click();
+        if (profile === 'touch') await twoFingerMapGesture(page, { spread: 65 });
+        else await page.locator('.nw-simple-zoom-in').click();
         await page.waitForFunction(zoom => map.getZoom() > zoom, fallback.leafletZoom);
         const move = await page.evaluate(() => currentHourIndex < currentSeriesHours.length - 1 ? 'ArrowRight' : 'ArrowLeft');
         await page.locator('#hourSlider').press(move);
@@ -197,7 +200,7 @@ try {
         row.states.push({ label: 'leaflet-interaction', ...updated });
         assert.notEqual(updated.currentTime, fallback.currentTime);
         assert.equal(updated.frameTime, updated.currentTime);
-        await launcher.click();
+        await changeMapView(page, launcher);
         await waitForNative(page);
         const relaunched = await snapshot(page);
         row.states.push({ label: 'fresh-native-relaunch', ...relaunched });

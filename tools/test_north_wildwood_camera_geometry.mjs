@@ -17,7 +17,7 @@ assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\]\s*\{[^}]*z-index
 assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\] \.webcam-heading\s*\{[^}]*position:\s*sticky[^}]*top:\s*0/s,
   'Scrolling the camera viewer must retain its heading and close button');
 
-function fixture(width, height, vv = null, bannerBottom = 0, phoneToolbar = false) {
+function fixture(width, height, vv = null, bannerBottom = 0) {
   const style = {
     setProperty(name, value) { this[name] = value; },
     removeProperty(name) { delete this[name === 'max-width' ? 'maxWidth' : name]; },
@@ -43,11 +43,7 @@ function fixture(width, height, vv = null, bannerBottom = 0, phoneToolbar = fals
   const env = {
     map: null, panel, innerWidth: width, innerHeight: height,
     window: { visualViewport: vv },
-    document: {
-      body,
-      documentElement: { matches: selector => phoneToolbar && selector === '.county-compact[data-nww-phone]' },
-      getElementById: id => elements[id] ?? null,
-    },
+    document: { body, getElementById: id => elements[id] ?? null },
     getComputedStyle: () => ({ visibility: 'visible' }),
   };
   return { panel, container, body, elements, env, mounts, run: () => run(env) };
@@ -125,14 +121,14 @@ for (const item of cases) {
   assert.equal(f.panel.style.maxHeight, '357px');
 }
 {
-  const f = fixture(390, 425, null, 0, true);
-  const toolbarTop = 215;
-  f.elements.mobileControlsToggle.getBoundingClientRect = () => ({ top: toolbarTop, bottom: toolbarTop + 44, height: 44 });
+  const f = fixture(390, 425);
+  const toolbarBottom = 102;
+  f.elements.mobileControlsToggle.getBoundingClientRect = () => ({ left: 130, right: 202, top: 58, bottom: toolbarBottom, height: 44 });
   f.run();
   assert.equal(f.panel.dataset.viewportOverlay, 'true');
   const top = Number.parseFloat(f.panel.style.top);
   const height = Number.parseFloat(f.panel.style.maxHeight);
-  assert.equal(top + height, toolbarTop - 8, 'The camera viewer leaves a gap above the phone toolbar');
+  assert.equal(top, toolbarBottom + 8, 'The camera viewer leaves a gap below the phone toolbar');
   assert.ok(height >= 150, 'The camera viewer retains space for its heading, chooser and scrollable content');
 }
 console.log(JSON.stringify({ source: path.resolve(sourcePath), checks: cases.length + 5, passed: true, results }, null, 2));
