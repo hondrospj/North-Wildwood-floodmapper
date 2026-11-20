@@ -20,6 +20,7 @@
       --phone-action-left: max(var(--cm-left, 8px),
         calc((100vw - var(--phone-dock-max) + var(--cm-left, 8px) - var(--cm-right, 8px)) / 2));
       --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 7px);
+      --phone-legend-width: min(340px, calc(100vw - var(--cm-left, 8px) - var(--cm-right, 8px)));
       --phone-tools-top: calc(var(--cm-top, 8px) + var(--phone-header-height) + 8px);
       --phone-legend-y: 133px;
       --phone-dock-base: 154px;
@@ -30,7 +31,7 @@
     }
 
     html[data-nww-phone] body:has(#mapClickModeControl:not([hidden])) {
-      --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 58px);
+      --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 75px);
     }
 
     html[data-nww-phone] body:has(#roadImpactsKey:not([hidden])) { --phone-road-space: 17px; }
@@ -164,9 +165,10 @@
     html[data-nww-phone] body.mobile-legend-open #legendDock {
       top: auto !important;
       bottom: calc(var(--phone-action-bottom) + 51px) !important;
-      left: var(--phone-action-left) !important;
+      left: min(var(--phone-action-left),
+        calc(100vw - var(--phone-legend-width) - var(--cm-right, 8px))) !important;
       right: auto !important;
-      width: min(340px, calc(100vw - var(--cm-left, 8px) - var(--cm-right, 8px))) !important;
+      width: var(--phone-legend-width) !important;
       height: auto !important;
       min-height: 0 !important;
       max-height: clamp(105px, calc(100dvh - var(--phone-action-bottom) - 75px), 360px) !important;
@@ -422,6 +424,21 @@
       color: var(--phone-muted) !important;
     }
 
+    html[data-nww-phone] body #timelineDock #timelineFloodKey:has(#roadImpactsKey:not([hidden])) {
+      display: grid !important;
+      grid-template-columns: repeat(4, max-content);
+      grid-template-rows: 16px 16px;
+      justify-content: center !important;
+      align-content: start !important;
+      align-items: center !important;
+      row-gap: 0 !important;
+    }
+
+    html[data-nww-phone] body #timelineDock #roadImpactsKey:not([hidden]) {
+      grid-column: 1 / -1;
+      justify-self: center;
+    }
+
     html[data-nww-phone] body #timelineDock #timelineFloodKey .timeline-key-label {
       color: var(--phone-muted) !important;
       font: 580 10px/14px Inter, system-ui, sans-serif !important;
@@ -504,6 +521,12 @@
 
   @media (orientation: landscape) and (max-height: 560px) and (min-width: 540px) {
     html[data-nww-phone] body { --phone-dock-base: 106px; --phone-legend-y: 86px; --phone-dock-max: 650px; }
+    html[data-nww-phone] body:has(#mapClickModeControl:not([hidden])) {
+      /* The shorter viewport leaves room to share one row horizontally. */
+      --phone-action-left: calc(100vw - 206px - max(var(--cm-right, 8px),
+        calc((100vw - var(--phone-dock-max) + var(--cm-right, 8px) - var(--cm-left, 8px)) / 2)));
+      --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 7px);
+    }
     html[data-nww-phone] body:has(#timelineDock[data-single-timeline-time="true"]) {
       --phone-dock-base: 72px; --phone-legend-y: 52px;
     }

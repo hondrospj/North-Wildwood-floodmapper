@@ -16,7 +16,7 @@ const SHARED_APP_PATH = "tools/fixtures/north-wildwood-20261119-common-browser-a
 const priorSharedAppSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-shared-app-snapshot");
 const sharedAppText = readReleaseBytes(SHARED_APP_PATH);
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
-assert.equal(hashReleaseBytes(sharedAppText), "712c07fe73bf8d1cbf85c99c3d8d0bb1f8bfa22a679328bfbb493312b61c14d5", "Retain the exact shared application inverse");
+assert.equal(hashReleaseBytes(sharedAppText), "a16f4a16ac2ca5069d75fda57fa20a97833c2f8e63198756b58276783662e4a3", "Retain the exact shared application inverse");
 const sharedApp = JSON.parse(sharedAppText);
 assert.equal(sharedApp.schemaVersion, 1);
 assert.equal(sharedApp.baselineCommit, "be43e3a29e9807658e6b19101371e374c29afa30");
