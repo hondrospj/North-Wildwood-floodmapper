@@ -10045,9 +10045,7 @@ function formatSelectedObservedDate(dateStr) {
         toast("");
         ensureMap();
 
-        const match = document.body.dataset.initialFloodFrame === "loading" && mode === "depth"
-          ? await getOverlayRecord(mode, stageValue, phase)
-          : await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
+        const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
         if (token !== lastRenderToken) return;
 
         if (!match) {
