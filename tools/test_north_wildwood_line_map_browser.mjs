@@ -28,6 +28,9 @@ async function newPage() {
 async function ready(page) {
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready') && floodFrameState==='ready',{}, {timeout:90000});
+  // Quiet loading hides the overlay visually before controls are released.
+  await page.waitForFunction(()=>document.getElementById('nwSiteLoader')?.hidden === true &&
+   document.getElementById('app')?.inert === false);
   await page.locator('#nwSiteLoader').waitFor({state:'hidden'});
 }
 async function modeledFlood(page) {
