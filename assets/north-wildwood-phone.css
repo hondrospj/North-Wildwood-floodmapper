@@ -68,7 +68,7 @@
       inset: var(--phone-tools-top) var(--cm-right, 8px) auto var(--cm-left, 8px);
       z-index: 6200;
       display: grid;
-      grid-template-columns: minmax(0, max-content) max-content minmax(44px, 1fr) max-content;
+      grid-template-columns: minmax(0, max-content) 72px minmax(44px, 1fr) 63px;
       align-items: center;
       gap: 6px;
       pointer-events: none;

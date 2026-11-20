@@ -116,6 +116,8 @@ try {
     await legend.waitFor({state:'visible'});
     assert.match(await legend.textContent(),/Shallow|Minor/);
     assert((await legend.boundingBox()).y > state.key.bottom,layout);
+    const controlsWhileOpen = await page.locator('#mobileControlsToggle').boundingBox();
+    assert.ok(Math.abs(controlsWhileOpen.x-state.controls.x) <= 1,layout);
     const depthSpacing = await legend.locator('.depth-legend-labels').evaluate(labels => {
       const shallow = labels.children[1].getBoundingClientRect();
       const deep = labels.children[2].getBoundingClientRect();
