@@ -351,7 +351,7 @@
     {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "fb72e7ab58e7e82c6d3e5ba3f19ecaa3bf895e06ff7fb76b6ecd730a81e4f80e",
+      "afterSha256": "152312118f06d057e31e976719b88b3610b508285690912b208be8241bada9d8",
       "edits": [
         [
           115,
@@ -844,7 +844,7 @@
     },
     {
       "source": "assets/north-wildwood-phone.css",
-      "sha256": "de17c2c6ede1690771ba6597d0562efdb6da89dcba1e44d01a313b15f2c266a9"
+      "sha256": "1187e6c340d2d95af26db71a71226d487ebaa13f4430e0c5ab9167e9170de4ed"
     },
     {
       "source": "tools/app/town-profile.json",

@@ -15,7 +15,11 @@
       --phone-muted: #b5c6da;
       --phone-accent: #a6d6ff;
       --phone-shadow: 0 3px 18px #08152032;
-      --phone-header-height: 46px;
+      --phone-header-height: 42px;
+      --phone-dock-max: 580px;
+      --phone-action-left: max(var(--cm-left, 8px),
+        calc((100vw - var(--phone-dock-max) + var(--cm-left, 8px) - var(--cm-right, 8px)) / 2));
+      --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 7px);
       --phone-tools-top: calc(var(--cm-top, 8px) + var(--phone-header-height) + 8px);
       --phone-legend-y: 133px;
       --phone-dock-base: 154px;
@@ -23,6 +27,10 @@
       --nww-phone-dock-height: calc(var(--phone-dock-base) + var(--phone-road-space));
       --nww-mobile-timeline: var(--nww-phone-dock-height) !important;
       --nww-drawer-max: 480px;
+    }
+
+    html[data-nww-phone] body:has(#mapClickModeControl:not([hidden])) {
+      --phone-action-bottom: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height) + 58px);
     }
 
     html[data-nww-phone] body:has(#roadImpactsKey:not([hidden])) { --phone-road-space: 17px; }
@@ -34,14 +42,14 @@
     html[data-nww-phone] body #mapTitleBadge {
       top: var(--cm-top, 8px) !important;
       left: var(--cm-left, 8px) !important;
-      right: var(--cm-right, 8px) !important;
-      width: auto !important;
+      right: auto !important;
+      width: max-content !important;
       min-width: 0 !important;
-      max-width: none !important;
+      max-width: calc(100vw - var(--cm-left, 8px) - var(--cm-right, 8px)) !important;
       box-sizing: border-box !important;
       height: var(--phone-header-height) !important;
       min-height: var(--phone-header-height) !important;
-      padding: 0 152px 0 13px !important;
+      padding: 0 13px !important;
       background: var(--phone-surface) !important;
       border: 1px solid var(--phone-line) !important;
       border-radius: 14px !important;
@@ -57,47 +65,120 @@
       max-width: none !important;
     }
 
+    /* Give the two map actions one continuous shape near the timeline. */
     html[data-nww-phone] body :is(#mobileControlsToggle, #legendDock:not([aria-expanded="true"])) {
-      top: calc(var(--cm-top, 8px) + 1px) !important;
+      position: fixed !important;
+      top: auto !important;
+      right: auto !important;
+      bottom: var(--phone-action-bottom) !important;
       height: 44px !important;
       min-height: 44px !important;
       max-height: 44px !important;
+      box-sizing: border-box !important;
       padding: 0 !important;
-      border: 1px solid transparent !important;
-      border-radius: 11px !important;
-      background: var(--phone-raised) !important;
-      box-shadow: none !important;
-    }
-
-    html[data-nww-phone] body #mobileControlsToggle {
-      right: calc(var(--cm-right, 8px) + 1px) !important;
-      width: 84px !important;
-      min-width: 84px !important;
-      max-width: 84px !important;
-      background: #23466a !important;
+      margin: 0 !important;
+      transform: none !important;
+      border: 1px solid var(--phone-line) !important;
+      box-shadow: var(--phone-shadow) !important;
     }
 
     html[data-nww-phone] body #legendDock:not([aria-expanded="true"]) {
-      right: calc(var(--cm-right, 8px) + 91px) !important;
-      width: 50px !important;
-      min-width: 50px !important;
-      max-width: 50px !important;
-    }
-
-    html[data-nww-phone] body :is(#mobileControlsToggle, #legendDock:not([aria-expanded="true"]))::after {
-      font: 650 13px/42px Inter, system-ui, sans-serif !important;
+      left: var(--phone-action-left) !important;
+      width: 100px !important;
+      min-width: 100px !important;
+      max-width: 100px !important;
+      border-radius: 12px 0 0 12px !important;
+      background: var(--phone-surface) !important;
       color: var(--phone-label) !important;
     }
 
+    html[data-nww-phone] body #mobileControlsToggle {
+      left: calc(var(--phone-action-left) + 100px) !important;
+      width: 106px !important;
+      min-width: 106px !important;
+      max-width: 106px !important;
+      border-radius: 0 12px 12px 0 !important;
+      background: #b9ddf9 !important;
+      color: #122c44 !important;
+    }
+
+    html[data-nww-phone] body.mobile-legend-open #mobileControlsToggle {
+      border-radius: 12px !important;
+    }
+
+    html[data-nww-phone] body :is(#mobileControlsToggle, #legendDock:not([aria-expanded="true"]))::after {
+      position: absolute !important;
+      inset: 0 7px 0 29px !important;
+      width: auto !important;
+      height: auto !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      display: grid !important;
+      place-items: center !important;
+      font: 680 13px/1 Inter, system-ui, sans-serif !important;
+      color: inherit !important;
+      -webkit-text-fill-color: currentColor !important;
+      text-shadow: none !important;
+    }
+
+    html[data-nww-phone] body #legendDock:not([aria-expanded="true"])::after { content: "Legend" !important; }
+    html[data-nww-phone] body #mobileControlsToggle::after { content: "Controls" !important; }
+
+    html[data-nww-phone] body :is(#mobileControlsToggle, #legendDock:not([aria-expanded="true"]))::before {
+      content: "" !important;
+      position: absolute !important;
+      display: block !important;
+      top: 50% !important;
+      left: 13px !important;
+      width: 14px !important;
+      min-height: 0 !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      transform: translateY(-50%) !important;
+      pointer-events: none;
+    }
+
+    html[data-nww-phone] body #legendDock:not([aria-expanded="true"])::before {
+      height: 8px !important;
+      border-radius: 2px !important;
+      background: linear-gradient(90deg, #75cc48 25%, #dba548 25% 50%, #db6178 50% 75%, #9e86ed 75%) !important;
+    }
+
+    html[data-nww-phone] body #legendDock[data-legend-mode="depth"]:not([aria-expanded="true"])::before {
+      background: linear-gradient(90deg, #63d471 0 22%, #81e4ff 22%, #3456ad 100%) !important;
+    }
+
+    html[data-nww-phone] body #mobileControlsToggle::before {
+      height: 14px !important;
+      background:
+        radial-gradient(circle, currentColor 1.6px, transparent 2px) 3px 1px / 4px 4px,
+        radial-gradient(circle, currentColor 1.6px, transparent 2px) 8px 5px / 4px 4px,
+        radial-gradient(circle, currentColor 1.6px, transparent 2px) 4px 9px / 4px 4px,
+        linear-gradient(currentColor, currentColor) 0 2.5px / 14px 1px,
+        linear-gradient(currentColor, currentColor) 0 6.5px / 14px 1px,
+        linear-gradient(currentColor, currentColor) 0 10.5px / 14px 1px !important;
+      background-repeat: no-repeat !important;
+    }
+
     html[data-nww-phone] body.mobile-legend-open #legendDock {
-      top: var(--phone-tools-top) !important;
-      left: var(--cm-left, 8px) !important;
+      top: auto !important;
+      bottom: calc(var(--phone-action-bottom) + 51px) !important;
+      left: var(--phone-action-left) !important;
       right: auto !important;
-      width: min(370px, calc(100vw - var(--cm-left, 8px) - var(--cm-right, 8px))) !important;
+      width: min(340px, calc(100vw - var(--cm-left, 8px) - var(--cm-right, 8px))) !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: clamp(105px, calc(100dvh - var(--phone-action-bottom) - 75px), 360px) !important;
       padding: 14px !important;
+      overflow-y: auto !important;
       border-radius: 14px !important;
       box-shadow: var(--phone-shadow) !important;
       background: var(--phone-surface) !important;
+    }
+
+    html[data-nww-phone] body #toast {
+      bottom: calc(var(--phone-action-bottom) + 52px) !important;
     }
 
     html[data-nww-phone] body #nwwMobileUtilities {
@@ -198,7 +279,7 @@
     }
 
     html[data-nww-phone] body #timelineDock {
-      width: min(580px, calc(100% - var(--cm-left, 8px) - var(--cm-right, 8px))) !important;
+      width: min(var(--phone-dock-max), calc(100% - var(--cm-left, 8px) - var(--cm-right, 8px))) !important;
       margin-inline: auto !important;
       border: 1px solid var(--phone-line) !important;
       border-radius: 17px !important;
@@ -415,7 +496,6 @@
   }
 
   @media (max-width: 360px) {
-    html[data-nww-phone] body #mapTitleBadge { padding-right: 142px !important; }
     html[data-nww-phone] body #mapTitleBadge #mapTitleText { font-size: 14px !important; }
     .nww-map-credit-provider { display: none; }
     html[data-nww-phone] body #mapCredits summary { padding-inline: 6px; }
@@ -423,7 +503,7 @@
   }
 
   @media (orientation: landscape) and (max-height: 560px) and (min-width: 540px) {
-    html[data-nww-phone] body { --phone-dock-base: 106px; --phone-legend-y: 86px; }
+    html[data-nww-phone] body { --phone-dock-base: 106px; --phone-legend-y: 86px; --phone-dock-max: 650px; }
     html[data-nww-phone] body:has(#timelineDock[data-single-timeline-time="true"]) {
       --phone-dock-base: 72px; --phone-legend-y: 52px;
     }
@@ -442,7 +522,6 @@
       border-top: 0 !important;
       border-left: 1px solid var(--phone-line) !important;
     }
-    html[data-nww-phone] body #timelineDock { width: min(650px, calc(100% - var(--cm-left, 8px) - var(--cm-right, 8px))) !important; }
     html[data-nww-phone] body #timelineDock #timelineBubble { width: 125px !important; right: auto !important; }
     html[data-nww-phone] body #timelineDock #timelineStepBack { left: 144px !important; right: auto !important; }
     html[data-nww-phone] body #timelineDock #timelineStepForward { left: 194px !important; right: auto !important; }
@@ -454,6 +533,7 @@
 
   @media (forced-colors: active) {
     html[data-nww-phone] body #timelineDock #timelineDayTabs .timeline-day.active { border: 2px solid Highlight !important; }
+    html.county-compact[data-nww-phone] body :is(#mobileControlsToggle,#legendDock) { border-color: ButtonText !important; }
     html[data-nww-phone] body #timelineDock #playBtn .playTriangle { border-left-color: ButtonText !important; }
   }
 }

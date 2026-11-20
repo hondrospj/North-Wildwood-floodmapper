@@ -57,6 +57,20 @@ try {
       assert(part && part.x>=-1 && part.right<=state.width+1 && part.y>=0 && part.bottom<=state.height+1,layout);
     }
     assert.equal(state.dock.height,viewport.height<500 ? 106 : 154,layout);
+    assert.ok(Math.abs(state.key.bottom-state.controls.bottom)<=1,layout);
+    assert.ok(Math.abs(state.key.right-state.controls.left)<=1,layout);
+    assert.ok(Math.abs(state.key.left-state.dock.left)<=2,layout);
+    assert.ok(Math.abs(state.controls.bottom-state.dock.top+7)<=1,layout);
+    assert.ok(state.title.bottom<state.controls.top,layout);
+    assert.equal(await page.locator('#legendDock').evaluate(el=>getComputedStyle(el,'::after').content),'"Legend"');
+    const controlsLabelFits = await page.locator('#mobileControlsToggle').evaluate(el => {
+      const label = getComputedStyle(el,'::after');
+      const context = document.createElement('canvas').getContext('2d');
+      context.font = label.font;
+      const space = parseFloat(label.width);
+      return context.measureText('Controls').width < space && space < el.clientWidth - 20;
+    });
+    assert(controlsLabelFits,layout);
     for (const button of [state.key,state.controls,state.tour,state.credits,...state.steps]) {
       assert.ok(button.height>=44 && button.width>=44,layout);
     }
@@ -78,6 +92,10 @@ try {
 
     await page.locator('#legendDock').tap();
     await page.waitForFunction(()=>document.getElementById('legendDock').getAttribute('aria-expanded')==='true');
+    const legend = page.locator('#legendList');
+    await legend.waitFor({state:'visible'});
+    assert.match(await legend.textContent(),/Shallow|Minor/);
+    assert((await legend.boundingBox()).y < state.key.top,layout);
     await page.locator('#legendDock').press('Escape');
     await page.waitForFunction(()=>document.getElementById('legendDock').getAttribute('aria-expanded')==='false');
 
