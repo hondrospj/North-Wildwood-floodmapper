@@ -17,7 +17,7 @@ assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\]\s*\{[^}]*z-index
 assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\] \.webcam-heading\s*\{[^}]*position:\s*sticky[^}]*top:\s*0/s,
   'Scrolling the camera viewer must retain its heading and close button');
 
-function fixture(width, height, vv = null, bannerBottom = 0) {
+function fixture(width, height, vv = null, bannerBottom = 0, phoneToolbar = false) {
   const style = {
     setProperty(name, value) { this[name] = value; },
     removeProperty(name) { delete this[name === 'max-width' ? 'maxWidth' : name]; },
@@ -43,7 +43,11 @@ function fixture(width, height, vv = null, bannerBottom = 0) {
   const env = {
     map: null, panel, innerWidth: width, innerHeight: height,
     window: { visualViewport: vv },
-    document: { body, getElementById: id => elements[id] ?? null },
+    document: {
+      body,
+      documentElement: { matches: selector => phoneToolbar && selector === '.county-compact[data-nww-phone]' },
+      getElementById: id => elements[id] ?? null,
+    },
     getComputedStyle: () => ({ visibility: 'visible' }),
   };
   return { panel, container, body, elements, env, mounts, run: () => run(env) };
@@ -120,4 +124,15 @@ for (const item of cases) {
   assert.equal(f.panel.style.top, '60px', 'A short camera viewer clears the compact controls');
   assert.equal(f.panel.style.maxHeight, '357px');
 }
-console.log(JSON.stringify({ source: path.resolve(sourcePath), checks: cases.length + 4, passed: true, results }, null, 2));
+{
+  const f = fixture(390, 425, null, 0, true);
+  const toolbarTop = 215;
+  f.elements.mobileControlsToggle.getBoundingClientRect = () => ({ top: toolbarTop, bottom: toolbarTop + 44, height: 44 });
+  f.run();
+  assert.equal(f.panel.dataset.viewportOverlay, 'true');
+  const top = Number.parseFloat(f.panel.style.top);
+  const height = Number.parseFloat(f.panel.style.maxHeight);
+  assert.equal(top + height, toolbarTop - 8, 'The camera viewer leaves a gap above the phone toolbar');
+  assert.ok(height >= 150, 'The camera viewer retains space for its heading, chooser and scrollable content');
+}
+console.log(JSON.stringify({ source: path.resolve(sourcePath), checks: cases.length + 5, passed: true, results }, null, 2));
