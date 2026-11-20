@@ -62,6 +62,8 @@
   for(const duplicate of headers)duplicate.remove();
   if(!header){header=document.createElement('div');header.id='nwwMobileControlHeader';header.innerHTML='<div class="nww-drawer-heading"><h2 id="nwwControlsTitle">Map controls</h2><p></p></div><div class="nww-control-tabs" role="tablist" aria-label="Control sections"><button type="button" role="tab" data-group="forecast">Flood data</button><button type="button" role="tab" data-group="map">Map layers</button><button type="button" role="tab" data-group="tools">Tools</button></div>';panel.prepend(header);}
   if(header.parentElement!==panel)panel.prepend(header);
+  const view=document.getElementById('nwwDrawerViewMode');
+  if(view&&view.parentElement!==header)header.append(view);
   text(header.querySelector('p'),document.getElementById('mapTitleText')?.textContent||'');
   if(!bound.has(header)){
    const tabs=[...header.querySelectorAll('[role="tab"]')];

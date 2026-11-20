@@ -112,6 +112,11 @@ async function checkViewport({width,height,mobile=false}) {
     }
     const activate=()=>pill[mobile?'tap':'click']();
     await capture('2D normal');
+    if(mobile) {
+      await page.locator('#leftPanel').evaluate(panel=>{panel.scrollTop=14;});
+      await twoPaints(page);
+      await capture('anchored while Controls scrolls');
+    }
     await pill.hover();await twoPaints(page);
     assert.equal((await capture('2D hover')).hover,true,'Exercise the actual hover selector');
     await activate();

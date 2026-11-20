@@ -213,7 +213,7 @@
     {
       "source": "assets/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "ecfe97952fdf21f0ef376c1d0c2dd7437cb97b736e2bada0864a58de7fdb1077",
+      "afterSha256": "aefead1561da0a060e62920ddd2fa6aa430f11089a3cceb69be3d71e98835b42",
       "edits": [
         [
           2655,
@@ -221,43 +221,48 @@
           ""
         ],
         [
-          13042,
-          13162,
+          5804,
+          5923,
+          ""
+        ],
+        [
+          13161,
+          13281,
           "  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
         ],
         [
-          14923,
-          15391,
+          15042,
+          15510,
           "  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
         ],
         [
-          15554,
-          15614,
+          15673,
+          15733,
           "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
         ],
         [
-          15700,
-          15769,
+          15819,
+          15888,
           "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
         ],
         [
-          15773,
-          15847,
+          15892,
+          15966,
           ""
         ],
         [
-          16148,
-          16168,
+          16267,
+          16287,
           ""
         ],
         [
-          17574,
-          17872,
+          17693,
+          17991,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          18168,
-          18410,
+          18287,
+          18529,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
         ]
       ]
@@ -418,7 +423,7 @@
     {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "c97a413505ab06e05d3e231e3e81f8ed047f7eb4e23389562ec9a75b3dfd5103",
+      "afterSha256": "146e3f5a17c96ffad1939cf89c2b9cf57bc21cbf5612bc44236f613617e2fabe",
       "edits": [
         [
           115,
@@ -854,7 +859,7 @@
     {
       "source": "tools/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "ecfe97952fdf21f0ef376c1d0c2dd7437cb97b736e2bada0864a58de7fdb1077",
+      "afterSha256": "aefead1561da0a060e62920ddd2fa6aa430f11089a3cceb69be3d71e98835b42",
       "edits": [
         [
           2655,
@@ -862,43 +867,48 @@
           ""
         ],
         [
-          13042,
-          13162,
+          5804,
+          5923,
+          ""
+        ],
+        [
+          13161,
+          13281,
           "  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
         ],
         [
-          14923,
-          15391,
+          15042,
+          15510,
           "  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
         ],
         [
-          15554,
-          15614,
+          15673,
+          15733,
           "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
         ],
         [
-          15700,
-          15769,
+          15819,
+          15888,
           "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
         ],
         [
-          15773,
-          15847,
+          15892,
+          15966,
           ""
         ],
         [
-          16148,
-          16168,
+          16267,
+          16287,
           ""
         ],
         [
-          17574,
-          17872,
+          17693,
+          17991,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          18168,
-          18410,
+          18287,
+          18529,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
         ]
       ]
@@ -983,7 +993,7 @@
     },
     {
       "source": "assets/north-wildwood-phone.css",
-      "sha256": "a8ef1a79f440c90fac7b091435bfe24191166ffe3786dc5ed326b2938c44c4c9"
+      "sha256": "786e6e875b0ae8e7e1c1be766ea3a938c758f5615acf6e8f840127046fde34d1"
     },
     {
       "source": "tools/app/town-profile.json",

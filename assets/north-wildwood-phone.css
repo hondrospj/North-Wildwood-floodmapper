@@ -256,9 +256,7 @@
       justify-content: space-between;
       gap: 10px;
       padding: 5px 12px;
-      margin: 0;
-      flex-shrink: 0;
-      order: 0;
+      margin: 9px 0 0;
       border: 1px solid var(--phone-line);
       border-radius: 12px;
       background: var(--phone-surface);
@@ -278,10 +276,16 @@
       filter: none !important;
     }
 
-    html[data-nww-phone] body #nwwDrawerViewMode .nw-simple-view {
+    html[data-nww-phone] body #nwwMobileControlHeader #nwwDrawerViewMode .nw-simple-view {
       min-width: 54px !important;
       min-height: 44px !important;
       border-radius: 9px !important;
+      transform: none !important;
+      background: #171e2a !important;
+    }
+
+    html[data-nww-phone] body #nwwMobileControlHeader #nwwDrawerViewMode .nw-simple-view[aria-pressed="true"] {
+      background: #23344b !important;
     }
 
     html[data-nww-phone] body #timelineDock {
@@ -462,6 +466,7 @@
     }
 
     html[data-nww-phone] body #leftPanel #nwwMobileControlHeader {
+      top: 12px !important;
       background: var(--phone-surface) !important;
       border-color: var(--phone-line) !important;
     }
