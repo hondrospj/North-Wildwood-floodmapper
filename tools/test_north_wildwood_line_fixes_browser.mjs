@@ -142,7 +142,7 @@ async function headerText(page) {
   for(const item of [header.title,header.subtitle])assert.ok(item.text&&item.lines.length&&item.lines.every(line=>inside(line,item.box)),JSON.stringify(header));
   assert.ok(header.title.box.bottom<=header.subtitle.box.top+1&&header.subtitle.box.bottom<=header.tabs.top+1,JSON.stringify(header));
   if(name!=='firefox'||minimumFont===0){
-    assert.ok(Math.abs(parseFloat(header.title.lineHeight)-24)<0.1,JSON.stringify(header));
+    assert.ok(Math.abs(parseFloat(header.title.lineHeight)-26)<0.1,JSON.stringify(header));
     assert.ok(Math.abs(parseFloat(header.subtitle.lineHeight)-16)<0.1,JSON.stringify(header));
   }
   const tabs=await choiceText(page,'#nwwMobileControlHeader [role="tab"]',['forecast','map','tools']);
