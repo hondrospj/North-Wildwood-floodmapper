@@ -62,6 +62,7 @@ jobs:
             assets/vendor/html2canvas-1.4.1.*
             assets/vendor/gif.worker.js
             assets/3d/north-wildwood-3d.js
+            assets/3d/elevation-contours.js
             assets/app/
             assets/styles/
             tools/app/
