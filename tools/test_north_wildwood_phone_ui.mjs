@@ -14,6 +14,7 @@ const viewports = [
   {width: 320, height: 640},
   {width: 390, height: 844},
   {width: 844, height: 390},
+  {width: 568, height: 320},
   {width: 820, height: 1180},
 ];
 const overlap = (a,b) => a && b && Math.min(a.right,b.right) - Math.max(a.x,b.x) > 1 &&

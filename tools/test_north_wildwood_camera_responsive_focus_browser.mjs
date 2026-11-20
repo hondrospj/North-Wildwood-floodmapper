@@ -9,8 +9,8 @@ const markerSelector = '[data-webcam-marker="north-bay"]';
 
 async function expectFocus(page, selector) {
   await page.waitForFunction(selector => {
-    const target = document.querySelector(selector);
-    if (!target || document.activeElement !== target || target.closest("[inert]")) return false;
+    const target = document.activeElement;
+    if (!target?.matches(selector) || target.closest("[inert]")) return false;
     const { x, y, width, height } = target.getBoundingClientRect();
     return target.contains(document.elementFromPoint(x + width / 2, y + height / 2));
   }, selector);
@@ -68,7 +68,9 @@ try {
   const compactState = await mapState(page);
   await page.keyboard.press("Escape");
   await panel.waitFor({ state: "hidden" });
-  await expectFocus(page, "#mobileControlsToggle");
+  // The redesigned dock can leave the original marker reachable in landscape.
+  // Closing must return keyboard focus to a reachable marker or to Controls.
+  await expectFocus(page, `${markerSelector}, #mobileControlsToggle`);
   assert.deepEqual(await mapState(page), compactState);
   assert.deepEqual(compactState.scroll, [0, 0]);
   assert.equal(await page.locator("#webcamChoice").inputValue(), "north-bay");
