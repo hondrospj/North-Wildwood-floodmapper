@@ -80,7 +80,7 @@ jobs:
         if: steps.select.outputs.issue != ''
         env:
           V41_DRIVE_CONFIG_B64: ${{ secrets.V41_DRIVE_CONFIG_B64 }}
-          RUNNER_RELEASE_HASH: '0e814ad0ca3930b861ba590a1c8363f9ed9a1300ebb8bdd73722d3b6c21c5a60'
+          RUNNER_RELEASE_HASH: '78c2daef8351ef6f9d7e3b4c5ab39171772bb01bc1ec3d71b7906ba86df3ffe6'
         run: |
           umask 077
           config="$(mktemp)"
@@ -125,7 +125,9 @@ jobs:
 
       - name: Save only public ECMWF lead-zero records
         if: steps.select.outputs.issue != ''
-        run: python "$RUNNER_TEMP/v41-runner/cache_history.py" "$RUNNER_TEMP/v41-state/cache" "$RUNNER_TEMP/v41-public-history"
+        run: |
+          rm -rf "$RUNNER_TEMP/v41-public-history"
+          python "$RUNNER_TEMP/v41-runner/cache_history.py" "$RUNNER_TEMP/v41-state/cache" "$RUNNER_TEMP/v41-public-history"
 
       - name: Cache only the public ECMWF records
         if: steps.select.outputs.issue != ''
