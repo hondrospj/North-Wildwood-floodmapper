@@ -808,9 +808,9 @@ function cloneStyleObject(value) {
     let forecastData = null;
     let currentForecastScenario = "mean";
     const FORECAST_SCENARIOS = {
-      lowEnd: { label: "Lower End", percentile: "", buttonId: "forecastLowBtn" },
-      mean: { label: "Mean", percentile: "", buttonId: "forecastMeanBtn" },
-      highEnd: { label: "Upper End", percentile: "", buttonId: "forecastHighBtn" }
+      lowEnd: { label: "Best Case", percentile: "", buttonId: "forecastLowBtn" },
+      mean: { label: "Likely", percentile: "", buttonId: "forecastMeanBtn" },
+      highEnd: { label: "Worst Case", percentile: "", buttonId: "forecastHighBtn" }
     };
     let returnIntervalData = null;
     let currentReturnIntervalYears = 10;
@@ -1063,6 +1063,7 @@ function cloneStyleObject(value) {
     }
 
     function toast(msg = "") {
+      if (/^(?:failed to fetch\.?|load failed\.?|networkerror when attempting to fetch resource\.?)$/i.test(String(msg).trim())) return;
       const el = document.getElementById("toast");
       const textEl = document.getElementById("toastMessage");
       if (!el) return;
@@ -2579,9 +2580,9 @@ function setDatumHelpOpen(isOpen) {
         `
       },
       forecastType: {
-        title: "Forecast type",
+        title: "Forecast Range",
         body: `
-          <p>Choose Lower End, Mean, or Upper End to compare forecast scenarios based on NOAA PETSS guidance. Upper End shows the upper water-depth estimate for this forecast.</p>
+          <p>Compare three scenarios based on NOAA PETSS guidance. <strong>Best Case</strong> uses the lower estimate, <strong>Likely</strong> uses the mean estimate, and <strong>Worst Case</strong> uses the upper estimate.</p>
         `
       },
       overlay: {
@@ -2589,36 +2590,20 @@ function setDatumHelpOpen(isOpen) {
         body: `
           <p><strong>Flood Depth</strong> shows the estimated water depth above the ground, in inches below 1 foot and feet at 1 foot or more.</p>
           <p><strong>Flood Stages</strong> groups flooding as minor, moderate, or major.</p>
-          <p><strong>Roads with 6+ Inches of Water</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
+          <p><strong>Roads With 6+ Inches of Water</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
         `
       },
-      satellite: {
-        title: "Satellite",
-        body: "<p>Shows aerial imagery beneath the flood map.</p>"
-      },
-      buildings: {
-        title: "Buildings",
-        body: "<p>Shows buildings on the map. Tap one for more details.</p>"
-      },
-      parcels: {
-        title: "Parcels",
-        body: "<p>Shows property lines. Tap a lot to see how much of it may flood.</p>"
-      },
-      structuralImpacts: {
-        title: "Structural Impacts",
-        body: "<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>"
-      },
-      roadImpacts: {
-        title: "Roads with 6+ Inches of Water",
-        body: "<p>Highlights road sections with more than 6 inches of estimated water. At bridges, the estimate is for the surface below the deck.</p>"
-      },
-      roadNames: {
-        title: "Road Names",
-        body: "<p>Shows street names so you can see which roads are near flooding.</p>"
-      },
-      cameras: {
-        title: "Cameras",
-        body: "<p>Shows camera locations. Tap a camera to see its feed or open the camera's website.</p>"
+      layers: {
+        title: "Map Layers",
+        body: `<dl class="layer-help-list">
+          <dt>Satellite</dt><dd>Shows aerial imagery beneath the flood map.</dd>
+          <dt>Buildings</dt><dd>Shows buildings on the map. Select a building for details.</dd>
+          <dt>Parcels</dt><dd>Shows property lines. Select a lot to see how much of it may flood.</dd>
+          <dt>Structural Impacts</dt><dd>Shows where modeled water could reach part of a structure or its first occupied floor.</dd>
+          <dt>Roads With 6+ Inches of Water</dt><dd>Highlights road sections with more than 6 inches of modeled water. At bridges, the estimate is for the surface below the deck.</dd>
+          <dt>Road Names</dt><dd>Labels streets so you can identify roads near flooding.</dd>
+          <dt>Cameras</dt><dd>Shows camera locations. Select a camera to view its feed or open its website.</dd>
+        </dl>`
       },
       timelineDetail: {
         title: "Timeline detail",
@@ -8669,14 +8654,10 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
 
     function reportFloodFrameFailure() {
       const retained = Boolean(currentFloodLayer && map?.hasLayer(currentFloodLayer));
-      const message = retained
-        ? "Could not load the selected flood image. The previous image and time are still shown. Select a time to retry."
-        : "The flood image could not load. Select a time to retry.";
       if (typeof floodFrameState !== "undefined") floodFrameState = "failed";
       document.body.dataset.floodFrame = "failed";
       document.body.dataset.floodFrameRecovery = "failed";
-      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
-      toast(message);
+      setFloodFrameStatus(retained ? "" : "Flood layer unavailable.", "error");
       if (!retained && typeof markInitialFloodFrameFailed === "function") markInitialFloodFrameFailed();
       if (typeof stopPlayback === "function") stopPlayback();
     }
@@ -8945,12 +8926,16 @@ function getEntryESTDate(entry) {
     }
 
     function revealTimelineDay(button, wrap) {
-      if (!button || !isMobileTimeline()) return;
+      if (!button) return;
       requestAnimationFrame(() => {
-        // Scroll only the day strip, never the map or page.
-        if (button.offsetLeft < wrap.scrollLeft || button.offsetLeft + button.offsetWidth > wrap.scrollLeft + wrap.clientWidth) {
-          wrap.scrollLeft = button.offsetLeft - (wrap.clientWidth - button.offsetWidth) / 2;
-        }
+        if (!wrap.contains(button) || !button.classList.contains("active") || wrap.scrollWidth <= wrap.clientWidth) return;
+        const stripLeft = wrap.getBoundingClientRect().left + wrap.clientLeft;
+        const selected = button.getBoundingClientRect();
+        const clippedLeft = selected.left - stripLeft;
+        const clippedRight = selected.right - (stripLeft + wrap.clientWidth);
+        // Scroll the day strip without changing the page or map position.
+        if (clippedLeft < -1) wrap.scrollLeft += clippedLeft;
+        else if (clippedRight > 1) wrap.scrollLeft += clippedRight;
       });
     }
 
@@ -12213,30 +12198,11 @@ function startPlayback() {
 
     function buildHouseAlertPopup(feature) {
       const p = feature?.properties || {};
-      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
-      const crawlspaceDepth = Number(p.foundationHeightFt ?? p.nsi2026FoundationHeightFt);
-      const stage = getSelectedStageNavd88();
-      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;
       const address = escapeTownAddressHtml(p.address || `Selected ${TOWN_CONFIG.site.name} parcel`);
       const focusRestoreKey = p.parcelId == null ? "" : ` data-focus-restore-key="${escapeTownAddressHtml("parcel-profile:" + p.parcelId)}"`;
-      const waterStatus = !Number.isFinite(firstFloor)
-        ? ""
-        : difference == null
-        ? "Choose a water level to compare."
-        : Math.abs(difference) <= 0.1
-          ? "Current water is at the estimated occupied floor."
-          : difference > 0
-            ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`
-            : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;
       return '<div class="house-alert-popup building-info-card">' +
         '<span class="house-alert-kicker">Building</span>' +
         '<h3>' + address + '</h3>' +
-        '<div class="building-info-facts">' +
-          '<div><span>Crawlspace / garage depth</span><strong>' +
-            (Number.isFinite(crawlspaceDepth) ? formatWaterDepth(crawlspaceDepth, 1) : 'Not available') +
-          '</strong></div>' +
-          (waterStatus ? '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' : '') +
-        '</div>' +
         '<button class="house-alert-cta" type="button"' + focusRestoreKey + '>See Flood History &amp; Projections</button>' +
         '</div>';
     }

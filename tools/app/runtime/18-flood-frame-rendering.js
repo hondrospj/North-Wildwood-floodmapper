@@ -52,14 +52,10 @@
 
     function reportFloodFrameFailure() {
       const retained = Boolean(currentFloodLayer && map?.hasLayer(currentFloodLayer));
-      const message = retained
-        ? "Could not load the selected flood image. The previous image and time are still shown. Select a time to retry."
-        : "The flood image could not load. Select a time to retry.";
       if (typeof floodFrameState !== "undefined") floodFrameState = "failed";
       document.body.dataset.floodFrame = "failed";
       document.body.dataset.floodFrameRecovery = "failed";
-      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
-      toast(message);
+      setFloodFrameStatus(retained ? "" : "Flood layer unavailable.", "error");
       if (!retained && typeof markInitialFloodFrameFailed === "function") markInitialFloodFrameFailed();
       if (typeof stopPlayback === "function") stopPlayback();
     }
@@ -328,12 +324,16 @@ function getEntryESTDate(entry) {
     }
 
     function revealTimelineDay(button, wrap) {
-      if (!button || !isMobileTimeline()) return;
+      if (!button) return;
       requestAnimationFrame(() => {
-        // Scroll only the day strip, never the map or page.
-        if (button.offsetLeft < wrap.scrollLeft || button.offsetLeft + button.offsetWidth > wrap.scrollLeft + wrap.clientWidth) {
-          wrap.scrollLeft = button.offsetLeft - (wrap.clientWidth - button.offsetWidth) / 2;
-        }
+        if (!wrap.contains(button) || !button.classList.contains("active") || wrap.scrollWidth <= wrap.clientWidth) return;
+        const stripLeft = wrap.getBoundingClientRect().left + wrap.clientLeft;
+        const selected = button.getBoundingClientRect();
+        const clippedLeft = selected.left - stripLeft;
+        const clippedRight = selected.right - (stripLeft + wrap.clientWidth);
+        // Scroll the day strip without changing the page or map position.
+        if (clippedLeft < -1) wrap.scrollLeft += clippedLeft;
+        else if (clippedRight > 1) wrap.scrollLeft += clippedRight;
       });
     }
 

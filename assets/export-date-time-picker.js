@@ -160,7 +160,9 @@
     const heading = node("header", "nww-picker-head");
     const title = node("strong", "", `${prefix === "end" ? "End" : "Start"} ${kind === "date" ? "date" : "time"}`);
     title.id = "nwwExportPickerTitle";
-    heading.append(title, button("×", "Close date and time picker", () => close(true)));
+    const closeButton = button("×", "Close date and time picker", () => close(true));
+    closeButton.classList.add("centered-close-control");
+    heading.append(title, closeButton);
     panel.append(heading); card.append(panel);
     anchor.setAttribute("aria-expanded", "true"); anchor.setAttribute("aria-controls", ID);
     if (kind === "date") {

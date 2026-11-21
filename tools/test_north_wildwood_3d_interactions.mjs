@@ -30,30 +30,24 @@ function classList() {
   return { contains: name => values.has(name), toggle(name, value) { value ? values.add(name) : values.delete(name); } };
 }
 
-// Unknown elevations must never be coerced to a real zero-foot occupied floor.
+// Missing building inputs stay unknown, and the summary card omits estimates.
 const popup = load({
   getSelectedStageNavd88: () => 5,
   escapeTownAddressHtml: value => String(value).replaceAll('<', '&lt;'),
   formatWaterDepth: value => value.toFixed(1) + ' ft'
 }, ['finiteBuildingNumber', 'buildBuildingPopupHtml']);
 for (const value of [null, undefined, '', '  ', false, [], {}, NaN, Infinity, 'unavailable']) {
-  const html = popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: value, foundationHeightFt: value });
-  assert.doesNotMatch(html, /<p>/);
-  assert.doesNotMatch(html, /Current water is/);
-  assert.match(html, /<strong>—<\/strong>/);
+  assert.ok(Number.isNaN(popup.finiteBuildingNumber(value)));
 }
+assert.equal(popup.finiteBuildingNumber('0'), 0);
 const actualBuildings = JSON.parse(fs.readFileSync(new URL('../assets/3d/NorthWildwoodBuildings3D.geojson', import.meta.url), 'utf8'));
 const actualUnknown = actualBuildings.features.find(feature => feature.properties.modeledFirstFloorNavd88Ft === null);
 assert.ok(actualUnknown, 'Exercise a real unmatched building footprint');
-assert.doesNotMatch(popup.buildBuildingPopupHtml(actualUnknown.properties), /<p>/);
-for (const value of [null, undefined, '', ' ', NaN, Infinity]) {
-  popup.getSelectedStageNavd88 = () => value;
-  assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /Choose a water level/);
+for (const properties of [actualUnknown.properties, { address: '107 E 9TH AVE', modeledFirstFloorNavd88Ft: 7.6, foundationHeightFt: 2 }]) {
+  const html = popup.buildBuildingPopupHtml(properties);
+  assert.match(html, /building-info-card/);
+  assert.doesNotMatch(html, /Crawlspace \/ garage depth|estimated occupied floor|Choose a water level/);
 }
-popup.getSelectedStageNavd88 = () => 0;
-assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: '0', foundationHeightFt: 0 }), /at the estimated occupied floor/);
-popup.getSelectedStageNavd88 = () => 5;
-assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /5.0 ft above/);
 
 // The Esri wrapper's child renderer does not exist until metadata is ready.
 const configuration = fs.readFileSync(new URL('./app/runtime/00-configuration.js', import.meta.url), 'utf8');

@@ -5,36 +5,36 @@
     {
       "source": "assets/3d/north-wildwood-3d.js",
       "beforeSha256": "584631a173bcaece1936658f3f93554f06d2c32a8afff5bee00563533b01461f",
-      "afterSha256": "e86537dcae5b45628295c3e599ad7ffc76ebf8885dc83218abb5c9ee30a38ce4",
+      "afterSha256": "356db993347b684380d12a8c014903c1c10b718dd299aab96531e1e18672006c",
       "edits": [
         [
           78490,
           78594,
-          "    var address = escapeTownAddressHtml(p.address || p.osmName || \"North Wildwood building\");\n"
+          "    var address = escapeTownAddressHtml(p.address || p.osmName || \"North Wildwood building\");\n    var crawlspaceDepth = finiteBuildingNumber(p.foundationHeightFt);\n    var firstFloor = finiteBuildingNumber(p.modeledFirstFloorNavd88Ft);\n    var stage = finiteBuildingNumber(getSelectedStageNavd88());\n    var difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : NaN;\n    var status = !Number.isFinite(firstFloor)\n      ? null\n      : !Number.isFinite(difference)\n        ? \"Choose a water level to compare.\"\n        : Math.abs(difference) <= 0.1\n          ? \"Current water is at the estimated occupied floor.\"\n          : difference > 0\n            ? \"Current water is \" + formatWaterDepth(difference, 1) + \" above the estimated occupied floor.\"\n            : \"Current water is \" + formatWaterDepth(Math.abs(difference), 1) + \" below the estimated occupied floor.\";\n"
         ],
         [
-          78949,
-          78960,
-          "      ? null\n"
+          78756,
+          78756,
+          "      '<div class=\"building-info-facts\">' +\n        '<div><span>Crawlspace / garage depth</span><strong>' + (Number.isFinite(crawlspaceDepth) ? formatWaterDepth(crawlspaceDepth, 1) : '—') + '</strong></div>' +\n        (status ? '<p>' + escapeTownAddressHtml(status) + '</p>' : '') +\n      '</div>' +\n"
         ],
         [
-          89602,
-          89695,
+          88494,
+          88587,
           "    document.body.dataset.buildings3dCoverage = \"north-wildwood-only\";\n"
         ],
         [
-          91508,
-          91597,
+          90400,
+          90489,
           "          // The 3D ground coordinate under a dot's pixel can be closer to another structure.\n"
         ],
         [
-          100768,
-          100905,
+          99660,
+          99797,
           "      var leafletCenter = map && map.getCenter ? map.getCenter() : { lng: -74.7998357, lat: 39.006945 };\n"
         ],
         [
-          122169,
-          123017,
+          121061,
+          121909,
           "    host.appendChild(control);\n"
         ]
       ]
@@ -42,7 +42,7 @@
     {
       "source": "assets/app/runtime.js",
       "beforeSha256": "28cea3996d8987cfee2d870f4c8eac7d4f40f588699b0a593dfe4b81f8df3c17",
-      "afterSha256": "7f0205e2f4c3266978959f309f553eaacd60fe6cf5ab05ef8d8b12d34061d277",
+      "afterSha256": "be1d9bb668ce515fdede71ec7fe6d8e9deda5f8649ed1b4cbb5e6f6a9211d799",
       "edits": [
         [
           58,
@@ -65,113 +65,163 @@
           "      CANONICAL_DAILY_URL = new URL(config.data?.canonicalDailyPath || \"./canonical_daily_v2.json\", APP_BASE).href;\n"
         ],
         [
-          87009,
-          87054,
+          35401,
+          35645,
+          "      lowEnd: { label: \"Lower End\", percentile: \"\", buttonId: \"forecastLowBtn\" },\n      mean: { label: \"Mean\", percentile: \"\", buttonId: \"forecastMeanBtn\" },\n      highEnd: { label: \"Upper End\", percentile: \"\", buttonId: \"forecastHighBtn\" }\n"
+        ],
+        [
+          46565,
+          46702,
           ""
         ],
         [
-          99903,
-          100265,
+          87149,
+          87194,
+          ""
+        ],
+        [
+          100043,
+          100405,
           "      if (Number(payload?.intervalMinutes) !== expectedInterval) {\n"
         ],
         [
-          100375,
-          100837,
+          100515,
+          100977,
           "      if (payload.source && payload.source !== source) throw new Error(\"Archive source mismatch.\");\n"
         ],
         [
-          103332,
-          103485,
+          103472,
+          103625,
           "        if (source === \"stone-harbor\" && dates.size !== (Date.parse(last) - Date.parse(first)) / 86400000 + 1) {\n"
         ],
         [
-          127046,
-          127155,
+          118437,
+          118470,
+          "        title: \"Forecast type\",\n"
+        ],
+        [
+          118486,
+          118714,
+          "          <p>Choose Lower End, Mean, or Upper End to compare forecast scenarios based on NOAA PETSS guidance. Upper End shows the upper water-depth estimate for this forecast.</p>\n"
+        ],
+        [
+          119032,
+          119245,
+          "          <p><strong>Roads with 6+ Inches of Water</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>\n"
+        ],
+        [
+          119264,
+          120172,
+          "      satellite: {\n        title: \"Satellite\",\n        body: \"<p>Shows aerial imagery beneath the flood map.</p>\"\n      },\n      buildings: {\n        title: \"Buildings\",\n        body: \"<p>Shows buildings on the map. Tap one for more details.</p>\"\n      },\n      parcels: {\n        title: \"Parcels\",\n        body: \"<p>Shows property lines. Tap a lot to see how much of it may flood.</p>\"\n      },\n      structuralImpacts: {\n        title: \"Structural Impacts\",\n        body: \"<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>\"\n      },\n      roadImpacts: {\n        title: \"Roads with 6+ Inches of Water\",\n        body: \"<p>Highlights road sections with more than 6 inches of estimated water. At bridges, the estimate is for the surface below the deck.</p>\"\n      },\n      roadNames: {\n        title: \"Road Names\",\n        body: \"<p>Shows street names so you can see which roads are near flooding.</p>\"\n      },\n      cameras: {\n        title: \"Cameras\",\n        body: \"<p>Shows camera locations. Tap a camera to see its feed or open the camera's website.</p>\"\n"
+        ],
+        [
+          127054,
+          127163,
           "          : `Create an animation or high-resolution image sequence with North Wildwood centered.`;\n"
         ],
         [
-          150958,
-          151020,
+          150966,
+          151028,
           "      const staticBase = new URL(\"North-Wildwood-floodmapper/\", \"https://hondrospj.github.io/\");\n"
         ],
         [
-          185957,
-          186092,
+          185965,
+          186100,
           "            filename: `NorthWildwoodFloodStages${stageToCode(stage)}.png`,\n"
         ],
         [
-          233987,
-          234161,
+          233995,
+          234169,
           "        includeNames: Number(options?.minZoom) !== 0\n"
         ],
         [
-          301210,
-          301324,
+          301218,
+          301332,
           "      const extentLabel = getDownloadExtentValue() === \"town\" ? \"Fill North Wildwood\" : \"Current View\";\n"
         ],
         [
-          344320,
-          344855,
+          344328,
+          344863,
           ""
         ],
         [
-          391486,
-          391665,
+          391494,
+          391673,
           "      if (state === \"info\") message = String(message || \"\").split(\" • \").filter(note => note !== \"Interpolated\" && note !== \"Stone Harbor USGS\").join(\" • \");\n"
         ],
         [
-          409910,
-          410080,
+          394049,
+          394049,
+          "      const message = retained\n        ? \"Could not load the selected flood image. The previous image and time are still shown. Select a time to retry.\"\n        : \"The flood image could not load. Select a time to retry.\";\n"
+        ],
+        [
+          394237,
+          394317,
+          "      if (typeof setFloodFrameStatus === \"function\") setFloodFrameStatus(message, \"error\");\n      toast(message);\n"
+        ],
+        [
+          407163,
+          407190,
+          "      if (!button || !isMobileTimeline()) return;\n"
+        ],
+        [
+          407226,
+          407824,
+          "        // Scroll only the day strip, never the map or page.\n        if (button.offsetLeft < wrap.scrollLeft || button.offsetLeft + button.offsetWidth > wrap.scrollLeft + wrap.clientWidth) {\n          wrap.scrollLeft = button.offsetLeft - (wrap.clientWidth - button.offsetWidth) / 2;\n        }\n"
+        ],
+        [
+          409943,
+          410113,
           "          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable North Wildwood or Stone Harbor gauge level`;\n"
         ],
         [
-          434846,
-          434944,
+          434879,
+          434977,
           "          sourceStation: \"Great Channel at Stone Harbor NJ\",\n"
         ],
         [
-          458009,
-          458322,
+          458042,
+          458355,
           "        const stationNote = currentDataMode !== \"observed\" ? \"\" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || \"\") ? \"Stone Harbor USGS\" : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : \"\";\n"
         ],
         [
-          560252,
-          560354,
-          "      const address = escapeTownAddressHtml(p.address || \"Selected North Wildwood parcel\");\n"
+          559980,
+          560082,
+          "      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);\n      const crawlspaceDepth = Number(p.foundationHeightFt ?? p.nsi2026FoundationHeightFt);\n      const stage = getSelectedStageNavd88();\n      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;\n      const address = escapeTownAddressHtml(p.address || \"Selected North Wildwood parcel\");\n"
         ],
         [
-          560551,
-          560564,
-          "        ? null\n"
+          560224,
+          560224,
+          "      const waterStatus = !Number.isFinite(firstFloor)\n        ? null\n        : difference == null\n          ? \"Choose a water level to compare.\"\n          : Math.abs(difference) <= 0.1\n            ? \"Current water is at the estimated occupied floor.\"\n            : difference > 0\n              ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`\n              : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;\n"
         ],
         [
-          560593,
-          560986,
-          "          ? \"Choose a water level to compare.\"\n          : Math.abs(difference) <= 0.1\n            ? \"Current water is at the estimated occupied floor.\"\n            : difference > 0\n              ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`\n              : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;\n"
+          560390,
+          560390,
+          "        '<div class=\"building-info-facts\">' +\n          '<div><span>Crawlspace / garage depth</span><strong>' +\n            (Number.isFinite(crawlspaceDepth) ? formatWaterDepth(crawlspaceDepth, 1) : 'Not available') +\n          '</strong></div>' +\n          (waterStatus ? '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' : '') +\n        '</div>' +\n"
         ],
         [
-          580264,
-          580358,
+          579150,
+          579244,
           "      address.textContent = properties.address || \"Selected North Wildwood parcel\";\n"
         ],
         [
-          586270,
-          586374,
+          585156,
+          585260,
           "      const address = escapeTownAddressHtml(p.address || \"Modeled North Wildwood structure\");\n"
         ],
         [
-          588907,
-          589338,
+          587793,
+          588224,
           "            if (!/nsi-2026-first-floor-v1$/.test(String(payload?.metadata?.schema || \"\"))) {\n"
         ],
         [
-          601838,
-          601959,
+          600724,
+          600845,
           "      const address = escapeTownAddressHtml(feature?.properties?.address || \"Selected North Wildwood parcel\");\n"
         ],
         [
-          716121,
-          716121,
+          715007,
+          715007,
           "\n"
         ]
       ]
@@ -213,56 +263,66 @@
     {
       "source": "assets/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "aefead1561da0a060e62920ddd2fa6aa430f11089a3cceb69be3d71e98835b42",
+      "afterSha256": "de07044a5d587254d7dff2f47c722b16b0398918a54b0327802a2f459e831f3c",
       "edits": [
+        [
+          820,
+          1089,
+          " const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads with 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];\n"
+        ],
         [
           2655,
           3751,
           ""
         ],
         [
-          5804,
-          5923,
+          4402,
+          5122,
+          "  for(const [id,label]of [['mobileControlsToggle','Controls'],['mobileControlsClose','×']]){const copies=[...document.querySelectorAll('[id=\"'+id+'\"]')];let button=copies.shift();for(const duplicate of copies)duplicate.remove();if(!button){button=document.createElement('button');button.id=id;button.type='button';button.textContent=label;(id==='mobileControlsClose'?panel:body).append(button);}attr(button,'aria-label',id==='mobileControlsClose'?'Close controls':'Open map controls');if(id==='mobileControlsToggle'){attr(button,'aria-controls','leftPanel');attr(button,'aria-expanded',String(body.classList.contains('mobile-controls-open')));}}\n"
+        ],
+        [
+          5877,
+          5996,
           ""
         ],
         [
-          13161,
-          13281,
-          "  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
+          12863,
+          13357,
+          "  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);\n  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');\n  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
         ],
         [
-          15042,
-          15510,
+          15118,
+          15586,
           "  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
         ],
         [
-          15673,
-          15733,
+          15749,
+          15809,
           "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
         ],
         [
-          15819,
-          15888,
+          15895,
+          15964,
           "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
         ],
         [
-          15892,
-          15966,
+          15968,
+          16042,
           ""
         ],
         [
-          16267,
-          16287,
+          16343,
+          16363,
           ""
         ],
         [
-          17693,
-          17991,
+          17769,
+          18067,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          18287,
-          18529,
+          18363,
+          18605,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
         ]
       ]
@@ -306,6 +366,30 @@
           18326,
           18475,
           "  [\"topBanner\", \"mapTitleBadge\", \"mobileControlsToggle\", \"legendDock\", \"timelineDock\"].map(id => document.getElementById(id))\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/export-area.js",
+      "beforeSha256": "ee1e14cc57fb8b8e3b5e1b4ae617137c325c1febf97cb485d272b96724519da9",
+      "afterSha256": "a14676e5f6ddcf2cd22af55fe94d364db9ae4994a1a52b5b5fdd0cdb7c50f660",
+      "edits": [
+        [
+          17358,
+          18232,
+          "    modal.innerHTML = `<section class=\"export-area-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"exportAreaTitle\" aria-describedby=\"exportAreaHint\"><header class=\"export-area-head\"><h3 id=\"exportAreaTitle\">Choose export area</h3><button id=\"exportAreaCloseBtn\" type=\"button\" aria-label=\"Cancel area selection\">×</button></header><p id=\"exportAreaHint\" aria-live=\"polite\"></p><div class=\"export-area-tools\"><button id=\"exportAreaDrawBtn\" type=\"button\" aria-pressed=\"false\">Draw box</button><button id=\"exportAreaVisibleBtn\" type=\"button\">Use visible area</button></div><div id=\"exportAreaMap\" aria-label=\"Map for selecting the export area\"></div><footer class=\"export-area-actions\"><button id=\"exportAreaCancelBtn\" type=\"button\">Cancel</button><button id=\"exportAreaApplyBtn\" type=\"button\">Use this area</button></footer></section>`;\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/export-date-time-picker.js",
+      "beforeSha256": "33c7d7908c9d305e7c7b79b6b4b93a7b825a989db4b09af6dc812e98abe57f86",
+      "afterSha256": "0d4e03168fa1d1eaa3d949a5b0a24d05f2f19fae249834b095f69fe3edfa572d",
+      "edits": [
+        [
+          8654,
+          8838,
+          "    heading.append(title, button(\"×\", \"Close date and time picker\", () => close(true)));\n"
         ]
       ]
     },
@@ -421,9 +505,36 @@
       ]
     },
     {
+      "source": "assets/styles/app-05.css",
+      "beforeSha256": "4a72a06ffafb0e871bb40571758be05237b473491780e0ea1168a120d5cbd0fa",
+      "afterSha256": "4cbd5acbfef5416aae70e2a7a369c52e4b13ffb7003c98ddf3d19d89c8d5ac5c",
+      "edits": [
+        [
+          272490,
+          274482,
+          ""
+        ],
+        [
+          277674,
+          277726,
+          "      --nww-popup-close-size:36px;\n"
+        ],
+        [
+          277983,
+          277983,
+          "    }\n    @media (any-pointer:coarse) {\n      :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {\n        --nww-popup-close-size:44px;\n      }\n"
+        ],
+        [
+          307704,
+          307704,
+          "  }\n  html body .building-info-facts{\n    display:grid;\n    gap:10px;\n    padding:12px 13px;\n    border:1px solid rgba(125,183,255,.18);\n    border-radius:13px;\n    background:#101e32;\n  }\n  html body .building-info-facts > div{\n    display:flex;\n    align-items:center;\n    justify-content:space-between;\n    gap:14px;\n  }\n  html body .building-info-facts span{\n    color:#a9bad3;\n    font-size:13px;\n    font-weight:750;\n  }\n  html body .building-info-facts strong{\n    color:#fff;\n    font-size:16px;\n    white-space:nowrap;\n  }\n  html body .building-info-facts p{\n    margin:0;\n    padding-top:10px;\n    border-top:1px solid rgba(148,163,184,.14);\n    color:#dce8f8;\n    font-size:13px;\n    font-weight:800;\n    line-height:1.35;\n"
+        ]
+      ]
+    },
+    {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "146e3f5a17c96ffad1939cf89c2b9cf57bc21cbf5612bc44236f613617e2fabe",
+      "afterSha256": "d90f5c00631db13185e918cbd40f6d493f6196ab8c32370f751cee244f420e16",
       "edits": [
         [
           115,
@@ -432,62 +543,142 @@
         ],
         [
           225,
-          32782,
+          32813,
           ""
         ],
         [
-          33817,
-          33947,
+          33848,
+          33978,
           "<script id=\"floodmapper-startup-20261002\" data-nww-script=\"script-001\" src=\"./assets/app/startup.js?v=c5c54a9269b97901\"></script>\n"
         ],
         [
-          34319,
-          34319,
+          34350,
+          34350,
           "<meta charset=\"utf-8\" />\n"
         ],
         [
-          40978,
-          41040,
+          35633,
+          35741,
+          "<link rel=\"stylesheet\" data-nww-style-bundle=\"app-05\" href=\"./assets/styles/app-05.css?v=4a72a06ffafb0e87\">\n"
+        ],
+        [
+          41009,
+          41071,
           ""
         ],
         [
-          52738,
-          52886,
+          42115,
+          42151,
+          "            <h2>Forecast range</h2>\n"
+        ],
+        [
+          42333,
+          42421,
+          "          <span id=\"forecastScenarioPill\" class=\"nww-status-value\" hidden>Mean</span>\n"
+        ],
+        [
+          42472,
+          42768,
+          "          <button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower End</button>\n          <button id=\"forecastMeanBtn\" class=\"active\" type=\"button\" data-scenario=\"mean\">Mean</button>\n          <button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper End</button>\n"
+        ],
+        [
+          46327,
+          46473,
+          "          <button id=\"datumMllwBtn\" type=\"button\" class=\"active\" data-datum=\"mllw\" aria-pressed=\"true\">MLLW</button>\n"
+        ],
+        [
+          52803,
+          52951,
           "        <button id=\"mapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-rail\" type=\"button\">Take the FloodMapper tour</button>\n"
         ],
         [
-          63015,
-          63641,
+          53117,
+          53302,
+          ""
+        ],
+        [
+          53648,
+          53648,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"satellite\" aria-label=\"About Satellite\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          53991,
+          53991,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"buildings\" aria-label=\"About Buildings\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          54311,
+          54311,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"parcels\" aria-label=\"About Parcels\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          54693,
+          54693,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"structuralImpacts\" aria-label=\"About Structural Impacts\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          55069,
+          55145,
+          "                <div class=\"layer-name\">Roads with 6+ Inches of Water</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadImpacts\" aria-label=\"About Roads with 6+ Inches of Water\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          55471,
+          55471,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadNames\" aria-label=\"About Road Names\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          55846,
+          55846,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"cameras\" aria-label=\"About Cameras\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          60272,
+          60358,
+          "          <div id=\"roadImpactsKey\" hidden aria-label=\"Roads with 6+ Inches of Water\">\n"
+        ],
+        [
+          60431,
+          60602,
+          "            <span class=\"road-impacts-label\">Roads with 6+ Inches of Water</span>\n            <span class=\"road-impacts-label-mobile\">Roads with 6+ Inches of Water</span>\n"
+        ],
+        [
+          62029,
+          62655,
           "  <button id=\"mobileMapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-mobile\" type=\"button\" aria-haspopup=\"dialog\" data-html2canvas-ignore=\"true\">Take the FloodMapper tour</button>\n"
         ],
         [
-          81514,
-          81767,
+          64819,
+          64960,
+          "        <button id=\"observedCalendarCloseBtn\" type=\"button\" aria-label=\"Close past date calendar\">×</button>\n"
+        ],
+        [
+          80559,
+          80812,
           "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=28cea3996d8987cf\"></script>\n"
         ],
         [
-          81982,
-          82206,
+          81027,
+          81251,
           "<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=584631a173bcaece\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b3e11134ba8bcb33\"></script>\n"
         ],
         [
-          82280,
-          82380,
+          81325,
+          81425,
           "<script data-nww-script=\"script-007\" src=\"./assets/app/town-config.js?v=150329941da8abe6\"></script>\n"
         ],
         [
-          82631,
-          82737,
-          "<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n"
+          81582,
+          81906,
+          "<script src=\"assets/export-area.js?v=ee1e14cc57fb8b8e\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=33c7d7908c9d305e\" id=\"floodmapper-export-date-time-picker\"></script>\n"
         ],
         [
-          82864,
-          84204,
+          81909,
+          83249,
           "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n<script id=\"shorelysafeWebcamsScript\" data-nww-script=\"script-008\" src=\"./assets/app/webcams.js?v=fe85ef738394f52d\"></script>\n"
         ],
         [
-          84491,
-          85423,
+          83536,
+          84468,
           "<script id=\"floodmapper-unified-controller-20261017\" data-ui-sha256=\"3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7\" data-nww-script=\"script-011\" src=\"./assets/app/unified-controller.js?v=e967d7ca203af59f\"></script>\n"
         ]
       ]
@@ -495,7 +686,7 @@
     {
       "source": "tools/app/index.template.html",
       "beforeSha256": "380b3c5e261e14623857065daaddc0f8a155dcf4f96023ee6140defce61ed5b1",
-      "afterSha256": "cfd1a5f07885b1419bc4b9d3d9f33ba7e3c9fc3e34627f46603a79d1cdcd6d6a",
+      "afterSha256": "3773246c7cdb385681efb5f4334c6330da501720d99de96f2debe1ae3b1c05f5",
       "edits": [
         [
           115,
@@ -504,92 +695,167 @@
         ],
         [
           225,
-          441,
+          472,
           ""
         ],
         [
-          1651,
-          1700,
+          1682,
+          1731,
           "<meta charset=\"utf-8\" />\n  <title>North Wildwood Flood Mapper</title>\n"
         ],
         [
-          6679,
-          6726,
+          6710,
+          6757,
           "      <h1>North Wildwood Flood Mapper</h1>\n"
         ],
         [
-          7567,
-          7663,
+          7598,
+          7694,
           "      <span id=\"mapTitleText\" class=\"shorely-title-text\">North Wildwood Flood Mapper</span>\n"
         ],
         [
-          8019,
-          8081,
+          8050,
+          8112,
           ""
         ],
         [
-          18424,
-          18536,
+          9156,
+          9192,
+          "            <h2>Forecast range</h2>\n"
+        ],
+        [
+          9374,
+          9462,
+          "          <span id=\"forecastScenarioPill\" class=\"nww-status-value\" hidden>Mean</span>\n"
+        ],
+        [
+          9513,
+          9809,
+          "          <button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower End</button>\n          <button id=\"forecastMeanBtn\" class=\"active\" type=\"button\" data-scenario=\"mean\">Mean</button>\n          <button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper End</button>\n"
+        ],
+        [
+          13368,
+          13514,
+          "          <button id=\"datumMllwBtn\" type=\"button\" class=\"active\" data-datum=\"mllw\" aria-pressed=\"true\">MLLW</button>\n"
+        ],
+        [
+          18489,
+          18601,
           "      <div id=\"map3d\" role=\"region\" aria-label=\"Interactive 3D North Wildwood flood map\"></div>\n"
         ],
         [
-          19795,
-          19943,
+          19860,
+          20008,
           "        <button id=\"mapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-rail\" type=\"button\">Take the FloodMapper tour</button>\n"
         ],
         [
-          24121,
-          24212,
+          20174,
+          20359,
+          ""
+        ],
+        [
+          20705,
+          20705,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"satellite\" aria-label=\"About Satellite\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          21048,
+          21048,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"buildings\" aria-label=\"About Buildings\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          21368,
+          21368,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"parcels\" aria-label=\"About Parcels\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          21750,
+          21750,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"structuralImpacts\" aria-label=\"About Structural Impacts\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          22126,
+          22202,
+          "                <div class=\"layer-name\">Roads with 6+ Inches of Water</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadImpacts\" aria-label=\"About Roads with 6+ Inches of Water\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          22528,
+          22528,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadNames\" aria-label=\"About Road Names\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          22903,
+          22903,
+          "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"cameras\" aria-label=\"About Cameras\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
+        ],
+        [
+          23135,
+          23226,
           "              <h3 id=\"townAddressTitle\">Find a North Wildwood Address</h3>\n"
         ],
         [
-          24649,
-          24801,
+          23663,
+          23815,
           "              <button id=\"townAddressSearchBtn\" class=\"right-rail-action town-address-btn\" type=\"submit\">Search North Wildwood</button>\n"
         ],
         [
-          30104,
-          30730,
+          27361,
+          27447,
+          "          <div id=\"roadImpactsKey\" hidden aria-label=\"Roads with 6+ Inches of Water\">\n"
+        ],
+        [
+          27520,
+          27691,
+          "            <span class=\"road-impacts-label\">Roads with 6+ Inches of Water</span>\n            <span class=\"road-impacts-label-mobile\">Roads with 6+ Inches of Water</span>\n"
+        ],
+        [
+          29118,
+          29744,
           "  <button id=\"mobileMapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-mobile\" type=\"button\" aria-haspopup=\"dialog\" data-html2canvas-ignore=\"true\">Take the FloodMapper tour</button>\n"
         ],
         [
-          38190,
-          38334,
+          31908,
+          32049,
+          "        <button id=\"observedCalendarCloseBtn\" type=\"button\" aria-label=\"Close past date calendar\">×</button>\n"
+        ],
+        [
+          37235,
+          37379,
           "            <button id=\"exportExtentTownBtn\" type=\"button\" data-extent=\"town\" aria-pressed=\"false\">Fill North Wildwood</button>\n"
         ],
         [
-          44365,
-          44454,
+          43410,
+          43499,
           "          <p id=\"floodHistoryAddress\">Selected North Wildwood parcel</p>\n"
         ],
         [
-          48635,
-          48701,
+          47680,
+          47746,
           ""
         ],
         [
-          48734,
-          48803,
+          47779,
+          47848,
           ""
         ],
         [
-          48870,
-          49064,
+          47915,
+          48109,
           "<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=584631a173bcaece\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b3e11134ba8bcb33\"></script>\n"
         ],
         [
-          49420,
-          49516,
-          "<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n"
+          48371,
+          48665,
+          "<script src=\"assets/export-area.js?v=ee1e14cc57fb8b8e\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=33c7d7908c9d305e\" id=\"floodmapper-export-date-time-picker\"></script>\n"
         ],
         [
-          49643,
-          49719,
+          48668,
+          48744,
           "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n"
         ],
         [
-          49846,
-          50534,
+          48871,
+          49559,
           ""
         ]
       ]
@@ -597,7 +863,7 @@
     {
       "source": "tools/app/runtime/00-configuration.js",
       "beforeSha256": "20d5dbf410bb19ddbf471c898b3aeaa601828881888cec796ae9966c3a1a2f85",
-      "afterSha256": "5c439171ead2628713142cc1e5be4176ae1e546998f110658b90a9c736e27b78",
+      "afterSha256": "6ed5b4ad69494fad6c8872be408f8214a40c3c6ab56ae5019db2dad482c0ff6a",
       "edits": [
         [
           58,
@@ -618,13 +884,30 @@
           15888,
           15965,
           "      CANONICAL_DAILY_URL = new URL(config.data?.canonicalDailyPath || \"./canonical_daily_v2.json\", APP_BASE).href;\n"
+        ],
+        [
+          35401,
+          35645,
+          "      lowEnd: { label: \"Lower End\", percentile: \"\", buttonId: \"forecastLowBtn\" },\n      mean: { label: \"Mean\", percentile: \"\", buttonId: \"forecastMeanBtn\" },\n      highEnd: { label: \"Upper End\", percentile: \"\", buttonId: \"forecastHighBtn\" }\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/02-data-and-datums.js",
+      "beforeSha256": "34512b270be084cbc1530948fb04ca566ca72684c8484443d855e8cb5636b969",
+      "afterSha256": "5309bd0b0653f5cb0cae5edbd011ce04806c3b6b66dd74b814db1500484ad133",
+      "edits": [
+        [
+          102,
+          239,
+          ""
         ]
       ]
     },
     {
       "source": "tools/app/runtime/04-observation-archives.js",
       "beforeSha256": "5b03bf7b311a5617730755a7e6f4365f4b3a8953cb0b592c22fe669d526d9195",
-      "afterSha256": "1bdff862772403ec646c87849a73755d9bff143f8a9fb349a5fbebb741d5f775",
+      "afterSha256": "47c92234e14e93a1affc61e7754c9ed901425458a68a659ebfa644026f9724a0",
       "edits": [
         [
           1641,
@@ -645,6 +928,26 @@
           17964,
           18117,
           "        if (source === \"stone-harbor\" && dates.size !== (Date.parse(last) - Date.parse(first)) / 86400000 + 1) {\n"
+        ],
+        [
+          32929,
+          32962,
+          "        title: \"Forecast type\",\n"
+        ],
+        [
+          32978,
+          33206,
+          "          <p>Choose Lower End, Mean, or Upper End to compare forecast scenarios based on NOAA PETSS guidance. Upper End shows the upper water-depth estimate for this forecast.</p>\n"
+        ],
+        [
+          33524,
+          33737,
+          "          <p><strong>Roads with 6+ Inches of Water</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>\n"
+        ],
+        [
+          33756,
+          34664,
+          "      satellite: {\n        title: \"Satellite\",\n        body: \"<p>Shows aerial imagery beneath the flood map.</p>\"\n      },\n      buildings: {\n        title: \"Buildings\",\n        body: \"<p>Shows buildings on the map. Tap one for more details.</p>\"\n      },\n      parcels: {\n        title: \"Parcels\",\n        body: \"<p>Shows property lines. Tap a lot to see how much of it may flood.</p>\"\n      },\n      structuralImpacts: {\n        title: \"Structural Impacts\",\n        body: \"<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>\"\n      },\n      roadImpacts: {\n        title: \"Roads with 6+ Inches of Water\",\n        body: \"<p>Highlights road sections with more than 6 inches of estimated water. At bridges, the estimate is for the surface below the deck.</p>\"\n      },\n      roadNames: {\n        title: \"Road Names\",\n        body: \"<p>Shows street names so you can see which roads are near flooding.</p>\"\n      },\n      cameras: {\n        title: \"Cameras\",\n        body: \"<p>Shows camera locations. Tap a camera to see its feed or open the camera's website.</p>\"\n"
         ]
       ]
     },
@@ -723,7 +1026,7 @@
     {
       "source": "tools/app/runtime/18-flood-frame-rendering.js",
       "beforeSha256": "7ce7fa5fe3e9bce7f9a05b20842c94aaaab02be59bbb8eb00db17f51fb559f6b",
-      "afterSha256": "1f016b238636ac948731f50a07bc6e4d26f877e88e126d324537c4d83e1b28f6",
+      "afterSha256": "114e9aca06d9922ff53479ce71abc2fd50e231b3521d2ee319581f08376a8c6a",
       "edits": [
         [
           172,
@@ -731,8 +1034,28 @@
           "      if (state === \"info\") message = String(message || \"\").split(\" • \").filter(note => note !== \"Interpolated\" && note !== \"Stone Harbor USGS\").join(\" • \");\n"
         ],
         [
-          18596,
-          18766,
+          2727,
+          2727,
+          "      const message = retained\n        ? \"Could not load the selected flood image. The previous image and time are still shown. Select a time to retry.\"\n        : \"The flood image could not load. Select a time to retry.\";\n"
+        ],
+        [
+          2915,
+          2995,
+          "      if (typeof setFloodFrameStatus === \"function\") setFloodFrameStatus(message, \"error\");\n      toast(message);\n"
+        ],
+        [
+          15841,
+          15868,
+          "      if (!button || !isMobileTimeline()) return;\n"
+        ],
+        [
+          15904,
+          16502,
+          "        // Scroll only the day strip, never the map or page.\n        if (button.offsetLeft < wrap.scrollLeft || button.offsetLeft + button.offsetWidth > wrap.scrollLeft + wrap.clientWidth) {\n          wrap.scrollLeft = button.offsetLeft - (wrap.clientWidth - button.offsetWidth) / 2;\n        }\n"
+        ],
+        [
+          18621,
+          18791,
           "          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable North Wildwood or Stone Harbor gauge level`;\n"
         ]
       ]
@@ -764,26 +1087,26 @@
     {
       "source": "tools/app/runtime/24-alerts-and-projections.js",
       "beforeSha256": "32865336449cb70c9e8d0c4d3251cdaa518534957413258ecadfc0bfb26fd260",
-      "afterSha256": "18859c0ebc2ddce64b7174fbf961320c9ea2b7f0741d203203575529239600b3",
+      "afterSha256": "58e49674e142db1323fd5d1ed64f9b3fe6d4e9cf03267fbc6ae1df0c60b8a6e4",
       "edits": [
         [
-          15672,
-          15774,
-          "      const address = escapeTownAddressHtml(p.address || \"Selected North Wildwood parcel\");\n"
+          15367,
+          15469,
+          "      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);\n      const crawlspaceDepth = Number(p.foundationHeightFt ?? p.nsi2026FoundationHeightFt);\n      const stage = getSelectedStageNavd88();\n      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;\n      const address = escapeTownAddressHtml(p.address || \"Selected North Wildwood parcel\");\n"
         ],
         [
-          15971,
-          15984,
-          "        ? null\n"
+          15611,
+          15611,
+          "      const waterStatus = !Number.isFinite(firstFloor)\n        ? null\n        : difference == null\n          ? \"Choose a water level to compare.\"\n          : Math.abs(difference) <= 0.1\n            ? \"Current water is at the estimated occupied floor.\"\n            : difference > 0\n              ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`\n              : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;\n"
         ],
         [
-          16013,
-          16406,
-          "          ? \"Choose a water level to compare.\"\n          : Math.abs(difference) <= 0.1\n            ? \"Current water is at the estimated occupied floor.\"\n            : difference > 0\n              ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`\n              : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;\n"
+          15777,
+          15777,
+          "        '<div class=\"building-info-facts\">' +\n          '<div><span>Crawlspace / garage depth</span><strong>' +\n            (Number.isFinite(crawlspaceDepth) ? formatWaterDepth(crawlspaceDepth, 1) : 'Not available') +\n          '</strong></div>' +\n          (waterStatus ? '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' : '') +\n        '</div>' +\n"
         ],
         [
-          35684,
-          35778,
+          34537,
+          34631,
           "      address.textContent = properties.address || \"Selected North Wildwood parcel\";\n"
         ]
       ]
@@ -840,6 +1163,40 @@
       ]
     },
     {
+      "source": "tools/app/styles/style-053.css",
+      "beforeSha256": "a7dd181eaa54223355790c71496a02206219b91220e9222c82301542b947f820",
+      "afterSha256": "5642098f803efb7903b45d0dd2e568d69295e5637cb3ce386492cddcdc13fa8f",
+      "edits": [
+        [
+          182,
+          2174,
+          ""
+        ],
+        [
+          5371,
+          5423,
+          "      --nww-popup-close-size:36px;\n"
+        ],
+        [
+          5680,
+          5680,
+          "    }\n    @media (any-pointer:coarse) {\n      :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {\n        --nww-popup-close-size:44px;\n      }\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-064.css",
+      "beforeSha256": "6bef9f17c6a90e6c874a581869d64ec6bbb0bf35df798c4559d10b7583373060",
+      "afterSha256": "739602003db07c5cda52104b9aaa61d73bcc54b041165d62e8daea3b2df7ca4b",
+      "edits": [
+        [
+          5810,
+          5810,
+          "  }\n  html body .building-info-facts{\n    display:grid;\n    gap:10px;\n    padding:12px 13px;\n    border:1px solid rgba(125,183,255,.18);\n    border-radius:13px;\n    background:#101e32;\n  }\n  html body .building-info-facts > div{\n    display:flex;\n    align-items:center;\n    justify-content:space-between;\n    gap:14px;\n  }\n  html body .building-info-facts span{\n    color:#a9bad3;\n    font-size:13px;\n    font-weight:750;\n  }\n  html body .building-info-facts strong{\n    color:#fff;\n    font-size:16px;\n    white-space:nowrap;\n  }\n  html body .building-info-facts p{\n    margin:0;\n    padding-top:10px;\n    border-top:1px solid rgba(148,163,184,.14);\n    color:#dce8f8;\n    font-size:13px;\n    font-weight:800;\n    line-height:1.35;\n"
+        ]
+      ]
+    },
+    {
       "source": "tools/app/town-config.js",
       "beforeSha256": "150329941da8abe63343db4e738f816fa7220aa131747b4eab79392c86aec10e",
       "afterSha256": "d32e9ae6f99f43f2a3dc01a54b73675cd088360d0ace59ae5efcbe39f45fa223",
@@ -859,56 +1216,66 @@
     {
       "source": "tools/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "aefead1561da0a060e62920ddd2fa6aa430f11089a3cceb69be3d71e98835b42",
+      "afterSha256": "de07044a5d587254d7dff2f47c722b16b0398918a54b0327802a2f459e831f3c",
       "edits": [
+        [
+          820,
+          1089,
+          " const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads with 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];\n"
+        ],
         [
           2655,
           3751,
           ""
         ],
         [
-          5804,
-          5923,
+          4402,
+          5122,
+          "  for(const [id,label]of [['mobileControlsToggle','Controls'],['mobileControlsClose','×']]){const copies=[...document.querySelectorAll('[id=\"'+id+'\"]')];let button=copies.shift();for(const duplicate of copies)duplicate.remove();if(!button){button=document.createElement('button');button.id=id;button.type='button';button.textContent=label;(id==='mobileControlsClose'?panel:body).append(button);}attr(button,'aria-label',id==='mobileControlsClose'?'Close controls':'Open map controls');if(id==='mobileControlsToggle'){attr(button,'aria-controls','leftPanel');attr(button,'aria-expanded',String(body.classList.contains('mobile-controls-open')));}}\n"
+        ],
+        [
+          5877,
+          5996,
           ""
         ],
         [
-          13161,
-          13281,
-          "  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
+          12863,
+          13357,
+          "  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);\n  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');\n  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
         ],
         [
-          15042,
-          15510,
+          15118,
+          15586,
           "  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
         ],
         [
-          15673,
-          15733,
+          15749,
+          15809,
           "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
         ],
         [
-          15819,
-          15888,
+          15895,
+          15964,
           "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
         ],
         [
-          15892,
-          15966,
+          15968,
+          16042,
           ""
         ],
         [
-          16267,
-          16287,
+          16343,
+          16363,
           ""
         ],
         [
-          17693,
-          17991,
+          17769,
+          18067,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          18287,
-          18529,
+          18363,
+          18605,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
         ]
       ]

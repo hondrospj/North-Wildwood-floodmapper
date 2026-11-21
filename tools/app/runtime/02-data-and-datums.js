@@ -3,6 +3,7 @@
     }
 
     function toast(msg = "") {
+      if (/^(?:failed to fetch\.?|load failed\.?|networkerror when attempting to fetch resource\.?)$/i.test(String(msg).trim())) return;
       const el = document.getElementById("toast");
       const textEl = document.getElementById("toastMessage");
       if (!el) return;

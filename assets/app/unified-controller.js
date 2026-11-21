@@ -8,7 +8,7 @@
  const sourceCard=panel.querySelector('.data-source-card');
  const mobile=matchMedia('(max-width:900px), (max-height:560px), (max-height:560px) and (pointer:coarse), (max-width:1366px) and (any-pointer:coarse)');
  const owned=new WeakMap(),bound=new WeakSet();
- const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads with 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];
+ const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads With 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];
  const groups={forecast:'.data-source-card,#forecastScenarioCard,#returnIntervalCard,#timelineIntervalCard,#calendarCard,.mobile-top-tides-card',map:'.overlay-card,.datum-card,.opacity-card,.layers-card,.top-tides-card',tools:'#mapperTutorialBtn,#avalonTourBtn'};
  const safeProbe=document.createElement('div');safeProbe.id='unifiedSafeAreaProbe';safeProbe.setAttribute('aria-hidden','true');safeProbe.style.cssText='position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';body.append(safeProbe);
  let chosenSection=panel.dataset.nwwSection||'forecast';
@@ -55,7 +55,7 @@
   if(changed)panel.scrollTop=0;
  }
  function ensureControlButtons(){
-  for(const [id,label]of [['mobileControlsToggle','Controls'],['mobileControlsClose','×']]){const copies=[...document.querySelectorAll('[id="'+id+'"]')];let button=copies.shift();for(const duplicate of copies)duplicate.remove();if(!button){button=document.createElement('button');button.id=id;button.type='button';button.textContent=label;(id==='mobileControlsClose'?panel:body).append(button);}attr(button,'aria-label',id==='mobileControlsClose'?'Close controls':'Open map controls');if(id==='mobileControlsToggle'){attr(button,'aria-controls','leftPanel');attr(button,'aria-expanded',String(body.classList.contains('mobile-controls-open')));}}
+  for(const [id,label]of [['mobileControlsToggle','Controls'],['mobileControlsClose','×']]){const copies=[...document.querySelectorAll('[id="'+id+'"]')];let button=copies.shift();for(const duplicate of copies)duplicate.remove();if(!button){button=document.createElement('button');button.id=id;button.type='button';button.textContent=label;(id==='mobileControlsClose'?panel:body).append(button);}if(id==='mobileControlsClose')flag(button,'centered-close-control',true);attr(button,'aria-label',id==='mobileControlsClose'?'Close controls':'Open map controls');if(id==='mobileControlsToggle'){attr(button,'aria-controls','leftPanel');attr(button,'aria-expanded',String(body.classList.contains('mobile-controls-open')));}}
  }
  function ensureHeader(){
   const headers=[...document.querySelectorAll('[id="nwwMobileControlHeader"]')];let header=headers.shift();
@@ -143,8 +143,8 @@
   ensureControlButtons();ensureHeader();ensureDays();ensureLayers();ensureReturnPeriodSelect();
   const title=sourceCard?.querySelector('h2');text(title,'Flood Data');
   const downloadCard=document.getElementById('downloadCard');if(downloadCard?.getAttribute('role')==='button'){downloadCard.removeAttribute('role');downloadCard.removeAttribute('tabindex');downloadCard.removeAttribute('aria-label');}
-  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);
-  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');
+  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Best Case'],['forecastMeanBtn','Likely'],['forecastHighBtn','Worst Case'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);
+  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast Range');
   for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the Flood Mapper Tour');
   const opacity=panel.querySelector('.opacity-card .control-row'),opacityText=document.getElementById('opacityText');if(opacity&&opacityText&&opacityText.parentElement!==opacity)opacity.append(opacityText);
   attr(document.getElementById('opacitySlider'),'aria-label','Flood overlay opacity');attr(document.getElementById('hourSlider'),'aria-label',body.classList.contains('observed-mode')?'Observed flood time':body.classList.contains('return-interval-mode')?'Modeled flood time':'Flood forecast time');

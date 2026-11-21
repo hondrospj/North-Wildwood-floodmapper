@@ -151,7 +151,7 @@ async function checkStartup(width,height=1000,mobile=false) {
       assert.ok(initial,'Desktop controls must have layout while the controller request is held');
       if (initial.painted) {
         assertNear(initial.pane.width,300,`${width}px initial pane width`);
-        assert.equal(initial.cards.forecast?.heading,'Forecast range',
+        assert.equal(initial.cards.forecast?.heading,'Forecast Range',
           'The first painted heading must already use the final label');
       }
     }

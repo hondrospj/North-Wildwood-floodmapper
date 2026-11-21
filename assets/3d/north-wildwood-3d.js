@@ -1693,26 +1693,9 @@
   function buildBuildingPopupHtml(properties) {
     var p = properties || {};
     var address = escapeTownAddressHtml(p.address || p.osmName || `${TOWN_CONFIG.site.name} building`);
-    var crawlspaceDepth = finiteBuildingNumber(p.foundationHeightFt);
-    var firstFloor = finiteBuildingNumber(p.modeledFirstFloorNavd88Ft);
-    var stage = finiteBuildingNumber(getSelectedStageNavd88());
-    var difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : NaN;
-    var status = !Number.isFinite(firstFloor)
-      ? ""
-      : !Number.isFinite(difference)
-        ? "Choose a water level to compare."
-        : Math.abs(difference) <= 0.1
-          ? "Current water is at the estimated occupied floor."
-          : difference > 0
-            ? "Current water is " + formatWaterDepth(difference, 1) + " above the estimated occupied floor."
-            : "Current water is " + formatWaterDepth(Math.abs(difference), 1) + " below the estimated occupied floor.";
     return '<div class="nsi-structure-popup building-info-card">' +
       '<span class="house-alert-kicker">Building</span>' +
       '<h3>' + address + '</h3>' +
-      '<div class="building-info-facts">' +
-        '<div><span>Crawlspace / garage depth</span><strong>' + (Number.isFinite(crawlspaceDepth) ? formatWaterDepth(crawlspaceDepth, 1) : '—') + '</strong></div>' +
-        (status ? '<p>' + escapeTownAddressHtml(status) + '</p>' : '') +
-      '</div>' +
       '</div>';
   }
 

@@ -4,7 +4,7 @@
 <html lang="en" data-nww-avalon-timeline data-nww-mobile-layout data-nww-phone data-ss-ui-ready="app">
 <head>
 <meta charset="utf-8">
-<style>@layer north-wildwood-phone;</style>
+<style>@layer north-wildwood-control-layout, north-wildwood-phone;</style>
 <link rel="stylesheet" href="./assets/north-wildwood-phone.css?v=shared">
 <template id="floodmapperTownData"><!-- floodmapper:profile --></template>
 <link rel="stylesheet" href="./assets/north-wildwood-font.css?v=44bc78225f5bedbc">
@@ -196,15 +196,15 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
       <section id="forecastScenarioCard" class="panel-card compact-card forecast-scenario-card">
         <div class="section-title">
           <div class="title-with-help">
-            <h2>Forecast range</h2>
+            <h2>Forecast Range</h2>
             <button id="forecastTypeHelpBtn" class="help-btn" type="button" aria-expanded="false" aria-controls="infoModal" title="Explain forecast type">?</button>
           </div>
-          <span id="forecastScenarioPill" class="nww-status-value" hidden>Mean</span>
+          <span id="forecastScenarioPill" class="nww-status-value" hidden>Likely</span>
         </div>
         <div class="button-grid-3">
-          <button id="forecastLowBtn" type="button" data-scenario="lowEnd">Lower End</button>
-          <button id="forecastMeanBtn" class="active" type="button" data-scenario="mean">Mean</button>
-          <button id="forecastHighBtn" type="button" data-scenario="highEnd">Upper End</button>
+          <button id="forecastLowBtn" type="button" data-scenario="lowEnd">Best Case</button>
+          <button id="forecastMeanBtn" class="active" type="button" data-scenario="mean">Likely</button>
+          <button id="forecastHighBtn" type="button" data-scenario="highEnd">Worst Case</button>
         </div>
       </section>
 
@@ -256,7 +256,7 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
           <span id="datumPill" class="nww-status-value" hidden>MLLW</span>
         </div>
         <div class="segmented-control" role="group" aria-label="Vertical datum">
-          <button id="datumMllwBtn" type="button" class="active" data-datum="mllw" aria-pressed="true">MLLW</button>
+          <button id="datumMllwBtn" title="Mean Lower Low Water" type="button" class="active" data-datum="mllw" aria-pressed="true">MLLW</button>
           <button id="datumNavd88Btn" type="button" data-datum="navd88" aria-pressed="false">NAVD88</button>
         </div>
       </section>
@@ -375,27 +375,25 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
             <div>
               <h3>Layers</h3>
             </div>
+            <button id="layersHelpBtn" class="help-btn" type="button" data-layer-help="layers" aria-label="About map layers" aria-haspopup="dialog" aria-controls="infoModal">?</button>
           </div>
           <div class="layer-list">
             <div class="layer-item">
               <div id="satelliteToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show satellite imagery"></div>
               <div class="layer-meta title-with-help">
                 <div class="layer-name">Satellite</div>
-                <button class="help-btn" type="button" data-layer-help="satellite" aria-label="About Satellite" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item">
               <div id="buildingsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show buildings above floodwater"></div>
               <div class="layer-meta title-with-help">
                 <div class="layer-name">Buildings</div>
-                <button class="help-btn" type="button" data-layer-help="buildings" aria-label="About Buildings" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item">
               <div id="parcelsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show parcels"></div>
               <div class="layer-meta title-with-help">
                 <div class="layer-name">Parcels</div>
-                <button class="help-btn" type="button" data-layer-help="parcels" aria-label="About Parcels" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
 
@@ -403,28 +401,24 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
               <div id="nsiStructuresToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show structural impacts: garage, crawlspace, first floor"></div>
               <div class="layer-meta title-with-help">
                 <div class="layer-name">Structural Impacts</div>
-                <button class="help-btn" type="button" data-layer-help="structuralImpacts" aria-label="About Structural Impacts" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item">
               <div id="roadImpactsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show roads with 6+ inches of water" title="Highlight roads with more than 0.5 ft of modeled water at the selected time"></div>
               <div class="layer-meta title-with-help">
-                <div class="layer-name">Roads with 6+ Inches of Water</div>
-                <button class="help-btn" type="button" data-layer-help="roadImpacts" aria-label="About Roads with 6+ Inches of Water" aria-haspopup="dialog" aria-controls="infoModal">?</button>
+                <div class="layer-name">Roads With 6+ Inches of Water</div>
               </div>
             </div>
             <div class="layer-item">
               <div id="roadsToggle" class="toggle on" role="switch" tabindex="0" aria-checked="true" aria-label="Show road names"></div>
               <div class="layer-meta title-with-help">
                 <div class="layer-name">Road Names</div>
-                <button class="help-btn" type="button" data-layer-help="roadNames" aria-label="About Road Names" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
             <div class="layer-item shorelysafe-camera-item" data-html2canvas-ignore="true">
               <div id="webcamsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show cameras"></div>
               <div class="layer-meta title-with-help">
                 <div class="layer-name">Cameras</div>
-                <button class="help-btn" type="button" data-layer-help="cameras" aria-label="About Cameras" aria-haspopup="dialog" aria-controls="infoModal">?</button>
               </div>
             </div>
           </div>
@@ -499,10 +493,10 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
           <span class="timeline-key-item"><span class="timeline-key-swatch minor-flood" aria-hidden="true"></span><span class="timeline-key-label">Minor</span></span>
           <span class="timeline-key-item"><span class="timeline-key-swatch moderate-flood" aria-hidden="true"></span><span class="timeline-key-label">Moderate</span></span>
           <span class="timeline-key-item"><span class="timeline-key-swatch major-flood" aria-hidden="true"></span><span class="timeline-key-label">Major</span></span>
-          <div id="roadImpactsKey" hidden aria-label="Roads with 6+ Inches of Water">
+          <div id="roadImpactsKey" hidden aria-label="Roads With 6+ Inches of Water">
             <span class="road-impacts-swatch" aria-hidden="true"></span>
-            <span class="road-impacts-label">Roads with 6+ Inches of Water</span>
-            <span class="road-impacts-label-mobile">Roads with 6+ Inches of Water</span>
+            <span class="road-impacts-label">Roads With 6+ Inches of Water</span>
+            <span class="road-impacts-label-mobile">Roads With 6+ Inches of Water</span>
             <span id="roadImpactsStatus" class="road-impacts-status" role="status">Modeled road water depth &gt; 0.5 ft</span>
           </div>
         </div>
@@ -576,7 +570,7 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
     <section class="nww-calendar-dialog" role="dialog" aria-modal="true" aria-labelledby="observedCalendarTitle">
       <div class="nww-calendar-heading">
         <h2 id="observedCalendarTitle">Choose a past date</h2>
-        <button id="observedCalendarCloseBtn" type="button" aria-label="Close past date calendar">×</button>
+        <button id="observedCalendarCloseBtn" class="centered-close-control" type="button" aria-label="Close past date calendar">×</button>
       </div>
         <div class="calendar-toolbar">
           <button id="prevMonthBtn" type="button" aria-label="Previous month">‹</button>
@@ -832,9 +826,9 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
 
 <script defer src="assets/north-wildwood-mobile.js?v=20261026-holistic1"></script>
 
-<script src="assets/export-area.js?v=ee1e14cc57fb8b8e" id="floodmapper-export-area"></script>
+<script src="assets/export-area.js?v=shared" id="floodmapper-export-area"></script>
 <script defer src="assets/export-preview.js?v=shared" id="floodmapper-export-preview"></script>
-<script defer src="assets/export-date-time-picker.js?v=33c7d7908c9d305e" id="floodmapper-export-date-time-picker"></script>
+<script defer src="assets/export-date-time-picker.js?v=shared" id="floodmapper-export-date-time-picker"></script>
 
 
 
