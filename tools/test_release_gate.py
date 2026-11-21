@@ -365,11 +365,18 @@ class PublisherTests(unittest.TestCase):
         self.git_status = patch.object(PUBLISHER.subprocess, "check_output", return_value="").start()
         self.addCleanup(patch.stopall)
 
-    def test_publish_preserves_north_wildwoods_absolute_atlas_base(self):
+    def test_publish_uses_absolute_atlas_base_and_exact_startup_query(self):
         app = {**self.app, "repository": "hondrospj/North-Wildwood-floodmapper",
                "path": "/shorelysafe/floodmapper/north-wildwood/"}
         pages = "https://hondrospj.github.io/North-Wildwood-floodmapper/"
-        html = f'<template>{{"staticSiteBase":"{pages}"}}</template><a href="{pages}">Map</a>'
+        atlas = "assets/hydraulic-v29/COGs/North%20Wildwood/"
+        version = "?v=20260822-mask-stabilizer-v40"
+        query = atlas + "NorthWildwoodHydraulicQuery5ft.png" + version
+        developed = atlas + "NorthWildwoodDevelopedMask5ft.png" + version
+        states = atlas + "NorthWildwoodHydraulicStates.json.png" + version
+        config = {"staticSiteBase": pages, "depthQueryPngPath": "./" + query,
+                  "developedQueryPngPath": "./" + developed, "hydraulicStatesPath": "./" + states}
+        html = f'<template>{json.dumps(config, separators=(",", ":"))}</template><a href="{pages}">Map</a>'
         json_file = f'{{"staticSiteBase":"{pages}"}}'
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)
@@ -378,7 +385,8 @@ class PublisherTests(unittest.TestCase):
             self.git_status.side_effect = [b"index.html\0links.json\0", SHA]
             manifest, payloads = PUBLISHER.prepare(app, source, [app])
         published = {entry["path"]: payloads[entry["sha256"]][1].decode() for entry in manifest["files"]}
-        self.assertEqual(published["index.html"], html.replace(f'href="{pages}"', f'href="{app["path"]}"'))
+        expected = html.replace(f'href="{pages}"', f'href="{app["path"]}"')
+        self.assertEqual(published["index.html"], expected.replace('"./' + query + '"', '"' + pages + query + '"'))
         self.assertEqual(published["links.json"], json_file.replace(pages, app["path"]))
 
     def test_mismatched_checkout_never_calls_publishing_api(self):
