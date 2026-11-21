@@ -266,6 +266,10 @@ try {
       // Preparing the modeled frame may already decode this URL. Resetting
       // only the application promise does not guarantee a network request in
       // every engine: use an uncached URL and establish interception explicitly.
+      await page.route('**/NorthWildwoodHydraulicQuery5ft.webp*', route => {
+        const nonce = new URL(route.request().url()).searchParams.get('_map_deadline_fixture');
+        return nonce === faultNonce ? route.abort() : route.continue();
+      });
       await page.route(pattern,route=>{
         if (!holdQuery || new URL(route.request().url()).searchParams.get('_map_deadline_fixture')!==faultNonce) return route.continue();
         held.push(route);signalHeld();
@@ -274,7 +278,9 @@ try {
       const started=Date.now();
       await page.evaluate(nonce=>{
         const queryUrl=new URL(DEPTH_QUERY_PNG_URL);queryUrl.searchParams.set('_map_deadline_fixture',nonce);
-        DEPTH_QUERY_PNG_URL=queryUrl.href;depthQueryGridPromise=null;bathtubStageOverlayCache=new Map();
+        const optimizedUrl=new URL(DEPTH_QUERY_WEBP_URL);optimizedUrl.searchParams.set('_map_deadline_fixture',nonce);
+        DEPTH_QUERY_PNG_URL=queryUrl.href;DEPTH_QUERY_WEBP_URL=optimizedUrl.href;
+        depthQueryGridPromise=null;bathtubStageOverlayCache=new Map();
         window.__mapQueryDone=false;switchOverlayMode('dynamic').then(()=>window.__mapQueryDone=true);
       },faultNonce);
       let interceptionDeadline;

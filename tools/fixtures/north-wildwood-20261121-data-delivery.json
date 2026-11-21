@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "27e58b1953b324f42e61020168f7c93587fb649b",
+  "files": [
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "61b33a67081d2b7990f43fafe38d55041366e8900487449e9c9bcef0e26eb6e9",
+      "afterSha256": "e385cb37c5e4acdc9292ba9c1f1da712021a9ea763195c6bc1d2def208c4a2a8",
+      "edits": [
+        [
+          541,
+          615,
+          ""
+        ],
+        [
+          16961,
+          17133,
+          ""
+        ],
+        [
+          482647,
+          482818,
+          "const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL)"
+        ],
+        [
+          607286,
+          607305,
+          ""
+        ],
+        [
+          607523,
+          607528,
+          "PNG"
+        ],
+        [
+          607648,
+          607657,
+          "20000"
+        ],
+        [
+          608822,
+          608827,
+          "PNG"
+        ],
+        [
+          608888,
+          609987,
+          ""
+        ],
+        [
+          610140,
+          610204,
+          "(async () => {\n          let lastError = null;\n          for (let attempt = 0; attempt < 2; attempt += 1) {\n            try {\n              const url = new URL(DEPTH_QUERY_PNG_URL);\n              if (attempt) url.searchParams.set(\"_retry\", String(Date.now()));\n              return await loadDepthQueryPng(url.href);\n            } catch (error) {\n              // A stalled transport has already used its full deadline. Let\n              // the frame controller/user retry instead of doubling that wait.\n              if (error?.name === \"TimeoutError\") throw error;\n              lastError = error;\n            }\n          }\n          throw lastError || new Error(\"Packed depth-query PNG is unavailable.\");\n        })("
+        ],
+        [
+          610611,
+          610672,
+          "DepthQueryPng(DEVELOPED_QUERY_PNG"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "85552c954306883c39a6a4d1fbbdb84eceef8e77c507378d0cb67d1c9a08cbd6",
+      "afterSha256": "fd272574ec215b3bfc0601d744898d2cc3461d7dc0b437ef38479e787bd96dcb",
+      "edits": [
+        [
+          3101,
+          3350,
+          ""
+        ],
+        [
+          104886,
+          104902,
+          "61b33a67081d2b79"
+        ],
+        [
+          107951,
+          107952,
+          "<script src=\"https://unpkg.com/proj4@2.11.0/dist/proj4.js\" defer></script>\n<script src=\"./assets/3d/elevation-contours.js?v=46d73b0d18324cf2\" defer></script>"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "1c9fada52b421f4ffca50d9380a61b1bb5fdde9c3ed52e0224395d401a25db7b",
+      "afterSha256": "ff8feab92091ab3be73582106dff69249e59cfdefcb5dd858b36758e154c590a",
+      "edits": [
+        [
+          51496,
+          51578,
+          "script src=\"https://unpkg.com/proj4@2.11.0/dist/proj4.js\" defer></script>\n<script src=\"./assets/3d/elevation-contours.js?v=shared\" defer></script"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/00-configuration.js",
+      "beforeSha256": "6ed5b4ad69494fad6c8872be408f8214a40c3c6ab56ae5019db2dad482c0ff6a",
+      "afterSha256": "423044fd9614a87a37800d485c4133b578e2e4bf3ccdf9cd187dd9d0ddb2f701",
+      "edits": [
+        [
+          541,
+          615,
+          ""
+        ],
+        [
+          16961,
+          17133,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/21-forecast-and-observed-loading.js",
+      "beforeSha256": "55e0503208c198ed1f7a8523a257ee506485eb4ec262dddb7365fef8a13de874",
+      "afterSha256": "66381dab0772efa8a7b83bf252496e65acc011b6189a196f8bf0e80edb2e4612",
+      "edits": [
+        [
+          3288,
+          3459,
+          "const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL)"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/26-depth-queries.js",
+      "beforeSha256": "fd61fb2e7a7ccc3ea8f64c5ed7cc911fc75fa39ceaa1786826e6080aa4f580a5",
+      "afterSha256": "e860a14bdab395437b09ec881731e0487dc77fa9676915e7984a80b106783daf",
+      "edits": [
+        [
+          34,
+          53,
+          ""
+        ],
+        [
+          271,
+          276,
+          "PNG"
+        ],
+        [
+          396,
+          405,
+          "20000"
+        ],
+        [
+          1570,
+          1575,
+          "PNG"
+        ],
+        [
+          1636,
+          2735,
+          ""
+        ],
+        [
+          2888,
+          2952,
+          "(async () => {\n          let lastError = null;\n          for (let attempt = 0; attempt < 2; attempt += 1) {\n            try {\n              const url = new URL(DEPTH_QUERY_PNG_URL);\n              if (attempt) url.searchParams.set(\"_retry\", String(Date.now()));\n              return await loadDepthQueryPng(url.href);\n            } catch (error) {\n              // A stalled transport has already used its full deadline. Let\n              // the frame controller/user retry instead of doubling that wait.\n              if (error?.name === \"TimeoutError\") throw error;\n              lastError = error;\n            }\n          }\n          throw lastError || new Error(\"Packed depth-query PNG is unavailable.\");\n        })("
+        ],
+        [
+          3359,
+          3420,
+          "DepthQueryPng(DEVELOPED_QUERY_PNG"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/town-profile.json",
+      "beforeSha256": "c7d4821554e7466b8e3ec26e90f57a61fc08751f865b83b0fc1096d5e2b5e992",
+      "afterSha256": "d3d8772b33cbe12c1fc86dae516c7985c4b2af641a5c7a784093948d48f6e167",
+      "edits": [
+        [
+          3603,
+          3868,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/build_north_wildwood_app.mjs",
+      "beforeSha256": "c2961680670b328b052dad871c015f85cdecf73db137aeb3a4ae81446f1c1d0b",
+      "afterSha256": "68262e3bed024c8e219184ba72d08d66cf0dde812ce3bea1757a46d0c28d0a4f",
+      "edits": [
+        [
+          977,
+          1150,
+          ""
+        ],
+        [
+          1376,
+          1629,
+          ""
+        ],
+        [
+          3022,
+          3070,
+          "replacements.size - 4"
+        ],
+        [
+          3439,
+          3493,
+          "(?:profile|webcams|page-title|town-name) -->/g,\n  token => replacements.get(token)"
+        ]
+      ]
+    }
+  ],
+  "added": [
+    {
+      "source": "assets/hydraulic-v29/COGs/North Wildwood/NorthWildwoodDevelopedMask5ft.webp",
+      "bytes": 46532,
+      "sha256": "b4f426f3ecfd195da96651583c81c08ae9117a65532396b697508b293739fcab"
+    },
+    {
+      "source": "assets/hydraulic-v29/COGs/North Wildwood/NorthWildwoodHydraulicQuery5ft.webp",
+      "bytes": 587838,
+      "sha256": "841674fb9d6b474a3f9ed72cf89faaf8c793c03c0a3de6ceec507cb912b8c9ea"
+    }
+  ]
+}

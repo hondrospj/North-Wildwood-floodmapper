@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const DATA_DELIVERY_PATH = "tools/fixtures/north-wildwood-20261121-data-delivery.json";
+const priorDataDeliverySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-data-delivery-snapshot");
+const dataDeliveryText = fs.readFileSync(localPath(DATA_DELIVERY_PATH));
+assert.equal(hashReleaseBytes(dataDeliveryText), "b9c09f1dbb6d6b71675f30887c522f23add442c8777fd345afb7191c2ddd3f73", "Retain the exact data delivery inverse");
+const dataDelivery = JSON.parse(dataDeliveryText);
+assert.equal(dataDelivery.schemaVersion, 1);
+assert.equal(dataDelivery.baselineCommit, "27e58b1953b324f42e61020168f7c93587fb649b");
+const dataDeliveryFiles = new Map(dataDelivery.files.map(entry => [entry.source, entry]));
 const FIRST_MAP_PAINT_PATH = "tools/fixtures/north-wildwood-20261121-first-map-paint.json";
 const priorFirstMapPaintSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-first-map-paint-snapshot");
 const firstMapPaintText = fs.readFileSync(localPath(FIRST_MAP_PAINT_PATH));
@@ -31,8 +39,21 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readReleaseBytes(relative) {
+function readBeforeDataDelivery(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = dataDeliveryFiles.get(relative);
+  return priorDataDeliverySnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "data delivery");
+}
+if (!priorDataDeliverySnapshot) {
+  for (const file of dataDelivery.files) readBeforeDataDelivery(file.source);
+  for (const asset of dataDelivery.added) {
+    const bytes = fs.readFileSync(localPath(asset.source));
+    assert.equal(bytes.length, asset.bytes, `${asset.source}: exact lossless asset size`);
+    assert.equal(hashReleaseBytes(bytes), asset.sha256, `${asset.source}: exact lossless asset bytes`);
+  }
+}
+function readReleaseBytes(relative) {
+  const bytes = readBeforeDataDelivery(relative);
   const entry = firstMapPaintFiles.get(relative);
   return priorFirstMapPaintSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "first-map-paint");
 }
@@ -2689,6 +2710,7 @@ if (process.argv.includes("--self-test")) {
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
+      DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
       QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
       MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
       JOE_UI_PATH, ...joeUi.files.map(file => file.source), ...joeUi.added.map(file => file.source),
@@ -2704,7 +2726,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeFirstMapPaint = (args = []) => runRelease(["--prior-first-map-paint-snapshot", ...args]);
+    const runBeforeDataDelivery = (args = []) => runRelease(["--prior-data-delivery-snapshot", ...args]);
+    const runBeforeFirstMapPaint = (args = []) => runBeforeDataDelivery(["--prior-first-map-paint-snapshot", ...args]);
     const runCurrent = (args = []) => runBeforeFirstMapPaint(["--prior-shared-app-snapshot", ...args]);
     const run = (args = []) => runCurrent(["--prior-quiet-loading-snapshot", ...args]);
     assert.equal(runRelease().status, 0, "The unmodified release scratch copy must pass before mutation checks");
@@ -2721,12 +2744,22 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered data delivery inverse", path.join(scratch, DATA_DELIVERY_PATH), Buffer.concat([dataDeliveryText, Buffer.from(" ")])],
+      ...[...dataDelivery.files, ...dataDelivery.added].map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed data delivery byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of dataDelivery.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeDataDelivery(file.source));
+    for (const file of dataDelivery.added) fs.unlinkSync(path.join(scratch, file.source));
+    assert.equal(runBeforeDataDelivery().status, 0, "The restored application before data delivery changes must pass");
+    assertMutationsRejected([
       ["altered first-map-paint inverse", path.join(scratch, FIRST_MAP_PAINT_PATH), Buffer.concat([firstMapPaintText, Buffer.from(" ")])],
       ...[...firstMapPaint.files, ...firstMapPaint.added].map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed first-map-paint byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeDataDelivery);
     for (const file of firstMapPaint.files) fs.writeFileSync(path.join(scratch, file.source), readReleaseBytes(file.source));
     for (const file of firstMapPaint.added) fs.unlinkSync(path.join(scratch, file.source));
     assert.equal(runBeforeFirstMapPaint().status, 0, "The restored pre-preview application must pass");
@@ -3394,7 +3427,8 @@ if (process.argv.includes("--self-test")) {
     assertMutationsRejected(allCases, runPrior);
     assert.equal(runPrior().status, 0, "Restoring historical artifacts must restore a passing check");
     const firstMapPaintCases = firstMapPaint.files.length + firstMapPaint.added.length + 1;
-    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases} dropped, moved, altered or stale artifacts were rejected.`);
+    const dataDeliveryCases = dataDelivery.files.length + dataDelivery.added.length + 1;
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

@@ -54,6 +54,8 @@ jobs:
             /assets/app/
             /assets/styles/
             /assets/**/*Query*.png
+            /assets/**/*Query*.webp
+            /assets/**/*DevelopedMask*.webp
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

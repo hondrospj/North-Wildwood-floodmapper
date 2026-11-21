@@ -48,6 +48,10 @@ assert.deepEqual(parserBlockingScripts, [
   `assets/export-area.js?v=${areaVersion}`,
 ]);
 
+const html = readAsset("index.html");
+assert.doesNotMatch(html, /\b(?:src|href)="[^"]*(?:\/proj4\.js|\/elevation-contours\.js)\b/);
+assert.match(html, /<template id="elevationContoursTemplate">/);
+
 assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+jszip[\s\S]+geotiff/);
 assert.match(source, /html2canvas: new URL\("vendor\/html2canvas-1\.4\.1\.min\.js", UI_ASSET_BASE\)\.href/);
 assert.match(extractFunction("downloadCurrentSelection"), /await awaitRasterRequest\(ensureExportLibraries\(format, frameItems\.length\)\)/);

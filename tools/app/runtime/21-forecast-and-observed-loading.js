@@ -66,7 +66,8 @@
           renderTimelineDays();
         }
         try {
-          const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL));
+          // Revalidate every fetch while allowing an unchanged model cycle to reuse its response body.
+          const payload = await fetchJson(FORECAST_URL, { cache: "no-cache" });
           if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
           const scenarios = Object.keys(FORECAST_SCENARIOS);
           const usable = new Set(scenarios.filter(scenario => hasUsableScenario(payload, scenario)));

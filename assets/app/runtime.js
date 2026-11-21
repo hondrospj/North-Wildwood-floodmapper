@@ -12,6 +12,8 @@
     let RETURN_INTERVALS_URL = "";
     let DEPTH_QUERY_PNG_URL = "";
     let DEVELOPED_QUERY_PNG_URL = "";
+    let DEPTH_QUERY_WEBP_URL = "";
+    let DEVELOPED_QUERY_WEBP_URL = "";
     let DEPTH_QUERY_COG_URL = "";
     let PHYSICS_FORECAST_POINTER_URL = "";
     let PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE = "";
@@ -384,6 +386,8 @@
       DEVELOPED_QUERY_PNG_URL = config.overlays?.developedQueryPngPath
         ? new URL(config.overlays.developedQueryPngPath, APP_BASE).href
         : "";
+      DEPTH_QUERY_WEBP_URL = optionalAppUrl(config.overlays?.depthQueryWebpPath);
+      DEVELOPED_QUERY_WEBP_URL = optionalAppUrl(config.overlays?.developedQueryWebpPath);
       DEPTH_QUERY_COG_URL = config.overlays?.depthQueryCogPath
         ? new URL(config.overlays.depthQueryCogPath, APP_BASE).href
         : "";
@@ -10494,7 +10498,8 @@ function formatSelectedObservedDate(dateStr) {
           renderTimelineDays();
         }
         try {
-          const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL));
+          // Revalidate every fetch while allowing an unchanged model cycle to reuse its response body.
+          const payload = await fetchJson(FORECAST_URL, { cache: "no-cache" });
           if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
           const scenarios = Object.keys(FORECAST_SCENARIOS);
           const usable = new Set(scenarios.filter(scenario => hasUsableScenario(payload, scenario)));
@@ -13075,15 +13080,15 @@ function startPlayback() {
       return nearestDistance <= 90 ? nearest : null;
     }
 
-    function loadDepthQueryPng(url) {
+    function loadDepthQueryPng(url, timeoutMs = 20000) {
       return new Promise((resolve, reject) => {
         const image = new Image();
         let settled = false;
         const timer = window.setTimeout(() => {
-          const error = new Error("Packed depth-query PNG took too long to load. Please try again.");
+          const error = new Error("Packed depth-query image took too long to load. Please try again.");
           error.name = "TimeoutError";
           finish(error);
-        }, 20000);
+        }, timeoutMs);
         const finish = (error, grid) => {
           if (settled) return;
           settled = true;
@@ -13113,30 +13118,41 @@ function startPlayback() {
             finish(error);
           }
         };
-        image.onerror = () => finish(new Error("Packed depth-query PNG could not be loaded."));
+        image.onerror = () => finish(new Error("Packed depth-query image could not be loaded."));
         image.src = url;
       });
+    }
+
+    async function loadPackedQueryGrid(pngUrl, webpUrl, attempts = 1) {
+      if (webpUrl) {
+        // Both formats contain the same packed RGBA cells. Bound the optional
+        // delivery path so a stalled request still falls back to the original.
+        try {
+          const grid = await loadDepthQueryPng(webpUrl, 5000);
+          const size = TOWN_CONFIG?.overlays?.worldFileRasterSize;
+          if (!size || (grid.width === size.width && grid.height === size.height)) return grid;
+        } catch (_) {}
+      }
+      let lastError;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        try {
+          const url = new URL(pngUrl);
+          if (attempt) url.searchParams.set("_retry", String(Date.now()));
+          return await loadDepthQueryPng(url.href);
+        } catch (error) {
+          // A stalled transport has already used its full deadline. Let the
+          // frame controller/user retry instead of doubling that wait.
+          if (error?.name === "TimeoutError") throw error;
+          lastError = error;
+        }
+      }
+      throw lastError;
     }
 
     async function getDepthQueryGrid() {
       if (!DEPTH_QUERY_PNG_URL) return null;
       if (!depthQueryGridPromise) {
-        const request = (async () => {
-          let lastError = null;
-          for (let attempt = 0; attempt < 2; attempt += 1) {
-            try {
-              const url = new URL(DEPTH_QUERY_PNG_URL);
-              if (attempt) url.searchParams.set("_retry", String(Date.now()));
-              return await loadDepthQueryPng(url.href);
-            } catch (error) {
-              // A stalled transport has already used its full deadline. Let
-              // the frame controller/user retry instead of doubling that wait.
-              if (error?.name === "TimeoutError") throw error;
-              lastError = error;
-            }
-          }
-          throw lastError || new Error("Packed depth-query PNG is unavailable.");
-        })().catch(error => {
+        const request = loadPackedQueryGrid(DEPTH_QUERY_PNG_URL, DEPTH_QUERY_WEBP_URL, 2).catch(error => {
           if (depthQueryGridPromise === request) depthQueryGridPromise = null;
           throw error;
         });
@@ -13148,7 +13164,7 @@ function startPlayback() {
     async function getDevelopedQueryGrid() {
       if (!DEVELOPED_QUERY_PNG_URL) return null;
       if (!developedQueryGridPromise) {
-        const request = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)
+        const request = loadPackedQueryGrid(DEVELOPED_QUERY_PNG_URL, DEVELOPED_QUERY_WEBP_URL)
           .catch(error => {
             if (developedQueryGridPromise === request) developedQueryGridPromise = null;
             throw error;
