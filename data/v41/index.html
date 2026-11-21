@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>North Wildwood V41 hydrograph</title>
+  <link rel="stylesheet" href="./viewer.css">
+  <script src="./viewer.js" defer></script>
+</head>
+<body>
+  <main>
+    <nav><a href="../../">Back to the flood map</a></nav>
+    <h1>North Wildwood V41 hydrograph</h1>
+    <p>Experimental Shorely Safe forecast</p>
+    <p id="status" role="status">Checking for the latest verified V41 run…</p>
+    <section id="forecast" hidden aria-label="Latest V41 forecast">
+      <p id="proxy"></p>
+      <p>Purple shows the weighted ensemble mean. Green and red show the 10th and 90th percentiles.</p>
+      <img id="chart" alt="Forecast water levels over time with the ensemble mean and 10th to 90th percentile range">
+      <p><a id="csv">Download hourly forecast data</a></p>
+    </section>
+  </main>
+</body>
+</html>

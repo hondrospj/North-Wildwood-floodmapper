@@ -11,7 +11,28 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readReleaseBytes = relative => fs.readFileSync(localPath(relative));
+const v41ForecastLink = '        <a id="v41HydrographLink" href="./data/v41/index.html" style="display:inline-block;margin-top:.55rem;color:inherit;text-decoration:underline;">Experimental V41 hydrograph</a>\n';
+const v41DocumentPins = new Map([
+  ["index.html", [
+    "1ae737ec7e43fa2715668fffe21c751d5c5e10d3fd74d137744d29224cf535c7",
+    "6a1663321348524c8fd8a3f901c52d1b0451c6025bbb9ff397ada85ad2b839e7"
+  ]],
+  ["tools/app/index.template.html", [
+    "8b43172387b14ff4721e07705efe6cf4a686e4bd1f13524040feb403bd76761a",
+    "d69d8db5321c537c38999950127bacf9c10c9aaaa8f96bf2b4e5da795a5a9c45"
+  ]]
+]);
+function readReleaseBytes(relative) {
+  const bytes = fs.readFileSync(localPath(relative));
+  const pins = v41DocumentPins.get(relative);
+  if (!pins || (process.env.NWW_PARITY_ROOT && process.argv.includes("--prior-shared-app-snapshot"))) return bytes;
+  assert.equal(hashReleaseBytes(bytes), pins[0], `${relative}: retain the exact V41 forecast link`);
+  const document = bytes.toString("utf8");
+  assert.equal(document.split(v41ForecastLink).length, 2, `${relative}: one V41 forecast link`);
+  const restored = Buffer.from(document.replace(v41ForecastLink, ""));
+  assert.equal(hashReleaseBytes(restored), pins[1], `${relative}: preserve the previous checked map`);
+  return restored;
+}
 const SHARED_APP_PATH = "tools/fixtures/north-wildwood-20261119-common-browser-app.json";
 const priorSharedAppSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-shared-app-snapshot");
 const sharedAppText = readReleaseBytes(SHARED_APP_PATH);

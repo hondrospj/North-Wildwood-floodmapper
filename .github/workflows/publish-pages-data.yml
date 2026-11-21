@@ -89,6 +89,9 @@ jobs:
           sparse-checkout: |
             /forecast.json
             /data/experimental_petss_guidance.json
+            /data/v41/latest.json
+            /data/v41/latest.png
+            /data/v41/latest.csv
             /observed.json
             /observed15min.json
             /stone_harbor_observed15min.json
@@ -181,7 +184,11 @@ jobs:
         run: |
           site='https://hondrospj.github.io/North-Wildwood-floodmapper/'
           latest_shard="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["observations"]["observed_archive_index.json"]["shard"])' "$RUNNER_TEMP/pages-data.json")"
-          for path in forecast.json data/experimental_petss_guidance.json observed_archive_index.json "$latest_shard"; do
+          files=(forecast.json data/experimental_petss_guidance.json observed_archive_index.json "$latest_shard")
+          if [[ -f _site/data/v41/latest.json ]]; then
+            files+=(data/v41/latest.json data/v41/latest.png data/v41/latest.csv)
+          fi
+          for path in "${files[@]}"; do
             for attempt in {1..12}; do
               query="pages-proof=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$attempt"
               if curl --fail --silent --show-error --max-time 10 -H 'Cache-Control: no-cache' \

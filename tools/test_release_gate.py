@@ -14,7 +14,7 @@ import textwrap
 import unittest
 from unittest.mock import Mock, patch
 
-from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, is_generated_data, read_json, validate_data, validate_forecast
+from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, V41_FORECAST_FILES, is_generated_data, read_json, validate_data, validate_forecast
 from release_gate import REQUIRED_WORKFLOWS, GitHubError, ReleaseError, application_ancestor, assess_checks, assert_current, wait_for_checks
 from release_dispatch import dispatch_checks
 
@@ -221,14 +221,15 @@ class GeneratedAssetDispatchTests(unittest.TestCase):
 
 class DataPolicyTests(unittest.TestCase):
     def test_only_explicit_generated_json_uses_the_data_path(self):
-        for path in ("forecast.json", "observed_archive/lewes/1962.json", "city-gauge/data/2026.json"):
+        for path in ("forecast.json", "observed_archive/lewes/1962.json", "city-gauge/data/2026.json", *V41_FORECAST_FILES):
             self.assertTrue(is_generated_data(path))
         for path in ("index.html", "assets/app/main.js", "data/config.json", "observed_archive/helper.js",
-                     "tools/release_gate.py", ".shorelysafe/publish.py", "forecast.json.js"):
+                     "tools/release_gate.py", ".shorelysafe/publish.py", "forecast.json.js",
+                     "data/v41/index.html", "data/v41/latest.jpg", "data/v41/other.json"):
             self.assertFalse(is_generated_data(path))
 
     def test_all_regression_triggers_match_the_data_policy(self):
-        expected = set(GENERATED_FILES) | {prefix + "**/*.json" for prefix in GENERATED_DIRECTORIES}
+        expected = GENERATED_FILES.union(V41_FORECAST_FILES, (prefix + "**/*.json" for prefix in GENERATED_DIRECTORIES))
         for workflow in REQUIRED_WORKFLOWS:
             text = (ROOT / ".github/workflows" / workflow).read_text()
             before_jobs = text.split("permissions:")[0]

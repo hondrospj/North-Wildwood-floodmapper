@@ -1,0 +1,36 @@
+{
+  "status": "passed",
+  "experimental": true,
+  "title": "North Wildwood V41 Experimental Hydrograph",
+  "issue_utc": "2026-11-21T06:00:00+00:00",
+  "first_valid_utc": "2026-11-21T07:00:00+00:00",
+  "last_valid_utc": "2026-11-27T06:00:00+00:00",
+  "forecast_hours": 144,
+  "weather_paths": 103,
+  "proxy_label": "Frozen Stone Harbor V41 proxy (USGS 01411360)",
+  "datum": "North Wildwood project MLLW",
+  "datum_offset_ft": 2.75,
+  "chart_url": "latest.png",
+  "csv_url": "latest.csv",
+  "files": {
+    "latest.png": {
+      "sha256": "b8aeecc56218ca094e5c44c4e689eca315e98372846e5250788b55b41a9c35cb",
+      "bytes": 635695
+    },
+    "latest.csv": {
+      "sha256": "de790609bf426e8ae71da12642d303d461d8093730bf7eef957d696d37a07e6a",
+      "bytes": 22414
+    }
+  },
+  "statistics": [
+    "weighted ensemble mean",
+    "weighted empirical P10",
+    "weighted empirical P90"
+  ],
+  "limitations": [
+    "The datum shift expresses Stone Harbor predictions on the project MLLW reference.",
+    "P10\u2013P90 describes weather member spread.",
+    "Forecast leads beyond 96 hours are outside the documented development evaluation."
+  ],
+  "attribution": "Weather forcing from ECMWF Open Data. Gauge initialization from USGS 01411360."
+}

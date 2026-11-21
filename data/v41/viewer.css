@@ -1,0 +1,32 @@
+:root {
+  color: #242450;
+  background: #f6f7fc;
+  font: 17px/1.5 system-ui, sans-serif;
+}
+
+main {
+  max-width: 60rem;
+  padding: 1.25rem;
+  margin: auto;
+}
+
+h1 {
+  line-height: 1.15;
+}
+
+a {
+  color: #2b286f;
+  text-underline-offset: .18em;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1rem 0;
+  background: white;
+}
+
+img[hidden] {
+  display: none;
+}

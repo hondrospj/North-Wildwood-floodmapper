@@ -67,6 +67,49 @@ class PagesForecastOverlayTest(unittest.TestCase):
             stage_pages_data(self.source, self.site, now=self.now)
         self.assert_original_data()
 
+    def write_v41_run(self, issue_utc="2026-11-10T12:00:00Z", **overrides):
+        directory = self.source / "data/v41"
+        directory.mkdir()
+        payload = {
+            "status": "passed",
+            "issue_utc": issue_utc,
+            "forecast_hours": 360,
+            "weather_paths": 103,
+            "proxy_label": "Stone Harbor levels in North Wildwood MLLW",
+            "chart_url": "latest.png",
+            "csv_url": "latest.csv",
+            **overrides,
+        }
+        paths = directory / "latest.json", directory / "latest.png", directory / "latest.csv"
+        paths[0].write_text(json.dumps(payload), encoding="utf-8")
+        paths[1].write_bytes(b"\x89PNG\r\n\x1a\n")
+        paths[2].write_text("time_utc,expected_ft_mllw\n", encoding="utf-8")
+        return paths
+
+    def test_stages_only_v41_data_artifacts(self):
+        paths = self.write_v41_run()
+        (paths[0].parent / "index.html").write_text("unapproved experimental UI", encoding="utf-8")
+        site_viewer = self.site / "data/v41/index.html"
+        site_viewer.parent.mkdir(parents=True)
+        site_viewer.write_text("approved experimental UI", encoding="utf-8")
+        receipt = stage_pages_data(self.source, self.site, now=self.now)
+        self.assertEqual(receipt["v41"]["weatherPaths"], 103)
+        for path in paths:
+            self.assertEqual(path.read_bytes(), (self.site / path.relative_to(self.source)).read_bytes())
+        self.assertEqual(site_viewer.read_text(encoding="utf-8"), "approved experimental UI")
+
+    def test_rejects_v41_horizon_unavailable_for_issue_cycle(self):
+        self.write_v41_run(issue_utc="2026-11-10T06:00:00Z")
+        with self.assertRaisesRegex(ValueError, "V41 forecast horizon"):
+            stage_pages_data(self.source, self.site, now=self.now)
+        self.assert_original_data()
+
+    def test_rejects_v41_offsite_url(self):
+        self.write_v41_run(chart_url="https://example.invalid/latest.png")
+        with self.assertRaisesRegex(ValueError, "same-directory"):
+            stage_pages_data(self.source, self.site, now=self.now)
+        self.assert_original_data()
+
     def assert_original_data(self):
         for relative in self.changed_paths:
             self.assertEqual((self.site / relative).read_text(encoding="utf-8"), "previous data")
