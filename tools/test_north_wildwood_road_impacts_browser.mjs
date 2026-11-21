@@ -92,7 +92,7 @@ try {
       else await overlayHelp.press("Enter");
       const info = page.locator("#infoModal");
       await info.waitFor();
-      assert.match(await info.locator("#infoModalBody").textContent(), /Roads with 6\+ Inches of Water.*modeled surface below the deck/s);
+      assert.match(await info.locator("#infoModalBody").textContent(), /Roads With 6\+ Inches of Water.*modeled surface below the deck/s);
       await page.keyboard.press("Escape");
       await info.waitFor({ state: "hidden" });
       assert.deepEqual(errors, []);
