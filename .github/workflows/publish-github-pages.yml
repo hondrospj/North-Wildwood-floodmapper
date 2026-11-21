@@ -17,4 +17,4 @@ jobs:
     uses: hondrospj/North-Wildwood-floodmapper/.github/workflows/publish-pages-data.yml@main
     with:
       # Publish this tested UI together with the current validated forecast.
-      ui_sha: d29ea04e03380677da42f490f3950661cbb6215b
+      ui_sha: f04e4545e3d0291053c0677cdedf8215d2e8c2a8
