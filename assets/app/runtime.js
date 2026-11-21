@@ -9311,11 +9311,17 @@ function formatSelectedObservedDate(dateStr) {
       let match = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
       if (match) return dateKey(match[1], match[2], match[3]);
 
-      match = raw.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
+      match = raw.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/)
+        || raw.match(/^(\d{2})(\d{2})(\d{2}|\d{4})$/);
       if (match) {
-        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());
-        if (y < 100) y += 2000;
-        return dateKey(y, match[1], match[2]);
+        const [, month, day, yearText] = match;
+        const currentYear = Number(getTodayNyDateKey().slice(0, 4));
+        let year = yearText ? Number(yearText) : Number((currentMonthKey || String(currentYear)).slice(0, 4));
+        if (yearText?.length === 2) {
+          year += currentYear - currentYear % 100;
+          if (year > currentYear) year -= 100;
+        }
+        return dateKey(year, month, day);
       }
 
       const monthFirst = raw.match(/^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/i);
@@ -9335,7 +9341,7 @@ function formatSelectedObservedDate(dateStr) {
       const parsed = parseTypedObservedDate(input.value);
       if (!parsed) {
         input.value = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : "";
-        toast("Enter a date like Apr 19, 2026 or 04/19/2026.");
+        toast("Enter a date like 04192026 or 04/19/2026.");
         return;
       }
       const available = getObservedDays().some(day => day.date === parsed);
@@ -11284,10 +11290,19 @@ function populateCalendarSelectors() {
           isDailyMaximum: true
         }];
       } else {
-        currentSeriesHours = sampleCanonicalHydraulicSeries(
-          currentRawSeriesHours,
-          getTimelineIntervalMinutes()
-        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));
+        const interval = getTimelineIntervalMinutes();
+        const samples = sampleCanonicalHydraulicSeries(currentRawSeriesHours, interval);
+        if (interval === 60) {
+          const crest = currentRawSeriesHours[getPeakHourIndex(currentRawSeriesHours)];
+          const crestTime = entryTimeMs(crest);
+          // Keep the crest's actual timestamp when it falls between hourly samples.
+          if (Number.isFinite(getStageValue(crest)) && Number.isFinite(crestTime) &&
+              !samples.some(entry => entryTimeMs(entry) === crestTime)) {
+            samples.push(crest);
+            samples.sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+          }
+        }
+        currentSeriesHours = samples.map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));
       }
 
       syncSliderBounds();
@@ -13977,17 +13992,21 @@ function startPlayback() {
       return true;
     }
 
-    function clearTownAddressLookup() {
-      cancelPendingTownAddressLookup();
-      const input = document.getElementById("townAddressInput");
-      if (input) input.value = "";
-      setTownAddressStatus("");
+    function removeTownAddressResult() {
       if (townAddressMarker && map && map.hasLayer(townAddressMarker)) {
         map.removeLayer(townAddressMarker);
       }
       townAddressMarker = null;
       window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);
       townAddressPopup?.remove();
+    }
+
+    function clearTownAddressLookup() {
+      cancelPendingTownAddressLookup();
+      const input = document.getElementById("townAddressInput");
+      if (input) input.value = "";
+      setTownAddressStatus("");
+      removeTownAddressResult();
       input?.focus();
     }
 
@@ -14331,6 +14350,7 @@ function startPlayback() {
     async function searchTownAddress(rawValue) {
       const generation = ++townAddressSearchGeneration;
       townAddressLookupController?.abort();
+      removeTownAddressResult();
       const controller = new AbortController();
       townAddressLookupController = controller;
       const button = document.getElementById("townAddressSearchBtn");
@@ -14379,18 +14399,11 @@ function startPlayback() {
         }
 
         if (generation !== townAddressSearchGeneration) return;
-        if (townAddressMarker && map.hasLayer(townAddressMarker)) {
-          townAddressMarker.setLatLng(latLng);
-          townAddressMarker.options.title = label;
-          const markerElement = townAddressMarker.getElement();
-          if (markerElement) markerElement.title = label;
-        } else {
-          townAddressMarker = L.marker(latLng, {
-            title: label,
-            riseOnHover: true,
-            icon: getShorelySafeAddressIcon()
-          }).addTo(map);
-        }
+        townAddressMarker = L.marker(latLng, {
+          title: label,
+          riseOnHover: true,
+          icon: getShorelySafeAddressIcon()
+        }).addTo(map);
 
         map.setView(latLng, Math.max(map.getZoom(), 17), { animate: true });
         window.NORTH_WILDWOOD_3D?.setAddressMarker?.(latLng, label);

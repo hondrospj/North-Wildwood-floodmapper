@@ -11,11 +11,40 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readReleaseBytes = relative => fs.readFileSync(localPath(relative));
+const readDiskBytes = relative => fs.readFileSync(localPath(relative));
+const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const ADDRESS_AND_HISTORY_PATH = "tools/fixtures/north-wildwood-address-and-history-fixes.json";
+const priorAddressAndHistorySnapshot = Boolean(process.env.NWW_PARITY_ROOT) &&
+  process.argv.includes("--prior-address-and-history-snapshot");
+const addressAndHistoryText = readDiskBytes(ADDRESS_AND_HISTORY_PATH).toString("utf8");
+assert.equal(hashReleaseBytes(addressAndHistoryText), "f720a10ff00f47a70598943a564236e710600df069fdbba0ed0a7c64c6a3679a",
+  "Retain the exact address and history inverse");
+const addressAndHistory = JSON.parse(addressAndHistoryText);
+assert.equal(addressAndHistory.schemaVersion, 1);
+assert.equal(addressAndHistory.baselineCommit, "4d9444ca477e55af083b1560b4c8aecdf2868a74");
+const addressAndHistoryFiles = new Map(addressAndHistory.files.map(file => [file.source, file]));
+function readReleaseBytes(relative) {
+  const bytes = readDiskBytes(relative);
+  const file = addressAndHistoryFiles.get(relative);
+  if (priorAddressAndHistorySnapshot || !file) return bytes;
+  assert.equal(hashReleaseBytes(bytes), file.afterSha256, `${relative} changed outside the address and history fixes`);
+  let restored = bytes.toString("utf8");
+  for (const { afterSource, beforeSource } of file.changes) {
+    assert.equal(restored.split(afterSource).length - 1, 1, `${relative}: one exact reviewed fragment`);
+    restored = restored.replace(afterSource, () => beforeSource);
+  }
+  assert.equal(hashReleaseBytes(restored), file.beforeSha256, `${relative}: restore every pre-fix byte`);
+  return Buffer.from(restored);
+}
+if (!priorAddressAndHistorySnapshot) {
+  for (const file of addressAndHistory.files) readReleaseBytes(file.source);
+  const version = hashReleaseBytes(readDiskBytes("assets/app/runtime.js")).slice(0, 16);
+  assert.ok(readDiskBytes("index.html").includes(`src="./assets/app/runtime.js?v=${version}"`),
+    "The updated application must use the current runtime cache key");
+}
 const SHARED_APP_PATH = "tools/fixtures/north-wildwood-20261119-common-browser-app.json";
 const priorSharedAppSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-shared-app-snapshot");
 const sharedAppText = readReleaseBytes(SHARED_APP_PATH);
-const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
 assert.equal(hashReleaseBytes(sharedAppText), "4e244b712b47c81cb600cf1b2c2c0674b186499344df1fbef6a455a3b999b0da", "Retain the exact shared application inverse");
 const sharedApp = JSON.parse(sharedAppText);
 assert.equal(sharedApp.schemaVersion, 1);
@@ -2662,6 +2691,7 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      ADDRESS_AND_HISTORY_PATH, ...addressAndHistory.files.map(file => file.source),
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
       MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
@@ -2678,7 +2708,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runCurrent = (args = []) => runRelease(["--prior-shared-app-snapshot", ...args]);
+    const runBeforeAddressAndHistory = (args = []) => runRelease(["--prior-address-and-history-snapshot", ...args]);
+    const runCurrent = (args = []) => runBeforeAddressAndHistory(["--prior-shared-app-snapshot", ...args]);
     const run = (args = []) => runCurrent(["--prior-quiet-loading-snapshot", ...args]);
     assert.equal(runRelease().status, 0, "The unmodified release scratch copy must pass before mutation checks");
     const assertMutationsRejected = (cases, check) => {
@@ -2694,12 +2725,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered the address and history inverse", path.join(scratch, ADDRESS_AND_HISTORY_PATH), addressAndHistoryText + " "],
+      ...addressAndHistory.files.map(file => [
+        `unreviewed address and history byte in ${file.source}`, path.join(scratch, file.source),
+        Buffer.concat([readDiskBytes(file.source), Buffer.from("\n")])
+      ])
+    ], runRelease);
+    for (const file of addressAndHistory.files) fs.writeFileSync(path.join(scratch, file.source), readReleaseBytes(file.source));
+    assert.equal(runBeforeAddressAndHistory().status, 0, "The restored pre-address-fix snapshot must pass");
+    assertMutationsRejected([
       ["modified shared application inverse", path.join(scratch, SHARED_APP_PATH), Buffer.concat([sharedAppText, Buffer.from(" ")])],
       ...[...sharedApp.files, ...sharedApp.added].map(file => [
         `unreviewed byte in ${file.source}`, path.join(scratch, file.source),
         Buffer.concat([readReleaseBytes(file.source), Buffer.from("\n")])
       ])
-    ], runRelease);
+    ], runBeforeAddressAndHistory);
     for (const file of sharedApp.files) fs.writeFileSync(path.join(scratch, file.source), readUnreviewedBytes(file.source));
     assert.equal(runCurrent().status, 0, "The restored North Wildwood snapshot must pass");
     const quietCases = [

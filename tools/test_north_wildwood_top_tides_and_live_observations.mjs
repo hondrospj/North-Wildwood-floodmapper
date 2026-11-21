@@ -99,7 +99,8 @@ for (const [date, utc] of [
   assert.equal(run(`getEntryESTDate(historicTopTideEntries.find(entry => entry.observedDate === "${date}")).toISOString()`), utc);
 }
 assert.equal(run('historicTopTideEntries.find(entry => entry.observedDate === "1962-03-07").timeUtc'), undefined);
-context.sandy = json("observed_archive/stone-harbor/2012.json").days.find(day => day.d === "2012-10-29");
+context.sandyShard = json("observed_archive/stone-harbor/2012.json");
+context.sandy = context.sandyShard.days.find(day => day.d === "2012-10-29");
 run(`
   {
     const source = decodeObserved15MinuteDay(sandy);
@@ -116,6 +117,18 @@ run(`
     }
   }
 `);
+
+run(`
+  currentTimelineIntervalMinutes = 60;
+  ensureObservedArchiveForDate = async () => addArchiveShardDays(sandyShard, "stone-harbor");
+  topTideEvents = buildTopTideEvents();
+`);
+await run('loadTopTideEvent(topTideEvents.findIndex(event => event.dateKey === "2012-10-29"))');
+assert.equal(run("currentSeriesHours.length"), 25, "Hourly replay should retain the 24 hourly samples and the off-hour crest");
+assert.equal(run("currentSeriesHours[currentHourIndex].timeUtc"), "2012-10-30T00:45:00.000Z");
+assert.equal(renderedStages.at(-1), 6.73, "Hourly replay should open at the listed Sandy crest");
+assert.equal(run("currentSeriesHours[currentHourIndex - 1].timeUtc"), "2012-10-30T00:00:00.000Z");
+assert.equal(run("currentSeriesHours[currentHourIndex + 1].timeUtc"), "2012-10-30T01:00:00.000Z");
 
 // A detailed archive failure retains the indexed peak without claiming that
 // the date-only value is an official, timed storm-tide crest.

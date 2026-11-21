@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const html = readAppSource(process.argv[2] || new URL('../index.html', import.meta.url));
 const names = ['cancelPendingFloodFrame', 'getTimelineNavigationIndex', 'switchOverlayMode', 'setParcelsEnabled', 'setNsiStructuresEnabled',
-  'searchTownAddress', 'cancelPendingTownAddressLookup', 'clearTownAddressLookup'];
+  'searchTownAddress', 'cancelPendingTownAddressLookup', 'removeTownAddressResult', 'clearTownAddressLookup'];
 const functions = names.map(name => {
   const match = html.match(new RegExp(`^    (?:async )?function ${name}\\([^\\n]*\\) \\{\\n.*?^    \\}`, 'ms'));
   assert.ok(match, name);

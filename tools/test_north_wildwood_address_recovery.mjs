@@ -16,7 +16,8 @@ function setup(fetchResult) {
   const input = { value: '100 New Jersey Ave', focus() {}, addEventListener: (name, fn) => { events[name] = fn; } };
   const form = { dataset: {}, addEventListener: (name, fn) => { events[name] = fn; } };
   const status = { textContent: '', classList: { toggle() {} } };
-  const marker = { setLatLng() {}, setIcon() {}, addTo() { return this; } };
+  const markers = new Set();
+  let marker3d = null;
   const popups = [];
   let activePopup = null;
   const context = vm.createContext({
@@ -26,8 +27,11 @@ function setup(fetchResult) {
     clearTimeout: id => timers.delete(id),
     fetch: (url, options) => { requests.push({ url, ...options }); return fetchResult(url, options, requests.length); },
     document: { getElementById: id => ({ townAddressForm: form, townAddressSearchBtn: button, townAddressInput: input, townAddressStatus: status }[id]), body: { classList: { contains: () => false } } },
-    map: { hasLayer: () => false, setView() {}, getZoom: () => 10 }, window: {},
-    L: { latLng: (lat, lng) => ({ lat, lng }), divIcon: () => ({}), marker: () => marker },
+    map: { hasLayer: marker => markers.has(marker), removeLayer: marker => markers.delete(marker), setView() {}, getZoom: () => 10 },
+    window: { NORTH_WILDWOOD_3D: { setAddressMarker: point => { marker3d = point; } } },
+    L: { latLng: (lat, lng) => ({ lat, lng }), divIcon: () => ({}), marker: () => ({
+      addTo() { markers.add(this); return this; }
+    }) },
     findParcelFeatureForLocation: async () => null,
     openPersistentFloodPopup(_point, html) {
       activePopup?.remove();
@@ -40,7 +44,7 @@ function setup(fetchResult) {
     }
   });
   vm.runInContext(source, context);
-  return { context, timers, requests, button, input, status, popups, events };
+  return { context, timers, requests, button, input, status, popups, events, markers, get marker3d() { return marker3d; } };
 }
 const valid = { ok: true, json: async () => ({ candidates: [{
   location: { x: -74.8, y: 39.005 }, address: '100 New Jersey Ave, North Wildwood',
@@ -112,6 +116,32 @@ for (const replacePopup of [false, true]) {
   t.context.clearTownAddressLookup();
   assert.equal(t.popups[0].removed, true);
   if (replacePopup) assert.equal(t.popups[1].removed, false);
+}
+// A failed replacement clears the previous pin and flood profile and allows another lookup.
+{
+  let match = true;
+  const empty = { ok: true, json: async () => [] };
+  const t = setup(url => Promise.resolve(match && url.includes('arcgis') ? valid : empty));
+  await t.context.searchTownAddress(t.input.value);
+  assert.equal(t.markers.size, 1);
+  assert.ok(t.marker3d);
+
+  match = false;
+  t.input.value = '901 Nowhere Banana Avenue';
+  const missing = t.context.searchTownAddress(t.input.value);
+  assert.equal(t.markers.size, 0);
+  assert.equal(t.marker3d, null);
+  assert.equal(t.popups[0].removed, true);
+  await missing;
+  assert.match(t.status.textContent, /No close/);
+  assert.equal(t.input.value, '901 Nowhere Banana Avenue');
+  assert.equal(t.button.disabled, false);
+
+  match = true;
+  await t.context.searchTownAddress('100 New Jersey Ave');
+  assert.equal(t.markers.size, 1);
+  assert.ok(t.marker3d);
+  assert.equal(t.popups[1].removed, false);
 }
 // Both providers must return address-level precision for a numbered lookup.
 {

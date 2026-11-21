@@ -180,8 +180,8 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           site='https://hondrospj.github.io/North-Wildwood-floodmapper/'
-          latest_shard="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["observations"]["observed_archive_index.json"]["shard"])' "$RUNNER_TEMP/pages-data.json")"
-          for path in forecast.json data/experimental_petss_guidance.json observed_archive_index.json "$latest_shard"; do
+          paths="$(jq -er '.verifiedPaths[]' "$RUNNER_TEMP/pages-data.json")"
+          while IFS= read -r path; do
             for attempt in {1..12}; do
               query="pages-proof=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$attempt"
               if curl --fail --silent --show-error --max-time 10 -H 'Cache-Control: no-cache' \
@@ -196,4 +196,4 @@ jobs:
               fi
               sleep 5
             done
-          done
+          done <<< "$paths"

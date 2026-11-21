@@ -419,10 +419,19 @@ function populateCalendarSelectors() {
           isDailyMaximum: true
         }];
       } else {
-        currentSeriesHours = sampleCanonicalHydraulicSeries(
-          currentRawSeriesHours,
-          getTimelineIntervalMinutes()
-        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));
+        const interval = getTimelineIntervalMinutes();
+        const samples = sampleCanonicalHydraulicSeries(currentRawSeriesHours, interval);
+        if (interval === 60) {
+          const crest = currentRawSeriesHours[getPeakHourIndex(currentRawSeriesHours)];
+          const crestTime = entryTimeMs(crest);
+          // Keep the crest's actual timestamp when it falls between hourly samples.
+          if (Number.isFinite(getStageValue(crest)) && Number.isFinite(crestTime) &&
+              !samples.some(entry => entryTimeMs(entry) === crestTime)) {
+            samples.push(crest);
+            samples.sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+          }
+        }
+        currentSeriesHours = samples.map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));
       }
 
       syncSliderBounds();
