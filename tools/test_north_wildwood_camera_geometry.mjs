@@ -17,7 +17,13 @@ assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\]\s*\{[^}]*z-index
 assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\] \.webcam-heading\s*\{[^}]*position:\s*sticky[^}]*top:\s*0/s,
   'Scrolling the camera viewer must retain its heading and close button');
 
+function dockHeight(width, height) {
+  if (height <= 560 && width >= 540 && width > height) return 106;
+  return width <= 900 || height <= 560 ? 154 : 112;
+}
+
 function fixture(width, height, vv = null, bannerBottom = 0) {
+  const compact = width <= 900 || height <= 560;
   const style = {
     setProperty(name, value) { this[name] = value; },
     removeProperty(name) { delete this[name === 'max-width' ? 'maxWidth' : name]; },
@@ -34,9 +40,10 @@ function fixture(width, height, vv = null, bannerBottom = 0) {
   const elements = {
     mapWrap: container,
     mapTitleBadge: { getClientRects: () => [1], getBoundingClientRect: () => ({ top: 8, bottom: 52, height: 44 }) },
-    mobileControlsToggle: { getClientRects: () => [1], getBoundingClientRect: () => ({ top: 8, bottom: 52, height: 44 }) },
-    timelineDock: { getBoundingClientRect: () => ({ height: width <= 900 ? 180 : 112,
-      top: height - (width <= 900 ? 180 + 8 : 112 + 16) }) },
+    nwwMobileUtilities: compact ? { getClientRects: () => [1],
+      getBoundingClientRect: () => ({ left: 8, right: width - 8, top: 8, bottom: 62, height: 54 }) } : null,
+    timelineDock: { getBoundingClientRect: () => ({ height: dockHeight(width, height),
+      top: height - dockHeight(width, height) - (compact ? 8 : 16) }) },
   };
   if (bannerBottom) elements.topBanner = { getClientRects: () => [1],
     getBoundingClientRect: () => ({ top: 8, bottom: bannerBottom, height: bannerBottom - 8 }) };
@@ -73,7 +80,7 @@ for (const item of cases) {
     // wholly within the scrollport; browser QA separately verifies hit testing.
     const closeTop = top + 11, closeBottom = closeTop + 44;
     assert.ok(closeBottom <= top + maxHeight, 'Close control cannot be clipped by a zero-height scrollport');
-    assert.ok(closeBottom < item.height - 180 - 8, 'Landscape close is above the timeline even before z-index isolation');
+    assert.ok(closeBottom < item.height - dockHeight(item.width, item.height) - 8, 'Landscape close is above the timeline even before z-index isolation');
   }
   results.push({ ...item, top, maxHeight });
 }
@@ -93,7 +100,7 @@ for (const item of cases) {
   f.container.getBoundingClientRect = () => ({ left: 0, top: 0, right: 390, bottom: 844, width: 390, height: 844 });
   const originalLookup = f.env.document.getElementById;
   f.env.document.getElementById = id => id === 'timelineDock'
-    ? { getBoundingClientRect: () => ({ height: 180, top: 656 }) } : originalLookup(id);
+    ? { getBoundingClientRect: () => ({ height: 154, top: 682 }) } : originalLookup(id);
   f.run();
   assert.equal(f.panel.parentElement, f.body, 'Returning to portrait retains the player mount');
   assert.deepEqual(f.mounts, [], 'Crossing the overlay breakpoint must not reparent the player');
@@ -114,16 +121,15 @@ for (const item of cases) {
 }
 {
   const f = fixture(390, 425);
-  f.elements.mobileControlsToggle.getBoundingClientRect = () => ({ left: 286, right: 382, top: 8, bottom: 52, height: 44 });
   f.run();
   assert.equal(f.panel.dataset.viewportOverlay, 'true');
-  assert.equal(f.panel.style.top, '60px', 'A short camera viewer clears the compact controls');
-  assert.equal(f.panel.style.maxHeight, '357px');
+  assert.equal(f.panel.style.top, '70px', 'A short camera viewer clears the compact toolbar');
+  assert.equal(f.panel.style.maxHeight, '347px');
 }
 {
   const f = fixture(390, 425);
-  const toolbarBottom = 102;
-  f.elements.mobileControlsToggle.getBoundingClientRect = () => ({ left: 130, right: 202, top: 58, bottom: toolbarBottom, height: 44 });
+  const toolbarBottom = 82;
+  f.elements.nwwMobileUtilities.getBoundingClientRect = () => ({ left: 8, right: 382, top: 28, bottom: toolbarBottom, height: 54 });
   f.run();
   assert.equal(f.panel.dataset.viewportOverlay, 'true');
   const top = Number.parseFloat(f.panel.style.top);
