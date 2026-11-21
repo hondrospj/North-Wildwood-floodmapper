@@ -28,7 +28,9 @@ try {
     { width: 320, height: 640, isMobile: true },
     { width: 568, height: 320, isMobile: true },
   ]) {
-    const context = await browser.newContext({ viewport: { width, height }, isMobile, hasTouch: isMobile });
+    const context = await browser.newContext({ viewport: { width, height }, hasTouch: isMobile,
+      ...(engine === 'firefox' ? {} : { isMobile }),
+    });
     const page = await context.newPage();
     if (preview) {
       await page.route(url, route => route.fulfill({ path: preview, contentType: 'text/html' }));
@@ -57,10 +59,16 @@ try {
     assert.ok(forecastHelpOnRight);
     if (isMobile) await page.getByRole('tab', { name: 'Map layers' }).click();
 
-    const sizes = await page.locator('#datumMllwBtn,#datumNavd88Btn,#depthModeBtn,#dynamicModeBtn')
-      .evaluateAll(buttons => buttons.map(button => getComputedStyle(button).fontSize));
-    assert.equal(sizes.length, 4);
+    const typography = await page.locator('#datumMllwBtn,#datumNavd88Btn,#depthModeBtn,#dynamicModeBtn')
+      .evaluateAll(buttons => buttons.map(button => {
+        const { fontSize, fontFamily } = getComputedStyle(button);
+        return { fontSize, fontFamily };
+      }));
+    assert.equal(typography.length, 4);
+    const sizes = typography.map(({ fontSize }) => fontSize);
     assert.equal(new Set(sizes).size, 1, `Matching datum and overlay typography: ${sizes.join(', ')}`);
+    const controlFont = await page.locator('#forecastDataBtn').evaluate(button => getComputedStyle(button).fontFamily);
+    assert.ok(typography.every(({ fontFamily }) => fontFamily === controlFont), 'Use the shared map control font family');
     const layers = page.locator('.layers-card');
     assert.equal(await layers.locator('.help-btn').count(), 1);
     const layerNames = await layers.locator('.layer-name').allTextContents();

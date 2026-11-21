@@ -507,26 +507,26 @@
     {
       "source": "assets/styles/app-05.css",
       "beforeSha256": "4a72a06ffafb0e871bb40571758be05237b473491780e0ea1168a120d5cbd0fa",
-      "afterSha256": "4cbd5acbfef5416aae70e2a7a369c52e4b13ffb7003c98ddf3d19d89c8d5ac5c",
+      "afterSha256": "0b317d6bf3f489711c1f06a86368f8db9d1671515bfff9cb96449606e6b8d109",
       "edits": [
         [
           272490,
-          274482,
+          274452,
           ""
         ],
         [
-          277674,
-          277726,
+          277644,
+          277696,
           "      --nww-popup-close-size:36px;\n"
         ],
         [
-          277983,
-          277983,
+          277953,
+          277953,
           "    }\n    @media (any-pointer:coarse) {\n      :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {\n        --nww-popup-close-size:44px;\n      }\n"
         ],
         [
-          307704,
-          307704,
+          307674,
+          307674,
           "  }\n  html body .building-info-facts{\n    display:grid;\n    gap:10px;\n    padding:12px 13px;\n    border:1px solid rgba(125,183,255,.18);\n    border-radius:13px;\n    background:#101e32;\n  }\n  html body .building-info-facts > div{\n    display:flex;\n    align-items:center;\n    justify-content:space-between;\n    gap:14px;\n  }\n  html body .building-info-facts span{\n    color:#a9bad3;\n    font-size:13px;\n    font-weight:750;\n  }\n  html body .building-info-facts strong{\n    color:#fff;\n    font-size:16px;\n    white-space:nowrap;\n  }\n  html body .building-info-facts p{\n    margin:0;\n    padding-top:10px;\n    border-top:1px solid rgba(148,163,184,.14);\n    color:#dce8f8;\n    font-size:13px;\n    font-weight:800;\n    line-height:1.35;\n"
         ]
       ]
@@ -534,7 +534,7 @@
     {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "d90f5c00631db13185e918cbd40f6d493f6196ab8c32370f751cee244f420e16",
+      "afterSha256": "dbddf9dce5d4c5f00229c6baf26edbe1c3c3153b3b493fd7c61cb667de90eb74",
       "edits": [
         [
           115,
@@ -1165,21 +1165,21 @@
     {
       "source": "tools/app/styles/style-053.css",
       "beforeSha256": "a7dd181eaa54223355790c71496a02206219b91220e9222c82301542b947f820",
-      "afterSha256": "5642098f803efb7903b45d0dd2e568d69295e5637cb3ce386492cddcdc13fa8f",
+      "afterSha256": "343a82fa61b7411dbe34df95277bdb9bdfa8973e10417585b607a2ed16e550e9",
       "edits": [
         [
           182,
-          2174,
+          2144,
           ""
         ],
         [
-          5371,
-          5423,
+          5341,
+          5393,
           "      --nww-popup-close-size:36px;\n"
         ],
         [
-          5680,
-          5680,
+          5650,
+          5650,
           "    }\n    @media (any-pointer:coarse) {\n      :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {\n        --nww-popup-close-size:44px;\n      }\n"
         ]
       ]

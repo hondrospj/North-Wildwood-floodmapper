@@ -31,7 +31,7 @@
     }
     #leftPanel .section-title .title-with-help > .help-btn { margin-inline-start:auto !important; }
     #leftPanel :is(#datumMllwBtn,#datumNavd88Btn,#depthModeBtn,#dynamicModeBtn) {
-      font:650 clamp(12px,1.1vw,14px)/1.2 Inter,system-ui,sans-serif !important;
+      font-size:clamp(12px,1.1vw,14px) !important;
     }
     .layers-card .rail-head:has(> #layersHelpBtn) {
       display:flex !important;
