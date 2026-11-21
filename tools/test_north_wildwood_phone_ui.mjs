@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { twoFingerMapGesture } from './browser_map_view.mjs';
+import { touchMapGesture } from './browser_map_view.mjs';
 
 const playwright = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const name = process.env.NWW_BROWSER || 'chromium';
@@ -133,6 +133,9 @@ try {
     await legend.waitFor({state:'visible'});
     assert.match(await legend.textContent(),/Shallow|Minor/);
     assert((await legend.boundingBox()).y > state.key.bottom,layout);
+    const panel = await page.locator('#legendDock').boundingBox();
+    assert.ok(Math.abs(panel.x + panel.width / 2 - (state.toolbar.x + state.toolbar.width / 2)) <= 1,
+      'The open legend is centered inside the toolbar’s safe area');
     assert.deepEqual(await key.boundingBox(),{x:state.key.x,y:state.key.y,width:state.key.width,height:state.key.height});
     const controlsWhileOpen = await page.locator('#mobileControlsToggle').boundingBox();
     assert.ok(Math.abs(controlsWhileOpen.x-state.controls.x) <= 1,layout);
@@ -142,6 +145,27 @@ try {
       return { gap: deep.left - shallow.right, font: parseFloat(getComputedStyle(labels).fontSize) };
     });
     assert(depthSpacing.gap >= 16 && depthSpacing.font >= 13,JSON.stringify({viewport,depthSpacing}));
+    if (name === 'chromium' && viewport.width === 390 && viewport.height === 844) {
+      assert.equal(await page.locator('#legendDock').evaluate(el => getComputedStyle(el).pointerEvents),'none');
+      const origin = {x:panel.x + panel.width / 2, y:panel.y + 35};
+      const session = await page.context().newCDPSession(page);
+      try {
+        for (const [moveX,moveY,axis,sign] of [[70,0,'lng',-1],[-70,0,'lng',1],[0,70,'lat',1],[0,-45,'lat',-1]]) {
+          const center = await page.evaluate(() => {
+            window.mobilePanSettled = false;
+            map.once('moveend', () => { window.mobilePanSettled = true; });
+            return map.getCenter();
+          });
+          await touchMapGesture(page,{moveX,moveY,fingers:1,origin,session});
+          await page.waitForFunction(() => window.mobilePanSettled,null,{timeout:5000});
+          const next = await page.evaluate(() => map.getCenter());
+          assert.ok((next[axis]-center[axis])*sign>0.0001,JSON.stringify({moveX,moveY,center,next}));
+        }
+      } finally {
+        await session.detach();
+      }
+      assert.equal(await key.getAttribute('aria-expanded'),'true','Panning preserves the open legend');
+    }
     await key.tap();
     await legend.waitFor({state:'hidden'});
     await key.press('Space');
@@ -158,10 +182,10 @@ try {
 
     if (name === 'chromium' && viewport.width === 390 && viewport.height === 844) {
       const start = await page.evaluate(() => ({ center: map.getCenter(), zoom: map.getZoom() }));
-      await twoFingerMapGesture(page, { moveX: 48, moveY: 28 });
+      await touchMapGesture(page, { moveX: 48, moveY: 28 });
       await page.waitForFunction(center => !map._animatingZoom && !map.touchZoom._zooming &&
         map.getCenter().distanceTo(center) > 5,start.center);
-      await twoFingerMapGesture(page, { spread: 60 });
+      await touchMapGesture(page, { spread: 60 });
       await page.waitForFunction(zoom => map.getZoom() > zoom,start.zoom);
     }
     await page.locator('#mobileControlsToggle').tap();
@@ -204,13 +228,13 @@ try {
           const map3d = NORTH_WILDWOOD_3D.getMap();
           return {center:map3d.getCenter().toArray(),zoom:map3d.getZoom()};
         });
-        await twoFingerMapGesture(page,{moveX:48,moveY:28});
+        await touchMapGesture(page,{moveX:48,moveY:28});
         await page.waitForFunction(center => {
           const map3d = NORTH_WILDWOOD_3D.getMap();
           const revised = map3d.getCenter().toArray();
           return !map3d.isMoving() && (Math.abs(revised[0]-center[0])+Math.abs(revised[1]-center[1])) > 0.0001;
         },initial.center);
-        await twoFingerMapGesture(page,{spread:60});
+        await touchMapGesture(page,{spread:60});
         await page.waitForFunction(zoom => NORTH_WILDWOOD_3D.getMap().getZoom() > zoom,initial.zoom);
       }
     }

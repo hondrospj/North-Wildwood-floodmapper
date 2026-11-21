@@ -180,11 +180,10 @@ try {
       const legend = page.locator('#legendDock');
       await page.getByRole('button',{name:'Legend',exact:true}).tap();
       await page.waitForFunction(() => document.body.classList.contains('mobile-legend-open'));
-      const keyReachable = await legend.evaluate(el => {
-        const box = el.getBoundingClientRect();
-        return el.contains(document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2));
-      });
-      assert.equal(keyReachable, true, 'The expanded Key is above the camera');
+      await legend.waitFor({state:'visible'});
+      const legendInput = await legend.evaluate(el => getComputedStyle(el).pointerEvents);
+      assert.equal(legendInput, await legend.getAttribute('data-nww-legend-scrollable') === null ? 'none' : 'auto',
+        'The read-only legend allows touch through and a clipped legend keeps its scroll input');
       await page.keyboard.press('Escape');
       await page.waitForFunction(() => !document.body.classList.contains('mobile-legend-open'));
       assert.equal(await page.locator('#webcamPanel').isVisible(), true, 'Escape closes the expanded Key only');

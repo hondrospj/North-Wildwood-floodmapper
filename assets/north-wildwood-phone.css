@@ -219,7 +219,8 @@
 
     html[data-nww-phone] body.mobile-legend-open #legendDock {
       position: absolute !important;
-      inset: calc(100% + 6px) 0 auto auto !important;
+      inset: calc(100% + 6px) 0 auto !important;
+      margin-inline: auto !important;
       box-sizing: border-box !important;
       width: var(--phone-legend-width) !important;
       min-width: 0 !important;
@@ -232,6 +233,17 @@
       border-radius: 14px !important;
       box-shadow: var(--phone-shadow) !important;
       background: var(--phone-surface) !important;
+    }
+
+    @media (any-pointer: coarse) {
+      /* Keep the map draggable through the read-only key. A clipped key still scrolls. */
+      html[data-nww-phone] body.mobile-legend-open #legendDock:not([data-nww-legend-scrollable]) {
+        pointer-events: none !important;
+      }
+
+      html[data-nww-phone] body.mobile-legend-open #legendDock :is(button, a[href], summary) {
+        pointer-events: auto !important;
+      }
     }
 
     html[data-nww-phone] body.mobile-legend-open #legendDock[data-legend-mode="depth"] #legendList {

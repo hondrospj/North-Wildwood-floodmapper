@@ -15,7 +15,7 @@ const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex
 const DATA_DELIVERY_PATH = "tools/fixtures/north-wildwood-20261121-data-delivery.json";
 const priorDataDeliverySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-data-delivery-snapshot");
 const dataDeliveryText = fs.readFileSync(localPath(DATA_DELIVERY_PATH));
-assert.equal(hashReleaseBytes(dataDeliveryText), "b9c09f1dbb6d6b71675f30887c522f23add442c8777fd345afb7191c2ddd3f73", "Retain the exact data delivery inverse");
+assert.equal(hashReleaseBytes(dataDeliveryText), "e54708aed0f059745cc68b22369d8d02a23214d522880afea06b631347af7050", "Retain the exact data delivery inverse");
 const dataDelivery = JSON.parse(dataDeliveryText);
 assert.equal(dataDelivery.schemaVersion, 1);
 assert.equal(dataDelivery.baselineCommit, "27e58b1953b324f42e61020168f7c93587fb649b");
@@ -69,7 +69,7 @@ if (!priorFirstMapPaintSnapshot) {
 const SHARED_APP_PATH = "tools/fixtures/north-wildwood-20261119-common-browser-app.json";
 const priorSharedAppSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-shared-app-snapshot");
 const sharedAppText = readReleaseBytes(SHARED_APP_PATH);
-assert.equal(hashReleaseBytes(sharedAppText), "9e299c1b3e99a03bbe1f5a8d478171b834c417539215e1445076eef2ddfd40dd", "Retain the exact shared application inverse");
+assert.equal(hashReleaseBytes(sharedAppText), "5b9f650adf07242f949af100c235172506ede299b5a756dc71061574ca98b13f", "Retain the exact shared application inverse");
 const sharedApp = JSON.parse(sharedAppText);
 assert.equal(sharedApp.schemaVersion, 1);
 assert.equal(sharedApp.baselineCommit, "be43e3a29e9807658e6b19101371e374c29afa30");

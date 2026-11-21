@@ -378,7 +378,7 @@
     {
       "source": "assets/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "b8ee248b43ca13020b17ab9764b664989f1942f8c6d9190d3fc1e6bd4792041d",
+      "afterSha256": "7a68a32edeb66430a6485d2ccf74b418dd2af1f6fae53375a067d6025156ef9b",
       "edits": [
         [
           619,
@@ -456,34 +456,44 @@
           ""
         ],
         [
-          17943,
-          18241,
-          "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
-        ],
-        [
-          18537,
-          18779,
-          "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
-        ],
-        [
-          23797,
-          24108,
+          16635,
+          16808,
           ""
         ],
         [
-          24479,
-          24914,
+          18116,
+          18414,
+          "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
+        ],
+        [
+          18710,
+          18952,
+          "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
+        ],
+        [
+          23970,
+          24281,
+          ""
+        ],
+        [
+          24652,
+          25087,
           "  else if(mobile.matches&&event.target.closest('#legendDock')&&!event.target.closest('button')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
         ],
         [
-          25138,
-          25343,
+          25311,
+          25516,
           "  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',false);document.getElementById('legendDock')?.focus();schedule();return;}\n"
         ],
         [
-          25398,
-          26206,
+          25571,
+          26379,
           "   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}\n   else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]')].filter(e=>visible(e)&&e.tabIndex>=0&&!e.closest('[inert]')),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}\n  }else if(event.target.closest('#legendDock')&&!event.target.closest('button')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
+        ],
+        [
+          27681,
+          28156,
+          " const resizeObserver=new ResizeObserver(schedule);for(const element of [timeline,panel,rail])resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});\n"
         ]
       ]
     },
@@ -1548,7 +1558,7 @@
     {
       "source": "tools/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "b8ee248b43ca13020b17ab9764b664989f1942f8c6d9190d3fc1e6bd4792041d",
+      "afterSha256": "7a68a32edeb66430a6485d2ccf74b418dd2af1f6fae53375a067d6025156ef9b",
       "edits": [
         [
           619,
@@ -1626,34 +1636,44 @@
           ""
         ],
         [
-          17943,
-          18241,
-          "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
-        ],
-        [
-          18537,
-          18779,
-          "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
-        ],
-        [
-          23797,
-          24108,
+          16635,
+          16808,
           ""
         ],
         [
-          24479,
-          24914,
+          18116,
+          18414,
+          "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
+        ],
+        [
+          18710,
+          18952,
+          "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
+        ],
+        [
+          23970,
+          24281,
+          ""
+        ],
+        [
+          24652,
+          25087,
           "  else if(mobile.matches&&event.target.closest('#legendDock')&&!event.target.closest('button')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
         ],
         [
-          25138,
-          25343,
+          25311,
+          25516,
           "  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',false);document.getElementById('legendDock')?.focus();schedule();return;}\n"
         ],
         [
-          25398,
-          26206,
+          25571,
+          26379,
           "   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}\n   else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]')].filter(e=>visible(e)&&e.tabIndex>=0&&!e.closest('[inert]')),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}\n  }else if(event.target.closest('#legendDock')&&!event.target.closest('button')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
+        ],
+        [
+          27681,
+          28156,
+          " const resizeObserver=new ResizeObserver(schedule);for(const element of [timeline,panel,rail])resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});\n"
         ]
       ]
     },
@@ -1771,7 +1791,7 @@
     },
     {
       "source": "assets/north-wildwood-phone.css",
-      "sha256": "0751b550fe149a0679e6f43b59747d5d33650e39e4a8400eaa88f1a2999b3738"
+      "sha256": "d368367ef7166843de8e05171044b744bb5eb1ba6024681a4757283dd97f9561"
     },
     {
       "source": "tools/app/town-profile.json",

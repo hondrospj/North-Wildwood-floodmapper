@@ -189,6 +189,9 @@
   const focusAfterMove=reparent(previousFocus);
   layoutPasses++;
   const compact=mobile.matches;
+  if(compact&&legend&&body.classList.contains('mobile-legend-open')){
+   legend.toggleAttribute('data-nww-legend-scrollable',legend.scrollHeight>legend.clientHeight+1);
+  }
   const bubble=document.getElementById('timelineBubble');
   for(const key of ['left','right','max-width','transform'])bubble?.style.removeProperty(key);
   for(const pane of [panel,rail]){set(pane,'zoom','1');set(pane,'transform','none');set(pane,'min-width','0px');}
@@ -294,7 +297,8 @@
  for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge'),document.getElementById('timelineBubble')])if(e)geometryObserver.observe(e,{attributes:true,attributeFilter:['style']});
  observer.observe(body,{attributes:true,attributeFilter:['class']});
  for(const modal of document.querySelectorAll('[role="dialog"],dialog,.download-modal,.datum-modal'))if(modal!==panel)observer.observe(modal,{attributes:true,attributeFilter:['class','hidden','open','aria-modal','style']});
- const resizeObserver=new ResizeObserver(schedule);for(const element of [timeline,panel,rail])resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});
+ const resizeObserver=new ResizeObserver(schedule);
+ for(const element of [timeline,panel,rail,legend,legend?.querySelector('#legendBody')])if(element)resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});
  document.fonts?.ready.then(schedule);document.fonts?.addEventListener?.('loadingdone',schedule);
  addEventListener('load',schedule,{once:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});
  layout();
