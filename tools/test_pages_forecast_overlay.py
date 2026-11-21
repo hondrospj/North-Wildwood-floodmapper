@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from pages_forecast_overlay import generated_paths, stage_pages_data
-from release_data import utc_time
+from release_data import V41_FORECAST_FILES, utc_time
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -34,6 +34,8 @@ class PagesForecastOverlayTest(unittest.TestCase):
         )
         self.changed_paths = (*FORECAST_PATHS, *self.observed_paths)
         for relative in generated_paths(REPO):
+            if relative in V41_FORECAST_FILES:
+                continue  # Each V41 test supplies independent fixture bytes.
             link_or_copy(REPO / relative, self.source / relative)
             if relative in self.changed_paths:
                 (self.site / relative).parent.mkdir(parents=True, exist_ok=True)
