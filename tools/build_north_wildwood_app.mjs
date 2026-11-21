@@ -56,6 +56,25 @@ html = html.replace(/<!-- floodmapper:(?:profile|webcams|page-title|town-name) -
   token => replacements.get(token));
 html = html.replace(/(\b(?:src|href)="(?:\.\/)?)(assets\/[^"?#]+)\?v=shared"/g, (_, prefix, relative) =>
   `${prefix}${relative}?v=${version(outputs.get(relative) ?? fs.readFileSync(path.join(root, relative)))}"`);
+
+// Start the same downloads early, but let the geographic preview paint before
+// the parser encounters stylesheets and classic scripts that can block it.
+const headEnd = html.indexOf('</head>');
+const startupResources = [];
+const head = html.slice(0, headEnd).replace(
+  /<link rel="stylesheet"[^>]*>|<style\b[^>]*>[\s\S]*?<\/style>|<script\b[^>]*\bsrc="[^">]+"[^>]*><\/script>/g,
+  tag => {
+    if (/^<style id="floodmapper-(first-paint-priority|quiet-loading-20261119)"/.test(tag)) return tag;
+    const script = tag.startsWith('<script');
+    startupResources.push(script ? tag : tag.replace(/^<(link|style)/, '<$1 data-nww-startup-style'));
+    const url = tag.match(/\b(?:src|href)="([^"]+)"/)?.[1];
+    return url ? `<link rel="preload" as="${script ? 'script' : 'style'}" href="${url}">` : '';
+  }
+);
+const preview = fs.readFileSync(path.join(root, 'assets/north-wildwood-startup-map.webp')).toString('base64');
+html = (head + html.slice(headEnd))
+  .replace('<!-- floodmapper:startup-map-image -->', `data:image/webp;base64,${preview}`)
+  .replace('<!-- floodmapper:startup-resources -->', () => startupResources.join('\n'));
 outputs.set('index.html', html);
 
 let changed = 0;

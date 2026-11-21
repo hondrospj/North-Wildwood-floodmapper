@@ -641,15 +641,27 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       deferredMapLayersStarted = true;
       document.body.dataset.deferredMapLayers = "active";
       document.body.dataset.deferredMapLayersStartedAt = performance.now().toFixed(1);
-      if (basemapColorLayer && !map.hasLayer(basemapColorLayer)) basemapColorLayer.addTo(map);
       if (roadsLayer && !map.hasLayer(roadsLayer)) roadsLayer.addTo(map);
       updateRoadLayerAppearance();
       updateColorBasemapClip();
     }
 
+    function fitInitialFloodView(bounds, startupBounds = null) {
+      if (mapHasFit || !bounds) return;
+      map.fitBounds(bounds, { padding: [16, 16], animate: startupBounds ? false : undefined });
+      if (isCompactFloodmapperLayout()) {
+        // Keep the previous phone zoom, which was relative to the provisional viewport.
+        const zoom = startupBounds ? map.getBoundsZoom(startupBounds, false, L.point(40, 40)) : map.getZoom();
+        map.setZoom(Math.min(zoom + 1, map.getMaxZoom()), { animate: false });
+      }
+      mapHasFit = true;
+    }
+
     function ensureMap() {
       if (map) return;
 
+      const startupPreview = document.getElementById("startupMapPreview");
+      const retireStartupPreview = () => startupPreview?.remove();
       map = L.map("map", {
         zoomControl: false,
         minZoom: 11,
@@ -685,10 +697,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       basemapColorLayer = makeEsriBuildingBasemapLayer();
 
       if (basemapColorLayer) {
-        basemapColorLayer.on("error", () => {
-          if (basemapColorLayer && map.hasLayer(basemapColorLayer)) {
-            map.removeLayer(basemapColorLayer);
-          }
+        const vectorLayer = basemapColorLayer;
+        vectorLayer.once("error", () => {
+          const wasActive = map.hasLayer(vectorLayer);
+          if (wasActive) map.removeLayer(vectorLayer);
           basemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
             attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
             minZoom: 11,
@@ -700,7 +712,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
             className: "basemap-color-layer",
             pane: "basemapColorPane"
           });
-          if (deferredMapLayersStarted) basemapColorLayer.addTo(map);
+          if (startupPreview) basemapColorLayer.once("load", retireStartupPreview);
+          if (wasActive) basemapColorLayer.addTo(map);
         });
       } else {
         basemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
@@ -753,7 +766,29 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       updateRoadLayerAppearance();
       updateColorBasemapClip();
 
-      map.fitBounds(getBoundaryDrivenOverlayBounds(false), { padding: [20, 20] });
+      const previewBounds = getBoundaryDrivenOverlayBounds(false);
+      if (municipalBoundaryRings.length) fitInitialFloodView(getBoundaryDrivenOverlayBounds(), previewBounds);
+      else map.fitBounds(previewBounds, { padding: [20, 20], animate: false });
+      basemapColorLayer.addTo(map);
+      document.body.dataset.mapInitialized = "true";
+      if (startupPreview) {
+        const topLeft = map.latLngToContainerPoint(previewBounds.getNorthWest());
+        const bottomRight = map.latLngToContainerPoint(previewBounds.getSouthEast());
+        Object.assign(startupPreview.style, {
+          left: `${topLeft.x}px`, top: `${topLeft.y}px`,
+          width: `${bottomRight.x - topLeft.x}px`, height: `${bottomRight.y - topLeft.y}px`
+        });
+        const initialBasemap = basemapColorLayer;
+        if (typeof initialBasemap._createMaplibreLayer === "function") {
+          // Wait for painted vector tiles, not just the service metadata or flood layer.
+          const onVectorReady = () => initialBasemap._maplibreGL?.getMaplibreMap()?.once("idle", retireStartupPreview);
+          if (initialBasemap._maplibreGL) onVectorReady();
+          else initialBasemap.once("ready", onVectorReady);
+        } else {
+          initialBasemap.once("load", retireStartupPreview);
+        }
+        map.once("movestart", retireStartupPreview);
+      }
       requestAnimationFrame(() => {
         map.invalidateSize();
         updateColorBasemapClip();

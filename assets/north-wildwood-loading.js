@@ -6,7 +6,6 @@
     if (!loader || !app) return;
     let finished = false;
     let deadline;
-    const startedAt = performance.now();
     let simulatedProgress = 8;
     const progressTimer = setInterval(() => {
       simulatedProgress = Math.min(76, simulatedProgress + (simulatedProgress < 42 ? 3 : 1));
@@ -77,14 +76,8 @@
       clearInterval(progressTimer);
       observer.disconnect();
       window.removeEventListener('nww:map-dependency-error', showDependencyFailure);
-      if (reason === 'timeout') { reveal(reason); return; }
-      setNorthWildwoodLoadingState(100, 'Floodmapper ready');
-      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) reveal(reason);
-      else {
-        // Preserve the original minimum display, completion pause and fade.
-        const remaining = Math.max(0, 800 - (performance.now() - startedAt));
-        setTimeout(() => reveal(reason), remaining + 260);
-      }
+      if (reason !== 'timeout') setNorthWildwoodLoadingState(100, 'Floodmapper ready');
+      reveal(reason);
     }
     function showDependencyFailure() {
       if (finished) return;

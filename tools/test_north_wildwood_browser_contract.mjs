@@ -406,9 +406,17 @@ assert.match(
   extractFunction("reloadAll"),
   /await renderHour\(currentHourIndex\)[\s\S]+activateDeferredMapLayers\(\)[\s\S]+scheduleBackgroundDataWarmup\(\)/
 );
-assert.match(extractFunction("activateDeferredMapLayers"), /basemapColorLayer\.addTo\(map\)/);
+const deferredLayers = extractFunction("activateDeferredMapLayers");
+assert.match(deferredLayers, /roadsLayer\.addTo\(map\)/, "Road names still activate after the first flood frame");
+assert.doesNotMatch(deferredLayers, /basemapColorLayer\.addTo\(map\)/, "The first flood frame cannot gate the color basemap");
+const ensureMap = extractFunction("ensureMap");
+assert.match(ensureMap, /(?:fitInitialFloodView|map\.fitBounds)\([\s\S]+basemapColorLayer\.addTo\(map\);\s+document\.body\.dataset\.mapInitialized/,
+  "Mount the color basemap after setting the startup camera and before marking the map initialized");
+assert.match(ensureMap, /getMaplibreMap\(\)\?\.once\("idle", retireStartupPreview\)/);
+assert.match(ensureMap, /initialBasemap\.once\("load", retireStartupPreview\)/);
+assert.match(ensureMap, /map\.once\("movestart", retireStartupPreview\)/);
 assert.doesNotMatch(
-  extractFunction("ensureMap"),
+  ensureMap,
   /className: "roads-layer",[\s\S]{0,120}\}\)\.addTo\(map\)/
 );
 assert.match(extractFunction("fitMapTitleBadgeToViewport"), /leftPanel[\s\S]+rightRail[\s\S]+availableWidth/);

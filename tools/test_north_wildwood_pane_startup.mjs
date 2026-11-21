@@ -61,23 +61,22 @@ async function checkStartup(width,height=1000,mobile=false) {
   let initial,final,audit;
   let navigation;
   try {
-    await page.addInitScript(() => {
+    await page.addInitScript(({ mobile }) => {
       const selectors = {
         data:'.data-source-card', forecast:'#forecastScenarioCard',
         overlay:'.overlay-card', datum:'.datum-card',
         opacity:'.opacity-card', interval:'#timelineIntervalCard',
       };
       const audit = window.__paneStartupAudit = {frames:0,visibleSamples:[],stopped:false};
-      const visible = element => {
+      const laidOut = element => {
         if (!element?.getClientRects().length) return false;
         for (let node=element;node;node=node.parentElement) {
-          const style=getComputedStyle(node);
-          if (style.display==='none'||style.visibility==='hidden') return false;
+          if (getComputedStyle(node).display==='none') return false;
         }
         return true;
       };
       const painted = element => {
-        if(!visible(element))return false;
+        if(!laidOut(element)||getComputedStyle(element).visibility!=='visible')return false;
         for(let node=element;node;node=node.parentElement)if(Number(getComputedStyle(node).opacity)===0)return false;
         const loader=document.getElementById('nwSiteLoader');
         if(loader&&!loader.hidden){const style=getComputedStyle(loader);if(style.display!=='none'&&style.visibility!=='hidden'&&Number(style.opacity)>0)return false;}
@@ -90,11 +89,11 @@ async function checkStartup(width,height=1000,mobile=false) {
       const text = element => element?.textContent.replace(/\s+/g,' ').trim() || '';
       window.__capturePaneStartup = () => {
         const panel=document.getElementById('leftPanel');
-        if (!visible(panel)) return null;
+        if (!(mobile ? painted(panel) : laidOut(panel))) return null;
         const cards={};
         for (const [key,selector] of Object.entries(selectors)) {
           const element=panel.querySelector(selector);
-          if (visible(element)) cards[key]={
+          if (laidOut(element)) cards[key]={
             ...bounds(element), heading:text(element.querySelector('h2')),
             buttons:[...element.querySelectorAll('button:not(.help-btn)')].map(text),
           };
@@ -121,7 +120,7 @@ async function checkStartup(width,height=1000,mobile=false) {
       // Start before any page scripts: recording only the held-controller state
       // would miss an earlier painted CSS width or obsolete heading.
       requestAnimationFrame(sample);
-    });
+    }, { mobile });
     await page.route('**/assets/app/unified-controller.js*',async route => {
       receivedController();
       await release;
@@ -149,11 +148,9 @@ async function checkStartup(width,height=1000,mobile=false) {
         'The closed mobile drawer must never flash on an earlier startup frame');
     } else {
       assert.ok(initial,'Desktop controls must have layout while the controller request is held');
-      if (initial.painted) {
-        assertNear(initial.pane.width,300,`${width}px initial pane width`);
-        assert.equal(initial.cards.forecast?.heading,'Forecast Range',
-          'The first painted heading must already use the final label');
-      }
+      assert.equal(initial.painted,false,'The early map preview must leave unfinished desktop controls hidden');
+      assertNear(initial.pane.width,300,`${width}px initial pane width`);
+      assert.equal(initial.cards.forecast?.heading,'Forecast Range','The initial layout already uses the final label');
     }
 
     releaseController();
@@ -162,7 +159,8 @@ async function checkStartup(width,height=1000,mobile=false) {
       Number(document.body.dataset.unifiedLayoutPasses)>0);
     await page.waitForFunction(() => {
       const loader=document.getElementById('nwSiteLoader'),style=loader&&getComputedStyle(loader);
-      return (!loader||loader.hidden||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)&&
+      return document.body.dataset.siteLoader==='complete'&&
+        (!loader||loader.hidden||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)&&
         Number(getComputedStyle(document.getElementById('app')).opacity)>0.999;
     },{},{timeout:90000});
     await twoPaints(page);

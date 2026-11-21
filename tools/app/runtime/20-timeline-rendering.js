@@ -225,14 +225,7 @@
   
           updatePersistentDepthQueryPopup();
   
-          if (!mapHasFit && floodLatLngBounds) {
-            const townBounds = getBoundaryDrivenOverlayBounds();
-            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
-            if (document.body.classList.contains("mobile-optimized")) {
-              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-            }
-            mapHasFit = true;
-          }
+          if (!mapHasFit && floodLatLngBounds) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
           markInitialFloodFrameReady();
         });
       } finally {
@@ -287,13 +280,7 @@
         pendingFloodLayer = null;
         renderedFloodPixelCache = null;
         if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
-        if (!mapHasFit) {
-          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
-          if (document.body.classList.contains("mobile-optimized")) {
-            map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-          }
-          mapHasFit = true;
-        }
+        if (!mapHasFit) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
         markInitialFloodFrameReady();
       });
     }
