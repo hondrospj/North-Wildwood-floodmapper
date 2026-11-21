@@ -93,7 +93,7 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
           liveBase:Boolean(liveBase),
           camera:center&&{lat:center.lat,lng:center.lng,zoom:mountedMap.getZoom()},
           preview:preview&&{painted:paints(preview),decoded:preview.complete&&preview.naturalWidth>0,
-            decorative:preview.alt===''&&preview.getAttribute('aria-hidden')==='true',insideMap:mapElement.contains(preview),
+            decorative:preview.alt===''&&preview.getAttribute('aria-hidden')==='true',insideMap:Boolean(mapElement?.contains(preview)),
             pointer:getComputedStyle(preview).pointerEvents},
           colorLayerActive:typeof basemapColorLayer!=='undefined'&&Boolean(basemapColorLayer&&mountedMap?.hasLayer(basemapColorLayer)),
           roadsActive:typeof roadsLayer!=='undefined'&&Boolean(roadsLayer&&mountedMap?.hasLayer(roadsLayer)),
