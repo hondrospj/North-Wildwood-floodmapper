@@ -52,7 +52,7 @@ function fixture({ metadataGate, nsiGate, wrappers = false } = {}) {
   const context = vm.createContext({ console, Promise, Error, Number, Boolean,
     TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config,
     window: { setTimeout(fn, ms) { timers.set(++nextTimer, { fn, ms }); return nextTimer; }, clearTimeout: id => timers.delete(id) },
-    document: { getElementById: element }, map, ensureMap() {}, toast: value => notices.push(value),
+    document: { getElementById: element, querySelector: () => null }, map, ensureMap() {}, toast: value => notices.push(value),
     parcelLoadPromise: null, parcelsLayer: null, parcelFeatures: [], parcelLayerGeneration: 0,
     nsiStructuresLayer: null, nsiStructureLoadPromise: null, nsiStructureFeatures: [], nsiStructureRenderer: null, nsiLayerGeneration: 0,
     mapQueryGeneration: 0, mapClickMode: 'depth', persistentFloodPopup: null, persistentDepthQueryContext: null,
