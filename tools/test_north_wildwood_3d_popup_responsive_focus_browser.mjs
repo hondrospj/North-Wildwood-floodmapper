@@ -63,10 +63,23 @@ try {
     return [center.lng, center.lat, scrollX, scrollY];
   });
   const beforeReturn = await position();
+  const openerPosition = await page.locator(action).evaluate(button => {
+    const panel = button.closest(".maplibregl-popup-content");
+    const buttonRect = button.getBoundingClientRect();
+    const clipTop = panel.getBoundingClientRect().top + panel.clientTop;
+    return {
+      scrollTop: panel.scrollTop,
+      above: buttonRect.top < clipTop - 1,
+      below: buttonRect.bottom > clipTop + panel.clientHeight + 1
+    };
+  });
   await page.keyboard.press("Escape");
   await page.locator("#floodHistoryBackdrop").waitFor({ state: "hidden" });
   await expectFocus(page, action);
-  assert.ok(await page.locator(content).evaluate(el => el.scrollTop > 0), "the owning popup scrolls to the returned control");
+  const restoredScroll = await page.locator(content).evaluate(el => el.scrollTop);
+  if (openerPosition.above) assert.ok(restoredScroll < openerPosition.scrollTop);
+  else if (openerPosition.below) assert.ok(restoredScroll > openerPosition.scrollTop);
+  else assert.equal(restoredScroll, openerPosition.scrollTop, "An already visible opener does not need scrolling");
   assert.deepEqual(await position(), beforeReturn, "restoring popup focus leaves the map center and page scroll alone");
 
   await page.setViewportSize(desktop);

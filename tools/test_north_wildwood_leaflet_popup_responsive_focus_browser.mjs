@@ -79,11 +79,24 @@ try {
     });
     assert.equal(await history.evaluate(button => !!button.closest("[inert]")), true);
     const compactState = await mapState(page);
+    const openerPosition = await history.evaluate(button => {
+      const content = button.closest(".leaflet-popup-content");
+      const buttonRect = button.getBoundingClientRect();
+      const clipTop = content.getBoundingClientRect().top + content.clientTop;
+      return {
+        scrollTop: content.scrollTop,
+        above: buttonRect.top < clipTop - 1,
+        below: buttonRect.bottom > clipTop + content.clientHeight + 1
+      };
+    });
     await page.keyboard.press("Escape");
     await backdrop.waitFor({ state: "hidden" });
     await expectFocus(page, historySelector);
     assert.equal(await originalButton.evaluate(button => button === document.activeElement), true);
-    assert.ok(await history.evaluate(button => button.closest(".leaflet-popup-content").scrollTop > 0));
+    const restoredScroll = await history.evaluate(button => button.closest(".leaflet-popup-content").scrollTop);
+    if (openerPosition.above) assert.ok(restoredScroll < openerPosition.scrollTop);
+    else if (openerPosition.below) assert.ok(restoredScroll > openerPosition.scrollTop);
+    else assert.equal(restoredScroll, openerPosition.scrollTop, "An already visible opener does not need scrolling");
     assert.deepEqual(await mapState(page), compactState);
     assert.deepEqual(compactState.scroll, [0, 0]);
 
