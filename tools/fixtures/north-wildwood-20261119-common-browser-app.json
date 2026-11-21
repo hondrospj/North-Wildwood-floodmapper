@@ -622,26 +622,26 @@
     {
       "source": "assets/styles/app-05.css",
       "beforeSha256": "4a72a06ffafb0e871bb40571758be05237b473491780e0ea1168a120d5cbd0fa",
-      "afterSha256": "cf52583784eeb85571f5cbb18ab22afebb08b91ea21c568be53ee05820a127e6",
+      "afterSha256": "f7b7567b075a7aeeef0eac140b1233349db7dbc64cb10ad669428a687c877dd0",
       "edits": [
         [
           272490,
-          277355,
+          277629,
           ""
         ],
         [
-          280547,
-          280599,
+          280821,
+          280873,
           "      --nww-popup-close-size:36px;\n"
         ],
         [
-          280856,
-          280856,
+          281130,
+          281130,
           "    }\n    @media (any-pointer:coarse) {\n      :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {\n        --nww-popup-close-size:44px;\n      }\n"
         ],
         [
-          310577,
-          310577,
+          310851,
+          310851,
           "  }\n  html body .building-info-facts{\n    display:grid;\n    gap:10px;\n    padding:12px 13px;\n    border:1px solid rgba(125,183,255,.18);\n    border-radius:13px;\n    background:#101e32;\n  }\n  html body .building-info-facts > div{\n    display:flex;\n    align-items:center;\n    justify-content:space-between;\n    gap:14px;\n  }\n  html body .building-info-facts span{\n    color:#a9bad3;\n    font-size:13px;\n    font-weight:750;\n  }\n  html body .building-info-facts strong{\n    color:#fff;\n    font-size:16px;\n    white-space:nowrap;\n  }\n  html body .building-info-facts p{\n    margin:0;\n    padding-top:10px;\n    border-top:1px solid rgba(148,163,184,.14);\n    color:#dce8f8;\n    font-size:13px;\n    font-weight:800;\n    line-height:1.35;\n"
         ]
       ]
@@ -649,7 +649,7 @@
     {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "6a1663321348524c8fd8a3f901c52d1b0451c6025bbb9ff397ada85ad2b839e7",
+      "afterSha256": "aab4ff72b525854182715dde91d5b156e55b57cf10a635beb0f2bbff64473a53",
       "edits": [
         [
           115,
@@ -1432,21 +1432,21 @@
     {
       "source": "tools/app/styles/style-053.css",
       "beforeSha256": "a7dd181eaa54223355790c71496a02206219b91220e9222c82301542b947f820",
-      "afterSha256": "f73355156eb498b11df0c3ecbe5ce30c280c15ae85fbdc6899c66588b14a8208",
+      "afterSha256": "991d343ad1f2f91612f626bf0c38bc600f5fa0e20e15665564dc532921d6f11a",
       "edits": [
         [
           182,
-          5047,
+          5321,
           ""
         ],
         [
-          8244,
-          8296,
+          8518,
+          8570,
           "      --nww-popup-close-size:36px;\n"
         ],
         [
-          8553,
-          8553,
+          8827,
+          8827,
           "    }\n    @media (any-pointer:coarse) {\n      :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {\n        --nww-popup-close-size:44px;\n      }\n"
         ]
       ]
@@ -1627,7 +1627,7 @@
     },
     {
       "source": "assets/north-wildwood-phone.css",
-      "sha256": "fd68419e7ec8934f5d6a9cb2439a3bc11a7e14ea086f9dbd66070d1500081b95"
+      "sha256": "7773e92de0a34e81456e0998c939c1a29f74ef2a8cb982736c62ae36abde1acf"
     },
     {
       "source": "tools/app/town-profile.json",

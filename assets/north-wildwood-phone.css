@@ -16,6 +16,7 @@
       --phone-shadow: 0 12px 26px rgba(2, 6, 23, .15);
       --phone-header-height: 42px;
       --phone-action-height: 44px;
+      --phone-action-label-size: 13px;
       --phone-dock-max: 580px;
       --phone-dock-edge: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height));
       --phone-tools-top: calc(var(--cm-top, 8px) + var(--phone-header-height) + 8px);
@@ -94,6 +95,10 @@
       border-radius: 11px !important;
       background: var(--phone-surface) !important;
       color: var(--phone-label) !important;
+      box-shadow: none !important;
+      font: 680 var(--phone-action-label-size)/1.15 var(--nww-ui-font-family) !important;
+      letter-spacing: 0 !important;
+      text-shadow: none !important;
     }
 
     html[data-nww-phone] body #mobileMapperTutorialBtn {
@@ -101,7 +106,6 @@
       white-space: normal !important;
       text-wrap: balance;
       text-align: center;
-      font: 650 12px/1.15 Inter, system-ui, sans-serif !important;
     }
 
     html[data-nww-phone] body #nwwMobileUtilities #mobileControlsToggle#mobileControlsToggle {
@@ -127,7 +131,7 @@
       min-height: 0 !important;
       display: grid !important;
       place-items: center !important;
-      font: 680 13px/1 Inter, system-ui, sans-serif !important;
+      font: inherit !important;
       color: var(--phone-label) !important;
       -webkit-text-fill-color: currentColor !important;
       text-shadow: none !important;
@@ -526,8 +530,9 @@
   }
 
   @media (max-width: 360px) {
+    html[data-nww-phone] body { --phone-action-label-size: 12px; }
     html[data-nww-phone] body #mapTitleBadge #mapTitleText { font-size: 14px !important; }
-    html[data-nww-phone] body #mobileMapperTutorialBtn { padding-inline: 6px !important; font-size: 12px !important; }
+    html[data-nww-phone] body #mobileMapperTutorialBtn { padding-inline: 6px !important; }
   }
 
   @media (orientation: landscape) and (max-height: 560px) and (min-width: 540px) {

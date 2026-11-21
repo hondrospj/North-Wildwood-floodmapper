@@ -48,6 +48,13 @@ try {
     if (isMobile) {
       await page.locator('#mobileControlsToggle').click();
       await closeShape(page.locator('#mobileControlsClose'), closeSize);
+    } else {
+      const actionStyles = await page.locator('#mapperTutorialBtn,#townAddressSearchBtn').evaluateAll(buttons => buttons.map(button => {
+        const { borderRadius, borderColor, fontFamily, fontWeight, boxShadow } = getComputedStyle(button);
+        return { borderRadius, borderColor, fontFamily, fontWeight, boxShadow };
+      }));
+      assert.equal(actionStyles.length, 2);
+      assert.deepEqual(actionStyles[0], actionStyles[1], 'Desktop tour uses the neighboring controls’ edge and label styles');
     }
     assert.equal(await page.locator('#forecastScenarioCard h2').textContent(), 'Forecast Range');
     assert.deepEqual(await page.locator('#forecastScenarioCard [data-scenario]').allTextContents(), ['Best Case', 'Likely', 'Worst Case']);

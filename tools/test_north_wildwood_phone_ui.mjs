@@ -66,6 +66,24 @@ try {
     assert.ok(Math.abs(state.key.right-state.toolbar.right)<=1,layout);
     assert.ok(state.title.bottom+6<=state.controls.top && state.controls.bottom<state.dock.top,layout);
     assert.equal(await page.locator('#legendDock').evaluate(el=>getComputedStyle(el,'::after').content),'"Legend"');
+    const pillStyles = await page.evaluate(() => ['mobileMapperTutorialBtn', 'mobileControlsToggle', 'legendDock'].map(id => {
+      const pill = document.getElementById(id);
+      const surface = getComputedStyle(pill);
+      const label = id === 'mobileMapperTutorialBtn' ? surface : getComputedStyle(pill, '::after');
+      return [surface.borderRadius, surface.border, surface.backgroundColor, surface.boxShadow,
+        label.fontFamily, label.fontSize, label.fontWeight, label.lineHeight, label.textShadow];
+    }));
+    assert.deepEqual(pillStyles[0], pillStyles[1], 'Tour and Controls use the same pill and label styles');
+    assert.deepEqual(pillStyles[0], pillStyles[2], 'Tour and Legend use the same pill and label styles');
+    const tourLabelFits = await page.locator('#mobileMapperTutorialBtn').evaluate(pill => {
+      const range = document.createRange();
+      range.selectNodeContents(pill);
+      const boundary = pill.getBoundingClientRect();
+      const text = range.getBoundingClientRect();
+      return text.top >= boundary.top && text.bottom <= boundary.bottom &&
+        text.left >= boundary.left && text.right <= boundary.right;
+    });
+    assert.ok(tourLabelFits, layout);
     const controlsLabelFits = await page.locator('#mobileControlsToggle').evaluate(el => {
       const label = getComputedStyle(el,'::after');
       const context = document.createElement('canvas').getContext('2d');
