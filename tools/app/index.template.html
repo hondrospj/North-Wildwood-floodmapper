@@ -173,6 +173,7 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
   <div id="app">
     <div id="mapTitleBadge" class="shorely-title-badge" aria-hidden="true">
       <span id="mapTitleText" class="shorely-title-text"><!-- floodmapper:page-title --></span>
+      <span class="nww-mobile-title"><strong><!-- floodmapper:town-name --></strong><span>Flood Mapper</span></span>
       <img id="mapTitlePartnerLogo" class="shorely-title-logo shorely-title-logo-shorelysafe" src="" alt="" loading="eager" decoding="async" style="display:none;" />
     </div>
     <aside id="leftPanel">
@@ -351,6 +352,13 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
         </div>
 
       </section>
+      <details id="mapCredits" class="panel-card compact-card" data-nww-group="tools" data-html2canvas-ignore="true">
+        <summary>Map credits</summary>
+        <div>
+          <div id="mapCreditsSources"></div>
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap licence</a>
+        </div>
+      </details>
     </aside>
 <main id="mapWrap">
       <div id="map"></div>
@@ -524,17 +532,13 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
     </main>
   </div>
 
-  <div id="nwwMobileUtilities">
-    <button id="mobileMapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-mobile" type="button" aria-haspopup="dialog" data-html2canvas-ignore="true">Take the Flood Mapper Tour</button>
-  
-    <details id="mapCredits" data-html2canvas-ignore="true">
-      <summary aria-label="Map credits" title="Map credits"><span aria-hidden="true">ⓘ</span></summary>
-      <div>
-        <div id="mapCreditsSources"></div>
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap licence</a>
-      </div>
-    </details>
-  </div>
+  <header id="nwwMobileUtilities" aria-label="<!-- floodmapper:page-title -->" data-html2canvas-ignore="true">
+    <div class="nww-mobile-actions" role="group" aria-label="Map actions">
+      <button id="mobileMapperTutorialBtn" class="mapper-tutorial-launch mapper-tutorial-launch-mobile" type="button" aria-label="Take the Flood Mapper Tour" aria-haspopup="dialog">Tour</button>
+      <button id="mobileControlsToggle" type="button" aria-label="Open map controls" aria-controls="leftPanel" aria-expanded="false">Controls</button>
+      <button id="nwwMobileLegendToggle" type="button" aria-controls="legendDock" aria-expanded="false">Legend</button>
+    </div>
+  </header>
 
   <div id="mapperTutorial" class="mapper-tutorial" hidden aria-hidden="true">
     <div id="mapperTutorialSpotlight" class="mapper-tutorial-spotlight" aria-hidden="true"></div>

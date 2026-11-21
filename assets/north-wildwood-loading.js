@@ -23,8 +23,8 @@
     });
     window.addEventListener('nww:map-dependency-error', showDependencyFailure);
     function isolateControls() {
-      // Mobile places its Controls and Key buttons outside the app container.
-      for (const id of ['app', 'mobileControlsToggle', 'legendDock']) {
+      // The mobile toolbar and its disclosures sit outside the app container.
+      for (const id of ['app', 'nwwMobileUtilities', 'mobileControlsToggle', 'legendDock']) {
         const element = document.getElementById(id);
         if (!element || background.has(element)) continue;
         background.set(element, element.inert);

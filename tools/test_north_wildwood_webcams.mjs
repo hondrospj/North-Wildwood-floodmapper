@@ -166,7 +166,7 @@ try {
         await page.setViewportSize({width: compactWidth, height: compactHeight});
         await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.viewportOverlay === 'true');
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        const targets = await page.evaluate(() => ['mobileControlsToggle', 'legendDock', 'webcamClose'].map(id => {
+        const targets = await page.evaluate(() => ['mobileControlsToggle', 'nwwMobileLegendToggle', 'webcamClose'].map(id => {
           const control = document.getElementById(id), box = control.getBoundingClientRect();
           const hit = document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2);
           return {id, reachable: control.contains(hit), hit: hit?.id || hit?.className, box: box.toJSON()};
@@ -178,7 +178,7 @@ try {
       await page.locator('#mobileControlsToggle').tap();
       await page.locator('#mobileControlsClose').tap();
       const legend = page.locator('#legendDock');
-      await legend.tap();
+      await page.getByRole('button',{name:'Legend',exact:true}).tap();
       await page.waitForFunction(() => document.body.classList.contains('mobile-legend-open'));
       const keyReachable = await legend.evaluate(el => {
         const box = el.getBoundingClientRect();

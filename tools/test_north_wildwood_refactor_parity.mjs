@@ -14,12 +14,12 @@ const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToP
 const v41ForecastLink = '        <a id="v41HydrographLink" href="./data/v41/index.html" style="display:inline-block;margin-top:.55rem;color:inherit;text-decoration:underline;">Experimental V41 hydrograph</a>\n';
 const v41DocumentPins = new Map([
   ["index.html", [
-    "f6b0a286a105a11338555b049edd0779529321d8c4ed505af2dd079f51d8ae3e",
-    "aab4ff72b525854182715dde91d5b156e55b57cf10a635beb0f2bbff64473a53"
+    "f2ceac137240f5de990dd1230c9b3c356b9601cad7e55a85caf4e872cbed7f66",
+    "1b7d720e9ed73fb461183421d4868917621fbc3b5a0503a2d9b7190548d01fab"
   ]],
   ["tools/app/index.template.html", [
-    "8b43172387b14ff4721e07705efe6cf4a686e4bd1f13524040feb403bd76761a",
-    "d69d8db5321c537c38999950127bacf9c10c9aaaa8f96bf2b4e5da795a5a9c45"
+    "10201e8ed6a0b91c953cf168181f7cf55caf552127fbca63d8d0cc73003a859b",
+    "01fbd594830bf7b46d7cb7145d844433a686e35e8e18119e586259652fff741c"
   ]]
 ]);
 function readReleaseBytes(relative) {
@@ -37,7 +37,7 @@ const SHARED_APP_PATH = "tools/fixtures/north-wildwood-20261119-common-browser-a
 const priorSharedAppSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-shared-app-snapshot");
 const sharedAppText = readReleaseBytes(SHARED_APP_PATH);
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
-assert.equal(hashReleaseBytes(sharedAppText), "33744773a9cc56c5866489ea228dc102351db1b10b7998d716b59ef24201c2ea", "Retain the exact shared application inverse");
+assert.equal(hashReleaseBytes(sharedAppText), "2038a5756675d44f67cfb060b8926513f660e2d95e4f56f0a7cca92e26aa8637", "Retain the exact shared application inverse");
 const sharedApp = JSON.parse(sharedAppText);
 assert.equal(sharedApp.schemaVersion, 1);
 assert.equal(sharedApp.baselineCommit, "be43e3a29e9807658e6b19101371e374c29afa30");

@@ -121,8 +121,7 @@
     if (!container) return;
     const rect = container.getBoundingClientRect();
     let top = innerWidth <= 900 ? 120 : 140;
-    const controls = document.getElementById("mobileControlsToggle");
-    const headerIds = ["topBanner", "topBar", "mapTitleBadge", "mobileControlsToggle"];
+    const headerIds = ["topBanner", "topBar", "mapTitleBadge", "nwwMobileUtilities"];
     for (const id of headerIds) {
       const element = document.getElementById(id);
       if (!element || !element.getClientRects().length || getComputedStyle(element).visibility === "hidden") continue;
@@ -148,16 +147,13 @@
     panel.style.left = `${(visibleLeft + visibleRight) / 2}px`;
     panel.style.maxWidth = `${Math.max(1, visibleRight - visibleLeft - 16)}px`;
     let panelTop = overlay ? viewportTop + 8 : rect.top + top;
-    if (overlay && !panel.hidden && controls?.getClientRects().length) {
+    const toolbar = document.getElementById("nwwMobileUtilities");
+    if (overlay && !panel.hidden && toolbar?.getClientRects().length) {
       const viewer = panel.getBoundingClientRect();
-      const key = document.body.classList.contains("mobile-legend-open") ? null : document.getElementById("legendDock");
-      for (const control of [controls, key]) {
-        if (!control?.getClientRects().length || getComputedStyle(control).visibility === "hidden") continue;
-        const box = control.getBoundingClientRect();
-        const below = box.bottom + 8;
-        if (box.top < viewportTop + 64 && box.left < viewer.right && box.right > viewer.left &&
-            viewportBottom - below - 8 >= 200) panelTop = Math.max(panelTop, below);
-      }
+      const box = toolbar.getBoundingClientRect();
+      const below = box.bottom + 8;
+      if (box.top < viewportTop + 64 && box.left < viewer.right && box.right > viewer.left &&
+          viewportBottom - below - 8 >= 200) panelTop = Math.max(panelTop, below);
     }
     panel.style.top = `${panelTop}px`;
     const maxHeight = overlay ? Math.max(1, viewportBottom - panelTop - 8) : available;
@@ -353,7 +349,7 @@
   window.visualViewport?.addEventListener("resize", () => { if (!panel.hidden) mountPanel(); });
   window.visualViewport?.addEventListener("scroll", () => { if (!panel.hidden) mountPanel(); });
   const layoutObserver = new ResizeObserver(() => { if (!panel.hidden) mountPanel(); });
-  ["topBanner", "mapTitleBadge", "mobileControlsToggle", "legendDock", "timelineDock", "mapClickModeControl"].map(id => document.getElementById(id))
+  ["topBanner", "mapTitleBadge", "nwwMobileUtilities", "legendDock", "timelineDock", "mapClickModeControl"].map(id => document.getElementById(id))
     .filter(Boolean).forEach(el => layoutObserver.observe(el));
   window.addEventListener("pagehide", () => setEnabled(false));
   window.addEventListener("pageshow", event => { if (event.persisted) setEnabled(false); });

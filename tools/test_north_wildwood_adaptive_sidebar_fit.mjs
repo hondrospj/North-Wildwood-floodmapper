@@ -70,11 +70,11 @@ async function compactReadability(page,label){
     for(const r of range.getClientRects())if(r.width>0&&r.height>0)rows.push({text:node.textContent.trim(),left:r.left,top:r.top,right:r.right,bottom:r.bottom});
    }return rows;};
   const box=e=>{const r=e.getBoundingClientRect();return{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
-  const control=document.getElementById('mobileControlsToggle'),key=document.getElementById('legendDock');
+  const control=document.getElementById('mobileControlsToggle'),key=document.getElementById('nwwMobileLegendToggle');
   const pseudoText=element=>['::before','::after'].map(p=>{const s=getComputedStyle(element,p);return{content:s.content,font:parseFloat(s.fontSize),display:s.display,visibility:s.visibility};});
   const pseudos=pseudoText(control);
   const svg=[...control.querySelectorAll('svg')].some(svg=>{const r=svg.getBoundingClientRect();return r.width>4&&r.height>4&&getComputedStyle(svg).visibility!=='hidden'&&!!svg.querySelector('path,rect,line,circle,polygon,polyline,use');});
-  const fullKey=[...key.querySelectorAll('#legendBody .depth-legend-labels,#legendBody .legend-labels')].some(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden');
+  const fullKey=[...document.getElementById('legendDock').querySelectorAll('#legendBody .depth-legend-labels,#legendBody .legend-labels')].some(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden');
   const day=[...document.querySelectorAll('#timelineDayTabs .timeline-day.active,#timelineDayTabs .timeline-day[aria-current="date"]')].find(e=>e.getClientRects().length);
   const track=document.querySelector('#timelineDock .timeline-trackRow');
   return{controlTexts:visibleText(control),pseudos,svg,key:{box:box(key),texts:visibleText(key),pseudos:pseudoText(key),fullKey},day:day?{box:box(day),texts:visibleText(day),track:track&&box(track)}:null};
@@ -85,8 +85,8 @@ async function compactReadability(page,label){
  const textFits=(texts,box)=>texts.every(r=>r.left>=box.left-1&&r.top>=box.top-1&&r.right<=box.right+1&&r.bottom<=box.bottom+1);
  check((visual.key.texts.length>0||visual.key.pseudos.some(visiblePseudo))&&!visual.key.fullKey&&textFits(visual.key.texts,visual.key.box),label+' collapsed key shows a bounded summary without full-key overlap',visual.key);
  check(visual.day&&visual.day.texts.length>0&&textFits(visual.day.texts,visual.day.box)&&visual.day.texts.every(text=>!overlaps(text,visual.day.track)),label+' active day text stays readable inside the timeline',visual.day);
- const legend=page.locator('#legendDock');await legend.focus();await page.keyboard.press('Enter');
- await page.waitForFunction(()=>document.getElementById('legendDock')?.getAttribute('aria-expanded')==='true');await settle(page);
+ const legend=page.locator('#nwwMobileLegendToggle');await legend.focus();await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.getElementById('nwwMobileLegendToggle')?.getAttribute('aria-expanded')==='true');await settle(page);
  const opened=await page.evaluate(()=>{const el=document.getElementById('legendDock'),r=el.getBoundingClientRect(),body=document.getElementById('legendBody');return{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:innerWidth,height:innerHeight,bodyVisible:!!body&&body.getClientRects().length>0&&getComputedStyle(body).visibility!=='hidden',scrollWidth:el.scrollWidth,clientWidth:el.clientWidth};});
  check(opened.bodyVisible&&opened.left>=-1&&opened.top>=-1&&opened.right<=opened.width+1&&opened.bottom<=opened.height+1&&opened.scrollWidth<=opened.clientWidth+2,label+' opened key reveals its full legend within the viewport',opened);
  await legend.focus();await page.keyboard.press('Enter');await settle(page);
