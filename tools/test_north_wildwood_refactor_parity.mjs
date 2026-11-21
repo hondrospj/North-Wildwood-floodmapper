@@ -14,8 +14,8 @@ const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToP
 const v41ForecastLink = '        <a id="v41HydrographLink" href="./data/v41/index.html" style="display:inline-block;margin-top:.55rem;color:inherit;text-decoration:underline;">Experimental V41 hydrograph</a>\n';
 const v41DocumentPins = new Map([
   ["index.html", [
-    "1ae737ec7e43fa2715668fffe21c751d5c5e10d3fd74d137744d29224cf535c7",
-    "6a1663321348524c8fd8a3f901c52d1b0451c6025bbb9ff397ada85ad2b839e7"
+    "f6b0a286a105a11338555b049edd0779529321d8c4ed505af2dd079f51d8ae3e",
+    "aab4ff72b525854182715dde91d5b156e55b57cf10a635beb0f2bbff64473a53"
   ]],
   ["tools/app/index.template.html", [
     "8b43172387b14ff4721e07705efe6cf4a686e4bd1f13524040feb403bd76761a",

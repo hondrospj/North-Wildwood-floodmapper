@@ -14,8 +14,8 @@
   "csv_url": "latest.csv",
   "files": {
     "latest.png": {
-      "sha256": "b8aeecc56218ca094e5c44c4e689eca315e98372846e5250788b55b41a9c35cb",
-      "bytes": 635695
+      "sha256": "e1dc11f862a076b5144759dbf616808dd14b2bae75b9cc04edff56ee0abc94b7",
+      "bytes": 661599
     },
     "latest.csv": {
       "sha256": "de790609bf426e8ae71da12642d303d461d8093730bf7eef957d696d37a07e6a",
