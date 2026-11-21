@@ -148,6 +148,8 @@
   for(const item of timeline.querySelectorAll('.timeline-key-item'))for(const node of [...item.childNodes])if(node.nodeType===Node.TEXT_NODE&&node.textContent.trim()){const span=document.createElement('span');span.className='timeline-key-label';span.textContent=node.textContent.trim().replace(/^No flooding$/i,'No Flooding').replace(/^(Minor|Moderate|Major) flooding$/i,'$1');node.replaceWith(span);}
   const bubble=document.getElementById('timelineBubble');if(bubble&&bubble.style.getPropertyValue('translate')!=='none')set(bubble,'translate','none');
   attr(legend,'aria-label','Flood map legend');
+  // The earlier mobile bootstrap can leave its disclosure attributes behind.
+  for(const key of ['role','tabindex','aria-expanded'])legend?.removeAttribute(key);
   attr(legendToggle,'aria-expanded',String(mobile.matches&&body.classList.contains('mobile-legend-open')));
  }
  function setLegend(open){

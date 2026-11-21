@@ -14,8 +14,8 @@ const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToP
 const v41ForecastLink = '        <a id="v41HydrographLink" href="./data/v41/index.html" style="display:inline-block;margin-top:.55rem;color:inherit;text-decoration:underline;">Experimental V41 hydrograph</a>\n';
 const v41DocumentPins = new Map([
   ["index.html", [
-    "f2ceac137240f5de990dd1230c9b3c356b9601cad7e55a85caf4e872cbed7f66",
-    "1b7d720e9ed73fb461183421d4868917621fbc3b5a0503a2d9b7190548d01fab"
+    "f835e5b31c9d853729ca1f224e952d26e372f3c560e580e559f0354f1451c257",
+    "4f24786e424f69b54e8a093ebd13875d273fe37a4acd875673c137191b7860bc"
   ]],
   ["tools/app/index.template.html", [
     "10201e8ed6a0b91c953cf168181f7cf55caf552127fbca63d8d0cc73003a859b",
@@ -37,7 +37,7 @@ const SHARED_APP_PATH = "tools/fixtures/north-wildwood-20261119-common-browser-a
 const priorSharedAppSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-shared-app-snapshot");
 const sharedAppText = readReleaseBytes(SHARED_APP_PATH);
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
-assert.equal(hashReleaseBytes(sharedAppText), "2038a5756675d44f67cfb060b8926513f660e2d95e4f56f0a7cca92e26aa8637", "Retain the exact shared application inverse");
+assert.equal(hashReleaseBytes(sharedAppText), "83046a728a2561efefea787cb25a814f899f40e2fcc5fbce3c283f3126a46f29", "Retain the exact shared application inverse");
 const sharedApp = JSON.parse(sharedAppText);
 assert.equal(sharedApp.schemaVersion, 1);
 assert.equal(sharedApp.baselineCommit, "be43e3a29e9807658e6b19101371e374c29afa30");

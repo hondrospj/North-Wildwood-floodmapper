@@ -117,6 +117,9 @@ try {
     const key = page.getByRole('button',{name:'Legend',exact:true});
     await key.tap();
     await page.waitForFunction(()=>document.getElementById('nwwMobileLegendToggle').getAttribute('aria-expanded')==='true');
+    for (const attr of ['role','tabindex','aria-expanded']) {
+      assert.equal(await page.locator('#legendDock').getAttribute(attr),null,'Only the native Legend button owns disclosure state');
+    }
     const legend = page.locator('#legendList');
     await legend.waitFor({state:'visible'});
     assert.match(await legend.textContent(),/Shallow|Minor/);

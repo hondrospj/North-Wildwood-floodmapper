@@ -378,7 +378,7 @@
     {
       "source": "assets/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "840b4183e7a604c030f66db7b2b47e5d66eaec542b4e7c427496911edf54b0cc",
+      "afterSha256": "b8ee248b43ca13020b17ab9764b664989f1942f8c6d9190d3fc1e6bd4792041d",
       "edits": [
         [
           619,
@@ -422,67 +422,67 @@
         ],
         [
           14545,
-          14836,
+          14999,
           "  const legend=document.getElementById('legendDock');if(legend){attr(legend,'aria-label','Flood map legend');if(mobile.matches){attr(legend,'role','button');legend.tabIndex=0;attr(legend,'aria-expanded',String(body.classList.contains('mobile-legend-open')));}else{legend.removeAttribute('role');legend.removeAttribute('tabindex');legend.removeAttribute('aria-expanded');}}\n"
         ],
         [
-          14874,
-          15589,
+          15037,
+          15752,
           "  const compact=mobile.matches,legend=document.getElementById('legendDock');let mount=document.getElementById('mobileRailMount');\n  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
         ],
         [
-          15752,
-          15812,
+          15915,
+          15975,
           "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
         ],
         [
-          15898,
-          15967,
+          16061,
+          16130,
           "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
         ],
         [
-          15971,
-          16045,
+          16134,
+          16208,
           ""
         ],
         [
-          16135,
-          16259,
+          16298,
+          16422,
           "  if(compact)return legend;\n  return previousFocus===legend?document.getElementById('legendHelpBtn'):previousFocus;\n"
         ],
         [
-          16354,
-          16374,
+          16517,
+          16537,
           ""
         ],
         [
-          17780,
-          18078,
+          17943,
+          18241,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          18374,
-          18616,
+          18537,
+          18779,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
         ],
         [
-          23634,
-          23945,
+          23797,
+          24108,
           ""
         ],
         [
-          24316,
-          24751,
+          24479,
+          24914,
           "  else if(mobile.matches&&event.target.closest('#legendDock')&&!event.target.closest('button')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
         ],
         [
-          24975,
-          25180,
+          25138,
+          25343,
           "  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',false);document.getElementById('legendDock')?.focus();schedule();return;}\n"
         ],
         [
-          25235,
-          26043,
+          25398,
+          26206,
           "   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}\n   else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]')].filter(e=>visible(e)&&e.tabIndex>=0&&!e.closest('[inert]')),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}\n  }else if(event.target.closest('#legendDock')&&!event.target.closest('button')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
         ]
       ]
@@ -699,7 +699,7 @@
     {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "1b7d720e9ed73fb461183421d4868917621fbc3b5a0503a2d9b7190548d01fab",
+      "afterSha256": "4f24786e424f69b54e8a093ebd13875d273fe37a4acd875673c137191b7860bc",
       "edits": [
         [
           115,
@@ -1548,7 +1548,7 @@
     {
       "source": "tools/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "840b4183e7a604c030f66db7b2b47e5d66eaec542b4e7c427496911edf54b0cc",
+      "afterSha256": "b8ee248b43ca13020b17ab9764b664989f1942f8c6d9190d3fc1e6bd4792041d",
       "edits": [
         [
           619,
@@ -1592,67 +1592,67 @@
         ],
         [
           14545,
-          14836,
+          14999,
           "  const legend=document.getElementById('legendDock');if(legend){attr(legend,'aria-label','Flood map legend');if(mobile.matches){attr(legend,'role','button');legend.tabIndex=0;attr(legend,'aria-expanded',String(body.classList.contains('mobile-legend-open')));}else{legend.removeAttribute('role');legend.removeAttribute('tabindex');legend.removeAttribute('aria-expanded');}}\n"
         ],
         [
-          14874,
-          15589,
+          15037,
+          15752,
           "  const compact=mobile.matches,legend=document.getElementById('legendDock');let mount=document.getElementById('mobileRailMount');\n  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
         ],
         [
-          15752,
-          15812,
+          15915,
+          15975,
           "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
         ],
         [
-          15898,
-          15967,
+          16061,
+          16130,
           "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
         ],
         [
-          15971,
-          16045,
+          16134,
+          16208,
           ""
         ],
         [
-          16135,
-          16259,
+          16298,
+          16422,
           "  if(compact)return legend;\n  return previousFocus===legend?document.getElementById('legendHelpBtn'):previousFocus;\n"
         ],
         [
-          16354,
-          16374,
+          16517,
+          16537,
           ""
         ],
         [
-          17780,
-          18078,
+          17943,
+          18241,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          18374,
-          18616,
+          18537,
+          18779,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
         ],
         [
-          23634,
-          23945,
+          23797,
+          24108,
           ""
         ],
         [
-          24316,
-          24751,
+          24479,
+          24914,
           "  else if(mobile.matches&&event.target.closest('#legendDock')&&!event.target.closest('button')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
         ],
         [
-          24975,
-          25180,
+          25138,
+          25343,
           "  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',false);document.getElementById('legendDock')?.focus();schedule();return;}\n"
         ],
         [
-          25235,
-          26043,
+          25398,
+          26206,
           "   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}\n   else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]')].filter(e=>visible(e)&&e.tabIndex>=0&&!e.closest('[inert]')),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}\n  }else if(event.target.closest('#legendDock')&&!event.target.closest('button')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
         ]
       ]
