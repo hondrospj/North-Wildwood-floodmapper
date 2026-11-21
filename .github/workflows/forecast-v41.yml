@@ -49,7 +49,8 @@ jobs:
           from pathlib import Path
 
           now = datetime.now(timezone.utc)
-          previous = datetime.fromisoformat(json.loads((Path(os.environ['RUNNER_TEMP'])/'current.json').read_text())['issue_utc'])
+          published = json.loads((Path(os.environ['RUNNER_TEMP'])/'current.json').read_text())
+          previous = datetime.fromisoformat(published['issue_utc'])
           explicit = os.environ['REQUESTED_ISSUE'].strip()
           if explicit:
               issue = datetime.fromisoformat(explicit)
@@ -59,7 +60,7 @@ jobs:
               issue = now.replace(hour=now.hour//6*6, minute=0, second=0, microsecond=0)
               while issue + timedelta(hours=7, minutes=45 if issue.hour in (0, 12) else 10) > now:
                   issue -= timedelta(hours=6)
-          if not explicit and issue <= previous:
+          if not explicit and (issue < previous or (issue == previous and 'mapForecast' in published)):
               print(f'{previous.isoformat()} is already published.')
           else:
               with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
@@ -80,7 +81,7 @@ jobs:
         if: steps.select.outputs.issue != ''
         env:
           V41_DRIVE_CONFIG_B64: ${{ secrets.V41_DRIVE_CONFIG_B64 }}
-          RUNNER_RELEASE_HASH: '78c2daef8351ef6f9d7e3b4c5ab39171772bb01bc1ec3d71b7906ba86df3ffe6'
+          RUNNER_RELEASE_HASH: 'a063c8949f004677db9d43963e21c259306c3954bf949e650c87b9326327d3ee'
         run: |
           umask 077
           config="$(mktemp)"
@@ -182,6 +183,16 @@ jobs:
           assert manifest['chart_url'] == 'latest.png' and manifest['csv_url'] == 'latest.csv'
           assert datetime.fromisoformat(manifest['first_valid_utc']) == issue + timedelta(hours=1)
           assert datetime.fromisoformat(manifest['last_valid_utc']) == issue + timedelta(hours=horizon)
+          feed = manifest['mapForecast']
+          start = datetime.fromisoformat(feed['forecastStartUtc'])
+          assert datetime.fromisoformat(feed['sourceCycleUtc']) == issue
+          assert feed['sourceCsvSha256'] == manifest['files']['latest.csv']['sha256']
+          assert feed['weatherPaths'] == 103 and feed['experimental'] is True
+          assert datetime.fromisoformat(feed['forecastEndUtc']) == start + timedelta(hours=96)
+          for scenario in ('mean', 'lowEnd', 'highEnd'):
+              rows = feed['scenarioForecasts'][scenario]['hours']
+              assert len(rows) == 97 and all(datetime.fromisoformat(row['timeUtc']) == start + timedelta(hours=i)
+                                            for i, row in enumerate(rows))
           additions = []
           for name in paths:
               raw = Path(name).read_bytes()
@@ -198,7 +209,8 @@ jobs:
               head = api(f'repos/{repo}/git/ref/heads/main', '--jq', '.object.sha')
               live = json.loads(api('-H', 'Accept: application/vnd.github.raw+json',
                   f'repos/{repo}/contents/data/v41/latest.json?ref={head}'))
-              if datetime.fromisoformat(live['issue_utc']) >= issue:
+              live_issue = datetime.fromisoformat(live['issue_utc'])
+              if live_issue > issue or (live_issue == issue and 'mapForecast' in live):
                   print('This issue or a newer issue is already on main.')
                   break
               if datetime.now(timezone.utc) - issue > timedelta(hours=18):

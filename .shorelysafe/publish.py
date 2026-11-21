@@ -17,6 +17,16 @@ ALLOWED = {'.html','.htm','.js','.mjs','.css','.json','.geojson','.csv','.txt','
            '.gif','.webp','.svg','.ico','.tif','.tiff','.wasm','.woff','.woff2','.ttf','.map'}
 TEXT = {'.html','.htm','.js','.mjs','.css','.json','.geojson','.csv','.txt','.svg','.map'}
 
+def rewrite_publish_urls(text, replacements, *, preserve_atlas_base=False):
+    for old, new in replacements:
+        # The North Wildwood atlas resolver requires an absolute Pages base.
+        static_base = '"staticSiteBase":' + json.dumps(old)
+        if preserve_atlas_base and static_base in text:
+            text = static_base.join(part.replace(old, new) for part in text.split(static_base))
+        else:
+            text = text.replace(old, new)
+    return text
+
 def prepare(app, source, apps):
     names = subprocess.check_output(['git','ls-files','-z'], cwd=source).decode().split('\0')
     replacements = [('https://hondrospj.github.io/' + a['repository'].split('/')[1] + '/', a['path']) for a in apps]
@@ -32,8 +42,8 @@ def prepare(app, source, apps):
         if data.startswith(b'version https://git-lfs.github.com/spec/v1'):
             raise ValueError('Git LFS object was not downloaded: ' + name)
         if p.suffix.lower() in TEXT:
-            text = data.decode('utf-8')
-            for old,new in replacements: text = text.replace(old,new)
+            preserve_atlas_base = app['id'] == 'floodmapper--north-wildwood' and name == 'index.html'
+            text = rewrite_publish_urls(data.decode('utf-8'), replacements, preserve_atlas_base=preserve_atlas_base)
             data = text.encode('utf-8')
         sha = hashlib.sha256(data).hexdigest()
         files.append({'path':name,'sha256':sha,'size':len(data)})

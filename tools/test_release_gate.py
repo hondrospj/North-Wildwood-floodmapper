@@ -365,6 +365,22 @@ class PublisherTests(unittest.TestCase):
         self.git_status = patch.object(PUBLISHER.subprocess, "check_output", return_value="").start()
         self.addCleanup(patch.stopall)
 
+    def test_publish_preserves_north_wildwoods_absolute_atlas_base(self):
+        app = {**self.app, "repository": "hondrospj/North-Wildwood-floodmapper",
+               "path": "/shorelysafe/floodmapper/north-wildwood/"}
+        pages = "https://hondrospj.github.io/North-Wildwood-floodmapper/"
+        html = f'<template>{{"staticSiteBase":"{pages}"}}</template><a href="{pages}">Map</a>'
+        json_file = f'{{"staticSiteBase":"{pages}"}}'
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)
+            (source / "index.html").write_text(html)
+            (source / "links.json").write_text(json_file)
+            self.git_status.side_effect = [b"index.html\0links.json\0", SHA]
+            manifest, payloads = PUBLISHER.prepare(app, source, [app])
+        published = {entry["path"]: payloads[entry["sha256"]][1].decode() for entry in manifest["files"]}
+        self.assertEqual(published["index.html"], html.replace(f'href="{pages}"', f'href="{app["path"]}"'))
+        self.assertEqual(published["links.json"], json_file.replace(pages, app["path"]))
+
     def test_mismatched_checkout_never_calls_publishing_api(self):
         with patch.object(PUBLISHER, "prepare", return_value=(self.manifest, {})), patch.object(PUBLISHER, "api") as api:
             with self.assertRaisesRegex(ValueError, "validated release"):
