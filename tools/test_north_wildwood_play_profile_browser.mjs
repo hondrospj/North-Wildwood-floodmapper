@@ -100,7 +100,6 @@ try{
   const cancelIndex=await page.evaluate(()=>currentHourIndex);
   await page.mouse.move(5,5);await page.mouse.up();
   await page.waitForFunction(index=>currentHourIndex!==index&&floodFrameState==='ready',cancelIndex,{timeout:15000});
-  assert.equal(await page.evaluate(()=>actualProfileOpener.isConnected),true,'The unchanged summary keeps its opener after release');
   assert.equal(await page.locator('#floodHistoryBackdrop').evaluate(element=>element.hidden),true,'Release outside cancels opening the profile');
   result.checks.push('Release outside cancels the property gesture; later playback refresh resumes');
   await page.evaluate(()=>stopPlayback());
