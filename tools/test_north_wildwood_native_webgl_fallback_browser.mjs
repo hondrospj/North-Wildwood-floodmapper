@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { changeMapView, twoFingerMapGesture } from './browser_map_view.mjs';
+import { changeMapView, touchMapGesture } from './browser_map_view.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -138,7 +138,7 @@ try {
             currentFloodLayer?._floodmapperFrame?.overlayMode === 'dynamic');
         }
         await setLayerPreferences(page);
-        if (profile === 'touch') await twoFingerMapGesture(page, { spread: 65 });
+        if (profile === 'touch') await touchMapGesture(page, { spread: 65 });
         else await page.locator('.nw-simple-zoom-in').click();
         await page.waitForFunction(() => NORTH_WILDWOOD_3D.getMap().getZoom() === map.getZoom());
       }
@@ -189,7 +189,7 @@ try {
         if (process.env.NWW_AUDIT_OUTPUT) {
           await page.screenshot({ path: path.join(output, `${profile}-leaflet-fallback.png`) });
         }
-        if (profile === 'touch') await twoFingerMapGesture(page, { spread: 65 });
+        if (profile === 'touch') await touchMapGesture(page, { spread: 65 });
         else await page.locator('.nw-simple-zoom-in').click();
         await page.waitForFunction(zoom => map.getZoom() > zoom, fallback.leafletZoom);
         const move = await page.evaluate(() => currentHourIndex < currentSeriesHours.length - 1 ? 'ArrowRight' : 'ArrowLeft');
