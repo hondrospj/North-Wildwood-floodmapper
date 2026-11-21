@@ -1692,27 +1692,10 @@
 
   function buildBuildingPopupHtml(properties) {
     var p = properties || {};
-    var address = escapeTownAddressHtml(p.address || p.osmName || "North Wildwood building");
-    var crawlspaceDepth = finiteBuildingNumber(p.foundationHeightFt);
-    var firstFloor = finiteBuildingNumber(p.modeledFirstFloorNavd88Ft);
-    var stage = finiteBuildingNumber(getSelectedStageNavd88());
-    var difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : NaN;
-    var status = !Number.isFinite(firstFloor)
-      ? "Estimated occupied-floor elevation is unavailable."
-      : !Number.isFinite(difference)
-        ? "Choose a water level to compare."
-        : Math.abs(difference) <= 0.1
-          ? "Current water is at the estimated occupied floor."
-          : difference > 0
-            ? "Current water is " + formatWaterDepth(difference, 1) + " above the estimated occupied floor."
-            : "Current water is " + formatWaterDepth(Math.abs(difference), 1) + " below the estimated occupied floor.";
+    var address = escapeTownAddressHtml(p.address || p.osmName || `${TOWN_CONFIG.site.name} building`);
     return '<div class="nsi-structure-popup building-info-card">' +
       '<span class="house-alert-kicker">Building</span>' +
       '<h3>' + address + '</h3>' +
-      '<div class="building-info-facts">' +
-        '<div><span>Crawlspace / garage depth</span><strong>' + (Number.isFinite(crawlspaceDepth) ? formatWaterDepth(crawlspaceDepth, 1) : '—') + '</strong></div>' +
-        '<p>' + escapeTownAddressHtml(status) + '</p>' +
-      '</div>' +
       '</div>';
   }
 
@@ -1942,7 +1925,7 @@
     // footprints. Do not extrude basemap context outside North Wildwood.
     document.body.dataset.buildings3dFallbackLayers = "0";
     document.body.dataset.buildings3dContextLayers = "0";
-    document.body.dataset.buildings3dCoverage = "north-wildwood-only";
+    document.body.dataset.buildings3dCoverage = TOWN_CONFIG.compatibility.buildingsCoverage;
     document.body.dataset.buildings3dClippedToMunicipality = "true";
 
     // Road symbols come from the shared scalable vector style.
@@ -1982,6 +1965,25 @@
     glMap.on("click", async function (event) {
       // Popup controls must not also select the building beneath them.
       if (event.originalEvent?.target?.closest?.(".maplibregl-popup")) return;
+      if (mapClickMode === "building" && layerVisible("nsiStructuresToggle", false) && glMap.getLayer("nw-nsi-points")) {
+        var structureHits = glMap.queryRenderedFeatures(event.point, { layers: ["nw-nsi-points"] });
+        if (structureHits.length) {
+          beginMapQuery();
+          // The ground coordinate below a 3D marker can be closer to another structure.
+          var footprintIds = new Set(structureHits.map(hit => hit.properties?.footprintId));
+          var [structureFootprintId] = footprintIds;
+          var structure = footprintIds.size === 1 && structureFootprintId
+            ? nsiStructureFeatures.find(feature => feature.properties?.footprintId === structureFootprintId)
+            : null;
+          if (structure) {
+            var [lon, lat] = structure.geometry.coordinates;
+            openNsiStructurePopup(structure, L.latLng(lat, lon));
+          } else {
+            toast("Tap a single highlighted structure to see its estimate.");
+          }
+          return;
+        }
+      }
       var buildingsEnabled = layerVisible("buildingsToggle", false);
       var buildingLayerId = glMap.getPitch() > 10 ? "nw-3d-buildings" : "nw-2d-buildings";
       if (buildingsEnabled && mapClickMode === "building" && glMap.getLayer(buildingLayerId)) {
@@ -2156,7 +2158,7 @@
       if (!container) throw new Error("The 3D map container is unavailable.");
       var style = await load3dStyle();
       requireCurrent();
-      var leafletCenter = map && map.getCenter ? map.getCenter() : { lng: -74.7998357, lat: 39.006945 };
+      var leafletCenter = map && map.getCenter ? map.getCenter() : { lng: TOWN_CONFIG.map.center.lon, lat: TOWN_CONFIG.map.center.lat };
       var leafletZoom = map && map.getZoom ? map.getZoom() : 13;
       var mobileRenderer = window.matchMedia("(pointer: coarse), (max-width: 900px)").matches;
       glMap = new maplibregl.Map({
@@ -2628,7 +2630,22 @@
       event.preventDefault();
       applyViewpoint(bearings[event.key], 0);
     });
-    host.appendChild(control);
+    var drawerView = document.getElementById("nwwDrawerViewMode");
+    function placeViewControl() {
+      var container = drawerView && isCompactFloodmapperLayout() ? drawerView : host;
+      if (control.parentElement === container) return;
+      var focus = control.contains(document.activeElement);
+      container.appendChild(control);
+      if (focus) {
+        var target = container === drawerView && !document.body.classList.contains("mobile-controls-open")
+          ? document.getElementById("mobileControlsToggle") : launcher;
+        requestAnimationFrame(function () {
+          if (document.activeElement === document.body && !target?.closest("[inert]")) target?.focus({ preventScroll: true });
+        });
+      }
+    }
+    placeViewControl();
+    if (drawerView) floodmapperLayoutMedia.addEventListener("change", placeViewControl);
     control.dataset.wheelCameraUpdates = "raf-latest-plus-final-commit";
     control.dataset.wheelPreview3dMs = "animation-frame";
     control.dataset.wheelPreview2dMs = "animation-frame";

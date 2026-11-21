@@ -312,7 +312,8 @@ function nsiFixture() {
   const oldLayer = { _floodmapperFrame: { stage: 8 } }, layers = new Set([oldLayer]), slider = { value: '0' };
   const point = { feature, setStyle(style) { currentStyle = style; }, on(type, fn) { if (type === 'click') directClick = fn; } };
   const markerGroup = { eachLayer(fn) { fn(point); } };
-  const context = vm.createContext({ console, mapClickMode: 'building', currentSeriesHours: [{ stage: 8 }, { stage: 1 }, { stage: null }],
+  const context = vm.createContext({ console, mapClickMode: 'building',
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config, currentSeriesHours: [{ stage: 8 }, { stage: 1 }, { stage: null }],
     currentRawSeriesHours: [], currentHourIndex: 0, currentOverlayMode: 'depth', currentDataMode: 'observed', lastRenderToken: 0,
     currentFloodLayer: oldLayer, pendingFloodLayer: null, renderedFloodPixelCache: null, floodFrameState: 'ready',
     persistentDepthQueryContext: null, persistentFloodPopup: null, nsiStructuresLayer: markerGroup,

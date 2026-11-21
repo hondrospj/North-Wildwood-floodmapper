@@ -1,10 +1,13 @@
+const FLOODMAPPER_TOWN_DATA = JSON.parse(document.getElementById('floodmapperTownData').content.textContent);
 
 (() => {
   window.floodmapperUiLogoUrl = (value, configuredPath = value) => {
     if (!/(?:\/Logos\/ShorelySafe\.jpg|\/assets\/shorelysafe)(?:[?#].*)?$/i.test(String(configuredPath || ""))) return value;
     const path = "assets/shorelysafe-logo-ui.webp";
     const published = window.SHORELYSAFE_BUNNY_ASSETS;
-    return published?.files?.[path] ? published.base + published.files[path] : new URL(path, window.location.href).href;
+    if (published?.files?.[path]) return published.base + published.files[path];
+    const fallback = FLOODMAPPER_TOWN_DATA.assets?.localBrandFallbackPath;
+    return fallback ? new URL(fallback, window.location.href).href : value;
   };
   window.floodmapperAfterFirstFrame = task => {
     const deadline = performance.now() + 15000;

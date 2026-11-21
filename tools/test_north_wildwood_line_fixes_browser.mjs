@@ -19,6 +19,9 @@ if (output) fs.mkdirSync(output,{recursive:true});
 const results = [];
 async function ready(page) {
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready') && floodFrameState==='ready',{}, {timeout:90000});
+  // Quiet loading hides the overlay visually before controls are released.
+  await page.waitForFunction(()=>document.getElementById('nwSiteLoader')?.hidden === true &&
+   document.getElementById('app')?.inert === false);
   await page.locator('#nwSiteLoader').waitFor({state:'hidden'});
 }
 async function choiceText(page,selector,expectedIds) {
@@ -136,11 +139,12 @@ async function headerText(page) {
     return {title:text('h2'),subtitle:text('p'),tabs:rect(e.querySelector('.nww-control-tabs').getBoundingClientRect())};
   });
   const inside=(a,b)=>a.left>=b.left-1&&a.right<=b.right+1&&a.top>=b.top-1&&a.bottom<=b.bottom+1;
-  for(const item of [header.title,header.subtitle])assert.ok(item.text&&item.lines.length&&item.lines.every(line=>inside(line,item.box)),JSON.stringify(header));
-  assert.ok(header.title.box.bottom<=header.subtitle.box.top+1&&header.subtitle.box.bottom<=header.tabs.top+1,JSON.stringify(header));
+  const title = header.title;
+  assert.ok(title.text && title.lines.length && title.lines.every(line => inside(line, title.box)), JSON.stringify(header));
+  assert.equal(header.subtitle.lines.length, 0, "The compact drawer omits the duplicate map title");
+  assert.ok(title.box.bottom <= header.tabs.top + 1, JSON.stringify(header));
   if(name!=='firefox'||minimumFont===0){
-    assert.ok(Math.abs(parseFloat(header.title.lineHeight)-24)<0.1,JSON.stringify(header));
-    assert.ok(Math.abs(parseFloat(header.subtitle.lineHeight)-16)<0.1,JSON.stringify(header));
+    assert.ok(Math.abs(parseFloat(header.title.lineHeight)-26)<0.1,JSON.stringify(header));
   }
   const tabs=await choiceText(page,'#nwwMobileControlHeader [role="tab"]',['forecast','map','tools']);
   return {...header,tabChoices:tabs};

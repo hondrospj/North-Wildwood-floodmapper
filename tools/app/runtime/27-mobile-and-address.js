@@ -1,4 +1,8 @@
     function wireLayerToggles() {
+      document.querySelector(".layer-list")?.addEventListener("click", event => {
+        if (!isCompactFloodmapperLayout() || event.target.closest("button, a, [role='switch']")) return;
+        event.target.closest(".layer-item")?.querySelector("[role='switch']")?.click();
+      });
       for (const [id, mode] of [["mapClickBuildingBtn", "building"], ["mapClickParcelBtn", "parcel"], ["mapClickDepthBtn", "depth"]]) {
         document.getElementById(id)?.addEventListener("click", () => {
           if (cancelPendingTownAddressLookup()) setTownAddressStatus("");
@@ -750,42 +754,51 @@
       {
         title: "Welcome to the Floodmapper",
         target: "#mapTitleBadge",
-        body: "<p>This map turns water levels into a street-level picture of potential flooding. You can explore the next several days, replay measured events, click the map for modeled depth, inspect parcels, and export what you see.</p><p><strong>Every mapped depth is referenced to the selected water level and the ground-elevation model.</strong></p>"
+        body: "<p>Try the controls as you go. You’ll compare flood forecasts, move through time, and change what the map shows.</p>"
       },
       {
         title: "Start with the forecast",
-        target: ".data-source-card",
-        body: "<p>Select <strong>Forecast</strong> to explore the forecast water levels and mapped flooding.</p><p>The map and timeline update together, so the selected hour is always the water level being mapped.</p>"
+        target: "#forecastScenarioCard",
+        fallback: ".data-source-card",
+        practice: "forecast",
+        body: "<p>Compare <strong>Likely</strong> and <strong>Worst Case</strong> in Forecast Range. Watch the same time on the map as the forecast changes.</p>"
       },
       {
         title: "Switch to observations",
         target: ".data-source-card",
-        body: "<p>Select <strong>Past</strong> to explore the tide-gauge archive. Use <strong>Interval</strong> in the left pane to switch among Hourly, 15-Min, and Daily Max views.</p>"
+        practice: "past",
+        body: "<p>Choose <strong>Past</strong> to replay measured tide levels. Use <strong>Interval</strong> to switch between Hourly, 15-Min, and Daily Max.</p>"
       },
       {
         title: "Choose a historic flood",
         target: "#calendarCard",
-        body: "<p>The calendar is your archive. Colored dates mark flood thresholds; choose a day or type a date to replay it. Crest-only records show the maximum extent when a full time series was not preserved.</p>"
+        fallback: ".data-source-card",
+        practice: "calendar",
+        body: "<p>In <strong>Past</strong>, pick a date from the calendar. The date color shows the highest flood stage recorded that day.</p>"
       },
       {
         title: "Move through time",
         target: "#timelineDock",
-        body: "<p>Drag the slider to move the map through time, or press Play to animate it. The selected date, time, water level, and mapped depth always stay synchronized.</p>"
+        practice: "time",
+        body: "<p>Step through time and watch the water level change. On the map, drag the timeline slider or press <strong>Play</strong> to animate it.</p>"
       },
       {
         title: "Control map layers",
         target: ".layers-card",
-        body: "<p>Turn on <strong>Buildings</strong> for floor flood history and projections, or <strong>Parcels</strong> for flooded area and depth.</p>"
+        practice: "layers",
+        body: "<p>Try toggling <strong>Road Names</strong>. Use the <strong>?</strong> at the top right of Layers to see what every switch does.</p>"
       },
       {
         title: "Jump to the largest floods",
         target: ".mobile-top-tides-card, .top-tides-card",
-        body: "<p>The Top 10 list is the fastest way to inspect the archive's highest crests. Select an event to move the calendar, timeline, water-level readout, and inundation map to that flood.</p>"
+        practice: "crest",
+        body: "<p><strong>Top 10</strong> ranks the archive’s highest crests. From that list, choose a flood to see how far the water reached.</p>"
       },
       {
         title: "Export and share",
         target: "#downloadCard",
-        body: "<p>Open the export panel to save a single PNG, a PNG sequence, or an animated GIF. Set the time range, frame interval, layout, speed, and labels before export.</p><p>Exports preserve the map, timestamp, datum, depth key, and branding so the result can stand on its own.</p>"
+        practice: "export",
+        body: "<p>Save one map as a <strong>PNG</strong>, or export a time range as a PNG sequence or an animated <strong>GIF</strong>.</p>"
       }
     ];
     let mapperTutorialIndex = 0;

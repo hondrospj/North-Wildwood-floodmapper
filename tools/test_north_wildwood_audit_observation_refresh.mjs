@@ -7,9 +7,7 @@ import {fileURLToPath} from 'node:url';
 
 const toolDir = path.dirname(fileURLToPath(import.meta.url));
 const runtimeDir = process.env.NORTH_WILDWOOD_AUDIT_RUNTIME_ROOT || path.join(toolDir, 'app/runtime');
-const configSource = fs.readFileSync(path.join(toolDir, 'app/town-config.js'), 'utf8');
-const configStart = configSource.indexOf('TOWN_CONFIG = {') + 'TOWN_CONFIG = '.length;
-const config = JSON.parse(configSource.slice(configStart, configSource.indexOf('\n};', configStart) + 2));
+const config = JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
 const parts = ['00-configuration', '02-data-and-datums', '03-time-series', '04-observation-archives',
   '06-inundation-catalog', '11-export-selection', '13-export-range', '17-export-encoding',
   '18-flood-frame-rendering', '19-observed-history', '21-forecast-and-observed-loading'];
@@ -34,6 +32,7 @@ function setup(now = '2026-11-02T17:00:00Z', date = '2026-11-02') {
   const c = vm.createContext({
     URL, Date: TestDate, Intl, Map, Set, Number, Math, Promise, archiveGeneration: 0,
     console: {warn(...args) {warnings.push(args);}},
+    document: {},
     window: {location: {href: 'https://example.test/north-wildwood/'}}, config,
     clearExportAvailabilityCache() {}
   });

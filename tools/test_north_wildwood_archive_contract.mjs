@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const html=readAppSource(new URL('../index.html',import.meta.url));
 function extract(name){const start=html.search(new RegExp('^    (?:async )?function '+name+'\\(','m'));assert(start>=0,name);return html.slice(start,html.indexOf('\n    }',start)+6);}
 function context(names,extra={}){
-  const c=vm.createContext({Map,Set,Number,Math,Date,Promise,console:{warn(){}},archiveGeneration:0,observedArchiveLoadedYears:new Set(),observedArchiveUnavailableYears:new Set(),observedArchiveYearPromises:new Map(),observed15MinuteDaysByDate:new Map(),lewesHourlyDaysByDate:new Map(),observedData:null,observedDaysCache:null,clearExportAvailabilityCache(){},...extra});
+  const c=vm.createContext({Map,Set,Number,Math,Date,Promise,console:{warn(){}},archiveGeneration:0,observed15MinuteData:null,TOWN_CONFIG:JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config,observedArchiveLoadedYears:new Set(),observedArchiveUnavailableYears:new Set(),observedArchiveYearPromises:new Map(),observed15MinuteDaysByDate:new Map(),lewesHourlyDaysByDate:new Map(),observedData:null,observedDaysCache:null,clearExportAvailabilityCache(){},...extra});
   for(const name of names)vm.runInContext(extract(name),c);
   return c;
 }

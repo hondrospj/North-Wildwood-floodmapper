@@ -114,7 +114,7 @@ async function testCompact(page,label){
 async function geometryChecks(page,label,mustKeepDesktop){
  await settle(page);const row=await inspect(page,label);
  check(!row.rootOverflow,label+' page does not extend beyond the viewport',row);
- for(const key of ['timeline','bubble','title','nav'])check(contained(row[key],row),label+' '+key+' stays visible',row);
+ for(const key of ['timeline','bubble','title',...(row.layout==='desktop'?['nav']:[])])check(contained(row[key],row),label+' '+key+' stays visible',row);
  check(!overlaps(row.title,row.nav),label+' title and navigation do not overlap',row);
  check(!overlaps(row.nav,row.timeline),label+' navigation and timeline do not overlap',row);
  check(!!row.key,label+' flood category key remains visible',row);
@@ -142,7 +142,7 @@ async function geometryChecks(page,label,mustKeepDesktop){
    check(Math.abs(row.left.box.width-300)<=1&&Math.abs(row.right.box.width-280)<=1,label+' retains established sidebar widths',row);
   }
  }else{
-  check(!!row.toggle,label+' provides the compact controls button',row);
+  check(!!row.toggle&&!row.nav,label+' puts map view in Controls and hides the map navigation stack',row);
   await testCompact(page,label);
  }
 }

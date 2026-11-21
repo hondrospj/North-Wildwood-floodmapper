@@ -61,6 +61,15 @@ try{
   result.heldGesture=await page.evaluate(()=>profileGesture.slice(0,3));
   assert.deepEqual(result.heldGesture.map(event=>event.type),['pointerdown','pointerup','click']);
   assert.ok(result.heldGesture.every(event=>event.isTrusted&&event.targetIsCta&&event.originalConnected),'The original CTA must survive the held native gesture');
+  const profileOpenIndex=await page.evaluate(()=>currentHourIndex);
+  await page.waitForFunction(index=>currentHourIndex!==index&&floodFrameState==='ready',profileOpenIndex,{timeout:15000});
+  assert.equal(await page.evaluate(()=>actualProfileOpener.isConnected),true,'The building summary stays attached across playback frames');
+  await page.evaluate(()=>{
+    // Building summaries no longer contain frame-dependent values. Trigger an
+    // explicit same-property update to exercise restoration to a new opener.
+    const html=buildHouseAlertPopup(persistentDepthQueryContext.feature);
+    updatePropertyPopup(persistentFloodPopup,html+'<!-- focus restoration fixture -->');
+  });
   await page.waitForFunction(()=>!window.actualProfileOpener.isConnected,{}, {timeout:15000});
   result.beforeClose=await page.evaluate(()=>({playing:!!playTimer,oldConnected:actualProfileOpener.isConnected,index:currentHourIndex}));
   await page.keyboard.press('Escape');
@@ -88,12 +97,13 @@ try{
   await page.waitForFunction(()=>window.actualProfileOpener,{}, {timeout:15000});
   await page.waitForTimeout(700);
   assert.equal(await page.evaluate(()=>actualProfileOpener.isConnected),true,'A held CTA stays connected during animation');
+  const cancelIndex=await page.evaluate(()=>currentHourIndex);
   await page.mouse.move(5,5);await page.mouse.up();
-  await page.waitForFunction(()=>!actualProfileOpener.isConnected,{}, {timeout:15000});
+  await page.waitForFunction(index=>currentHourIndex!==index&&floodFrameState==='ready',cancelIndex,{timeout:15000});
   assert.equal(await page.locator('#floodHistoryBackdrop').evaluate(element=>element.hidden),true,'Release outside cancels opening the profile');
   result.checks.push('Release outside cancels the property gesture; later playback refresh resumes');
   await page.evaluate(()=>stopPlayback());
-  result.checks.push('Actual property opener replaced during playback; Escape restores same-property CTA and three later frames preserve focus');
+  result.checks.push('Building opener stays stable in playback, and Escape restores focus even after an explicit same-property replacement');
   assert.deepEqual(result.errors,[]);result.passed=true;
 }catch(error){result.failure=error.stack;throw error;}
 finally{

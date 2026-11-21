@@ -13,6 +13,7 @@ let now = cutoff;
 const status = {dataset:{}, style:{setProperty(){}}, textContent:'', hidden:true};
 const timers = new Map();
 const context = vm.createContext({
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config,
   Date: {parse:Date.parse, now:()=>now}, currentDataMode:'forecast', forecastData:data, currentFloodLayer:null,
   document: {getElementById:id=>id==='floodFrameStatus'?status:null},
   formatFixedESTFromUtc(value, includeYear) {assert.equal(includeYear,true);return value;},
@@ -39,10 +40,14 @@ context.setFloodFrameStatus('Frame retry in progress.','error');
 assert.match(status.textContent,/over 72 hours old.*Frame retry in progress/);
 assert.equal(status.dataset.state,'error');
 advance(end);
-assert.match(status.textContent,/Forecast expired 2026-11-12T05:00:00.000Z/);
+assert.equal(context.getForecastFreshness(data, now).state, 'expired');
+assert.equal(context.getForecastFreshness(data, now).timestamp, data.forecastEndUtc);
+assert.equal(status.textContent, 'Frame retry in progress.');
+assert.equal(status.hidden, false, 'Expiry must not hide an existing frame error');
 assert.equal(timers.size,0);
 context.setFloodFrameStatus('', 'info');
-assert.match(status.textContent,/Forecast expired/);
+assert.equal(status.textContent, '');
+assert.equal(status.hidden, true, 'The expired notice is omitted');
 context.currentDataMode='observed';
 context.scheduleForecastFreshnessNotice();
 assert.equal(status.hidden,true);
@@ -55,9 +60,11 @@ context.forecastData={petssCycleUtc:new Date(now).toISOString(), forecastEndUtc:
 context.currentDataMode='forecast';
 context.currentFloodLayer={_floodmapperFrame:{forecastSource:data}};
 context.scheduleForecastFreshnessNotice();
-assert.match(status.textContent,/Forecast expired/, 'A fresh payload must wait for its rendered image');
+assert.equal(context.getForecastFreshness(context.getForecastSourceForNotice(), now).state, 'expired', 'A fresh payload must wait for its rendered image');
+assert.equal(context.getForecastSourceForNotice().forecastEndUtc, data.forecastEndUtc);
+assert.equal(status.hidden, true);
 context.currentFloodLayer={_floodmapperFrame:{forecastSource:context.forecastData}};
 context.scheduleForecastFreshnessNotice();
 assert.equal(status.hidden,true);
 assert.equal([...timers.values()][0].time,now+3600000);
-console.log('Forecast freshness passed: exact age and expiry, existing status, alternate modes, and a newer forecast.');
+console.log('Forecast freshness passed: omitted expired notice, retained age/expiry state, existing status, alternate modes, and accurate rendered sources.');

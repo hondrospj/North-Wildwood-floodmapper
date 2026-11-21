@@ -566,8 +566,8 @@ function populateCalendarSelectors() {
       if (forecastSelectionPending || loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) return;
       if (currentDataMode === "return-interval" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {
         setFloodFrameStatus(currentFloodLayer
-          ? "Loading modeled flood… Previous flood map shown."
-          : "Loading modeled flood…", "info");
+          ? ""
+          : "", "info");
         return;
       }
       await renderHour(index);
@@ -634,12 +634,12 @@ function populateCalendarSelectors() {
       syncSliderBounds();
       document.getElementById("hourSlider").value = "0";
       renderSelectionMeta(null, null, null);
-      document.getElementById("stageSubText").textContent = "Loading observed history…";
+      document.getElementById("stageSubText").textContent = "";
       renderTimelineMeta();
       renderTimelineDays();
       const loadingMessage = currentFloodLayer
-        ? "Loading observed history… Previous flood map shown."
-        : "Loading observed history…";
+        ? ""
+        : "";
       setFloodFrameStatus(loadingMessage, "info");
       await warmBackgroundData();
       if (generation !== selectionGeneration) return;

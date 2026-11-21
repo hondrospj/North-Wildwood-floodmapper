@@ -272,6 +272,13 @@
       const roadsEnabled = document.getElementById("roadsToggle")?.classList.contains("on");
       const zoom = exportMap.getZoom() || 0;
       const showLabels = roadsEnabled && zoom >= ROAD_LABEL_ZOOM;
+      const attribution = document.getElementById("exportMapAttribution");
+      if (attribution && TOWN_CONFIG.assets?.exportRoadFallback === true) {
+        const localSource = showLabels && window.NORTH_WILDWOOD_EXPORT_ROADS?.getAttribution?.();
+        const baseAttribution = "Map: Esri, HERE, Garmin, USGS, © OpenStreetMap contributors";
+        attribution.textContent = localSource && localSource !== "OpenStreetMap contributors"
+          ? `${baseAttribution} · Local road names: ${localSource}` : baseAttribution;
+      }
       // A hidden road pane needs no WebGL context. Keep an initialized layer
       // for later frames and retries once the selected extent can show it.
       if (showLabels && !exportRoadsLayer) mountExportRoadLayer();

@@ -5,9 +5,7 @@ import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('app/runtime/27-mobile-and-address.js', import.meta.url), 'utf8');
 const parcelSource = fs.readFileSync(new URL('app/runtime/25-structures-and-parcels.js', import.meta.url), 'utf8');
-const configSource = fs.readFileSync(new URL('app/town-config.js', import.meta.url), 'utf8');
-const configStart = configSource.indexOf('TOWN_CONFIG = {') + 'TOWN_CONFIG = '.length;
-const config = JSON.parse(configSource.slice(configStart, configSource.indexOf('\n};', configStart) + 2));
+const config = JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
 const flush = async () => { for (let n = 0; n < 20; n++) await Promise.resolve(); };
 
 function setup(fetchResult) {

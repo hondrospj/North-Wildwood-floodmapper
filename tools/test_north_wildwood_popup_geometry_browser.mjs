@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { changeMapView } from './browser_map_view.mjs';
 
 const playwright = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
 const name = process.env.NWW_BROWSER || "chromium";
@@ -59,7 +60,7 @@ try {
 
       for (const renderer of ["leaflet", "maplibre"]) {
         if (renderer === "maplibre") {
-          await page.locator(".nw-simple-view").click();
+          await changeMapView(page);
           await page.waitForFunction(() => NORTH_WILDWOOD_3D.state().ready, {}, { timeout: 45000 });
         }
         const popup = page.locator(renderer === "leaflet" ? ".shorely-flood-popup:visible" : ".maplibregl-popup:visible");

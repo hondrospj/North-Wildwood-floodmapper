@@ -15,14 +15,17 @@ const roadPath = "**/assets/roads/north-wildwood-road-centerlines.geojson";
 try {
   for (const { width, height, touch } of viewports) {
     const page = await browser.newPage({ viewport: { width, height }, isMobile: touch, hasTouch: touch, reducedMotion: "reduce" });
+    let releaseOutage;
     try {
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
       let requests = 0;
-      let releaseOutage;
+      let receiveOutage;
       const outage = new Promise(resolve => { releaseOutage = resolve; });
+      const requested = new Promise(resolve => { receiveOutage = resolve; });
       await page.route(roadPath, async route => {
         if (++requests !== 1) return route.continue();
+        receiveOutage();
         await outage;
         return route.fulfill({ status: 503, contentType: "text/plain", body: "Injected transient road data outage" });
       });
@@ -32,7 +35,7 @@ try {
 
       const toggle = page.locator("#roadImpactsToggle");
       const key = page.locator("#roadImpactsKey");
-      const status = key.getByRole("status");
+      const status = page.locator("#roadImpactsStatus");
       const activate = () => touch ? toggle.tap() : toggle.press("Space");
       const openLayers = async () => {
         if (!touch) return;
@@ -51,10 +54,11 @@ try {
       await openLayers();
       await activate();
       await waitState("loading");
+      await requested;
       await closeLayers();
-      await key.waitFor();
-      assert.match(await status.textContent(), /Loading road impacts/);
-      assert.ok(await status.evaluate(el => el.getBoundingClientRect().width > 1), "pending state is visible");
+      assert.equal(await page.locator("body").getAttribute("data-road-impacts-state"), "loading",
+        "The actual road request remains pending until the test releases it");
+      assert.equal(await status.isVisible(), false, "Pending road loading text stays hidden");
       assert.equal(await key.locator(".road-impacts-swatch").isVisible(), false);
       releaseOutage();
       await waitState("failed");
@@ -88,12 +92,13 @@ try {
       else await overlayHelp.press("Enter");
       const info = page.locator("#infoModal");
       await info.waitFor();
-      assert.match(await info.locator("#infoModalBody").textContent(), /Road Impacts.*modeled surface below the deck/s);
+      assert.match(await info.locator("#infoModalBody").textContent(), /Roads With 6\+ Inches of Water.*modeled surface below the deck/s);
       await page.keyboard.press("Escape");
       await info.waitFor({ state: "hidden" });
       assert.deepEqual(errors, []);
       console.log(`${engine} ${width}×${height} shows the road failure and restores the ordinary key after retry.`);
     } finally {
+      releaseOutage?.();
       await page.close();
     }
   }

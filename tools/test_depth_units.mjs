@@ -76,6 +76,13 @@ if (html.includes('function v11PopupHtml(')) {
     const building = context.buildHouseAlertPopup({properties: {modeledFirstFloorNavd88Ft: 0, foundationHeightFt: 0.5}});
     assert.ok(building.includes('6 in above'));
     assert.ok(building.includes('<strong>6 in</strong>'));
+    const missingFloor = context.buildHouseAlertPopup({properties: {
+      address: 'Example parcel', modeledFirstFloorNavd88Ft: null, foundationHeightFt: 0.5,
+    }});
+    assert.doesNotMatch(missingFloor, /<p>/);
+    assert.match(missingFloor, /<h3>Example parcel<\/h3>/);
+    assert.ok(missingFloor.includes('<strong>6 in</strong>'));
+    assert.ok(missingFloor.includes('See Flood History &amp; Projections'));
 
     // Execute the physics map-click path, including conversion from meters.
     let popup;

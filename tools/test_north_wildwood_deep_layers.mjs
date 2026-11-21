@@ -50,8 +50,9 @@ function fixture({ metadataGate, nsiGate, wrappers = false } = {}) {
   const features = [{ geometry: { type: 'Polygon', coordinates: [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]] }, properties: { centroidLat: 1, centroidLon: 1 } }];
   const map = { hasLayer: layer => layers.has(layer), removeLayer: layer => layers.delete(layer) };
   const context = vm.createContext({ console, Promise, Error, Number, Boolean,
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config,
     window: { setTimeout(fn, ms) { timers.set(++nextTimer, { fn, ms }); return nextTimer; }, clearTimeout: id => timers.delete(id) },
-    document: { getElementById: element }, map, ensureMap() {}, toast: value => notices.push(value),
+    document: { getElementById: element, querySelector: () => null }, map, ensureMap() {}, toast: value => notices.push(value),
     parcelLoadPromise: null, parcelsLayer: null, parcelFeatures: [], parcelLayerGeneration: 0,
     nsiStructuresLayer: null, nsiStructureLoadPromise: null, nsiStructureFeatures: [], nsiStructureRenderer: null, nsiLayerGeneration: 0,
     mapQueryGeneration: 0, mapClickMode: 'depth', persistentFloodPopup: null, persistentDepthQueryContext: null,
@@ -183,6 +184,48 @@ await test('A retired enable completing through the 3D wrapper syncs the current
   const f = fixture({ wrappers: true }); const pending = f.context.setParcelsEnabled(true); await flush();
   await f.context.setParcelsEnabled(false); f.images[0].fire('load'); await pending;
   assert.equal(f.layers.size, 0); assert.deepEqual(f.syncs.at(-1), ['parcels', 'false']);
+});
+
+await test('Only enabling Road Names retries the mounted Leaflet renderer', async () => {
+  const f = fixture();
+  const toggle = f.element('roadsToggle');
+  const retries = [];
+  const roadsLayer = {
+    setOpacity(opacity) { this.opacity = opacity; },
+    async whenReady({ retry }) { retries.push(retry); }
+  };
+  f.context.map.getZoom = () => 15;
+  f.context.map.getPane = () => f.element('roadsPane');
+  f.context.ROAD_LABEL_ZOOM = 10;
+  f.context.roadsLayer = roadsLayer;
+  f.layers.add(roadsLayer);
+  vm.runInContext(extract(source10, 'updateRoadLayerAppearance'), f.context);
+  toggle.classList.toggle('on', true);
+
+  f.context.updateRoadLayerAppearance();
+  assert.equal(roadsLayer.opacity, 0.98);
+  assert.deepEqual(retries, [], 'Passive map updates must not retry failed sources');
+
+  toggle.click();
+  assert.equal(toggle.attrs['aria-checked'], 'false');
+  assert.equal(roadsLayer.opacity, 0);
+  assert.deepEqual(retries, []);
+
+  toggle.click();
+  assert.equal(toggle.attrs['aria-checked'], 'true');
+  assert.equal(roadsLayer.opacity, 0.98);
+  assert.deepEqual(retries, [true]);
+
+  f.context.map.getZoom = () => 9;
+  toggle.click();
+  toggle.click();
+  assert.equal(roadsLayer.opacity, 0);
+  assert.deepEqual(retries, [true, true], 'Re-enabling below the label threshold still clears a failed cache');
+
+  f.layers.delete(roadsLayer);
+  toggle.click();
+  toggle.click();
+  assert.deepEqual(retries, [true, true], 'A removed Leaflet renderer must not start network recovery');
 });
 
 for (const result of results) { console.log(`${result.passed ? 'PASS' : 'FAIL'} ${result.name}`); if (!result.passed) console.log(result.error); }

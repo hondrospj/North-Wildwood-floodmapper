@@ -10,6 +10,17 @@ const outputs = new Map();
 const replacements = new Map();
 const readSources = entry => entry.sources.map(source => fs.readFileSync(path.join(root, source), 'utf8')).join('');
 const version = text => crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
+const town = JSON.parse(fs.readFileSync(path.join(root, 'tools/app/town-profile.json'), 'utf8'));
+const htmlEscape = text => String(text).replace(/[&<>"']/g, char =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const embeddedJson = value => JSON.stringify(value).replace(/[<&]/g, char =>
+  char === '<' ? '\\u003c' : '\\u0026');
+for (const [tag, value] of Object.entries({
+  'profile': embeddedJson(town.config),
+  'webcams': embeddedJson(town.webcams),
+  'page-title': htmlEscape(town.config.pageTitle),
+  'town-name': htmlEscape(town.config.site.name),
+})) replacements.set(`<!-- floodmapper:${tag} -->`, value);
 
 // Coalesce CSS only within its original cascade interval. External stylesheets
 // and scripts are barriers; moving rules across either could change the UI.
@@ -34,13 +45,17 @@ for (const entry of manifest.scripts) {
 
 let html = fs.readFileSync(path.join(root, 'tools/app/index.template.html'), 'utf8');
 const tokens = html.match(/<!-- nww:(?:style|script):[^ ]+ -->/g) || [];
-if (tokens.length !== replacements.size || new Set(tokens).size !== replacements.size) {
+if (tokens.length !== replacements.size - 4 || new Set(tokens).size !== tokens.length) {
   throw new Error('Application template must contain every manifest block exactly once.');
 }
 html = html.replace(/<!-- nww:(?:style|script):[^ ]+ -->/g, token => {
   if (!replacements.has(token)) throw new Error(`Unknown source token: ${token}`);
   return replacements.get(token);
 });
+html = html.replace(/<!-- floodmapper:(?:profile|webcams|page-title|town-name) -->/g,
+  token => replacements.get(token));
+html = html.replace(/(\b(?:src|href)="(?:\.\/)?)(assets\/[^"?#]+)\?v=shared"/g, (_, prefix, relative) =>
+  `${prefix}${relative}?v=${version(outputs.get(relative) ?? fs.readFileSync(path.join(root, relative)))}"`);
 outputs.set('index.html', html);
 
 let changed = 0;

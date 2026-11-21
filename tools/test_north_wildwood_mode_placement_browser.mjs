@@ -62,6 +62,7 @@ try {
         return {
           control: measure("mapClickModeControl"), dock: measure("timelineDock"),
           title: measure("mapTitleBadge"), reducedMotion: matchMedia("(prefers-reduced-motion:reduce)").matches,
+          toolbar: measure("nwwMobileUtilities"), tour: hit("mobileMapperTutorialBtn"),
           hits: [hit("mapClickParcelBtn"), hit("mapClickDepthBtn")],
         };
       });
@@ -69,7 +70,12 @@ try {
       assert.ok(result.geometry.hits.every(row => row.reachable), JSON.stringify(result.geometry));
       assert.ok(result.geometry.control.bottom <= result.geometry.dock.top - 5, "Mode controls clear the timeline");
       assert.ok(result.geometry.control.top >= result.geometry.title.bottom + 5, "Mode controls clear the title");
-      if (shortCompact) assert.equal(await tourShortcut.isVisible(), false, "Map modes take priority over the tour shortcut on short screens");
+      if (shortCompact) {
+        assert.ok(await tourShortcut.isVisible() && result.geometry.tour.reachable,
+          "The Tour stays reachable on short screens while map modes are active");
+        assert.ok(result.geometry.control.top >= result.geometry.toolbar.bottom + 5,
+          "Map modes clear the top toolbar on short screens");
+      }
       await activate("#mapClickDepthBtn");
       assert.equal(await page.locator("#mapClickDepthBtn").getAttribute("aria-pressed"), "true");
       await activate("#mapClickParcelBtn");

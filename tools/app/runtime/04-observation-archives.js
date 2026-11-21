@@ -31,6 +31,7 @@
     }
 
     async function ensureCanonicalDailyArchive() {
+      if (!CANONICAL_DAILY_URL) return null;
       if (canonicalDailyData) return canonicalDailyData;
       const generation = archiveGeneration;
       const payload = await fetchJson(CANONICAL_DAILY_URL, { cache: "default" });
@@ -292,10 +293,19 @@
 
     function validateArchiveDays(payload, source, { summary = false, year = null, indexedDates = [] } = {}) {
       const expectedInterval = source === "lewes" ? 60 : 15;
-      if (Number(payload?.intervalMinutes) !== expectedInterval) {
+      const legacyArchive = TOWN_CONFIG.observed?.archiveContract === "legacy";
+      const legacyIndex = legacyArchive && summary && /(?:^|-)observed-day-index-v[12]$/.test(String(payload?.schema || ""));
+      const intervalMinutes = payload?.intervalMinutes ?? (legacyIndex ? expectedInterval : NaN);
+      if (Number(intervalMinutes) !== expectedInterval) {
         throw new Error(`Invalid ${source} archive interval; expected ${expectedInterval} minutes.`);
       }
-      if (payload.source && payload.source !== source) throw new Error("Archive source mismatch.");
+      const primaryAlias = summary
+        ? String(payload.shardPathTemplate || "").match(/observed_archive\/([a-z0-9-]+)\/\{year\}\.json$/i)?.[1]
+        : observed15MinuteData?.source;
+      const publishedSource = legacyArchive ? (source === "lewes" ? configuredSurrogate().key : primaryAlias) : null;
+      if (payload.source && payload.source !== source && payload.source !== publishedSource) {
+        throw new Error("Archive source mismatch.");
+      }
       const expectedStation = source === "lewes" ? surrogateStationId() : String(TOWN_CONFIG?.observed?.usgsGaugeId);
       if (String(payload.stationId || payload.site) !== expectedStation) throw new Error("Archive gauge mismatch.");
       if (payload.datum && payload.datum !== "NAVD88") throw new Error("Archive datum mismatch.");
@@ -330,7 +340,7 @@
         }
         // The primary USGS index represents outages as explicit dates. The
         // Lewes index is legitimately sparse and must keep that coverage.
-        if (source === "stone-harbor" && dates.size !== (Date.parse(last) - Date.parse(first)) / 86400000 + 1) {
+        if (source === "stone-harbor" && (!legacyArchive || publishedArchive) && dates.size !== (Date.parse(last) - Date.parse(first)) / 86400000 + 1) {
           throw new Error("Primary archive is missing dates in its published bounds.");
         }
       }
@@ -622,9 +632,9 @@ function setDatumHelpOpen(isOpen) {
         `
       },
       forecastType: {
-        title: "Forecast type",
+        title: "Forecast Range",
         body: `
-          <p>Choose Lower End, Mean, or Upper End to compare forecast scenarios based on NOAA PETSS guidance. Upper End shows the upper water-depth estimate for this forecast.</p>
+          <p>Compare three scenarios based on NOAA PETSS guidance. <strong>Best Case</strong> uses the lower estimate, <strong>Likely</strong> uses the mean estimate, and <strong>Worst Case</strong> uses the upper estimate.</p>
         `
       },
       overlay: {
@@ -632,36 +642,20 @@ function setDatumHelpOpen(isOpen) {
         body: `
           <p><strong>Flood Depth</strong> shows the estimated water depth above the ground, in inches below 1 foot and feet at 1 foot or more.</p>
           <p><strong>Flood Stages</strong> groups flooding as minor, moderate, or major.</p>
-          <p><strong>Road Impacts</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
+          <p><strong>Roads With 6+ Inches of Water</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
         `
       },
-      satellite: {
-        title: "Satellite",
-        body: "<p>Shows aerial imagery beneath the flood map.</p>"
-      },
-      buildings: {
-        title: "Buildings",
-        body: "<p>Shows buildings on the map. Tap one for more details.</p>"
-      },
-      parcels: {
-        title: "Parcels",
-        body: "<p>Shows property lines. Tap a lot to see how much of it may flood.</p>"
-      },
-      structuralImpacts: {
-        title: "Structural Impacts",
-        body: "<p>Shows where floodwater could reach a garage, crawlspace, or first floor.</p>"
-      },
-      roadImpacts: {
-        title: "Road Impacts",
-        body: "<p>Highlights road sections with more than 6 inches of estimated water. At bridges, the estimate is for the surface below the deck.</p>"
-      },
-      roadNames: {
-        title: "Road Names",
-        body: "<p>Shows street names so you can see which roads are near flooding.</p>"
-      },
-      cameras: {
-        title: "Cameras",
-        body: "<p>Shows camera locations. Tap a camera to see its feed or open the camera's website.</p>"
+      layers: {
+        title: "Map Layers",
+        body: `<dl class="layer-help-list">
+          <dt>Satellite</dt><dd>Shows aerial imagery beneath the flood map.</dd>
+          <dt>Buildings</dt><dd>Shows buildings on the map. Select a building for details.</dd>
+          <dt>Parcels</dt><dd>Shows property lines. Select a lot to see how much of it may flood.</dd>
+          <dt>Structural Impacts</dt><dd>Shows where modeled water could reach part of a structure or its first occupied floor.</dd>
+          <dt>Roads With 6+ Inches of Water</dt><dd>Highlights road sections with more than 6 inches of modeled water. At bridges, the estimate is for the surface below the deck.</dd>
+          <dt>Road Names</dt><dd>Labels streets so you can identify roads near flooding.</dd>
+          <dt>Cameras</dt><dd>Shows camera locations. Select a camera to view its feed or open its website.</dd>
+        </dl>`
       },
       timelineDetail: {
         title: "Timeline detail",

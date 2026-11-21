@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "baselineCommit": "5c9c405e4a6bb1f39342ccbd1460137f4ee25cba",
+  "baselineCommit": "4d9444ca477e55af083b1560b4c8aecdf2868a74",
   "files": [
     {
       "source": "tools/app/runtime/19-observed-history.js",
-      "beforeSha256": "5e86eaeb4789a6675318771ad6af59dc5d0b04388feb9d22341bb7519da9ba9d",
-      "afterSha256": "0ba7b941bae395b9138777df342cf2ea8967a1708cdccd8f7d706b3078a197ad",
+      "beforeSha256": "bcf0aae746f1c319064dc3f8a4950a1efb766a60e9041ec95f7c71c98610fa09",
+      "afterSha256": "a3f0b721128c99473577d5c9f462801e4262b49912de7b9a4ba2e788e54c91fa",
       "changes": [
         {
           "beforeSource": "      if (match) return dateKey(match[1], match[2], match[3]);\n\n      match = raw.match(/^(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?$/);\n      if (match) {\n        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());\n        if (y < 100) y += 2000;\n        return dateKey(y, match[1], match[2]);\n      }\n\n",
@@ -19,8 +19,8 @@
     },
     {
       "source": "tools/app/runtime/22-calendar-and-modes.js",
-      "beforeSha256": "60c90da4a6d62fa0fe0652d1fb7a88804f2e7b777ce95baac71d9ea42f7ddadf",
-      "afterSha256": "df48e015b12dfb9172ed9122cabe61d0e9df31deb12d004d1c4a9f850f6f30c1",
+      "beforeSha256": "e95bc3018e3fd781e5ea94d2bbde0c2261951a44506f9c9a440cb1169cd26c96",
+      "afterSha256": "fd36ad5a998b25cf02b1e06e8bb8a30016524d3b4a058f1eae66ef40c6095e37",
       "changes": [
         {
           "beforeSource": "        }];\n      } else {\n        currentSeriesHours = sampleCanonicalHydraulicSeries(\n          currentRawSeriesHours,\n          getTimelineIntervalMinutes()\n        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));\n      }\n\n",
@@ -30,8 +30,8 @@
     },
     {
       "source": "tools/app/runtime/27-mobile-and-address.js",
-      "beforeSha256": "2be0ebdb0aa60ce40dcfcbed071cdb01b5c4b538f02bd0066dc2b574674537da",
-      "afterSha256": "1acc34a8f4f393410aa9a22dbf32d5b0105f5309b4cf129b00a0159cdd79feb3",
+      "beforeSha256": "dd6a06f9e8c73d8a980167413c0d73662eced5081a78158daf96eb7c93660487",
+      "afterSha256": "ce8fbf289ad745b1dd01d1877720cceccc3675d17e0a01ed026937c3fb670eac",
       "changes": [
         {
           "beforeSource": "    }\n\n    function clearTownAddressLookup() {\n      cancelPendingTownAddressLookup();\n      const input = document.getElementById(\"townAddressInput\");\n      if (input) input.value = \"\";\n      setTownAddressStatus(\"\");\n      if (townAddressMarker && map && map.hasLayer(townAddressMarker)) {\n        map.removeLayer(townAddressMarker);\n",
@@ -53,8 +53,8 @@
     },
     {
       "source": "assets/app/runtime.js",
-      "beforeSha256": "f73dc31cb69cc87a437a754616123696b496e54c5c8d0538229de1045676ddcb",
-      "afterSha256": "3af2ba1fa48ac350064bf28d8708a45b5da0b6bbd4b9325fc64549e4f8d3d2b8",
+      "beforeSha256": "379f055ce33b52144db51a5b75f9d3a33b32d2de7e1b5aef92038c2fd0199ff5",
+      "afterSha256": "5d2603b16de5e6fa8cd10d09d3e2f31cf06184695f2c76005128487277512c73",
       "changes": [
         {
           "beforeSource": "      if (match) return dateKey(match[1], match[2], match[3]);\n\n      match = raw.match(/^(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?$/);\n      if (match) {\n        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());\n        if (y < 100) y += 2000;\n        return dateKey(y, match[1], match[2]);\n      }\n\n",
@@ -88,12 +88,12 @@
     },
     {
       "source": "index.html",
-      "beforeSha256": "27991156f2a01a2895af2f18314c35bc29fad0d9b7b9736d935ad2eb64f6e73d",
-      "afterSha256": "2b83252362e2fdf6a4524ced578f341e17b041d9819a1dde3e77cd538237b094",
+      "beforeSha256": "6a1663321348524c8fd8a3f901c52d1b0451c6025bbb9ff397ada85ad2b839e7",
+      "afterSha256": "57463677fe830c6848c912956be1963aa22aa4b9609133424ecef8a580831624",
       "changes": [
         {
-          "beforeSource": "  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=f73dc31cb69cc87a\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n",
-          "afterSource": "  <script src=\"assets/road-labels.js?v=3ad509cbb4274b6c\"></script>\n\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=3af2ba1fa48ac350\"></script>\n\n<script data-nww-script=\"script-005\" src=\"./assets/app/calendar-dialog.js?v=4ae0ee377fb0bb52\"></script>\n"
+          "beforeSource": "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=379f055ce33b5214\"></script>",
+          "afterSource": "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=5d2603b16de5e6fa\"></script>"
         }
       ]
     }

@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {revealExportControl} from './browser_export_review.mjs';
+import {changeMapView} from './browser_map_view.mjs';
 const {chromium, webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const engine=process.env.NWW_BROWSER==='webkit' ? webkit : chromium;
 const browser=await engine.launch({headless:true,...(process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH}:{}),...(engine===chromium?{args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']}: {})});
@@ -136,10 +137,11 @@ try {
       check(!state.titleNavOverlap,`${prefix} title/navigation separation`,state);
       check(!state.navTimelineOverlap,`${prefix} navigation/timeline separation`,state);
       check(state.keyVisible,`${prefix} flood category key visible`,state);
-      check(state.legendParent===(compact?'BODY':'leftPanel'),`${prefix} single legend placement`,state);
+      check(state.legendParent===(compact?'nwwMobileUtilities':'leftPanel'),`${prefix} single legend placement`,state);
       check(state.toggle===compact&&state.rail===!compact,`${prefix} correct controls`,state);
       if(!compact)check(!state.sidebarTimestampOverlap,`${prefix} sidebar/timestamp separation`,state);
-      for(const id of ['mapTitleBadge','timelineDock','timelineBubble','nwDefaultNavControl'])await contained(page,'#'+id,`${prefix} ${id} fits`);
+      for(const id of ['mapTitleBadge','timelineDock','timelineBubble',...(compact?[]:['nwDefaultNavControl'])])await contained(page,'#'+id,`${prefix} ${id} fits`);
+      if(compact) check(!state.nav,`${prefix} navigation stack is off the map`,state);
       if(compact){await openDrawer(page);await settled(page);await contained(page,'#leftPanel',`${prefix} open drawer fits`);await closeDrawer(page);await settled(page);check(!await page.locator('body').evaluate(e=>e.classList.contains('mobile-controls-open')),`${prefix} close button works`);}
       console.log(prefix,'checked');
     }
@@ -193,7 +195,7 @@ try {
       await activate(page,'#topTidesModalCloseBtn');
       await closeDrawer(page);
     }
-    await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();
+    await changeMapView(page);
     // Asset readiness precedes the launcher's actual camera transition. Begin
     // resize checks only after the real 3D control acknowledges completion.
     await page.waitForFunction(()=>{
@@ -209,6 +211,15 @@ try {
       await page.evaluate(feature=>openParcelFloodPrompt(feature,map.getCenter()),parcel);
       await settled(page);
       await contained(page,'.nw-mobile-popup .maplibregl-popup-content',`${width}x${height} building popup fits`);
+      const placement=await page.locator('.nw-mobile-popup').evaluate(popup=>({
+        phone:document.documentElement.hasAttribute('data-nww-phone'),
+        popupTop:popup.getBoundingClientRect().top,
+        popupBottom:popup.getBoundingClientRect().bottom,
+        toolbarBottom:document.getElementById('nwwMobileUtilities').getBoundingClientRect().bottom,
+        dockTop:document.getElementById('timelineDock').getBoundingClientRect().top,
+      }));
+      if(placement.phone) check(placement.popupTop >= placement.toolbarBottom + 7 && placement.popupBottom <= placement.dockTop - 7,
+        `${width}x${height} building popup clears the map toolbar and timeline`,placement);
       await hitTestable(page,'.nw-mobile-popup .maplibregl-popup-close-button',`${width}x${height} popup close immediately reachable`);
       await activate(page,'.nw-mobile-popup .house-alert-cta');
       await settled(page);

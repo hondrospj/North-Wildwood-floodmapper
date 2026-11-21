@@ -1,6 +1,7 @@
 // Full-app tests for the eight September 21 audit findings. No flood-data mocks.
 // Run with the same NWW_TEST_URL / PLAYWRIGHT_MODULE / CHROME_PATH as the layout suite.
 import assert from 'node:assert/strict';
+import { changeMapView } from './browser_map_view.mjs';
 import fs from 'node:fs';
 import { revealExportControl } from './browser_export_review.mjs';
 const {chromium,webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -69,7 +70,7 @@ try{
   check(data.nullSurrogate===null,'Missing NOAA level became a real water level');
   console.log('Historical source, cadence, daily peak, and navigation-order checks passed');
 
-  await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();
+  await changeMapView(page);
   await page.waitForFunction(()=>document.body.classList.contains('map-3d-ready'),{},{timeout:90000});
   await page.setViewportSize({width:390,height:844});
   await page.waitForTimeout(1000);

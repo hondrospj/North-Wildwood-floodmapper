@@ -166,13 +166,14 @@
       if (!range || currentDataMode === "return-interval") return false;
       const startMs = Number.isFinite(range.startMs) ? range.startMs : range.startDate?.getTime();
       const endMs = Number.isFinite(range.endMs) ? range.endMs : range.endDate?.getTime();
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return true;
+      // Past exports need to check for observations even within forecast coverage.
+      if (currentDataMode === "observed" && startMs <= Date.now()) return true;
       const times = getForecastExportEntries()
         .filter(entry => Number.isFinite(getStageValue(entry)))
         .map(entryTimeMs)
         .filter(Number.isFinite);
-      if (!times.length || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return true;
-      // Forecast entries take precedence over overlapping observations in the
-      // exported series. A range wholly covered by them needs no history I/O.
+      if (!times.length) return true;
       return startMs < Math.min(...times) || endMs > Math.max(...times);
     }
 
@@ -274,18 +275,24 @@
 
         if (!combined.length) return [];
 
-        const byHour = new Map();
+        const preferObserved = currentDataMode === "observed";
+        if (preferObserved && options.keepOverlappingForecast) {
+          // Keep forecast endpoints for quarter-hour interpolation across
+          // forecast frames. The quarter-hour selection resolves the overlap.
+          return combined.sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+        }
+
+        const byInstant = new Map();
         combined.forEach(entry => {
           // A repeated fall-back wall time represents two different readings.
-          // Forecast preference applies only to the exact same instant.
-          const key = String(entryTimeMs(entry));
-          const existing = byHour.get(key);
-          if (!existing || entry.exportSourceMode === "forecast") {
-            byHour.set(key, entry);
+          // Valid observations are inserted before forecasts.
+          const time = entryTimeMs(entry);
+          if (!byInstant.has(time) || (!preferObserved && entry.exportSourceMode === "forecast")) {
+            byInstant.set(time, entry);
           }
         });
 
-        return Array.from(byHour.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+        return Array.from(byInstant.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
       }
 
       return currentSeriesHours.map(entry => ({

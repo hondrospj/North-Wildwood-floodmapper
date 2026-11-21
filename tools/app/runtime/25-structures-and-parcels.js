@@ -49,7 +49,7 @@
     function buildNsiStructurePopup(feature) {
       const p = feature?.properties || {};
       const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
-      const address = escapeTownAddressHtml(p.address || "Modeled North Wildwood structure");
+      const address = escapeTownAddressHtml(p.address || `Modeled ${TOWN_CONFIG.site.name} structure`);
       return '<div class="nsi-structure-popup">' +
         '<details class="property-help"><summary aria-label="About the first-floor estimate">?</summary>' +
           '<p>This compares the selected water level with the estimated occupied floor.</p></details>' +
@@ -102,7 +102,11 @@
       if (!nsiStructureLoadPromise) {
         nsiStructureLoadPromise = fetchJson(NSI_STRUCTURES_URL, { cache: "force-cache" })
           .then(payload => {
-            if (!/nsi-2026-first-floor-v1$/.test(String(payload?.metadata?.schema || ""))) {
+            const schema = String(payload?.metadata?.schema || "");
+            const configuredStructureSchema = TOWN_CONFIG.structures?.firstFloorAssetSchema;
+            const townStructures = configuredStructureSchema && schema === configuredStructureSchema &&
+              payload.type === "FeatureCollection" && Array.isArray(payload.features);
+            if (!/nsi-2026-first-floor-v1$/.test(schema) && !townStructures) {
               throw new Error("The USACE NSI 2026 structure asset needs to be refreshed.");
             }
             nsiStructureFeatures = Array.isArray(payload.features) ? payload.features : [];
@@ -389,14 +393,14 @@
     }
 
     function buildParcelAreaPopup(feature, metrics, loading) {
-      const address = escapeTownAddressHtml(feature?.properties?.address || "Selected North Wildwood parcel");
+      const address = escapeTownAddressHtml(feature?.properties?.address || `Selected ${TOWN_CONFIG.site.name} parcel`);
       const facts = metrics?.covered
         ? `<div class="parcel-flood-facts">
             <div><span>${metrics.covered === metrics.total ? "Flooded Area" : "Covered Area Flooded"}</span>
             <strong>${(100 * metrics.wet / metrics.covered).toFixed(1)}%</strong></div>
             <div><span>Maximum Flood Depth</span><strong>${formatParcelDepthBand(metrics)}</strong></div>
           </div>${metrics.covered === metrics.total ? "" : `<p class="house-alert-note">${Math.round(100 * metrics.covered / metrics.total)}% of this parcel has model coverage.</p>`}`
-        : `<p class="house-alert-note" role="status">${loading ? "Measuring the selected flood frame…" : "Parcel depth and area are unavailable for this frame."}</p>`;
+        : `<p class="house-alert-note" role="status">${loading ? "" : "Parcel depth and area are unavailable for this frame."}</p>`;
       return '<div class="house-alert-popup building-info-card parcel-area-popup">' +
         '<span class="house-alert-kicker">Parcel Flooding</span><h3>' + address + '</h3>' + facts +
         '<button class="house-alert-cta" data-property-profile="parcel" type="button">See Parcel Flood Projections</button></div>';

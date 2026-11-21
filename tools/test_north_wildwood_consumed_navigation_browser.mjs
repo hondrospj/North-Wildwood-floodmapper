@@ -38,6 +38,9 @@ async function ready(mode){
 }
 try{
  await page.goto(url,{waitUntil:'domcontentloaded'});await ready('forecast');
+ // Quiet loading hides the overlay visually before controls are released.
+ await page.waitForFunction(()=>document.getElementById('nwSiteLoader')?.hidden === true &&
+  document.getElementById('app')?.inert === false);
  await page.locator('#nwSiteLoader').waitFor({state:'hidden'});
  for(const[mode,button]of[['observed','#observedDataBtn'],['forecast','#forecastDataBtn'],['return-interval','#returnIntervalDataBtn']]){
   await page.locator(button).click();await ready(mode);

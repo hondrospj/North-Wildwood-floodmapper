@@ -59,6 +59,8 @@ try {
       };
       const card = page.locator("#mapperTutorialCard");
       const next = page.locator("#mapperTutorialNext");
+      const feedback = page.locator("#mapperTutorialFeedback");
+      const practice = () => activate("#mapperTutorialPractice");
       await openTour();
       assert.equal(await card.getAttribute("aria-describedby"), "mapperTutorialBody");
       assert.deepEqual(await next.evaluate(el => {
@@ -88,10 +90,28 @@ try {
 
       for (let index = 0; index < titles.length; index++) {
         await expectStep(index);
+        if (index === 1) {
+          await practice();
+          await page.waitForFunction(() => currentForecastScenario === "highEnd" && floodFrameState === "ready");
+          await feedback.filter({ hasText: "Showing Worst Case." }).waitFor();
+        }
         if (index === 2) {
           const label = await page.locator("#observedDataBtn").textContent();
           assert.ok((await page.locator("#mapperTutorialBody strong").allTextContents()).includes(label),
             "tour uses the current Past control label");
+          await practice();
+          await page.waitForFunction(() => currentDataMode === "observed");
+          await feedback.filter({ hasText: /Past is selected/ }).waitFor();
+        }
+        if (index === 3) {
+          await practice();
+          await feedback.filter({ hasText: /date picker is in the highlighted Past panel/ }).waitFor();
+        }
+        if (index === 4) {
+          const previous = await page.evaluate(() => currentHourIndex);
+          await practice();
+          await feedback.filter({ hasText: /Map time changed/ }).waitFor();
+          assert.notEqual(await page.evaluate(() => currentHourIndex), previous);
         }
         if (index === 5 && !touch) {
           for (const viewport of [portrait, landscape]) {
@@ -110,10 +130,34 @@ try {
           await page.waitForFunction(() => document.body.dataset.unifiedLayout === "desktop" &&
             !document.body.classList.contains("mobile-controls-open"));
         }
+        if (index === 5) {
+          const roads = page.locator("#roadsToggle");
+          const before = await roads.getAttribute("aria-checked");
+          await practice();
+          assert.notEqual(await roads.getAttribute("aria-checked"), before);
+          await feedback.filter({ hasText: /Road names are (off|on)/ }).waitFor();
+        }
+        if (index === 6) {
+          await page.waitForFunction(() => topTideEvents.length > 0);
+          await practice();
+          await feedback.filter({ hasText: /Highest crest:/ }).waitFor();
+        }
         await activate("#mapperTutorialNext");
       }
       await card.waitFor({ state: "hidden" });
       await expectReachableFocus(page, "mapperTutorialBtn");
+
+      await openTour();
+      for (let index = 1; index < titles.length; index++) {
+        await activate("#mapperTutorialNext");
+        await expectStep(index);
+      }
+      await practice();
+      await card.waitFor({ state: "hidden" });
+      await page.locator("#downloadModal").waitFor();
+      await activate("#downloadModalCloseBtn");
+      await page.locator("#downloadModal").waitFor({ state: "hidden" });
+      await expectReachableFocus(page, "openDownloadModalBtn");
 
       await openTour();
       await activate("#mapperTutorialNext");

@@ -69,6 +69,12 @@ for (const format of ['png','gif']) {
   await ctx.downloadCurrentSelection();
   assert.equal(history,0,`${format}: no history dependency for fully covered forecast range`);
   assert.equal(downloaded,1);assert.equal(error,'');assert.equal(ctx.exportInProgress,false);
+
+  ctx.currentDataMode='observed';
+  ctx.Date={now:()=>range.startMs};
+  assert.equal(ctx.exportRangeNeedsObservedArchive(range),true,'Past ranges check the archive when a forecast already covers the time');
+  ctx.Date={now:()=>range.startMs-1};
+  assert.equal(ctx.exportRangeNeedsObservedArchive(range),false,'Wholly future ranges with forecast coverage skip the archive');
 }
 
 // A passive archive/summary update preserves an in-progress text edit and its

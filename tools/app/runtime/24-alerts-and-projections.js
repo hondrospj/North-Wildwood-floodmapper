@@ -307,30 +307,11 @@
 
     function buildHouseAlertPopup(feature) {
       const p = feature?.properties || {};
-      const firstFloor = getNsiFirstOccupiedFloorNavd88(p);
-      const crawlspaceDepth = Number(p.foundationHeightFt ?? p.nsi2026FoundationHeightFt);
-      const stage = getSelectedStageNavd88();
-      const difference = Number.isFinite(stage) && Number.isFinite(firstFloor) ? stage - firstFloor : null;
-      const address = escapeTownAddressHtml(p.address || "Selected North Wildwood parcel");
+      const address = escapeTownAddressHtml(p.address || `Selected ${TOWN_CONFIG.site.name} parcel`);
       const focusRestoreKey = p.parcelId == null ? "" : ` data-focus-restore-key="${escapeTownAddressHtml("parcel-profile:" + p.parcelId)}"`;
-      const waterStatus = !Number.isFinite(firstFloor)
-        ? "An occupied-floor estimate is unavailable for this parcel."
-        : difference == null
-        ? "Choose a water level to compare."
-        : Math.abs(difference) <= 0.1
-          ? "Current water is at the estimated occupied floor."
-          : difference > 0
-            ? `Current water is ${formatWaterDepth(difference, 1)} above the estimated occupied floor.`
-            : `Current water is ${formatWaterDepth(Math.abs(difference), 1)} below the estimated occupied floor.`;
       return '<div class="house-alert-popup building-info-card">' +
         '<span class="house-alert-kicker">Building</span>' +
         '<h3>' + address + '</h3>' +
-        '<div class="building-info-facts">' +
-          '<div><span>Crawlspace / garage depth</span><strong>' +
-            (Number.isFinite(crawlspaceDepth) ? formatWaterDepth(crawlspaceDepth, 1) : 'Not available') +
-          '</strong></div>' +
-          '<p>' + escapeTownAddressHtml(waterStatus) + '</p>' +
-        '</div>' +
         '<button class="house-alert-cta" type="button"' + focusRestoreKey + '>See Flood History &amp; Projections</button>' +
         '</div>';
     }
@@ -643,15 +624,15 @@
       if (!backdrop || !body) return;
       const parcel = kind === "parcel";
       const properties = feature.properties || {};
-      address.textContent = properties.address || "Selected North Wildwood parcel";
+      address.textContent = properties.address || `Selected ${TOWN_CONFIG.site.name} parcel`;
       document.getElementById("floodHistoryTitle").textContent = parcel ? "Parcel Flood Projections" : "Flood History & Projections";
       const help = document.getElementById("floodHistoryHelpText");
       help.textContent = parcel
         ? "Any Flooding means water covers more than 0% of the parcel. Projections include water already inside the parcel and require a threshold within the model’s range."
         : Number.isFinite(getNsiFirstOccupiedFloorNavd88(properties))
           ? "Past tides show how often water rose above the estimated floor. Future estimates show how that could change as sea level rises."
-          : "This parcel has no occupied-floor estimate. Past tides and future estimates use parcel ground elevation.";
-      body.innerHTML = '<div class="flood-history-loading" role="status"><span class="flood-history-spinner" aria-hidden="true"></span><strong>Loading flood projections…</strong></div>';
+          : "Past tides and future estimates use parcel ground elevation.";
+      body.innerHTML = '<div class="flood-history-loading" aria-hidden="true"></div>';
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");
       document.body.classList.add("flood-history-open");

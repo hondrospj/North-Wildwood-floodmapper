@@ -121,7 +121,9 @@
     if (!container) return;
     const rect = container.getBoundingClientRect();
     let top = innerWidth <= 900 ? 120 : 140;
-    for (const id of ["topBanner", "topBar", "mapTitleBadge", "mobileControlsToggle"]) {
+    const controls = document.getElementById("mobileControlsToggle");
+    const headerIds = ["topBanner", "topBar", "mapTitleBadge", "mobileControlsToggle"];
+    for (const id of headerIds) {
       const element = document.getElementById(id);
       if (!element || !element.getClientRects().length || getComputedStyle(element).visibility === "hidden") continue;
       const box = element.getBoundingClientRect();
@@ -133,7 +135,8 @@
     const viewportHeight = viewport?.height || innerHeight;
     const viewportWidth = viewport?.width || innerWidth;
     const dock = document.getElementById("timelineDock")?.getBoundingClientRect();
-    const bottom = Math.min(rect.bottom, viewportTop + viewportHeight, dock?.height ? dock.top : Infinity);
+    const viewportBottom = viewportTop + viewportHeight;
+    const bottom = Math.min(rect.bottom, viewportBottom, dock?.height ? dock.top : Infinity);
     const available = bottom - rect.top - top - 12;
     // A short window cannot fit a player between the header and timeline.
     // Give the same viewer its own scrollable viewport above those controls.
@@ -145,8 +148,6 @@
     panel.style.left = `${(visibleLeft + visibleRight) / 2}px`;
     panel.style.maxWidth = `${Math.max(1, visibleRight - visibleLeft - 16)}px`;
     let panelTop = overlay ? viewportTop + 8 : rect.top + top;
-    const viewportBottom = viewportTop + viewportHeight;
-    const controls = document.getElementById("mobileControlsToggle");
     if (overlay && !panel.hidden && controls?.getClientRects().length) {
       const viewer = panel.getBoundingClientRect();
       const key = document.body.classList.contains("mobile-legend-open") ? null : document.getElementById("legendDock");
@@ -183,13 +184,17 @@
     sourceLink.href = camera.sourceUrl;
     sourceLink.title = camera.source;
     choice.value = camera.id;
-    mountPanel();
     panel.hidden = false;
     dismissMobileControls();
+    mountPanel();
     loadPlayer(camera);
-    if (opening) requestAnimationFrame(() => {
-      if (!panel.hidden && selected === camera) closeButton.focus({ preventScroll: true });
-    });
+    if (opening) {
+      const openerFocus = document.activeElement;
+      requestAnimationFrame(() => {
+        if (!panel.hidden && selected === camera && document.activeElement === openerFocus &&
+            !panel.contains(openerFocus)) closeButton.focus({ preventScroll: true });
+      });
+    }
   }
 
   function closeCamera(restoreFocus) {
@@ -203,6 +208,12 @@
       });
       target?.focus({ preventScroll: true });
     }
+  }
+
+  function refreshGlMarkerPositions() {
+    // DEM tiles can finish without a camera move or another terrain event.
+    // Reproject once the map is idle so markers follow the settled terrain.
+    glMarkers.forEach(marker => marker.setLngLat(marker.getLngLat()));
   }
 
   function syncMarkers() {
@@ -234,7 +245,10 @@
       }
       if (!currentMap.hasLayer(leafletLayer)) leafletLayer.addTo(currentMap);
     } else if (leafletLayer && leafletMap?.hasLayer(leafletLayer)) leafletLayer.remove();
-    if (glMap !== currentGl || !enabled || !useGl) { glMarkers.forEach(m => m.remove()); glMarkers = []; glMap = currentGl; }
+    if (glMap !== currentGl || !enabled || !useGl) {
+      glMap?.off("idle", refreshGlMarkerPositions);
+      glMarkers.forEach(m => m.remove()); glMarkers = []; glMap = currentGl;
+    }
     if (enabled && useGl && !glMarkers.length && window.maplibregl) {
       glMarkers = located.map(camera => {
         const element = document.createElement("button");
@@ -249,6 +263,7 @@
         element.addEventListener("dblclick", event => event.stopPropagation());
         return new maplibregl.Marker({ element, anchor: "center", pitchAlignment: "viewport", rotationAlignment: "viewport", opacityWhenCovered: 1 }).setLngLat([camera.lng, camera.lat]).addTo(currentGl);
       });
+      currentGl.on("idle", refreshGlMarkerPositions);
     }
     if (enabled) mountPanel();
   }
@@ -338,7 +353,7 @@
   window.visualViewport?.addEventListener("resize", () => { if (!panel.hidden) mountPanel(); });
   window.visualViewport?.addEventListener("scroll", () => { if (!panel.hidden) mountPanel(); });
   const layoutObserver = new ResizeObserver(() => { if (!panel.hidden) mountPanel(); });
-  ["topBanner", "mapTitleBadge", "mobileControlsToggle", "legendDock", "timelineDock"].map(id => document.getElementById(id))
+  ["topBanner", "mapTitleBadge", "mobileControlsToggle", "legendDock", "timelineDock", "mapClickModeControl"].map(id => document.getElementById(id))
     .filter(Boolean).forEach(el => layoutObserver.observe(el));
   window.addEventListener("pagehide", () => setEnabled(false));
   window.addEventListener("pageshow", event => { if (event.persisted) setEnabled(false); });

@@ -1,5 +1,6 @@
 
     const APP_BASE = new URL(".", window.location.href);
+    const UI_ASSET_BASE = new URL("../", document.currentScript?.src || new URL("assets/app/runtime.js", APP_BASE));
     let FORECAST_URL = "";
     let OBSERVED_URL = "";
     let CANONICAL_DAILY_URL = "";
@@ -27,7 +28,7 @@
     }
 
     const OPTIONAL_SCRIPT_URLS = {
-      html2canvas: new URL("assets/vendor/html2canvas-1.4.1.min.js", APP_BASE).href,
+      html2canvas: new URL("vendor/html2canvas-1.4.1.min.js", UI_ASSET_BASE).href,
       jszip: "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
       geotiff: "https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"
     };
@@ -124,7 +125,7 @@
     const EXPORT_CAPTURE_SCALE = 1;
     const EXPORT_GIF_DITHER = false;
     const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
-    const GIF_WORKER_URL = new URL("assets/vendor/gif.worker.js?v=ef4ff2db1b2c1116", APP_BASE).href;
+    const GIF_WORKER_URL = new URL("vendor/gif.worker.js?v=ef4ff2db1b2c1116", UI_ASSET_BASE).href;
     const EXPORT_GIF_ASPECTS = {
       "16:9": { value: "16:9", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
       "9:16": { value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
@@ -372,7 +373,7 @@
       TOWN_CONFIG = config;
       FORECAST_URL = new URL(config.data?.forecastPath || "./forecast.json", APP_BASE).href;
       OBSERVED_URL = new URL(config.data?.observedPath || "./observed.json", APP_BASE).href;
-      CANONICAL_DAILY_URL = new URL(config.data?.canonicalDailyPath || "./canonical_daily_v2.json", APP_BASE).href;
+      CANONICAL_DAILY_URL = optionalAppUrl(config.data?.canonicalDailyPath);
       OBSERVED_15MIN_URL = new URL(config.data?.observed15MinPath || "./observed15min.json", APP_BASE).href;
       OBSERVED_ARCHIVE_INDEX_URL = new URL(config.data?.observedArchiveIndexPath || "./observed_archive_index.json", APP_BASE).href;
       LEWES_ARCHIVE_INDEX_URL = optionalAppUrl(config.data?.surrogateArchiveIndexPath || config.data?.lewesArchiveIndexPath);
@@ -807,9 +808,9 @@ function cloneStyleObject(value) {
     let forecastData = null;
     let currentForecastScenario = "mean";
     const FORECAST_SCENARIOS = {
-      lowEnd: { label: "Lower End", percentile: "", buttonId: "forecastLowBtn" },
-      mean: { label: "Mean", percentile: "", buttonId: "forecastMeanBtn" },
-      highEnd: { label: "Upper End", percentile: "", buttonId: "forecastHighBtn" }
+      lowEnd: { label: "Best Case", percentile: "", buttonId: "forecastLowBtn" },
+      mean: { label: "Likely", percentile: "", buttonId: "forecastMeanBtn" },
+      highEnd: { label: "Worst Case", percentile: "", buttonId: "forecastHighBtn" }
     };
     let returnIntervalData = null;
     let currentReturnIntervalYears = 10;

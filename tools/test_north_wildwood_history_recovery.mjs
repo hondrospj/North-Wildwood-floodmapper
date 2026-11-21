@@ -213,8 +213,8 @@ for (const mode of ['forecast', 'return-interval']) {
   const pending = c.switchDataMode('observed');
   assert.equal(c.currentDataMode, 'observed'); assert.equal(c.currentViewType, 'observed-day');
   assert.equal(c.currentSeriesHours.length, 0);
-  assert.equal(nodes.get('stageSubText').textContent, 'Loading observed history…');
-  assert.match(status, /Loading observed history.*Previous flood map shown/);
+  assert.equal(nodes.get('stageSubText').textContent, '', 'Pending observed stage remains neutral');
+  assert.equal(status, "", "Pending observed map has no loading banner");
   hold.resolve(); await pending; assert.equal(c.currentSeriesHours[0].tag, 'observed');
   // The same active Past control must retry after an unavailable history,
   // rather than requiring a detour to Forecast or a browser reload.
@@ -262,7 +262,7 @@ for (const outcome of ['success', 'failure', 'superseded']) {
   });
   const loading = c.switchDataMode('forecast');
   assert.equal(c.currentSeriesHours.length, 0, 'Pending forecast cannot relabel the prior Past series');
-  assert.equal(nodes.get('stageSubText').textContent, 'Loading forecast…');
+  assert.equal(nodes.get('stageSubText').textContent, '', 'Pending forecast stage remains neutral');
   assert.equal(c.currentFloodLayer.entry, old[0]);
   const renderToken = c.lastRenderToken;
   await c.switchOverlayMode('dynamic');

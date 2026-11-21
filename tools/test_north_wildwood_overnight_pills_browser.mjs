@@ -61,13 +61,13 @@ try {
       };
     });
     assert.deepEqual(state.dockTheme, ["rgb(17, 24, 38)", "rgba(191, 219, 254, 0.22)"]);
-    assert.equal(state.dockHeight, profile.touch ? 180 : 112);
+    assert.equal(state.dockHeight, profile.touch ? 154 : 112);
     assert.equal(state.swatch, profile.touch ? "10px" : "12px");
     assert.ok(state.inter && state.wideEnough && !state.overlap && !state.hasRootScroll, JSON.stringify(state));
     assert.ok(state.box.x >= 0 && state.box.y >= 0 && state.box.right <= state.viewport[0] && state.box.bottom <= state.viewport[1]);
     assert.deepEqual(state.labels.map(row => row[0]), ["No Flooding", "Minor", "Moderate", "Major"]);
-    assert.ok(state.labels.every(row => row[1] === (profile.touch ? "11px" : "14px") && row[2].includes("Inter")));
-    assert.deepEqual(state.labelsOrder.slice(-4), ["Structural Impacts", "Road Impacts", "Road Names", "Cameras"]);
+    assert.ok(state.labels.every(row => row[1] === (profile.touch ? "13px" : "14px") && row[2].includes("Inter")));
+    assert.deepEqual(state.labelsOrder.slice(-4), ["Structural Impacts", "Roads With 6+ Inches of Water", "Road Names", "Cameras"]);
     if (profile.touch) {
       await page.locator("#mobileControlsToggle").click();
       await page.getByRole("tab", { name: "Flood data" }).click();

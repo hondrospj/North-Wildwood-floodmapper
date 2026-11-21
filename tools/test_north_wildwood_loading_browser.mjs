@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Real splash/readiness coverage; browser environment follows the full-app suite.
+// Quiet startup/readiness coverage; browser environment follows the full-app suite.
 import assert from 'node:assert/strict';
 const {chromium,webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const engine=process.env.NWW_BROWSER==='webkit' ? webkit : chromium;
@@ -19,9 +19,11 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
   let release,received,requestedCount=0;
   const released=new Promise(resolve=>{release=resolve;});
   const requested=new Promise(resolve=>{received=resolve;});
+  let releaseController,receiveController;
+  const controllerReleased=new Promise(resolve=>{releaseController=resolve;});
+  const controllerRequested=new Promise(resolve=>{receiveController=resolve;});
   let pending,final,audit;
   try {
-    if(timeout)await page.clock.install();
     await page.addInitScript(()=>{
       const audit=window.__loaderBrowserAudit={frames:0,samples:[],playClicks:0};
       document.addEventListener('click',event=>{if(event.target.closest?.('#playBtn'))audit.playClicks++;},true);
@@ -60,40 +62,72 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
       requestedCount++;received();await released;
       if(fail)await route.abort('failed');else await route.continue();
     });
-    await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
+    await page.route('**/north-wildwood-loading.js*',async route=>{
+      receiveController();await controllerReleased;await route.continue();
+    });
+    const navigation=page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
+    // Handle rejection immediately so a failed assertion followed by context
+    // cleanup cannot mask its cause with an unhandled navigation rejection.
+    void navigation.catch(()=>{});
+    await Promise.race([controllerRequested,navigation.then(()=>{throw new Error('Navigation completed without the held readiness controller');})]);
+    // Chromium can request this script through its preload scanner before the
+    // parser reaches the app. Inspect only after its actual DOM position exists.
+    await page.locator('script[src*="north-wildwood-loading.js"]').waitFor({state:'attached'});
+    // WebKit exposes parsed DOM before preceding blocking stylesheets have
+    // joined the active cascade. Wait for the quiet sheet to be active without
+    // waiting for any expected visibility value.
+    await page.waitForFunction(()=>{
+      const sheet=document.getElementById('floodmapper-quiet-loading-20261119')?.sheet;
+      return sheet&&Array.from(document.styleSheets).includes(sheet);
+    },null,{polling:25});
+    // WebKit may suppress animation frames while this parser-blocking response
+    // is held. Computed layout and focus checks work before its first real paint.
+    // The audit still checks every real frame, including the first eligible one.
+    const beforeController=await page.evaluate(()=>{
+      const roots=['app','topBanner','mobileControlsToggle','legendDock'].map(id=>document.getElementById(id)).filter(Boolean);
+      const controls=[...new Set(roots.flatMap(root=>[root,...root.querySelectorAll('button,a[href],input,select,[tabindex]')]))]
+        .filter(element=>element.matches('button,a[href],input,select,[tabindex]'));
+      const focusable=[];
+      for(const element of controls){element.focus({preventScroll:true});if(document.activeElement===element)focusable.push(element.id||element.tagName);}
+      return {snapshot:window.__captureLoaderBrowser(),focusable,controls:controls.length};
+    });
+    assert.ok(beforeController.controls>0,'Exercise the actual parsed controls before the readiness controller runs');
+    assert.equal(beforeController.snapshot.visible,false,'No splash before the controller arrives');
+    assert.equal(beforeController.snapshot.appOpacity,0,'Keep unfinished controls hidden until the controller makes them inert');
+    assert.deepEqual(beforeController.focusable,[],'No pre-controller control, including visible descendants, may receive focus');
+    const controllerReleasedAt=Date.now();
+    releaseController();
+    await navigation;
     assert.ok(requestedCount>0,'Hold the real initial forecast request, not a manufactured loading state');
     await requested;
     await twoPaints(page);
     pending=await page.evaluate(()=>window.__captureLoaderBrowser());
-    assert.equal(pending.visible,true,`${name}: original ShorelySafe splash must actually paint`);
+    assert.equal(pending.visible,false,`${name}: no loading splash may paint`);
     assert.equal(pending.brand,'ShorelySafe');
     assert.equal(pending.ready,false,'Pending initial data must not falsely signal readiness');
     assert.equal(pending.loading,true);assert.equal(pending.appBusy,'true');
     assert.equal(pending.appInert,true,'Pending app controls must be inert');
     assert.equal(pending.toggleInert,true,'External mobile Controls button must also be inert');
     assert.equal(pending.legendInert,true,'Reparented legend must be isolated');
-    assert.equal(pending.appOpacity,0,'No partially initialized app may show through the splash');
-    assert.ok(pending.card.width>0&&pending.card.x>=-1&&pending.card.y>=-1&&
-      pending.card.x+pending.card.width<=pending.rect.width+1&&pending.card.y+pending.card.height<=pending.rect.height+1,
-    'The original loading card must fit the desktop or mobile viewport');
+    assert.equal(pending.appOpacity,0,'Preserve the original hidden-app lifecycle while startup layout settles');
     const play=await page.locator('#playBtn').boundingBox();
     await page.mouse.click(play.x+play.width/2,play.y+play.height/2);
     await page.locator('#dataSourceHelpBtn').focus();
     await page.keyboard.press('Tab');
-    assert.equal(await page.evaluate(()=>window.__loaderBrowserAudit.playClicks),0,'Overlay prevents pointer activation behind it');
+    assert.equal(await page.evaluate(()=>window.__loaderBrowserAudit.playClicks),0,'Readiness guard prevents activation of unfinished controls');
     assert.equal(await page.evaluate(()=>!!document.activeElement?.closest('#app,#mobileControlsToggle,#legendDock')),false,
       'Inert background must not receive keyboard focus');
 
     if(timeout) {
-      // Advance the real controller's original 20-second deadline, without
-      // replacing its code, readiness signal, or pending network operation.
-      await page.clock.fastForward(20001);
+      // Use the original real deadline. A mocked animation clock can sample
+      // incomplete WebKit styles before the browser is eligible to paint.
       await page.waitForFunction(()=>document.body.dataset.siteLoader==='timeout');
+      assert.ok(Date.now()-controllerReleasedAt>=20000,'Exercise the actual 20-second controller deadline');
       assert.equal(await page.locator('body').evaluate(body=>body.classList.contains('nw-app-ready')),false,
         'Timeout releases controls without claiming the forecast finished');
     } else {
       await page.waitForFunction(()=>Number(document.getElementById('nwLoaderProgress')?.dataset.progress)>=11);
-      assert.equal(await page.evaluate(()=>window.__captureLoaderBrowser().visible),true,'Splash stays visible while real startup is pending');
+      assert.equal(await page.evaluate(()=>window.__captureLoaderBrowser().visible),false,'Real pending startup stays quiet');
       release();
       await page.waitForFunction(()=>document.body.dataset.siteLoader==='complete',{},{timeout:90000});
     }
@@ -122,11 +156,11 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
       assert.equal(await page.locator('#nwSiteLoader').isVisible(),false);
     }
     audit=await page.evaluate(()=>{window.__loaderBrowserAudit.stopped=true;return window.__loaderBrowserAudit;});
-    assert.equal(audit.samples[0].visible,true,'The first eligible document paint must already show the loader');
+    assert.equal(audit.samples[0].visible,false,'The first eligible document paint has no loader');
     for(const sample of audit.samples)if(sample.loading) {
-      assert.equal(sample.visible,true,'No missing or blank splash frame during startup');
+      assert.equal(sample.visible,false,'No loading splash frame during startup');
       assert.ok(sample.appOpacity===null||sample.appOpacity===0||sample.appInert,
-        'No interactive app may appear behind the pending splash');
+        'No visible interactive app may appear during startup');
     }
     for(let index=1;index<audit.samples.length;index++)assert.ok(audit.samples[index].progress>=audit.samples[index-1].progress,'Loading progress must not move backward');
     if(cached) {
@@ -141,13 +175,65 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     assert.deepEqual(errors,[],'No uncaught errors during loader lifecycle/recovery');
     console.log(`PASS loading screen ${name}${cached?' + cached reload':''}: first paint, real pending data, inert controls, reveal and focus${timeout?', original timeout recovery':''}`);
   } catch(error) {
-    console.error(JSON.stringify({name,pending,final,requestedCount,errors,audit:audit||await page.evaluate(()=>window.__loaderBrowserAudit).catch(()=>null)},null,2));
+    console.error(JSON.stringify({name,error:error.stack||String(error),pending,final,requestedCount,errors,audit:audit||await page.evaluate(()=>window.__loaderBrowserAudit).catch(()=>null)},null,2));
     throw error;
-  } finally {release();await context.close();}
+  } finally {releaseController();release();await context.close();}
 }
+async function delayedLayoutScenario({timeout=false}={}) {
+  const context=await browser.newContext({viewport:{width:1024,height:1000},reducedMotion:'reduce'});
+  const page=await context.newPage();page.setDefaultTimeout(30000);
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  let releaseLayout;
+  const layoutReleased=new Promise(resolve=>{releaseLayout=resolve;});
+  let navigation;
+  try {
+    await page.route('**/assets/app/unified-controller.js*',async route=>{
+      await layoutReleased;await route.continue();
+    });
+    navigation=page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
+    void navigation.catch(()=>{});
+    await page.waitForFunction(()=>document.body?.classList.contains('nw-app-ready'),null,{timeout:90000});
+    // Stay beyond the old completion pause: core readiness alone used to reveal
+    // this still-unmeasured sidebar, especially on slower WebKit renders.
+    await page.waitForTimeout(1300);
+    const pending=await page.evaluate(()=>{
+      const app=document.getElementById('app');
+      return {reason:document.body.dataset.siteLoader,passes:Number(document.body.dataset.unifiedLayoutPasses||0),
+        inert:app.inert,opacity:Number(getComputedStyle(app).opacity),busy:app.getAttribute('aria-busy')};
+    });
+    assert.equal(pending.passes,0,'Exercise actual delayed UI layout after actual core readiness');
+    assert.notEqual(pending.reason,'complete');
+    assert.equal(pending.inert,true);assert.equal(pending.opacity,0);assert.equal(pending.busy,'true');
+    await page.locator('#dataSourceHelpBtn').focus();
+    assert.equal(await page.evaluate(()=>!!document.activeElement?.closest('#app,#mobileControlsToggle,#legendDock')),false,
+      'Core readiness must not allow keyboard focus into the unfinished layout');
+    if(timeout) {
+      await page.waitForFunction(()=>document.body.dataset.siteLoader==='timeout',null,{timeout:25000});
+      assert.equal(await page.locator('#app').evaluate(app=>app.inert),false,'A missing layout controller retains the original bounded fallback');
+      assert.equal(await page.locator('#app').getAttribute('aria-busy'),'false');
+    }
+    releaseLayout();await navigation;
+    await page.waitForFunction(()=>Number(document.body.dataset.unifiedLayoutPasses)>0);
+    if(!timeout)await page.waitForFunction(()=>document.body.dataset.siteLoader==='complete');
+    assert.equal(await page.locator('body').getAttribute('data-site-loader'),timeout?'timeout':'complete',
+      'Late layout after fallback must not restart the loader');
+    assert.equal(await page.locator('#nwSiteLoader').isVisible(),false);
+    assert.equal(await page.locator('#app').evaluate(app=>app.inert),false);
+    assert.equal(await page.locator('#app').evaluate(app=>Number(getComputedStyle(app).opacity)),1);
+    await page.locator('#dataSourceHelpBtn').focus();
+    assert.equal(await page.locator('#dataSourceHelpBtn').evaluate(node=>node===document.activeElement),true);
+    assert.deepEqual(errors,[]);
+    console.log(`PASS core-ready delayed UI layout: hidden/inert until measured; ${timeout?'original20-second fallback and late recovery':'layout completion restores controls'}`);
+  } finally {
+    releaseLayout();await navigation?.catch(()=>{});await context.close();
+  }
+}
+
 try {
   await scenario({cached:true});
   await scenario({mobile:true,reduced:true});
   await scenario({reduced:true,fail:true});
   await scenario({mobile:true,reduced:true,timeout:true});
+  await delayedLayoutScenario();
+  await delayedLayoutScenario({timeout:true});
 } finally {await browser.close();}

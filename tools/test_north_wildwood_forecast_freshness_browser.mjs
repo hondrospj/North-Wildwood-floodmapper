@@ -21,24 +21,25 @@ try {
     floodFrameState === "ready", null, { timeout: 90000 });
 
   const status = page.locator("#floodFrameStatus");
-  await status.filter({ hasText: "Forecast expired" }).waitFor();
+  await status.waitFor({ state: "hidden" });
+  assert.equal(await page.evaluate(() => getForecastFreshness(getForecastSourceForNotice()).state), "expired");
+  assert.equal(await page.evaluate(() => getForecastSourceForNotice().forecastEndUtc), forecast.forecastEndUtc);
+  const displayedTime = await page.locator("#timeText").textContent();
+  assert.ok(displayedTime && displayedTime.trim() !== "--", "Keep the actual displayed frame time");
   for (const [width, height] of [[568, 320], [320, 240], [390, 844]]) {
     await page.setViewportSize({ width, height });
     await page.waitForFunction(() => document.body.dataset.unifiedLayout === "mobile");
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    assert.equal(await status.evaluate(element => {
-      const box = element.getBoundingClientRect();
-      const key = document.getElementById("timelineFloodKey").getBoundingClientRect();
-      return box.width > 0 && box.height > 0 && box.left >= 0 && box.right <= innerWidth &&
-        box.top >= 0 && box.bottom < key.top && getComputedStyle(element).pointerEvents === "none";
-    }), true, `Expired forecast should stay visible at ${width}×${height}`);
+    assert.equal(await status.isHidden(), true, `Expired notice is omitted at ${width}×${height}`);
+    assert.equal(await page.locator("#timeText").textContent(), displayedTime);
+    assert.equal(await page.evaluate(() => floodFrameState), "ready");
   }
 
   await page.locator("#mobileControlsToggle").press("Enter");
   await page.locator("#observedDataBtn").press("Enter");
   await status.waitFor({ state: "hidden" });
   assert.deepEqual(errors, []);
-  console.log(`${engine} keeps the expired forecast warning readable during compact resize and clears it in Past.`);
+  console.log(`${engine} omits the expired notice during compact resize, retains forecast timestamps, and switches to Past.`);
 } finally {
   await browser.close();
 }

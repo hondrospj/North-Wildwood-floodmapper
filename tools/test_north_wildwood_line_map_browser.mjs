@@ -28,6 +28,9 @@ async function newPage() {
 async function ready(page) {
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready') && floodFrameState==='ready',{}, {timeout:90000});
+  // Quiet loading hides the overlay visually before controls are released.
+  await page.waitForFunction(()=>document.getElementById('nwSiteLoader')?.hidden === true &&
+   document.getElementById('app')?.inert === false);
   await page.locator('#nwSiteLoader').waitFor({state:'hidden'});
 }
 async function modeledFlood(page) {
@@ -42,7 +45,9 @@ const snapshot = page => page.evaluate(()=>{
   const status = document.getElementById('floodFrameStatus');
   return {index:currentHourIndex,stage:document.getElementById('stageText').textContent,
     time:document.getElementById('timeText').textContent,url:plane?.url,committedUrl:plane?.committedUrl,
-    flood:floodFrameState,status:status.textContent,statusVisible:!!status.getClientRects().length};
+    flood:floodFrameState,statusVisible:!!status.getClientRects().length,
+    toastVisible:document.getElementById('toast').classList.contains('show'),
+    retainedRaster:Boolean(currentFloodLayer && map.hasLayer(currentFloodLayer))};
 });
 const differentIndex = (page,excluded) => page.evaluate(excluded=>{
   const stages = excluded.map(index=>Math.max(0,getStageValue(currentSeriesHours[index])));
@@ -202,10 +207,11 @@ try {
         await page.waitForFunction(()=>window.__mapHeldImages.length>0);
         await waitDone(page);after = await snapshot(page);
         for (const key of ['index','stage','time','committedUrl']) assert.equal(after[key],before[key],key);
-        assert.equal(after.flood,'failed');assert.ok(after.statusVisible);
-        assert.match(after.status,/previous image and time are still shown/i);
+        assert.equal(after.flood,'failed');
+        assert.equal(after.statusVisible,false);
+        assert.equal(after.toastVisible,false);
         assert.ok(Date.now()-started<65000,'GPU deadlines exceeded the bounded frame retry budget');
-        checks.push({scenario:'actual GPU deadlines retain the old selection with visible failure',elapsedMs:Date.now()-started,after});
+        checks.push({scenario:'actual GPU deadlines retain the old selection without a redundant notice',elapsedMs:Date.now()-started,after});
         await screenshot(page,'gpu-failed');
         await releaseTextures(page);await start(page,target);await waitDone(page);after = await snapshot(page);
         assert.equal(after.index,target);assert.equal(after.flood,'ready');assert.equal(after.url,after.committedUrl);
@@ -252,6 +258,7 @@ try {
     const page = await newPage(), held = [];
     const pattern = '**/NorthWildwoodHydraulicQuery5ft.png*';
     const faultNonce = `${Date.now()}-${Math.random()}`;
+    let holdQuery = true;
     let signalHeld;
     const faultIntercepted = new Promise(resolve=>signalHeld=resolve);
     try {
@@ -260,7 +267,7 @@ try {
       // only the application promise does not guarantee a network request in
       // every engine: use an uncached URL and establish interception explicitly.
       await page.route(pattern,route=>{
-        if (new URL(route.request().url()).searchParams.get('_map_deadline_fixture')!==faultNonce) return route.continue();
+        if (!holdQuery || new URL(route.request().url()).searchParams.get('_map_deadline_fixture')!==faultNonce) return route.continue();
         held.push(route);signalHeld();
       });
       const before=await snapshot(page);
@@ -279,14 +286,18 @@ try {
       await page.waitForFunction(()=>!!depthQueryGridPromise);
       await page.waitForFunction(()=>window.__mapQueryDone,{}, {timeout:65000});
       const failed=await snapshot(page);
-      assert.equal(failed.flood,'failed',JSON.stringify({heldRequests:held.length,...failed}));assert.ok(held.length>0);assert.ok(failed.statusVisible);
+      assert.equal(failed.flood,'failed',JSON.stringify({heldRequests:held.length,...failed}));
+      assert.ok(held.length>0);
+      assert.ok(failed.retainedRaster);
+      assert.equal(failed.statusVisible,false);
+      assert.equal(failed.toastVisible,false);
       for (const key of ['index','stage','time']) assert.equal(failed[key],before[key],key);
-      assert.match(failed.status,/previous image and time are still shown/i);
       assert.equal(await page.evaluate(()=>depthQueryGridPromise),null);
       assert.ok(Date.now()-started<65000,'Query deadlines exceeded the bounded frame retry budget');
-      checks.push({scenario:'held query has actual deadlines, visible failure and a cleared cache',elapsedMs:Date.now()-started,heldRequests:held.length,before,failed});
+      checks.push({scenario:'held query clears its cache and retains the previous image without a notice',elapsedMs:Date.now()-started,heldRequests:held.length,before,failed});
       await screenshot(page,'query-failed');
-      await page.unroute(pattern);for (const route of held) await route.continue().catch(()=>{});
+      holdQuery = false;
+      for (const route of held) await route.abort().catch(()=>{});
       await start(page,before.index);await waitDone(page);const after=await snapshot(page);
       assert.equal(after.flood,'ready');assert.equal(after.index,before.index);
       assert.equal(await page.evaluate(()=>currentOverlayMode),'dynamic');

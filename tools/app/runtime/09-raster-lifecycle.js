@@ -203,7 +203,7 @@
           context.putImageData(imageData, 0, 0);
           return {
             url: await canvasToDrainageObjectUrl(canvas),
-            filename: `NorthWildwoodFloodStages${stageToCode(stage)}.png`,
+            filename: `${TOWN_CONFIG.overlays.bathtubStagePngPrefix ?? TOWN_CONFIG.overlays.stagePngPrefix}${stageToCode(stage)}.png`,
             isBathtubStage: true,
             uncertainPixelCount
           };

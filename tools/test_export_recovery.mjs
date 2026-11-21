@@ -13,7 +13,8 @@ function extract(name) {
   return match[0];
 }
 function context(name, mocks) {
-  const ctx = vm.createContext({setTimeout, clearTimeout, setInterval, clearInterval, URL, ...mocks});
+  const ctx = vm.createContext({setTimeout, clearTimeout, setInterval, clearInterval, URL,
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config, ...mocks});
   if (name === 'waitForExportRasterLayerReady') vm.runInContext(extract('retryExportRasterLayerTiles'), ctx);
   vm.runInContext(extract(name), ctx);
   return ctx;

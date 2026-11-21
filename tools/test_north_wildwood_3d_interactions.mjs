@@ -15,6 +15,7 @@ function wrapper(first, next) {
   return source.slice(start, end);
 }
 function load(context, names) {
+  context.TOWN_CONFIG ??= JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
   vm.createContext(context);
   for (const name of names) vm.runInContext(extract(name), context);
   return context;
@@ -29,30 +30,24 @@ function classList() {
   return { contains: name => values.has(name), toggle(name, value) { value ? values.add(name) : values.delete(name); } };
 }
 
-// Unknown elevations must never be coerced to a real zero-foot occupied floor.
+// Missing building inputs stay unknown, and the summary card omits estimates.
 const popup = load({
   getSelectedStageNavd88: () => 5,
   escapeTownAddressHtml: value => String(value).replaceAll('<', '&lt;'),
   formatWaterDepth: value => value.toFixed(1) + ' ft'
 }, ['finiteBuildingNumber', 'buildBuildingPopupHtml']);
 for (const value of [null, undefined, '', '  ', false, [], {}, NaN, Infinity, 'unavailable']) {
-  const html = popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: value, foundationHeightFt: value });
-  assert.match(html, /Estimated occupied-floor elevation is unavailable/);
-  assert.doesNotMatch(html, /Current water is/);
-  assert.match(html, /<strong>—<\/strong>/);
+  assert.ok(Number.isNaN(popup.finiteBuildingNumber(value)));
 }
+assert.equal(popup.finiteBuildingNumber('0'), 0);
 const actualBuildings = JSON.parse(fs.readFileSync(new URL('../assets/3d/NorthWildwoodBuildings3D.geojson', import.meta.url), 'utf8'));
 const actualUnknown = actualBuildings.features.find(feature => feature.properties.modeledFirstFloorNavd88Ft === null);
 assert.ok(actualUnknown, 'Exercise a real unmatched building footprint');
-assert.doesNotMatch(popup.buildBuildingPopupHtml(actualUnknown.properties), /Current water is/);
-for (const value of [null, undefined, '', ' ', NaN, Infinity]) {
-  popup.getSelectedStageNavd88 = () => value;
-  assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /Choose a water level/);
+for (const properties of [actualUnknown.properties, { address: '107 E 9TH AVE', modeledFirstFloorNavd88Ft: 7.6, foundationHeightFt: 2 }]) {
+  const html = popup.buildBuildingPopupHtml(properties);
+  assert.match(html, /building-info-card/);
+  assert.doesNotMatch(html, /Crawlspace \/ garage depth|estimated occupied floor|Choose a water level/);
 }
-popup.getSelectedStageNavd88 = () => 0;
-assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: '0', foundationHeightFt: 0 }), /at the estimated occupied floor/);
-popup.getSelectedStageNavd88 = () => 5;
-assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /5.0 ft above/);
 
 // The Esri wrapper's child renderer does not exist until metadata is ready.
 const configuration = fs.readFileSync(new URL('./app/runtime/00-configuration.js', import.meta.url), 'utf8');
@@ -240,8 +235,8 @@ for (const structures of [true, false]) {
 const clickedFootprintId = 'clicked-footprint';
 const matchedParcel = id => ({ id, properties: { nsi2026FootprintId: clickedFootprintId } });
 
-function clickFixture(pitch = 60) {
-  const handlers = {}, requests = [], opened = [], queriedLayers = [], popups = new Set();
+function clickFixture(pitch = 60, { structureHits = null, structures = [] } = {}) {
+  const handlers = {}, requests = [], opened = [], notices = [], queriedLayers = [], popups = new Set();
   const visibleLayer = pitch > 10 ? 'nw-3d-buildings' : 'nw-2d-buildings';
   let buildings = true;
   class FakePopup {
@@ -258,6 +253,7 @@ function clickFixture(pitch = 60) {
       getPitch: () => pitch,
       queryRenderedFeatures(point, { layers }) {
         queriedLayers.push(...layers);
+        if (layers.includes('nw-nsi-points')) return structureHits;
         return layers.includes(visibleLayer)
           ? [{ properties: { footprintId: clickedFootprintId, modeledFirstFloorNavd88Ft: 7 } }]
           : [];
@@ -266,18 +262,22 @@ function clickFixture(pitch = 60) {
     glPopup: null, lastGlPopupHtml: '', mapQueryGeneration: 0, lastRenderToken: 1, mapClickMode: 'building',
     persistentFloodPopup: null, map: { on() {}, hasLayer: value => popups.has(value), removeLayer: value => popups.delete(value) },
     document: { body: { classList: { contains: () => true } } }, maplibregl: { Popup: FakePopup },
-    window: { addEventListener() {} }, layerVisible: () => buildings,
+    window: { addEventListener() {} },
+    layerVisible: id => id === 'nsiStructuresToggle' ? structureHits !== null : buildings,
+    nsiStructureFeatures: structures,
     resolveClickedBuildingParcel3d: feature => {
       const request = deferred(); requests.push(request);
       return request.promise.then(parcel => ({feature, point: [-74.8, 39.006], parcel}));
     },
     openParcelFloodPrompt: feature => opened.push(feature.id), openFallbackBuildingPopup: () => opened.push('fallback'),
+    openNsiStructurePopup: (feature, latlng) => opened.push({ feature, latlng }),
+    toast: message => notices.push(message),
     beginMapQuery: () => ++context.mapQueryGeneration,
     handleDepthQueryClick: () => { ++context.mapQueryGeneration; opened.push('depth'); },
     L: { latLng: (lat, lng) => ({ lat, lng }) }, sync3dViewToLeaflet() {}, syncLeafletViewTo3d() {}, syncGlPopupLayout() {}
   };
   load(context, ['resize3dView', 'wire3dInteractions', 'showGlPopup', 'closeGlPopup', 'buildingsShouldRenderForCamera']); context.wire3dInteractions();
-  return { context, requests, opened, queriedLayers, click: () => handlers.click({ lngLat: { lat: 39.006, lng: -74.8 }, point: { x: 100, y: 100 } }), disable() { buildings = false; } };
+  return { context, requests, opened, notices, queriedLayers, click: () => handlers.click({ lngLat: { lat: 39.006, lng: -74.8 }, point: { x: 100, y: 100 } }), disable() { buildings = false; } };
 }
 for (const supersede of ['new click', 'mode', 'frame', 'disable', 'close button', 'programmatic close']) {
   for (const result of ['parcel', 'missing', 'failed']) {
@@ -316,6 +316,48 @@ for (const result of ['parcel', 'missing', 'failed']) {
   assert.deepEqual(test.opened, ['flat parcel'], 'Flat footprints open Building Info at the current pitch');
 }
 
+const clickedStructure = {
+  properties: { footprintId: 'rendered-dot', modeledFirstFloorNavd88Ft: 10.02 },
+  geometry: { type: 'Point', coordinates: [-74.801, 39.007] }
+};
+const nearestStructure = {
+  properties: { footprintId: 'nearest-dot', modeledFirstFloorNavd88Ft: 10.3 },
+  geometry: { type: 'Point', coordinates: [-74.8, 39.006] }
+};
+for (const duplicateHit of [false, true]) {
+  const hit = { properties: { footprintId: clickedStructure.properties.footprintId } };
+  const test = clickFixture(60, {
+    structureHits: duplicateHit ? [hit, { ...hit }] : [hit],
+    structures: [nearestStructure, clickedStructure]
+  });
+  await test.click();
+  assert.deepEqual(test.queriedLayers, ['nw-nsi-points']);
+  assert.deepEqual(test.opened, [{ feature: clickedStructure, latlng: { lat: 39.007, lng: -74.801 } }],
+    'The rendered structure wins even when another structure is closer to the click coordinate');
+}
+
+for (const structureHits of [
+  [clickedStructure, nearestStructure],
+  [{ properties: {} }],
+  [{ properties: { footprintId: 'missing-from-source' } }]
+]) {
+  const test = clickFixture(60, { structureHits, structures: [nearestStructure, clickedStructure] });
+  await test.click();
+  assert.equal(test.context.mapQueryGeneration, 1, 'A hit cancels older property queries');
+  assert.deepEqual(test.opened, [], 'Ambiguous or unresolved hits cannot open a different structure or roof');
+  assert.equal(test.notices.length, 1);
+}
+
+{
+  const test = clickFixture(60, { structureHits: [] });
+  test.disable();
+  await test.click();
+  assert.deepEqual(test.opened, ['depth'], 'A click without a rendered structure still reaches the map query');
+  test.context.mapClickMode = 'depth';
+  await test.click();
+  assert.deepEqual(test.queriedLayers, ['nw-nsi-points'], 'Flood Depth mode does not query structural markers');
+}
+
 // Fallback building comparisons close on navigation/unavailable frames, but
 // remain open for redraws of the same committed frame and ordinary opacity changes.
 {
@@ -351,4 +393,4 @@ for (const result of ['parcel', 'missing', 'failed']) {
   assert.equal(context.fallbackBuildingPopup, null, 'Closing a card releases its lifetime record');
 }
 
-console.log('3D interaction regressions passed: missing floor/stage values, deferred Esri layer removal, camera-independent Buildings toggle, flat parcel clicks, parcel click cancellation, and popup frame lifetime.');
+console.log('3D interaction regressions passed: missing floor/stage values, deferred Esri layer removal, camera-independent Buildings toggle, flat parcel clicks, rendered structure selection, parcel click cancellation, and popup frame lifetime.');

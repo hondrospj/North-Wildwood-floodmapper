@@ -79,7 +79,7 @@ jobs:
             !/assets/hydraulic-v19/
             !/assets/hydraulic-v20/
 
-      - name: Check out immutable generated data
+      - name: Check out immutable forecast and observations
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ steps.snapshot.outputs.data_sha }}
@@ -103,8 +103,8 @@ jobs:
             /tools/release_gate.py
             /tools/release_data.py
             /tools/release_schemas.py
-            /tools/validate_observed_contract.py
             /tools/observation_quality.py
+            /tools/validate_observed_contract.py
 
       - name: Require exact checks for the pinned application
         env:
@@ -146,7 +146,7 @@ jobs:
           # The app uses the v29 atlas. Keep obsolete atlases out of the artifact.
           rsync -a --exclude='/hydraulic-v17/' --exclude='/hydraulic-v19/' --exclude='/hydraulic-v20/' assets/ ../_site/assets/
 
-      - name: Validate and stage the generated data
+      - name: Validate and stage forecast and observation data
         run: |
           python3 source/tools/pages_forecast_overlay.py source _site > "$RUNNER_TEMP/pages-data.json"
           cat "$RUNNER_TEMP/pages-data.json"
@@ -176,7 +176,7 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
 
-      - name: Verify the forecast and archive files served by GitHub Pages
+      - name: Verify forecast and observation files served by GitHub Pages
         if: ${{ !inputs.dry_run }}
         run: |
           site='https://hondrospj.github.io/North-Wildwood-floodmapper/'

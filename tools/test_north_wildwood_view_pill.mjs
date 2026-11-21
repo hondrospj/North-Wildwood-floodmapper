@@ -2,6 +2,7 @@
 // Real browser/renderer regression. Environment follows the responsive suite:
 // NWW_TEST_URL, PLAYWRIGHT_MODULE, CHROME_PATH, NWW_BROWSER=webkit.
 import assert from 'node:assert/strict';
+import { revealMapViewControl } from './browser_map_view.mjs';
 
 const {chromium,webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const engine=process.env.NWW_BROWSER==='webkit' ? webkit : chromium;
@@ -74,6 +75,7 @@ async function checkViewport({width,height,mobile=false}) {
       return (!loader||loader.hidden||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)&&
         Number(getComputedStyle(document.getElementById('app')).opacity)>0.999;
     },{},{timeout:90000});
+    if(mobile) await revealMapViewControl(page);
     const pill=page.locator('#nwDefaultNavControl .nw-simple-view');
     await pill.waitFor({state:'visible'});
     await page.mouse.move(0,0);
@@ -110,6 +112,11 @@ async function checkViewport({width,height,mobile=false}) {
     }
     const activate=()=>pill[mobile?'tap':'click']();
     await capture('2D normal');
+    if(mobile) {
+      await page.locator('#leftPanel').evaluate(panel=>{panel.scrollTop=14;});
+      await twoPaints(page);
+      await capture('anchored while Controls scrolls');
+    }
     await pill.hover();await twoPaints(page);
     assert.equal((await capture('2D hover')).hover,true,'Exercise the actual hover selector');
     await activate();

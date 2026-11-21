@@ -120,4 +120,15 @@ for (const item of cases) {
   assert.equal(f.panel.style.top, '60px', 'A short camera viewer clears the compact controls');
   assert.equal(f.panel.style.maxHeight, '357px');
 }
-console.log(JSON.stringify({ source: path.resolve(sourcePath), checks: cases.length + 4, passed: true, results }, null, 2));
+{
+  const f = fixture(390, 425);
+  const toolbarBottom = 102;
+  f.elements.mobileControlsToggle.getBoundingClientRect = () => ({ left: 130, right: 202, top: 58, bottom: toolbarBottom, height: 44 });
+  f.run();
+  assert.equal(f.panel.dataset.viewportOverlay, 'true');
+  const top = Number.parseFloat(f.panel.style.top);
+  const height = Number.parseFloat(f.panel.style.maxHeight);
+  assert.equal(top, toolbarBottom + 8, 'The camera viewer leaves a gap below the phone toolbar');
+  assert.ok(height >= 150, 'The camera viewer retains space for its heading, chooser and scrollable content');
+}
+console.log(JSON.stringify({ source: path.resolve(sourcePath), checks: cases.length + 5, passed: true, results }, null, 2));

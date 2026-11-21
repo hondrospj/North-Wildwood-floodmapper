@@ -452,7 +452,7 @@ function formatSelectedObservedDate(dateStr) {
           topTideSource: "modern",
           sourceArea: "stone-harbor",
           sourceSite: String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || ""),
-          sourceStation: "Great Channel at Stone Harbor NJ",
+          sourceStation: TOWN_CONFIG.observed?.primaryStationLabel ?? TOWN_CONFIG.site.gaugeName,
           sourceStationShort: primaryGaugeName(),
           stationPriority: 3,
           isHistoricalTopTide: false

@@ -97,7 +97,7 @@
       if (launchMeta) {
         launchMeta.textContent = modeled
           ? `Create a shareable animation of the full ${modeledHours}-hour modeled storm.`
-          : `Create an animation or high-resolution image sequence with North Wildwood centered.`;
+          : `Create an animation or high-resolution image sequence with ${TOWN_CONFIG.site.name} centered.`;
       }
       if (modalSub) {
         modalSub.textContent = modeled

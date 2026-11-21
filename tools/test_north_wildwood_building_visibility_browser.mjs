@@ -1,5 +1,6 @@
 // Real local municipal geometry, actual controls and isolated browser contexts.
 import assert from 'node:assert/strict';
+import { changeMapView } from './browser_map_view.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -35,7 +36,7 @@ async function snapshot(page,label){
 }
 async function mode(page,threeD){
   const before=await page.evaluate(()=>NORTH_WILDWOOD_3D.state().pitch>10);
-  if(before!==threeD)await page.locator('.nw-simple-view').click();
+  if(before!==threeD)await changeMapView(page);
   await page.waitForFunction(wanted=>{
     const control=document.querySelector('.nw-simple-view'),state=NORTH_WILDWOOD_3D.state();
     return control.getAttribute('aria-busy')==='false'&&state.ready&&(state.pitch>10)===wanted;
@@ -67,7 +68,7 @@ try{
     assert.equal(await page.locator('#buildingsToggle').getAttribute('aria-checked'),'true');
     assert.deepEqual(await page.evaluate(()=>({center:map.getCenter(),zoom:map.getZoom(),index:currentHourIndex,time:currentSeriesHours[currentHourIndex]?.timeUtc})),before);
     result.checks.push(profile.name+' Buildings enables the Leaflet layer while preserving 2D');
-    await page.locator('.nw-simple-view').click();
+    await changeMapView(page);
     await page.waitForFunction(()=>document.querySelector('.nw-simple-view').getAttribute('aria-busy')==='false'&&
       (NORTH_WILDWOOD_3D.state().ready||document.body.dataset.map3d==='fallback'),null,{timeout:30000});
     if(!await page.evaluate(()=>NORTH_WILDWOOD_3D.state().ready)){
@@ -143,12 +144,12 @@ try{
     await clickBuildings(page,false);
     await page.waitForFunction(()=>buildingsLayer&&map.hasLayer(buildingsLayer));
     assert.equal(failures,0,'Buildings in Leaflet must not request native building assets');
-    await page.locator('.nw-simple-view').click();
+    await changeMapView(page);
     await page.waitForFunction(()=>document.body.dataset.map3d==='fallback'&&document.querySelector('.nw-simple-view').getAttribute('aria-busy')==='false',null,{timeout:30000});
     assert.ok(failures>0,'The configured building data request must genuinely fail');
     assert.equal(await page.locator('#buildingsToggle').getAttribute('aria-checked'),'true');
     assert.equal(await page.evaluate(()=>map.hasLayer(buildingsLayer)),true);
-    await page.unroute(pattern,fail);await page.locator('.nw-simple-view').click();
+    await page.unroute(pattern,fail);await changeMapView(page);
     await page.waitForFunction(()=>NORTH_WILDWOOD_3D.state().ready&&NORTH_WILDWOOD_3D.state().pitch>10&&document.querySelector('.nw-simple-view').getAttribute('aria-busy')==='false',null,{timeout:30000});
     await page.waitForFunction(()=>NORTH_WILDWOOD_3D.getMap().queryRenderedFeatures({layers:['nw-3d-buildings']}).length>0,null,{timeout:20000});
     const retried=await snapshot(page,'failed manual 3D start then retry');
