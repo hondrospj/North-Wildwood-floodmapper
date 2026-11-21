@@ -8,7 +8,7 @@ assert.ok(controller, 'The unified controller must exist.');
 const dismiss = controller.match(/document\.addEventListener\('keydown',event=>\{([\s\S]*?)\n \},true\);/)?.[1];
 const setLegend = controller.match(/ function setLegend\(open\)\{[\s\S]*?\n \}/)?.[0];
 assert.ok(dismiss && setLegend, 'Use the shipped controller to exercise legend dismissal.');
-assert.match(html, /<button id="nwwMobileLegendToggle" type="button" aria-controls="legendDock" aria-expanded="false">Legend<\/button>/);
+assert.match(html, /<button id="nwwMobileLegendToggle" type="button" aria-controls="legendDock" aria-expanded="false"><span class="nww-mobile-icon nww-mobile-icon--legend" aria-hidden="true">(?:<i><\/i>){3}<\/span><span>Legend<\/span><\/button>/);
 assert.match(html, /<section id="legendDock"/);
 
 function testKey(target, key, { mobile = true, modal = false } = {}) {

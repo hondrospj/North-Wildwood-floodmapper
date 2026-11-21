@@ -61,7 +61,7 @@ try {
     assert.equal(state.dock.height,viewport.height<500 ? 106 : 154,layout);
     assert(state.nav.every(box => box === null),layout);
     assert.equal(state.credits,null,'Credits are available in the Controls drawer');
-    assert.ok(state.toolbar.height <= 56 && state.toolbar.bottom < state.dock.top,layout);
+    assert.ok(state.toolbar.height === 50 && state.toolbar.bottom < state.dock.top,layout);
     assert.ok(state.title.left >= state.toolbar.left && state.title.right <= state.tour.left,layout);
     const actions = [state.tour,state.controls,state.key];
     for (const [index,button] of actions.entries()) {
@@ -74,13 +74,22 @@ try {
     }
     const header = await page.locator('#nwwMobileUtilities').evaluate(toolbar => {
       const rect = toolbar.getBoundingClientRect();
-      const labels = toolbar.querySelectorAll('.nww-mobile-title strong,.nww-mobile-title > span,.nww-mobile-actions button');
+      const title = toolbar.querySelector('#mapTitleBadge').getBoundingClientRect();
+      const actions = toolbar.querySelector('.nww-mobile-actions').getBoundingClientRect();
+      const gapHit = document.elementFromPoint((title.right + actions.left) / 2, (title.top + title.bottom) / 2);
+      const labels = toolbar.querySelectorAll('.nww-mobile-title strong,.nww-mobile-title > span,.nww-mobile-actions button > span:last-child');
+      const actionTextTops = [...labels].slice(-3).map(label => label.getBoundingClientRect().top);
       return {
         strings: [...labels].map(label => label.textContent),
+        aligned: Math.max(...actionTextTops) - Math.min(...actionTextTops) <= .5,
+        clearGap: actions.left - title.right >= 8 && !toolbar.contains(gapHit),
         fits: [...labels].every(label => {
+          const style = getComputedStyle(label);
+          if (style.visibility !== 'visible' || Number(style.opacity) === 0) return false;
           const text = document.createRange();
           text.selectNodeContents(label);
-          return [...text.getClientRects()].every(box => box.left >= rect.left && box.right <= rect.right &&
+          const textRects = [...text.getClientRects()];
+          return textRects.length === 1 && textRects.every(box => box.left >= rect.left && box.right <= rect.right &&
             box.top >= rect.top && box.bottom <= rect.bottom);
         }),
         reachable: [...toolbar.querySelectorAll('.nww-mobile-actions button')].every(button => {
@@ -90,7 +99,7 @@ try {
       };
     });
     assert.deepEqual(header.strings,['North Wildwood','Flood Mapper','Tour','Controls','Legend']);
-    assert.ok(header.fits && header.reachable,layout);
+    assert.ok(header.fits && header.reachable && header.clearGap && header.aligned,layout);
     for (const [a,b] of [[state.time,state.steps[0]],[state.steps[0],state.steps[1]],
       [state.steps[1],state.steps[2]],[state.days,state.slider]]) {
       assert(!overlap(a,b),layout);

@@ -14,7 +14,7 @@
       --phone-label: var(--fleet-text);
       --phone-accent: var(--fleet-accent);
       --phone-shadow: 0 12px 26px rgba(2, 6, 23, .15);
-      --phone-header-height: 54px;
+      --phone-header-height: 50px;
       --phone-dock-max: 580px;
       --phone-dock-edge: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height));
       --phone-popup-top: calc(var(--cm-top, 8px) + var(--phone-header-height) + 8px);
@@ -40,17 +40,21 @@
       display: flex;
       align-items: stretch;
       justify-content: space-between;
-      gap: 6px;
+      gap: 8px;
       box-sizing: border-box;
-      max-width: 480px;
+      max-width: 520px;
       min-height: var(--phone-header-height);
       margin-inline: auto;
-      padding: 4px;
-      border: 1px solid var(--phone-line);
-      border-radius: 14px;
-      background: var(--phone-surface);
-      color: var(--phone-label);
-      box-shadow: var(--phone-shadow);
+      pointer-events: none;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities :is(#mapTitleBadge, .nww-mobile-actions) {
+      box-sizing: border-box !important;
+      border: 1px solid var(--phone-line) !important;
+      border-radius: 12px !important;
+      background: var(--phone-surface) !important;
+      color: var(--phone-label) !important;
+      box-shadow: 0 2px 7px rgba(2, 6, 23, .22) !important;
     }
 
     html[data-nww-phone] body #nwwMobileUtilities #mapTitleBadge {
@@ -58,18 +62,14 @@
       display: flex !important;
       align-items: center !important;
       justify-content: flex-start !important;
-      box-sizing: border-box !important;
       width: auto !important;
       min-width: 0 !important;
       max-width: none !important;
       height: auto !important;
       min-height: 0 !important;
       margin: 0 !important;
-      padding: 0 0 0 8px !important;
+      padding: 4px clamp(8px, 2.6vw, 12px) !important;
       transform: none !important;
-      border: 0 !important;
-      background: transparent !important;
-      box-shadow: none !important;
     }
 
     html[data-nww-phone] body #nwwMobileUtilities :is(#mapTitleText, #mapTitlePartnerLogo) {
@@ -78,45 +78,53 @@
 
     html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-title {
       display: grid;
-      gap: 2px;
+      gap: 1px;
       color: var(--phone-label);
-      font: 550 11px/1.15 var(--nww-ui-font-family);
+      font: 550 12px/1.15 var(--nww-ui-font-family);
       text-align: start;
       white-space: normal;
     }
 
-    html[data-nww-phone] body .nww-mobile-title strong { font-size: 14px; font-weight: 700; }
-    html[data-nww-phone] body .nww-mobile-title > span { color: #a9b9d0; }
+    html[data-nww-phone] body .nww-mobile-title strong {
+      font-size: clamp(16px, 4.3vw, 18px);
+      font-weight: 730;
+      letter-spacing: -.025em;
+    }
+    html[data-nww-phone] body .nww-mobile-title > span { color: #b9c9df; }
 
     html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions {
       display: flex;
       align-items: center;
       flex: none;
       gap: 2px;
-      padding-inline-start: 4px;
-      border-inline-start: 1px solid var(--phone-line);
+      padding: 2px;
+      pointer-events: auto;
     }
 
     html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions > button {
       position: relative !important;
       inset: auto !important;
       display: grid !important;
-      place-items: center !important;
+      grid-template-rows: 17px 14px !important;
+      justify-items: center !important;
+      align-items: center !important;
+      align-content: center !important;
+      gap: 1px !important;
       box-sizing: border-box !important;
       min-width: 44px !important;
-      width: auto !important;
+      width: clamp(47px, 13vw, 54px) !important;
       max-width: none !important;
       min-height: 44px !important;
       height: auto !important;
       margin: 0 !important;
-      padding: 0 clamp(6px, 1.6vw, 12px) !important;
+      padding: 0 !important;
       transform: none !important;
       border: 1px solid transparent !important;
       border-radius: 9px !important;
       background: transparent !important;
       color: var(--phone-label) !important;
       box-shadow: none !important;
-      font: 650 12px/1.2 var(--nww-ui-font-family) !important;
+      font: 650 11px/14px var(--nww-ui-font-family) !important;
       letter-spacing: 0 !important;
       text-shadow: none !important;
       -webkit-text-fill-color: currentColor !important;
@@ -128,6 +136,75 @@
     html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions > button::before,
     html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions > button::after {
       content: none !important;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions > button > span {
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions > button > span:last-child {
+      display: block !important;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-icon {
+      display: grid !important;
+      place-content: center;
+      box-sizing: border-box;
+      width: 16px;
+      height: 16px;
+      color: currentColor;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-icon--tour {
+      border: 1.5px solid;
+      border-radius: 50%;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-icon--tour::before {
+      content: "?";
+      font: 700 11px/1 var(--nww-ui-font-family);
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-icon i {
+      position: relative;
+      display: block;
+      height: 1px;
+      border-top: 1.5px solid;
+      width: 14px;
+      margin: 2px 0;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-icon i::after {
+      content: "";
+      position: absolute;
+      box-sizing: border-box;
+      width: 4px;
+      height: 4px;
+      inset: -3px auto auto 3px;
+      border: 1px solid;
+      border-radius: 50%;
+      background: var(--phone-surface);
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-icon--controls {
+      color: var(--phone-accent);
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-icon--controls i:nth-child(2)::after {
+      left: 8px;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-icon--legend i {
+      width: 9px;
+      margin-left: 6px;
+    }
+
+    html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-icon--legend i::after {
+      left: -6px;
+      width: 3px;
+      height: 3px;
+      top: -2.5px;
     }
 
     html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions > button:is(:active, [aria-expanded="true"]) {
@@ -142,7 +219,7 @@
 
     html[data-nww-phone] body.mobile-legend-open #legendDock {
       position: absolute !important;
-      inset: calc(100% + 6px) -1px auto auto !important;
+      inset: calc(100% + 6px) 0 auto auto !important;
       box-sizing: border-box !important;
       width: var(--phone-legend-width) !important;
       min-width: 0 !important;
@@ -517,7 +594,7 @@
 
   @media (forced-colors: active) {
     html[data-nww-phone] body #timelineDock #timelineDayTabs .timeline-day.active { border: 2px solid Highlight !important; }
-    html.county-compact[data-nww-phone] body :is(#nwwMobileUtilities, #legendDock) { border-color: ButtonText !important; }
+    html.county-compact[data-nww-phone] body :is(#legendDock, #nwwMobileUtilities #mapTitleBadge, #nwwMobileUtilities .nww-mobile-actions) { border-color: ButtonText !important; }
     html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions > button[aria-expanded="true"] { border-color: Highlight !important; }
     html[data-nww-phone] body #timelineDock #playBtn .playTriangle { border-left-color: ButtonText !important; }
   }

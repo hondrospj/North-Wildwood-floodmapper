@@ -41,7 +41,7 @@ function fixture(width, height, vv = null, bannerBottom = 0) {
     mapWrap: container,
     mapTitleBadge: { getClientRects: () => [1], getBoundingClientRect: () => ({ top: 8, bottom: 52, height: 44 }) },
     nwwMobileUtilities: compact ? { getClientRects: () => [1],
-      getBoundingClientRect: () => ({ left: 8, right: width - 8, top: 8, bottom: 62, height: 54 }) } : null,
+      getBoundingClientRect: () => ({ left: 8, right: width - 8, top: 8, bottom: 58, height: 50 }) } : null,
     timelineDock: { getBoundingClientRect: () => ({ height: dockHeight(width, height),
       top: height - dockHeight(width, height) - (compact ? 8 : 16) }) },
   };
@@ -123,13 +123,13 @@ for (const item of cases) {
   const f = fixture(390, 425);
   f.run();
   assert.equal(f.panel.dataset.viewportOverlay, 'true');
-  assert.equal(f.panel.style.top, '70px', 'A short camera viewer clears the compact toolbar');
-  assert.equal(f.panel.style.maxHeight, '347px');
+  assert.equal(f.panel.style.top, '66px', 'A short camera viewer clears the compact toolbar');
+  assert.equal(f.panel.style.maxHeight, '351px');
 }
 {
   const f = fixture(390, 425);
-  const toolbarBottom = 82;
-  f.elements.nwwMobileUtilities.getBoundingClientRect = () => ({ left: 8, right: 382, top: 28, bottom: toolbarBottom, height: 54 });
+  const toolbarBottom = 78;
+  f.elements.nwwMobileUtilities.getBoundingClientRect = () => ({ left: 8, right: 382, top: 28, bottom: toolbarBottom, height: 50 });
   f.run();
   assert.equal(f.panel.dataset.viewportOverlay, 'true');
   const top = Number.parseFloat(f.panel.style.top);
