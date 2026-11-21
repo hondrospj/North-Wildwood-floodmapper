@@ -14,6 +14,10 @@
       if (needsDrawer) document.dispatchEvent(new CustomEvent("nww:reveal-control", { detail: selector }));
     }
 
+    function getMapperTutorialTarget(step) {
+      return getVisibleTutorialTarget(step.target) || (step.fallback ? getVisibleTutorialTarget(step.fallback) : null);
+    }
+
     const mapperTutorialGesturePointers = new Set();
     let mapperTutorialGestureSettling = false;
     let mapperTutorialGestureTimer = null;
@@ -36,7 +40,7 @@
         return;
       }
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
-      const target = step ? getVisibleTutorialTarget(step.target) : null;
+      const target = step ? getMapperTutorialTarget(step) : null;
       const spotlight = document.getElementById("mapperTutorialSpotlight");
       const card = document.getElementById("mapperTutorialCard");
       if (!target || !spotlight || !card) return;
@@ -49,8 +53,9 @@
       spotlight.style.width = Math.max(20, Math.min(window.innerWidth - left - 4, rect.right + pad - left)) + "px";
       spotlight.style.height = Math.max(20, Math.min(window.innerHeight - top - 4, rect.bottom + pad - top)) + "px";
       const cardRect = card.getBoundingClientRect();
-      const gap = 18;
-      const margin = 14;
+      const compact = isCompactFloodmapperLayout();
+      const gap = compact ? 10 : 18;
+      const margin = compact ? 8 : 14;
       const width = Math.min(cardRect.width, window.innerWidth - margin * 2);
       const height = Math.min(cardRect.height, window.innerHeight - margin * 2);
       const clampLeft = value => Math.max(margin, Math.min(window.innerWidth - width - margin, value));
@@ -59,7 +64,13 @@
         left: Math.max(0, rect.left - pad), top: Math.max(0, rect.top - pad),
         right: Math.min(window.innerWidth, rect.right + pad), bottom: Math.min(window.innerHeight, rect.bottom + pad)
       };
-      const candidates = [
+      const centered = (window.innerWidth - width) / 2;
+      const positions = compact ? [
+        [centered, window.innerHeight - height - margin],
+        [centered, margin],
+        [centered, rect.bottom + gap],
+        [centered, rect.top - height - gap]
+      ] : [
         [rect.right + gap, rect.top],
         [rect.left - width - gap, rect.top],
         [rect.left, rect.bottom + gap],
@@ -68,7 +79,8 @@
         [window.innerWidth - width - margin, margin],
         [margin, window.innerHeight - height - margin],
         [window.innerWidth - width - margin, window.innerHeight - height - margin]
-      ].map(([rawLeft, rawTop]) => ({ left: clampLeft(rawLeft), top: clampTop(rawTop) }));
+      ];
+      const candidates = positions.map(([rawLeft, rawTop]) => ({ left: clampLeft(rawLeft), top: clampTop(rawTop) }));
       const overlapArea = candidate => {
         const overlapWidth = Math.max(0, Math.min(candidate.left + width, targetBox.right) - Math.max(candidate.left, targetBox.left));
         const overlapHeight = Math.max(0, Math.min(candidate.top + height, targetBox.bottom) - Math.max(candidate.top, targetBox.top));
@@ -89,19 +101,101 @@
     let mapperTutorialGeneration = 0;
     let mapperTutorialStartedInDrawer = false;
     let mapperTutorialMobileOpener = null;
+
+    function updateMapperTutorialPractice(step) {
+      const practice = document.getElementById("mapperTutorialPractice");
+      const labels = {
+        forecast: currentForecastScenario === "highEnd" ? "Try Likely" : "Try Worst Case",
+        past: "Try Past",
+        calendar: "Show Calendar",
+        time: "Step Through Time",
+        layers: "Toggle Road Names",
+        crest: "Show Highest Crest",
+        export: "Open Export Map"
+      };
+      practice.hidden = !step.practice;
+      practice.textContent = labels[step.practice] || "";
+      practice.removeAttribute("aria-disabled");
+    }
+
+    async function runMapperTutorialPractice() {
+      const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
+      const practice = document.getElementById("mapperTutorialPractice");
+      if (!step?.practice || practice.getAttribute("aria-disabled") === "true") return;
+      const generation = mapperTutorialGeneration;
+      const feedback = document.getElementById("mapperTutorialFeedback");
+      const isCurrent = () => generation === mapperTutorialGeneration;
+      practice.setAttribute("aria-disabled", "true");
+      let message;
+      try {
+        switch (step.practice) {
+          case "forecast":
+            await switchForecastScenario(currentForecastScenario === "highEnd" ? "mean" : "highEnd");
+            message = floodFrameState === "ready" ? `Showing ${getForecastScenarioLabel()}.` : "This forecast couldn’t load.";
+            break;
+          case "past":
+          case "calendar":
+            if (currentDataMode !== "observed" || !currentSeriesHours.length) await switchDataMode("observed");
+            message = currentDataMode !== "observed" || !currentSeriesHours.length ? "Past data couldn’t load." : step.practice === "past"
+              ? "Past is selected. The map now uses measured water levels."
+              : "The date picker is in the highlighted Past panel.";
+            break;
+          case "time": {
+            if (currentSeriesHours.length < 2) await switchDataMode("forecast");
+            if (!isCurrent()) return;
+            stopPlayback();
+            cancelTimelineSelection();
+            const previous = currentHourIndex;
+            if (currentSeriesHours.length > 1) await renderHour(previous + (previous < currentSeriesHours.length - 1 ? 1 : -1));
+            const time = document.getElementById("timeText").textContent;
+            message = currentHourIndex !== previous && time ? `Map time changed to ${time.trim()}.` : "No other time is available for this map.";
+            break;
+          }
+          case "layers": {
+            const roads = document.getElementById("roadsToggle");
+            roads.click();
+            message = roads.getAttribute("aria-checked") === "true" ? "Road names are on." : "Road names are off.";
+            break;
+          }
+          case "crest": {
+            const crest = topTideEvents[0];
+            message = crest ? `Highest crest: ${crest.title}, ${formatStageForDisplay(crest.peakStage)}.` : "The crest rankings aren’t available yet.";
+            break;
+          }
+          case "export":
+            setMapperTutorialOpen(false);
+            document.getElementById("openDownloadModalBtn").click();
+            return;
+        }
+      } catch (_) {
+        message = "That action couldn’t finish. Try it again or continue the tour.";
+      }
+      if (!isCurrent()) return;
+      feedback.textContent = message;
+      updateMapperTutorialPractice(step);
+      if (step.practice === "calendar") {
+        revealMapperTutorialTarget(step.target);
+        getMapperTutorialTarget(step)?.scrollIntoView({ block: "center", inline: "nearest" });
+      }
+      positionMapperTutorial();
+    }
+
     function renderMapperTutorialStep(opener) {
       const generation = ++mapperTutorialGeneration;
       const isCurrentStep = () => generation === mapperTutorialGeneration &&
         document.getElementById("mapperTutorial")?.hidden === false;
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
       if (!step) return;
-      const tutorialModePromise = mapperTutorialIndex === 1 && currentDataMode !== "forecast"
-        ? switchDataMode("forecast")
-        : (mapperTutorialIndex === 3 && currentDataMode !== "observed" ? switchDataMode("observed") : Promise.resolve());
       const progress = (mapperTutorialIndex + 1) + " of " + MAPPER_TUTORIAL_STEPS.length;
       document.getElementById("mapperTutorialProgress").textContent = progress;
+      const track = document.getElementById("mapperTutorialTrack");
+      track.max = MAPPER_TUTORIAL_STEPS.length;
+      track.value = mapperTutorialIndex + 1;
       document.getElementById("mapperTutorialTitle").textContent = step.title;
       document.getElementById("mapperTutorialBody").innerHTML = step.body;
+      document.getElementById("mapperTutorialFeedback").textContent = "";
+      const practiceHadFocus = document.activeElement === document.getElementById("mapperTutorialPractice");
+      updateMapperTutorialPractice(step);
       document.getElementById("mapperTutorialAnnouncement").textContent = opener ? "" : progress + ". " + step.title;
       const back = document.getElementById("mapperTutorialBack");
       const next = document.getElementById("mapperTutorialNext");
@@ -111,15 +205,13 @@
       if (opener) document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
       revealMapperTutorialTarget(step.target);
       const backBecameDisabled = backHadFocus && back.disabled;
-      if (opener || backBecameDisabled || document.activeElement === document.body) {
+      if (opener || backBecameDisabled || (practiceHadFocus && !step.practice) || document.activeElement === document.body) {
         next.focus({ preventScroll: !backBecameDisabled });
       }
       positionMapperTutorial();
-      window.setTimeout(async () => {
+      window.setTimeout(() => {
         if (!isCurrentStep()) return;
-        try { await tutorialModePromise; } catch (err) {}
-        if (!isCurrentStep()) return;
-        const resolved = getVisibleTutorialTarget(step.target);
+        const resolved = getMapperTutorialTarget(step);
         const mobileBlockByStep = { 1: "start", 3: "end", 6: "end", 7: "start" };
         const block = isCompactFloodmapperLayout() ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
         resolved?.scrollIntoView({ block, inline: "center", behavior: "auto" });
@@ -159,7 +251,7 @@
             if (tutorial.hidden || mapperTutorialResizeHandler !== handleResize) return;
             const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
             revealMapperTutorialTarget(step.target);
-            getVisibleTutorialTarget(step.target)?.scrollIntoView({ block: "center", inline: "nearest" });
+            getMapperTutorialTarget(step)?.scrollIntoView({ block: "center", inline: "nearest" });
             positionMapperTutorial();
           }));
         };
@@ -230,6 +322,7 @@
       if (observer) observer.observe(loader, { attributes: true, attributeFilter: ["hidden"] });
       else highlight();
       document.getElementById("mapperTutorialClose")?.addEventListener("click", () => setMapperTutorialOpen(false));
+      document.getElementById("mapperTutorialPractice")?.addEventListener("click", runMapperTutorialPractice);
       document.getElementById("mapperTutorialBack")?.addEventListener("click", () => {
         if (mapperTutorialIndex > 0) {
           mapperTutorialIndex -= 1;

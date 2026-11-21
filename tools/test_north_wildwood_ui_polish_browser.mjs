@@ -69,11 +69,38 @@ try {
     assert.equal(new Set(sizes).size, 1, `Matching datum and overlay typography: ${sizes.join(', ')}`);
     const controlFont = await page.locator('#forecastDataBtn').evaluate(button => getComputedStyle(button).fontFamily);
     assert.ok(typography.every(({ fontFamily }) => fontFamily === controlFont), 'Use the shared map control font family');
+    const families = await page.locator('body').evaluate(body => [...new Set([...body.querySelectorAll('*')]
+      .filter(element => element.getClientRects().length && [...element.childNodes]
+        .some(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim()))
+      .map(element => getComputedStyle(element).fontFamily))]);
+    assert.deepEqual(families, [controlFont], 'All visible labels use the shared font family');
+    const helpSize = isMobile ? '44px' : '28px';
+    const helpShapes = await page.locator('.help-btn,.property-help > summary').evaluateAll(buttons => buttons.map(button => {
+      const { width, height, fontSize, fontFamily } = getComputedStyle(button);
+      return { width, height, fontSize, fontFamily };
+    }));
+    assert.ok(helpShapes.length >= 8);
+    assert.deepEqual(helpShapes, Array.from({ length: helpShapes.length }, () => ({
+      width: helpSize, height: helpSize, fontSize: '16px', fontFamily: controlFont,
+    })));
     const layers = page.locator('.layers-card');
     assert.equal(await layers.locator('.help-btn').count(), 1);
     const layerNames = await layers.locator('.layer-name').allTextContents();
     assert.ok(layerNames.includes('Roads With 6+ Inches of Water'));
     const layerHelp = layers.getByRole('button', { name: 'About map layers' });
+    assert.ok(await layerHelp.evaluate(help => {
+      const heading = help.closest('.rail-head');
+      return Math.abs(heading.getBoundingClientRect().right - help.getBoundingClientRect().right) <= 1;
+    }), 'Layers help aligns with the right edge of the heading');
+    if (isMobile) {
+      const roadNames = layers.locator('.layer-item').filter({ hasText: 'Road Names' });
+      const toggle = roadNames.getByRole('switch');
+      const original = await toggle.getAttribute('aria-checked');
+      await roadNames.locator('.layer-name').tap();
+      assert.notEqual(await toggle.getAttribute('aria-checked'), original);
+      await roadNames.locator('.layer-name').tap();
+      assert.equal(await toggle.getAttribute('aria-checked'), original);
+    }
     await layerHelp.click();
     const help = page.locator('#infoModal');
     await help.waitFor();

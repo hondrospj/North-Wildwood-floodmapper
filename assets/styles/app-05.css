@@ -7865,10 +7865,17 @@ html body #mapTitleBadge #mapTitleLogo{
   }
 
   @layer north-wildwood-control-layout {
-    :root { --nww-close-size:36px; }
-    :root.county-compact { --nww-close-size:44px; }
+    :root {
+      font-family:var(--nww-ui-font-family) !important;
+      --nww-close-size:36px;
+      --nww-help-size:28px;
+    }
+    :root.county-compact { --nww-close-size:44px; --nww-help-size:44px; }
+    @media (max-height:800px) and (not (any-pointer:coarse)) {
+      :root:not(.county-compact) { --nww-help-size:20px; }
+    }
     @media (any-pointer:coarse) {
-      :root { --nww-close-size:44px; }
+      :root { --nww-close-size:44px; --nww-help-size:44px; }
     }
     :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):not([hidden]) {
       width:var(--nww-close-size) !important;
@@ -7881,6 +7888,21 @@ html body #mapTitleBadge #mapTitleLogo{
       border-radius:8px !important;
     }
     body:not(.mobile-controls-open) #mobileControlsClose { display:none !important; }
+    :is(.help-btn,.property-help > summary) {
+      box-sizing:border-box !important;
+      width:var(--nww-help-size) !important;
+      min-width:var(--nww-help-size) !important;
+      max-width:var(--nww-help-size) !important;
+      height:var(--nww-help-size) !important;
+      min-height:var(--nww-help-size) !important;
+      max-height:var(--nww-help-size) !important;
+      flex:0 0 var(--nww-help-size) !important;
+      padding:0 !important;
+      font-size:16px !important;
+      font-weight:750 !important;
+      line-height:1 !important;
+      letter-spacing:0 !important;
+    }
 
     #leftPanel .section-title > .title-with-help:has(> .help-btn) {
       flex:1 1 auto !important;
@@ -7892,11 +7914,10 @@ html body #mapTitleBadge #mapTitleLogo{
     }
     .layers-card .rail-head:has(> #layersHelpBtn) {
       display:flex !important;
-      justify-content:flex-start !important;
+      justify-content:space-between !important;
       align-items:center !important;
       gap:8px !important;
     }
-    #layersHelpBtn { flex-shrink:0; }
     #infoModalBody .layer-help-list { margin:0; }
     #infoModalBody .layer-help-list dt { font-weight:700; }
     #infoModalBody .layer-help-list dd { margin:3px 0 12px; }
@@ -7911,6 +7932,56 @@ html body #mapTitleBadge #mapTitleLogo{
       white-space:nowrap !important;
     }
     #timelineDock #timelineDayTabs .timeline-day.gauge-inoperable { min-width:132px !important; }
+
+    .mapper-tutorial-card {
+      display:grid;
+      grid-template-rows:auto auto minmax(0,1fr) auto;
+      row-gap:10px;
+      box-sizing:border-box;
+      background:var(--nww-pill-surface) !important;
+      border:1px solid var(--nww-pill-outline) !important;
+      border-radius:16px !important;
+      padding:16px !important;
+      color:#eff6ff !important;
+    }
+    .mapper-tutorial-card h2 { margin:0 !important; font-size:21px !important; line-height:1.2 !important; }
+    .mapper-tutorial-track { flex:1; min-width:0; height:5px; accent-color:#60a5fa; }
+    .mapper-tutorial-content { min-height:0; overflow:auto; overscroll-behavior:contain; }
+    .mapper-tutorial-body { color:#dbe8f8 !important; }
+    .mapper-tutorial-body p { margin:0 !important; }
+    .mapper-tutorial-feedback { color:#bfdbfe; font-size:13px; line-height:1.35; margin:6px 0 0; }
+    .mapper-tutorial-feedback:empty { display:none; }
+    .mapper-tutorial-actions {
+      display:grid !important;
+      grid-template-columns:auto minmax(0,1fr) auto;
+      gap:6px !important;
+      margin:0 !important;
+    }
+    .mapper-tutorial-actions button {
+      min-width:0 !important;
+      min-height:44px !important;
+      height:auto !important;
+      padding:5px 9px !important;
+      font-size:13px !important;
+      line-height:1.2 !important;
+      white-space:normal !important;
+      color:#e2edff;
+    }
+    #mapperTutorialPractice { border-color:#4484c9; color:#d9ebff; }
+    #mapperTutorialPractice[aria-disabled="true"] { opacity:.6; }
+    #mapperTutorialNext { grid-column:3; }
+    #mapperTutorialSpotlight { border-color:#93c5fd !important; transition:none !important; }
+
+    :root.county-compact .mapper-tutorial-card {
+      width:min(440px,calc(100vw - 16px)) !important;
+      max-height:min(50dvh,350px) !important;
+      padding:12px !important;
+      row-gap:7px;
+    }
+    :root.county-compact .mapper-tutorial-card h2 { font-size:19px !important; }
+    @media (max-height:400px) {
+      :root.county-compact .mapper-tutorial-card { max-height:calc(64dvh - 8px) !important; }
+    }
   }
 
   @layer north-wildwood-pills {

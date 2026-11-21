@@ -4,7 +4,7 @@
 <html lang="en" data-nww-avalon-timeline data-nww-mobile-layout data-nww-phone data-ss-ui-ready="app">
 <head>
 <meta charset="utf-8">
-<style>@layer north-wildwood-control-layout, north-wildwood-phone;</style>
+<style>@layer north-wildwood-font, north-wildwood-control-layout, north-wildwood-phone;</style>
 <link rel="stylesheet" href="./assets/north-wildwood-phone.css?v=shared">
 <template id="floodmapperTownData"><!-- floodmapper:profile --></template>
 <link rel="stylesheet" href="./assets/north-wildwood-font.css?v=44bc78225f5bedbc">
@@ -540,13 +540,18 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
     <section id="mapperTutorialCard" class="mapper-tutorial-card" role="dialog" aria-modal="true" aria-labelledby="mapperTutorialTitle" aria-describedby="mapperTutorialBody">
       <span id="mapperTutorialAnnouncement" class="mapper-tutorial-announcement" role="status" aria-atomic="true"></span>
       <div class="mapper-tutorial-head">
-        <span id="mapperTutorialProgress" class="mapper-tutorial-progress">1 of 9</span>
+        <span id="mapperTutorialProgress" class="mapper-tutorial-progress"></span>
+        <progress id="mapperTutorialTrack" class="mapper-tutorial-track" aria-hidden="true"></progress>
         <button id="mapperTutorialClose" class="mapper-tutorial-close centered-close-control" type="button" aria-label="Close tutorial">×</button>
       </div>
       <h2 id="mapperTutorialTitle"></h2>
-      <div id="mapperTutorialBody" class="mapper-tutorial-body"></div>
+      <div class="mapper-tutorial-content">
+        <div id="mapperTutorialBody" class="mapper-tutorial-body"></div>
+        <p id="mapperTutorialFeedback" class="mapper-tutorial-feedback" aria-live="polite"></p>
+      </div>
       <div class="mapper-tutorial-actions">
         <button id="mapperTutorialBack" type="button">Back</button>
+        <button id="mapperTutorialPractice" type="button" hidden></button>
         <button id="mapperTutorialNext" class="active" type="button">Next</button>
       </div>
     </section>

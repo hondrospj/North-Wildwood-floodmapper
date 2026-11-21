@@ -36,19 +36,20 @@ try {
   report.before = await snapshot();
   assert.equal(report.before.focus, "mapperTutorialNext");
   assert.equal(report.before.reachable, true);
-  assert.ok(report.before.cardScroll > 0, "The card scrolled to reveal Next");
+  assert.equal(report.before.cardScroll, 0, "Next is visible without scrolling the card");
 
   await page.keyboard.press(forward);
   report.wrapped = await snapshot();
   assert.equal(report.wrapped.focus, "mapperTutorialClose");
   assert.equal(report.wrapped.reachable, true, "Tab wrap reveals the focused Close button");
-  assert.ok(report.wrapped.cardScroll < report.before.cardScroll);
+  assert.equal(report.wrapped.cardScroll, report.before.cardScroll);
   assert.deepEqual(report.wrapped.pageScroll, report.before.pageScroll);
 
   await page.keyboard.press(reverse);
   report.reversed = await snapshot();
   assert.equal(report.reversed.focus, "mapperTutorialNext");
   assert.equal(report.reversed.reachable, true, "Reverse wrap reveals the focused Next button");
+  assert.equal(report.reversed.cardScroll, report.before.cardScroll);
   assert.deepEqual(report.reversed.pageScroll, report.before.pageScroll);
   assert.deepEqual(report.pageErrors, []);
   report.passed = true;

@@ -13684,6 +13684,10 @@ function startPlayback() {
     }
 
     function wireLayerToggles() {
+      document.querySelector(".layer-list")?.addEventListener("click", event => {
+        if (!isCompactFloodmapperLayout() || event.target.closest("button, a, [role='switch']")) return;
+        event.target.closest(".layer-item")?.querySelector("[role='switch']")?.click();
+      });
       for (const [id, mode] of [["mapClickBuildingBtn", "building"], ["mapClickParcelBtn", "parcel"], ["mapClickDepthBtn", "depth"]]) {
         document.getElementById(id)?.addEventListener("click", () => {
           if (cancelPendingTownAddressLookup()) setTownAddressStatus("");
@@ -14437,42 +14441,51 @@ function startPlayback() {
       {
         title: "Welcome to the Floodmapper",
         target: "#mapTitleBadge",
-        body: "<p>This map turns water levels into a street-level picture of potential flooding. You can explore the next several days, replay measured events, click the map for modeled depth, inspect parcels, and export what you see.</p><p><strong>Every mapped depth is referenced to the selected water level and the ground-elevation model.</strong></p>"
+        body: "<p>Try the controls as you go. You’ll compare flood forecasts, move through time, and change what the map shows.</p>"
       },
       {
         title: "Start with the forecast",
-        target: ".data-source-card",
-        body: "<p>Select <strong>Forecast</strong> to explore the forecast water levels and mapped flooding.</p><p>The map and timeline update together, so the selected hour is always the water level being mapped.</p>"
+        target: "#forecastScenarioCard",
+        fallback: ".data-source-card",
+        practice: "forecast",
+        body: "<p>Compare <strong>Likely</strong> and <strong>Worst Case</strong> in Forecast Range. Watch the same time on the map as the forecast changes.</p>"
       },
       {
         title: "Switch to observations",
         target: ".data-source-card",
-        body: "<p>Select <strong>Past</strong> to explore the tide-gauge archive. Use <strong>Interval</strong> in the left pane to switch among Hourly, 15-Min, and Daily Max views.</p>"
+        practice: "past",
+        body: "<p>Choose <strong>Past</strong> to replay measured tide levels. Use <strong>Interval</strong> to switch between Hourly, 15-Min, and Daily Max.</p>"
       },
       {
         title: "Choose a historic flood",
         target: "#calendarCard",
-        body: "<p>The calendar is your archive. Colored dates mark flood thresholds; choose a day or type a date to replay it. Crest-only records show the maximum extent when a full time series was not preserved.</p>"
+        fallback: ".data-source-card",
+        practice: "calendar",
+        body: "<p>In <strong>Past</strong>, pick a date from the calendar. The date color shows the highest flood stage recorded that day.</p>"
       },
       {
         title: "Move through time",
         target: "#timelineDock",
-        body: "<p>Drag the slider to move the map through time, or press Play to animate it. The selected date, time, water level, and mapped depth always stay synchronized.</p>"
+        practice: "time",
+        body: "<p>Step through time and watch the water level change. On the map, drag the timeline slider or press <strong>Play</strong> to animate it.</p>"
       },
       {
         title: "Control map layers",
         target: ".layers-card",
-        body: "<p>Turn on <strong>Buildings</strong> for floor flood history and projections, or <strong>Parcels</strong> for flooded area and depth.</p>"
+        practice: "layers",
+        body: "<p>Try toggling <strong>Road Names</strong>. Use the <strong>?</strong> at the top right of Layers to see what every switch does.</p>"
       },
       {
         title: "Jump to the largest floods",
         target: ".mobile-top-tides-card, .top-tides-card",
-        body: "<p>The Top 10 list is the fastest way to inspect the archive's highest crests. Select an event to move the calendar, timeline, water-level readout, and inundation map to that flood.</p>"
+        practice: "crest",
+        body: "<p><strong>Top 10</strong> ranks the archive’s highest crests. From that list, choose a flood to see how far the water reached.</p>"
       },
       {
         title: "Export and share",
         target: "#downloadCard",
-        body: "<p>Open the export panel to save a single PNG, a PNG sequence, or an animated GIF. Set the time range, frame interval, layout, speed, and labels before export.</p><p>Exports preserve the map, timestamp, datum, depth key, and branding so the result can stand on its own.</p>"
+        practice: "export",
+        body: "<p>Save one map as a <strong>PNG</strong>, or export a time range as a PNG sequence or an animated <strong>GIF</strong>.</p>"
       }
     ];
     let mapperTutorialIndex = 0;
@@ -14492,6 +14505,10 @@ function startPlayback() {
       const needsDrawer = Boolean(target?.closest("#leftPanel, #mobileRailMount, #rightRail"));
       setMobileControlsOpen(needsDrawer);
       if (needsDrawer) document.dispatchEvent(new CustomEvent("nww:reveal-control", { detail: selector }));
+    }
+
+    function getMapperTutorialTarget(step) {
+      return getVisibleTutorialTarget(step.target) || (step.fallback ? getVisibleTutorialTarget(step.fallback) : null);
     }
 
     const mapperTutorialGesturePointers = new Set();
@@ -14516,7 +14533,7 @@ function startPlayback() {
         return;
       }
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
-      const target = step ? getVisibleTutorialTarget(step.target) : null;
+      const target = step ? getMapperTutorialTarget(step) : null;
       const spotlight = document.getElementById("mapperTutorialSpotlight");
       const card = document.getElementById("mapperTutorialCard");
       if (!target || !spotlight || !card) return;
@@ -14529,8 +14546,9 @@ function startPlayback() {
       spotlight.style.width = Math.max(20, Math.min(window.innerWidth - left - 4, rect.right + pad - left)) + "px";
       spotlight.style.height = Math.max(20, Math.min(window.innerHeight - top - 4, rect.bottom + pad - top)) + "px";
       const cardRect = card.getBoundingClientRect();
-      const gap = 18;
-      const margin = 14;
+      const compact = isCompactFloodmapperLayout();
+      const gap = compact ? 10 : 18;
+      const margin = compact ? 8 : 14;
       const width = Math.min(cardRect.width, window.innerWidth - margin * 2);
       const height = Math.min(cardRect.height, window.innerHeight - margin * 2);
       const clampLeft = value => Math.max(margin, Math.min(window.innerWidth - width - margin, value));
@@ -14539,7 +14557,13 @@ function startPlayback() {
         left: Math.max(0, rect.left - pad), top: Math.max(0, rect.top - pad),
         right: Math.min(window.innerWidth, rect.right + pad), bottom: Math.min(window.innerHeight, rect.bottom + pad)
       };
-      const candidates = [
+      const centered = (window.innerWidth - width) / 2;
+      const positions = compact ? [
+        [centered, window.innerHeight - height - margin],
+        [centered, margin],
+        [centered, rect.bottom + gap],
+        [centered, rect.top - height - gap]
+      ] : [
         [rect.right + gap, rect.top],
         [rect.left - width - gap, rect.top],
         [rect.left, rect.bottom + gap],
@@ -14548,7 +14572,8 @@ function startPlayback() {
         [window.innerWidth - width - margin, margin],
         [margin, window.innerHeight - height - margin],
         [window.innerWidth - width - margin, window.innerHeight - height - margin]
-      ].map(([rawLeft, rawTop]) => ({ left: clampLeft(rawLeft), top: clampTop(rawTop) }));
+      ];
+      const candidates = positions.map(([rawLeft, rawTop]) => ({ left: clampLeft(rawLeft), top: clampTop(rawTop) }));
       const overlapArea = candidate => {
         const overlapWidth = Math.max(0, Math.min(candidate.left + width, targetBox.right) - Math.max(candidate.left, targetBox.left));
         const overlapHeight = Math.max(0, Math.min(candidate.top + height, targetBox.bottom) - Math.max(candidate.top, targetBox.top));
@@ -14569,19 +14594,101 @@ function startPlayback() {
     let mapperTutorialGeneration = 0;
     let mapperTutorialStartedInDrawer = false;
     let mapperTutorialMobileOpener = null;
+
+    function updateMapperTutorialPractice(step) {
+      const practice = document.getElementById("mapperTutorialPractice");
+      const labels = {
+        forecast: currentForecastScenario === "highEnd" ? "Try Likely" : "Try Worst Case",
+        past: "Try Past",
+        calendar: "Show Calendar",
+        time: "Step Through Time",
+        layers: "Toggle Road Names",
+        crest: "Show Highest Crest",
+        export: "Open Export Map"
+      };
+      practice.hidden = !step.practice;
+      practice.textContent = labels[step.practice] || "";
+      practice.removeAttribute("aria-disabled");
+    }
+
+    async function runMapperTutorialPractice() {
+      const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
+      const practice = document.getElementById("mapperTutorialPractice");
+      if (!step?.practice || practice.getAttribute("aria-disabled") === "true") return;
+      const generation = mapperTutorialGeneration;
+      const feedback = document.getElementById("mapperTutorialFeedback");
+      const isCurrent = () => generation === mapperTutorialGeneration;
+      practice.setAttribute("aria-disabled", "true");
+      let message;
+      try {
+        switch (step.practice) {
+          case "forecast":
+            await switchForecastScenario(currentForecastScenario === "highEnd" ? "mean" : "highEnd");
+            message = floodFrameState === "ready" ? `Showing ${getForecastScenarioLabel()}.` : "This forecast couldn’t load.";
+            break;
+          case "past":
+          case "calendar":
+            if (currentDataMode !== "observed" || !currentSeriesHours.length) await switchDataMode("observed");
+            message = currentDataMode !== "observed" || !currentSeriesHours.length ? "Past data couldn’t load." : step.practice === "past"
+              ? "Past is selected. The map now uses measured water levels."
+              : "The date picker is in the highlighted Past panel.";
+            break;
+          case "time": {
+            if (currentSeriesHours.length < 2) await switchDataMode("forecast");
+            if (!isCurrent()) return;
+            stopPlayback();
+            cancelTimelineSelection();
+            const previous = currentHourIndex;
+            if (currentSeriesHours.length > 1) await renderHour(previous + (previous < currentSeriesHours.length - 1 ? 1 : -1));
+            const time = document.getElementById("timeText").textContent;
+            message = currentHourIndex !== previous && time ? `Map time changed to ${time.trim()}.` : "No other time is available for this map.";
+            break;
+          }
+          case "layers": {
+            const roads = document.getElementById("roadsToggle");
+            roads.click();
+            message = roads.getAttribute("aria-checked") === "true" ? "Road names are on." : "Road names are off.";
+            break;
+          }
+          case "crest": {
+            const crest = topTideEvents[0];
+            message = crest ? `Highest crest: ${crest.title}, ${formatStageForDisplay(crest.peakStage)}.` : "The crest rankings aren’t available yet.";
+            break;
+          }
+          case "export":
+            setMapperTutorialOpen(false);
+            document.getElementById("openDownloadModalBtn").click();
+            return;
+        }
+      } catch (_) {
+        message = "That action couldn’t finish. Try it again or continue the tour.";
+      }
+      if (!isCurrent()) return;
+      feedback.textContent = message;
+      updateMapperTutorialPractice(step);
+      if (step.practice === "calendar") {
+        revealMapperTutorialTarget(step.target);
+        getMapperTutorialTarget(step)?.scrollIntoView({ block: "center", inline: "nearest" });
+      }
+      positionMapperTutorial();
+    }
+
     function renderMapperTutorialStep(opener) {
       const generation = ++mapperTutorialGeneration;
       const isCurrentStep = () => generation === mapperTutorialGeneration &&
         document.getElementById("mapperTutorial")?.hidden === false;
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
       if (!step) return;
-      const tutorialModePromise = mapperTutorialIndex === 1 && currentDataMode !== "forecast"
-        ? switchDataMode("forecast")
-        : (mapperTutorialIndex === 3 && currentDataMode !== "observed" ? switchDataMode("observed") : Promise.resolve());
       const progress = (mapperTutorialIndex + 1) + " of " + MAPPER_TUTORIAL_STEPS.length;
       document.getElementById("mapperTutorialProgress").textContent = progress;
+      const track = document.getElementById("mapperTutorialTrack");
+      track.max = MAPPER_TUTORIAL_STEPS.length;
+      track.value = mapperTutorialIndex + 1;
       document.getElementById("mapperTutorialTitle").textContent = step.title;
       document.getElementById("mapperTutorialBody").innerHTML = step.body;
+      document.getElementById("mapperTutorialFeedback").textContent = "";
+      const practiceHadFocus = document.activeElement === document.getElementById("mapperTutorialPractice");
+      updateMapperTutorialPractice(step);
       document.getElementById("mapperTutorialAnnouncement").textContent = opener ? "" : progress + ". " + step.title;
       const back = document.getElementById("mapperTutorialBack");
       const next = document.getElementById("mapperTutorialNext");
@@ -14591,15 +14698,13 @@ function startPlayback() {
       if (opener) document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
       revealMapperTutorialTarget(step.target);
       const backBecameDisabled = backHadFocus && back.disabled;
-      if (opener || backBecameDisabled || document.activeElement === document.body) {
+      if (opener || backBecameDisabled || (practiceHadFocus && !step.practice) || document.activeElement === document.body) {
         next.focus({ preventScroll: !backBecameDisabled });
       }
       positionMapperTutorial();
-      window.setTimeout(async () => {
+      window.setTimeout(() => {
         if (!isCurrentStep()) return;
-        try { await tutorialModePromise; } catch (err) {}
-        if (!isCurrentStep()) return;
-        const resolved = getVisibleTutorialTarget(step.target);
+        const resolved = getMapperTutorialTarget(step);
         const mobileBlockByStep = { 1: "start", 3: "end", 6: "end", 7: "start" };
         const block = isCompactFloodmapperLayout() ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
         resolved?.scrollIntoView({ block, inline: "center", behavior: "auto" });
@@ -14639,7 +14744,7 @@ function startPlayback() {
             if (tutorial.hidden || mapperTutorialResizeHandler !== handleResize) return;
             const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
             revealMapperTutorialTarget(step.target);
-            getVisibleTutorialTarget(step.target)?.scrollIntoView({ block: "center", inline: "nearest" });
+            getMapperTutorialTarget(step)?.scrollIntoView({ block: "center", inline: "nearest" });
             positionMapperTutorial();
           }));
         };
@@ -14710,6 +14815,7 @@ function startPlayback() {
       if (observer) observer.observe(loader, { attributes: true, attributeFilter: ["hidden"] });
       else highlight();
       document.getElementById("mapperTutorialClose")?.addEventListener("click", () => setMapperTutorialOpen(false));
+      document.getElementById("mapperTutorialPractice")?.addEventListener("click", runMapperTutorialPractice);
       document.getElementById("mapperTutorialBack")?.addEventListener("click", () => {
         if (mapperTutorialIndex > 0) {
           mapperTutorialIndex -= 1;
