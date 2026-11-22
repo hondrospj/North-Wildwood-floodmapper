@@ -16,8 +16,12 @@ async function earlyPreviewScenario() {
   let releaseStyles,receiveStyles;
   const stylesReleased=new Promise(resolve=>{releaseStyles=resolve;});
   const stylesRequested=new Promise(resolve=>{receiveStyles=resolve;});
+  let forecastRequests=0;
   let navigation;
   try {
+    page.on('request',request=>{
+      if (new URL(request.url()).pathname.endsWith('/forecast.json')) forecastRequests++;
+    });
     await page.route('**/assets/styles/app-01.css*',async route=>{
       receiveStyles();await stylesReleased;await route.continue();
     });
@@ -36,7 +40,11 @@ async function earlyPreviewScenario() {
     });
     assert.deepEqual(early,{visibility:'visible',display:'block',opacity:1,coversViewport:true,mounted:false},
       'The geographic preview must fill the first viewport before the real stylesheet or map runtime can finish');
-    console.log('PASS geographic preview while the real startup stylesheet is held');
+    assert.equal(forecastRequests,1,'Start the forecast request while the startup stylesheet is still blocked');
+    releaseStyles();
+    await page.waitForFunction(()=>document.body?.dataset.siteLoader==='complete');
+    assert.equal(forecastRequests,1,'Use the early forecast response to render the first frame');
+    console.log('PASS geographic preview and forecast request while the startup stylesheet is held');
   } finally {
     releaseStyles();await navigation?.catch(()=>{});await context.close();
   }

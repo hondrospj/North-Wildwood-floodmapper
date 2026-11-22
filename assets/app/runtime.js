@@ -1106,6 +1106,13 @@ function cloneStyleObject(value) {
     }
 
     async function fetchJson(url, options = {}) {
+      const startup = window.floodmapperStartupForecast;
+      if (options.cache === "no-cache" && startup?.url === url) {
+        delete window.floodmapperStartupForecast;
+        const { data, error } = await startup.request;
+        if (error) throw error;
+        return data;
+      }
       const { timeoutMs = 30000, ...requestOptions } = options;
       const controller = new AbortController();
       const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -3269,6 +3276,8 @@ function setDatumHelpOpen(isOpen) {
       return L.latLngBounds([0, 0], [0.01, 0.01]);
     }
 
+    let startupOverlayCandidate = null;
+
     async function testImageUrl(url) {
       if (!url) return { ok: false };
       if (exportCancelRequested) return { ok: false, cancelled: true };
@@ -3283,13 +3292,13 @@ function setDatumHelpOpen(isOpen) {
           settled = true;
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          img.onload = null;
+          img.onerror = null;
           resolve(value);
         };
         const cancelIfRequested = () => {
           if (!exportCancelRequested) return false;
           imageExistsCache.delete(url);
-          img.onload = null;
-          img.onerror = null;
           try { img.src = ""; } catch (_) {}
           done({ ok: false, cancelled: true });
           return true;
@@ -3298,7 +3307,12 @@ function setDatumHelpOpen(isOpen) {
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
         img.crossOrigin = "anonymous";
         img.fetchPriority = "high";
-        img.onload = () => done({ ok: true });
+        img.onload = () => {
+          if (!settled && !exportInProgress && document.body.dataset.initialFloodFrame === "loading") {
+            startupOverlayCandidate = { url, image: img };
+          }
+          done({ ok: true });
+        };
         img.onerror = () => done({ ok: false });
         timeoutTimer = window.setTimeout(() => done({ ok: false }), 20000);
         img.src = url;
@@ -4913,6 +4927,19 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       deferredMapLayersStarted = true;
       document.body.dataset.deferredMapLayers = "active";
       document.body.dataset.deferredMapLayersStartedAt = performance.now().toFixed(1);
+      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
+        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+        minZoom: 11,
+        maxNativeZoom: 19,
+        maxZoom: 20,
+        subdomains: "abcd",
+        crossOrigin: true,
+        opacity: 0,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        className: "roads-layer",
+        pane: "roadsPane"
+      });
       if (roadsLayer && !map.hasLayer(roadsLayer)) roadsLayer.addTo(map);
       updateRoadLayerAppearance();
       updateColorBasemapClip();
@@ -5010,20 +5037,6 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         updateWhenIdle: true,
         keepBuffer: 1,
         pane: "satellitePane"
-      });
-
-      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
-        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
-        minZoom: 11,
-        maxNativeZoom: 19,
-        maxZoom: 20,
-        subdomains: "abcd",
-        crossOrigin: true,
-        opacity: 0,
-        updateWhenIdle: true,
-        keepBuffer: 1,
-        className: "roads-layer",
-        pane: "roadsPane"
       });
 
       updateMunicipalBoundaryLayer();
@@ -8704,6 +8717,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
     function waitForRecoveryFloodLayer(layer, token, onReady) {
       return new Promise(resolve => {
         let settled = false;
+        let handlingLoad = false;
         let timeout = null;
         const finish = ready => {
           if (settled) return;
@@ -8725,6 +8739,8 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
           resolve(ready);
         };
         const handleLoad = async () => {
+          if (handlingLoad) return;
+          handlingLoad = true;
           if (settled || token !== lastRenderToken) return finish(false);
           if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
           await new Promise(requestAnimationFrame);
@@ -8742,7 +8758,11 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
         layer.on("error", handleError);
         layer.on("remove", handleRemove);
         timeout = window.setTimeout(() => finish(false), 20000);
-        try { layer.addTo(map); } catch (_) { finish(false); }
+        try {
+          layer.addTo(map);
+          const image = layer.getElement();
+          if (image?.complete && image.naturalWidth) void handleLoad();
+        } catch (_) { finish(false); }
       });
     }
 
@@ -10098,7 +10118,14 @@ function formatSelectedObservedDate(dateStr) {
 
         const overlayUrl = match.url;
         releaseRaster = retainRasterObjectUrl(overlayUrl);
-        const loaded = await preloadImage(overlayUrl, "high");
+        // The atlas resolver already downloaded this image to verify its URL.
+        // Reuse it for the first frame without retaining every probed raster.
+        let initialImage = null;
+        if (document.body.dataset.initialFloodFrame === "loading") {
+          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
+          startupOverlayCandidate = null;
+        }
+        const loaded = initialImage || await preloadImage(overlayUrl, "high");
         if (token !== lastRenderToken) return;
         if (!loaded) {
           return false;
@@ -10130,7 +10157,8 @@ function formatSelectedObservedDate(dateStr) {
             className: currentDataMode === "return-interval" && mode === "depth"
               ? "return-interval-depth-overlay"
               : ""
-          }
+          },
+          initialImage || overlayUrl
         );
 
         pendingFloodLayer = nextLayer;

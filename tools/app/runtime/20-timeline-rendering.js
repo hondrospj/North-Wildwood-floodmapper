@@ -170,7 +170,14 @@
 
         const overlayUrl = match.url;
         releaseRaster = retainRasterObjectUrl(overlayUrl);
-        const loaded = await preloadImage(overlayUrl, "high");
+        // The atlas resolver already downloaded this image to verify its URL.
+        // Reuse it for the first frame without retaining every probed raster.
+        let initialImage = null;
+        if (document.body.dataset.initialFloodFrame === "loading") {
+          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
+          startupOverlayCandidate = null;
+        }
+        const loaded = initialImage || await preloadImage(overlayUrl, "high");
         if (token !== lastRenderToken) return;
         if (!loaded) {
           return false;
@@ -202,7 +209,8 @@
             className: currentDataMode === "return-interval" && mode === "depth"
               ? "return-interval-depth-overlay"
               : ""
-          }
+          },
+          initialImage || overlayUrl
         );
 
         pendingFloodLayer = nextLayer;

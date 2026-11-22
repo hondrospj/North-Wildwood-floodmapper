@@ -4,10 +4,29 @@
 <html lang="en" data-nww-avalon-timeline data-nww-mobile-layout data-nww-phone data-ss-ui-ready="app">
 <head>
 <meta charset="utf-8">
+<template id="floodmapperTownData"><!-- floodmapper:profile --></template>
+<script id="floodmapper-early-forecast">
+(() => {
+  const config = JSON.parse(document.getElementById("floodmapperTownData").content.textContent);
+  const url = new URL(config.data?.forecastPath || "./forecast.json", window.location.href).href;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 30000);
+  const request = fetch(url, {
+    cache: "no-cache",
+    headers: { Accept: "application/geo+json, application/json" },
+    signal: controller.signal,
+    priority: "high"
+  }).then(response => {
+    if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+    return response.json();
+  }).then(data => ({ data }), error => ({ error }))
+    .finally(() => window.clearTimeout(timer));
+  window.floodmapperStartupForecast = { url, request };
+})();
+</script>
 <style>@layer north-wildwood-font, north-wildwood-control-layout, north-wildwood-phone;</style>
 <link rel="stylesheet" href="./assets/north-wildwood-phone.css?v=shared">
-<template id="floodmapperTownData"><!-- floodmapper:profile --></template>
-<link rel="stylesheet" href="./assets/north-wildwood-font.css?v=44bc78225f5bedbc">
+<link rel="stylesheet" href="./assets/north-wildwood-font.css?v=shared">
 <link rel="preconnect" href="https://hondrospj.github.io" crossorigin>
 <!-- nww:style:style-001 -->
 <!-- nww:style:style-002 -->

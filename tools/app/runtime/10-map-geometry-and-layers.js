@@ -641,6 +641,19 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       deferredMapLayersStarted = true;
       document.body.dataset.deferredMapLayers = "active";
       document.body.dataset.deferredMapLayersStartedAt = performance.now().toFixed(1);
+      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
+        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+        minZoom: 11,
+        maxNativeZoom: 19,
+        maxZoom: 20,
+        subdomains: "abcd",
+        crossOrigin: true,
+        opacity: 0,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        className: "roads-layer",
+        pane: "roadsPane"
+      });
       if (roadsLayer && !map.hasLayer(roadsLayer)) roadsLayer.addTo(map);
       updateRoadLayerAppearance();
       updateColorBasemapClip();
@@ -738,20 +751,6 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         updateWhenIdle: true,
         keepBuffer: 1,
         pane: "satellitePane"
-      });
-
-      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
-        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
-        minZoom: 11,
-        maxNativeZoom: 19,
-        maxZoom: 20,
-        subdomains: "abcd",
-        crossOrigin: true,
-        opacity: 0,
-        updateWhenIdle: true,
-        keepBuffer: 1,
-        className: "roads-layer",
-        pane: "roadsPane"
       });
 
       updateMunicipalBoundaryLayer();
