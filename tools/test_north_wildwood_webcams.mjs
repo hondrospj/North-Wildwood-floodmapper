@@ -12,7 +12,8 @@ const browser = await chromium.launch({ headless: true,
 try {
   for (const width of [1440, 390, 320]) {
     const mobile = width < 900;
-    const page = await browser.newPage({ viewport: { width, height: mobile ? 844 : 1000 }, isMobile: mobile, hasTouch: mobile });
+    const height = width === 320 ? 568 : mobile ? 844 : 1000;
+    const page = await browser.newPage({ viewport: { width, height }, isMobile: mobile, hasTouch: mobile });
     const errors = [], requests = [];
     let providerStatus = 200, providerGate = null;
     page.on('pageerror', error => errors.push(error.message));
@@ -105,8 +106,11 @@ try {
       assert.equal(requests.length, before + (external ? 0 : 1), 'Only an embeddable camera requests a feed');
       assert.equal(await page.locator('#webcamFrame iframe').count(), external ? 0 : 1);
       assert.equal(await page.locator('#webcamPanel').evaluate(el => el.parentElement === document.body), true);
-      assert.equal(await page.locator('#webcamStatus').isVisible(), external, 'Only a blocked feed shows a provider status');
+      assert.equal(await page.locator('#webcamStatus').isVisible(), false);
       assert.equal(await page.locator('#webcamTitle').innerText(),'Cameras');
+      assert.equal(await page.getByRole('region', { name: 'Cameras' }).isVisible(), true);
+      assert.equal(await page.locator('.webcam-heading #webcamChoice').isVisible(), true);
+      assert.equal(await page.locator('.webcam-time-label').isVisible(), !external);
       assert.equal(await page.locator('#webcamLocation,#webcamLocate,#webcamOtherSources,.webcam-disclaimer').count(),0,'Camera viewer omits redundant location and explanatory blocks');
       assert.equal(await page.locator('#webcamClose').evaluate(el => el.classList.contains('centered-close-control')), true);
       assert.doesNotMatch(await page.locator('#webcamPanel').innerText(), /Current view|Watch on city website/i);
@@ -115,8 +119,8 @@ try {
       if (external) {
         assert.equal(await page.locator('#webcamFrame').isVisible(), false, 'A blocked feed does not leave a large empty player');
         assert.equal(await page.locator('#webcamChoice option:checked').innerText(), '15th Avenue Beach');
-        assert.equal(await page.locator('#webcamStatus').innerText(), 'In-map playback unavailable.');
         const link = page.locator('#webcamSourceLink');
+        assert.match(await link.innerText(), /^Open camera/);
         assert.equal(await link.getAttribute('href'), 'https://northwildwood.com/north-wildwood-surf-cams/');
         assert.equal(await link.getAttribute('target'), '_blank');
         assert.match(await link.getAttribute('rel'), /noopener/);

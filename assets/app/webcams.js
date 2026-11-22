@@ -17,11 +17,14 @@
   panel.setAttribute("role", "region");
   panel.setAttribute("aria-labelledby", "webcamTitle");
   panel.setAttribute("data-html2canvas-ignore", "true");
-  panel.innerHTML = `<div class="webcam-heading"><h2 id="webcamTitle">Cameras</h2><button type="button" id="webcamClose" class="centered-close-control" aria-label="Close camera viewer">×</button></div>
-    <select id="webcamChoice" aria-label="Choose camera"></select>
+  panel.innerHTML = `<div class="webcam-heading">
+      <h2 id="webcamTitle" class="webcam-visually-hidden">Cameras</h2>
+      <select id="webcamChoice" aria-label="Choose camera"></select>
+      <button type="button" id="webcamClose" class="centered-close-control" aria-label="Close camera viewer">×</button>
+    </div>
     <div id="webcamFrame" class="webcam-frame"></div>
     <p id="webcamStatus" role="status" aria-live="polite" hidden></p>
-    <div class="webcam-source"><a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Camera source ↗</a><button type="button" id="webcamRetry" aria-label="Reload camera" title="Reload if the feed is blank">↻</button></div>`;
+    <div class="webcam-source"><span class="webcam-time-label">Separate from map time</span><a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Source ↗</a><button type="button" id="webcamRetry" aria-label="Reload camera" title="Reload if the feed is blank">↻</button></div>`;
   document.body.append(panel);
   const choice = panel.querySelector("#webcamChoice");
   const frameHost = panel.querySelector("#webcamFrame");
@@ -29,6 +32,7 @@
   const status = panel.querySelector("#webcamStatus");
   const sourceLink = panel.querySelector("#webcamSourceLink");
   const retryButton = panel.querySelector("#webcamRetry");
+  const timeLabel = panel.querySelector(".webcam-time-label");
   let enabled = false, selected = null, frame = null, refreshTimer = null;
   let openingDeadline = null;
   let leafletMap = null, leafletLayer = null, glMap = null, glMarkers = [];
@@ -41,6 +45,11 @@
     choice.append(option);
   }
   choice.hidden = cameras.length < 2;
+  if (choice.hidden) {
+    const title = panel.querySelector("#webcamTitle");
+    title.textContent = cameras[0].short || cameras[0].name;
+    title.classList.remove("webcam-visually-hidden");
+  }
 
   function setStatus(message) {
     status.textContent = message;
@@ -58,12 +67,13 @@
 
   function loadPlayer(camera) {
     clearPlayer();
-    retryButton.hidden = Boolean(camera.external);
-    frameHost.hidden = Boolean(camera.external);
+    const external = Boolean(camera.external);
+    retryButton.hidden = timeLabel.hidden = frameHost.hidden = external;
+    sourceLink.textContent = external ? "Open camera ↗" : "Source ↗";
     if (camera.external) {
       // The city's beach provider restricts its player to approved parent sites.
       panel.dataset.playerState = "external";
-      setStatus("In-map playback unavailable.");
+      setStatus("");
       return;
     }
     setStatus("Opening camera…");
