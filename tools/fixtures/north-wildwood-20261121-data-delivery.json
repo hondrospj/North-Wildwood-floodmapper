@@ -5,7 +5,7 @@
     {
       "source": "assets/app/runtime.js",
       "beforeSha256": "61b33a67081d2b7990f43fafe38d55041366e8900487449e9c9bcef0e26eb6e9",
-      "afterSha256": "93f2cb932b20436cd345219c3e6efa632230e774dc9958f98923d473556538b5",
+      "afterSha256": "74449864d8b58245f5481d1e9c26c4fc084a97d76a88b885ad7edd979147dea5",
       "edits": [
         [
           541,
@@ -68,61 +68,101 @@
           "        try { layer.addTo(map); } catch (_) { finish(false); }\n"
         ],
         [
-          463903,
-          464399,
+          425826,
+          425951,
+          "      match = raw.match(/^(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?$/);\n"
+        ],
+        [
+          425970,
+          426386,
+          "        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());\n        if (y < 100) y += 2000;\n        return dateKey(y, match[1], match[2]);\n"
+        ],
+        [
+          427402,
+          427462,
+          "        toast(\"Enter a date like Apr 19, 2026 or 04/19/2026.\");\n"
+        ],
+        [
+          464160,
+          464656,
           "        const loaded = await preloadImage(overlayUrl, \"high\");\n"
         ],
         [
-          465288,
-          465338,
+          465545,
+          465595,
           "          }\n"
         ],
         [
-          483870,
-          484054,
+          484127,
+          484311,
           "          const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL));\n"
         ],
         [
-          608485,
-          608542,
+          522874,
+          523650,
+          "        currentSeriesHours = sampleCanonicalHydraulicSeries(\n          currentRawSeriesHours,\n          getTimelineIntervalMinutes()\n        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));\n"
+        ],
+        [
+          609315,
+          609372,
           "    function loadDepthQueryPng(url) {\n"
         ],
         [
-          608702,
-          608806,
+          609532,
+          609636,
           "          const error = new Error(\"Packed depth-query PNG took too long to load. Please try again.\");\n"
         ],
         [
-          608870,
-          608893,
+          609700,
+          609723,
           "        }, 20000);\n"
         ],
         [
-          609988,
-          610086,
+          610818,
+          610916,
           "        image.onerror = () => finish(new Error(\"Packed depth-query PNG could not be loaded.\"));\n"
         ],
         [
-          610121,
-          611220,
+          610951,
+          612050,
           ""
         ],
         [
-          611349,
-          611456,
+          612179,
+          612286,
           "        const request = (async () => {\n          let lastError = null;\n          for (let attempt = 0; attempt < 2; attempt += 1) {\n            try {\n              const url = new URL(DEPTH_QUERY_PNG_URL);\n              if (attempt) url.searchParams.set(\"_retry\", String(Date.now()));\n              return await loadDepthQueryPng(url.href);\n            } catch (error) {\n              // A stalled transport has already used its full deadline. Let\n              // the frame controller/user retry instead of doubling that wait.\n              if (error?.name === \"TimeoutError\") throw error;\n              lastError = error;\n            }\n          }\n          throw lastError || new Error(\"Packed depth-query PNG is unavailable.\");\n        })().catch(error => {\n"
         ],
         [
-          611816,
-          611911,
+          612646,
+          612741,
           "        const request = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)\n"
+        ],
+        [
+          651149,
+          651190,
+          "    function clearTownAddressLookup() {\n      cancelPendingTownAddressLookup();\n      const input = document.getElementById(\"townAddressInput\");\n      if (input) input.value = \"\";\n      setTownAddressStatus(\"\");\n"
+        ],
+        [
+          651439,
+          651691,
+          ""
+        ],
+        [
+          666313,
+          666346,
+          ""
+        ],
+        [
+          668609,
+          668776,
+          "        if (townAddressMarker && map.hasLayer(townAddressMarker)) {\n          townAddressMarker.setLatLng(latLng);\n          townAddressMarker.options.title = label;\n          const markerElement = townAddressMarker.getElement();\n          if (markerElement) markerElement.title = label;\n        } else {\n          townAddressMarker = L.marker(latLng, {\n            title: label,\n            riseOnHover: true,\n            icon: getShorelySafeAddressIcon()\n          }).addTo(map);\n        }\n"
         ]
       ]
     },
     {
       "source": "index.html",
       "beforeSha256": "85552c954306883c39a6a4d1fbbdb84eceef8e77c507378d0cb67d1c9a08cbd6",
-      "afterSha256": "d8c56f8bdadd64df9a4ce04935fc9b7f41af3c2006ad659eb2e45db7dc451af0",
+      "afterSha256": "f1096bdbea1ad70c20454f4ca9f8da4c2fe1bf6d73b2b7fc4f3803f760ae3748",
       "edits": [
         [
           248,
@@ -550,6 +590,67 @@
           4371,
           4446,
           "  #webcamChoice { min-height:44px !important; }\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/19-observed-history.js",
+      "beforeSha256": "bcf0aae746f1c319064dc3f8a4950a1efb766a60e9041ec95f7c71c98610fa09",
+      "afterSha256": "a3f0b721128c99473577d5c9f462801e4262b49912de7b9a4ba2e788e54c91fa",
+      "edits": [
+        [
+          7456,
+          7581,
+          "      match = raw.match(/^(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?$/);\n"
+        ],
+        [
+          7600,
+          8016,
+          "        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());\n        if (y < 100) y += 2000;\n        return dateKey(y, match[1], match[2]);\n"
+        ],
+        [
+          9032,
+          9092,
+          "        toast(\"Enter a date like Apr 19, 2026 or 04/19/2026.\");\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "beforeSha256": "e95bc3018e3fd781e5ea94d2bbde0c2261951a44506f9c9a440cb1169cd26c96",
+      "afterSha256": "fd36ad5a998b25cf02b1e06e8bb8a30016524d3b4a058f1eae66ef40c6095e37",
+      "edits": [
+        [
+          19802,
+          20578,
+          "        currentSeriesHours = sampleCanonicalHydraulicSeries(\n          currentRawSeriesHours,\n          getTimelineIntervalMinutes()\n        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/27-mobile-and-address.js",
+      "beforeSha256": "dd6a06f9e8c73d8a980167413c0d73662eced5081a78158daf96eb7c93660487",
+      "afterSha256": "ce8fbf289ad745b1dd01d1877720cceccc3675d17e0a01ed026937c3fb670eac",
+      "edits": [
+        [
+          12585,
+          12626,
+          "    function clearTownAddressLookup() {\n      cancelPendingTownAddressLookup();\n      const input = document.getElementById(\"townAddressInput\");\n      if (input) input.value = \"\";\n      setTownAddressStatus(\"\");\n"
+        ],
+        [
+          12875,
+          13127,
+          ""
+        ],
+        [
+          27749,
+          27782,
+          ""
+        ],
+        [
+          30045,
+          30212,
+          "        if (townAddressMarker && map.hasLayer(townAddressMarker)) {\n          townAddressMarker.setLatLng(latLng);\n          townAddressMarker.options.title = label;\n          const markerElement = townAddressMarker.getElement();\n          if (markerElement) markerElement.title = label;\n        } else {\n          townAddressMarker = L.marker(latLng, {\n            title: label,\n            riseOnHover: true,\n            icon: getShorelySafeAddressIcon()\n          }).addTo(map);\n        }\n"
         ]
       ]
     }

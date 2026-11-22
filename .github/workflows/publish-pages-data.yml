@@ -183,8 +183,8 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           site='https://hondrospj.github.io/North-Wildwood-floodmapper/'
-          latest_shard="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["observations"]["observed_archive_index.json"]["shard"])' "$RUNNER_TEMP/pages-data.json")"
-          files=(forecast.json data/experimental_petss_guidance.json observed_archive_index.json "$latest_shard")
+          paths="$(jq -er '.verifiedPaths[]' "$RUNNER_TEMP/pages-data.json")"
+          mapfile -t files <<< "$paths"
           if [[ -f _site/data/v41/latest.json ]]; then
             files+=(data/v41/latest.json data/v41/latest.png data/v41/latest.csv)
           fi

@@ -5,12 +5,11 @@ import shutil
 import tempfile
 import unittest
 
-from pages_forecast_overlay import generated_paths, stage_pages_data
+from pages_forecast_overlay import FORECAST_PATHS, OBSERVED_INDEXES, generated_paths, stage_pages_data
 from release_data import V41_FORECAST_FILES, utc_time
 
 
 REPO = Path(__file__).resolve().parents[1]
-FORECAST_PATHS = ("forecast.json", "data/experimental_petss_guidance.json")
 
 
 def link_or_copy(source, destination):
@@ -27,12 +26,11 @@ class PagesForecastOverlayTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.source = Path(directory.name) / "source"
         self.site = Path(directory.name) / "site"
-        current = json.loads((REPO / "observed_archive_index.json").read_text(encoding="utf-8"))
-        self.observed_paths = (
-            "observed_archive_index.json",
-            f"observed_archive/stone-harbor/{current['archiveEndDate'][:4]}.json",
-        )
-        self.changed_paths = (*FORECAST_PATHS, *self.observed_paths)
+        self.observation_shards = {}
+        for index, directory in OBSERVED_INDEXES.items():
+            current = json.loads((REPO / index).read_text(encoding="utf-8"))
+            self.observation_shards[index] = f"{directory}/{current['archiveEndDate'][:4]}.json"
+        self.changed_paths = (*FORECAST_PATHS, *(path for pair in self.observation_shards.items() for path in pair))
         for relative in generated_paths(REPO):
             if relative in V41_FORECAST_FILES:
                 continue  # Each V41 test supplies independent fixture bytes.
@@ -50,7 +48,9 @@ class PagesForecastOverlayTest(unittest.TestCase):
     def test_stages_validated_forecast_and_observations_over_pinned_ui(self):
         receipt = stage_pages_data(self.source, self.site, now=self.now)
         self.assertGreater(receipt["forecast"]["hours"], 0)
-        self.assertEqual(receipt["observations"][self.observed_paths[0]]["shard"], self.observed_paths[1])
+        self.assertEqual(receipt["verifiedPaths"], list(self.changed_paths))
+        for index, shard in self.observation_shards.items():
+            self.assertEqual(receipt["observations"][index]["shard"], shard)
         for relative in self.changed_paths:
             self.assertEqual((self.source / relative).read_bytes(), (self.site / relative).read_bytes())
         self.assertEqual((self.site / "index.html").read_text(encoding="utf-8"), "approved UI")
@@ -64,10 +64,13 @@ class PagesForecastOverlayTest(unittest.TestCase):
         self.assert_original_data()
 
     def test_rejects_incomplete_observation_snapshot_before_writing_data(self):
-        (self.source / self.observed_paths[1]).unlink()
-        with self.assertRaisesRegex(ValueError, "missing indexed observation shards"):
-            stage_pages_data(self.source, self.site, now=self.now)
-        self.assert_original_data()
+        for shard in self.observation_shards.values():
+            with self.subTest(shard=shard):
+                (self.source / shard).unlink()
+                with self.assertRaisesRegex(ValueError, "missing indexed observation shards"):
+                    stage_pages_data(self.source, self.site, now=self.now)
+                self.assert_original_data()
+                link_or_copy(REPO / shard, self.source / shard)
 
     def write_v41_run(self, issue_utc="2026-11-10T12:00:00Z", **overrides):
         directory = self.source / "data/v41"

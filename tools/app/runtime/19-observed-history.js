@@ -195,11 +195,17 @@ function formatSelectedObservedDate(dateStr) {
       let match = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
       if (match) return dateKey(match[1], match[2], match[3]);
 
-      match = raw.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
+      match = raw.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/)
+        || raw.match(/^(\d{2})(\d{2})(\d{2}|\d{4})$/);
       if (match) {
-        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());
-        if (y < 100) y += 2000;
-        return dateKey(y, match[1], match[2]);
+        const [, month, day, yearText] = match;
+        const currentYear = Number(getTodayNyDateKey().slice(0, 4));
+        let year = yearText ? Number(yearText) : Number((currentMonthKey || String(currentYear)).slice(0, 4));
+        if (yearText?.length === 2) {
+          year += currentYear - currentYear % 100;
+          if (year > currentYear) year -= 100;
+        }
+        return dateKey(year, month, day);
       }
 
       const monthFirst = raw.match(/^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/i);
@@ -219,7 +225,7 @@ function formatSelectedObservedDate(dateStr) {
       const parsed = parseTypedObservedDate(input.value);
       if (!parsed) {
         input.value = selectedObservedDate ? formatSelectedObservedDate(selectedObservedDate) : "";
-        toast("Enter a date like Apr 19, 2026 or 04/19/2026.");
+        toast("Enter a date like 04192026 or 04/19/2026.");
         return;
       }
       const available = getObservedDays().some(day => day.date === parsed);

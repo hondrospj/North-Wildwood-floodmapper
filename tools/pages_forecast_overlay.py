@@ -11,6 +11,7 @@ import shutil
 from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, available_v41_paths, read_json, validate_data
 
 
+FORECAST_PATHS = ("forecast.json", "data/experimental_petss_guidance.json")
 OBSERVED_INDEXES = {
     "observed_archive_index.json": "observed_archive/stone-harbor",
     "lewes_archive_index.json": "observed_archive/lewes",
@@ -37,7 +38,8 @@ def observed_coverage(source, available):
         day = index["days"][-1]
         shard_path = f"{directory}/{date.fromisoformat(day['d']).year}.json"
         shard = read_json(source / shard_path)
-        if not shard["days"] or any(shard["days"][-1][key] != day[key] for key in ("d", "p", "c")):
+        if (day["d"] != index["archiveEndDate"] or not shard["days"]
+                or any(shard["days"][-1][key] != day[key] for key in ("d", "p", "c"))):
             raise ValueError(f"{shard_path}: latest day differs from {path}")
         latest[path] = {"lastDate": day["d"], "shard": shard_path}
     for path in CITY_INDEXES:
@@ -58,7 +60,11 @@ def stage_pages_data(source, site, now=None):
     changed = [relative for relative in paths
                if not (site / relative).is_file() or not cmp(source / relative, site / relative, shallow=False)]
     receipt = validate_data(source, changed, now=now, operational_petss=True)
-    receipt["observations"] = observed_coverage(source, set(paths))
+    observations = observed_coverage(source, set(paths))
+    receipt["observations"] = observations
+    receipt["verifiedPaths"] = list(FORECAST_PATHS)
+    for index_path, latest in observations.items():
+        receipt["verifiedPaths"].extend((index_path, latest["shard"]))
     for relative in changed:
         destination = site / relative
         destination.parent.mkdir(parents=True, exist_ok=True)

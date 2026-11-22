@@ -301,8 +301,9 @@ modeled depth at or below 0.10 ft is shown as `0.0-0.1ft`.
   NOAA Stone Harbor flood categories at 6.1, 7.1, and 8.1 ft MLLW.
 - The forecast workflow publishes validated data to Cup A Joe and GitHub Pages
   when `SHORELYSAFE_DATA_PUBLICATION_ENABLED` is `true`. Both sites preserve their
-  approved interface during data refreshes. The observed archive has a separate
-  daily refresh.
+  approved interface during data refreshes. The daily observation refresh also
+  publishes to both hosts. Pages stages the forecast and the observation indexes
+  and shards from the same generated-data commit.
 - `.github/workflows/update-observed.yml` maintains a clean fallback layer from
   USGS site `01411360`, parameter `72279`, then overlays the North Wildwood city
   gauge on exact 15-minute anchors. The city source wins whenever it has a

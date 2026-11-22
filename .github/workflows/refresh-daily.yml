@@ -32,3 +32,13 @@ jobs:
     needs: update-observed
     uses: ./.github/workflows/refresh-deployed-data.yml
     secrets: inherit
+
+  publish-pages:
+    needs: update-observed
+    if: ${{ vars.SHORELYSAFE_DATA_PUBLICATION_ENABLED == 'true' }}
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/publish-pages-data.yml

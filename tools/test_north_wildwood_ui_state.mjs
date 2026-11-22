@@ -20,15 +20,19 @@ async function flush() { for (let i = 0; i < 24; i++) await Promise.resolve(); }
 async function test(name, run) { try { await run(); results.push({ name, passed: true }); } catch (error) { results.push({ name, passed: false, error: error.stack || String(error) }); } }
 
 await test('Past date entry validates the calendar before looking up the archive', () => {
-  const context = vm.createContext({ currentMonthKey: '2024-02' });
+  const context = vm.createContext({ currentMonthKey: '2024-02', getTodayNyDateKey: () => '2026-11-15' });
   load(context, ['pad2', 'parseTypedObservedDate']);
   for (const input of ['Feb 29, 2024', 'February 29 2024', '29 Feb. 2024', '02/29/2024',
-    '2-29-24', '2024-2-29', '2024/2/29', '2/29']) {
+    '2-29-24', '2024-2-29', '2024/2/29', '2/29', '02292024', '022924']) {
     assert.equal(context.parseTypedObservedDate(input), '2024-02-29', input);
   }
   assert.equal(context.parseTypedObservedDate('Sept 5, 2026'), '2026-09-05');
+  for (const input of ['03/07/62', '030762', '03071962']) {
+    assert.equal(context.parseTypedObservedDate(input), '1962-03-07', input);
+  }
+  assert.equal(context.parseTypedObservedDate('11/15/26'), '2026-11-15');
   for (const input of ['Feb 30, 2026', '02/30/2026', '2026-02-30', '29 February 2026',
-    'Apr 31, 2026', '2026-04-00', 'Janfoo 2, 2026', '2026-13-01']) {
+    'Apr 31, 2026', '2026-04-00', 'Janfoo 2, 2026', '2026-13-01', '02302026']) {
     assert.equal(context.parseTypedObservedDate(input), null, input);
   }
 });
