@@ -59,9 +59,16 @@ for (const name of ["testImageUrl","preloadImage","getExportImageElement"]) {
   }
   const images=context(name==="preloadImage"?["decodeFloodFrameImage",name]:[name],{Image:FakeImage,window:{setTimeout,clearTimeout,setInterval,clearInterval},
     imageExistsCache:new Map(),preloadPromiseCache:new Map(),exportImageElementCache:new Map(),
+    document:{body:{dataset:{initialFloodFrame:"ready"}}},startupOverlayCandidate:null,
     exportCancelRequested:false,exportInProgress:false});
   await images[name]("test.png");available=true;
   const recovered=await images[name]("test.png");assert(recovered);assert.equal(requested,2,`${name} retained a failed image`);
+  if (name==="testImageUrl") {
+    images.document.body.dataset.initialFloodFrame="loading";
+    await images.testImageUrl("startup.png");
+    assert.equal(images.startupOverlayCandidate.url,"startup.png");
+    assert.equal(images.startupOverlayCandidate.image.alt,"");
+  }
 }
 // The shared recovery suite covers failed replacements, retries and last-good-frame retention.
 await import("./test_export_frame_recovery.mjs");
