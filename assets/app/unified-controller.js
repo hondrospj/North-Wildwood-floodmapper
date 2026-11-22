@@ -254,15 +254,18 @@
     set(panel,'scroll-padding-top',`${Math.max(136,Math.ceil(header.getBoundingClientRect().height)+8)}px`);
    }else panel.style.removeProperty('scroll-padding-top');
    set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');for(const size of ['height','min-height','max-height'])set(timeline,size,'var(--nww-phone-dock-height, 180px)');
+   alignTimelineBubble();
    for(const e of [document.getElementById('nwDefaultNavControl'),document.getElementById('countyStandaloneView')])if(e)for(const key of ['left','right','top'])e.style.removeProperty(key);
    const title=document.getElementById('mapTitleBadge');for(const key of ['left','right','top','max-width','transform'])title?.style.removeProperty(key);
    const focused=document.activeElement;if(body.classList.contains('mobile-controls-open')&&focused?.matches('input,textarea,select')&&panel.contains(focused)){const r=focused.getBoundingClientRect(),p=panel.getBoundingClientRect();if(r.bottom>p.bottom-20||r.top<p.top+130)requestAnimationFrame(()=>focused.scrollIntoView({block:'nearest',inline:'nearest'}));}
   }else{
    for(const key of ['top','left','right','bottom','height'])body.style.removeProperty('--cm-'+key);
    set(timeline,'position','fixed');set(timeline,'left','16px');set(timeline,'right','16px');set(timeline,'bottom','16px');set(timeline,'height','112px');set(timeline,'min-height','112px');set(timeline,'max-height','112px');
+   alignTimelineBubble();
    for(const [pane,width]of [[panel,300],[rail,280]])for(const [key,value]of Object.entries({position:'absolute',top:'16px',bottom:'auto',left:pane===panel?'16px':'auto',right:pane===rail?'16px':'auto',width:width+'px','max-width':width+'px',height:'auto','max-height':'none','min-height':'0px','overflow-y':'visible','overflow-x':'visible',display:'flex'}))set(pane,key,value);
    const bubbleRect=bubble?.getBoundingClientRect(),timelineRect=timeline.getBoundingClientRect();
-   const available=Math.max(100,Math.min(timelineRect.top-28,bubbleRect?.height?bubbleRect.top-12:Infinity)-16);
+   const floatingBubble=bubbleRect?.height&&bubbleRect.top<timelineRect.top;
+   const available=Math.max(100,(floatingBubble?bubbleRect.top:timelineRect.top)-28);
    const fits=()=>[panel,rail].every(pane=>Math.ceil(pane.scrollHeight)<=available+1);
    let density='normal';attr(body,'data-sidebar-density',density);
    if(!fits()){density='compact';attr(body,'data-sidebar-density',density);}
@@ -285,7 +288,6 @@
    if(nav){set(nav,'right',navRight+'px');set(nav,'left','auto');set(nav,'top','16px');}
    if(standaloneButton)set(standaloneButton,'right',navRight+'px');body.style.setProperty('--county-nav-right',navRight+'px');
   }
-  alignTimelineBubble();
   if(typeof positionMapClickModeControl==='function')positionMapClickModeControl();
   for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge'),bubble])saveStyle(e);
   body.dataset.unifiedLayoutPasses=String(layoutPasses);body.dataset.unifiedLayout=compact?'mobile':'desktop';

@@ -83,6 +83,27 @@
     bottom: max(var(--flood-status-bottom, 0px), var(--nww-timeline-notice-bottom, 200px)) !important;
   }
 
+  @media (max-height: 640px) {
+    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble {
+      top: 4px !important;
+      bottom: auto !important;
+      height: 30px !important;
+      min-height: 30px !important;
+      padding-block: 0 !important;
+      box-shadow: none !important;
+    }
+    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineDayTabs {
+      top: 40px !important;
+    }
+    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] .timeline-trackRow {
+      top: 63px !important;
+    }
+    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey {
+      top: 90px !important;
+      height: 18px !important;
+    }
+  }
+
   @media (max-width: 900px), (max-height: 560px), (max-width: 1366px) and (any-pointer: coarse) {
     html[data-nww-phone] body {
       --phone-surface: #111826;
