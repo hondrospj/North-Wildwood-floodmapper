@@ -518,17 +518,17 @@
       height: 44px !important;
     }
 
-    html[data-nww-phone] body #timelineDock #hourSlider { --nww-thumb-size: 25px; }
+    html[data-nww-phone] body #timelineDock #hourSlider { --nww-thumb-size: 25px !important; }
     html[data-nww-phone] body #timelineDock #hourSlider::-webkit-slider-thumb { margin-top: -8.5px !important; }
     html[data-nww-phone] body #timelineDock #hourSlider::-webkit-slider-thumb {
-      width: 25px !important;
-      height: 25px !important;
+      width: var(--nww-thumb-size) !important;
+      height: var(--nww-thumb-size) !important;
       border: 2px solid #f8fbff !important;
       box-shadow: 0 0 0 3px #a6d6ff38 !important;
     }
     html[data-nww-phone] body #timelineDock #hourSlider::-moz-range-thumb {
-      width: 25px !important;
-      height: 25px !important;
+      width: var(--nww-thumb-size) !important;
+      height: var(--nww-thumb-size) !important;
       border: 2px solid #f8fbff !important;
       box-shadow: 0 0 0 3px #a6d6ff38 !important;
     }

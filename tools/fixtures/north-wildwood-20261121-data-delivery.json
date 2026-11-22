@@ -162,7 +162,7 @@
     {
       "source": "index.html",
       "beforeSha256": "85552c954306883c39a6a4d1fbbdb84eceef8e77c507378d0cb67d1c9a08cbd6",
-      "afterSha256": "40eb3abc8f281a3c18915f57a2f4f0fcd1a1055dc997645ba6ade8f8094fae9e",
+      "afterSha256": "5fe855d44a9c3f11c52b1c784494b0b700aa2edeaf1016a4671b170eb71ad38a",
       "edits": [
         [
           248,
@@ -741,7 +741,7 @@
     {
       "source": "assets/north-wildwood-phone.css",
       "beforeSha256": "d368367ef7166843de8e05171044b744bb5eb1ba6024681a4757283dd97f9561",
-      "afterSha256": "6be4cb1a53dc0347cdec3bf4566e3004823f6d2815d96d843ade084e63cfb6b9",
+      "afterSha256": "8f4eef926a46c2a1b65580b91490222b4bcba23df28399e1e1ecaf5fef31031d",
       "edits": [
         [
           345,
@@ -757,6 +757,21 @@
           14560,
           15369,
           ""
+        ],
+        [
+          18319,
+          18414,
+          "    html[data-nww-phone] body #timelineDock #hourSlider { --nww-thumb-size: 25px; }\n"
+        ],
+        [
+          18607,
+          18702,
+          "      width: 25px !important;\n      height: 25px !important;\n"
+        ],
+        [
+          18878,
+          18973,
+          "      width: 25px !important;\n      height: 25px !important;\n"
         ]
       ]
     }
