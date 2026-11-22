@@ -6,6 +6,28 @@
     outline: none !important;
   }
 
+  html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow] {
+    overflow: visible !important;
+  }
+
+  html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow]::after {
+    display: none !important;
+  }
+
+  html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow]::before {
+    content: "";
+    position: absolute;
+    bottom: -5px;
+    left: var(--nww-thumb-offset, 50%);
+    width: 8px;
+    height: 8px;
+    border-right: 1px solid #526277;
+    border-bottom: 1px solid #526277;
+    background: #111826;
+    transform: translateX(-50%) rotate(45deg);
+    pointer-events: none;
+  }
+
   @media (max-width: 900px), (max-height: 560px), (max-width: 1366px) and (any-pointer: coarse) {
     html[data-nww-phone] body {
       --phone-surface: #111826;
@@ -360,6 +382,7 @@
       border-radius: 17px !important;
       background: var(--phone-surface) !important;
       box-shadow: var(--phone-shadow) !important;
+      overflow: visible !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineBubble {
@@ -392,6 +415,28 @@
       box-shadow: none !important;
       font: 580 12px/14px Inter, system-ui, sans-serif !important;
       color: #f8fbff !important;
+    }
+
+    html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow] {
+      top: auto !important;
+      bottom: calc(100% + 8px) !important;
+      right: auto !important;
+      width: max-content !important;
+      max-width: calc(100% - 16px) !important;
+      height: auto !important;
+      min-height: 34px !important;
+      padding: 4px 9px !important;
+      border: 1px solid #526277 !important;
+      border-radius: 999px !important;
+      background: var(--phone-surface) !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      gap: 6px !important;
+      pointer-events: none !important;
+    }
+
+    html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow] .timeline-bubble-current {
+      white-space: nowrap !important;
     }
 
     html[data-nww-phone] body #timelineDock :is(.timeline-step, #playBtn) {

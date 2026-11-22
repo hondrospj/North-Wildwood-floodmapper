@@ -104,6 +104,31 @@ try {
       [state.steps[1],state.steps[2]],[state.days,state.slider]]) {
       assert(!overlap(a,b),layout);
     }
+    assert.ok(state.time.bottom <= state.dock.top && state.time.left >= state.dock.left &&
+      state.time.right <= state.dock.right, 'The reading follows the thumb above the dock without clipping');
+    const painted = await page.locator('#timelineBubble').evaluate(pill=>new Promise(resolve=>{
+      const observer=new IntersectionObserver(([entry])=>{
+        observer.disconnect();
+        resolve(entry.intersectionRatio);
+      });
+      observer.observe(pill);
+    }));
+    assert.ok(painted > .99, 'The dock does not clip the floating reading');
+    if (viewport.width === 390) {
+      const slider=page.locator('#hourSlider');
+      const ends=await slider.evaluate(input=>({min:Number(input.min),max:Number(input.max),value:input.valueAsNumber}));
+      assert.ok(ends.max > ends.min);
+      const factor=ends.value >= (ends.max + ends.min)/2 ? .12 : .88;
+      await page.touchscreen.tap(state.slider.left + state.slider.width * factor,
+        state.slider.top + state.slider.height/2);
+      await page.waitForFunction(start=>{
+        const range=document.getElementById('hourSlider');
+        return range.valueAsNumber !== start && range.valueAsNumber === currentHourIndex &&
+          !pendingTimelineSelection && !requestedTimelineSelection;
+      },ends.value);
+      const moved=await page.locator('#timelineBubble').boundingBox();
+      assert.ok(Math.abs(moved.x - state.time.x) > 16,'Touch changes the position of the same time and level pill');
+    }
     const timeline = await page.locator('#timelineDock').evaluate(dock => ({
       labels: [...dock.querySelectorAll('.timeline-key-item > .timeline-key-label')].map(label => ({
         size: parseFloat(getComputedStyle(label).fontSize),
