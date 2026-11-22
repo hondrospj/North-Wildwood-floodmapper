@@ -192,6 +192,21 @@ try{
      await page.waitForFunction(index=>currentHourIndex===index&&floodFrameState==='ready'&&!pendingTimelineSelection&&!requestedTimelineSelection,last-1,{timeout:90000});
      await settle(page);
      check((await bubble.boundingBox()).x<finalX-0.5,label+' '+mode+' timestamp moves one step away from the end');
+     await slider.evaluate(range=>{
+      range.addEventListener('input',()=>{
+       const pill=document.getElementById('timelineBubble');
+       const track=range.getBoundingClientRect();
+       const min=Number(range.min),max=Number(range.max);
+       const halfThumb=parseFloat(getComputedStyle(range).getPropertyValue('--nww-thumb-size'))/2;
+       const thumb=track.left+halfThumb+(range.valueAsNumber-min)/(max-min)*(track.width-2*halfThumb);
+       const pointer=pill.getBoundingClientRect().left+pill.clientLeft+parseFloat(getComputedStyle(pill,'::before').left);
+       range.dataset.auditPointerError=String(Math.abs(thumb-pointer));
+      },{once:true});
+     });
+     const track=await slider.boundingBox();
+     await page.mouse.click(track.x+track.width/2,track.y+track.height/2);
+     const error=await slider.getAttribute('data-audit-pointer-error');
+     check(error!==null&&Number(error)<1.5,label+' '+mode+' timestamp follows the native desktop input immediately');
     }
     await page.locator('#depthModeBtn').click({noWaitAfter:true});
     await page.waitForFunction(()=>currentOverlayMode==='depth'&&floodFrameState==='ready',null,{timeout:90000});

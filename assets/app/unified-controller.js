@@ -219,6 +219,10 @@
    alignTimelineBubble();
   });
  }
+ function followTimelineInput(){
+  if(mobile.matches)scheduleTimelineBubble();
+  else alignTimelineBubble();
+ }
  function layout(){
   frame=0;
   const previousFocus=document.activeElement;
@@ -332,7 +336,8 @@
   const bubbleResize=new ResizeObserver(scheduleTimelineBubble);
   bubbleResize.observe(bubble);
   bubbleResize.observe(slider);
-  slider.addEventListener('input',scheduleTimelineBubble,{passive:true});
+  // Move the desktop reading with the native range event, before the map requests its frame.
+  for(const event of ['input','change'])slider.addEventListener(event,followTimelineInput,{capture:true,passive:true});
   // Playback and day navigation set the range value without an input event.
   new MutationObserver(scheduleTimelineBubble).observe(slider,{attributes:true,attributeFilter:['style','min','max']});
  }

@@ -114,6 +114,12 @@ try {
       observer.observe(pill);
     }));
     assert.ok(painted > .99, 'The dock does not clip the floating reading');
+    const decoration = await page.locator('#timelineBubble').evaluate(pill=>{
+      const level=getComputedStyle(pill.querySelector('.timeline-bubble-stage'));
+      return {pointer:getComputedStyle(pill,'::before').display,background:level.backgroundColor,border:level.borderTopWidth};
+    });
+    assert.deepEqual(decoration,{pointer:'none',background:'rgba(0, 0, 0, 0)',border:'0px'},
+      'Compact slider readings have plain text and no pointer decoration');
     if (viewport.width === 390) {
       const slider=page.locator('#hourSlider');
       const ends=await slider.evaluate(input=>({min:Number(input.min),max:Number(input.max),value:input.valueAsNumber}));

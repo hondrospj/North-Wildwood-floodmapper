@@ -13,6 +13,7 @@
     max-width: calc(100% - 16px) !important;
     justify-content: center !important;
     font-variant-numeric: tabular-nums;
+    transform: none !important;
   }
 
   html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow] :is(.timeline-bubble-current, .timeline-bubble-stage-gauge) {
@@ -418,14 +419,17 @@
     }
 
     html[data-nww-phone] body #timelineDock #timelineBubble .timeline-bubble-stage {
-      padding: 0 4px !important;
+      padding: 0 !important;
       min-height: 0 !important;
-      background: rgba(var(--nw-ui-blue-rgb), .25) !important;
-      border: 1px solid #bfdbfe !important;
-      border-radius: 999px !important;
+      background: transparent !important;
+      border: 0 !important;
       box-shadow: none !important;
-      font: 580 12px/14px Inter, system-ui, sans-serif !important;
+      font: 700 14px/18px Inter, system-ui, sans-serif !important;
       color: #f8fbff !important;
+    }
+
+    html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow]::before {
+      display: none !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow] {
@@ -437,7 +441,7 @@
       height: auto !important;
       min-height: 34px !important;
       padding: 4px 9px !important;
-      border: 1px solid #526277 !important;
+      border: 1px solid #414b59 !important;
       border-radius: 999px !important;
       background: var(--phone-surface) !important;
       flex-direction: row !important;

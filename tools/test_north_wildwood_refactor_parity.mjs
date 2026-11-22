@@ -15,7 +15,7 @@ const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex
 const DATA_DELIVERY_PATH = "tools/fixtures/north-wildwood-20261121-data-delivery.json";
 const priorDataDeliverySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-data-delivery-snapshot");
 const dataDeliveryText = fs.readFileSync(localPath(DATA_DELIVERY_PATH));
-assert.equal(hashReleaseBytes(dataDeliveryText), "193dacfd760be8d9414a0309f3067e8d5c3de9f28f16f9c2c7932a85fed24eb8", "Retain the exact data delivery inverse");
+assert.equal(hashReleaseBytes(dataDeliveryText), "2df9a05c9efe22a8fcdf1ee00b161923a5d3147ba736d78b218e6023a4f18454", "Retain the exact data delivery inverse");
 const dataDelivery = JSON.parse(dataDeliveryText);
 assert.equal(dataDelivery.schemaVersion, 1);
 assert.equal(dataDelivery.baselineCommit, "27e58b1953b324f42e61020168f7c93587fb649b");
