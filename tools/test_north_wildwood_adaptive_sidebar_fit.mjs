@@ -188,6 +188,13 @@ try{
      await geometryChecks(page,label+' '+mode+' final timestamp',true);
      const bubble=page.locator('#timelineBubble');
      const finalX=(await bubble.boundingBox()).x;
+     const edgeError=await slider.evaluate(range=>{
+      const pill=document.getElementById('timelineBubble').getBoundingClientRect();
+      const thumbWidth=parseFloat(getComputedStyle(range).getPropertyValue('--nww-thumb-size'));
+      const thumb=range.getBoundingClientRect().right-thumbWidth/2;
+      return Math.abs(thumb-(pill.left+pill.width/2));
+     });
+     check(edgeError<1.5,label+' '+mode+' the pill itself is centered over the final thumb position');
      await page.keyboard.press('ArrowLeft');
      await page.waitForFunction(index=>currentHourIndex===index&&floodFrameState==='ready'&&!pendingTimelineSelection&&!requestedTimelineSelection,last-1,{timeout:90000});
      await settle(page);
@@ -199,8 +206,9 @@ try{
        const min=Number(range.min),max=Number(range.max);
        const halfThumb=parseFloat(getComputedStyle(range).getPropertyValue('--nww-thumb-size'))/2;
        const thumb=track.left+halfThumb+(range.valueAsNumber-min)/(max-min)*(track.width-2*halfThumb);
-       const pointer=pill.getBoundingClientRect().left+pill.clientLeft+parseFloat(getComputedStyle(pill,'::before').left);
-       range.dataset.auditPointerError=String(Math.abs(thumb-pointer));
+       const box=pill.getBoundingClientRect();
+       const center=box.left+box.width/2;
+       range.dataset.auditPointerError=String(Math.abs(thumb-center));
       },{once:true});
      });
      const track=await slider.boundingBox();

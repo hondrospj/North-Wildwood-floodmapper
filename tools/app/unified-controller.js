@@ -184,31 +184,38 @@
  }
  function alignTimelineBubble(){
   if(!bubble||!slider)return;
-  const track=slider.getBoundingClientRect();
   const min=Number(slider.min),max=Number(slider.max);
+  const desktop=!mobile.matches;
+  // Reserve the pill's space before measuring either end of the desktop track.
+  timeline.toggleAttribute('data-nww-centered-slider',desktop&&max>min);
+  const track=slider.getBoundingClientRect();
   const followsThumb=track.width>0&&track.height>0&&max>min;
   bubble.toggleAttribute('data-nww-thumb-follow',followsThumb);
+  const bubbleRect=bubble.getBoundingClientRect();
+  if(desktop&&followsThumb)set(body,'--nww-timeline-notice-bottom',`${Math.ceil(innerHeight-bubbleRect.top+8)}px`);
+  else body.style.removeProperty('--nww-timeline-notice-bottom');
   if(!followsThumb){
    bubble.style.removeProperty('left');
-   bubble.style.removeProperty('--nww-thumb-offset');
   }else{
    const fraction=(slider.valueAsNumber-min)/(max-min);
    const thumbSize=parseFloat(getComputedStyle(slider).getPropertyValue('--nww-thumb-size'))||26;
    const travel=Math.max(0,track.width-thumbSize);
-   const thumbStart=track.left+thumbSize/2;
-   const thumbCenter=thumbStart+fraction*travel;
    const dockLeft=timeline.getBoundingClientRect().left+timeline.clientLeft;
-   const width=bubble.getBoundingClientRect().width;
-   const inset=8,rightLimit=Math.max(inset,timeline.clientWidth-width-inset);
-   const idealStart=thumbStart-dockLeft-width/2,idealEnd=idealStart+travel;
-   const leftShift=Math.max(0,inset-idealStart),rightShift=Math.max(0,idealEnd-rightLimit);
-   // Spread the edge adjustments over adjacent steps so neither end pins the pill in place.
-   const left=2*(leftShift+rightShift)>travel
-    ? (idealStart+leftShift)*(1-fraction)+(idealEnd-rightShift)*fraction
-    : idealStart+fraction*travel+Math.max(0,leftShift-fraction*travel/2)
-      -Math.max(0,rightShift-(1-fraction)*travel/2);
+   const width=bubbleRect.width;
+   const start=track.left+thumbSize/2-dockLeft-width/2;
+   let left=start+fraction*travel;
+   if(!desktop){
+    const inset=8,rightLimit=Math.max(inset,timeline.clientWidth-width-inset);
+    const end=start+travel;
+    const leftShift=Math.max(0,inset-start),rightShift=Math.max(0,end-rightLimit);
+    // Fit the pill above the compact dock's full-width track.
+    if(2*(leftShift+rightShift)>travel){
+     left=(start+leftShift)*(1-fraction)+(end-rightShift)*fraction;
+    }else{
+     left+=Math.max(0,leftShift-fraction*travel/2)-Math.max(0,rightShift-(1-fraction)*travel/2);
+    }
+   }
    set(bubble,'left',`${left}px`);
-   set(bubble,'--nww-thumb-offset',`${thumbCenter-dockLeft-left-bubble.clientLeft}px`);
   }
   saveStyle(bubble);
  }

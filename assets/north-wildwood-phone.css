@@ -30,7 +30,7 @@
     content: "";
     position: absolute;
     bottom: -5px;
-    left: var(--nww-thumb-offset, 50%);
+    left: 50%;
     width: 8px;
     height: 8px;
     border-right: 1px solid #526277;
@@ -38,6 +38,49 @@
     background: #111826;
     transform: translateX(-50%) rotate(45deg);
     pointer-events: none;
+  }
+
+  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] {
+    --nww-desktop-pill-width: 256px;
+    --nww-desktop-thumb-size: 26px;
+    --nww-desktop-slider-edge: calc(var(--nww-desktop-pill-width) / 2 + 8px);
+  }
+
+  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] .timeline-trackRow {
+    left: calc(var(--nww-desktop-slider-edge) - var(--nww-desktop-thumb-size) / 2) !important;
+    right: calc(var(--nww-desktop-slider-edge) - var(--nww-desktop-thumb-size) / 2) !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+
+  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineDayTabs {
+    left: var(--nww-desktop-slider-edge) !important;
+    right: var(--nww-desktop-slider-edge) !important;
+  }
+
+  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #hourSlider {
+    --nww-thumb-size: var(--nww-desktop-thumb-size) !important;
+  }
+
+  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble[data-nww-thumb-follow] {
+    width: var(--nww-desktop-pill-width) !important;
+    padding-inline: 10px !important;
+  }
+
+  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble .timeline-bubble-current {
+    font-size: 18px !important;
+  }
+
+  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineBubble .timeline-bubble-stage {
+    font-size: 16px !important;
+  }
+
+  html[data-nww-phone] body:has(#timelineDock[data-nww-centered-slider]):not(:has(#downloadModal.open)) #toast {
+    bottom: var(--nww-timeline-notice-bottom, 200px) !important;
+  }
+
+  html[data-nww-phone] body:has(#timelineDock[data-nww-centered-slider]) #floodFrameStatus {
+    bottom: max(var(--flood-status-bottom, 0px), var(--nww-timeline-notice-bottom, 200px)) !important;
   }
 
   @media (max-width: 900px), (max-height: 560px), (max-width: 1366px) and (any-pointer: coarse) {
