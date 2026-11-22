@@ -1,0 +1,267 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "25111b5b8a4edd7d88ae70de7807275dcabe6abc",
+  "files": [
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "379f055ce33b52144db51a5b75f9d3a33b32d2de7e1b5aef92038c2fd0199ff5",
+      "afterSha256": "61b33a67081d2b7990f43fafe38d55041366e8900487449e9c9bcef0e26eb6e9",
+      "edits": [
+        [
+          222952,
+          222952,
+          "      if (basemapColorLayer && !map.hasLayer(basemapColorLayer)) basemapColorLayer.addTo(map);\n"
+        ],
+        [
+          223100,
+          223661,
+          ""
+        ],
+        [
+          223712,
+          223854,
+          ""
+        ],
+        [
+          225125,
+          225324,
+          "        basemapColorLayer.on(\"error\", () => {\n          if (basemapColorLayer && map.hasLayer(basemapColorLayer)) {\n            map.removeLayer(basemapColorLayer);\n          }\n"
+        ],
+        [
+          225748,
+          225887,
+          "          if (deferredMapLayersStarted) basemapColorLayer.addTo(map);\n"
+        ],
+        [
+          227440,
+          228791,
+          "      map.fitBounds(getBoundaryDrivenOverlayBounds(false), { padding: [20, 20] });\n"
+        ],
+        [
+          464911,
+          465034,
+          "          if (!mapHasFit && floodLatLngBounds) {\n            const townBounds = getBoundaryDrivenOverlayBounds();\n            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });\n            if (document.body.classList.contains(\"mobile-optimized\")) {\n              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });\n            }\n            mapHasFit = true;\n          }\n"
+        ],
+        [
+          467626,
+          467726,
+          "        if (!mapHasFit) {\n          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });\n          if (document.body.classList.contains(\"mobile-optimized\")) {\n            map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });\n          }\n          mapHasFit = true;\n        }\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/north-wildwood-loading.js",
+      "beforeSha256": "f0fcb8967684a0f92a69cfc127f2d640533a379c4c500febf850d42234bbc9b1",
+      "afterSha256": "32d3957af28d20e818b2955159c0dade3cbc2ba80ce82fc180557d4f2a9a4eae",
+      "edits": [
+        [
+          298,
+          298,
+          "    const startedAt = performance.now();\n"
+        ],
+        [
+          3400,
+          3510,
+          "      if (reason === 'timeout') { reveal(reason); return; }\n      setNorthWildwoodLoadingState(100, 'Floodmapper ready');\n      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) reveal(reason);\n      else {\n        // Preserve the original minimum display, completion pause and fade.\n        const remaining = Math.max(0, 800 - (performance.now() - startedAt));\n        setTimeout(() => reveal(reason), remaining + 260);\n      }\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "fbdb2d8e161fe711f6a33bb5bb04c1bed5fc71d3817870bba8296c3fdd13d8ff",
+      "afterSha256": "85552c954306883c39a6a4d1fbbdb84eceef8e77c507378d0cb67d1c9a08cbd6",
+      "edits": [
+        [
+          248,
+          341,
+          "<style>@layer north-wildwood-font, north-wildwood-control-layout, north-wildwood-phone;</style>\n<link rel=\"stylesheet\" href=\"./assets/north-wildwood-phone.css?v=0751b550fe149a06\">\n"
+        ],
+        [
+          32747,
+          32838,
+          "<link rel=\"stylesheet\" href=\"./assets/north-wildwood-font.css?v=44bc78225f5bedbc\">\n"
+        ],
+        [
+          32909,
+          32994,
+          "<link rel=\"stylesheet\" data-nww-style-bundle=\"app-01\" href=\"./assets/styles/app-01.css?v=be79111ab98987bc\">\n"
+        ],
+        [
+          33335,
+          33426,
+          "<link rel=\"stylesheet\" href=\"assets/north-wildwood-loading.css?v=20261027-lines1\">\n"
+        ],
+        [
+          33775,
+          33858,
+          "<script id=\"floodmapper-startup-20261002\" data-nww-script=\"script-001\" src=\"./assets/app/startup.js?v=072a3f119d4ffec8\"></script>\n"
+        ],
+        [
+          33859,
+          33944,
+          "<link rel=\"stylesheet\" data-nww-style-bundle=\"app-02\" href=\"./assets/styles/app-02.css?v=4b27d8307ccfb3d1\">\n"
+        ],
+        [
+          33945,
+          34209,
+          "<link rel=\"stylesheet\" href=\"assets/avalon-mobile.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-timeline.css?v=20261021-tablet1\">\n<script data-nww-script=\"script-002\" src=\"./assets/app/mobile-class.js?v=2674020e1af0ed47\"></script>\n"
+        ],
+        [
+          34348,
+          34524,
+          "  <script data-nww-script=\"script-003\" src=\"./assets/app/platform.js?v=be7a7d894330018d\"></script>\n  <link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\" />\n"
+        ],
+        [
+          34525,
+          34612,
+          "  <link rel=\"stylesheet\" data-nww-style-bundle=\"app-03\" href=\"./assets/styles/app-03.css?v=a9c19868b18cbebc\">\n"
+        ],
+        [
+          34708,
+          35429,
+          "  <link rel=\"stylesheet\" href=\"./assets/map-status.css?v=691b3e74990d9d20\" />\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-mobile.css?v=20261026-holistic1\">\n<link rel=\"stylesheet\" data-nww-style-bundle=\"app-04\" href=\"./assets/styles/app-04.css?v=509becaedd60dc22\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-layers.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-controls.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-calendar.css?v=20261021-tablet1\">\n<link rel=\"stylesheet\" href=\"assets/export-date-time-picker.css?v=9a8f640254cba6b4\">\n<link rel=\"stylesheet\" href=\"assets/north-wildwood-type.css?v=20261021-tablet1\">\n"
+        ],
+        [
+          35494,
+          35579,
+          "<link rel=\"stylesheet\" data-nww-style-bundle=\"app-05\" href=\"./assets/styles/app-05.css?v=f7b7567b075a7aee\">\n"
+        ],
+        [
+          37557,
+          37642,
+          ""
+        ],
+        [
+          37969,
+          38627,
+          "html body.nw-app-loading :is(#app,#mobileControlsToggle,#legendDock):not([inert]),html body.nw-app-loading #topBanner{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}\n"
+        ],
+        [
+          39804,
+          61750,
+          ""
+        ],
+        [
+          74232,
+          74686,
+          ""
+        ],
+        [
+          104088,
+          104166,
+          "  <script src=\"assets/north-wildwood-loading.js?v=d7288f205d13c615\"></script>\n"
+        ],
+        [
+          104567,
+          104665,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=379f055ce33b5214\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "22b5184e88179e836cb41d98f3418182d26a3b4f05e34c275ebf0acab3ef405a",
+      "afterSha256": "1c9fada52b421f4ffca50d9380a61b1bb5fdde9c3ed52e0224395d401a25db7b",
+      "edits": [
+        [
+          4773,
+          4858,
+          ""
+        ],
+        [
+          5185,
+          5843,
+          "html body.nw-app-loading :is(#app,#mobileControlsToggle,#legendDock):not([inert]),html body.nw-app-loading #topBanner{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}\n"
+        ],
+        [
+          7020,
+          7455,
+          ""
+        ],
+        [
+          19961,
+          20415,
+          ""
+        ],
+        [
+          49901,
+          49979,
+          "  <script src=\"assets/north-wildwood-loading.js?v=d7288f205d13c615\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/10-map-geometry-and-layers.js",
+      "beforeSha256": "198c5b5c7e288f15a36edba0da2d178fdabf0f14f850b980a64ecadd51e07151",
+      "afterSha256": "112f3e6e76f74fcfef9deb77da628fbb5d01e681dac457aac99998144a1847c5",
+      "edits": [
+        [
+          25943,
+          25943,
+          "      if (basemapColorLayer && !map.hasLayer(basemapColorLayer)) basemapColorLayer.addTo(map);\n"
+        ],
+        [
+          26091,
+          26652,
+          ""
+        ],
+        [
+          26703,
+          26845,
+          ""
+        ],
+        [
+          28116,
+          28315,
+          "        basemapColorLayer.on(\"error\", () => {\n          if (basemapColorLayer && map.hasLayer(basemapColorLayer)) {\n            map.removeLayer(basemapColorLayer);\n          }\n"
+        ],
+        [
+          28739,
+          28878,
+          "          if (deferredMapLayersStarted) basemapColorLayer.addTo(map);\n"
+        ],
+        [
+          30431,
+          31782,
+          "      map.fitBounds(getBoundaryDrivenOverlayBounds(false), { padding: [20, 20] });\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/20-timeline-rendering.js",
+      "beforeSha256": "c43dc1f9a26509c92ee26d8a2c50b25e520dc76bdb580b09e60765814e6fd51a",
+      "afterSha256": "f752e4d850d8dfa4a808fdd48aec1b8376460f120350b28d2bed23539c7c9231",
+      "edits": [
+        [
+          12631,
+          12754,
+          "          if (!mapHasFit && floodLatLngBounds) {\n            const townBounds = getBoundaryDrivenOverlayBounds();\n            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });\n            if (document.body.classList.contains(\"mobile-optimized\")) {\n              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });\n            }\n            mapHasFit = true;\n          }\n"
+        ],
+        [
+          15346,
+          15446,
+          "        if (!mapHasFit) {\n          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });\n          if (document.body.classList.contains(\"mobile-optimized\")) {\n            map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });\n          }\n          mapHasFit = true;\n        }\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/build_north_wildwood_app.mjs",
+      "beforeSha256": "ae88e877dc351621c6760a832f6721ece725cdba9c53eced9ecbbdf5969098be",
+      "afterSha256": "c2961680670b328b052dad871c015f85cdecf73db137aeb3a4ae81446f1c1d0b",
+      "edits": [
+        [
+          3286,
+          4422,
+          ""
+        ]
+      ]
+    }
+  ],
+  "added": [
+    {
+      "source": "assets/north-wildwood-startup-map.webp",
+      "bytes": 14318,
+      "sha256": "e19c43ff7c9a9df4b748b3de39fbc477f80b95a036d1e6a90aad2692b2ae2a9d"
+    }
+  ]
+}

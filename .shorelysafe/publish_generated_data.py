@@ -23,9 +23,13 @@ def overlay(base,source,paths,replacements):
   if not p.is_file():continue
   assert not p.is_symlink(),f'Symlink data file: {name}'
   raw=p.read_bytes();assert len(raw)<67108864,f'Data file unexpectedly large: {name}'
-  text=raw.decode('utf-8')
-  for old,new in replacements:text=text.replace(old,new)
-  data=text.encode();sha=hashlib.sha256(data).hexdigest();entry={'sha256':sha,'size':len(data)}
+  if name == 'data/v41/latest.png':
+   data=raw
+  else:
+   text=raw.decode('utf-8')
+   for old,new in replacements:text=text.replace(old,new)
+   data=text.encode()
+  sha=hashlib.sha256(data).hexdigest();entry={'sha256':sha,'size':len(data)}
   if before.get(name)!=entry:changed.append(name);payloads[sha]=data
   after[name]=entry
  for name,entry in before.items():
@@ -33,7 +37,7 @@ def overlay(base,source,paths,replacements):
  assert after['index.html']==before['index.html'],'Index changed'
  return after,payloads,changed
 
-def assert_forecast_not_older(site, app_path, deployed, candidate_cycle):
+def assert_forecast_not_older(site, app_path, deployed, candidate_cycle, path="forecast.json", cycle_key="petssCycleUtc"):
     from release_data import utc_time
 
     digest = deployed["sha256"]
@@ -42,12 +46,12 @@ def assert_forecast_not_older(site, app_path, deployed, candidate_cycle):
         raise ValueError("Invalid deployed forecast manifest entry")
     # Bypass stale caches, then verify the public bytes against the manifest
     # read under the publication lock before trusting their cycle metadata.
-    url = site + app_path + "forecast.json?overlay_base=" + digest
+    url = site + app_path + path + "?overlay_base=" + digest
     with urllib.request.urlopen(url, timeout=30) as response:
         raw = response.read(size + 1)
     if len(raw) != size or hashlib.sha256(raw).hexdigest() != digest:
         raise RuntimeError("Deployed forecast differs from its manifest; retry against the active deployment")
-    current = utc_time(json.loads(raw).get("petssCycleUtc"), "deployed forecast cycle")
+    current = utc_time(json.loads(raw).get(cycle_key), "deployed forecast cycle")
     if utc_time(candidate_cycle, "candidate forecast cycle") < current:
         raise ValueError("Candidate forecast is older than the deployed forecast")
 
@@ -60,13 +64,14 @@ def main():
  assert app['repository']=='hondrospj/North-Wildwood-floodmapper','Unexpected source repository'
  import sys
  sys.path.insert(0,str(root/'tools'))
- from release_data import GENERATED_FILES,GENERATED_DIRECTORIES,is_generated_data,validate_data
+ from release_data import GENERATED_FILES,GENERATED_DIRECTORIES,available_v41_paths,is_generated_data,validate_data
  from release_gate import GitHub,assert_current
  names=set(p for p in GENERATED_FILES if (root/p).is_file())
  for prefix in GENERATED_DIRECTORIES:
   directory=root/prefix
   if directory.is_dir():
    names.update(p.relative_to(root).as_posix() for p in directory.rglob('*.json') if p.is_file())
+ names.update(available_v41_paths(root))
  paths=tuple(sorted(names));assert paths and all(is_generated_data(p) for p in paths)
  source_sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
  github=GitHub(app['repository'],os.environ['GH_TOKEN'])
@@ -78,6 +83,9 @@ def main():
  validation=validate_data(root,changed,operational_petss=True)
  if 'forecast.json' in changed:
   assert_forecast_not_older(args.site,app['path'],base['files']['forecast.json'],validation['forecast']['cycle'])
+ if 'v41' in validation and 'data/v41/latest.json' in base['files']:
+  assert_forecast_not_older(args.site,app['path'],base['files']['data/v41/latest.json'],
+                            validation['v41']['cycle'],'data/v41/latest.json','issue_utc')
  assert_current(github,source_sha)
  result={'app':args.app,'mode':'current-manifest-data-overlay','data_source_commit':source_sha,'preserved_ui_commit':state.get('commit'),'base_deployment':state.get('deployment'),'file_count':len(after),'preserved_nondatablobs':sum(k not in paths for k in base['files']),'changed_data_files':changed,'index_sha256_before':base['files']['index.html']['sha256'],'index_sha256_after':after['index.html']['sha256'],'dry_run':args.dry_run,'data_validation':validation,'allowlisted_generated_files':len(paths)}
  print(json.dumps(result),flush=True)

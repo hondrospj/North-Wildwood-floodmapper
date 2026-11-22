@@ -29,11 +29,11 @@ try {
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await ready(page);
-    const key = page.locator("#legendDock");
+    const key = page.locator("#nwwMobileLegendToggle");
     const help = page.locator("#legendHelpBtn");
     await key.press("Enter");
-    await expectFocus(page, "legendDock");
-    await page.waitForFunction(() => document.getElementById("legendDock").getAttribute("aria-expanded") === "true");
+    await expectFocus(page, "nwwMobileLegendToggle");
+    await page.waitForFunction(() => document.getElementById("nwwMobileLegendToggle").getAttribute("aria-expanded") === "true");
 
     await page.setViewportSize({ width: 901, height: 561 });
     await page.waitForFunction(() => document.body.dataset.unifiedLayout === "desktop");
@@ -47,11 +47,11 @@ try {
     assert.equal(await help.isVisible(), false);
     await page.keyboard.press("Escape");
     await page.locator("#infoModal").waitFor({ state: "hidden" });
-    await expectFocus(page, "legendDock");
+    await expectFocus(page, "nwwMobileLegendToggle");
     assert.equal(await key.getAttribute("aria-expanded"), "false");
 
     await page.keyboard.press("Enter");
-    await page.waitForFunction(() => document.getElementById("legendDock").getAttribute("aria-expanded") === "true");
+    await page.waitForFunction(() => document.getElementById("nwwMobileLegendToggle").getAttribute("aria-expanded") === "true");
     await page.locator("#mobileControlsToggle").press("Enter");
     await page.waitForFunction(() => !document.body.classList.contains("mobile-legend-open") &&
       document.body.classList.contains("mobile-controls-open"));
@@ -69,7 +69,7 @@ try {
     await touch.getByRole("tab", { name: "Map layers" }).tap();
     await touch.locator("#dynamicModeBtn").tap();
     await touch.locator("#mobileControlsClose").tap();
-    await touch.locator("#legendDock").tap();
+    await touch.locator("#nwwMobileLegendToggle").tap();
     await touch.locator("#legendHelpBtn").tap();
     await expectFocus(touch, "infoModalCloseBtn");
     await touch.setViewportSize({ width: 1370, height: 720 });

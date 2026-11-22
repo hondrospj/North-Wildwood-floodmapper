@@ -14,7 +14,7 @@ import textwrap
 import unittest
 from unittest.mock import Mock, patch
 
-from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, is_generated_data, read_json, validate_data, validate_forecast
+from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, V41_FORECAST_FILES, is_generated_data, read_json, validate_data, validate_forecast
 from release_gate import REQUIRED_WORKFLOWS, GitHubError, ReleaseError, application_ancestor, assess_checks, assert_current, wait_for_checks
 from release_dispatch import dispatch_checks
 
@@ -221,14 +221,15 @@ class GeneratedAssetDispatchTests(unittest.TestCase):
 
 class DataPolicyTests(unittest.TestCase):
     def test_only_explicit_generated_json_uses_the_data_path(self):
-        for path in ("forecast.json", "observed_archive/lewes/1962.json", "city-gauge/data/2026.json"):
+        for path in ("forecast.json", "observed_archive/lewes/1962.json", "city-gauge/data/2026.json", *V41_FORECAST_FILES):
             self.assertTrue(is_generated_data(path))
         for path in ("index.html", "assets/app/main.js", "data/config.json", "observed_archive/helper.js",
-                     "tools/release_gate.py", ".shorelysafe/publish.py", "forecast.json.js"):
+                     "tools/release_gate.py", ".shorelysafe/publish.py", "forecast.json.js",
+                     "data/v41/index.html", "data/v41/latest.jpg", "data/v41/other.json"):
             self.assertFalse(is_generated_data(path))
 
     def test_all_regression_triggers_match_the_data_policy(self):
-        expected = set(GENERATED_FILES) | {prefix + "**/*.json" for prefix in GENERATED_DIRECTORIES}
+        expected = GENERATED_FILES.union(V41_FORECAST_FILES, (prefix + "**/*.json" for prefix in GENERATED_DIRECTORIES))
         for workflow in REQUIRED_WORKFLOWS:
             text = (ROOT / ".github/workflows" / workflow).read_text()
             before_jobs = text.split("permissions:")[0]
@@ -363,6 +364,30 @@ class PublisherTests(unittest.TestCase):
         self.manifest = {"commit": SHA, "files": [{"path": "index.html", "sha256": "test", "size": 1}]}
         self.git_status = patch.object(PUBLISHER.subprocess, "check_output", return_value="").start()
         self.addCleanup(patch.stopall)
+
+    def test_publish_uses_absolute_atlas_base_and_exact_startup_query(self):
+        app = {**self.app, "repository": "hondrospj/North-Wildwood-floodmapper",
+               "path": "/shorelysafe/floodmapper/north-wildwood/"}
+        pages = "https://hondrospj.github.io/North-Wildwood-floodmapper/"
+        atlas = "assets/hydraulic-v29/COGs/North%20Wildwood/"
+        version = "?v=20260822-mask-stabilizer-v40"
+        query = atlas + "NorthWildwoodHydraulicQuery5ft.png" + version
+        developed = atlas + "NorthWildwoodDevelopedMask5ft.png" + version
+        states = atlas + "NorthWildwoodHydraulicStates.json.png" + version
+        config = {"staticSiteBase": pages, "depthQueryPngPath": "./" + query,
+                  "developedQueryPngPath": "./" + developed, "hydraulicStatesPath": "./" + states}
+        html = f'<template>{json.dumps(config, separators=(",", ":"))}</template><a href="{pages}">Map</a>'
+        json_file = f'{{"staticSiteBase":"{pages}"}}'
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)
+            (source / "index.html").write_text(html)
+            (source / "links.json").write_text(json_file)
+            self.git_status.side_effect = [b"index.html\0links.json\0", SHA]
+            manifest, payloads = PUBLISHER.prepare(app, source, [app])
+        published = {entry["path"]: payloads[entry["sha256"]][1].decode() for entry in manifest["files"]}
+        expected = html.replace(f'href="{pages}"', f'href="{app["path"]}"')
+        self.assertEqual(published["index.html"], expected.replace('"./' + query + '"', '"' + pages + query + '"'))
+        self.assertEqual(published["links.json"], json_file.replace(pages, app["path"]))
 
     def test_mismatched_checkout_never_calls_publishing_api(self):
         with patch.object(PUBLISHER, "prepare", return_value=(self.manifest, {})), patch.object(PUBLISHER, "api") as api:

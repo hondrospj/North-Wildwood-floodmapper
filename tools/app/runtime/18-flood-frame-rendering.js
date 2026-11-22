@@ -63,6 +63,7 @@
     function waitForRecoveryFloodLayer(layer, token, onReady) {
       return new Promise(resolve => {
         let settled = false;
+        let handlingLoad = false;
         let timeout = null;
         const finish = ready => {
           if (settled) return;
@@ -84,6 +85,8 @@
           resolve(ready);
         };
         const handleLoad = async () => {
+          if (handlingLoad) return;
+          handlingLoad = true;
           if (settled || token !== lastRenderToken) return finish(false);
           if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
           await new Promise(requestAnimationFrame);
@@ -101,7 +104,11 @@
         layer.on("error", handleError);
         layer.on("remove", handleRemove);
         timeout = window.setTimeout(() => finish(false), 20000);
-        try { layer.addTo(map); } catch (_) { finish(false); }
+        try {
+          layer.addTo(map);
+          const image = layer.getElement();
+          if (image?.complete && image.naturalWidth) void handleLoad();
+        } catch (_) { finish(false); }
       });
     }
 

@@ -12,7 +12,8 @@ const browser = await chromium.launch({ headless: true,
 try {
   for (const width of [1440, 390, 320]) {
     const mobile = width < 900;
-    const page = await browser.newPage({ viewport: { width, height: mobile ? 844 : 1000 }, isMobile: mobile, hasTouch: mobile });
+    const height = width === 320 ? 568 : mobile ? 844 : 1000;
+    const page = await browser.newPage({ viewport: { width, height }, isMobile: mobile, hasTouch: mobile });
     const errors = [], requests = [];
     let providerStatus = 200, providerGate = null;
     page.on('pageerror', error => errors.push(error.message));
@@ -105,8 +106,11 @@ try {
       assert.equal(requests.length, before + (external ? 0 : 1), 'Only an embeddable camera requests a feed');
       assert.equal(await page.locator('#webcamFrame iframe').count(), external ? 0 : 1);
       assert.equal(await page.locator('#webcamPanel').evaluate(el => el.parentElement === document.body), true);
-      assert.equal(await page.locator('#webcamStatus').isVisible(), external, 'Only a blocked feed shows a provider status');
+      assert.equal(await page.locator('#webcamStatus').isVisible(), false);
       assert.equal(await page.locator('#webcamTitle').innerText(),'Cameras');
+      assert.equal(await page.getByRole('region', { name: 'Cameras' }).isVisible(), true);
+      assert.equal(await page.locator('.webcam-heading #webcamChoice').isVisible(), true);
+      assert.equal(await page.locator('.webcam-time-label').isVisible(), !external);
       assert.equal(await page.locator('#webcamLocation,#webcamLocate,#webcamOtherSources,.webcam-disclaimer').count(),0,'Camera viewer omits redundant location and explanatory blocks');
       assert.equal(await page.locator('#webcamClose').evaluate(el => el.classList.contains('centered-close-control')), true);
       assert.doesNotMatch(await page.locator('#webcamPanel').innerText(), /Current view|Watch on city website/i);
@@ -115,8 +119,8 @@ try {
       if (external) {
         assert.equal(await page.locator('#webcamFrame').isVisible(), false, 'A blocked feed does not leave a large empty player');
         assert.equal(await page.locator('#webcamChoice option:checked').innerText(), '15th Avenue Beach');
-        assert.equal(await page.locator('#webcamStatus').innerText(), 'In-map playback unavailable.');
         const link = page.locator('#webcamSourceLink');
+        assert.match(await link.innerText(), /^Open camera/);
         assert.equal(await link.getAttribute('href'), 'https://northwildwood.com/north-wildwood-surf-cams/');
         assert.equal(await link.getAttribute('target'), '_blank');
         assert.match(await link.getAttribute('rel'), /noopener/);
@@ -166,7 +170,7 @@ try {
         await page.setViewportSize({width: compactWidth, height: compactHeight});
         await page.waitForFunction(() => document.getElementById('webcamPanel').dataset.viewportOverlay === 'true');
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        const targets = await page.evaluate(() => ['mobileControlsToggle', 'legendDock', 'webcamClose'].map(id => {
+        const targets = await page.evaluate(() => ['mobileControlsToggle', 'nwwMobileLegendToggle', 'webcamClose'].map(id => {
           const control = document.getElementById(id), box = control.getBoundingClientRect();
           const hit = document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2);
           return {id, reachable: control.contains(hit), hit: hit?.id || hit?.className, box: box.toJSON()};
@@ -178,13 +182,12 @@ try {
       await page.locator('#mobileControlsToggle').tap();
       await page.locator('#mobileControlsClose').tap();
       const legend = page.locator('#legendDock');
-      await legend.tap();
+      await page.getByRole('button',{name:'Legend',exact:true}).tap();
       await page.waitForFunction(() => document.body.classList.contains('mobile-legend-open'));
-      const keyReachable = await legend.evaluate(el => {
-        const box = el.getBoundingClientRect();
-        return el.contains(document.elementFromPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2));
-      });
-      assert.equal(keyReachable, true, 'The expanded Key is above the camera');
+      await legend.waitFor({state:'visible'});
+      const legendInput = await legend.evaluate(el => getComputedStyle(el).pointerEvents);
+      assert.equal(legendInput, await legend.getAttribute('data-nww-legend-scrollable') === null ? 'none' : 'auto',
+        'The read-only legend allows touch through and a clipped legend keeps its scroll input');
       await page.keyboard.press('Escape');
       await page.waitForFunction(() => !document.body.classList.contains('mobile-legend-open'));
       assert.equal(await page.locator('#webcamPanel').isVisible(), true, 'Escape closes the expanded Key only');

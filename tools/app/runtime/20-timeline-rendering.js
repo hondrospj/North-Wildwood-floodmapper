@@ -170,7 +170,14 @@
 
         const overlayUrl = match.url;
         releaseRaster = retainRasterObjectUrl(overlayUrl);
-        const loaded = await preloadImage(overlayUrl, "high");
+        // The atlas resolver already downloaded this image to verify its URL.
+        // Reuse it for the first frame without retaining every probed raster.
+        let initialImage = null;
+        if (document.body.dataset.initialFloodFrame === "loading") {
+          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
+          startupOverlayCandidate = null;
+        }
+        const loaded = initialImage || await preloadImage(overlayUrl, "high");
         if (token !== lastRenderToken) return;
         if (!loaded) {
           return false;
@@ -202,7 +209,8 @@
             className: currentDataMode === "return-interval" && mode === "depth"
               ? "return-interval-depth-overlay"
               : ""
-          }
+          },
+          initialImage || overlayUrl
         );
 
         pendingFloodLayer = nextLayer;
@@ -225,14 +233,7 @@
   
           updatePersistentDepthQueryPopup();
   
-          if (!mapHasFit && floodLatLngBounds) {
-            const townBounds = getBoundaryDrivenOverlayBounds();
-            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
-            if (document.body.classList.contains("mobile-optimized")) {
-              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-            }
-            mapHasFit = true;
-          }
+          if (!mapHasFit && floodLatLngBounds) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
           markInitialFloodFrameReady();
         });
       } finally {
@@ -287,13 +288,7 @@
         pendingFloodLayer = null;
         renderedFloodPixelCache = null;
         if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
-        if (!mapHasFit) {
-          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
-          if (document.body.classList.contains("mobile-optimized")) {
-            map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-          }
-          mapHasFit = true;
-        }
+        if (!mapHasFit) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
         markInitialFloodFrameReady();
       });
     }

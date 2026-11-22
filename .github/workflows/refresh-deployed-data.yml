@@ -55,6 +55,9 @@ jobs:
             /tools/validate_observed_contract.py
             /forecast.json
             /data/experimental_petss_guidance.json
+            /data/v41/latest.json
+            /data/v41/latest.png
+            /data/v41/latest.csv
             /observed.json
             /observed15min.json
             /stone_harbor_observed15min.json

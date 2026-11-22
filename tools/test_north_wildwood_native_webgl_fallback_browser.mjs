@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { changeMapView, twoFingerMapGesture } from './browser_map_view.mjs';
+import { changeMapView, touchMapGesture } from './browser_map_view.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -138,9 +138,17 @@ try {
             currentFloodLayer?._floodmapperFrame?.overlayMode === 'dynamic');
         }
         await setLayerPreferences(page);
-        if (profile === 'touch') await twoFingerMapGesture(page, { spread: 65 });
-        else await page.locator('.nw-simple-zoom-in').click();
-        await page.waitForFunction(() => NORTH_WILDWOOD_3D.getMap().getZoom() === map.getZoom());
+        if (profile === 'touch') {
+          const beforePinch = await page.evaluate(() => NORTH_WILDWOOD_3D.getMap().getZoom());
+          await touchMapGesture(page, { spread: 65 });
+          await page.waitForFunction(previousZoom => {
+            const native = NORTH_WILDWOOD_3D.getMap();
+            return !native.isMoving() && native.getZoom() > previousZoom && map.getZoom() === Math.round(native.getZoom());
+          }, beforePinch);
+        } else {
+          await page.locator('.nw-simple-zoom-in').click();
+          await page.waitForFunction(() => NORTH_WILDWOOD_3D.getMap().getZoom() === map.getZoom());
+        }
       }
       const initial = await snapshot(page);
       row.states.push({ label: 'initial', ...initial });
@@ -182,14 +190,14 @@ try {
           basemap: true, roads: true, buildings: true, parcels: true, nsi: true, satellite: true, flood: true,
         });
         assert.deepEqual(fallback.leafletCenter, initial.nativeCenter);
-        assert.equal(fallback.leafletZoom, initial.nativeZoom);
+        assert.equal(fallback.leafletZoom, initial.leafletZoom);
         for (const key of ['currentTime', 'frameTime', 'overlayMode', 'overlayOpacity', 'clickMode', 'layers']) {
           assert.deepEqual(fallback[key], initial[key], key);
         }
         if (process.env.NWW_AUDIT_OUTPUT) {
           await page.screenshot({ path: path.join(output, `${profile}-leaflet-fallback.png`) });
         }
-        if (profile === 'touch') await twoFingerMapGesture(page, { spread: 65 });
+        if (profile === 'touch') await touchMapGesture(page, { spread: 65 });
         else await page.locator('.nw-simple-zoom-in').click();
         await page.waitForFunction(zoom => map.getZoom() > zoom, fallback.leafletZoom);
         const move = await page.evaluate(() => currentHourIndex < currentSeriesHours.length - 1 ? 'ArrowRight' : 'ArrowLeft');

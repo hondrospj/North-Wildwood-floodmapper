@@ -61,6 +61,13 @@
       align-items:center !important;
       gap:8px !important;
     }
+    #mapperTutorialBtn.mapper-tutorial-launch {
+      border-color:var(--nww-pill-outline) !important;
+      font-weight:750 !important;
+    }
+    #mapperTutorialBtn.mapper-tutorial-launch:is(:hover,:focus-visible) {
+      border-color:var(--fleet-accent) !important;
+    }
     #infoModalBody .layer-help-list { margin:0; }
     #infoModalBody .layer-help-list dt { font-weight:700; }
     #infoModalBody .layer-help-list dd { margin:3px 0 12px; }

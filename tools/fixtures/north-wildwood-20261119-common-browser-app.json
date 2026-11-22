@@ -378,108 +378,168 @@
     {
       "source": "assets/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "de07044a5d587254d7dff2f47c722b16b0398918a54b0327802a2f459e831f3c",
+      "afterSha256": "7a68a32edeb66430a6485d2ccf74b418dd2af1f6fae53375a067d6025156ef9b",
       "edits": [
         [
-          820,
-          1089,
+          619,
+          798,
+          ""
+        ],
+        [
+          999,
+          1268,
           " const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads with 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];\n"
         ],
         [
-          2655,
-          3751,
+          2005,
+          2032,
           ""
         ],
         [
-          4402,
-          5122,
+          2861,
+          3746,
+          ""
+        ],
+        [
+          4397,
+          5117,
           "  for(const [id,label]of [['mobileControlsToggle','Controls'],['mobileControlsClose','×']]){const copies=[...document.querySelectorAll('[id=\"'+id+'\"]')];let button=copies.shift();for(const duplicate of copies)duplicate.remove();if(!button){button=document.createElement('button');button.id=id;button.type='button';button.textContent=label;(id==='mobileControlsClose'?panel:body).append(button);}attr(button,'aria-label',id==='mobileControlsClose'?'Close controls':'Open map controls');if(id==='mobileControlsToggle'){attr(button,'aria-controls','leftPanel');attr(button,'aria-expanded',String(body.classList.contains('mobile-controls-open')));}}\n"
         ],
         [
-          5877,
-          5996,
+          5872,
+          5991,
           ""
         ],
         [
-          12863,
-          13357,
+          10731,
+          10797,
+          "  if(open){drawerOpener=document.activeElement;body.classList.remove('mobile-legend-open');}\n"
+        ],
+        [
+          12831,
+          13325,
           "  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);\n  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');\n  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
         ],
         [
-          15118,
-          15586,
-          "  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
+          14545,
+          14999,
+          "  const legend=document.getElementById('legendDock');if(legend){attr(legend,'aria-label','Flood map legend');if(mobile.matches){attr(legend,'role','button');legend.tabIndex=0;attr(legend,'aria-expanded',String(body.classList.contains('mobile-legend-open')));}else{legend.removeAttribute('role');legend.removeAttribute('tabindex');legend.removeAttribute('aria-expanded');}}\n"
         ],
         [
-          15749,
-          15809,
+          15037,
+          15752,
+          "  const compact=mobile.matches,legend=document.getElementById('legendDock');let mount=document.getElementById('mobileRailMount');\n  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
+        ],
+        [
+          15915,
+          15975,
           "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
         ],
         [
-          15895,
-          15964,
+          16061,
+          16130,
           "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
         ],
         [
-          15968,
-          16042,
+          16134,
+          16208,
           ""
         ],
         [
-          16343,
-          16363,
+          16298,
+          16422,
+          "  if(compact)return legend;\n  return previousFocus===legend?document.getElementById('legendHelpBtn'):previousFocus;\n"
+        ],
+        [
+          16517,
+          16537,
           ""
         ],
         [
-          17769,
-          18067,
+          16635,
+          16808,
+          ""
+        ],
+        [
+          18116,
+          18414,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          18363,
-          18605,
+          18710,
+          18952,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
+        ],
+        [
+          23970,
+          24281,
+          ""
+        ],
+        [
+          24652,
+          25087,
+          "  else if(mobile.matches&&event.target.closest('#legendDock')&&!event.target.closest('button')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
+        ],
+        [
+          25311,
+          25516,
+          "  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',false);document.getElementById('legendDock')?.focus();schedule();return;}\n"
+        ],
+        [
+          25571,
+          26379,
+          "   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}\n   else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]')].filter(e=>visible(e)&&e.tabIndex>=0&&!e.closest('[inert]')),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}\n  }else if(event.target.closest('#legendDock')&&!event.target.closest('button')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
+        ],
+        [
+          27681,
+          28156,
+          " const resizeObserver=new ResizeObserver(schedule);for(const element of [timeline,panel,rail])resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});\n"
         ]
       ]
     },
     {
       "source": "assets/app/webcams.js",
       "beforeSha256": "fe85ef738394f52dc1dea6508249a4e177c871c271163517f6ffb31d6926b5a3",
-      "afterSha256": "6dbb1943bbac6a3ad89888d68e973000310a3a8d1703f5fa124e08d128100f63",
+      "afterSha256": "0aee703bcd0e368598574401ab712228e3d208bb51066ae27e49a2aab0f78f1f",
       "edits": [
         [
           5542,
-          5734,
+          5662,
           "    for (const id of [\"topBanner\", \"topBar\", \"mapTitleBadge\", \"mobileControlsToggle\"]) {\n"
         ],
         [
-          6444,
-          6595,
+          6372,
+          6523,
           "    const bottom = Math.min(rect.bottom, viewportTop + viewportHeight, dock?.height ? dock.top : Infinity);\n"
         ],
         [
-          7406,
-          7406,
-          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n"
+          7334,
+          7473,
+          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n    if (overlay && !panel.hidden && controls?.getClientRects().length) {\n"
         ],
         [
-          9149,
-          9149,
+          7525,
+          7789,
+          "      const key = document.body.classList.contains(\"mobile-legend-open\") ? null : document.getElementById(\"legendDock\");\n      for (const control of [controls, key]) {\n        if (!control?.getClientRects().length || getComputedStyle(control).visibility === \"hidden\") continue;\n        const box = control.getBoundingClientRect();\n        const below = box.bottom + 8;\n        if (box.top < viewportTop + 64 && box.left < viewer.right && box.right > viewer.left &&\n            viewportBottom - below - 8 >= 200) panelTop = Math.max(panelTop, below);\n      }\n"
+        ],
+        [
+          8849,
+          8849,
           "    mountPanel();\n"
         ],
         [
-          9204,
-          9222,
+          8904,
+          8922,
           ""
         ],
         [
-          9246,
-          9547,
+          8946,
+          9247,
           "    if (opening) requestAnimationFrame(() => {\n      if (!panel.hidden && selected === camera) closeButton.focus({ preventScroll: true });\n    });\n"
         ],
         [
-          18326,
-          18475,
+          18026,
+          18173,
           "  [\"topBanner\", \"mapTitleBadge\", \"mobileControlsToggle\", \"legendDock\", \"timelineDock\"].map(id => document.getElementById(id))\n"
         ]
       ]
@@ -622,26 +682,26 @@
     {
       "source": "assets/styles/app-05.css",
       "beforeSha256": "4a72a06ffafb0e871bb40571758be05237b473491780e0ea1168a120d5cbd0fa",
-      "afterSha256": "cf52583784eeb85571f5cbb18ab22afebb08b91ea21c568be53ee05820a127e6",
+      "afterSha256": "f7b7567b075a7aeeef0eac140b1233349db7dbc64cb10ad669428a687c877dd0",
       "edits": [
         [
           272490,
-          277355,
+          277629,
           ""
         ],
         [
-          280547,
-          280599,
+          280821,
+          280873,
           "      --nww-popup-close-size:36px;\n"
         ],
         [
-          280856,
-          280856,
+          281130,
+          281130,
           "    }\n    @media (any-pointer:coarse) {\n      :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {\n        --nww-popup-close-size:44px;\n      }\n"
         ],
         [
-          310577,
-          310577,
+          310851,
+          310851,
           "  }\n  html body .building-info-facts{\n    display:grid;\n    gap:10px;\n    padding:12px 13px;\n    border:1px solid rgba(125,183,255,.18);\n    border-radius:13px;\n    background:#101e32;\n  }\n  html body .building-info-facts > div{\n    display:flex;\n    align-items:center;\n    justify-content:space-between;\n    gap:14px;\n  }\n  html body .building-info-facts span{\n    color:#a9bad3;\n    font-size:13px;\n    font-weight:750;\n  }\n  html body .building-info-facts strong{\n    color:#fff;\n    font-size:16px;\n    white-space:nowrap;\n  }\n  html body .building-info-facts p{\n    margin:0;\n    padding-top:10px;\n    border-top:1px solid rgba(148,163,184,.14);\n    color:#dce8f8;\n    font-size:13px;\n    font-weight:800;\n    line-height:1.35;\n"
         ]
       ]
@@ -649,7 +709,7 @@
     {
       "source": "index.html",
       "beforeSha256": "942dc04dbb2dcd3e507e3a4569d4917ab78ea205ed2e42943ad9fba8eeb2b79c",
-      "afterSha256": "6a1663321348524c8fd8a3f901c52d1b0451c6025bbb9ff397ada85ad2b839e7",
+      "afterSha256": "fbdb2d8e161fe711f6a33bb5bb04c1bed5fc71d3817870bba8296c3fdd13d8ff",
       "edits": [
         [
           115,
@@ -677,138 +737,148 @@
           "<link rel=\"stylesheet\" data-nww-style-bundle=\"app-05\" href=\"./assets/styles/app-05.css?v=4a72a06ffafb0e87\">\n"
         ],
         [
-          41030,
-          41092,
+          40674,
+          40775,
           ""
         ],
         [
-          42136,
-          42172,
+          41131,
+          41193,
+          ""
+        ],
+        [
+          42237,
+          42273,
           "            <h2>Forecast range</h2>\n"
         ],
         [
-          42354,
-          42442,
+          42455,
+          42543,
           "          <span id=\"forecastScenarioPill\" class=\"nww-status-value\" hidden>Mean</span>\n"
         ],
         [
-          42493,
-          42789,
+          42594,
+          42890,
           "          <button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower End</button>\n          <button id=\"forecastMeanBtn\" class=\"active\" type=\"button\" data-scenario=\"mean\">Mean</button>\n          <button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper End</button>\n"
         ],
         [
-          46348,
-          46494,
+          46449,
+          46595,
           "          <button id=\"datumMllwBtn\" type=\"button\" class=\"active\" data-datum=\"mllw\" aria-pressed=\"true\">MLLW</button>\n"
         ],
         [
-          52824,
-          52972,
+          51510,
+          51886,
+          ""
+        ],
+        [
+          53301,
+          53449,
           "        <button id=\"mapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-rail\" type=\"button\">Take the FloodMapper tour</button>\n"
         ],
         [
-          53138,
-          53323,
+          53615,
+          53800,
           ""
         ],
         [
-          53669,
-          53669,
+          54146,
+          54146,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"satellite\" aria-label=\"About Satellite\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          54012,
-          54012,
+          54489,
+          54489,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"buildings\" aria-label=\"About Buildings\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          54332,
-          54332,
+          54809,
+          54809,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"parcels\" aria-label=\"About Parcels\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          54714,
-          54714,
+          55191,
+          55191,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"structuralImpacts\" aria-label=\"About Structural Impacts\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          55090,
-          55166,
+          55567,
+          55643,
           "                <div class=\"layer-name\">Roads with 6+ Inches of Water</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadImpacts\" aria-label=\"About Roads with 6+ Inches of Water\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          55492,
-          55492,
+          55969,
+          55969,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadNames\" aria-label=\"About Road Names\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          55867,
-          55867,
+          56344,
+          56344,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"cameras\" aria-label=\"About Cameras\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          60293,
-          60379,
+          60770,
+          60856,
           "          <div id=\"roadImpactsKey\" hidden aria-label=\"Roads with 6+ Inches of Water\">\n"
         ],
         [
-          60452,
-          60623,
+          60929,
+          61100,
           "            <span class=\"road-impacts-label\">Roads with 6+ Inches of Water</span>\n            <span class=\"road-impacts-label-mobile\">Roads with 6+ Inches of Water</span>\n"
         ],
         [
-          62050,
-          62676,
+          62527,
+          63519,
           "  <button id=\"mobileMapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-mobile\" type=\"button\" aria-haspopup=\"dialog\" data-html2canvas-ignore=\"true\">Take the FloodMapper tour</button>\n"
         ],
         [
-          63191,
-          63378,
+          64034,
+          64221,
           "        <span id=\"mapperTutorialProgress\" class=\"mapper-tutorial-progress\">1 of 9</span>\n"
         ],
         [
-          63580,
-          63806,
+          64423,
+          64649,
           "      <div id=\"mapperTutorialBody\" class=\"mapper-tutorial-body\"></div>\n"
         ],
         [
-          63918,
-          63993,
+          64761,
+          64836,
           ""
         ],
         [
-          65168,
-          65309,
+          66011,
+          66152,
           "        <button id=\"observedCalendarCloseBtn\" type=\"button\" aria-label=\"Close past date calendar\">×</button>\n"
         ],
         [
-          80908,
-          81161,
+          81751,
+          82004,
           "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=28cea3996d8987cf\"></script>\n"
         ],
         [
-          81376,
-          81600,
+          82219,
+          82443,
           "<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=584631a173bcaece\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b3e11134ba8bcb33\"></script>\n"
         ],
         [
-          81674,
-          81774,
+          82517,
+          82617,
           "<script data-nww-script=\"script-007\" src=\"./assets/app/town-config.js?v=150329941da8abe6\"></script>\n"
         ],
         [
-          81931,
-          82255,
+          82774,
+          83098,
           "<script src=\"assets/export-area.js?v=ee1e14cc57fb8b8e\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=33c7d7908c9d305e\" id=\"floodmapper-export-date-time-picker\"></script>\n"
         ],
         [
-          82258,
-          83598,
+          83101,
+          84441,
           "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n<script id=\"shorelysafeWebcamsScript\" data-nww-script=\"script-008\" src=\"./assets/app/webcams.js?v=fe85ef738394f52d\"></script>\n"
         ],
         [
-          83885,
-          84817,
+          84728,
+          85660,
           "<script id=\"floodmapper-unified-controller-20261017\" data-ui-sha256=\"3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7\" data-nww-script=\"script-011\" src=\"./assets/app/unified-controller.js?v=e967d7ca203af59f\"></script>\n"
         ]
       ]
@@ -816,7 +886,7 @@
     {
       "source": "tools/app/index.template.html",
       "beforeSha256": "380b3c5e261e14623857065daaddc0f8a155dcf4f96023ee6140defce61ed5b1",
-      "afterSha256": "d69d8db5321c537c38999950127bacf9c10c9aaaa8f96bf2b4e5da795a5a9c45",
+      "afterSha256": "22b5184e88179e836cb41d98f3418182d26a3b4f05e34c275ebf0acab3ef405a",
       "edits": [
         [
           115,
@@ -840,167 +910,172 @@
         ],
         [
           7619,
-          7715,
+          7832,
           "      <span id=\"mapTitleText\" class=\"shorely-title-text\">North Wildwood Flood Mapper</span>\n"
         ],
         [
-          8071,
-          8133,
+          8188,
+          8250,
           ""
         ],
         [
-          9177,
-          9213,
+          9294,
+          9330,
           "            <h2>Forecast range</h2>\n"
         ],
         [
-          9395,
-          9483,
+          9512,
+          9600,
           "          <span id=\"forecastScenarioPill\" class=\"nww-status-value\" hidden>Mean</span>\n"
         ],
         [
-          9534,
-          9830,
+          9651,
+          9947,
           "          <button id=\"forecastLowBtn\" type=\"button\" data-scenario=\"lowEnd\">Lower End</button>\n          <button id=\"forecastMeanBtn\" class=\"active\" type=\"button\" data-scenario=\"mean\">Mean</button>\n          <button id=\"forecastHighBtn\" type=\"button\" data-scenario=\"highEnd\">Upper End</button>\n"
         ],
         [
-          13389,
-          13535,
+          13506,
+          13652,
           "          <button id=\"datumMllwBtn\" type=\"button\" class=\"active\" data-datum=\"mllw\" aria-pressed=\"true\">MLLW</button>\n"
         ],
         [
-          18510,
-          18622,
+          18567,
+          18943,
+          ""
+        ],
+        [
+          19003,
+          19115,
           "      <div id=\"map3d\" role=\"region\" aria-label=\"Interactive 3D North Wildwood flood map\"></div>\n"
         ],
         [
-          19881,
-          20029,
+          20374,
+          20522,
           "        <button id=\"mapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-rail\" type=\"button\">Take the FloodMapper tour</button>\n"
         ],
         [
-          20195,
-          20380,
+          20688,
+          20873,
           ""
         ],
         [
-          20726,
-          20726,
+          21219,
+          21219,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"satellite\" aria-label=\"About Satellite\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          21069,
-          21069,
+          21562,
+          21562,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"buildings\" aria-label=\"About Buildings\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          21389,
-          21389,
+          21882,
+          21882,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"parcels\" aria-label=\"About Parcels\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          21771,
-          21771,
+          22264,
+          22264,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"structuralImpacts\" aria-label=\"About Structural Impacts\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          22147,
-          22223,
+          22640,
+          22716,
           "                <div class=\"layer-name\">Roads with 6+ Inches of Water</div>\n                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadImpacts\" aria-label=\"About Roads with 6+ Inches of Water\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          22549,
-          22549,
+          23042,
+          23042,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"roadNames\" aria-label=\"About Road Names\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          22924,
-          22924,
+          23417,
+          23417,
           "                <button class=\"help-btn\" type=\"button\" data-layer-help=\"cameras\" aria-label=\"About Cameras\" aria-haspopup=\"dialog\" aria-controls=\"infoModal\">?</button>\n"
         ],
         [
-          23156,
-          23247,
+          23649,
+          23740,
           "              <h3 id=\"townAddressTitle\">Find a North Wildwood Address</h3>\n"
         ],
         [
-          23684,
-          23836,
+          24177,
+          24329,
           "              <button id=\"townAddressSearchBtn\" class=\"right-rail-action town-address-btn\" type=\"submit\">Search North Wildwood</button>\n"
         ],
         [
-          27382,
-          27468,
+          27875,
+          27961,
           "          <div id=\"roadImpactsKey\" hidden aria-label=\"Roads with 6+ Inches of Water\">\n"
         ],
         [
-          27541,
-          27712,
+          28034,
+          28205,
           "            <span class=\"road-impacts-label\">Roads with 6+ Inches of Water</span>\n            <span class=\"road-impacts-label-mobile\">Roads with 6+ Inches of Water</span>\n"
         ],
         [
-          29139,
-          29765,
+          29632,
+          30628,
           "  <button id=\"mobileMapperTutorialBtn\" class=\"mapper-tutorial-launch mapper-tutorial-launch-mobile\" type=\"button\" aria-haspopup=\"dialog\" data-html2canvas-ignore=\"true\">Take the FloodMapper tour</button>\n"
         ],
         [
-          30280,
-          30467,
+          31143,
+          31330,
           "        <span id=\"mapperTutorialProgress\" class=\"mapper-tutorial-progress\">1 of 9</span>\n"
         ],
         [
-          30669,
-          30895,
+          31532,
+          31758,
           "      <div id=\"mapperTutorialBody\" class=\"mapper-tutorial-body\"></div>\n"
         ],
         [
-          31007,
-          31082,
+          31870,
+          31945,
           ""
         ],
         [
-          32257,
-          32398,
+          33120,
+          33261,
           "        <button id=\"observedCalendarCloseBtn\" type=\"button\" aria-label=\"Close past date calendar\">×</button>\n"
         ],
         [
-          37584,
-          37728,
+          38447,
+          38591,
           "            <button id=\"exportExtentTownBtn\" type=\"button\" data-extent=\"town\" aria-pressed=\"false\">Fill North Wildwood</button>\n"
         ],
         [
-          43759,
-          43848,
+          44622,
+          44711,
           "          <p id=\"floodHistoryAddress\">Selected North Wildwood parcel</p>\n"
         ],
         [
-          48029,
-          48095,
+          48892,
+          48958,
           ""
         ],
         [
-          48128,
-          48197,
+          48991,
+          49060,
           ""
         ],
         [
-          48264,
-          48458,
+          49127,
+          49321,
           "<script src=\"./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&county=20261015&stability=20261027-lines1&roadlabels=20261030-v1&deep=584631a173bcaece\"></script>\n<script src=\"./assets/road-impacts.js?v=2a2d81b00391a606\"></script>\n<script defer src=\"./assets/export-road-labels.js?v=b3e11134ba8bcb33\"></script>\n"
         ],
         [
-          48720,
-          49014,
+          49583,
+          49877,
           "<script src=\"assets/export-area.js?v=ee1e14cc57fb8b8e\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=33c7d7908c9d305e\" id=\"floodmapper-export-date-time-picker\"></script>\n"
         ],
         [
-          49017,
-          49093,
+          49880,
+          49956,
           "<div id=\"shorelysafeWebcamConfig\" hidden>{\"town\":\"North Wildwood\",\"cameras\":[{\"id\":\"north-bay\",\"name\":\"5th Avenue bay / flood camera\",\"short\":\"5th Avenue bay\",\"url\":\"https://g1.ipcamlive.com/player/player.php?alias=5d49c2c217415&autoplay=1&mute=1\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"5th Avenue boat ramp · North Wildwood · approximate site location\",\"external\":false,\"description\":\"View the back bay and boat ramp for current tidal conditions.\",\"lat\":39.007333,\"lng\":-74.798667,\"kind\":\"video\",\"relation\":\"local\"},{\"id\":\"north-beach\",\"name\":\"15th Avenue Beach\",\"short\":\"15th Avenue Beach\",\"url\":\"https://streamer-1.magicbrain.io/embed/?v=lifeguard-station\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\",\"source\":\"City of North Wildwood\",\"location\":\"15th Avenue lifeguard station · North Wildwood · approximate site location\",\"external\":true,\"description\":\"View current conditions on the camera provider’s website.\",\"lat\":38.99462,\"lng\":-74.795285,\"kind\":\"video\",\"relation\":\"local\"}],\"otherSources\":[{\"name\":\"15th Avenue Beach\",\"sourceUrl\":\"https://northwildwood.com/north-wildwood-surf-cams/\"}]}</div>\n"
         ],
         [
-          49220,
-          49908,
+          50083,
+          50771,
           ""
         ]
       ]
@@ -1432,21 +1507,21 @@
     {
       "source": "tools/app/styles/style-053.css",
       "beforeSha256": "a7dd181eaa54223355790c71496a02206219b91220e9222c82301542b947f820",
-      "afterSha256": "f73355156eb498b11df0c3ecbe5ce30c280c15ae85fbdc6899c66588b14a8208",
+      "afterSha256": "991d343ad1f2f91612f626bf0c38bc600f5fa0e20e15665564dc532921d6f11a",
       "edits": [
         [
           182,
-          5047,
+          5321,
           ""
         ],
         [
-          8244,
-          8296,
+          8518,
+          8570,
           "      --nww-popup-close-size:36px;\n"
         ],
         [
-          8553,
-          8553,
+          8827,
+          8827,
           "    }\n    @media (any-pointer:coarse) {\n      :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {\n        --nww-popup-close-size:44px;\n      }\n"
         ]
       ]
@@ -1483,108 +1558,168 @@
     {
       "source": "tools/app/unified-controller.js",
       "beforeSha256": "e967d7ca203af59fcc13ee17b04e18dc6794c038df5a673edb9825c73926fc5d",
-      "afterSha256": "de07044a5d587254d7dff2f47c722b16b0398918a54b0327802a2f459e831f3c",
+      "afterSha256": "7a68a32edeb66430a6485d2ccf74b418dd2af1f6fae53375a067d6025156ef9b",
       "edits": [
         [
-          820,
-          1089,
+          619,
+          798,
+          ""
+        ],
+        [
+          999,
+          1268,
           " const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads with 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];\n"
         ],
         [
-          2655,
-          3751,
+          2005,
+          2032,
           ""
         ],
         [
-          4402,
-          5122,
+          2861,
+          3746,
+          ""
+        ],
+        [
+          4397,
+          5117,
           "  for(const [id,label]of [['mobileControlsToggle','Controls'],['mobileControlsClose','×']]){const copies=[...document.querySelectorAll('[id=\"'+id+'\"]')];let button=copies.shift();for(const duplicate of copies)duplicate.remove();if(!button){button=document.createElement('button');button.id=id;button.type='button';button.textContent=label;(id==='mobileControlsClose'?panel:body).append(button);}attr(button,'aria-label',id==='mobileControlsClose'?'Close controls':'Open map controls');if(id==='mobileControlsToggle'){attr(button,'aria-controls','leftPanel');attr(button,'aria-expanded',String(body.classList.contains('mobile-controls-open')));}}\n"
         ],
         [
-          5877,
-          5996,
+          5872,
+          5991,
           ""
         ],
         [
-          12863,
-          13357,
+          10731,
+          10797,
+          "  if(open){drawerOpener=document.activeElement;body.classList.remove('mobile-legend-open');}\n"
+        ],
+        [
+          12831,
+          13325,
           "  for(const [id,label]of [['forecastDataBtn','Forecast'],['observedDataBtn','Past'],['returnIntervalDataBtn','Modeled Floods'],['forecastLowBtn','Lower End'],['forecastMeanBtn','Mean'],['forecastHighBtn','Upper End'],['openDownloadModalBtn','Export Map']])text(document.getElementById(id),label);\n  text(panel.querySelector('#forecastScenarioCard h2'),'Forecast range');\n  for(const id of ['mapperTutorialBtn','avalonTourBtn'])text(document.getElementById(id),'Take the FloodMapper tour');\n"
         ],
         [
-          15118,
-          15586,
-          "  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
+          14545,
+          14999,
+          "  const legend=document.getElementById('legendDock');if(legend){attr(legend,'aria-label','Flood map legend');if(mobile.matches){attr(legend,'role','button');legend.tabIndex=0;attr(legend,'aria-expanded',String(body.classList.contains('mobile-legend-open')));}else{legend.removeAttribute('role');legend.removeAttribute('tabindex');legend.removeAttribute('aria-expanded');}}\n"
         ],
         [
-          15749,
-          15809,
+          15037,
+          15752,
+          "  const compact=mobile.matches,legend=document.getElementById('legendDock');let mount=document.getElementById('mobileRailMount');\n  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==(compact?body:panel);\n"
+        ],
+        [
+          15915,
+          15975,
           "   for(const card of [...rail.children])mount.append(card);if(legend&&legend.parentElement!==body)body.append(legend);\n"
         ],
         [
-          15895,
-          15964,
+          16061,
+          16130,
           "   if(mount)for(const card of [...mount.children])rail.append(card);if(legend&&legend.parentElement!==panel)panel.append(legend);\n"
         ],
         [
-          15968,
-          16042,
+          16134,
+          16208,
           ""
         ],
         [
-          16343,
-          16363,
+          16298,
+          16422,
+          "  if(compact)return legend;\n  return previousFocus===legend?document.getElementById('legendHelpBtn'):previousFocus;\n"
+        ],
+        [
+          16517,
+          16537,
           ""
         ],
         [
-          17769,
-          18067,
+          16635,
+          16808,
+          ""
+        ],
+        [
+          18116,
+          18414,
           "   for(const [key,value]of Object.entries({position:'fixed',left:left+'px',right:right+'px',top:top+'px',bottom:bottom+'px',width:'auto','max-width':'none',height:'auto','max-height':'none','min-height':'0px','overflow-y':'auto','overflow-x':'hidden'}))set(panel,key,value);\n"
         ],
         [
-          18363,
-          18605,
+          18710,
+          18952,
           "   set(rail,'display','none');set(timeline,'bottom',bottom+'px');set(timeline,'left',left+'px');set(timeline,'right',right+'px');set(timeline,'height','180px');set(timeline,'min-height','180px');set(timeline,'max-height','180px');\n"
+        ],
+        [
+          23970,
+          24281,
+          ""
+        ],
+        [
+          24652,
+          25087,
+          "  else if(mobile.matches&&event.target.closest('#legendDock')&&!event.target.closest('button')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
+        ],
+        [
+          25311,
+          25516,
+          "  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',false);document.getElementById('legendDock')?.focus();schedule();return;}\n"
+        ],
+        [
+          25571,
+          26379,
+          "   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}\n   else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]')].filter(e=>visible(e)&&e.tabIndex>=0&&!e.closest('[inert]')),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}\n  }else if(event.target.closest('#legendDock')&&!event.target.closest('button')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}\n"
+        ],
+        [
+          27681,
+          28156,
+          " const resizeObserver=new ResizeObserver(schedule);for(const element of [timeline,panel,rail])resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});\n"
         ]
       ]
     },
     {
       "source": "tools/app/webcams.js",
       "beforeSha256": "fe85ef738394f52dc1dea6508249a4e177c871c271163517f6ffb31d6926b5a3",
-      "afterSha256": "6dbb1943bbac6a3ad89888d68e973000310a3a8d1703f5fa124e08d128100f63",
+      "afterSha256": "0aee703bcd0e368598574401ab712228e3d208bb51066ae27e49a2aab0f78f1f",
       "edits": [
         [
           5542,
-          5734,
+          5662,
           "    for (const id of [\"topBanner\", \"topBar\", \"mapTitleBadge\", \"mobileControlsToggle\"]) {\n"
         ],
         [
-          6444,
-          6595,
+          6372,
+          6523,
           "    const bottom = Math.min(rect.bottom, viewportTop + viewportHeight, dock?.height ? dock.top : Infinity);\n"
         ],
         [
-          7406,
-          7406,
-          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n"
+          7334,
+          7473,
+          "    const viewportBottom = viewportTop + viewportHeight;\n    const controls = document.getElementById(\"mobileControlsToggle\");\n    if (overlay && !panel.hidden && controls?.getClientRects().length) {\n"
         ],
         [
-          9149,
-          9149,
+          7525,
+          7789,
+          "      const key = document.body.classList.contains(\"mobile-legend-open\") ? null : document.getElementById(\"legendDock\");\n      for (const control of [controls, key]) {\n        if (!control?.getClientRects().length || getComputedStyle(control).visibility === \"hidden\") continue;\n        const box = control.getBoundingClientRect();\n        const below = box.bottom + 8;\n        if (box.top < viewportTop + 64 && box.left < viewer.right && box.right > viewer.left &&\n            viewportBottom - below - 8 >= 200) panelTop = Math.max(panelTop, below);\n      }\n"
+        ],
+        [
+          8849,
+          8849,
           "    mountPanel();\n"
         ],
         [
-          9204,
-          9222,
+          8904,
+          8922,
           ""
         ],
         [
-          9246,
-          9547,
+          8946,
+          9247,
           "    if (opening) requestAnimationFrame(() => {\n      if (!panel.hidden && selected === camera) closeButton.focus({ preventScroll: true });\n    });\n"
         ],
         [
-          18326,
-          18475,
+          18026,
+          18173,
           "  [\"topBanner\", \"mapTitleBadge\", \"mobileControlsToggle\", \"legendDock\", \"timelineDock\"].map(id => document.getElementById(id))\n"
         ]
       ]
@@ -1610,6 +1745,35 @@
           ""
         ]
       ]
+    },
+    {
+      "source": "assets/modal-focus.js",
+      "beforeSha256": "77c8d9e9efcb920b3341d242d61b7635342a426b94504021fb39d5fad379871d",
+      "afterSha256": "f1414b8bcc55ccf03d6de460a3ea7e8b0a9b03829c34bc0dd8289f804c12d0f4",
+      "edits": [
+        [
+          240,
+          421,
+          "  const focusable = 'button:not(:disabled),a[href],input:not(:disabled):not([type=\"hidden\"]),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex=\"-1\"])';\n"
+        ],
+        [
+          3172,
+          3442,
+          "        // In compact layout, the Key can replace a hidden legend Help opener.\n        const key = target.closest('#legendDock[tabindex=\"0\"]');\n        return key && key !== target ? [target, key] : [target];\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/north-wildwood-loading.js",
+      "beforeSha256": "d7288f205d13c6150ac8da6322f08e5495d924922d06dad970800d4ec4399571",
+      "afterSha256": "f0fcb8967684a0f92a69cfc127f2d640533a379c4c500febf850d42234bbc9b1",
+      "edits": [
+        [
+          1043,
+          1216,
+          "      // Mobile places its Controls and Key buttons outside the app container.\n      for (const id of ['app', 'mobileControlsToggle', 'legendDock']) {\n"
+        ]
+      ]
     }
   ],
   "added": [
@@ -1627,7 +1791,7 @@
     },
     {
       "source": "assets/north-wildwood-phone.css",
-      "sha256": "fd68419e7ec8934f5d6a9cb2439a3bc11a7e14ea086f9dbd66070d1500081b95"
+      "sha256": "d368367ef7166843de8e05171044b744bb5eb1ba6024681a4757283dd97f9561"
     },
     {
       "source": "tools/app/town-profile.json",

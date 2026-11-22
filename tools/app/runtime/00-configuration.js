@@ -12,6 +12,8 @@
     let RETURN_INTERVALS_URL = "";
     let DEPTH_QUERY_PNG_URL = "";
     let DEVELOPED_QUERY_PNG_URL = "";
+    let DEPTH_QUERY_WEBP_URL = "";
+    let DEVELOPED_QUERY_WEBP_URL = "";
     let DEPTH_QUERY_COG_URL = "";
     let PHYSICS_FORECAST_POINTER_URL = "";
     let PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE = "";
@@ -384,6 +386,8 @@
       DEVELOPED_QUERY_PNG_URL = config.overlays?.developedQueryPngPath
         ? new URL(config.overlays.developedQueryPngPath, APP_BASE).href
         : "";
+      DEPTH_QUERY_WEBP_URL = optionalAppUrl(config.overlays?.depthQueryWebpPath);
+      DEVELOPED_QUERY_WEBP_URL = optionalAppUrl(config.overlays?.developedQueryWebpPath);
       DEPTH_QUERY_COG_URL = config.overlays?.depthQueryCogPath
         ? new URL(config.overlays.depthQueryCogPath, APP_BASE).href
         : "";

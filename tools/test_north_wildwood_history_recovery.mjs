@@ -241,10 +241,15 @@ for (const outcome of ['success', 'failure', 'superseded']) {
     currentFloodLayer: {entry: old[0]}, forecastData: null, physicsForecastManifests: {},
     getForecastFreshness:() => ({state:null}), getForecastSourceForNotice:() => null, scheduleForecastFreshnessNotice() {},
     FORECAST_URL: 'forecast.json', FORECAST_SCENARIOS: {mean: {}, highEnd: {}},
-    currentForecastScenario: 'mean', withFreshJsonUrl: url => url,
+    currentForecastScenario: 'mean',
     getForecastScenarioHours, getStageValue: entry => entry.stageFt, entryTimeMs: entry => Date.parse(entry.timeUtc),
     physicsForecastApplies: () => false,
-    fetchJson() { requests++; return hold.promise; },
+    fetchJson(url, options) {
+      assert.equal(url, 'forecast.json', 'Use a stable URL for the published forecast validator');
+      assert.equal(options.cache, 'no-cache', 'Check for a newer model cycle on each request');
+      requests++;
+      return hold.promise;
+    },
     document: {getElementById(id) { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); }},
     getTimelineIntervalMinutes: () => c.currentTimelineIntervalMinutes, getTimelineNavigationIndex: () => c.currentHourIndex, updateTimelineIntervalUI() {},
     getForecastScenarioLabel: () => 'Mean', getForecastScenarioPercentileLabel: () => '',

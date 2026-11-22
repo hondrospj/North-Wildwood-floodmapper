@@ -25,7 +25,7 @@ async function open() {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.setDefaultTimeout(5000);
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(target, { waitUntil: 'domcontentloaded' });
+  await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForFunction(() => document.body.classList.contains('nw-app-ready') && document.querySelector('#nwSiteLoader')?.hidden, null, { timeout: 30000 });
   return page;
 }

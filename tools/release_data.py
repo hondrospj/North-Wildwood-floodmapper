@@ -14,6 +14,7 @@ from release_schemas import validate_generated
 MAX_SOURCE_AGE_HOURS = 72
 MAX_FUTURE_CLOCK_SKEW_HOURS = 1
 RESEARCH_GUIDANCE_PATH = "data/experimental_petss_guidance.json"
+V41_FORECAST_FILES = ("data/v41/latest.json", "data/v41/latest.png", "data/v41/latest.csv")
 
 # NOAA Stone Harbor station 8535581 / NWPS gauge SHBN4. North Wildwood's
 # municipal gauge and local impact categories have separate reference values.
@@ -38,7 +39,7 @@ GENERATED_DIRECTORIES = (
 
 def is_generated_data(path):
     """Only known generated JSON can inherit the application ancestor's checks."""
-    return path in GENERATED_FILES or (
+    return path in GENERATED_FILES or path in V41_FORECAST_FILES or (
         path.endswith(".json") and any(path.startswith(prefix) for prefix in GENERATED_DIRECTORIES)
     )
 
@@ -81,6 +82,51 @@ def finite_number(value, label):
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ValueError(f"{label}: finite numeric water level is required")
     return value
+
+
+def available_v41_paths(source):
+    paths = tuple(path for path in V41_FORECAST_FILES if (source / path).exists())
+    if paths and paths != V41_FORECAST_FILES:
+        raise ValueError("V41 forecast must include its manifest, chart, and hourly data")
+    return paths
+
+
+def validate_v41(source, now=None):
+    for relative in V41_FORECAST_FILES:
+        path = source / relative
+        if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(source.resolve()):
+            raise ValueError(f"Missing or invalid V41 artifact: {relative}")
+    manifest, chart, csv = (source / filename for filename in V41_FORECAST_FILES)
+    payload = read_json(manifest)
+    if not isinstance(payload, dict) or payload.get("status") not in ("passed", "ready", "ok"):
+        raise ValueError("V41 forecast has not passed validation")
+    issue = utc_time(payload.get("issue_utc"), "V41 issue_utc")
+    now = datetime.now(timezone.utc) if now is None else now
+    if issue.hour not in (0, 6, 12, 18) or issue.minute or issue.second or issue.microsecond:
+        raise ValueError("V41 issue must be a supported UTC cycle")
+    if issue > now:
+        raise ValueError("V41 issue is in the future")
+    hours = payload.get("forecast_hours")
+    paths = payload.get("weather_paths")
+    if type(hours) is not int or not 1 <= hours <= (144 if issue.hour in (6, 18) else 360):
+        raise ValueError("V41 forecast horizon is invalid for the issue cycle")
+    if type(paths) is not int or not 1 <= paths <= 103:
+        raise ValueError("V41 weather path count is invalid")
+    if payload.get("chart_url") != chart.name or payload.get("csv_url") != csv.name:
+        raise ValueError("V41 output URLs must identify the published same-directory files")
+    label = payload.get("proxy_label")
+    if not isinstance(label, str) or not 1 <= len(label.strip()) <= 180:
+        raise ValueError("V41 forecast must identify its gauge proxy")
+    if not 1 <= manifest.stat().st_size <= 1_000_000:
+        raise ValueError("V41 forecast manifest is too large")
+    if not 8 <= chart.stat().st_size <= 5_000_000:
+        raise ValueError("V41 chart size is invalid")
+    with chart.open("rb") as content:
+        if content.read(8) != b"\x89PNG\r\n\x1a\n":
+            raise ValueError("V41 chart must be a PNG")
+    if not 1 <= csv.stat().st_size <= 5_000_000 or "\x00" in csv.read_text(encoding="utf-8"):
+        raise ValueError("V41 hourly data must be a nonempty UTF-8 CSV")
+    return {"cycle": issue.isoformat(), "forecastHours": hours, "weatherPaths": paths}
 
 
 def validate_forecast(payload, now=None):
@@ -219,6 +265,8 @@ def validate_data(source, changed_paths, now=None, *, operational_petss=False):
             raise ValueError(f"Application file cannot use the generated-data release path: {path}")
         if path == "forecast.json" or (operational_petss and path == RESEARCH_GUIDANCE_PATH):
             continue  # The shared forecast validation below also checks required files.
+        if path in V41_FORECAST_FILES:
+            continue  # Validate the complete forecast trio below.
         validate_generated(path, read_json(source / path))
     forecast = (validate_operational_petss(source, now=now) if operational_petss else
                 validate_forecast(read_json(source / "forecast.json"), now=now))
@@ -226,4 +274,7 @@ def validate_data(source, changed_paths, now=None, *, operational_petss=False):
            or path.startswith(("city-gauge/", "observed_archive/stone-harbor/")) for path in paths):
         from validate_observed_contract import validate
         validate(source / "observed15min.json")
-    return {"validatedGeneratedFiles": len(paths), "forecast": forecast}
+    result = {"validatedGeneratedFiles": len(paths), "forecast": forecast}
+    if any(path in V41_FORECAST_FILES for path in paths):
+        result["v41"] = validate_v41(source, now=now)
+    return result

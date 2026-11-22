@@ -89,8 +89,8 @@ try {
         const controls = page.locator("#mobileControlsToggle");
         const compact = await controls.isVisible();
         if (compact) {
-          await page.locator("#legendDock").press("Enter");
-          await page.locator('#legendDock[aria-expanded="true"]').waitFor();
+          await page.locator("#nwwMobileLegendToggle").press("Enter");
+          await page.locator('#nwwMobileLegendToggle[aria-expanded="true"]').waitFor();
         }
         const key = page.locator("#legendDock .depth-legend-gradient");
         await key.waitFor();
@@ -132,7 +132,7 @@ try {
         await page.locator('#dynamicModeBtn[aria-pressed="true"]').waitFor();
         if (compact) {
           await page.keyboard.press("Escape");
-          await page.locator("#legendDock").press("Enter");
+          await page.locator("#nwwMobileLegendToggle").press("Enter");
         }
         const stageRamp = page.locator("#legendDock .stage-legend-gradient");
         await stageRamp.waitFor();

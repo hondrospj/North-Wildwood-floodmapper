@@ -3,7 +3,7 @@
 (() => {
   "use strict";
   const selector = '[role="dialog"][aria-modal="true"]';
-  const focusable = 'button:not(:disabled),a[href],input:not(:disabled):not([type="hidden"]),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])';
+  const focusable = 'summary,button:not(:disabled),a[href],input:not(:disabled):not([type="hidden"]),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])';
   const stack = [];
   const inertBefore = new Map();
   const restoreScopes = new WeakMap();
@@ -72,9 +72,10 @@
       if (pendingRestore !== request) return;
       const dialog = stack.at(-1)?.dialog;
       const candidates = targets.map(currentRestoreTarget).flatMap(target => {
-        // In compact layout, the Key can replace a hidden legend Help opener.
-        const key = target.closest('#legendDock[tabindex="0"]');
-        return key && key !== target ? [target, key] : [target];
+        // The toolbar action stays available when the phone legend has closed.
+        const legend = target.closest('#legendDock');
+        const toggle = legend && document.getElementById('nwwMobileLegendToggle');
+        return toggle ? [target, toggle] : [target];
       }).filter(target => (!dialog || dialog.contains(target)) && visible(target));
       const first = candidates[0];
       if ((request.cancelled || first?.closest('[inert]')) && framesLeft > 0) {

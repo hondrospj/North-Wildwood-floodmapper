@@ -599,11 +599,11 @@ try{
   result.checks.push('A local street-data 503 produces a retryable error, and actual Retry fetches the data and renders the preview');
   await captureInputDiagnostics();await fault.context.close();fault.log.closed=true;page=null;activeSession=null;
 
-  // A fresh context has independent HTTP/model caches and never installs a
-  // route. Its first actual UI export exercises the cold normal PNG path.
+  // A fresh context never installs a route and has no cached export map.
+  // Its live first frame can warm the hydraulic grids before export starts.
   const normal=await startSession('normal-route-free');
   const initial=await page.evaluate(()=>({queryCached:!!depthQueryGridPromise,developedCached:!!developedQueryGridPromise,exportMapCreated:!!exportMap}));
-  assert.deepEqual(initial,{queryCached:false,developedCached:false,exportMapCreated:false});
+  assert.equal(initial.exportMapCreated,false,'The first PNG starts without a cached export map');
   const preference=await page.evaluate(()=>{
     document.getElementById('downloadFormatSelect').value='png';
     document.getElementById('downloadAspectSelect').value='1:1';

@@ -11,41 +11,65 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readDiskBytes = relative => fs.readFileSync(localPath(relative));
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
-const ADDRESS_AND_HISTORY_PATH = "tools/fixtures/north-wildwood-address-and-history-fixes.json";
-const priorAddressAndHistorySnapshot = Boolean(process.env.NWW_PARITY_ROOT) &&
-  process.argv.includes("--prior-address-and-history-snapshot");
-const addressAndHistoryText = readDiskBytes(ADDRESS_AND_HISTORY_PATH).toString("utf8");
-assert.equal(hashReleaseBytes(addressAndHistoryText), "f720a10ff00f47a70598943a564236e710600df069fdbba0ed0a7c64c6a3679a",
-  "Retain the exact address and history inverse");
-const addressAndHistory = JSON.parse(addressAndHistoryText);
-assert.equal(addressAndHistory.schemaVersion, 1);
-assert.equal(addressAndHistory.baselineCommit, "4d9444ca477e55af083b1560b4c8aecdf2868a74");
-const addressAndHistoryFiles = new Map(addressAndHistory.files.map(file => [file.source, file]));
-function readReleaseBytes(relative) {
-  const bytes = readDiskBytes(relative);
-  const file = addressAndHistoryFiles.get(relative);
-  if (priorAddressAndHistorySnapshot || !file) return bytes;
-  assert.equal(hashReleaseBytes(bytes), file.afterSha256, `${relative} changed outside the address and history fixes`);
-  let restored = bytes.toString("utf8");
-  for (const { afterSource, beforeSource } of file.changes) {
-    assert.equal(restored.split(afterSource).length - 1, 1, `${relative}: one exact reviewed fragment`);
-    restored = restored.replace(afterSource, () => beforeSource);
+const DATA_DELIVERY_PATH = "tools/fixtures/north-wildwood-20261121-data-delivery.json";
+const priorDataDeliverySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-data-delivery-snapshot");
+const dataDeliveryText = fs.readFileSync(localPath(DATA_DELIVERY_PATH));
+assert.equal(hashReleaseBytes(dataDeliveryText), "9feb7e23f3d45881f869c583ab77caa101ce8710541a02efc6173d8061a21426", "Retain the exact data delivery inverse");
+const dataDelivery = JSON.parse(dataDeliveryText);
+assert.equal(dataDelivery.schemaVersion, 1);
+assert.equal(dataDelivery.baselineCommit, "27e58b1953b324f42e61020168f7c93587fb649b");
+const dataDeliveryFiles = new Map(dataDelivery.files.map(entry => [entry.source, entry]));
+const FIRST_MAP_PAINT_PATH = "tools/fixtures/north-wildwood-20261121-first-map-paint.json";
+const priorFirstMapPaintSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-first-map-paint-snapshot");
+const firstMapPaintText = fs.readFileSync(localPath(FIRST_MAP_PAINT_PATH));
+assert.equal(hashReleaseBytes(firstMapPaintText), "722a89c3522cce59a0e90ad6614a7d81f8da836c478d7628ca54384510421234", "Retain the exact first-map-paint inverse");
+const firstMapPaint = JSON.parse(firstMapPaintText);
+assert.equal(firstMapPaint.schemaVersion, 1);
+assert.equal(firstMapPaint.baselineCommit, "25111b5b8a4edd7d88ae70de7807275dcabe6abc");
+const firstMapPaintFiles = new Map(firstMapPaint.files.map(entry => [entry.source, entry]));
+
+function restoreReleaseBytes(bytes, entry, scope) {
+  assert.equal(hashReleaseBytes(bytes), entry.afterSha256, `${entry.source}: only reviewed ${scope} changes`);
+  let restored = bytes;
+  for (const [start, end, before] of entry.edits.toReversed()) {
+    restored = Buffer.concat([restored.subarray(0, start), Buffer.from(before), restored.subarray(end)]);
   }
-  assert.equal(hashReleaseBytes(restored), file.beforeSha256, `${relative}: restore every pre-fix byte`);
-  return Buffer.from(restored);
+  assert.equal(hashReleaseBytes(restored), entry.beforeSha256, `${entry.source}: restore every prior ${scope} byte`);
+  return restored;
 }
-if (!priorAddressAndHistorySnapshot) {
-  for (const file of addressAndHistory.files) readReleaseBytes(file.source);
-  const version = hashReleaseBytes(readDiskBytes("assets/app/runtime.js")).slice(0, 16);
-  assert.ok(readDiskBytes("index.html").includes(`src="./assets/app/runtime.js?v=${version}"`),
-    "The updated application must use the current runtime cache key");
+
+function readBeforeDataDelivery(relative) {
+  const bytes = fs.readFileSync(localPath(relative));
+  const entry = dataDeliveryFiles.get(relative);
+  return priorDataDeliverySnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "data delivery");
+}
+if (!priorDataDeliverySnapshot) {
+  for (const file of dataDelivery.files) readBeforeDataDelivery(file.source);
+  for (const asset of dataDelivery.added) {
+    const bytes = fs.readFileSync(localPath(asset.source));
+    assert.equal(bytes.length, asset.bytes, `${asset.source}: exact lossless asset size`);
+    assert.equal(hashReleaseBytes(bytes), asset.sha256, `${asset.source}: exact lossless asset bytes`);
+  }
+}
+function readReleaseBytes(relative) {
+  const bytes = readBeforeDataDelivery(relative);
+  const entry = firstMapPaintFiles.get(relative);
+  return priorFirstMapPaintSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "first-map-paint");
+}
+if (!priorFirstMapPaintSnapshot) {
+  for (const file of firstMapPaint.files) readReleaseBytes(file.source);
+  for (const asset of firstMapPaint.added) {
+    assert.ok(fs.existsSync(localPath(asset.source)), `${asset.source}: declared preview asset exists`);
+    const bytes = fs.readFileSync(localPath(asset.source));
+    assert.equal(bytes.length, asset.bytes, `${asset.source}: exact preview size`);
+    assert.equal(hashReleaseBytes(bytes), asset.sha256, `${asset.source}: exact preview bytes`);
+  }
 }
 const SHARED_APP_PATH = "tools/fixtures/north-wildwood-20261119-common-browser-app.json";
 const priorSharedAppSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-shared-app-snapshot");
 const sharedAppText = readReleaseBytes(SHARED_APP_PATH);
-assert.equal(hashReleaseBytes(sharedAppText), "4e244b712b47c81cb600cf1b2c2c0674b186499344df1fbef6a455a3b999b0da", "Retain the exact shared application inverse");
+assert.equal(hashReleaseBytes(sharedAppText), "5b9f650adf07242f949af100c235172506ede299b5a756dc71061574ca98b13f", "Retain the exact shared application inverse");
 const sharedApp = JSON.parse(sharedAppText);
 assert.equal(sharedApp.schemaVersion, 1);
 assert.equal(sharedApp.baselineCommit, "be43e3a29e9807658e6b19101371e374c29afa30");
@@ -53,14 +77,7 @@ const sharedAppFiles = new Map(sharedApp.files.map(entry => [entry.source, entry
 function readUnreviewedBytes(relative) {
   const bytes = readReleaseBytes(relative);
   const entry = sharedAppFiles.get(relative);
-  if (priorSharedAppSnapshot || !entry) return bytes;
-  assert.equal(hashReleaseBytes(bytes), entry.afterSha256, `${relative}: only reviewed shared application changes`);
-  let restored = bytes;
-  for (const [start, end, before] of entry.edits.toReversed()) {
-    restored = Buffer.concat([restored.subarray(0, start), Buffer.from(before), restored.subarray(end)]);
-  }
-  assert.equal(hashReleaseBytes(restored), entry.beforeSha256, `${relative}: restore every prior application byte`);
-  return restored;
+  return priorSharedAppSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "shared application");
 }
 if (!priorSharedAppSnapshot) {
   for (const file of sharedApp.files) readUnreviewedBytes(file.source);
@@ -2691,8 +2708,9 @@ if (process.argv.includes("--self-test")) {
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
       boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
-      ADDRESS_AND_HISTORY_PATH, ...addressAndHistory.files.map(file => file.source),
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
+      FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
+      DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
       QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
       MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
       JOE_UI_PATH, ...joeUi.files.map(file => file.source), ...joeUi.added.map(file => file.source),
@@ -2708,8 +2726,9 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeAddressAndHistory = (args = []) => runRelease(["--prior-address-and-history-snapshot", ...args]);
-    const runCurrent = (args = []) => runBeforeAddressAndHistory(["--prior-shared-app-snapshot", ...args]);
+    const runBeforeDataDelivery = (args = []) => runRelease(["--prior-data-delivery-snapshot", ...args]);
+    const runBeforeFirstMapPaint = (args = []) => runBeforeDataDelivery(["--prior-first-map-paint-snapshot", ...args]);
+    const runCurrent = (args = []) => runBeforeFirstMapPaint(["--prior-shared-app-snapshot", ...args]);
     const run = (args = []) => runCurrent(["--prior-quiet-loading-snapshot", ...args]);
     assert.equal(runRelease().status, 0, "The unmodified release scratch copy must pass before mutation checks");
     const assertMutationsRejected = (cases, check) => {
@@ -2725,21 +2744,32 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
-      ["altered the address and history inverse", path.join(scratch, ADDRESS_AND_HISTORY_PATH), addressAndHistoryText + " "],
-      ...addressAndHistory.files.map(file => [
-        `unreviewed address and history byte in ${file.source}`, path.join(scratch, file.source),
-        Buffer.concat([readDiskBytes(file.source), Buffer.from("\n")])
-      ])
+      ["altered data delivery inverse", path.join(scratch, DATA_DELIVERY_PATH), Buffer.concat([dataDeliveryText, Buffer.from(" ")])],
+      ...[...dataDelivery.files, ...dataDelivery.added].map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed data delivery byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
     ], runRelease);
-    for (const file of addressAndHistory.files) fs.writeFileSync(path.join(scratch, file.source), readReleaseBytes(file.source));
-    assert.equal(runBeforeAddressAndHistory().status, 0, "The restored pre-address-fix snapshot must pass");
+    for (const file of dataDelivery.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeDataDelivery(file.source));
+    for (const file of dataDelivery.added) fs.unlinkSync(path.join(scratch, file.source));
+    assert.equal(runBeforeDataDelivery().status, 0, "The restored application before data delivery changes must pass");
+    assertMutationsRejected([
+      ["altered first-map-paint inverse", path.join(scratch, FIRST_MAP_PAINT_PATH), Buffer.concat([firstMapPaintText, Buffer.from(" ")])],
+      ...[...firstMapPaint.files, ...firstMapPaint.added].map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed first-map-paint byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runBeforeDataDelivery);
+    for (const file of firstMapPaint.files) fs.writeFileSync(path.join(scratch, file.source), readReleaseBytes(file.source));
+    for (const file of firstMapPaint.added) fs.unlinkSync(path.join(scratch, file.source));
+    assert.equal(runBeforeFirstMapPaint().status, 0, "The restored pre-preview application must pass");
     assertMutationsRejected([
       ["modified shared application inverse", path.join(scratch, SHARED_APP_PATH), Buffer.concat([sharedAppText, Buffer.from(" ")])],
       ...[...sharedApp.files, ...sharedApp.added].map(file => [
         `unreviewed byte in ${file.source}`, path.join(scratch, file.source),
         Buffer.concat([readReleaseBytes(file.source), Buffer.from("\n")])
       ])
-    ], runBeforeAddressAndHistory);
+    ], runBeforeFirstMapPaint);
     for (const file of sharedApp.files) fs.writeFileSync(path.join(scratch, file.source), readUnreviewedBytes(file.source));
     assert.equal(runCurrent().status, 0, "The restored North Wildwood snapshot must pass");
     const quietCases = [
@@ -3396,7 +3426,9 @@ if (process.argv.includes("--self-test")) {
     assert.deepEqual(allCases.filter(([, target, altered]) => fs.readFileSync(target, "utf8") === altered).map(([name]) => name), [], "Every retained mutation must alter the actual current artifact");
     assertMutationsRejected(allCases, runPrior);
     assert.equal(runPrior().status, 0, "Restoring historical artifacts must restore a passing check");
-    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length} dropped, moved, altered or stale artifacts were rejected.`);
+    const firstMapPaintCases = firstMapPaint.files.length + firstMapPaint.added.length + 1;
+    const dataDeliveryCases = dataDelivery.files.length + dataDelivery.added.length + 1;
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

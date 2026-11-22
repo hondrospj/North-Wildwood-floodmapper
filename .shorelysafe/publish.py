@@ -16,6 +16,24 @@ ROOT = Path(__file__).resolve().parent
 ALLOWED = {'.html','.htm','.js','.mjs','.css','.json','.geojson','.csv','.txt','.png','.jpg','.jpeg',
            '.gif','.webp','.svg','.ico','.tif','.tiff','.wasm','.woff','.woff2','.ttf','.map'}
 TEXT = {'.html','.htm','.js','.mjs','.css','.json','.geojson','.csv','.txt','.svg','.map'}
+NWW_ATLAS_BASE = 'https://hondrospj.github.io/North-Wildwood-floodmapper/'
+NWW_DEPTH_QUERY_ASSET = ('assets/hydraulic-v29/COGs/North%20Wildwood/'
+                         'NorthWildwoodHydraulicQuery5ft.png?v=20260822-mask-stabilizer-v40')
+
+def rewrite_publish_urls(text, replacements, *, north_wildwood_index=False):
+    for old, new in replacements:
+        # The North Wildwood atlas resolver requires an absolute Pages base.
+        static_base = '"staticSiteBase":' + json.dumps(old)
+        if north_wildwood_index and static_base in text:
+            text = static_base.join(part.replace(old, new) for part in text.split(static_base))
+        else:
+            text = text.replace(old, new)
+    if north_wildwood_index:
+        # Serve the startup-critical packed query from the identical public atlas.
+        field = '"depthQueryPngPath":'
+        text = text.replace(field + json.dumps('./' + NWW_DEPTH_QUERY_ASSET),
+                            field + json.dumps(NWW_ATLAS_BASE + NWW_DEPTH_QUERY_ASSET))
+    return text
 
 def prepare(app, source, apps):
     names = subprocess.check_output(['git','ls-files','-z'], cwd=source).decode().split('\0')
@@ -32,8 +50,8 @@ def prepare(app, source, apps):
         if data.startswith(b'version https://git-lfs.github.com/spec/v1'):
             raise ValueError('Git LFS object was not downloaded: ' + name)
         if p.suffix.lower() in TEXT:
-            text = data.decode('utf-8')
-            for old,new in replacements: text = text.replace(old,new)
+            north_wildwood_index = app['id'] == 'floodmapper--north-wildwood' and name == 'index.html'
+            text = rewrite_publish_urls(data.decode('utf-8'), replacements, north_wildwood_index=north_wildwood_index)
             data = text.encode('utf-8')
         sha = hashlib.sha256(data).hexdigest()
         files.append({'path':name,'sha256':sha,'size':len(data)})

@@ -17,11 +17,14 @@
   panel.setAttribute("role", "region");
   panel.setAttribute("aria-labelledby", "webcamTitle");
   panel.setAttribute("data-html2canvas-ignore", "true");
-  panel.innerHTML = `<div class="webcam-heading"><h2 id="webcamTitle">Cameras</h2><button type="button" id="webcamClose" class="centered-close-control" aria-label="Close camera viewer">×</button></div>
-    <select id="webcamChoice" aria-label="Choose camera"></select>
+  panel.innerHTML = `<div class="webcam-heading">
+      <h2 id="webcamTitle" class="webcam-visually-hidden">Cameras</h2>
+      <select id="webcamChoice" aria-label="Choose camera"></select>
+      <button type="button" id="webcamClose" class="centered-close-control" aria-label="Close camera viewer">×</button>
+    </div>
     <div id="webcamFrame" class="webcam-frame"></div>
     <p id="webcamStatus" role="status" aria-live="polite" hidden></p>
-    <div class="webcam-source"><a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Camera source ↗</a><button type="button" id="webcamRetry" aria-label="Reload camera" title="Reload if the feed is blank">↻</button></div>`;
+    <div class="webcam-source"><span class="webcam-time-label">Separate from map time</span><a id="webcamSourceLink" target="_blank" rel="noopener noreferrer">Source ↗</a><button type="button" id="webcamRetry" aria-label="Reload camera" title="Reload if the feed is blank">↻</button></div>`;
   document.body.append(panel);
   const choice = panel.querySelector("#webcamChoice");
   const frameHost = panel.querySelector("#webcamFrame");
@@ -29,6 +32,7 @@
   const status = panel.querySelector("#webcamStatus");
   const sourceLink = panel.querySelector("#webcamSourceLink");
   const retryButton = panel.querySelector("#webcamRetry");
+  const timeLabel = panel.querySelector(".webcam-time-label");
   let enabled = false, selected = null, frame = null, refreshTimer = null;
   let openingDeadline = null;
   let leafletMap = null, leafletLayer = null, glMap = null, glMarkers = [];
@@ -41,6 +45,11 @@
     choice.append(option);
   }
   choice.hidden = cameras.length < 2;
+  if (choice.hidden) {
+    const title = panel.querySelector("#webcamTitle");
+    title.textContent = cameras[0].short || cameras[0].name;
+    title.classList.remove("webcam-visually-hidden");
+  }
 
   function setStatus(message) {
     status.textContent = message;
@@ -58,12 +67,13 @@
 
   function loadPlayer(camera) {
     clearPlayer();
-    retryButton.hidden = Boolean(camera.external);
-    frameHost.hidden = Boolean(camera.external);
+    const external = Boolean(camera.external);
+    retryButton.hidden = timeLabel.hidden = frameHost.hidden = external;
+    sourceLink.textContent = external ? "Open camera ↗" : "Source ↗";
     if (camera.external) {
       // The city's beach provider restricts its player to approved parent sites.
       panel.dataset.playerState = "external";
-      setStatus("In-map playback unavailable.");
+      setStatus("");
       return;
     }
     setStatus("Opening camera…");
@@ -121,8 +131,7 @@
     if (!container) return;
     const rect = container.getBoundingClientRect();
     let top = innerWidth <= 900 ? 120 : 140;
-    const controls = document.getElementById("mobileControlsToggle");
-    const headerIds = ["topBanner", "topBar", "mapTitleBadge", "mobileControlsToggle"];
+    const headerIds = ["topBanner", "topBar", "mapTitleBadge", "nwwMobileUtilities"];
     for (const id of headerIds) {
       const element = document.getElementById(id);
       if (!element || !element.getClientRects().length || getComputedStyle(element).visibility === "hidden") continue;
@@ -148,16 +157,13 @@
     panel.style.left = `${(visibleLeft + visibleRight) / 2}px`;
     panel.style.maxWidth = `${Math.max(1, visibleRight - visibleLeft - 16)}px`;
     let panelTop = overlay ? viewportTop + 8 : rect.top + top;
-    if (overlay && !panel.hidden && controls?.getClientRects().length) {
+    const toolbar = document.getElementById("nwwMobileUtilities");
+    if (overlay && !panel.hidden && toolbar?.getClientRects().length) {
       const viewer = panel.getBoundingClientRect();
-      const key = document.body.classList.contains("mobile-legend-open") ? null : document.getElementById("legendDock");
-      for (const control of [controls, key]) {
-        if (!control?.getClientRects().length || getComputedStyle(control).visibility === "hidden") continue;
-        const box = control.getBoundingClientRect();
-        const below = box.bottom + 8;
-        if (box.top < viewportTop + 64 && box.left < viewer.right && box.right > viewer.left &&
-            viewportBottom - below - 8 >= 200) panelTop = Math.max(panelTop, below);
-      }
+      const box = toolbar.getBoundingClientRect();
+      const below = box.bottom + 8;
+      if (box.top < viewportTop + 64 && box.left < viewer.right && box.right > viewer.left &&
+          viewportBottom - below - 8 >= 200) panelTop = Math.max(panelTop, below);
     }
     panel.style.top = `${panelTop}px`;
     const maxHeight = overlay ? Math.max(1, viewportBottom - panelTop - 8) : available;
@@ -353,7 +359,7 @@
   window.visualViewport?.addEventListener("resize", () => { if (!panel.hidden) mountPanel(); });
   window.visualViewport?.addEventListener("scroll", () => { if (!panel.hidden) mountPanel(); });
   const layoutObserver = new ResizeObserver(() => { if (!panel.hidden) mountPanel(); });
-  ["topBanner", "mapTitleBadge", "mobileControlsToggle", "legendDock", "timelineDock", "mapClickModeControl"].map(id => document.getElementById(id))
+  ["topBanner", "mapTitleBadge", "nwwMobileUtilities", "legendDock", "timelineDock", "mapClickModeControl"].map(id => document.getElementById(id))
     .filter(Boolean).forEach(el => layoutObserver.observe(el));
   window.addEventListener("pagehide", () => setEnabled(false));
   window.addEventListener("pageshow", event => { if (event.persisted) setEnabled(false); });

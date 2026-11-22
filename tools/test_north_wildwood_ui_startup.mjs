@@ -43,16 +43,14 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
       const audit=window.__uiStartupAudit={frames:0,samples:[],stopped:false};
       const text=node=>node?.textContent.replace(/\s+/g,' ').trim() || '';
       const bounds=node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};};
-      function rendered(node) {
+      function laidOut(node) {
         if (!node?.getClientRects().length) return false;
         const r=node.getBoundingClientRect();
         if (!r.width || !r.height) return false;
-        for(let parent=node;parent;parent=parent.parentElement) {
-          const style=getComputedStyle(parent);
-          if(style.display==='none'||style.visibility==='hidden')return false;
-        }
+        for(let parent=node;parent;parent=parent.parentElement)if(getComputedStyle(parent).display==='none')return false;
         return true;
       }
+      const rendered=node=>laidOut(node)&&getComputedStyle(node).visibility==='visible';
       function painted(node) {
         if(!rendered(node))return false;
         for(let parent=node;parent;parent=parent.parentElement)if(Number(getComputedStyle(parent).opacity)===0)return false;
@@ -82,11 +80,12 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
         const s=getComputedStyle(node);
         return {fontFamily:s.fontFamily,fontSize:s.fontSize,fontWeight:s.fontWeight,lineHeight:s.lineHeight};
       };
-      const capture=node=>rendered(node)?{...bounds(node),painted:painted(node)}:null;
-      const wrapper=node=>rendered(node)?{...capture(node),maxHeight:getComputedStyle(node).maxHeight,
-        overflowY:getComputedStyle(node).overflowY,clientHeight:node.clientHeight,scrollHeight:node.scrollHeight}:null;
-      const byId=id=>capture(document.getElementById(id));
-      window.__captureUiStartup=()=>{
+      window.__captureUiStartup=(includeHidden=false)=>{
+        const measured=includeHidden?laidOut:rendered;
+        const capture=node=>measured(node)?{...bounds(node),painted:painted(node)}:null;
+        const wrapper=node=>measured(node)?{...capture(node),maxHeight:getComputedStyle(node).maxHeight,
+          overflowY:getComputedStyle(node).overflowY,clientHeight:node.clientHeight,scrollHeight:node.scrollHeight}:null;
+        const byId=id=>capture(document.getElementById(id));
         const title=document.getElementById('mapTitleBadge'),rail=document.getElementById('rightRail');
         const play=document.getElementById('playBtn'),icon=play?.querySelector('.playIcon.playTriangle');
         const bubble=document.getElementById('timelineBubble');
@@ -94,10 +93,10 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
         const cards={},controls={};
         for(const [key,selector]of Object.entries({layers:'.layers-card',tides:'.top-tides-card',export:'#downloadCard',address:'#townAddressCard',tour:'#mapperTutorialBtn'})) {
           const card=rail?.querySelector(selector);
-          if(rendered(card))cards[key]={...capture(card),heading:text(card.querySelector('h2,h3'))};
+          if(measured(card))cards[key]={...capture(card),heading:text(card.querySelector('h2,h3'))};
         }
         for(const node of rail?.querySelectorAll('button,input,[role="switch"]') || []) {
-          if(!rendered(node))continue;
+          if(!measured(node))continue;
           let key=node.id;
           if(!key && node.classList.contains('top-tide-item'))key='tide-'+[...node.parentElement.querySelectorAll('.top-tide-item')].indexOf(node);
           if(!key && node.classList.contains('top-tide-more-btn'))key='tide-more';
@@ -108,15 +107,15 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
         return {
           ready:!!document.body?.dataset.unifiedUiReady,
           title:capture(title),titleText:byId('mapTitleText'),titleFont:typography(document.getElementById('mapTitleText')),
-          titleImages:[...title?.querySelectorAll('img') || []].filter(rendered).map(img=>({id:img.id,src:img.getAttribute('src'),...capture(img)})),
+          titleImages:[...title?.querySelectorAll('img') || []].filter(measured).map(img=>({id:img.id,src:img.getAttribute('src'),...capture(img)})),
           left:wrapper(document.getElementById('leftPanel')),rail:wrapper(rail),cards,controls,
-          layerRows:rendered(layers)?[...layers.querySelectorAll('.layer-item')].map(row=>({
+          layerRows:measured(layers)?[...layers.querySelectorAll('.layer-item')].map(row=>({
             id:row.querySelector('[role="switch"]')?.id,label:text(row.querySelector('.layer-name')),...capture(row),
           })):[],
           nav:byId('nwDefaultNavControl'),
           navParts:Object.fromEntries(['.nw-direction-wheel','.nw-simple-view','.nw-simple-zoom'].map(selector=>[selector,capture(document.querySelector('#nwDefaultNavControl '+selector))])),
           timeline:byId('timelineDock'),play:capture(play),playIcon:capture(icon),playText:text(play),
-          bubble:rendered(bubble)?{
+          bubble:measured(bubble)?{
             ...capture(bubble),text:text(bubble),typed:!!(text(current)&&text(stage)&&
               text(current)!=='--'&&text(stage)!=='--'&&!bubble.querySelector('.timeline-bubble-startup-placeholder')),
             currentFont:typography(current),stageFont:typography(stage),
@@ -145,7 +144,7 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
     })]);
     await page.waitForFunction(()=>document.getElementById('mapperTutorialBtn')&&document.getElementById('playBtn'));
     await twoPaints(page);
-    stages.controllerHeld=await page.evaluate(()=>window.__captureUiStartup());
+    stages.controllerHeld=await page.evaluate(()=>window.__captureUiStartup(true));
     trace('controller held; initial paint captured');
     assert.equal(stages.controllerHeld.ready,false,'The first stage must precede controller execution');
     controller.release();
@@ -166,7 +165,8 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
     });
     await page.waitForFunction(()=>{
       const loader=document.getElementById('nwSiteLoader'),style=loader&&getComputedStyle(loader);
-      return (!loader||loader.hidden||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)&&
+      return document.body.dataset.siteLoader==='complete'&&
+        (!loader||loader.hidden||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)&&
         Number(getComputedStyle(document.getElementById('app')).opacity)>0.999;
     },{},{timeout:90000});
     await twoPaints(page);
@@ -186,8 +186,8 @@ async function checkStartup({width,height,dpr=1,mobile=false}) {
     check(audit.samples.some(sample=>!sample.ready),'Probe captured a pre-controller frame');
     check(audit.samples.some(sample=>sample.ready),'Probe captured a post-controller frame');
     if(!mobile) {
-      check(!!stages.controllerHeld.title,'Desktop title already has its final geometry beneath the splash');
-      check(!!stages.controllerHeld.rail,'Desktop right controls already have geometry beneath the splash');
+      check(!!stages.controllerHeld.title&&!stages.controllerHeld.title.painted,'Desktop title lays out while the early map is visible');
+      check(!!stages.controllerHeld.rail&&!stages.controllerHeld.rail.painted,'Desktop right controls lay out without painting over the early map');
       check(final.title?.painted&&final.rail?.painted,'Finished title and right controls are actually revealed');
       for(const key of ['layers','tides','export','address','tour'])check(!!stages.controllerHeld.cards[key],key+' card already has its reserved startup geometry');
     }

@@ -42,6 +42,13 @@
     }
 
     async function fetchJson(url, options = {}) {
+      const startup = window.floodmapperStartupForecast;
+      if (options.cache === "no-cache" && startup?.url === url) {
+        delete window.floodmapperStartupForecast;
+        const { data, error } = await startup.request;
+        if (error) throw error;
+        return data;
+      }
       const { timeoutMs = 30000, ...requestOptions } = options;
       const controller = new AbortController();
       const timer = window.setTimeout(() => controller.abort(), timeoutMs);

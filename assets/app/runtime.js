@@ -12,6 +12,8 @@
     let RETURN_INTERVALS_URL = "";
     let DEPTH_QUERY_PNG_URL = "";
     let DEVELOPED_QUERY_PNG_URL = "";
+    let DEPTH_QUERY_WEBP_URL = "";
+    let DEVELOPED_QUERY_WEBP_URL = "";
     let DEPTH_QUERY_COG_URL = "";
     let PHYSICS_FORECAST_POINTER_URL = "";
     let PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE = "";
@@ -384,6 +386,8 @@
       DEVELOPED_QUERY_PNG_URL = config.overlays?.developedQueryPngPath
         ? new URL(config.overlays.developedQueryPngPath, APP_BASE).href
         : "";
+      DEPTH_QUERY_WEBP_URL = optionalAppUrl(config.overlays?.depthQueryWebpPath);
+      DEVELOPED_QUERY_WEBP_URL = optionalAppUrl(config.overlays?.developedQueryWebpPath);
       DEPTH_QUERY_COG_URL = config.overlays?.depthQueryCogPath
         ? new URL(config.overlays.depthQueryCogPath, APP_BASE).href
         : "";
@@ -1102,6 +1106,13 @@ function cloneStyleObject(value) {
     }
 
     async function fetchJson(url, options = {}) {
+      const startup = window.floodmapperStartupForecast;
+      if (options.cache === "no-cache" && startup?.url === url) {
+        delete window.floodmapperStartupForecast;
+        const { data, error } = await startup.request;
+        if (error) throw error;
+        return data;
+      }
       const { timeoutMs = 30000, ...requestOptions } = options;
       const controller = new AbortController();
       const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -3265,6 +3276,8 @@ function setDatumHelpOpen(isOpen) {
       return L.latLngBounds([0, 0], [0.01, 0.01]);
     }
 
+    let startupOverlayCandidate = null;
+
     async function testImageUrl(url) {
       if (!url) return { ok: false };
       if (exportCancelRequested) return { ok: false, cancelled: true };
@@ -3279,13 +3292,13 @@ function setDatumHelpOpen(isOpen) {
           settled = true;
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          img.onload = null;
+          img.onerror = null;
           resolve(value);
         };
         const cancelIfRequested = () => {
           if (!exportCancelRequested) return false;
           imageExistsCache.delete(url);
-          img.onload = null;
-          img.onerror = null;
           try { img.src = ""; } catch (_) {}
           done({ ok: false, cancelled: true });
           return true;
@@ -3294,7 +3307,12 @@ function setDatumHelpOpen(isOpen) {
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
         img.crossOrigin = "anonymous";
         img.fetchPriority = "high";
-        img.onload = () => done({ ok: true });
+        img.onload = () => {
+          if (!settled && !exportInProgress && document.body.dataset.initialFloodFrame === "loading") {
+            startupOverlayCandidate = { url, image: img };
+          }
+          done({ ok: true });
+        };
         img.onerror = () => done({ ok: false });
         timeoutTimer = window.setTimeout(() => done({ ok: false }), 20000);
         img.src = url;
@@ -4909,15 +4927,40 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       deferredMapLayersStarted = true;
       document.body.dataset.deferredMapLayers = "active";
       document.body.dataset.deferredMapLayersStartedAt = performance.now().toFixed(1);
-      if (basemapColorLayer && !map.hasLayer(basemapColorLayer)) basemapColorLayer.addTo(map);
+      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
+        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+        minZoom: 11,
+        maxNativeZoom: 19,
+        maxZoom: 20,
+        subdomains: "abcd",
+        crossOrigin: true,
+        opacity: 0,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        className: "roads-layer",
+        pane: "roadsPane"
+      });
       if (roadsLayer && !map.hasLayer(roadsLayer)) roadsLayer.addTo(map);
       updateRoadLayerAppearance();
       updateColorBasemapClip();
     }
 
+    function fitInitialFloodView(bounds, startupBounds = null) {
+      if (mapHasFit || !bounds) return;
+      map.fitBounds(bounds, { padding: [16, 16], animate: startupBounds ? false : undefined });
+      if (isCompactFloodmapperLayout()) {
+        // Keep the previous phone zoom, which was relative to the provisional viewport.
+        const zoom = startupBounds ? map.getBoundsZoom(startupBounds, false, L.point(40, 40)) : map.getZoom();
+        map.setZoom(Math.min(zoom + 1, map.getMaxZoom()), { animate: false });
+      }
+      mapHasFit = true;
+    }
+
     function ensureMap() {
       if (map) return;
 
+      const startupPreview = document.getElementById("startupMapPreview");
+      const retireStartupPreview = () => startupPreview?.remove();
       map = L.map("map", {
         zoomControl: false,
         minZoom: 11,
@@ -4953,10 +4996,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       basemapColorLayer = makeEsriBuildingBasemapLayer();
 
       if (basemapColorLayer) {
-        basemapColorLayer.on("error", () => {
-          if (basemapColorLayer && map.hasLayer(basemapColorLayer)) {
-            map.removeLayer(basemapColorLayer);
-          }
+        const vectorLayer = basemapColorLayer;
+        vectorLayer.once("error", () => {
+          const wasActive = map.hasLayer(vectorLayer);
+          if (wasActive) map.removeLayer(vectorLayer);
           basemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
             attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
             minZoom: 11,
@@ -4968,7 +5011,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
             className: "basemap-color-layer",
             pane: "basemapColorPane"
           });
-          if (deferredMapLayersStarted) basemapColorLayer.addTo(map);
+          if (startupPreview) basemapColorLayer.once("load", retireStartupPreview);
+          if (wasActive) basemapColorLayer.addTo(map);
         });
       } else {
         basemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
@@ -4995,20 +5039,6 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         pane: "satellitePane"
       });
 
-      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
-        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
-        minZoom: 11,
-        maxNativeZoom: 19,
-        maxZoom: 20,
-        subdomains: "abcd",
-        crossOrigin: true,
-        opacity: 0,
-        updateWhenIdle: true,
-        keepBuffer: 1,
-        className: "roads-layer",
-        pane: "roadsPane"
-      });
-
       updateMunicipalBoundaryLayer();
 
       L.control.zoom({ position: "topright" }).addTo(map);
@@ -5021,7 +5051,29 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       updateRoadLayerAppearance();
       updateColorBasemapClip();
 
-      map.fitBounds(getBoundaryDrivenOverlayBounds(false), { padding: [20, 20] });
+      const previewBounds = getBoundaryDrivenOverlayBounds(false);
+      if (municipalBoundaryRings.length) fitInitialFloodView(getBoundaryDrivenOverlayBounds(), previewBounds);
+      else map.fitBounds(previewBounds, { padding: [20, 20], animate: false });
+      basemapColorLayer.addTo(map);
+      document.body.dataset.mapInitialized = "true";
+      if (startupPreview) {
+        const topLeft = map.latLngToContainerPoint(previewBounds.getNorthWest());
+        const bottomRight = map.latLngToContainerPoint(previewBounds.getSouthEast());
+        Object.assign(startupPreview.style, {
+          left: `${topLeft.x}px`, top: `${topLeft.y}px`,
+          width: `${bottomRight.x - topLeft.x}px`, height: `${bottomRight.y - topLeft.y}px`
+        });
+        const initialBasemap = basemapColorLayer;
+        if (typeof initialBasemap._createMaplibreLayer === "function") {
+          // Wait for painted vector tiles, not just the service metadata or flood layer.
+          const onVectorReady = () => initialBasemap._maplibreGL?.getMaplibreMap()?.once("idle", retireStartupPreview);
+          if (initialBasemap._maplibreGL) onVectorReady();
+          else initialBasemap.once("ready", onVectorReady);
+        } else {
+          initialBasemap.once("load", retireStartupPreview);
+        }
+        map.once("movestart", retireStartupPreview);
+      }
       requestAnimationFrame(() => {
         map.invalidateSize();
         updateColorBasemapClip();
@@ -8665,6 +8717,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
     function waitForRecoveryFloodLayer(layer, token, onReady) {
       return new Promise(resolve => {
         let settled = false;
+        let handlingLoad = false;
         let timeout = null;
         const finish = ready => {
           if (settled) return;
@@ -8686,6 +8739,8 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
           resolve(ready);
         };
         const handleLoad = async () => {
+          if (handlingLoad) return;
+          handlingLoad = true;
           if (settled || token !== lastRenderToken) return finish(false);
           if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
           await new Promise(requestAnimationFrame);
@@ -8703,7 +8758,11 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
         layer.on("error", handleError);
         layer.on("remove", handleRemove);
         timeout = window.setTimeout(() => finish(false), 20000);
-        try { layer.addTo(map); } catch (_) { finish(false); }
+        try {
+          layer.addTo(map);
+          const image = layer.getElement();
+          if (image?.complete && image.naturalWidth) void handleLoad();
+        } catch (_) { finish(false); }
       });
     }
 
@@ -10065,7 +10124,14 @@ function formatSelectedObservedDate(dateStr) {
 
         const overlayUrl = match.url;
         releaseRaster = retainRasterObjectUrl(overlayUrl);
-        const loaded = await preloadImage(overlayUrl, "high");
+        // The atlas resolver already downloaded this image to verify its URL.
+        // Reuse it for the first frame without retaining every probed raster.
+        let initialImage = null;
+        if (document.body.dataset.initialFloodFrame === "loading") {
+          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
+          startupOverlayCandidate = null;
+        }
+        const loaded = initialImage || await preloadImage(overlayUrl, "high");
         if (token !== lastRenderToken) return;
         if (!loaded) {
           return false;
@@ -10097,7 +10163,8 @@ function formatSelectedObservedDate(dateStr) {
             className: currentDataMode === "return-interval" && mode === "depth"
               ? "return-interval-depth-overlay"
               : ""
-          }
+          },
+          initialImage || overlayUrl
         );
 
         pendingFloodLayer = nextLayer;
@@ -10120,14 +10187,7 @@ function formatSelectedObservedDate(dateStr) {
   
           updatePersistentDepthQueryPopup();
   
-          if (!mapHasFit && floodLatLngBounds) {
-            const townBounds = getBoundaryDrivenOverlayBounds();
-            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
-            if (document.body.classList.contains("mobile-optimized")) {
-              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-            }
-            mapHasFit = true;
-          }
+          if (!mapHasFit && floodLatLngBounds) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
           markInitialFloodFrameReady();
         });
       } finally {
@@ -10182,13 +10242,7 @@ function formatSelectedObservedDate(dateStr) {
         pendingFloodLayer = null;
         renderedFloodPixelCache = null;
         if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
-        if (!mapHasFit) {
-          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
-          if (document.body.classList.contains("mobile-optimized")) {
-            map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-          }
-          mapHasFit = true;
-        }
+        if (!mapHasFit) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
         markInitialFloodFrameReady();
       });
     }
@@ -10478,7 +10532,8 @@ function formatSelectedObservedDate(dateStr) {
           renderTimelineDays();
         }
         try {
-          const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL));
+          // Revalidate every fetch while allowing an unchanged model cycle to reuse its response body.
+          const payload = await fetchJson(FORECAST_URL, { cache: "no-cache" });
           if (generation !== selectionGeneration || floodSelectionToken !== lastRenderToken) return false;
           const scenarios = Object.keys(FORECAST_SCENARIOS);
           const usable = new Set(scenarios.filter(scenario => hasUsableScenario(payload, scenario)));
@@ -13068,15 +13123,15 @@ function startPlayback() {
       return nearestDistance <= 90 ? nearest : null;
     }
 
-    function loadDepthQueryPng(url) {
+    function loadDepthQueryPng(url, timeoutMs = 20000) {
       return new Promise((resolve, reject) => {
         const image = new Image();
         let settled = false;
         const timer = window.setTimeout(() => {
-          const error = new Error("Packed depth-query PNG took too long to load. Please try again.");
+          const error = new Error("Packed depth-query image took too long to load. Please try again.");
           error.name = "TimeoutError";
           finish(error);
-        }, 20000);
+        }, timeoutMs);
         const finish = (error, grid) => {
           if (settled) return;
           settled = true;
@@ -13106,30 +13161,41 @@ function startPlayback() {
             finish(error);
           }
         };
-        image.onerror = () => finish(new Error("Packed depth-query PNG could not be loaded."));
+        image.onerror = () => finish(new Error("Packed depth-query image could not be loaded."));
         image.src = url;
       });
+    }
+
+    async function loadPackedQueryGrid(pngUrl, webpUrl, attempts = 1) {
+      if (webpUrl) {
+        // Both formats contain the same packed RGBA cells. Bound the optional
+        // delivery path so a stalled request still falls back to the original.
+        try {
+          const grid = await loadDepthQueryPng(webpUrl, 5000);
+          const size = TOWN_CONFIG?.overlays?.worldFileRasterSize;
+          if (!size || (grid.width === size.width && grid.height === size.height)) return grid;
+        } catch (_) {}
+      }
+      let lastError;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        try {
+          const url = new URL(pngUrl);
+          if (attempt) url.searchParams.set("_retry", String(Date.now()));
+          return await loadDepthQueryPng(url.href);
+        } catch (error) {
+          // A stalled transport has already used its full deadline. Let the
+          // frame controller/user retry instead of doubling that wait.
+          if (error?.name === "TimeoutError") throw error;
+          lastError = error;
+        }
+      }
+      throw lastError;
     }
 
     async function getDepthQueryGrid() {
       if (!DEPTH_QUERY_PNG_URL) return null;
       if (!depthQueryGridPromise) {
-        const request = (async () => {
-          let lastError = null;
-          for (let attempt = 0; attempt < 2; attempt += 1) {
-            try {
-              const url = new URL(DEPTH_QUERY_PNG_URL);
-              if (attempt) url.searchParams.set("_retry", String(Date.now()));
-              return await loadDepthQueryPng(url.href);
-            } catch (error) {
-              // A stalled transport has already used its full deadline. Let
-              // the frame controller/user retry instead of doubling that wait.
-              if (error?.name === "TimeoutError") throw error;
-              lastError = error;
-            }
-          }
-          throw lastError || new Error("Packed depth-query PNG is unavailable.");
-        })().catch(error => {
+        const request = loadPackedQueryGrid(DEPTH_QUERY_PNG_URL, DEPTH_QUERY_WEBP_URL, 2).catch(error => {
           if (depthQueryGridPromise === request) depthQueryGridPromise = null;
           throw error;
         });
@@ -13141,7 +13207,7 @@ function startPlayback() {
     async function getDevelopedQueryGrid() {
       if (!DEVELOPED_QUERY_PNG_URL) return null;
       if (!developedQueryGridPromise) {
-        const request = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)
+        const request = loadPackedQueryGrid(DEVELOPED_QUERY_PNG_URL, DEVELOPED_QUERY_WEBP_URL)
           .catch(error => {
             if (developedQueryGridPromise === request) developedQueryGridPromise = null;
             throw error;

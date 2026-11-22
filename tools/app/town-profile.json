@@ -107,6 +107,8 @@
       "phaseInvariant": false,
       "depthQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.png?v=20260822-mask-stabilizer-v40",
       "developedQueryPngPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.png?v=20260822-mask-stabilizer-v40",
+      "depthQueryWebpPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodHydraulicQuery5ft.webp?v=841674fb9d6b474a",
+      "developedQueryWebpPath": "./assets/hydraulic-v29/COGs/North%20Wildwood/NorthWildwoodDevelopedMask5ft.webp?v=b4f426f3ecfd195d",
       "depthQueryCogPath": null,
       "physicsForecastPointerPath": null,
       "physicsForecastCyclePointerTemplatePath": null,

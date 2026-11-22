@@ -6,6 +6,8 @@
  if(!panel||!rail||!timeline||body.dataset.unifiedUiReady===VERSION)return;
  body.dataset.unifiedUiReady=VERSION;body.dataset.floodmapperUnified=VERSION;body.dataset.countyViewport=VERSION;
  const sourceCard=panel.querySelector('.data-source-card');
+ const utilities=document.getElementById('nwwMobileUtilities');
+ const legend=document.getElementById('legendDock'),legendToggle=document.getElementById('nwwMobileLegendToggle');
  const mobile=matchMedia('(max-width:900px), (max-height:560px), (max-height:560px) and (pointer:coarse), (max-width:1366px) and (any-pointer:coarse)');
  const owned=new WeakMap(),bound=new WeakSet();
  const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads With 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];
@@ -13,6 +15,7 @@
  const safeProbe=document.createElement('div');safeProbe.id='unifiedSafeAreaProbe';safeProbe.setAttribute('aria-hidden','true');safeProbe.style.cssText='position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';body.append(safeProbe);
  let chosenSection=panel.dataset.nwwSection||'forecast';
  let frame=0,layoutPasses=0,drawerOpener=null,drawerFocusGeneration=0;
+ let lastLegendFocus=null;
  const visible=e=>!!e&&e.getClientRects().length>0&&getComputedStyle(e).visibility!=='hidden'&&getComputedStyle(e).display!=='none';
  function set(e,key,value){if(e&&e.style.getPropertyValue(key)!==value)e.style.setProperty(key,value,'important');else if(e&&e.style.getPropertyPriority(key)!=='important')e.style.setProperty(key,value,'important');}
  function saveStyle(e){if(e)owned.set(e,e.getAttribute('style'));}
@@ -39,13 +42,6 @@
   new MutationObserver(sync).observe(source,{childList:true,characterData:true,subtree:true});
   mapInstance.on('movestart click',()=>{disclosure.open=false;});
   mobile.addEventListener('change',()=>{disclosure.open=false;});
-  disclosure.addEventListener('keydown',event=>{
-   if(event.key==='Escape'&&disclosure.open){
-    event.preventDefault();
-    disclosure.open=false;
-    disclosure.querySelector('summary')?.focus();
-   }
-  });
  }
  function selectSection(group,focus=false){
   if(!Object.hasOwn(groups,group))group='forecast';const changed=chosenSection!==group;chosenSection=group;
@@ -116,7 +112,7 @@
  function setDrawer(open,returnFocus=true){
   const generation=++drawerFocusGeneration;
   if(!mobile.matches)open=false;
-  if(open){drawerOpener=document.activeElement;body.classList.remove('mobile-legend-open');}
+  if(open){drawerOpener=document.activeElement;setLegend(false);}
   flag(body,'mobile-controls-open',open);attr(document.getElementById('mobileControlsToggle'),'aria-expanded',String(open));
   syncDrawer();schedule();
   if(open)panel.querySelector('#nwwMobileControlHeader [aria-selected="true"]')?.focus({preventScroll:true});
@@ -151,16 +147,27 @@
   Object.entries(groups).forEach(([group,selector])=>document.querySelectorAll(selector).forEach(e=>{if(e.dataset.nwwGroup!==group)e.dataset.nwwGroup=group;}));
   for(const item of timeline.querySelectorAll('.timeline-key-item'))for(const node of [...item.childNodes])if(node.nodeType===Node.TEXT_NODE&&node.textContent.trim()){const span=document.createElement('span');span.className='timeline-key-label';span.textContent=node.textContent.trim().replace(/^No flooding$/i,'No Flooding').replace(/^(Minor|Moderate|Major) flooding$/i,'$1');node.replaceWith(span);}
   const bubble=document.getElementById('timelineBubble');if(bubble&&bubble.style.getPropertyValue('translate')!=='none')set(bubble,'translate','none');
-  const legend=document.getElementById('legendDock');if(legend){attr(legend,'aria-label','Flood map legend');if(mobile.matches){attr(legend,'role','button');legend.tabIndex=0;attr(legend,'aria-expanded',String(body.classList.contains('mobile-legend-open')));}else{legend.removeAttribute('role');legend.removeAttribute('tabindex');legend.removeAttribute('aria-expanded');}}
+  attr(legend,'aria-label','Flood map legend');
+  // The earlier mobile bootstrap can leave its disclosure attributes behind.
+  for(const key of ['role','tabindex','aria-expanded'])legend?.removeAttribute(key);
+  attr(legendToggle,'aria-expanded',String(mobile.matches&&body.classList.contains('mobile-legend-open')));
+ }
+ function setLegend(open){
+  flag(body,'mobile-legend-open',open);
+  attr(legendToggle,'aria-expanded',String(open));
+  schedule();
  }
  function reparent(previousFocus){
-  const compact=mobile.matches,legend=document.getElementById('legendDock');let mount=document.getElementById('mobileRailMount');
-  const utilities=document.getElementById('nwwMobileUtilities');
-  const toggle=document.getElementById('mobileControlsToggle');
+  const compact=mobile.matches;
+  let mount=document.getElementById('mobileRailMount');
+  const title=document.getElementById('mapTitleBadge');
   const legendHost=compact?(utilities||body):panel;
-  const restoreLegendFocus=legend?.contains(previousFocus)&&legend.parentElement!==legendHost;
-  if(compact&&utilities&&toggle.parentElement!==utilities)utilities.insertBefore(toggle,document.getElementById('mapCredits'));
-  if(!compact&&utilities?.contains(toggle))body.append(toggle);
+  // A media query can hide the focused control before the resize layout runs.
+  const legendFocus=previousFocus===body?lastLegendFocus:previousFocus;
+  const restoreLegendFocus=legend?.parentElement!==legendHost&&(legend?.contains(legendFocus)||legendFocus===legendToggle);
+  if(compact&&utilities&&title&&title.parentElement!==utilities)utilities.prepend(title);
+  if(!compact&&title&&title.parentElement===utilities)app?.prepend(title);
+  if(!compact&&body.classList.contains('mobile-legend-open'))setLegend(false);
   if(compact){
    if(panel.parentElement!==body)body.append(panel);if(!mount){mount=document.createElement('div');mount.id='mobileRailMount';panel.append(mount);}
    for(const card of [...rail.children])mount.append(card);
@@ -171,8 +178,8 @@
   if(legend&&legend.parentElement!==legendHost)legendHost.append(legend);
   flag(root,'county-compact',compact);syncDrawer();
   if(!restoreLegendFocus)return null;
-  if(compact)return legend;
-  return previousFocus===legend?document.getElementById('legendHelpBtn'):previousFocus;
+  if(compact)return legendToggle;
+  return legendFocus===legendToggle?document.getElementById('legendHelpBtn'):legendFocus;
  }
  function layout(){
   frame=0;
@@ -182,6 +189,9 @@
   const focusAfterMove=reparent(previousFocus);
   layoutPasses++;
   const compact=mobile.matches;
+  if(compact&&legend&&body.classList.contains('mobile-legend-open')){
+   legend.toggleAttribute('data-nww-legend-scrollable',legend.scrollHeight>legend.clientHeight+1);
+  }
   const bubble=document.getElementById('timelineBubble');
   for(const key of ['left','right','max-width','transform'])bubble?.style.removeProperty(key);
   for(const pane of [panel,rail]){set(pane,'zoom','1');set(pane,'transform','none');set(pane,'min-width','0px');}
@@ -244,19 +254,41 @@
   }
  }
  function schedule(){if(!frame)frame=requestAnimationFrame(layout);}
+ document.addEventListener('focusin',event=>{
+  lastLegendFocus=event.target===legendToggle||legend?.contains(event.target)?event.target:null;
+ },true);
+ document.addEventListener('pointerdown',event=>{
+  if(!legendToggle?.contains(event.target)&&!legend?.contains(event.target))lastLegendFocus=null;
+ },true);
  document.addEventListener('click',event=>{
   if(event.target.closest('#mobileControlsToggle')){if(!mobile.matches)return;event.preventDefault();event.stopImmediatePropagation();setDrawer(!body.classList.contains('mobile-controls-open'));}
   else if(event.target.closest('#mobileControlsClose')){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}
-  else if(mobile.matches&&event.target.closest('#legendDock')&&!event.target.closest('button')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}
+  else if(mobile.matches&&legendToggle?.contains(event.target)){
+   setLegend(!body.classList.contains('mobile-legend-open'));
+  }else if(body.classList.contains('mobile-legend-open')&&!utilities?.contains(event.target)&&
+      !event.target.closest('[role="dialog"],dialog[open]')){
+   const restoreFocus=legend?.contains(document.activeElement);
+   setLegend(false);
+   if(restoreFocus)legendToggle?.focus({preventScroll:true});
+  }
  },true);
  document.addEventListener('keydown',event=>{
   if(!mobile.matches)return;
   const otherModal=[...document.querySelectorAll('[aria-modal="true"],dialog[open]')].some(e=>e!==panel&&visible(e));if(otherModal)return;
-  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',false);document.getElementById('legendDock')?.focus();schedule();return;}
+  if(event.key==='Escape'&&body.classList.contains('mobile-legend-open')){
+   event.preventDefault();event.stopImmediatePropagation();setLegend(false);legendToggle?.focus({preventScroll:true});return;
+  }
   if(body.classList.contains('mobile-controls-open')){
-   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();setDrawer(false);}
-   else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],[tabindex]')].filter(e=>visible(e)&&e.tabIndex>=0&&!e.closest('[inert]')),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}
-  }else if(event.target.closest('#legendDock')&&!event.target.closest('button')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();event.stopImmediatePropagation();flag(body,'mobile-legend-open',!body.classList.contains('mobile-legend-open'));schedule();}
+   if(event.key==='Escape'){
+    event.preventDefault();event.stopImmediatePropagation();
+    const credits=document.getElementById('mapCredits');
+    if(credits?.open&&credits.contains(event.target)){
+     credits.open=false;
+     credits.querySelector('summary')?.focus({preventScroll:true});
+    }else setDrawer(false);
+   }
+   else if(event.key==='Tab'){const items=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href],summary,[tabindex]')].filter(e=>visible(e)&&e.tabIndex>=0&&!e.closest('[inert]')),first=items[0],last=items.at(-1);if(first&&(!panel.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last))){event.preventDefault();(event.shiftKey?last:first).focus();}}
+  }
  },true);
  document.addEventListener('nww:reveal-control',event=>{if(mobile.matches&&typeof event.detail==='string'){const element=document.querySelector(event.detail);if(element)selectSection(element.closest('[data-nww-group]')?.dataset.nwwGroup||'forecast');syncDrawer();schedule();}});
  const observer=new MutationObserver(records=>{if(records.some(m=>m.type!=='attributes'||m.attributeName!=='style'||owned.get(m.target)!==m.target.getAttribute('style')))schedule();});
@@ -265,7 +297,8 @@
  for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge'),document.getElementById('timelineBubble')])if(e)geometryObserver.observe(e,{attributes:true,attributeFilter:['style']});
  observer.observe(body,{attributes:true,attributeFilter:['class']});
  for(const modal of document.querySelectorAll('[role="dialog"],dialog,.download-modal,.datum-modal'))if(modal!==panel)observer.observe(modal,{attributes:true,attributeFilter:['class','hidden','open','aria-modal','style']});
- const resizeObserver=new ResizeObserver(schedule);for(const element of [timeline,panel,rail])resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});
+ const resizeObserver=new ResizeObserver(schedule);
+ for(const element of [timeline,panel,rail,legend,legend?.querySelector('#legendBody')])if(element)resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});
  document.fonts?.ready.then(schedule);document.fonts?.addEventListener?.('loadingdone',schedule);
  addEventListener('load',schedule,{once:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});
  layout();

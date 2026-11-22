@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import shutil
 
-from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, read_json, validate_data
+from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, available_v41_paths, read_json, validate_data
 
 
 FORECAST_PATHS = ("forecast.json", "data/experimental_petss_guidance.json")
@@ -20,7 +20,7 @@ CITY_INDEXES = ("city-gauge/data/index.json", "city-gauge/comparison/index.json"
 
 
 def generated_paths(source):
-    paths = set(GENERATED_FILES).union(CITY_INDEXES)
+    paths = set(GENERATED_FILES).union(CITY_INDEXES, available_v41_paths(source))
     for prefix in GENERATED_DIRECTORIES:
         paths.update(path.relative_to(source).as_posix() for path in (source / prefix).rglob("*.json"))
     return sorted(paths)

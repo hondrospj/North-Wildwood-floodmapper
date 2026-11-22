@@ -1,5 +1,6 @@
 import { readAppSource } from './app_source.mjs';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -60,13 +61,32 @@ assert.equal(context.latLngToDepthQueryPixel(lat,-74.25,4,4),null);
 let calls=0,fail=true;
 const recovery=vm.createContext({URL,Date,Promise,Error,
   DEPTH_QUERY_PNG_URL:'https://example.test/query.png',
+  DEPTH_QUERY_WEBP_URL:'',
+  TOWN_CONFIG:{overlays:{worldFileRasterSize:{width:4,height:4}}},
   loadDepthQueryPng:async()=>{calls++;if(fail)throw Error('transient failure');return{width:4,height:4};}
 });
-vm.runInContext('let depthQueryGridPromise=null;\n'+extract('awaitRasterRequest')+'\n'+extract('getDepthQueryGrid'),recovery);
+vm.runInContext(['let depthQueryGridPromise=null;', ...['awaitRasterRequest', 'loadPackedQueryGrid', 'getDepthQueryGrid'].map(extract)].join('\n'),recovery);
 await assert.rejects(recovery.getDepthQueryGrid(),/transient failure/);
 assert.equal(calls,2);fail=false;
 assert.equal((await recovery.getDepthQueryGrid()).width,4);
 assert.equal(calls,3);await recovery.getDepthQueryGrid();assert.equal(calls,3);
+const png = recovery.DEPTH_QUERY_PNG_URL;
+const webp = 'https://example.test/query.webp';
+for (const caseName of ['optimized', 'failed', 'held', 'wrong-size']) {
+  const inputs = [];
+  const grid = { width: 4, height: 4, values: rgba };
+  recovery.loadDepthQueryPng = async (url, timeout) => {
+    inputs.push([url, timeout]);
+    if (url === webp) {
+      if (caseName === 'failed') throw new Error('Decode failed');
+      if (caseName === 'held') throw Object.assign(new Error('Held image'), {name:'TimeoutError'});
+      if (caseName === 'wrong-size') return {width:1,height:1};
+    }
+    return grid;
+  };
+  assert.equal(await recovery.loadPackedQueryGrid(png, webp, 2), grid);
+  assert.deepEqual(inputs, caseName === 'optimized' ? [[webp, 5000]] : [[webp, 5000], [png, undefined]]);
+}
 // The GeoTIFF fallback uses physical distances, including non-square cells.
 const cogLatitude = 39;
 const cogLongitude = -74.81;
@@ -147,6 +167,15 @@ if(process.argv.includes('--assets')){
     assert.ok(local.startsWith(root+path.sep),'Query file must stay in repository');
     const bytes=fs.readFileSync(local);
     assert.deepEqual(Array.from(bytes.subarray(0,8)),[137,80,78,71,13,10,26,10]);
+  }
+  for (const key of ['depthQueryWebpPath', 'developedQueryWebpPath']) {
+    const [relative, version] = overlay[key].split('?v=');
+    const local = path.resolve(root, decodeURIComponent(relative));
+    assert.ok(local.startsWith(root + path.sep), 'Optimized query files stay in the application');
+    const bytes = fs.readFileSync(local);
+    assert.equal(bytes.toString('ascii', 0, 4), 'RIFF');
+    assert.equal(bytes.toString('ascii', 8, 16), 'WEBPVP8L', 'Packed cells require lossless encoding');
+    assert.equal(createHash('sha256').update(bytes).digest('hex').slice(0, 16), version);
   }
 }
 console.log(`PASS depth-query geometry, sampling, no-data, fetch recovery, configuration, ${scripts} scripts`);
