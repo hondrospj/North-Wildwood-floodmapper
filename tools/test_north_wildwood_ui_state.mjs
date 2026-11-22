@@ -19,6 +19,56 @@ function deferred() { let resolve; const promise = new Promise(yes => resolve = 
 async function flush() { for (let i = 0; i < 24; i++) await Promise.resolve(); }
 async function test(name, run) { try { await run(); results.push({ name, passed: true }); } catch (error) { results.push({ name, passed: false, error: error.stack || String(error) }); } }
 
+await test('Past date entry validates the calendar before looking up the archive', () => {
+  const context = vm.createContext({ currentMonthKey: '2024-02' });
+  load(context, ['pad2', 'parseTypedObservedDate']);
+  for (const input of ['Feb 29, 2024', 'February 29 2024', '29 Feb. 2024', '02/29/2024',
+    '2-29-24', '2024-2-29', '2024/2/29', '2/29']) {
+    assert.equal(context.parseTypedObservedDate(input), '2024-02-29', input);
+  }
+  assert.equal(context.parseTypedObservedDate('Sept 5, 2026'), '2026-09-05');
+  for (const input of ['Feb 30, 2026', '02/30/2026', '2026-02-30', '29 February 2026',
+    'Apr 31, 2026', '2026-04-00', 'Janfoo 2, 2026', '2026-13-01']) {
+    assert.equal(context.parseTypedObservedDate(input), null, input);
+  }
+});
+
+await test('A typed Past date starts one request and leaves newer input focused', async () => {
+  const calls = [], gates = [];
+  const input = { value: '2026-02-18', blurs: 0, blur() { this.blurs++; } };
+  const context = vm.createContext({
+    selectionGeneration: 0, selectedObservedDate: '2026-02-17',
+    document: { getElementById: () => input }, toast: assert.fail,
+    formatSelectedObservedDate: value => `formatted ${value}`,
+    parseTypedObservedDate: value => /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null,
+    getObservedDays: () => ['2026-02-18', '2026-02-19'].map(date => ({ date })),
+    async loadObservedDay(date) {
+      const generation = ++context.selectionGeneration;
+      const gate = deferred();
+      calls.push(date);
+      gates.push(gate);
+      await gate.promise;
+      if (generation !== context.selectionGeneration) return false;
+      context.selectedObservedDate = date;
+    },
+  });
+  load(context, ['submitTypedObservedDate']);
+  const first = context.submitTypedObservedDate();
+  await context.submitTypedObservedDate();
+  assert.deepEqual(calls, ['2026-02-18']);
+  gates[0].resolve();
+  await first;
+  assert.equal(input.value, 'formatted 2026-02-18');
+  assert.equal(input.blurs, 1);
+  input.value = '2026-02-19';
+  const second = context.submitTypedObservedDate();
+  input.value = '2026-02-2';
+  gates[1].resolve();
+  await second;
+  assert.equal(input.value, '2026-02-2');
+  assert.equal(input.blurs, 1);
+});
+
 function renderFixture(initialIndex = 0, separateLoads = false) {
   const gate = deferred(), requests = [], labels = [], tasks = [], requestGates = [], slider = { value: String(initialIndex) };
   const oldLayer = { _floodmapperFrame: { stage: initialIndex } }, layers = new Set([oldLayer]);
@@ -83,27 +133,56 @@ await test('A superseded completion cannot erase the latest pending navigation t
   assert.equal(f.context.currentHourIndex, 3);
 });
 
-function dailyFixture(month, selectedDate, index) {
+await test('Daily Max commits the displayed date and tide context together', async () => {
+  const f = renderFixture();
+  const c = f.context;
+  const dates = ['2016-01-01', '2016-01-02'];
+  const canonical = [{ observedDate: dates[1], stage: 5 }];
+  Object.assign(c, {
+    currentViewType: 'observed-day', currentDataMode: 'observed', selectedObservedDate: dates[0],
+    currentSeriesHours: dates.map((observedDate, i) => ({ observedDate, isDailyMaximum: true, stage: 4 + i })),
+    getObservedDayRecord: date => ({ date, peakNAVD88: 5 }),
+    buildObservedCanonicalSeries: () => canonical, renderCalendar: async () => {},
+    topTideEvents: [], formatStageForDisplay: String, normalizeStageValue: Number
+  });
+  load(c, ['setObservedDaySelection']);
+  const loading = c.renderHour(1);
+  assert.equal(c.selectedObservedDate, dates[0], 'A pending raster must leave the displayed date intact');
+  f.gate.resolve();
+  await loading;
+  assert.equal(c.selectedObservedDate, dates[1]);
+  assert.equal(c.currentSelectedLabel, dates[1]);
+  assert.equal(c.currentSelectedSubLabel, '5 peak');
+  assert.equal(c.currentRawSeriesHours, canonical);
+});
+
+function dailyFixture(month, selectedDate, index, cadence = 1440) {
   const months = {
     '2016-01': Array.from({ length: 31 }, (_, i) => ({ observedDate: `2016-01-${String(i + 1).padStart(2, '0')}`, isDailyMaximum: true, stage: 4 })),
     '2016-02': Array.from({ length: 29 }, (_, i) => ({ observedDate: `2016-02-${String(i + 1).padStart(2, '0')}`, isDailyMaximum: true, stage: 4 })),
   };
+  const dayHours = observedDate => [0, 1, 2].map(hour => ({ observedDate, hour, stage: hour === 1 ? 5 : 4 }));
   const allDays = Object.values(months).flat().map(entry => ({ date: entry.observedDate }));
   const loaded = [], displayed = [], slider = { value: String(index) };
-  const context = vm.createContext({ console, currentSeriesHours: months[month].slice(), currentRawSeriesHours: [], currentHourIndex: index,
+  const context = vm.createContext({ console, currentSeriesHours: cadence === 1440 ? months[month].slice() : dayHours(selectedDate),
+    currentRawSeriesHours: [], currentHourIndex: index,
     currentViewType: 'observed-day', currentDataMode: 'observed', selectedObservedDate: selectedDate, playTimer: null,
+    playbackGeneration: 0, playbackObservedDaysAdvanced: 0, PLAYBACK_DAY_CONFIRMATION_INTERVAL: 1,
+    pausePlaybackForDayConfirmation() { context.confirmationOpened = true; },
     lastRenderToken: 0, selectionGeneration: 0, topTideEvents: [], pendingTimelineSelection: null,
     requestedTimelineIndex: null, requestedTimelineSeries: null, requestedTimelineSelection: null,
     getObservedDays: () => allDays, cancelPendingFloodFrame: () => ++context.lastRenderToken,
     ensureObservedArchiveForDate: async date => loaded.push(date), getObservedDayRecord: date => ({ date, peakNAVD88: 4 }),
-    stopPlayback() {}, updateDataModeButtons() {}, buildTopTideEvents: () => [], buildObservedCanonicalSeries: () => [],
-    getTimelineIntervalMinutes: () => 1440, buildObservedDailyMaximumSeries: key => months[key].slice(),
+    stopPlayback() {}, updateDataModeButtons() {}, buildTopTideEvents: () => [], buildObservedCanonicalSeries: day => dayHours(day.date),
+    getTimelineIntervalMinutes: () => cadence, buildObservedDailyMaximumSeries: key => months[key].slice(),
+    sampleCanonicalHydraulicSeries: series => series, getPeakHourIndex: () => 1,
     formatStageForDisplay: value => value + ' ft', normalizeStageValue: value => value, syncSliderBounds() {},
     document: { getElementById: () => slider }, renderCalendar: async () => {}, renderTopTides() {},
     renderHour: async idx => { context.currentHourIndex = idx; displayed.push(context.currentSeriesHours[idx].observedDate); },
   });
   loadOptional(context, ['getRequestedTimelineIndex', 'getTimelineSelectionIndex', 'getTimelineNavigationIndex']);
-  load(context, ['getChronologicalDateIndex', 'getNeighborObservedDate', 'loadObservedDay', 'stepSeriesBy']);
+  loadOptional(context, ['setObservedDaySelection']);
+  load(context, ['getChronologicalDateIndex', 'getNeighborObservedDate', 'loadObservedDay', 'stepSeriesBy', 'stepPlaybackForward']);
   return { context, loaded, displayed };
 }
 await test('Daily Max advances from the displayed month end to the following month', async () => {
@@ -125,18 +204,118 @@ await test('Ordinary within-month Daily Max navigation still advances one displa
   assert.equal(f.loaded.length, 0);
 });
 
+for (const direction of [-1, 1]) {
+  await test(`Cross-day ${direction} commits only the adjacent boundary frame`, async () => {
+    const f = dailyFixture('2016-01', '2016-01-02', direction < 0 ? 0 : 2, 60);
+    const c = f.context;
+    if (direction > 0) c.playTimer = {};
+    const date = direction < 0 ? '2016-01-01' : '2016-01-03';
+    await (direction > 0 ? c.stepPlaybackForward() : c.stepSeriesBy(direction));
+    assert.deepEqual(f.displayed, [date]);
+    assert.equal(c.selectedObservedDate, date);
+    assert.equal(c.currentHourIndex, direction < 0 ? 2 : 0);
+    assert.equal(c.playbackObservedDaysAdvanced, direction > 0 ? 1 : 0);
+    assert.equal(Boolean(c.confirmationOpened), direction > 0);
+  });
+
+  for (const [before, after] of [[60, 1440], [1440, 15]]) {
+    await test(`Cross-day ${direction} uses cadence ${after} selected while archive cadence ${before} is loading`, async () => {
+      const f = before === 1440
+        ? dailyFixture(direction < 0 ? '2016-02' : '2016-01', direction < 0 ? '2016-02-01' : '2016-01-31', direction < 0 ? 0 : 30)
+        : dailyFixture('2016-01', '2016-01-02', direction < 0 ? 0 : 2, before);
+      const c = f.context;
+      const gate = deferred();
+      const started = deferred();
+      c.ensureObservedArchiveForDate = () => { started.resolve(); return gate.promise; };
+      const crossing = c.stepSeriesBy(direction);
+      await started.promise;
+      c.getTimelineIntervalMinutes = () => after;
+      gate.resolve();
+      await crossing;
+      const expectedDate = before === 1440
+        ? (direction < 0 ? '2016-01-31' : '2016-02-01')
+        : (direction < 0 ? '2016-01-01' : '2016-01-03');
+      assert.deepEqual(f.displayed, [expectedDate]);
+      if (after !== 1440) assert.equal(c.currentHourIndex, direction < 0 ? 2 : 0);
+    });
+  }
+
+  await test(`A superseded cross-day ${direction} cannot navigate or prompt in the newer mode`, async () => {
+    const f = dailyFixture('2016-01', '2016-01-02', direction < 0 ? 0 : 2, 60);
+    const c = f.context;
+    const gate = deferred();
+    const started = deferred();
+    c.ensureObservedArchiveForDate = () => { started.resolve(); return gate.promise; };
+    if (direction > 0) c.playTimer = {};
+    const crossing = direction > 0 ? c.stepPlaybackForward() : c.stepSeriesBy(direction);
+    await started.promise;
+    ++c.selectionGeneration;
+    ++c.playbackGeneration;
+    c.currentViewType = 'forecast';
+    c.currentDataMode = 'forecast';
+    c.currentSeriesHours = [{ observedDate: '2016-02-01' }, { observedDate: '2016-02-02' }];
+    c.currentHourIndex = 0;
+    gate.resolve();
+    await crossing;
+    assert.deepEqual(f.displayed, []);
+    assert.equal(c.currentHourIndex, 0);
+    assert.equal(c.playbackObservedDaysAdvanced, 0);
+    assert.equal(c.confirmationOpened, undefined);
+  });
+}
+
+await test('Map data popups reserve the direction wheel where the viewport has space', () => {
+  const elements = {
+    rightRail: { getBoundingClientRect: () => ({ width: 280 }) },
+    nwDefaultNavControl: { getBoundingClientRect: () => ({ left: 668, width: 92 }) }
+  };
+  let options;
+  const context = vm.createContext({
+    document: { getElementById: id => elements[id], documentElement: {}, body: { classList: { contains: () => false, add() {} } } },
+    window: { innerWidth: 1024, innerHeight: 576 },
+    map: { hasLayer: () => false }, persistentFloodPopup: null, persistentDepthQueryContext: null,
+    getComputedStyle: () => ({ getPropertyValue: () => '120px' }),
+    isCompactFloodmapperLayout: () => false,
+    wireShortLeafletPopup() {},
+    L: {
+      point: (x, y) => ({ x, y }),
+      popup(value) {
+        options = value;
+        return { setLatLng() { return this; }, setContent() { return this; }, addTo() { return this; }, once() {} };
+      }
+    }
+  });
+  load(context, ['openPersistentFloodPopup']);
+  const popupTypes = ['nsi-structure-popup', 'house-alert-popup', 'depth-query-popup'];
+  for (const className of popupTypes) {
+    context.openPersistentFloodPopup({}, `<div class="${className}">Reading</div>`, 360);
+    assert.equal(options.autoPanPaddingBottomRight.x, 368, 'Reserve the compass footprint with a 12px gap');
+  }
+  context.openPersistentFloodPopup({}, '<div class="town-address-popup">Address</div>', 360);
+  assert.equal(options.autoPanPaddingBottomRight.x, 310, 'Other popups preserve normal map padding');
+  context.window.innerWidth = 390;
+  context.window.innerHeight = 844;
+  context.isCompactFloodmapperLayout = () => true;
+  elements.nwDefaultNavControl.getBoundingClientRect = () => ({ left: 300, width: 78, height: 160, bottom: 236 });
+  context.openPersistentFloodPopup({}, '<div class="house-alert-popup">Building</div>', 460);
+  assert.equal(options.autoPanPaddingBottomRight.x, 10, 'The narrow map cannot fit the popup beside the compass');
+  assert.equal(options.autoPanPaddingTopLeft.y, 248, 'A wide popup goes below the phone controls');
+});
+
 function nsiFixture() {
   const feature = { properties: { address: 'Example structure', localGroundNavd88Ft: 4, foundationHeightFt: 1 } };
   let popup = null, currentStyle = null, directClick = null;
   const oldLayer = { _floodmapperFrame: { stage: 8 } }, layers = new Set([oldLayer]), slider = { value: '0' };
   const point = { feature, setStyle(style) { currentStyle = style; }, on(type, fn) { if (type === 'click') directClick = fn; } };
   const markerGroup = { eachLayer(fn) { fn(point); } };
-  const context = vm.createContext({ console, mapClickMode: 'building', currentSeriesHours: [{ stage: 8 }, { stage: 1 }, { stage: null }],
+  const context = vm.createContext({ console, mapClickMode: 'building',
+    TOWN_CONFIG: JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config, currentSeriesHours: [{ stage: 8 }, { stage: 1 }, { stage: null }],
     currentRawSeriesHours: [], currentHourIndex: 0, currentOverlayMode: 'depth', currentDataMode: 'observed', lastRenderToken: 0,
     currentFloodLayer: oldLayer, pendingFloodLayer: null, renderedFloodPixelCache: null, floodFrameState: 'ready',
     persistentDepthQueryContext: null, persistentFloodPopup: null, nsiStructuresLayer: markerGroup,
     nsiStructureLoadPromise: null, nsiStructureFeatures: [], nsiStructureRenderer: null, NSI_STRUCTURES_URL: 'test-structures.json',
     requestedTimelineIndex: null, requestedTimelineSeries: null, requestedTimelineSelection: null, mapQueryGeneration: 0,
+    cancelPendingTownAddressLookup: () => false,
     document: { getElementById: id => id === 'hourSlider' ? slider : { classList: { contains: () => true } },
       body: { dataset: { initialFloodFrame: 'ready' }, classList: { contains: () => false, toggle() {}, add() {}, remove() {} } } },
     map: { hasLayer: layer => layers.has(layer), removeLayer(layer) { layers.delete(layer); if (layer === popup) { context.persistentFloodPopup = null; context.persistentDepthQueryContext = null; } } },
@@ -147,7 +326,7 @@ function nsiFixture() {
     scheduleRasterObjectUrlCleanup() {},
     openPersistentFloodPopup(_latlng, text) {
       context.persistentDepthQueryContext = null;
-      popup = { html: text, setContent(value) { this.html = value; }, update() {} };
+      popup = { html: text, getContent() { return this.html; }, setContent(value) { this.html = value; }, update() {} };
       context.persistentFloodPopup = popup; layers.add(popup); return popup;
     },
     fetchJson: async () => ({ metadata: { schema: 'nsi-2026-first-floor-v1' }, features: [feature] }),
@@ -155,7 +334,7 @@ function nsiFixture() {
   });
   loadOptional(context, ['openNsiStructurePopup', 'openNsiStructureFloodPopup']);
   load(context, ['normalizeStageValue', 'formatWaterDepth', 'finiteStructureNumber', 'getNsiFirstOccupiedFloorNavd88', 'getSelectedStageNavd88',
-    'getNsiStructureImpactStyle', 'formatNsiImpactStatus', 'buildNsiStructurePopup', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup',
+    'getNsiStructureImpactStyle', 'formatNsiImpactStatus', 'buildNsiStructurePopup', 'beginMapQuery', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup', 'updatePropertyPopup', 'deferPropertyPopupUpdate',
     'updateNsiStructureImpactLayer', 'ensureNsiStructureAssets', 'clearFloodLayer', 'renderHour']);
   return { context, feature, layers, slider, get popup() { return popup; }, get style() { return currentStyle; }, get directClick() { return directClick; } };
 }
@@ -194,8 +373,9 @@ await test('Missing observed data replaces old structural-impact colors with the
 
 function queryFixture() {
   const opened = [], parcels = [], notices = [];
-  const context = vm.createContext({ console, mapClickMode: 'depth', currentSeriesHours: [{ stage: 5 }], currentHourIndex: 0,
+  const context = vm.createContext({ console: { error() {} }, mapClickMode: 'depth', currentSeriesHours: [{ stage: 5 }], currentHourIndex: 0,
     lastRenderToken: 0, floodFrameState: 'ready', mapQueryGeneration: 0, persistentFloodPopup: null,
+    cancelPendingTownAddressLookup: () => false,
     map: { hasLayer: () => false }, updateMapClickModeControl() {}, getPhysicsAssetForEntry: () => null,
     sampleDepthModel: async () => ({ elevation: 3, connectionStage: 4 }),
     openDepthQueryPopup(latlng, sample) { opened.push({ latlng, sample }); },
@@ -203,7 +383,7 @@ function queryFixture() {
     findNsiStructureFeatureForLocation: () => null, findParcelFeatureForLocation: async () => ({}),
     openParcelFloodPrompt(feature, latlng) { parcels.push({ feature, latlng }); }, toast: value => notices.push(value),
   });
-  load(context, ['setMapClickMode', 'handleDepthQueryClick']);
+  load(context, ['setMapClickMode', 'beginMapQuery', 'handleDepthQueryClick']);
   return { context, opened, parcels, notices };
 }
 await test('An unchanged ordinary depth query still opens its result', async () => {
@@ -237,6 +417,24 @@ await test('Switching to Flood Depth cancels a pending parcel lookup', async () 
   const query = f.context.handleDepthQueryClick({ latlng: { lat: 39.01, lng: -74.8 } });
   await began.promise; f.context.setMapClickMode('depth'); gate.resolve({ properties: {} }); await query;
   assert.equal(f.parcels.length, 0, 'A lookup for the previous interaction mode must not open a building popup');
+});
+
+await test('An old depth failure stays silent after a newer Building result', async () => {
+  const f = queryFixture();
+  const point = { latlng: { lat: 39.01, lng: -74.8 } };
+  let fail;
+  f.context.sampleDepthModel = () => new Promise((_, reject) => { fail = reject; });
+  const query = f.context.handleDepthQueryClick(point);
+  f.context.setMapClickMode('building');
+  await f.context.handleDepthQueryClick(point);
+  assert.equal(f.parcels.length, 1);
+  fail(Error('Older depth request failed'));
+  await query;
+  assert.deepEqual(f.notices, []);
+  f.context.setMapClickMode('depth');
+  f.context.sampleDepthModel = async () => { throw Error('Current depth request failed'); };
+  await f.context.handleDepthQueryClick(point);
+  assert.deepEqual(f.notices, ['Depth query is temporarily unavailable.']);
 });
 
 for (const row of results) { console.log(`${row.passed ? 'PASS' : 'FAIL'} ${row.name}`); if (!row.passed) console.log(row.error); }

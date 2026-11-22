@@ -10,6 +10,7 @@ import path from "node:path";
 
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const townProfile = JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
 const SOURCE = readAppSource(path.join(HERE, "..", "index.html"));
 const THREE_D_SOURCE = fs.readFileSync(path.join(HERE, "..", "assets", "3d", "north-wildwood-3d.js"), "utf8");
 const THREE_D_BUILDINGS = JSON.parse(fs.readFileSync(
@@ -37,7 +38,8 @@ assert.ok(
 );
 assert.match(THREE_D_BUILDINGS.metadata.municipalityFilter, /official North Wildwood boundary/);
 assert.match(THREE_D_BUILDINGS.metadata.geometrySources, /OSM major/);
-assert.match(THREE_D_SOURCE, /buildings3dCoverage = "north-wildwood-only"/);
+assert.equal(townProfile.compatibility.buildingsCoverage, "north-wildwood-only");
+assert.match(THREE_D_SOURCE, /buildings3dCoverage = TOWN_CONFIG\.compatibility\.buildingsCoverage/);
 assert.match(THREE_D_SOURCE, /buildings3dClippedToMunicipality = "true"/);
 assert.match(THREE_D_SOURCE, /MUNICIPAL_BOUNDARY_3D_URL = TOWN_CONFIG\?\.boundary\?\.boundaryUrl \? new URL\(TOWN_CONFIG\.boundary\.boundaryUrl, APP_BASE\)\.href : ""/);
 assert.match(SOURCE, /"boundaryUrl"\s*:\s*"(?:\.\/)?Boundaries\/North Wildwood\.geojson"/);
@@ -56,7 +58,7 @@ assert.doesNotMatch(
 );
 assert.match(THREE_D_SOURCE, /renderingMode: "3d"/);
 assert.match(THREE_D_SOURCE, /map3dFloodCompositing = detailedDepth/);
-assert.match(SOURCE, /north-wildwood-3d\.js\?v=20261009-conflicts-1/);
+assert.match(SOURCE, /north-wildwood-3d\.js\?v=[a-f0-9]{16}/);
 assert.match(SOURCE, /anchor: "viewport",[\s\S]+color: "#ffffff",[\s\S]+intensity: 0\.18/);
 assert.match(
   SOURCE,
@@ -84,19 +86,17 @@ assert.match(
 assert.match(THREE_D_SOURCE, /buildings3dVerticalScale = String\(TERRAIN_EXAGGERATION\)/);
 assert.match(THREE_D_SOURCE, /map3dFloodBuildingOcclusion = "single-extrusion-water-composite"/);
 assert.match(THREE_D_SOURCE, /FLOOD_DEPTH_DETAIL_MIN_ZOOM = 15\.25/);
-assert.match(THREE_D_SOURCE, /BUILDING_MAX_CAMERA_ALTITUDE_METERS = 1000/);
 assert.match(THREE_D_SOURCE, /function cameraAltitudeAboveTerrainMeters\(\)/);
 assert.match(THREE_D_SOURCE, /altitudeCoordinate\.toAltitude\(\)/);
 assert.match(THREE_D_SOURCE, /new window\.maplibregl\.MercatorCoordinate\(position\.x, position\.y, position\.z\)/);
 assert.match(THREE_D_SOURCE, /getVerticalFieldOfView\(\)/);
 assert.match(THREE_D_SOURCE, /cameraToCenterPixels \* metersPerPixel \* Math\.cos\(pitchRadians\)/);
-assert.match(THREE_D_SOURCE, /function cameraIsWithinBuildingRange\(\)/);
 assert.match(THREE_D_SOURCE, /function buildingsShouldRenderForCamera\(\)/);
 const buildingVisibilityPredicate = THREE_D_SOURCE.match(/  function buildingsShouldRenderForCamera\(\) \{[\s\S]*?\n  \}/)?.[0];
 assert.match(buildingVisibilityPredicate, /layerVisible\("buildingsToggle", false\)[\s\S]+glMap\.getPitch\(\) > 10/);
 assert.doesNotMatch(buildingVisibilityPredicate, /cameraIsWithinBuildingRange|cameraAltitudeAboveTerrainMeters/,
   "Camera movement must not abruptly discard enabled building geometry at an altitude threshold");
-assert.match(THREE_D_SOURCE, /map3dBuildingVisibility = shouldRender[\s\S]+"hidden-in-2d"/);
+assert.match(THREE_D_SOURCE, /id: "nw-2d-buildings",\s*type: "fill",\s*source: "nw-buildings-source"/);
 assert.doesNotMatch(THREE_D_SOURCE, /over-1000m-flat/);
 assert.match(THREE_D_SOURCE, /if \(desired3dMode\) enableDefaultBuildings3d\(\)/);
 assert.match(THREE_D_SOURCE, /syncFloodPresentationMode\(\) \{[\s\S]+syncBuildingVisibilityForCamera\(\)/);
@@ -183,7 +183,6 @@ for (const name of (
     "floorToCatalogStep",
     "getOverlayStage",
     "normalizeHydraulicPhase",
-    "getHydraulicStatePhase",
     "getVerticalBathtubPenalty",
     "getPenaltyRemainingFraction",
     "getPenalizedConnectedDepth",
@@ -407,9 +406,17 @@ assert.match(
   extractFunction("reloadAll"),
   /await renderHour\(currentHourIndex\)[\s\S]+activateDeferredMapLayers\(\)[\s\S]+scheduleBackgroundDataWarmup\(\)/
 );
-assert.match(extractFunction("activateDeferredMapLayers"), /basemapColorLayer\.addTo\(map\)/);
+const deferredLayers = extractFunction("activateDeferredMapLayers");
+assert.match(deferredLayers, /roadsLayer\.addTo\(map\)/, "Road names still activate after the first flood frame");
+assert.doesNotMatch(deferredLayers, /basemapColorLayer\.addTo\(map\)/, "The first flood frame cannot gate the color basemap");
+const ensureMap = extractFunction("ensureMap");
+assert.match(ensureMap, /(?:fitInitialFloodView|map\.fitBounds)\([\s\S]+basemapColorLayer\.addTo\(map\);\s+document\.body\.dataset\.mapInitialized/,
+  "Mount the color basemap after setting the startup camera and before marking the map initialized");
+assert.match(ensureMap, /getMaplibreMap\(\)\?\.once\("idle", retireStartupPreview\)/);
+assert.match(ensureMap, /initialBasemap\.once\("load", retireStartupPreview\)/);
+assert.match(ensureMap, /map\.once\("movestart", retireStartupPreview\)/);
 assert.doesNotMatch(
-  extractFunction("ensureMap"),
+  ensureMap,
   /className: "roads-layer",[\s\S]{0,120}\}\)\.addTo\(map\)/
 );
 assert.match(extractFunction("fitMapTitleBadgeToViewport"), /leftPanel[\s\S]+rightRail[\s\S]+availableWidth/);
@@ -463,7 +470,6 @@ assert.equal(
   0,
   "Moderate flooding must fill normally after 30 minutes"
 );
-assert.equal(context.getHydraulicStatePhase("draining-release-15"), "draining");
 assert.equal(
   context.getPenalizedConnectedDepth(4.25, 4.0, true, "draining").depth,
   0.25,
@@ -700,7 +706,6 @@ assert.match(
 );
 assert.match(SOURCE, /id="satelliteToggle"/);
 assert.match(SOURCE, /World_Imagery\/MapServer\/tile/);
-assert.match(SOURCE, /payload\.valueType === "int16-le"/);
 assert.match(SOURCE, /depthQueryPngPath/);
 assert.match(SOURCE, /developedQueryPngPath/);
 assert.match(SOURCE, /sourceDistanceFt/);
@@ -725,9 +730,9 @@ for (const host of [
       const directRoot = new URL(atlas, "https://hondrospj.github.io/North-Wildwood-floodmapper/").href;
       const legacyRoot = `https://floodmapperv1.b-cdn.net/${family}/North%20Wildwood/v37/${suffix}`;
       const deliveryContext = vm.createContext({
+        TOWN_CONFIG: townProfile,
         URL,
         APP_BASE: new URL(host),
-        TOWN_CONFIG: { overlays: { stageCodeScale: 100, stageCodeWidth: 4 } },
         SITE_CONFIG: { depthPngPrefix: "NorthWildwoodDepth", stagePngPrefix: "NorthWildwoodStage" },
         OVERLAY_PHASE_ROOTS: { [mode]: { [phase]: [localRoot, legacyRoot] } },
         OVERLAY_ROOTS: { [mode]: [localRoot, legacyRoot] },
@@ -761,8 +766,8 @@ assert.equal(
   fs.statSync(path.join(BUNDLED_HYDRAULIC_ROOT, "COGs", "North Wildwood", "NorthWildwoodHydraulicQuery5ft.png")).size
 );
 assert.match(HYDRAULIC_ASSET_MANIFEST.eventHistoryDrainage.timelineBasis, /canonical 15-minute history/);
-assert.match(SOURCE, /"modelKind": "phase-aware developed-land conditional connectivity"/);
-assert.match(SOURCE, /"phaseInvariant": false/);
+assert.equal(townProfile.overlays.modelKind, "phase-aware developed-land conditional connectivity");
+assert.equal(townProfile.overlays.phaseInvariant, false);
 assert.match(SOURCE, /\/v37\//);
 assert.match(extractFunction("getDepthQueryDisplayDepth"), /connectionStageLimit/);
 const historicalWarmup=extractFunction("scheduleHistoricalTopTideWarmup");
@@ -793,7 +798,7 @@ assert.match(SOURCE, /:has\(#mapClickModeControl:not\(\[hidden\]\)\) #mapWrap > 
 assert.match(SOURCE, /depthQueryGridPromise = null/);
 assert.match(
   SOURCE,
-  /depthQueryImagePromise = GeoTIFF\.fromUrl[\s\S]+depthQueryImagePromise = null/
+  /GeoTIFF\.fromUrl\(DEPTH_QUERY_COG_URL, \{\}, signal\)[\s\S]+if \(depthQueryImagePromise === request\) depthQueryImagePromise = null/
 );
 assert.match(
   SOURCE,
@@ -822,7 +827,8 @@ assert.match(SOURCE, /function getExportFrameDateTimeText\(/);
 assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /15-Minute|Hourly|Daily maximum|Water level/);
 assert.match(SOURCE, /const MODELED_EXPORT_DATE_PLACEHOLDER = "xx\/xx\/xxxx"/);
 assert.match(extractFunction("syncExportDateTimeEditorFromCanonical"), /modeledDateLocked[\s\S]+MODELED_EXPORT_DATE_PLACEHOLDER/);
-assert.match(SOURCE, /function commitExportDateTimeEditor\([\s\S]+currentDataMode === "return-interval"[\s\S]+canonicalMatch/);
+assert.match(extractFunction("commitExportDateTimeEditor"),
+  /currentDataMode === "return-interval"[\s\S]+getExportTimeSelection\(elements\.timeSelect\.value\)\?\.instantMs[\s\S]+setRangeInputDate/);
 assert.match(extractFunction("getReturnIntervalStormLabel"), /`\$\{value\.toLocaleString\("en-US"\)\}-Year Storm`/);
 assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /if \(entry\?\.returnIntervalYears\)/);
 assert.doesNotMatch(extractFunction("getExportFrameTimestampText"), /formatReturnStormOffset/);
@@ -838,9 +844,9 @@ assert.match(extractFunction("fitExportMapToSelectedExtent"), /getActiveMapBound
 assert.match(extractFunction("getActiveMapBounds"), /activeMap\.getBounds\(\)/);
 assert.match(extractFunction("fitExportMapToSelectedExtent"), /mode === "town"[\s\S]+getBoundaryDrivenOverlayBounds\(\)/);
 assert.match(extractFunction("fitExportMapToSelectedExtent"), /paddingTopLeft/);
-assert.match(SOURCE, /data-aspect="4:5"[^>]+>Social 4:5</);
+assert.doesNotMatch(SOURCE, /data-aspect="4:5"|Social 4:5/);
 assert.match(SOURCE, /data-extent="town"[^>]+>Fill North Wildwood</);
-assert.match(SOURCE, /"4:5": \{ value: "4:5", width: 1080, height: 1350, pngWidth: 2160, pngHeight: 2700/);
+assert.match(SOURCE, /"9:16": \{ value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840/);
 assert.match(extractFunction("getExportAspectConfig"), /getDownloadFormatValue\(\) !== "png"/);
 assert.match(extractFunction("getExportAspectConfig"), /resolutionLabel/);
 assert.match(extractFunction("renderLegend"), /physics-daily-maximum-active/);
@@ -857,7 +863,7 @@ assert.match(extractFunction("renderHour"), /physics-daily-maximum-active/);
 assert.doesNotMatch(SOURCE, /Green represents uncertainty/i);
 assert.doesNotMatch(SOURCE, /Feet above ground/);
 assert.doesNotMatch(SOURCE, /class="export-depth-key-disconnected"/);
-assert.match(extractFunction("updateExportLegend"), /querySelectorAll\("\.legend-row-boundary"\)\.forEach\(row => row\.remove\(\)\)/);
+assert.doesNotMatch(extractFunction("updateExportLegend"), /class="[^"]*\blegend-row-boundary\b/);
 assert.match(SOURCE, /--boundary-color:#000000/);
 assert.match(SOURCE, /NorthWildwoodParcelBoundaries\.png\?v=20260802-red-parcels-v1/);
 assert.match(SOURCE, /opacity: 0\.78/);
@@ -964,8 +970,8 @@ assert.match(SOURCE, /autoClose: false/);
 assert.match(SOURCE, /closeOnClick: false/);
 assert.doesNotMatch(extractFunction("renderHour"), /closePopup/);
 assert.match(SOURCE, /See Flood History &amp; Projections/);
-assert.match(SOURCE, /Past floods above floor/);
-assert.match(SOURCE, /Future floods above floor/);
+assert.match(SOURCE, /Past Floods Above Floor/);
+assert.match(SOURCE, /Future Floods Above Floor/);
 assert.doesNotMatch(SOURCE, /Estimated first occupied floor = local 2019 bare-earth LiDAR ground/);
 assert.match(SOURCE, /id="floodHistoryPane"/);
 assert.match(SOURCE, /\.flood-history-backdrop\{[^}]*place-items:center/);
@@ -981,13 +987,14 @@ assert.doesNotMatch(SOURCE, /independent high-tide exceedances/);
 assert.match(SOURCE, /flood-history-projections-v4\$/);
 assert.match(SOURCE, /id="mapClickModeControl"/);
 assert.match(SOURCE, /data-map-click-mode="building"/);
+assert.match(SOURCE, /data-map-click-mode="parcel"/);
 assert.match(SOURCE, /data-map-click-mode="depth"/);
 assert.match(SOURCE, /id="mapClickBuildingBtn"[^>]+aria-label="Building Info"/);
 assert.match(SOURCE, /id="mapClickDepthBtn"[^>]+aria-label="Flood Depth"/);
-assert.match(SOURCE, /mapClickMode === "building" && parcelInfoInteractionEnabled\(\)/);
+assert.match(SOURCE, /queryMode === "building" && parcelInfoInteractionEnabled\(\)/);
 assert.match(SOURCE, /north-wildwood-physics-forecast-v2/);
-assert.match(SOURCE, /"physicsForecastPointerPath": null/);
-assert.match(SOURCE, /"physicsForecastCyclePointerTemplatePath": null/);
+assert.equal(townProfile.overlays.physicsForecastPointerPath, null);
+assert.equal(townProfile.overlays.physicsForecastCyclePointerTemplatePath, null);
 assert.match(extractFunction("physicsPointerUrl"), /forecastData\?\.petssCycleUtc/);
 assert.match(extractFunction("physicsPointerUrl"), /replaceAll\("\{cycleId\}", cycleId\)/);
 assert.match(SOURCE, /function getPhysicsForecastDisplaySeries\(/);
@@ -1006,7 +1013,8 @@ assert.match(SOURCE, /data-floodmapper-unified/);
 assert.match(SOURCE, /--cm-top/);
 assert.match(SOURCE, /maxWidth: viewportPopupWidth/);
 assert.match(SOURCE, /window\.innerWidth - 28/);
-assert.match(SOURCE, /autoPanPaddingTopLeft: mobilePopup \? L\.point\(10, 126\)/);
+assert.match(SOURCE, /let topPadding = mobilePopup \? 126 : 16/);
+assert.match(SOURCE, /autoPanPaddingTopLeft: L\.point\(mobilePopup \? 10 : 16, topPadding\)/);
 assert.match(SOURCE, /document\.body\.classList\.add\("persistent-flood-popup-open"\)/);
 assert.match(SOURCE, /document\.body\.classList\.remove\("persistent-flood-popup-open"\)/);
 assert.match(SOURCE, /\.flood-history-close\{[\s\S]+width:44px !important/);
@@ -1027,7 +1035,8 @@ assert.match(SOURCE, /lewesArchiveIndexPath/);
 assert.match(SOURCE, /function ensureObservedArchiveYear\(/);
 assert.match(SOURCE, /function ensureObservedArchiveRange\(/);
 assert.match(SOURCE, /await ensureObservedArchiveForDate\(dateStr\)/);
-assert.match(SOURCE, /Loading the selected tide-archive year/);
+assert.match(SOURCE, /Preparing export/);
+assert.doesNotMatch(SOURCE, /Loading the selected tide-archive year/);
 assert.doesNotMatch(extractFunction("warmBackgroundData"), /LEWES_HOURLY_URL/);
 assert.doesNotMatch(extractFunction("warmBackgroundData"), /OBSERVED_15MIN_URL/);
 assert.match(SOURCE, /data-return-years="10000"/);
@@ -1057,7 +1066,7 @@ assert.match(SOURCE, />Modeled Floods<\/button>/);
 assert.match(SOURCE, /<h2>How Often\?<\/h2>/);
 assert.match(SOURCE, /Every 10 Years/);
 assert.match(SOURCE, /return-interval-mode #leftPanel > #timelineIntervalCard\{order:1 !important\}/);
-assert.match(SOURCE, /#rightRail > #mapperTutorialBtn\{order:5 !important\}/);
+assert.match(SOURCE, /#rightRail > #mapperTutorialBtn#mapperTutorialBtn\{order:0 !important\}/);
 assert.match(SOURCE, /#mapperTutorialBtn\.mapper-tutorial-launch\{[\s\S]+bottom:0 !important/);
 assert.match(SOURCE, /body\.observed-mode #leftPanel \.data-source-options,[\s\S]+grid-template-columns:repeat\(3,minmax\(0,1fr\)\) !important/);
 assert.match(SOURCE, /function loadObservedDay\([\s\S]+findClosestMeasuredEntryIndex\(currentSeriesHours, preferredEntry\)/);
@@ -1272,7 +1281,7 @@ assert.deepEqual(
   ["return-interval", "return-interval", "return-interval"],
   "Modeled export frames must not be relabeled as forecast frames"
 );
-const modeledFrameItem = modeledExportContext.getDownloadFrameItemFromEntry(modeledSources[1], 1);
+const modeledFrameItem = modeledExportContext.getDownloadFrameItemFromEntry(modeledSources[1]);
 assert.equal(modeledFrameItem.mode, "return-interval");
 assert.equal(modeledFrameItem.series.length, modeledFrames.length);
 

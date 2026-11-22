@@ -23,6 +23,8 @@ STORAGE_ROOT = f"https://storage.bunnycdn.com/{ZONE}"
 CDN_ROOT = "https://floodmapperv1.b-cdn.net"
 CACHE_VERSION = "20260816-drainage-v37"
 ATLAS_VERSION = "v37"
+LEGACY_V37_REVISION = "95928ccb350d5548bd1e4c659c10a40627034a50"
+LEGACY_V37_INVENTORY_SHA256 = "4720e1026c51d56dada6747eb106c7d51f52f10743ad55674f6110b900d1e335"
 FAMILIES = (
     "filling",
     "",
@@ -83,6 +85,20 @@ def upload_records() -> list[tuple[Path, str]]:
             f"Expected {expected_count:,} Bunny assets, found {len(records):,}"
         )
     return records
+
+
+def verify_legacy_inventory(records: list[tuple[Path, str]]) -> None:
+    """Never replace the immutable v37 CDN tree with a newer atlas from main."""
+    inventory = hashlib.sha256()
+    for path, _ in sorted(records):
+        with path.open("rb") as source:
+            digest = hashlib.file_digest(source, "sha256").hexdigest()
+        inventory.update(f"{digest}  {path.relative_to(ROOT).as_posix()}\n".encode("utf-8"))
+    if inventory.hexdigest() != LEGACY_V37_INVENTORY_SHA256:
+        raise RuntimeError(
+            f"The local hydraulic assets differ from the published {ATLAS_VERSION} inventory. "
+            f"Use archived revision {LEGACY_V37_REVISION} for legacy {ATLAS_VERSION} maintenance."
+        )
 
 
 def content_type(path: Path) -> str:
@@ -211,6 +227,7 @@ def verify_public(records: list[tuple[Path, str]]) -> list[dict[str, object]]:
 def main() -> None:
     args = parse_args()
     records = upload_records()
+    verify_legacy_inventory(records)
     if args.metadata_only:
         records = [
             record

@@ -17,7 +17,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, validate_data
+from release_data import GENERATED_DIRECTORIES, GENERATED_FILES, V41_FORECAST_FILES, validate_data
 
 
 REQUIRED_WORKFLOWS = {
@@ -89,7 +89,7 @@ def application_ancestor(source, candidate):
     """Find identical application code without assuming the immediately prior SHA passed."""
     # Let Git walk changed paths instead of spawning a process for each hourly
     # forecast commit. There is no arbitrary age limit on a stable application.
-    paths = [":(exclude,literal)" + path for path in sorted(GENERATED_FILES)]
+    paths = [":(exclude,literal)" + path for path in sorted(GENERATED_FILES.union(V41_FORECAST_FILES))]
     paths.extend(":(exclude,glob)" + prefix + "**/*.json" for prefix in GENERATED_DIRECTORIES)
     commit = git(source, "log", "--first-parent", "--format=%H", "-1", candidate, "--", ".", *paths)
     if not commit:
@@ -201,7 +201,7 @@ def main():
         return
     anchor = application_ancestor(args.source, args.candidate)
     data_changes = changed_files(args.source, anchor, args.candidate)
-    data = validate_data(args.source, data_changes)
+    data = validate_data(args.source, data_changes, operational_petss=True)
     checks = wait_for_checks(api, anchor, args.timeout, release_candidate=args.candidate)
     assert_current(api, args.candidate)
     receipt = {"releaseSha": args.candidate, "applicationSha": anchor, "repository": args.repository,

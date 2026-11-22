@@ -78,7 +78,7 @@ networkMode="all-fail";assert.equal(await alerts.checkNwsAlerts(),"stale");
 assert.equal(banner.at(-1)[1],"Coastal Flood Warning","A request failure discarded the last known alert");
 networkMode="none";assert.equal(await alerts.checkNwsAlerts(),"none");assert.equal(banner.at(-1)[0],false);
 let releaseFirst;const heldDate=new Promise(r=>releaseFirst=r);
-const race=context(["loadObservedDay"],{selectionGeneration:0,async ensureObservedArchiveForDate(date){if(date==="2000-01-01")await heldDate;},
+const race=context(["setObservedDaySelection","loadObservedDay"],{selectionGeneration:0,async ensureObservedArchiveForDate(date){if(date==="2000-01-01")await heldDate;},
   getObservedDayRecord:()=>({peakNAVD88:4,hours:[]}),stopPlayback(){},updateDataModeButtons(){},
   buildTopTideEvents:()=>[],buildObservedCanonicalSeries:()=>[{}],getTimelineIntervalMinutes:()=>15,
   sampleCanonicalHydraulicSeries:x=>x,formatStageForDisplay:String,syncSliderBounds(){},getPeakHourIndex:()=>0,

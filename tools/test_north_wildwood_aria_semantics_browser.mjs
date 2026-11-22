@@ -103,9 +103,10 @@ try {
   await page.locator('#openDownloadModalBtn').click();
   await states('Export settings initially closed');await scan('Export settings initially closed');
   const initial = await page.locator('#downloadStartDateText').inputValue();
+  await geometryReady('start');
   for(const cap of ['Start','End']) {
     const prefix=cap.toLowerCase();
-    await page.locator(`#download${cap}DateText`).click();
+    await page.locator(`#download${cap}DateText`).click({noWaitAfter:true,delay:50});
     await states(`${prefix} input click`,prefix==='start',prefix==='end');await scan(`${prefix} input click`);
     await escapeTo(`download${cap}DateText`);await states(`${prefix} input Escape`);
     await geometryReady(prefix);
@@ -131,7 +132,7 @@ try {
     await page.locator('#nwwExportDateTimePicker button[aria-label="Close date and time picker"]').click();
     await states(`${prefix} close button`);
   }
-  await page.locator('#downloadStartDateText').click();
+  await page.locator('#downloadStartDateText').click({noWaitAfter:true,delay:50});
   await page.locator('#downloadEndDateText').press('ArrowDown');
   await states('Start to End date transition',false,true);
   await page.locator('#downloadEndTimeButton').press('Enter');

@@ -6,7 +6,6 @@
     if (!loader || !app) return;
     let finished = false;
     let deadline;
-    const startedAt = performance.now();
     let simulatedProgress = 8;
     const progressTimer = setInterval(() => {
       simulatedProgress = Math.min(76, simulatedProgress + (simulatedProgress < 42 ? 3 : 1));
@@ -23,8 +22,8 @@
     });
     window.addEventListener('nww:map-dependency-error', showDependencyFailure);
     function isolateControls() {
-      // Mobile places its Controls and Key buttons outside the app container.
-      for (const id of ['app', 'mobileControlsToggle', 'legendDock']) {
+      // The mobile toolbar and its disclosures sit outside the app container.
+      for (const id of ['app', 'nwwMobileUtilities', 'mobileControlsToggle', 'legendDock']) {
         const element = document.getElementById(id);
         if (!element || background.has(element)) continue;
         background.set(element, element.inert);
@@ -77,14 +76,8 @@
       clearInterval(progressTimer);
       observer.disconnect();
       window.removeEventListener('nww:map-dependency-error', showDependencyFailure);
-      if (reason === 'timeout') { reveal(reason); return; }
-      setNorthWildwoodLoadingState(100, 'Floodmapper ready');
-      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) reveal(reason);
-      else {
-        // Preserve the original minimum display, completion pause and fade.
-        const remaining = Math.max(0, 800 - (performance.now() - startedAt));
-        setTimeout(() => reveal(reason), remaining + 260);
-      }
+      if (reason !== 'timeout') setNorthWildwoodLoadingState(100, 'Floodmapper ready');
+      reveal(reason);
     }
     function showDependencyFailure() {
       if (finished) return;
@@ -100,7 +93,11 @@
       }
     }
     function checkReady() {
-      if (document.body.classList.contains('nw-app-ready')) finish('complete');
+      // Core data can finish while the parser still waits for the UI controller.
+      // Keep its controls isolated until the first measured layout is complete.
+      const layoutReady = !document.body.dataset.floodmapperUnified ||
+        Number(document.body.dataset.unifiedLayoutPasses) > 0;
+      if (document.body.classList.contains('nw-app-ready') && layoutReady) finish('complete');
       else if (!finished) {
         isolateControls();
         if (document.body.dataset.initialFloodFrame === 'ready') {
@@ -109,7 +106,7 @@
       }
     }
     isolateControls();
-    observer.observe(document.body, {attributes:true, attributeFilter:['class', 'data-initial-flood-frame']});
+    observer.observe(document.body, {attributes:true, attributeFilter:['class', 'data-initial-flood-frame', 'data-unified-layout-passes']});
     // Release the interface even if an external library or request never finishes.
     deadline = setTimeout(() => finish('timeout'), 20000);
     checkReady();

@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "model/src"))
 import cache_contract as cache
 import publish_bunny as publisher
+from output_replacement import recover_directory
 import run_pipeline as pipeline
 import validate_products as validator
 
@@ -42,7 +43,8 @@ def record(root, path):
 
 def make_fixture(root):
     config = copy.deepcopy(ORIGINAL)
-    for name in ("prepare_terrain.py", "run_anuga.py", "render_physics.py", "frame_alignment.py", "validate_products.py", "cache_contract.py"):
+    for name in ("prepare_terrain.py", "run_anuga.py", "render_physics.py", "frame_alignment.py", "validate_products.py",
+                 "output_replacement.py", "cache_contract.py"):
         target = root / "model/src" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "model/src" / name, target)
@@ -119,7 +121,7 @@ def main_body(name, root, config_path):
     ns = dict(argparse=argparse, Path=Path, ROOT=root, DEFAULT_CONFIG=config_path,
               json=json, np=np, math=math, shutil=shutil,
               simulation_identity=cache.simulation_identity, render_identity=cache.render_identity,
-              identity_matches=cache.identity_matches, anuga=None)
+              identity_matches=cache.identity_matches, recover_directory=recover_directory, anuga=None)
     exec(compile(ast.Module(body=[main], type_ignores=[]), name, "exec"), ns)
     return ns["main"]
 
@@ -159,6 +161,27 @@ class GenerationIdentityTests(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         self.assertIn("validate_products.py", commands[0][1][2])
         self.assertEqual(len(self.validate()), 3)
+
+    def test_missing_cached_png_rebuilds_with_or_without_hydraulic_state(self):
+        scenario = "mean"
+        directory = self.root / "model/runs" / CYCLE / scenario
+        public = directory / "public"
+        manifest = json.loads((public / "manifest.json").read_text())
+        image = public / manifest["frames"][0]["visible"]["path"]
+        image.unlink()
+
+        commands, _ = self.call_pipeline()
+        simulations = [cmd for _, cmd in commands if "model/src/run_anuga.py" in cmd]
+        renders = [cmd for _, cmd in commands if "model/src/render_physics.py" in cmd]
+        self.assertEqual(simulations, [])
+        self.assertEqual(len(renders), 1)
+        self.assertIn("--force", renders[0])
+
+        pipeline.discard_published_hydraulic_states(CYCLE, [scenario])
+        commands, _ = self.call_pipeline()
+        rebuilds = [cmd for _, cmd in commands if "model/src/run_anuga.py" in cmd or "model/src/render_physics.py" in cmd]
+        self.assertEqual(len(rebuilds), 2)
+        self.assertTrue(all("--force" in cmd for cmd in rebuilds))
 
     def test_custom_interval_products_validate_against_actual_solver_times(self):
         self.guidance["scenarios"] = {scenario: copy.deepcopy(curve) for scenario, curve in self.guidance["scenarios"].items()}

@@ -10,9 +10,14 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = readAppSource(path.join(here, "..", "index.html"));
-const rendererSource = fs.readFileSync(path.join(here, "..", "assets/3d/north-wildwood-3d.js"), "utf8");
-const rendererVersion = createHash("sha256").update(rendererSource).digest("hex").slice(0, 16);
-const areaVersion = createHash("sha256").update(fs.readFileSync(path.join(here, "..", "assets/export-area.js"))).digest("hex").slice(0, 16);
+const readAsset = relative => fs.readFileSync(path.join(here, "..", relative), "utf8");
+const contentVersion = content => createHash("sha256").update(content).digest("hex").slice(0, 16);
+const rendererSource = readAsset("assets/3d/north-wildwood-3d.js");
+const rendererVersion = contentVersion(rendererSource);
+const loaderVersion = contentVersion(readAsset("assets/north-wildwood-loading.js"));
+const areaVersion = contentVersion(readAsset("assets/export-area.js"));
+const roadVersion = contentVersion(readAsset("assets/road-labels.js"));
+const roadImpactsVersion = contentVersion(readAsset("assets/road-impacts.js"));
 
 function extractFunction(name, sourceText = source) {
   const source = sourceText;
@@ -28,20 +33,27 @@ function extractFunction(name, sourceText = source) {
   throw new Error(`Unterminated browser function ${name}`);
 }
 
-const parserBlockingScripts = [...source.matchAll(/<script\s+src="([^"]+)"/g)].map(match => match[1].replace(/&(?:county|stability)=[^&]+/g, ''));
+const parserBlockingScripts = [...source.matchAll(/<script\s+src="([^"]+)"(?![^>]*\bdefer\b)/g)].map(match => match[1].replace(/&(?:county|stability)=[^&]+/g, ''));
 assert.deepEqual(parserBlockingScripts, [
-  "assets/north-wildwood-loading.js?v=20261027-lines1",
+  `assets/north-wildwood-loading.js?v=${loaderVersion}`,
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
   "https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js",
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
-  "assets/road-labels.js?v=01f9684394f0ac9f",
-  `./assets/3d/north-wildwood-3d.js?v=20261009-conflicts-1&roads=20261002-soft-gray&roadlabels=20261030-v1&deep=${rendererVersion}`,
-  "./assets/road-impacts.js?v=20261002-road-impacts-default-off",
+  `assets/road-labels.js?v=${roadVersion}`,
+  `./assets/app/raster-readers.js?v=${contentVersion(readAsset("assets/app/raster-readers.js"))}`,
+  `./assets/app/hydraulic-catalog.js?v=${contentVersion(readAsset("assets/app/hydraulic-catalog.js"))}`,
+  `./assets/3d/north-wildwood-3d.js?v=${rendererVersion}`,
+  `./assets/road-impacts.js?v=${roadImpactsVersion}`,
   "assets/avalon-mobile.js?v=20261026-holistic1",
   `assets/export-area.js?v=${areaVersion}`,
 ]);
 
+const html = readAsset("index.html");
+assert.doesNotMatch(html, /\b(?:src|href)="[^"]*(?:\/proj4\.js|\/elevation-contours\.js)\b/);
+assert.match(html, /<template id="elevationContoursTemplate">/);
+
 assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+jszip[\s\S]+geotiff/);
+assert.match(source, /html2canvas: new URL\("vendor\/html2canvas-1\.4\.1\.min\.js", UI_ASSET_BASE\)\.href/);
 assert.match(extractFunction("downloadCurrentSelection"), /await awaitRasterRequest\(ensureExportLibraries\(format, frameItems\.length\)\)/);
 assert.match(extractFunction("getDepthQueryImage"), /await ensureDepthQueryLibrary\(\)/);
 
@@ -129,6 +141,7 @@ for (const warmCamera of [undefined, false, "core", "deferred"]) {
 
 console.log("North Wildwood startup performance checks passed");
 
-assert.match(source, /GIF_WORKER_CDN_URL = "https:\/\/cdn\.jsdelivr\.net\/npm\/gif\.js\.optimized@1\.0\.1\/dist\/gif\.worker\.js"/);
+const gifWorkerVersion = contentVersion(readAsset("assets/vendor/gif.worker.js"));
+assert.ok(source.includes(`GIF_WORKER_URL = new URL("vendor/gif.worker.js?v=${gifWorkerVersion}", UI_ASSET_BASE).href`));
 assert.match(source, /function createStreamingGifEncoder\(/);
 assert.doesNotMatch(source, /loadOptionalScript\("gif"/);

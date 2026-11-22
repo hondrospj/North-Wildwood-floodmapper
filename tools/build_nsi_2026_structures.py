@@ -318,6 +318,10 @@ def augment_parcels(parcel_payload: dict, structures: list[dict], cdf: dict) -> 
     matched_parcels = 0
     residential_parcels = 0
     for index, feature in enumerate(parcel_features):
+        properties = feature.setdefault("properties", {})
+        for key in tuple(properties):
+            if key.startswith("nsi2026"):
+                del properties[key]
         candidates = matches.get(index, [])
         if not candidates:
             continue
@@ -334,7 +338,6 @@ def augment_parcels(parcel_payload: dict, structures: list[dict], cdf: dict) -> 
         structure_properties = selected["properties"]
         first_floor = float(structure_properties["modeledFirstFloorNavd88Ft"])
         model_elevation, model_index, historic_count = model_elevation_record(first_floor, cdf)
-        properties = feature.setdefault("properties", {})
         properties.update(
             {
                 "nsi2026StructureCount": len(candidates),

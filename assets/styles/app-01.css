@@ -1,4 +1,97 @@
 
+/* Keep forced-colors rules ahead of the authored control layers. */
+@layer north-wildwood-forced-colors {
+  @media (forced-colors: active) {
+    body[data-shorelysafe-ui] [role="switch"] {
+      forced-color-adjust:none;
+      box-sizing:border-box;
+      border:1px solid ButtonText !important;
+      background:ButtonFace !important;
+      transition:none !important;
+    }
+    body[data-shorelysafe-ui] [role="switch"]::after {
+      background:ButtonText !important;
+      transition:none !important;
+    }
+    body[data-shorelysafe-ui] [role="switch"][aria-checked="true"] {
+      border-color:Highlight !important;
+      background:Highlight !important;
+    }
+    body[data-shorelysafe-ui] [role="switch"][aria-checked="true"]::after {
+      background:HighlightText !important;
+    }
+    body[data-shorelysafe-ui] [role="switch"]:focus-visible {
+      outline-color:Highlight !important;
+    }
+
+    body[data-shorelysafe-ui] :is(button[aria-pressed="true"],[role="tab"][aria-selected="true"],.timeline-day[aria-current="true"]) {
+      text-decoration:underline !important;
+      text-decoration-thickness:2px !important;
+    }
+
+    /* These paints encode the same water categories as the map raster. */
+    #legendDock :is(.depth-legend-gradient,.stage-legend-green,.stage-legend-gradient),
+    #timelineDock :is(.timeline-key-swatch,.road-impacts-swatch) {
+      forced-color-adjust:none;
+      border:1px solid CanvasText !important;
+    }
+    #timelineDock .timeline-day {
+      position:relative !important;
+      background-image:none !important;
+    }
+    #timelineDock .timeline-day::after {
+      forced-color-adjust:none;
+      content:"" !important;
+      position:absolute !important;
+      inset:auto 1px 1px !important;
+      height:4px !important;
+      border:0 !important;
+      background:var(--fleet-day-gradient,var(--timeline-day-gradient,none)) !important;
+      pointer-events:none;
+    }
+    #timelineDock #hourSlider {
+      forced-color-adjust:none;
+      background-image:var(--nww-stage-gradient,linear-gradient(CanvasText,CanvasText)),
+        linear-gradient(CanvasText,CanvasText) !important;
+      background-position:center !important;
+      background-repeat:no-repeat !important;
+      background-size:calc(100% - var(--nww-thumb-size,26px)) 5px,
+        calc(100% - var(--nww-thumb-size,26px)) 7px !important;
+      outline-color:Highlight !important;
+    }
+    #timelineDock #hourSlider::-webkit-slider-thumb {
+      background:Highlight !important;
+      border-color:HighlightText !important;
+      box-shadow:none !important;
+    }
+    #timelineDock #hourSlider::-moz-range-thumb {
+      background:Highlight !important;
+      border-color:HighlightText !important;
+      box-shadow:none !important;
+    }
+
+    #timelineDock #playBtn .playTriangle {
+      forced-color-adjust:none;
+      width:13px !important;
+      height:16px !important;
+      border:0 !important;
+      background:ButtonText !important;
+      clip-path:polygon(0 0,100% 50%,0 100%);
+      filter:none !important;
+    }
+    #timelineDock #playBtn .pauseIcon::before,
+    #timelineDock #playBtn .pauseIcon::after {
+      forced-color-adjust:none;
+      background:ButtonText !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::before,
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
+      forced-color-adjust:none;
+      --nww-close-ink:ButtonText;
+    }
+  }
+}
+
 /* Shared click-depth card. Keep the existing heading, depth, units and query states. */
 @layer shorely-depth-pill {
   :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query)) {
@@ -80,69 +173,6 @@
     font-weight:inherit !important;
     line-height:inherit !important;
     letter-spacing:inherit !important;
-  }
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button) {
-    --centered-close-x-size:14px;
-    --centered-close-x-color:#d9faff;
-    position:absolute !important;
-    display:block !important;
-    top:8px !important;
-    right:8px !important;
-    bottom:auto !important;
-    left:auto !important;
-    z-index:2 !important;
-    box-sizing:border-box !important;
-    width:32px !important;
-    min-width:32px !important;
-    max-width:32px !important;
-    height:32px !important;
-    min-height:32px !important;
-    max-height:32px !important;
-    margin:0 !important;
-    padding:0 !important;
-    border:1px solid #4b5b73 !important;
-    border-radius:10px !important;
-    background:#1c293b !important;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.08) !important;
-    color:transparent !important;
-    font-size:0 !important;
-    line-height:0 !important;
-    text-decoration:none !important;
-    transform:none !important;
-    cursor:pointer !important;
-  }
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button) > span {display:none !important;}
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button)::before,
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
-    content:"" !important;
-    position:absolute !important;
-    top:50% !important;
-    left:50% !important;
-    width:16px !important;
-    height:2px !important;
-    margin:0 !important;
-    border:0 !important;
-    border-radius:0 !important;
-    background:#d9faff !important;
-    box-shadow:none !important;
-    opacity:1 !important;
-    transform:translate(-50%,-50%) rotate(45deg) !important;
-    pointer-events:none !important;
-  }
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
-    transform:translate(-50%,-50%) rotate(-45deg) !important;
-  }
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button):hover {background:#2b3c53 !important;}
-  :is(.leaflet-popup,.maplibregl-popup):has(:is(.depth-query-popup,.shorely-v11-depth-query))
-  :is(.leaflet-popup-close-button,.maplibregl-popup-close-button):focus-visible {
-    outline:2px solid #7df9ff !important;
-    outline-offset:2px !important;
   }
   .leaflet-popup:has(:is(.depth-query-popup,.shorely-v11-depth-query)) .leaflet-popup-tip {
     border:1px solid rgba(125,249,255,.42) !important;
@@ -238,9 +268,9 @@
   body[data-shorelysafe-ui] #leftPanel > .mobile-top-tides-card {order:9 !important;}
   body[data-shorelysafe-ui] #leftPanel > #mobileRailMount {order:10 !important;}
   body[data-shorelysafe-ui] #rightRail > .layers-card {order:1 !important;}
-  body[data-shorelysafe-ui] #rightRail > .top-tides-card {order:2 !important;}
+  body[data-shorelysafe-ui] #rightRail > :is(.town-address-card,.penns-grove-address-card) {order:2 !important;}
   body[data-shorelysafe-ui] #rightRail > #downloadCard {order:3 !important;}
-  body[data-shorelysafe-ui] #rightRail > :is(.town-address-card,.penns-grove-address-card) {order:4 !important;}
+  body[data-shorelysafe-ui] #rightRail > .top-tides-card {order:4 !important;}
   body[data-shorelysafe-ui] #rightRail > #mapperTutorialBtn {order:5 !important;}
   body[data-shorelysafe-ui] #leftPanel > #legendDock {
     position:static !important;inset:auto !important;transform:none !important;width:100% !important;
@@ -623,7 +653,7 @@
     html[data-nww-mobile-layout] body #leftPanel #mobileRailMount:empty { display:none !important; }
     html[data-nww-mobile-layout] body #leftPanel .layer-item { min-height:48px !important; padding:4px 0 !important; }
     html[data-nww-mobile-layout] body #leftPanel .toggle { min-width:44px !important; min-height:28px !important; }
-    html[data-nww-mobile-layout] body #leftPanel #townAddressCard { order:-1 !important; }
+    html[data-nww-mobile-layout] body #leftPanel #townAddressCard { order:36 !important; }
     html[data-nww-mobile-layout] body #leftPanel #townAddressInput { width:100% !important; min-width:0 !important; font-size:16px !important; }
     html[data-nww-mobile-layout] body #leftPanel button:focus-visible { outline:2px solid var(--nw-ui-blue) !important; outline-offset:2px !important; }
     html[data-nww-mobile-layout] body #leftPanel #timelineIntervalCard { display:flex !important; flex-direction:column !important; gap:8px !important; }
@@ -1649,7 +1679,6 @@ html body[data-floodmapper-reference] #nwDefaultNavControl :is(.nw-simple-view,.
  html body[data-floodmapper-reference] #leftPanel>#legendDock {position:relative!important;inset:auto!important;width:100%!important;transform:none!important;}
  html body[data-floodmapper-reference] #leftPanel>.mobile-top-tides-card {display:none!important;}
  html body[data-floodmapper-reference] #rightRail .top-tide-list {max-height:180px!important;overflow:auto!important;}
- html body[data-floodmapper-reference] #rightRail .top-tide-item:nth-child(n+3) {display:none!important;}
  html body[data-floodmapper-reference] #timelineBubble {position:absolute!important;top:auto!important;bottom:120px!important;left:24px!important;right:auto!important;width:max-content!important;min-width:0!important;max-width:calc(100vw - 48px)!important;height:auto!important;min-height:44px!important;margin:0!important;padding:9px 14px!important;display:flex!important;align-items:center!important;gap:6px!important;background:#111827!important;border:1px solid #7594ad!important;border-radius:999px!important;box-sizing:border-box!important;}
  html body[data-floodmapper-reference] #timelineBubble .timeline-bubble-current {font:800 23px/1.1 system-ui!important;white-space:nowrap!important;}
  html body[data-floodmapper-reference] #timelineBubble .timeline-bubble-stage {font:800 22px/1.1 system-ui!important;padding:3px 8px!important;}
@@ -1772,10 +1801,10 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
  html body[data-floodmapper-unified] #leftPanel>.mobile-top-tides-card {order:80!important;}
  html body[data-floodmapper-unified] #leftPanel>#mobileRailMount {order:90!important;}
  html body[data-floodmapper-unified] #rightRail>.layers-card {order:10!important;}
- html body[data-floodmapper-unified] #rightRail>.top-tides-card {order:20!important;}
+ html body[data-floodmapper-unified] #rightRail>#townAddressCard {order:20!important;}
  html body[data-floodmapper-unified] #rightRail>#downloadCard {order:30!important;}
- html body[data-floodmapper-unified] #rightRail>#townAddressCard {order:40!important;}
- html body[data-floodmapper-unified] #rightRail>:is(#mapperTutorialBtn,#avalonTourBtn) {order:50!important;}
+ html body[data-floodmapper-unified] #rightRail>.top-tides-card {order:40!important;}
+ html body[data-floodmapper-unified] #rightRail>:is(#mapperTutorialBtn,#avalonTourBtn) {order:0!important;}
  html body[data-floodmapper-unified] :is(#leftPanel,#rightRail,#mobileRailMount) .layers-card .layer-list {display:flex!important;flex-direction:column!important;gap:0!important;}
  html body[data-floodmapper-unified] :is(#leftPanel,#rightRail,#mobileRailMount) .layers-card .layer-item {display:grid!important;grid-template-columns:minmax(0,1fr) 40px!important;min-height:36px!important;gap:10px!important;padding:6px 0!important;margin:0!important;border:0!important;border-bottom:1px solid rgba(191,219,254,.12)!important;border-radius:0!important;}
  html body[data-floodmapper-unified] .layers-card .layer-item:last-child {border-bottom:0!important;}
@@ -1828,18 +1857,18 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
   html body[data-floodmapper-unified] #mobileControlsToggle {position:fixed!important;top:var(--cm-top,8px)!important;right:var(--cm-right,8px)!important;left:auto!important;bottom:auto!important;width:96px!important;height:44px!important;min-height:44px!important;padding:0 10px!important;display:flex!important;align-items:center!important;justify-content:center!important;z-index:8000!important;font:650 14px system-ui!important;background:#142238!important;color:#eaf0ff!important;border:1px solid #60a5fa!important;border-radius:10px!important;}
   html body[data-floodmapper-unified].mobile-controls-open #mobileControlsToggle {display:none!important;}
   html body[data-floodmapper-unified] #mapTitleBadge :is(#mapTitleLogo,#mapTitlePartnerLogo) {display:none!important;}
-  html body[data-floodmapper-unified] #mapTitleBadge #mapTitleText {font:700 14px/1.2 system-ui!important;letter-spacing:0!important;white-space:normal!important;}
+  html body[data-floodmapper-unified] #mapTitleBadge #mapTitleText {font:700 clamp(16px,4.4vw,17px)/1.2 system-ui!important;letter-spacing:0!important;white-space:normal!important;}
   html body[data-floodmapper-unified] #mapTitleBadge {display:flex!important;padding:6px 10px!important;position:fixed!important;left:var(--cm-left,8px)!important;top:var(--cm-top,8px)!important;right:196px!important;max-width:calc(100vw - 204px)!important;min-height:44px!important;height:auto!important;transform:none!important;}
   html body[data-floodmapper-unified] #leftPanel {position:fixed!important;flex-direction:column!important;gap:8px!important;padding:0 12px 16px!important;box-sizing:border-box!important;border-radius:16px!important;z-index:10000!important;background:#101827!important;overflow-y:auto!important;overflow-x:hidden!important;}
   html body[data-floodmapper-unified]:not(.mobile-controls-open) #leftPanel {display:none!important;visibility:hidden!important;pointer-events:none!important;}
   html body[data-floodmapper-unified].mobile-controls-open #leftPanel {display:flex!important;visibility:visible!important;pointer-events:auto!important;}
   html body[data-floodmapper-unified] #mobileRailMount {display:contents!important;}
   html body[data-floodmapper-unified] #mobileRailMount>.layers-card {order:35!important;}
-  html body[data-floodmapper-unified] #mobileRailMount>.top-tides-card {order:80!important;}
-  html body[data-floodmapper-unified] #mobileRailMount>#downloadCard {order:10!important;}
-  html body[data-floodmapper-unified] #mobileRailMount>#townAddressCard {order:20!important;}
-  html body[data-floodmapper-unified] #mobileRailMount>:is(#mapperTutorialBtn,#avalonTourBtn) {order:30!important;}
-  html body[data-floodmapper-unified] #nwwMobileControlHeader {position:sticky!important;top:0!important;order:0!important;z-index:10!important;display:block!important;background:#101827!important;padding:14px 0 10px!important;flex:0 0 auto!important;}
+  html body[data-floodmapper-unified] #mobileRailMount>#townAddressCard {order:36!important;}
+  html body[data-floodmapper-unified] #mobileRailMount>#downloadCard {order:37!important;}
+  html body[data-floodmapper-unified] #mobileRailMount>.top-tides-card {order:38!important;}
+  html body[data-floodmapper-unified] #mobileRailMount>:is(#mapperTutorialBtn,#avalonTourBtn) {order:39!important;}
+  html body[data-floodmapper-unified] #nwwMobileControlHeader {position:sticky!important;top:0!important;order:0!important;z-index:40!important;display:block!important;background:#101827!important;padding:14px 0 10px!important;flex:0 0 auto!important;}
   html body[data-floodmapper-unified] #leftPanel>#nwwMobileControlHeader .nww-drawer-heading {padding-right:48px!important;}
   html body[data-floodmapper-unified] #mobileControlsClose {position:fixed!important;top:calc(var(--cm-top,8px) + 10px)!important;right:calc(var(--cm-right,8px) + 10px)!important;left:auto!important;bottom:auto!important;width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important;z-index:10020!important;}
   html body[data-floodmapper-unified] #leftPanel[data-nww-section="forecast"] [data-nww-group]:not([data-nww-group="forecast"]),html body[data-floodmapper-unified] #leftPanel[data-nww-section="map"] [data-nww-group]:not([data-nww-group="map"]),html body[data-floodmapper-unified] #leftPanel[data-nww-section="tools"] [data-nww-group]:not([data-nww-group="tools"]) {display:none!important;}
@@ -1981,18 +2010,19 @@ html body[data-floodmapper-reference] #timelineBubble :is(.timeline-bubble-start
  }
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > * {grid-column:1 / -1!important;min-width:0!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > .layers-card {grid-row:1!important;}
- html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > .top-tides-card {grid-row:2!important;}
+ html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > #townAddressCard {grid-row:2!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > #downloadCard {grid-row:3!important;grid-column:1!important;padding:3px!important;}
+ html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > .top-tides-card {grid-row:4!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > #mapperTutorialBtn#mapperTutorialBtn {
   grid-row:3!important;grid-column:2!important;min-height:36px!important;height:auto!important;padding:3px!important;font-size:12px!important;line-height:1.2!important;
  }
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail #downloadCard #openDownloadModalBtn {min-height:28px!important;height:100%!important;padding:3px!important;font-size:12px!important;}
- html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail > #townAddressCard {grid-row:4!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail .layers-card .layer-list {
   display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;column-gap:8px!important;row-gap:0!important;
  }
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail .layer-item {grid-column:auto!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#nsiStructuresToggle) {grid-column:auto!important;}
+ html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail .layer-item:has(#roadImpactsToggle) {grid-column:1 / -1!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail #topTideList:not(:has(.top-tide-item)) {min-height:78px!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail #topTideList :is(.top-tide-item,.top-tide-more-btn) {min-height:24px!important;padding:2px 4px!important;}
  html body[data-floodmapper-unified][data-sidebar-density="tight"]:not(.mobile-optimized) #rightRail#rightRail .town-address-label {

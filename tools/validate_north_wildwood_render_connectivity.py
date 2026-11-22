@@ -170,6 +170,33 @@ def build_render_summaries(graph: Path) -> dict[str, np.ndarray]:
     return summary
 
 
+def developed_cells_admitted(
+    terrain: tuple[np.ndarray, np.ndarray, np.ndarray],
+    possible: np.ndarray,
+    stage: float,
+    developed_stage: float,
+) -> np.ndarray:
+    """Check the two thresholds on the same one-foot cell before pooling."""
+    ground10, connection10, developed = terrain
+    admitted = np.zeros(possible.shape, dtype=bool)
+    rows, columns = np.nonzero(possible)
+    for y_offset in range(RENDER_STRIDE):
+        for x_offset in range(RENDER_STRIDE):
+            if not rows.size:
+                return admitted
+            cells = (rows * RENDER_STRIDE + y_offset, columns * RENDER_STRIDE + x_offset)
+            ground = ground10[cells]
+            wet = (
+                (developed[cells] != 0)
+                & (ground != np.iinfo(np.int16).min)
+                & (ground <= (developed_stage + 1e-9) * 10)
+                & (connection10[cells] <= (stage + 1e-9) * 10)
+            )
+            admitted[rows[wet], columns[wet]] = True
+            rows, columns = rows[~wet], columns[~wet]
+    return admitted
+
+
 def vertical_penalty(stage: float) -> float:
     if stage < 3.25:
         return 0.0
@@ -245,6 +272,14 @@ def main() -> None:
     road_ds = None
     source = pool_source(graph / "source_flag.raw")
     summary = build_render_summaries(graph)
+    terrain = tuple(
+        np.memmap(graph / name, dtype=dtype, mode="r", shape=(HEIGHT, WIDTH))
+        for name, dtype in (
+            ("elevation10.raw", "<i2"),
+            ("connection10.raw", "<i2"),
+            ("developed_flag.raw", "u1"),
+        )
+    )
     valid = summary["ground10"] != np.iinfo(np.int16).max
     ground = summary["ground10"].astype(np.float32) / 10.0
     ground_developed = (
@@ -340,6 +375,10 @@ def main() -> None:
             developed_blue = developed_eligible & (
                 ground_developed <= developed_stage + 1e-9
             )
+            if phase_adjustment > 0.0:
+                developed_blue = developed_cells_admitted(
+                    terrain, developed_blue, stage, developed_stage,
+                )
             adjusted_blue = valid & (
                 developed_blue
                 | (activation_undeveloped <= stage + 1e-9)

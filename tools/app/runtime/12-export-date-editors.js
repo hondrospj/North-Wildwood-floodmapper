@@ -209,7 +209,15 @@
       }
       if (!values.includes(normalized)) values.push(normalized);
       values.sort();
-      const options = values.flatMap(time => {
+      const modeled = currentDataMode === "return-interval" ? getReturnIntervalExportEntries() : null;
+      const options = modeled ? modeled.flatMap(entry => {
+        const instant = getEntryESTDate(entry);
+        if (!instant) return [];
+        return [{
+          value: `${formatNyLocalIso(instant).slice(11)}|${instant.getTime()}`,
+          label: formatReturnStormOffset(entry, { compact: true })
+        }];
+      }) : values.flatMap(time => {
         const label = formatExportTimeLabel(time);
         const candidates = isoDate ? getLocalNyDateCandidates(`${isoDate}T${time}`) : [];
         if (isoDate && !candidates.length) {
@@ -256,7 +264,8 @@
       // date or its caret while the user owns this editor; explicit date picks
       // and resets still synchronize through the default authoritative path.
       if (options.preserveActiveEdit && !modeledDateLocked && document.activeElement === elements.dateText) return;
-      if (elements.canonical.dataset.invalidLocalTime === "1") return;
+      if (!modeledDateLocked && (elements.canonical.dataset.invalidDate === "1" ||
+          elements.canonical.dataset.invalidLocalTime === "1")) return;
       const value = elements.canonical.value || "";
       const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
       if (!match) {
@@ -281,25 +290,23 @@
       const elements = getExportDateEditorElements(prefix);
       if (!elements.canonical || !elements.dateText || !elements.timeSelect) return false;
       if (currentDataMode === "return-interval") {
-        const canonicalMatch = elements.canonical.value.match(/^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}$/);
-        if (!canonicalMatch) return false;
-        const timeValue = getExportTimeSelection(elements.timeSelect.value)?.time || "00:00";
-        elements.canonical.value = `${canonicalMatch[1]}T${timeValue}`;
-        delete elements.canonical.dataset.timeUtc;
-        delete elements.canonical.dataset.invalidLocalTime;
+        const instant = getExportTimeSelection(elements.timeSelect.value)?.instantMs;
+        if (!Number.isFinite(instant)) return false;
+        const date = new Date(instant);
+        if (elements.canonical.dataset.timeUtc !== date.toISOString()) setRangeInputDate(elements.canonical.id, date);
         if (options.markEdited) elements.canonical.dataset.userEdited = "1";
-        elements.dateText.value = MODELED_EXPORT_DATE_PLACEHOLDER;
-        elements.dateText.classList.remove("is-invalid");
-        elements.dateText.removeAttribute("aria-invalid");
         return true;
       }
       const parsed = parseExportDateText(elements.dateText.value);
       if (!parsed) {
+        elements.canonical.dataset.invalidDate = "1";
+        elements.canonical.dataset.userEdited = "1";
         elements.dateText.classList.add("is-invalid");
         elements.dateText.setAttribute("aria-invalid", "true");
-        if (options.showError) setDownloadStatus("Enter the date as MM/DD/YYYY.", true);
+        if (options.showError) setDownloadStatus("Enter a valid date in MM/DD/YYYY format.", true);
         return false;
       }
+      delete elements.canonical.dataset.invalidDate;
       const timeSelection = getExportTimeSelection(elements.timeSelect.value);
       const timeValue = timeSelection?.time || "00:00";
       const localValue = `${parsed.isoDate}T${timeValue}`;
@@ -335,7 +342,7 @@
     function getRangeInputDate(id) {
       const input = document.getElementById(id);
       const value = input?.value || "";
-      if (!value || input.dataset.invalidLocalTime === "1") return null;
+      if (!value || input.dataset.invalidDate === "1" || input.dataset.invalidLocalTime === "1") return null;
       const candidates = getLocalNyDateCandidates(value);
       const selectedMs = Date.parse(input.dataset.timeUtc || "");
       return candidates.find(date => date.getTime() === selectedMs) || candidates[0] || null;
@@ -347,32 +354,9 @@
       input.value = date ? formatNyLocalIso(date) : "";
       if (date) input.dataset.timeUtc = date.toISOString();
       else delete input.dataset.timeUtc;
+      delete input.dataset.invalidDate;
       delete input.dataset.invalidLocalTime;
       const prefix = getExportEditorPrefixFromCanonicalId(id);
       if (prefix) syncExportDateTimeEditorFromCanonical(prefix);
-    }
-
-    function findStartIndexForTime(entries, targetMs) {
-      if (!entries.length || targetMs == null) return 0;
-      for (let i = 0; i < entries.length; i++) {
-        const t = entryTimeMs(entries[i]);
-        if (t != null && t >= targetMs) return i;
-      }
-      return Math.max(0, entries.length - 1);
-    }
-
-    function findEndIndexForTime(entries, targetMs) {
-      if (!entries.length || targetMs == null) return Math.max(0, entries.length - 1);
-      let lastIndex = 0;
-      for (let i = 0; i < entries.length; i++) {
-        const t = entryTimeMs(entries[i]);
-        if (t == null) continue;
-        if (t <= targetMs) {
-          lastIndex = i;
-        } else {
-          break;
-        }
-      }
-      return lastIndex;
     }
 

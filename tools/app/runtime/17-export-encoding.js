@@ -24,37 +24,63 @@
           timelineIntervalMinutes: 60,
           exportInterval: "hourly"
         };
-        const fallbackIndex = exportEntry.exportSourceMode === "observed" ? match.idx : findClosestEntryIndex(currentSeriesHours, exportEntry);
-        const item = getDownloadFrameItemFromEntry(exportEntry, fallbackIndex, sourceSeries);
+        const item = getDownloadFrameItemFromEntry(exportEntry, sourceSeries);
         if (item) items.push(item);
       }
       return items;
     }
 
-    function buildQuarterHourRangeFrameItems(entries, range, sourceSeries = new Map()) {
+    function getQuarterHourExportEntries(entries, range, sourceSeries = new Map()) {
       if (!Array.isArray(entries) || !entries.length || !range) return [];
-      const sourceMode = entries.find(entry => entry.exportSourceMode)?.exportSourceMode || "observed";
-      const series = buildQuarterHourTimelineSeries(entries, {
-        kind: sourceMode,
-        startMs: range.startMs,
-        endMs: range.endMs,
-        fillMissingSlots: false,
-        maxGapMinutes: 75
+      const byTime = new Map();
+      const observedDates = new Set();
+      const projected = entries.filter(entry => {
+        if (entry.exportSourceMode && entry.exportSourceMode !== "observed") return true;
+        if (entry.observedDate) observedDates.add(entry.observedDate);
+        return false;
       });
-      return series
-        .filter(entry => Number.isFinite(getStageValue(entry)))
-        .map((entry, idx) => {
+      // The observed timeline decides which quarter hours actually exist.
+      // In particular, the forecast's hourly interpolation cannot fill a gauge outage.
+      observedDates.forEach(dateStr => {
+        const canonical = buildObservedCanonicalSeries(getObservedDayRecord(dateStr), dateStr);
+        sourceSeries.set(`observed:${dateStr}`, canonical);
+        canonical.forEach(entry => {
+          const time = entryTimeMs(entry);
+          if (!entry.isDailyPeakOnly && Number.isFinite(getStageValue(entry)) &&
+              time >= range.startMs && time <= range.endMs) {
+            byTime.set(time, { ...entry, exportSourceMode: "observed" });
+          }
+        });
+      });
+      if (projected.length) {
+        const quarterHourMs = 15 * 60 * 1000;
+        const series = buildQuarterHourTimelineSeries(projected, {
+          kind: projected[0].exportSourceMode,
+          startMs: Math.ceil(range.startMs / quarterHourMs) * quarterHourMs,
+          endMs: range.endMs,
+          fillMissingSlots: false,
+          maxGapMinutes: 75
+        });
+        const preferObserved = currentDataMode === "observed";
+        series.forEach(entry => {
+          const time = entryTimeMs(entry);
+          if (!preferObserved || !byTime.has(time)) byTime.set(time, entry);
+        });
+      }
+      return Array.from(byTime.values()).sort((a, b) => entryTimeMs(a) - entryTimeMs(b))
+        .filter(entry => Number.isFinite(getStageValue(entry)));
+    }
+
+    function buildQuarterHourRangeFrameItems(entries, range, sourceSeries = new Map()) {
+      return getQuarterHourExportEntries(entries, range, sourceSeries)
+        .map(entry => {
           const exportEntry = {
             ...entry,
-            exportSourceMode: entry.exportSourceMode || sourceMode,
             observationInterval: "15min",
             timelineIntervalMinutes: 15,
             exportInterval: "15min"
           };
-          const fallbackIndex = exportEntry.exportSourceMode === "observed"
-            ? idx
-            : findClosestEntryIndex(currentSeriesHours, exportEntry);
-          return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex, sourceSeries);
+          return getDownloadFrameItemFromEntry(exportEntry, sourceSeries);
         })
         .filter(Boolean);
     }
@@ -69,7 +95,7 @@
         ? buildReturnIntervalDailyMaximumSeries(inRange)
         : buildDailyMaximumSeries(inRange, { kind: "export" });
       return daily
-        .map((entry, idx) => {
+        .map(entry => {
           const exportEntry = {
             ...entry,
             exportSourceMode: entry.exportSourceMode || "observed",
@@ -77,10 +103,7 @@
             timelineIntervalMinutes: 1440,
             exportInterval: "daily"
           };
-          const fallbackIndex = exportEntry.exportSourceMode === "observed"
-            ? idx
-            : findClosestEntryIndex(currentSeriesHours, exportEntry);
-          return getDownloadFrameItemFromEntry(exportEntry, fallbackIndex, sourceSeries);
+          return getDownloadFrameItemFromEntry(exportEntry, sourceSeries);
         })
         .filter(Boolean);
     }
@@ -111,10 +134,6 @@
         setExportProgress(message, pct, false);
         await prepareExportFrame(item, { isFirstFrame: i === 0 });
         throwIfExportCancelled();
-        if (i === 0) {
-          await waitForExportMapReady(40);
-          throwIfExportCancelled();
-        }
         const canvas = await captureExportCanvas();
         try {
           throwIfExportCancelled();
@@ -448,7 +467,9 @@
         const popupTitle = validation.reason === "range-too-long"
           ? "Time range too long"
           : "Check export range";
-        showExportDateOrderPopup(validation.message, popupTitle);
+        // Preview preparation can outlast the activating click and disable
+        // this button briefly. Restore the warning to the actual action.
+        showExportDateOrderPopup(validation.message, popupTitle, document.getElementById("downloadBtn"));
         updateDownloadSummary();
         return;
       }
@@ -457,7 +478,7 @@
       // Close the settings dialog before showing progress so its focus/inert
       // isolation cannot disable the progress Cancel button during preparation.
       setDownloadModalOpen(false);
-      setDownloadBusy(true, needsArchive ? "Loading the selected tide-archive year..." : "Preparing export...");
+      setDownloadBusy(true, needsArchive ? "Preparing export..." : "Preparing export...");
       try {
         if (needsArchive) {
           await awaitRasterRequest(ensureExportArchiveAvailability());
@@ -480,8 +501,8 @@
         if (!frameItems.length) throw new Error("No frames are available for export.");
         const label = format === "png" ? "PNG" : `${getDownloadAspectValue()} GIF`;
         setExportProgress(`Preparing ${label} export with ${frameItems.length} frame${frameItems.length === 1 ? "" : "s"}...`, 1, false);
-        setDownloadStatus("Loading export tools...");
-        setExportProgress("Loading export tools...", 1, false);
+        setDownloadStatus("Preparing export...");
+        setExportProgress("Preparing export...", 1, false);
         await awaitRasterRequest(ensureExportLibraries(format, frameItems.length));
         throwIfExportCancelled();
         if (format === "png") {

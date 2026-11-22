@@ -60,6 +60,13 @@ def decode_query(path: Path) -> tuple[np.ndarray, np.ndarray]:
     return depth_mm, wet
 
 
+def decode_visible(path: Path) -> tuple[np.ndarray, np.ndarray]:
+    with Image.open(path) as image:
+        codes = np.asarray(image, dtype=np.uint8)
+        opaque = np.asarray(image.convert("RGBA"), dtype=np.uint8)[..., 3] > 0
+    return codes, opaque
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -216,13 +223,11 @@ def validate_scenario(
         depth_mm, wet = decode_query(query_path)
         if depth_mm.shape != render_shape:
             raise RuntimeError(f"Query/image grid shape mismatch at {scenario} frame {index}")
-        with Image.open(visible_path) as visible_image:
-            visible_codes = np.asarray(visible_image, dtype=np.uint8)
-        with Image.open(impact_path) as impact_image:
-            impact_codes = np.asarray(impact_image, dtype=np.uint8)
+        visible_codes, visible_mask = decode_visible(visible_path)
+        impact_codes, impact_mask = decode_visible(impact_path)
         if visible_codes.shape != depth_mm.shape:
             raise RuntimeError(f"Visible/query shape mismatch at {scenario} frame {index}")
-        if not np.array_equal(visible_codes > 0, wet):
+        if not np.array_equal(visible_codes > 0, wet) or not np.array_equal(visible_mask, wet):
             raise RuntimeError(f"Visible/query wet mask mismatch at {scenario} frame {index}")
         if impact_codes.shape != depth_mm.shape:
             raise RuntimeError(f"Impact/query shape mismatch at {scenario} frame {index}")
@@ -234,8 +239,8 @@ def validate_scenario(
             impact_thresholds,
         )
         expected_impact = np.where(wet, impact_arrival_codes, 0)
-        if not np.array_equal(impact_codes, expected_impact):
-            raise RuntimeError(f"Impact classification mismatch at {scenario} frame {index}")
+        if not np.array_equal(impact_codes, expected_impact) or not np.array_equal(impact_mask, wet):
+            raise RuntimeError(f"Impact classification or wet mask mismatch at {scenario} frame {index}")
         if int(np.count_nonzero(wet)) != int(frame["wetPixelCount"]):
             raise RuntimeError(f"Wet pixel count mismatch at {scenario} frame {index}")
         decoded_maximum_m = float(np.max(depth_mm)) / 1000.0
@@ -262,17 +267,15 @@ def validate_scenario(
         actual_depth_mm, actual_wet = decode_query(query_path)
         if actual_depth_mm.shape != render_shape:
             raise RuntimeError(f"{scenario} {date_local} daily query/image grid shape mismatch")
-        with Image.open(visible_path) as visible_image:
-            visible_codes = np.asarray(visible_image, dtype=np.uint8)
-        with Image.open(impact_path) as impact_image:
-            impact_codes = np.asarray(impact_image, dtype=np.uint8)
+        visible_codes, visible_mask = decode_visible(visible_path)
+        impact_codes, impact_mask = decode_visible(impact_path)
         if not np.array_equal(actual_depth_mm, expected_depth_mm):
             raise RuntimeError(
                 f"{scenario} {date_local} is not the cellwise 15-minute maximum"
             )
-        if not np.array_equal(visible_codes > 0, actual_wet):
+        if not np.array_equal(visible_codes > 0, actual_wet) or not np.array_equal(visible_mask, actual_wet):
             raise RuntimeError(f"{scenario} {date_local} daily visible/query mismatch")
-        if not np.array_equal(impact_codes, daily_impacts[date_local]):
+        if not np.array_equal(impact_codes, daily_impacts[date_local]) or not np.array_equal(impact_mask, actual_wet):
             raise RuntimeError(f"{scenario} {date_local} daily impact is not exact")
         total_bytes += (
             query_path.stat().st_size

@@ -1,4 +1,4 @@
-// Exercise the shipped chart functions and record the actual purple canvas path.
+// Exercise the shipped chart functions and record both gauge canvas paths.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -20,7 +20,11 @@ const canvasContext = new Proxy({
   strokeStyle: '', beginPath() { this.path = []; },
   moveTo(x, y) { this.path.push({move: true, x, y}); },
   lineTo(x, y) { this.path.push({move: false, x, y}); },
-  stroke() { if (this.strokeStyle === '#7654a8') paths.push(this.path); },
+  stroke() {
+    if (['#7654a8', '#0d5b7b'].includes(this.strokeStyle)) {
+      paths.push({color: this.strokeStyle, points: this.path});
+    }
+  },
 }, {get(target, key) { return key in target ? target[key] : () => {}; }});
 const canvas = {parentElement: {getBoundingClientRect: () => ({width: 1000, height: 430})},
   style: {}, getContext: () => canvasContext, setAttribute() {}};
@@ -40,8 +44,31 @@ for (const width of [1000, 2]) {
   }
   assert.ok(separated, `Outage requires a path separator at width ${width}`);
 }
+function assertCanvasSegments(color, expected, message) {
+  const path = paths.find(path => path.color === color)?.points;
+  assert.ok(path?.some(point => !point.move), 'Expected a drawn line');
+  assert.equal(path.filter(point => point.move).length, expected, message);
+}
+
 context.draw();
-assert.equal(paths.length, 1);
-assert.equal(paths[0].filter(point => point.move).length, 2,
-  'Stone Harbor canvas path must restart after the outage');
-console.log('Comparison gaps remain disconnected in full, decimated, and canvas paths');
+assertCanvasSegments('#7654a8', 2, 'Stone Harbor canvas path must restart after the outage');
+assertCanvasSegments('#0d5b7b', 2, 'North Wildwood canvas path must restart after the outage');
+
+const samplesPerSide = 900;
+state.chartPoints = Array.from({length: samplesPerSide * 2}, (_, seq) => ({
+  seq,
+  time: seq * quarterHour + (seq < samplesPerSide ? 0 : gap),
+  value: seq % 4,
+  valid: seq !== 60,
+}));
+state.comparisonPoints = [];
+state.viewEnd = state.chartPoints.at(-1).time;
+for (const width of [1000, 120]) {
+  canvas.parentElement.getBoundingClientRect = () => ({width, height: 430});
+  paths.length = 0;
+  context.draw();
+  assertCanvasSegments('#0d5b7b', 3,
+    `North Wildwood must break only at the outage and the flagged reading at width ${width}`);
+}
+
+console.log('Both gauge chart paths preserve real gaps through rendering and decimation');

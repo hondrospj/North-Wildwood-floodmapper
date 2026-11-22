@@ -133,21 +133,8 @@ def iter_year_chunks(start_date: date, end_date: date):
         year += 1
 
 
-def month_start(value: date) -> date:
-    return value.replace(day=1)
-
-
 def next_month(value: date) -> date:
     return date(value.year + (value.month == 12), 1 if value.month == 12 else value.month + 1, 1)
-
-
-def iter_month_chunks(start_date: date, end_date: date):
-    cursor = month_start(start_date)
-    while cursor <= end_date:
-        chunk_start = max(start_date, cursor)
-        chunk_end = min(end_date, next_month(cursor) - timedelta(days=1))
-        yield chunk_start, chunk_end
-        cursor = next_month(cursor)
 
 
 def day_utc_bounds(day: date) -> tuple[int, int]:
@@ -327,6 +314,8 @@ def build(args: argparse.Namespace) -> dict:
         )
 
     days = build_days(hourly, six_minute_fills, start_date, end_date)
+    if not days:
+        raise RuntimeError(f"No verified Lewes water levels for {start_date} through {end_date}")
     valid_hours = sum(sum(value is not None for value in day["v"]) for day in days)
     total_hours_in_stored_days = sum(len(day["v"]) for day in days)
     payload = {
@@ -337,8 +326,8 @@ def build(args: argparse.Namespace) -> dict:
         "units": "feet",
         "timeZone": LOCAL_TIME_ZONE,
         "intervalMinutes": 60,
-        "archiveStartDate": days[0]["d"] if days else start_date.isoformat(),
-        "archiveEndDate": days[-1]["d"] if days else end_date.isoformat(),
+        "archiveStartDate": days[0]["d"],
+        "archiveEndDate": days[-1]["d"],
         "stoneHarborCutoffDate": STONE_HARBOR_CUTOFF_DATE.isoformat(),
         "method": "NOAA verified hourly heights; missing hourly anchors use the nearest verified six-minute Lewes observation within 30 minutes when available",
         "usePolicy": "Lewes is a pre-2007 Stone Harbor surrogate only; it is never used on or after 2007-10-01",

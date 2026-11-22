@@ -1,49 +1,100 @@
 name: Update North Wildwood forecast
 
 on:
+  schedule:
+    # NOAA's station files normally arrive just over six hours after the cycle.
+    - cron: "40 0 * * *"  # Previous day's 18Z
+    - cron: "40 6 * * *"  # 00Z
+    - cron: "40 12 * * *" # 06Z
+    - cron: "40 18 * * *" # 12Z
   workflow_dispatch:
-  workflow_call:
+    inputs:
+      cycle_utc:
+        description: Exact PETSS cycle in UTC (optional, defaults to the latest due cycle)
+        type: string
+      dry_run:
+        description: Generate and validate the cycle without committing or publishing
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
+  actions: read
 
 concurrency:
-  group: north-wildwood-data-updates-v2
+  group: north-wildwood-generated-refresh
+  queue: max
   cancel-in-progress: false
 
 jobs:
   update-forecast:
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.dry_run)
+    permissions:
+      contents: write
+      actions: read
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
 
     steps:
       - name: Check out repo
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ inputs.dry_run && github.sha || 'main' }}
+          lfs: false
+          persist-credentials: ${{ !inputs.dry_run }}
           fetch-depth: 0
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /tools/petss_schedule.py
+            /tools/update_north_wildwood_forecast.py
+            /tools/experimental_petss_guidance.py
+            /tools/select_petss_mean.py
+            /tools/release_data.py
+            /tools/release_schemas.py
+            /forecast.json
+            /data/experimental_petss_guidance.json
 
-      - name: Build forecast.json from PETSS station CSV guidance
+      - name: Resolve the original run's PETSS cycle
+        id: cycle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCHEDULE: ${{ github.event.schedule }}
+          REQUESTED_CYCLE: ${{ inputs.cycle_utc }}
         shell: bash
         run: |
-          python3 tools/update_north_wildwood_forecast.py
+          queued_at=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
+          cycle=$(python3 tools/petss_schedule.py "$queued_at" "$SCHEDULE" "$REQUESTED_CYCLE")
+          echo "Target NOAA PETSS cycle $cycle"
+          echo "utc=$cycle" >> "$GITHUB_OUTPUT"
 
-      - name: Generate non-operational PETSS research comparison
-        run: python tools/experimental_petss_guidance.py --input forecast.json --output data/experimental_petss_guidance.json
+      - name: Build and validate the exact NOAA forecast cycle
+        id: forecast
+        env:
+          CYCLE_UTC: ${{ steps.cycle.outputs.utc }}
+        run: python3 tools/update_north_wildwood_forecast.py --cycle-utc "$CYCLE_UTC"
 
-      - name: Select issued PETSS ensemble mean for operational forecasts
-        run: python3 tools/select_petss_mean.py forecast.json
+      - name: Prepare the operational and research outputs
+        if: steps.forecast.outputs.updated == 'true'
+        run: |
+          python3 tools/experimental_petss_guidance.py --input forecast.json --output data/experimental_petss_guidance.json
+          python3 tools/select_petss_mean.py forecast.json
+
+      - name: Validate the operational and research outputs
+        run: |
+          PYTHONPATH=tools python3 -c 'from release_data import validate_operational_petss; print(validate_operational_petss("."))'
 
       - name: Commit updated forecast
+        if: steps.forecast.outputs.updated == 'true' && !inputs.dry_run
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add forecast.json data/experimental_petss_guidance.json
-          git diff --staged --quiet || git commit -m "Update North Wildwood forecast"
+          git commit -m "Update North Wildwood forecast"
           for attempt in 1 2 3 4 5; do
-            git pull --rebase --autostash origin main
-            if git push; then
+            git pull --rebase origin main
+            if git push origin HEAD:refs/heads/main; then
               exit 0
             fi
             if [ "$attempt" -eq 5 ]; then
@@ -52,3 +103,19 @@ jobs:
             fi
             sleep $((attempt * 2))
           done
+
+  publish-cupajoe:
+    needs: update-forecast
+    if: ${{ !inputs.dry_run }}
+    uses: ./.github/workflows/refresh-deployed-data.yml
+    secrets: inherit
+
+  publish-pages:
+    needs: update-forecast
+    if: ${{ !inputs.dry_run && vars.SHORELYSAFE_DATA_PUBLICATION_ENABLED == 'true' }}
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/publish-pages-data.yml

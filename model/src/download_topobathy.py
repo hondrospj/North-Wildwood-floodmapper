@@ -82,9 +82,19 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def has_tiff_header(path: Path) -> bool:
+    try:
+        if path.stat().st_size <= 1024:
+            return False
+        with path.open("rb") as stream:
+            return stream.read(4) in (b"II*\0", b"MM\0*", b"II+\0", b"MM\0+")
+    except OSError:
+        return False
+
+
 def download_one(record: dict[str, Any], directory: Path) -> dict[str, Any]:
     destination = directory / f"{record['id']}.tif"
-    if destination.is_file() and destination.stat().st_size > 1024:
+    if has_tiff_header(destination):
         return {
             **record,
             "path": destination.relative_to(ROOT).as_posix(),
@@ -111,8 +121,8 @@ def download_one(record: dict[str, Any], directory: Path) -> dict[str, Any]:
                     temporary = Path(stream.name)
                     while block := response.read(1024 * 1024):
                         stream.write(block)
-            if temporary.stat().st_size <= 1024:
-                raise RuntimeError(f"download was unexpectedly small: {temporary.stat().st_size}")
+            if not has_tiff_header(temporary):
+                raise RuntimeError("Invalid TIFF header in downloaded topobathymetry tile")
             os.replace(temporary, destination)
             return {
                 **record,
@@ -134,7 +144,7 @@ def prepare_seamless_fallback(config: dict[str, Any]) -> dict[str, Any]:
     """Stream only the configured model window from NOAA's multi-gigabyte COG."""
     terrain = config["terrain"]
     destination = ROOT / terrain["seamlessLandFallback"]
-    if destination.is_file() and destination.stat().st_size > 1024:
+    if has_tiff_header(destination):
         return {
             "path": destination.relative_to(ROOT).as_posix(),
             "bytes": destination.stat().st_size,
@@ -184,8 +194,8 @@ def prepare_seamless_fallback(config: dict[str, Any]) -> dict[str, Any]:
     ]
     try:
         subprocess.run(command, cwd=ROOT, check=True)
-        if not temporary.is_file() or temporary.stat().st_size <= 1024:
-            raise RuntimeError("NOAA fallback window was unexpectedly small")
+        if not has_tiff_header(temporary):
+            raise RuntimeError("NOAA fallback window is missing or has an invalid TIFF header")
         os.replace(temporary, destination)
     except Exception:
         temporary.unlink(missing_ok=True)

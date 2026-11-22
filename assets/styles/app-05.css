@@ -33,7 +33,8 @@
     .mapper-tutorial-body p{margin:0 0 10px}.mapper-tutorial-body strong{color:#fff}
     .mapper-tutorial-actions{margin-top:18px}
     .mapper-tutorial-actions button{min-width:94px;min-height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#dbeafe;font-weight:850;cursor:pointer}
-    .mapper-tutorial-actions button.active{background:#2563eb;border-color:#60a5fa;color:#fff}
+    .mapper-tutorial-announcement{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+    #mapperTutorialNext{background:#2563eb;border-color:#60a5fa;color:#fff !important}
     .mapper-tutorial-actions button:disabled{opacity:.35;cursor:default}
     .house-alert-popup{color:#0f172a;min-width:275px;max-width:340px;font:13px/1.35 Inter,system-ui,sans-serif}
     .house-alert-popup h3{margin:0 0 2px;font-size:17px}
@@ -69,12 +70,13 @@
     .nsi-structure-grid{display:grid;grid-template-columns:1fr auto;gap:5px 12px;margin-bottom:10px;padding:10px 11px;border:1px solid rgba(125,249,255,.17);border-radius:12px;background:rgba(14,116,144,.12);color:#a9bad3;font-size:10px}
     .nsi-structure-grid strong{color:#fff;text-align:right}
     .nsi-impact-status{margin-bottom:8px;padding:7px 9px;border-radius:9px;background:rgba(15,31,54,.82);color:#d8e5f5;font-size:10px;font-weight:850;line-height:1.3}
-    .map-click-mode-control{position:fixed;z-index:780;top:max(72px,calc(env(safe-area-inset-top) + 64px));left:50%;display:grid;grid-template-columns:repeat(2,auto);align-items:center;gap:4px;padding:5px;border:1px solid rgba(125,249,255,.26);border-radius:14px;background:rgba(8,15,31,.94);box-shadow:0 14px 38px rgba(2,6,23,.42),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(14px);transform:translateX(-50%);white-space:nowrap}
+    .map-click-mode-control{position:fixed;z-index:780;left:50%;display:grid;grid-auto-flow:column;grid-auto-columns:auto;align-items:center;gap:4px;padding:5px;border:1px solid rgba(125,249,255,.26);border-radius:14px;background:rgba(8,15,31,.94);box-shadow:0 14px 38px rgba(2,6,23,.42),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(14px);transform:translateX(-50%);white-space:nowrap}
     .map-click-mode-control[hidden]{display:none!important}
     .map-click-mode-label{padding:0 5px 0 7px;color:#8fa5bf;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
     .map-click-mode-control button{min-height:31px;padding:0 11px;border:1px solid transparent;border-radius:9px;background:transparent;color:#a9bad3;font-size:10px;font-weight:900;cursor:pointer}
     .map-click-mode-control button.active{border-color:rgba(125,249,255,.42);background:rgba(125,249,255,.12);color:#e5feff;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
     .map-click-mode-control button:focus-visible{outline:2px solid #7df9ff;outline-offset:1px}
+    .map-click-mode-control button[hidden]{display:none!important}
     .flood-history-backdrop{position:fixed;inset:0;z-index:24000;display:grid;place-items:center;padding:18px;background:rgba(2,6,23,.62);backdrop-filter:blur(4px)}
     .flood-history-backdrop[hidden]{display:none!important}
     .flood-history-pane{position:relative;width:min(540px,calc(100vw - 36px));max-height:min(82dvh,680px);display:flex;flex-direction:column;overflow:hidden;color:#edf7ff;background:linear-gradient(180deg,#0a1427 0%,#07101f 100%);border:1px solid rgba(125,249,255,.28);border-radius:20px;box-shadow:0 28px 90px rgba(2,6,23,.72);animation:floodHistoryIn .18s ease-out}
@@ -99,7 +101,7 @@
     .flood-year-readout{display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:baseline;padding:7px 9px;border:1px solid rgba(125,249,255,.16);border-radius:10px;background:rgba(2,6,23,.34);text-align:right}.flood-year-readout span{color:#7df9ff;font-size:9px;font-weight:900}.flood-year-readout strong{color:#fff;font-size:14px}.flood-year-readout small{grid-column:1/-1;color:#91a5bd;font-size:8px}
     .flood-history-error{padding:16px;border:1px solid rgba(251,113,133,.3);border-radius:14px;background:rgba(159,18,57,.12);color:#fecdd3;font-size:11px;line-height:1.5}
     @media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
-      .map-click-mode-control{top:max(58px,calc(env(safe-area-inset-top) + 54px));width:max-content;max-width:calc(100vw - 20px);padding:4px;border-radius:13px}
+      .map-click-mode-control{width:max-content;max-width:calc(100vw - 20px);padding:4px;border-radius:13px}
       .map-click-mode-label{display:none}.map-click-mode-control button{min-height:34px;padding:0 13px;font-size:10px}
       .timeline-interval-toggle{width:168px !important;min-width:168px !important}
       .timeline-interval-toggle button{font-size:9px !important;padding:0 3px !important}
@@ -111,7 +113,7 @@
       .flood-history-section{padding:10px}.flood-history-section-head{align-items:flex-end}.flood-scenario-field{flex-basis:156px}.flood-year-control{grid-template-columns:minmax(0,1fr) 132px}
     }
     @media (max-width:360px){.timeline-interval-toggle{width:154px !important;min-width:154px !important}}
-  
+
 
 
 :root{
@@ -3662,149 +3664,11 @@ html.win-compact-ui body #timelineDock .timeline-trackRow{
   grid-template-columns:minmax(0, 1fr) !important;
 }
 
-html body #timelineBubble,
-html body.observed-mode #timelineBubble,
-html.os-mac body #timelineBubble,
-html.os-windows body #timelineBubble,
-html.win-compact-ui body #timelineBubble{
-  display:inline-flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  gap:18px !important;
-  min-height:62px !important;
-  padding:13px 30px !important;
-  border-radius:999px !important;
-  font-size:30px !important;
-  line-height:1 !important;
-  font-weight:950 !important;
-  letter-spacing:-.035em !important;
-  white-space:nowrap !important;
-  max-width:calc(100vw - 80px) !important;
-  overflow:hidden !important;
-  text-overflow:ellipsis !important;
-}
 
 html body #timelineBubble .timeline-bubble-edge,
 html body.observed-mode #timelineBubble .timeline-bubble-edge{
   display:none !important;
 }
-
-html body #timelineBubble .timeline-bubble-current,
-html body.observed-mode #timelineBubble .timeline-bubble-current,
-html.os-mac body #timelineBubble .timeline-bubble-current,
-html.os-windows body #timelineBubble .timeline-bubble-current,
-html.win-compact-ui body #timelineBubble .timeline-bubble-current{
-  display:inline-block !important;
-  color:#ffffff !important;
-  font-size:clamp(27px, 2.15vw, 36px) !important;
-  line-height:.98 !important;
-  font-weight:950 !important;
-  letter-spacing:-.045em !important;
-  min-width:0 !important;
-  max-width:100% !important;
-  overflow:hidden !important;
-  text-overflow:ellipsis !important;
-  white-space:nowrap !important;
-  flex:0 1 auto !important;
-}
-
-html body #timelineBubble .timeline-bubble-stage,
-html body.observed-mode #timelineBubble .timeline-bubble-stage,
-html.os-mac body #timelineBubble .timeline-bubble-stage,
-html.os-windows body #timelineBubble .timeline-bubble-stage,
-html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
-  display:inline-flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  color:#ffffff !important;
-  font-size:clamp(24px, 1.85vw, 32px) !important;
-  line-height:.98 !important;
-  font-weight:950 !important;
-  letter-spacing:-.035em !important;
-  padding:5px 15px 6px !important;
-  border-radius:999px !important;
-  min-height:38px !important;
-  flex:0 0 auto !important;
-}
-
-
-html body #timelineBubble::after,
-html body.observed-mode #timelineBubble::after,
-html.os-mac body #timelineBubble::after,
-html.os-windows body #timelineBubble::after,
-html.win-compact-ui body #timelineBubble::after{
-  bottom:-13px !important;
-  border-left-width:13px !important;
-  border-right-width:13px !important;
-  border-top-width:13px !important;
-}
-
-
-@media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
-  html body #timelineDock,
-  html body.observed-mode #timelineDock{
-    padding-top:48px !important;
-    overflow:visible !important;
-  }
-
-  html body #timelineBubble,
-  html body.observed-mode #timelineBubble,
-  html.os-mac body #timelineBubble,
-  html.os-windows body #timelineBubble,
-  html.win-compact-ui body #timelineBubble{
-    top:-42px !important;
-    gap:10px !important;
-    min-height:44px !important;
-    padding:9px 16px !important;
-    border-radius:999px !important;
-    font-size:21px !important;
-    max-width:calc(100vw - 26px) !important;
-  }
-
-  html body #timelineBubble .timeline-bubble-current,
-  html body.observed-mode #timelineBubble .timeline-bubble-current{
-    font-size:clamp(18px, 5.25vw, 24px) !important;
-    letter-spacing:-.04em !important;
-  }
-
-  html body #timelineBubble .timeline-bubble-stage,
-  html body.observed-mode #timelineBubble .timeline-bubble-stage{
-    font-size:clamp(16px, 4.65vw, 22px) !important;
-    min-height:30px !important;
-    padding:4px 10px 5px !important;
-  }
-
-  html body #timelineBubble::after,
-  html body.observed-mode #timelineBubble::after{
-    bottom:-10px !important;
-    border-left-width:10px !important;
-    border-right-width:10px !important;
-    border-top-width:10px !important;
-  }
-}
-
-@media (max-width:420px){
-  html body #timelineBubble,
-  html body.observed-mode #timelineBubble{
-    gap:8px !important;
-    padding-left:12px !important;
-    padding-right:12px !important;
-    max-width:calc(100vw - 18px) !important;
-  }
-
-  html body #timelineBubble .timeline-bubble-current,
-  html body.observed-mode #timelineBubble .timeline-bubble-current{
-    font-size:clamp(16px, 5.0vw, 21px) !important;
-  }
-
-  html body #timelineBubble .timeline-bubble-stage,
-  html body.observed-mode #timelineBubble .timeline-bubble-stage{
-    font-size:clamp(15px, 4.55vw, 20px) !important;
-    padding-left:8px !important;
-    padding-right:8px !important;
-  }
-}
-
 
 
 html body #timelineBubble,
@@ -6137,6 +6001,11 @@ html.platform-mac-template .export-simple-datetime-field input[type="datetime-lo
   .road-impacts-swatch{width:18px;height:4px;flex:0 0 18px;border-radius:2px;background:#ef4444;box-shadow:0 0 0 1px #ffffff}
   .road-impacts-label-mobile{display:none}
   .road-impacts-status{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+  body:is([data-road-impacts-state="loading"],[data-road-impacts-state="failed"],[data-road-impacts-state="unavailable"]) #roadImpactsKey
+    :is(.road-impacts-swatch,.road-impacts-label,.road-impacts-label-mobile){display:none!important}
+  body:is([data-road-impacts-state="loading"],[data-road-impacts-state="failed"],[data-road-impacts-state="unavailable"]) #roadImpactsStatus{
+    position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;text-align:center;
+  }
   @layer shorelysafe-unified {
   html body #timelineDock #roadImpactsKey[hidden]{display:none !important}
   html body.mobile-optimized[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey{display:flex !important;gap:clamp(2px,.8vw,4px) !important}
@@ -6670,10 +6539,11 @@ html body #mapTitleBadge #mapTitleLogo{
       gap:8px !important;overflow:visible !important;box-sizing:border-box !important;
     }
     html body.mobile-optimized #mobileRailMount > .right-logo-card,
-    html body.mobile-optimized #mobileRailMount > .top-tides-card{display:none !important}
+    html body.mobile-optimized #leftPanel:not([data-nww-section="map"]) #mobileRailMount > .top-tides-card{display:none !important}
     html body.mobile-optimized #mobileRailMount > .layers-card{order:10 !important;width:100% !important}
-    html body.mobile-optimized #mobileRailMount > #downloadCard{order:20 !important;width:100% !important}
-    html body.mobile-optimized #mobileRailMount > #townAddressCard{order:30 !important;width:100% !important}
+    html body.mobile-optimized #mobileRailMount > #townAddressCard{order:20 !important;width:100% !important}
+    html body.mobile-optimized #mobileRailMount > #downloadCard{order:30 !important;width:100% !important}
+    html body.mobile-optimized #mobileRailMount > .top-tides-card{order:35 !important;width:100% !important}
     html body.mobile-optimized #mobileRailMount > #mapperTutorialBtn{order:40 !important;width:100% !important}
     html body.mobile-optimized.observed-mode #leftPanel > .mobile-top-tides-card{display:grid !important}
     .mapper-tutorial-card{width:calc(100vw - 28px) !important;max-height:min(46vh,420px) !important}
@@ -7440,10 +7310,58 @@ html body #mapTitleBadge #mapTitleLogo{
     color:#fff !important;
   }
   html body #rightRail > .layers-card{order:1 !important}
-  html body #rightRail > .top-tides-card{order:2 !important}
+  html body #rightRail > #townAddressCard{order:2 !important}
   html body #rightRail > #downloadCard{order:3 !important}
-  html body #rightRail > #townAddressCard{order:4 !important}
-  html body #rightRail > #mapperTutorialBtn{order:5 !important}
+  html body #rightRail > .top-tides-card{order:4 !important}
+  html body[data-floodmapper-unified] #rightRail > #mapperTutorialBtn#mapperTutorialBtn{order:0 !important}
+
+  #mobileMapperTutorialBtn{
+    display:none;
+  }
+  html.county-compact body:is([data-site-loader="complete"],[data-site-loader="timeout"]):not(.mobile-controls-open,.mobile-legend-open) #mobileMapperTutorialBtn{
+    display:block;
+    position:fixed;
+    z-index:6200;
+    left:var(--cm-left,8px);
+    top:calc(var(--cm-top,8px) + var(--nww-tour-title-height,44px) + 8px);
+    box-sizing:border-box;
+    width:auto;
+    max-width:calc(100vw - var(--cm-left,8px) - var(--cm-right,8px) - var(--nww-tour-nav-clearance,64px));
+    min-height:44px;
+    padding:6px 12px;
+    border:1px solid rgba(191,219,254,.38);
+    border-radius:10px;
+    background:#171e2a;
+    color:#f2f7ff;
+    font:650 13px/1.2 system-ui,sans-serif;
+  }
+  @media (max-height:560px){
+    html.county-compact body #mobileMapperTutorialBtn{
+      --nww-tour-nav-clearance:200px;
+    }
+    html.county-compact body:has(#mapClickModeControl:not([hidden])) #mobileMapperTutorialBtn{
+      display:none !important;
+    }
+  }
+  /* At these sizes the title, map navigation and timeline leave no clear tour row. */
+  @media (max-height:319px), (max-width:440px) and (max-height:450px){
+    html.county-compact body #mobileMapperTutorialBtn{
+      display:none !important;
+    }
+  }
+  body[data-tour-attention] :is(#mapperTutorialBtn,#mobileMapperTutorialBtn):not(:focus-visible){
+    outline:3px solid #ff5864;
+    outline-offset:-3px;
+    animation:nww-tour-outline-pulse 1.25s ease-in-out infinite;
+  }
+  @keyframes nww-tour-outline-pulse{
+    50%{outline-color:rgba(255,88,100,.36)}
+  }
+  @media (prefers-reduced-motion:reduce), (forced-colors:active){
+    body[data-tour-attention] :is(#mapperTutorialBtn,#mobileMapperTutorialBtn):not(:focus-visible){
+      animation:none;
+    }
+  }
 
   /* One key: green uncertainty flows directly into shallow-to-deep blue. */
   html body #legendDock[data-legend-mode="depth"]{
@@ -7938,52 +7856,307 @@ html body #mapTitleBadge #mapTitleLogo{
     }
   }
 
-  :is(.centered-close-control,.leaflet-popup-close-button){
-    --centered-close-x-color:#eaf0ff;
-    --centered-close-x-size:14px;
-    position:relative !important;
-    display:grid !important;
-    place-items:center !important;
-    box-sizing:border-box !important;
-    padding:0 !important;
-    color:transparent !important;
-    font-size:0 !important;
-    line-height:0 !important;
-    text-indent:0 !important;
+  :root {
+    --nww-pill-surface:#111826;
+    --nww-pill-outline:rgba(191,219,254,.22);
+    --nww-close-surface:#1b2739;
+    --nww-close-hover:#263850;
+    --nww-close-ink:#eaf0ff;
   }
 
-  :is(.centered-close-control,.leaflet-popup-close-button)::before,
-  :is(.centered-close-control,.leaflet-popup-close-button)::after{
-    content:"" !important;
-    position:absolute !important;
-    left:50% !important;
-    top:50% !important;
-    width:var(--centered-close-x-size) !important;
-    height:2px !important;
-    margin:0 !important;
-    border:0 !important;
-    border-radius:999px !important;
-    background:var(--centered-close-x-color) !important;
-    box-shadow:none !important;
-    pointer-events:none !important;
-    transform-origin:center !important;
+  @layer north-wildwood-control-layout {
+    :root {
+      font-family:var(--nww-ui-font-family) !important;
+      --nww-close-size:36px;
+      --nww-help-size:28px;
+    }
+    :root.county-compact { --nww-close-size:44px; --nww-help-size:44px; }
+    @media (max-height:800px) and (not (any-pointer:coarse)) {
+      :root:not(.county-compact) { --nww-help-size:20px; }
+    }
+    @media (any-pointer:coarse) {
+      :root { --nww-close-size:44px; --nww-help-size:44px; }
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):not([hidden]) {
+      width:var(--nww-close-size) !important;
+      min-width:var(--nww-close-size) !important;
+      max-width:var(--nww-close-size) !important;
+      height:var(--nww-close-size) !important;
+      min-height:var(--nww-close-size) !important;
+      max-height:var(--nww-close-size) !important;
+      flex:0 0 var(--nww-close-size) !important;
+      border-radius:8px !important;
+    }
+    body:not(.mobile-controls-open) #mobileControlsClose { display:none !important; }
+    :is(.help-btn,.property-help > summary) {
+      box-sizing:border-box !important;
+      width:var(--nww-help-size) !important;
+      min-width:var(--nww-help-size) !important;
+      max-width:var(--nww-help-size) !important;
+      height:var(--nww-help-size) !important;
+      min-height:var(--nww-help-size) !important;
+      max-height:var(--nww-help-size) !important;
+      flex:0 0 var(--nww-help-size) !important;
+      padding:0 !important;
+      font-size:16px !important;
+      font-weight:750 !important;
+      line-height:1 !important;
+      letter-spacing:0 !important;
+    }
+
+    #leftPanel .section-title > .title-with-help:has(> .help-btn) {
+      flex:1 1 auto !important;
+      justify-content:space-between !important;
+    }
+    #leftPanel .section-title .title-with-help > .help-btn { margin-inline-start:auto !important; }
+    #leftPanel :is(#datumMllwBtn,#datumNavd88Btn,#depthModeBtn,#dynamicModeBtn) {
+      font-size:clamp(12px,1.1vw,14px) !important;
+    }
+    .layers-card .rail-head:has(> #layersHelpBtn) {
+      display:flex !important;
+      justify-content:space-between !important;
+      align-items:center !important;
+      gap:8px !important;
+    }
+    #mapperTutorialBtn.mapper-tutorial-launch {
+      border-color:var(--nww-pill-outline) !important;
+      font-weight:750 !important;
+    }
+    #mapperTutorialBtn.mapper-tutorial-launch:is(:hover,:focus-visible) {
+      border-color:var(--fleet-accent) !important;
+    }
+    #infoModalBody .layer-help-list { margin:0; }
+    #infoModalBody .layer-help-list dt { font-weight:700; }
+    #infoModalBody .layer-help-list dd { margin:3px 0 12px; }
+
+    #timelineDock #timelineDayTabs {
+      overflow-x:auto !important;
+      overflow-y:hidden !important;
+      scrollbar-width:none;
+    }
+    #timelineDock #timelineDayTabs .timeline-day {
+      min-width:66px !important;
+      white-space:nowrap !important;
+    }
+    #timelineDock #timelineDayTabs .timeline-day.gauge-inoperable { min-width:132px !important; }
+
+    .mapper-tutorial-card {
+      display:grid;
+      grid-template-rows:auto auto minmax(0,1fr) auto;
+      row-gap:10px;
+      box-sizing:border-box;
+      background:var(--nww-pill-surface) !important;
+      border:1px solid var(--nww-pill-outline) !important;
+      border-radius:16px !important;
+      padding:16px !important;
+      color:#eff6ff !important;
+    }
+    .mapper-tutorial-card h2 { margin:0 !important; font-size:21px !important; line-height:1.2 !important; }
+    .mapper-tutorial-track { flex:1; min-width:0; height:5px; accent-color:#60a5fa; }
+    .mapper-tutorial-content { min-height:0; overflow:auto; overscroll-behavior:contain; }
+    .mapper-tutorial-body { color:#dbe8f8 !important; }
+    .mapper-tutorial-body p { margin:0 !important; }
+    .mapper-tutorial-feedback { color:#bfdbfe; font-size:13px; line-height:1.35; margin:6px 0 0; }
+    .mapper-tutorial-feedback:empty { display:none; }
+    .mapper-tutorial-actions {
+      display:grid !important;
+      grid-template-columns:auto minmax(0,1fr) auto;
+      gap:6px !important;
+      margin:0 !important;
+    }
+    .mapper-tutorial-actions button {
+      min-width:0 !important;
+      min-height:44px !important;
+      height:auto !important;
+      padding:5px 9px !important;
+      font-size:13px !important;
+      line-height:1.2 !important;
+      white-space:normal !important;
+      color:#e2edff;
+    }
+    #mapperTutorialPractice { border-color:#4484c9; color:#d9ebff; }
+    #mapperTutorialPractice[aria-disabled="true"] { opacity:.6; }
+    #mapperTutorialNext { grid-column:3; }
+    #mapperTutorialSpotlight { border-color:#93c5fd !important; transition:none !important; }
+
+    :root.county-compact .mapper-tutorial-card {
+      width:min(440px,calc(100vw - 16px)) !important;
+      max-height:min(50dvh,350px) !important;
+      padding:12px !important;
+      row-gap:7px;
+    }
+    :root.county-compact .mapper-tutorial-card h2 { font-size:19px !important; }
+    @media (max-height:400px) {
+      :root.county-compact .mapper-tutorial-card { max-height:calc(64dvh - 8px) !important; }
+    }
   }
 
-  :is(.centered-close-control,.leaflet-popup-close-button)::before{
-    transform:translate(-50%,-50%) rotate(45deg) !important;
-  }
+  @layer north-wildwood-pills {
+    /* Keep position, size and hit areas owned by the containing dialog. */
+    .centered-close-control:not([hidden]) {
+      position:relative;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):not([hidden]) {
+      display:grid !important;
+      place-items:center !important;
+      box-sizing:border-box !important;
+      padding:0 !important;
+      border:1px solid var(--nww-pill-outline) !important;
+      border-radius:10px !important;
+      background:var(--nww-close-surface) !important;
+      box-shadow:none !important;
+      color:transparent !important;
+      font-size:0 !important;
+      line-height:0 !important;
+      text-indent:0 !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):hover {
+      background:var(--nww-close-hover) !important;
+    }
+    :is(.leaflet-popup-close-button,.maplibregl-popup-close-button) > span {
+      display:none !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::before,
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
+      content:"" !important;
+      position:absolute !important;
+      left:50% !important;
+      top:50% !important;
+      width:14px !important;
+      height:2px !important;
+      margin:0 !important;
+      border:0 !important;
+      border-radius:999px !important;
+      background:var(--nww-close-ink) !important;
+      box-shadow:none !important;
+      pointer-events:none !important;
+      transform-origin:center !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::before {
+      transform:translate(-50%,-50%) rotate(45deg) !important;
+    }
+    :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button)::after {
+      transform:translate(-50%,-50%) rotate(-45deg) !important;
+    }
 
-  :is(.centered-close-control,.leaflet-popup-close-button)::after{
-    transform:translate(-50%,-50%) rotate(-45deg) !important;
-  }
 
-  .leaflet-popup-close-button{
-    --centered-close-x-color:#d8f9ff;
-  }
+    html body[data-shorelysafe-ui] :is(#timelineDock,#timelineBubble,#legendDock,#webcamPanel,#mapTitleBadge,
+        #floodHistoryPane,.download-modal-card,.datum-modal-card,.top-tides-modal-card,
+        .shorely-flood-popup .leaflet-popup-content-wrapper,.maplibregl-popup .maplibregl-popup-content),
+    html body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) > :is(.panel-card,.rail-card):not(.right-logo-card) {
+      background-color:var(--nww-pill-surface) !important;
+      border-color:var(--nww-pill-outline) !important;
+    }
+    html body[data-shorelysafe-ui] :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):not([hidden]) {
+      border-color:var(--nww-pill-outline) !important;
+      border-radius:10px !important;
+      background-color:var(--nww-close-surface) !important;
+    }
+    html body[data-shorelysafe-ui] :is(.centered-close-control,.leaflet-popup-close-button,.maplibregl-popup-close-button):hover {
+      background-color:var(--nww-close-hover) !important;
+    }
 
-  @media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
-    :is(.centered-close-control,.leaflet-popup-close-button){
-      --centered-close-x-size:18px;
+    :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {
+      --nww-popup-close-size:var(--nww-close-size);
+      --nww-popup-close-edge:8px;
+    }
+    .maplibregl-popup:has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query)) {
+      /* Its native control is inside the card's 1px border. */
+      --nww-popup-close-edge:7px;
+    }
+    :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query))
+    :is(.leaflet-popup-close-button,.maplibregl-popup-close-button) {
+      position:absolute !important;
+      inset:var(--nww-popup-close-edge) var(--nww-popup-close-edge) auto auto !important;
+      z-index:12 !important;
+      width:var(--nww-popup-close-size) !important;
+      min-width:var(--nww-popup-close-size) !important;
+      max-width:var(--nww-popup-close-size) !important;
+      height:var(--nww-popup-close-size) !important;
+      min-height:var(--nww-popup-close-size) !important;
+      max-height:var(--nww-popup-close-size) !important;
+      margin:0 !important;
+      text-decoration:none !important;
+      transform:none !important;
+      cursor:pointer !important;
+    }
+    .maplibregl-popup.nw-mobile-popup:has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query))
+    .maplibregl-popup-close-button {
+      position:sticky !important;
+      right:auto !important;
+      float:right !important;
+      margin:var(--nww-popup-close-edge) var(--nww-popup-close-edge)
+        calc(-1 * (var(--nww-popup-close-size) + var(--nww-popup-close-edge))) 0 !important;
+    }
+    :is(.leaflet-popup,.maplibregl-popup):has(:is(.building-info-card,.nsi-structure-popup,.depth-query-popup,.shorely-v11-depth-query))
+    :is(.leaflet-popup-close-button,.maplibregl-popup-close-button):focus-visible {
+      outline:2px solid #7df9ff !important;
+      outline-offset:2px !important;
+    }
+    :is(.leaflet-popup,.maplibregl-popup) :is(.depth-query-popup,.shorely-v11-depth-query) h3 {
+      padding-inline:calc(var(--nww-popup-close-size) - 6px) !important;
+    }
+
+    #timelineDock #timelineFloodKey {
+      --nww-key-font:14px;
+      --nww-key-dot:12px;
+    }
+    #timelineDock #timelineFloodKey .timeline-key-label {
+      color:#f5f8ff !important;
+      font-size:var(--nww-key-font) !important;
+      line-height:1 !important;
+      font-weight:800 !important;
+    }
+    #timelineDock #timelineFloodKey .timeline-key-swatch {
+      width:var(--nww-key-dot) !important;
+      height:var(--nww-key-dot) !important;
+      min-width:var(--nww-key-dot) !important;
+      min-height:var(--nww-key-dot) !important;
+      flex:0 0 var(--nww-key-dot) !important;
+    }
+    .top-tides-card:has(#topTideList) {
+      height:auto !important;
+      min-height:0 !important;
+      max-height:none !important;
+    }
+    #topTideList {
+      --top-tide-preview-row:34px;
+      --top-tide-preview-gap:5px;
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) !important;
+      gap:var(--top-tide-preview-gap) !important;
+      /* Reserve the three flood rows and disclosure while the archive loads. */
+      min-height:calc(4 * var(--top-tide-preview-row) + 3 * var(--top-tide-preview-gap)) !important;
+      max-height:none !important;
+      overflow:visible !important;
+    }
+    body[data-sidebar-density="compact"] #topTideList {
+      --top-tide-preview-row:28px;
+      --top-tide-preview-gap:3px;
+    }
+    body[data-sidebar-density="tight"] #topTideList {
+      --top-tide-preview-row:24px;
+      --top-tide-preview-gap:3px;
+    }
+    #topTideList > :is(.top-tide-item,.top-tide-more-btn) {
+      box-sizing:border-box !important;
+      height:var(--top-tide-preview-row) !important;
+      min-height:var(--top-tide-preview-row) !important;
+      max-height:var(--top-tide-preview-row) !important;
+      margin:0 !important;
+      padding:2px 6px !important;
+    }
+    @media (max-width:900px), (max-height:560px), (max-width:1366px) and (any-pointer:coarse) {
+      #timelineDock #timelineFloodKey {
+        --nww-key-font:11px;
+        --nww-key-dot:10px;
+      }
+    }
+    @media (max-width:360px) {
+      body[data-road-impacts-enabled="true"] #timelineDock #timelineFloodKey {
+        --nww-key-font:10px;
+        --nww-key-dot:9px;
+      }
     }
   }
 
@@ -8377,6 +8550,22 @@ html body #mapTitleBadge #mapTitleLogo{
     pointer-events:none !important;
   }
 
+  @layer floodmapper-unified-polish {
+    @media (min-width:901px) and (max-width:1100px) and (min-height:561px) and (not (any-pointer:coarse)) {
+      html:not(.county-compact) body[data-floodmapper-unified]:not(.persistent-flood-popup-open) #mapClickModeControl:not([hidden]) {
+        left:var(--map-click-mode-left,calc(50% - 40px)) !important;
+        max-width:var(--map-click-mode-width,calc(100vw - 752px)) !important;
+        display:flex !important;
+        flex-wrap:wrap;
+        justify-content:center;
+      }
+    }
+    html.county-compact body[data-floodmapper-unified] #mapClickModeControl:not([hidden]) {
+      top:auto !important;
+      bottom:var(--map-click-mode-bottom,calc(var(--cm-bottom,8px) + 190px)) !important;
+    }
+  }
+
   /* Live backdrop sampling over a moving WebGL canvas causes Chrome to
      invalidate strips of fixed UI. The existing opaque panel colors remain;
      only the expensive live blur is disabled once MapLibre owns the map. */
@@ -8658,39 +8847,6 @@ html body #mapTitleBadge #mapTitleLogo{
     font-size:23px !important;
     line-height:1.08 !important;
   }
-  html body .building-info-facts{
-    display:grid;
-    gap:10px;
-    padding:12px 13px;
-    border:1px solid rgba(125,183,255,.18);
-    border-radius:13px;
-    background:#101e32;
-  }
-  html body .building-info-facts > div{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:14px;
-  }
-  html body .building-info-facts span{
-    color:#a9bad3;
-    font-size:13px;
-    font-weight:750;
-  }
-  html body .building-info-facts strong{
-    color:#fff;
-    font-size:16px;
-    white-space:nowrap;
-  }
-  html body .building-info-facts p{
-    margin:0;
-    padding-top:10px;
-    border-top:1px solid rgba(148,163,184,.14);
-    color:#dce8f8;
-    font-size:13px;
-    font-weight:800;
-    line-height:1.35;
-  }
   html body .building-info-card .house-alert-cta{
     min-height:46px !important;
     margin-top:12px;
@@ -8712,8 +8868,8 @@ html body #mapTitleBadge #mapTitleLogo{
     padding:20px 22px 17px !important;
     background:#0b1628 !important;
   }
-  html body .flood-history-head h2{font-size:25px !important}
-  html body .flood-history-head p{font-size:12px !important}
+  html body .flood-history-head h2{font-size:28px !important}
+  html body .flood-history-head p{font-size:13px !important}
   html body .flood-history-body{padding:18px 22px 22px !important}
   html body .flood-history-summary{
     display:grid !important;
@@ -8735,7 +8891,7 @@ html body #mapTitleBadge #mapTitleLogo{
   }
   html body .flood-summary-item span{
     color:#9eb1ca !important;
-    font-size:12px !important;
+    font-size:14px !important;
     font-weight:800 !important;
     white-space:normal !important;
   }
@@ -8755,17 +8911,16 @@ html body #mapTitleBadge #mapTitleLogo{
     border-radius:16px !important;
     background:#0d1a2e !important;
   }
-  html body .flood-history-section h3{font-size:17px !important}
-  html body .flood-history-section-head p{font-size:11px !important}
-  html body .flood-scenario-field{flex-basis:220px !important;font-size:9px !important}
-  html body .flood-scenario-select{height:38px !important;font-size:12px !important}
-  html body .flood-projection-chart{height:255px !important}
-  html body .flood-chart-axis{font-size:11px !important}
+  html body .flood-history-section h3{font-size:19px !important}
+  html body .flood-scenario-field{flex-basis:196px !important;font-size:11px !important}
+  html body .flood-scenario-select{height:38px !important;font-size:14px !important}
+  html body .flood-projection-chart{height:clamp(118px,30dvh,230px) !important}
+  html body .flood-chart-axis{font-size:12px !important}
   html body .flood-year-control{grid-template-columns:minmax(0,1fr) 180px !important;gap:16px !important}
   html body .flood-year-readout{padding:10px 12px !important}
-  html body .flood-year-readout span{font-size:11px !important}
-  html body .flood-year-readout strong{font-size:17px !important}
-  html body .flood-year-readout small{font-size:9px !important}
+  html body .flood-year-readout span{font-size:13px !important}
+  html body .flood-year-readout strong{font-size:19px !important}
+  html body .flood-year-readout small{font-size:11px !important}
 
   /* Flood-stage labels need to read as a primary key, not footnotes. */
   html body #leftPanel #legendDock[data-legend-mode="dynamic"] .legend-row,
@@ -8822,11 +8977,83 @@ html body #mapTitleBadge #mapTitleLogo{
     html body .flood-history-head{padding:15px 16px 13px !important}
     html body .flood-history-head h2{font-size:20px !important}
     html body .flood-history-body{padding:13px 14px 16px !important}
-    html body .flood-history-summary{grid-template-columns:1fr !important}
-    html body .flood-history-section-head{align-items:stretch !important;flex-direction:column !important}
+    html body .flood-history-summary{gap:8px !important}
+    html body .flood-history-section-head{align-items:center !important;flex-wrap:wrap}
     html body .flood-scenario-field{flex-basis:auto !important}
-    html body .flood-projection-chart{height:190px !important}
-    html body .flood-year-control{grid-template-columns:1fr !important}
+    html body .flood-projection-chart{height:clamp(118px,25dvh,190px) !important}
+    html body .flood-year-control{grid-template-columns:minmax(0,1fr) minmax(104px,auto) !important}
+  }
+
+  .flood-history-head-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}
+  .flood-history-head-actions .property-help{position:relative}
+  .property-help summary{
+    display:grid;place-items:center;width:34px;height:34px;border-radius:10px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(191,219,254,.28);
+    color:#eaf0ff;cursor:pointer;font-size:16px;font-weight:800;list-style:none;
+  }
+  .property-help summary::-webkit-details-marker{display:none}
+  .property-help summary:focus-visible{outline:2px solid #7dd3fc;outline-offset:2px}
+  html body .property-help p{
+    position:absolute;z-index:5;top:100%;right:-34px;width:min(260px,calc(100vw - 66px));
+    max-width:none;margin:5px 0 0;padding:9px 10px;border-radius:9px;overflow-wrap:anywhere;
+    white-space:normal;color:#eaf0ff;background:#18283c;border:1px solid rgba(191,219,254,.28);
+    font-size:13px !important;line-height:1.35;
+  }
+  .nsi-structure-popup .property-help{
+    position:absolute;top:var(--nww-popup-close-edge,8px);
+    right:calc(var(--nww-popup-close-edge,8px) + var(--nww-popup-close-size,36px) + 6px);z-index:2;
+  }
+  html body .nsi-structure-popup{
+    box-sizing:border-box;width:min(356px,calc(100vw - 72px));max-width:356px;padding:12px;
+  }
+  html body .nsi-structure-popup .house-alert-kicker{padding-right:calc(var(--nww-popup-close-size,36px) + 44px);font-size:12px;line-height:1.25}
+  html body .nsi-structure-popup h3{padding-right:42px;overflow-wrap:anywhere}
+  html body .nsi-structure-popup .nsi-impact-status{font-size:13px;margin-bottom:8px}
+  html body .nsi-structure-popup .nsi-structure-grid{font-size:12px;margin-bottom:4px}
+  html body .nsi-structure-popup .house-alert-note{margin:0;font-size:11px}
+  .flood-projection-layout{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}
+  .flood-projection-key{display:grid;gap:8px;padding:0;margin:0;list-style:none;color:#c1d0e5;font-size:13px}
+  .flood-projection-key li{display:flex;gap:6px;align-items:center}
+  .projection-key-line,.projection-key-band{width:15px;height:4px;background:var(--scenario-color,#facc15);flex:none;border-radius:2px}
+  .projection-key-band{height:10px;opacity:.36}
+  .parcel-flood-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 8px}
+  .parcel-flood-facts > div{
+    display:grid;gap:4px;padding:9px 10px;border:1px solid rgba(191,219,254,.20);
+    border-radius:10px;background:#101e32;color:#eaf0ff;
+  }
+  .parcel-flood-facts span{font-size:12px;color:#b7c7dc}
+  .parcel-flood-facts strong{font-size:16px;line-height:1.2}
+  #structuralImpactsKey{
+    position:absolute;bottom:calc(100% + 8px);right:0;z-index:12;width:max-content;max-width:100%;
+    padding:8px 40px 8px 11px;color:#eaf0ff;background:#101925;
+    border:1px solid rgba(191,219,254,.38);border-radius:9px;box-shadow:0 8px 24px #0005;
+    text-align:left;font-size:12px;line-height:1.35;pointer-events:auto;
+  }
+  #structuralImpactsKey[hidden]{display:none !important}
+  #structuralImpactsKey > button{position:absolute !important;top:4px;right:4px;width:32px;height:32px}
+  #structuralImpactsKey ul{display:flex;flex-wrap:wrap;gap:4px 12px;padding:0;margin:4px 0;list-style:none}
+  #structuralImpactsKey li{display:flex;align-items:center;gap:5px}
+  #structuralImpactsKey i{width:8px;height:8px;border-radius:50%;flex:none}
+  #structuralImpactsKey .structure-key-above{background:#fb7185}
+  #structuralImpactsKey .structure-key-close{background:#fbbf24}
+  #structuralImpactsKey .structure-key-below{background:#22d3ee}
+  #structuralImpactsKey > span{color:#bccce1}
+  html body.mobile-optimized #mapClickModeControl.map-click-mode-control{
+    grid-template-columns:none !important;grid-auto-columns:minmax(0,auto);
+  }
+  html body.mobile-optimized #mapClickModeControl button::after{content:none !important}
+  html body.mobile-optimized #mapClickModeControl button{font-size:10px !important}
+
+  @media (max-height:650px), (max-width:720px){
+    html body .flood-history-head{padding:11px 14px !important}
+    html body .flood-history-body{padding:10px 12px !important}
+    html body .flood-summary-item{gap:3px !important;padding:8px 10px !important}
+    html body .flood-summary-item strong{font-size:24px !important}
+    html body .flood-summary-item span{font-size:12px !important}
+    html body .flood-history-section{margin-top:8px !important;padding:10px !important}
+    html body .flood-history-section h3{font-size:16px !important}
+    .flood-projection-key{font-size:11px}
+    html body .flood-year-readout{padding:7px 8px !important}
   }
 
   /* One UI accent source of truth. Transparency may communicate state, but
@@ -8996,6 +9223,32 @@ html body #mapTitleBadge #mapTitleLogo{
       max-height:calc(100dvh - 82px - var(--shorely-mobile-timeline-height, 108px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     }
   }
+  #app > .nw-short-leaflet-popup{
+    position:fixed !important;
+    top:calc(62px + env(safe-area-inset-top, 0px)) !important;
+    left:50% !important;
+    right:auto !important;
+    bottom:auto !important;
+    width:min(380px, calc(100vw - 24px)) !important;
+    margin:0;
+    transform:translateX(-50%) !important;
+    z-index:6000;
+  }
+  .map-3d-ready #app > .nw-short-leaflet-popup,
+  #app > .nw-short-leaflet-popup .leaflet-popup-tip-container{display:none}
+  #app > .nw-short-leaflet-popup .leaflet-popup-content-wrapper{padding:0}
+  #app > .nw-short-leaflet-popup .leaflet-popup-content{
+    width:100% !important;
+    box-sizing:border-box;
+    max-height:calc(100dvh - 82px - var(--shorely-mobile-timeline-height, 108px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow:auto;
+    overscroll-behavior:contain;
+  }
+  #app > .nw-short-leaflet-popup .building-info-card{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+  }
   #calendarPopover .calendar-popover-grid::after{
     content:none !important;
   }
@@ -9148,161 +9401,7 @@ html body #mapTitleBadge #mapTitleLogo{
     color:#ffffff !important;
   }
 
-@layer shorely-fleet-ui {
-  html body[data-shorelysafe-ui] {
-    --fleet-panel:rgba(11,18,32,.94);
-    --fleet-line:rgba(191,219,254,.16);
-    --fleet-text:#eaf0ff;
-    --fleet-accent:#60a5fa;
-    color:var(--fleet-text) !important;
-    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif !important;
-  }
-  body[data-shorelysafe-ui] .brick-nav {display:none !important;}
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) {
-    gap:8px !important;overflow-x:hidden !important;scrollbar-width:thin !important;
-    scrollbar-color:rgba(125,249,255,.5) transparent !important;
-  }
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) > :is(.panel-card,.rail-card) {
-    box-sizing:border-box !important;background:var(--fleet-panel) !important;
-    color:var(--fleet-text) !important;border:1px solid var(--fleet-line) !important;
-    border-radius:16px !important;padding:10px 12px !important;margin:0 !important;
-    min-width:0 !important;box-shadow:0 12px 24px rgba(15,23,42,.20) !important;
-  }
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) :is(h2,h3,.section-title) {
-    font-size:14px !important;line-height:1.25 !important;letter-spacing:0 !important;
-  }
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) .section-title {
-    margin:0 0 8px !important;gap:8px !important;align-items:center !important;
-  }
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) .title-with-help {
-    gap:7px !important;min-width:0 !important;
-  }
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) :is(.button-grid-2,.button-grid-3,.segmented-control,.data-source-options) {
-    gap:6px !important;min-width:0 !important;
-  }
-  body[data-shorelysafe-ui] #leftPanel :is(.button-grid-2,.segmented-control) {display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
-  body[data-shorelysafe-ui] #leftPanel .data-source-options:has(#returnIntervalDataBtn) {grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) button:not(.help-btn):not(.centered-close-control):not(.calendar-day):not(.calendar-nav-btn) {
-    box-sizing:border-box !important;min-height:40px !important;border-radius:12px !important;
-    font-size:12px !important;line-height:1.15 !important;font-weight:750 !important;
-    background:rgba(255,255,255,.06) !important;color:var(--fleet-text) !important;
-    white-space:normal !important;overflow-wrap:normal !important;
-  }
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) button.active:not(.help-btn):not(.centered-close-control):not(.calendar-day):not(.calendar-nav-btn) {
-    color:var(--fleet-accent) !important;border-color:var(--fleet-accent) !important;
-    background:rgba(96,165,250,.16) !important;
-  }
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) .help-btn {
-    width:26px !important;min-width:26px !important;height:26px !important;min-height:26px !important;
-    border-radius:50% !important;font-size:16px !important;display:grid !important;place-items:center !important;
-  }
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) .pill {
-    max-width:58% !important;padding:3px 9px !important;font-size:13px !important;
-    line-height:1.1 !important;border-radius:999px !important;white-space:normal !important;
-    background:#29576c !important;color:#eafaff !important;border:1px solid #84d9ee !important;
-  }
-  body[data-shorelysafe-ui] #leftPanel > .data-source-card {order:1 !important;}
-  body[data-shorelysafe-ui] #leftPanel > :is(#calendarCard,.return-interval-card) {order:2 !important;}
-  body[data-shorelysafe-ui] #leftPanel > .overlay-card {order:3 !important;}
-  body[data-shorelysafe-ui] #leftPanel > .datum-card {order:4 !important;}
-  body[data-shorelysafe-ui] #leftPanel > .opacity-card {order:5 !important;}
-  body[data-shorelysafe-ui] #leftPanel > :is(.overlay-card,.datum-card) {
-    --pj-equal-card-h:auto !important;
-    height:auto !important;min-height:0 !important;max-height:none !important;flex:0 0 auto !important;
-  }
-  body[data-shorelysafe-ui] #leftPanel > #timelineIntervalCard {order:6 !important;}
-  body[data-shorelysafe-ui] #leftPanel > #legendDock {order:7 !important;}
-  body[data-shorelysafe-ui] #leftPanel > .snapshot-card {order:8 !important;}
-  body[data-shorelysafe-ui] #leftPanel > .mobile-top-tides-card {order:9 !important;}
-  body[data-shorelysafe-ui] #leftPanel > #mobileRailMount {order:10 !important;}
-  body[data-shorelysafe-ui] #rightRail > .layers-card {order:1 !important;}
-  body[data-shorelysafe-ui] #rightRail > .top-tides-card {order:2 !important;}
-  body[data-shorelysafe-ui] #rightRail > #downloadCard {order:3 !important;}
-  body[data-shorelysafe-ui] #rightRail > :is(.town-address-card,.penns-grove-address-card) {order:4 !important;}
-  body[data-shorelysafe-ui] #rightRail > #mapperTutorialBtn {order:5 !important;}
-  body[data-shorelysafe-ui] #leftPanel > #legendDock {
-    position:static !important;inset:auto !important;transform:none !important;width:100% !important;
-    max-width:none !important;min-height:0 !important;flex:0 0 auto !important;
-  }
-  body[data-shorelysafe-ui] :is(#leftPanel,#rightRail,#mobileRailMount) .layer-list {
-    display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:6px !important;
-  }
-  body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) .layer-item {
-    display:grid !important;grid-template-columns:34px minmax(0,1fr) !important;gap:6px !important;align-items:center !important;
-    min-width:0 !important;min-height:40px !important;height:auto !important;
-    padding:7px !important;border-radius:12px !important;
-  }
-  body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) .layer-name {
-    font-size:10.5px !important;line-height:1.1 !important;white-space:normal !important;overflow-wrap:anywhere !important;word-break:normal !important;
-  }
-  body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) .layer-item:has(#nsiStructuresToggle) {grid-column:1 / -1 !important;}
-  body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) .layer-meta {min-width:0 !important;}
-  body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) .toggle {
-    width:34px !important;min-width:34px !important;height:20px !important;border-radius:999px !important;
-  }
-  body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) .toggle::after {
-    width:14px !important;height:14px !important;top:3px !important;left:3px !important;transform:none !important;
-  }
-  body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) .toggle.on::after {left:17px !important;transform:none !important;}
-  body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) .top-tide-item {
-    display:grid !important;grid-template-columns:20px minmax(0,1fr) auto !important;gap:5px !important;
-    align-items:center !important;min-height:34px !important;padding:6px 7px !important;text-align:left !important;
-  }
-  body[data-shorelysafe-ui] :is(#rightRail,#mobileRailMount) .top-tide-item > * {
-    grid-row:1 !important;font-size:11px !important;line-height:1.2 !important;margin:0 !important;
-  }
-  body[data-shorelysafe-ui] #downloadCard :is(.rail-head,.download-launch-meta) {display:none !important;}
-  body[data-shorelysafe-ui] #downloadCard {height:auto !important;min-height:0 !important;max-height:none !important;}
-  body[data-shorelysafe-ui] #openDownloadModalBtn {width:100% !important;margin:0 !important;}
-  body[data-shorelysafe-ui] #mapperTutorialBtn#mapperTutorialBtn {
-    background:var(--fleet-panel) !important;color:var(--fleet-text) !important;
-    border:1px solid var(--fleet-line) !important;
-  }
-  body[data-shorelysafe-ui] :is(button,input,select,a):focus-visible {
-    outline:3px solid #7df9ff !important;outline-offset:3px !important;
-  }
-  body[data-shorelysafe-ui] :is(#downloadModal,#infoModal,#datumModal) .modal-card {
-    border-radius:18px !important;background:var(--fleet-panel) !important;color:var(--fleet-text) !important;
-  }
-  @media (min-width:901px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px), (min-width:901px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine), (min-width:901px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) {
-    /* Keep the first slider thumb outside the play button's column. */
-    body[data-shorelysafe-ui]:not(.mobile-optimized) #timelineDock .timeline-trackRow {
-      box-sizing:border-box !important;min-width:0 !important;padding:0 !important;
-      margin-left:64px !important;width:calc(100% - 64px) !important;
-    }
-    body[data-shorelysafe-ui]:not(.mobile-optimized) #timelineDock .timeline-trackRow #hourSlider {
-      box-sizing:border-box !important;min-width:0 !important;width:100% !important;margin:0 !important;
-    }
-    body[data-shorelysafe-ui]:not(.mobile-optimized) #leftPanel {
-      width:356px !important;max-width:calc(100vw - 520px) !important;
-      top:16px !important;left:16px !important;bottom:180px !important;
-      padding:0 4px 8px 0 !important;overflow-y:auto !important;
-    }
-    body[data-shorelysafe-ui]:not(.mobile-optimized) #rightRail {
-      width:260px !important;top:16px !important;right:16px !important;left:auto !important;
-      bottom:156px !important;max-height:calc(100dvh - 172px) !important;overflow-y:auto !important;
-    }
-  }
-  @media (min-width:901px) and (max-width:1199px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1199px) and (min-height:561px), (min-width:901px) and (max-width:1199px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1199px) and (pointer:fine), (min-width:901px) and (max-width:1199px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1199px) and (pointer:none) {
-    body[data-shorelysafe-ui]:not(.mobile-optimized) #leftPanel {width:286px !important;max-width:286px !important;}
-    body[data-shorelysafe-ui]:not(.mobile-optimized) #rightRail {width:224px !important;}
-  }
-  @media (max-width:900px), (max-width:1366px) and (any-pointer:coarse), (max-height:560px) and (pointer:coarse) {
-    body[data-shorelysafe-ui].mobile-optimized #leftPanel {
-      gap:8px !important;overflow-y:auto !important;overflow-x:hidden !important;
-    }
-    body[data-shorelysafe-ui].mobile-optimized :is(#leftPanel,#mobileRailMount) > :is(.panel-card,.rail-card) {
-      border-radius:18px !important;box-shadow:none !important;
-    }
-    body[data-shorelysafe-ui].mobile-optimized :is(#leftPanel,#mobileRailMount) button:not(.help-btn):not(.centered-close-control):not(.calendar-day):not(.calendar-nav-btn) {
-      min-height:44px !important;font-size:13px !important;
-    }
-    body[data-shorelysafe-ui].mobile-optimized :is(#townAddressInput,#observedDateInput,#calendarPopover select) {font-size:16px !important;}
-  }
-  @media (prefers-reduced-motion:reduce) {
-    body[data-shorelysafe-ui] :is(.panel-card,.rail-card,button) {transition:none !important;}
-  }
-}
+/* Fleet control rules are owned by the earlier unified base layer. */
 
   html body .depth-query-popup{
     box-sizing:border-box;
@@ -9361,45 +9460,6 @@ html body #mapTitleBadge #mapTitleLogo{
     border:0;
     background:#0b1423;
     box-shadow:none;
-  }
-  html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button{
-    --centered-close-x-size:12px;
-    --centered-close-x-color:#bdcce0;
-    top:10px !important;
-    right:10px !important;
-    width:32px !important;
-    min-width:32px !important;
-    height:32px !important;
-    min-height:32px !important;
-    border:1px solid transparent !important;
-    border-radius:8px !important;
-    background:transparent !important;
-    box-shadow:none !important;
-    color:transparent !important;
-    font-size:0 !important;
-    line-height:0 !important;
-  }
-  html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button > span{
-    display:none !important;
-  }
-  html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button:hover{
-    --centered-close-x-color:#eaf7ff;
-    border-color:rgba(189,204,224,.16) !important;
-    background:rgba(189,204,224,.08) !important;
-  }
-  html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button:focus-visible{
-    outline:2px solid #7df9ff;
-    outline-offset:2px;
-  }
-  @media (pointer:coarse){
-    html body .shorely-flood-popup.shorely-depth-popup .leaflet-popup-close-button{
-      top:6px !important;
-      right:6px !important;
-      width:40px !important;
-      min-width:40px !important;
-      height:40px !important;
-      min-height:40px !important;
-    }
   }
 
 @media(min-width:901px) and (not (any-pointer:coarse)), (min-width:1367px) {
@@ -9525,23 +9585,6 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
     html body[data-floodmapper-unified] #townAddressForm label {font-size:14px!important;line-height:1.2!important;}
   }
 }
-@layer shorelysafe-unified {
-
-  @media (min-width:1367px) and (any-pointer:coarse) {
-    html body[data-floodmapper-unified] :is(#leftPanel#leftPanel,#rightRail#rightRail) :is(h2,h3,.section-title) {font-size:16px!important;line-height:1.2!important;}
-    html body[data-floodmapper-unified] :is(#leftPanel#leftPanel,#rightRail#rightRail) button:not(.help-btn):not(.calendar-day):not(.calendar-nav-btn) {font-size:16px!important;line-height:1.15!important;min-height:44px!important;padding:6px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .layer-list {display:flex!important;flex-direction:column!important;grid-template-columns:minmax(0,1fr)!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .layer-item {min-height:44px!important;padding:6px 0!important;grid-template-columns:minmax(0,1fr) 40px!important;gap:10px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .layer-name {font-size:14px!important;line-height:1.2!important;overflow-wrap:normal!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .toggle {width:40px!important;min-width:40px!important;height:24px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .toggle::after {width:18px!important;height:18px!important;top:3px!important;left:3px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .toggle.on::after {left:19px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .top-tide-item {min-height:40px!important;padding:7px 8px!important;}
-    html body[data-floodmapper-unified] #rightRail#rightRail .top-tide-item > * {font-size:14px!important;line-height:1.2!important;}
-    html body[data-floodmapper-unified] :is(#leftPanel#leftPanel,#rightRail#rightRail) input {font-size:16px!important;min-height:44px!important;height:44px!important;}
-    html body[data-floodmapper-unified] #townAddressForm label {font-size:14px!important;line-height:1.2!important;}
-  }
-}
 
 @layer floodmapper-unified-polish {
   /* Keep the measured title lane and the existing compact layout. */
@@ -9552,7 +9595,7 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
       min-height:0 !important;
     }
     html body[data-floodmapper-unified] #mapTitleBadge#mapTitleBadge #mapTitleText {
-      font-size:clamp(18px,1.8vw,26px) !important;
+      font-size:clamp(26px,2.6vw,40px) !important;
       line-height:1.15 !important;
       letter-spacing:-.5px !important;
     }
@@ -9569,7 +9612,7 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
   }
   @media (min-width:901px) and (max-width:1100px) and (not (any-pointer:coarse)) {
     html body[data-floodmapper-unified] #mapTitleBadge#mapTitleBadge #mapTitleText {
-      font-size:18px !important;
+      font-size:23px !important;
     }
     html body[data-floodmapper-unified] #mapTitleBadge#mapTitleBadge #mapTitlePartnerLogo {
       width:56px !important;
@@ -9579,6 +9622,11 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
       height:24px !important;
       min-height:24px !important;
       max-height:24px !important;
+    }
+  }
+  @media (min-width:901px) and (max-width:960px) and (min-height:561px) and (not (any-pointer:coarse)) {
+    html body[data-floodmapper-unified] #mapTitleBadge#mapTitleBadge {
+      flex-direction:column !important;
     }
   }
   /* Navigation shares the panel surface and button states, including its knob. */
@@ -9629,18 +9677,29 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
     outline:2px solid var(--fleet-accent) !important;
     outline-offset:3px !important;
   }
+  html body[data-floodmapper-unified] #nwDefaultNavControl#nwDefaultNavControl
+    .nw-simple-zoom-button:focus-visible {
+    outline-offset:-3px !important;
+  }
 }
 
 /* Keep the existing camera card surface, width and controls in short windows. */
 #webcamPanel[data-viewport-overlay="true"] {
-  position:fixed;
   z-index:10050;
+}
+body.mobile-controls-open #webcamPanel[data-viewport-overlay="true"] {
+  z-index:9100;
 }
 #webcamPanel[data-viewport-overlay="true"] .webcam-heading {
   position:sticky;
   top:0;
   z-index:1;
   background:#121d2d;
+}
+
+/* Keep the expanded compact key above the camera until it closes. */
+body.mobile-legend-open #webcamPanel {
+  z-index:4000;
 }
 
   #exportStageFrame #exportMap {inset:0 auto auto 0 !important;width:100% !important;overflow:hidden !important;}
@@ -9653,7 +9712,7 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
   #exportStageFrame #exportFooter .export-depth-key {display:grid;gap:var(--export-key-gap) !important;}
   #exportStageFrame #exportFooter .export-depth-key-heading strong {font-size:var(--export-key-title) !important;line-height:1.25 !important;font-weight:750 !important;letter-spacing:0 !important;}
   #exportStageFrame #exportFooter .export-depth-key-scale {display:grid;gap:var(--export-key-gap) !important;}
-  #exportStageFrame #exportFooter .export-depth-key-gradient {height:var(--export-key-bar) !important;border-width:1px !important;}
+  #exportStageFrame #exportFooter .export-depth-key-gradient {height:var(--export-key-bar) !important;border:0 !important;box-shadow:none !important;}
   #exportStageFrame #exportFooter .export-depth-key-ends {font-size:var(--export-key-label) !important;line-height:1.2 !important;letter-spacing:0 !important;text-transform:none !important;}
   #exportStageFrame #exportFooter .export-depth-key-ends {position:relative;gap:var(--export-footer-gap) !important;}
   #exportStageFrame #exportFooter .export-depth-key-ends-three {display:grid !important;grid-template-columns:minmax(max-content,18%) minmax(max-content,1fr) max-content;align-items:center;}

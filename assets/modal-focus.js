@@ -3,7 +3,7 @@
 (() => {
   "use strict";
   const selector = '[role="dialog"][aria-modal="true"]';
-  const focusable = 'button:not(:disabled),a[href],input:not(:disabled):not([type="hidden"]),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])';
+  const focusable = 'summary,button:not(:disabled),a[href],input:not(:disabled):not([type="hidden"]),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])';
   const stack = [];
   const inertBefore = new Map();
   const restoreScopes = new WeakMap();
@@ -71,7 +71,12 @@
     function attempt(framesLeft) {
       if (pendingRestore !== request) return;
       const dialog = stack.at(-1)?.dialog;
-      const candidates = targets.map(currentRestoreTarget).filter(target => (!dialog || dialog.contains(target)) && visible(target));
+      const candidates = targets.map(currentRestoreTarget).flatMap(target => {
+        // The toolbar action stays available when the phone legend has closed.
+        const legend = target.closest('#legendDock');
+        const toggle = legend && document.getElementById('nwwMobileLegendToggle');
+        return toggle ? [target, toggle] : [target];
+      }).filter(target => (!dialog || dialog.contains(target)) && visible(target));
       const first = candidates[0];
       if ((request.cancelled || first?.closest('[inert]')) && framesLeft > 0) {
         // A drawer owner may restore its role and inert state in its next
@@ -93,7 +98,7 @@
     attempt(2);
   }
 
-  function sync() {
+  function sync(event) {
     if (syncing) return stack.at(-1)?.dialog;
     syncing = true;
     try {
@@ -127,7 +132,11 @@
         // Reappearing parents inherit the outer fallback chain. An unrelated
         // new modal cancels the pending focus move while retaining fallbacks.
         if (pendingRestore && !pendingTargets.some(target => dialog.contains(target))) pendingRestore.cancelled = true;
-        const candidate = stack.length ? previousFocus : (lastTrigger && visible(lastTrigger) ? lastTrigger : previousFocus);
+        const parent = stack.at(-1)?.dialog;
+        const opener = event?.detail?.opener;
+        let candidate = previousFocus;
+        if (opener && (!parent || parent.contains(opener)) && visible(opener)) candidate = opener;
+        else if (!parent && lastTrigger && visible(lastTrigger)) candidate = lastTrigger;
         stack.push({ dialog, restore: [...new Set([
           ...(candidate && !dialog.contains(candidate) ? [rememberRestoreTarget(candidate)] : []), ...restoreTargets, ...pendingTargets
         ])] });
@@ -172,7 +181,7 @@
       (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) ||
       (!event.shiftKey && document.activeElement === last)) {
       event.preventDefault();
-      (event.shiftKey ? last : first).focus({ preventScroll: true });
+      (event.shiftKey ? last : first).focus();
     }
   }, true);
   const observer = new MutationObserver(sync);

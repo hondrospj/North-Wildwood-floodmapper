@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "7ea662c7b84b027472ef86fd64e46a2aacb97a61",
+  "files": [
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "ab203705acbf12970956ce66c254498ea093899298240c962ef4f9600f926e74",
+      "afterSha256": "ec47f8a7f0178304503ad21eed02a1f5a8110b2b9bb0c04a562b46bb533102c6",
+      "changes": [
+        {
+          "beforeSource": "          Layout\n          <div id=\"downloadAspectControl\" class=\"export-segmented\" role=\"group\" aria-label=\"Export layout\" style=\"--seg-cols:5\">\n            <button id=\"exportAspectViewportBtn\" type=\"button\" class=\"active\" data-aspect=\"viewport\" aria-pressed=\"true\">Map view</button>\n            <button id=\"exportAspectSocialBtn\" type=\"button\" data-aspect=\"4:5\" aria-pressed=\"false\">Social 4:5</button>\n            <button id=\"exportAspectLandscapeBtn\" type=\"button\" data-aspect=\"16:9\" aria-pressed=\"false\">Wide 16:9</button>\n",
+          "afterSource": "          Layout\n          <div id=\"downloadAspectControl\" class=\"export-segmented\" role=\"group\" aria-label=\"Export layout\" style=\"--seg-cols:4\">\n            <button id=\"exportAspectViewportBtn\" type=\"button\" class=\"active\" data-aspect=\"viewport\" aria-pressed=\"true\">Map view</button>\n            <button id=\"exportAspectLandscapeBtn\" type=\"button\" data-aspect=\"16:9\" aria-pressed=\"false\">Wide 16:9</button>\n"
+        },
+        {
+          "beforeSource": "\n<script src=\"assets/export-area.js?v=3e1a616bdef7fa8b\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=0a877c7168db32a9\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=098491bc170e7926\" id=\"floodmapper-export-date-time-picker\"></script>\n",
+          "afterSource": "\n<script src=\"assets/export-area.js?v=ee1e14cc57fb8b8e\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=098491bc170e7926\" id=\"floodmapper-export-date-time-picker\"></script>\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/00-configuration.js",
+      "beforeSha256": "9c640eab6c0842548c97d172566430858ad972fbdd58575074a588b8c4c6cadc",
+      "afterSha256": "a83bdf134128064e01d46c3d8e2b344b6367e833edc944b1751d23806c2ec71c",
+      "changes": [
+        {
+          "beforeSource": "    const EXPORT_GIF_ASPECTS = {\n      \"4:5\": { value: \"4:5\", width: 1360, height: 1700, pngWidth: 2160, pngHeight: 2700, label: \"Social 4:5\" },\n      \"16:9\": { value: \"16:9\", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: \"Wide 16:9\" },\n",
+          "afterSource": "    const EXPORT_GIF_ASPECTS = {\n      \"16:9\": { value: \"16:9\", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: \"Wide 16:9\" },\n"
+        }
+      ]
+    },
+    {
+      "source": "tools/app/runtime/13-export-range.js",
+      "beforeSha256": "f292df9b518a65f7392da9dbd946a67f7d4cc78e48217892dea31a984f757ad7",
+      "afterSha256": "a2f2a6e9739abb4e0a10449f51f381cec75aca525491939d0e5d30b7490f0a53",
+      "changes": [
+        {
+          "beforeSource": "      const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || \"viewport\";\n      const normalized = raw === \"viewport\" || EXPORT_GIF_ASPECTS[raw] ? raw : \"viewport\";\n      if (hiddenAspect && hiddenAspect.value !== normalized) hiddenAspect.value = normalized;\n",
+          "afterSource": "      const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || \"viewport\";\n      const normalized = Object.hasOwn(EXPORT_GIF_ASPECTS, raw) ? raw : \"viewport\";\n      if (hiddenAspect && hiddenAspect.value !== normalized) hiddenAspect.value = normalized;\n"
+        },
+        {
+          "beforeSource": "    function getExportAspectConfig(aspect = null) {\n      if ((aspect || getDownloadAspectValue()) === \"viewport\") return getExportViewportAspect();\n      const base = EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS[\"4:5\"];\n      if (getDownloadFormatValue() !== \"png\") {\n",
+          "afterSource": "    function getExportAspectConfig(aspect = null) {\n      const selected = aspect || getDownloadAspectValue();\n      if (!Object.hasOwn(EXPORT_GIF_ASPECTS, selected)) return getExportViewportAspect();\n      const base = EXPORT_GIF_ASPECTS[selected];\n      if (getDownloadFormatValue() !== \"png\") {\n"
+        }
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "75104b85bc092c0e85450c54dc2e289ca059357e5f5a448777ca0338d38fc0de",
+      "afterSha256": "d673e18bb7054d34d61153b230b2bb67effd9f3f8a6e93e9a8d2afc3e645122e",
+      "changes": [
+        {
+          "beforeSource": "    const EXPORT_GIF_ASPECTS = {\n      \"4:5\": { value: \"4:5\", width: 1360, height: 1700, pngWidth: 2160, pngHeight: 2700, label: \"Social 4:5\" },\n      \"16:9\": { value: \"16:9\", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: \"Wide 16:9\" },\n",
+          "afterSource": "    const EXPORT_GIF_ASPECTS = {\n      \"16:9\": { value: \"16:9\", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: \"Wide 16:9\" },\n"
+        },
+        {
+          "beforeSource": "      const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || \"viewport\";\n      const normalized = raw === \"viewport\" || EXPORT_GIF_ASPECTS[raw] ? raw : \"viewport\";\n      if (hiddenAspect && hiddenAspect.value !== normalized) hiddenAspect.value = normalized;\n",
+          "afterSource": "      const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || \"viewport\";\n      const normalized = Object.hasOwn(EXPORT_GIF_ASPECTS, raw) ? raw : \"viewport\";\n      if (hiddenAspect && hiddenAspect.value !== normalized) hiddenAspect.value = normalized;\n"
+        },
+        {
+          "beforeSource": "    function getExportAspectConfig(aspect = null) {\n      if ((aspect || getDownloadAspectValue()) === \"viewport\") return getExportViewportAspect();\n      const base = EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS[\"4:5\"];\n      if (getDownloadFormatValue() !== \"png\") {\n",
+          "afterSource": "    function getExportAspectConfig(aspect = null) {\n      const selected = aspect || getDownloadAspectValue();\n      if (!Object.hasOwn(EXPORT_GIF_ASPECTS, selected)) return getExportViewportAspect();\n      const base = EXPORT_GIF_ASPECTS[selected];\n      if (getDownloadFormatValue() !== \"png\") {\n"
+        }
+      ]
+    },
+    {
+      "source": "assets/export-area.js",
+      "beforeSha256": "3e1a616bdef7fa8bd74aa93946370c28114488f0313311cbc6a94f7a9d2f79cb",
+      "afterSha256": "ee1e14cc57fb8b8e3b5e1b4ae617137c325c1febf97cb485d272b96724519da9",
+      "changes": [
+        {
+          "beforeSource": "      button.setAttribute(\"aria-pressed\", String(active));\n      button.textContent = active ? \"Edit selected area\" : \"Choose area\";\n    }\n",
+          "afterSource": "      button.setAttribute(\"aria-pressed\", String(active));\n      button.textContent = active ? \"Edit selected area\" : \"Choose Area\";\n    }\n"
+        },
+        {
+          "beforeSource": "    button.setAttribute(\"aria-controls\", \"exportAreaModal\");\n    button.textContent = \"Choose area\";\n    // Safari can suppress the synthetic click after this button changes its label.\n",
+          "afterSource": "    button.setAttribute(\"aria-controls\", \"exportAreaModal\");\n    button.textContent = \"Choose Area\";\n    // Safari can suppress the synthetic click after this button changes its label.\n"
+        }
+      ]
+    },
+    {
+      "source": "assets/export-preview.js",
+      "beforeSha256": "0a877c7168db32a99e5bdaf9feb95d415944f9f6b1866e2d95cfc12a069956f5",
+      "afterSha256": "b86f3dab1a927cad2b97db0019e713ec9ad7c9b378fa59528ffc766d9e40a121",
+      "changes": [
+        {
+          "beforeSource": "    const custom = node(\"exportExtentCustomBtn\");\n    if (custom) custom.textContent = getDownloadExtentValue() === \"custom\" ? \"Edit area\" : \"Choose area\";\n    const config = getExportAspectConfig();\n",
+          "afterSource": "    const custom = node(\"exportExtentCustomBtn\");\n    if (custom) custom.textContent = getDownloadExtentValue() === \"custom\" ? \"Edit area\" : \"Choose Area\";\n    const config = getExportAspectConfig();\n"
+        },
+        {
+          "beforeSource": "      #downloadModal #downloadAspectControl{grid-template-columns:repeat(2,minmax(0,1fr))!important}\n      #downloadModal #downloadAspectControl button:last-child{grid-column:1/-1}\n      @keyframes export-preview-spin{to{transform:rotate(360deg)}}\n",
+          "afterSource": "      #downloadModal #downloadAspectControl{grid-template-columns:repeat(2,minmax(0,1fr))!important}\n      @keyframes export-preview-spin{to{transform:rotate(360deg)}}\n"
+        },
+        {
+          "beforeSource": "      exportFormatGifBtn: \"GIF\", exportFormatPngBtn: \"PNG\", exportExtentTownBtn: \"Whole town\",\n      exportAspectSocialBtn: \"4:5\", exportAspectLandscapeBtn: \"16:9\", exportAspectPortraitBtn: \"9:16\",\n      exportAspectSquareBtn: \"1:1\", exportIntervalQuarterBtn: \"15 min\"\n",
+          "afterSource": "      exportFormatGifBtn: \"GIF\", exportFormatPngBtn: \"PNG\", exportExtentTownBtn: \"Whole town\",\n      exportAspectLandscapeBtn: \"16:9\", exportAspectPortraitBtn: \"9:16\",\n      exportAspectSquareBtn: \"1:1\", exportIntervalQuarterBtn: \"15 min\"\n"
+        }
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "c29d44314b2bc9d5622f2bbd800b761b01124574656b56a0f11a05254464a894",
+      "afterSha256": "549b187cc9d0ffdd1f5741d600693f12dda325e5e1b1fb60266b011cc2881445",
+      "changes": [
+        {
+          "beforeSource": "          Layout\n          <div id=\"downloadAspectControl\" class=\"export-segmented\" role=\"group\" aria-label=\"Export layout\" style=\"--seg-cols:5\">\n            <button id=\"exportAspectViewportBtn\" type=\"button\" class=\"active\" data-aspect=\"viewport\" aria-pressed=\"true\">Map view</button>\n            <button id=\"exportAspectSocialBtn\" type=\"button\" data-aspect=\"4:5\" aria-pressed=\"false\">Social 4:5</button>\n            <button id=\"exportAspectLandscapeBtn\" type=\"button\" data-aspect=\"16:9\" aria-pressed=\"false\">Wide 16:9</button>\n",
+          "afterSource": "          Layout\n          <div id=\"downloadAspectControl\" class=\"export-segmented\" role=\"group\" aria-label=\"Export layout\" style=\"--seg-cols:4\">\n            <button id=\"exportAspectViewportBtn\" type=\"button\" class=\"active\" data-aspect=\"viewport\" aria-pressed=\"true\">Map view</button>\n            <button id=\"exportAspectLandscapeBtn\" type=\"button\" data-aspect=\"16:9\" aria-pressed=\"false\">Wide 16:9</button>\n"
+        },
+        {
+          "beforeSource": "\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=75104b85bc092c0e\"></script>\n\n",
+          "afterSource": "\n  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=d673e18bb7054d34\"></script>\n\n"
+        },
+        {
+          "beforeSource": "\n<script src=\"assets/export-area.js?v=3e1a616bdef7fa8b\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=0a877c7168db32a9\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=098491bc170e7926\" id=\"floodmapper-export-date-time-picker\"></script>\n",
+          "afterSource": "\n<script src=\"assets/export-area.js?v=ee1e14cc57fb8b8e\" id=\"floodmapper-export-area\"></script>\n<script defer src=\"assets/export-preview.js?v=b86f3dab1a927cad\" id=\"floodmapper-export-preview\"></script>\n<script defer src=\"assets/export-date-time-picker.js?v=098491bc170e7926\" id=\"floodmapper-export-date-time-picker\"></script>\n"
+        }
+      ]
+    }
+  ]
+}

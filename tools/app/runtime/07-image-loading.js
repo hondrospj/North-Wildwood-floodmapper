@@ -1,3 +1,5 @@
+    let startupOverlayCandidate = null;
+
     async function testImageUrl(url) {
       if (!url) return { ok: false };
       if (exportCancelRequested) return { ok: false, cancelled: true };
@@ -12,13 +14,13 @@
           settled = true;
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          img.onload = null;
+          img.onerror = null;
           resolve(value);
         };
         const cancelIfRequested = () => {
           if (!exportCancelRequested) return false;
           imageExistsCache.delete(url);
-          img.onload = null;
-          img.onerror = null;
           try { img.src = ""; } catch (_) {}
           done({ ok: false, cancelled: true });
           return true;
@@ -27,7 +29,12 @@
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
         img.crossOrigin = "anonymous";
         img.fetchPriority = "high";
-        img.onload = () => done({ ok: true });
+        img.onload = () => {
+          if (!settled && !exportInProgress && document.body.dataset.initialFloodFrame === "loading") {
+            startupOverlayCandidate = { url, image: img };
+          }
+          done({ ok: true });
+        };
         img.onerror = () => done({ ok: false });
         timeoutTimer = window.setTimeout(() => done({ ok: false }), 20000);
         img.src = url;

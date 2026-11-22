@@ -50,7 +50,7 @@
       const hiddenAspect = document.getElementById("downloadAspectSelect");
       const activeAspectButton = document.querySelector("#downloadAspectControl button[data-aspect].active");
       const raw = hiddenAspect?.value || activeAspectButton?.dataset?.aspect || "viewport";
-      const normalized = raw === "viewport" || EXPORT_GIF_ASPECTS[raw] ? raw : "viewport";
+      const normalized = Object.hasOwn(EXPORT_GIF_ASPECTS, raw) ? raw : "viewport";
       if (hiddenAspect && hiddenAspect.value !== normalized) hiddenAspect.value = normalized;
       return normalized;
     }
@@ -120,10 +120,12 @@
       const activeEditor = document.activeElement;
       const editingStart = activeEditor && activeEditor === document.getElementById("downloadStartDateText");
       const editingEnd = activeEditor && activeEditor === document.getElementById("downloadEndDateText");
-      if (force || (!editingStart && (!startEl.value || startEl.dataset.userEdited !== "1"))) {
+      if (force || (!editingStart && startEl.dataset.invalidDate !== "1" &&
+          (!startEl.value || startEl.dataset.userEdited !== "1"))) {
         setRangeInputDate("downloadStartInput", selectedRange.firstDate);
       }
-      if (force || (!editingEnd && (!endEl.value || endEl.dataset.userEdited !== "1"))) {
+      if (force || (!editingEnd && endEl.dataset.invalidDate !== "1" &&
+          (!endEl.value || endEl.dataset.userEdited !== "1"))) {
         const endDate = getDownloadFormatValue() === "png"
           ? (getRangeInputDate("downloadStartInput") || selectedRange.firstDate)
           : selectedRange.lastDate;
@@ -187,22 +189,26 @@
       return { value: "viewport", width, height, label: "Map view", resolutionLabel: `${width} × ${height}` };
     }
 
+    function getExportViewportLongEdge() {
+      return getDownloadFormatValue() === "png" ? 2160 : 1800;
+    }
+
     function getExportViewportAspect() {
       const bounds = exportViewportBounds || getActiveMapBounds();
       const nw = bounds && L.CRS.EPSG3857.latLngToPoint(bounds.getNorthWest(), 0);
       const se = bounds && L.CRS.EPSG3857.latLngToPoint(bounds.getSouthEast(), 0);
       const ratio = nw && se ? (se.x - nw.x) / (se.y - nw.y) : 16 / 9;
-      return getExportViewportConfigForRatio(ratio, getDownloadFormatValue() === "png" ? 2160 : 1440);
+      return getExportViewportConfigForRatio(ratio, getExportViewportLongEdge());
     }
 
-    function fitExportMapToSelectedExtent(mapInstance) {
+    function fitExportMapToSelectedExtent(mapInstance, renderConfig = null) {
       if (!mapInstance) return;
       const mode = getDownloadExtentValue();
 
       if (mode === "town") {
         const townBounds = getBoundaryDrivenOverlayBounds();
         if (townBounds && (!townBounds.isValid || townBounds.isValid())) {
-          const aspect = getExportAspectConfig();
+          const aspect = renderConfig || getExportAspectConfig();
           const sidePadding = Math.round(Math.min(64, aspect.width * 0.025));
           const topPadding = sidePadding;
           mapInstance.fitBounds(townBounds, {
@@ -248,9 +254,12 @@
 
 
     function getExportAspectConfig(aspect = null) {
-      if ((aspect || getDownloadAspectValue()) === "viewport") return getExportViewportAspect();
-      const base = EXPORT_GIF_ASPECTS[aspect || getDownloadAspectValue()] || EXPORT_GIF_ASPECTS["4:5"];
-      if (getDownloadFormatValue() !== "png") return base;
+      const selected = aspect || getDownloadAspectValue();
+      if (!Object.hasOwn(EXPORT_GIF_ASPECTS, selected)) return getExportViewportAspect();
+      const base = EXPORT_GIF_ASPECTS[selected];
+      if (getDownloadFormatValue() !== "png") {
+        return { ...base, resolutionLabel: `${base.width} × ${base.height}` };
+      }
       return {
         ...base,
         width: base.pngWidth || base.width,
@@ -259,8 +268,8 @@
       };
     }
 
-    function applyExportStageAspect(aspect = null) {
-      const config = getExportAspectConfig(aspect);
+    function applyExportStageAspect(aspect = null, renderConfig = null) {
+      const config = renderConfig || getExportAspectConfig(aspect);
       const layout = getExportFooterLayout(config.width, config.height);
       const stageHost = document.getElementById("exportStage");
       const stageFrame = document.getElementById("exportStageFrame");
@@ -336,14 +345,14 @@ function syncDownloadRangeInputs(force = false) {
       if (!seededSelection && (!startEl.value || !endEl.value)) {
         const currentDate = getEntryESTDate(getDownloadCurrentEntry());
         if (currentDate) {
-          if (!startEl.value) setRangeInputDate("downloadStartInput", currentDate);
-          if (!endEl.value) setRangeInputDate("downloadEndInput", currentDate);
+          if (!startEl.value && (force || startEl.dataset.invalidDate !== "1")) setRangeInputDate("downloadStartInput", currentDate);
+          if (!endEl.value && (force || endEl.dataset.invalidDate !== "1")) setRangeInputDate("downloadEndInput", currentDate);
         }
       }
 
       syncExportDateTimeEditorFromCanonical("start", { preserveActiveEdit: !force });
       syncExportDateTimeEditorFromCanonical("end", { preserveActiveEdit: !force });
-      renderExportTimePicker(true);
+      renderExportTimePicker();
     }
 
 function getDownloadRangeRequest() {
@@ -436,19 +445,30 @@ function getDownloadArchiveBounds() {
 
       if (mode === "current") {
         if (!currentEntry) return [];
-        const item = getDownloadFrameItemFromEntry(currentEntry, currentHourIndex);
+        const item = getDownloadFrameItemFromEntry(currentEntry);
         return item ? [item] : [];
       }
 
       const range = getDownloadRangeRequest();
       if (!range) return [];
 
-      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate)
+      const interval = getDownloadIntervalValue();
+      const snapshot = range.startMs === range.endMs && getDownloadFormatValue() === "png";
+      const entries = getDownloadSourceEntries(true, range.startDate, range.endDate, {
+        includeNativeLive: interval === "daily" || snapshot,
+        keepOverlappingForecast: interval === "15min"
+      })
         .filter(entry => entryTimeMs(entry) != null)
         .sort((a, b) => entryTimeMs(a) - entryTimeMs(b));
+      if (snapshot) {
+        const exact = entries.find(entry => entryTimeMs(entry) === range.startMs) ||
+          (entryTimeMs(currentEntry) === range.startMs ? currentEntry : null);
+        const item = exact && getDownloadFrameItemFromEntry(exact);
+        if (item) return [item];
+      }
       if (!entries.length) return [];
 
-      const items = buildExportRangeFrameItems(entries, range, getDownloadIntervalValue());
+      const items = buildExportRangeFrameItems(entries, range, interval);
       const frameLimit = getDownloadFrameLimit();
       if (items.length > frameLimit) {
         return items.slice(0, frameLimit);

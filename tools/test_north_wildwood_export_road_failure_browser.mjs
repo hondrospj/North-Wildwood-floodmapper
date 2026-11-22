@@ -92,7 +92,7 @@ try{
   await page.goto(process.env.NWW_TEST_URL||'http://127.0.0.1:8765/index.html',{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
   if(await page.locator('#roadsToggle').getAttribute('aria-checked')!=='true')await page.locator('#roadsToggle').click({noWaitAfter:true});
-  await page.evaluate(()=>roadsLayer.whenReady({timeoutMs:45000}));
+  await page.evaluate(async()=>{await roadsLayer.whenReady({timeoutMs:45000});});
   await page.evaluate(()=>{
     window.roadFailureInputAudit=[];window.roadFailureActivePointers=new Set();
     for(const type of ['pointerdown','pointerup','pointercancel','click'])document.addEventListener(type,event=>{

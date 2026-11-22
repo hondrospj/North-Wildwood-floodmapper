@@ -6,15 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 import shutil
 import sys
-import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from cache_contract import identity_matches, simulation_identity
+from output_replacement import promote_directory, recover_directory
 
 try:
     import anuga
@@ -278,6 +277,7 @@ def main() -> None:
         final_directory = args.output_dir.resolve()
     else:
         final_directory = ROOT / "model/runs" / cycle_id / args.scenario
+    recover_directory(final_directory)
     if final_directory.exists():
         if not args.force:
             manifest_path = final_directory / "run_manifest.json"
@@ -286,7 +286,6 @@ def main() -> None:
                 print(f"Completed matching run already exists: {final_directory}")
                 return
             raise RuntimeError(f"Existing run inputs/settings do not match: {final_directory}. Rerun with --force to rebuild.")
-        shutil.rmtree(final_directory)
     incomplete_directory = final_directory.with_name(final_directory.name + ".incomplete")
     if incomplete_directory.exists():
         shutil.rmtree(incomplete_directory)
@@ -605,7 +604,7 @@ def main() -> None:
         encoding="utf-8",
     )
     final_directory.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(incomplete_directory, final_directory)
+    promote_directory(incomplete_directory, final_directory)
     print(f"Completed ANUGA run in {elapsed_seconds:.1f} seconds.")
     print(f"Wrote {final_directory}")
 

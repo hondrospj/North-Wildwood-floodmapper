@@ -32,11 +32,12 @@ function setup(stage = 'archive') {
     Promise, console, selectionGeneration: 0, lastRenderToken: 0, topTideEvents: events,
     observedData: stage === 'warmup' ? null : {}, currentDataMode: 'forecast', currentViewType: 'forecast', currentOverlayMode: 'depth',
     currentSeriesHours: [oldEntry], currentRawSeriesHours: [oldEntry], currentHourIndex: 0,
+    getTimelineNavigationIndex: () => c.currentHourIndex,
     currentBaseModeBeforeTopTide: '', currentTopTideIndex: null, selectedObservedDate: '',
     currentSelectedLabel: 'Mean', currentSelectedSubLabel: '', currentRangeLabel: '', currentMonthKey: '',
     stopPlayback() {}, cancelPendingFloodFrame(invalidate = true) {if (invalidate) c.lastRenderToken++; return c.lastRenderToken;},
     updateDataModeButtons() {}, updateModeButtons() {}, toast() {}, setFloodFrameStatus() {},
-    async loadReturnInterval() {},
+    async loadReturnInterval() {}, async loadForecast() {},
     warmBackgroundData: () => stage === 'warmup' ? hold.promise : Promise.resolve(),
     getObservedArchiveSourceForDate: () => stage === 'lewes-index' ? 'lewes' : 'stone-harbor',
     ensureLewesArchiveIndex: () => stage === 'lewes-index' ? hold.promise : Promise.resolve(),
@@ -81,6 +82,7 @@ function attachModeControls(c, mode = 'forecast') {
     getForecastScenarioLabel: () => 'Mean', getReturnIntervalLabel: () => '10-Year',
     setObservedCalendarOpen() {}, updateForecastScenarioButtons() {}, updateReturnIntervalButtons() {},
     updateObservedResolutionUI() {}, updateDownloadModeCopy() {}, syncLeftPanelLayout() {},
+    getForecastSourceForNotice: () => null, getForecastFreshness: () => ({state: null}), scheduleForecastFreshnessNotice() {},
     renderSelectionMeta() {}, renderTimelineMeta() {}, renderTimelineDays() {}, setFloodFrameStatus() {}
   });
   const update = presentationSource.match(/^    function updateDataModeButtons\([^\n]*\) \{\n.*?^    \}/ms);

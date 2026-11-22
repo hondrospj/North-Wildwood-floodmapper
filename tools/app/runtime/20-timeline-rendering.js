@@ -127,11 +127,14 @@
               : entry?.observationInterval === "crest"
                 ? `USGS crest • ${getDatumLabel()}`
                 : `${classifyFloodStage(rawStage) === "none" ? "No flooding" : `${classifyFloodStage(rawStage).charAt(0).toUpperCase() + classifyFloodStage(rawStage).slice(1)} flooding`} • ${getDatumLabel()}`;
-        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? "Stone Harbor USGS" : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
+        const stationNote = currentDataMode !== "observed" ? "" : entry?.sourceStationId === String(TOWN_CONFIG?.observed?.usgsGaugeId || TOWN_CONFIG?.site?.usgsGaugeId || "") ? `${TOWN_CONFIG.site.gaugeName} USGS` : entry?.sourceStationId === surrogateStationId() ? `${surrogateStationShort()} tide shape` : "";
         const qualityNote = entry?.observationQuality === "I" || entry?.isInterpolatedTimelineFrame
           ? "Interpolated" : entry?.observationQuality === "U" || entry?.observationQuality === "unknown"
-            ? "Sampling quality not recorded" : entry?.observationQuality === "C" ? "Calibrated storm replay" : "";
-        currentSelectionQualityNote = [stationNote, qualityNote, entry?.crestTimeEstimated ? "Replay timing estimated from source tide" : "", entry?.isDailyPeakOnly ? "Daily peak only • peak time unknown" : ""].filter(Boolean).join(" • ");
+            ? "Sampling quality not recorded" : entry?.observationQuality === "C"
+              ? (entry.isDailyPeakOnly && entry.peakTimeKnown === true ? "USGS storm-tide crest" : "Calibrated storm replay") : "";
+        const peakNote = entry?.isDailyPeakOnly
+          ? (entry.peakTimeKnown === true ? "Daily peak only" : "Daily peak only • peak time unknown") : "";
+        currentSelectionQualityNote = [stationNote, qualityNote, entry?.crestTimeEstimated ? "Replay timing estimated from source tide" : "", peakNote].filter(Boolean).join(" • ");
         document.getElementById("stageSubText").textContent = [stageSub, currentSelectionQualityNote].filter(Boolean).join(" • ");
       }
       updateSnapshotWaterLevelSeverity(rawStage);
@@ -147,16 +150,17 @@
     async function setFloodLayer(mode, stageValue, phase, token, entry = null, series = currentRawSeriesHours) {
       const frameEntry = typeof entry !== "undefined" && entry ? entry : currentSeriesHours[currentHourIndex];
       const frameStage = getStageValue(frameEntry);
-      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : (typeof stageValue !== "undefined" ? stageValue : null), phase: typeof phase !== "undefined" ? phase : "slack", dataMode: currentDataMode };
+      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : stageValue,
+        phase, dataMode: currentDataMode, overlayMode: mode, overlayStage: stageValue, series,
+        forecastSource: currentDataMode === "forecast" && forecastData
+          ? { petssCycleUtc: forecastData.petssCycleUtc, forecastEndUtc: forecastData.forecastEndUtc } : null };
 
       let releaseRaster = null;
       try {
         toast("");
         ensureMap();
 
-        const match = document.body.dataset.initialFloodFrame === "loading" && mode === "depth"
-          ? await getOverlayRecord(mode, stageValue, phase)
-          : await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
+        const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
         if (token !== lastRenderToken) return;
 
         if (!match) {
@@ -166,7 +170,14 @@
 
         const overlayUrl = match.url;
         releaseRaster = retainRasterObjectUrl(overlayUrl);
-        const loaded = await preloadImage(overlayUrl, "high");
+        // The atlas resolver already downloaded this image to verify its URL.
+        // Reuse it for the first frame without retaining every probed raster.
+        let initialImage = null;
+        if (document.body.dataset.initialFloodFrame === "loading") {
+          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
+          startupOverlayCandidate = null;
+        }
+        const loaded = initialImage || await preloadImage(overlayUrl, "high");
         if (token !== lastRenderToken) return;
         if (!loaded) {
           return false;
@@ -198,7 +209,8 @@
             className: currentDataMode === "return-interval" && mode === "depth"
               ? "return-interval-depth-overlay"
               : ""
-          }
+          },
+          initialImage || overlayUrl
         );
 
         pendingFloodLayer = nextLayer;
@@ -221,14 +233,7 @@
   
           updatePersistentDepthQueryPopup();
   
-          if (!mapHasFit && floodLatLngBounds) {
-            const townBounds = getBoundaryDrivenOverlayBounds();
-            map.fitBounds(townBounds || floodLatLngBounds, { padding: [16, 16] });
-            if (document.body.classList.contains("mobile-optimized")) {
-              map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-            }
-            mapHasFit = true;
-          }
+          if (!mapHasFit && floodLatLngBounds) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
           markInitialFloodFrameReady();
         });
       } finally {
@@ -239,7 +244,9 @@
     async function setPhysicsFloodLayer(asset, token, entry = null, phase = "slack") {
       const frameEntry = typeof entry !== "undefined" && entry ? entry : currentSeriesHours[currentHourIndex];
       const frameStage = getStageValue(frameEntry);
-      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : (typeof stageValue !== "undefined" ? stageValue : null), phase: typeof phase !== "undefined" ? phase : "slack", dataMode: currentDataMode };
+      const frameMetadata = { entry: frameEntry, stage: Number.isFinite(frameStage) ? frameStage : (typeof stageValue !== "undefined" ? stageValue : null), phase: typeof phase !== "undefined" ? phase : "slack", dataMode: currentDataMode,
+        forecastSource: currentDataMode === "forecast" && forecastData
+          ? { petssCycleUtc: forecastData.petssCycleUtc, forecastEndUtc: forecastData.forecastEndUtc } : null };
 
       toast("");
       ensureMap();
@@ -281,13 +288,7 @@
         pendingFloodLayer = null;
         renderedFloodPixelCache = null;
         if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
-        if (!mapHasFit) {
-          map.fitBounds(getBoundaryDrivenOverlayBounds() || floodLatLngBounds, { padding: [16, 16] });
-          if (document.body.classList.contains("mobile-optimized")) {
-            map.setZoom(Math.min(map.getZoom() + 1, map.getMaxZoom()), { animate: false });
-          }
-          mapHasFit = true;
-        }
+        if (!mapHasFit) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
         markInitialFloodFrameReady();
       });
     }
@@ -311,6 +312,22 @@
       const rawStage = getStageValue(entry);
       const displayStage = getOverlayStage(rawStage);
       const hydraulicPhase = getHydraulicPhaseForEntry(entry, index, currentSeriesHours);
+      const observedDate = entry.isDailyMaximum && currentViewType === "observed-day" &&
+        entry.observedDate !== selectedObservedDate ? entry.observedDate : null;
+      const observedDay = observedDate ? getObservedDayRecord(observedDate) : null;
+      const rawSeries = observedDay ? buildObservedCanonicalSeries(observedDay, observedDate) : currentRawSeriesHours;
+      const commitSelection = () => {
+        currentHourIndex = index;
+        if (observedDay) {
+          // The month-wide Daily Max slider can change the selected day.
+          // Commit its date and tide context only when this frame is displayed.
+          setObservedDaySelection(observedDate, observedDay);
+          currentRawSeriesHours = rawSeries;
+          renderCalendar().catch(error => toast(error.message));
+        }
+        renderSelectionMeta(entry, rawStage, displayStage);
+        renderTimelineMeta(entry);
+      };
 
       updatePersistentDepthQueryPopup({ useRenderedFlood: false });
 
@@ -319,9 +336,7 @@
       updateSliderProgress();
 
       if (displayStage == null) {
-        currentHourIndex = index;
-        renderSelectionMeta(entry, rawStage, displayStage);
-        renderTimelineMeta(entry);
+        commitSelection();
         toast(currentDataMode === "observed" && hasDisplayedLongGaugeOutage(currentSeriesHours)
           ? `Gauge inoperable: more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} consecutive hours are unavailable.`
           : "No observed record for this time.");
@@ -357,7 +372,7 @@
 
       const ready = await renderFloodFrameWithRetry(() => physicsAsset
         ? setPhysicsFloodLayer(physicsAsset, token, entry, hydraulicPhase)
-        : setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, currentRawSeriesHours), token);
+        : setFloodLayer(currentOverlayMode, displayStage, hydraulicPhase, token, entry, rawSeries), token);
       if (token !== lastRenderToken || requestedSeries !== currentSeriesHours) return false;
       if (!ready) {
         requestedTimelineSelection = null;
@@ -370,10 +385,8 @@
         reportFloodFrameFailure();
         return false;
       }
-      currentHourIndex = index;
       requestedTimelineSelection = null;
-      renderSelectionMeta(entry, rawStage, displayStage);
-      renderTimelineMeta(entry);
+      commitSelection();
       updateNsiStructureImpactLayer();
       floodFrameState = "ready";
       document.body.dataset.floodFrame = "ready";

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Validate generated JSON without treating a data update as an application release."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import math
 from pathlib import Path
@@ -13,6 +13,17 @@ from release_schemas import validate_generated
 # JSON file does not reset this age: it is measured from petssCycleUtc.
 MAX_SOURCE_AGE_HOURS = 72
 MAX_FUTURE_CLOCK_SKEW_HOURS = 1
+RESEARCH_GUIDANCE_PATH = "data/experimental_petss_guidance.json"
+V41_FORECAST_FILES = ("data/v41/latest.json", "data/v41/latest.png", "data/v41/latest.csv")
+
+# NOAA Stone Harbor station 8535581 / NWPS gauge SHBN4. North Wildwood's
+# municipal gauge and local impact categories have separate reference values.
+STONE_HARBOR_NAVD88_OFFSET_FT = -2.66
+STONE_HARBOR_THRESHOLDS_MLLW = {"minorLow": 6.1, "moderateLow": 7.1, "majorLow": 8.1}
+STONE_HARBOR_THRESHOLDS_NAVD88 = {
+    key: round(level + STONE_HARBOR_NAVD88_OFFSET_FT, 2)
+    for key, level in STONE_HARBOR_THRESHOLDS_MLLW.items()
+}
 
 
 # Keep these entries aligned with paths-ignore in all four regression workflows.
@@ -28,7 +39,7 @@ GENERATED_DIRECTORIES = (
 
 def is_generated_data(path):
     """Only known generated JSON can inherit the application ancestor's checks."""
-    return path in GENERATED_FILES or (
+    return path in GENERATED_FILES or path in V41_FORECAST_FILES or (
         path.endswith(".json") and any(path.startswith(prefix) for prefix in GENERATED_DIRECTORIES)
     )
 
@@ -73,6 +84,51 @@ def finite_number(value, label):
     return value
 
 
+def available_v41_paths(source):
+    paths = tuple(path for path in V41_FORECAST_FILES if (source / path).exists())
+    if paths and paths != V41_FORECAST_FILES:
+        raise ValueError("V41 forecast must include its manifest, chart, and hourly data")
+    return paths
+
+
+def validate_v41(source, now=None):
+    for relative in V41_FORECAST_FILES:
+        path = source / relative
+        if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(source.resolve()):
+            raise ValueError(f"Missing or invalid V41 artifact: {relative}")
+    manifest, chart, csv = (source / filename for filename in V41_FORECAST_FILES)
+    payload = read_json(manifest)
+    if not isinstance(payload, dict) or payload.get("status") not in ("passed", "ready", "ok"):
+        raise ValueError("V41 forecast has not passed validation")
+    issue = utc_time(payload.get("issue_utc"), "V41 issue_utc")
+    now = datetime.now(timezone.utc) if now is None else now
+    if issue.hour not in (0, 6, 12, 18) or issue.minute or issue.second or issue.microsecond:
+        raise ValueError("V41 issue must be a supported UTC cycle")
+    if issue > now:
+        raise ValueError("V41 issue is in the future")
+    hours = payload.get("forecast_hours")
+    paths = payload.get("weather_paths")
+    if type(hours) is not int or not 1 <= hours <= (144 if issue.hour in (6, 18) else 360):
+        raise ValueError("V41 forecast horizon is invalid for the issue cycle")
+    if type(paths) is not int or not 1 <= paths <= 103:
+        raise ValueError("V41 weather path count is invalid")
+    if payload.get("chart_url") != chart.name or payload.get("csv_url") != csv.name:
+        raise ValueError("V41 output URLs must identify the published same-directory files")
+    label = payload.get("proxy_label")
+    if not isinstance(label, str) or not 1 <= len(label.strip()) <= 180:
+        raise ValueError("V41 forecast must identify its gauge proxy")
+    if not 1 <= manifest.stat().st_size <= 1_000_000:
+        raise ValueError("V41 forecast manifest is too large")
+    if not 8 <= chart.stat().st_size <= 5_000_000:
+        raise ValueError("V41 chart size is invalid")
+    with chart.open("rb") as content:
+        if content.read(8) != b"\x89PNG\r\n\x1a\n":
+            raise ValueError("V41 chart must be a PNG")
+    if not 1 <= csv.stat().st_size <= 5_000_000 or "\x00" in csv.read_text(encoding="utf-8"):
+        raise ValueError("V41 hourly data must be a nonempty UTF-8 CSV")
+    return {"cycle": issue.isoformat(), "forecastHours": hours, "weatherPaths": paths}
+
+
 def validate_forecast(payload, now=None):
     """Protect time, scenario, and datum invariants consumed by the browser."""
     if not isinstance(payload, dict):
@@ -80,8 +136,8 @@ def validate_forecast(payload, now=None):
     if payload.get("sourceDatum") != "MLLW" or payload.get("mapDatum") != "NAVD88":
         raise ValueError("Forecast must explicitly identify MLLW input and NAVD88 map datums")
     offset = finite_number(payload.get("navd88OffsetFromMllwFt"), "forecast datum offset")
-    if offset != -2.75:
-        raise ValueError("Forecast datum conversion differs from the North Wildwood reference")
+    if offset != STONE_HARBOR_NAVD88_OFFSET_FT:
+        raise ValueError("Forecast datum conversion differs from the NOAA Stone Harbor reference")
     issued = utc_time(payload.get("issuedUtc"), "forecast issuedUtc")
     cycle = utc_time(payload.get("petssCycleUtc"), "forecast petssCycleUtc")
     now = datetime.now(timezone.utc) if now is None else now
@@ -109,8 +165,8 @@ def validate_forecast(payload, now=None):
         times = []
         for hour in hours:
             timestamp = utc_time(hour.get("timeUtc"), f"{scenario} timeUtc")
-            if times and timestamp <= times[-1]:
-                raise ValueError(f"Forecast {scenario} hours must be unique and increasing")
+            if times and timestamp - times[-1] != timedelta(hours=1):
+                raise ValueError(f"Forecast {scenario} must have consecutive hourly timestamps")
             navd = finite_number(hour.get("navd88StageFt"), f"{scenario} NAVD88")
             mllw = finite_number(hour.get("mllwStageFt"), f"{scenario} MLLW")
             if abs(navd - (mllw + offset)) > 0.021:
@@ -130,19 +186,95 @@ def validate_forecast(payload, now=None):
             "remainingCoverageHours": round((end - now).total_seconds() / 3600, 3)}
 
 
-def validate_data(source, changed_paths, now=None):
+def validate_operational_petss(source, now=None):
+    """Validate the Stone Harbor PETSS forecast and its matching research sidecar."""
+    source = Path(source)
+    now = datetime.now(timezone.utc) if now is None else now
+    forecast = read_json(source / "forecast.json")
+    receipt = validate_forecast(forecast, now=now)
+    cycle = utc_time(forecast["petssCycleUtc"], "forecast petssCycleUtc")
+    issued = utc_time(forecast["issuedUtc"], "forecast issuedUtc")
+    if cycle.hour not in (0, 6, 12, 18) or any((cycle.minute, cycle.second, cycle.microsecond)):
+        raise ValueError("Forecast source must be an exact 00Z, 06Z, 12Z or 18Z PETSS cycle")
+    if utc_time(forecast["forecastStartUtc"], "forecast start") != issued:
+        raise ValueError("Forecast coverage must start at issuance")
+
+    directory = f"petss.{cycle:%Y%m%d}"
+    cycle_name = f"t{cycle:%H}z"
+    source_url = f"https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/{directory}/petss.{cycle_name}.csv.tar.gz"
+    source_member = f"{directory}/{cycle_name}.csv/8535581.csv"
+    if (forecast.get("stationId"), forecast.get("noaaGaugeId"), forecast.get("usgsGaugeId")) != (
+        "8535581", "8535581", "01411360"
+    ):
+        raise ValueError("Forecast reference station differs from the Stone Harbor gauges")
+    if (forecast.get("sourceUrl"), forecast.get("sourceMember"), forecast.get("sourceType")) != (
+        source_url, source_member, "NOMADS_PETSS_FORECAST_ONLY_station_csv_TWL_TWL10p_TWL90p"
+    ):
+        raise ValueError("Forecast source does not match the NOAA PETSS cycle and station")
+    if (forecast.get("operationalForecastProduct"), forecast.get("operationalForecastStatistic")) != (
+        "TWL", "ensemble_mean"
+    ):
+        raise ValueError("Operational forecast must use the NOAA PETSS ensemble mean")
+    if (forecast.get("thresholdsMLLW") != STONE_HARBOR_THRESHOLDS_MLLW
+        or forecast.get("thresholdsNAVD88") != STONE_HARBOR_THRESHOLDS_NAVD88):
+        raise ValueError("Forecast flood thresholds differ from the NOAA Stone Harbor reference")
+
+    scenarios = forecast["scenarioForecasts"]
+    if forecast.get("forecasts") != scenarios:
+        raise ValueError("Forecast scenario copies disagree")
+    for key, product, column in (("mean", "mean", "TWL"), ("lowEnd", "e90", "TWL90p"),
+                                 ("highEnd", "e10", "TWL10p")):
+        metadata = forecast.get("products", {}).get(key, {})
+        if (metadata.get("sourceUrl"), metadata.get("sourceMember"), metadata.get("petssCycleUtc"),
+            metadata.get("product")) != (source_url, source_member, forecast["petssCycleUtc"], product):
+            raise ValueError(f"Forecast {key} product does not match the issued PETSS source")
+        for hour in scenarios[key]["hours"]:
+            raw = finite_number(hour.get("rawPetssValue"), f"{key} raw PETSS level")
+            scale = finite_number(hour.get("rawPetssScale"), f"{key} raw PETSS scale")
+            mllw = hour["mllwStageFt"]
+            navd = hour["navd88StageFt"]
+            if ((hour.get("product"), hour.get("sourceColumn"), hour.get("scenario"),
+                 hour.get("sourceDatum")) != (product, column, key, "NAVD88")
+                or scale != 1.0 or hour.get("twlMllwFt") != mllw or hour.get("sourceStageFt") != navd
+                or abs(mllw - raw) > 0.005001
+                or abs(navd - (raw + forecast["navd88OffsetFromMllwFt"])) > 0.005001):
+                raise ValueError(f"Forecast {key} does not retain the issued PETSS levels")
+
+    research = read_json(source / RESEARCH_GUIDANCE_PATH)
+    validate_generated(RESEARCH_GUIDANCE_PATH, research)
+    generated = utc_time(research["generatedUtc"], "research generatedUtc")
+    if not issued <= generated <= now + timedelta(hours=MAX_FUTURE_CLOCK_SKEW_HOURS):
+        raise ValueError("Research guidance generation does not match forecast issuance")
+    zones = research["zones"]
+    if len(zones) != 1 or (
+        zones[0].get("zoneId"), zones[0].get("stationId"), zones[0].get("sourceUrl"), zones[0].get("petssCycleUtc")
+    ) != ("default", "8535581", source_url, forecast["petssCycleUtc"]):
+        raise ValueError("Research guidance does not match the issued PETSS station and cycle")
+    research_hours = zones[0].get("hours", [])
+    if [hour["validUtc"] for hour in research_hours] != [hour["timeUtc"] for hour in forecast["hours"]]:
+        raise ValueError("Research guidance hours do not match the issued forecast")
+    return receipt
+
+
+def validate_data(source, changed_paths, now=None, *, operational_petss=False):
     """Validate every changed generated file, plus the shared operational forecast."""
     source = Path(source)
     paths = sorted(set(changed_paths))
     for path in paths:
         if not is_generated_data(path):
             raise ValueError(f"Application file cannot use the generated-data release path: {path}")
-        payload = read_json(source / path)  # Missing/deleted or invalid outputs fail closed.
-        if path != "forecast.json":
-            validate_generated(path, payload)
-    forecast = validate_forecast(read_json(source / "forecast.json"), now=now)
+        if path == "forecast.json" or (operational_petss and path == RESEARCH_GUIDANCE_PATH):
+            continue  # The shared forecast validation below also checks required files.
+        if path in V41_FORECAST_FILES:
+            continue  # Validate the complete forecast trio below.
+        validate_generated(path, read_json(source / path))
+    forecast = (validate_operational_petss(source, now=now) if operational_petss else
+                validate_forecast(read_json(source / "forecast.json"), now=now))
     if any(path in {"observed.json", "observed15min.json", "stone_harbor_observed15min.json", "observed_archive_index.json"}
            or path.startswith(("city-gauge/", "observed_archive/stone-harbor/")) for path in paths):
         from validate_observed_contract import validate
         validate(source / "observed15min.json")
-    return {"validatedGeneratedFiles": len(paths), "forecast": forecast}
+    result = {"validatedGeneratedFiles": len(paths), "forecast": forecast}
+    if any(path in V41_FORECAST_FILES for path in paths):
+        result["v41"] = validate_v41(source, now=now)
+    return result

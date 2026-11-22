@@ -1,12 +1,13 @@
 (function () {
   "use strict";
 
-  // Street geometry and spelling come from the bundled NJOGIS centerlines.
+  // Street geometry and spelling come from the town's published centerlines.
   // Layout happens in export-map pixels, shared by preview, PNG and GIF.
   const FONT = 'Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
   const mapLayers = new Map();
   let roads = null;
   let request = null;
+  let localRoadAttribution = "";
   let CanvasLayer = null;
 
   function labelName(value) {
@@ -16,19 +17,34 @@
       word => ({ East: "E", West: "W", North: "N", South: "S", Avenue: "Ave", Boulevard: "Blvd", Drive: "Dr", Court: "Ct", Circle: "Cir" })[word]);
   }
 
-  function buildPaths(collection) {
+  function localRoadSource(collection) {
+    const source = String(collection.metadata?.source || collection.source || "");
+    if (/NJOGIS/i.test(source) || /Tran_road_centerline_NJ\//i.test(source)) return "NJOGIS";
+    if (/^https:\/\/enterprise\.firstmap\.delaware\.gov\//i.test(source)) return "Delaware FirstMap";
+    if (/OpenStreetMap/i.test(collection.metadata?.attribution || "")) return "OpenStreetMap contributors";
+    return "Published town centerlines";
+  }
+
+  function buildPaths(collection, { allowEmpty = false } = {}) {
     if (collection?.type !== "FeatureCollection" || !Array.isArray(collection.features)) {
       throw new Error("The export road names data is invalid.");
     }
     const groups = new Map();
     for (const feature of collection.features) {
-      const name = typeof feature.properties?.name === "string" ? feature.properties.name.trim().replace(/\s+/g, " ") : "";
-      const coordinates = feature.geometry?.coordinates;
-      if (!labelName(name) || feature.geometry?.type !== "LineString" || !Array.isArray(coordinates) || coordinates.length < 2) continue;
-      if (!coordinates.every(point => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1])
-          && Math.abs(point[0]) <= 180 && Math.abs(point[1]) <= 85.051129)) continue;
-      if (!groups.has(name)) groups.set(name, []);
-      groups.get(name).push(coordinates.map(point => [point[0], point[1]]));
+      const properties = feature?.properties;
+      const storedName = [properties?.name, properties?.PRIMENAME, properties?.STREET_NAME].find(value => labelName(value));
+      if (!storedName) continue;
+      const name = storedName.trim().replace(/\s+/g, " ");
+      const geometry = feature?.geometry;
+      const lines = geometry?.type === "LineString" ? [geometry.coordinates] : geometry?.coordinates;
+      if (!["LineString", "MultiLineString"].includes(geometry?.type) || !Array.isArray(lines)) continue;
+      for (const coordinates of lines) {
+        if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
+        if (!coordinates.every(point => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1])
+            && Math.abs(point[0]) <= 180 && Math.abs(point[1]) <= 85.051129)) continue;
+        if (!groups.has(name)) groups.set(name, []);
+        groups.get(name).push(coordinates.map(point => [point[0], point[1]]));
+      }
     }
     const result = [];
     const key = point => `${point[0].toFixed(7)},${point[1].toFixed(7)}`;
@@ -69,7 +85,7 @@
       }
       for (const edge of edges) if (!edge.used) walk(edge, edge.first);
     }
-    if (!result.length) throw new Error("The export road names data is unavailable.");
+    if (!result.length && !allowEmpty) throw new Error("The export road names data is unavailable.");
     return result;
   }
 
@@ -89,20 +105,26 @@
       };
       timer = setTimeout(() => finish(new Error("The export road names took too long to load. Please try again.")), 15000);
       const base = typeof APP_BASE !== "undefined" ? APP_BASE : document.baseURI;
-      const url = new URL("./assets/roads/north-wildwood-road-centerlines.geojson", base);
+      const assets = typeof TOWN_CONFIG !== "undefined" ? TOWN_CONFIG?.assets : null;
+      const centerlines = assets?.exportRoadCenterlinesPath || "./assets/roads/north-wildwood-road-centerlines.geojson";
+      const url = new URL(centerlines, base);
       Promise.resolve().then(() => fetch(url.href, { cache: "force-cache", signal: controller.signal })).then(async response => {
         if (!response.ok) throw new Error("The export road names could not load. Please try again.");
         const collection = await response.json();
-        finish(null, buildPaths(collection));
+        const paths = buildPaths(collection, { allowEmpty: assets?.exportRoadFallback });
+        if (paths.length) localRoadAttribution = localRoadSource(collection);
+        finish(null, paths);
       }).catch(error => finish(error));
     });
-    request = current.then(value => {
+    request = current.catch(error => {
+      const fallback = typeof TOWN_CONFIG !== "undefined" && TOWN_CONFIG?.assets?.exportRoadFallback;
+      if (!fallback) throw error;
+      console.warn("Local export road names could not load. Using the map road names.", error);
+      return [];
+    }).then(value => {
       roads = value;
       for (const layer of mapLayers.values()) layer._render();
       return value;
-    }).catch(error => {
-      roads = null;
-      throw error;
     }).finally(() => { request = null; });
     return request;
   }
@@ -291,7 +313,8 @@
         this._canvas.height = Math.max(1, Math.ceil(size.y));
         this._canvas.style.width = `${size.x}px`;
         this._canvas.style.height = `${size.y}px`;
-        leaflet.DomUtil.setPosition(this._canvas, this._map.containerPointToLayerPoint([0,0]));
+        const canvasOrigin = this._map.containerPointToLayerPoint([0, 0]);
+        leaflet.DomUtil.setPosition(this._canvas, canvasOrigin);
         const context = this._canvas.getContext("2d");
         this._labels = [];
         this._canvas.dataset.labelCount = "0";
@@ -300,7 +323,10 @@
         const family = this.options.fontFamily || getComputedStyle(document.documentElement).getPropertyValue("--nww-ui-font-family").trim() || FONT;
         const unit = Number.isFinite(this.options.unit) && this.options.unit > 0 ? this.options.unit : 1;
         context.font = `600 ${15 * unit}px ${family}`;
-        this._labels = layout(roads, point => this._map.latLngToContainerPoint([point[1],point[0]]), size, { ...this.options, unit }, (text, size) => {
+        // Retain subpixel road geometry so rounded vertices do not create artificial bends.
+        const pixelOrigin = this._map.getPixelOrigin().add(canvasOrigin);
+        const project = ([lng, lat]) => this._map.project([lat, lng]).subtract(pixelOrigin);
+        this._labels = layout(roads, project, size, { ...this.options, unit }, (text, size) => {
           context.font = `600 ${size}px ${family}`;
           return context.measureText(text).width;
         });
@@ -361,5 +387,6 @@
   }
 
   window.NORTH_WILDWOOD_EXPORT_ROADS = Object.freeze({ load, attach, redraw, maskReferenceTile,
+    hasLocalNames: () => Boolean(roads?.length), getAttribution: () => localRoadAttribution,
     geometry: Object.freeze({ buildPaths, labelName, layout, overlaps, corners, visibleRuns }) });
 })();

@@ -10,6 +10,21 @@ const outputs = new Map();
 const replacements = new Map();
 const readSources = entry => entry.sources.map(source => fs.readFileSync(path.join(root, source), 'utf8')).join('');
 const version = text => crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
+const town = JSON.parse(fs.readFileSync(path.join(root, 'tools/app/town-profile.json'), 'utf8'));
+const htmlEscape = text => String(text).replace(/[&<>"']/g, char =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const embeddedJson = value => JSON.stringify(value).replace(/[<&]/g, char =>
+  char === '<' ? '\\u003c' : '\\u0026');
+const hasElevationContours = Boolean(town.config.assets?.elevationContoursPath);
+const needsProj4 = hasElevationContours || Boolean(town.config.overlays?.legacyExactQuery);
+for (const [tag, value] of Object.entries({
+  'profile': embeddedJson(town.config),
+  'webcams': embeddedJson(town.webcams),
+  'page-title': htmlEscape(town.config.pageTitle),
+  'town-name': htmlEscape(town.config.site.name),
+  'optional-proj4': needsProj4 ? '<script src="https://unpkg.com/proj4@2.11.0/dist/proj4.js" defer></script>' : '',
+  'optional-elevation-contours': hasElevationContours ? '<script src="./assets/3d/elevation-contours.js?v=shared" defer></script>' : '',
+})) replacements.set(`<!-- floodmapper:${tag} -->`, value);
 
 // Coalesce CSS only within its original cascade interval. External stylesheets
 // and scripts are barriers; moving rules across either could change the UI.
@@ -34,13 +49,35 @@ for (const entry of manifest.scripts) {
 
 let html = fs.readFileSync(path.join(root, 'tools/app/index.template.html'), 'utf8');
 const tokens = html.match(/<!-- nww:(?:style|script):[^ ]+ -->/g) || [];
-if (tokens.length !== replacements.size || new Set(tokens).size !== replacements.size) {
+if (tokens.length !== manifest.styles.length + manifest.scripts.length || new Set(tokens).size !== tokens.length) {
   throw new Error('Application template must contain every manifest block exactly once.');
 }
 html = html.replace(/<!-- nww:(?:style|script):[^ ]+ -->/g, token => {
   if (!replacements.has(token)) throw new Error(`Unknown source token: ${token}`);
   return replacements.get(token);
 });
+html = html.replace(/<!-- floodmapper:[^ ]+ -->/g, token => replacements.get(token) ?? token);
+html = html.replace(/(\b(?:src|href)="(?:\.\/)?)(assets\/[^"?#]+)\?v=shared"/g, (_, prefix, relative) =>
+  `${prefix}${relative}?v=${version(outputs.get(relative) ?? fs.readFileSync(path.join(root, relative)))}"`);
+
+// Start the same downloads early, but let the geographic preview paint before
+// the parser encounters stylesheets and classic scripts that can block it.
+const headEnd = html.indexOf('</head>');
+const startupResources = [];
+const head = html.slice(0, headEnd).replace(
+  /<link rel="stylesheet"[^>]*>|<style\b[^>]*>[\s\S]*?<\/style>|<script\b[^>]*\bsrc="[^">]+"[^>]*><\/script>/g,
+  tag => {
+    if (/^<style id="floodmapper-(first-paint-priority|quiet-loading-20261119)"/.test(tag)) return tag;
+    const script = tag.startsWith('<script');
+    startupResources.push(script ? tag : tag.replace(/^<(link|style)/, '<$1 data-nww-startup-style'));
+    const url = tag.match(/\b(?:src|href)="([^"]+)"/)?.[1];
+    return url ? `<link rel="preload" as="${script ? 'script' : 'style'}" href="${url}">` : '';
+  }
+);
+const preview = fs.readFileSync(path.join(root, 'assets/north-wildwood-startup-map.webp')).toString('base64');
+html = (head + html.slice(headEnd))
+  .replace('<!-- floodmapper:startup-map-image -->', `data:image/webp;base64,${preview}`)
+  .replace('<!-- floodmapper:startup-resources -->', () => startupResources.join('\n'));
 outputs.set('index.html', html);
 
 let changed = 0;

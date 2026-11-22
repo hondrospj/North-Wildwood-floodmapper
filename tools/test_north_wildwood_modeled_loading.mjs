@@ -26,10 +26,12 @@ function setup() {
   };
   const forecast = [{ timeUtc:'2026-11-03T12:00Z', navd88StageFt:0.02, tag:'forecast' }];
   const c = vm.createContext({ Promise, console, Number, Map, Math, Date,
-    selectionGeneration:0, lastRenderToken:0, currentDataMode:'forecast', currentViewType:'forecast',
+    selectionGeneration:0, lastRenderToken:0,
+    getForecastFreshness:() => ({state:null}), getForecastSourceForNotice:() => null, currentDataMode:'forecast', currentViewType:'forecast',
     currentOverlayMode:'depth', currentDatum:'navd88', currentTimelineIntervalMinutes:60,
     currentReturnIntervalYears:10, returnIntervalData:null, overlayPreloadGeneration:0,
     currentHourIndex:0, currentTopTideIndex:null, selectedObservedDate:null,
+    getTimelineNavigationIndex:() => c.currentHourIndex,
     currentRawSeriesHours:forecast, currentSeriesHours:forecast, currentFloodLayer:{tag:'old-map'},
     currentSelectedLabel:'Mean', currentSelectedSubLabel:'Mean', currentRangeLabel:'forecast',
     RETURN_INTERVALS_URL:'return_intervals.json', RETURN_INTERVAL_OPTIONS:payload.intervals.map(item => Number(item.years)),
@@ -89,12 +91,22 @@ for (const starter of ['mode','year']) for (const cadence of [60,15,1440]) {
   const h=setup(), {c,requests,messages,nodes}=h;
   const pending=starter==='mode' ? c.switchDataMode('return-interval') : c.switchReturnInterval(50);
   assert.equal(requests.length,1); assert.equal(c.currentSeriesHours.length,0,'Pending Modeled must not expose Forecast data.');
-  assert.match(nodes.get('stageSubText').textContent,/Loading modeled/);
-  assert.ok(messages.some(item => /Previous flood map shown/.test(item.message)));
+  assert.equal(nodes.get('stageSubText').textContent,'','Pending modeled stage stays neutral');
+  assert.ok(messages.every(item => !/Loading|Previous flood map shown/.test(item.message)), 'No pending loading notice');
   await c.switchOverlayMode('dynamic'); await c.setTimelineIntervalMinutes(cadence);
   await c.switchOverlayMode('depth'); await c.switchOverlayMode('dynamic'); c.currentDatum='mllw';
   assert.equal(requests.length,1,'Pending cadence changes must reuse the owned request.');
   requests[0].resolve(payload); await pending; assertModeled(h,starter==='mode'?10:50,cadence); cases++;
+}
+for (const duplicate of ['mode','same-year']) {
+  const h=setup(), {c,requests}=h;
+  const pending=c.switchDataMode('return-interval');
+  const repeated=duplicate==='mode' ? c.switchDataMode('return-interval') : c.switchReturnInterval(10);
+  assert.equal(requests.length,1,'The same modeled selection must retain the pending data request.');
+  requests[0].resolve(payload);
+  await Promise.all([pending,repeated]);
+  assertModeled(h);
+  cases++;
 }
 for (const later of ['forecast','observed']) for (const result of ['success','failure']) {
   const h=setup(), {c,requests,renders,messages}=h;

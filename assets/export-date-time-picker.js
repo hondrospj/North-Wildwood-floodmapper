@@ -3,7 +3,7 @@
   if (window.NORTH_WILDWOOD_EXPORT_PICKER) return;
   const ID = "nwwExportDateTimePicker";
   const ranks = { unknown: -1, none: 0, minor: 1, moderate: 2, major: 3 };
-  const labels = { unknown: "No water-level data", none: "Below minor", minor: "Minor", moderate: "Moderate", major: "Major" };
+  const labels = { unknown: "Data gap", none: "Below minor", minor: "Minor", moderate: "Moderate", major: "Major" };
   let active = null;
   const stageMaps = new Map();
 
@@ -61,14 +61,26 @@
     return category;
   }
   function timeStages(value) {
+    if (currentDataMode === "return-interval") {
+      return new Map(getReturnIntervalExportEntries().map(entry => [
+        entryTimeMs(entry), { stage: getStageValue(entry), source: entry.exportSourceMode }
+      ]));
+    }
     const startDate = parseStoredLocalNyToDate(`${value}T00:00`);
     const endDate = parseStoredLocalNyToDate(`${value}T23:59`);
     if (!startDate || !endDate) return new Map();
     const entries = getDownloadSourceEntries(true, startDate, endDate);
-    const rows = buildQuarterHourTimelineSeries(entries, { kind: entries[0]?.exportSourceMode || getCurrentExportSourceMode(),
-      startMs: startDate.getTime(), endMs: endDate.getTime(), fillMissingSlots: false, maxGapMinutes: 75 });
-    return new Map(rows.filter(entry => Number.isFinite(getStageValue(entry)) && !entry.isDailyPeakOnly)
-      .map(entry => [entryTimeMs(entry), { stage: getStageValue(entry), source: entry.exportSourceMode || getCurrentExportSourceMode() }]));
+    const startMs = startDate.getTime(), endMs = endDate.getTime();
+    const rows = getQuarterHourExportEntries(entries, { startMs, endMs });
+    const stages = new Map(rows.map(entry => [entryTimeMs(entry), { stage: getStageValue(entry), source: entry.exportSourceMode }]));
+    for (const entry of entries) {
+      if (!entry.isDailyPeakOnly || entry.peakTimeKnown !== true) continue;
+      const crestInstant = entryTimeMs(entry);
+      if (Number.isFinite(crestInstant) && crestInstant >= startMs && crestInstant <= endMs && !stages.has(crestInstant)) {
+        stages.set(crestInstant, { stage: getStageValue(entry), source: entry.exportSourceMode, crestInstant });
+      }
+    }
+    return stages;
   }
   function optionInstant(value, isoDate) {
     const selection = getExportTimeSelection(value);
@@ -88,6 +100,22 @@
     stageMaps.set(value, {mode:currentDataMode,observed,forecast,series,stages});
     return stages;
   }
+  function revealExportAnchor(anchor) {
+    const card = anchor.closest(".download-modal-card");
+    if (!card) return;
+    anchor.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const cardBox = card.getBoundingClientRect();
+    const head = card.querySelector(".download-modal-head");
+    const actions = card.querySelector(".download-actions");
+    // Sticky modal controls can cover an element inside the scroll viewport.
+    const top = head && getComputedStyle(head).position === "sticky"
+      ? Math.max(cardBox.top, head.getBoundingClientRect().bottom) : cardBox.top;
+    const bottom = actions && getComputedStyle(actions).position === "sticky"
+      ? Math.min(cardBox.bottom, actions.getBoundingClientRect().top) : cardBox.bottom;
+    const box = anchor.getBoundingClientRect();
+    if (box.top < top) card.scrollTop += box.top - top - 4;
+    else if (box.bottom > bottom) card.scrollTop += box.bottom - bottom + 4;
+  }
   function close(restoreFocus = false) {
     if (!active) return;
     const previous = active;
@@ -97,7 +125,10 @@
     if (previous.kind === "date") getExportDateEditorElements(previous.prefix).dateText?.setAttribute("aria-expanded", "false");
     document.getElementById(`download${previous.prefix === "end" ? "End" : "Start"}CalendarBtn`)?.setAttribute("aria-expanded", "false");
     const returnFocus = previous.returnFocus || previous.anchor;
-    if (restoreFocus && returnFocus.isConnected) returnFocus.focus({ preventScroll: true });
+    if (restoreFocus && returnFocus.isConnected) {
+      returnFocus.focus({ preventScroll: true });
+      if (document.activeElement === returnFocus) revealExportAnchor(returnFocus);
+    }
   }
   function position() {
     if (!active) return;
@@ -129,7 +160,9 @@
     const heading = node("header", "nww-picker-head");
     const title = node("strong", "", `${prefix === "end" ? "End" : "Start"} ${kind === "date" ? "date" : "time"}`);
     title.id = "nwwExportPickerTitle";
-    heading.append(title, button("×", "Close date and time picker", () => close(true)));
+    const closeButton = button("×", "Close date and time picker", () => close(true));
+    closeButton.classList.add("centered-close-control");
+    heading.append(title, closeButton);
     panel.append(heading); card.append(panel);
     anchor.setAttribute("aria-expanded", "true"); anchor.setAttribute("aria-controls", ID);
     if (kind === "date") {
@@ -148,7 +181,7 @@
     const focusedDay = focusKey || previousFocus?.dataset.date || "";
     const focusedControl = previousFocus?.getAttribute("aria-label");
     panel.querySelectorAll(":scope > :not(.nww-picker-head)").forEach(element => element.remove());
-    if (!bounds || !days.size) { panel.append(node("p", "nww-picker-message", "Loading available dates…")); position(); return; }
+    if (!bounds || !days.size) { panel.append(node("p", "nww-picker-message", "")); position(); return; }
     const selected = getRangeInputDate(prefix === "end" ? "downloadEndInput" : "downloadStartInput");
     const parts = getNyParts(state.cursor || selected || bounds.firstDate);
     const first = getNyParts(bounds.firstDate), last = getNyParts(bounds.lastDate);
@@ -185,6 +218,10 @@
     for (let day=1;day<=new Date(Date.UTC(year,month,0)).getUTCDate();day++) {
       const value = `${year}-${pad2(month)}-${pad2(day)}`, meta = days.get(value);
       const category = meta ? daySeverity(value,forecast) : "unknown";
+      if (!meta && (value < dayKey(bounds.firstDate) || value > dayKey(bounds.lastDate))) {
+        grid.append(node("span", "calendar-day empty"));
+        continue;
+      }
       const choice = button(String(day), `${formatSelectedObservedDate(value)}, ${meta ? labels[category] : "No export data"}`, () => {
         const editor = getExportDateEditorElements(prefix);
         editor.datePicker.value = value;
@@ -222,55 +259,110 @@
     const editor = getExportDateEditorElements(prefix), trigger = document.getElementById(`download${prefix === "end" ? "End" : "Start"}TimeButton`);
     if (!trigger || !editor.timeSelect) return;
     const date = getRangeInputDate(editor.canonical.id), value = parseExportDateText(editor.dateText.value)?.isoDate || (date ? dayKey(date) : "");
-    const record = value ? cachedTimeStages(value).get(optionInstant(editor.timeSelect.value,value)) : null;
+    const stages = value ? cachedTimeStages(value) : null;
+    const instant = value ? optionInstant(editor.timeSelect.value, value) : null;
+    const record = stages?.get(instant);
     const category = severity(record?.stage), timeLabel = editor.timeSelect.selectedOptions[0]?.textContent || "Choose time";
-    const level = record ? `${formatStageForDisplay(record.stage)} ${getDatumLabel()} · ${labels[category]}` : labels.unknown;
-    const display = `${timeLabel}|${level}`;
+    const peak = !stages?.size && value ? dateOnlyPeak(value) : null;
+    const selectedPeak = peak && peak.instant === instant;
+    const level = record ? `${formatStageForDisplay(record.stage)} ${getDatumLabel()} · ${labels[category]}`
+      : selectedPeak ? `${formatStageForDisplay(peak.stage)} ${getDatumLabel()}` : "";
+    const selectedTimeLabel = selectedPeak ? "Daily peak" : timeLabel;
+    const display = `${selectedTimeLabel}|${level}`;
     if (trigger.dataset.display !== display) {
-      trigger.replaceChildren(node("span","",`${timeLabel} ▾`),node("small","",level));
+      trigger.replaceChildren(node("span", "", `${selectedTimeLabel} ▾`));
+      if (level) trigger.append(node("small", "", level));
       trigger.dataset.display = display;
     }
     if (trigger.dataset.severity !== category) {
       trigger.classList.remove(...Object.keys(ranks).map(value=>`day-${value}`)); trigger.classList.add(`day-${category}`); trigger.dataset.severity = category;
     }
     if (trigger.disabled !== editor.timeSelect.disabled) trigger.disabled = editor.timeSelect.disabled;
-    trigger.setAttribute("aria-label", `Export ${prefix} time, ${timeLabel}, ${level}`);
+    trigger.setAttribute("aria-label", `Export ${prefix} time, ${selectedTimeLabel}${level ? `, ${level}` : ""}`);
   }
-  function renderTimes(state, stages) {
+  function dateOnlyPeak(value) {
+    if (currentDataMode === "return-interval") return null;
+    const day = getObservedExportDayIndex().get(value);
+    const stage = normalizeStageValue(day?.peakNAVD88);
+    const instant = parseStoredLocalNyToDate(`${value}T00:00`)?.getTime();
+    return Number.isFinite(stage) && Number.isFinite(instant) ? { stage, instant } : null;
+  }
+
+  function timeChoices(options, day, stages, peak = null) {
+    const first = Math.min(...stages.keys()), last = Math.max(...stages.keys());
+    const choices = Array.from(options).flatMap(option => {
+      const instant = optionInstant(option.value, day);
+      if (peak?.instant === instant) return [{ option, record: peak, dateOnly: true }];
+      if (instant == null || instant < first || instant > last) return [];
+      return [{ option, record: stages.get(instant), dateOnly: false }];
+    });
+    for (const [instant, record] of stages) {
+      if (record.crestInstant !== instant || choices.some(choice => choice.record === record)) continue;
+      const time = formatNyLocalIso(new Date(instant)).slice(11);
+      const option = { value: `${time}|${instant}`, textContent: formatExportTimeLabel(time), selected: false };
+      const position = choices.findIndex(choice => optionInstant(choice.option.value, day) > instant);
+      choices.splice(position < 0 ? choices.length : position, 0, { option, record, dateOnly: false });
+    }
+    return choices;
+  }
+
+  function renderTimes(state, stages, loading = false) {
     if (active !== state) return;
     const editor = getExportDateEditorElements(state.prefix);
     const previousFocus = state.panel.contains(document.activeElement) ? document.activeElement?.dataset.value : null;
     state.panel.querySelectorAll(":scope > :not(.nww-picker-head)").forEach(element => element.remove());
     const list = node("div", "nww-picker-times"); list.setAttribute("role","listbox"); list.setAttribute("aria-label",`${state.prefix} time`);
-    for (const option of editor.timeSelect.options) {
-      const instant = optionInstant(option.value,state.day), record = stages.get(instant);
+    const peak = !loading && !stages.size ? dateOnlyPeak(state.day) : null;
+    for (const { option, record, dateOnly } of timeChoices(editor.timeSelect.options, state.day, stages, peak)) {
+      const knownCrest = Number.isFinite(record?.crestInstant);
+      if (loading && knownCrest) continue;
       const category = severity(record?.stage);
       const choice = button("", "", () => {
-        close(); editor.timeSelect.value = option.value;
+        close();
+        if (knownCrest) populateExportTimeSelect(editor.timeSelect, option.value, state.day, new Date(record.crestInstant));
+        else editor.timeSelect.value = option.value;
         editor.timeSelect.dispatchEvent(new Event("change", {bubbles:true}));
         syncTimeButton(state.prefix); state.anchor.focus({preventScroll:true});
       });
       choice.className = `nww-time-option day-${category}`;
       choice.dataset.value = option.value; choice.dataset.severity = category;
       choice.setAttribute("role","option"); choice.setAttribute("aria-selected",String(option.selected));
-      choice.disabled = option.disabled; choice.tabIndex = option.selected ? 0 : -1;
-      const level = record ? `${formatStageForDisplay(record.stage)} ${getDatumLabel()} · ${labels[category]}` : labels.unknown;
-      choice.append(node("span","",option.textContent),node("small","",level));
+      choice.disabled = option.disabled || !record;
+      choice.tabIndex = option.selected && !choice.disabled ? 0 : -1;
+      const level = record ? `${formatStageForDisplay(record.stage)} ${getDatumLabel()}${dateOnly ? "" : ` · ${labels[category]}`}` : labels.unknown;
+      choice.append(node("span", "", dateOnly ? "Daily peak · time unknown" : option.textContent), node("small", "", level));
       list.append(choice);
     }
-    state.panel.append(list,key()); position();
+    if (list.children.length) state.panel.append(list, key());
+    else {
+      const status = node("p", "nww-picker-message", loading ? "" : "No export times for this date.");
+      status.setAttribute("role", "status");
+      state.panel.append(status);
+    }
+    position();
     const target = [...list.children].find(choice => !choice.disabled && choice.dataset.value === (previousFocus || editor.timeSelect.value)) || list.querySelector("button:not(:disabled)");
-    if (target) { target.tabIndex=0; target.focus({preventScroll:true}); target.scrollIntoView({block:"nearest"}); }
+    if (target) {
+      target.tabIndex = 0;
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: "nearest" });
+    } else if (!state.panel.contains(document.activeElement)) state.panel.querySelector(".nww-picker-head button")?.focus({ preventScroll: true });
   }
   function openTime(prefix) {
     const editor = getExportDateEditorElements(prefix), cap = prefix === "end" ? "End" : "Start";
     const state = create(prefix,"time",document.getElementById(`download${cap}TimeButton`)); if (!state) return;
     state.day = parseExportDateText(editor.dateText.value)?.isoDate || dayKey(getRangeInputDate(editor.canonical.id));
-    renderTimes(state,cachedTimeStages(state.day));
     const startDate = parseStoredLocalNyToDate(`${state.day}T00:00`), endDate = parseStoredLocalNyToDate(`${state.day}T23:59`);
-    if (startDate && endDate && currentDataMode !== "return-interval" && exportRangeNeedsObservedArchive({startDate,endDate})) {
+    const loadsArchive = startDate && endDate && currentDataMode !== "return-interval"
+      && exportRangeNeedsObservedArchive({ startDate, endDate });
+    renderTimes(state, cachedTimeStages(state.day), loadsArchive);
+    if (loadsArchive) {
       ensureObservedArchiveRange(startDate,endDate).then(() => { stageMaps.delete(state.day); syncTimeButton(prefix); if(active===state) renderTimes(state,cachedTimeStages(state.day)); })
-        .catch(() => { if(active===state) state.panel.append(node("p","nww-picker-message","Water levels could not load. Times remain available.")); });
+        .catch(() => {
+          if (active !== state) return;
+          renderTimes(state, cachedTimeStages(state.day));
+          state.panel.append(node("p", "nww-picker-message", "Additional times could not load. Close and try again."));
+          position();
+        });
     }
   }
   function init() {
@@ -329,9 +421,14 @@
     },true);
     new MutationObserver(() => {if(active)position();for(const prefix of ["start","end"])syncTimeButton(prefix);})
       .observe(modal,{attributes:true,subtree:true,attributeFilter:["class","hidden","disabled"]});
-    window.addEventListener("resize",position); window.addEventListener("scroll",position,true);
+    window.addEventListener("resize", () => {
+      position();
+      const focus = document.activeElement;
+      if (active?.panel.contains(focus)) focus.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+    window.addEventListener("scroll",position,true);
     window.NORTH_WILDWOOD_EXPORT_PICKER.ready = true;
   }
-  window.NORTH_WILDWOOD_EXPORT_PICKER = {ready:false,openDate,openTime,close,data:{daySeverity,timeStages,optionInstant}};
+  window.NORTH_WILDWOOD_EXPORT_PICKER = {ready:false,openDate,openTime,close,data:{daySeverity,timeStages,optionInstant,timeChoices}};
   if(document.readyState === "loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();

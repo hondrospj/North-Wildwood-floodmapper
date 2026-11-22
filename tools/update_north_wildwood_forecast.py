@@ -6,25 +6,33 @@ selection, units, datum conversion, hydraulic phases, cycle fallback, and HTTP
 retry behavior match the former workflow-embedded implementation. Importing it
 performs no network requests or writes; ``main`` is the command-line entry point.
 
-The generation boundary accepts a caller-supplied UTC forecast start for offline
-replay and testing. Only the command-line entry point obtains the current hour
-and writes ``forecast.json``. The workflow retains the subsequent research
-sidecar, operational-mean selection, and Git publication steps.
+The scheduled CLI waits for its requested NOAA cycle and keeps the committed
+forecast until a complete replacement is available. The unpinned CLI retains
+the latest-available cycle search used for manual and offline replay.
 """
 
+import argparse
 import csv
 import http.client
 import io
 import json
 import math
+import os
 import random
 import re
 import tarfile
+import tempfile
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from release_data import (
+    STONE_HARBOR_NAVD88_OFFSET_FT,
+    STONE_HARBOR_THRESHOLDS_MLLW,
+    validate_forecast,
+)
 
 TOWN_NAME = "North Wildwood"
 IS_SPLIT = False
@@ -39,17 +47,8 @@ ZONES = [
     "usgsGaugeId": "01411360",
     "noaaGaugeId": "8535581",
     "observedSource": "usgs",
-    "navd88OffsetFromMllwFt": -2.75,
-    "thresholdsMllw": {
-      "minorLow": 6.0,
-      "moderateLow": 7.0,
-      "majorLow": 8.0
-    },
-    "thresholdsNavd88": {
-      "minorLow": 3.25,
-      "moderateLow": 4.25,
-      "majorLow": 5.25
-    }
+    "navd88OffsetFromMllwFt": STONE_HARBOR_NAVD88_OFFSET_FT,
+    "thresholdsMllw": STONE_HARBOR_THRESHOLDS_MLLW
   }
 ]
 OUT_PATH = Path("forecast.json")
@@ -60,6 +59,10 @@ LAYER_INCREMENT = 0.1
 CYCLES_NEWEST_FIRST = (18, 12, 6, 0)
 DAYS_BACK_TO_TRY = 5
 FETCH_RETRY_BUDGET_SECONDS = 240
+EXACT_CYCLE_WAIT_SECONDS = 25 * 60
+EXACT_CYCLE_POLL_SECONDS = 30
+PETSS_FORECAST_HOURS = 102
+TRANSIENT_HTTP_CODES = {429, 500, 502, 503, 504}
 
 HEADER_ALIASES = {
     "time": ["time", "valid", "validtime", "valid_time", "datetime", "date_time", "forecast_time", "src_time", "srctime"],
@@ -70,12 +73,12 @@ HEADER_ALIASES = {
     "surge": ["surge", "surge_ft", "stormsurge", "storm_surge"],
 }
 
-def fetch_bytes(url):
+def fetch_bytes(url, *, deadline=None):
     last_error = None
-    # One stalled cycle must leave time to try healthy older guidance inside
-    # the scheduled job's 15-minute limit. Fast transient retries retain their
-    # existing attempt count, backoff and normal 180-second request ceiling.
-    deadline = time.monotonic() + FETCH_RETRY_BUDGET_SECONDS
+    # One stalled transfer must leave time for subsequent availability polls
+    # or for the unpinned caller to try another cycle.
+    transfer_deadline = time.monotonic() + FETCH_RETRY_BUDGET_SECONDS
+    deadline = transfer_deadline if deadline is None else min(deadline, transfer_deadline)
     for attempt in range(1, 6):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -108,7 +111,8 @@ def fetch_bytes(url):
                         return body
                     chunks.append(chunk)
         except urllib.error.HTTPError as exc:
-            if exc.code not in {429, 500, 502, 503, 504}:
+            exc.close()
+            if exc.code not in TRANSIENT_HTTP_CODES:
                 raise
             last_error = exc
         except (urllib.error.URLError, http.client.IncompleteRead, TimeoutError, OSError, ValueError) as exc:
@@ -134,14 +138,17 @@ def recent_cycles(now):
                 cycles.append({"ymd": ymd, "hh": hour, "cycleUtc": cycle_dt})
     return cycles
 
-def extract_station_csv(url, station_id):
-    raw = fetch_bytes(url)
+def extract_station_csv(url, station_id, *, deadline=None, expected_member=None):
+    raw = fetch_bytes(url) if deadline is None else fetch_bytes(url, deadline=deadline)
     with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tf:
         members = [m for m in tf.getmembers() if m.isfile()]
-        pattern = re.compile(rf"(^|/){re.escape(str(station_id))}\.csv$", re.I)
-        match = next((m for m in members if pattern.search(m.name)), None)
+        if expected_member is None:
+            pattern = re.compile(rf"(^|/){re.escape(str(station_id))}\.csv$", re.I)
+            match = next((m for m in members if pattern.search(m.name)), None)
+        else:
+            match = next((m for m in members if m.name == expected_member), None)
         if not match:
-            raise RuntimeError(f"station CSV {station_id}.csv not found")
+            raise RuntimeError(f"station CSV {expected_member or f'{station_id}.csv'} not found")
         extracted = tf.extractfile(match)
         if extracted is None:
             raise RuntimeError(f"could not extract {match.name}")
@@ -161,14 +168,15 @@ def find_idx(headers, aliases, required=True):
 
 def normalize_time(value):
     raw = str(value or "").strip()
-    if re.fullmatch(r"\d{10}", raw):
-        return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:8]), int(raw[8:10]), tzinfo=timezone.utc)
-    if re.fullmatch(r"\d{12}", raw):
-        return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:8]), int(raw[8:10]), int(raw[10:12]), tzinfo=timezone.utc)
-    text = raw if raw.endswith("Z") or "+" in raw[-6:] else raw + "Z"
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
-    except Exception:
+        if re.fullmatch(r"\d{10}(?:\d{2})?", raw):
+            return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:8]), int(raw[8:10]),
+                            int(raw[10:12] or 0), tzinfo=timezone.utc)
+        if not re.match(r"\d{4}(?:-\d{2}-\d{2}|\d{4})[Tt ]\d{2}", raw):
+            return None
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    except (ValueError, OverflowError):
         return None
 
 def clean_level(value):
@@ -208,7 +216,9 @@ def parse_station_csv(text, zone):
         if len(columns) <= max(time_idx, twl_idx, twl10_idx, twl90_idx):
             continue
         dt = normalize_time(columns[time_idx])
-        if not dt:
+        # The station CSV also contains six-minute rows. The mapper consumes
+        # top-of-hour levels even when NOAA fills in the intermediate rows.
+        if not dt or dt.minute or dt.second or dt.microsecond:
             continue
         time_utc = dt.isoformat().replace("+00:00", "Z")
         tide = clean_level(columns[tide_idx]) if tide_idx >= 0 and tide_idx < len(columns) else None
@@ -249,6 +259,9 @@ def align_products(products, forecast_start):
     kept = [t for t in common if datetime.fromisoformat(t.replace("Z", "+00:00")) >= forecast_start][: FORECAST_HOURS + 1]
     if len(kept) < 12:
         raise RuntimeError(f"only {len(kept)} usable forecast rows")
+    times = [datetime.fromisoformat(value.replace("Z", "+00:00")) for value in kept]
+    if any(after - before != timedelta(hours=1) for before, after in zip(times, times[1:])):
+        raise RuntimeError("forecast scenarios do not have consecutive hourly timestamps")
     output = {"mean": [], "lowEnd": [], "highEnd": []}
     for key in output:
         for i, time_utc in enumerate(kept):
@@ -292,11 +305,63 @@ def build_zone_forecast(zone, now_utc):
             parsed = parse_station_csv(text, zone)
             start = max(cycle["cycleUtc"], now_utc)
             aligned = align_products(parsed, start)
-            return payload_for_zone(zone, cycle, url, member, aligned, now_utc)
+            payload = payload_for_zone(zone, cycle, url, member, aligned, now_utc)
+            validate_forecast(payload, now=now_utc)
+            return payload
         except Exception as exc:
             last_error = exc
             print(f"Rejected {zone['id']} cycle: {exc}")
     raise RuntimeError(f"No usable PETSS forecast for {zone['id']} {zone['petssGaugeId']}: {last_error}")
+
+def parse_cycle_utc(value):
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T(?:00|06|12|18):00:00Z", value):
+        raise ValueError("Use a PETSS cycle in YYYY-MM-DDTHH:00:00Z format at 00, 06, 12 or 18 UTC")
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def build_exact_forecast(cycle_utc):
+    zone = ZONES[0]
+    station = zone["petssGaugeId"]
+    cycle = {"ymd": cycle_utc.strftime("%Y%m%d"), "hh": cycle_utc.hour, "cycleUtc": cycle_utc}
+    url = petss_station_csv_url(cycle)
+    member = f"petss.{cycle['ymd']}/t{cycle['hh']:02d}z.csv/{station}.csv"
+    deadline = time.monotonic() + EXACT_CYCLE_WAIT_SECONDS
+    latest_start = cycle_utc + timedelta(hours=PETSS_FORECAST_HOURS - FORECAST_HOURS)
+    last_error = None
+    while time.monotonic() < deadline:
+        now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        if cycle_utc > now:
+            raise ValueError(f"PETSS cycle {cycle_utc.isoformat()} is in the future")
+        if now > latest_start:
+            raise RuntimeError(f"PETSS cycle {cycle_utc.isoformat()} is too old for {FORECAST_HOURS} hours of coverage")
+        try:
+            print(f"Trying {zone['id']} {station} {url}", flush=True)
+            text, source_member = extract_station_csv(url, station, deadline=deadline, expected_member=member)
+            parsed = parse_station_csv(text, zone)
+            # A NOAA wait can cross the hour. Use the time when data is ready.
+            now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+            aligned = align_products(parsed, now)
+            hours = aligned["mean"]
+            if len(hours) != FORECAST_HOURS + 1 or normalize_time(hours[0]["timeUtc"]) != now:
+                raise RuntimeError(f"station CSV does not cover {FORECAST_HOURS} hours starting {now.isoformat()}")
+            payload = payload_for_zone(zone, cycle, url, source_member, aligned, now)
+            validate_forecast(payload, now=now)
+            payload.pop("zoneId", None)
+            payload.pop("zoneName", None)
+            return payload
+        except urllib.error.HTTPError as exc:
+            exc.close()
+            if exc.code != 404 and exc.code not in TRANSIENT_HTTP_CODES:
+                raise
+            last_error = exc
+        except (OSError, EOFError, http.client.HTTPException, tarfile.TarError, csv.Error, RuntimeError, ValueError) as exc:
+            last_error = exc
+        print(f"PETSS cycle {cycle_utc.isoformat()} is not ready: {last_error}", flush=True)
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(EXACT_CYCLE_POLL_SECONDS, remaining))
+    raise RuntimeError(f"No usable forecast for requested PETSS cycle {cycle_utc.isoformat()}: {last_error}")
+
 
 def payload_for_zone(zone, cycle, source_url, member, products, issued_dt):
     definitions = {
@@ -382,12 +447,38 @@ def build_forecast(now_utc):
     return output
 
 
-def main():
-    """Generate and write the scheduled forecast using the current UTC hour."""
-    now_utc = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    output = build_forecast(now_utc)
-    OUT_PATH.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
+def main(cycle_utc=None):
+    """Replace the forecast only after generation and validation complete."""
+    if cycle_utc is None:
+        now_utc = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        output = build_forecast(now_utc)
+    else:
+        try:
+            current = json.loads(OUT_PATH.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            current = None
+        if current is not None and parse_cycle_utc(current.get("petssCycleUtc")) >= cycle_utc:
+            print(f"Keeping committed PETSS cycle {current['petssCycleUtc']}")
+            return False
+        output = build_exact_forecast(cycle_utc)
+
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=OUT_PATH.parent, delete=False) as handle:
+        temporary = Path(handle.name)
+        try:
+            handle.write(json.dumps(output, indent=2) + "\n")
+            handle.close()
+            temporary.replace(OUT_PATH)
+        finally:
+            temporary.unlink(missing_ok=True)
     print("Wrote", OUT_PATH)
+    return True
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cycle-utc", type=parse_cycle_utc, help="Require the exact NOAA PETSS cycle")
+    args = parser.parse_args()
+    result = f"updated={'true' if main(args.cycle_utc) else 'false'}"
+    print(result)
+    if output_path := os.environ.get("GITHUB_OUTPUT"):
+        with open(output_path, "a", encoding="utf-8") as output:
+            print(result, file=output)

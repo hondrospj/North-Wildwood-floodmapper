@@ -324,7 +324,7 @@ def load_zones(path: Path) -> dict[str, np.ndarray]:
 
 
 def load_edges(path: Path) -> dict[str, np.ndarray]:
-    data = np.loadtxt(path, delimiter=",", skiprows=1, dtype=np.float64)
+    data = np.loadtxt(path, delimiter=",", skiprows=1, dtype=np.float64, ndmin=2, usecols=(0, 1, 2, 3))
     return {
         "a": data[:, 0].astype(np.int32),
         "b": data[:, 1].astype(np.int32),
@@ -846,6 +846,9 @@ def build_render_cell_summaries(graph_dir: Path) -> dict[str, np.ndarray]:
     summary = {
         "minimum_ground10": np.full(render_shape, maximum, dtype=np.int16),
         "minimum_ground10_developed": np.full(render_shape, maximum, dtype=np.int16),
+        "activation_at_minimum_developed_ground10": np.full(
+            render_shape, maximum, dtype=np.int16
+        ),
         "minimum_ground10_undeveloped": np.full(render_shape, maximum, dtype=np.int16),
         "minimum_activation100": np.full(
             render_shape, activation_maximum, dtype=np.int32
@@ -859,6 +862,8 @@ def build_render_cell_summaries(graph_dir: Path) -> dict[str, np.ndarray]:
         "source": np.zeros(render_shape, dtype=bool),
     }
 
+    minimum_developed_ground = summary["minimum_ground10_developed"]
+    activation_at_minimum_ground = summary["activation_at_minimum_developed_ground10"]
     for y_offset in range(RENDER_STRIDE):
         for x_offset in range(RENDER_STRIDE):
             ground = elevation10[y_offset::RENDER_STRIDE, x_offset::RENDER_STRIDE]
@@ -876,10 +881,8 @@ def build_render_cell_summaries(graph_dir: Path) -> dict[str, np.ndarray]:
             # from the source into a lower basin. The palette renders that
             # topological bridge as the shallowest water class, producing a
             # continuous visible feeder instead of a detached blue basin.
-            activation = np.maximum(
-                ground.astype(np.int32) * 10,
-                connection.astype(np.int32) * 10,
-            )
+            activation10 = np.maximum(ground, connection)
+            activation = activation10.astype(np.int32) * 10
             activation = np.where(
                 is_valid,
                 activation,
@@ -896,10 +899,20 @@ def build_render_cell_summaries(graph_dir: Path) -> dict[str, np.ndarray]:
                 activation,
                 out=summary["minimum_activation100"],
             )
+            lower = is_developed & (ground < minimum_developed_ground)
+            tied = is_developed & (ground == minimum_developed_ground)
+            activation_at_minimum_ground[lower] = activation10[lower]
             np.minimum(
-                summary["minimum_ground10_developed"],
-                np.where(is_developed, ground, maximum),
-                out=summary["minimum_ground10_developed"],
+                activation_at_minimum_ground,
+                activation10,
+                out=activation_at_minimum_ground,
+                where=tied,
+            )
+            np.minimum(
+                minimum_developed_ground,
+                ground,
+                out=minimum_developed_ground,
+                where=is_developed,
             )
             np.minimum(
                 summary["minimum_ground10_undeveloped"],
@@ -921,6 +934,38 @@ def build_render_cell_summaries(graph_dir: Path) -> dict[str, np.ndarray]:
             )
 
     return summary
+
+
+def resolve_connected_developed_ground(
+    terrain: tuple[np.ndarray, np.ndarray, np.ndarray],
+    pooled_ground: np.ndarray,
+    pooled_ground_activation10: np.ndarray,
+    possible: np.ndarray,
+    stage: float,
+) -> np.ndarray:
+    """Resolve pixels whose lowest developed cell is still disconnected."""
+    stage10 = stage * 10.0 + 1e-8
+    rows, columns = np.nonzero(possible & (pooled_ground_activation10 > stage10))
+    if not rows.size:
+        return pooled_ground
+    elevation10, connection10, developed = terrain
+    base_rows = rows * RENDER_STRIDE
+    base_columns = columns * RENDER_STRIDE
+    lowest_connected = np.full(rows.shape, np.iinfo(np.int16).max, dtype=np.int16)
+    for y_offset in range(RENDER_STRIDE):
+        for x_offset in range(RENDER_STRIDE):
+            cells = (base_rows + y_offset, base_columns + x_offset)
+            ground = elevation10[cells]
+            connected = (
+                (developed[cells] != 0)
+                & (ground != np.iinfo(np.int16).min)
+                & (ground <= stage10)
+                & (connection10[cells] <= stage10)
+            )
+            np.minimum(lowest_connected, ground, out=lowest_connected, where=connected)
+    resolved = pooled_ground.copy()
+    resolved[rows, columns] = lowest_connected.astype(np.float32) / 10.0
+    return resolved
 
 
 def build_source_distance_grid(
@@ -998,6 +1043,15 @@ def render_assets(
     if render_summary is None:
         render_summary = build_render_cell_summaries(graph_dir)
     source = render_summary["source"]
+    terrain = tuple(
+        np.memmap(graph_dir / name, dtype=dtype, mode="r", shape=(HEIGHT, WIDTH))
+        for name, dtype in (
+            ("elevation10.raw", "<i2"),
+            ("connection10.raw", "<i2"),
+            ("developed_flag.raw", "u1"),
+        )
+    )
+    ground_activation10 = render_summary["activation_at_minimum_developed_ground10"]
 
     dem_ds = gdal.Open(str(dem_path))
     projection = dem_ds.GetProjection()
@@ -1135,6 +1189,17 @@ def render_assets(
             developed_flooded = developed_eligible & (
                 ground_developed <= adjusted_developed_stage + 1e-9
             )
+            connected_ground_developed = ground_developed
+            if phase_penalty > 0.0:
+                # Separate pooled minima can otherwise borrow disconnected low
+                # ground to admit a higher, connected cell in the same pixel.
+                connected_ground_developed = resolve_connected_developed_ground(
+                    terrain, ground_developed, ground_activation10,
+                    developed_flooded, stage_value,
+                )
+                developed_flooded &= (
+                    connected_ground_developed <= adjusted_developed_stage + 1e-9
+                )
             undeveloped_flooded = (
                 activation_undeveloped <= stage_value + 1e-9
             )
@@ -1249,7 +1314,7 @@ def render_assets(
                 depth = np.maximum(
                     np.where(
                         developed_flooded,
-                        adjusted_developed_stage - ground_developed,
+                        adjusted_developed_stage - connected_ground_developed,
                         0.0,
                     ),
                     np.where(

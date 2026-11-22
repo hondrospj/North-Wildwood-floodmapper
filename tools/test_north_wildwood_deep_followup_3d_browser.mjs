@@ -30,36 +30,53 @@ function track3dStartupTiming(button){
 }
 function snapshot(){return page.evaluate(()=>{const gl=window.NORTH_WILDWOOD_3D.getMap(),source=gl?.getSource('nw-flood-drape-source');return{index:currentHourIndex,time:currentSeriesHours[currentHourIndex]?.timeUtc,url:currentFloodLayer?._url,sourceUrl:source?.url,sourceLoaded:source?.loaded(),frame:floodFrameState,mode:mapClickMode,state:window.NORTH_WILDWOOD_3D.state(),busy:document.querySelector('.nw-simple-view').getAttribute('aria-busy')};});}
 try{
- await page.route(stylePattern,holdStyle);
  await page.goto(base,{waitUntil:'domcontentloaded',timeout:90000});await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:90000});
- await page.locator('#openDownloadModalBtn').click();await page.locator('#exportChangeAreaBtn').click();
+ await page.locator('#openDownloadModalBtn').click();
+ await page.getByRole('button',{name:'More options',exact:true}).click();
+ assert.equal(await page.locator('#downloadModal').getAttribute('data-export-step'),'review','More options opens the export review');
+ await page.locator('#exportExtentCustomBtn').click();
+ await page.locator('#exportAreaModal').waitFor({state:'visible'});
  for(const[width,height]of[[844,390],[667,375],[568,320],[320,568]]){
   await page.setViewportSize({width,height});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   for(const id of ['exportAreaApplyBtn','exportAreaCancelBtn']){await page.locator('#'+id).scrollIntoViewIfNeeded();const bounds=await page.locator('#'+id).boundingBox();assert.ok(bounds.y>=0&&bounds.y+bounds.height<=height+1,`${id} reachable at ${width}x${height}`);await page.locator('#'+id).click({trial:true});}
   result.areas.push({width,height,actionsReachable:true});
  }
  await page.locator('#exportAreaApplyBtn').click();await page.locator('#downloadModalCloseBtn').click();await page.setViewportSize({width:1440,height:1000});result.checks.push('Custom-area Apply/Cancel are reachable through real hit testing at four phone portrait/landscape sizes');
+ // Keep the deliberate 3D outage separate from the export area interaction.
+ await page.route(stylePattern,holdStyle);
  await page.locator('.nw-simple-view').evaluate(track3dStartupTiming);
  const started=Date.now();await page.locator('.nw-simple-view').click();await page.waitForFunction(()=>Number.isFinite(window.__nww3dStartupTiming?.finishedAt),{},{timeout:23000});
  const fallback=await snapshot(),timing=await page.evaluate(()=>window.__nww3dStartupTiming),elapsedMs=timing.finishedAt-timing.startedAt;
  result.states.push({label:'style-stall-fallback',elapsedMs,driverElapsedMs:Date.now()-started,heldStyleRequests:styles.length,timing,...fallback});assert.ok(styles.length>=1,'The real configured style request is held during startup');assert.equal(timing.trustedClick,true);assert.ok(Number.isFinite(timing.startedAt)&&timing.startedAt<=timing.busyAt&&timing.busyAt<=timing.finishedAt);assert.equal(fallback.state.ready,false);assert.equal(fallback.busy,'false');assert.equal(await page.evaluate(()=>document.body.dataset.map3d),'fallback');assert.ok(elapsedMs<23000);
  const zoom=await page.evaluate(()=>map.getZoom());await page.locator('.nw-simple-zoom-in').click();await page.waitForFunction(expected=>map.getZoom()===expected,zoom+1,{timeout:3000});assert.equal(await page.evaluate(()=>map.getZoom()),zoom+1);result.checks.push('A stalled style request falls back within the complete 20-second startup budget and restores 2D zoom');
  await page.unroute(stylePattern,holdStyle);for(const route of styles)await route.abort().catch(()=>{});
- let buildingRoutes=[];const holdBuildings=route=>{buildingRoutes.push(route);};await page.route('**/NorthWildwoodBuildings3D.geojson*',holdBuildings);
- await page.locator('#parcelsToggle').click();await page.locator('#mapClickDepthBtn').waitFor({state:'visible'});await page.locator('#buildingsToggle').click();
- await page.waitForFunction(()=>window.NORTH_WILDWOOD_3D.getMap()||document.body.dataset.map3d==='fallback',{},{timeout:21000});
- // Some headless Firefox/WebKit configurations cannot create WebGL. Report an
- // explicit 2D fallback, never a successful 3D/readiness claim for that profile.
- for(let i=0;i<180&&!buildingRoutes.length;i++){if(i>2&&!await page.evaluate(()=>window.NORTH_WILDWOOD_3D.getMap()||document.getElementById('buildingsToggle').classList.contains('on')))break;await page.waitForTimeout(100);}
+ const buildingPattern='**/NorthWildwoodBuildings3D.geojson*',buildingRoutes=[];
+ const holdBuildings=route=>{buildingRoutes.push(route);};
+ await page.route(buildingPattern,holdBuildings);
+ await page.locator('#parcelsToggle').click();await page.locator('#mapClickDepthBtn').waitFor({state:'visible'});
+ await page.locator('#buildingsToggle').click();
+ await page.waitForFunction(()=>buildingsLayer&&map.hasLayer(buildingsLayer),{},{timeout:10000});
+ assert.equal(await page.evaluate(()=>window.NORTH_WILDWOOD_3D.getMap()),null);
+ assert.equal(buildingRoutes.length,0,'Buildings in Leaflet must not request native building assets');
+ await page.locator('.nw-simple-view').click();
+ // WebGL fallback can finish without ever reaching the building request.
+ for(let i=0;i<230&&!buildingRoutes.length;i++){
+  if(await page.locator('.nw-simple-view').getAttribute('aria-busy')==='false')break;
+  await page.waitForTimeout(100);
+ }
  if(!buildingRoutes.length){
-  await page.waitForFunction(()=>!window.NORTH_WILDWOOD_3D.getMap()&&document.body.dataset.map3d==='fallback'&&!document.getElementById('buildingsToggle').classList.contains('on'),{},{timeout:5000});
-  result.webgl='unavailable or startup timed out: explicit 2D fallback; 3D cases not exercised';assert.equal(await page.evaluate(()=>document.body.classList.contains('map-3d-ready')),false);result.checks.push('Unavailable WebGL preserves the 2D fallback; 3D cases explicitly skipped');
+  await page.waitForFunction(()=>!window.NORTH_WILDWOOD_3D.getMap()&&document.body.dataset.map3d==='fallback',{},{timeout:5000});
+  assert.equal(await page.locator('#buildingsToggle').getAttribute('aria-checked'),'true');
+  assert.equal(await page.evaluate(()=>map.hasLayer(buildingsLayer)),true);
+  result.webgl='unavailable or startup timed out: 2D retained';result.checks.push('Unavailable WebGL preserves the 2D Buildings layer');
  }else{
-  assert.ok(buildingRoutes.length,'Buildings data is genuinely held during the explicit mode selection');
   await page.locator('#mapClickDepthBtn').click();assert.equal(await page.evaluate(()=>mapClickMode),'depth');
-  for(const route of buildingRoutes){const response=await route.fetch({timeout:15000});await route.fulfill({response});}await page.unroute('**/NorthWildwoodBuildings3D.geojson*',holdBuildings);
-  await page.waitForFunction(()=>window.NORTH_WILDWOOD_3D.state().ready,{},{timeout:20000});await page.waitForFunction(()=>window.NORTH_WILDWOOD_3D.state().pitch===60&&document.querySelector('.nw-simple-view').getAttribute('aria-busy')==='false',{},{timeout:10000});
-  assert.equal(await page.evaluate(()=>mapClickMode),'depth');assert.equal(await page.locator('#mapClickDepthBtn').getAttribute('aria-pressed'),'true');result.checks.push('A delayed Buildings enable preserves the newer explicit Flood Depth choice');
+  for(const route of buildingRoutes){const response=await route.fetch({timeout:15000});await route.fulfill({response});}
+  await page.unroute(buildingPattern,holdBuildings);
+  await page.waitForFunction(()=>window.NORTH_WILDWOOD_3D.state().ready&&window.NORTH_WILDWOOD_3D.state().pitch===60&&document.querySelector('.nw-simple-view').getAttribute('aria-busy')==='false',{},{timeout:20000});
+  assert.equal(await page.evaluate(()=>mapClickMode),'depth');
+  assert.equal(await page.locator('#mapClickDepthBtn').getAttribute('aria-pressed'),'true');
+  result.checks.push('Manual 3D entry preserves an explicit Flood Depth choice while loading building assets');
   await page.locator('.nw-simple-view').click();await page.waitForFunction(()=>window.NORTH_WILDWOOD_3D.state().pitch===0,{},{timeout:10000});
   await page.locator('#observedDataBtn').click();await page.waitForFunction(()=>currentDataMode==='observed'&&floodFrameState==='ready',{},{timeout:60000});await page.evaluate(()=>loadObservedDay('2026-09-26'));
   await page.waitForFunction(()=>{const s=window.NORTH_WILDWOOD_3D.getMap().getSource('nw-flood-drape-source');return s?.loaded()&&s.image&&s.url===currentFloodLayer?._url;},{},{timeout:20000});

@@ -1,0 +1,242 @@
+name: Run North Wildwood V41 forecast
+
+on:
+  schedule:
+    # Forecast cycles are labeled at initialization. Start after their final input windows.
+    - cron: '49 7,19 * * *'
+    - cron: '19 1,13 * * *'
+    # Retry each cycle once if the first attempt could not publish a validated snapshot.
+    - cron: '27 2,8,14,20 * * *'
+  workflow_dispatch:
+    inputs:
+      issue_utc:
+        description: Explicit 00Z, 06Z, 12Z or 18Z issue in ISO-8601 UTC, or blank for the latest eligible issue
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: north-wildwood-v41-forecast
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    if: github.repository == 'hondrospj/North-Wildwood-floodmapper' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 36
+    outputs:
+      issue: ${{ steps.select.outputs.issue }}
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MPLBACKEND: Agg
+      PYTHONUNBUFFERED: '1'
+      PIP_NO_CACHE_DIR: '1'
+    steps:
+      - name: Select an eligible issue
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_ISSUE: ${{ inputs.issue_utc }}
+        run: |
+          gh api -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/data/v41/latest.json?ref=main" > "$RUNNER_TEMP/current.json"
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import json, os
+          from pathlib import Path
+
+          now = datetime.now(timezone.utc)
+          published = json.loads((Path(os.environ['RUNNER_TEMP'])/'current.json').read_text())
+          previous = datetime.fromisoformat(published['issue_utc'])
+          explicit = os.environ['REQUESTED_ISSUE'].strip()
+          if explicit:
+              issue = datetime.fromisoformat(explicit)
+              if issue.utcoffset() != timedelta(0) or issue.minute or issue.second or issue.microsecond or issue.hour % 6 or issue > now:
+                  raise SystemExit('Specify an existing synoptic issue in UTC.')
+          else:
+              issue = now.replace(hour=now.hour//6*6, minute=0, second=0, microsecond=0)
+              while issue + timedelta(hours=7, minutes=45 if issue.hour in (0, 12) else 10) > now:
+                  issue -= timedelta(hours=6)
+          if not explicit and (issue < previous or (issue == previous and 'mapForecast' in published)):
+              print(f'{previous.isoformat()} is already published.')
+          else:
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+                  print(f'issue={issue.isoformat()}', file=out)
+          PY
+
+      - name: Set up Python
+        if: steps.select.outputs.issue != ''
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Linux runtime packages
+        if: steps.select.outputs.issue != ''
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends rclone libgomp1
+
+      - name: Download checksum-pinned code from Stockton Drive
+        if: steps.select.outputs.issue != ''
+        env:
+          V41_DRIVE_CONFIG_B64: ${{ secrets.V41_DRIVE_CONFIG_B64 }}
+          RUNNER_RELEASE_HASH: 'a063c8949f004677db9d43963e21c259306c3954bf949e650c87b9326327d3ee'
+        run: |
+          umask 077
+          config="$(mktemp)"
+          trap 'rm -f "$config"' EXIT
+          test -n "$V41_DRIVE_CONFIG_B64"
+          printf '%s' "$V41_DRIVE_CONFIG_B64" | base64 -d > "$config"
+          unset V41_DRIVE_CONFIG_B64
+          archive="$RUNNER_TEMP/v41-runner.tar.gz"
+          rclone --config "$config" copyto "v41-drive:runner-code-${RUNNER_RELEASE_HASH:0:16}.tar.gz" "$archive" \
+            --drive-root-folder-id 1jEZkqaIo0DjK4rkeNrk3MkyAWecfOsP_ --contimeout 15s --timeout 45s --retries 2 --log-level ERROR
+          printf '%s  %s\n' "$RUNNER_RELEASE_HASH" "$archive" | sha256sum --check --status
+          mkdir "$RUNNER_TEMP/v41-runner"
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP/v41-runner" --no-same-owner --no-same-permissions
+
+      - name: Install frozen inference dependencies
+        if: steps.select.outputs.issue != ''
+        run: |
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.5.1'
+          python -m pip install -r "$RUNNER_TEMP/v41-runner/requirements.txt"
+          python -m pip check
+
+      - name: Restore public ECMWF history
+        if: steps.select.outputs.issue != ''
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/v41-public-history
+          key: v41-lead-zero-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: v41-lead-zero-v1-
+
+      - name: Collect, infer, and validate the forecast
+        if: steps.select.outputs.issue != ''
+        env:
+          V41_DRIVE_CONFIG_B64: ${{ secrets.V41_DRIVE_CONFIG_B64 }}
+          V41_TEST_ISSUE: ${{ steps.select.outputs.issue }}
+        run: |
+          state="$RUNNER_TEMP/v41-state"
+          if [[ -d "$RUNNER_TEMP/v41-public-history/frames" ]]; then
+            mkdir -p "$state"
+            cp -r "$RUNNER_TEMP/v41-public-history" "$state/cache"
+          fi
+          python "$RUNNER_TEMP/v41-runner/worker.py" --state "$state" --output "$RUNNER_TEMP/v41-snapshot"
+
+      - name: Save only public ECMWF lead-zero records
+        if: steps.select.outputs.issue != ''
+        run: |
+          rm -rf "$RUNNER_TEMP/v41-public-history"
+          python "$RUNNER_TEMP/v41-runner/cache_history.py" "$RUNNER_TEMP/v41-state/cache" "$RUNNER_TEMP/v41-public-history"
+
+      - name: Cache only the public ECMWF records
+        if: steps.select.outputs.issue != ''
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/v41-public-history
+          key: v41-lead-zero-v1-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Pass the public forecast snapshot to the publisher
+        if: steps.select.outputs.issue != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: north-wildwood-v41-snapshot
+          path: ${{ runner.temp }}/v41-snapshot/latest.*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: forecast
+    if: needs.forecast.outputs.issue != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: north-wildwood-v41-snapshot
+          path: ${{ runner.temp }}/v41-snapshot
+
+      - name: Atomically replace the three forecast files on main
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_ISSUE: ${{ needs.forecast.outputs.issue }}
+        run: |
+          cd "$RUNNER_TEMP/v41-snapshot"
+          python3 - <<'PY'
+          import base64, hashlib, json, os, subprocess, time
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          manifest = json.loads(Path('latest.json').read_text())
+          issue = datetime.fromisoformat(manifest['issue_utc'])
+          paths = ('latest.json', 'latest.png', 'latest.csv')
+          horizon = 360 if issue.hour in (0, 12) else 144
+          assert issue == datetime.fromisoformat(os.environ['EXPECTED_ISSUE'])
+          assert manifest['status'] == 'passed' and manifest['experimental'] is True
+          assert manifest['weather_paths'] == 103 and manifest['forecast_hours'] == horizon
+          assert manifest['chart_url'] == 'latest.png' and manifest['csv_url'] == 'latest.csv'
+          assert datetime.fromisoformat(manifest['first_valid_utc']) == issue + timedelta(hours=1)
+          assert datetime.fromisoformat(manifest['last_valid_utc']) == issue + timedelta(hours=horizon)
+          feed = manifest['mapForecast']
+          start = datetime.fromisoformat(feed['forecastStartUtc'])
+          assert datetime.fromisoformat(feed['sourceCycleUtc']) == issue
+          assert feed['sourceCsvSha256'] == manifest['files']['latest.csv']['sha256']
+          assert feed['weatherPaths'] == 103 and feed['experimental'] is True
+          assert datetime.fromisoformat(feed['forecastEndUtc']) == start + timedelta(hours=96)
+          for scenario in ('mean', 'lowEnd', 'highEnd'):
+              rows = feed['scenarioForecasts'][scenario]['hours']
+              assert len(rows) == 97 and all(datetime.fromisoformat(row['timeUtc']) == start + timedelta(hours=i)
+                                            for i, row in enumerate(rows))
+          additions = []
+          for name in paths:
+              raw = Path(name).read_bytes()
+              if name != 'latest.json':
+                  assert len(raw) == manifest['files'][name]['bytes']
+                  assert hashlib.sha256(raw).hexdigest() == manifest['files'][name]['sha256']
+              additions.append({'path': f'data/v41/{name}', 'contents': base64.b64encode(raw).decode()})
+          query = ('mutation($input: CreateCommitOnBranchInput!) '
+                   '{ createCommitOnBranch(input: $input) { commit { oid } } }')
+          def api(*args):
+              return subprocess.check_output(['gh', 'api', *args], text=True).strip()
+
+          for attempt in range(5):
+              head = api(f'repos/{repo}/git/ref/heads/main', '--jq', '.object.sha')
+              live = json.loads(api('-H', 'Accept: application/vnd.github.raw+json',
+                  f'repos/{repo}/contents/data/v41/latest.json?ref={head}'))
+              live_issue = datetime.fromisoformat(live['issue_utc'])
+              if live_issue > issue or (live_issue == issue and 'mapForecast' in live):
+                  print('This issue or a newer issue is already on main.')
+                  break
+              if datetime.now(timezone.utc) - issue > timedelta(hours=18):
+                  raise SystemExit('Refusing to publish a stale forecast.')
+              variables = {'input': {'branch': {'repositoryNameWithOwner': repo, 'branchName': 'main'},
+                  'expectedHeadOid': head, 'message': {'headline': f'Publish North Wildwood V41 {issue:%Y-%m-%d %HZ}'},
+                  'fileChanges': {'additions': additions}}}
+              commit = subprocess.run(['gh', 'api', 'graphql', '--input', '-'], text=True,
+                  input=json.dumps({'query': query, 'variables': variables}), capture_output=True)
+              if commit.returncode == 0:
+                  revision = json.loads(commit.stdout)['data']['createCommitOnBranch']['commit']['oid']
+                  print(f'Published issue {issue.isoformat()} in {revision}.')
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+                      print(f'revision={revision}', file=out)
+                  break
+              if api(f'repos/{repo}/git/ref/heads/main', '--jq', '.object.sha') == head:
+                  raise SystemExit(commit.stderr.strip() or 'The commit request was rejected.')
+              time.sleep(attempt + 1)
+          else:
+              raise SystemExit('main was changing during each attempt. A retry can publish this issue.')
+          PY
+
+      - name: Request deployment of the validated snapshot
+        if: steps.commit.outputs.revision != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run publish-pages-data.yml -R "$GITHUB_REPOSITORY" --ref main -f dry_run=false
+          gh workflow run refresh-deployed-data.yml -R "$GITHUB_REPOSITORY" --ref main

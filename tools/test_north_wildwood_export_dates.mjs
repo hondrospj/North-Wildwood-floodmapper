@@ -145,6 +145,22 @@ function editorContext() {
   assert.equal(ctx.getRangeInputDate('downloadStartInput').toISOString(), '2025-11-02T06:30:00.000Z');
 }
 {
+  const { ctx, node } = editorContext();
+  const first = '2026-06-15T13:45:00.000Z', last = '2026-06-16T13:45:00.000Z';
+  ctx.currentDataMode = 'return-interval';
+  ctx.getReturnIntervalExportEntries = () => [{timeUtc:first,offsetHours:-12},{timeUtc:last,offsetHours:12}];
+  ctx.getEntryESTDate = entry => new Date(entry.timeUtc);
+  ctx.formatReturnStormOffset = entry => String(entry.offsetHours);
+  ctx.setRangeInputDate('downloadEndInput', new Date(first));
+  const choices = node('downloadEndTimeSelect').options;
+  assert.deepEqual(choices.map(choice=>choice.value), [
+    `09:45|${Date.parse(first)}`, `09:45|${Date.parse(last)}`,
+  ]);
+  node('downloadEndTimeSelect').value = choices[1].value;
+  assert.equal(ctx.commitExportDateTimeEditor('end'),true);
+  assert.equal(ctx.getRangeInputDate('downloadEndInput').toISOString(),last);
+}
+{
   const { ctx, node, errors } = editorContext();
   ctx.setRangeInputDate('downloadStartInput', new Date('2026-03-07T07:30:00Z'));
   node('downloadStartDateText').value = '03/08/2026';
@@ -161,9 +177,29 @@ function editorContext() {
   assert.equal(ctx.commitExportDateTimeEditor('start'), true);
   assert.equal(ctx.getRangeInputDate('downloadStartInput').toISOString(), '2026-03-08T07:30:00.000Z');
 }
+{
+  const { ctx, node, errors } = editorContext();
+  ctx.setRangeInputDate('downloadStartInput', new Date('2026-11-06T23:00:00Z'));
+  const input = node('downloadStartDateText');
+  for (const draft of ['02/30/2026', '11/0D/2026']) {
+    input.value = draft;
+    assert.equal(ctx.commitExportDateTimeEditor('start', { showError: true }), false);
+    assert.match(errors.at(-1), /valid date/);
+    ctx.syncExportDateTimeEditorFromCanonical('start');
+    assert.equal(input.value, draft, 'An invalid edit must survive a canonical sync');
+    assert.equal(ctx.getRangeInputDate('downloadStartInput'), null, 'The old valid date cannot be exported');
+  }
+  input.value = '11/07/2026';
+  assert.equal(ctx.commitExportDateTimeEditor('start'), true);
+  assert.equal(ctx.getRangeInputDate('downloadStartInput').toISOString(), '2026-11-07T23:00:00.000Z');
+  input.value = '02/30/2026';
+  ctx.commitExportDateTimeEditor('start');
+  ctx.setRangeInputDate('downloadStartInput', new Date('2026-11-06T23:00:00Z'));
+  assert.equal(input.value, '11/06/2026', 'An explicit reset discards the invalid draft');
+}
 
-// Keep all 100 real source instants on the shipped fall-back day. Preference
-// for a forecast at one exact instant must not delete the other 01:00 reading.
+// Keep all 100 real source instants on the shipped fall-back day. Resolve
+// overlap at the same UTC instant according to the selected source mode.
 {
   const fixture = JSON.parse(fs.readFileSync(new URL('fixtures/north-wildwood-export-dst.json', import.meta.url), 'utf8'));
   const archive = new URL(`../${fixture.source}`, import.meta.url);
@@ -173,17 +209,32 @@ function editorContext() {
   }
   const day = { date: fixture.day.d, hours: [] };
   let forecast = [];
+  let range;
+  let interval = 'hourly';
+  let format = 'gif';
   const ctx = context([...timeFunctions, 'setTimelineSlotFields', 'detectSeriesResolutionMinutes',
-    'buildQuarterHourTimelineSeries', 'decodeObserved15MinuteDay', 'getObservedRangeExportEntries',
+    'buildQuarterHourTimelineSeries', 'buildObservedCanonicalSeries', 'decodeObserved15MinuteDay', 'getObservedRangeExportEntries',
+    'makeMissingTimelineEntry', 'makeInterpolatedTimelineEntry',
     'getDownloadSourceEntries', 'findClosestExportEntryForSlot', 'buildHourlyRangeFrameItems',
-    'buildQuarterHourRangeFrameItems'], {
-    currentDataMode: 'observed', getObservedDays: () => [day],
+    'getQuarterHourExportEntries', 'buildQuarterHourRangeFrameItems', 'buildDailyMaximumSeries', 'buildDailyMaximumRangeFrameItems',
+    'buildExportRangeFrameItems', 'getDownloadFrameItems'], {
+    currentDataMode: 'observed', currentSeriesHours: [], getObservedDays: () => [day],
     getObservedSourceHoursForDay: () => day.hours, getForecastExportEntries: () => forecast,
+    getObservedDayRecord: date => date === day.date ? day : null, annotateHydraulicSeries: entries => entries,
+    addDaysToDateKey: (date, offset) => new Date(Date.parse(date) + offset * 86400000).toISOString().slice(0, 10),
     observed15MinuteData: {}, TOWN_CONFIG: { observed: { usgsGaugeId: '01411360' } },
     entryTimeMs: entry => Date.parse(entry.timeUtc), getEntryESTDate: entry => new Date(entry.timeUtc),
     getStageValue: entry => entry.navd88StageFt,
+    findClosestEntryIndex: () => 0,
     getDownloadFrameItemFromEntry: entry => ({ entry }),
+    getDownloadCurrentEntry: () => null, getDownloadScopeValue: () => 'range',
+    getDownloadRangeRequest: () => range, getDownloadIntervalValue: () => interval,
+    getDownloadFormatValue: () => format, getDownloadFrameLimit: () => 337,
   });
+  const selectRange = (startDate, endDate) => {
+    range = { startDate, endDate, startMs: startDate.getTime(), endMs: endDate.getTime() };
+  };
+  const build = () => ctx.getDownloadFrameItems();
   day.hours = ctx.decodeObserved15MinuteDay(fixture.day);
   const start = ctx.parseStoredLocalNyToDate(`${day.date}T00:00`);
   const end = ctx.parseStoredLocalNyToDate(`${day.date}T23:45`);
@@ -191,20 +242,76 @@ function editorContext() {
   assert.equal(actual.length, 100);
   assert.deepEqual(Array.from(actual, entry => [entry.timeUtc, entry.navd88StageFt]),
     Array.from(day.hours, entry => [entry.timeUtc, entry.navd88StageFt]));
-  const range = { startMs: start.getTime(), endMs: end.getTime() };
-  const hourly = ctx.buildHourlyRangeFrameItems(actual, range);
+  selectRange(start, end);
+  const hourly = build();
   assert.equal(hourly.length, 25);
   assert.equal(hourly[1].entry.timeUtc, '2025-11-02T05:00:00.000Z');
   assert.equal(hourly[2].entry.timeUtc, '2025-11-02T06:00:00.000Z');
-  const quarterHourly = ctx.buildQuarterHourRangeFrameItems(actual, range);
+  interval = '15min';
+  const quarterHourly = build();
   assert.equal(quarterHourly.length, 100);
   assert.deepEqual(Array.from(quarterHourly, item => [item.entry.timeUtc, item.entry.navd88StageFt]),
     Array.from(day.hours, entry => [entry.timeUtc, entry.navd88StageFt]));
-  forecast = [{ ...day.hours[8], navd88StageFt: 99, exportSourceMode: 'forecast' }];
-  const merged = ctx.getDownloadSourceEntries(true, start, end);
-  assert.equal(merged.length, 100);
-  assert.equal(merged[4].navd88StageFt, day.hours[4].navd88StageFt);
-  assert.equal(merged[8].navd88StageFt, 99);
+  const observed = day.hours[8];
+  forecast = [{ ...observed, navd88StageFt: 99, exportSourceMode: 'forecast' }];
+  for (const mode of ['observed', 'forecast']) {
+    ctx.currentDataMode = mode;
+    selectRange(start, end);
+    const merged = ctx.getDownloadSourceEntries(true, start, end);
+    assert.equal(merged.length, 100);
+    assert.equal(merged[4].navd88StageFt, day.hours[4].navd88StageFt);
+    const expectedLevel = mode === 'observed' ? observed.navd88StageFt : 99;
+    assert.equal(merged[8].navd88StageFt, expectedLevel);
+    for (const cadence of ['hourly', '15min']) {
+      interval = cadence;
+      const frame = build().find(item => item.entry.timeUtc === observed.timeUtc);
+      assert.equal(frame.entry.navd88StageFt, expectedLevel);
+      assert.equal(frame.entry.exportSourceMode, mode);
+      if (mode === 'observed') assert.equal(frame.entry.sourceStationId, observed.sourceStationId);
+    }
+    format = 'png';
+    selectRange(new Date(observed.timeUtc), new Date(observed.timeUtc));
+    const [snapshot] = build();
+    assert.equal(snapshot.entry.navd88StageFt, expectedLevel);
+    assert.equal(snapshot.entry.exportSourceMode, mode);
+    format = 'gif';
+    interval = 'daily';
+    const [daily] = build();
+    assert.equal(daily.entry.navd88StageFt, expectedLevel);
+    assert.equal(daily.entry.exportSourceMode, mode);
+  }
+  ctx.currentDataMode = 'observed';
+  interval = '15min';
+  format = 'png';
+  day.hours = [{ ...observed, navd88StageFt: 0 }];
+  assert.equal(build()[0].entry.navd88StageFt, 0, 'A valid zero observation still wins');
+  day.hours = [{ ...observed, navd88StageFt: null }];
+  assert.equal(build()[0].entry.exportSourceMode, 'forecast', 'Missing observations fall back to an exact forecast');
+  format = 'gif';
+
+  // The same 75-minute separation is an observed outage and a permissible
+  // forecast interval. Never blend the last observed and first forecast slot.
+  const before = actual[8], after = actual[13];
+  const target = new Date(Date.parse(before.timeUtc) + 15 * 60000);
+  selectRange(target, target);
+  day.hours = [before, after];
+  forecast = [];
+  assert.equal(build().length, 0, 'A primary gauge outage must not produce an export frame');
+  day.hours = [before];
+  forecast = [{ ...after, exportSourceMode: 'forecast' }];
+  assert.equal(build().length, 0, 'Observed and projected readings must not bridge each other');
+  forecast = [before, after].map(entry => ({ ...entry, exportSourceMode: 'forecast' }));
+  assert.equal(build()[0].entry.exportSourceMode, 'forecast');
+  assert.equal(build()[0].entry.timeUtc, target.toISOString());
+  assert.equal(build()[0].entry.isInterpolatedTimelineFrame, true);
+
+  day.hours = [before, actual[12]];
+  day.isLewesSurrogate = true;
+  forecast = [];
+  const surrogate = build();
+  assert.equal(surrogate.length, 1, 'Adjacent surrogate hours remain replayable in export');
+  assert.equal(surrogate[0].entry.timeUtc, target.toISOString());
+  assert.equal(surrogate[0].entry.isInterpolatedTimelineFrame, true);
 }
 
 // Cancellation while the archive promise is pending must stop before creating
@@ -240,7 +347,7 @@ for (const outcome of ['cancel-resolve', 'cancel-reject', 'archive-error', 'succ
   const job = ctx.downloadCurrentSelection();
   assert.equal(ctx.exportInProgress, true);
   assert.equal(modalOpen, false, 'Settings isolation must release the visible progress Cancel button');
-  assert.match(progress, /archive year/);
+  assert.equal(progress, "Preparing export...");
   // Availability initialization now precedes the selected-year request.
   for (let turn = 0; turn < 5; turn++) await Promise.resolve();
   if (outcome.startsWith('cancel')) {

@@ -50,6 +50,14 @@ async function inspect(page,label){
 }
 const contained=(r,row)=>!!r&&r.width>0&&r.height>0&&r.left>=-1&&r.top>=-1&&r.right<=row.width+1&&r.bottom<=row.height+1;
 const overlaps=(a,b)=>!!a&&!!b&&Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
+async function checkRailOrder(page,parent,label){
+ const cards=await page.locator(`${parent} > :is(.layers-card,#townAddressCard,#downloadCard,.top-tides-card)`).evaluateAll(nodes=>nodes.map(node=>{
+  const rect=node.getBoundingClientRect();
+  return {name:node.id||(node.classList.contains('layers-card')?'layers':'topFloods'),top:rect.top,bottom:rect.bottom,height:rect.height};
+ }));
+ check(cards.map(card=>card.name).join(',')==='layers,townAddressCard,downloadCard,topFloods'&&
+  cards.every((card,index)=>card.height>0&&(!index||card.top>=cards[index-1].bottom-1)),label+' layers, address, export, and Top 10 follow the same visual and keyboard order',cards);
+}
 async function openDrawer(page){if(!await page.locator('body').evaluate(e=>e.classList.contains('mobile-controls-open')))await page.locator('#mobileControlsToggle').click({noWaitAfter:true});await page.locator('#nwwMobileControlHeader').waitFor({state:'visible'});}
 async function closeDrawer(page){if(await page.locator('body').evaluate(e=>e.classList.contains('mobile-controls-open'))){const close=page.locator('#mobileControlsClose');if(await close.isVisible())await close.click({noWaitAfter:true});else{check(false,'Compact drawer keeps a visible close button');await page.keyboard.press('Escape');}}}
 async function compactReadability(page,label){
@@ -62,11 +70,11 @@ async function compactReadability(page,label){
     for(const r of range.getClientRects())if(r.width>0&&r.height>0)rows.push({text:node.textContent.trim(),left:r.left,top:r.top,right:r.right,bottom:r.bottom});
    }return rows;};
   const box=e=>{const r=e.getBoundingClientRect();return{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
-  const control=document.getElementById('mobileControlsToggle'),key=document.getElementById('legendDock');
+  const control=document.getElementById('mobileControlsToggle'),key=document.getElementById('nwwMobileLegendToggle');
   const pseudoText=element=>['::before','::after'].map(p=>{const s=getComputedStyle(element,p);return{content:s.content,font:parseFloat(s.fontSize),display:s.display,visibility:s.visibility};});
   const pseudos=pseudoText(control);
   const svg=[...control.querySelectorAll('svg')].some(svg=>{const r=svg.getBoundingClientRect();return r.width>4&&r.height>4&&getComputedStyle(svg).visibility!=='hidden'&&!!svg.querySelector('path,rect,line,circle,polygon,polyline,use');});
-  const fullKey=[...key.querySelectorAll('#legendBody .depth-legend-labels,#legendBody .legend-labels')].some(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden');
+  const fullKey=[...document.getElementById('legendDock').querySelectorAll('#legendBody .depth-legend-labels,#legendBody .legend-labels')].some(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden');
   const day=[...document.querySelectorAll('#timelineDayTabs .timeline-day.active,#timelineDayTabs .timeline-day[aria-current="date"]')].find(e=>e.getClientRects().length);
   const track=document.querySelector('#timelineDock .timeline-trackRow');
   return{controlTexts:visibleText(control),pseudos,svg,key:{box:box(key),texts:visibleText(key),pseudos:pseudoText(key),fullKey},day:day?{box:box(day),texts:visibleText(day),track:track&&box(track)}:null};
@@ -77,8 +85,8 @@ async function compactReadability(page,label){
  const textFits=(texts,box)=>texts.every(r=>r.left>=box.left-1&&r.top>=box.top-1&&r.right<=box.right+1&&r.bottom<=box.bottom+1);
  check((visual.key.texts.length>0||visual.key.pseudos.some(visiblePseudo))&&!visual.key.fullKey&&textFits(visual.key.texts,visual.key.box),label+' collapsed key shows a bounded summary without full-key overlap',visual.key);
  check(visual.day&&visual.day.texts.length>0&&textFits(visual.day.texts,visual.day.box)&&visual.day.texts.every(text=>!overlaps(text,visual.day.track)),label+' active day text stays readable inside the timeline',visual.day);
- const legend=page.locator('#legendDock');await legend.focus();await page.keyboard.press('Enter');
- await page.waitForFunction(()=>document.getElementById('legendDock')?.getAttribute('aria-expanded')==='true');await settle(page);
+ const legend=page.locator('#nwwMobileLegendToggle');await legend.focus();await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.getElementById('nwwMobileLegendToggle')?.getAttribute('aria-expanded')==='true');await settle(page);
  const opened=await page.evaluate(()=>{const el=document.getElementById('legendDock'),r=el.getBoundingClientRect(),body=document.getElementById('legendBody');return{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:innerWidth,height:innerHeight,bodyVisible:!!body&&body.getClientRects().length>0&&getComputedStyle(body).visibility!=='hidden',scrollWidth:el.scrollWidth,clientWidth:el.clientWidth};});
  check(opened.bodyVisible&&opened.left>=-1&&opened.top>=-1&&opened.right<=opened.width+1&&opened.bottom<=opened.height+1&&opened.scrollWidth<=opened.clientWidth+2,label+' opened key reveals its full legend within the viewport',opened);
  await legend.focus();await page.keyboard.press('Enter');await settle(page);
@@ -91,6 +99,7 @@ async function testCompact(page,label){
  for(const [tab,control]of [['Flood data','#forecastDataBtn'],['Map layers','#satelliteToggle'],['Tools','#townAddressClearBtn']]){
   const tabControl=page.getByRole('tab',{name:tab,exact:true});
   await tabControl.click({noWaitAfter:true});await settle(page);
+  if(tab==='Map layers')await checkRailOrder(page,'#mobileRailMount',label);
   const tabBox=await tabControl.boundingBox();
   check(tabBox?.height>=43.5,label+' '+tab+' tab keeps a44px target',tabBox);
   await page.locator(control).scrollIntoViewIfNeeded();await settle(page);
@@ -105,13 +114,14 @@ async function testCompact(page,label){
 async function geometryChecks(page,label,mustKeepDesktop){
  await settle(page);const row=await inspect(page,label);
  check(!row.rootOverflow,label+' page does not extend beyond the viewport',row);
- for(const key of ['timeline','bubble','title','nav'])check(contained(row[key],row),label+' '+key+' stays visible',row);
+ for(const key of ['timeline','bubble','title',...(row.layout==='desktop'?['nav']:[])])check(contained(row[key],row),label+' '+key+' stays visible',row);
  check(!overlaps(row.title,row.nav),label+' title and navigation do not overlap',row);
  check(!overlaps(row.nav,row.timeline),label+' navigation and timeline do not overlap',row);
  check(!!row.key,label+' flood category key remains visible',row);
  if(mustKeepDesktop)check(row.layout==='desktop',label+' preserves side-by-side controls',row);
  if(/^(Small desktop|Short wide|Phone|Zoom-equivalent|Short phone|Touch laptop)/.test(label))check(row.layout==='mobile',label+' uses a readable compact fallback',row);
  if(row.layout==='desktop'){
+  await checkRailOrder(page,'#rightRail',label);
   for(const side of ['left','right']){
    const pane=row[side];check(contained(pane.box,row),label+' '+side+' sidebar is fully on screen',row);
    check(pane.scrollHeight<=pane.clientHeight+2,label+' '+side+' primary controls fit without scrolling',row);
@@ -132,7 +142,7 @@ async function geometryChecks(page,label,mustKeepDesktop){
    check(Math.abs(row.left.box.width-300)<=1&&Math.abs(row.right.box.width-280)<=1,label+' retains established sidebar widths',row);
   }
  }else{
-  check(!!row.toggle,label+' provides the compact controls button',row);
+  check(!!row.toggle&&!row.nav,label+' puts map view in Controls and hides the map navigation stack',row);
   await testCompact(page,label);
  }
 }

@@ -17,7 +17,7 @@ function harness(point='response'){
   let id=0;
   const ctx=vm.createContext({AbortController,Blob,
     exportInProgress:true,exportCancelRequested:false,activeGifExport:null,
-    gifWorkerUrlPromise:null,gifWorkerLoadRequest:null,GIF_WORKER_CDN_URL:'worker.js',
+    gifWorkerUrlPromise:null,gifWorkerLoadRequest:null,GIF_WORKER_URL:'worker.js',
     setTimeout:(fn,ms)=>{timers.set(++id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),
     URL:{createObjectURL:()=>{const url=`blob:worker-${created.length}`;created.push(url);return url;},revokeObjectURL:url=>revoked.push(url)},
     fetch:async(_url,options)=>{

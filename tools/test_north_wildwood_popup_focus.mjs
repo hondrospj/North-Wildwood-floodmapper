@@ -12,7 +12,9 @@ const fallbackLifetimeSource = source.match(/  function closeOutdatedFallbackBui
 assert.ok(fallbackLifetimeSource, 'The actual fallback popup lifetime helper must be present');
 const discardSource = source.match(/  function discardObsoleteFloodFrame3d\(\) \{[\s\S]*?\n  \}/)?.[0];
 assert.ok(discardSource, 'The actual pending GPU-frame cleanup must be present');
-const refresh = new Function('env', `with(env) { ${discardSource}\n ${fallbackLifetimeSource}\n ${body}\n }`);
+const syncSource = source.match(/  function syncUpdatedGlPopup\(\) \{[\s\S]*?\n  \}/)?.[0];
+assert.ok(syncSource, 'The actual popup sync helper must be present');
+const refresh = new Function('env', `with(env) { ${discardSource}\n ${fallbackLifetimeSource}\n ${syncSource}\n ${body}\n }`);
 
 function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, throws = false, pressed = false } = {}) {
   const document = { activeElement: null };
@@ -30,9 +32,10 @@ function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, thro
     if (selector === '.maplibregl-popup-content') return content;
     if (selector === '.maplibregl-popup-close-button') return close;
     if (selector === '.house-alert-cta') return cta;
-    if (selector === '.house-alert-cta:active') return pressed ? cta : null;
+    if (selector === '.house-alert-cta:active, .property-help summary:active') return pressed ? cta : null;
+    if (selector === '.property-help') return null;
     throw new Error(`Unexpected selector: ${selector}`);
-  } };
+  }, querySelectorAll() { return [close, cta]; } };
   const glPopup = {
     options: { focusAfterOpen }, getElement: () => container,
     setHTML() {
@@ -50,6 +53,7 @@ function fixture({ focus = 'slider', focusAfterOpen = true, changed = true, thro
     lastGlPopupHtml: 'old reading',
     fallbackBuildingPopup: null, fallbackBuildingRenderToken: null, pendingFlood3dRequest: null, lastRenderToken: 1, floodFrameState: 'ready',
     originalUpdatePersistentDepthQueryPopup: () => { calls.original++; return 'original result'; },
+    deferPropertyPopupUpdate: (root) => Boolean(root.querySelector('.house-alert-cta:active, .property-help summary:active')),
     syncGlPopupLayout: () => calls.layout++,
   };
   document.activeElement = focus === 'close' ? close : focus === 'cta' ? cta : slider;
@@ -106,23 +110,39 @@ for (const focus of ['close', 'cta']) {
 const layoutSource = source.match(/  function syncGlPopupLayout\(\) \{[\s\S]*?\n  \}/)?.[0];
 assert.ok(layoutSource, 'The actual popup layout normalization must be present');
 const normalizeLayout = new Function('env', `with(env) { ${layoutSource}\n syncGlPopupLayout(); }`);
-for (const compact of [true, false]) {
+for (const [compact, space] of [[true, 500], [false, 500], [false, 300]]) {
   const attributes = new Map();
-  const close = { setAttribute: (name, value) => attributes.set(name, value) };
+  const close = {
+    setAttribute: (name, value) => attributes.set(name, value),
+    closest: () => null,
+    focus() { env.document.activeElement = this; }
+  };
   const content = { firstElementChild: null, prepend(node) { this.firstElementChild = node; } };
-  const parent = { appendChild(node) { node.parentElement = this; } };
-  const element = { parentElement: parent, classList: { toggle() {} }, querySelector(selector) {
+  const mapContainer = { appendChild(node) { node.parentElement = this; } };
+  const body = { appendChild(node) { node.parentElement = this; env.document.activeElement = body; } };
+  const element = { parentElement: mapContainer, contains: target => target === close,
+    classList: { contains() { return false; }, toggle() {} }, querySelector(selector) {
     if (selector === '.maplibregl-popup-content') return content;
     if (selector === '.maplibregl-popup-close-button') return close;
+    if (selector.startsWith('.building-info-card,')) return {};
     throw new Error(`Unexpected layout selector: ${selector}`);
   } };
   const env = {
-    glPopup: { getElement: () => element }, glMap: { getContainer: () => parent },
-    document: { body: parent }, isCompactFloodmapperLayout: () => compact,
+    glPopup: { getElement: () => element }, glMap: { getContainer: () => mapContainer },
+    document: {
+      body, activeElement: close,
+      getElementById: id => ({
+        getBoundingClientRect: () => id === 'leftPanel' ? { right: 300 } : { left: 300 + space, width: 92 },
+      }),
+    },
+    isCompactFloodmapperLayout: () => compact,
   };
   normalizeLayout(env);
   assert.equal(attributes.get('aria-label'), 'Close popup', 'Every recreated close needs its accessible name in both layouts');
-  if (compact) assert.equal(content.firstElementChild, close, 'Compact close remains before the scrollable content');
+  const centered = compact || space === 300;
+  assert.equal(element.parentElement, centered ? body : mapContainer);
+  assert.equal(env.document.activeElement, close, 'Reparenting preserves the focused Close control');
+  if (centered) assert.equal(content.firstElementChild, close, 'Centered close remains before the scrollable content');
   checks++;
 }
 
@@ -138,7 +158,7 @@ for (const target of ['close', 'cta', 'popup-text', 'map', 'synthetic']) {
   } };
   const env = {
     layerVisible: () => { layerLookups++; return false; },
-    glMap: {}, mapClickMode: 'building', L: { latLng: (lat, lng) => ({ lat, lng }) },
+    glMap: { getPitch: () => 60 }, mapClickMode: 'building', L: { latLng: (lat, lng) => ({ lat, lng }) },
     handleDepthQueryClick: () => queries++,
   };
   await onMapClick(env, event);

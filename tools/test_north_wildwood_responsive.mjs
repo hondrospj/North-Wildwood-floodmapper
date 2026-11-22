@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {revealExportControl} from './browser_export_review.mjs';
+import {changeMapView} from './browser_map_view.mjs';
 const {chromium, webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const engine=process.env.NWW_BROWSER==='webkit' ? webkit : chromium;
 const browser=await engine.launch({headless:true,...(process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH}:{}),...(engine===chromium?{args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']}: {})});
@@ -136,10 +137,11 @@ try {
       check(!state.titleNavOverlap,`${prefix} title/navigation separation`,state);
       check(!state.navTimelineOverlap,`${prefix} navigation/timeline separation`,state);
       check(state.keyVisible,`${prefix} flood category key visible`,state);
-      check(state.legendParent===(compact?'BODY':'leftPanel'),`${prefix} single legend placement`,state);
+      check(state.legendParent===(compact?'nwwMobileUtilities':'leftPanel'),`${prefix} single legend placement`,state);
       check(state.toggle===compact&&state.rail===!compact,`${prefix} correct controls`,state);
       if(!compact)check(!state.sidebarTimestampOverlap,`${prefix} sidebar/timestamp separation`,state);
-      for(const id of ['mapTitleBadge','timelineDock','timelineBubble','nwDefaultNavControl'])await contained(page,'#'+id,`${prefix} ${id} fits`);
+      for(const id of ['mapTitleBadge','timelineDock','timelineBubble',...(compact?[]:['nwDefaultNavControl'])])await contained(page,'#'+id,`${prefix} ${id} fits`);
+      if(compact) check(!state.nav,`${prefix} navigation stack is off the map`,state);
       if(compact){await openDrawer(page);await settled(page);await contained(page,'#leftPanel',`${prefix} open drawer fits`);await closeDrawer(page);await settled(page);check(!await page.locator('body').evaluate(e=>e.classList.contains('mobile-controls-open')),`${prefix} close button works`);}
       console.log(prefix,'checked');
     }
@@ -152,11 +154,24 @@ try {
       for(const id of ['exportFormatPngBtn','exportFormatGifBtn','exportAspectSquareBtn','exportAspectPortraitBtn','exportExtentCurrentBtn','exportExtentTownBtn']){
         if(await page.locator('#'+id).count())await activate(page,'#'+id);
       }
-      const playBox=await page.locator('#playBtn').boundingBox();
-      await page.mouse.click(playBox.x+playBox.width/2,playBox.y+playBox.height/2);
-      check(!await page.evaluate(()=>Boolean(playTimer)),`${width} dialog click does not start playback`);
-      if(await page.locator('#downloadModalCloseBtn').isVisible())await activate(page,'#downloadModalCloseBtn');
-      await openDrawer(page);await activate(page,'#observedDataBtn');await settled(page);
+      // A raw click at the covered Play coordinates can activate a real
+      // foreground export button. Verify the hit target without invoking it.
+      const playIsolation=await page.locator('#playBtn').evaluate(play=>{
+        const rect=play.getBoundingClientRect();
+        const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+        return {inert:!!play.closest('[inert]'),foreground:!!hit?.closest('#downloadModal'),
+          hit:hit?.closest('button')?.id||hit?.id||hit?.className};
+      });
+      check(playIsolation.inert&&playIsolation.foreground,`${width} Export blocks background Play`,playIsolation);
+      check(!await page.evaluate(()=>Boolean(playTimer)),`${width} playback remains stopped while Export is open`);
+      await activate(page,'#downloadModalCloseBtn');
+      await page.locator('#downloadModal').waitFor({state:'hidden'});
+      await openDrawer(page);
+      await page.waitForFunction(()=>{
+        const tab=document.querySelector('#nwwMobileControlHeader [data-group="forecast"]');
+        return tab && !tab.closest('[inert]');
+      },{},{timeout:30000,polling:50});
+      await activate(page,'#observedDataBtn');await settled(page);
       if(await page.locator('#observedCalendarOpenBtn').isVisible())await activate(page,'#observedCalendarOpenBtn');await activate(page,'#calendarTitleBtn');await settled(page);
       await contained(page,'#calendarPopover',`${width} calendar fits`);
       const selectedHour=await page.evaluate(()=>currentHourIndex);
@@ -171,12 +186,16 @@ try {
       await contained(page,'#infoModal .info-modal-card',`${width} help fits`);
       await activate(page,'#infoModalCloseBtn');
       await activate(page,'#observedDataBtn');await settled(page);
-      await page.locator('.top-tide-more-btn:visible').first()[touch?'tap':'click']();
+      const allFloods = page.locator('.top-tide-more-btn:visible').first();
+      check(await page.locator(':is(#topTideList,#topTideListMobile) .top-tide-item:visible').count() === 3,`${width} three floods visible in the preview`);
+      check(await allFloods.isVisible(),`${width} flood preview has a disclosure`);
+      await allFloods[touch?'tap':'click']();
       await contained(page,'#topTidesModal .top-tides-modal-card',`${width} top tides fits`);
+      check(await page.locator('#topTidesModalList .top-tide-item').count() === 10,`${width} all ten floods available in the dialog`);
       await activate(page,'#topTidesModalCloseBtn');
       await closeDrawer(page);
     }
-    await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();
+    await changeMapView(page);
     // Asset readiness precedes the launcher's actual camera transition. Begin
     // resize checks only after the real 3D control acknowledges completion.
     await page.waitForFunction(()=>{
@@ -192,6 +211,15 @@ try {
       await page.evaluate(feature=>openParcelFloodPrompt(feature,map.getCenter()),parcel);
       await settled(page);
       await contained(page,'.nw-mobile-popup .maplibregl-popup-content',`${width}x${height} building popup fits`);
+      const placement=await page.locator('.nw-mobile-popup').evaluate(popup=>({
+        phone:document.documentElement.hasAttribute('data-nww-phone'),
+        popupTop:popup.getBoundingClientRect().top,
+        popupBottom:popup.getBoundingClientRect().bottom,
+        toolbarBottom:document.getElementById('nwwMobileUtilities').getBoundingClientRect().bottom,
+        dockTop:document.getElementById('timelineDock').getBoundingClientRect().top,
+      }));
+      if(placement.phone) check(placement.popupTop >= placement.toolbarBottom + 7 && placement.popupBottom <= placement.dockTop - 7,
+        `${width}x${height} building popup clears the map toolbar and timeline`,placement);
       await hitTestable(page,'.nw-mobile-popup .maplibregl-popup-close-button',`${width}x${height} popup close immediately reachable`);
       await activate(page,'.nw-mobile-popup .house-alert-cta');
       await settled(page);

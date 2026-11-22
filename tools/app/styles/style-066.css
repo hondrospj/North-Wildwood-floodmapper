@@ -58,6 +58,32 @@
       max-height:calc(100dvh - 82px - var(--shorely-mobile-timeline-height, 108px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     }
   }
+  #app > .nw-short-leaflet-popup{
+    position:fixed !important;
+    top:calc(62px + env(safe-area-inset-top, 0px)) !important;
+    left:50% !important;
+    right:auto !important;
+    bottom:auto !important;
+    width:min(380px, calc(100vw - 24px)) !important;
+    margin:0;
+    transform:translateX(-50%) !important;
+    z-index:6000;
+  }
+  .map-3d-ready #app > .nw-short-leaflet-popup,
+  #app > .nw-short-leaflet-popup .leaflet-popup-tip-container{display:none}
+  #app > .nw-short-leaflet-popup .leaflet-popup-content-wrapper{padding:0}
+  #app > .nw-short-leaflet-popup .leaflet-popup-content{
+    width:100% !important;
+    box-sizing:border-box;
+    max-height:calc(100dvh - 82px - var(--shorely-mobile-timeline-height, 108px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow:auto;
+    overscroll-behavior:contain;
+  }
+  #app > .nw-short-leaflet-popup .building-info-card{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+  }
   #calendarPopover .calendar-popover-grid::after{
     content:none !important;
   }

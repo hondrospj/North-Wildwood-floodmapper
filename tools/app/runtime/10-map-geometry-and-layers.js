@@ -131,16 +131,16 @@
       });
     }
 
-    function createHydraulicImageOverlay(url, options = {}) {
+    function createHydraulicImageOverlay(url, options = {}, source = url) {
       if (url === PARCEL_BOUNDARY_PNG_URL && TOWN_CONFIG.parcels?.worldFileCornersWgs84) {
         const raster = TOWN_CONFIG.parcels.worldFileRasterSize;
-        return new WorldFileImageOverlay(url, TOWN_CONFIG.parcels.worldFileCornersWgs84, {
+        return new WorldFileImageOverlay(source, TOWN_CONFIG.parcels.worldFileCornersWgs84, {
           ...options,
           pixelWidth: raster?.width,
           pixelHeight: raster?.height
         });
       }
-      return createWorldFileImageOverlay(url, options) || L.imageOverlay(url, floodLatLngBounds, options);
+      return createWorldFileImageOverlay(source, options) || L.imageOverlay(source, floodLatLngBounds, options);
     }
 
     function getActiveFloodOverlayCoordinates() {
@@ -641,15 +641,40 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       deferredMapLayersStarted = true;
       document.body.dataset.deferredMapLayers = "active";
       document.body.dataset.deferredMapLayersStartedAt = performance.now().toFixed(1);
-      if (basemapColorLayer && !map.hasLayer(basemapColorLayer)) basemapColorLayer.addTo(map);
+      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
+        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
+        minZoom: 11,
+        maxNativeZoom: 19,
+        maxZoom: 20,
+        subdomains: "abcd",
+        crossOrigin: true,
+        opacity: 0,
+        updateWhenIdle: true,
+        keepBuffer: 1,
+        className: "roads-layer",
+        pane: "roadsPane"
+      });
       if (roadsLayer && !map.hasLayer(roadsLayer)) roadsLayer.addTo(map);
       updateRoadLayerAppearance();
       updateColorBasemapClip();
     }
 
+    function fitInitialFloodView(bounds, startupBounds = null) {
+      if (mapHasFit || !bounds) return;
+      map.fitBounds(bounds, { padding: [16, 16], animate: startupBounds ? false : undefined });
+      if (isCompactFloodmapperLayout()) {
+        // Keep the previous phone zoom, which was relative to the provisional viewport.
+        const zoom = startupBounds ? map.getBoundsZoom(startupBounds, false, L.point(40, 40)) : map.getZoom();
+        map.setZoom(Math.min(zoom + 1, map.getMaxZoom()), { animate: false });
+      }
+      mapHasFit = true;
+    }
+
     function ensureMap() {
       if (map) return;
 
+      const startupPreview = document.getElementById("startupMapPreview");
+      const retireStartupPreview = () => startupPreview?.remove();
       map = L.map("map", {
         zoomControl: false,
         minZoom: 11,
@@ -685,10 +710,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       basemapColorLayer = makeEsriBuildingBasemapLayer();
 
       if (basemapColorLayer) {
-        basemapColorLayer.on("error", () => {
-          if (basemapColorLayer && map.hasLayer(basemapColorLayer)) {
-            map.removeLayer(basemapColorLayer);
-          }
+        const vectorLayer = basemapColorLayer;
+        vectorLayer.once("error", () => {
+          const wasActive = map.hasLayer(vectorLayer);
+          if (wasActive) map.removeLayer(vectorLayer);
           basemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
             attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
             minZoom: 11,
@@ -700,7 +725,8 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
             className: "basemap-color-layer",
             pane: "basemapColorPane"
           });
-          if (deferredMapLayersStarted) basemapColorLayer.addTo(map);
+          if (startupPreview) basemapColorLayer.once("load", retireStartupPreview);
+          if (wasActive) basemapColorLayer.addTo(map);
         });
       } else {
         basemapColorLayer = L.tileLayer(FALLBACK_BASEMAP_URL, {
@@ -719,25 +745,12 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       satelliteLayer = L.tileLayer(ESRI_WORLD_IMAGERY_URL, {
         attribution: "Tiles &copy; Esri",
         minZoom: 11,
-        maxZoom: 19,
+        maxNativeZoom: 19,
+        maxZoom: map.getMaxZoom(),
         crossOrigin: true,
         updateWhenIdle: true,
         keepBuffer: 1,
         pane: "satellitePane"
-      });
-
-      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {
-        attribution: "Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors",
-        minZoom: 11,
-        maxNativeZoom: 19,
-        maxZoom: 20,
-        subdomains: "abcd",
-        crossOrigin: true,
-        opacity: 0,
-        updateWhenIdle: true,
-        keepBuffer: 1,
-        className: "roads-layer",
-        pane: "roadsPane"
       });
 
       updateMunicipalBoundaryLayer();
@@ -747,11 +760,34 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         updateRoadLayerAppearance();
         updateColorBasemapClip();
       });
+      map.on("zoomend", updateParcelBoundaryResolution);
       map.on("click", handleDepthQueryClick);
       updateRoadLayerAppearance();
       updateColorBasemapClip();
 
-      map.fitBounds(getBoundaryDrivenOverlayBounds(false), { padding: [20, 20] });
+      const previewBounds = getBoundaryDrivenOverlayBounds(false);
+      if (municipalBoundaryRings.length) fitInitialFloodView(getBoundaryDrivenOverlayBounds(), previewBounds);
+      else map.fitBounds(previewBounds, { padding: [20, 20], animate: false });
+      basemapColorLayer.addTo(map);
+      document.body.dataset.mapInitialized = "true";
+      if (startupPreview) {
+        const topLeft = map.latLngToContainerPoint(previewBounds.getNorthWest());
+        const bottomRight = map.latLngToContainerPoint(previewBounds.getSouthEast());
+        Object.assign(startupPreview.style, {
+          left: `${topLeft.x}px`, top: `${topLeft.y}px`,
+          width: `${bottomRight.x - topLeft.x}px`, height: `${bottomRight.y - topLeft.y}px`
+        });
+        const initialBasemap = basemapColorLayer;
+        if (typeof initialBasemap._createMaplibreLayer === "function") {
+          // Wait for painted vector tiles, not just the service metadata or flood layer.
+          const onVectorReady = () => initialBasemap._maplibreGL?.getMaplibreMap()?.once("idle", retireStartupPreview);
+          if (initialBasemap._maplibreGL) onVectorReady();
+          else initialBasemap.once("ready", onVectorReady);
+        } else {
+          initialBasemap.once("load", retireStartupPreview);
+        }
+        map.once("movestart", retireStartupPreview);
+      }
       requestAnimationFrame(() => {
         map.invalidateSize();
         updateColorBasemapClip();
@@ -785,15 +821,21 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     function updateMapClickModeControl() {
       const control = document.getElementById("mapClickModeControl");
       const buildingButton = document.getElementById("mapClickBuildingBtn");
+      const parcelButton = document.getElementById("mapClickParcelBtn");
       const depthButton = document.getElementById("mapClickDepthBtn");
-      if (!control || !buildingButton || !depthButton) return;
+      if (!control || !buildingButton || !parcelButton || !depthButton) return;
       control.hidden = !parcelInfoInteractionEnabled();
-      buildingButton.textContent = "Building Info";
-      depthButton.textContent = "Flood Depth";
-      buildingButton.classList.toggle("active", mapClickMode === "building");
-      depthButton.classList.toggle("active", mapClickMode === "depth");
-      buildingButton.setAttribute("aria-pressed", String(mapClickMode === "building"));
-      depthButton.setAttribute("aria-pressed", String(mapClickMode === "depth"));
+      const buildingsOn = document.getElementById("buildingsToggle")?.classList.contains("on");
+      const structuresOn = document.getElementById("nsiStructuresToggle")?.classList.contains("on");
+      buildingButton.hidden = !buildingsOn && !structuresOn;
+      buildingButton.textContent = buildingsOn ? "Building Info" : "Structure Info";
+      buildingButton.setAttribute("aria-label", buildingButton.textContent);
+      parcelButton.hidden = !document.getElementById("parcelsToggle")?.classList.contains("on");
+      for (const button of [buildingButton, parcelButton, depthButton]) {
+        const active = button.dataset.mapClickMode === mapClickMode;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      }
       if (!control.hidden) requestAnimationFrame(positionMapClickModeControl);
     }
 
@@ -804,18 +846,34 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       const titleRect = title.getBoundingClientRect();
       if (!Number.isFinite(titleRect.bottom) || titleRect.height < 2) return;
       control.style.setProperty("--map-click-mode-top", `${Math.ceil(titleRect.bottom + 7)}px`);
+      if (isCompactFloodmapperLayout()) {
+        const dock = document.getElementById("timelineDock")?.getBoundingClientRect();
+        if (dock?.height) control.style.setProperty("--map-click-mode-bottom", `${Math.ceil(innerHeight - dock.top + 10)}px`);
+      } else {
+        control.style.setProperty("--map-click-mode-left", `${(titleRect.left + titleRect.right) / 2}px`);
+        control.style.setProperty("--map-click-mode-width", title.style.maxWidth || `${titleRect.width}px`);
+      }
     }
 
     function setMapClickMode(mode, options = {}) {
       ++mapQueryGeneration;
-      mapClickMode = mode === "depth" ? "depth" : "building";
+      mapClickMode = mode === "building" || mode === "parcel" ? mode : "depth";
       updateMapClickModeControl();
       if (options.closePopup !== false && persistentFloodPopup && map?.hasLayer(persistentFloodPopup)) {
         map.removeLayer(persistentFloodPopup);
       }
     }
 
-    async function setBuildingsEnabled(enabled) {
+    function disableBuildingInfo() {
+      if (persistentDepthQueryContext?.kind === "building" && map.hasLayer(persistentFloodPopup)) {
+        map.removeLayer(persistentFloodPopup);
+      }
+      if (mapClickMode === "building" && !document.getElementById("nsiStructuresToggle")?.classList.contains("on")) {
+        setMapClickMode(document.getElementById("parcelsToggle")?.classList.contains("on") ? "parcel" : "depth");
+      } else updateMapClickModeControl();
+    }
+
+    async function setBuildingsEnabled(enabled, options = {}) {
       const shouldEnable = Boolean(enabled);
       const toggle = document.getElementById("buildingsToggle");
       if (toggle) {
@@ -826,7 +884,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       if (!shouldEnable) {
         if (buildingsLayer && map.hasLayer(buildingsLayer)) map.removeLayer(buildingsLayer);
         updateExportBuildingsLayer();
-        updateMapClickModeControl();
+        disableBuildingInfo();
         toast("");
         return;
       }
@@ -840,7 +898,7 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
         });
       }
       if (!map.hasLayer(buildingsLayer)) buildingsLayer.addTo(map);
-      setMapClickMode("building", { closePopup: false });
+      if (!options.preserveClickMode) setMapClickMode("building", { closePopup: false });
       updateExportBuildingsLayer();
       toast("");
       ensureParcelAssets().catch(error => console.warn("Building parcel matching will retry when requested.", error));
@@ -870,17 +928,23 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
     }
 
     // Bake the label styling into canvas tiles so PNG/GIF captures preserve it.
+    function hasRoadLabelRenderer() {
+      return typeof window.ShorelyRoadLabels?.createLayer === "function"
+        && typeof window.L?.esri?.Vector?.vectorTileLayer === "function";
+    }
+
     // The live map keeps its soft gray style; exports can use stronger contrast.
     function createRoadLabelLayer(url, options) {
-      if (!window.ShorelyRoadLabels) throw new Error("The road-label renderer could not load.");
+      if (!hasRoadLabelRenderer()) return null;
       return window.ShorelyRoadLabels.createLayer({
         ...options,
         exportMode: Number(options?.minZoom) === 0,
-        includeNames: Number(options?.minZoom) !== 0
+        includeNames: Number(options?.minZoom) !== 0 || (TOWN_CONFIG.assets?.exportRoadFallback === true &&
+          !window.NORTH_WILDWOOD_EXPORT_ROADS?.hasLocalNames?.())
       });
     }
 
-    function updateRoadLayerAppearance() {
+    function updateRoadLayerAppearance({ retry3dRoads: retryRoadLabels = false } = {}) {
       if (!map || !roadsLayer) return;
 
       const toggle = document.getElementById("roadsToggle");
@@ -892,5 +956,10 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
 
       const pane = map.getPane("roadsPane");
       if (pane) pane.classList.toggle("roads-dark", showLabels);
+
+      // Only an explicit enable from the Road Names switch retries a failed renderer.
+      if (retryRoadLabels && roadsEnabled && map.hasLayer(roadsLayer)) {
+        roadsLayer.whenReady({ retry: true }).catch(() => {});
+      }
     }
 

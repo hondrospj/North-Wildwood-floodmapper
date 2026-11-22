@@ -34,17 +34,21 @@ function isIsolatedSpike(previous, current, next, previousTime, currentTime, nex
   );
 }
 
-function parseReadings(xml) {
+function parseReadings(xml, year) {
   const readings = [];
   for (const match of xml.matchAll(/<marker\s+v\d+="([^"]+)"\s*\/>/g)) {
     const separator = match[1].lastIndexOf(",");
     if (separator === -1) continue;
-    readings.push([
-      match[1].slice(0, separator),
-      Number(match[1].slice(separator + 1)),
-    ]);
+    const timestamp = match[1].slice(0, separator).trim();
+    const rawLevel = match[1].slice(separator + 1).trim();
+    const level = Number(rawLevel);
+    if (!rawLevel || !Number.isFinite(level) || timestamp.slice(0, 4) !== String(year)) continue;
+    const instant = readingTime(timestamp);
+    if (!Number.isFinite(instant) ||
+        new Date(instant).toISOString().slice(0, 19).replace("T", " ") !== timestamp) continue;
+    readings.push([timestamp, level]);
   }
-  return readings;
+  return readings.sort(([first], [second]) => first < second ? -1 : first > second ? 1 : 0);
 }
 
 function readingTime(timestamp) {
@@ -176,8 +180,18 @@ async function fetchYear(year) {
   url.searchParams.set("end", `01/01/${year + 1} 00:00:00`);
   const response = await fetch(url, { signal: AbortSignal.timeout(240_000) });
   if (!response.ok) throw new Error(`${year}: HTTP ${response.status}`);
-  const readings = parseReadings(await response.text());
+  const readings = parseReadings(await response.text(), year);
   const usable = readings.filter(([, value]) => isUsableValue(value));
+  if (!usable.length) throw new Error(`${year}: municipal gauge returned no usable readings`);
+  const previous = await fs.readFile(path.join(outputDir, `${year}.json`), "utf8").then(JSON.parse, error => {
+    if (error.code !== "ENOENT") throw error;
+    return null;
+  });
+  if (previous?.usableRecordCount > 0 &&
+      (usable[0][0].slice(0, 10) > previous.firstTimestamp?.slice(0, 10) ||
+       usable.at(-1)[0].slice(0, 10) < previous.lastTimestamp?.slice(0, 10))) {
+    throw new Error(`${year}: municipal gauge response would erase previously archived days`);
+  }
   let duplicateTimestampRows = 0;
   const seen = new Set();
   for (const [timestamp] of readings) {
@@ -212,7 +226,6 @@ async function fetchYear(year) {
     duplicateTimestampRows,
     readings,
   };
-  await fs.writeFile(path.join(outputDir, `${year}.json`), `${JSON.stringify(payload)}\n`);
   console.log(JSON.stringify({
     year,
     records: payload.recordCount,
@@ -249,6 +262,10 @@ if (process.argv.includes("--from-existing")) {
   }
 } else {
   await Promise.all([worker(), worker()]);
+  // Finish validating every year before replacing the saved archive.
+  for (const payload of payloads) {
+    await fs.writeFile(path.join(outputDir, `${payload.year}.json`), `${JSON.stringify(payload)}\n`);
+  }
 }
 payloads.sort((a, b) => a.year - b.year);
 const nonempty = payloads.filter((payload) => payload.recordCount > 0);

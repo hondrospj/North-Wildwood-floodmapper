@@ -238,7 +238,8 @@ async function terminal(label) {
         local:{canvasCount:localCanvases.length,ownerCount:owners.length,layerId:owner?._leaflet_id,mapContains:!!owner&&exportMap.hasLayer(owner),ownsMap:owner?._map===exportMap,
           attached:!!local?.isConnected,visible:!!local&&getComputedStyle(local).display!=='none'&&getComputedStyle(local).visibility!=='hidden',enabled:owner?.options.enabled,
           width:local?.width,height:local?.height,positionDelta:rect?Math.hypot(rect.left-mapRect.left,rect.top-mapRect.top):null,
-          unit:owner?.options.unit,expectedUnit:Math.min(getExportAspectConfig().width,getExportAspectConfig().height)/1080,
+          unit:owner?.options.unit,expectedUnit:Math.min(document.getElementById("exportStageFrame").offsetWidth,
+            document.getElementById("exportStageFrame").offsetHeight)/1080,
           family:local?.dataset.fontFamily,bodyFamily:getComputedStyle(document.body).fontFamily,
           labelCount:Number(local?.dataset.labelCount),labels:labels.length,
           geometryValid:labels.length>0&&labels.every(label=>label.name&&label.text&&Number.isFinite(label.fontSize)&&label.fontSize>0&&Array.isArray(label.box)&&label.box.length===4&&label.box.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.x>=0&&p.y>=0&&p.x<=size.x&&p.y<=size.y)),originClean,nonblank}};
@@ -270,8 +271,8 @@ function classifyPendingProviderPreviewRetry(state, warning, context) {
   const no=reason=>({eligible:false,reason});
   if(context?.name!=='normal-route-free'||context.routeEverInstalled!==false)return no('context-not-route-free');
   if(typeof context.coldPreviewReady!=='boolean')return no('cold-preview-state-unproven');
-  const actions=['broad-current-view','town-restored','Png-1:1','Png-4:5','Png-16:9','Png-9:16',
-    'Gif-1:1','Gif-4:5','Gif-16:9','Gif-9:16','png-download-ready','gif-download-ready',
+  const actions=['broad-current-view','town-restored','Png-1:1','Png-16:9','Png-9:16',
+    'Gif-1:1','Gif-16:9','Gif-9:16','png-download-ready','gif-download-ready',
     'roads-disabled','roads-reenabled','current-crop'];
   if(!actions.includes(context.actionId))return no('unknown-preview-action');
   const used=context.retriedPreviewActions;
@@ -443,7 +444,8 @@ async function layout(label,minimum=8) {
   const state=await page.evaluate(async()=>{
     const canvas=exportMap.getPane('roadsPane').querySelector('.nww-export-road-labels');
     let layer;exportMap.eachLayer(candidate=>{if(candidate._canvas===canvas&&typeof candidate.getLabels==='function')layer=candidate;});
-    const family=canvas?.dataset.fontFamily,unit=Math.min(getExportAspectConfig().width,getExportAspectConfig().height)/1080;
+    const family=canvas?.dataset.fontFamily,frame=document.getElementById('exportStageFrame');
+    const unit=Math.min(frame.offsetWidth,frame.offsetHeight)/1080;
     const scratch=document.createElement('canvas').getContext('2d');
     const fontMetrics=[20,18].map(size=>{
       scratch.font=`600 ${size*unit}px ${family}`;
@@ -463,7 +465,7 @@ async function layout(label,minimum=8) {
       family,bodyFamily:getComputedStyle(document.body).fontFamily,
       visible:canvas ? getComputedStyle(canvas).display!=='none' : false,
       dimensions:getExportAspectConfig(),zoom:exportMap.getZoom(),center:exportMap.getCenter(),pixelOrigin:exportMap.getPixelOrigin(),
-      contextFont:canvas?.getContext('2d').font,fontMetrics,devicePixelRatio:window.devicePixelRatio};
+      unit,contextFont:canvas?.getContext('2d').font,fontMetrics,devicePixelRatio:window.devicePixelRatio};
   });
   saveState({label,...state});
   assert.equal(state.activeVector,true);
@@ -471,7 +473,7 @@ async function layout(label,minimum=8) {
   for(const layer of state.shieldLayers){assert.equal(layer.type,'symbol');assert.match(layer.id,/shield$/);assert.ok(layer.icon,'Only authoritative provider shields may join local ordinary names');}
   assert.equal(state.family,state.bodyFamily,'Street names must use the shared mapper font family');
   assert.equal(state.visible,true);assert.ok(state.labels.length>=minimum,`${label}: only ${state.labels.length} street names`);
-  const unit=Math.min(state.dimensions.width,state.dimensions.height)/1080;
+  const unit=state.unit;
   for(const street of state.labels){
     assert.ok(street.name && street.text && !/^FR\s/.test(street.text));
     const minimumFont=label==='broad-current-view'?13:18;
@@ -597,11 +599,11 @@ try{
   result.checks.push('A local street-data 503 produces a retryable error, and actual Retry fetches the data and renders the preview');
   await captureInputDiagnostics();await fault.context.close();fault.log.closed=true;page=null;activeSession=null;
 
-  // A fresh context has independent HTTP/model caches and never installs a
-  // route. Its first actual UI export exercises the cold normal PNG path.
+  // A fresh context never installs a route and has no cached export map.
+  // Its live first frame can warm the hydraulic grids before export starts.
   const normal=await startSession('normal-route-free');
   const initial=await page.evaluate(()=>({queryCached:!!depthQueryGridPromise,developedCached:!!developedQueryGridPromise,exportMapCreated:!!exportMap}));
-  assert.deepEqual(initial,{queryCached:false,developedCached:false,exportMapCreated:false});
+  assert.equal(initial.exportMapCreated,false,'The first PNG starts without a cached export map');
   const preference=await page.evaluate(()=>{
     document.getElementById('downloadFormatSelect').value='png';
     document.getElementById('downloadAspectSelect').value='1:1';
@@ -637,7 +639,7 @@ try{
   result.checks.push('The default broad current view retains New Jersey Avenue and West Spruce Avenue in the shared font');
 
   const completedFrame=await page.evaluateHandle(()=>({layer:exportFloodLayer,image:exportFloodLayer.getElement(),source:exportFloodLayer._url}));
-  const buttons=[['Square','1:1'],['Social','4:5'],['Landscape','16:9'],['Portrait','9:16']];
+  const buttons=[['Square','1:1'],['Landscape','16:9'],['Portrait','9:16']];
   for(const kind of ['Png','Gif']){
     await format(kind);
     for(const [button,aspect] of buttons){
@@ -650,8 +652,8 @@ try{
     }
   }
   await completedFrame.dispose();
-  result.checks.push('Actual preview layout has readable, upright, fully bounded and non-overlapping shared-font labels in all four PNG and GIF aspect ratios');
-  result.checks.push('All eight layout previews retain the same owned completed flood image while the camera and output dimensions change');
+  result.checks.push('Actual preview layout has readable, upright, fully bounded and non-overlapping shared-font labels in all three fixed PNG and GIF aspect ratios');
+  result.checks.push('All six layout previews retain the same owned completed flood image while the camera and output dimensions change');
 
   await format('Png');await page.locator('#exportAspectSquareBtn').click({noWaitAfter:true,delay:50});
   await ready('png-download-ready');
@@ -671,7 +673,7 @@ try{
   const gif=await download('street-names');
   assert.match(fs.readFileSync(gif).subarray(0,6).toString(),/^GIF8[79]a$/);
   assert.equal(gifFrames(fs.readFileSync(gif)),2,'Exercise the real animated GIF capture path');
-  const gifInk=await verifyDownloadedInk(gif,'actual-gif-street-ink');assert.equal(gifInk.width,1200);assert.equal(gifInk.height,1200);
+  const gifInk=await verifyDownloadedInk(gif,'actual-gif-street-ink');assert.equal(gifInk.width,1500);assert.equal(gifInk.height,1500);
   result.checks.push('The real two-frame GIF encoder preserves actual local street-name glyphs above the flood overlay');
 
   await page.waitForFunction(()=>document.getElementById('exportProgressOverlay').hidden,{},{timeout:10000});

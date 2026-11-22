@@ -1,10 +1,21 @@
     function getVisibleTutorialTarget(selector) {
-      document.dispatchEvent(new CustomEvent("nww:reveal-control", {detail:selector}));
       return Array.from(document.querySelectorAll(selector)).find(element => {
         const rect = element.getBoundingClientRect();
         const style = getComputedStyle(element);
         return rect.width > 4 && rect.height > 4 && style.display !== "none" && style.visibility !== "hidden";
-      }) || document.querySelector(selector);
+      }) || null;
+    }
+
+    function revealMapperTutorialTarget(selector) {
+      if (!isCompactFloodmapperLayout()) return;
+      const target = getVisibleTutorialTarget(selector) || document.querySelector(selector);
+      const needsDrawer = Boolean(target?.closest("#leftPanel, #mobileRailMount, #rightRail"));
+      setMobileControlsOpen(needsDrawer);
+      if (needsDrawer) document.dispatchEvent(new CustomEvent("nww:reveal-control", { detail: selector }));
+    }
+
+    function getMapperTutorialTarget(step) {
+      return getVisibleTutorialTarget(step.target) || (step.fallback ? getVisibleTutorialTarget(step.fallback) : null);
     }
 
     const mapperTutorialGesturePointers = new Set();
@@ -29,19 +40,22 @@
         return;
       }
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
-      const target = step ? getVisibleTutorialTarget(step.target) : null;
+      const target = step ? getMapperTutorialTarget(step) : null;
       const spotlight = document.getElementById("mapperTutorialSpotlight");
       const card = document.getElementById("mapperTutorialCard");
       if (!target || !spotlight || !card) return;
       const rect = target.getBoundingClientRect();
       const pad = 8;
-      spotlight.style.left = Math.max(4, rect.left - pad) + "px";
-      spotlight.style.top = Math.max(4, rect.top - pad) + "px";
-      spotlight.style.width = Math.max(20, Math.min(window.innerWidth - 8, rect.width + pad * 2)) + "px";
-      spotlight.style.height = Math.max(20, Math.min(window.innerHeight - 8, rect.height + pad * 2)) + "px";
+      const left = Math.max(4, Math.min(window.innerWidth - 24, rect.left - pad));
+      const top = Math.max(4, Math.min(window.innerHeight - 24, rect.top - pad));
+      spotlight.style.left = left + "px";
+      spotlight.style.top = top + "px";
+      spotlight.style.width = Math.max(20, Math.min(window.innerWidth - left - 4, rect.right + pad - left)) + "px";
+      spotlight.style.height = Math.max(20, Math.min(window.innerHeight - top - 4, rect.bottom + pad - top)) + "px";
       const cardRect = card.getBoundingClientRect();
-      const gap = 18;
-      const margin = 14;
+      const compact = isCompactFloodmapperLayout();
+      const gap = compact ? 10 : 18;
+      const margin = compact ? 8 : 14;
       const width = Math.min(cardRect.width, window.innerWidth - margin * 2);
       const height = Math.min(cardRect.height, window.innerHeight - margin * 2);
       const clampLeft = value => Math.max(margin, Math.min(window.innerWidth - width - margin, value));
@@ -50,7 +64,13 @@
         left: Math.max(0, rect.left - pad), top: Math.max(0, rect.top - pad),
         right: Math.min(window.innerWidth, rect.right + pad), bottom: Math.min(window.innerHeight, rect.bottom + pad)
       };
-      const candidates = [
+      const centered = (window.innerWidth - width) / 2;
+      const positions = compact ? [
+        [centered, window.innerHeight - height - margin],
+        [centered, margin],
+        [centered, rect.bottom + gap],
+        [centered, rect.top - height - gap]
+      ] : [
         [rect.right + gap, rect.top],
         [rect.left - width - gap, rect.top],
         [rect.left, rect.bottom + gap],
@@ -59,7 +79,8 @@
         [window.innerWidth - width - margin, margin],
         [margin, window.innerHeight - height - margin],
         [window.innerWidth - width - margin, window.innerHeight - height - margin]
-      ].map(([rawLeft, rawTop]) => ({ left: clampLeft(rawLeft), top: clampTop(rawTop) }));
+      ];
+      const candidates = positions.map(([rawLeft, rawTop]) => ({ left: clampLeft(rawLeft), top: clampTop(rawTop) }));
       const overlapArea = candidate => {
         const overlapWidth = Math.max(0, Math.min(candidate.left + width, targetBox.right) - Math.max(candidate.left, targetBox.left));
         const overlapHeight = Math.max(0, Math.min(candidate.top + height, targetBox.bottom) - Math.max(candidate.top, targetBox.top));
@@ -71,62 +92,194 @@
       card.style.setProperty("top", chosen.top + "px", "important");
       card.style.setProperty("right", "auto", "important");
       card.style.setProperty("bottom", "auto", "important");
+      const focus = document.activeElement;
+      if (card.contains(focus) && focus.matches(":focus-visible")) {
+        focus.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
     }
 
     let mapperTutorialGeneration = 0;
-    function renderMapperTutorialStep() {
+    let mapperTutorialStartedInDrawer = false;
+    let mapperTutorialMobileOpener = null;
+
+    function updateMapperTutorialPractice(step) {
+      const practice = document.getElementById("mapperTutorialPractice");
+      const labels = {
+        forecast: currentForecastScenario === "highEnd" ? "Try Likely" : "Try Worst Case",
+        past: "Try Past",
+        calendar: "Show Calendar",
+        time: "Step Through Time",
+        layers: "Toggle Road Names",
+        crest: "Show Highest Crest",
+        export: "Open Export Map"
+      };
+      practice.hidden = !step.practice;
+      practice.textContent = labels[step.practice] || "";
+      practice.removeAttribute("aria-disabled");
+    }
+
+    async function runMapperTutorialPractice() {
+      const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
+      const practice = document.getElementById("mapperTutorialPractice");
+      if (!step?.practice || practice.getAttribute("aria-disabled") === "true") return;
+      const generation = mapperTutorialGeneration;
+      const feedback = document.getElementById("mapperTutorialFeedback");
+      const isCurrent = () => generation === mapperTutorialGeneration;
+      practice.setAttribute("aria-disabled", "true");
+      let message;
+      try {
+        switch (step.practice) {
+          case "forecast":
+            await switchForecastScenario(currentForecastScenario === "highEnd" ? "mean" : "highEnd");
+            message = floodFrameState === "ready" ? `Showing ${getForecastScenarioLabel()}.` : "This forecast couldn’t load.";
+            break;
+          case "past":
+          case "calendar":
+            if (currentDataMode !== "observed" || !currentSeriesHours.length) await switchDataMode("observed");
+            message = currentDataMode !== "observed" || !currentSeriesHours.length ? "Past data couldn’t load." : step.practice === "past"
+              ? "Past is selected. The map now uses measured water levels."
+              : "The date picker is in the highlighted Past panel.";
+            break;
+          case "time": {
+            if (currentSeriesHours.length < 2) await switchDataMode("forecast");
+            if (!isCurrent()) return;
+            stopPlayback();
+            cancelTimelineSelection();
+            const previous = currentHourIndex;
+            if (currentSeriesHours.length > 1) await renderHour(previous + (previous < currentSeriesHours.length - 1 ? 1 : -1));
+            const time = document.getElementById("timeText").textContent;
+            message = currentHourIndex !== previous && time ? `Map time changed to ${time.trim()}.` : "No other time is available for this map.";
+            break;
+          }
+          case "layers": {
+            const roads = document.getElementById("roadsToggle");
+            roads.click();
+            message = roads.getAttribute("aria-checked") === "true" ? "Road names are on." : "Road names are off.";
+            break;
+          }
+          case "crest": {
+            const crest = topTideEvents[0];
+            message = crest ? `Highest crest: ${crest.title}, ${formatStageForDisplay(crest.peakStage)}.` : "The crest rankings aren’t available yet.";
+            break;
+          }
+          case "export":
+            setMapperTutorialOpen(false);
+            document.getElementById("openDownloadModalBtn").click();
+            return;
+        }
+      } catch (_) {
+        message = "That action couldn’t finish. Try it again or continue the tour.";
+      }
+      if (!isCurrent()) return;
+      feedback.textContent = message;
+      updateMapperTutorialPractice(step);
+      if (step.practice === "calendar") {
+        revealMapperTutorialTarget(step.target);
+        getMapperTutorialTarget(step)?.scrollIntoView({ block: "center", inline: "nearest" });
+      }
+      positionMapperTutorial();
+    }
+
+    function renderMapperTutorialStep(opener) {
       const generation = ++mapperTutorialGeneration;
       const isCurrentStep = () => generation === mapperTutorialGeneration &&
         document.getElementById("mapperTutorial")?.hidden === false;
       const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
       if (!step) return;
-      const tutorialModePromise = mapperTutorialIndex === 1 && currentDataMode !== "forecast"
-        ? switchDataMode("forecast")
-        : (mapperTutorialIndex === 3 && currentDataMode !== "observed" ? switchDataMode("observed") : Promise.resolve());
-      const target = getVisibleTutorialTarget(step.target);
-      const compactTutorial = isCompactFloodmapperLayout();
-      if (compactTutorial && target) {
-        const needsDrawer = Boolean(target.closest("#leftPanel, #mobileRailMount"));
-        setMobileControlsOpen(needsDrawer);
-      }
-      document.getElementById("mapperTutorialProgress").textContent = (mapperTutorialIndex + 1) + " of " + MAPPER_TUTORIAL_STEPS.length;
+      const progress = (mapperTutorialIndex + 1) + " of " + MAPPER_TUTORIAL_STEPS.length;
+      document.getElementById("mapperTutorialProgress").textContent = progress;
+      const track = document.getElementById("mapperTutorialTrack");
+      track.max = MAPPER_TUTORIAL_STEPS.length;
+      track.value = mapperTutorialIndex + 1;
       document.getElementById("mapperTutorialTitle").textContent = step.title;
       document.getElementById("mapperTutorialBody").innerHTML = step.body;
+      document.getElementById("mapperTutorialFeedback").textContent = "";
+      const practiceHadFocus = document.activeElement === document.getElementById("mapperTutorialPractice");
+      updateMapperTutorialPractice(step);
+      document.getElementById("mapperTutorialAnnouncement").textContent = opener ? "" : progress + ". " + step.title;
       const back = document.getElementById("mapperTutorialBack");
       const next = document.getElementById("mapperTutorialNext");
+      const backHadFocus = document.activeElement === back;
       back.disabled = mapperTutorialIndex === 0;
       next.textContent = mapperTutorialIndex === MAPPER_TUTORIAL_STEPS.length - 1 ? "Finish" : "Next";
+      if (opener) document.dispatchEvent(new CustomEvent("nww:modalchange", { detail: { opener } }));
+      revealMapperTutorialTarget(step.target);
+      const backBecameDisabled = backHadFocus && back.disabled;
+      if (opener || backBecameDisabled || (practiceHadFocus && !step.practice) || document.activeElement === document.body) {
+        next.focus({ preventScroll: !backBecameDisabled });
+      }
       positionMapperTutorial();
-      window.setTimeout(async () => {
+      window.setTimeout(() => {
         if (!isCurrentStep()) return;
-        try { await tutorialModePromise; } catch (err) {}
-        if (!isCurrentStep()) return;
-        const resolved = getVisibleTutorialTarget(step.target);
+        const resolved = getMapperTutorialTarget(step);
         const mobileBlockByStep = { 1: "start", 3: "end", 6: "end", 7: "start" };
-        const block = compactTutorial ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
+        const block = isCompactFloodmapperLayout() ? (mobileBlockByStep[mapperTutorialIndex] || "center") : "center";
         resolved?.scrollIntoView({ block, inline: "center", behavior: "auto" });
         window.setTimeout(() => { if (isCurrentStep()) positionMapperTutorial(); }, 80);
         window.setTimeout(() => { if (isCurrentStep()) positionMapperTutorial(); }, 320);
       }, 40);
     }
 
-    function setMapperTutorialOpen(open, startIndex = 0) {
+    function setMapperTutorialOpen(open, startIndex = 0, opener = document.getElementById("mapperTutorialBtn")) {
       const tutorial = document.getElementById("mapperTutorial");
-      if (!tutorial) return;
+      if (!tutorial || tutorial.hidden === !open) return;
       finishMapperTutorialGesture(false);
-      ++mapperTutorialGeneration;
+      const generation = ++mapperTutorialGeneration;
+      if (open) {
+        mapperTutorialMobileOpener = opener?.id === "mobileMapperTutorialBtn" ? opener : null;
+        document.body.removeAttribute("data-tour-attention");
+        mapperTutorialStartedInDrawer = isCompactFloodmapperLayout() &&
+          document.body.classList.contains("mobile-controls-open");
+      } else if (isCompactFloodmapperLayout()) {
+        setMobileControlsOpen(mapperTutorialStartedInDrawer);
+        if (mapperTutorialStartedInDrawer) {
+          document.dispatchEvent(new CustomEvent("nww:reveal-control", { detail: "#mapperTutorialBtn" }));
+        }
+      }
       tutorial.hidden = !open;
       tutorial.setAttribute("aria-hidden", open ? "false" : "true");
-      document.body.classList.toggle("tutorial-active", Boolean(open));
+      document.body.classList.toggle("tutorial-active", open);
       if (open) {
         mapperTutorialIndex = Math.max(0, Math.min(startIndex, MAPPER_TUTORIAL_STEPS.length - 1));
-        renderMapperTutorialStep();
-        mapperTutorialResizeHandler = () => positionMapperTutorial();
-        window.addEventListener("resize", mapperTutorialResizeHandler);
-        document.getElementById("mapperTutorialNext")?.focus();
-      } else if (mapperTutorialResizeHandler) {
+        renderMapperTutorialStep(opener);
+        let resizePending = false;
+        const handleResize = () => {
+          if (resizePending) return;
+          resizePending = true;
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            resizePending = false;
+            if (tutorial.hidden || mapperTutorialResizeHandler !== handleResize) return;
+            const step = MAPPER_TUTORIAL_STEPS[mapperTutorialIndex];
+            revealMapperTutorialTarget(step.target);
+            getMapperTutorialTarget(step)?.scrollIntoView({ block: "center", inline: "nearest" });
+            positionMapperTutorial();
+          }));
+        };
+        mapperTutorialResizeHandler = handleResize;
+        window.addEventListener("resize", handleResize);
+      } else {
         window.removeEventListener("resize", mapperTutorialResizeHandler);
         mapperTutorialResizeHandler = null;
+        document.dispatchEvent(new CustomEvent("nww:modalchange"));
+        const mobileOpener = mapperTutorialMobileOpener;
+        mapperTutorialMobileOpener = null;
+        if (isCompactFloodmapperLayout() || mobileOpener) {
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (generation !== mapperTutorialGeneration) return;
+            const active = document.activeElement;
+            // Browsers can report focus on the hidden tour until the next render.
+            if (!mapperTutorialStartedInDrawer &&
+                (active === document.body || active === opener || active === mobileOpener || tutorial.contains(active))) {
+              let fallback = opener;
+              if (isCompactFloodmapperLayout()) {
+                fallback = mobileOpener?.getClientRects().length ? mobileOpener : document.getElementById("mobileControlsToggle");
+              }
+              if (!fallback?.closest("[inert]")) fallback?.focus({ preventScroll: true });
+            } else if (active === opener) {
+              opener.scrollIntoView({ block: "nearest", inline: "nearest" });
+            }
+          }));
+        }
       }
     }
 
@@ -155,8 +308,21 @@
         }
       }, true);
       window.addEventListener("blur", () => finishMapperTutorialGesture());
-      document.getElementById("mapperTutorialBtn")?.addEventListener("click", () => setMapperTutorialOpen(true, 0));
+      for (const id of ["mapperTutorialBtn", "mobileMapperTutorialBtn"]) {
+        document.getElementById(id)?.addEventListener("click", event => setMapperTutorialOpen(true, 0, event.currentTarget));
+      }
+      const loader = document.getElementById("nwSiteLoader");
+      const highlight = () => {
+        if (loader && !loader.hidden) return;
+        observer?.disconnect();
+        document.body.dataset.tourAttention = "true";
+        setTimeout(() => document.body.removeAttribute("data-tour-attention"), 5000);
+      };
+      const observer = loader && !loader.hidden ? new MutationObserver(highlight) : null;
+      if (observer) observer.observe(loader, { attributes: true, attributeFilter: ["hidden"] });
+      else highlight();
       document.getElementById("mapperTutorialClose")?.addEventListener("click", () => setMapperTutorialOpen(false));
+      document.getElementById("mapperTutorialPractice")?.addEventListener("click", runMapperTutorialPractice);
       document.getElementById("mapperTutorialBack")?.addEventListener("click", () => {
         if (mapperTutorialIndex > 0) {
           mapperTutorialIndex -= 1;
@@ -170,11 +336,12 @@
           renderMapperTutorialStep();
         }
       });
-      document.addEventListener("keydown", event => {
-        if (document.getElementById("mapperTutorial")?.hidden) return;
+      document.getElementById("mapperTutorial")?.addEventListener("keydown", event => {
+        if (event.defaultPrevented || !["Escape", "ArrowRight", "ArrowLeft"].includes(event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
         if (event.key === "Escape") setMapperTutorialOpen(false);
-        if (event.key === "ArrowRight") document.getElementById("mapperTutorialNext")?.click();
-        if (event.key === "ArrowLeft") document.getElementById("mapperTutorialBack")?.click();
+        else document.getElementById(event.key === "ArrowRight" ? "mapperTutorialNext" : "mapperTutorialBack")?.click();
       });
     }
 
@@ -343,27 +510,33 @@
 
       document.getElementById("dataSourceHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("dataSource");
+        showInfoModal("dataSource", e.currentTarget);
       });
       document.getElementById("forecastTypeHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("forecastType");
+        showInfoModal("forecastType", e.currentTarget);
       });
       document.getElementById("returnIntervalHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("returnIntervals");
+        showInfoModal("returnIntervals", e.currentTarget);
       });
       document.getElementById("overlayHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("overlay");
+        showInfoModal("overlay", e.currentTarget);
       });
+      for (const button of document.querySelectorAll("[data-layer-help]")) {
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          showInfoModal(button.dataset.layerHelp, button);
+        });
+      }
       document.getElementById("timelineDetailHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showInfoModal("timelineDetail");
+        showInfoModal("timelineDetail", e.currentTarget);
       });
       document.getElementById("legendHelpBtn")?.addEventListener("click", e => {
         e.stopPropagation();
-        showLegendInfoModal();
+        showLegendInfoModal(e.currentTarget);
       });
       document.getElementById("infoModalCloseBtn")?.addEventListener("click", () => setInfoModalOpen(false));
       document.getElementById("infoModal")?.addEventListener("click", e => {
@@ -385,8 +558,8 @@
         }
       });
 
-      document.getElementById("openDownloadModalBtn").addEventListener("click", () => {
-        setDownloadModalOpen(true);
+      document.getElementById("openDownloadModalBtn").addEventListener("click", event => {
+        setDownloadModalOpen(true, { opener: event.currentTarget });
         window.setTimeout(warmExportLibraries, 0);
       });
 
@@ -428,12 +601,26 @@
             closeExportDateOrderPopup();
             return;
           }
+          const topTides = document.getElementById("topTidesModal");
+          if (topTides && !topTides.hidden) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            setTopTidesModalOpen(false);
+            return;
+          }
+          const help = e.target?.closest?.("#infoModal, #datumModal");
+          if (help && !help.hidden) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            if (help.id === "infoModal") setInfoModalOpen(false);
+            else setDatumHelpOpen(false);
+            return;
+          }
           setDatumHelpOpen(false);
           setInfoModalOpen(false);
           setDownloadModalOpen(false);
           if (!document.getElementById("calendarPopover")?.classList.contains("open")) setObservedCalendarOpen(false);
           setCalendarPopoverOpen(false);
-          setTopTidesModalOpen(false);
           closeExportDateOrderPopup();
           if (playbackPausedForConfirmation) stopPlayback();
           setPlaybackStillThereOpen(false);
@@ -464,7 +651,7 @@
         event.stopPropagation();
         const popover = ensureCalendarPopoverIsBodyChild();
         const open = !(popover && popover.classList.contains("open"));
-        setCalendarPopoverOpen(open);
+        setCalendarPopoverOpen(open, event.currentTarget);
       });
 
       document.getElementById("calendarPopoverCloseBtn")?.addEventListener("click", () => setCalendarPopoverOpen(false));
@@ -547,7 +734,6 @@
             if (endEl) delete endEl.dataset.userEdited;
           }
           if (!exportInProgress) setDownloadStatus("", false);
-          applyExportStageAspect(getDownloadAspectValue());
           updateExportSegmentedUI();
           scheduleExportTimePickerRender(true);
           updateDownloadSummary();
@@ -581,7 +767,6 @@
           if (!input) return;
           input.value = btn.dataset.aspect || "viewport";
           if (!exportInProgress) setDownloadStatus("", false);
-          applyExportStageAspect(input.value);
           updateExportSegmentedUI();
           updateDownloadSummary();
         });
@@ -589,7 +774,6 @@
 
       document.getElementById("downloadAspectSelect")?.addEventListener("change", () => {
         if (!exportInProgress) setDownloadStatus("", false);
-        applyExportStageAspect(getDownloadAspectValue());
         updateExportSegmentedUI();
         updateDownloadSummary();
       });
@@ -641,99 +825,10 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
 
       ["start", "end"].forEach(prefix => {
         const cap = prefix === "end" ? "End" : "Start";
-        document.getElementById(`export${cap}CalendarPrevBtn`)?.addEventListener("click", () => {
-          const cursor = getExportCalendarCursor(prefix) || new Date();
-          setExportCalendarCursor(prefix, shiftExportMonth(cursor, getExportCalendarViewMode(prefix) === "year" ? -12 : -1));
-          scheduleExportTimePickerRender(true);
-        });
-        document.getElementById(`export${cap}CalendarNextBtn`)?.addEventListener("click", () => {
-          const cursor = getExportCalendarCursor(prefix) || new Date();
-          setExportCalendarCursor(prefix, shiftExportMonth(cursor, getExportCalendarViewMode(prefix) === "year" ? 12 : 1));
-          scheduleExportTimePickerRender(true);
-        });
-        document.getElementById(`export${cap}CalendarTitle`)?.addEventListener("click", event => {
-          event.preventDefault();
-          setExportCalendarViewMode(prefix, getExportCalendarViewMode(prefix) === "year" ? "month" : "year");
-          scheduleExportTimePickerRender(true);
-        });
-      });
-
-      document.getElementById("exportStartPickedDate")?.addEventListener("click", () => {
-        setExportPickMode("start", true);
-        const date = getRangeInputDate("downloadStartInput");
-        if (date) setExportCalendarCursor("start", date);
-        setExportCalendarViewMode("start", "month");
-        scheduleExportTimePickerRender(true);
-      });
-      document.getElementById("exportEndPickedDate")?.addEventListener("click", () => {
-        setExportPickMode("end", true);
-        const date = getRangeInputDate("downloadEndInput");
-        if (date) setExportCalendarCursor("end", date);
-        setExportCalendarViewMode("end", "month");
-        scheduleExportTimePickerRender(true);
-      });
-
-      document.getElementById("clearPngSelectionsBtn")?.addEventListener("click", () => {
-        exportPngSelections.clear();
-        scheduleExportTimePickerRender(true);
-        updateDownloadSummary();
-      });
-
-      ["start", "end"].forEach(prefix => {
-        ["month", "day", "year", "hour"].forEach(part => {
-          const select = getExportWheelSelect(prefix, part);
-          if (!select) return;
-          select.addEventListener("change", () => {
-            if (!exportInProgress) setDownloadStatus("", false);
-            handleExportDateTimeWheelChange(prefix);
-          });
-          select.addEventListener("input", () => {
-            if (!exportInProgress) setDownloadStatus("", false);
-            handleExportDateTimeWheelChange(prefix);
-          });
-        });
-        const manual = getExportWheelSelect(prefix, "manual");
-        if (manual) {
-          const activateThisPicker = () => {
-            setExportPickMode(prefix, true);
-            scheduleExportTimePickerRender(true);
-          };
-          manual.addEventListener("focus", activateThisPicker);
-          manual.addEventListener("click", activateThisPicker);
-          let manualInputTimer = null;
-          manual.addEventListener("input", () => {
-            const formatted = formatExportManualTyping(manual.value);
-            if (manual.value !== formatted) {
-              manual.value = formatted;
-              try { manual.setSelectionRange(manual.value.length, manual.value.length); } catch (e) {}
-            }
-            if (manualInputTimer) clearTimeout(manualInputTimer);
-            manualInputTimer = setTimeout(() => handleExportManualInput(prefix), 180);
-          });
-          manual.addEventListener("change", () => handleExportManualInput(prefix));
-          manual.addEventListener("blur", () => {
-            const formatted = formatExportManualTyping(manual.value);
-            if (formatted) manual.value = formatted;
-            handleExportManualInput(prefix);
-          });
-        }
-      });
-
-      document.querySelectorAll("[data-export-ampm-prefix][data-export-ampm]").forEach(btn => {
-        btn.addEventListener("click", event => {
-          event.preventDefault();
-          if (!exportInProgress) setDownloadStatus("", false);
-          handleExportAmPmToggle(btn.dataset.exportAmpmPrefix, btn.dataset.exportAmpm);
-        });
-      });
-
-      ["start", "end"].forEach(prefix => {
-        const cap = prefix === "end" ? "End" : "Start";
         const elements = getExportDateEditorElements(prefix);
         if (!elements.canonical || !elements.dateText || !elements.timeSelect) return;
         const refresh = () => {
           if (!exportInProgress) setDownloadStatus("", false);
-          syncExportHourSelectsFromInputs();
           scheduleExportTimePickerRender(true);
           updateDownloadSummary();
         };
@@ -784,7 +879,6 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
         elements.dateText.addEventListener("keydown", event => {
           if (event.key === "Enter") {
             event.preventDefault();
-            if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: true, normalize: true })) refresh();
             elements.dateText.blur();
           } else if (event.key === "Backspace") {
             event.preventDefault();
@@ -801,10 +895,10 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
           }
         });
         elements.dateText.addEventListener("blur", () => {
-          if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: false, normalize: true })) {
+          if (commitExportDateTimeEditor(prefix, { markEdited: true, showError: true, normalize: true })) {
             refresh();
           } else {
-            syncExportDateTimeEditorFromCanonical(prefix);
+            updateDownloadSummary();
           }
         });
         elements.timeSelect.addEventListener("change", () => {
@@ -868,10 +962,6 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       topTidesModal?.addEventListener("click", e => {
         if (e.target === e.currentTarget) setTopTidesModalOpen(false);
       });
-      document.addEventListener("keydown", e => {
-        if (e.key === "Escape") setTopTidesModalOpen(false);
-      });
-
       wireLayerToggles();
       wireMapperTutorial();
     }
@@ -901,9 +991,15 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       updateDownloadSummary();
       scheduleMapTitleFit();
       if (typeof ResizeObserver === "function") {
-        const titleModeObserver = new ResizeObserver(positionMapClickModeControl);
         const titleBadge = document.getElementById("mapTitleBadge");
-        if (titleBadge) titleModeObserver.observe(titleBadge);
+        if (titleBadge) {
+          const mobileTour = document.getElementById("mobileMapperTutorialBtn");
+          const titleModeObserver = new ResizeObserver(() => {
+            positionMapClickModeControl();
+            mobileTour?.style.setProperty("--nww-tour-title-height", `${Math.ceil(titleBadge.getBoundingClientRect().height)}px`);
+          });
+          titleModeObserver.observe(titleBadge);
+        }
       }
       window.addEventListener('resize', () => {
         if (map) {
@@ -959,8 +1055,8 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       if (mobileRailMount) {
         const exportCard = mobileRailMount.querySelector(".download-launch-card, .download-card");
         const addressCard = mobileRailMount.querySelector("#townAddressCard, .town-address-card");
-        if (exportCard && addressCard && exportCard.nextSibling !== addressCard) {
-          mobileRailMount.insertBefore(exportCard, addressCard);
+        if (exportCard && addressCard && addressCard.nextElementSibling !== exportCard) {
+          mobileRailMount.insertBefore(addressCard, exportCard);
         }
       }
     }
@@ -984,4 +1080,3 @@ document.querySelectorAll("#downloadExtentControl button[data-extent]").forEach(
       applyMobileObservedOrdering();
       return result;
     };
-

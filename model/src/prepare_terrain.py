@@ -140,7 +140,6 @@ def main() -> None:
         seamless <= float(terrain_config["seamlessOceanPlaceholderBelowM"])
     )
     seamless[ocean_placeholder] = float(terrain_config["fallbackOceanBedM"])
-    seamless[~fallback_valid] = float(terrain_config["fallbackOceanBedM"])
 
     tile_directory = ROOT / terrain_config["topobathyDirectory"]
     manifest = read_json(tile_directory / "acquisition_manifest.json")
@@ -230,8 +229,12 @@ def main() -> None:
         merged[bulkhead_for_model],
         float(terrain_config["bulkheadCrestNavd88M"]),
     )
-    if not np.all(np.isfinite(merged)):
-        raise RuntimeError("Computational terrain still contains non-finite cells")
+    uncovered = int(np.count_nonzero(~authoritative))
+    if uncovered:
+        raise RuntimeError(
+            f"Authoritative terrain is missing at {uncovered:,} cells. "
+            "Only explicit NOAA ocean placeholders can use the offshore bed fallback."
+        )
 
     computational_path = ROOT / terrain_config["computationalDem"]
     write_float_geotiff(

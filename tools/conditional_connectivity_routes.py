@@ -126,6 +126,50 @@ def source_block_geodesic_distance(
     }
 
 
+def _find_shorter_routes_at_crest(
+    ground: np.ndarray,
+    domain: np.ndarray,
+    domain_id: int | bool,
+    width: int,
+    starts: np.ndarray | tuple[int, ...],
+    crest: float,
+    targets: dict[int, list[int]],
+    previous_lengths: dict[int, int],
+) -> tuple[dict[int, tuple[int, int]], dict[int, int]]:
+    """Find shorter routes through cells no higher than the proven crest."""
+    predecessor = {int(start): -1 for start in starts if ground[start] <= crest}
+    frontier = list(predecessor)
+    found: dict[int, tuple[int, int]] = {}
+    if not previous_lengths:
+        return found, predecessor
+    remaining = dict(previous_lengths)
+    for length in range(max(remaining.values())):
+        next_frontier = []
+        for position in frontier:
+            for target in targets.get(position, ()):
+                if length < remaining.get(target, 0):
+                    found[target] = (position, length)
+                    del remaining[target]
+            x = position % width
+            for neighbor in (
+                position - width if position >= width else -1,
+                position - 1 if x > 0 else -1,
+                position + 1 if x + 1 < width else -1,
+                position + width if position + width < ground.size else -1,
+            ):
+                if (
+                    neighbor < 0 or neighbor in predecessor
+                    or domain[neighbor] != domain_id or ground[neighbor] > crest
+                ):
+                    continue
+                predecessor[neighbor] = position
+                next_frontier.append(neighbor)
+        if not remaining or not next_frontier:
+            break
+        frontier = next_frontier
+    return found, predecessor
+
+
 def connect_penalty_basins_by_lowest_road_route(
     adjusted_flooded: np.ndarray,
     baseline_flooded: np.ndarray,
@@ -235,7 +279,8 @@ def connect_penalty_basins_by_lowest_road_route(
     )
     predecessor = np.full(pixel_count, -1, dtype=np.int32)
     queue: list[tuple[float, int, int]] = []
-    for position in np.flatnonzero(route_origin):
+    origins = np.flatnonzero(route_origin)
+    for position in origins:
         position = int(position)
         crest = float(flat_ground[position])
         route_crest[position] = crest
@@ -343,18 +388,42 @@ def connect_penalty_basins_by_lowest_road_route(
             routed_road_components = int(
                 np.count_nonzero(endpoint_labels > component_count)
             )
-            maximum_length = int(
-                np.max(route_length[endpoints], initial=0)
-            )
-            maximum_crest = float(
-                np.max(route_crest[endpoints], initial=0.0)
-            )
+            # A lower crest can hide a shorter prefix that becomes equivalent
+            # after the paths meet a higher bottleneck. Refine at each target's
+            # proven minimum crest, preserving the existing path on an exact tie.
+            selected_crests = route_crest[endpoints]
+            shorter = {}
+            for crest in np.unique(selected_crests):
+                selected = selected_crests == crest
+                lengths = {
+                    int(label): int(route_length[endpoint])
+                    for label, endpoint in zip(endpoint_labels[selected], endpoints[selected])
+                    if route_length[endpoint] > 0
+                }
+                if not lengths:
+                    continue
+                target_positions_at_crest = {}
+                same_crest = route_crest[candidates] == crest
+                for position, label in zip(candidates[same_crest], candidate_labels[same_crest]):
+                    if label in lengths:
+                        target_positions_at_crest.setdefault(int(position), []).append(int(label))
+                improvements, short_predecessor = _find_shorter_routes_at_crest(
+                    flat_ground, flat_route, True, width, origins, float(crest),
+                    target_positions_at_crest, lengths,
+                )
+                for label, (endpoint, length) in improvements.items():
+                    shorter[label] = (endpoint, length, short_predecessor)
+
+            maximum_crest = float(np.max(selected_crests, initial=0.0))
             flat_paths = paths.ravel()
-            for endpoint in endpoints:
-                position = int(endpoint)
-                while position >= 0 and not flat_paths[position]:
+            for label, endpoint in zip(endpoint_labels, endpoints):
+                position, length, parents = shorter.get(
+                    int(label), (int(endpoint), int(route_length[endpoint]), predecessor),
+                )
+                maximum_length = max(maximum_length, length)
+                while position >= 0:
                     flat_paths[position] = True
-                    position = int(predecessor[position])
+                    position = int(parents[position])
 
     # The full blue water mask can be one source-connected component through a
     # yard or marsh even while a held street segment visibly separates two blue
@@ -450,8 +519,17 @@ def connect_penalty_basins_by_lowest_road_route(
             if endpoint_b not in local_predecessor:
                 continue
             bridged_road_gaps += 1
-            maximum_length = max(maximum_length, best_length[endpoint_b])
-            maximum_crest = max(maximum_crest, best_crest[endpoint_b])
+            crest = best_crest[endpoint_b]
+            length = best_length[endpoint_b]
+            improvements, short_predecessor = _find_shorter_routes_at_crest(
+                flat_ground, flat_held_labels, held_label, width, (endpoint_a,), crest,
+                {endpoint_b: [endpoint_b]}, {endpoint_b: length},
+            )
+            if endpoint_b in improvements:
+                _, length = improvements[endpoint_b]
+                local_predecessor = short_predecessor
+            maximum_length = max(maximum_length, length)
+            maximum_crest = max(maximum_crest, crest)
             position = endpoint_b
             while position >= 0 and not flat_bridge_paths[position]:
                 flat_bridge_paths[position] = True

@@ -10,27 +10,40 @@ const css = process.argv[3] ? fs.readFileSync(process.argv[3], 'utf8') : source;
 const functionSource = source.match(/  function mountPanel\(\) \{[\s\S]*?\n  \}/)?.[0];
 assert.ok(functionSource, 'The actual camera mountPanel function must exist');
 const run = new Function('env', `with(env) { ${functionSource}\n mountPanel(); }`);
-assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\]\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*10050/s,
-  'A short viewport needs a body-level fixed viewer above the timeline');
+assert.match(source, /document\.body\.append\(panel\)/, 'The viewer is mounted on the body');
+assert.match(css, /#webcamPanel\s*\{[^}]*position:\s*fixed/s, 'The body-mounted viewer is positioned in the viewport');
+assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\]\s*\{[^}]*z-index:\s*10050/s,
+  'A short viewport needs a viewer above the timeline');
 assert.match(css, /#webcamPanel\[data-viewport-overlay="true"\] \.webcam-heading\s*\{[^}]*position:\s*sticky[^}]*top:\s*0/s,
   'Scrolling the camera viewer must retain its heading and close button');
 
+function dockHeight(width, height) {
+  if (height <= 560 && width >= 540 && width > height) return 106;
+  return width <= 900 || height <= 560 ? 154 : 112;
+}
+
 function fixture(width, height, vv = null, bannerBottom = 0) {
+  const compact = width <= 900 || height <= 560;
   const style = {
     setProperty(name, value) { this[name] = value; },
     removeProperty(name) { delete this[name === 'max-width' ? 'maxWidth' : name]; },
   };
-  const panel = { dataset: {}, style, parentElement: null };
+  const panel = { dataset: {}, style, parentElement: null, getBoundingClientRect() {
+    const center = parseFloat(style.left), half = Math.min(360, parseFloat(style.maxWidth)) / 2;
+    return { left: center - half, right: center + half };
+  } };
   const rect = { left: 0, top: 0, right: width, bottom: height, width, height };
-  const body = { classList: { contains: () => false }, append(element) { element.parentElement = this; } };
-  const container = { getBoundingClientRect: () => rect, append(element) { element.parentElement = this; } };
-  panel.parentElement = container;
+  const mounts = [];
+  const body = { classList: { contains: () => false }, append(element) { mounts.push('body'); element.parentElement = this; } };
+  const container = { getBoundingClientRect: () => rect, append(element) { mounts.push('map'); element.parentElement = this; } };
+  panel.parentElement = body;
   const elements = {
     mapWrap: container,
     mapTitleBadge: { getClientRects: () => [1], getBoundingClientRect: () => ({ top: 8, bottom: 52, height: 44 }) },
-    mobileControlsToggle: { getClientRects: () => [1], getBoundingClientRect: () => ({ top: 8, bottom: 52, height: 44 }) },
-    timelineDock: { getBoundingClientRect: () => ({ height: width <= 900 ? 180 : 112,
-      top: height - (width <= 900 ? 180 + 8 : 112 + 16) }) },
+    nwwMobileUtilities: compact ? { getClientRects: () => [1],
+      getBoundingClientRect: () => ({ left: 8, right: width - 8, top: 8, bottom: 58, height: 50 }) } : null,
+    timelineDock: { getBoundingClientRect: () => ({ height: dockHeight(width, height),
+      top: height - dockHeight(width, height) - (compact ? 8 : 16) }) },
   };
   if (bannerBottom) elements.topBanner = { getClientRects: () => [1],
     getBoundingClientRect: () => ({ top: 8, bottom: bannerBottom, height: bannerBottom - 8 }) };
@@ -40,7 +53,7 @@ function fixture(width, height, vv = null, bannerBottom = 0) {
     document: { body, getElementById: id => elements[id] ?? null },
     getComputedStyle: () => ({ visibility: 'visible' }),
   };
-  return { panel, container, body, env, run: () => run(env) };
+  return { panel, container, body, elements, env, mounts, run: () => run(env) };
 }
 
 const cases = [
@@ -56,8 +69,10 @@ for (const item of cases) {
   const f = fixture(item.width, item.height);
   f.run();
   assert.equal(f.panel.dataset.viewportOverlay, String(item.overlay));
-  assert.equal(f.panel.parentElement, item.overlay ? f.body : f.container);
-  const top = Number.parseFloat(f.panel.style.top), maxHeight = Number.parseFloat(f.panel.style['--webcam-panel-space']);
+  assert.equal(f.panel.parentElement, f.body);
+  assert.deepEqual(f.mounts, [], 'Updating geometry must not move the live player');
+  const top = Number.parseFloat(f.panel.style.top), maxHeight = Number.parseFloat(f.panel.style.maxHeight);
+  assert.equal(f.panel.style['--webcam-panel-height'], f.panel.style.maxHeight);
   assert.ok(maxHeight >= 200, 'Viewer must retain usable scrollable height');
   assert.ok(top >= 0 && top + maxHeight <= item.height - 7, 'Viewer must fit inside the viewport');
   if (item.overlay) {
@@ -65,7 +80,7 @@ for (const item of cases) {
     // wholly within the scrollport; browser QA separately verifies hit testing.
     const closeTop = top + 11, closeBottom = closeTop + 44;
     assert.ok(closeBottom <= top + maxHeight, 'Close control cannot be clipped by a zero-height scrollport');
-    assert.ok(closeBottom < item.height - 180 - 8, 'Landscape close is above the timeline even before z-index isolation');
+    assert.ok(closeBottom < item.height - dockHeight(item.width, item.height) - 8, 'Landscape close is above the timeline even before z-index isolation');
   }
   results.push({ ...item, top, maxHeight });
 }
@@ -74,7 +89,7 @@ for (const item of cases) {
   f.run();
   assert.equal(f.panel.parentElement, f.body);
   assert.equal(f.panel.style.top, '108px');
-  assert.equal(f.panel.style['--webcam-panel-space'], '184px');
+  assert.equal(f.panel.style.maxHeight, '184px');
   assert.equal(f.panel.style.left, '195px');
   assert.equal(f.panel.style.maxWidth, '284px');
 }
@@ -85,11 +100,41 @@ for (const item of cases) {
   f.container.getBoundingClientRect = () => ({ left: 0, top: 0, right: 390, bottom: 844, width: 390, height: 844 });
   const originalLookup = f.env.document.getElementById;
   f.env.document.getElementById = id => id === 'timelineDock'
-    ? { getBoundingClientRect: () => ({ height: 180, top: 656 }) } : originalLookup(id);
+    ? { getBoundingClientRect: () => ({ height: 154, top: 682 }) } : originalLookup(id);
   f.run();
-  assert.equal(f.panel.parentElement, f.container, 'Returning to portrait restores the normal viewer mount');
+  assert.equal(f.panel.parentElement, f.body, 'Returning to portrait retains the player mount');
+  assert.deepEqual(f.mounts, [], 'Crossing the overlay breakpoint must not reparent the player');
   assert.equal(f.panel.dataset.viewportOverlay, 'false');
-  assert.equal(f.panel.style.left, undefined);
-  assert.equal(f.panel.style.maxWidth, undefined);
+  assert.equal(f.panel.style.top, '120px');
+  assert.equal(f.panel.style.left, '195px');
+  assert.equal(f.panel.style.maxWidth, '374px');
 }
-console.log(JSON.stringify({ source: path.resolve(sourcePath), checks: cases.length + 2, passed: true, results }, null, 2));
+{
+  const f = fixture(1200, 900);
+  f.container.getBoundingClientRect = () => ({ left: 100, top: 24, right: 1060, bottom: 860, width: 960, height: 836 });
+  f.run();
+  assert.equal(f.panel.dataset.viewportOverlay, 'false');
+  assert.equal(f.panel.style.top, '164px');
+  assert.equal(f.panel.style.left, '580px');
+  assert.equal(f.panel.style.maxWidth, '944px');
+  assert.equal(f.panel.style.maxHeight, '596px');
+}
+{
+  const f = fixture(390, 425);
+  f.run();
+  assert.equal(f.panel.dataset.viewportOverlay, 'true');
+  assert.equal(f.panel.style.top, '66px', 'A short camera viewer clears the compact toolbar');
+  assert.equal(f.panel.style.maxHeight, '351px');
+}
+{
+  const f = fixture(390, 425);
+  const toolbarBottom = 78;
+  f.elements.nwwMobileUtilities.getBoundingClientRect = () => ({ left: 8, right: 382, top: 28, bottom: toolbarBottom, height: 50 });
+  f.run();
+  assert.equal(f.panel.dataset.viewportOverlay, 'true');
+  const top = Number.parseFloat(f.panel.style.top);
+  const height = Number.parseFloat(f.panel.style.maxHeight);
+  assert.equal(top, toolbarBottom + 8, 'The camera viewer leaves a gap below the phone toolbar');
+  assert.ok(height >= 150, 'The camera viewer retains space for its heading, chooser and scrollable content');
+}
+console.log(JSON.stringify({ source: path.resolve(sourcePath), checks: cases.length + 5, passed: true, results }, null, 2));

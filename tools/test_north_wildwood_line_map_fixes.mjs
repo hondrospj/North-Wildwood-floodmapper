@@ -49,8 +49,9 @@ for(const outcome of ['resolve','reject']) {
   const c=vm.createContext({window:clock,Image,Promise,Error,URL,Date,exportInProgress:false,exportCancelRequested:false,
     drainageRasterImageCache:new Map(),DRAINAGE_RASTER_IMAGE_CACHE_LIMIT:2,retainRasterObjectUrl:url=>()=>released.push(url),
     DEPTH_QUERY_PNG_URL:'https://example.test/query.png',DEVELOPED_QUERY_PNG_URL:'https://example.test/developed.png',depthQueryGridPromise:null,developedQueryGridPromise:null,
+    DEPTH_QUERY_WEBP_URL:'',DEVELOPED_QUERY_WEBP_URL:'',
     document:{createElement:()=>({getContext:()=>({drawImage(){},getImageData:()=>({data:[1,2,3,4]})})})}});
-  for(const n of ['awaitRasterRequest','getDrainageRasterImage','loadDepthQueryPng','getDepthQueryGrid','getDevelopedQueryGrid'])vm.runInContext(extract(n),c);
+  for(const n of ['awaitRasterRequest','getDrainageRasterImage','loadDepthQueryPng','loadPackedQueryGrid','getDepthQueryGrid','getDevelopedQueryGrid'])vm.runInContext(extract(n),c);
   let settled=false;const first=c.getDepthQueryGrid().then(()=>assert.fail('Held image succeeded'),error=>{settled=true;assert.equal(error.name,'TimeoutError');});
   const late=images[0].onload;clock.run(20000);await first;assert.ok(settled);assert.equal(images.length,1,'Timeout must not silently spend a second deadline');assert.equal(c.depthQueryGridPromise,null);
   late();await flush();assert.equal(c.depthQueryGridPromise,null);
@@ -85,7 +86,7 @@ for(const outcome of ['ready','failure','superseded']) {
   const previous=new Layer('old');active.add(previous);
   const c=vm.createContext({window:{...clock,NORTH_WILDWOOD_3D:{prepareFloodFrame:async()=>{started.resolve();return gate.promise;}}},requestAnimationFrame:fn=>queueMicrotask(fn),console,
     document:{body:{dataset:{initialFloodFrame:'ready'},classList:{contains:()=>false}}},
-    currentSeriesHours:[{stage:1}],currentRawSeriesHours:[],currentHourIndex:0,currentDataMode:'forecast',lastRenderToken:1,currentFloodLayer:previous,pendingFloodLayer:null,
+    currentSeriesHours:[{stage:1}],currentRawSeriesHours:[],currentHourIndex:0,currentDataMode:'forecast',forecastData:null,lastRenderToken:1,currentFloodLayer:previous,pendingFloodLayer:null,
     getStageValue:entry=>entry.stage,retainRasterObjectUrl:()=>()=>{},toast(){},ensureMap(){},getHydraulicOverlayRecord:async()=>({url:'new'}),preloadImage:async url=>url,ensureOverlayBounds:async()=>{},
     createHydraulicImageOverlay:url=>new Layer(url),overlayOpacity:.75,mapHasFit:true,floodLatLngBounds:{},updatePersistentDepthQueryPopup(){},markInitialFloodFrameReady(){},preloadPromiseCache:new Map(),
     map:{hasLayer:layer=>active.has(layer),removeLayer(layer){active.delete(layer);layer.handlers.get('remove')?.();}}});

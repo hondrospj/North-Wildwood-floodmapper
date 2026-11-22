@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 import numpy as np
+from PIL import Image
 
 from hydraulic_mask_sequence import (
     HydraulicMaskSequence,
@@ -11,9 +15,27 @@ from hydraulic_mask_sequence import (
     repair_small_enclosed_holes,
     repair_narrow_seams,
 )
+from stabilize_hydraulic_depth_catalog import stabilize_catalog
 
 
 def main() -> None:
+    with TemporaryDirectory() as tmp:
+        catalog = Path(tmp)
+        for stage, code in ((100, 4), (600, 0)):
+            frame = Image.new("P", (1, 1), code)
+            frame.putpalette([value for code in range(256) for value in (code,) * 3])
+            frame.save(catalog / f"depth_p{stage:04d}.png")
+        ground = np.zeros((1, 1), dtype=np.float32)
+        report = stabilize_catalog(
+            catalog, ground, None, wet_code_min=3, wet_code_max=5,
+            uncertainty_code=12, max_hole_pixels=4, mode="depth",
+            stage_thresholds=(3.25, 4.25), mask_directory=None,
+            mask_wet_code_max=11, mask_uncertainty_code=12, dry_run=False,
+        )
+        with Image.open(catalog / "depth_p0600.png") as frame:
+            if report["changedPixels"] != 1 or frame.getpixel((0, 0)) != 5:
+                raise AssertionError("The preserved pixel must use the configured wet palette")
+
     first = np.zeros((7, 9), dtype=bool)
     first[2:5, 2:7] = True
     first[3, 4] = False
@@ -37,6 +59,20 @@ def main() -> None:
     )
     if blocked_count or blocked_repair[3, 4]:
         raise AssertionError("Hole repair crossed an ineligible hydraulic cell")
+
+    wider_hole = np.ones((7, 7), dtype=bool)
+    wider_hole[2:5, 2:5] = False
+    wider_eligible = np.ones_like(wider_hole)
+    repaired, count = repair_small_enclosed_holes(wider_hole, wider_eligible, 9)
+    if count != 9 or not repaired.all():
+        raise AssertionError("An eligible nine-cell hole must include its interior in the repair")
+    _, count = repair_small_enclosed_holes(wider_hole, wider_eligible, 8)
+    if count != 0:
+        raise AssertionError("Hole repair exceeded the configured limit")
+    wider_hole[:2, 3] = False
+    _, count = repair_small_enclosed_holes(wider_hole, wider_eligible, 11)
+    if count != 0:
+        raise AssertionError("Hole repair filled an opening connected to the raster boundary")
 
     seam = np.ones((9, 11), dtype=bool)
     seam[2:7, 5] = False

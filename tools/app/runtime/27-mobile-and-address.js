@@ -1,13 +1,25 @@
     function wireLayerToggles() {
-      document.getElementById("mapClickBuildingBtn")?.addEventListener("click", () => setMapClickMode("building"));
-      document.getElementById("mapClickDepthBtn")?.addEventListener("click", () => setMapClickMode("depth"));
+      document.querySelector(".layer-list")?.addEventListener("click", event => {
+        if (!isCompactFloodmapperLayout() || event.target.closest("button, a, [role='switch']")) return;
+        event.target.closest(".layer-item")?.querySelector("[role='switch']")?.click();
+      });
+      for (const [id, mode] of [["mapClickBuildingBtn", "building"], ["mapClickParcelBtn", "parcel"], ["mapClickDepthBtn", "depth"]]) {
+        document.getElementById(id)?.addEventListener("click", () => {
+          if (cancelPendingTownAddressLookup()) setTownAddressStatus("");
+          setMapClickMode(mode);
+        });
+      }
+      document.getElementById("structuralImpactsKeyClose")?.addEventListener("click", () => {
+        document.getElementById("structuralImpactsKey").hidden = true;
+        document.getElementById("timelineDock")?.querySelector("#playBtn")?.focus({ preventScroll: true });
+      });
       ["roadsToggle"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         const toggleLayer = () => {
           el.classList.toggle("on");
           el.setAttribute("aria-checked", String(el.classList.contains("on")));
-          if (id === "roadsToggle") updateRoadLayerAppearance();
+          if (id === "roadsToggle") updateRoadLayerAppearance({ retry3dRoads: el.classList.contains("on") });
         };
         el.addEventListener("click", toggleLayer);
         el.addEventListener("keydown", event => {
@@ -30,6 +42,7 @@
       });
       const buildingsToggle = document.getElementById("buildingsToggle");
       const toggleBuildings = () => {
+        ++townAddressBuildingChoiceGeneration;
         const enabled = !buildingsToggle?.classList.contains("on");
         setBuildingsEnabled(enabled).catch(error => {
           setBuildingsEnabled(false, { rollback: true }).catch(() => {});
@@ -155,6 +168,8 @@
       const app = document.getElementById("app");
       if (!leftPanel || !rightRail || !app) return;
       const wasMobile = document.body.classList.contains("mobile-optimized");
+      const focused = document.activeElement;
+      const movingFocus = wasMobile !== isMobile && (leftPanel.contains(focused) || rightRail.contains(focused));
 
       const { mobileRailMount, closeBtn } = ensureMobileControlShell();
 
@@ -192,6 +207,12 @@
         if (mobileRailMount.parentNode) mobileRailMount.parentNode.removeChild(mobileRailMount);
       }
       syncLegendPlacement();
+      // Wait for the unified layout and modal isolation to release the moved control.
+      if (movingFocus) requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (document.activeElement !== document.body || isMobile !== isCompactFloodmapperLayout()) return;
+        const target = isMobile ? document.getElementById("mobileControlsToggle") : focused;
+        if (target?.getClientRects().length && !target.closest("[inert]")) target.focus();
+      }));
     }
 
     function wireMobileControlShell() {
@@ -201,7 +222,9 @@
       });
       backdrop.addEventListener("click", () => setMobileControlsOpen(false));
       document.addEventListener("keydown", e => {
-        if (e.key === "Escape") setMobileControlsOpen(false);
+        if (e.key === "Escape" && !e.defaultPrevented && !document.body.hasAttribute("data-floodmapper-unified")) {
+          setMobileControlsOpen(false);
+        }
       });
       document.addEventListener("click", e => {
         if (!document.body.classList.contains("mobile-controls-open")) return;
@@ -256,13 +279,21 @@
     }
 
     let townAddressLookupController = null;
+    let townAddressPopup = null;
+    let townAddressBuildingChoiceGeneration = 0;
 
-    function clearTownAddressLookup() {
+    function cancelPendingTownAddressLookup() {
+      if (!townAddressLookupController) return false;
       ++townAddressSearchGeneration;
-      townAddressLookupController?.abort();
+      townAddressLookupController.abort();
       townAddressLookupController = null;
       const button = document.getElementById("townAddressSearchBtn");
       if (button) button.disabled = false;
+      return true;
+    }
+
+    function clearTownAddressLookup() {
+      cancelPendingTownAddressLookup();
       const input = document.getElementById("townAddressInput");
       if (input) input.value = "";
       setTownAddressStatus("");
@@ -271,6 +302,7 @@
       }
       townAddressMarker = null;
       window.NORTH_WILDWOOD_3D?.setAddressMarker?.(null);
+      townAddressPopup?.remove();
       input?.focus();
     }
 
@@ -302,12 +334,13 @@
       const north = Number(box.north);
       const west = Number(box.west);
       const east = Number(box.east);
-      if (![south, north, west, east].every(Number.isFinite)) return Number.isFinite(lat) && Number.isFinite(lon);
-      return Number.isFinite(lat) && Number.isFinite(lon) &&
-        lat >= south && lat <= north && lon >= west && lon <= east;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+      if ([south, north, west, east].every(Number.isFinite) &&
+          (lat < south || lat > north || lon < west || lon > east)) return false;
+      return !municipalBoundaryFeature || pointInParcelFeature(municipalBoundaryFeature, lat, lon);
     }
 
-    function normalizeTownAddressText(value) {
+    function normalizeTownAddressText(value, keepPlaceNames = false) {
       const cfg = getTownAddressConfig();
       const removable = [
         cfg.displayName,
@@ -342,8 +375,18 @@
         .replace(/\b(east|e)\b/g, "e")
         .replace(/\b(west|w)\b/g, "w")
         .replace(/[^a-z0-9\s]/g, " ");
-      if (removablePattern) cleaned = cleaned.replace(removablePattern, " ");
+      if (!keepPlaceNames && removablePattern) cleaned = cleaned.replace(removablePattern, " ");
       return cleaned.replace(/\s+/g, " ").trim();
+    }
+
+    function getTownAddressHouseNumber(value) {
+      return String(value || "").trim().match(/^\d+[a-z]?(?:-\d+[a-z]?)?(?=\s|,|$)/i)?.[0].toLowerCase() || "";
+    }
+
+    function normalizeTownStreetAddress(value) {
+      const street = String(value || "").split(",", 1)[0]
+        .replace(/\s+(?:apt|unit|suite|ste)\.?\s+.*$|\s*#.*$/i, "");
+      return normalizeTownAddressText(street, true);
     }
 
     function levenshteinTownAddress(a, b) {
@@ -429,6 +472,9 @@
 
     function normalizeNominatimTownCandidate(result, cleanQuery) {
       if (!isLikelyTownResult(result)) return null;
+      const address = result.address || {};
+      const houseNumber = getTownAddressHouseNumber(cleanQuery);
+      if (!address.road || String(address.house_number || "").toLowerCase() !== houseNumber) return null;
       const lat = Number(result.lat);
       const lon = Number(result.lon);
       const candidate = {
@@ -436,7 +482,8 @@
         lat,
         lon,
         label: formatTownAddressLabel(result),
-        address: result.address || {},
+        address,
+        streetAddress: houseNumber ? normalizeTownStreetAddress(`${address.house_number} ${address.road}`) : "",
         display_name: result.display_name || "",
         score: 0.45
       };
@@ -450,11 +497,15 @@
       if (!isInsideTownLookupBox(lat, lon)) return null;
       const attrs = candidate.attributes || {};
       const label = String(attrs.Match_addr || candidate.address || "address").replace(/,\s*USA$/i, "");
+      const houseNumber = getTownAddressHouseNumber(cleanQuery);
+      const addressTypes = houseNumber ? ["PointAddress", "Subaddress", "StreetAddress"] : ["StreetName", "StreetInt"];
+      if (!addressTypes.includes(attrs.Addr_type) || getTownAddressHouseNumber(label) !== houseNumber) return null;
       const normalized = {
         source: "arcgis",
         lat,
         lon,
         label,
+        streetAddress: houseNumber ? normalizeTownStreetAddress(label) : "",
         arcgisScore: Number(candidate.score || attrs.Score || 0),
         score: 0
       };
@@ -608,6 +659,8 @@
       }
       if (!map) ensureMap();
 
+      ++mapQueryGeneration;
+      const buildingChoice = townAddressBuildingChoiceGeneration;
       if (button) button.disabled = true;
       setTownAddressStatus(`Finding the closest ${townName} match…`);
 
@@ -627,21 +680,25 @@
         const latLng = L.latLng(match.lat, match.lon);
         const label = formatTownAddressLabel(match);
         let parcelFeature = null;
-        try {
-          parcelFeature = await findParcelFeatureForLocation(match.lat, match.lon);
-          if (generation !== townAddressSearchGeneration) return;
-          if (parcelFeature) {
-            await setBuildingsEnabled(true);
+        if (match.streetAddress) {
+          try {
+            parcelFeature = await findParcelFeatureForLocation(match.lat, match.lon, {
+              matchesFeature: feature => normalizeTownStreetAddress(feature?.properties?.address) === match.streetAddress
+            });
+            if (generation !== townAddressSearchGeneration) return;
+            if (parcelFeature && buildingChoice === townAddressBuildingChoiceGeneration) await setBuildingsEnabled(true);
+          } catch (parcelErr) {
+            if (generation !== townAddressSearchGeneration) return;
+            console.warn("House Alert parcel match was unavailable.", parcelErr);
           }
-        } catch (parcelErr) {
-          if (generation !== townAddressSearchGeneration) return;
-          console.warn("House Alert parcel match was unavailable.", parcelErr);
         }
 
         if (generation !== townAddressSearchGeneration) return;
         if (townAddressMarker && map.hasLayer(townAddressMarker)) {
           townAddressMarker.setLatLng(latLng);
-          townAddressMarker.setIcon(getShorelySafeAddressIcon());
+          townAddressMarker.options.title = label;
+          const markerElement = townAddressMarker.getElement();
+          if (markerElement) markerElement.title = label;
         } else {
           townAddressMarker = L.marker(latLng, {
             title: label,
@@ -656,15 +713,17 @@
           document.getElementById("townAddressInput")?.blur();
           setMobileControlsOpen(false);
         }
-        if (parcelFeature) {
-          openParcelFloodPrompt(parcelFeature, latLng);
-        } else {
-          openPersistentFloodPopup(
+        const popup = parcelFeature
+          ? openParcelFloodPrompt(parcelFeature, latLng)
+          : openPersistentFloodPopup(
             latLng,
             '<div class="town-address-popup"><strong>Closest match</strong><br>' + escapeTownAddressHtml(label) + "</div>",
             370
           );
-        }
+        townAddressPopup = popup;
+        popup.once("remove", () => {
+          if (townAddressPopup === popup) townAddressPopup = null;
+        });
         setTownAddressStatus(parcelFeature ? `Building flood profile found: ${label}` : `Closest match: ${label}`, "success");
       } catch (err) {
         if (generation !== townAddressSearchGeneration) return;
@@ -687,6 +746,9 @@
         e.preventDefault();
         searchTownAddress(input.value);
       });
+      input.addEventListener("input", () => {
+        if (cancelPendingTownAddressLookup()) setTownAddressStatus("");
+      });
       clearBtn?.addEventListener("click", clearTownAddressLookup);
     }
 
@@ -694,42 +756,51 @@
       {
         title: "Welcome to the Floodmapper",
         target: "#mapTitleBadge",
-        body: "<p>This map turns water levels into a street-level picture of potential flooding. You can explore the next several days, replay measured events, click the map for modeled depth, inspect parcels, and export what you see.</p><p><strong>Every mapped depth is referenced to the selected water level and the ground-elevation model.</strong></p>"
+        body: "<p>Try the controls as you go. You’ll compare flood forecasts, move through time, and change what the map shows.</p>"
       },
       {
         title: "Start with the forecast",
-        target: ".data-source-card",
-        body: "<p>Select <strong>Forecast</strong> to explore the forecast water levels and mapped flooding.</p><p>The map and timeline update together, so the selected hour is always the water level being mapped.</p>"
+        target: "#forecastScenarioCard",
+        fallback: ".data-source-card",
+        practice: "forecast",
+        body: "<p>Compare <strong>Likely</strong> and <strong>Worst Case</strong> in Forecast Range. Watch the same time on the map as the forecast changes.</p>"
       },
       {
         title: "Switch to observations",
         target: ".data-source-card",
-        body: "<p>Select <strong>Observed</strong> to explore the tide-gauge archive. Use <strong>Interval</strong> in the left pane to switch among Hourly, 15-Min, and Daily Max views.</p>"
+        practice: "past",
+        body: "<p>Choose <strong>Past</strong> to replay measured tide levels. Use <strong>Interval</strong> to switch between Hourly, 15-Min, and Daily Max.</p>"
       },
       {
         title: "Choose a historic flood",
         target: "#calendarCard",
-        body: "<p>The calendar is your archive. Colored dates mark flood thresholds; choose a day or type a date to replay it. Crest-only records show the maximum extent when a full time series was not preserved.</p>"
+        fallback: ".data-source-card",
+        practice: "calendar",
+        body: "<p>In <strong>Past</strong>, pick a date from the calendar. The date color shows the highest flood stage recorded that day.</p>"
       },
       {
         title: "Move through time",
         target: "#timelineDock",
-        body: "<p>Drag the slider to move the map through time, or press Play to animate it. The selected date, time, water level, and mapped depth always stay synchronized.</p>"
+        practice: "time",
+        body: "<p>Step through time and watch the water level change. On the map, drag the timeline slider or press <strong>Play</strong> to animate it.</p>"
       },
       {
         title: "Control map layers",
         target: ".layers-card",
-        body: "<p>Turn the simulation boundary, road labels, or <strong>Parcels</strong> on and off. Click a parcel to see how many times that structure has flooded in the historic record.</p>"
+        practice: "layers",
+        body: "<p>Try toggling <strong>Road Names</strong>. Use the <strong>?</strong> at the top right of Layers to see what every switch does.</p>"
       },
       {
         title: "Jump to the largest floods",
         target: ".mobile-top-tides-card, .top-tides-card",
-        body: "<p>The Top 10 list is the fastest way to inspect the archive's highest crests. Select an event to move the calendar, timeline, water-level readout, and inundation map to that flood.</p>"
+        practice: "crest",
+        body: "<p><strong>Top 10</strong> ranks the archive’s highest crests. From that list, choose a flood to see how far the water reached.</p>"
       },
       {
         title: "Export and share",
         target: "#downloadCard",
-        body: "<p>Open the export panel to save a single PNG, a PNG sequence, or an animated GIF. Set the time range, frame interval, layout, speed, and labels before export.</p><p>Exports preserve the map, timestamp, datum, depth key, and branding so the result can stand on its own.</p>"
+        practice: "export",
+        body: "<p>Save one map as a <strong>PNG</strong>, or export a time range as a PNG sequence or an animated <strong>GIF</strong>.</p>"
       }
     ];
     let mapperTutorialIndex = 0;

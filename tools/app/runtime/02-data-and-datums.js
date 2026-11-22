@@ -3,6 +3,7 @@
     }
 
     function toast(msg = "") {
+      if (/^(?:failed to fetch\.?|load failed\.?|networkerror when attempting to fetch resource\.?)$/i.test(String(msg).trim())) return;
       const el = document.getElementById("toast");
       const textEl = document.getElementById("toastMessage");
       if (!el) return;
@@ -41,6 +42,13 @@
     }
 
     async function fetchJson(url, options = {}) {
+      const startup = window.floodmapperStartupForecast;
+      if (options.cache === "no-cache" && startup?.url === url) {
+        delete window.floodmapperStartupForecast;
+        const { data, error } = await startup.request;
+        if (error) throw error;
+        return data;
+      }
       const { timeoutMs = 30000, ...requestOptions } = options;
       const controller = new AbortController();
       const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -196,18 +204,18 @@
     async function switchForecastScenario(scenario) {
       if (!FORECAST_SCENARIOS[scenario]) return;
       if (scenario === currentForecastScenario && currentDataMode === "forecast"
+          && (currentSeriesHours.length || loadForecast.pendingSelectionGeneration === selectionGeneration)
           && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
       stopPlayback();
+      const preferredEntry = currentDataMode === "forecast" ? currentSeriesHours[currentHourIndex] : null;
       const floodSelectionToken = cancelPendingFloodFrame();
       toast("");
       currentForecastScenario = scenario;
       currentDataMode = "forecast";
-      currentViewType = "forecast";
-      currentTopTideIndex = null;
       updateForecastScenarioButtons();
       updateDataModeButtons();
       cancelPendingFloodFrame(false);
-      await loadForecast();
+      await loadForecast(preferredEntry, { preserveForecastDay: true });
       if (floodSelectionToken !== lastRenderToken) return false;
       renderTopTides();
       await renderHour(currentHourIndex);
@@ -307,12 +315,12 @@
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
         renderSelectionMeta(null, null, null);
-        document.getElementById("stageSubText").textContent = "Loading modeled flood…";
+        document.getElementById("stageSubText").textContent = "";
         renderTimelineMeta();
         renderTimelineDays();
         setFloodFrameStatus(currentFloodLayer
-          ? "Loading modeled flood… Previous flood map shown."
-          : "Loading modeled flood…", "info");
+          ? ""
+          : "", "info");
 
         if (!returnIntervalData || options.forceRefresh) {
           const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
@@ -369,8 +377,9 @@
     async function switchReturnInterval(years) {
       const requested = Number(years);
       if (!RETURN_INTERVAL_OPTIONS.includes(requested)) return;
-      if (requested === currentReturnIntervalYears && currentDataMode === "return-interval" && currentSeriesHours.length
-          && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
+      if (requested === currentReturnIntervalYears && currentDataMode === "return-interval" &&
+          (currentSeriesHours.length || loadReturnInterval.pendingSelection?.generation === selectionGeneration) &&
+          loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
       stopPlayback();
       const generation = ++selectionGeneration;
       cancelPendingFloodFrame();

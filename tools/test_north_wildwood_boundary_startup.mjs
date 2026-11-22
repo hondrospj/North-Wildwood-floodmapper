@@ -6,11 +6,9 @@ import { readAppSource } from './app_source.mjs';
 
 const source = readAppSource(new URL('../index.html', import.meta.url));
 const officialBoundary = JSON.parse(fs.readFileSync(new URL('../Boundaries/North Wildwood.geojson', import.meta.url), 'utf8'));
-const townConfigSource = fs.readFileSync(new URL('./app/town-config.js', import.meta.url), 'utf8');
-const configContext = vm.createContext({});
-vm.runInContext(townConfigSource.slice(0, townConfigSource.indexOf('applyTownConfig(TOWN_CONFIG)')), configContext);
+const townConfig = JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
 const plain = value => JSON.parse(JSON.stringify(value));
-assert.deepEqual(plain(configContext.TOWN_CONFIG.boundary.startupFeature), officialBoundary,
+assert.deepEqual(plain(townConfig.boundary.startupFeature), officialBoundary,
   'The synchronous boundary must be the same official polygon as the published GeoJSON, not an approximation');
 
 function extractFunction(name) {
@@ -121,7 +119,7 @@ function harness() {
 // The first Leaflet draw already has the exact town outline and its cutout.
 {
   const h = harness();
-  h.context.applyTownConfig(configContext.TOWN_CONFIG);
+  h.context.applyTownConfig(townConfig);
   assert.deepEqual(plain(h.context.municipalBoundaryFeature), officialBoundary);
   const ring = h.context.municipalBoundaryRings[0];
   assert.ok(ring.length > 100, 'The startup outline must retain the real shoreline, not a bounding rectangle');
@@ -152,15 +150,14 @@ function harness() {
   assert.equal(h.context.FALLBACK_LATLNG_BOUNDS, null);
 }
 
-// Bundling the boundary must not change the established initial camera extent.
-// Geometry/export callers still obtain the real outline or fallback ring bounds.
+// Keep both the authoritative boundary fit and the configured preview/default extents.
 {
   const h = harness();
   const extent = bounds => plain([bounds.getSouthWest(),bounds.getNorthEast()]);
-  h.context.TOWN_CONFIG = configContext.TOWN_CONFIG;
+  h.context.TOWN_CONFIG = townConfig;
   vm.runInContext(extractFunction('getBoundaryDrivenOverlayBounds'), h.context);
   const originalExtent = extent(h.context.getBoundaryDrivenOverlayBounds());
-  const {lat,lon} = configContext.TOWN_CONFIG.map.center;
+  const {lat,lon} = townConfig.map.center;
   assert.deepEqual(originalExtent, [
     {lat:lat - 0.03,lng:lon - 0.04},
     {lat:lat + 0.03,lng:lon + 0.04},
@@ -168,7 +165,7 @@ function harness() {
 
   h.context.seedMunicipalBoundary(officialBoundary);
   const ringExtent = extent(h.context.getBoundaryDrivenOverlayBounds());
-  assert.notDeepEqual(ringExtent, originalExtent, 'The authoritative municipal bounds differ from the camera framing');
+  assert.notDeepEqual(ringExtent, originalExtent, 'The authoritative municipal bounds differ from the configured preview extent');
   assert.deepEqual(ringExtent, extent(h.context.latLngBoundsFromRing(h.context.municipalBoundaryRings[0])),
     'Default geometry callers still prefer the authoritative ring before the outline is drawn');
 
@@ -177,7 +174,7 @@ function harness() {
   assert.deepEqual(extent(h.context.getBoundaryDrivenOverlayBounds()), ringExtent,
     'Default geometry callers retain the real outline extent after Leaflet draws it');
   assert.deepEqual(extent(h.context.getBoundaryDrivenOverlayBounds(false)), originalExtent,
-    'The startup camera opt-out must preserve the pre-seed configured framing');
+    'The startup preview and missing-geometry case use the configured extent');
 
   h.context.cityBoundaryOutline = null;
   h.context.municipalBoundaryRings = [];
@@ -186,8 +183,55 @@ function harness() {
     'Default geometry callers still use valid fallback boundary bounds');
   assert.deepEqual(extent(h.context.getBoundaryDrivenOverlayBounds(false)), originalExtent);
 }
-assert.match(extractFunction('ensureMap'), /map\.fitBounds\(getBoundaryDrivenOverlayBounds\(false\),/,
-  'Initial camera framing must explicitly ignore readiness of municipal geometry');
+
+// Exercise the actual startup branch and the guarded fit shared with the live frame.
+const ensureMap = extractFunction('ensureMap');
+const startupFit = ensureMap.match(/const previewBounds = getBoundaryDrivenOverlayBounds\(false\);[\s\S]+?(?=basemapColorLayer\.addTo\(map\);)/)?.[0];
+assert.ok(startupFit, 'Choose and apply the first camera before mounting the color basemap');
+for (const { seeded, compact } of [
+  { seeded:true, compact:false }, { seeded:true, compact:true },
+  { seeded:false, compact:false }, { seeded:false, compact:true },
+]) {
+  const { context, map } = harness();
+  vm.runInContext(extractFunction('getBoundaryDrivenOverlayBounds'), context);
+  vm.runInContext(extractFunction('fitInitialFloodView'), context);
+  context.TOWN_CONFIG = townConfig;
+  if (seeded) context.seedMunicipalBoundary(officialBoundary);
+  const preferred = context.getBoundaryDrivenOverlayBounds();
+  const configured = context.getBoundaryDrivenOverlayBounds(false);
+  const fits = [], zooms = [], boundsZooms = [];
+  map.fitBounds = (bounds, options) => fits.push({ bounds, options:plain(options) });
+  map.getZoom = () => 14;
+  map.getBoundsZoom = (bounds, inside, padding) => { boundsZooms.push({ bounds, inside, padding }); return 12; };
+  map.getMaxZoom = () => 22;
+  map.setZoom = (zoom, options) => zooms.push({ zoom, options:plain(options) });
+  context.L.point = (x, y) => ({ x, y });
+  context.mapHasFit = false;
+  context.isCompactFloodmapperLayout = () => compact;
+  vm.runInContext(startupFit, context);
+  const corners = bounds => plain([bounds.getSouthWest(), bounds.getNorthEast()]);
+  assert.deepEqual(corners(fits[0].bounds), corners(seeded ? preferred : configured));
+  assert.deepEqual(fits[0].options, { padding:seeded ? [16,16] : [20,20], animate:false });
+  assert.equal(context.mapHasFit, seeded, 'Only a seeded, authoritative first fit locks the live camera');
+  if (!seeded) context.seedMunicipalBoundary(officialBoundary);
+  const finalBounds = context.getBoundaryDrivenOverlayBounds();
+  context.fitInitialFloodView(finalBounds);
+  context.fitInitialFloodView(finalBounds);
+  assert.equal(fits.length, seeded ? 1 : 2, 'Allow one late authoritative fit only when geometry was missing at startup');
+  assert.deepEqual(corners(fits.at(-1).bounds), corners(finalBounds));
+  if (!seeded) assert.deepEqual(fits.at(-1).options, { padding:[16,16] }, 'Keep the existing late-fit animation behavior');
+  assert.deepEqual(zooms, compact ? [{ zoom:seeded ? 13 : 15, options:{ animate:false } }] : []);
+  if (compact && seeded) {
+    assert.equal(boundsZooms.length, 1, 'Derive the early compact zoom from the former provisional viewport');
+    assert.deepEqual(corners(boundsZooms[0].bounds), corners(configured));
+    assert.equal(boundsZooms[0].inside, false);
+    assert.deepEqual(boundsZooms[0].padding, { x:40, y:40 });
+  } else assert.deepEqual(boundsZooms, []);
+}
+for (const renderer of ['setFloodLayer', 'setPhysicsFloodLayer']) {
+  assert.match(extractFunction(renderer), /if \(!mapHasFit(?: && floodLatLngBounds)?\) fitInitialFloodView\(getBoundaryDrivenOverlayBounds\(\) \|\| floodLatLngBounds\)/,
+    `${renderer} must use the guarded first camera fit`);
+}
 
 // No valid polygon means no invented box outline and no world-only gray mask.
 for (const invalid of [null, {}, { type: 'Point', coordinates: [-74.8, 39] }, {

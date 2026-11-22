@@ -23,8 +23,9 @@ const policySha256 = sha256(Buffer.concat(await Promise.all([
   fs.readFile(new URL("../assets/municipal-time.js", import.meta.url)),
 ])));
 
-export function cacheIdentity(northContent) {
-  return { northWildwoodSha256: sha256(northContent), policySha256 };
+export function cacheIdentity({ readings, recordCount }) {
+  const comparisonInput = JSON.stringify({ readings, recordCount });
+  return { northWildwoodSha256: sha256(comparisonInput), policySha256 };
 }
 
 const epoch = globalThis.NorthWildwoodTime.municipalEpoch;
@@ -86,11 +87,13 @@ function usgsUrl(start, end) {
   return url;
 }
 
-function parseStone(payload) {
+export function parseStone(payload) {
   const rows = [];
   for (const series of payload?.value?.timeSeries ?? []) {
     for (const bucket of series?.values ?? []) {
       for (const row of bucket?.value ?? []) {
+        if (row?.value == null || typeof row.value === "boolean" || !String(row.value).trim() ||
+            !/(?:Z|[+-]\d{2}:\d{2})$/.test(row.dateTime)) continue;
         const time = Date.parse(row.dateTime);
         const value = Number(row.value);
         if (Number.isFinite(time) && Number.isFinite(value) && Math.abs(value) < 100) rows.push({ time, value });
@@ -273,7 +276,7 @@ export async function existingPayload(year, identity, directory = outputDir) {
 async function buildYear(year) {
   const northContent = await fs.readFile(path.join(northDataDir, `${year}.json`));
   const northPayload = JSON.parse(northContent);
-  const identity = cacheIdentity(northContent);
+  const identity = cacheIdentity(northPayload);
   const cached = await existingPayload(year, identity);
   if (cached) {
     console.log(JSON.stringify({ year, status: "reused", pairs: cached.stats.pairCount }));
@@ -301,6 +304,8 @@ async function buildYear(year) {
       pairs.push({ north: northValue, stone: stoneValue });
     }
   }
+  const stats = comparisonStats(pairs);
+  if (!Number.isFinite(stats.correlation)) throw new Error(`${year}: no usable paired-gauge comparison`);
   const peakMatches = matchPeaks(northValues, stoneValues, startTime);
   const payload = {
     schema,
@@ -316,7 +321,7 @@ async function buildYear(year) {
     quality: { northWildwoodIsolatedSpikesExcluded: northFiltered.excluded, isolatedSpikeThresholdFt },
     firstTimestampUtc: points.length ? new Date(points[0][0] * 1_000).toISOString() : null,
     lastTimestampUtc: points.length ? new Date(points.at(-1)[0] * 1_000).toISOString() : null,
-    stats: comparisonStats(pairs),
+    stats,
     lag: lagStats(northValues, stoneValues),
     peaks: peakStats(peakMatches),
     encoding: { points: "[UTC epoch seconds, North Wildwood NAVD88 hundredths ft, Stone Harbor NAVD88 hundredths ft]", peakMatches: "[North peak UTC seconds, Stone peak UTC seconds, North NAVD88 hundredths ft, Stone NAVD88 hundredths ft]" },

@@ -152,10 +152,15 @@ try {
   });
   assert.deepEqual(accessibility, { inert: false, hit: 'exportProgressCloseBtn', settingsHidden: true });
   await cancel.click();
-  assert.equal(await page.evaluate(() => exportCancelRequested), true);
-  assert.match(await page.locator('#exportProgressMessage').textContent(), /Cancelling export/);
-  await page.evaluate(() => window.__auditReleaseArchive());
-  await page.waitForFunction(() => !exportInProgress, {}, { timeout: 30000, polling: 50 });
+  // The transient progress text can disappear before the click returns.
+  // The export must finish cancelling while the archive is still held.
+  await page.waitForFunction(() => !exportInProgress &&
+    document.getElementById('exportProgressMessage').textContent === 'Export cancelled.',
+  {}, { timeout: 30000, polling: 50 });
+  await page.evaluate(async () => {
+    window.__auditReleaseArchive();
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
   assert.equal(await page.locator('#downloadStatus').textContent(), 'Export cancelled.');
   assert.equal(await page.locator('#downloadBtn').isEnabled(), true);
   assert.deepEqual(downloads, [], 'Resolving a delayed archive after Cancel must not start a download');

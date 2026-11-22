@@ -20,7 +20,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--minimum-depth-ft", type=float, default=0.01)
     parser.add_argument("--smoothing-sigma", type=float, default=1.6)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not np.isfinite(args.minimum_depth_ft) or args.minimum_depth_ft < 0:
+        parser.error("--minimum-depth-ft must be finite and nonnegative")
+    return args
 
 
 def main() -> None:

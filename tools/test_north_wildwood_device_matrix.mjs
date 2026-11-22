@@ -75,10 +75,18 @@ for (const profile of profiles) {
     assert.equal(await input.inputValue(), '10/26/2026');
     await input.fill('03/07/2026'); await page.locator('#downloadStartDateText').press('Tab',{noWaitAfter:true});
     assert.equal(await page.locator('#downloadStartInput').inputValue().then(value=>value.slice(0,10)), '2026-03-07');
-    await page.locator('#downloadStartTimeSelect').selectOption('02:30');
-    await input.fill('03/08/2026'); await page.locator('#downloadStartDateText').press('Tab',{noWaitAfter:true});
-    assert.equal(await input.getAttribute('aria-invalid'), 'true');
-    assert.equal(await page.evaluate(() => getRangeInputDate('downloadStartInput')), null);
+    const time = page.locator('#downloadStartTimeSelect');
+    await time.selectOption('02:30');
+    assert.equal(await time.inputValue(), '02:30');
+    await input.fill('03/08/2026'); await input.press('Tab');
+    // Read both sides of validation together after the real focus change.
+    const springGap = await input.evaluate(editor => ({
+      text: editor.value,
+      invalid: editor.getAttribute('aria-invalid'),
+      invalidTime: document.getElementById('downloadStartInput').dataset.invalidLocalTime,
+      exportTime: getRangeInputDate('downloadStartInput')?.toISOString() ?? null
+    }));
+    assert.deepEqual(springGap, {text: '03/08/2026', invalid: 'true', invalidTime: '1', exportTime: null});
     await page.locator('#downloadModalCloseBtn').click();
     return { physicalRoundtrip: true, springGapRejected: true };
   });

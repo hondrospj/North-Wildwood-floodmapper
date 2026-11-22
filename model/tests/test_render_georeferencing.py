@@ -105,7 +105,8 @@ class RenderGeoreferencingTests(unittest.TestCase):
             root = Path(temporary)
             config = copy.deepcopy(json.loads((ROOT / "model/config/north_wildwood.json").read_text()))
             config["petss"]["scenarios"] = ["mean"]
-            for name in ("run_anuga.py", "render_physics.py", "frame_alignment.py", "validate_products.py", "cache_contract.py"):
+            for name in ("run_anuga.py", "render_physics.py", "frame_alignment.py", "validate_products.py",
+                         "output_replacement.py", "cache_contract.py"):
                 path = root / "model/src" / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / "model/src" / name, path)

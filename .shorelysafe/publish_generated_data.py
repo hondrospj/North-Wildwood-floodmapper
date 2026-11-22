@@ -2,10 +2,7 @@
 """Refresh approved data files while retaining every currently deployed UI blob."""
 import argparse,hashlib,json,os,re,subprocess,urllib.error,urllib.request
 from pathlib import Path
-DATA_PATHS={
- 'flooddashboard':('data/petss_forecast.csv','data/petss_forecast.json','data/petss_meta.json','data/peaks_navd88.json','data/petss_station_debug.txt'),
- 'floodmapper':('forecast.json','forecasts.json','observed.json','observedoverflow.json','toptides.json','data/experimental_petss_guidance.json'),
-}
+
 def request(site,app,token,endpoint,method='GET',value=None,raw=False):
  url=site.rstrip('/')+'/wp-json/shorelysafe/v1/apps/'+app+'/'+endpoint
  body=value if raw else (json.dumps(value).encode() if value is not None else None)
@@ -26,15 +23,37 @@ def overlay(base,source,paths,replacements):
   if not p.is_file():continue
   assert not p.is_symlink(),f'Symlink data file: {name}'
   raw=p.read_bytes();assert len(raw)<67108864,f'Data file unexpectedly large: {name}'
-  text=raw.decode('utf-8')
-  for old,new in replacements:text=text.replace(old,new)
-  data=text.encode();sha=hashlib.sha256(data).hexdigest();entry={'sha256':sha,'size':len(data)}
+  if name == 'data/v41/latest.png':
+   data=raw
+  else:
+   text=raw.decode('utf-8')
+   for old,new in replacements:text=text.replace(old,new)
+   data=text.encode()
+  sha=hashlib.sha256(data).hexdigest();entry={'sha256':sha,'size':len(data)}
   if before.get(name)!=entry:changed.append(name);payloads[sha]=data
   after[name]=entry
  for name,entry in before.items():
   if name not in paths:assert after[name]==entry,'UI asset changed'
  assert after['index.html']==before['index.html'],'Index changed'
  return after,payloads,changed
+
+def assert_forecast_not_older(site, app_path, deployed, candidate_cycle, path="forecast.json", cycle_key="petssCycleUtc"):
+    from release_data import utc_time
+
+    digest = deployed["sha256"]
+    size = deployed["size"]
+    if not re.fullmatch(r"[0-9a-f]{64}", digest) or type(size) is not int or not 0 < size < 67108864:
+        raise ValueError("Invalid deployed forecast manifest entry")
+    # Bypass stale caches, then verify the public bytes against the manifest
+    # read under the publication lock before trusting their cycle metadata.
+    url = site + app_path + path + "?overlay_base=" + digest
+    with urllib.request.urlopen(url, timeout=30) as response:
+        raw = response.read(size + 1)
+    if len(raw) != size or hashlib.sha256(raw).hexdigest() != digest:
+        raise RuntimeError("Deployed forecast differs from its manifest; retry against the active deployment")
+    current = utc_time(json.loads(raw).get(cycle_key), "deployed forecast cycle")
+    if utc_time(candidate_cycle, "candidate forecast cycle") < current:
+        raise ValueError("Candidate forecast is older than the deployed forecast")
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--app',required=True);p.add_argument('--site',default='https://cupajoe.live');p.add_argument('--dry-run',action='store_true');args=p.parse_args()
@@ -45,27 +64,28 @@ def main():
  assert app['repository']=='hondrospj/North-Wildwood-floodmapper','Unexpected source repository'
  import sys
  sys.path.insert(0,str(root/'tools'))
- from release_data import GENERATED_FILES,GENERATED_DIRECTORIES,is_generated_data,validate_data,read_json
+ from release_data import GENERATED_FILES,GENERATED_DIRECTORIES,available_v41_paths,is_generated_data,validate_data
  from release_gate import GitHub,assert_current
  names=set(p for p in GENERATED_FILES if (root/p).is_file())
  for prefix in GENERATED_DIRECTORIES:
   directory=root/prefix
   if directory.is_dir():
    names.update(p.relative_to(root).as_posix() for p in directory.rglob('*.json') if p.is_file())
+ names.update(available_v41_paths(root))
  paths=tuple(sorted(names));assert paths and all(is_generated_data(p) for p in paths)
  source_sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
  github=GitHub(app['repository'],os.environ['GH_TOKEN'])
  assert_current(github,source_sha)
- forecast=read_json(root/'forecast.json')
- assert forecast['stationId']=='8535581' and forecast['usgsGaugeId']=='01411360','Forecast reference station changed'
- assert forecast['operationalForecastProduct']=='TWL' and forecast['operationalForecastStatistic']=='ensemble_mean','Forecast product changed'
- assert forecast['thresholdsNAVD88']=={'minorLow':3.25,'moderateLow':4.25,'majorLow':5.25},'Forecast warning thresholds changed'
- assert forecast['thresholdsMLLW']=={'minorLow':6.0,'moderateLow':7.0,'majorLow':8.0},'Tidal warning thresholds changed'
  token=os.environ['SHORELYSAFE_TOKEN'];assert token,'Publisher credential missing'
  state=request(args.site,args.app,token,'state?manifest=1');assert state.get('published')and state.get('manifest'),'No currently published UI; refusing to create a new site'
  base=state['manifest'];replacements=[('https://hondrospj.github.io/'+a['repository'].split('/')[1]+'/',a['path'])for a in apps]
  after,payloads,changed=overlay(base,root,paths,replacements)
- validation=validate_data(root,changed)
+ validation=validate_data(root,changed,operational_petss=True)
+ if 'forecast.json' in changed:
+  assert_forecast_not_older(args.site,app['path'],base['files']['forecast.json'],validation['forecast']['cycle'])
+ if 'v41' in validation and 'data/v41/latest.json' in base['files']:
+  assert_forecast_not_older(args.site,app['path'],base['files']['data/v41/latest.json'],
+                            validation['v41']['cycle'],'data/v41/latest.json','issue_utc')
  assert_current(github,source_sha)
  result={'app':args.app,'mode':'current-manifest-data-overlay','data_source_commit':source_sha,'preserved_ui_commit':state.get('commit'),'base_deployment':state.get('deployment'),'file_count':len(after),'preserved_nondatablobs':sum(k not in paths for k in base['files']),'changed_data_files':changed,'index_sha256_before':base['files']['index.html']['sha256'],'index_sha256_after':after['index.html']['sha256'],'dry_run':args.dry_run,'data_validation':validation,'allowlisted_generated_files':len(paths)}
  print(json.dumps(result),flush=True)

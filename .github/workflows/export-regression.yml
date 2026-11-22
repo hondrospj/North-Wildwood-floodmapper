@@ -5,6 +5,9 @@ on:
     paths-ignore:
       - forecast.json
       - data/experimental_petss_guidance.json
+      - data/v41/latest.json
+      - data/v41/latest.png
+      - data/v41/latest.csv
       - observed.json
       - observed15min.json
       - stone_harbor_observed15min.json
@@ -19,6 +22,9 @@ on:
     paths-ignore:
       - forecast.json
       - data/experimental_petss_guidance.json
+      - data/v41/latest.json
+      - data/v41/latest.png
+      - data/v41/latest.csv
       - observed.json
       - observed15min.json
       - stone_harbor_observed15min.json
@@ -40,20 +46,31 @@ jobs:
         with:
           sparse-checkout: |
             index.html
+            floodmapper_v2.json
             city-gauge/index.html
             assets/export-area.js
             assets/export-preview.js
             assets/export-date-time-picker.js
             assets/export-date-time-picker.css
             assets/shorelysafe-logo-export.jpg
+            assets/north-wildwood-startup-map.webp
             assets/export-road-labels.js
             assets/road-labels.js
+            assets/road-impacts.js
             assets/roads/north-wildwood-road-centerlines.geojson
             assets/north-wildwood-font.css
+            assets/north-wildwood-phone.css
+            assets/fonts/inter-4.1-*
+            assets/hydraulic-v29/
+            assets/parcel-history-v2/NorthWildwoodParcelAreaStages.json
             assets/north-wildwood-loading.js
             assets/north-wildwood-loading.css
             assets/modal-focus.js
+            assets/map-status.css
+            assets/vendor/html2canvas-1.4.1.*
+            assets/vendor/gif.worker.js
             assets/3d/north-wildwood-3d.js
+            assets/3d/elevation-contours.js
             assets/app/
             assets/styles/
             tools/app/

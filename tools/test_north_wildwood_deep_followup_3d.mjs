@@ -26,7 +26,7 @@ function startupFixture(){
  const timer=clock(),styles=deferred(),buildings=deferred(),classes=new Set(),maps=[];let style=()=>styles.promise,build=async()=>{};
  class Map{constructor(){maps.push(this);this.listeners=new MapNative();}on(){}off(name,cb){if(this.listeners.get(name)===cb)this.listeners.delete(name);}once(name,cb){this.listeners.set(name,cb);queueMicrotask(()=>this.listeners.get(name)?.());}getPitch(){return 0;}remove(){this.removed=true;}resize(){}}
  const MapNative=globalThis.Map;
- const c=vm.createContext({glMap:null,glMapPromise:null,glMapInitialization:null,glStyleReady:false,mapStylePromise:null,buildingDataPromise:null,window:{...timer,matchMedia:()=>({matches:false})},document:{body:{dataset:{},classList:{add:n=>classes.add(n),remove:n=>classes.delete(n)}},getElementById:()=>({})},map:{getCenter:()=>({lng:0,lat:0}),getZoom:()=>14,invalidateSize(){}},maplibregl:{Map},MAP_MAX_ZOOM:22,DEFAULT_PITCH:0,DEFAULT_BEARING:0,TERRAIN_EXAGGERATION:4,townAddressMarker:null,console:{warn(){}},requestAnimationFrame:cb=>queueMicrotask(cb),loadMapLibreRuntime:async()=>{},load3dStyle:()=>style(),syncBuildings3d:()=>build()});
+ const c=vm.createContext({glMap:null,glMapPromise:null,glMapInitialization:null,glStyleReady:false,mapStylePromise:null,buildingDataPromise:null,window:{...timer,matchMedia:()=>({matches:false})},document:{body:{dataset:{},classList:{add:n=>classes.add(n),remove:n=>classes.delete(n)}},getElementById:()=>({})},map:{getCenter:()=>({lng:0,lat:0}),getZoom:()=>14,invalidateSize(){}},maplibregl:{Map},MAP_MAX_ZOOM:22,GRAPHICS_FALLBACK_NOTICE:'3D graphics unavailable',DEFAULT_PITCH:0,DEFAULT_BEARING:0,TERRAIN_EXAGGERATION:4,townAddressMarker:null,townAddressPopup:null,console:{warn(){}},requestAnimationFrame:cb=>queueMicrotask(cb),loadMapLibreRuntime:async()=>{},load3dStyle:()=>style(),syncBuildings3d:()=>build()});
  for(const name of ['schedulePersistentNavControlSync','syncFloodPresentationMode','syncPersistentNavControl','addCore3dLayers','wire3dInteractions','wire3dContextRecovery','syncBoundary3d','syncFloodLayer3d','syncSatellite3d','syncRoadLabels3d','syncParcels3d','syncNsi3d','updateDiagnostics','suspendLeafletVisualLayers'])c[name]=()=>{};
  vm.runInContext(fn('ensure3dMap'),c);return{c,timer,styles,buildings,maps,classes,style:value=>{style=value;},build:value=>{build=value;}};
 }
@@ -52,13 +52,28 @@ function startupFixture(){
  const c=vm.createContext({glMap:original,glStyleReady:true,TOWN_CONFIG:{structures:{buildings3dPath:'Buildings'}},layerVisible:()=>false,loadBuildingData:()=>gate.promise});
  vm.runInContext(fn('syncBuildings3d'),c);const job=c.syncBuildings3d({preload:true});c.glMap={addSource:()=>mutations++};gate.resolve({features:[]});await job;assert.equal(mutations,0);checks++;
 }
-// A requested Buildings default cannot override an explicit click-mode choice made during initialization.
+// A delayed native layer update must preserve a newer explicit query mode.
 {
  const start=source.indexOf('  var originalSetBuildingsEnabled ='),end=source.indexOf('  var originalSetSatelliteEnabled =',start),wrapper=source.slice(start,end);
- for(const explicitDepth of [false,true]){
-  const gate=deferred(),actions=[],classes=new Set(),toggle={classList:{toggle(){}},setAttribute(){}};const gl={getPitch:()=>60};
-  const c=vm.createContext({buildingToggleGeneration:0,mapQueryGeneration:0,setBuildingsEnabled:async()=>{},document:{body:{classList:{contains:n=>classes.has(n)}},getElementById:()=>toggle},glMap:null,map:null,buildingsLayer:null,ensure3dMap:()=>gate.promise,setMapClickMode:mode=>actions.push(mode),updateExportBuildingsLayer(){},updateMapClickModeControl(){},toast(){},syncBuildings3d:async()=>{},focusEnabledBuildings3d(){},suspendLeafletVisualLayers(){},window:{COUNTY_3D_BUILDINGS:{focus:async()=>{}}}});
-  vm.runInContext(wrapper,c);const job=c.setBuildingsEnabled(true);if(explicitDepth)c.mapQueryGeneration++;c.glMap=gl;classes.add('map-3d-ready');gate.resolve(gl);await job;assert.deepEqual(actions,explicitDepth?[]:['building']);checks++;
+ for(const pitch of [0,60]){
+  const gate=deferred(),started=deferred(),toggle={classList:{toggle(){}},setAttribute(){}};
+  const c=vm.createContext({
+   buildingToggleGeneration:0,mapQueryGeneration:0,mapClickMode:'depth',setBuildingsEnabled:async()=>{},
+   document:{body:{classList:{contains:n=>n==='map-3d-ready'}},getElementById:()=>toggle},
+   glMap:{getPitch:()=>pitch},glStyleReady:true,map3dReady:()=>true,map:null,buildingsLayer:null,
+   ensure3dMap(){throw Error('Buildings cannot initialize the native renderer');},
+   setMapClickMode(mode){c.mapClickMode=mode;},updateExportBuildingsLayer(){},updateMapClickModeControl(){},toast(){},
+   syncBuildings3d(){started.resolve();return gate.promise;},suspendLeafletVisualLayers(){}
+  });
+  vm.runInContext(wrapper,c);
+  const job=c.setBuildingsEnabled(true);
+  await Promise.race([started.promise,job]);
+  ++c.mapQueryGeneration;
+  c.mapClickMode='depth';
+  gate.resolve();
+  await job;
+  assert.equal(c.mapClickMode,'depth');
+  checks++;
  }
 }
 // Native top-down images must finish before frame commit and remain retryable after transport failure.

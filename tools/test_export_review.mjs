@@ -103,7 +103,7 @@ function fixture() {
   const end = html.indexOf('<div id="exportOrderModal"', start);
   assert.ok(start > 0 && end > start, "Missing native export controls");
   parse(html.slice(start, end), modal);
-  const state = { downloads: 0, resets: 0, format: "png" };
+  const state = { downloads: 0, resets: 0, format: "png", dateValid: true };
   const ctx = vm.createContext({
     console, document: { readyState: "loading", body, head,
       createElement: element, getElementById: id => ids.get(id) ?? null,
@@ -116,6 +116,10 @@ function fixture() {
     setDownloadModalOpen: value => { modal.hidden = !value; }, updateDownloadSummary: noop,
     resetExportPanelToDefaults: () => { state.resets++; },
     updateExportSegmentedUI: () => { ids.get("downloadBtnLabel").textContent = state.format === "png" ? "Download PNG Frames" : "Download GIF"; },
+    commitAllExportDateTimeEditors: showError => {
+      assert.equal(showError, true);
+      return state.dateValid;
+    },
     downloadCurrentSelection: async () => { state.downloads++; },
     getDownloadFormatValue: () => state.format, getDownloadScopeValue: () => "current",
     getDownloadExtentValue: () => "current",
@@ -137,6 +141,8 @@ function fixture() {
 
 {
   const { ctx, ids, state } = fixture();
+  let basicFocusCount = 0;
+  ids.get("exportFormatGifBtn").focus = () => { basicFocusCount++; };
   ctx.setDownloadModalOpen(true);
   assert.equal(ids.get("downloadBtnLabel").textContent, "More options");
   assert.equal(ids.get("exportReviewFields").hidden, true);
@@ -146,15 +152,38 @@ function fixture() {
   assert.equal(ids.get("downloadBtnLabel").textContent, "Download");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1);
   await ids.get("exportReviewBackBtn").dispatch("click");
+  assert.equal(basicFocusCount, 1, "Back focuses the first basic control");
   assert.equal(ids.get("exportReviewFields").hidden, true);
   assert.equal(ids.get("downloadBtnLabel").textContent, "More options");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1, "Back requires reviewing again before downloading");
   await ids.get("downloadResetBtn").dispatch("click"); assert.equal(state.resets, 1);
+  assert.equal(basicFocusCount, 2, "Reset focuses the first basic control");
   assert.equal(ids.get("exportReviewFields").hidden, true, "A native Reset click also reinstates review");
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1, "The captured native Reset listener cannot bypass review");
   ctx.setDownloadModalOpen(false); ctx.setDownloadModalOpen(true);
   assert.equal(ids.get("exportReviewFields").hidden, true);
   await ctx.downloadCurrentSelection(); assert.equal(state.downloads, 1, "Each new modal session requires review");
+}
+
+// Invalid dates must stay on the first step and focus the editor.
+{
+  const { ctx, ids, state } = fixture();
+  ctx.setDownloadModalOpen(true);
+  const start = ids.get("downloadStartDateText");
+  let focused = false;
+  start.focus = () => { focused = true; };
+  start.setAttribute("aria-invalid", "true");
+  state.dateValid = false;
+  await ctx.downloadCurrentSelection();
+  assert.equal(focused, true);
+  assert.equal(ids.get("exportReviewFields").hidden, true);
+  assert.equal(state.downloads, 0);
+
+  start.removeAttribute("aria-invalid");
+  state.dateValid = true;
+  await ctx.downloadCurrentSelection();
+  assert.equal(ids.get("exportReviewFields").hidden, false);
+  assert.equal(state.downloads, 0);
 }
 
 // The gate belongs to the handler, so direct calls and native label refreshes cannot bypass it.

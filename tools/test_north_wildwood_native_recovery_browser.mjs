@@ -33,9 +33,9 @@ try{
    await page.goto(url,{waitUntil:'domcontentloaded'});
    await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:120000});
    row.initialControlReadiness=await page.evaluate(()=>({appInert:document.getElementById('app').inert,loaderHidden:document.getElementById('nwSiteLoader').hidden,loaderClass:document.getElementById('nwSiteLoader').className}));
-   // The welcome screen intentionally keeps controls inert for its completion
-   // pause after nw-app-ready. A focus() call during that pause cannot send the
-   // compass key, unlike native clicks that automatically wait for the overlay.
+   // Quiet loading hides the overlay visually before controls are released.
+   await page.waitForFunction(()=>document.getElementById('nwSiteLoader')?.hidden === true &&
+    document.getElementById('app')?.inert === false);
    await page.locator('#nwSiteLoader').waitFor({state:'hidden'});
    await page.locator('.nw-direction-wheel').focus();
    assert.equal(await page.evaluate(()=>document.activeElement?.classList.contains('nw-direction-wheel')),true,'Send the native key only after the actual compass accepts focus');
@@ -65,8 +65,10 @@ try{
    row.restored=await snapshot(page);sameSelectionAndView(row.restored,row.before);
    if(failNative){
     assert.ok(row.requests.some(request=>request.kind==='fetch'),'The actual native image transport failed');
-    assert.ok(row.requests.some(request=>request.kind==='image'),'The independent GPU plane image remained available');
-    assert.equal(row.restored.plane,'ready');assert.equal(row.restored.nativeLoaded,true);assert.equal(row.restored.nativeImage,false);
+    // The plane can decode a cached image without a network request. Recovery
+    // clears the old texture, so ready here requires a successful new upload.
+    assert.equal(row.restored.plane,'ready','The independent GPU plane uploaded its image during recovery');
+    assert.equal(row.restored.nativeLoaded,true);assert.equal(row.restored.nativeImage,false);
     assert.equal(row.restored.state,'unavailable','A healthy hidden plane cannot certify a missing native image');
     assert.match(row.restored.status,/could not recover/i);failing=false;
     await page.locator('.nw-simple-view').click();

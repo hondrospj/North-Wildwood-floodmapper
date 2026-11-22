@@ -1,6 +1,7 @@
 // Full-app tests for the eight September 21 audit findings. No flood-data mocks.
 // Run with the same NWW_TEST_URL / PLAYWRIGHT_MODULE / CHROME_PATH as the layout suite.
 import assert from 'node:assert/strict';
+import { changeMapView } from './browser_map_view.mjs';
 import fs from 'node:fs';
 import { revealExportControl } from './browser_export_review.mjs';
 const {chromium,webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -69,7 +70,7 @@ try{
   check(data.nullSurrogate===null,'Missing NOAA level became a real water level');
   console.log('Historical source, cadence, daily peak, and navigation-order checks passed');
 
-  await page.getByRole('button',{name:'2D view active. Switch to 3D view',exact:true}).click();
+  await changeMapView(page);
   await page.waitForFunction(()=>document.body.classList.contains('map-3d-ready'),{},{timeout:90000});
   await page.setViewportSize({width:390,height:844});
   await page.waitForTimeout(1000);
@@ -101,23 +102,30 @@ try{
   // Deterministic provider fixtures; real form, normalization, parcel matching,
   // marker renderer, drawer and popup paths are exercised without rate limits.
   const lat=Number(parcel.properties.centroidLat||parcel.properties.analysisLat),lon=Number(parcel.properties.centroidLon||parcel.properties.analysisLon);
-  await page.route('https://geocode.arcgis.com/**',route=>route.fulfill({json:{candidates:[{address:'1601 Ocean Avenue, North Wildwood, NJ',score:100,location:{x:lon,y:lat},attributes:{Match_addr:'1601 Ocean Avenue, North Wildwood, NJ'}}]}}));
+  await page.route('https://geocode.arcgis.com/**',route=>route.fulfill({json:{candidates:[{address:'1601 Ocean Avenue, North Wildwood, NJ',score:100,location:{x:lon,y:lat},attributes:{Match_addr:'1601 Ocean Avenue, North Wildwood, NJ',Addr_type:'PointAddress'}}]}}));
   await page.route('https://nominatim.openstreetmap.org/**',route=>route.fulfill({json:[]}));
   await page.locator('#townAddressInput').fill('1601 Ocean Avenue');
   await page.locator('#townAddressSearchBtn').tap();
-  await page.waitForFunction(()=>!document.getElementById('townAddressSearchBtn').disabled,{},{timeout:30000});
+  const addressStatus=page.locator('#townAddressStatus:is(.success,.error)');
+  await addressStatus.waitFor({state:'attached',timeout:30000});
+  check((await addressStatus.textContent()).startsWith('Building flood profile found:'),'Address fixture did not match its parcel');
   check(!await page.locator('body').evaluate(element=>element.classList.contains('mobile-controls-open')),'Address result leaves drawer open');
   check(await page.locator('#map3d .nw-address-marker').count()===1,'Address marker missing on visible renderer');
   await page.locator('.nw-mobile-popup .maplibregl-popup-close-button').tap();
   await page.evaluate(()=>clearTownAddressLookup());
   check(await page.locator('.nw-address-marker').count()===0,'Clear leaves visible address marker behind');
 
-  // End the preceding address-search animation before arranging this test's
-  // known town-wide camera. Otherwise its delayed moveend can restore zoom 17.
-  await page.evaluate(()=>{map.stop();const active=window.NORTH_WILDWOOD_3D.getMap();active.stop();active.jumpTo({center:[-74.7999,39.0069],zoom:13,bearing:0,pitch:0});});
   await page.setViewportSize({width:1024,height:768});
   await page.setViewportSize({width:390,height:844});
   await page.waitForTimeout(900);
+  // Set the known town-wide camera after the resize and address-search motion
+  // settle, so a delayed view synchronization cannot restore the prior zoom.
+  await page.evaluate(() => {
+    map.stop();
+    const active = window.NORTH_WILDWOOD_3D.getMap();
+    active.stop();
+    active.jumpTo({ center: [-74.7999, 39.0069], zoom: 13, bearing: 0, pitch: 0 });
+  });
   const bounds=await page.evaluate(()=>({active:getActiveMapBounds().toBBoxString(),visible:window.NORTH_WILDWOOD_3D.getMap().getBounds().toArray(),zoom:window.NORTH_WILDWOOD_3D.getMap().getZoom(),legacy:map.getSize()}));
   console.log('Current View input bounds',JSON.stringify(bounds));
   check(Math.abs(bounds.zoom-13)<1e-9,'Export test camera was changed by a preceding interaction');

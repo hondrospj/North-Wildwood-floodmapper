@@ -88,10 +88,11 @@
       gap:8px !important;overflow:visible !important;box-sizing:border-box !important;
     }
     html body.mobile-optimized #mobileRailMount > .right-logo-card,
-    html body.mobile-optimized #mobileRailMount > .top-tides-card{display:none !important}
+    html body.mobile-optimized #leftPanel:not([data-nww-section="map"]) #mobileRailMount > .top-tides-card{display:none !important}
     html body.mobile-optimized #mobileRailMount > .layers-card{order:10 !important;width:100% !important}
-    html body.mobile-optimized #mobileRailMount > #downloadCard{order:20 !important;width:100% !important}
-    html body.mobile-optimized #mobileRailMount > #townAddressCard{order:30 !important;width:100% !important}
+    html body.mobile-optimized #mobileRailMount > #townAddressCard{order:20 !important;width:100% !important}
+    html body.mobile-optimized #mobileRailMount > #downloadCard{order:30 !important;width:100% !important}
+    html body.mobile-optimized #mobileRailMount > .top-tides-card{order:35 !important;width:100% !important}
     html body.mobile-optimized #mobileRailMount > #mapperTutorialBtn{order:40 !important;width:100% !important}
     html body.mobile-optimized.observed-mode #leftPanel > .mobile-top-tides-card{display:grid !important}
     .mapper-tutorial-card{width:calc(100vw - 28px) !important;max-height:min(46vh,420px) !important}

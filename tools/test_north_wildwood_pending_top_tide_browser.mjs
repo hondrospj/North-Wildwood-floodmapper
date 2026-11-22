@@ -17,9 +17,14 @@ fs.mkdirSync(out,{recursive:true});const evidence=[],errors=[];
 const payloads={1962:fs.readFileSync(new URL('../observed_archive/lewes/1962.json',import.meta.url)),2012:fs.readFileSync(new URL('../observed_archive/stone-harbor/2012.json',import.meta.url))};
 const dates={1962:'1962-03-07',2012:'2012-10-29'};
 const snapshot=page=>page.evaluate(()=>({mode:currentDataMode,view:currentViewType,interval:getTimelineIntervalMinutes(),overlay:currentOverlayMode,datum:currentDatum,date:selectedObservedDate,label:currentSelectedLabel,pending:loadTopTideEvent.pendingSelectionGeneration,generation:selectionGeneration,count:currentSeriesHours.length,time:currentSeriesHours[currentHourIndex]?.timeUtc,stage:getStageValue(currentSeriesHours[currentHourIndex]),layerDate:currentFloodLayer?._floodmapperFrame?.entry?.observedDate,layerUrl:currentFloodLayer?._url,frame:floodFrameState,status:document.getElementById('floodFrameStatus').textContent,timeText:document.getElementById('timeText').textContent}));
-async function open(years=[1962]){
+async function open(years=[1962], holdArchiveIndex=false){
  const context=await browser.newContext({viewport:{width:1440,height:1000},timezoneId:'America/New_York'});const page=await context.newPage();page.setDefaultTimeout(30000);page.on('pageerror',e=>errors.push(e.message));
  const gates=new Map();let fail=false;
+ let releaseIndex=()=>{};
+ if(holdArchiveIndex){
+  const heldIndex=new Promise(resolve=>{releaseIndex=resolve;});
+  await page.route('**/observed_archive_index.json?*',async route=>{await heldIndex;await route.continue();});
+ }
  for(const year of years){let release,entered;const hold=new Promise(r=>release=r),held=new Promise(r=>entered=r);let requests=0;
   gates.set(year,{held,release,get requests(){return requests;}});
   await page.route(`**/observed_archive/**/${year}.json*`,async route=>{requests++;entered();await hold;await route.fulfill(fail?{status:503,body:'Archive temporarily unavailable'}:{status:200,contentType:'application/json',body:payloads[year]});});
@@ -28,19 +33,35 @@ async function open(years=[1962]){
  await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
  await page.waitForFunction(()=>document.body.classList.contains('nw-app-ready')&&floodFrameState==='ready',{},{timeout:120000});
  await page.waitForFunction(()=>topTideEvents[0]?.dateKey==='1962-03-07'&&topTideEvents[1]?.dateKey==='2012-10-29');
- return {context,page,gates,set fail(value){fail=value;},async close(){for(const gate of gates.values())gate.release();await context.close();}};
+ return {context,page,gates,releaseIndex,set fail(value){fail=value;},async close(){releaseIndex();for(const gate of gates.values())gate.release();await context.close();}};
 }
 async function choose(page,year){await page.locator('#topTideList .top-tide-item').nth(year===1962?0:1).click();}
 async function ready(page,year){await page.waitForFunction(date=>currentViewType==='top-tide'&&selectedObservedDate===date&&floodFrameState==='ready'&&currentFloodLayer?._floodmapperFrame?.entry?.observedDate===date,dates[year],{timeout:120000});return snapshot(page);}
 async function settled(page){await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));}
 try{
+ {const h=await open([],true);try{
+  assert.equal(await h.page.evaluate(()=>observed15MinuteData),null,'The preview must paint before the held archive index');
+  const preview=h.page.locator('#topTideList');
+  assert.deepEqual(await preview.locator('.top-tide-rank:visible').allTextContents(),['#1','#2','#3']);
+  await preview.getByRole('button',{name:'Show more',exact:true}).click();
+  const dialog=h.page.locator('#topTidesModal');
+  assert.equal(await dialog.locator('.top-tide-rank:visible').count(),10);
+  const november=dialog.locator('[data-flood-date="2009-11-13"]');
+  assert.equal(await november.locator('.top-tide-rank').textContent(),'#9');
+  await november.focus();
+  h.releaseIndex();
+  await h.page.waitForFunction(()=>topTideEvents[8]?.dateKey==='2026-09-26');
+  assert.equal(await november.locator('.top-tide-rank').textContent(),'#10');
+  assert.equal(await november.evaluate(button=>button===document.activeElement),true);
+  evidence.push({case:'preview-before-archive-and-focus-after-rerank'});
+ }finally{await h.close();}}
  for(const cadence of [15,60,1440]){const h=await open();try{
   const before=await snapshot(h.page);await choose(h.page,1962);await h.gates.get(1962).held;
   await h.page.locator('#dynamicModeBtn').click();await h.page.locator('#depthModeBtn').click();await h.page.locator('#dynamicModeBtn').click();
   await h.page.locator('#datumNavd88Btn').click();await h.page.locator('#intervalQuarterBtn').click();
   if(cadence!==15)await h.page.locator(cadence===60?'#intervalHourBtn':'#intervalDailyBtn').click();
   await h.page.setViewportSize({width:1280,height:850});await settled(h.page);
-  const pending=await snapshot(h.page);assert.equal(pending.pending,pending.generation);assert.equal(pending.timeText,before.timeText);assert.equal(pending.layerUrl,before.layerUrl);assert.match(pending.status,/Loading March 7, 1962.*Previous flood map and time shown/);
+  const pending=await snapshot(h.page);assert.equal(pending.pending,pending.generation);assert.equal(pending.timeText,before.timeText);assert.equal(pending.layerUrl,before.layerUrl);assert.equal(pending.status,'');
   h.gates.get(1962).release();const after=await ready(h.page,1962);assert.equal(after.interval,cadence);assert.equal(after.overlay,'dynamic');assert.equal(after.datum,'navd88');assert.equal(after.stage,7.5);assert.equal(after.count,cadence===15?96:cadence===60?24:1);assert.equal(after.pending,null);
   evidence.push({case:'presentation-controls',cadence,pending,after});
  }finally{await h.close();}}

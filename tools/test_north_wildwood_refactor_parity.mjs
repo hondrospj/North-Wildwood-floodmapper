@@ -11,36 +11,321 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readCurrent = relative => fs.readFileSync(localPath(relative), "utf8");
+const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const DATA_DELIVERY_PATH = "tools/fixtures/north-wildwood-20261121-data-delivery.json";
+const priorDataDeliverySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-data-delivery-snapshot");
+const dataDeliveryText = fs.readFileSync(localPath(DATA_DELIVERY_PATH));
+assert.equal(hashReleaseBytes(dataDeliveryText), "4227a45cc69b21fc1e6da4877ed2b58bf23d8f1f2e9e163084d73e7cf5aca540", "Retain the exact data delivery inverse");
+const dataDelivery = JSON.parse(dataDeliveryText);
+assert.equal(dataDelivery.schemaVersion, 1);
+assert.equal(dataDelivery.baselineCommit, "27e58b1953b324f42e61020168f7c93587fb649b");
+const dataDeliveryFiles = new Map(dataDelivery.files.map(entry => [entry.source, entry]));
+const FIRST_MAP_PAINT_PATH = "tools/fixtures/north-wildwood-20261121-first-map-paint.json";
+const priorFirstMapPaintSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-first-map-paint-snapshot");
+const firstMapPaintText = fs.readFileSync(localPath(FIRST_MAP_PAINT_PATH));
+assert.equal(hashReleaseBytes(firstMapPaintText), "722a89c3522cce59a0e90ad6614a7d81f8da836c478d7628ca54384510421234", "Retain the exact first-map-paint inverse");
+const firstMapPaint = JSON.parse(firstMapPaintText);
+assert.equal(firstMapPaint.schemaVersion, 1);
+assert.equal(firstMapPaint.baselineCommit, "25111b5b8a4edd7d88ae70de7807275dcabe6abc");
+const firstMapPaintFiles = new Map(firstMapPaint.files.map(entry => [entry.source, entry]));
+
+function restoreReleaseBytes(bytes, entry, scope) {
+  assert.equal(hashReleaseBytes(bytes), entry.afterSha256, `${entry.source}: only reviewed ${scope} changes`);
+  let restored = bytes;
+  for (const [start, end, before] of entry.edits.toReversed()) {
+    restored = Buffer.concat([restored.subarray(0, start), Buffer.from(before), restored.subarray(end)]);
+  }
+  assert.equal(hashReleaseBytes(restored), entry.beforeSha256, `${entry.source}: restore every prior ${scope} byte`);
+  return restored;
+}
+
+function readBeforeDataDelivery(relative) {
+  const bytes = fs.readFileSync(localPath(relative));
+  const entry = dataDeliveryFiles.get(relative);
+  return priorDataDeliverySnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "data delivery");
+}
+if (!priorDataDeliverySnapshot) {
+  for (const file of dataDelivery.files) readBeforeDataDelivery(file.source);
+  for (const asset of dataDelivery.added) {
+    const bytes = fs.readFileSync(localPath(asset.source));
+    assert.equal(bytes.length, asset.bytes, `${asset.source}: exact lossless asset size`);
+    assert.equal(hashReleaseBytes(bytes), asset.sha256, `${asset.source}: exact lossless asset bytes`);
+  }
+}
+function readReleaseBytes(relative) {
+  const bytes = readBeforeDataDelivery(relative);
+  const entry = firstMapPaintFiles.get(relative);
+  return priorFirstMapPaintSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "first-map-paint");
+}
+if (!priorFirstMapPaintSnapshot) {
+  for (const file of firstMapPaint.files) readReleaseBytes(file.source);
+  for (const asset of firstMapPaint.added) {
+    assert.ok(fs.existsSync(localPath(asset.source)), `${asset.source}: declared preview asset exists`);
+    const bytes = fs.readFileSync(localPath(asset.source));
+    assert.equal(bytes.length, asset.bytes, `${asset.source}: exact preview size`);
+    assert.equal(hashReleaseBytes(bytes), asset.sha256, `${asset.source}: exact preview bytes`);
+  }
+}
+const SHARED_APP_PATH = "tools/fixtures/north-wildwood-20261119-common-browser-app.json";
+const priorSharedAppSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-shared-app-snapshot");
+const sharedAppText = readReleaseBytes(SHARED_APP_PATH);
+assert.equal(hashReleaseBytes(sharedAppText), "5b9f650adf07242f949af100c235172506ede299b5a756dc71061574ca98b13f", "Retain the exact shared application inverse");
+const sharedApp = JSON.parse(sharedAppText);
+assert.equal(sharedApp.schemaVersion, 1);
+assert.equal(sharedApp.baselineCommit, "be43e3a29e9807658e6b19101371e374c29afa30");
+const sharedAppFiles = new Map(sharedApp.files.map(entry => [entry.source, entry]));
+function readUnreviewedBytes(relative) {
+  const bytes = readReleaseBytes(relative);
+  const entry = sharedAppFiles.get(relative);
+  return priorSharedAppSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "shared application");
+}
+if (!priorSharedAppSnapshot) {
+  for (const file of sharedApp.files) readUnreviewedBytes(file.source);
+  for (const file of sharedApp.added) {
+    assert.equal(hashReleaseBytes(readReleaseBytes(file.source)), file.sha256, `${file.source}: reviewed shared asset`);
+  }
+}
+const QUIET_LOADING_PATH = "tools/fixtures/north-wildwood-20261119-quiet-loading.json";
+const quietLoadingText = readUnreviewedBytes(QUIET_LOADING_PATH).toString("utf8");
+assert.equal(createHash("sha256").update(quietLoadingText).digest("hex"), "9ba67035219d09477f1f3a6d93f59b15629f8edb71e600b9395f9685a53a8a1e", "Retain the exact quiet-loading inverse");
+const quietLoading = JSON.parse(quietLoadingText);
+const priorQuietLoadingSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-quiet-loading-snapshot");
+function readLiveBytes(relative) {
+  const bytes = readUnreviewedBytes(relative);
+  const file = quietLoading.files.find(entry => entry.source === relative);
+  if (priorQuietLoadingSnapshot || !file) return bytes;
+  const hash = text => createHash("sha256").update(text).digest("hex");
+  assert.equal(hash(bytes), file.afterSha256, `${relative}: only reviewed quiet-loading changes`);
+  let restored = bytes.toString("utf8");
+  for (const block of file.changes) {
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact quiet-loading fragment`);
+    restored = restored.replace(block.afterSource, () => block.beforeSource);
+  }
+  assert.equal(hash(restored), file.beforeSha256, `${relative}: restore all pre-loading-change bytes`);
+  return Buffer.from(restored);
+}
+if (!priorQuietLoadingSnapshot) for (const file of quietLoading.files) readLiveBytes(file.source);
+const readCurrent = relative => readBeforeOvernight(relative);
 const readActual = relative => readRecheckReviewed(relative);
 const readRaw = relative => readFollowupReviewed(relative);
 const read = relative => readDeepReviewed(relative);
 const sha256 = source => createHash("sha256").update(source).digest("hex");
-// Reverse the compact camera panel before applying the prior reviewed inverses.
-const CAMERA_PANEL_PATH = "tools/fixtures/north-wildwood-20261105-camera-panel.json";
-const cameraPanelText = readCurrent(CAMERA_PANEL_PATH);
-assert.equal(sha256(cameraPanelText), "07e539b25367fc0e0a1ae4e3f3f2f972012f6901e882de798cb8fbe56a7ce86b", "Retain the exact reviewed camera panel inverse");
-const cameraPanel = JSON.parse(cameraPanelText);
-assert.equal(cameraPanel.schemaVersion, 1);
-assert.equal(cameraPanel.baselineCommit, "ae267b4075cf59673314b5cdb80c3eeceef22675");
-assert.deepEqual(cameraPanel.files.map(file => file.source), ["tools/app/webcams.js", "tools/app/styles/style-012.css", "assets/app/webcams.js", "assets/styles/app-04.css", "index.html"]);
-function readCameraPanelReviewed(relative) {
-  const source = readCurrent(relative), file = cameraPanel.files.find(file => file.source === relative);
-  if (!file) return source;
-  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed camera panel`);
-  let restored = source;
+const priorMutationSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mutation-snapshot");
+const priorBuildingViewSnapshot = priorMutationSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-building-view-snapshot"));
+const priorOvernightSnapshot = priorBuildingViewSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-overnight-snapshot"));
+const priorLayerHelpSnapshot = priorOvernightSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-layer-help-snapshot"));
+const priorExportOptionsSnapshot = priorLayerHelpSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-export-options-snapshot"));
+const priorJoeUiSnapshot = priorExportOptionsSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-joe-ui-snapshot"));
+const priorMapperFixSnapshot = priorJoeUiSnapshot ||
+  (Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mapper-fix-snapshot"));
+const MAPPER_FIX_PATH = "tools/fixtures/north-wildwood-20261115-mapper-fixes.json";
+const mapperFixText = readLiveBytes(MAPPER_FIX_PATH).toString("utf8");
+assert.equal(sha256(mapperFixText), "b0c0a4bdcd1e1962017e8acf2a338c1f852a1fe12b6925575f450973fe58db23", "Retain the exact mapper fixes inverse");
+const mapperFix = JSON.parse(mapperFixText);
+assert.equal(mapperFix.schemaVersion, 1);
+assert.equal(mapperFix.baselineCommit, "2bdbba66a396a3541271346a91d5d89cef0cfc8a");
+const mapperFixFiles = new Map(mapperFix.files.map(file => [file.source, file]));
+function readBytes(relative) {
+  const bytes = readLiveBytes(relative);
+  const file = mapperFixFiles.get(relative);
+  if (priorMapperFixSnapshot || !file) return bytes;
+  assert.equal(sha256(bytes), file.afterSha256, `${relative} changed outside the reviewed mapper fixes`);
+  let restored = bytes.toString("utf8");
   for (const block of file.changes) {
-    assert.equal(sha256(block.beforeSource), block.beforeSha256);
-    assert.equal(sha256(block.afterSource), block.afterSha256);
-    assert.ok(block.beforeSource.length && block.afterSource.length);
-    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}:${block.afterLine} requires one exact camera panel fragment`);
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact mapper fix fragment`);
     restored = restored.replace(block.afterSource, () => block.beforeSource);
   }
-  assert.equal(sha256(restored), file.beforeSha256, `${relative} must restore every prior camera panel byte`);
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-fix byte`);
+  return Buffer.from(restored);
+}
+if (!priorMapperFixSnapshot) {
+  for (const file of mapperFix.files) readBytes(file.source);
+  const dependencies = [...readLiveBytes("index.html").toString("utf8").matchAll(/<(?:script|link)\b[^>]+(?:src|href)="([^"]+)"/g)]
+    .map(match => new URL(match[1], "https://mapper-fixes.invalid/"));
+  for (const [relative, key] of Object.entries(mapperFix.cacheDependencies)) {
+    const matches = dependencies.filter(url => url.pathname.slice(1) === relative);
+    assert.equal(matches.length, 1, `${relative}: one published dependency`);
+    assert.equal(matches[0].searchParams.get(key), sha256(readLiveBytes(relative)).slice(0, 16),
+      `${relative}: exact cache version`);
+  }
+}
+const JOE_UI_PATH = "tools/fixtures/north-wildwood-20261110-joe-ui.json";
+const joeUiText = readBytes(JOE_UI_PATH).toString("utf8");
+assert.equal(sha256(joeUiText), "2c9a71f7c7b8e1aa1830b41fe8c46bf78db56c56f6b3ca8ba25afb00ab3c2853", "Retain the exact tour, layers and export inverse");
+const joeUi = JSON.parse(joeUiText);
+assert.equal(joeUi.schemaVersion, 1);
+assert.equal(joeUi.baselineCommit, "81da0976a2ad408fd13b362671c841bc42670417");
+function readBeforeJoeUi(relative) {
+  const source = readBytes(relative).toString("utf8");
+  const file = joeUi.files.find(entry => entry.source === relative);
+  if (priorJoeUiSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed tour, layers and export update`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact tour, layers and export fragment`);
+    restored = restored.replace(block.afterSource, () => block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-update byte`);
   return restored;
 }
-for (const file of cameraPanel.files) readCameraPanelReviewed(file.source);
-
+if (!priorJoeUiSnapshot) {
+  for (const file of joeUi.files) readBeforeJoeUi(file.source);
+  for (const file of joeUi.added) {
+    assert.equal(sha256(readBytes(file.source)), file.sha256, `${file.source}: reviewed new asset bytes`);
+  }
+  const urls = [...readBytes("index.html").toString("utf8").matchAll(/<(?:script|link)[^>]+(?:src|href)="([^"]+)"[^>]*>/g)]
+    .map(match => new URL(match[1], "https://joe-ui.invalid/"));
+  for (const [relative, key] of Object.entries(joeUi.cacheDependencies)) {
+    const matches = urls.filter(url => url.pathname.slice(1) === relative);
+    assert.equal(matches.length, 1, `${relative}: one published dependency`);
+    assert.equal(matches[0].searchParams.get(key), sha256(readBytes(relative)).slice(0, 16), `${relative}: exact cache version`);
+  }
+  for (const [relative, owners] of Object.entries(joeUi.scriptCacheDependencies)) {
+    const url = `${relative}?v=${sha256(readBytes(relative)).slice(0, 16)}`;
+    for (const owner of owners) {
+      assert.ok(readBytes(owner).toString("utf8").includes(`new URL("${url}", APP_BASE)`),
+        `${owner}: load ${relative} with its current content cache key`);
+    }
+  }
+}
+const EXPORT_OPTIONS_PATH = "tools/fixtures/north-wildwood-20261109-export-options.json";
+const exportOptionsText = readBytes(EXPORT_OPTIONS_PATH).toString("utf8");
+assert.equal(sha256(exportOptionsText), "c78bce7579933943ab3381b5492d02878113f1310d64e6d0597b723fc274a978",
+  "Retain the exact export options inverse");
+const exportOptions = JSON.parse(exportOptionsText);
+assert.equal(exportOptions.schemaVersion, 1);
+assert.equal(exportOptions.baselineCommit, "7ea662c7b84b027472ef86fd64e46a2aacb97a61");
+function readBeforeExportOptions(relative) {
+  const source = readBeforeJoeUi(relative);
+  const file = exportOptions.files.find(entry => entry.source === relative);
+  if (priorExportOptionsSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed export options`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact export options fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-export-options byte`);
+  return restored;
+}
+if (!priorExportOptionsSnapshot) {
+  for (const file of exportOptions.files) readBeforeExportOptions(file.source);
+  for (const document of ["index.html", "tools/app/index.template.html"]) {
+    const tags = [...readBytes(document).toString("utf8").matchAll(/<script[^>]+src="([^"]+)"[^>]*>/g)];
+    const urls = tags.map(match => new URL(match[1], "https://export-options.invalid/"));
+    const assets = ["assets/export-area.js", "assets/export-preview.js"];
+    if (document === "index.html") assets.push("assets/app/runtime.js");
+    for (const relative of assets) {
+      const matches = urls.filter(url => url.pathname.slice(1) === relative);
+      assert.equal(matches.length, 1, `${document}: one export dependency for ${relative}`);
+      assert.equal(matches[0].searchParams.get("v"), sha256(readBytes(relative)).slice(0, 16),
+        `${relative}: content cache key must match its current bytes`);
+    }
+  }
+}
+const LAYER_HELP_PATH = "tools/fixtures/north-wildwood-20261109-layer-help.json";
+const layerHelpText = readBytes(LAYER_HELP_PATH).toString("utf8");
+assert.equal(sha256(layerHelpText), "4e92d338f7a587111109926bb15360bca58f1efcfca6b36f12692892bbf9a805",
+  "Retain the exact layer help inverse");
+const layerHelp = JSON.parse(layerHelpText);
+assert.equal(layerHelp.schemaVersion, 1);
+assert.equal(layerHelp.baselineCommit, "e468e9246a496c69e81af5239c9baf483de3ddb7");
+function readBeforeLayerHelp(relative) {
+  const source = readBeforeExportOptions(relative);
+  const file = layerHelp.files.find(entry => entry.source === relative);
+  if (priorLayerHelpSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed layer help`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact layer help fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-layer-help byte`);
+  return restored;
+}
+if (!priorLayerHelpSnapshot) {
+  for (const file of layerHelp.files) readBeforeLayerHelp(file.source);
+}
+const OVERNIGHT_PATH = "tools/fixtures/north-wildwood-20261108-overnight.json";
+const overnightText = readBytes(OVERNIGHT_PATH).toString("utf8");
+assert.equal(sha256(overnightText), "6637f1b26fe0e61d6da0d34bcb5f1e07083fdecae7dc06615b757134fd2cb7f3", "Retain the exact overnight inverse");
+const overnight = JSON.parse(overnightText);
+assert.equal(overnight.schemaVersion, 1);
+assert.equal(overnight.baselineCommit, "84951f91c7872c98b47417a594103f91dc410301");
+function readBeforeOvernight(relative) {
+  const source = readBeforeLayerHelp(relative);
+  const file = overnight.files.find(entry => entry.source === relative);
+  if (priorOvernightSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed overnight work`);
+  let restored = source;
+  for (const block of file.changes) {
+    assert.ok(block.beforeSource.length && block.afterSource.length);
+    assert.equal(restored.split(block.afterSource).length - 1, 1, `${relative}: one exact overnight fragment`);
+    restored = restored.replace(block.afterSource, block.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore every pre-overnight byte`);
+  return restored;
+}
+if (!priorOvernightSnapshot) {
+  for (const file of overnight.files) readBeforeOvernight(file.source);
+  for (const file of overnight.added) {
+    assert.equal(sha256(readBytes(file.source)), file.sha256, `${file.source}: reviewed overnight asset bytes`);
+  }
+  const currentHtml = readBytes("index.html").toString("utf8");
+  const dependencies = [...currentHtml.matchAll(/<(?:script|link)[^>]+(?:src|href)="([^"]+)"[^>]*>/g)]
+    .map(match => new URL(match[1], "https://overnight.invalid/"));
+  for (const [relative, key] of Object.entries(overnight.cacheDependencies)) {
+    const urls = dependencies.filter(url => url.pathname.slice(1) === relative);
+    assert.equal(urls.length, 1, `${relative}: one published dependency`);
+    assert.equal(urls[0].searchParams.get(key), sha256(readBytes(relative)).slice(0, 16), `${relative}: exact cache version`);
+  }
+}
+const BUILDING_VIEW_PATH = "tools/fixtures/north-wildwood-20261107-building-view.json";
+const buildingViewText = readCurrent(BUILDING_VIEW_PATH);
+assert.equal(sha256(buildingViewText), "afcbf5800adcd5d5bedda39f535c2c44f4f3a8fb780f4d0489fa97fa3a022013",
+  "Retain the exact building view inverse");
+const buildingView = JSON.parse(buildingViewText);
+assert.equal(buildingView.schemaVersion, 1);
+assert.equal(buildingView.baselineCommit, "81c37c07cabaa25cb1bce7674526e845183b3ace");
+function readBeforeBuildingView(relative) {
+  const source = readCurrent(relative), file = buildingView.files.find(entry => entry.source === relative);
+  if (priorBuildingViewSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed building view fix`);
+  let restored = source;
+  for (const change of file.changes) {
+    assert.equal(restored.split(change.afterSource).length - 1, 1, `${relative}: one exact building view fragment`);
+    restored = restored.replace(change.afterSource, change.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore all pre-fix bytes`);
+  return restored;
+}
+for (const file of buildingView.files) readBeforeBuildingView(file.source);
+// Reverse only the reviewed browser changes before running the original parity layers.
+const LINE_AUDIT_PATH = "tools/fixtures/north-wildwood-20261106-line-audit.json";
+const lineAuditText = readCurrent(LINE_AUDIT_PATH);
+assert.equal(sha256(lineAuditText), "38b1a95dec68f9ebf0974066dc5983097652eaf13a0aea21751631e04fa33f53",
+  "Retain the exact line audit inverse");
+const lineAudit = JSON.parse(lineAuditText);
+assert.equal(lineAudit.schemaVersion, 1);
+assert.equal(lineAudit.baselineCommit, "943c0056743d76370c81481c0354192964307187");
+function readBeforeLineAudit(relative) {
+  const source = readBeforeBuildingView(relative), file = lineAudit.files.find(entry => entry.source === relative);
+  if (priorMutationSnapshot || !file) return source;
+  assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed line audit`);
+  let restored = source;
+  for (const change of file.changes) {
+    assert.equal(restored.split(change.afterSource).length - 1, 1, `${relative}: one exact line audit fragment`);
+    restored = restored.replace(change.afterSource, change.beforeSource);
+  }
+  assert.equal(sha256(restored), file.beforeSha256, `${relative}: restore all pre-audit bytes`);
+  return restored;
+}
+for (const file of lineAudit.files) readBeforeLineAudit(file.source);
 // Pin the projection-note removal before the earlier audited presentation changes.
 const PROJECTION_NOTE_PATH = "tools/fixtures/north-wildwood-20261105-projection-note.json";
 const projectionNoteText = readCurrent(PROJECTION_NOTE_PATH);
@@ -50,7 +335,7 @@ assert.equal(projectionNote.schemaVersion, 1);
 assert.equal(projectionNote.baselineCommit, "7c470c6977ff2cab2ec3c0f777c0bc14e90d40eb");
 assert.deepEqual(projectionNote.files.map(file => file.source), ["tools/app/index.template.html", "tools/app/runtime/24-alerts-and-projections.js", "assets/app/runtime.js", "index.html"]);
 function readProjectionNoteReviewed(relative) {
-  const source = readCameraPanelReviewed(relative), file = projectionNote.files.find(file => file.source === relative);
+  const source = readBeforeLineAudit(relative), file = projectionNote.files.find(file => file.source === relative);
   if (!file) return source;
   assert.equal(sha256(source), file.afterSha256, `${relative} changed outside the reviewed projection-note removal`);
   let restored = source;
@@ -143,18 +428,11 @@ for (const [relative, parameter, documents] of [
 }
 // Map historical mutation boundaries only through unchanged exact anchors.
 // Edited interior bytes never provide an inferred or silently skipped boundary.
-function cameraPanelCurrentFragment(relative, fragment) {
-  return reviewedCurrentFragment(relative, fragment, readCameraPanelReviewed(relative), readCurrent(relative),
-    cameraPanel.files.find(file => file.source === relative));
-}
 function cameraCurrentFragment(relative, fragment) {
-  const mapped = reviewedCurrentFragment(relative, fragment, read3dCameraReviewed(relative), readProjectionNoteReviewed(relative),
-    cameras3d.files.find(file => file.source === relative));
-  return cameraPanelCurrentFragment(relative, projectionNoteCurrentFragment(relative, mapped));
-}
-function reviewedCurrentFragment(relative, fragment, baseline, current, file) {
-  if (current.split(fragment).length - 1 === 1) return fragment;
-  assert.ok(file, `${relative}: changed mutation fragment requires an exact review owner`);
+  const current = readProjectionNoteReviewed(relative);
+  if (current.split(fragment).length - 1 === 1) return projectionNoteCurrentFragment(relative, fragment);
+  const baseline = read3dCameraReviewed(relative), file = cameras3d.files.find(file => file.source === relative);
+  assert.ok(file, `${relative}: changed mutation fragment requires an exact 3D/camera owner`);
   assert.equal(baseline.split(fragment).length - 1, 1, `${relative}: prior mutation fragment must be unique`);
   const offset = position => {
     let shift = 0;
@@ -181,14 +459,14 @@ function reviewedCurrentFragment(relative, fragment, baseline, current, file) {
           if (forward === block.beforeSource.length && backward === 0) break;
         }
       }
-      assert.fail(`${relative}: prior mutation boundary lies inside newly reviewed bytes`);
+      assert.fail(`${relative}: prior mutation boundary lies inside newly edited 3D/camera bytes`);
     }
     return position + shift;
   };
   const start = baseline.indexOf(fragment), mapped = current.slice(offset(start), offset(start + fragment.length));
   assert.ok(mapped.length);
-  assert.equal(current.split(mapped).length - 1, 1, `${relative}: mapped current mutation fragment must be unique`);
-  return mapped;
+  assert.equal(current.split(mapped).length - 1, 1, `${relative}: mapped current 3D/camera mutation fragment must be unique`);
+  return projectionNoteCurrentFragment(relative, mapped);
 }
 // Pin the physical recheck bytes first. Every previous audit still receives
 // exactly its original source through this narrowly enumerated inverse.
@@ -2410,7 +2688,7 @@ for (const match of template.matchAll(/<!-- nww:(style|script):([\w-]+) -->|<scr
 console.log(`North Wildwood source parity passed: ${styleEntries.length} CSS blocks in ${seenStyleOutputs.size} bundles and ${compiled} classic scripts retain original hashes after exact audited calendar/export-presentation/boundary-startup/pane-startup/UI-startup/view-pill-surface/loader-restore/font-family/October-26/October-27-fixes/October-28-export-road-labels/placement/frame-reuse/October-30-scalable-road-labels inverses; remaining UI DOM and dependency order remain exact.`);
 
 if (process.argv.includes("--self-test")) {
-  const readActual = readCurrent;
+  const readActual = readBeforeLineAudit;
   const readRaw = readActual;
   const read = readActual;
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "nww-refactor-parity-"));
@@ -2429,16 +2707,177 @@ if (process.argv.includes("--self-test")) {
       PREVIEW_POLISH_AUDIT_PATH, ...previewPolishAudit.assets.map(asset => asset.source),
       LOGO_READINESS_AUDIT_PATH, PROVIDER_READINESS_AUDIT_PATH,
       SCALABLE_ROAD_AUDIT_PATH, scalableRoadAudit.module.source, "assets/3d/north-wildwood-3d.js", REVIEW_FIX_PATH, ROAD_FALLBACK_PATH, ADAPTIVE_SIDEBAR_PATH, TUTORIAL_GESTURE_PATH, AUDIT_LOGIC_PATH, AUDIT_LOGIC_MODULE, AUDIT_LOGIC_CITY, HISTORY_STATE_PATH, UI_DIALOGS_PATH, CLONE_CLEANUP_PATH, DEEP_REVIEW_PATH, ARIA_SEMANTICS_PATH, ARIA_SEMANTICS_PICKER,
-      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source), CAMERA_PANEL_PATH, "index.html"]) {
+      boundaryStartup.featureSource, FOLLOWUP_PATH, RECHECK_PATH, ...recheck.files.map(file => file.source), CAMERAS_3D_PATH, ...cameras3d.files.map(file => file.source), LABEL_CASE_PATH, ...labelCase.files.map(file => file.source), PROJECTION_NOTE_PATH, ...projectionNote.files.map(file => file.source),
+      SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
+      FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
+      DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
+      MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
+      JOE_UI_PATH, ...joeUi.files.map(file => file.source), ...joeUi.added.map(file => file.source),
+      EXPORT_OPTIONS_PATH, ...exportOptions.files.map(file => file.source),
+      LAYER_HELP_PATH, ...layerHelp.files.map(file => file.source),
+      OVERNIGHT_PATH, ...overnight.files.map(file => file.source), ...overnight.added.map(file => file.source),
+      BUILDING_VIEW_PATH, ...buildingView.files.map(file => file.source),
+      LINE_AUDIT_PATH, ...lineAudit.files.map(file => file.source), "index.html"]) {
       const destination = path.join(scratch, relative);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.cpSync(localPath(relative), destination, { recursive: true });
     }
-    const run = () => spawnSync(process.execPath, [fileURLToPath(import.meta.url)], {
+    const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    assert.equal(run().status, 0, "The unmodified scratch copy must pass before mutation checks");
-    // Mutation inputs must use actual current documents/cache tags, not inverses.
+    const runBeforeDataDelivery = (args = []) => runRelease(["--prior-data-delivery-snapshot", ...args]);
+    const runBeforeFirstMapPaint = (args = []) => runBeforeDataDelivery(["--prior-first-map-paint-snapshot", ...args]);
+    const runCurrent = (args = []) => runBeforeFirstMapPaint(["--prior-shared-app-snapshot", ...args]);
+    const run = (args = []) => runCurrent(["--prior-quiet-loading-snapshot", ...args]);
+    assert.equal(runRelease().status, 0, "The unmodified release scratch copy must pass before mutation checks");
+    const assertMutationsRejected = (cases, check) => {
+      for (const [name, target, altered] of cases) {
+        const before = fs.readFileSync(target);
+        assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);
+        fs.writeFileSync(target, altered);
+        const result = check();
+        fs.writeFileSync(target, before);
+        assert.equal(result.error, undefined, `${name}: checker must execute successfully`);
+        assert.notEqual(result.status, 0, `${name}: parity checker failed to reject the mutation`);
+        assert.match(result.stderr, /AssertionError/, `${name}: rejection must come from a parity assertion`);
+      }
+    };
+    assertMutationsRejected([
+      ["altered data delivery inverse", path.join(scratch, DATA_DELIVERY_PATH), Buffer.concat([dataDeliveryText, Buffer.from(" ")])],
+      ...[...dataDelivery.files, ...dataDelivery.added].map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed data delivery byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of dataDelivery.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeDataDelivery(file.source));
+    for (const file of dataDelivery.added) fs.unlinkSync(path.join(scratch, file.source));
+    assert.equal(runBeforeDataDelivery().status, 0, "The restored application before data delivery changes must pass");
+    assertMutationsRejected([
+      ["altered first-map-paint inverse", path.join(scratch, FIRST_MAP_PAINT_PATH), Buffer.concat([firstMapPaintText, Buffer.from(" ")])],
+      ...[...firstMapPaint.files, ...firstMapPaint.added].map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed first-map-paint byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runBeforeDataDelivery);
+    for (const file of firstMapPaint.files) fs.writeFileSync(path.join(scratch, file.source), readReleaseBytes(file.source));
+    for (const file of firstMapPaint.added) fs.unlinkSync(path.join(scratch, file.source));
+    assert.equal(runBeforeFirstMapPaint().status, 0, "The restored pre-preview application must pass");
+    assertMutationsRejected([
+      ["modified shared application inverse", path.join(scratch, SHARED_APP_PATH), Buffer.concat([sharedAppText, Buffer.from(" ")])],
+      ...[...sharedApp.files, ...sharedApp.added].map(file => [
+        `unreviewed byte in ${file.source}`, path.join(scratch, file.source),
+        Buffer.concat([readReleaseBytes(file.source), Buffer.from("\n")])
+      ])
+    ], runBeforeFirstMapPaint);
+    for (const file of sharedApp.files) fs.writeFileSync(path.join(scratch, file.source), readUnreviewedBytes(file.source));
+    assert.equal(runCurrent().status, 0, "The restored North Wildwood snapshot must pass");
+    const quietCases = [
+      ["altered quiet-loading inverse", path.join(scratch, QUIET_LOADING_PATH), quietLoadingText + " "],
+      ...quietLoading.files.map(file => [
+        `unreviewed quiet-loading byte in ${file.source}`, path.join(scratch, file.source),
+        Buffer.concat([readUnreviewedBytes(file.source), Buffer.from("\n")])
+      ])
+    ];
+    assertMutationsRejected(quietCases, runCurrent);
+    for (const file of quietLoading.files) fs.writeFileSync(path.join(scratch, file.source), readLiveBytes(file.source));
+    assert.equal(run().status, 0, "The restored pre-loading-change snapshot must pass");
+    const mapperFixCases = [
+      ["altered the mapper fixes inverse", path.join(scratch, MAPPER_FIX_PATH), mapperFixText + " "],
+      ...mapperFix.files.map(file => [
+        `unreviewed mapper fix byte in ${file.source}`, path.join(scratch, file.source),
+        Buffer.concat([readLiveBytes(file.source), Buffer.from("\n")])
+      ])
+    ];
+    assertMutationsRejected(mapperFixCases, run);
+    for (const file of mapperFix.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBytes(file.source));
+    }
+    const runBeforeMapperFixes = () => run(["--prior-mapper-fix-snapshot"]);
+    assert.equal(runBeforeMapperFixes().status, 0, "The restored pre-fix snapshot must pass");
+    assertMutationsRejected([
+      ["altered the tour, layers and export inverse", path.join(scratch, JOE_UI_PATH), joeUiText + " "],
+      ...joeUi.files.map(file => [
+        `unreviewed tour, layers and export byte in ${file.source}`, path.join(scratch, file.source), readBytes(file.source).toString("utf8") + "\n"
+      ]),
+      ...joeUi.added.map(file => [
+        `unreviewed new tour, layers and export asset ${file.source}`, path.join(scratch, file.source), Buffer.concat([readBytes(file.source), Buffer.from([0])])
+      ])
+    ], runBeforeMapperFixes);
+    for (const file of joeUi.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeJoeUi(file.source));
+    }
+    for (const file of joeUi.added) fs.unlinkSync(path.join(scratch, file.source));
+    const runBeforeJoeUi = () => run(["--prior-joe-ui-snapshot"]);
+    assert.equal(runBeforeJoeUi().status, 0, "The restored pre-update snapshot must pass");
+    assertMutationsRejected([
+      ["altered the export options inverse", path.join(scratch, EXPORT_OPTIONS_PATH), exportOptionsText + " "],
+      ...exportOptions.files.map(file => [
+        `unreviewed export options byte in ${file.source}`, path.join(scratch, file.source), readBeforeJoeUi(file.source) + "\n"
+      ])
+    ], runBeforeJoeUi);
+    for (const file of exportOptions.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeExportOptions(file.source));
+    }
+    const runBeforeExportOptions = () => run(["--prior-export-options-snapshot"]);
+    assert.equal(runBeforeExportOptions().status, 0, "The restored pre-export-options snapshot must pass");
+    assertMutationsRejected([
+      ["altered the layer help inverse", path.join(scratch, LAYER_HELP_PATH), layerHelpText + " "],
+      ...layerHelp.files.map(file => [
+        `unreviewed layer help byte in ${file.source}`, path.join(scratch, file.source), readBeforeExportOptions(file.source) + "\n"
+      ])
+    ], runBeforeExportOptions);
+    for (const file of layerHelp.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeLayerHelp(file.source));
+    }
+    const runBeforeLayerHelp = () => run(["--prior-layer-help-snapshot"]);
+    assert.equal(runBeforeLayerHelp().status, 0, "The restored pre-layer-help snapshot must pass");
+    assertMutationsRejected([
+      ["altered the overnight inverse", path.join(scratch, OVERNIGHT_PATH), overnightText + " "],
+      ...overnight.files.map(file => [
+        `unreviewed overnight byte in ${file.source}`, path.join(scratch, file.source), readBeforeLayerHelp(file.source) + "\n"
+      ]),
+      ...overnight.added.map(file => [
+        `unreviewed new overnight asset ${file.source}`, path.join(scratch, file.source), Buffer.concat([readBytes(file.source), Buffer.from([0])])
+      ])
+    ], runBeforeLayerHelp);
+    for (const file of overnight.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeOvernight(file.source));
+    }
+    const runBeforeOvernight = () => run(["--prior-overnight-snapshot"]);
+    assert.equal(runBeforeOvernight().status, 0, "The restored pre-overnight snapshot must pass");
+    assertMutationsRejected([
+      ["altered the building view inverse", path.join(scratch, BUILDING_VIEW_PATH), buildingViewText + " "],
+      ...buildingView.files.map(file => [
+        `unreviewed byte in ${file.source}`, path.join(scratch, file.source), readCurrent(file.source) + "\n"
+      ])
+    ], runBeforeOvernight);
+    for (const file of buildingView.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeBuildingView(file.source));
+    }
+    const runLineAudit = () => run(["--prior-building-view-snapshot"]);
+    const lineAuditCases = [
+      ["altered the line audit inverse", path.join(scratch, LINE_AUDIT_PATH), lineAuditText + " "],
+      ...lineAudit.files.flatMap(file => {
+        const current = readBeforeBuildingView(file.source), target = path.join(scratch, file.source);
+        return [
+          [`unreviewed byte in ${file.source}`, target, current + "\n"],
+          ...file.changes.map((change, index) => [
+            `reverted line audit fragment ${file.source}:${index + 1}`,
+            target, current.replace(change.afterSource, change.beforeSource)
+          ])
+        ];
+      })
+    ];
+    assertMutationsRejected(lineAuditCases, runLineAudit);
+    assert.equal(runLineAudit().status, 0, "Restoring audited artifacts must restore a passing check");
+
+    // Run historical mutations against the byte-exact snapshot they originally targeted.
+    for (const file of lineAudit.files) {
+      fs.writeFileSync(path.join(scratch, file.source), readBeforeLineAudit(file.source));
+    }
+    const runPrior = () => run(["--prior-mutation-snapshot"]);
+    assert.equal(runPrior().status, 0, "The restored pre-audit snapshot must pass before historical mutations");
     const template = read("tools/app/index.template.html"), published = read("index.html");
     const activeRoadLabelTag = roadFallback.afterScriptTag;
     const currentDependencyTag = output => [...template.matchAll(/<script[^>]+src="([^"]+)"[^>]*><\/script>/g)].find(match => new URL(match[1], "https://followup.invalid/").pathname.slice(1) === output)?.[0];
@@ -2961,7 +3400,7 @@ if (process.argv.includes("--self-test")) {
     const recheckCases = [
       ["broadened recheck inverse ownership", path.join(scratch, RECHECK_PATH), recheckText.replace('"scope":', '"unreviewedScope":')],
       ...recheck.files.flatMap(file => {
-        const current = readCurrent(file.source);
+        const current = readActual(file.source);
         return [
           [`unreviewed recheck byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed recheck byte */\n"],
           ...file.changes.map((block, index) => [`reverted recheck fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(cameraCurrentFragment(file.source, block.afterSource), block.beforeSource)])
@@ -2974,41 +3413,22 @@ if (process.argv.includes("--self-test")) {
     const cameras3dCases = [
       ["broadened 3D/camera inverse ownership", path.join(scratch, CAMERAS_3D_PATH), cameras3dText.replace('"scope":', '"unreviewedScope":')],
       ...cameras3d.files.flatMap(file => {
-        const current = readCurrent(file.source);
+        const current = readActual(file.source);
         return [
           [`unreviewed 3D/camera byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed 3D/camera byte */\n"],
-          ...file.changes.map((block, index) => [`reverted 3D/camera fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(cameraPanelCurrentFragment(file.source, projectionNoteCurrentFragment(file.source, block.afterSource)), () => block.beforeSource)])
+          ...file.changes.map((block, index) => [`reverted 3D/camera fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(projectionNoteCurrentFragment(file.source, block.afterSource), block.beforeSource)])
         ];
       })
     ];
     assert.equal(cameras3dCases.length, 47, "Retain every 3D/camera file and exact fragment boundary");
     allCases.push(...cameras3dCases);
     assert.equal(allCases.length, 340 + 47, "Retain all 340 earlier mutations and append the reviewed 3D/camera boundaries");
-    const cameraPanelCases = [
-      ["broadened camera panel inverse ownership", path.join(scratch, CAMERA_PANEL_PATH), cameraPanelText.replace('"scope":', '"unreviewedScope":')],
-      ...cameraPanel.files.flatMap(file => {
-        const current = readCurrent(file.source);
-        return [
-          [`unreviewed camera panel byte in ${file.source}`, path.join(scratch, file.source), current + "\n/* unreviewed camera panel byte */\n"],
-          ...file.changes.map((block, index) => [`reverted camera panel fragment ${file.source}:${index + 1}`, path.join(scratch, file.source), current.replace(block.afterSource, () => block.beforeSource)])
-        ];
-      })
-    ];
-    assert.equal(cameraPanelCases.length, 32, "Retain all five camera panel file boundaries and 26 exact fragments");
-    allCases.push(...cameraPanelCases);
     assert.deepEqual(allCases.filter(([, target, altered]) => fs.readFileSync(target, "utf8") === altered).map(([name]) => name), [], "Every retained mutation must alter the actual current artifact");
-    for (const [name, target, altered] of allCases) {
-      const before = fs.readFileSync(target);
-      assert.notDeepEqual(Buffer.from(altered), before, `${name}: the mutation must change its target`);
-      fs.writeFileSync(target, altered);
-      const result = run();
-      fs.writeFileSync(target, before);
-      assert.equal(result.error, undefined, `${name}: checker must execute successfully`);
-      assert.notEqual(result.status, 0, `${name}: parity checker failed to reject the mutation`);
-      assert.match(result.stderr, /AssertionError/, `${name}: rejection must come from a parity assertion`);
-    }
-    assert.equal(run().status, 0, "Restoring the scratch files must restore a passing check");
-    console.log(`Parity mutation checks passed: ${allCases.length} dropped, moved, altered or stale artifacts were rejected.`);
+    assertMutationsRejected(allCases, runPrior);
+    assert.equal(runPrior().status, 0, "Restoring historical artifacts must restore a passing check");
+    const firstMapPaintCases = firstMapPaint.files.length + firstMapPaint.added.length + 1;
+    const dataDeliveryCases = dataDelivery.files.length + dataDelivery.added.length + 1;
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

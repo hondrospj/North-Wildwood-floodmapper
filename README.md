@@ -43,7 +43,7 @@ See [the reliability changes and data-quality policy](docs/2026-09-12-reliabilit
 | Moderate | 4.25 ft | 7.00 ft |
 | Major | 5.25 ft | 8.00 ft |
 
-`NAVD88 = MLLW - 2.75 ft`. Forecast guidance continues to use Stone Harbor.
+North Wildwood’s local impact categories use the city datum, `NAVD88 = MLLW - 2.75 ft`.
 Observed playback follows the USGS-first policy in `gauge_pipeline_v2.json`:
 Stone Harbor USGS site `01411360` supplies the primary 15-minute archive;
 verified NOAA Lewes hourly history supplies older coverage with the configured
@@ -67,10 +67,12 @@ Both events expose complete 15-minute replays and derived hourly values.
 
 ## Return-interval storms
 
-The **Return Intervals** data source supplies synthetic 24-hour storms at every
-2015 NACCS station 11283 annual recurrence interval through 10,000 years. All
-frequency calculations are performed in feet NAVD88; MLLW is only a display
-conversion using the mapper's existing `+2.75 ft` contract.
+**Modeled Floods** uses the committed V2 levels and synthetic 24-hour storms
+in `return_interval_levels_v2.json` and `return_intervals.json`. The V2 frequency
+fit uses USGS observations, bias-corrected NOAA history, and official USGS crest
+overrides. Frequency calculations use NAVD88 feet. MLLW adds 2.75 feet for display.
+
+The table below records the older NACCS and local-gauge comparison.
 
 | Return interval | NACCS 11283 | Local gauge fit | Mapper target | Target method |
 | ---: | ---: | ---: | ---: | :--- |
@@ -114,14 +116,15 @@ convention (`NorthWildwoodDepthp0000.png` through
 `NorthWildwoodDepthp2000.png`) under versioned v37 filling, high-tide,
 15-minute release, 30-minute release, and normal-draining directories.
 
-These are stationary screening scenarios: no future sea-level-rise increment
-or trend detrending is applied. Rebuild the committed payload from the official
-NACCS, USGS, and NOAA endpoints with:
+These stationary screening scenarios use a fixed reference tide and surge
+profile. Verify the deployed V2 data contract with:
 
 ```bash
-python3 tools/build_return_intervals.py
 python3 tools/test_return_intervals.py
 ```
+
+`python3 tools/build_return_intervals.py` rebuilds the historical comparison
+from NACCS, USGS, and NOAA into `return_intervals_legacy_v4.json`.
 
 ## One-foot hydraulic model
 
@@ -287,8 +290,19 @@ modeled depth at or below 0.10 ft is shown as `0.0-0.1ft`.
 
 ## Forecast and observed archives
 
-- `.github/workflows/update-forecast.yml` retrieves hourly PETSS/NOAA guidance,
-  applies the -2.75 ft offset, and assigns the matching static stage asset.
+- `.github/workflows/update-forecast.yml` refreshes NOAA PETSS guidance for the
+  00Z, 06Z, 12Z, and 18Z model cycles. Each refresh is scheduled six hours and
+  40 minutes after its cycle, when the NOAA station files normally have arrived.
+  The workflow retries late files, requires all three scenarios, and keeps the
+  last published forecast when a cycle cannot be validated. Manual runs can
+  select a cycle or use the most recent scheduled slot, with a dry-run option.
+  The generator converts Stone Harbor PETSS guidance to NAVD88 with the station's
+  -2.66 ft offset and selects the matching stage asset. Forecast metadata reports
+  NOAA Stone Harbor flood categories at 6.1, 7.1, and 8.1 ft MLLW.
+- The forecast workflow publishes validated data to Cup A Joe and GitHub Pages
+  when `SHORELYSAFE_DATA_PUBLICATION_ENABLED` is `true`. Both sites preserve their
+  approved interface during data refreshes. The observed archive has a separate
+  daily refresh.
 - `.github/workflows/update-observed.yml` maintains a clean fallback layer from
   USGS site `01411360`, parameter `72279`, then overlays the North Wildwood city
   gauge on exact 15-minute anchors. The city source wins whenever it has a

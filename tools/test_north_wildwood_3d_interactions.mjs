@@ -15,6 +15,7 @@ function wrapper(first, next) {
   return source.slice(start, end);
 }
 function load(context, names) {
+  context.TOWN_CONFIG ??= JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
   vm.createContext(context);
   for (const name of names) vm.runInContext(extract(name), context);
   return context;
@@ -29,102 +30,190 @@ function classList() {
   return { contains: name => values.has(name), toggle(name, value) { value ? values.add(name) : values.delete(name); } };
 }
 
-// Unknown elevations must never be coerced to a real zero-foot occupied floor.
+// Missing building inputs stay unknown, and the summary card omits estimates.
 const popup = load({
   getSelectedStageNavd88: () => 5,
   escapeTownAddressHtml: value => String(value).replaceAll('<', '&lt;'),
   formatWaterDepth: value => value.toFixed(1) + ' ft'
 }, ['finiteBuildingNumber', 'buildBuildingPopupHtml']);
 for (const value of [null, undefined, '', '  ', false, [], {}, NaN, Infinity, 'unavailable']) {
-  const html = popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: value, foundationHeightFt: value });
-  assert.match(html, /Estimated occupied-floor elevation is unavailable/);
-  assert.doesNotMatch(html, /Current water is/);
-  assert.match(html, /<strong>—<\/strong>/);
+  assert.ok(Number.isNaN(popup.finiteBuildingNumber(value)));
 }
+assert.equal(popup.finiteBuildingNumber('0'), 0);
 const actualBuildings = JSON.parse(fs.readFileSync(new URL('../assets/3d/NorthWildwoodBuildings3D.geojson', import.meta.url), 'utf8'));
 const actualUnknown = actualBuildings.features.find(feature => feature.properties.modeledFirstFloorNavd88Ft === null);
 assert.ok(actualUnknown, 'Exercise a real unmatched building footprint');
-assert.doesNotMatch(popup.buildBuildingPopupHtml(actualUnknown.properties), /Current water is/);
-for (const value of [null, undefined, '', ' ', NaN, Infinity]) {
-  popup.getSelectedStageNavd88 = () => value;
-  assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /Choose a water level/);
+for (const properties of [actualUnknown.properties, { address: '107 E 9TH AVE', modeledFirstFloorNavd88Ft: 7.6, foundationHeightFt: 2 }]) {
+  const html = popup.buildBuildingPopupHtml(properties);
+  assert.match(html, /building-info-card/);
+  assert.doesNotMatch(html, /Crawlspace \/ garage depth|estimated occupied floor|Choose a water level/);
 }
-popup.getSelectedStageNavd88 = () => 0;
-assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: '0', foundationHeightFt: 0 }), /at the estimated occupied floor/);
-popup.getSelectedStageNavd88 = () => 5;
-assert.match(popup.buildBuildingPopupHtml({ modeledFirstFloorNavd88Ft: 0 }), /5.0 ft above/);
 
-function toggleFixture({ initGate = deferred(), syncGate = null } = {}) {
+// The Esri wrapper's child renderer does not exist until metadata is ready.
+const configuration = fs.readFileSync(new URL('./app/runtime/00-configuration.js', import.meta.url), 'utf8');
+const geometryRuntime = fs.readFileSync(new URL('./app/runtime/10-map-geometry-and-layers.js', import.meta.url), 'utf8');
+const disableBuildingInfo = geometryRuntime.match(/^    function disableBuildingInfo\([\s\S]+?^    }/m)?.[0];
+assert.ok(disableBuildingInfo, 'Exercise the shared building interaction cleanup');
+const buildingLayerFactory = configuration.match(/^    function makeEsriBuildingForegroundLayer\([\s\S]+?^    }/m)?.[0];
+assert.ok(buildingLayerFactory, 'Exercise the actual Esri foreground layer factory');
+
+function esriLayerFixture(ready = false) {
+  const renderer = {};
+  const operations = [];
+  const pending = new Set();
+  const map = {
+    addLayer(layer) { assert.equal(layer, renderer); operations.push('attach'); },
+    removeLayer(layer) { assert.equal(layer, renderer); operations.push('detach'); }
+  };
+  const esriLayer = {
+    _ready: ready,
+    _maplibreGL: ready ? renderer : undefined,
+    onAdd(targetMap) {
+      const attach = () => targetMap.addLayer(this._maplibreGL);
+      if (this._ready) attach();
+      else this.once('ready', attach);
+    },
+    onRemove(targetMap) { targetMap.removeLayer(this._maplibreGL); },
+    once(event, callback) { assert.equal(event, 'ready'); pending.add(callback); },
+    off(event, callback) { assert.equal(event, 'ready'); pending.delete(callback); }
+  };
+  const L = { esri: { Vector: { vectorTileLayer: () => esriLayer } } };
+  const layer = vm.runInNewContext(buildingLayerFactory + '\nmakeEsriBuildingForegroundLayer()', {
+    window: { L }, L, ESRI_API_KEY: '', ESRI_OSM_VECTOR_TILE_URL: 'test', styleEsriBuildingForeground() {}
+  });
+  return {
+    layer, map, operations, pending,
+    finishLoading() {
+      esriLayer._ready = true;
+      esriLayer._maplibreGL = renderer;
+      for (const callback of pending) {
+        pending.delete(callback);
+        callback.call(esriLayer);
+      }
+    }
+  };
+}
+
+for (const reenable of [false, true]) {
+  const test = esriLayerFixture();
+  test.layer.onAdd(test.map);
+  assert.equal(test.pending.size, 1);
+  test.layer.onRemove(test.map);
+  assert.equal(test.pending.size, 0, 'Removing a pending layer cancels its exact ready handler');
+  if (reenable) test.layer.onAdd(test.map);
+  test.finishLoading();
+  assert.deepEqual(test.operations, reenable ? ['attach'] : [], 'Late readiness honors only the latest toggle');
+  if (reenable) {
+    test.layer.onRemove(test.map);
+    assert.deepEqual(test.operations, ['attach', 'detach']);
+  }
+}
+{
+  const test = esriLayerFixture(true);
+  test.layer.onAdd(test.map);
+  test.layer.onRemove(test.map);
+  assert.equal(test.pending.size, 0);
+  assert.deepEqual(test.operations, ['attach', 'detach'], 'A ready layer attaches and detaches immediately');
+}
+
+function toggleFixture({ pitch = 0, parcels = false, structures = false } = {}) {
   const toggle = { classList: classList(), attributes: {}, setAttribute(key, value) { this.attributes[key] = value; } };
   const body = { classList: classList() };
+  const visibleLayers = new Set();
+  const otherToggles = {
+    parcelsToggle: { classList: { contains: () => parcels } },
+    nsiStructuresToggle: { classList: { contains: () => structures } }
+  };
   const actions = [];
-  const gl = { getPitch: () => 60 };
+  const gl = { getPitch: () => pitch, jumpTo: () => actions.push('camera move') };
   const context = {
-    buildingToggleGeneration: 0, buildingVisibilityPreference: null, mapQueryGeneration: 0, document: { body, getElementById: () => toggle },
-    glMap: null, map: null, buildingsLayer: null,
-    ensure3dMap: () => initGate.promise,
-    setBuildingsEnabled: async value => toggle.classList.toggle('on', Boolean(value)),
-    setMapClickMode: () => actions.push('building mode'),
+    buildingToggleGeneration: 0, buildingVisibilityPreference: null, mapQueryGeneration: 0, mapClickMode: 'depth',
+    document: { body, getElementById: id => id === 'buildingsToggle' ? toggle : otherToggles[id], querySelector: () => ({ click: () => actions.push('view toggle') }) },
+    glMap: null, glStyleReady: false, buildingsLayer: null,
+    map: { hasLayer: layer => visibleLayers.has(layer), removeLayer(layer) { visibleLayers.delete(layer); layer.removed?.(); } },
+    fallbackBuildingPopup: null, persistentFloodPopup: null, persistentDepthQueryContext: null,
+    map3dReady: () => context.glStyleReady,
+    ensure3dMap() { throw Error('Buildings must not initialize the native renderer'); },
+    setBuildingsEnabled: async value => {
+      actions.push(value ? 'Leaflet on' : 'Leaflet off');
+      toggle.classList.toggle('on', Boolean(value));
+      toggle.setAttribute('aria-checked', String(Boolean(value)));
+    },
+    setMapClickMode: mode => { context.mapClickMode = mode; actions.push(`${mode} mode`); },
     updateExportBuildingsLayer() {}, updateMapClickModeControl() {}, toast() {},
-    syncBuildings3d: () => syncGate ? syncGate.promise : Promise.resolve(),
+    syncBuildings3d: async () => actions.push('sync buildings'),
     focusEnabledBuildings3d: () => actions.push('focus camera'), suspendLeafletVisualLayers() {},
     window: { COUNTY_3D_BUILDINGS: { focus: async () => actions.push('focus buildings') } }
   };
   vm.createContext(context);
+  vm.runInContext(disableBuildingInfo, context);
   vm.runInContext(wrapper('originalSetBuildingsEnabled', 'originalSetSatelliteEnabled'), context);
-  return { context, toggle, actions, initGate, ready() { context.glMap = gl; body.classList.toggle('map-3d-ready', true); initGate.resolve(gl); } };
+  return {
+    context, toggle, actions, visibleLayers,
+    ready() {
+      context.glMap = gl;
+      context.glStyleReady = true;
+      body.classList.toggle('map-3d-ready', true);
+    }
+  };
 }
 {
   const test = toggleFixture();
-  const older = test.context.setBuildingsEnabled(true);
+  await test.context.setBuildingsEnabled(true);
+  assert.equal(test.toggle.attributes['aria-checked'], 'true');
+  assert.equal(test.context.glMap, null, 'The Buildings switch works before native map startup');
   await test.context.setBuildingsEnabled(false);
-  test.ready(); await older;
-  assert.equal(test.toggle.classList.contains('on'), false);
   assert.equal(test.toggle.attributes['aria-checked'], 'false');
-  assert.equal(test.context.buildingVisibilityPreference,false,'Explicit off while loading owns the next 3D entry');
-  assert.deepEqual(test.actions, [], 'An obsolete enable cannot change mode or focus');
+  assert.deepEqual(test.actions, ['Leaflet on', 'Leaflet off']);
+  assert.equal(test.context.buildingVisibilityPreference, false, 'Explicit off owns the next manual 3D entry');
+}
+for (const pitch of [0, 60]) {
+  const test = toggleFixture({ pitch });
+  test.ready();
+  await test.context.setBuildingsEnabled(true);
+  assert.equal(test.toggle.attributes['aria-checked'], 'true');
+  await test.context.setBuildingsEnabled(false);
+  assert.equal(test.toggle.attributes['aria-checked'], 'false');
+  assert.equal(test.context.glMap.getPitch(), pitch);
+  assert.deepEqual(test.actions, ['building mode', 'sync buildings', 'depth mode', 'sync buildings'],
+    'Buildings selects Building Info and updates native layers without touching the camera');
+}
+for (const structures of [true, false]) {
+  const test = toggleFixture({ pitch: 60, parcels: true, structures });
+  test.ready();
+  await test.context.setBuildingsEnabled(true);
+  const popup = { removed() { test.context.fallbackBuildingPopup = null; } };
+  test.context.fallbackBuildingPopup = popup;
+  test.visibleLayers.add(popup);
+  await test.context.setBuildingsEnabled(false);
+  assert.equal(test.context.mapClickMode, structures ? 'building' : 'parcel');
+  assert.ok(!test.visibleLayers.has(popup), 'A native fallback roof popup must close when its Buildings layer turns off');
 }
 {
-  const test = toggleFixture();
-  const older = test.context.setBuildingsEnabled(true);
-  await test.context.setBuildingsEnabled(false);
-  const latest = test.context.setBuildingsEnabled(true);
-  test.ready(); await Promise.all([older, latest]);
-  assert.equal(test.toggle.classList.contains('on'), true);
-  assert.deepEqual(test.actions, ['building mode', 'focus buildings', 'focus camera']);
-}
-for (const fail of ['null', 'reject']) {
-  const test = toggleFixture();
-  const older = test.context.setBuildingsEnabled(true);
-  await test.context.setBuildingsEnabled(false);
-  if (fail === 'null') test.initGate.resolve(null); else test.initGate.reject(Error('Obsolete failure'));
-  await older;
-  assert.equal(test.toggle.classList.contains('on'), false, 'An obsolete failure must not reject into the latest toggle handler');
-}
-{
-  const syncGate = deferred(), started = deferred(), test = toggleFixture({ syncGate });
+  const syncGate = deferred(), started = deferred(), test = toggleFixture();
   test.context.syncBuildings3d = () => { started.resolve(); return syncGate.promise; };
   test.ready();
   const older = test.context.setBuildingsEnabled(true);
   await started.promise;
   const latest = test.context.setBuildingsEnabled(false);
-  syncGate.resolve(); await Promise.all([older, latest]);
+  syncGate.resolve();
+  await Promise.all([older, latest]);
   assert.equal(test.toggle.classList.contains('on'), false);
-  assert.ok(!test.actions.some(action => action.startsWith('focus')), 'No late focus after disable during building loading');
+  assert.equal(test.context.buildingVisibilityPreference, false);
+  assert.deepEqual(test.actions, ['building mode', 'depth mode']);
 }
 {
   const test = toggleFixture();
-  const current = test.context.setBuildingsEnabled(true);
-  test.initGate.resolve(null);
-  await assert.rejects(current, /3D buildings could not start/, 'Current failures must still reach the UI');
-  await test.context.setBuildingsEnabled(false,{rollback:true});
-  assert.equal(test.context.buildingVisibilityPreference,true,'Failure rollback must not overwrite the explicit on preference');
-  await test.context.setBuildingsEnabled(false);
   test.ready();
-  test.context.ensure3dMap = async () => test.context.glMap;
+  const sync = test.context.syncBuildings3d;
+  test.context.syncBuildings3d = async () => { throw Error('Building asset failed'); };
+  await assert.rejects(test.context.setBuildingsEnabled(true), /Building asset failed/, 'Current failures reach the UI');
+  test.context.syncBuildings3d = sync;
+  await test.context.setBuildingsEnabled(false, { rollback: true });
+  assert.equal(test.context.buildingVisibilityPreference, true, 'Failure rollback preserves the explicit on preference');
   await test.context.setBuildingsEnabled(true);
-  assert.equal(test.toggle.classList.contains('on'), true, 'A current initialization failure must allow a successful retry');
-  assert.deepEqual(test.actions, ['building mode', 'focus buildings', 'focus camera']);
+  assert.equal(test.toggle.classList.contains('on'), true, 'A current asset failure permits a successful retry');
+  assert.deepEqual(test.actions.filter(action => action === 'sync buildings'), ['sync buildings', 'sync buildings']);
 }
 {
   const test = toggleFixture(), failedSync = deferred(), started = deferred();
@@ -139,42 +228,66 @@ for (const fail of ['null', 'reject']) {
   await test.context.setBuildingsEnabled(false);
   failedSync.reject(Error('Obsolete building asset failure'));
   await older;
-  assert.equal(test.toggle.classList.contains('on'), false);
-  assert.ok(!test.actions.some(action => action.startsWith('focus')));
+  assert.equal(test.toggle.classList.contains('on'), false, 'An obsolete failure cannot roll back the latest choice');
+  assert.deepEqual(test.actions, ['building mode', 'depth mode']);
 }
 
-function clickFixture() {
-  const handlers = {}, requests = [], opened = [], popups = new Set();
+const clickedFootprintId = 'clicked-footprint';
+const matchedParcel = id => ({ id, properties: { nsi2026FootprintId: clickedFootprintId } });
+
+function clickFixture(pitch = 60, { structureHits = null, structures = [] } = {}) {
+  const handlers = {}, requests = [], opened = [], notices = [], queriedLayers = [], popups = new Set();
+  const visibleLayer = pitch > 10 ? 'nw-3d-buildings' : 'nw-2d-buildings';
   let buildings = true;
   class FakePopup {
     setLngLat() { return this; } setHTML() { return this; } addTo() { return this; }
+    getElement() { return null; }
     on(name, callback) { this[name] = callback; return this; }
     remove() { this.close?.(); }
   }
   const context = {
-    glMap: { on(name, ...args) { if (name === 'click') handlers.click = args.at(-1); }, getLayer: () => true, queryRenderedFeatures: () => [{ properties: { modeledFirstFloorNavd88Ft: 7 } }] },
+    glMap: {
+      on(name, ...args) { if (name === 'click') handlers.click = args.at(-1); },
+      getLayer: () => true,
+      getLayoutProperty: id => id === visibleLayer ? 'visible' : 'none',
+      getPitch: () => pitch,
+      queryRenderedFeatures(point, { layers }) {
+        queriedLayers.push(...layers);
+        if (layers.includes('nw-nsi-points')) return structureHits;
+        return layers.includes(visibleLayer)
+          ? [{ properties: { footprintId: clickedFootprintId, modeledFirstFloorNavd88Ft: 7 } }]
+          : [];
+      }
+    },
     glPopup: null, lastGlPopupHtml: '', mapQueryGeneration: 0, lastRenderToken: 1, mapClickMode: 'building',
     persistentFloodPopup: null, map: { on() {}, hasLayer: value => popups.has(value), removeLayer: value => popups.delete(value) },
     document: { body: { classList: { contains: () => true } } }, maplibregl: { Popup: FakePopup },
-    window: { addEventListener() {} }, layerVisible: () => buildings,
+    window: { addEventListener() {} },
+    layerVisible: id => id === 'nsiStructuresToggle' ? structureHits !== null : buildings,
+    nsiStructureFeatures: structures,
     resolveClickedBuildingParcel3d: feature => {
       const request = deferred(); requests.push(request);
       return request.promise.then(parcel => ({feature, point: [-74.8, 39.006], parcel}));
     },
     openParcelFloodPrompt: feature => opened.push(feature.id), openFallbackBuildingPopup: () => opened.push('fallback'),
+    openNsiStructurePopup: (feature, latlng) => opened.push({ feature, latlng }),
+    toast: message => notices.push(message),
+    beginMapQuery: () => ++context.mapQueryGeneration,
     handleDepthQueryClick: () => { ++context.mapQueryGeneration; opened.push('depth'); },
     L: { latLng: (lat, lng) => ({ lat, lng }) }, sync3dViewToLeaflet() {}, syncLeafletViewTo3d() {}, syncGlPopupLayout() {}
   };
-  load(context, ['wire3dInteractions', 'showGlPopup', 'closeGlPopup']); context.wire3dInteractions();
-  return { context, requests, opened, click: () => handlers.click({ lngLat: { lat: 39.006, lng: -74.8 }, point: { x: 100, y: 100 } }), disable() { buildings = false; } };
+  load(context, ['resize3dView', 'wire3dInteractions', 'showGlPopup', 'closeGlPopup', 'buildingsShouldRenderForCamera']); context.wire3dInteractions();
+  return { context, requests, opened, notices, queriedLayers, click: () => handlers.click({ lngLat: { lat: 39.006, lng: -74.8 }, point: { x: 100, y: 100 } }), disable() { buildings = false; } };
 }
 for (const supersede of ['new click', 'mode', 'frame', 'disable', 'close button', 'programmatic close']) {
   for (const result of ['parcel', 'missing', 'failed']) {
     const test = clickFixture();
-    if (supersede.includes('close')) test.context.showGlPopup({ lat: 39, lng: -74.8 }, 'Existing card', 300);
+    if (supersede.includes('close')) test.context.showGlPopup({
+      getLatLng: () => ({ lat: 39, lng: -74.8 }), getContent: () => 'Existing card', once() {}
+    }, 300);
     const older = test.click();
     if (supersede === 'new click') {
-      const latest = test.click(); test.requests[1].resolve({ id: 'latest parcel' }); await latest;
+      const latest = test.click(); test.requests[1].resolve(matchedParcel('latest parcel')); await latest;
     } else if (supersede === 'mode') {
       test.context.mapClickMode = 'depth'; await test.click();
     } else if (supersede === 'frame') ++test.context.lastRenderToken;
@@ -182,7 +295,7 @@ for (const supersede of ['new click', 'mode', 'frame', 'disable', 'close button'
     else if (supersede === 'close button') test.context.glPopup.remove();
     else test.context.closeGlPopup();
     if (result === 'failed') test.requests[0].reject(Error('Old request failed'));
-    else test.requests[0].resolve(result === 'parcel' ? { id: 'obsolete parcel' } : null);
+    else test.requests[0].resolve(result === 'parcel' ? matchedParcel('obsolete parcel') : null);
     await older;
     assert.deepEqual(test.opened, supersede === 'new click' ? ['latest parcel'] : supersede === 'mode' ? ['depth'] : [], `${supersede}/${result} must discard the obsolete result and fallback`);
   }
@@ -190,9 +303,59 @@ for (const supersede of ['new click', 'mode', 'frame', 'disable', 'close button'
 for (const result of ['parcel', 'missing', 'failed']) {
   const test = clickFixture(), pending = test.click();
   if (result === 'failed') test.requests[0].reject(Error('Current parcel request failed'));
-  else test.requests[0].resolve(result === 'parcel' ? { id: 'current parcel' } : null);
+  else test.requests[0].resolve(result === 'parcel' ? matchedParcel('current parcel') : null);
   await pending;
   assert.deepEqual(test.opened, [result === 'parcel' ? 'current parcel' : 'fallback']);
+}
+
+{
+  const test = clickFixture(0), pending = test.click();
+  assert.deepEqual(test.queriedLayers, ['nw-2d-buildings']);
+  test.requests[0].resolve(matchedParcel('flat parcel'));
+  await pending;
+  assert.deepEqual(test.opened, ['flat parcel'], 'Flat footprints open Building Info at the current pitch');
+}
+
+const clickedStructure = {
+  properties: { footprintId: 'rendered-dot', modeledFirstFloorNavd88Ft: 10.02 },
+  geometry: { type: 'Point', coordinates: [-74.801, 39.007] }
+};
+const nearestStructure = {
+  properties: { footprintId: 'nearest-dot', modeledFirstFloorNavd88Ft: 10.3 },
+  geometry: { type: 'Point', coordinates: [-74.8, 39.006] }
+};
+for (const duplicateHit of [false, true]) {
+  const hit = { properties: { footprintId: clickedStructure.properties.footprintId } };
+  const test = clickFixture(60, {
+    structureHits: duplicateHit ? [hit, { ...hit }] : [hit],
+    structures: [nearestStructure, clickedStructure]
+  });
+  await test.click();
+  assert.deepEqual(test.queriedLayers, ['nw-nsi-points']);
+  assert.deepEqual(test.opened, [{ feature: clickedStructure, latlng: { lat: 39.007, lng: -74.801 } }],
+    'The rendered structure wins even when another structure is closer to the click coordinate');
+}
+
+for (const structureHits of [
+  [clickedStructure, nearestStructure],
+  [{ properties: {} }],
+  [{ properties: { footprintId: 'missing-from-source' } }]
+]) {
+  const test = clickFixture(60, { structureHits, structures: [nearestStructure, clickedStructure] });
+  await test.click();
+  assert.equal(test.context.mapQueryGeneration, 1, 'A hit cancels older property queries');
+  assert.deepEqual(test.opened, [], 'Ambiguous or unresolved hits cannot open a different structure or roof');
+  assert.equal(test.notices.length, 1);
+}
+
+{
+  const test = clickFixture(60, { structureHits: [] });
+  test.disable();
+  await test.click();
+  assert.deepEqual(test.opened, ['depth'], 'A click without a rendered structure still reaches the map query');
+  test.context.mapClickMode = 'depth';
+  await test.click();
+  assert.deepEqual(test.queriedLayers, ['nw-nsi-points'], 'Flood Depth mode does not query structural markers');
 }
 
 // Fallback building comparisons close on navigation/unavailable frames, but
@@ -230,4 +393,4 @@ for (const result of ['parcel', 'missing', 'failed']) {
   assert.equal(context.fallbackBuildingPopup, null, 'Closing a card releases its lifetime record');
 }
 
-console.log('3D interaction regressions passed: missing floor/stage values, latest Buildings toggle, parcel click cancellation, and popup frame lifetime.');
+console.log('3D interaction regressions passed: missing floor/stage values, deferred Esri layer removal, camera-independent Buildings toggle, flat parcel clicks, rendered structure selection, parcel click cancellation, and popup frame lifetime.');

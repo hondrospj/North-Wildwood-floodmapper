@@ -7,11 +7,10 @@ import {fileURLToPath} from 'node:url';
 
 const toolDir = path.dirname(fileURLToPath(import.meta.url));
 const runtimeDir = process.env.NORTH_WILDWOOD_AUDIT_RUNTIME_ROOT || path.join(toolDir, 'app/runtime');
-const configSource = fs.readFileSync(path.join(toolDir, 'app/town-config.js'), 'utf8');
-const configStart = configSource.indexOf('TOWN_CONFIG = {') + 'TOWN_CONFIG = '.length;
-const config = JSON.parse(configSource.slice(configStart, configSource.indexOf('\n};', configStart) + 2));
+const config = JSON.parse(fs.readFileSync(new URL("./app/town-profile.json", import.meta.url), "utf8")).config;
 const parts = ['00-configuration', '02-data-and-datums', '03-time-series', '04-observation-archives',
-  '06-inundation-catalog', '18-flood-frame-rendering', '19-observed-history', '21-forecast-and-observed-loading'];
+  '06-inundation-catalog', '11-export-selection', '13-export-range', '17-export-encoding',
+  '18-flood-frame-rendering', '19-observed-history', '21-forecast-and-observed-loading'];
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => {
   let resolve, reject;
@@ -33,6 +32,7 @@ function setup(now = '2026-11-02T17:00:00Z', date = '2026-11-02') {
   const c = vm.createContext({
     URL, Date: TestDate, Intl, Map, Set, Number, Math, Promise, archiveGeneration: 0,
     console: {warn(...args) {warnings.push(args);}},
+    document: {},
     window: {location: {href: 'https://example.test/north-wildwood/'}}, config,
     clearExportAvailabilityCache() {}
   });
@@ -201,9 +201,73 @@ function setup(now = '2026-11-02T17:00:00Z', date = '2026-11-02') {
   advance(60001);
   responses.push(payload([['2026-11-01T12:00:00-05:00', 2]]));
   await c.extendObservedArchiveThroughToday();
-  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-11-01T04:00:00Z');
+  assert.equal(new URL(requests[0].url).searchParams.get('startDT'), '2026-10-31T04:00:00Z');
+  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-10-31T04:00:00Z');
   assert.equal(run('getObservedDayRecord("2026-11-01").hours[0].navd88StageFt'), 2);
   assert.equal(run('getObservedDayRecord("2026-11-01").generatedPlaceholderDay'), false);
+  cases++;
+}
+
+// The previous published day can end before noon. Preserve its indexed
+// peak if only the index has loaded and the IV response contains its tail.
+{
+  const {c, run, requests, responses, advance, canonical} = setup('2026-11-06T14:35:00Z', '2026-11-05');
+  run('observed15MinuteDaysByDate.delete(date); observedData.days[0].peakNAVD88 = 5;');
+  responses.push(payload([
+    ['2026-11-05T23:42:00-05:00', -1.82], ['2026-11-05T23:48:00-05:00', -1.83]
+  ]));
+  await c.extendObservedArchiveThroughToday();
+  assert.equal(new URL(requests[0].url).searchParams.get('startDT'), '2026-11-05T05:00:00Z');
+  assert.equal(canonical().at(-1).navd88StageFt, -1.825);
+  assert.equal(canonical().at(-1).observationQuality, 'I');
+  assert.equal(run('getObservedDayRecord(date).peakNAVD88'), 5);
+  c.ensureObservedArchiveYear = async () => true;
+  advance(15 * 60000);
+  responses.push(payload([['2026-11-05T23:48:00-05:00', -1.81]]));
+  await c.ensureObservedArchiveForDate('2026-11-05');
+  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-11-05T05:00:00Z');
+  assert.equal(canonical().at(-1).navd88StageFt, -1.815);
+  assert.equal(run('getObservedDayRecord(date).peakNAVD88'), 5);
+  cases++;
+}
+
+{
+  const {c, responses, canonical} = setup('2026-11-06T14:35:00Z', '2026-11-06');
+  // Exact USGS readings around the Nov 6 native six-minute peak.
+  responses.push(payload([
+    ['2026-11-06T06:12:00-05:00', 2.65], ['2026-11-06T06:18:00-05:00', 2.66],
+    ['2026-11-06T06:24:00-05:00', 2.67], ['2026-11-06T06:30:00-05:00', 2.66]
+  ]));
+  await c.extendObservedArchiveThroughToday();
+  const peakTime = '2026-11-06T11:24:00.000Z';
+  const quarter = canonical();
+  assert.equal(quarter.length, 96);
+  assert.equal(quarter.some(entry => entry.timeUtc === peakTime), false);
+  const daily = c.buildObservedDailyMaximumSeries('2026-11')[0];
+  assert.equal(daily.timeUtc, peakTime);
+  assert.equal(daily.navd88StageFt, 2.67);
+  assert.equal(daily.observationQuality, 'M');
+  assert.equal(daily.sourceResolutionMinutes, 6);
+  assert.equal(daily.isInterpolatedTimelineFrame, false);
+  assert.equal(daily.hydraulicPhaseCanonical, true);
+
+  const startDate = new Date('2026-11-06T11:15:00Z');
+  const endDate = new Date('2026-11-06T11:30:00Z');
+  c.getDownloadRangeRequest = () => ({startDate, endDate, startMs: +startDate, endMs: +endDate});
+  c.getDownloadFrameLimit = () => 10;
+  c.getDownloadIntervalValue = () => 'daily';
+  const [exported] = c.getDownloadFrameItems('range');
+  assert.equal(exported.entry.timeUtc, daily.timeUtc);
+  assert.equal(exported.entry.navd88StageFt, daily.navd88StageFt);
+  assert.equal(exported.entry.observationQuality, daily.observationQuality);
+  assert.equal(exported.entry.hydraulicPhase, daily.hydraulicPhase);
+  c.getDownloadIntervalValue = () => '15min';
+  assert.equal(c.getDownloadFrameItems('range').some(item => item.entry.timeUtc === peakTime), false);
+  const snapshot = new Date(peakTime);
+  c.getDownloadRangeRequest = () => ({startDate:snapshot,endDate:snapshot,startMs:+snapshot,endMs:+snapshot});
+  c.getDownloadFormatValue = () => 'png';
+  c.getDownloadIntervalValue = () => 'hourly';
+  assert.equal(c.getDownloadFrameItems('range')[0].entry.timeUtc,peakTime);
   cases++;
 }
 
@@ -253,7 +317,7 @@ for (const outcome of ['success', 'failure']) {
   run('observedData.liveObservedRefresh.nextRefreshAt = Infinity');
   advance(60 * 60000); responses.push(payload([])); await c.extendObservedArchiveThroughToday();
   assert.equal(requests.length, 2);
-  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-11-03T05:00:00Z');
+  assert.equal(new URL(requests[1].url).searchParams.get('startDT'), '2026-11-02T05:00:00Z');
   cases++;
 }
 for (const fixture of [

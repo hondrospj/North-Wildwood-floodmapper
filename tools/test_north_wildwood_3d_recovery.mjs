@@ -47,32 +47,25 @@ assert.deepEqual(requests.slice(-2),['https://example.test/north-wildwood/assets
 assert.equal(await buildings.loadBuildingData(),payload);
 assert.equal(requests.length,4);
 
-let cameraZoom=13, cameraPitch=60, enabled=true;
-const cameraMoves=[];
-const camera={
-  BUILDING_MAX_CAMERA_ALTITUDE_METERS:1000,BUILDING_ALTITUDE_FALLBACK_MIN_ZOOM:16.25,MAP_MAX_ZOOM:22,
-  layerVisible:()=>enabled,
-  glMap:{getZoom:()=>cameraZoom,getPitch:()=>cameraPitch,jumpTo:options=>{cameraMoves.push(options);cameraZoom=options.zoom;}},
-  cameraAltitudeAboveTerrainMeters:()=>5000/Math.pow(2,cameraZoom-13),
-  cameraIsWithinBuildingRange:()=>camera.cameraAltitudeAboveTerrainMeters()<=1000
-};
-vm.createContext(camera);vm.runInContext(fn('focusEnabledBuildings3d'),camera);
-camera.focusEnabledBuildings3d();
-assert.ok(camera.cameraAltitudeAboveTerrainMeters()<=850);
-assert.equal(cameraZoom,Math.ceil(cameraZoom));
-assert.deepEqual(Object.keys(cameraMoves[0]),['zoom']);
-camera.focusEnabledBuildings3d();assert.equal(cameraMoves.length,1);
-cameraZoom=13;cameraPitch=0;camera.focusEnabledBuildings3d();assert.equal(cameraMoves.length,1);
-cameraPitch=60;enabled=false;camera.focusEnabledBuildings3d();assert.equal(cameraMoves.length,1);
-console.log('Late building configuration, asset retry, and requested 3D camera regressions passed');
+console.log('Late building configuration and asset retry regressions passed');
 
-// Enabled municipal walls are continuous across camera altitude, rotation and
-// viewport changes. The 1,000 m detail-framing target is not a render cutoff.
+// Pitch selects walls or flat footprints, with no altitude cutoff.
 for (const pitch of [0,10,10.01,60,85]) for (const on of [false,true]) {
-  const c=vm.createContext({glMap:{getPitch:()=>pitch},layerVisible:()=>on,
-    cameraIsWithinBuildingRange:()=>{throw Error('Visibility must not use altitude');}});
-  vm.runInContext(fn('buildingsShouldRenderForCamera'),c);
+  const layers = new Map([['nw-2d-buildings', 'none'], ['nw-3d-buildings', 'none']]);
+  const c=vm.createContext({
+    glMap:{
+      getPitch:()=>pitch, getLayer:id=>layers.has(id),
+      getLayoutProperty:id=>layers.get(id),
+      setLayoutProperty(id,name,value){assert.equal(name,'visibility');layers.set(id,value);}
+    },
+    document:{body:{dataset:{}}}, layerVisible:()=>on,
+    visibility:value=>value?'visible':'none'
+  });
+  for(const name of ['buildingsShouldRenderForCamera','syncBuildingVisibilityForCamera'])vm.runInContext(fn(name),c);
   assert.equal(c.buildingsShouldRenderForCamera(),on&&pitch>10);
+  c.syncBuildingVisibilityForCamera();
+  assert.equal(layers.get('nw-2d-buildings'),on&&pitch<=10?'visible':'none');
+  assert.equal(layers.get('nw-3d-buildings'),on&&pitch>10?'visible':'none');
 }
 {
   const c=vm.createContext({glMap:null,layerVisible:()=>true});
@@ -96,7 +89,7 @@ for (const [generation,preference] of [[0,null],[1,true],[2,false]]) for (const 
 }
 const transition=s.slice(s.indexOf('    function transitionMode('),s.indexOf('    function updateDefaultWheel('));
 assert.match(transition,/if \(desired3dMode\) enableDefaultBuildings3d\(\)/);
-assert.doesNotMatch(transition,/focusEnabledBuildings3d|zoom:/,'3D entry retains the current center and zoom');
+assert.doesNotMatch(transition,/\bzoom:/,'3D entry retains the current center and zoom');
 console.log('18 building visibility/default cases passed; camera entry preserves view and explicit layer intent');
 
 // Run the actual recovery controller with controlled MapLibre events and
@@ -113,7 +106,7 @@ function pendingPlane(url) {
     cancelTextureLoad(){this.pending.resolve(false);}};
 }
 async function flushRecovery() { for(let i=0;i<12;i++)await Promise.resolve(); }
-function recoveryHarness(planes) {
+function recoveryHarness(planes, visibleNativeMap = false) {
   const listeners=new Map(),timers=new Map(),statuses=[],warnings=[];
   const nativeSource={};
   let timerId=0,styleLoaded=false,repaints=0;
@@ -124,11 +117,16 @@ function recoveryHarness(planes) {
     isStyleLoaded(){return styleLoaded;},triggerRepaint(){repaints++;},getSource(){return nativeSource;}
   };
   const context={glMap:mapInstance,glStyleReady:true,floodPlaneLayer:pendingPlane('before-loss'),
-    document:{body:{dataset:{map3d:'ready'}}},
+    document:{body:{dataset:{map3d:'ready'},classList:{contains:name=>visibleNativeMap&&name==='map-3d-ready'}}},
     window:{setTimeout(callback,delay){const id=++timerId;timers.set(id,{callback,delay});return id;},clearTimeout(id){timers.delete(id);}},
     console:{warn(...args){warnings.push(args);}},setStatus(message){statuses.push(message||null);},
     syncFloodLayer3d(){context.floodPlaneLayer=planes.shift()||null;},syncBuildings3d:async()=>{},
     waitForNativeFloodImage3d:async()=>true,
+    restoreLeafletAfter3dFailure(instance){
+      assert.equal(instance,mapInstance);
+      context.glMap=null;
+      context.document.body.dataset.map3d='fallback';
+    },
   };
   for(const name of ['syncBoundary3d','syncSatellite3d','syncRoadLabels3d','syncParcels3d','syncNsi3d','syncPersistentNavControl'])context[name]=()=>{};
   vm.createContext(context);vm.runInContext(fn('wire3dContextRecovery'),context);
@@ -165,6 +163,18 @@ for(const phase of ['lost-context','missing-style','new-loss']) {
     map3dReady:()=>false,activate3d(){activations++;},transitionMode(){assert.fail('No healthy renderer to transition');},actual3dMode:()=>false});
   vm.runInContext('(function(){'+actualViewClick+'})()',h.context);await flushRecovery();
   assert.equal(activations,1);assert.equal(busyCalls,0,'An absent retry must not consume a click in an empty busy cycle');
+}
+
+// A visible renderer without a recovered style releases WebGL on timeout.
+for (const styleWasRestoring of [false,true]) {
+  const h=recoveryHarness([],true);
+  h.lose();
+  if (styleWasRestoring) h.restore();
+  h.deadline();
+  assert.equal(h.context.document.body.dataset.map3d,'fallback');
+  assert.equal(h.context.glMap,null);
+  h.lose();h.restore();h.style();await flushRecovery();
+  assert.equal(h.context.document.body.dataset.map3d,'fallback','A retired WebGL renderer cannot replace Leaflet');
 }
 
 // A healthy GPU plane alone cannot certify the top-down native image. A failed

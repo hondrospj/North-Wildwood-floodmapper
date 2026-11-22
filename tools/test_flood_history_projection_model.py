@@ -59,6 +59,26 @@ historic_peaks = [1.0, 1.1, 1.1001, 1.2]
 assert model.historic_flood_count(historic_peaks, 1.0) == 2
 assert model.historic_flood_count([1.1], 1.0) == 0
 
+with tempfile.TemporaryDirectory() as directory:
+    path = Path(directory) / "survey.tif"
+    dataset = model.gdal.GetDriverByName("GTiff").Create(str(path), 12, 12, 1, model.gdal.GDT_Float32)
+    projection = model.osr.SpatialReference()
+    projection.ImportFromEPSG(4326)
+    dataset.SetProjection(projection.ExportToWkt())
+    dataset.SetGeoTransform((-75.0, .001, 0, 39.0, 0, -.001))
+    terrain = model.np.full((12, 12), -9999, dtype="float32")
+    terrain[0, 0] = 8
+    terrain[8, 8] = 13
+    terrain[5, 9] = 11
+    band = dataset.GetRasterBand(1)
+    band.SetNoDataValue(-9999)
+    band.WriteArray(terrain)
+    band = dataset = None
+    survey = model.DemSampler(path)
+    assert survey.sample(-75.1, 38.9995) == (None, "unavailable")
+    assert survey.sample(-74.9995, 38.9995) == (8.0, "centroid")
+    assert survey.sample(-74.9945, 38.9945) == (11.0, "nearest-valid-cell-4")
+
 peaks = [1.0, 2.0, 3.0, 4.0]
 events = [
     {"year": 2024, "rebasedNavd88Ft": 1.0},

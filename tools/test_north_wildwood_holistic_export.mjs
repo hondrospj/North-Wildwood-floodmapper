@@ -88,10 +88,33 @@ try {
 
   await page.locator('#returnIntervalDataBtn').click();
   await page.waitForFunction(()=>currentDataMode==='return-interval' && floodFrameState==='ready');
+  const modeledBounds=await page.evaluate(()=>{
+    const entries=getReturnIntervalExportEntries();
+    return [entryTimeMs(entries[0]),entryTimeMs(entries.at(-1))];
+  });
+  await page.locator('#openDownloadModalBtn').click();
+  await page.locator('#exportFormatPngBtn').click();
+  const pngSeed=await page.evaluate(()=>({
+    times:getDownloadFrameItems().map(item=>entryTimeMs(item.entry)),
+    timeLabel:document.getElementById('downloadStartTimeButton').textContent,
+  }));
+  assert.deepEqual(pngSeed.times,[modeledBounds[0]],'The default PNG has one native frame, even between clock hours');
+  assert.match(pngSeed.timeLabel,/12 hr before peak/);
+  await page.locator('#downloadEndTimeButton').click();
+  await page.locator(`#nwwExportDateTimePicker [data-value$="|${modeledBounds[1]}"]`).click();
+  const completeModeledRange=await page.evaluate(()=>{
+    const range=getDownloadRangeRequest();
+    return [range.startMs,range.endMs];
+  });
+  assert.deepEqual(completeModeledRange,modeledBounds,'The end selector can reach the modeled time on the next civil day');
+  await page.locator('#downloadModalCloseBtn').click();
+  result.checks.push('Modeled PNG starts with one exact frame and its time selector covers the whole storm');
   await page.locator('#intervalDailyBtn').click();
   await page.waitForFunction(()=>getTimelineIntervalMinutes()===1440 && floodFrameState==='ready');
   const main=await page.evaluate(()=>currentSeriesHours.map(entry=>({time:entry.timeUtc,stage:getStageValue(entry),day:entry.syntheticStormDay})));
-  await page.locator('#openDownloadModalBtn').click();await review(page);
+  await page.locator('#openDownloadModalBtn').click();
+  await page.locator('#exportFormatGifBtn').click();
+  await review(page);
   await page.locator('#exportAspectSquareBtn').click();await page.locator('#exportIntervalDailyBtn').click();
   const modeled=await page.evaluate(()=>getDownloadFrameItems().map(item=>({time:item.entry.timeUtc,stage:getStageValue(item.entry),day:item.entry.syntheticStormDay})));
   assert.deepEqual(modeled,main);assert.equal(modeled.length,2);
@@ -105,10 +128,10 @@ try {
     assert.equal(await download.failure(),null);
     await page.waitForFunction(()=>!exportInProgress,{}, {timeout:90000});
     const gif=inspectGif(fs.readFileSync(file));
-    assert.equal(gif.width,1200);assert.equal(gif.height,1200);
+    assert.equal(gif.width,1500);assert.equal(gif.height,1500);
     assert.equal(gif.frames.length,modeled.length);assert.ok(gif.frames.every(frame=>frame.delayMs===1000));
     result.states.push({label:'actual-gif',file:path.basename(file),...gif});
-    result.checks.push('Actual modeled GIF downloads at 1200 × 1200 with two 1,000 ms frames');
+    result.checks.push('Actual modeled GIF downloads at 1500 × 1500 with two 1,000 ms frames');
   }
   await page.close();
 
@@ -135,8 +158,8 @@ try {
   result.states.push({label:'forecast-during-history-outage',historyFailures,frames:forecastFrames});
   await forecastOnly.close();
 
-  // A real pending CDN response must not leave Download locked after Close.
-  const stalled=await pageFor();let hold=true,release;
+  // Exercise a preview CDN deadline and cancel a separate download dependency.
+  const stalled=await pageFor();let hold=true,release,releaseDownload=()=>{};
   const gate=new Promise(resolve=>{release=resolve;});
   await stalled.route('**/html2canvas*.js',async route=>{
     if(hold){await gate;await route.abort('failed').catch(()=>{});}else await route.continue();
@@ -149,21 +172,49 @@ try {
       window.__holisticScript=document.querySelector('script[data-optional-library="html2canvas"]');
       optionalScriptPromises.get('html2canvas').catch(error=>{window.__holisticDeadline=error.message;});
     });
-    // Allow the debounced preview to enter its actual library await.
-    await stalled.waitForTimeout(700);await review(stalled);await stalled.locator('#downloadBtn').click();
-    await stalled.waitForFunction(()=>document.getElementById('downloadBtn').disabled && !exportInProgress);
-    await stalled.locator('#downloadModalCloseBtn').click();await stalled.locator('#openDownloadModalBtn').click();
+    await review(stalled);
+    await stalled.waitForFunction(()=>Boolean(window.__holisticDeadline),{}, {timeout:15000});
+    assert.match(await stalled.evaluate(()=>window.__holisticDeadline),/html2canvas took too long/);
+    assert.equal(await stalled.evaluate(()=>!window.__holisticScript.isConnected),true);
+    await stalled.waitForFunction(()=>document.getElementById('exportPreview').dataset.state==='error',{}, {timeout:30000});
+
+    hold=false;release();
+    await stalled.locator('#exportPreviewRetryBtn').click();
+    await stalled.waitForFunction(()=>document.getElementById('exportPreview').dataset.state==='ready',{}, {timeout:180000});
+
+    // PNG previews use only html2canvas. Packaging two PNGs needs JSZip,
+    // so its held request belongs to the progress dialog, never the preview.
+    const downloadGate=new Promise(resolve=>{releaseDownload=resolve;});
+    await stalled.route('**/jszip*.js',async route=>{
+      await downloadGate;
+      await route.abort('failed').catch(()=>{});
+    });
+    const end=await stalled.evaluate(()=>{
+      const start=getRangeInputDate('downloadStartInput');
+      const date=new Date(start.getTime()+3600000),parts=getNyParts(date);
+      return {date:`${parts.month}/${parts.day}/${parts.year}`,time:formatNyLocalIso(date).slice(11)};
+    });
+    await stalled.locator('#exportReviewBackBtn').click();
+    await fillDate(stalled,'End',end.date,end.time);
+    await review(stalled);
+    assert.equal(await stalled.evaluate(()=>getDownloadFrameItems().length),2);
+
+    const pendingDownload=stalled.waitForRequest('**/jszip*.js',{timeout:30000});
+    pendingDownload.catch(()=>{});
+    await stalled.locator('#downloadBtn').click();
+    await pendingDownload;
+    const progress=stalled.locator('#exportProgressOverlay');
+    await progress.getByRole('button',{name:'Cancel export',exact:true}).click();
+    await stalled.waitForFunction(()=>!exportInProgress && document.getElementById('exportProgressOverlay').hidden);
+    assert.equal(await stalled.locator('#exportProgressMessage').textContent(),'Export cancelled.');
+
+    releaseDownload();
+    await stalled.locator('#openDownloadModalBtn').click();
     assert.equal(await stalled.locator('#downloadBtn').isEnabled(),true);
     assert.equal(await stalled.locator('#downloadBtnLabel').textContent(),'More options');
-    await stalled.waitForFunction(()=>Boolean(window.__holisticDeadline),{}, {timeout:15000});
-    assert.equal(await stalled.evaluate(()=>!window.__holisticScript.isConnected),true);
-    hold=false;release();
-    await stalled.waitForFunction(()=>['error','ready'].includes(document.getElementById('exportPreview').dataset.state),{}, {timeout:30000});
-    if(await stalled.locator('#exportPreview').getAttribute('data-state')==='error') await stalled.locator('#exportPreviewRetryBtn').click();
     await stalled.waitForFunction(()=>document.getElementById('exportPreview').dataset.state==='ready',{}, {timeout:180000});
-    assert.equal(await stalled.locator('#downloadBtn').isEnabled(),true);
-    result.checks.push('Pending preview preparation cancels on Close, its CDN request expires, and retry produces a ready preview');
-  } finally {release();await stalled.close();}
+    result.checks.push('A real CDN deadline removes the expired preview script, Retry restores the preview, and progress Cancel releases a stalled PNG download');
+  } finally {release();releaseDownload();await stalled.close();}
   assert.deepEqual(result.errors,[]);
 } catch(error) {
   result.failure=error.stack;throw error;

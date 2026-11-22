@@ -1,13 +1,26 @@
     function setFloodFrameStatus(message, state = "info") {
-      if (state === "loading") message = "";
-      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== "Stone Harbor USGS").join(" • ");
+      if (state === "loading" || (state === "info" && /^Loading\b/i.test(String(message || "")))) message = "";
+      if (state === "info") message = String(message || "").split(" • ").filter(note => note !== "Interpolated" && note !== `${TOWN_CONFIG.site.gaugeName} USGS`).join(" • ");
       const status = document.getElementById("floodFrameStatus");
       if (!status) return;
+      status.dataset.frameMessage = String(message || "");
+      status.dataset.frameState = state;
+      scheduleForecastFreshnessNotice();
+    }
+
+    function updateFloodFrameStatus() {
+      const status = document.getElementById("floodFrameStatus");
+      if (!status) return;
+      const freshness = currentDataMode === "forecast" ? getForecastFreshness(getForecastSourceForNotice()) : null;
+      const forecastNotice = freshness?.state === "stale"
+        ? `Forecast from ${formatFixedESTFromUtc(freshness.timestamp, true)} is over 72 hours old. Select Forecast to check for an update.`
+        : "";
+      const message = [forecastNotice, status.dataset.frameMessage].filter(Boolean).join(" ");
       const timeline = document.getElementById("timelineDock");
       const top = timeline?.getBoundingClientRect().top;
       if (Number.isFinite(top)) status.style.setProperty("--flood-status-bottom", `${Math.max(24, window.innerHeight - top + 70)}px`);
-      status.textContent = message;
-      status.dataset.state = state;
+      if (status.textContent !== message) status.textContent = message;
+      status.dataset.state = status.dataset.frameState || "info";
       status.hidden = !message;
     }
 
@@ -39,14 +52,10 @@
 
     function reportFloodFrameFailure() {
       const retained = Boolean(currentFloodLayer && map?.hasLayer(currentFloodLayer));
-      const message = retained
-        ? "Could not load the selected flood image. The previous image and time are still shown. Select a time to retry."
-        : "The flood image could not load. Select a time to retry.";
       if (typeof floodFrameState !== "undefined") floodFrameState = "failed";
       document.body.dataset.floodFrame = "failed";
       document.body.dataset.floodFrameRecovery = "failed";
-      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(message, "error");
-      toast(message);
+      setFloodFrameStatus(retained ? "" : "Flood layer unavailable.", "error");
       if (!retained && typeof markInitialFloodFrameFailed === "function") markInitialFloodFrameFailed();
       if (typeof stopPlayback === "function") stopPlayback();
     }
@@ -54,6 +63,7 @@
     function waitForRecoveryFloodLayer(layer, token, onReady) {
       return new Promise(resolve => {
         let settled = false;
+        let handlingLoad = false;
         let timeout = null;
         const finish = ready => {
           if (settled) return;
@@ -75,6 +85,8 @@
           resolve(ready);
         };
         const handleLoad = async () => {
+          if (handlingLoad) return;
+          handlingLoad = true;
           if (settled || token !== lastRenderToken) return finish(false);
           if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
           await new Promise(requestAnimationFrame);
@@ -92,7 +104,11 @@
         layer.on("error", handleError);
         layer.on("remove", handleRemove);
         timeout = window.setTimeout(() => finish(false), 20000);
-        try { layer.addTo(map); } catch (_) { finish(false); }
+        try {
+          layer.addTo(map);
+          const image = layer.getElement();
+          if (image?.complete && image.naturalWidth) void handleLoad();
+        } catch (_) { finish(false); }
       });
     }
 
@@ -109,7 +125,7 @@
       if (typeof floodFrameState !== "undefined") floodFrameState = "loading";
       document.body.dataset.floodFrame = "loading";
       if (persistentDepthQueryContext?.kind === "physics") updatePersistentDepthQueryPopup();
-      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "Loading the next flood map… Previous frame shown." : "Loading flood map…", "loading");
+      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "" : "", "loading");
       return lastRenderToken;
     }
 
@@ -131,13 +147,14 @@
       if (currentFloodLayer?.setOpacity) currentFloodLayer.setOpacity(overlayOpacity);
     }
 
-    function formatFixedESTFromUtc(isoString) {
+    function formatFixedESTFromUtc(isoString, includeYear = false) {
       if (!isoString) return "--";
       const d = new Date(isoString);
       if (Number.isNaN(d.getTime())) return "--";
       const parts = getNyParts(d);
       if (!parts) return "--";
-      return `${MONTH_NAMES[Number(parts.month) - 1]} ${Number(parts.day)}, ${parts.hour}:${parts.minute} ${parts.dayPeriod || ""} ${parts.timeZoneName || "ET"}`.replace(/\s+/g, " ").trim();
+      const year = includeYear ? `, ${parts.year}` : "";
+      return `${MONTH_NAMES[Number(parts.month) - 1]} ${Number(parts.day)}${year}, ${parts.hour}:${parts.minute} ${parts.dayPeriod || ""} ${parts.timeZoneName || "ET"}`.replace(/\s+/g, " ").trim();
     }
 
 function parseStoredESTToDate(timeEST) {
@@ -156,7 +173,7 @@ function parseStoredESTToDate(timeEST) {
     }
 
     function formatHourEntryTime(entry) {
-      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry);
       const d = getEntryESTDate(entry);
@@ -165,7 +182,7 @@ function parseStoredESTToDate(timeEST) {
     }
 
     function formatHourEntryTimeCompact(entry) {
-      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak`;
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
       const d = getEntryESTDate(entry);
@@ -176,7 +193,7 @@ function parseStoredESTToDate(timeEST) {
     }
 
     function formatSnapshotTime(entry) {
-      if (entry?.isDailyPeakOnly) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} • Peak time unknown`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry);
       const est = getEntryESTDate(entry);
@@ -186,7 +203,7 @@ function parseStoredESTToDate(timeEST) {
 
 function getEntryESTDate(entry) {
       // Calendar ordering anchor only, never an asserted observation timestamp.
-      if (entry?.isDailyPeakOnly) return parseStoredLocalNyToDate(`${entry.observedDate}T00:00`);
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return parseStoredLocalNyToDate(`${entry.observedDate}T00:00`);
       const d = entry?.timeUtc
         ? new Date(entry.timeUtc)
         : entry?.displayTimeUtc
@@ -203,7 +220,7 @@ function getEntryESTDate(entry) {
     }
 
     function formatTimelineBubbleText(entry) {
-      if (entry?.isDailyPeakOnly) return isMobileTimeline() ? "Daily peak only" : `${formatSelectedObservedDate(entry.observedDate)} • Daily peak only`;
+      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return isMobileTimeline() ? "Daily peak only" : `${formatSelectedObservedDate(entry.observedDate)} • Daily peak only`;
       if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
       if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
       const est = getEntryESTDate(entry);
@@ -314,12 +331,16 @@ function getEntryESTDate(entry) {
     }
 
     function revealTimelineDay(button, wrap) {
-      if (!button || !isMobileTimeline()) return;
+      if (!button) return;
       requestAnimationFrame(() => {
-        // Scroll only the day strip, never the map or page.
-        if (button.offsetLeft < wrap.scrollLeft || button.offsetLeft + button.offsetWidth > wrap.scrollLeft + wrap.clientWidth) {
-          wrap.scrollLeft = button.offsetLeft - (wrap.clientWidth - button.offsetWidth) / 2;
-        }
+        if (!wrap.contains(button) || !button.classList.contains("active") || wrap.scrollWidth <= wrap.clientWidth) return;
+        const stripLeft = wrap.getBoundingClientRect().left + wrap.clientLeft;
+        const selected = button.getBoundingClientRect();
+        const clippedLeft = selected.left - stripLeft;
+        const clippedRight = selected.right - (stripLeft + wrap.clientWidth);
+        // Scroll the day strip without changing the page or map position.
+        if (clippedLeft < -1) wrap.scrollLeft += clippedLeft;
+        else if (clippedRight > 1) wrap.scrollLeft += clippedRight;
       });
     }
 
@@ -367,7 +388,7 @@ function getEntryESTDate(entry) {
         if (gaugeInoperable) {
           const outageHours = getDisplayedGaugeOutageHours(currentSeriesHours, group.start, group.end);
           btn.setAttribute("aria-label", `Gauge inoperable for more than ${GAUGE_OUTAGE_THRESHOLD_HOURS} hours`);
-          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable North Wildwood or Stone Harbor gauge level`;
+          btn.title = `${outageHours.toFixed(0)} consecutive hours without a usable ${TOWN_CONFIG.observed?.gaugeOutageLabel ?? TOWN_CONFIG.site.gaugeName} gauge level`;
         }
         // The first and last frames occupy half a slider interval.
         const timelineFrameWeight = currentSeriesHours.length <= 1 ? 1

@@ -8,7 +8,6 @@ import concurrent.futures
 import getpass
 import hashlib
 import json
-import mimetypes
 import os
 import re
 import subprocess
@@ -118,10 +117,6 @@ class BunnyStorage:
     ) -> None:
         self.request("PUT", remote_path, payload, content_type)
 
-    def upload_file(self, remote_path: str, local_path: Path) -> None:
-        content_type = mimetypes.guess_type(local_path.name)[0] or "application/octet-stream"
-        self.upload_bytes(remote_path, local_path.read_bytes(), content_type)
-
     def list_directory(self, remote_path: str) -> list[dict[str, Any]]:
         payload, _ = self.request("GET", remote_path, directory=True)
         value = json.loads(payload.decode("utf-8"))
@@ -215,20 +210,27 @@ def get_access_key(zone: str, setup_key: bool) -> str:
     )
 
 
-def public_files(public_directory: Path) -> list[Path]:
-    return sorted(
-        path
-        for path in public_directory.rglob("*")
-        if path.is_file() and path.name != "manifest.json"
-    )
+def manifest_assets(public_directory: Path, manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    assets: dict[str, dict[str, Any]] = {}
+    for row in (*manifest["frames"], *manifest["dailyMaximums"]):
+        for kind in ("visible", "impact", "query"):
+            record = row[kind]
+            path = Path(record["path"])
+            if (path.is_absolute() or ".." in path.parts or path.suffix.lower() != ".png"
+                    or not (public_directory / path).resolve().is_relative_to(public_directory.resolve())):
+                raise RuntimeError(f"Invalid public asset path: {path}")
+            name = path.as_posix()
+            if name in assets and assets[name] != record:
+                raise RuntimeError(f"Conflicting public asset records for {name}")
+            assets[name] = record
+    return assets
 
 
-def remote_manifest_path(
-    remote_root: str,
-    cycle_id: str,
-    scenario: str,
-) -> str:
-    return join_remote(remote_root, cycle_id, scenario, "manifest.json.png")
+def verified_asset_bytes(path: Path, record: dict[str, Any]) -> bytes:
+    payload = path.read_bytes()
+    if len(payload) != int(record["bytes"]) or sha256_bytes(payload) != record["sha256"]:
+        raise RuntimeError(f"Public asset changed since validation: {path}")
+    return payload
 
 
 def verify_cors(headers: Any, remote_path: str) -> None:
@@ -246,13 +248,18 @@ def publish_scenario(
     remote_root: str,
     cycle_id: str,
     scenario: str,
+    generation: str,
+    expected_manifest_sha: str,
     workers: int,
 ) -> tuple[str, dict[str, Any]]:
     public_directory = run_directory / scenario / "public"
     manifest_path = public_directory / "manifest.json"
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Missing completed render: {manifest_path}")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_payload = manifest_path.read_bytes()
+    if sha256_bytes(manifest_payload) != expected_manifest_sha:
+        raise RuntimeError(f"Public manifest changed since validation: {manifest_path}")
+    manifest = json.loads(manifest_payload)
     if (
         manifest.get("status") != "complete"
         or manifest.get("cycleId") != cycle_id
@@ -260,35 +267,26 @@ def publish_scenario(
     ):
         raise RuntimeError(f"Invalid local public manifest: {manifest_path}")
 
-    files = public_files(public_directory)
-    remote_scenario_root = join_remote(remote_root, cycle_id, scenario)
+    files = manifest_assets(public_directory, manifest)
+    # A retry must not overwrite assets still referenced by an existing pointer.
+    remote_scenario_root = join_remote(remote_root, cycle_id, "generations", generation, scenario)
     print(
         f"Uploading {scenario}: {len(files):,} PNG files "
-        f"({sum(path.stat().st_size for path in files) / 1048576:.1f} MiB)."
+        f"({sum(int(record['bytes']) for record in files.values()) / 1048576:.1f} MiB)."
     )
 
-    def upload(path: Path) -> None:
-        remote_path = join_remote(
-            remote_scenario_root,
-            path.relative_to(public_directory).as_posix(),
-        )
-        bunny.upload_file(remote_path, path)
+    def upload(name: str) -> None:
+        payload = verified_asset_bytes(public_directory / name, files[name])
+        bunny.upload_bytes(join_remote(remote_scenario_root, name), payload, "image/png")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = [executor.submit(upload, path) for path in files]
+        futures = [executor.submit(upload, name) for name in sorted(files)]
         for index, future in enumerate(concurrent.futures.as_completed(futures), start=1):
             future.result()
             if index % 100 == 0 or index == len(futures):
                 print(f"  {scenario}: uploaded {index}/{len(futures)}")
 
-    manifest_remote_path = remote_manifest_path(
-        remote_root,
-        cycle_id,
-        scenario,
-    )
-    manifest_payload = (
-        json.dumps(manifest, indent=2) + "\n"
-    ).encode("utf-8")
+    manifest_remote_path = join_remote(remote_scenario_root, "manifest.json.png")
     bunny.upload_bytes(
         manifest_remote_path,
         manifest_payload,
@@ -386,14 +384,17 @@ def validate_publication_inputs(config: dict[str, Any], guidance: dict[str, Any]
         run_path = run / "run_manifest.json"
         public_path = run / "public/manifest.json"
         run_manifest = json.loads(run_path.read_text())
-        public_manifest = json.loads(public_path.read_text())
+        public_payload = public_path.read_bytes()
+        public_manifest = json.loads(public_payload)
         simulation = simulation_identity(ROOT, config, guidance, scenario)
         rendered = render_identity(ROOT, config, simulation)
         if (not identity_matches(run_manifest.get("simulationIdentity"), simulation)
                 or not identity_matches(public_manifest.get("renderIdentity"), rendered)
                 or results[scenario].get("runManifestSha256") != sha256_file(run_path)
-                or results[scenario].get("publicManifestSha256") != sha256_file(public_path)):
+                or results[scenario].get("publicManifestSha256") != sha256_bytes(public_payload)):
             raise RuntimeError(f"{scenario} changed since validation; rerun the model/validation before publishing")
+        for name, record in manifest_assets(public_path.parent, public_manifest).items():
+            verified_asset_bytes(public_path.parent / name, record)
     return identities
 
 
@@ -432,6 +433,8 @@ def main() -> None:
     ):
         raise RuntimeError(f"Invalid product validation report: {validation_path}")
     identities = validate_publication_inputs(config, guidance, cycle_id, validation)
+    manifest_hashes = {row["scenario"]: row["publicManifestSha256"] for row in validation["scenarios"]}
+    generation = sha256_bytes(json.dumps(manifest_hashes, sort_keys=True).encode("utf-8"))
     access_key = get_access_key(bunny_config["storageZone"], args.setup_key)
     bunny = BunnyStorage(
         zone=bunny_config["storageZone"],
@@ -449,6 +452,8 @@ def main() -> None:
             bunny_config["remoteRoot"],
             cycle_id,
             scenario,
+            generation,
+            manifest_hashes[scenario],
             max(1, args.workers),
         )
         manifest_urls[scenario] = manifest_url

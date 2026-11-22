@@ -1,5 +1,6 @@
 
     const APP_BASE = new URL(".", window.location.href);
+    const UI_ASSET_BASE = new URL("../", document.currentScript?.src || new URL("assets/app/runtime.js", APP_BASE));
     let FORECAST_URL = "";
     let OBSERVED_URL = "";
     let CANONICAL_DAILY_URL = "";
@@ -11,11 +12,13 @@
     let RETURN_INTERVALS_URL = "";
     let DEPTH_QUERY_PNG_URL = "";
     let DEVELOPED_QUERY_PNG_URL = "";
+    let DEPTH_QUERY_WEBP_URL = "";
+    let DEVELOPED_QUERY_WEBP_URL = "";
     let DEPTH_QUERY_COG_URL = "";
-    let HYDRAULIC_STATES_URL = "";
     let PHYSICS_FORECAST_POINTER_URL = "";
     let PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE = "";
     let PARCELS_URL = "";
+    let PARCEL_AREA_STAGES_URL = "";
     let HOUSE_ALERT_CDF_URL = "";
     let PARCEL_BOUNDARY_PNG_URL = "";
     let NSI_STRUCTURES_URL = "";
@@ -27,7 +30,7 @@
     }
 
     const OPTIONAL_SCRIPT_URLS = {
-      html2canvas: "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+      html2canvas: new URL("vendor/html2canvas-1.4.1.min.js", UI_ASSET_BASE).href,
       jszip: "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
       geotiff: "https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"
     };
@@ -100,7 +103,7 @@
     const DEFAULT_OVERLAY_MODE = "depth";
     const DEFAULT_DATA_MODE = "forecast";
     const DEFAULT_OPACITY = 0.75;
-    const TOP_TIDE_DISPLAY_COUNT = 2;
+    const TOP_TIDE_DISPLAY_COUNT = 3;
     const TOP_TIDE_SELECT_COUNT = 10;
     const TOP_TIDE_WINDOW_HOURS = 12;
     const ROAD_LABEL_ZOOM = 10;
@@ -124,12 +127,11 @@
     const EXPORT_CAPTURE_SCALE = 1;
     const EXPORT_GIF_DITHER = false;
     const EXPORT_PNG_SELECTION_LIMIT = EXPORT_INTERVALS["15min"].frameLimit;
-    const GIF_WORKER_CDN_URL = "https://cdn.jsdelivr.net/npm/gif.js.optimized@1.0.1/dist/gif.worker.js";
+    const GIF_WORKER_URL = new URL("vendor/gif.worker.js?v=ef4ff2db1b2c1116", UI_ASSET_BASE).href;
     const EXPORT_GIF_ASPECTS = {
-      "4:5": { value: "4:5", width: 1080, height: 1350, pngWidth: 2160, pngHeight: 2700, label: "Social 4:5" },
-      "16:9": { value: "16:9", width: 1920, height: 1080, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
-      "9:16": { value: "9:16", width: 1080, height: 1920, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
-      "1:1": { value: "1:1", width: 1200, height: 1200, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }
+      "16:9": { value: "16:9", width: 2400, height: 1350, pngWidth: 3840, pngHeight: 2160, label: "Wide 16:9" },
+      "9:16": { value: "9:16", width: 1350, height: 2400, pngWidth: 2160, pngHeight: 3840, label: "Story 9:16" },
+      "1:1": { value: "1:1", width: 1500, height: 1500, pngWidth: 2160, pngHeight: 2160, label: "Square 1:1" }
     };
     const EXPORT_PROGRESS_UPDATE_EVERY = 8;
 
@@ -362,7 +364,10 @@
     function syncExportBrandLogos(config) {
       const assets = config?.assets || {};
       setExportLogoImage("exportTownLogo", assets.titleLogoPath, assets.titleLogoAlt || config?.site?.name || "");
-      setExportLogoImage("exportPartnerLogo", assets.partnerLogoPath || assets.rightRailLogoPath, assets.partnerLogoAlt || assets.rightRailLogoAlt || "ShorelySafe");
+      const partner = document.getElementById("exportPartnerLogo");
+      const logo = assets.partnerLogoPath || assets.rightRailLogoPath;
+      setExportLogoImage("exportPartnerLogo", logo && (partner?.dataset.exportBrandSrc || logo),
+        assets.partnerLogoAlt || assets.rightRailLogoAlt || "ShorelySafe");
     }
 
     function applyTownConfig(config) {
@@ -370,7 +375,7 @@
       TOWN_CONFIG = config;
       FORECAST_URL = new URL(config.data?.forecastPath || "./forecast.json", APP_BASE).href;
       OBSERVED_URL = new URL(config.data?.observedPath || "./observed.json", APP_BASE).href;
-      CANONICAL_DAILY_URL = new URL(config.data?.canonicalDailyPath || "./canonical_daily_v2.json", APP_BASE).href;
+      CANONICAL_DAILY_URL = optionalAppUrl(config.data?.canonicalDailyPath);
       OBSERVED_15MIN_URL = new URL(config.data?.observed15MinPath || "./observed15min.json", APP_BASE).href;
       OBSERVED_ARCHIVE_INDEX_URL = new URL(config.data?.observedArchiveIndexPath || "./observed_archive_index.json", APP_BASE).href;
       LEWES_ARCHIVE_INDEX_URL = optionalAppUrl(config.data?.surrogateArchiveIndexPath || config.data?.lewesArchiveIndexPath);
@@ -381,16 +386,18 @@
       DEVELOPED_QUERY_PNG_URL = config.overlays?.developedQueryPngPath
         ? new URL(config.overlays.developedQueryPngPath, APP_BASE).href
         : "";
+      DEPTH_QUERY_WEBP_URL = optionalAppUrl(config.overlays?.depthQueryWebpPath);
+      DEVELOPED_QUERY_WEBP_URL = optionalAppUrl(config.overlays?.developedQueryWebpPath);
       DEPTH_QUERY_COG_URL = config.overlays?.depthQueryCogPath
         ? new URL(config.overlays.depthQueryCogPath, APP_BASE).href
         : "";
-      HYDRAULIC_STATES_URL = optionalAppUrl(config.overlays?.hydraulicStatesPath);
       PHYSICS_FORECAST_POINTER_URL = config.overlays?.physicsForecastPointerPath
         ? new URL(config.overlays.physicsForecastPointerPath, APP_BASE).href
         : "";
       PHYSICS_FORECAST_CYCLE_POINTER_TEMPLATE =
         config.overlays?.physicsForecastCyclePointerTemplatePath || "";
       PARCELS_URL = optionalAppUrl(config.parcels?.geojsonPath);
+      PARCEL_AREA_STAGES_URL = optionalAppUrl(config.parcels?.areaStagesPath);
       HOUSE_ALERT_CDF_URL = optionalAppUrl(config.parcels?.houseAlertCdfPath);
       PARCEL_BOUNDARY_PNG_URL = optionalAppUrl(config.parcels?.boundaryPngPath);
       NSI_STRUCTURES_URL = config.structures?.nsi2026GeojsonPath
@@ -716,7 +723,28 @@ function cloneStyleObject(value) {
         style: styleEsriBuildingForeground
       };
       if (ESRI_API_KEY) options.apikey = ESRI_API_KEY;
-      return L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);
+      const layer = L.esri.Vector.vectorTileLayer(ESRI_OSM_VECTOR_TILE_URL, options);
+      const { onAdd, onRemove } = layer;
+      let pendingAdd;
+      // Esri 4.3.2 cannot remove a vector layer until its metadata creates
+      // the inner renderer. Cancel the deferred attachment on an early off.
+      layer.onAdd = function (targetMap) {
+        if (this._ready) return onAdd.call(this, targetMap);
+        pendingAdd = () => {
+          pendingAdd = null;
+          onAdd.call(this, targetMap);
+        };
+        this.once("ready", pendingAdd);
+      };
+      layer.onRemove = function (targetMap) {
+        if (pendingAdd) {
+          this.off("ready", pendingAdd);
+          pendingAdd = null;
+        } else if (this._ready) {
+          onRemove.call(this, targetMap);
+        }
+      };
+      return layer;
     }
 
     let map = null;
@@ -739,7 +767,6 @@ function cloneStyleObject(value) {
     let depthQueryGridPromise = null;
     let developedQueryGridPromise = null;
     let depthQueryImagePromise = null;
-    let hydraulicStatesPromise = null;
     let physicsForecastManifests = {};
     let physicsQueryImageCache = new Map();
     let renderedFloodPixelCache = null;
@@ -785,9 +812,9 @@ function cloneStyleObject(value) {
     let forecastData = null;
     let currentForecastScenario = "mean";
     const FORECAST_SCENARIOS = {
-      lowEnd: { label: "Lower End", percentile: "", buttonId: "forecastLowBtn" },
-      mean: { label: "Mean", percentile: "", buttonId: "forecastMeanBtn" },
-      highEnd: { label: "Upper End", percentile: "", buttonId: "forecastHighBtn" }
+      lowEnd: { label: "Best Case", percentile: "", buttonId: "forecastLowBtn" },
+      mean: { label: "Likely", percentile: "", buttonId: "forecastMeanBtn" },
+      highEnd: { label: "Worst Case", percentile: "", buttonId: "forecastHighBtn" }
     };
     let returnIntervalData = null;
     let currentReturnIntervalYears = 10;
@@ -808,8 +835,6 @@ function cloneStyleObject(value) {
     let observedArchiveLoadedYears = new Set();
     let observedDaysCache = null;
     let observedMonthKeys = [];
-    let observedFlatHours = [];
-    let observedHourIndexByDateHour = new Map();
     let topTideEvents = [];
     let historicTopTideEntries = [];
     let historicalTopTidesPromise = null;

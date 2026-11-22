@@ -79,9 +79,9 @@ def _small_enclosed_components(
 ) -> list[np.ndarray]:
     """Return small target components completely surrounded by enclosure.
 
-    The candidate search is limited to target pixels adjacent to the enclosure,
-    so large exterior dry regions are not traversed.  This NumPy/Python hybrid
-    deliberately avoids requiring SciPy in browser-export environments.
+    Seed from the enclosure boundary, then visit interior cells up to the size
+    limit. Remember rejected cells so later seeds can stop on contact with a
+    known open or oversized region.
     """
     if max_size <= 0:
         return []
@@ -91,18 +91,19 @@ def _small_enclosed_components(
     height, width = target_mask.shape
     flat_target = target_mask.ravel()
     flat_enclosure = enclosure_mask.ravel()
-    flat_potential = potential.ravel()
     pending = set(int(value) for value in np.flatnonzero(potential))
+    rejected: set[int] = set()
     components: list[np.ndarray] = []
     while pending:
         seed = pending.pop()
-        queue = [seed]
         component = [seed]
+        seen = {seed}
         closed = True
-        for position in queue:
+        for position in component:
             y, x = divmod(position, width)
             if y == 0 or x == 0 or y + 1 == height or x + 1 == width:
                 closed = False
+                break
             for neighbor in (
                 position - width if y > 0 else -1,
                 position - 1 if x > 0 else -1,
@@ -111,18 +112,22 @@ def _small_enclosed_components(
             ):
                 if neighbor < 0 or flat_enclosure[neighbor]:
                     continue
-                if not flat_target[neighbor]:
+                if not flat_target[neighbor] or neighbor in rejected:
                     closed = False
-                    continue
-                if not flat_potential[neighbor]:
-                    closed = False
-                    continue
-                if neighbor in pending:
-                    pending.remove(neighbor)
-                    queue.append(neighbor)
+                    break
+                if neighbor not in seen:
+                    seen.add(neighbor)
                     component.append(neighbor)
-        if closed and len(component) <= max_size:
+                    if len(component) > max_size:
+                        closed = False
+                        break
+            if not closed:
+                break
+        pending.difference_update(seen)
+        if closed:
             components.append(np.asarray(component, dtype=np.int64))
+        else:
+            rejected.update(seen)
     return components
 
 

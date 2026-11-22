@@ -31,6 +31,7 @@
     }
 
     async function ensureCanonicalDailyArchive() {
+      if (!CANONICAL_DAILY_URL) return null;
       if (canonicalDailyData) return canonicalDailyData;
       const generation = archiveGeneration;
       const payload = await fetchJson(CANONICAL_DAILY_URL, { cache: "default" });
@@ -181,22 +182,24 @@
     }
 
     async function ensureObserved15MinuteArchive() {
-      const generation = archiveGeneration;
-      let payload;
       if (observed15MinuteData) return observed15MinuteData;
+      const generation = archiveGeneration;
+      const indexRequest = preloadObservedArchiveIndexText();
+      let payload;
       try {
-        payload = JSON.parse(await preloadObservedArchiveIndexText());
-        if (String(payload.stationId || payload.site) !== String(TOWN_CONFIG?.observed?.usgsGaugeId)) {
-          throw new Error("The cached archive index does not use the primary USGS gauge.");
-        }
+        payload = JSON.parse(await indexRequest);
+        if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+        if (observed15MinuteData) return observed15MinuteData;
+        addArchiveShardDays(payload, "stone-harbor", { summary: true });
       } catch (indexError) {
+        if (generation !== archiveGeneration) throw indexError;
+        if (observedArchiveIndexTextPromise === indexRequest) observedArchiveIndexTextPromise = null;
         console.warn("Optimized observed archive index unavailable; using the compact archive.", indexError);
         payload = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
+        if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+        if (observed15MinuteData) return observed15MinuteData;
+        addArchiveShardDays(payload, "stone-harbor");
       }
-      if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-      // The compact fallback must satisfy the same gauge/cadence contract as
-      // a year shard before it can populate the primary cache.
-      addArchiveShardDays(payload, "stone-harbor");
       observed15MinuteData = payload;
       return observed15MinuteData;
     }
@@ -207,8 +210,7 @@
       const generation = archiveGeneration;
       const payload = await fetchJson(LEWES_HOURLY_URL, { cache: "default" });
       if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-      lewesHourlyData = payload;
-      return lewesHourlyData;
+      return payload;
     }
 
     function refreshObservedArchiveUi() {
@@ -231,11 +233,19 @@
       lewesArchiveIndexPromise = fetchJson(LEWES_ARCHIVE_INDEX_URL, { cache: "default" })
         .then(index => {
           if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+          const cutoff = primaryArchiveStartDate();
+          // Lewes has real date gaps. Require only days the canonical source
+          // identifies as available from this gauge before the archive cutoff.
+          const canonicalDays = Array.isArray(canonicalDailyData?.days) ? canonicalDailyData.days : [];
+          const indexedDates = canonicalDays
+            .filter(row => row?.[2] === "N" && Number.isFinite(row[1]) && row[0] < cutoff)
+            .map(row => row[0]);
+          validateArchiveDays(index, "lewes", { summary: true, indexedDates });
           lewesArchiveIndexData = index;
           lewesHourlyData = {
             stationId: index?.stationId || surrogateStationId(),
             stationName: index?.gaugeName || surrogateStationName(),
-            stoneHarborCutoffDate: primaryArchiveStartDate()
+            stoneHarborCutoffDate: cutoff
           };
           mergeObservedArchiveIndex(index, "lewes");
           refreshObservedArchiveUi();
@@ -281,27 +291,66 @@
       return url.href;
     }
 
-    function addArchiveShardDays(payload, source) {
+    function validateArchiveDays(payload, source, { summary = false, year = null, indexedDates = [] } = {}) {
       const expectedInterval = source === "lewes" ? 60 : 15;
-      if (Number(payload?.intervalMinutes) !== expectedInterval) {
+      const legacyArchive = TOWN_CONFIG.observed?.archiveContract === "legacy";
+      const legacyIndex = legacyArchive && summary && /(?:^|-)observed-day-index-v[12]$/.test(String(payload?.schema || ""));
+      const intervalMinutes = payload?.intervalMinutes ?? (legacyIndex ? expectedInterval : NaN);
+      if (Number(intervalMinutes) !== expectedInterval) {
         throw new Error(`Invalid ${source} archive interval; expected ${expectedInterval} minutes.`);
       }
-      if (payload.source && payload.source !== source) throw new Error("Archive source mismatch.");
+      const primaryAlias = summary
+        ? String(payload.shardPathTemplate || "").match(/observed_archive\/([a-z0-9-]+)\/\{year\}\.json$/i)?.[1]
+        : observed15MinuteData?.source;
+      const publishedSource = legacyArchive ? (source === "lewes" ? configuredSurrogate().key : primaryAlias) : null;
+      if (payload.source && payload.source !== source && payload.source !== publishedSource) {
+        throw new Error("Archive source mismatch.");
+      }
       const expectedStation = source === "lewes" ? surrogateStationId() : String(TOWN_CONFIG?.observed?.usgsGaugeId);
       if (String(payload.stationId || payload.site) !== expectedStation) throw new Error("Archive gauge mismatch.");
-      const cache = source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate;
-      const days = Array.isArray(payload?.days) ? payload.days : [];
-      // Validate the whole response before committing any entries to a cache.
-      days.forEach(day => {
-        if (!day?.d || !Array.isArray(day.v)) return;
-        const start = parseStoredLocalNyToDate(`${day.d}T00:00`);
-        const end = parseStoredLocalNyToDate(`${addDaysToDateKey(day.d, 1)}T00:00`);
+      if (payload.datum && payload.datum !== "NAVD88") throw new Error("Archive datum mismatch.");
+      if (year && payload.year != null && String(payload.year) !== String(year)) throw new Error("Archive year mismatch.");
+      const days = payload.days;
+      if (!Array.isArray(days) || !days.length) throw new Error("Archive has no days.");
+      const dates = new Set();
+      for (const day of days) {
+        const date = day?.d;
+        const civilDate = new Date(`${date}T00:00:00Z`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(civilDate.getTime()) ||
+            civilDate.toISOString().slice(0, 10) !== date) throw new Error("Invalid archive day.");
+        if (year && !date.startsWith(`${year}-`)) throw new Error(`Archive day ${date} is outside ${year}.`);
+        if (dates.has(date)) throw new Error(`Duplicate archive day ${date}.`);
+        dates.add(date);
+        if (summary && day.v === undefined) continue;
+        if (!Array.isArray(day.v)) throw new Error(`Archive day ${date} has no sample array.`);
+        const start = parseStoredLocalNyToDate(`${date}T00:00`);
+        const end = parseStoredLocalNyToDate(`${addDaysToDateKey(date, 1)}T00:00`);
         const slots = start && end ? (end - start) / (expectedInterval * 60000) : 0;
         if (day.v.length !== slots || Number(day.u) * 1000 !== start?.getTime()) {
-          throw new Error(`Invalid ${source} sample cadence for ${day.d}.`);
+          throw new Error(`Invalid ${source} sample cadence for ${date}.`);
         }
         if (day.v.some(value => value !== null && !Number.isFinite(value))) throw new Error("Invalid archive sample.");
-      });
+      }
+      const { archiveStartDate: first, archiveEndDate: last } = payload;
+      const publishedArchive = ["north-wildwood-observed-day-index-v1", "north-wildwood-observed-15min-v1",
+        "north-wildwood-lewes-hourly-surrogate-v1"].includes(payload.schema);
+      if (publishedArchive || (first && last) || (summary && (first || last))) {
+        if (!dates.has(first) || !dates.has(last) || days.some(day => day.d < first || day.d > last)) {
+          throw new Error("Archive does not match its published bounds.");
+        }
+        // The primary USGS index represents outages as explicit dates. The
+        // Lewes index is legitimately sparse and must keep that coverage.
+        if (source === "stone-harbor" && (!legacyArchive || publishedArchive) && dates.size !== (Date.parse(last) - Date.parse(first)) / 86400000 + 1) {
+          throw new Error("Primary archive is missing dates in its published bounds.");
+        }
+      }
+      if (indexedDates.some(date => !dates.has(date))) throw new Error("Archive details omit an indexed date.");
+      return days;
+    }
+
+    function addArchiveShardDays(payload, source, options) {
+      const days = validateArchiveDays(payload, source, options);
+      const cache = source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate;
       days.forEach(day => {
         if (!day?.d || !Array.isArray(day.v)) return;
         cache.set(day.d, day);
@@ -337,20 +386,22 @@
       if (source === "stone-harbor") await ensureObserved15MinuteArchive();
       const index = source === "lewes" ? await ensureLewesArchiveIndex() : observed15MinuteData;
       if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-      if (index?.days?.length && !index.days.some(day => String(day.d).startsWith(`${year}-`))) {
+      const indexedDates = (index?.days || []).filter(day => day.d.startsWith(`${year}-`)).map(day => day.d);
+      if (index?.days?.length && !indexedDates.length) {
         observedArchiveUnavailableYears.add(key);
         return false;
       }
-      const install = payload => {
+      const install = (payload, shardYear = null) => {
         if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-        const covered = payload?.days?.some(day => String(day.d).startsWith(`${year}-`) && Array.isArray(day.v));
+        const covered = Array.isArray(payload?.days) &&
+          payload.days.some(day => day?.d?.startsWith(`${year}-`) && Array.isArray(day.v));
         if (!covered) throw new Error(`Archive does not cover ${source} ${year}.`);
-        addArchiveShardDays(payload, source);
+        addArchiveShardDays(payload, source, { year: shardYear, indexedDates });
         observedArchiveLoadedYears.add(key);
         return true;
       };
       const promise = fetchJson(getObservedArchiveShardUrl(source, year), { cache: "default" })
-        .then(install)
+        .then(payload => install(payload, year))
         .catch(async error => {
           if (generation !== archiveGeneration) throw error;
           console.warn(`Optimized ${source} ${year} archive unavailable.`, error);
@@ -358,7 +409,9 @@
             const fallback = source === "stone-harbor"
               ? await fetchJson(OBSERVED_15MIN_URL, { cache: "default" })
               : await ensureLewesHourlyArchive();
-            return install(fallback);
+            const loaded = install(fallback);
+            if (source === "lewes") lewesHourlyData = fallback;
+            return loaded;
           } catch (fallbackError) {
             if (generation !== archiveGeneration) throw fallbackError;
             // A network failure remains retryable. Never mark an uncovered
@@ -392,12 +445,17 @@
         }
       }
       if (generation !== archiveGeneration) return false;
-      // Background history stays cached, but today's gauge readings keep
-      // advancing. Reuse the live cooldown when this date is selected again.
-      if (source === "stone-harbor" && typeof extendObservedArchiveThroughToday === "function"
-          && dateStr === getTodayNyDateKey()) {
-        await extendObservedArchiveThroughToday();
-        if (generation !== archiveGeneration) return false;
+      // Recent primary dates can include unpublished readings. Reuse the
+      // live cooldown when selecting one again, including yesterday's tail.
+      if (source === "stone-harbor" && typeof extendObservedArchiveThroughToday === "function") {
+        const today = getTodayNyDateKey();
+        const refresh = observedData?.liveObservedRefresh;
+        const firstRecentDate = refresh?.retryStartDate || (refresh?.publishedEndDate &&
+          refresh.publishedEndDate < today ? addDaysToDateKey(today, -1) : today);
+        if (dateStr >= firstRecentDate && dateStr <= today) {
+          await extendObservedArchiveThroughToday();
+          if (generation !== archiveGeneration) return false;
+        }
       }
       return (source === "lewes" ? lewesHourlyDaysByDate : observed15MinuteDaysByDate).has(dateStr);
     }
@@ -574,9 +632,9 @@ function setDatumHelpOpen(isOpen) {
         `
       },
       forecastType: {
-        title: "Forecast type",
+        title: "Forecast Range",
         body: `
-          <p>Choose Lower End, Mean, or Upper End to compare forecast scenarios based on NOAA PETSS guidance. Upper End shows the upper water-depth estimate for this forecast.</p>
+          <p>Compare three scenarios based on NOAA PETSS guidance. <strong>Best Case</strong> uses the lower estimate, <strong>Likely</strong> uses the mean estimate, and <strong>Worst Case</strong> uses the upper estimate.</p>
         `
       },
       overlay: {
@@ -584,7 +642,20 @@ function setDatumHelpOpen(isOpen) {
         body: `
           <p><strong>Flood Depth</strong> shows the estimated water depth above the ground, in inches below 1 foot and feet at 1 foot or more.</p>
           <p><strong>Flood Stages</strong> groups flooding as minor, moderate, or major.</p>
+          <p><strong>Roads With 6+ Inches of Water</strong> highlights road centerlines where modeled water depth above ground exceeds 0.5 ft. At bridges, the estimate uses the modeled surface below the deck.</p>
         `
+      },
+      layers: {
+        title: "Map Layers",
+        body: `<dl class="layer-help-list">
+          <dt>Satellite</dt><dd>Shows aerial imagery beneath the flood map.</dd>
+          <dt>Buildings</dt><dd>Shows buildings on the map. Select a building for details.</dd>
+          <dt>Parcels</dt><dd>Shows property lines. Select a lot to see how much of it may flood.</dd>
+          <dt>Structural Impacts</dt><dd>Shows where modeled water could reach part of a structure or its first occupied floor.</dd>
+          <dt>Roads With 6+ Inches of Water</dt><dd>Highlights road sections with more than 6 inches of modeled water. At bridges, the estimate is for the surface below the deck.</dd>
+          <dt>Road Names</dt><dd>Labels streets so you can identify roads near flooding.</dd>
+          <dt>Cameras</dt><dd>Shows camera locations. Select a camera to view its feed or open its website.</dd>
+        </dl>`
       },
       timelineDetail: {
         title: "Timeline detail",

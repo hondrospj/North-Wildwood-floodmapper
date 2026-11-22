@@ -8,7 +8,7 @@ const sourcePath = path.resolve(process.argv[2] || new URL('../index.html', impo
 const source = readAppSource(sourcePath);
 const results = [];
 function extract(name) {
-  const match = source.match(new RegExp('^    (?:async )?function ' + name + '\\([^\\n]*\\) \\{\\n.*?^    \\}', 'ms'));
+  const match = source.match(new RegExp('^    (?:async )?function ' + name + '\\([\\s\\S]*?\\) \\{\\n.*?^    \\}', 'ms'));
   assert.ok(match, `Missing function ${name}`);
   return match[0];
 }
@@ -125,6 +125,7 @@ function physicsFixture(pixel = [0, 0, 0, 255]) {
   };
   const context = vm.createContext({ console, document, currentSeriesHours: entries, currentHourIndex: 0,
     currentDataMode: 'forecast', currentOverlayMode: 'depth', mapClickMode: 'depth', floodFrameState: 'ready', lastRenderToken: 0, mapQueryGeneration: 0,
+    cancelPendingTownAddressLookup: () => false,
     currentFloodLayer: { _floodmapperFrame: { entry: entries[0], stage: 1, dataMode: 'forecast' } },
     persistentFloodPopup: null, persistentDepthQueryContext: null, pendingFloodLayer: null, setFloodFrameStatus() {},
     renderedFloodPixelCache: null, scheduleRasterObjectUrlCleanup() {},
@@ -144,7 +145,7 @@ function physicsFixture(pixel = [0, 0, 0, 255]) {
     sampleRenderedFloodPixel: () => null, getHydraulicPhaseForEntry: () => 'slack',
     getDepthQueryDisplayDepth: () => 3, buildDepthQueryPopupHtml: value => '<div class="depth-query-popup">' + (value == null ? 'N/A' : value) + '</div>',
   });
-  load(context, ['formatWaterDepth', 'latLngToPhysicsQueryPixel', 'samplePhysicsDepth', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup']);
+  load(context, ['formatWaterDepth', 'latLngToPhysicsQueryPixel', 'samplePhysicsDepth', 'beginMapQuery', 'handleDepthQueryClick', 'updatePersistentDepthQueryPopup']);
   return { context, popups, notices, layers };
 }
 await test('A physics point outside coverage is unavailable, while a covered dry pixel remains dry', async () => {
@@ -215,6 +216,82 @@ await test('A delayed physics depth query cannot open an obsolete popup after na
   await query;
   assert.equal(popups.length, 0, 'An obsolete response must not open a popup over the new timestep');
   assert.equal(context.persistentDepthQueryContext, null);
+});
+
+function rasterCompositeFixture() {
+  const grid = { width: 1, height: 1, values: new Uint8ClampedArray(4) };
+  const canvasContext = {
+    drawImage() {}, clearRect() {}, putImageData() {},
+    getImageData() { return { data: new Uint8ClampedArray(4) }; },
+  };
+  const lower = { url: 'lower.png' };
+  const context = vm.createContext({
+    console: { warn() {} }, awaitRasterRequest: async request => request,
+    fillingCompositeCache: new Map(), drainageCompositeCache: new Map(),
+    FILLING_COMPOSITE_CACHE_LIMIT: 2, DRAINAGE_COMPOSITE_CACHE_LIMIT: 2,
+    MAX_STAGE: 10, STAGE_STEP: 0.1, getStageValue: entry => entry.stage,
+    getFillingStageFraction: () => 0.5, normalizeHydraulicPhase: phase => phase,
+    stageToCode: String, roundToCatalogPrecision: Number,
+    getOverlayRecord: async () => ({ url: 'catalog.png' }),
+    getDrainageRasterImage: async () => ({ naturalWidth: 1, naturalHeight: 1 }),
+    getDepthQueryGrid: async () => grid, getDevelopedQueryGrid: async () => grid,
+    document: { createElement: () => ({ getContext: () => canvasContext }) },
+    applyFillingTransitionPixels: () => 1, applyDrainageRetentionPixels: () => 1,
+    canvasToDrainageObjectUrl: async () => 'blob:recovered-composite',
+    retainRasterObjectUrl: () => () => {}, retireRasterObjectUrl() {},
+    entryTimeMs: entry => entry.time, getOverlayStage: stage => stage,
+    getHydraulicPhaseForEntry: entry => entry.phase,
+    getDrainageRetentionMilestones: () => [],
+  });
+  const cacheFunctions = ['cacheRasterComposite', 'getCachedRasterComposite', 'cacheFillingComposite', 'cacheDrainageComposite']
+    .filter(name => source.includes(`function ${name}(`));
+  load(context, [...cacheFunctions, 'getFillingInterpolatedOverlayRecord', 'getHydraulicOverlayRecord']);
+  return { context, grid, lower };
+}
+
+await test('A shared filling fallback retries after mask failure and caches the completed raster', async () => {
+  const { context, grid, lower } = rasterCompositeFixture();
+  const gate = deferred();
+  let attempts = 0;
+  context.getDevelopedQueryGrid = async () => {
+    attempts += 1;
+    if (attempts === 1) return gate.promise;
+    return grid;
+  };
+  const select = () => context.getFillingInterpolatedOverlayRecord('depth', 4.5, 'filling', { stage: 4.57 }, lower);
+  const first = select(), second = select();
+  gate.reject(Error('Temporary mask failure'));
+  assert.equal(await first, lower);
+  assert.equal(await second, lower);
+  assert.equal(attempts, 1, 'Concurrent selections share a single composite request');
+  const recovered = await select();
+  assert.equal(recovered.isContinuousFillingComposite, true);
+  assert.equal(await select(), recovered);
+  assert.equal(attempts, 2);
+});
+
+await test('Drainage without its crest input retries the complete history on the next selection', async () => {
+  const { context, lower } = rasterCompositeFixture();
+  const entry = { time: 3, stage: 4.08, phase: 'draining' };
+  const crest = { time: 1, stage: 4.61, phase: 'slack' };
+  const earlier = { time: 2, stage: 4.32, phase: 'draining' };
+  const series = [crest, earlier, entry];
+  let crestAvailable = false, historySize = null;
+  context.getDrainageRetentionMilestones = () => [crest, earlier];
+  context.getOverlayRecord = async (_mode, stage) => {
+    if (stage === 4) return lower;
+    if (stage === crest.stage && !crestAvailable) return null;
+    return { url: `catalog-${stage}.png` };
+  };
+  context.applyDrainageRetentionPixels = (_current, history) => { historySize = history.length; return 1; };
+  const select = () => context.getHydraulicOverlayRecord('depth', 4, 'draining', entry, series);
+  assert.equal(await select(), lower);
+  assert.equal(historySize, null, 'A later milestone cannot replace a missing crest footprint');
+  crestAvailable = true;
+  const recovered = await select();
+  assert.equal(recovered.isHistoryAwareDrainageComposite, true);
+  assert.equal(historySize, 2);
+  assert.equal(await select(), recovered);
 });
 
 for (const result of results) {
