@@ -1,7 +1,3 @@
-    function clampStage(value) {
-      return Math.max(MIN_STAGE, Math.min(MAX_STAGE, value));
-    }
-
     function roundToCatalogPrecision(value) {
       return Number(value.toFixed(2));
     }
@@ -104,7 +100,7 @@
       };
     }
 
-    function getDepthTimelineColor(stageValue) {
+    function getTimelineStageColor(stageValue) {
       const n = Number(stageValue);
       if (!Number.isFinite(n)) return "rgba(121,221,90,.92)";
       if (n < MINOR_FLOOD_FT) return "rgba(121,221,90,.92)";
@@ -113,21 +109,8 @@
       return "rgba(124,92,224,.92)";
     }
 
-    function getImpactTimelineColor(stageValue) {
-      const n = Number(stageValue);
-      if (!Number.isFinite(n)) return "rgba(121,221,90,.92)";
-      if (n < MINOR_FLOOD_FT) return "rgba(121,221,90,.92)";
-      if (n < MODERATE_FLOOD_FT) return "rgba(213,138,0,.92)";
-      if (n < MAJOR_FLOOD_FT) return "rgba(216,75,103,.92)";
-      return "rgba(124,92,224,.92)";
-    }
-
-    function getTimelineHourColor(entry) {
-      const rawStage = getStageValue(entry);
-      if (currentOverlayMode === "dynamic") {
-        return getImpactTimelineColor(rawStage);
-      }
-      return getDepthTimelineColor(rawStage);
+    function getTimelineHourColor(entry, stage = getStageValue(entry)) {
+      return getTimelineStageColor(stage);
     }
 
     function buildTimelineGroupGradient(startIndex, endIndex, sampleCenters = false) {
@@ -138,10 +121,14 @@
       const firstEdge = sampleCenters ? startIndex : Math.max(0, startIndex - 0.5);
       const lastEdge = sampleCenters ? endIndex : Math.min(currentSeriesHours.length - 1, endIndex + 0.5);
       const span = lastEdge - firstEdge;
-      if (span <= 0) return `linear-gradient(90deg, ${getTimelineHourColor(entries[0])}, ${getTimelineHourColor(entries[0])})`;
+      if (span <= 0) {
+        const color = getTimelineHourColor(entries[0]);
+        return `linear-gradient(90deg, ${color}, ${color})`;
+      }
       const stops = [];
       entries.forEach((entry, idx) => {
-        const color = getStageValue(entry) == null ? "#94a3b8" : getTimelineHourColor(entry);
+        const stage = getStageValue(entry);
+        const color = stage == null ? "#94a3b8" : getTimelineHourColor(entry, stage);
         const startPct = 100 * (Math.max(firstEdge, startIndex + idx - 0.5) - firstEdge) / span;
         const endPct = 100 * (Math.min(lastEdge, startIndex + idx + 0.5) - firstEdge) / span;
         stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
@@ -160,14 +147,15 @@
 
     function normalizeHydraulicPhase(value) {
       const phase = String(value || "").toLowerCase();
-      const supported = new Set([
-        "filling",
-        "slack",
-        "draining-release-15",
-        "draining-release-30",
-        "draining"
-      ]);
-      return supported.has(phase) ? phase : "slack";
+      switch (phase) {
+        case "filling":
+        case "draining-release-15":
+        case "draining-release-30":
+        case "draining":
+          return phase;
+        default:
+          return "slack";
+      }
     }
 
     function getHydraulicFrameMinutes(entry, fallback = 15) {
@@ -261,18 +249,16 @@
     }
 
     function annotateHydraulicSeries(series = []) {
-      const selected = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      const selected = Array.isArray(series) ? series : [];
       // Historical day timelines retain their preceding measurements as
       // context, including when Top 10 or an off-grid export reannotates them.
-      const history = selected.find(entry => Array.isArray(entry.hydraulicAntecedents))?.hydraulicAntecedents || [];
+      const history = selected.find(entry => Array.isArray(entry?.hydraulicAntecedents))?.hydraulicAntecedents || [];
       const firstTime = entryTimeMs(selected[0]);
       const antecedents = history.filter(entry => Number.isFinite(firstTime) && entryTimeMs(entry) < firstTime);
       const rows = antecedents.concat(selected);
-      const phases = rows.map((entry, index) => (
-        Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : "slack"
-      ));
-      return rows.map((entry, index) => {
-        const phase = phases[index];
+      return selected.map((entry, offset) => {
+        const index = antecedents.length + offset;
+        const phase = Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : "slack";
         const annotated = {
           ...entry,
           hydraulicPhase: phase,
@@ -281,16 +267,15 @@
         if (!phase.startsWith("draining")) return annotated;
         const crestIndex = findHydraulicCrestIndex(rows, index);
         const crestEntry = rows[crestIndex];
+        const crestTime = entryTimeMs(crestEntry);
         return {
           ...annotated,
           hydraulicCrestIndex: crestIndex,
-          hydraulicCrestTimeUtc: Number.isFinite(entryTimeMs(crestEntry))
-            ? new Date(entryTimeMs(crestEntry)).toISOString()
-            : null,
+          hydraulicCrestTimeUtc: Number.isFinite(crestTime) ? new Date(crestTime).toISOString() : null,
           hydraulicCrestStageFt: getStageValue(crestEntry),
           hydraulicElapsedMinutes: getHydraulicElapsedMinutes(rows, crestIndex, index)
         };
-      }).slice(antecedents.length);
+      });
     }
 
     function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {

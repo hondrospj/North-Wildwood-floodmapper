@@ -376,7 +376,6 @@ function updateExportSegmentedUI() {
       const interval = document.getElementById("downloadIntervalSelect");
       const aspect = document.getElementById("downloadAspectSelect");
       const speed = document.getElementById("downloadSpeedSelect");
-      const extent = document.getElementById("downloadExtentSelect");
       const end = document.getElementById("downloadEndInput");
       const exportEditorControls = [
         "downloadStartDateText",

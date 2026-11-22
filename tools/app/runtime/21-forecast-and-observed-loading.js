@@ -58,7 +58,6 @@
           currentHourIndex = 0;
           currentSelectedLabel = getForecastScenarioLabel();
           currentSelectedSubLabel = "";
-          currentRangeLabel = "";
           syncSliderBounds();
           renderSelectionMeta(null, null, null);
           document.getElementById("stageSubText").textContent = "";
@@ -116,9 +115,6 @@
       currentTopTideIndex = null;
       currentSelectedLabel = getForecastScenarioLabel();
       currentSelectedSubLabel = getForecastScenarioPercentileLabel();
-      currentRangeLabel = currentSeriesHours.length
-        ? `${formatHourEntryTime(currentSeriesHours[0])} to ${formatHourEntryTime(currentSeriesHours[currentSeriesHours.length - 1])}`
-        : getForecastScenarioLabel();
 
       syncSliderBounds();
       if (!currentSeriesHours.length) {
@@ -152,7 +148,6 @@
         currentTopTideIndex = null;
         currentSelectedLabel = getForecastScenarioLabel();
         currentSelectedSubLabel = getForecastScenarioPercentileLabel();
-        currentRangeLabel = "";
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
         clearFloodLayer();
@@ -197,15 +192,14 @@
     }
 
     function getObservedArchiveLatestDateKey() {
-      const days = Array.isArray(observedData?.days) ? observedData.days : [];
-      const dateKeys = days
-        .map(day => String(day?.date || "").slice(0, 10))
-        .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date))
-        .sort(compareDateKeys);
       const archiveEnd = String(observedData?.archiveEndDate || observedData?.endDate || "").slice(0, 10);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(archiveEnd)) dateKeys.push(archiveEnd);
-      dateKeys.sort(compareDateKeys);
-      return dateKeys.length ? dateKeys[dateKeys.length - 1] : null;
+      let latest = /^\d{4}-\d{2}-\d{2}$/.test(archiveEnd) ? archiveEnd : null;
+      const days = Array.isArray(observedData?.days) ? observedData.days : [];
+      for (const day of days) {
+        const date = String(day?.date || "").slice(0, 10);
+        if ((!latest || date > latest) && /^\d{4}-\d{2}-\d{2}$/.test(date)) latest = date;
+      }
+      return latest;
     }
 
     function makeObservedPlaceholderDay(dateKey) {
@@ -271,9 +265,16 @@
     }
 
     function normalizeUsgsIvObservedDays(data) {
-      const rows = [];
+      const rows = new Map();
+      const stationId = String(getUsgsObservedSiteId());
+      const parameterCd = String(getUsgsObservedParameterCd());
       const seriesList = Array.isArray(data?.value?.timeSeries) ? data.value.timeSeries : [];
       seriesList.forEach(series => {
+        const sites = series?.sourceInfo?.siteCode;
+        const parameters = series?.variable?.variableCode;
+        if (Array.isArray(sites) && sites.length && stationId && !sites.some(code => String(code?.value) === stationId)) return;
+        if (Array.isArray(parameters) && parameters.length && parameterCd &&
+            !parameters.some(code => String(code?.value) === parameterCd)) return;
         const noDataValue = normalizeStageValue(series?.variable?.noDataValue);
         const valueGroups = Array.isArray(series?.values) ? series.values : [];
         valueGroups.forEach(group => {
@@ -281,17 +282,20 @@
           values.forEach(item => {
             const n = normalizeStageValue(item?.value);
             const dtRaw = item?.dateTime;
-            const dt = dtRaw ? new Date(dtRaw) : null;
-            if (!Number.isFinite(n) || n === noDataValue || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;
+            if (!Number.isFinite(n) || n === noDataValue || typeof dtRaw !== "string" ||
+                !/(?:Z|[+-]\d{2}:\d{2})$/i.test(dtRaw)) return;
+            const dt = new Date(dtRaw);
+            if (!Number.isFinite(dt.getTime())) return;
             const localIso = formatNyLocalIso(dt);
+            const timeUtc = dt.toISOString();
             const dateKey = localIso.slice(0, 10);
             const hourIndex = Number(localIso.slice(11, 13));
             const minuteIndex = Number(localIso.slice(14, 16));
             if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !Number.isInteger(hourIndex) || !Number.isInteger(minuteIndex)) return;
-            rows.push({
+            rows.set(timeUtc, {
               displayTimeEST: localIso,
-              displayTimeUtc: dt.toISOString(),
-              timeUtc: dt.toISOString(),
+              displayTimeUtc: timeUtc,
+              timeUtc,
               observedDate: dateKey,
               hourIndex,
               minuteIndex,
@@ -300,7 +304,7 @@
               value: n,
               observationInterval: "instantaneous",
               source: "usgs-iv-live",
-              sourceStationId: String(getUsgsObservedSiteId()),
+              sourceStationId: stationId,
               sourceResolutionMinutes: 6,
               observationQuality: "M",
               isMeasuredQuarterHourArchive: minuteIndex % 15 === 0 && dt.getUTCSeconds() === 0 && dt.getUTCMilliseconds() === 0,
@@ -313,8 +317,8 @@
       });
 
       const byDate = new Map();
-      rows
-        .sort((a, b) => String(a.displayTimeEST).localeCompare(String(b.displayTimeEST)))
+      [...rows.values()]
+        .sort((a, b) => a.timeUtc.localeCompare(b.timeUtc))
         .forEach(row => {
           if (!byDate.has(row.observedDate)) byDate.set(row.observedDate, []);
           byDate.get(row.observedDate).push(row);
@@ -354,12 +358,12 @@
 
     function ensureObservedDatePlaceholders(startDate, endDate) {
       if (!startDate || !endDate || compareDateKeys(startDate, endDate) > 0) return;
-      const existing = new Set((Array.isArray(observedData?.days) ? observedData.days : []).map(day => String(day?.date || "")));
+      if (!Array.isArray(observedData.days)) observedData.days = [];
+      const existing = new Set(observedData.days.map(day => String(day?.date || "")));
       let cursor = startDate;
       while (cursor && compareDateKeys(cursor, endDate) <= 0) {
         if (!existing.has(cursor)) {
-          addOrMergeObservedDayRecord(makeObservedPlaceholderDay(cursor));
-          existing.add(cursor);
+          observedData.days.push(makeObservedPlaceholderDay(cursor));
         }
         cursor = addDaysToDateKey(cursor, 1);
       }

@@ -62,6 +62,7 @@ function setup() {
     L: {latLng: (lat, lon) => ({lat, lon}), marker: latlng => ({latlng,
       addTo() {layers.add(this); return this;}, setLatLng(p) {this.latlng = p;}, setIcon() {}})},
     lastRenderToken: 0, selectionGeneration: 0, loadTopTideEvent: () => {},
+    loadObservedDay: () => {}, switchDataMode: () => {},
     currentFloodLayer: null, pendingFloodLayer: null, persistentDepthQueryContext: null,
     requestedTimelineSelection: null, pendingTimelineSelection: null,
     cancelTimelineSelection() {context.pendingTimelineSelection = null;},

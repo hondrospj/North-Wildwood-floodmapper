@@ -258,7 +258,6 @@ function populateCalendarSelectors() {
         const derived = classifyFloodEntries(dayRecord?.hours || []);
         currentSelectedSubLabel = derived === "none" ? "Observed" : derived.charAt(0).toUpperCase() + derived.slice(1);
       }
-      currentRangeLabel = dateStr;
     }
 
     async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
@@ -283,7 +282,6 @@ function populateCalendarSelectors() {
         currentTopTideIndex = null;
         currentSelectedLabel = "Observed";
         currentSelectedSubLabel = "";
-        currentRangeLabel = "";
         updateDataModeButtons();
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
@@ -392,7 +390,6 @@ function populateCalendarSelectors() {
       currentTopTideIndex = Math.max(0, topTideEvents.indexOf(event));
       currentSelectedLabel = `Flood #${event.rank}`;
       currentSelectedSubLabel = formatStageForDisplay(event.peakStage);
-      currentRangeLabel = `${event.title}`;
       selectedObservedDate = event.dateKey || event.entry.observedDate || null;
       if (selectedObservedDate) currentMonthKey = selectedObservedDate.slice(0, 7);
 
@@ -483,7 +480,6 @@ function populateCalendarSelectors() {
         toast("");
         currentTimelineIntervalMinutes = nextMinutes;
         updateTimelineIntervalUI();
-        overlayPreloadGeneration += 1;
         return;
       }
       const referenceEntry = currentSeriesHours[getTimelineNavigationIndex()] || null;
@@ -494,7 +490,6 @@ function populateCalendarSelectors() {
       toast("");
       currentTimelineIntervalMinutes = nextMinutes;
       updateTimelineIntervalUI();
-      overlayPreloadGeneration += 1;
 
       if (currentDataMode === "observed" && nextMinutes !== 60) {
         try {
@@ -556,18 +551,20 @@ function populateCalendarSelectors() {
 
       const index = getTimelineNavigationIndex();
       stopPlayback();
-      const forecastSelectionPending = currentDataMode === "forecast" &&
-        loadForecast.pendingSelectionGeneration === selectionGeneration;
-      if (!forecastSelectionPending) cancelPendingFloodFrame();
+      const dataSelectionPending = (currentDataMode === "forecast" &&
+        loadForecast.pendingSelectionGeneration === selectionGeneration) ||
+        (currentDataMode === "observed" && (
+          loadObservedDay.pendingSelection?.generation === selectionGeneration ||
+          switchDataMode.pendingObservedSelectionGeneration === selectionGeneration
+        ));
+      if (!dataSelectionPending) cancelPendingFloodFrame();
       toast("");
       currentOverlayMode = mode;
       updateModeButtons();
 
-      if (forecastSelectionPending || loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) return;
+      if (dataSelectionPending || loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) return;
       if (currentDataMode === "return-interval" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {
-        setFloodFrameStatus(currentFloodLayer
-          ? ""
-          : "", "info");
+        setFloodFrameStatus("", "info");
         return;
       }
       await renderHour(index);
@@ -576,7 +573,6 @@ function populateCalendarSelectors() {
     async function switchDataMode(mode) {
       let modeFailureToken = lastRenderToken;
       let modeFailureGeneration = null;
-      let modeFailureRequest = null;
       try {
       if (mode === currentDataMode &&
           ((mode === "forecast" && loadForecast.pendingSelectionGeneration === selectionGeneration) ||
@@ -587,8 +583,6 @@ function populateCalendarSelectors() {
           && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
       const generation = ++selectionGeneration;
       modeFailureGeneration = generation;
-      ++lastRenderToken;
-      cancelPendingFloodFrame(false);
       stopPlayback();
       const floodSelectionToken = cancelPendingFloodFrame();
       modeFailureToken = floodSelectionToken;
@@ -609,7 +603,6 @@ function populateCalendarSelectors() {
         currentDataMode = "return-interval";
         currentViewType = "return-interval";
         updateDataModeButtons();
-        cancelPendingFloodFrame(false);
         const loaded = await loadReturnInterval(null, { generation });
         if (generation !== selectionGeneration || loaded === false) return false;
         renderTopTides();
@@ -630,17 +623,13 @@ function populateCalendarSelectors() {
       currentHourIndex = 0;
       currentSelectedLabel = "Observed";
       currentSelectedSubLabel = "";
-      currentRangeLabel = "";
       syncSliderBounds();
       document.getElementById("hourSlider").value = "0";
       renderSelectionMeta(null, null, null);
       document.getElementById("stageSubText").textContent = "";
       renderTimelineMeta();
       renderTimelineDays();
-      const loadingMessage = currentFloodLayer
-        ? ""
-        : "";
-      setFloodFrameStatus(loadingMessage, "info");
+      setFloodFrameStatus("", "info");
       await warmBackgroundData();
       if (generation !== selectionGeneration) return;
       await renderCalendar();
@@ -666,7 +655,6 @@ function populateCalendarSelectors() {
         currentTopTideIndex = null;
         currentSelectedLabel = failedMode === "forecast" ? getForecastScenarioLabel() : failedLabel;
         currentSelectedSubLabel = "";
-        currentRangeLabel = "";
         updateDataModeButtons();
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";

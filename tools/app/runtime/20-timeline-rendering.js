@@ -7,8 +7,6 @@
       const label = document.getElementById("timelineLabel");
       const bubble = document.getElementById("timelineBubble");
 
-      const first = currentSeriesHours[0];
-      const last = currentSeriesHours[currentSeriesHours.length - 1];
       const entry = currentEntry || currentSeriesHours[currentHourIndex];
 
       if (!currentSeriesHours.length) {

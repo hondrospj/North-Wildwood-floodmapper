@@ -133,10 +133,6 @@ function parseStoredLocalNyToDate(timeEST) {
       return Number(longest.toFixed(2));
     }
 
-    function hasLongGaugeOutage(series = [], startIndex = 0, endIndex = null, options = {}) {
-      return getLongestGaugeOutageHours(series, startIndex, endIndex, options) > GAUGE_OUTAGE_THRESHOLD_HOURS;
-    }
-
     function isLatestObservedSeriesSegment(series = [], startIndex = 0, endIndex = null) {
       if (!Array.isArray(series) || !series.length) return false;
       const latestDate = getLatestObservedDate();

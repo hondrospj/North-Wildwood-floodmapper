@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const RUNTIME_AUDIT_PATH = "tools/fixtures/north-wildwood-20261122-runtime-audit.json";
+const priorRuntimeAudit = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-runtime-audit-snapshot");
+const runtimeAuditText = fs.readFileSync(localPath(RUNTIME_AUDIT_PATH));
+assert.equal(hashReleaseBytes(runtimeAuditText), "2bf80bbf947abdacee32b8ccd60ccd8bf72e7414ec88aee1e4df1caf996bfbd4", "Retain the exact runtime audit inverse");
+const runtimeAudit = JSON.parse(runtimeAuditText);
+assert.equal(runtimeAudit.schemaVersion, 1);
+assert.equal(runtimeAudit.baselineCommit, "8875b07aa316d5d59654bd459674798fe0a2474d");
+const runtimeAuditFiles = new Map(runtimeAudit.files.map(entry => [entry.source, entry]));
 const DATA_DELIVERY_PATH = "tools/fixtures/north-wildwood-20261121-data-delivery.json";
 const priorDataDeliverySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-data-delivery-snapshot");
 const dataDeliveryText = fs.readFileSync(localPath(DATA_DELIVERY_PATH));
@@ -39,8 +47,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeDataDelivery(relative) {
+function readBeforeRuntimeAudit(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = runtimeAuditFiles.get(relative);
+  return priorRuntimeAudit || !entry ? bytes : restoreReleaseBytes(bytes, entry, "runtime audit");
+}
+if (!priorRuntimeAudit) {
+  for (const file of runtimeAudit.files) readBeforeRuntimeAudit(file.source);
+}
+
+function readBeforeDataDelivery(relative) {
+  const bytes = readBeforeRuntimeAudit(relative);
   const entry = dataDeliveryFiles.get(relative);
   return priorDataDeliverySnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "data delivery");
 }
@@ -2711,6 +2728,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      RUNTIME_AUDIT_PATH, ...runtimeAudit.files.map(file => file.source),
       QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
       MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
       JOE_UI_PATH, ...joeUi.files.map(file => file.source), ...joeUi.added.map(file => file.source),
@@ -2726,7 +2744,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeDataDelivery = (args = []) => runRelease(["--prior-data-delivery-snapshot", ...args]);
+    const runBeforeRuntimeAudit = (args = []) => runRelease(["--prior-runtime-audit-snapshot", ...args]);
+    const runBeforeDataDelivery = (args = []) => runBeforeRuntimeAudit(["--prior-data-delivery-snapshot", ...args]);
     const runBeforeFirstMapPaint = (args = []) => runBeforeDataDelivery(["--prior-first-map-paint-snapshot", ...args]);
     const runCurrent = (args = []) => runBeforeFirstMapPaint(["--prior-shared-app-snapshot", ...args]);
     const run = (args = []) => runCurrent(["--prior-quiet-loading-snapshot", ...args]);
@@ -2744,12 +2763,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered runtime audit inverse", path.join(scratch, RUNTIME_AUDIT_PATH), Buffer.concat([runtimeAuditText, Buffer.from(" ")])],
+      ...runtimeAudit.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed runtime audit byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of runtimeAudit.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeRuntimeAudit(file.source));
+    assert.equal(runBeforeRuntimeAudit().status, 0, "The restored application before the runtime audit must pass");
+    assertMutationsRejected([
       ["altered data delivery inverse", path.join(scratch, DATA_DELIVERY_PATH), Buffer.concat([dataDeliveryText, Buffer.from(" ")])],
       ...[...dataDelivery.files, ...dataDelivery.added].map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed data delivery byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeRuntimeAudit);
     for (const file of dataDelivery.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeDataDelivery(file.source));
     for (const file of dataDelivery.added) fs.unlinkSync(path.join(scratch, file.source));
     assert.equal(runBeforeDataDelivery().status, 0, "The restored application before data delivery changes must pass");
@@ -3428,7 +3456,8 @@ if (process.argv.includes("--self-test")) {
     assert.equal(runPrior().status, 0, "Restoring historical artifacts must restore a passing check");
     const firstMapPaintCases = firstMapPaint.files.length + firstMapPaint.added.length + 1;
     const dataDeliveryCases = dataDelivery.files.length + dataDelivery.added.length + 1;
-    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases} dropped, moved, altered or stale artifacts were rejected.`);
+    const runtimeAuditCases = runtimeAudit.files.length + 1;
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases + runtimeAuditCases} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

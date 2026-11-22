@@ -70,6 +70,54 @@ for (const name of ["testImageUrl","preloadImage","getExportImageElement"]) {
     assert.equal(images.startupOverlayCandidate.image.alt,"");
   }
 }
+for (const loader of ["testImageUrl", "preloadImage", "getExportImageElement"]) {
+  const pending = [];
+  const deadlines = [];
+  const intervals = [];
+  class HeldImage {
+    set src(value) { this.url = value; pending.push(this); }
+    removeAttribute(name) { assert.equal(name, "src"); this.url = null; }
+    async decode() {}
+  }
+  const images = context(["decodeFloodFrameImage", loader], {
+    Image: HeldImage,
+    window: {
+      setTimeout(fn) { deadlines.push(fn); return deadlines.length; },
+      setInterval(fn) { intervals.push(fn); return intervals.length; },
+      clearTimeout() {}, clearInterval() {}
+    },
+    document: { body: { dataset: { initialFloodFrame: "loading" } } },
+    imageExistsCache: new Map(), preloadPromiseCache: new Map(), exportImageElementCache: new Map(),
+    exportCancelRequested: false, exportInProgress: loader !== "testImageUrl", startupOverlayCandidate: null
+  });
+  const expired = images[loader]("expired.webp");
+  deadlines[0]();
+  await expired;
+  assert.equal(pending[0].url, null, `${loader} left a timed-out transfer active`);
+  assert.equal(pending[0].onload, null);
+  assert.equal(pending[0].onerror, null);
+
+  const old = images[loader]("same.webp");
+  const cacheName = { testImageUrl: "imageExistsCache", preloadImage: "preloadPromiseCache",
+    getExportImageElement: "exportImageElementCache" }[loader];
+  images[cacheName] = new Map();
+  const fresh = images[loader]("same.webp");
+  const freshRecord = images[cacheName].get("same.webp");
+  if (loader === "testImageUrl") {
+    pending[1].onload();
+    assert.equal(images.startupOverlayCandidate, null, "An obsolete request supplied the startup image");
+  } else {
+    images.exportCancelRequested = true;
+    intervals[1]();
+    images.exportCancelRequested = false;
+  }
+  await old;
+  assert.equal(images[cacheName].get("same.webp"), freshRecord, "Obsolete image work removed the newer request");
+  pending[2].complete = true;
+  pending[2].naturalWidth = 64;
+  pending[2].onload();
+  assert.ok(await fresh);
+}
 // The shared recovery suite covers failed replacements, retries and last-good-frame retention.
 await import("./test_export_frame_recovery.mjs");
 const banner=[];const requests=[];let networkMode="fail-point";

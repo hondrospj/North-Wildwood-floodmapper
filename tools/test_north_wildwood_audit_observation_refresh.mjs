@@ -338,4 +338,28 @@ for (const fixture of [
   cases++;
 }
 
+// A legacy IV response can contain several series or revisions of one reading.
+// Validate its recorded source and sort by instant across the repeated fall hour.
+{
+  const {c} = setup();
+  const series = (station, parameter, rows) => ({
+    ...payload(rows).value.timeSeries[0], sourceInfo: {siteCode: [{value: station}]},
+    variable: {noDataValue: -999999, variableCode: [{value: parameter}]}
+  });
+  const days = c.normalizeUsgsIvObservedDays({value: {timeSeries: [
+    series('01411390', '72279', [['2026-11-01T06:15:00Z', 9]]),
+    series('01411360', '00065', [['2026-11-01T06:15:00Z', 10]]),
+    series('01411360', '72279', [
+      ['2026-11-01T01:00:00-05:00', 3], ['2026-11-01T01:54:00-04:00', 2],
+      ['2026-11-01T05:54:00Z', 2.1], ['2026-11-01T01:15:00', 11]
+    ])
+  ]}});
+  assert.equal(days.length, 1);
+  assert.deepEqual(Array.from(days[0].hours, row => [row.timeUtc, row.navd88StageFt]), [
+    ['2026-11-01T05:54:00.000Z', 2.1], ['2026-11-01T06:00:00.000Z', 3]
+  ]);
+  assert.equal(days[0].peakNAVD88, 3);
+  cases++;
+}
+
 console.log(`${cases} audit observation-refresh, cache precedence, quality, and cancellation cases passed.`);

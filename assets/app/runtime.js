@@ -216,13 +216,6 @@
       return value ? new URL(value, APP_BASE).href : "";
     }
 
-    function normalizeConfiguredDataset(payload, kind = "") {
-      const zoneId = TOWN_CONFIG?.data?.zoneId;
-      const zone = zoneId && payload?.zones?.[zoneId] ? payload.zones[zoneId] : null;
-      if (!zone) return payload;
-      return (kind && zone?.[kind]) || zone?.forecast || zone?.observed || zone;
-    }
-
 
     function decodeHtmlText(value) {
       const el = document.createElement("textarea");
@@ -774,9 +767,6 @@ function cloneStyleObject(value) {
     let fillingCompositeCache = new Map();
     let drainageCompositeCache = new Map();
     let bathtubStageOverlayCache = new Map();
-    let overlayPreloadGeneration = 0;
-    let historicalTopTideWarmupScheduled = false;
-    let historicalTopTideWarmupGeneration = 0;
     let cityBoundaryOutline = null;
     let cityBoundaryMask = null;
     let cityBoundaryGuide = null;
@@ -850,10 +840,8 @@ function cloneStyleObject(value) {
     let currentSelectedSubLabel = "--";
     let currentViewType = "forecast";
     let currentTopTideIndex = null;
-    let currentRangeLabel = "--";
     let currentBaseModeBeforeTopTide = "observed";
     let currentDatum = "mllw";
-    let currentObservedResolution = "1hour";
     let currentTimelineIntervalMinutes = 60;
     let currentRawSeriesHours = [];
 
@@ -1036,7 +1024,6 @@ function cloneStyleObject(value) {
     }
 
     let playTimer = null;
-    let playbackInFlight = false;
     let playbackObservedDaysAdvanced = 0;
     let playbackPausedForConfirmation = false;
     let overlayOpacity = DEFAULT_OPACITY;
@@ -1197,7 +1184,6 @@ function cloneStyleObject(value) {
 
     function updateTimelineIntervalUI() {
       const minutes = getTimelineIntervalMinutes();
-      currentObservedResolution = minutes === 15 ? "15min" : (minutes === 1440 ? "daily" : "1hour");
 
       const hourBtn = document.getElementById("intervalHourBtn");
       const quarterBtn = document.getElementById("intervalQuarterBtn");
@@ -1375,16 +1361,13 @@ function cloneStyleObject(value) {
         currentHourIndex = 0;
         currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;
         currentSelectedSubLabel = "";
-        currentRangeLabel = "";
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
         renderSelectionMeta(null, null, null);
         document.getElementById("stageSubText").textContent = "";
         renderTimelineMeta();
         renderTimelineDays();
-        setFloodFrameStatus(currentFloodLayer
-          ? ""
-          : "", "info");
+        setFloodFrameStatus("", "info");
 
         if (!returnIntervalData || options.forceRefresh) {
           const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
@@ -1405,7 +1388,6 @@ function cloneStyleObject(value) {
         currentRawSeriesHours = annotateHydraulicSeries(record.series15min);
         currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);
         currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;
-        currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;
         syncSliderBounds();
         currentHourIndex = preferredEntry
           ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
@@ -1420,7 +1402,6 @@ function cloneStyleObject(value) {
         currentSeriesHours = [];
         currentHourIndex = 0;
         currentSelectedSubLabel = "";
-        currentRangeLabel = "";
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
         clearFloodLayer();
@@ -1591,10 +1572,6 @@ function parseStoredLocalNyToDate(timeEST) {
         }
       }
       return Number(longest.toFixed(2));
-    }
-
-    function hasLongGaugeOutage(series = [], startIndex = 0, endIndex = null, options = {}) {
-      return getLongestGaugeOutageHours(series, startIndex, endIndex, options) > GAUGE_OUTAGE_THRESHOLD_HOURS;
     }
 
     function isLatestObservedSeriesSegment(series = [], startIndex = 0, endIndex = null) {
@@ -2881,10 +2858,6 @@ function setDatumHelpOpen(isOpen) {
       note.textContent = "";
     }
 
-    function clampStage(value) {
-      return Math.max(MIN_STAGE, Math.min(MAX_STAGE, value));
-    }
-
     function roundToCatalogPrecision(value) {
       return Number(value.toFixed(2));
     }
@@ -2987,7 +2960,7 @@ function setDatumHelpOpen(isOpen) {
       };
     }
 
-    function getDepthTimelineColor(stageValue) {
+    function getTimelineStageColor(stageValue) {
       const n = Number(stageValue);
       if (!Number.isFinite(n)) return "rgba(121,221,90,.92)";
       if (n < MINOR_FLOOD_FT) return "rgba(121,221,90,.92)";
@@ -2996,21 +2969,8 @@ function setDatumHelpOpen(isOpen) {
       return "rgba(124,92,224,.92)";
     }
 
-    function getImpactTimelineColor(stageValue) {
-      const n = Number(stageValue);
-      if (!Number.isFinite(n)) return "rgba(121,221,90,.92)";
-      if (n < MINOR_FLOOD_FT) return "rgba(121,221,90,.92)";
-      if (n < MODERATE_FLOOD_FT) return "rgba(213,138,0,.92)";
-      if (n < MAJOR_FLOOD_FT) return "rgba(216,75,103,.92)";
-      return "rgba(124,92,224,.92)";
-    }
-
-    function getTimelineHourColor(entry) {
-      const rawStage = getStageValue(entry);
-      if (currentOverlayMode === "dynamic") {
-        return getImpactTimelineColor(rawStage);
-      }
-      return getDepthTimelineColor(rawStage);
+    function getTimelineHourColor(entry, stage = getStageValue(entry)) {
+      return getTimelineStageColor(stage);
     }
 
     function buildTimelineGroupGradient(startIndex, endIndex, sampleCenters = false) {
@@ -3021,10 +2981,14 @@ function setDatumHelpOpen(isOpen) {
       const firstEdge = sampleCenters ? startIndex : Math.max(0, startIndex - 0.5);
       const lastEdge = sampleCenters ? endIndex : Math.min(currentSeriesHours.length - 1, endIndex + 0.5);
       const span = lastEdge - firstEdge;
-      if (span <= 0) return `linear-gradient(90deg, ${getTimelineHourColor(entries[0])}, ${getTimelineHourColor(entries[0])})`;
+      if (span <= 0) {
+        const color = getTimelineHourColor(entries[0]);
+        return `linear-gradient(90deg, ${color}, ${color})`;
+      }
       const stops = [];
       entries.forEach((entry, idx) => {
-        const color = getStageValue(entry) == null ? "#94a3b8" : getTimelineHourColor(entry);
+        const stage = getStageValue(entry);
+        const color = stage == null ? "#94a3b8" : getTimelineHourColor(entry, stage);
         const startPct = 100 * (Math.max(firstEdge, startIndex + idx - 0.5) - firstEdge) / span;
         const endPct = 100 * (Math.min(lastEdge, startIndex + idx + 0.5) - firstEdge) / span;
         stops.push(`${color} ${startPct.toFixed(3)}%`, `${color} ${endPct.toFixed(3)}%`);
@@ -3043,14 +3007,15 @@ function setDatumHelpOpen(isOpen) {
 
     function normalizeHydraulicPhase(value) {
       const phase = String(value || "").toLowerCase();
-      const supported = new Set([
-        "filling",
-        "slack",
-        "draining-release-15",
-        "draining-release-30",
-        "draining"
-      ]);
-      return supported.has(phase) ? phase : "slack";
+      switch (phase) {
+        case "filling":
+        case "draining-release-15":
+        case "draining-release-30":
+        case "draining":
+          return phase;
+        default:
+          return "slack";
+      }
     }
 
     function getHydraulicFrameMinutes(entry, fallback = 15) {
@@ -3144,18 +3109,16 @@ function setDatumHelpOpen(isOpen) {
     }
 
     function annotateHydraulicSeries(series = []) {
-      const selected = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));
+      const selected = Array.isArray(series) ? series : [];
       // Historical day timelines retain their preceding measurements as
       // context, including when Top 10 or an off-grid export reannotates them.
-      const history = selected.find(entry => Array.isArray(entry.hydraulicAntecedents))?.hydraulicAntecedents || [];
+      const history = selected.find(entry => Array.isArray(entry?.hydraulicAntecedents))?.hydraulicAntecedents || [];
       const firstTime = entryTimeMs(selected[0]);
       const antecedents = history.filter(entry => Number.isFinite(firstTime) && entryTimeMs(entry) < firstTime);
       const rows = antecedents.concat(selected);
-      const phases = rows.map((entry, index) => (
-        Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : "slack"
-      ));
-      return rows.map((entry, index) => {
-        const phase = phases[index];
+      return selected.map((entry, offset) => {
+        const index = antecedents.length + offset;
+        const phase = Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : "slack";
         const annotated = {
           ...entry,
           hydraulicPhase: phase,
@@ -3164,16 +3127,15 @@ function setDatumHelpOpen(isOpen) {
         if (!phase.startsWith("draining")) return annotated;
         const crestIndex = findHydraulicCrestIndex(rows, index);
         const crestEntry = rows[crestIndex];
+        const crestTime = entryTimeMs(crestEntry);
         return {
           ...annotated,
           hydraulicCrestIndex: crestIndex,
-          hydraulicCrestTimeUtc: Number.isFinite(entryTimeMs(crestEntry))
-            ? new Date(entryTimeMs(crestEntry)).toISOString()
-            : null,
+          hydraulicCrestTimeUtc: Number.isFinite(crestTime) ? new Date(crestTime).toISOString() : null,
           hydraulicCrestStageFt: getStageValue(crestEntry),
           hydraulicElapsedMinutes: getHydraulicElapsedMinutes(rows, crestIndex, index)
         };
-      }).slice(antecedents.length);
+      });
     }
 
     function getHydraulicPhaseForEntry(entry, index = null, series = currentSeriesHours) {
@@ -3281,7 +3243,8 @@ function setDatumHelpOpen(isOpen) {
     async function testImageUrl(url) {
       if (!url) return { ok: false };
       if (exportCancelRequested) return { ok: false, cancelled: true };
-      if (imageExistsCache.has(url)) return imageExistsCache.get(url);
+      const cache = imageExistsCache;
+      if (cache.has(url)) return cache.get(url);
       const request = new Promise(resolve => {
         const img = new Image();
         let settled = false;
@@ -3294,12 +3257,11 @@ function setDatumHelpOpen(isOpen) {
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
           img.onload = null;
           img.onerror = null;
+          if (!value.ok) img.removeAttribute?.("src");
           resolve(value);
         };
         const cancelIfRequested = () => {
           if (!exportCancelRequested) return false;
-          imageExistsCache.delete(url);
-          try { img.src = ""; } catch (_) {}
           done({ ok: false, cancelled: true });
           return true;
         };
@@ -3308,7 +3270,8 @@ function setDatumHelpOpen(isOpen) {
         img.crossOrigin = "anonymous";
         img.fetchPriority = "high";
         img.onload = () => {
-          if (!settled && !exportInProgress && document.body.dataset.initialFloodFrame === "loading") {
+          if (!settled && imageExistsCache === cache && !exportInProgress &&
+              document.body.dataset.initialFloodFrame === "loading") {
             img.alt = "";
             startupOverlayCandidate = { url, image: img };
           }
@@ -3318,11 +3281,11 @@ function setDatumHelpOpen(isOpen) {
         timeoutTimer = window.setTimeout(() => done({ ok: false }), 20000);
         img.src = url;
       });
-      imageExistsCache.set(url, request);
+      cache.set(url, request);
       const result = await request;
-      if (imageExistsCache.get(url) === request) {
-        if (!result.ok) imageExistsCache.delete(url);
-        else imageExistsCache.set(url, result);
+      if (cache.get(url) === request) {
+        if (!result.ok) cache.delete(url);
+        else cache.set(url, result);
       }
       return result;
     }
@@ -3345,15 +3308,11 @@ function setDatumHelpOpen(isOpen) {
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
           img.onload = null;
           img.onerror = null;
-          if (!value) { try { img.src = ""; } catch (_) {} }
+          if (!value) img.removeAttribute?.("src");
           resolve(value);
         };
         const cancelIfRequested = () => {
           if (!exportCancelRequested) return false;
-          preloadPromiseCache.delete(url);
-          img.onload = null;
-          img.onerror = null;
-          try { img.src = ""; } catch (_) {}
           done(null);
           return true;
         };
@@ -3403,14 +3362,12 @@ function setDatumHelpOpen(isOpen) {
           releaseRaster();
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          img.onload = img.onerror = null;
+          if (!value) img.removeAttribute?.("src");
           resolve(value);
         };
         const cancelIfRequested = () => {
           if (!exportCancelRequested) return false;
-          exportImageElementCache.delete(url);
-          img.onload = null;
-          img.onerror = null;
-          try { img.src = ""; } catch (_) {}
           done(null);
           return true;
         };
@@ -4873,14 +4830,6 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       container.style.webkitClipPath = "";
     }
 
-    function getTimelineReservedSpace() {
-      const dock = document.getElementById("timelineDock");
-      if (!dock) return 132;
-      const styles = window.getComputedStyle(dock);
-      const bottom = parseFloat(styles.bottom) || 0;
-      return Math.ceil(dock.offsetHeight + bottom);
-    }
-
     function syncLeftPanelLayout() {
       if(document.body.hasAttribute("data-floodmapper-unified")) return;
       const panel = document.getElementById("leftPanel");
@@ -5189,29 +5138,6 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       updateExportBuildingsLayer();
       toast("");
       ensureParcelAssets().catch(error => console.warn("Building parcel matching will retry when requested.", error));
-    }
-
-    function addRoadLabelHalo(context, width, height, radius) {
-      const halo = document.createElement("canvas");
-      halo.width = width;
-      halo.height = height;
-      const haloContext = halo.getContext("2d");
-      if (!haloContext) return;
-      const mask = context.getImageData(0, 0, width, height);
-      for (let index = 0; index < mask.data.length; index += 4) {
-        const luminance = mask.data[index] * 0.2126 + mask.data[index + 1] * 0.7152 + mask.data[index + 2] * 0.0722;
-        // Outline the dark lettering/edges without thickening light road lines.
-        if (luminance >= 128) mask.data[index + 3] = 0;
-        mask.data[index] = mask.data[index + 1] = mask.data[index + 2] = 255;
-      }
-      haloContext.putImageData(mask, 0, 0);
-      context.save();
-      context.globalCompositeOperation = "destination-over";
-      for (let direction = 0; direction < 8; direction += 1) {
-        const angle = direction * Math.PI / 4;
-        context.drawImage(halo, Math.cos(angle) * radius, Math.sin(angle) * radius);
-      }
-      context.restore();
     }
 
     // Bake the label styling into canvas tiles so PNG/GIF captures preserve it.
@@ -6861,7 +6787,6 @@ function updateExportSegmentedUI() {
       const interval = document.getElementById("downloadIntervalSelect");
       const aspect = document.getElementById("downloadAspectSelect");
       const speed = document.getElementById("downloadSpeedSelect");
-      const extent = document.getElementById("downloadExtentSelect");
       const end = document.getElementById("downloadEndInput");
       const exportEditorControls = [
         "downloadStartDateText",
@@ -7748,7 +7673,7 @@ function updateExportSegmentedUI() {
       throwIfExportCancelled();
       ensureExportMap();
       const physicsRecord = mode === "depth" ? getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode) : null;
-      let overlayUrl = "";
+      let overlayUrl;
       if (physicsRecord?.url) {
         overlayUrl = physicsRecord.url;
         const bounds = getActivePhysicsManifest()?.boundsWgs84;
@@ -8286,21 +8211,6 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       });
     }
 
-    function drawRoundedRectPath(ctx, x, y, width, height, radius) {
-      const r = Math.max(0, Math.min(radius, width / 2, height / 2));
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + width - r, y);
-      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-      ctx.lineTo(x + width, y + height - r);
-      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-      ctx.lineTo(x + r, y + height);
-      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
-    }
-
     function drawExportTimestampOnCanvas(ctx, canvas, entry) {
       const scale = getExportCaptureScale();
       const layout = getExportFooterLayout(canvas.width / scale, canvas.height / scale);
@@ -8780,7 +8690,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       if (typeof floodFrameState !== "undefined") floodFrameState = "loading";
       document.body.dataset.floodFrame = "loading";
       if (persistentDepthQueryContext?.kind === "physics") updatePersistentDepthQueryPopup();
-      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "" : "", "loading");
+      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus("", "loading");
       return lastRenderToken;
     }
 
@@ -8834,17 +8744,6 @@ function parseStoredESTToDate(timeEST) {
       const d = getEntryESTDate(entry);
       if (!d) return "--";
       return formatFixedESTFromUtc(d.toISOString());
-    }
-
-    function formatHourEntryTimeCompact(entry) {
-      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak`;
-      if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
-      if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
-      const d = getEntryESTDate(entry);
-      if (!d) return "--";
-      const parts = getNyParts(d);
-      if (!parts) return "--";
-      return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute} ${parts.dayPeriod || ""}`.replace(/\s+/g, " ").trim();
     }
 
     function formatSnapshotTime(entry) {
@@ -9962,8 +9861,6 @@ function formatSelectedObservedDate(dateStr) {
       const label = document.getElementById("timelineLabel");
       const bubble = document.getElementById("timelineBubble");
 
-      const first = currentSeriesHours[0];
-      const last = currentSeriesHours[currentSeriesHours.length - 1];
       const entry = currentEntry || currentSeriesHours[currentHourIndex];
 
       if (!currentSeriesHours.length) {
@@ -10525,7 +10422,6 @@ function formatSelectedObservedDate(dateStr) {
           currentHourIndex = 0;
           currentSelectedLabel = getForecastScenarioLabel();
           currentSelectedSubLabel = "";
-          currentRangeLabel = "";
           syncSliderBounds();
           renderSelectionMeta(null, null, null);
           document.getElementById("stageSubText").textContent = "";
@@ -10583,9 +10479,6 @@ function formatSelectedObservedDate(dateStr) {
       currentTopTideIndex = null;
       currentSelectedLabel = getForecastScenarioLabel();
       currentSelectedSubLabel = getForecastScenarioPercentileLabel();
-      currentRangeLabel = currentSeriesHours.length
-        ? `${formatHourEntryTime(currentSeriesHours[0])} to ${formatHourEntryTime(currentSeriesHours[currentSeriesHours.length - 1])}`
-        : getForecastScenarioLabel();
 
       syncSliderBounds();
       if (!currentSeriesHours.length) {
@@ -10619,7 +10512,6 @@ function formatSelectedObservedDate(dateStr) {
         currentTopTideIndex = null;
         currentSelectedLabel = getForecastScenarioLabel();
         currentSelectedSubLabel = getForecastScenarioPercentileLabel();
-        currentRangeLabel = "";
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
         clearFloodLayer();
@@ -10664,15 +10556,14 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     function getObservedArchiveLatestDateKey() {
-      const days = Array.isArray(observedData?.days) ? observedData.days : [];
-      const dateKeys = days
-        .map(day => String(day?.date || "").slice(0, 10))
-        .filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date))
-        .sort(compareDateKeys);
       const archiveEnd = String(observedData?.archiveEndDate || observedData?.endDate || "").slice(0, 10);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(archiveEnd)) dateKeys.push(archiveEnd);
-      dateKeys.sort(compareDateKeys);
-      return dateKeys.length ? dateKeys[dateKeys.length - 1] : null;
+      let latest = /^\d{4}-\d{2}-\d{2}$/.test(archiveEnd) ? archiveEnd : null;
+      const days = Array.isArray(observedData?.days) ? observedData.days : [];
+      for (const day of days) {
+        const date = String(day?.date || "").slice(0, 10);
+        if ((!latest || date > latest) && /^\d{4}-\d{2}-\d{2}$/.test(date)) latest = date;
+      }
+      return latest;
     }
 
     function makeObservedPlaceholderDay(dateKey) {
@@ -10738,9 +10629,16 @@ function formatSelectedObservedDate(dateStr) {
     }
 
     function normalizeUsgsIvObservedDays(data) {
-      const rows = [];
+      const rows = new Map();
+      const stationId = String(getUsgsObservedSiteId());
+      const parameterCd = String(getUsgsObservedParameterCd());
       const seriesList = Array.isArray(data?.value?.timeSeries) ? data.value.timeSeries : [];
       seriesList.forEach(series => {
+        const sites = series?.sourceInfo?.siteCode;
+        const parameters = series?.variable?.variableCode;
+        if (Array.isArray(sites) && sites.length && stationId && !sites.some(code => String(code?.value) === stationId)) return;
+        if (Array.isArray(parameters) && parameters.length && parameterCd &&
+            !parameters.some(code => String(code?.value) === parameterCd)) return;
         const noDataValue = normalizeStageValue(series?.variable?.noDataValue);
         const valueGroups = Array.isArray(series?.values) ? series.values : [];
         valueGroups.forEach(group => {
@@ -10748,17 +10646,20 @@ function formatSelectedObservedDate(dateStr) {
           values.forEach(item => {
             const n = normalizeStageValue(item?.value);
             const dtRaw = item?.dateTime;
-            const dt = dtRaw ? new Date(dtRaw) : null;
-            if (!Number.isFinite(n) || n === noDataValue || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;
+            if (!Number.isFinite(n) || n === noDataValue || typeof dtRaw !== "string" ||
+                !/(?:Z|[+-]\d{2}:\d{2})$/i.test(dtRaw)) return;
+            const dt = new Date(dtRaw);
+            if (!Number.isFinite(dt.getTime())) return;
             const localIso = formatNyLocalIso(dt);
+            const timeUtc = dt.toISOString();
             const dateKey = localIso.slice(0, 10);
             const hourIndex = Number(localIso.slice(11, 13));
             const minuteIndex = Number(localIso.slice(14, 16));
             if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !Number.isInteger(hourIndex) || !Number.isInteger(minuteIndex)) return;
-            rows.push({
+            rows.set(timeUtc, {
               displayTimeEST: localIso,
-              displayTimeUtc: dt.toISOString(),
-              timeUtc: dt.toISOString(),
+              displayTimeUtc: timeUtc,
+              timeUtc,
               observedDate: dateKey,
               hourIndex,
               minuteIndex,
@@ -10767,7 +10668,7 @@ function formatSelectedObservedDate(dateStr) {
               value: n,
               observationInterval: "instantaneous",
               source: "usgs-iv-live",
-              sourceStationId: String(getUsgsObservedSiteId()),
+              sourceStationId: stationId,
               sourceResolutionMinutes: 6,
               observationQuality: "M",
               isMeasuredQuarterHourArchive: minuteIndex % 15 === 0 && dt.getUTCSeconds() === 0 && dt.getUTCMilliseconds() === 0,
@@ -10780,8 +10681,8 @@ function formatSelectedObservedDate(dateStr) {
       });
 
       const byDate = new Map();
-      rows
-        .sort((a, b) => String(a.displayTimeEST).localeCompare(String(b.displayTimeEST)))
+      [...rows.values()]
+        .sort((a, b) => a.timeUtc.localeCompare(b.timeUtc))
         .forEach(row => {
           if (!byDate.has(row.observedDate)) byDate.set(row.observedDate, []);
           byDate.get(row.observedDate).push(row);
@@ -10821,12 +10722,12 @@ function formatSelectedObservedDate(dateStr) {
 
     function ensureObservedDatePlaceholders(startDate, endDate) {
       if (!startDate || !endDate || compareDateKeys(startDate, endDate) > 0) return;
-      const existing = new Set((Array.isArray(observedData?.days) ? observedData.days : []).map(day => String(day?.date || "")));
+      if (!Array.isArray(observedData.days)) observedData.days = [];
+      const existing = new Set(observedData.days.map(day => String(day?.date || "")));
       let cursor = startDate;
       while (cursor && compareDateKeys(cursor, endDate) <= 0) {
         if (!existing.has(cursor)) {
-          addOrMergeObservedDayRecord(makeObservedPlaceholderDay(cursor));
-          existing.add(cursor);
+          observedData.days.push(makeObservedPlaceholderDay(cursor));
         }
         cursor = addDaysToDateKey(cursor, 1);
       }
@@ -11185,7 +11086,6 @@ function populateCalendarSelectors() {
         const derived = classifyFloodEntries(dayRecord?.hours || []);
         currentSelectedSubLabel = derived === "none" ? "Observed" : derived.charAt(0).toUpperCase() + derived.slice(1);
       }
-      currentRangeLabel = dateStr;
     }
 
     async function loadObservedDay(dateStr, preferredHourIndex = null, preferredEntry = null, options = {}) {
@@ -11210,7 +11110,6 @@ function populateCalendarSelectors() {
         currentTopTideIndex = null;
         currentSelectedLabel = "Observed";
         currentSelectedSubLabel = "";
-        currentRangeLabel = "";
         updateDataModeButtons();
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
@@ -11319,7 +11218,6 @@ function populateCalendarSelectors() {
       currentTopTideIndex = Math.max(0, topTideEvents.indexOf(event));
       currentSelectedLabel = `Flood #${event.rank}`;
       currentSelectedSubLabel = formatStageForDisplay(event.peakStage);
-      currentRangeLabel = `${event.title}`;
       selectedObservedDate = event.dateKey || event.entry.observedDate || null;
       if (selectedObservedDate) currentMonthKey = selectedObservedDate.slice(0, 7);
 
@@ -11410,7 +11308,6 @@ function populateCalendarSelectors() {
         toast("");
         currentTimelineIntervalMinutes = nextMinutes;
         updateTimelineIntervalUI();
-        overlayPreloadGeneration += 1;
         return;
       }
       const referenceEntry = currentSeriesHours[getTimelineNavigationIndex()] || null;
@@ -11421,7 +11318,6 @@ function populateCalendarSelectors() {
       toast("");
       currentTimelineIntervalMinutes = nextMinutes;
       updateTimelineIntervalUI();
-      overlayPreloadGeneration += 1;
 
       if (currentDataMode === "observed" && nextMinutes !== 60) {
         try {
@@ -11483,18 +11379,20 @@ function populateCalendarSelectors() {
 
       const index = getTimelineNavigationIndex();
       stopPlayback();
-      const forecastSelectionPending = currentDataMode === "forecast" &&
-        loadForecast.pendingSelectionGeneration === selectionGeneration;
-      if (!forecastSelectionPending) cancelPendingFloodFrame();
+      const dataSelectionPending = (currentDataMode === "forecast" &&
+        loadForecast.pendingSelectionGeneration === selectionGeneration) ||
+        (currentDataMode === "observed" && (
+          loadObservedDay.pendingSelection?.generation === selectionGeneration ||
+          switchDataMode.pendingObservedSelectionGeneration === selectionGeneration
+        ));
+      if (!dataSelectionPending) cancelPendingFloodFrame();
       toast("");
       currentOverlayMode = mode;
       updateModeButtons();
 
-      if (forecastSelectionPending || loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) return;
+      if (dataSelectionPending || loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) return;
       if (currentDataMode === "return-interval" && loadReturnInterval.pendingSelection?.generation === selectionGeneration) {
-        setFloodFrameStatus(currentFloodLayer
-          ? ""
-          : "", "info");
+        setFloodFrameStatus("", "info");
         return;
       }
       await renderHour(index);
@@ -11503,7 +11401,6 @@ function populateCalendarSelectors() {
     async function switchDataMode(mode) {
       let modeFailureToken = lastRenderToken;
       let modeFailureGeneration = null;
-      let modeFailureRequest = null;
       try {
       if (mode === currentDataMode &&
           ((mode === "forecast" && loadForecast.pendingSelectionGeneration === selectionGeneration) ||
@@ -11514,8 +11411,6 @@ function populateCalendarSelectors() {
           && loadTopTideEvent.pendingSelectionGeneration !== selectionGeneration) return;
       const generation = ++selectionGeneration;
       modeFailureGeneration = generation;
-      ++lastRenderToken;
-      cancelPendingFloodFrame(false);
       stopPlayback();
       const floodSelectionToken = cancelPendingFloodFrame();
       modeFailureToken = floodSelectionToken;
@@ -11536,7 +11431,6 @@ function populateCalendarSelectors() {
         currentDataMode = "return-interval";
         currentViewType = "return-interval";
         updateDataModeButtons();
-        cancelPendingFloodFrame(false);
         const loaded = await loadReturnInterval(null, { generation });
         if (generation !== selectionGeneration || loaded === false) return false;
         renderTopTides();
@@ -11557,17 +11451,13 @@ function populateCalendarSelectors() {
       currentHourIndex = 0;
       currentSelectedLabel = "Observed";
       currentSelectedSubLabel = "";
-      currentRangeLabel = "";
       syncSliderBounds();
       document.getElementById("hourSlider").value = "0";
       renderSelectionMeta(null, null, null);
       document.getElementById("stageSubText").textContent = "";
       renderTimelineMeta();
       renderTimelineDays();
-      const loadingMessage = currentFloodLayer
-        ? ""
-        : "";
-      setFloodFrameStatus(loadingMessage, "info");
+      setFloodFrameStatus("", "info");
       await warmBackgroundData();
       if (generation !== selectionGeneration) return;
       await renderCalendar();
@@ -11593,7 +11483,6 @@ function populateCalendarSelectors() {
         currentTopTideIndex = null;
         currentSelectedLabel = failedMode === "forecast" ? getForecastScenarioLabel() : failedLabel;
         currentSelectedSubLabel = "";
-        currentRangeLabel = "";
         updateDataModeButtons();
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
@@ -11724,10 +11613,8 @@ function populateCalendarSelectors() {
       const generation = ++selectionGeneration;
       checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
       ++archiveGeneration;
-      ++lastRenderToken;
       stopPlayback();
       const floodSelectionToken = cancelPendingFloodFrame();
-      cancelPendingFloodFrame(false);
       toast("");
       imageExistsCache = new Map();
       overlayRecordCache = new Map();
@@ -11759,8 +11646,6 @@ function populateCalendarSelectors() {
       historicTopTideEntries = [];
       historicalTopTidesPromise = null;
       backgroundDataPromise = null;
-      historicalTopTideWarmupScheduled = false;
-      historicalTopTideWarmupGeneration += 1;
       observedDaysCache = null;
       clearExportAvailabilityCache();
       observedMonthKeys = [];
@@ -11815,7 +11700,6 @@ function populateCalendarSelectors() {
         clearInterval(playTimer);
         playTimer = null;
       }
-      playbackInFlight = false;
       updatePlayPauseButton();
     }
 

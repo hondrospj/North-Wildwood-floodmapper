@@ -37,7 +37,7 @@ function setup(stage = 'archive') {
     currentSelectedLabel: 'Mean', currentSelectedSubLabel: '', currentRangeLabel: '', currentMonthKey: '',
     stopPlayback() {}, cancelPendingFloodFrame(invalidate = true) {if (invalidate) c.lastRenderToken++; return c.lastRenderToken;},
     updateDataModeButtons() {}, updateModeButtons() {}, toast() {}, setFloodFrameStatus() {},
-    async loadReturnInterval() {}, async loadForecast() {},
+    async loadReturnInterval() {}, async loadForecast() {}, async switchDataMode() {},
     warmBackgroundData: () => stage === 'warmup' ? hold.promise : Promise.resolve(),
     getObservedArchiveSourceForDate: () => stage === 'lewes-index' ? 'lewes' : 'stone-harbor',
     ensureLewesArchiveIndex: () => stage === 'lewes-index' ? hold.promise : Promise.resolve(),
@@ -58,7 +58,7 @@ function setup(stage = 'archive') {
       c.displayedEntry = entry;
     }
   });
-  vm.runInContext(extract('loadTopTideEvent') + '\n' + extract('switchOverlayMode'), c);
+  vm.runInContext(['loadTopTideEvent', 'loadObservedDay', 'switchOverlayMode'].map(extract).join('\n'), c);
   return {c, calls, hold, oldEntry, events};
 }
 
@@ -387,6 +387,22 @@ let accessibleCases = 0;
   c.currentDataMode = 'forecast';
   assert.doesNotThrow(() => c.updateDataModeButtons(), 'The optional modeled button remains optional');
   accessibleCases++;
+}
+
+for (const owner of ['day', 'mode']) {
+  const {c, calls, oldEntry} = setup('none');
+  c.currentDataMode = 'observed';
+  c.currentViewType = 'observed-day';
+  c.selectionGeneration = 1;
+  c.displayedEntry = oldEntry;
+  if (owner === 'day') c.loadObservedDay.pendingSelection = {generation: 1};
+  else c.switchDataMode.pendingObservedSelectionGeneration = 1;
+  await c.switchOverlayMode('dynamic');
+  assert.equal(c.currentOverlayMode, 'dynamic');
+  assert.equal(c.displayedEntry, oldEntry, 'An archive load must retain the last completed frame');
+  assert.equal(c.lastRenderToken, 0, 'Changing the requested layer must not start an obsolete frame');
+  assert.deepEqual(calls.renders, []);
+  cases++;
 }
 
 console.log(`${cases} audit historical-selection cancellation and reverse-order cases passed.`);

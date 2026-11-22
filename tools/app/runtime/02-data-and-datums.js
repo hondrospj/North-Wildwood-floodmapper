@@ -133,7 +133,6 @@
 
     function updateTimelineIntervalUI() {
       const minutes = getTimelineIntervalMinutes();
-      currentObservedResolution = minutes === 15 ? "15min" : (minutes === 1440 ? "daily" : "1hour");
 
       const hourBtn = document.getElementById("intervalHourBtn");
       const quarterBtn = document.getElementById("intervalQuarterBtn");
@@ -311,16 +310,13 @@
         currentHourIndex = 0;
         currentSelectedLabel = `${getReturnIntervalLabel()} Flood`;
         currentSelectedSubLabel = "";
-        currentRangeLabel = "";
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
         renderSelectionMeta(null, null, null);
         document.getElementById("stageSubText").textContent = "";
         renderTimelineMeta();
         renderTimelineDays();
-        setFloodFrameStatus(currentFloodLayer
-          ? ""
-          : "", "info");
+        setFloodFrameStatus("", "info");
 
         if (!returnIntervalData || options.forceRefresh) {
           const payload = await fetchJson(withFreshJsonUrl(RETURN_INTERVALS_URL));
@@ -341,7 +337,6 @@
         currentRawSeriesHours = annotateHydraulicSeries(record.series15min);
         currentSeriesHours = buildReturnIntervalDisplaySeries(currentRawSeriesHours);
         currentSelectedSubLabel = `${targetNavd88Ft.toFixed(2)} ft NAVD88`;
-        currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;
         syncSliderBounds();
         currentHourIndex = preferredEntry
           ? findClosestEntryIndex(currentSeriesHours, preferredEntry)
@@ -356,7 +351,6 @@
         currentSeriesHours = [];
         currentHourIndex = 0;
         currentSelectedSubLabel = "";
-        currentRangeLabel = "";
         syncSliderBounds();
         document.getElementById("hourSlider").value = "0";
         clearFloodLayer();

@@ -353,7 +353,7 @@
       throwIfExportCancelled();
       ensureExportMap();
       const physicsRecord = mode === "depth" ? getPhysicsDisplayRecord(getPhysicsAssetForEntry(entry), mode) : null;
-      let overlayUrl = "";
+      let overlayUrl;
       if (physicsRecord?.url) {
         overlayUrl = physicsRecord.url;
         const bounds = getActivePhysicsManifest()?.boundsWgs84;

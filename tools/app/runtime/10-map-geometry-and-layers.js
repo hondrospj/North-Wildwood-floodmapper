@@ -586,14 +586,6 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       container.style.webkitClipPath = "";
     }
 
-    function getTimelineReservedSpace() {
-      const dock = document.getElementById("timelineDock");
-      if (!dock) return 132;
-      const styles = window.getComputedStyle(dock);
-      const bottom = parseFloat(styles.bottom) || 0;
-      return Math.ceil(dock.offsetHeight + bottom);
-    }
-
     function syncLeftPanelLayout() {
       if(document.body.hasAttribute("data-floodmapper-unified")) return;
       const panel = document.getElementById("leftPanel");
@@ -902,29 +894,6 @@ function normalizeBoundaryRingsFromArcGIS(rings, sourceWkid = 3857) {
       updateExportBuildingsLayer();
       toast("");
       ensureParcelAssets().catch(error => console.warn("Building parcel matching will retry when requested.", error));
-    }
-
-    function addRoadLabelHalo(context, width, height, radius) {
-      const halo = document.createElement("canvas");
-      halo.width = width;
-      halo.height = height;
-      const haloContext = halo.getContext("2d");
-      if (!haloContext) return;
-      const mask = context.getImageData(0, 0, width, height);
-      for (let index = 0; index < mask.data.length; index += 4) {
-        const luminance = mask.data[index] * 0.2126 + mask.data[index + 1] * 0.7152 + mask.data[index + 2] * 0.0722;
-        // Outline the dark lettering/edges without thickening light road lines.
-        if (luminance >= 128) mask.data[index + 3] = 0;
-        mask.data[index] = mask.data[index + 1] = mask.data[index + 2] = 255;
-      }
-      haloContext.putImageData(mask, 0, 0);
-      context.save();
-      context.globalCompositeOperation = "destination-over";
-      for (let direction = 0; direction < 8; direction += 1) {
-        const angle = direction * Math.PI / 4;
-        context.drawImage(halo, Math.cos(angle) * radius, Math.sin(angle) * radius);
-      }
-      context.restore();
     }
 
     // Bake the label styling into canvas tiles so PNG/GIF captures preserve it.

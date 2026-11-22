@@ -1,0 +1,870 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "8875b07aa316d5d59654bd459674798fe0a2474d",
+  "files": [
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "e0cd77c23813ed101f9f22cfbb50c651e40bf45f5f0fbf7294e5e77779ff52c1",
+      "afterSha256": "d5b5e230834b22cc72fdf3156b69dde6243e876e425706d8f615df93e74f57f9",
+      "edits": [
+        [
+          8463,
+          8463,
+          "    function normalizeConfiguredDataset(payload, kind = \"\") {\n      const zoneId = TOWN_CONFIG?.data?.zoneId;\n      const zone = zoneId && payload?.zones?.[zoneId] ? payload.zones[zoneId] : null;\n      if (!zone) return payload;\n      return (kind && zone?.[kind]) || zone?.forecast || zone?.observed || zone;\n    }\n\n"
+        ],
+        [
+          33978,
+          33978,
+          "    let overlayPreloadGeneration = 0;\n    let historicalTopTideWarmupScheduled = false;\n    let historicalTopTideWarmupGeneration = 0;\n"
+        ],
+        [
+          36850,
+          36850,
+          "    let currentRangeLabel = \"--\";\n"
+        ],
+        [
+          36932,
+          36932,
+          "    let currentObservedResolution = \"1hour\";\n"
+        ],
+        [
+          45196,
+          45196,
+          "    let playbackInFlight = false;\n"
+        ],
+        [
+          51181,
+          51181,
+          "      currentObservedResolution = minutes === 15 ? \"15min\" : (minutes === 1440 ? \"daily\" : \"1hour\");\n"
+        ],
+        [
+          58709,
+          58709,
+          "        currentRangeLabel = \"\";\n"
+        ],
+        [
+          58969,
+          59010,
+          "        setFloodFrameStatus(currentFloodLayer\n          ? \"\"\n          : \"\", \"info\");\n"
+        ],
+        [
+          60114,
+          60114,
+          "        currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;\n"
+        ],
+        [
+          60743,
+          60743,
+          "        currentRangeLabel = \"\";\n"
+        ],
+        [
+          68063,
+          68063,
+          "    }\n\n    function hasLongGaugeOutage(series = [], startIndex = 0, endIndex = null, options = {}) {\n      return getLongestGaugeOutageHours(series, startIndex, endIndex, options) > GAUGE_OUTAGE_THRESHOLD_HOURS;\n"
+        ],
+        [
+          133801,
+          133801,
+          "    function clampStage(value) {\n      return Math.max(MIN_STAGE, Math.min(MAX_STAGE, value));\n    }\n\n"
+        ],
+        [
+          138425,
+          138474,
+          "    function getDepthTimelineColor(stageValue) {\n"
+        ],
+        [
+          138801,
+          138917,
+          "    function getImpactTimelineColor(stageValue) {\n      const n = Number(stageValue);\n      if (!Number.isFinite(n)) return \"rgba(121,221,90,.92)\";\n      if (n < MINOR_FLOOD_FT) return \"rgba(121,221,90,.92)\";\n      if (n < MODERATE_FLOOD_FT) return \"rgba(213,138,0,.92)\";\n      if (n < MAJOR_FLOOD_FT) return \"rgba(216,75,103,.92)\";\n      return \"rgba(124,92,224,.92)\";\n    }\n\n    function getTimelineHourColor(entry) {\n      const rawStage = getStageValue(entry);\n      if (currentOverlayMode === \"dynamic\") {\n        return getImpactTimelineColor(rawStage);\n      }\n      return getDepthTimelineColor(rawStage);\n"
+        ],
+        [
+          139512,
+          139660,
+          "      if (span <= 0) return `linear-gradient(90deg, ${getTimelineHourColor(entries[0])}, ${getTimelineHourColor(entries[0])})`;\n"
+        ],
+        [
+          139724,
+          139854,
+          "        const color = getStageValue(entry) == null ? \"#94a3b8\" : getTimelineHourColor(entry);\n"
+        ],
+        [
+          140713,
+          140932,
+          "      const supported = new Set([\n        \"filling\",\n        \"slack\",\n        \"draining-release-15\",\n        \"draining-release-30\",\n        \"draining\"\n      ]);\n      return supported.has(phase) ? phase : \"slack\";\n"
+        ],
+        [
+          145915,
+          145975,
+          "      const selected = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));\n"
+        ],
+        [
+          146128,
+          146246,
+          "      const history = selected.find(entry => Array.isArray(entry.hydraulicAntecedents))?.hydraulicAntecedents || [];\n"
+        ],
+        [
+          146458,
+          146670,
+          "      const phases = rows.map((entry, index) => (\n        Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : \"slack\"\n      ));\n      return rows.map((entry, index) => {\n        const phase = phases[index];\n"
+        ],
+        [
+          146973,
+          147024,
+          ""
+        ],
+        [
+          147108,
+          147212,
+          "          hydraulicCrestTimeUtc: Number.isFinite(entryTimeMs(crestEntry))\n            ? new Date(entryTimeMs(crestEntry)).toISOString()\n            : null,\n"
+        ],
+        [
+          147370,
+          147380,
+          "      }).slice(antecedents.length);\n"
+        ],
+        [
+          152302,
+          152389,
+          "      if (imageExistsCache.has(url)) return imageExistsCache.get(url);\n"
+        ],
+        [
+          152836,
+          152891,
+          ""
+        ],
+        [
+          153022,
+          153022,
+          "          imageExistsCache.delete(url);\n          try { img.src = \"\"; } catch (_) {}\n"
+        ],
+        [
+          153336,
+          153484,
+          "          if (!settled && !exportInProgress && document.body.dataset.initialFloodFrame === \"loading\") {\n"
+        ],
+        [
+          153780,
+          153811,
+          "      imageExistsCache.set(url, request);\n"
+        ],
+        [
+          153847,
+          153967,
+          "      if (imageExistsCache.get(url) === request) {\n        if (!result.ok) imageExistsCache.delete(url);\n        else imageExistsCache.set(url, result);\n"
+        ],
+        [
+          154708,
+          154760,
+          "          if (!value) { try { img.src = \"\"; } catch (_) {} }\n"
+        ],
+        [
+          154891,
+          154891,
+          "          preloadPromiseCache.delete(url);\n          img.onload = null;\n          img.onerror = null;\n          try { img.src = \"\"; } catch (_) {}\n"
+        ],
+        [
+          156967,
+          157062,
+          ""
+        ],
+        [
+          157193,
+          157193,
+          "          exportImageElementCache.delete(url);\n          img.onload = null;\n          img.onerror = null;\n          try { img.src = \"\"; } catch (_) {}\n"
+        ],
+        [
+          219693,
+          219693,
+          "    function getTimelineReservedSpace() {\n      const dock = document.getElementById(\"timelineDock\");\n      if (!dock) return 132;\n      const styles = window.getComputedStyle(dock);\n      const bottom = parseFloat(styles.bottom) || 0;\n      return Math.ceil(dock.offsetHeight + bottom);\n    }\n\n"
+        ],
+        [
+          232884,
+          232884,
+          "    function addRoadLabelHalo(context, width, height, radius) {\n      const halo = document.createElement(\"canvas\");\n      halo.width = width;\n      halo.height = height;\n      const haloContext = halo.getContext(\"2d\");\n      if (!haloContext) return;\n      const mask = context.getImageData(0, 0, width, height);\n      for (let index = 0; index < mask.data.length; index += 4) {\n        const luminance = mask.data[index] * 0.2126 + mask.data[index + 1] * 0.7152 + mask.data[index + 2] * 0.0722;\n        // Outline the dark lettering/edges without thickening light road lines.\n        if (luminance >= 128) mask.data[index + 3] = 0;\n        mask.data[index] = mask.data[index + 1] = mask.data[index + 2] = 255;\n      }\n      haloContext.putImageData(mask, 0, 0);\n      context.save();\n      context.globalCompositeOperation = \"destination-over\";\n      for (let direction = 0; direction < 8; direction += 1) {\n        const angle = direction * Math.PI / 4;\n        context.drawImage(halo, Math.cos(angle) * radius, Math.sin(angle) * radius);\n      }\n      context.restore();\n    }\n\n"
+        ],
+        [
+          307161,
+          307161,
+          "      const extent = document.getElementById(\"downloadExtentSelect\");\n"
+        ],
+        [
+          348414,
+          348436,
+          "      let overlayUrl = \"\";\n"
+        ],
+        [
+          373674,
+          373674,
+          "    function drawRoundedRectPath(ctx, x, y, width, height, radius) {\n      const r = Math.max(0, Math.min(radius, width / 2, height / 2));\n      ctx.beginPath();\n      ctx.moveTo(x + r, y);\n      ctx.lineTo(x + width - r, y);\n      ctx.quadraticCurveTo(x + width, y, x + width, y + r);\n      ctx.lineTo(x + width, y + height - r);\n      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);\n      ctx.lineTo(x + r, y + height);\n      ctx.quadraticCurveTo(x, y + height, x, y + height - r);\n      ctx.lineTo(x, y + r);\n      ctx.quadraticCurveTo(x, y, x + r, y);\n      ctx.closePath();\n    }\n\n"
+        ],
+        [
+          396156,
+          396245,
+          "      if (typeof setFloodFrameStatus === \"function\") setFloodFrameStatus(currentFloodLayer ? \"\" : \"\", \"loading\");\n"
+        ],
+        [
+          398690,
+          398690,
+          "    }\n\n    function formatHourEntryTimeCompact(entry) {\n      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} \u2022 Daily peak`;\n      if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);\n      if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });\n      const d = getEntryESTDate(entry);\n      if (!d) return \"--\";\n      const parts = getNyParts(d);\n      if (!parts) return \"--\";\n      return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute} ${parts.dayPeriod || \"\"}`.replace(/\\s+/g, \" \").trim();\n"
+        ],
+        [
+          449408,
+          449408,
+          "      const first = currentSeriesHours[0];\n      const last = currentSeriesHours[currentSeriesHours.length - 1];\n"
+        ],
+        [
+          479126,
+          479126,
+          "          currentRangeLabel = \"\";\n"
+        ],
+        [
+          482349,
+          482349,
+          "      currentRangeLabel = currentSeriesHours.length\n        ? `${formatHourEntryTime(currentSeriesHours[0])} to ${formatHourEntryTime(currentSeriesHours[currentSeriesHours.length - 1])}`\n        : getForecastScenarioLabel();\n"
+        ],
+        [
+          484167,
+          484167,
+          "        currentRangeLabel = \"\";\n"
+        ],
+        [
+          485948,
+          486134,
+          ""
+        ],
+        [
+          486213,
+          486424,
+          "      const dateKeys = days\n        .map(day => String(day?.date || \"\").slice(0, 10))\n        .filter(date => /^\\d{4}-\\d{2}-\\d{2}$/.test(date))\n        .sort(compareDateKeys);\n      const archiveEnd = String(observedData?.archiveEndDate || observedData?.endDate || \"\").slice(0, 10);\n      if (/^\\d{4}-\\d{2}-\\d{2}$/.test(archiveEnd)) dateKeys.push(archiveEnd);\n      dateKeys.sort(compareDateKeys);\n      return dateKeys.length ? dateKeys[dateKeys.length - 1] : null;\n"
+        ],
+        [
+          489588,
+          489739,
+          "      const rows = [];\n"
+        ],
+        [
+          489870,
+          490270,
+          ""
+        ],
+        [
+          490675,
+          490924,
+          "            const dt = dtRaw ? new Date(dtRaw) : null;\n            if (!Number.isFinite(n) || n === noDataValue || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;\n"
+        ],
+        [
+          490975,
+          491021,
+          ""
+        ],
+        [
+          491326,
+          491358,
+          "            rows.push({\n"
+        ],
+        [
+          491398,
+          491460,
+          "              displayTimeUtc: dt.toISOString(),\n              timeUtc: dt.toISOString(),\n"
+        ],
+        [
+          491721,
+          491763,
+          "              sourceStationId: String(getUsgsObservedSiteId()),\n"
+        ],
+        [
+          492195,
+          492280,
+          "      rows\n        .sort((a, b) => String(a.displayTimeEST).localeCompare(String(b.displayTimeEST)))\n"
+        ],
+        [
+          494135,
+          494291,
+          "      const existing = new Set((Array.isArray(observedData?.days) ? observedData.days : []).map(day => String(day?.date || \"\")));\n"
+        ],
+        [
+          494422,
+          494492,
+          "          addOrMergeObservedDayRecord(makeObservedPlaceholderDay(cursor));\n          existing.add(cursor);\n"
+        ],
+        [
+          510270,
+          510270,
+          "      currentRangeLabel = dateStr;\n"
+        ],
+        [
+          511165,
+          511165,
+          "        currentRangeLabel = \"\";\n"
+        ],
+        [
+          516930,
+          516930,
+          "      currentRangeLabel = `${event.title}`;\n"
+        ],
+        [
+          521592,
+          521592,
+          "        overlayPreloadGeneration += 1;\n"
+        ],
+        [
+          522018,
+          522018,
+          "      overlayPreloadGeneration += 1;\n"
+        ],
+        [
+          524484,
+          524913,
+          "      const forecastSelectionPending = currentDataMode === \"forecast\" &&\n        loadForecast.pendingSelectionGeneration === selectionGeneration;\n      if (!forecastSelectionPending) cancelPendingFloodFrame();\n"
+        ],
+        [
+          524991,
+          525102,
+          "      if (forecastSelectionPending || loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) return;\n"
+        ],
+        [
+          525228,
+          525269,
+          "        setFloodFrameStatus(currentFloodLayer\n          ? \"\"\n          : \"\", \"info\");\n"
+        ],
+        [
+          525459,
+          525459,
+          "      let modeFailureRequest = null;\n"
+        ],
+        [
+          526263,
+          526263,
+          "      ++lastRenderToken;\n      cancelPendingFloodFrame(false);\n"
+        ],
+        [
+          527015,
+          527015,
+          "        cancelPendingFloodFrame(false);\n"
+        ],
+        [
+          527884,
+          527884,
+          "      currentRangeLabel = \"\";\n"
+        ],
+        [
+          528132,
+          528171,
+          "      const loadingMessage = currentFloodLayer\n        ? \"\"\n        : \"\";\n      setFloodFrameStatus(loadingMessage, \"info\");\n"
+        ],
+        [
+          529440,
+          529440,
+          "        currentRangeLabel = \"\";\n"
+        ],
+        [
+          535059,
+          535059,
+          "      ++lastRenderToken;\n"
+        ],
+        [
+          535142,
+          535142,
+          "      cancelPendingFloodFrame(false);\n"
+        ],
+        [
+          536306,
+          536306,
+          "      historicalTopTideWarmupScheduled = false;\n      historicalTopTideWarmupGeneration += 1;\n"
+        ],
+        [
+          538329,
+          538329,
+          "      playbackInFlight = false;\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "5ed2735d90ebc93eeacc16ccfbe0e66028e7df0e1b36aac69fd3110488013953",
+      "afterSha256": "c503b183be8a83b5e48a52d887b4265c254b65c5c8929dba30b45179cb76d09a",
+      "edits": [
+        [
+          105647,
+          105745,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=e0cd77c23813ed10\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/00-configuration.js",
+      "beforeSha256": "423044fd9614a87a37800d485c4133b578e2e4bf3ccdf9cd187dd9d0ddb2f701",
+      "afterSha256": "51c4adf6897c01fccf355ca39cb6f8cf806d87cd74110cd8c8e46140ba5906ff",
+      "edits": [
+        [
+          8463,
+          8463,
+          "    function normalizeConfiguredDataset(payload, kind = \"\") {\n      const zoneId = TOWN_CONFIG?.data?.zoneId;\n      const zone = zoneId && payload?.zones?.[zoneId] ? payload.zones[zoneId] : null;\n      if (!zone) return payload;\n      return (kind && zone?.[kind]) || zone?.forecast || zone?.observed || zone;\n    }\n\n"
+        ],
+        [
+          33978,
+          33978,
+          "    let overlayPreloadGeneration = 0;\n    let historicalTopTideWarmupScheduled = false;\n    let historicalTopTideWarmupGeneration = 0;\n"
+        ],
+        [
+          36850,
+          36850,
+          "    let currentRangeLabel = \"--\";\n"
+        ],
+        [
+          36932,
+          36932,
+          "    let currentObservedResolution = \"1hour\";\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/01-physics-manifests.js",
+      "beforeSha256": "b34cd596bb4ac17ac1799242d41001ca8c83218310bdd1d84c81d81596ec355e",
+      "afterSha256": "715c178e8d1e7ea7fee0f1795db2d3eafc8c923d338e9c92d5f480ec8ab3f192",
+      "edits": [
+        [
+          8182,
+          8182,
+          "    let playbackInFlight = false;\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/02-data-and-datums.js",
+      "beforeSha256": "b78cfc04b3701327a7c91bd1b0d15ee6b95ead21b6279e2e00495ec280aa618e",
+      "afterSha256": "f98daad5157ed18866fe59333957000da9822be0cca9a71e882ca48c2a880b2d",
+      "edits": [
+        [
+          5037,
+          5037,
+          "      currentObservedResolution = minutes === 15 ? \"15min\" : (minutes === 1440 ? \"daily\" : \"1hour\");\n"
+        ],
+        [
+          12565,
+          12565,
+          "        currentRangeLabel = \"\";\n"
+        ],
+        [
+          12825,
+          12866,
+          "        setFloodFrameStatus(currentFloodLayer\n          ? \"\"\n          : \"\", \"info\");\n"
+        ],
+        [
+          13970,
+          13970,
+          "        currentRangeLabel = `${returnIntervalData.windowHours || 84}-hour sample storm`;\n"
+        ],
+        [
+          14599,
+          14599,
+          "        currentRangeLabel = \"\";\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/03-time-series.js",
+      "beforeSha256": "1598f0ac4fd3add12d73b5b3b10409ad405ad7fa5fbc3a0aa665e214cbc1dd93",
+      "afterSha256": "a10458032fcaaa074479d4e893ada3cd1bc36e474c5d35204b07bad5dd5c2dd9",
+      "edits": [
+        [
+          5670,
+          5670,
+          "    }\n\n    function hasLongGaugeOutage(series = [], startIndex = 0, endIndex = null, options = {}) {\n      return getLongestGaugeOutageHours(series, startIndex, endIndex, options) > GAUGE_OUTAGE_THRESHOLD_HOURS;\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/06-inundation-catalog.js",
+      "beforeSha256": "09fec93285b6c3a70de010df8892584e2ac8c8aaa327e3f66b6ef8acdc209e1a",
+      "afterSha256": "26c70908c408f254e4f27d970131d6129d2f815274c0c50801a2a3bc4034f621",
+      "edits": [
+        [
+          0,
+          0,
+          "    function clampStage(value) {\n      return Math.max(MIN_STAGE, Math.min(MAX_STAGE, value));\n    }\n\n"
+        ],
+        [
+          4624,
+          4673,
+          "    function getDepthTimelineColor(stageValue) {\n"
+        ],
+        [
+          5000,
+          5116,
+          "    function getImpactTimelineColor(stageValue) {\n      const n = Number(stageValue);\n      if (!Number.isFinite(n)) return \"rgba(121,221,90,.92)\";\n      if (n < MINOR_FLOOD_FT) return \"rgba(121,221,90,.92)\";\n      if (n < MODERATE_FLOOD_FT) return \"rgba(213,138,0,.92)\";\n      if (n < MAJOR_FLOOD_FT) return \"rgba(216,75,103,.92)\";\n      return \"rgba(124,92,224,.92)\";\n    }\n\n    function getTimelineHourColor(entry) {\n      const rawStage = getStageValue(entry);\n      if (currentOverlayMode === \"dynamic\") {\n        return getImpactTimelineColor(rawStage);\n      }\n      return getDepthTimelineColor(rawStage);\n"
+        ],
+        [
+          5711,
+          5859,
+          "      if (span <= 0) return `linear-gradient(90deg, ${getTimelineHourColor(entries[0])}, ${getTimelineHourColor(entries[0])})`;\n"
+        ],
+        [
+          5923,
+          6053,
+          "        const color = getStageValue(entry) == null ? \"#94a3b8\" : getTimelineHourColor(entry);\n"
+        ],
+        [
+          6912,
+          7131,
+          "      const supported = new Set([\n        \"filling\",\n        \"slack\",\n        \"draining-release-15\",\n        \"draining-release-30\",\n        \"draining\"\n      ]);\n      return supported.has(phase) ? phase : \"slack\";\n"
+        ],
+        [
+          12114,
+          12174,
+          "      const selected = (Array.isArray(series) ? series : []).map(entry => ({ ...entry }));\n"
+        ],
+        [
+          12327,
+          12445,
+          "      const history = selected.find(entry => Array.isArray(entry.hydraulicAntecedents))?.hydraulicAntecedents || [];\n"
+        ],
+        [
+          12657,
+          12869,
+          "      const phases = rows.map((entry, index) => (\n        Number.isFinite(getStageValue(entry)) ? inferHydraulicPhaseForIndex(rows, index) : \"slack\"\n      ));\n      return rows.map((entry, index) => {\n        const phase = phases[index];\n"
+        ],
+        [
+          13172,
+          13223,
+          ""
+        ],
+        [
+          13307,
+          13411,
+          "          hydraulicCrestTimeUtc: Number.isFinite(entryTimeMs(crestEntry))\n            ? new Date(entryTimeMs(crestEntry)).toISOString()\n            : null,\n"
+        ],
+        [
+          13569,
+          13579,
+          "      }).slice(antecedents.length);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/07-image-loading.js",
+      "beforeSha256": "6c7ba8932dc7139c3b2c383e0cf8940818f76c6e00bf6136fe6c46cee266c1d7",
+      "afterSha256": "32601fc2acf040159eb2b156f1ce61bf6ca4146d11dbab1ea74079fdcbbbbe5f",
+      "edits": [
+        [
+          190,
+          277,
+          "      if (imageExistsCache.has(url)) return imageExistsCache.get(url);\n"
+        ],
+        [
+          724,
+          779,
+          ""
+        ],
+        [
+          910,
+          910,
+          "          imageExistsCache.delete(url);\n          try { img.src = \"\"; } catch (_) {}\n"
+        ],
+        [
+          1224,
+          1372,
+          "          if (!settled && !exportInProgress && document.body.dataset.initialFloodFrame === \"loading\") {\n"
+        ],
+        [
+          1668,
+          1699,
+          "      imageExistsCache.set(url, request);\n"
+        ],
+        [
+          1735,
+          1855,
+          "      if (imageExistsCache.get(url) === request) {\n        if (!result.ok) imageExistsCache.delete(url);\n        else imageExistsCache.set(url, result);\n"
+        ],
+        [
+          2596,
+          2648,
+          "          if (!value) { try { img.src = \"\"; } catch (_) {} }\n"
+        ],
+        [
+          2779,
+          2779,
+          "          preloadPromiseCache.delete(url);\n          img.onload = null;\n          img.onerror = null;\n          try { img.src = \"\"; } catch (_) {}\n"
+        ],
+        [
+          4855,
+          4950,
+          ""
+        ],
+        [
+          5081,
+          5081,
+          "          exportImageElementCache.delete(url);\n          img.onload = null;\n          img.onerror = null;\n          try { img.src = \"\"; } catch (_) {}\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/10-map-geometry-and-layers.js",
+      "beforeSha256": "85f570cba58589287ba4a779953e0d2055eb3043f46e037038e75b07baac5b10",
+      "afterSha256": "49723badd9ab22d3681b2678c0df3d716b411e26b82b7f6e1093729db94fb21b",
+      "edits": [
+        [
+          23801,
+          23801,
+          "    }\n\n    function getTimelineReservedSpace() {\n      const dock = document.getElementById(\"timelineDock\");\n      if (!dock) return 132;\n      const styles = window.getComputedStyle(dock);\n      const bottom = parseFloat(styles.bottom) || 0;\n      return Math.ceil(dock.offsetHeight + bottom);\n"
+        ],
+        [
+          36999,
+          36999,
+          "    function addRoadLabelHalo(context, width, height, radius) {\n      const halo = document.createElement(\"canvas\");\n      halo.width = width;\n      halo.height = height;\n      const haloContext = halo.getContext(\"2d\");\n      if (!haloContext) return;\n      const mask = context.getImageData(0, 0, width, height);\n      for (let index = 0; index < mask.data.length; index += 4) {\n        const luminance = mask.data[index] * 0.2126 + mask.data[index + 1] * 0.7152 + mask.data[index + 2] * 0.0722;\n        // Outline the dark lettering/edges without thickening light road lines.\n        if (luminance >= 128) mask.data[index + 3] = 0;\n        mask.data[index] = mask.data[index + 1] = mask.data[index + 2] = 255;\n      }\n      haloContext.putImageData(mask, 0, 0);\n      context.save();\n      context.globalCompositeOperation = \"destination-over\";\n      for (let direction = 0; direction < 8; direction += 1) {\n        const angle = direction * Math.PI / 4;\n        context.drawImage(halo, Math.cos(angle) * radius, Math.sin(angle) * radius);\n      }\n      context.restore();\n    }\n\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/14-export-calendars.js",
+      "beforeSha256": "b6e0cfec67063e9680f915b985a3f1167ae2c8baba5f93d3c3271fa10b8b6f31",
+      "afterSha256": "70013ebc53220647ccfdd665f39137ac5a9af3ce965e995f4de31cf222a0efa1",
+      "edits": [
+        [
+          16220,
+          16220,
+          "      const extent = document.getElementById(\"downloadExtentSelect\");\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/16-export-map.js",
+      "beforeSha256": "3d2f62b4bcd8a81e0ce472af26b96a492c9604fc2de98e9528382a91a88ca56b",
+      "afterSha256": "a488fdfc8d7f778c87eb7c7bcc2174dbc6a12b949fc16d3d113a1cfa1825f361",
+      "edits": [
+        [
+          15917,
+          15939,
+          "      let overlayUrl = \"\";\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/17-export-encoding.js",
+      "beforeSha256": "d2268771ef6a94d5051d988569f8eb848e5f50173c4b3bc2c8104cf93d6e1591",
+      "afterSha256": "c9e2280a67ae476a472403c6d124edbc925d2c17498846ee2e97dcf6c7787532",
+      "edits": [
+        [
+          7590,
+          7590,
+          "    function drawRoundedRectPath(ctx, x, y, width, height, radius) {\n      const r = Math.max(0, Math.min(radius, width / 2, height / 2));\n      ctx.beginPath();\n      ctx.moveTo(x + r, y);\n      ctx.lineTo(x + width - r, y);\n      ctx.quadraticCurveTo(x + width, y, x + width, y + r);\n      ctx.lineTo(x + width, y + height - r);\n      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);\n      ctx.lineTo(x + r, y + height);\n      ctx.quadraticCurveTo(x, y + height, x, y + height - r);\n      ctx.lineTo(x, y + r);\n      ctx.quadraticCurveTo(x, y, x + r, y);\n      ctx.closePath();\n    }\n\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/18-flood-frame-rendering.js",
+      "beforeSha256": "4dc54c8e9bd0e6ca4943a61a7737c104443cdce3a0d961e0b9cad2b500697087",
+      "afterSha256": "4e1f915780ea89a47a5d60bc088b75d3b588ebbac1bf0126e50622b4631e91c1",
+      "edits": [
+        [
+          6053,
+          6142,
+          "      if (typeof setFloodFrameStatus === \"function\") setFloodFrameStatus(currentFloodLayer ? \"\" : \"\", \"loading\");\n"
+        ],
+        [
+          8587,
+          8587,
+          "    }\n\n    function formatHourEntryTimeCompact(entry) {\n      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} \u2022 Daily peak`;\n      if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);\n      if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });\n      const d = getEntryESTDate(entry);\n      if (!d) return \"--\";\n      const parts = getNyParts(d);\n      if (!parts) return \"--\";\n      return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute} ${parts.dayPeriod || \"\"}`.replace(/\\s+/g, \" \").trim();\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/20-timeline-rendering.js",
+      "beforeSha256": "ed5b614f287c67a67edcefcf4d705782a86426e3734b6def3c10088e96c506c9",
+      "afterSha256": "dcfcd6b369381621305ed6d92d516812026fc92d0dd5241e76dfd9627d2788e2",
+      "edits": [
+        [
+          482,
+          482,
+          "      const first = currentSeriesHours[0];\n      const last = currentSeriesHours[currentSeriesHours.length - 1];\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/21-forecast-and-observed-loading.js",
+      "beforeSha256": "66381dab0772efa8a7b83bf252496e65acc011b6189a196f8bf0e80edb2e4612",
+      "afterSha256": "9af88cb8b8f896931762e98efcb9e00016c85fcf7b136f5a2c7656d3c2b548ac",
+      "edits": [
+        [
+          3009,
+          3009,
+          "          currentRangeLabel = \"\";\n"
+        ],
+        [
+          6232,
+          6232,
+          "      currentRangeLabel = currentSeriesHours.length\n        ? `${formatHourEntryTime(currentSeriesHours[0])} to ${formatHourEntryTime(currentSeriesHours[currentSeriesHours.length - 1])}`\n        : getForecastScenarioLabel();\n"
+        ],
+        [
+          8050,
+          8050,
+          "        currentRangeLabel = \"\";\n"
+        ],
+        [
+          9831,
+          10017,
+          ""
+        ],
+        [
+          10096,
+          10307,
+          "      const dateKeys = days\n        .map(day => String(day?.date || \"\").slice(0, 10))\n        .filter(date => /^\\d{4}-\\d{2}-\\d{2}$/.test(date))\n        .sort(compareDateKeys);\n      const archiveEnd = String(observedData?.archiveEndDate || observedData?.endDate || \"\").slice(0, 10);\n      if (/^\\d{4}-\\d{2}-\\d{2}$/.test(archiveEnd)) dateKeys.push(archiveEnd);\n      dateKeys.sort(compareDateKeys);\n      return dateKeys.length ? dateKeys[dateKeys.length - 1] : null;\n"
+        ],
+        [
+          13471,
+          13622,
+          "      const rows = [];\n"
+        ],
+        [
+          13753,
+          14153,
+          ""
+        ],
+        [
+          14558,
+          14807,
+          "            const dt = dtRaw ? new Date(dtRaw) : null;\n            if (!Number.isFinite(n) || n === noDataValue || !(dt instanceof Date) || Number.isNaN(dt.getTime())) return;\n"
+        ],
+        [
+          14858,
+          14904,
+          ""
+        ],
+        [
+          15209,
+          15241,
+          "            rows.push({\n"
+        ],
+        [
+          15281,
+          15343,
+          "              displayTimeUtc: dt.toISOString(),\n              timeUtc: dt.toISOString(),\n"
+        ],
+        [
+          15604,
+          15646,
+          "              sourceStationId: String(getUsgsObservedSiteId()),\n"
+        ],
+        [
+          16078,
+          16163,
+          "      rows\n        .sort((a, b) => String(a.displayTimeEST).localeCompare(String(b.displayTimeEST)))\n"
+        ],
+        [
+          18018,
+          18174,
+          "      const existing = new Set((Array.isArray(observedData?.days) ? observedData.days : []).map(day => String(day?.date || \"\")));\n"
+        ],
+        [
+          18305,
+          18375,
+          "          addOrMergeObservedDayRecord(makeObservedPlaceholderDay(cursor));\n          existing.add(cursor);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/22-calendar-and-modes.js",
+      "beforeSha256": "fd36ad5a998b25cf02b1e06e8bb8a30016524d3b4a058f1eae66ef40c6095e37",
+      "afterSha256": "a533ec972df6a2828a71d8ded37181df83d72a0370dce36f6afb12250584e9ba",
+      "edits": [
+        [
+          11712,
+          11712,
+          "      currentRangeLabel = dateStr;\n"
+        ],
+        [
+          12607,
+          12607,
+          "        currentRangeLabel = \"\";\n"
+        ],
+        [
+          18372,
+          18372,
+          "      currentRangeLabel = `${event.title}`;\n"
+        ],
+        [
+          23034,
+          23034,
+          "        overlayPreloadGeneration += 1;\n"
+        ],
+        [
+          23460,
+          23460,
+          "      overlayPreloadGeneration += 1;\n"
+        ],
+        [
+          25926,
+          26355,
+          "      const forecastSelectionPending = currentDataMode === \"forecast\" &&\n        loadForecast.pendingSelectionGeneration === selectionGeneration;\n      if (!forecastSelectionPending) cancelPendingFloodFrame();\n"
+        ],
+        [
+          26433,
+          26544,
+          "      if (forecastSelectionPending || loadTopTideEvent.pendingSelectionGeneration === selectionGeneration) return;\n"
+        ],
+        [
+          26670,
+          26711,
+          "        setFloodFrameStatus(currentFloodLayer\n          ? \"\"\n          : \"\", \"info\");\n"
+        ],
+        [
+          26901,
+          26901,
+          "      let modeFailureRequest = null;\n"
+        ],
+        [
+          27705,
+          27705,
+          "      ++lastRenderToken;\n      cancelPendingFloodFrame(false);\n"
+        ],
+        [
+          28457,
+          28457,
+          "        cancelPendingFloodFrame(false);\n"
+        ],
+        [
+          29326,
+          29326,
+          "      currentRangeLabel = \"\";\n"
+        ],
+        [
+          29574,
+          29613,
+          "      const loadingMessage = currentFloodLayer\n        ? \"\"\n        : \"\";\n      setFloodFrameStatus(loadingMessage, \"info\");\n"
+        ],
+        [
+          30882,
+          30882,
+          "        currentRangeLabel = \"\";\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSha256": "4c203ffbbf412995668e5720789da777efd4e15b79b9091fb163abf3d2cc216a",
+      "afterSha256": "2e7f479ae7a6ff91c2c5a0b40799be501b9d48a5b17bbe9b1fee0c31f2d65e7a",
+      "edits": [
+        [
+          4771,
+          4771,
+          "      ++lastRenderToken;\n"
+        ],
+        [
+          4854,
+          4854,
+          "      cancelPendingFloodFrame(false);\n"
+        ],
+        [
+          6018,
+          6018,
+          "      historicalTopTideWarmupScheduled = false;\n      historicalTopTideWarmupGeneration += 1;\n"
+        ],
+        [
+          8041,
+          8041,
+          "      playbackInFlight = false;\n"
+        ]
+      ]
+    }
+  ]
+}

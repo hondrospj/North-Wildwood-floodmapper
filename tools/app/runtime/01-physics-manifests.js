@@ -177,7 +177,6 @@
     }
 
     let playTimer = null;
-    let playbackInFlight = false;
     let playbackObservedDaysAdvanced = 0;
     let playbackPausedForConfirmation = false;
     let overlayOpacity = DEFAULT_OPACITY;

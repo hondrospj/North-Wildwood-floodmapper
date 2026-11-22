@@ -109,10 +109,8 @@
       const generation = ++selectionGeneration;
       checkNwsAlerts().catch(error => console.warn("Flood alert refresh failed.", error));
       ++archiveGeneration;
-      ++lastRenderToken;
       stopPlayback();
       const floodSelectionToken = cancelPendingFloodFrame();
-      cancelPendingFloodFrame(false);
       toast("");
       imageExistsCache = new Map();
       overlayRecordCache = new Map();
@@ -144,8 +142,6 @@
       historicTopTideEntries = [];
       historicalTopTidesPromise = null;
       backgroundDataPromise = null;
-      historicalTopTideWarmupScheduled = false;
-      historicalTopTideWarmupGeneration += 1;
       observedDaysCache = null;
       clearExportAvailabilityCache();
       observedMonthKeys = [];
@@ -200,7 +196,6 @@
         clearInterval(playTimer);
         playTimer = null;
       }
-      playbackInFlight = false;
       updatePlayPauseButton();
     }
 

@@ -125,7 +125,7 @@
       if (typeof floodFrameState !== "undefined") floodFrameState = "loading";
       document.body.dataset.floodFrame = "loading";
       if (persistentDepthQueryContext?.kind === "physics") updatePersistentDepthQueryPopup();
-      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus(currentFloodLayer ? "" : "", "loading");
+      if (typeof setFloodFrameStatus === "function") setFloodFrameStatus("", "loading");
       return lastRenderToken;
     }
 
@@ -179,17 +179,6 @@ function parseStoredESTToDate(timeEST) {
       const d = getEntryESTDate(entry);
       if (!d) return "--";
       return formatFixedESTFromUtc(d.toISOString());
-    }
-
-    function formatHourEntryTimeCompact(entry) {
-      if (entry?.isDailyPeakOnly && entry.peakTimeKnown !== true) return `${formatSelectedObservedDate(entry.observedDate)} • Daily peak`;
-      if (entry?.topTideDateOnly) return formatTopTideDateLabelFromEntry(entry);
-      if (entry?.returnIntervalYears) return formatReturnStormOffset(entry, { compact: true });
-      const d = getEntryESTDate(entry);
-      if (!d) return "--";
-      const parts = getNyParts(d);
-      if (!parts) return "--";
-      return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute} ${parts.dayPeriod || ""}`.replace(/\s+/g, " ").trim();
     }
 
     function formatSnapshotTime(entry) {

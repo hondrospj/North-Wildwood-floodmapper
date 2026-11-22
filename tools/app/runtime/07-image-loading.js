@@ -3,7 +3,8 @@
     async function testImageUrl(url) {
       if (!url) return { ok: false };
       if (exportCancelRequested) return { ok: false, cancelled: true };
-      if (imageExistsCache.has(url)) return imageExistsCache.get(url);
+      const cache = imageExistsCache;
+      if (cache.has(url)) return cache.get(url);
       const request = new Promise(resolve => {
         const img = new Image();
         let settled = false;
@@ -16,12 +17,11 @@
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
           img.onload = null;
           img.onerror = null;
+          if (!value.ok) img.removeAttribute?.("src");
           resolve(value);
         };
         const cancelIfRequested = () => {
           if (!exportCancelRequested) return false;
-          imageExistsCache.delete(url);
-          try { img.src = ""; } catch (_) {}
           done({ ok: false, cancelled: true });
           return true;
         };
@@ -30,7 +30,8 @@
         img.crossOrigin = "anonymous";
         img.fetchPriority = "high";
         img.onload = () => {
-          if (!settled && !exportInProgress && document.body.dataset.initialFloodFrame === "loading") {
+          if (!settled && imageExistsCache === cache && !exportInProgress &&
+              document.body.dataset.initialFloodFrame === "loading") {
             img.alt = "";
             startupOverlayCandidate = { url, image: img };
           }
@@ -40,11 +41,11 @@
         timeoutTimer = window.setTimeout(() => done({ ok: false }), 20000);
         img.src = url;
       });
-      imageExistsCache.set(url, request);
+      cache.set(url, request);
       const result = await request;
-      if (imageExistsCache.get(url) === request) {
-        if (!result.ok) imageExistsCache.delete(url);
-        else imageExistsCache.set(url, result);
+      if (cache.get(url) === request) {
+        if (!result.ok) cache.delete(url);
+        else cache.set(url, result);
       }
       return result;
     }
@@ -67,15 +68,11 @@
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
           img.onload = null;
           img.onerror = null;
-          if (!value) { try { img.src = ""; } catch (_) {} }
+          if (!value) img.removeAttribute?.("src");
           resolve(value);
         };
         const cancelIfRequested = () => {
           if (!exportCancelRequested) return false;
-          preloadPromiseCache.delete(url);
-          img.onload = null;
-          img.onerror = null;
-          try { img.src = ""; } catch (_) {}
           done(null);
           return true;
         };
@@ -125,14 +122,12 @@
           releaseRaster();
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
+          img.onload = img.onerror = null;
+          if (!value) img.removeAttribute?.("src");
           resolve(value);
         };
         const cancelIfRequested = () => {
           if (!exportCancelRequested) return false;
-          exportImageElementCache.delete(url);
-          img.onload = null;
-          img.onerror = null;
-          try { img.src = ""; } catch (_) {}
           done(null);
           return true;
         };

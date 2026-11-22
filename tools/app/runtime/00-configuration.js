@@ -216,13 +216,6 @@
       return value ? new URL(value, APP_BASE).href : "";
     }
 
-    function normalizeConfiguredDataset(payload, kind = "") {
-      const zoneId = TOWN_CONFIG?.data?.zoneId;
-      const zone = zoneId && payload?.zones?.[zoneId] ? payload.zones[zoneId] : null;
-      if (!zone) return payload;
-      return (kind && zone?.[kind]) || zone?.forecast || zone?.observed || zone;
-    }
-
 
     function decodeHtmlText(value) {
       const el = document.createElement("textarea");
@@ -774,9 +767,6 @@ function cloneStyleObject(value) {
     let fillingCompositeCache = new Map();
     let drainageCompositeCache = new Map();
     let bathtubStageOverlayCache = new Map();
-    let overlayPreloadGeneration = 0;
-    let historicalTopTideWarmupScheduled = false;
-    let historicalTopTideWarmupGeneration = 0;
     let cityBoundaryOutline = null;
     let cityBoundaryMask = null;
     let cityBoundaryGuide = null;
@@ -850,10 +840,8 @@ function cloneStyleObject(value) {
     let currentSelectedSubLabel = "--";
     let currentViewType = "forecast";
     let currentTopTideIndex = null;
-    let currentRangeLabel = "--";
     let currentBaseModeBeforeTopTide = "observed";
     let currentDatum = "mllw";
-    let currentObservedResolution = "1hour";
     let currentTimelineIntervalMinutes = 60;
     let currentRawSeriesHours = [];
 
