@@ -186,6 +186,12 @@ try{
      await slider.focus();await page.keyboard.press('End');
      await page.waitForFunction(last=>currentHourIndex===last&&floodFrameState==='ready'&&!pendingTimelineSelection&&!requestedTimelineSelection,last,{timeout:90000});
      await geometryChecks(page,label+' '+mode+' final timestamp',true);
+     const bubble=page.locator('#timelineBubble');
+     const finalX=(await bubble.boundingBox()).x;
+     await page.keyboard.press('ArrowLeft');
+     await page.waitForFunction(index=>currentHourIndex===index&&floodFrameState==='ready'&&!pendingTimelineSelection&&!requestedTimelineSelection,last-1,{timeout:90000});
+     await settle(page);
+     check((await bubble.boundingBox()).x<finalX-0.5,label+' '+mode+' timestamp moves one step away from the end');
     }
     await page.locator('#depthModeBtn').click({noWaitAfter:true});
     await page.waitForFunction(()=>currentOverlayMode==='depth'&&floodFrameState==='ready',null,{timeout:90000});

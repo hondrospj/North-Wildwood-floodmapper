@@ -194,10 +194,19 @@
   }else{
    const fraction=(slider.valueAsNumber-min)/(max-min);
    const thumbSize=parseFloat(getComputedStyle(slider).getPropertyValue('--nww-thumb-size'))||26;
-   const thumbCenter=track.left+thumbSize/2+fraction*Math.max(0,track.width-thumbSize);
+   const travel=Math.max(0,track.width-thumbSize);
+   const thumbStart=track.left+thumbSize/2;
+   const thumbCenter=thumbStart+fraction*travel;
    const dockLeft=timeline.getBoundingClientRect().left+timeline.clientLeft;
    const width=bubble.getBoundingClientRect().width;
-   const left=Math.max(8,Math.min(timeline.clientWidth-width-8,thumbCenter-dockLeft-width/2));
+   const inset=8,rightLimit=Math.max(inset,timeline.clientWidth-width-inset);
+   const idealStart=thumbStart-dockLeft-width/2,idealEnd=idealStart+travel;
+   const leftShift=Math.max(0,inset-idealStart),rightShift=Math.max(0,idealEnd-rightLimit);
+   // Spread the edge adjustments over adjacent steps so neither end pins the pill in place.
+   const left=2*(leftShift+rightShift)>travel
+    ? (idealStart+leftShift)*(1-fraction)+(idealEnd-rightShift)*fraction
+    : idealStart+fraction*travel+Math.max(0,leftShift-fraction*travel/2)
+      -Math.max(0,rightShift-(1-fraction)*travel/2);
    set(bubble,'left',`${left}px`);
    set(bubble,'--nww-thumb-offset',`${thumbCenter-dockLeft-left-bubble.clientLeft}px`);
   }

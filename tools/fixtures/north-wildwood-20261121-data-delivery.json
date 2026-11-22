@@ -162,7 +162,7 @@
     {
       "source": "index.html",
       "beforeSha256": "85552c954306883c39a6a4d1fbbdb84eceef8e77c507378d0cb67d1c9a08cbd6",
-      "afterSha256": "5fe855d44a9c3f11c52b1c784494b0b700aa2edeaf1016a4671b170eb71ad38a",
+      "afterSha256": "b7294d7f7750f1479db91aaecff1f284a6544eaf18ff8524e9ed81c4be0d2cc7",
       "edits": [
         [
           248,
@@ -657,7 +657,7 @@
     {
       "source": "tools/app/unified-controller.js",
       "beforeSha256": "7a68a32edeb66430a6485d2ccf74b418dd2af1f6fae53375a067d6025156ef9b",
-      "afterSha256": "9f320687c8be2ee49eacdedad45232c8bfce43910ae0f8d87f0dc8e2612fdfcb",
+      "afterSha256": "a7a658a81eeb0da05388c486f8bec312628488373eb3b2f0b8bf1408442b55eb",
       "edits": [
         [
           798,
@@ -666,32 +666,32 @@
         ],
         [
           16527,
-          17725,
+          18270,
           ""
         ],
         [
-          18108,
-          18108,
+          18653,
+          18653,
           "  const bubble=document.getElementById('timelineBubble');\n  for(const key of ['left','right','max-width','transform'])bubble?.style.removeProperty(key);\n"
         ],
         [
-          21616,
-          21729,
+          22161,
+          22274,
           "   let available=Math.max(100,Math.min(timelineRect.top-28,bubbleRect?.height?bubbleRect.top-12:Infinity)-16);\n"
         ],
         [
-          21960,
-          21960,
+          22505,
+          22505,
           "   if(!fits()){\n    const left=panel.getBoundingClientRect().right+12,right=rail.getBoundingClientRect().left-12;\n    if(bubbleRect?.height&&right-left>=bubbleRect.width){\n     set(bubble,'left',((left+right)/2-timelineRect.left)+'px');set(bubble,'right','auto');\n     set(bubble,'max-width',(right-left)+'px');set(bubble,'transform','translateX(-50%)');\n     available=Math.max(100,timelineRect.top-12-16);\n    }\n   }\n"
         ],
         [
-          24161,
-          24186,
+          24706,
+          24731,
           ""
         ],
         [
-          28911,
-          29335,
+          29456,
+          29880,
           ""
         ]
       ]
@@ -699,7 +699,7 @@
     {
       "source": "assets/app/unified-controller.js",
       "beforeSha256": "7a68a32edeb66430a6485d2ccf74b418dd2af1f6fae53375a067d6025156ef9b",
-      "afterSha256": "9f320687c8be2ee49eacdedad45232c8bfce43910ae0f8d87f0dc8e2612fdfcb",
+      "afterSha256": "a7a658a81eeb0da05388c486f8bec312628488373eb3b2f0b8bf1408442b55eb",
       "edits": [
         [
           798,
@@ -708,32 +708,32 @@
         ],
         [
           16527,
-          17725,
+          18270,
           ""
         ],
         [
-          18108,
-          18108,
+          18653,
+          18653,
           "  const bubble=document.getElementById('timelineBubble');\n  for(const key of ['left','right','max-width','transform'])bubble?.style.removeProperty(key);\n"
         ],
         [
-          21616,
-          21729,
+          22161,
+          22274,
           "   let available=Math.max(100,Math.min(timelineRect.top-28,bubbleRect?.height?bubbleRect.top-12:Infinity)-16);\n"
         ],
         [
-          21960,
-          21960,
+          22505,
+          22505,
           "   if(!fits()){\n    const left=panel.getBoundingClientRect().right+12,right=rail.getBoundingClientRect().left-12;\n    if(bubbleRect?.height&&right-left>=bubbleRect.width){\n     set(bubble,'left',((left+right)/2-timelineRect.left)+'px');set(bubble,'right','auto');\n     set(bubble,'max-width',(right-left)+'px');set(bubble,'transform','translateX(-50%)');\n     available=Math.max(100,timelineRect.top-12-16);\n    }\n   }\n"
         ],
         [
-          24161,
-          24186,
+          24706,
+          24731,
           ""
         ],
         [
-          28911,
-          29335,
+          29456,
+          29880,
           ""
         ]
       ]
@@ -741,36 +741,36 @@
     {
       "source": "assets/north-wildwood-phone.css",
       "beforeSha256": "d368367ef7166843de8e05171044b744bb5eb1ba6024681a4757283dd97f9561",
-      "afterSha256": "8f4eef926a46c2a1b65580b91490222b4bcba23df28399e1e1ecaf5fef31031d",
+      "afterSha256": "5a13cb362082ea397a3246fa136295a6428a2cfd515cdb2ec87f7cc3a067e19b",
       "edits": [
         [
           345,
-          993,
+          1458,
           ""
         ],
         [
-          13381,
-          13417,
+          13846,
+          13882,
           ""
         ],
         [
-          14560,
-          15369,
+          15025,
+          15697,
           ""
         ],
         [
-          18319,
-          18414,
+          18647,
+          18742,
           "    html[data-nww-phone] body #timelineDock #hourSlider { --nww-thumb-size: 25px; }\n"
         ],
         [
-          18607,
-          18702,
+          18935,
+          19030,
           "      width: 25px !important;\n      height: 25px !important;\n"
         ],
         [
-          18878,
-          18973,
+          19206,
+          19301,
           "      width: 25px !important;\n      height: 25px !important;\n"
         ]
       ]
