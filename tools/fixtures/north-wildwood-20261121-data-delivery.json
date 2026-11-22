@@ -162,7 +162,7 @@
     {
       "source": "index.html",
       "beforeSha256": "85552c954306883c39a6a4d1fbbdb84eceef8e77c507378d0cb67d1c9a08cbd6",
-      "afterSha256": "f1096bdbea1ad70c20454f4ca9f8da4c2fe1bf6d73b2b7fc4f3803f760ae3748",
+      "afterSha256": "b3e5c0cb2fc5ddb18e4b22204d169a8ec14d5011aac56a701f5333f4260b34cf",
       "edits": [
         [
           248,
@@ -651,6 +651,100 @@
           30045,
           30212,
           "        if (townAddressMarker && map.hasLayer(townAddressMarker)) {\n          townAddressMarker.setLatLng(latLng);\n          townAddressMarker.options.title = label;\n          const markerElement = townAddressMarker.getElement();\n          if (markerElement) markerElement.title = label;\n        } else {\n          townAddressMarker = L.marker(latLng, {\n            title: label,\n            riseOnHover: true,\n            icon: getShorelySafeAddressIcon()\n          }).addTo(map);\n        }\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/unified-controller.js",
+      "beforeSha256": "7a68a32edeb66430a6485d2ccf74b418dd2af1f6fae53375a067d6025156ef9b",
+      "afterSha256": "2fabac962d8fa231c2bc433bfb54b5c58ca088507b6efd0e19cb40cce87f994f",
+      "edits": [
+        [
+          798,
+          900,
+          ""
+        ],
+        [
+          16527,
+          17536,
+          ""
+        ],
+        [
+          17919,
+          17919,
+          "  const bubble=document.getElementById('timelineBubble');\n  for(const key of ['left','right','max-width','transform'])bubble?.style.removeProperty(key);\n"
+        ],
+        [
+          18048,
+          18089,
+          ""
+        ],
+        [
+          21468,
+          21581,
+          "   let available=Math.max(100,Math.min(timelineRect.top-28,bubbleRect?.height?bubbleRect.top-12:Infinity)-16);\n"
+        ],
+        [
+          21812,
+          21812,
+          "   if(!fits()){\n    const left=panel.getBoundingClientRect().right+12,right=rail.getBoundingClientRect().left-12;\n    if(bubbleRect?.height&&right-left>=bubbleRect.width){\n     set(bubble,'left',((left+right)/2-timelineRect.left)+'px');set(bubble,'right','auto');\n     set(bubble,'max-width',(right-left)+'px');set(bubble,'transform','translateX(-50%)');\n     available=Math.max(100,timelineRect.top-12-16);\n    }\n   }\n"
+        ],
+        [
+          24009,
+          24035,
+          ""
+        ],
+        [
+          28764,
+          29188,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/app/unified-controller.js",
+      "beforeSha256": "7a68a32edeb66430a6485d2ccf74b418dd2af1f6fae53375a067d6025156ef9b",
+      "afterSha256": "2fabac962d8fa231c2bc433bfb54b5c58ca088507b6efd0e19cb40cce87f994f",
+      "edits": [
+        [
+          798,
+          900,
+          ""
+        ],
+        [
+          16527,
+          17536,
+          ""
+        ],
+        [
+          17919,
+          17919,
+          "  const bubble=document.getElementById('timelineBubble');\n  for(const key of ['left','right','max-width','transform'])bubble?.style.removeProperty(key);\n"
+        ],
+        [
+          18048,
+          18089,
+          ""
+        ],
+        [
+          21468,
+          21581,
+          "   let available=Math.max(100,Math.min(timelineRect.top-28,bubbleRect?.height?bubbleRect.top-12:Infinity)-16);\n"
+        ],
+        [
+          21812,
+          21812,
+          "   if(!fits()){\n    const left=panel.getBoundingClientRect().right+12,right=rail.getBoundingClientRect().left-12;\n    if(bubbleRect?.height&&right-left>=bubbleRect.width){\n     set(bubble,'left',((left+right)/2-timelineRect.left)+'px');set(bubble,'right','auto');\n     set(bubble,'max-width',(right-left)+'px');set(bubble,'transform','translateX(-50%)');\n     available=Math.max(100,timelineRect.top-12-16);\n    }\n   }\n"
+        ],
+        [
+          24009,
+          24035,
+          ""
+        ],
+        [
+          28764,
+          29188,
+          ""
         ]
       ]
     }

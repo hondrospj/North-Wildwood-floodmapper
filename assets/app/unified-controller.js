@@ -8,6 +8,7 @@
  const sourceCard=panel.querySelector('.data-source-card');
  const utilities=document.getElementById('nwwMobileUtilities');
  const legend=document.getElementById('legendDock'),legendToggle=document.getElementById('nwwMobileLegendToggle');
+ const bubble=document.getElementById('timelineBubble'),slider=document.getElementById('hourSlider');
  const mobile=matchMedia('(max-width:900px), (max-height:560px), (max-height:560px) and (pointer:coarse), (max-width:1366px) and (any-pointer:coarse)');
  const owned=new WeakMap(),bound=new WeakSet();
  const layerOrder=[['satelliteToggle','Satellite'],['buildingsToggle','Buildings'],['parcelsToggle','Parcels'],['nsiStructuresToggle','Structural Impacts'],['roadImpactsToggle','Roads With 6+ Inches of Water'],['roadsToggle','Road Names'],['webcamsToggle','Cameras']];
@@ -181,6 +182,30 @@
   if(compact)return legendToggle;
   return legendFocus===legendToggle?document.getElementById('legendHelpBtn'):legendFocus;
  }
+ function alignTimelineBubble(){
+  if(mobile.matches||!bubble||!slider)return;
+  const track=slider.getBoundingClientRect();
+  if(!track.width||!slider.getClientRects().length){
+   bubble.style.removeProperty('left');
+  }else{
+   const min=Number(slider.min),max=Number(slider.max);
+   const fraction=max>min?(slider.valueAsNumber-min)/(max-min):0.5;
+   const thumbSize=parseFloat(getComputedStyle(slider).getPropertyValue('--nww-thumb-size'))||26;
+   const thumbCenter=track.left+thumbSize/2+fraction*Math.max(0,track.width-thumbSize);
+   const dockLeft=timeline.getBoundingClientRect().left+timeline.clientLeft;
+   const width=bubble.getBoundingClientRect().width;
+   const left=Math.max(8,Math.min(timeline.clientWidth-width-8,thumbCenter-dockLeft-width/2));
+   set(bubble,'left',`${left}px`);
+  }
+  saveStyle(bubble);
+ }
+ let bubbleFrame=0;
+ function scheduleTimelineBubble(){
+  if(!mobile.matches&&!bubbleFrame)bubbleFrame=requestAnimationFrame(()=>{
+   bubbleFrame=0;
+   alignTimelineBubble();
+  });
+ }
  function layout(){
   frame=0;
   const previousFocus=document.activeElement;
@@ -192,10 +217,9 @@
   if(compact&&legend&&body.classList.contains('mobile-legend-open')){
    legend.toggleAttribute('data-nww-legend-scrollable',legend.scrollHeight>legend.clientHeight+1);
   }
-  const bubble=document.getElementById('timelineBubble');
-  for(const key of ['left','right','max-width','transform'])bubble?.style.removeProperty(key);
   for(const pane of [panel,rail]){set(pane,'zoom','1');set(pane,'transform','none');set(pane,'min-width','0px');}
   if(compact){
+   bubble?.style.removeProperty('left');
    body.removeAttribute('data-sidebar-density');body.removeAttribute('data-sidebar-fit');
    const vv=window.visualViewport,viewport=vv&&Math.abs((vv.scale||1)-1)<.01?vv:{height:innerHeight,width:innerWidth,offsetTop:0,offsetLeft:0};
    const computed=getComputedStyle(safeProbe),safe={top:parseFloat(computed.paddingTop)||0,right:parseFloat(computed.paddingRight)||0,bottom:parseFloat(computed.paddingBottom)||0,left:parseFloat(computed.paddingLeft)||0};
@@ -215,18 +239,10 @@
    set(timeline,'position','fixed');set(timeline,'left','16px');set(timeline,'right','16px');set(timeline,'bottom','16px');set(timeline,'height','112px');set(timeline,'min-height','112px');set(timeline,'max-height','112px');
    for(const [pane,width]of [[panel,300],[rail,280]])for(const [key,value]of Object.entries({position:'absolute',top:'16px',bottom:'auto',left:pane===panel?'16px':'auto',right:pane===rail?'16px':'auto',width:width+'px','max-width':width+'px',height:'auto','max-height':'none','min-height':'0px','overflow-y':'visible','overflow-x':'visible',display:'flex'}))set(pane,key,value);
    const bubbleRect=bubble?.getBoundingClientRect(),timelineRect=timeline.getBoundingClientRect();
-   let available=Math.max(100,Math.min(timelineRect.top-28,bubbleRect?.height?bubbleRect.top-12:Infinity)-16);
+   const available=Math.max(100,Math.min(timelineRect.top-28,bubbleRect?.height?bubbleRect.top-12:Infinity)-16);
    const fits=()=>[panel,rail].every(pane=>Math.ceil(pane.scrollHeight)<=available+1);
    let density='normal';attr(body,'data-sidebar-density',density);
    if(!fits()){density='compact';attr(body,'data-sidebar-density',density);}
-   if(!fits()){
-    const left=panel.getBoundingClientRect().right+12,right=rail.getBoundingClientRect().left-12;
-    if(bubbleRect?.height&&right-left>=bubbleRect.width){
-     set(bubble,'left',((left+right)/2-timelineRect.left)+'px');set(bubble,'right','auto');
-     set(bubble,'max-width',(right-left)+'px');set(bubble,'transform','translateX(-50%)');
-     available=Math.max(100,timelineRect.top-12-16);
-    }
-   }
    if(!fits()){density='tight';attr(body,'data-sidebar-density',density);set(rail,'display','grid');}
    const fitted=fits();
    // Enlarged browser fonts need the full-width rows when tightening cannot fit.
@@ -245,6 +261,7 @@
    const nav=document.getElementById('nwDefaultNavControl'),standaloneButton=document.getElementById('countyStandaloneView');const navRight=innerWidth-rail.getBoundingClientRect().left+14;
    if(nav){set(nav,'right',navRight+'px');set(nav,'left','auto');set(nav,'top','16px');}
    if(standaloneButton)set(standaloneButton,'right',navRight+'px');body.style.setProperty('--county-nav-right',navRight+'px');
+   alignTimelineBubble();
   }
   if(typeof positionMapClickModeControl==='function')positionMapClickModeControl();
   for(const e of [panel,rail,timeline,document.getElementById('mapTitleBadge'),bubble])saveStyle(e);
@@ -299,6 +316,14 @@
  for(const modal of document.querySelectorAll('[role="dialog"],dialog,.download-modal,.datum-modal'))if(modal!==panel)observer.observe(modal,{attributes:true,attributeFilter:['class','hidden','open','aria-modal','style']});
  const resizeObserver=new ResizeObserver(schedule);
  for(const element of [timeline,panel,rail,legend,legend?.querySelector('#legendBody')])if(element)resizeObserver.observe(element);if(sourceCard)resizeObserver.observe(sourceCard);mobile.addEventListener('change',schedule);addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('resize',schedule,{passive:true});window.visualViewport?.addEventListener('scroll',schedule,{passive:true});
+ if(bubble&&slider){
+  const bubbleResize=new ResizeObserver(scheduleTimelineBubble);
+  bubbleResize.observe(bubble);
+  bubbleResize.observe(slider);
+  slider.addEventListener('input',scheduleTimelineBubble,{passive:true});
+  // Playback and day navigation set the range value without an input event.
+  new MutationObserver(scheduleTimelineBubble).observe(slider,{attributes:true,attributeFilter:['style','min','max']});
+ }
  document.fonts?.ready.then(schedule);document.fonts?.addEventListener?.('loadingdone',schedule);
  addEventListener('load',schedule,{once:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});
  layout();
