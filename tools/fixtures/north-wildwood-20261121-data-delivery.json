@@ -5,7 +5,7 @@
     {
       "source": "assets/app/runtime.js",
       "beforeSha256": "61b33a67081d2b7990f43fafe38d55041366e8900487449e9c9bcef0e26eb6e9",
-      "afterSha256": "74449864d8b58245f5481d1e9c26c4fc084a97d76a88b885ad7edd979147dea5",
+      "afterSha256": "e0cd77c23813ed101f9f22cfbb50c651e40bf45f5f0fbf7294e5e77779ff52c1",
       "edits": [
         [
           541,
@@ -39,122 +39,122 @@
         ],
         [
           155019,
-          155264,
+          155290,
           "        img.onload = () => done({ ok: true });\n"
         ],
         [
-          223726,
-          224136,
+          223752,
+          224162,
           ""
         ],
         [
-          227805,
-          227805,
+          227831,
+          227831,
           "      });\n\n      roadsLayer = createRoadLabelLayer(ROAD_LABELS_URL, {\n        attribution: \"Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors\",\n        minZoom: 11,\n        maxNativeZoom: 19,\n        maxZoom: 20,\n        subdomains: \"abcd\",\n        crossOrigin: true,\n        opacity: 0,\n        updateWhenIdle: true,\n        keepBuffer: 1,\n        className: \"roads-layer\",\n        pane: \"roadsPane\"\n"
         ],
         [
-          397363,
-          397397,
+          397389,
+          397423,
           ""
         ],
         [
-          398190,
-          398257,
+          398216,
+          398283,
           ""
         ],
         [
-          399223,
-          399420,
+          399249,
+          399446,
           "        try { layer.addTo(map); } catch (_) { finish(false); }\n"
         ],
         [
-          425826,
-          425951,
+          425852,
+          425977,
           "      match = raw.match(/^(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?$/);\n"
         ],
         [
-          425970,
-          426386,
+          425996,
+          426412,
           "        let y = match[3] ? Number(match[3]) : (currentMonthKey ? Number(currentMonthKey.slice(0, 4)) : new Date().getFullYear());\n        if (y < 100) y += 2000;\n        return dateKey(y, match[1], match[2]);\n"
         ],
         [
-          427402,
-          427462,
+          427428,
+          427488,
           "        toast(\"Enter a date like Apr 19, 2026 or 04/19/2026.\");\n"
         ],
         [
-          464160,
-          464656,
+          464186,
+          464682,
           "        const loaded = await preloadImage(overlayUrl, \"high\");\n"
         ],
         [
-          465545,
-          465595,
+          465571,
+          465621,
           "          }\n"
         ],
         [
-          484127,
-          484311,
+          484153,
+          484337,
           "          const payload = await fetchJson(withFreshJsonUrl(FORECAST_URL));\n"
         ],
         [
-          522874,
-          523650,
+          522900,
+          523676,
           "        currentSeriesHours = sampleCanonicalHydraulicSeries(\n          currentRawSeriesHours,\n          getTimelineIntervalMinutes()\n        ).map((entry, idx) => ({ ...entry, topTideHourIndex: idx }));\n"
         ],
         [
-          609315,
-          609372,
+          609341,
+          609398,
           "    function loadDepthQueryPng(url) {\n"
         ],
         [
-          609532,
-          609636,
+          609558,
+          609662,
           "          const error = new Error(\"Packed depth-query PNG took too long to load. Please try again.\");\n"
         ],
         [
-          609700,
-          609723,
+          609726,
+          609749,
           "        }, 20000);\n"
         ],
         [
-          610818,
-          610916,
+          610844,
+          610942,
           "        image.onerror = () => finish(new Error(\"Packed depth-query PNG could not be loaded.\"));\n"
         ],
         [
-          610951,
-          612050,
+          610977,
+          612076,
           ""
         ],
         [
-          612179,
-          612286,
+          612205,
+          612312,
           "        const request = (async () => {\n          let lastError = null;\n          for (let attempt = 0; attempt < 2; attempt += 1) {\n            try {\n              const url = new URL(DEPTH_QUERY_PNG_URL);\n              if (attempt) url.searchParams.set(\"_retry\", String(Date.now()));\n              return await loadDepthQueryPng(url.href);\n            } catch (error) {\n              // A stalled transport has already used its full deadline. Let\n              // the frame controller/user retry instead of doubling that wait.\n              if (error?.name === \"TimeoutError\") throw error;\n              lastError = error;\n            }\n          }\n          throw lastError || new Error(\"Packed depth-query PNG is unavailable.\");\n        })().catch(error => {\n"
         ],
         [
-          612646,
-          612741,
+          612672,
+          612767,
           "        const request = loadDepthQueryPng(DEVELOPED_QUERY_PNG_URL)\n"
         ],
         [
-          651149,
-          651190,
+          651175,
+          651216,
           "    function clearTownAddressLookup() {\n      cancelPendingTownAddressLookup();\n      const input = document.getElementById(\"townAddressInput\");\n      if (input) input.value = \"\";\n      setTownAddressStatus(\"\");\n"
         ],
         [
-          651439,
-          651691,
+          651465,
+          651717,
           ""
         ],
         [
-          666313,
-          666346,
+          666339,
+          666372,
           ""
         ],
         [
-          668609,
-          668776,
+          668635,
+          668802,
           "        if (townAddressMarker && map.hasLayer(townAddressMarker)) {\n          townAddressMarker.setLatLng(latLng);\n          townAddressMarker.options.title = label;\n          const markerElement = townAddressMarker.getElement();\n          if (markerElement) markerElement.title = label;\n        } else {\n          townAddressMarker = L.marker(latLng, {\n            title: label,\n            riseOnHover: true,\n            icon: getShorelySafeAddressIcon()\n          }).addTo(map);\n        }\n"
         ]
       ]
@@ -162,7 +162,7 @@
     {
       "source": "index.html",
       "beforeSha256": "85552c954306883c39a6a4d1fbbdb84eceef8e77c507378d0cb67d1c9a08cbd6",
-      "afterSha256": "1e4e51033cf674f48e0b433a9f642b013175ba11a567164c584d2e8df826e266",
+      "afterSha256": "5ed2735d90ebc93eeacc16ccfbe0e66028e7df0e1b36aac69fd3110488013953",
       "edits": [
         [
           248,
@@ -365,7 +365,7 @@
     {
       "source": "tools/app/runtime/07-image-loading.js",
       "beforeSha256": "b3b2375a60e0c5b8bdb4f8f899863504af41eef057c2eb5cc35e0be822abe3fb",
-      "afterSha256": "3acea5c21f2eb98746d5d84fe373f613400ed999694ea3a77e22e3b475d7e8b1",
+      "afterSha256": "6c7ba8932dc7139c3b2c383e0cf8940818f76c6e00bf6136fe6c46cee266c1d7",
       "edits": [
         [
           0,
@@ -384,7 +384,7 @@
         ],
         [
           1209,
-          1454,
+          1480,
           "        img.onload = () => done({ ok: true });\n"
         ]
       ]

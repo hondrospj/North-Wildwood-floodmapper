@@ -3309,6 +3309,7 @@ function setDatumHelpOpen(isOpen) {
         img.fetchPriority = "high";
         img.onload = () => {
           if (!settled && !exportInProgress && document.body.dataset.initialFloodFrame === "loading") {
+            img.alt = "";
             startupOverlayCandidate = { url, image: img };
           }
           done({ ok: true });
