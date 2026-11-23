@@ -6,8 +6,27 @@
     outline: none !important;
   }
 
+  html[data-nww-phone] body #timelineDock {
+    --nww-key-width: 128px;
+  }
+
   html[data-nww-phone] body #timelineDock #timelineFloodKey {
-    justify-content: flex-end !important;
+    position: absolute !important;
+    inset: 8px 20px 8px auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    gap: 3px !important;
+    box-sizing: border-box !important;
+    width: var(--nww-key-width) !important;
+    max-width: var(--nww-key-width) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 0 0 12px !important;
+    border-inline-start: 1px solid #38475d;
   }
 
   #timelineFloodKey .timeline-key-title {
@@ -15,30 +34,38 @@
     color: #cbd5e1;
     font-size: 12px;
     font-weight: 750;
-    line-height: 1;
+    line-height: 14px;
+    margin-bottom: 2px;
   }
 
-  html[data-nww-phone]:not(.county-compact) body #timelineDock #timelineFloodKey {
-    top: auto !important;
-    left: auto !important;
-    right: 20px !important;
-    bottom: 7px !important;
-    width: max-content !important;
-    max-width: calc(100% - 40px) !important;
-    gap: 10px !important;
+  html[data-nww-phone] body #timelineDock #timelineFloodKey .timeline-key-label {
+    font: 700 12px/14px Inter, system-ui, sans-serif !important;
   }
 
-  html[data-nww-phone]:not(.county-compact) #timelineFloodKey .timeline-key-title {
-    padding-inline-end: 10px;
-    border-inline-end: 1px solid #435269;
+  html[data-nww-phone] body #timelineDock #timelineFloodKey .timeline-key-item {
+    height: 14px !important;
+    min-height: 14px !important;
+    max-height: 14px !important;
+  }
+
+  html[data-nww-phone] body #timelineDock #timelineFloodKey #roadImpactsKey:not([hidden]) {
+    position: absolute;
+    right: calc(100% + 12px);
+    bottom: 0;
+    width: max-content;
+    max-width: 320px;
+    white-space: normal;
   }
 
   html[data-nww-phone]:not(.county-compact) body #timelineDock #timelineDayTabs {
     top: 29px !important;
+    right: var(--nww-desktop-slider-edge, 168px) !important;
   }
 
   html[data-nww-phone]:not(.county-compact) body #timelineDock .timeline-trackRow {
     top: 57px !important;
+    left: 126px !important;
+    right: 155px !important;
   }
 
   html[data-nww-phone] body #timelineDock :is(#playBtn, #timelineSpeedBtn) {
@@ -155,7 +182,6 @@
 
   html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineDayTabs {
     left: var(--nww-desktop-slider-edge) !important;
-    right: var(--nww-desktop-slider-edge) !important;
   }
 
   html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #hourSlider {
@@ -199,10 +225,21 @@
       top: 63px !important;
     }
     html[data-nww-phone]:not(.county-compact) body #timelineDock #timelineFloodKey {
-      bottom: 4px !important;
-      height: 18px !important;
-      min-height: 18px !important;
-      max-height: 18px !important;
+      top: 38px !important;
+      bottom: 5px !important;
+      gap: 1px !important;
+    }
+    html[data-nww-phone]:not(.county-compact) body #timelineDock #timelineFloodKey :is(.timeline-key-title, .timeline-key-label) {
+      line-height: 12px !important;
+    }
+    html[data-nww-phone]:not(.county-compact) body #timelineDock #timelineFloodKey .timeline-key-item {
+      height: 12px !important;
+      min-height: 12px !important;
+      max-height: 12px !important;
+    }
+    html[data-nww-phone]:not(.county-compact) body #timelineDock #timelineFloodKey #roadImpactsKey:not([hidden]) {
+      font-size: 10.5px !important;
+      line-height: 10px !important;
     }
   }
 
@@ -219,7 +256,6 @@
       --phone-dock-edge: calc(var(--cm-bottom, 8px) + var(--nww-phone-dock-height));
       --phone-popup-top: calc(var(--cm-top, 8px) + var(--phone-header-height) + 8px);
       --phone-legend-width: min(340px, 100%);
-      --phone-legend-y: 132px;
       --phone-dock-base: 154px;
       --phone-road-space: 0px;
       --nww-phone-dock-height: calc(var(--phone-dock-base) + var(--phone-road-space));
@@ -227,10 +263,14 @@
       --nww-drawer-max: 480px;
     }
 
-    html[data-nww-phone] body:has(#roadImpactsKey:not([hidden])) { --phone-road-space: 17px; }
+    html[data-nww-phone] body:has(#roadImpactsKey:not([hidden])) { --phone-road-space: 22px; }
     html[data-nww-phone] body:has(#timelineDock[data-single-timeline-time="true"]) {
-      --phone-dock-base: 119px;
-      --phone-legend-y: 98px;
+      --phone-dock-base: 144px;
+    }
+
+    html[data-nww-phone] body #timelineDock {
+      --nww-key-width: 104px;
+      --phone-timeline-end: calc(var(--nww-key-width) + 18px);
     }
 
     html[data-nww-phone] body:not(.nw-app-loading, .mobile-controls-open) #nwwMobileUtilities {
@@ -649,7 +689,7 @@
     html[data-nww-phone] body #timelineDock #timelineDayTabs,
     html[data-nww-phone] body #timelineDock[data-single-timeline-time="true"] #timelineDayTabs {
       left: 8px !important;
-      right: 8px !important;
+      right: var(--phone-timeline-end) !important;
       width: auto !important;
       display: flex !important;
       justify-content: flex-start !important;
@@ -686,7 +726,7 @@
     html[data-nww-phone] body #timelineDock .timeline-trackRow {
       top: 96px !important;
       left: 13px !important;
-      right: 13px !important;
+      right: var(--phone-timeline-end) !important;
       height: 44px !important;
     }
 
@@ -707,32 +747,20 @@
 
     html[data-nww-phone] body #timelineDock #timelineTimeBounds { display: none !important; }
     html[data-nww-phone] body #timelineDock #timelineFloodKey {
-      top: var(--phone-legend-y) !important;
-      height: calc(19px + var(--phone-road-space)) !important;
-      max-height: none !important;
-      justify-content: flex-end !important;
-      column-gap: clamp(4px, 1.45vw, 13px) !important;
+      top: 50px !important;
+      right: 8px !important;
+      padding-left: 8px !important;
+      gap: 2px !important;
       color: var(--phone-label) !important;
     }
 
-    html[data-nww-phone] body #timelineDock #timelineFloodKey:has(#roadImpactsKey:not([hidden])) {
-      display: grid !important;
-      grid-template-columns: repeat(5, max-content) !important;
-      grid-template-rows: 18px 16px;
-      justify-content: end !important;
-      align-content: start !important;
-      align-items: center !important;
-      row-gap: 0 !important;
-    }
-
-    html[data-nww-phone] body #timelineDock #roadImpactsKey:not([hidden]) {
-      grid-column: 1 / -1;
-      justify-self: end;
+    html[data-nww-phone] body #timelineDock #timelineFloodKey #roadImpactsKey:not([hidden]) {
+      max-width: min(220px, calc(100vw - var(--nww-key-width) - 56px));
+      font: 650 10px/12px Inter, system-ui, sans-serif !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineFloodKey .timeline-key-label {
-      color: #f5f8ff !important;
-      font: 650 13px/16px Inter, system-ui, sans-serif !important;
+      font-size: 11px !important;
     }
 
     html[data-nww-phone] body #downloadModal .download-modal-card {
@@ -808,26 +836,19 @@
     }
   }
 
-  @media (max-width: 360px) {
-    html[data-nww-phone] body #timelineDock #timelineFloodKey {
-      column-gap: 4px !important;
-    }
-    html[data-nww-phone] body #timelineDock #timelineFloodKey .timeline-key-label {
-      font-size: 12px !important;
-    }
-  }
-
   @media (orientation: landscape) and (max-height: 560px) and (min-width: 540px) {
-    html[data-nww-phone] body { --phone-dock-base: 106px; --phone-legend-y: 84px; --phone-dock-max: 650px; }
+    html[data-nww-phone] body,
     html[data-nww-phone] body:has(#timelineDock[data-single-timeline-time="true"]) {
-      --phone-dock-base: 72px; --phone-legend-y: 51px;
+      --phone-dock-base: 106px;
+      --phone-dock-max: 650px;
     }
     html[data-nww-phone] body #timelineDock #timelineStepBack { left: 108px !important; right: auto !important; }
     html[data-nww-phone] body #timelineDock #timelineStepForward { left: 158px !important; right: auto !important; }
     html[data-nww-phone] body #timelineDock #timelineDayTabs,
     html[data-nww-phone] body #timelineDock[data-single-timeline-time="true"] #timelineDayTabs {
-      left: 212px !important; right: 7px !important; top: 4px !important;
+      left: 212px !important; top: 4px !important;
     }
+    html[data-nww-phone] body #timelineDock #timelineFloodKey { top: 8px !important; }
     html[data-nww-phone] body #timelineDock .timeline-day-arrow { display: none !important; }
     html[data-nww-phone] body #timelineDock .timeline-trackRow { top: 47px !important; }
   }
