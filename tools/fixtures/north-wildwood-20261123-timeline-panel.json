@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "3fdfb6a189cc6382391848e127e278d623d10b32",
+  "scope": "Place the flood key inside the lower-right corner of the timeline and match both playback controls to the dark panel.",
+  "files": [
+    {
+      "source": "assets/app/unified-controller.js",
+      "beforeSha256": "0dc42823e8144bfc24bf8114c8f5d129b82091e4e9e8e1bc7fc1a9c8f597cd23",
+      "afterSha256": "5b0256915d8937ea4f1208398706d223df7b099645a81a80ea3f9632f57ac3f0",
+      "edits": [
+        [
+          900,
+          900,
+          " const timelineKey=document.getElementById('timelineFloodKey');\n"
+        ],
+        [
+          17053,
+          17053,
+          "  let bubbleRight=bubbleRect.right;\n"
+        ],
+        [
+          18244,
+          18244,
+          "   bubbleRight=dockLeft+left+width;\n  }\n  if(timelineKey){\n   const keyRect=desktop&&followsThumb?timelineKey.getBoundingClientRect():null;\n   const beside=Boolean(keyRect?.width&&bubbleRight+16<=keyRect.left);\n   if(beside){\n    const dockBottom=timeline.getBoundingClientRect().top+timeline.clientTop+timeline.clientHeight;\n    set(timelineKey,'--nww-key-bottom',`${dockBottom-bubbleRect.bottom}px`);\n    set(timelineKey,'--nww-key-height',`${bubbleRect.height}px`);\n   }\n   timelineKey.toggleAttribute('data-nww-key-beside',beside);\n"
+        ],
+        [
+          29964,
+          29964,
+          "  if(timelineKey)bubbleResize.observe(timelineKey);\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/north-wildwood-phone.css",
+      "beforeSha256": "8306eb044f3e1f615a437fad07e41590e81061f60b452a59774ac313ab8e8111",
+      "afterSha256": "97d3c9d3a33f5692200e172a801fc7c2b1111615015b49d014cf952bcbd4a630",
+      "edits": [
+        [
+          609,
+          718,
+          "  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey {\n"
+        ],
+        [
+          745,
+          801,
+          ""
+        ],
+        [
+          881,
+          2525,
+          "    box-sizing: border-box !important;\n    padding-inline: 14px !important;\n    border: 1px solid transparent !important;\n"
+        ],
+        [
+          2836,
+          2836,
+          "    border: 1px solid #526277;\n"
+        ],
+        [
+          2861,
+          2861,
+          "    background: #1b293d;\n    color: #f5f8ff;\n"
+        ],
+        [
+          2965,
+          2965,
+          "  }\n\n  html[data-nww-phone] body #timelineDock #timelineSpeedBtn[aria-pressed=\"true\"] {\n    background: #cfe4ff !important;\n    border-color: #b2d5ff !important;\n    color: #102747;\n"
+        ],
+        [
+          6875,
+          6990,
+          "    html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey {\n      top: 90px !important;\n"
+        ],
+        [
+          7021,
+          7097,
+          "    }\n  }\n\n  html[data-nww-phone] body #timelineDock[data-nww-centered-slider] #timelineFloodKey[data-nww-key-beside] {\n    top: auto !important;\n    bottom: var(--nww-key-bottom) !important;\n    height: var(--nww-key-height) !important;\n    min-height: var(--nww-key-height) !important;\n    max-height: var(--nww-key-height) !important;\n    border-color: #414d60 !important;\n    border-radius: 14px;\n    background: #111826;\n    box-shadow: 0 8px 20px rgb(0 0 0 / .18);\n"
+        ],
+        [
+          21528,
+          21596,
+          ""
+        ],
+        [
+          22037,
+          22037,
+          "      background: linear-gradient(#fff, #edf2f7) !important;\n      border-color: #e2e8f0 !important;\n"
+        ],
+        [
+          22201,
+          22201,
+          "\n    html[data-nww-phone] body #timelineDock #playBtn .playTriangle {\n      border-left-color: #ef4444 !important;\n      filter: none !important;\n    }\n\n    html[data-nww-phone] body #timelineDock #playBtn .pauseIcon::before,\n    html[data-nww-phone] body #timelineDock #playBtn .pauseIcon::after { background: #ef4444 !important; }\n"
+        ],
+        [
+          25211,
+          25255,
+          "      justify-content: center !important;\n"
+        ],
+        [
+          25593,
+          25632,
+          "      justify-content: center !important;\n"
+        ],
+        [
+          25848,
+          25873,
+          "      justify-self: center;\n"
+        ],
+        [
+          30932,
+          31043,
+          "    html[data-nww-phone] body #timelineDock #timelineSpeedBtn[aria-pressed=\"true\"] {\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "d67d33a0160ffef62c1647f94217f89c52d96edb2cbf78eb791e3dd5a6eeb59e",
+      "afterSha256": "237fbe9f0b9d4461487bcb1bd6954968e632e3e6f77e140246a914b3dc97a48c",
+      "edits": [
+        [
+          33735,
+          33827,
+          "<link rel=\"preload\" as=\"style\" href=\"./assets/north-wildwood-phone.css?v=8306eb044f3e1f61\">\n"
+        ],
+        [
+          64973,
+          65080,
+          "<link data-nww-startup-style rel=\"stylesheet\" href=\"./assets/north-wildwood-phone.css?v=8306eb044f3e1f61\">\n"
+        ],
+        [
+          112610,
+          112844,
+          "<script id=\"floodmapper-unified-controller-20261017\" data-ui-sha256=\"3668b4912f612ae595cb1ee4e11fdf9aa7a80ccfbdbfff78d243e7714470baf7\" data-nww-script=\"script-011\" src=\"./assets/app/unified-controller.js?v=0dc42823e8144bfc\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/unified-controller.js",
+      "beforeSha256": "0dc42823e8144bfc24bf8114c8f5d129b82091e4e9e8e1bc7fc1a9c8f597cd23",
+      "afterSha256": "5b0256915d8937ea4f1208398706d223df7b099645a81a80ea3f9632f57ac3f0",
+      "edits": [
+        [
+          900,
+          900,
+          " const timelineKey=document.getElementById('timelineFloodKey');\n"
+        ],
+        [
+          17053,
+          17053,
+          "  let bubbleRight=bubbleRect.right;\n"
+        ],
+        [
+          18244,
+          18244,
+          "   bubbleRight=dockLeft+left+width;\n  }\n  if(timelineKey){\n   const keyRect=desktop&&followsThumb?timelineKey.getBoundingClientRect():null;\n   const beside=Boolean(keyRect?.width&&bubbleRight+16<=keyRect.left);\n   if(beside){\n    const dockBottom=timeline.getBoundingClientRect().top+timeline.clientTop+timeline.clientHeight;\n    set(timelineKey,'--nww-key-bottom',`${dockBottom-bubbleRect.bottom}px`);\n    set(timelineKey,'--nww-key-height',`${bubbleRect.height}px`);\n   }\n   timelineKey.toggleAttribute('data-nww-key-beside',beside);\n"
+        ],
+        [
+          29964,
+          29964,
+          "  if(timelineKey)bubbleResize.observe(timelineKey);\n"
+        ]
+      ]
+    }
+  ]
+}

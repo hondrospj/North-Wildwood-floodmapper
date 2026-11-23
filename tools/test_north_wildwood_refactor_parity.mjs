@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const TIMELINE_PANEL_PATH = "tools/fixtures/north-wildwood-20261123-timeline-panel.json";
+const priorTimelinePanelSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-timeline-panel-snapshot");
+const timelinePanelText = fs.readFileSync(localPath(TIMELINE_PANEL_PATH));
+assert.equal(hashReleaseBytes(timelinePanelText), "609d9657555c002f2581b9bac9cf7826f19bb1685c072845d53ac8875d9e629b", "Retain the exact timeline panel inverse");
+const timelinePanel = JSON.parse(timelinePanelText);
+assert.equal(timelinePanel.schemaVersion, 1);
+assert.equal(timelinePanel.baselineCommit, "3fdfb6a189cc6382391848e127e278d623d10b32");
+const timelinePanelFiles = new Map(timelinePanel.files.map(entry => [entry.source, entry]));
 const TIMELINE_CONTROLS_PATH = "tools/fixtures/north-wildwood-20261123-timeline-controls.json";
 const priorTimelineControlsSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-timeline-controls-snapshot");
 const timelineControlsText = fs.readFileSync(localPath(TIMELINE_CONTROLS_PATH));
@@ -79,8 +87,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeTimelineControls(relative) {
+function readBeforeTimelinePanel(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = timelinePanelFiles.get(relative);
+  return priorTimelinePanelSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "timeline panel");
+}
+if (!priorTimelinePanelSnapshot) {
+  for (const file of timelinePanel.files) readBeforeTimelinePanel(file.source);
+}
+
+function readBeforeTimelineControls(relative) {
+  const bytes = readBeforeTimelinePanel(relative);
   const entry = timelineControlsFiles.get(relative);
   return priorTimelineControlsSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "timeline controls");
 }
@@ -2796,6 +2813,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      TIMELINE_PANEL_PATH, ...timelinePanel.files.map(file => file.source),
       TIMELINE_CONTROLS_PATH, ...timelineControls.files.map(file => file.source),
       TIMELINE_KEY_PATH, ...timelineKey.files.map(file => file.source),
       TIMELINE_PILL_PATH, ...timelinePill.files.map(file => file.source),
@@ -2816,7 +2834,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeTimelineControls = (args = []) => runRelease(["--prior-timeline-controls-snapshot", ...args]);
+    const runBeforeTimelinePanel = (args = []) => runRelease(["--prior-timeline-panel-snapshot", ...args]);
+    const runBeforeTimelineControls = (args = []) => runBeforeTimelinePanel(["--prior-timeline-controls-snapshot", ...args]);
     const runBeforeTimelineKey = (args = []) => runBeforeTimelineControls(["--prior-timeline-key-snapshot", ...args]);
     const runBeforeTimelinePill = (args = []) => runBeforeTimelineKey(["--prior-timeline-pill-snapshot", ...args]);
     const runBeforeLoaderDisplay = (args = []) => runBeforeTimelinePill(["--prior-loader-display-snapshot", ...args]);
@@ -2839,12 +2858,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered timeline panel inverse", path.join(scratch, TIMELINE_PANEL_PATH), Buffer.concat([timelinePanelText, Buffer.from(" ")])],
+      ...timelinePanel.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed timeline panel byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of timelinePanel.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeTimelinePanel(file.source));
+    assert.equal(runBeforeTimelinePanel().status, 0, "The restored application before the timeline panel change must pass");
+    assertMutationsRejected([
       ["altered timeline controls inverse", path.join(scratch, TIMELINE_CONTROLS_PATH), Buffer.concat([timelineControlsText, Buffer.from(" ")])],
       ...timelineControls.files.map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed timeline controls byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeTimelinePanel);
     for (const file of timelineControls.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeTimelineControls(file.source));
     assert.equal(runBeforeTimelineControls().status, 0, "The restored application before the timeline controls change must pass");
     assertMutationsRejected([
@@ -3571,7 +3599,8 @@ if (process.argv.includes("--self-test")) {
     const runtimeAuditCases = runtimeAudit.files.length + 1;
     const timelineKeyCases = timelineKey.files.length + 1;
     const timelineControlsCases = timelineControls.files.length + 1;
-    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases + runtimeAuditCases + timelineKeyCases + timelineControlsCases} dropped, moved, altered or stale artifacts were rejected.`);
+    const timelinePanelCases = timelinePanel.files.length + 1;
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases + runtimeAuditCases + timelineKeyCases + timelineControlsCases + timelinePanelCases} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }
