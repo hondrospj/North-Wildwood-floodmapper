@@ -534,7 +534,8 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
           </div>
           <div id="timelineMeta" class="timeline-meta">--</div>
         </div>
-        <div id="timelineFloodKey" class="timeline-flood-key" aria-label="Flood category key">
+        <div id="timelineFloodKey" class="timeline-flood-key" role="group" aria-label="Flood category key">
+          <span class="timeline-key-title" aria-hidden="true">Key</span>
           <span class="timeline-key-item"><span class="timeline-key-swatch no-flood" aria-hidden="true"></span><span class="timeline-key-label">No Flooding</span></span>
           <span class="timeline-key-item"><span class="timeline-key-swatch minor-flood" aria-hidden="true"></span><span class="timeline-key-label">Minor</span></span>
           <span class="timeline-key-item"><span class="timeline-key-swatch moderate-flood" aria-hidden="true"></span><span class="timeline-key-label">Moderate</span></span>

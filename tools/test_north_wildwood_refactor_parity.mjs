@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const TIMELINE_KEY_PATH = "tools/fixtures/north-wildwood-20261123-timeline-key.json";
+const priorTimelineKeySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-timeline-key-snapshot");
+const timelineKeyText = fs.readFileSync(localPath(TIMELINE_KEY_PATH));
+assert.equal(hashReleaseBytes(timelineKeyText), "ced44206d30ac27aa34718e6cd8ab0679c086590293dd833803f3a63916223a0", "Retain the exact timeline key inverse");
+const timelineKey = JSON.parse(timelineKeyText);
+assert.equal(timelineKey.schemaVersion, 1);
+assert.equal(timelineKey.baselineCommit, "d1c2763dc8ce65d249152e5f574a2c2c0bc898ae");
+const timelineKeyFiles = new Map(timelineKey.files.map(entry => [entry.source, entry]));
 const TIMELINE_PILL_PATH = "tools/fixtures/north-wildwood-20261123-timeline-pill.json";
 const priorTimelinePillSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-timeline-pill-snapshot");
 const timelinePillText = fs.readFileSync(localPath(TIMELINE_PILL_PATH));
@@ -63,8 +71,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeTimelinePill(relative) {
+function readBeforeTimelineKey(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = timelineKeyFiles.get(relative);
+  return priorTimelineKeySnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "timeline key");
+}
+if (!priorTimelineKeySnapshot) {
+  for (const file of timelineKey.files) readBeforeTimelineKey(file.source);
+}
+
+function readBeforeTimelinePill(relative) {
+  const bytes = readBeforeTimelineKey(relative);
   const entry = timelinePillFiles.get(relative);
   return priorTimelinePillSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "timeline pill");
 }
@@ -2762,6 +2779,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      TIMELINE_KEY_PATH, ...timelineKey.files.map(file => file.source),
       TIMELINE_PILL_PATH, ...timelinePill.files.map(file => file.source),
       LOADER_DISPLAY_PATH, ...loaderDisplay.files.map(file => file.source),
       RUNTIME_AUDIT_PATH, ...runtimeAudit.files.map(file => file.source),
@@ -2780,7 +2798,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeTimelinePill = (args = []) => runRelease(["--prior-timeline-pill-snapshot", ...args]);
+    const runBeforeTimelineKey = (args = []) => runRelease(["--prior-timeline-key-snapshot", ...args]);
+    const runBeforeTimelinePill = (args = []) => runBeforeTimelineKey(["--prior-timeline-pill-snapshot", ...args]);
     const runBeforeLoaderDisplay = (args = []) => runBeforeTimelinePill(["--prior-loader-display-snapshot", ...args]);
     const runBeforeRuntimeAudit = (args = []) => runBeforeLoaderDisplay(["--prior-runtime-audit-snapshot", ...args]);
     const runBeforeDataDelivery = (args = []) => runBeforeRuntimeAudit(["--prior-data-delivery-snapshot", ...args]);
@@ -2801,12 +2820,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered timeline key inverse", path.join(scratch, TIMELINE_KEY_PATH), Buffer.concat([timelineKeyText, Buffer.from(" ")])],
+      ...timelineKey.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed timeline key byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of timelineKey.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeTimelineKey(file.source));
+    assert.equal(runBeforeTimelineKey().status, 0, "The restored application before the timeline key change must pass");
+    assertMutationsRejected([
       ["altered timeline pill inverse", path.join(scratch, TIMELINE_PILL_PATH), Buffer.concat([timelinePillText, Buffer.from(" ")])],
       ...timelinePill.files.map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed timeline pill byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeTimelineKey);
     for (const file of timelinePill.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeTimelinePill(file.source));
     assert.equal(runBeforeTimelinePill().status, 0, "The restored application before the timeline pill change must pass");
     assertMutationsRejected([
@@ -3513,7 +3541,8 @@ if (process.argv.includes("--self-test")) {
     const firstMapPaintCases = firstMapPaint.files.length + firstMapPaint.added.length + 1;
     const dataDeliveryCases = dataDelivery.files.length + dataDelivery.added.length + 1;
     const runtimeAuditCases = runtimeAudit.files.length + 1;
-    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases + runtimeAuditCases} dropped, moved, altered or stale artifacts were rejected.`);
+    const timelineKeyCases = timelineKey.files.length + 1;
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases + runtimeAuditCases + timelineKeyCases} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

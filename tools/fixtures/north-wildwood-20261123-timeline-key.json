@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "d1c2763dc8ce65d249152e5f574a2c2c0bc898ae",
+  "scope": "Label the timeline flood key and align it to the right on desktop, keeping the key readable on phones.",
+  "files": [
+    {
+      "source": "assets/north-wildwood-phone.css",
+      "beforeSha256": "967b44ab95059bb08e636054f5254965c8641b1f1dd67ab5ffc585daa89da02f",
+      "afterSha256": "a1136888496615e09615738d1a8a7ec9fce07a27b94eed0aee5adc6c5b028c13",
+      "edits": [
+        [
+          345,
+          604,
+          ""
+        ],
+        [
+          22674,
+          22771,
+          "      column-gap: clamp(5px, 1.75vw, 13px) !important;\n"
+        ],
+        [
+          22953,
+          23006,
+          "      grid-template-columns: repeat(4, max-content);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "cbe754f6521532e9dd089965edae575b3ac425a2a1d7f6ad33a9324972f41242",
+      "afterSha256": "15efc550907d101b3d6e6876334c769a1a30fcabefeb1559353e1e7ad4aee3d8",
+      "edits": [
+        [
+          29175,
+          29356,
+          "        <div id=\"timelineFloodKey\" class=\"timeline-flood-key\" aria-label=\"Flood category key\">\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "a6f29510efe5c3cc291fa7f6d8a64c6b213f6b5ac85f57dae901019753951aaf",
+      "afterSha256": "9b8a6e00fbca88215239fcbd8ea0894e3996f163baaaaa776521c6caa351defc",
+      "edits": [
+        [
+          33735,
+          33827,
+          "<link rel=\"preload\" as=\"style\" href=\"./assets/north-wildwood-phone.css?v=967b44ab95059bb0\">\n"
+        ],
+        [
+          64973,
+          65080,
+          "<link data-nww-startup-style rel=\"stylesheet\" href=\"./assets/north-wildwood-phone.css?v=967b44ab95059bb0\">\n"
+        ],
+        [
+          87669,
+          87850,
+          "        <div id=\"timelineFloodKey\" class=\"timeline-flood-key\" aria-label=\"Flood category key\">\n"
+        ]
+      ]
+    }
+  ]
+}

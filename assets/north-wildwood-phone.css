@@ -6,6 +6,18 @@
     outline: none !important;
   }
 
+  html[data-nww-phone] body #timelineDock #timelineFloodKey {
+    justify-content: flex-end !important;
+  }
+
+  #timelineFloodKey .timeline-key-title {
+    flex: 0 0 auto;
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 750;
+    line-height: 1;
+  }
+
   html[data-nww-phone] body #timelineDock #timelineBubble[data-nww-thumb-follow] {
     overflow: visible !important;
     box-sizing: border-box !important;
@@ -613,13 +625,14 @@
       top: var(--phone-legend-y) !important;
       height: calc(19px + var(--phone-road-space)) !important;
       max-height: none !important;
-      column-gap: clamp(5px, 1.75vw, 13px) !important;
+      justify-content: center !important;
+      column-gap: clamp(4px, 1.45vw, 13px) !important;
       color: var(--phone-label) !important;
     }
 
     html[data-nww-phone] body #timelineDock #timelineFloodKey:has(#roadImpactsKey:not([hidden])) {
       display: grid !important;
-      grid-template-columns: repeat(4, max-content);
+      grid-template-columns: repeat(5, max-content);
       grid-template-rows: 18px 16px;
       justify-content: center !important;
       align-content: start !important;
