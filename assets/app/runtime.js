@@ -3249,6 +3249,27 @@ function setDatumHelpOpen(isOpen) {
     }
 
     let startupOverlayCandidate = null;
+    const transferableFloodProbeImages = new WeakMap();
+
+    function cacheVerifiedFloodImage(url, image, probeGeneration) {
+      if (drainageRasterImageCache.has(url)) return;
+      transferableFloodProbeImages.set(image, probeGeneration);
+      drainageRasterImageCache.set(url, image);
+      while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {
+        drainageRasterImageCache.delete(drainageRasterImageCache.keys().next().value);
+      }
+    }
+
+    function takeVerifiedFloodImage(url) {
+      const image = drainageRasterImageCache.get(url);
+      if (!image?.complete || !image.naturalWidth || image.isConnected ||
+          transferableFloodProbeImages.get(image) !== imageExistsCache) return null;
+      // Once mounted, Leaflet owns this element and may change its source on
+      // disposal. A canvas consumer must use a different image.
+      transferableFloodProbeImages.delete(image);
+      drainageRasterImageCache.delete(url);
+      return image;
+    }
 
     async function testImageUrl(url) {
       if (!url) return { ok: false };
@@ -3278,12 +3299,16 @@ function setDatumHelpOpen(isOpen) {
         if (cancelIfRequested()) return;
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
         img.crossOrigin = "anonymous";
+        img.decoding = "async";
         img.fetchPriority = "high";
         img.onload = () => {
-          if (!settled && imageExistsCache === cache && !exportInProgress &&
-              document.body.dataset.initialFloodFrame === "loading") {
+          if (!settled && imageExistsCache === cache && !exportInProgress) {
             img.alt = "";
-            startupOverlayCandidate = { url, image: img };
+            if (document.body.dataset.initialFloodFrame === "loading") {
+              startupOverlayCandidate = { url, image: img };
+            } else {
+              cacheVerifiedFloodImage(url, img, cache);
+            }
           }
           done({ ok: true });
         };
@@ -3300,13 +3325,11 @@ function setDatumHelpOpen(isOpen) {
       return result;
     }
 
-    function preloadImage(url, priority = "low") {
+    function loadDecodedFloodImage(url, priority, loadedImage = null) {
       if (!url) return Promise.resolve(null);
-      if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);
-
       const releaseRaster = retainRasterObjectUrl(url);
-      const promise = new Promise(resolve => {
-        const img = new Image();
+      return new Promise(resolve => {
+        const img = loadedImage || new Image();
         let settled = false;
         let cancelTimer = null;
         let timeoutTimer = null;
@@ -3316,9 +3339,8 @@ function setDatumHelpOpen(isOpen) {
           releaseRaster();
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
-          img.onload = null;
-          img.onerror = null;
-          if (!value) img.removeAttribute?.("src");
+          if (!loadedImage) img.onload = img.onerror = null;
+          if (!value && !img.isConnected) img.removeAttribute?.("src");
           resolve(value);
         };
         const cancelIfRequested = () => {
@@ -3328,15 +3350,26 @@ function setDatumHelpOpen(isOpen) {
         };
         if (cancelIfRequested()) return;
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
-        img.crossOrigin = "anonymous";
-        img.decoding = "async";
-        img.fetchPriority = priority === "high" ? "high" : "low";
-        img.onload = async () => done(await decodeFloodFrameImage(img) ? url : null);
-        img.onerror = () => done(null);
+        const decode = async () => done(await decodeFloodFrameImage(img) ? img : null);
         timeoutTimer = window.setTimeout(() => done(null), 20000);
-        img.src = url;
+        if (loadedImage) {
+          if (img.src === url && !img.isConnected) void decode();
+          else done(null);
+        } else {
+          img.crossOrigin = "anonymous";
+          img.decoding = "async";
+          img.fetchPriority = priority === "high" ? "high" : "low";
+          img.onload = decode;
+          img.onerror = () => done(null);
+          img.src = url;
+        }
       });
+    }
 
+    function preloadImage(url, priority = "low") {
+      if (!url) return Promise.resolve(null);
+      if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);
+      const promise = loadDecodedFloodImage(url, priority).then(image => image ? url : null);
       preloadPromiseCache.set(url, promise);
       promise.then(result => {
         if (!result && preloadPromiseCache.get(url) === promise) preloadPromiseCache.delete(url);
@@ -3498,12 +3531,13 @@ function setDatumHelpOpen(isOpen) {
 
     function isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel) {
       const offset = pixel * 4;
-      return !isWetRasterPixel(lowerPixels, offset) &&
-        isWetRasterPixel(upperPixels, offset) &&
+      return upperPixels[offset + 3] > 0 &&
+        !isWetRasterPixel(lowerPixels, offset) &&
+        !isDisconnectedRasterPixel(upperPixels, offset) &&
         isDevelopedRasterPixel(developedPixels, offset);
     }
 
-    function getFillingTransitionPixelDepth(queryPixels, developedPixels, pixel, rawStageFt) {
+    function getFillingTransitionPixelDepth(queryPixels, developedPixels, pixel, rawStageFt, adjustedStageFt = null) {
       if (!queryPixels || !developedPixels || queryPixels.length !== developedPixels.length) return null;
       const offset = pixel * 4;
       const encodedGround = queryPixels[offset] * 256 + queryPixels[offset + 1];
@@ -3516,11 +3550,11 @@ function setDatumHelpOpen(isOpen) {
       // its quantized connection code to the in-between gauge value or the
       // whole surface remains green until the next catalog frame.
       if (!Number.isFinite(stageFt) || connectionCode === 255) return null;
-      const developed = isDevelopedRasterPixel(developedPixels, offset);
-      const adjustedStageFt = stageFt - (developed ? getVerticalBathtubPenalty(stageFt) : 0);
-      if (groundFt > adjustedStageFt + 1e-9) return null;
+      const surfaceFt = adjustedStageFt ?? (stageFt - (isDevelopedRasterPixel(developedPixels, offset)
+        ? getVerticalBathtubPenalty(stageFt) : 0));
+      if (groundFt > surfaceFt + 1e-9) return null;
       // Use the same local water surface as the query and catalog depth model.
-      return Math.max(0.005, adjustedStageFt - groundFt);
+      return Math.max(0.005, surfaceFt - groundFt);
     }
 
     function applyFillingTransitionPixels(
@@ -3532,7 +3566,6 @@ function setDatumHelpOpen(isOpen) {
       rawStageFt,
       lowerStageFt,
       mode,
-      depthPixels = upperPixels,
       queryPixels = null
     ) {
       if (!lowerPixels || !upperPixels || lowerPixels.length !== upperPixels.length ||
@@ -3543,6 +3576,9 @@ function setDatumHelpOpen(isOpen) {
       if (!(fraction > 0)) return 0;
       const blend = getFillingTransitionBlend(fraction);
       const transitionStageRgb = getDrainageStageColor(rawStageFt);
+      // Transition candidates already passed the developed-land mask, so
+      // every cell in this frame uses the same adjusted water surface.
+      const adjustedStageFt = Number(rawStageFt) - getVerticalBathtubPenalty(rawStageFt);
       let added = 0;
       const pixelCount = width * height;
       for (let pixel = 0; pixel < pixelCount; pixel += 1) {
@@ -3551,7 +3587,8 @@ function setDatumHelpOpen(isOpen) {
           queryPixels,
           developedPixels,
           pixel,
-          rawStageFt
+          rawStageFt,
+          adjustedStageFt
         );
         if (!Number.isFinite(depthFt)) continue;
         const offset = pixel * 4;
@@ -3588,31 +3625,34 @@ function setDatumHelpOpen(isOpen) {
       // A confirmed blue pixel over the full crest footprint stays blue; it
       // may become shallower or disappear, but it never downgrades to green.
       const crestPixels = history[0];
-      let modified = 0;
-      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
-        if (!isWetRasterPixel(currentPixels, offset) || crestPixels[offset + 3] > 0) continue;
-        currentPixels[offset] = 0;
-        currentPixels[offset + 1] = 0;
-        currentPixels[offset + 2] = 0;
-        currentPixels[offset + 3] = 0;
-        modified += 1;
-      }
-      const retained = new Uint8Array(pixelCount);
-      for (const historyPixels of history) {
-        for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
-          if (!retained[pixel] && crestPixels[offset + 3] > 0 &&
-              isWetRasterPixel(historyPixels, offset)) retained[pixel] = 1;
-        }
-      }
-
       const retainedStageRgb = getDrainageStageColor(stageFt);
-      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
-        if (!retained[pixel] || isWetRasterPixel(currentPixels, offset)) continue;
+      const stage = Number(stageFt);
+      let modified = 0;
+      for (let offset = 0; offset < pixelCount * 4; offset += 4) {
+        const currentlyWet = isWetRasterPixel(currentPixels, offset);
+        if (!crestPixels[offset + 3]) {
+          if (currentlyWet) {
+            currentPixels[offset] = 0;
+            currentPixels[offset + 1] = 0;
+            currentPixels[offset + 2] = 0;
+            currentPixels[offset + 3] = 0;
+            modified += 1;
+          }
+          continue;
+        }
+        if (currentlyWet) continue;
         const encodedGround = queryPixels[offset] * 256 + queryPixels[offset + 1];
         if (!encodedGround) continue;
         const groundFt = (encodedGround - 32768) / 10;
-        const depthFt = Number(stageFt) - groundFt;
+        const depthFt = stage - groundFt;
         if (!(depthFt > 0.005)) continue;
+        let wasWet = false;
+        for (const historyPixels of history) {
+          if (!isWetRasterPixel(historyPixels, offset)) continue;
+          wasWet = true;
+          break;
+        }
+        if (!wasWet) continue;
         const color = mode === "depth" ? getDrainageDepthColor(depthFt) : retainedStageRgb;
         currentPixels[offset] = color[0];
         currentPixels[offset + 1] = color[1];
@@ -3676,7 +3716,13 @@ function setDatumHelpOpen(isOpen) {
 
     function getDrainageRasterImage(url) {
       if (!url) return Promise.resolve(null);
-      if (drainageRasterImageCache.has(url)) return awaitRasterRequest(drainageRasterImageCache.get(url));
+      if (drainageRasterImageCache.has(url)) {
+        const cached = drainageRasterImageCache.get(url);
+        transferableFloodProbeImages.delete(cached);
+        drainageRasterImageCache.delete(url);
+        drainageRasterImageCache.set(url, cached);
+        return awaitRasterRequest(Promise.resolve(cached));
+      }
       const releaseRaster = retainRasterObjectUrl(url);
       const promise = new Promise(resolve => {
         const image = new Image();
@@ -3953,24 +3999,18 @@ function setDatumHelpOpen(isOpen) {
         stageToCode(upperStageFt)
       ].join("|");
       return getCachedRasterComposite(fillingCompositeCache, key, FILLING_COMPOSITE_CACHE_LIMIT, lowerRecord, async () => {
-        const upperRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase);
-        const depthRequest = mode === "depth"
-          ? upperRequest
-          : getOverlayRecord("depth", upperStageFt, normalizedPhase);
-        const [upperRecord, depthRecord] = await Promise.all([upperRequest, depthRequest]);
-        if (!upperRecord || !depthRecord) return null;
-        const [lowerImage, upperImage, depthImage, developedGrid, queryGrid] = await Promise.all([
+        const upperImageRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase)
+          .then(record => record ? getDrainageRasterImage(record.url) : null);
+        const [lowerImage, upperImage, developedGrid, queryGrid] = await Promise.all([
           getDrainageRasterImage(lowerRecord.url),
-          getDrainageRasterImage(upperRecord.url),
-          getDrainageRasterImage(depthRecord.url),
+          upperImageRequest,
           getDevelopedQueryGrid(),
           getDepthQueryGrid()
         ]);
-        if (!lowerImage || !upperImage || !depthImage || !developedGrid || !queryGrid) return null;
+        if (!lowerImage || !upperImage || !developedGrid || !queryGrid) return null;
         const width = lowerImage.naturalWidth;
         const height = lowerImage.naturalHeight;
         if (upperImage.naturalWidth !== width || upperImage.naturalHeight !== height ||
-            depthImage.naturalWidth !== width || depthImage.naturalHeight !== height ||
             developedGrid.width !== width || developedGrid.height !== height ||
             queryGrid.width !== width || queryGrid.height !== height) {
           console.warn("Filling interpolation skipped because its raster grids do not match.");
@@ -3987,12 +4027,6 @@ function setDatumHelpOpen(isOpen) {
         context.clearRect(0, 0, width, height);
         context.drawImage(upperImage, 0, 0);
         const upperPixels = context.getImageData(0, 0, width, height).data;
-        let depthPixels = upperPixels;
-        if (depthImage !== upperImage) {
-          context.clearRect(0, 0, width, height);
-          context.drawImage(depthImage, 0, 0);
-          depthPixels = context.getImageData(0, 0, width, height).data;
-        }
         const addedPixelCount = applyFillingTransitionPixels(
           lowerImageData.data,
           upperPixels,
@@ -4002,7 +4036,6 @@ function setDatumHelpOpen(isOpen) {
           rawStageFt,
           lowerStageFt,
           mode,
-          depthPixels,
           queryGrid.values
         );
         if (!addedPixelCount) return lowerRecord;
@@ -4051,20 +4084,17 @@ function setDatumHelpOpen(isOpen) {
           ...milestones.map(item => `${entryTimeMs(item)}:${normalizeHydraulicPhase(item.hydraulicPhase)}:${stageToCode(getOverlayStage(getStageValue(item)))}:${getStageValue(item)}`)
         ].join("|");
         return await getCachedRasterComposite(drainageCompositeCache, key, DRAINAGE_COMPOSITE_CACHE_LIMIT, baseRecord, async () => {
-          const historicalRecords = await Promise.all(milestones.map(item => {
-            const itemStage = getOverlayStage(getStageValue(item));
-            return itemStage == null
-              ? Promise.resolve(null)
-              : getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));
-          }));
           // The first milestone supplies the crest footprint. An incomplete
           // history must not be cached as if every hydraulic input was available.
-          if (historicalRecords.some(record => !record)) return null;
-
           const [baseImage, queryGrid, ...historyImages] = await Promise.all([
             getDrainageRasterImage(baseRecord.url),
             getDepthQueryGrid(),
-            ...historicalRecords.map(record => getDrainageRasterImage(record.url))
+            ...milestones.map(async item => {
+              const itemStage = getOverlayStage(getStageValue(item));
+              if (itemStage == null) return null;
+              const record = await getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));
+              return record ? getDrainageRasterImage(record.url) : null;
+            })
           ]);
           if (!baseImage || !queryGrid || historyImages.some(image => !image)) return null;
           if (baseImage.naturalWidth !== queryGrid.width || baseImage.naturalHeight !== queryGrid.height ||
@@ -8490,7 +8520,7 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
       if (typeof stopPlayback === "function") stopPlayback();
     }
 
-    function waitForRecoveryFloodLayer(layer, token, onReady) {
+    function waitForRecoveryFloodLayer(layer, token, onReady, decodedImage = null) {
       return new Promise(resolve => {
         let settled = false;
         let handlingLoad = false;
@@ -8518,8 +8548,8 @@ function findClosestExportEntryForSlot(entries, slotMs, usedKeys = new Set(), to
           if (handlingLoad) return;
           handlingLoad = true;
           if (settled || token !== lastRenderToken) return finish(false);
-          if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
-          await new Promise(requestAnimationFrame);
+          const image = layer.getElement();
+          if ((!decodedImage || image !== decodedImage) && !await decodeFloodFrameImage(image)) return finish(false);
           if (settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);
           try {
             const ready = await onReady();
@@ -9875,6 +9905,7 @@ function formatSelectedObservedDate(dateStr) {
       try {
         toast("");
         ensureMap();
+        const imageGeneration = imageExistsCache;
 
         const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
         if (token !== lastRenderToken) return;
@@ -9886,19 +9917,6 @@ function formatSelectedObservedDate(dateStr) {
 
         const overlayUrl = match.url;
         releaseRaster = retainRasterObjectUrl(overlayUrl);
-        // The atlas resolver already downloaded this image to verify its URL.
-        // Reuse it for the first frame without retaining every probed raster.
-        let initialImage = null;
-        if (document.body.dataset.initialFloodFrame === "loading") {
-          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
-          startupOverlayCandidate = null;
-        }
-        const loaded = initialImage || await preloadImage(overlayUrl, "high");
-        if (token !== lastRenderToken) return;
-        if (!loaded) {
-          return false;
-        }
-
         try {
           await ensureOverlayBounds(overlayUrl);
         } catch (err) {
@@ -9908,13 +9926,34 @@ function formatSelectedObservedDate(dateStr) {
 
         if (token !== lastRenderToken) return;
 
+        const previousLayer = currentFloodLayer;
         if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
-          map.removeLayer(pendingFloodLayer);
+          if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
           pendingFloodLayer = null;
         }
 
-        const previousLayer = currentFloodLayer;
-        const nextLayer = createHydraulicImageOverlay(
+        const className = currentDataMode === "return-interval" && mode === "depth"
+          ? "return-interval-depth-overlay"
+          : "";
+        const mountedImage = previousLayer?.getElement?.();
+        const reuseMountedLayer = previousLayer?._url === overlayUrl &&
+          previousLayer._floodmapperImageGeneration === imageGeneration &&
+          previousLayer._floodmapperFrame?.overlayMode === mode &&
+          (previousLayer.options?.className || "") === className &&
+          Boolean(previousLayer._worldFileAffine) === (floodOverlayGeometryMode === "world-file") &&
+          previousLayer.getBounds?.()?.equals?.(floodLatLngBounds) &&
+          mountedImage?.complete && mountedImage.naturalWidth > 0 && map.hasLayer(previousLayer);
+        let initialImage = null;
+        if (document.body.dataset.initialFloodFrame === "loading") {
+          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
+          startupOverlayCandidate = null;
+        }
+        // Decode off the map, then mount that exact image for a single swap.
+        const decodedImage = reuseMountedLayer ? mountedImage : await loadDecodedFloodImage(
+          overlayUrl, "high", initialImage || takeVerifiedFloodImage(overlayUrl)
+        );
+        if (token !== lastRenderToken || !decodedImage) return false;
+        const nextLayer = reuseMountedLayer ? previousLayer : createHydraulicImageOverlay(
           overlayUrl,
           {
             opacity: 0,
@@ -9922,15 +9961,13 @@ function formatSelectedObservedDate(dateStr) {
             crossOrigin: true,
             zIndex: 500,
             pane: "floodPane",
-            className: currentDataMode === "return-interval" && mode === "depth"
-              ? "return-interval-depth-overlay"
-              : ""
+            className
           },
-          initialImage || overlayUrl
+          decodedImage
         );
 
         pendingFloodLayer = nextLayer;
-        return await waitForRecoveryFloodLayer(nextLayer, token, async () => {
+        const commit = async () => {
           // Leaflet also backs the visible WebGL map. Its hidden image being
           // decoded is only the first half of a frame commit in pitched 3D.
           if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
@@ -9940,20 +9977,37 @@ function formatSelectedObservedDate(dateStr) {
               !window.NORTH_WILDWOOD_3D.commitFloodFrame(nextLayer, token)) return false;
           nextLayer.setOpacity(overlayOpacity);
           nextLayer._floodmapperFrame = frameMetadata;
+          nextLayer._floodmapperImageGeneration = imageGeneration;
           currentFloodLayer = nextLayer;
           floodFrameState = "ready";
           document.body.dataset.floodFrame = "ready";
           pendingFloodLayer = null;
   
-          if (previousLayer && map.hasLayer(previousLayer)) {
+          if (previousLayer && previousLayer !== nextLayer && map.hasLayer(previousLayer)) {
             map.removeLayer(previousLayer);
+            if (previousLayer._floodmapperImageGeneration === imageGeneration &&
+                mountedImage?.complete && mountedImage.naturalWidth > 0 &&
+                mountedImage.src === previousLayer._url && !mountedImage.isConnected) {
+              // The shared small raster cache can supply this decoded image on a later seek.
+              // Strip Leaflet's display style before lending the detached element again.
+              mountedImage.removeAttribute?.("class");
+              mountedImage.removeAttribute?.("style");
+              cacheVerifiedFloodImage(previousLayer._url, mountedImage, imageGeneration);
+            }
           }
   
           updatePersistentDepthQueryPopup();
   
           if (!mapHasFit && floodLatLngBounds) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
           markInitialFloodFrameReady();
-        });
+          return true;
+        };
+        if (!reuseMountedLayer) return await waitForRecoveryFloodLayer(nextLayer, token, commit, decodedImage);
+        try {
+          return await commit();
+        } finally {
+          if (token === lastRenderToken && pendingFloodLayer === nextLayer) pendingFloodLayer = null;
+        }
       } finally {
         releaseRaster?.();
       }
@@ -9973,20 +10027,17 @@ function formatSelectedObservedDate(dateStr) {
       if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
         throw new Error("The selected physics frame is incomplete.");
       }
-      const loaded = await preloadImage(overlayUrl, "high");
-      if (token !== lastRenderToken) return;
-      if (!loaded) {
-        return false;
-      }
+      const decodedImage = await loadDecodedFloodImage(overlayUrl, "high");
+      if (token !== lastRenderToken || !decodedImage) return false;
       floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
       floodOverlayGeometryMode = "axis-aligned";
 
+      const previousLayer = currentFloodLayer;
       if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
-        map.removeLayer(pendingFloodLayer);
+        if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
         pendingFloodLayer = null;
       }
-      const previousLayer = currentFloodLayer;
-      const nextLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {
+      const nextLayer = L.imageOverlay(decodedImage, floodLatLngBounds, {
         opacity: 0,
         interactive: false,
         crossOrigin: true,
@@ -10010,7 +10061,7 @@ function formatSelectedObservedDate(dateStr) {
         if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
         if (!mapHasFit) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
         markInitialFloodFrameReady();
-      });
+      }, decodedImage);
     }
 
     function ownPlaybackFrame(playback, token) {

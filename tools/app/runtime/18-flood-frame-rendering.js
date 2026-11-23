@@ -60,7 +60,7 @@
       if (typeof stopPlayback === "function") stopPlayback();
     }
 
-    function waitForRecoveryFloodLayer(layer, token, onReady) {
+    function waitForRecoveryFloodLayer(layer, token, onReady, decodedImage = null) {
       return new Promise(resolve => {
         let settled = false;
         let handlingLoad = false;
@@ -88,8 +88,8 @@
           if (handlingLoad) return;
           handlingLoad = true;
           if (settled || token !== lastRenderToken) return finish(false);
-          if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);
-          await new Promise(requestAnimationFrame);
+          const image = layer.getElement();
+          if ((!decodedImage || image !== decodedImage) && !await decodeFloodFrameImage(image)) return finish(false);
           if (settled || token !== lastRenderToken || !map.hasLayer(layer)) return finish(false);
           try {
             const ready = await onReady();

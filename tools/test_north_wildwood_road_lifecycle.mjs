@@ -26,7 +26,7 @@ function fixture() {
   };
   let observeClass, leaflet;
   const ctx = {
-    URL, Uint8ClampedArray, console: { warn() {} }, APP_BASE: new URL("https://mapper.test/"),
+    URL, Uint8ClampedArray, performance, console: { warn() {} }, APP_BASE: new URL("https://mapper.test/"),
     map: { hasLayer: layer => mounted.has(layer), removeLayer(layer) { counts.removes++; mounted.delete(layer); },
       getPane: name => panes.get(name), createPane: name => panes.set(name, { style: {} }) },
     currentFloodLayer: frame, floodFrameState: "ready", lastRenderToken: 1,
@@ -138,6 +138,20 @@ assert.ok(sync.counts.updates > 0, "Mounted geometry must still receive real dat
 assert.equal(sync.leaflet().data.features.length, 2);
 assert.equal(sync.counts.adds, 1);
 assert.equal(sync.counts.removes, 0);
+
+// A cheap road refresh fits in one work slice. Yield for a long computation
+// before publishing its successfully sampled sections.
+const timing = fixture();
+let yields = 0;
+timing.ctx.requestAnimationFrame = callback => { yields++; queueMicrotask(callback); };
+timing.ctx.performance = { now: () => 0 };
+await timing.api.setEnabled(true);
+assert.equal(yields, 0, "A cheap road refresh must not wait for an animation frame");
+let time = 0;
+timing.ctx.performance.now = () => time += 10;
+await timing.api.refresh();
+assert.ok(yields > 0, "An expensive road refresh gives the browser time to paint");
+assert.equal(timing.api.state().sections, 2);
 
 // Disable, 3D handoff and empty results must still remove/hide their overlays.
 sync.set3d(true);

@@ -25,7 +25,13 @@
 
     function getDrainageRasterImage(url) {
       if (!url) return Promise.resolve(null);
-      if (drainageRasterImageCache.has(url)) return awaitRasterRequest(drainageRasterImageCache.get(url));
+      if (drainageRasterImageCache.has(url)) {
+        const cached = drainageRasterImageCache.get(url);
+        transferableFloodProbeImages.delete(cached);
+        drainageRasterImageCache.delete(url);
+        drainageRasterImageCache.set(url, cached);
+        return awaitRasterRequest(Promise.resolve(cached));
+      }
       const releaseRaster = retainRasterObjectUrl(url);
       const promise = new Promise(resolve => {
         const image = new Image();
@@ -302,24 +308,18 @@
         stageToCode(upperStageFt)
       ].join("|");
       return getCachedRasterComposite(fillingCompositeCache, key, FILLING_COMPOSITE_CACHE_LIMIT, lowerRecord, async () => {
-        const upperRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase);
-        const depthRequest = mode === "depth"
-          ? upperRequest
-          : getOverlayRecord("depth", upperStageFt, normalizedPhase);
-        const [upperRecord, depthRecord] = await Promise.all([upperRequest, depthRequest]);
-        if (!upperRecord || !depthRecord) return null;
-        const [lowerImage, upperImage, depthImage, developedGrid, queryGrid] = await Promise.all([
+        const upperImageRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase)
+          .then(record => record ? getDrainageRasterImage(record.url) : null);
+        const [lowerImage, upperImage, developedGrid, queryGrid] = await Promise.all([
           getDrainageRasterImage(lowerRecord.url),
-          getDrainageRasterImage(upperRecord.url),
-          getDrainageRasterImage(depthRecord.url),
+          upperImageRequest,
           getDevelopedQueryGrid(),
           getDepthQueryGrid()
         ]);
-        if (!lowerImage || !upperImage || !depthImage || !developedGrid || !queryGrid) return null;
+        if (!lowerImage || !upperImage || !developedGrid || !queryGrid) return null;
         const width = lowerImage.naturalWidth;
         const height = lowerImage.naturalHeight;
         if (upperImage.naturalWidth !== width || upperImage.naturalHeight !== height ||
-            depthImage.naturalWidth !== width || depthImage.naturalHeight !== height ||
             developedGrid.width !== width || developedGrid.height !== height ||
             queryGrid.width !== width || queryGrid.height !== height) {
           console.warn("Filling interpolation skipped because its raster grids do not match.");
@@ -336,12 +336,6 @@
         context.clearRect(0, 0, width, height);
         context.drawImage(upperImage, 0, 0);
         const upperPixels = context.getImageData(0, 0, width, height).data;
-        let depthPixels = upperPixels;
-        if (depthImage !== upperImage) {
-          context.clearRect(0, 0, width, height);
-          context.drawImage(depthImage, 0, 0);
-          depthPixels = context.getImageData(0, 0, width, height).data;
-        }
         const addedPixelCount = applyFillingTransitionPixels(
           lowerImageData.data,
           upperPixels,
@@ -351,7 +345,6 @@
           rawStageFt,
           lowerStageFt,
           mode,
-          depthPixels,
           queryGrid.values
         );
         if (!addedPixelCount) return lowerRecord;
@@ -400,20 +393,17 @@
           ...milestones.map(item => `${entryTimeMs(item)}:${normalizeHydraulicPhase(item.hydraulicPhase)}:${stageToCode(getOverlayStage(getStageValue(item)))}:${getStageValue(item)}`)
         ].join("|");
         return await getCachedRasterComposite(drainageCompositeCache, key, DRAINAGE_COMPOSITE_CACHE_LIMIT, baseRecord, async () => {
-          const historicalRecords = await Promise.all(milestones.map(item => {
-            const itemStage = getOverlayStage(getStageValue(item));
-            return itemStage == null
-              ? Promise.resolve(null)
-              : getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));
-          }));
           // The first milestone supplies the crest footprint. An incomplete
           // history must not be cached as if every hydraulic input was available.
-          if (historicalRecords.some(record => !record)) return null;
-
           const [baseImage, queryGrid, ...historyImages] = await Promise.all([
             getDrainageRasterImage(baseRecord.url),
             getDepthQueryGrid(),
-            ...historicalRecords.map(record => getDrainageRasterImage(record.url))
+            ...milestones.map(async item => {
+              const itemStage = getOverlayStage(getStageValue(item));
+              if (itemStage == null) return null;
+              const record = await getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));
+              return record ? getDrainageRasterImage(record.url) : null;
+            })
           ]);
           if (!baseImage || !queryGrid || historyImages.some(image => !image)) return null;
           if (baseImage.naturalWidth !== queryGrid.width || baseImage.naturalHeight !== queryGrid.height ||

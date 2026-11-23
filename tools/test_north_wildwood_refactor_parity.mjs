@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const FRAME_LOADING_PATH = "tools/fixtures/north-wildwood-20261123-frame-loading.json";
+const priorFrameLoadingSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-frame-loading-snapshot");
+const frameLoadingText = fs.readFileSync(localPath(FRAME_LOADING_PATH));
+assert.equal(hashReleaseBytes(frameLoadingText), "c23231c8bb6264082eea48ca6873155330c07f216bc61fd5f365e10adac2c6f1", "Retain the exact frame loading inverse");
+const frameLoading = JSON.parse(frameLoadingText);
+assert.equal(frameLoading.schemaVersion, 1);
+assert.equal(frameLoading.baselineCommit, "a1e0fc8bf9d26dbc9ccc396b8a547922da2eee88");
+const frameLoadingFiles = new Map(frameLoading.files.map(entry => [entry.source, entry]));
 const MAPPER_AUDIT_PATH = "tools/fixtures/north-wildwood-20261123-mapper-audit.json";
 const priorMapperAuditSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mapper-audit-snapshot");
 const mapperAuditText = fs.readFileSync(localPath(MAPPER_AUDIT_PATH));
@@ -119,8 +127,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeMapperAudit(relative) {
+function readBeforeFrameLoading(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = frameLoadingFiles.get(relative);
+  return priorFrameLoadingSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "frame loading");
+}
+if (!priorFrameLoadingSnapshot) {
+  for (const file of frameLoading.files) readBeforeFrameLoading(file.source);
+}
+
+function readBeforeMapperAudit(relative) {
+  const bytes = readBeforeFrameLoading(relative);
   const entry = mapperAuditFiles.get(relative);
   return priorMapperAuditSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "mapper audit");
 }
@@ -2881,6 +2898,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      FRAME_LOADING_PATH, ...frameLoading.files.map(file => file.source),
       MAPPER_AUDIT_PATH, ...mapperAudit.files.map(file => file.source),
       PLAYBACK_SPEED_PATH, ...playbackSpeed.files.map(file => file.source),
       KEY_POLISH_PATH, ...keyPolish.files.map(file => file.source),
@@ -2906,7 +2924,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeMapperAudit = (args = []) => runRelease(["--prior-mapper-audit-snapshot", ...args]);
+    const runBeforeFrameLoading = (args = []) => runRelease(["--prior-frame-loading-snapshot", ...args]);
+    const runBeforeMapperAudit = (args = []) => runBeforeFrameLoading(["--prior-mapper-audit-snapshot", ...args]);
     const runBeforePlaybackSpeed = (args = []) => runBeforeMapperAudit(["--prior-playback-speed-snapshot", ...args]);
     const runBeforeKeyPolish = (args = []) => runBeforePlaybackSpeed(["--prior-key-polish-snapshot", ...args]);
     const runBeforeMapperBloat = (args = []) => runBeforeKeyPolish(["--prior-mapper-bloat-snapshot", ...args]);
@@ -2934,12 +2953,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered frame loading inverse", path.join(scratch, FRAME_LOADING_PATH), Buffer.concat([frameLoadingText, Buffer.from(" ")])],
+      ...frameLoading.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return ["unreviewed frame loading byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of frameLoading.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeFrameLoading(file.source));
+    assert.equal(runBeforeFrameLoading().status, 0, "The restored application before the frame loading fix must pass");
+    assertMutationsRejected([
       ["altered mapper audit inverse", path.join(scratch, MAPPER_AUDIT_PATH), Buffer.concat([mapperAuditText, Buffer.from(" ")])],
       ...mapperAudit.files.map(file => {
         const target = path.join(scratch, file.source);
         return ["unreviewed mapper audit byte in " + file.source, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeFrameLoading);
     for (const file of mapperAudit.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeMapperAudit(file.source));
     assert.equal(runBeforeMapperAudit().status, 0, "The restored application before the mapper audit must pass");
     assertMutationsRejected([

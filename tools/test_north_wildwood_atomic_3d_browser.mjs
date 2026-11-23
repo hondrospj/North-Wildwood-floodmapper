@@ -31,6 +31,20 @@ try {
     const source = gl?.getSource(state.floodDrapeSourceId);
     return state.ready && source?.loaded() && source.image && source.url === currentFloodLayer?._url;
   });
+  await page.evaluate(() => {
+    const metrics = window.__flood3dWork = { programLinks: 0, customImageRequests: 0 };
+    const linkProgram = WebGL2RenderingContext.prototype.linkProgram;
+    WebGL2RenderingContext.prototype.linkProgram = function(program) {
+      if (new Error().stack.includes('north-wildwood-3d.js')) metrics.programLinks += 1;
+      return linkProgram.call(this, program);
+    };
+    const NativeImage = window.Image;
+    window.Image = function (...args) {
+      if (new Error().stack.includes('loadTexture')) metrics.customImageRequests += 1;
+      return new NativeImage(...args);
+    };
+    window.Image.prototype = NativeImage.prototype;
+  });
   const snapshot = () => page.evaluate(() => {
     const state = NORTH_WILDWOOD_3D.state(), gl = NORTH_WILDWOOD_3D.getMap();
     const plane = id => { const layer = gl.style.getLayer(id); return layer?.implementation || layer; };
@@ -83,21 +97,15 @@ try {
           for (const resolve of window.__atomicHeldNative) resolve();
         };
       } else {
-        const NativeImage = window.Image;
-        const descriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
-        window.Image = function (...args) {
-          const image = new NativeImage(...args);
-          if ((new Error().stack || '').includes('loadTexture')) {
-            Object.defineProperty(image, 'src', {
-              get() { return descriptor.get.call(image); },
-              set(value) { window.__atomicHeldGpu.push(() => descriptor.set.call(image, value)); }
-            });
+        const decode = HTMLImageElement.prototype.decode;
+        HTMLImageElement.prototype.decode = function (...args) {
+          if ((new Error().stack || '').includes('uploadFloodPlaneTexture')) {
+            return new Promise(resolve => window.__atomicHeldGpu.push(() => resolve(decode.apply(this, args))));
           }
-          return image;
+          return decode.apply(this, args);
         };
-        window.Image.prototype = NativeImage.prototype;
         window.__atomicRelease = () => {
-          window.Image = NativeImage;
+          HTMLImageElement.prototype.decode = decode;
           for (const resolve of window.__atomicHeldGpu) resolve();
         };
       }
@@ -144,6 +152,8 @@ try {
     result.checks.push({ held, before, pending, repitched, after, canvas: { before: beforeCanvas, pending: pendingCanvas, after: afterCanvas } });
     console.log(`Passed delayed-${held}: previous pixels retained; native GPU texture ready on first draw`);
   }
+  result.frameWork = await page.evaluate(() => window.__flood3dWork);
+  assert.deepEqual(result.frameWork, { programLinks: 0, customImageRequests: 0 });
   assert.deepEqual(result.errors, []);
 } catch (error) {
   result.failure = error.stack;

@@ -28,6 +28,7 @@
   var mapStylePromise = null;
   var preload3dGeneration = 0;
   var floodPlaneLayer = null;
+  var floodPlanePrograms = new WeakMap();
   var floodPlaneSlotId = "nw-flood-overlay";
   var pendingFlood3dRequest = null;
   var floodRemovalTimer = null;
@@ -374,6 +375,64 @@
     return shader;
   }
 
+  function acquireFloodPlaneProgram(gl) {
+    var pipeline = floodPlanePrograms.get(gl);
+    if (pipeline) {
+      pipeline.owners += 1;
+      return pipeline;
+    }
+    var vertexSource = '#version 300 es\n' +
+      'precision highp float;\n' +
+      'uniform mat4 u_matrix;\n' +
+      'in vec3 a_position;\n' +
+      'in vec2 a_texture;\n' +
+      'out vec2 v_texture;\n' +
+      'void main(){\n' +
+      '  v_texture = a_texture;\n' +
+      '  gl_Position = u_matrix * vec4(a_position, 1.0);\n' +
+      '}';
+    var fragmentSource = '#version 300 es\n' +
+      'precision highp float;\n' +
+      'uniform sampler2D u_image;\n' +
+      'uniform float u_opacity;\n' +
+      'in vec2 v_texture;\n' +
+      'out vec4 fragColor;\n' +
+      'void main(){ vec4 pixel = texture(u_image, v_texture); float alpha = pixel.a * u_opacity; if(alpha < 0.012) discard; fragColor = vec4(pixel.rgb * alpha, alpha); }';
+    var vertexShader, fragmentShader, program;
+    try {
+      vertexShader = compileFloodPlaneShader(gl, gl.VERTEX_SHADER, vertexSource);
+      fragmentShader = compileFloodPlaneShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+      program = gl.createProgram();
+      if (!program) throw new Error("The flat-water renderer could not allocate a program.");
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        throw new Error("The flat-water renderer could not link: " + (gl.getProgramInfoLog(program) || "Unknown program error"));
+      }
+      pipeline = {
+        owners: 1, program: program,
+        matrixLocation: gl.getUniformLocation(program, "u_matrix"),
+        opacityLocation: gl.getUniformLocation(program, "u_opacity"),
+        imageLocation: gl.getUniformLocation(program, "u_image"),
+        positionLocation: gl.getAttribLocation(program, "a_position"),
+        textureLocation: gl.getAttribLocation(program, "a_texture")
+      };
+      floodPlanePrograms.set(gl, pipeline);
+      return pipeline;
+    } finally {
+      if (vertexShader) gl.deleteShader(vertexShader);
+      if (fragmentShader) gl.deleteShader(fragmentShader);
+      if (!pipeline && program) gl.deleteProgram(program);
+    }
+  }
+
+  function releaseFloodPlaneProgram(gl, pipeline) {
+    if (!pipeline || --pipeline.owners > 0 || floodPlanePrograms.get(gl) !== pipeline) return;
+    floodPlanePrograms.delete(gl);
+    gl.deleteProgram(pipeline.program);
+  }
+
   function createFlatFloodPlane(options) {
     var initial = options || {};
     return {
@@ -387,15 +446,10 @@
       renderingMode: "3d",
       map: null,
       gl: null,
-      program: null,
+      pipeline: null,
       buffer: null,
       vertexArray: null,
       texture: null,
-      matrixLocation: null,
-      opacityLocation: null,
-      imageLocation: null,
-      positionLocation: -1,
-      textureLocation: -1,
       mercatorOrigin: null,
       localProjectionMatrix: new Float32Array(16),
       textureReady: false,
@@ -411,6 +465,8 @@
       url: initial.url || "",
       coordinates: initial.coordinates || null,
       altitudeMeters: Number(initial.altitudeMeters) || 0,
+      geometrySignature: null,
+      decodedImage: initial.decodedImage || null,
       opacity: Number.isFinite(Number(initial.opacity)) ? Number(initial.opacity) : 0.75,
 
       onAdd: function (mapInstance, gl) {
@@ -421,66 +477,44 @@
         var priorActiveTexture = gl.getParameter(gl.ACTIVE_TEXTURE);
         gl.activeTexture(gl.TEXTURE0);
         var priorTexture0 = gl.getParameter(gl.TEXTURE_BINDING_2D);
-        var vertexSource = '#version 300 es\n' +
-          'precision highp float;\n' +
-          'uniform mat4 u_matrix;\n' +
-          'in vec3 a_position;\n' +
-          'in vec2 a_texture;\n' +
-          'out vec2 v_texture;\n' +
-          'void main(){\n' +
-          '  v_texture = a_texture;\n' +
-          '  gl_Position = u_matrix * vec4(a_position, 1.0);\n' +
-          '}';
-        var fragmentSource = '#version 300 es\n' +
-          'precision highp float;\n' +
-          'uniform sampler2D u_image;\n' +
-          'uniform float u_opacity;\n' +
-          'in vec2 v_texture;\n' +
-          'out vec4 fragColor;\n' +
-          'void main(){ vec4 pixel = texture(u_image, v_texture); float alpha = pixel.a * u_opacity; if(alpha < 0.012) discard; fragColor = vec4(pixel.rgb * alpha, alpha); }';
-        var vertexShader = compileFloodPlaneShader(gl, gl.VERTEX_SHADER, vertexSource);
-        var fragmentShader = compileFloodPlaneShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
-        this.program = gl.createProgram();
-        gl.attachShader(this.program, vertexShader);
-        gl.attachShader(this.program, fragmentShader);
-        gl.linkProgram(this.program);
-        gl.deleteShader(vertexShader);
-        gl.deleteShader(fragmentShader);
-        if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
-          throw new Error("The flat-water renderer could not link: " + (gl.getProgramInfoLog(this.program) || "Unknown program error"));
+        try {
+          // The two slots use the same program with independent buffers and
+          // textures, so a staged frame cannot change the visible paint.
+          this.pipeline = acquireFloodPlaneProgram(gl);
+          this.buffer = gl.createBuffer();
+          this.vertexArray = gl.createVertexArray();
+          gl.bindVertexArray(this.vertexArray);
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+          gl.enableVertexAttribArray(this.pipeline.positionLocation);
+          gl.vertexAttribPointer(this.pipeline.positionLocation, 3, gl.FLOAT, false, 20, 0);
+          gl.enableVertexAttribArray(this.pipeline.textureLocation);
+          gl.vertexAttribPointer(this.pipeline.textureLocation, 2, gl.FLOAT, false, 20, 12);
+          this.texture = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, this.texture);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          this.updateGeometry();
+          var decodedImage = this.decodedImage;
+          this.decodedImage = null;
+          this.loadTexture(this.url, decodedImage);
+        } catch (error) {
+          this.onRemove(mapInstance, gl);
+          throw error;
+        } finally {
+          // onAdd runs outside MapLibre's guarded custom render pass.
+          gl.bindTexture(gl.TEXTURE_2D, priorTexture0);
+          gl.activeTexture(priorActiveTexture);
+          gl.bindBuffer(gl.ARRAY_BUFFER, priorArrayBuffer);
+          gl.bindVertexArray(priorVertexArray);
         }
-        this.matrixLocation = gl.getUniformLocation(this.program, "u_matrix");
-        this.opacityLocation = gl.getUniformLocation(this.program, "u_opacity");
-        this.imageLocation = gl.getUniformLocation(this.program, "u_image");
-        this.positionLocation = gl.getAttribLocation(this.program, "a_position");
-        this.textureLocation = gl.getAttribLocation(this.program, "a_texture");
-        this.buffer = gl.createBuffer();
-        this.vertexArray = gl.createVertexArray();
-        gl.bindVertexArray(this.vertexArray);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.enableVertexAttribArray(this.positionLocation);
-        gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 20, 0);
-        gl.enableVertexAttribArray(this.textureLocation);
-        gl.vertexAttribPointer(this.textureLocation, 2, gl.FLOAT, false, 20, 12);
-        this.texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, this.texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        this.updateGeometry();
-        this.loadTexture(this.url);
-        // onAdd runs outside MapLibre's guarded custom render pass. Restore
-        // every binding we touched so the next terrain frame starts from the
-        // state MapLibre recorded in its own WebGL cache.
-        gl.bindTexture(gl.TEXTURE_2D, priorTexture0);
-        gl.activeTexture(priorActiveTexture);
-        gl.bindBuffer(gl.ARRAY_BUFFER, priorArrayBuffer);
-        gl.bindVertexArray(priorVertexArray);
       },
 
       updateGeometry: function () {
         if (!this.gl || !Array.isArray(this.coordinates) || this.coordinates.length !== 4) return;
+        var signature = JSON.stringify([this.coordinates, this.altitudeMeters]);
+        if (this.geometrySignature === signature) return;
         var points = this.coordinates.map(function (coordinate) {
           return maplibregl.MercatorCoordinate.fromLngLat(
             { lng: Number(coordinate[0]), lat: Number(coordinate[1]) },
@@ -507,17 +541,17 @@
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
         this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(values), this.gl.STATIC_DRAW);
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, priorArrayBuffer);
+        this.geometrySignature = signature;
         document.body.dataset.map3dFloodPrecision = "camera-stable-local-origin";
       },
 
-      loadTexture: function (url) {
+      loadTexture: function (url, decodedImage) {
         if (!this.gl || !url) return Promise.resolve(false);
         if (this.cancelTextureLoad) this.cancelTextureLoad();
         var self = this;
         var token = ++this.imageToken;
-        var image = new Image();
-        image.crossOrigin = "anonymous";
-        image.decoding = "async";
+        var ownsImage = !decodedImage;
+        var image = decodedImage || new Image();
         if (!self.staged) document.body.dataset.map3dFloodTexture = self.textureReady ? "updating" : "loading";
         this.textureLoadPromise = new Promise(function (resolve) {
           var settled = false;
@@ -526,7 +560,7 @@
             if (settled) return;
             settled = true;
             window.clearTimeout(timer);
-            image.onload = image.onerror = null;
+            if (ownsImage) image.onload = image.onerror = null;
             if (self.cancelTextureLoad === cancel) self.cancelTextureLoad = null;
             resolve(ready);
           }
@@ -537,9 +571,10 @@
           }
           self.cancelTextureLoad = cancel;
           timer = window.setTimeout(failed, 20000);
-          image.onload = async function () {
+          async function uploadFloodPlaneTexture() {
             var replacement = null;
             try {
+              if (settled || token !== self.imageToken || self.pendingFrame?.isCurrent && !self.pendingFrame.isCurrent()) return finish(false);
               if (typeof image.decode === "function") await image.decode();
               if (settled || token !== self.imageToken || !self.gl || !self.texture || self.gl.isContextLost?.() ||
                   self.pendingFrame?.isCurrent && !self.pendingFrame.isCurrent()) return finish(false);
@@ -602,9 +637,18 @@
               if (replacement && self.gl) self.gl.deleteTexture(replacement);
               failed();
             }
-          };
-          image.onerror = failed;
-          image.src = url;
+          }
+          if (ownsImage) {
+            image.crossOrigin = "anonymous";
+            image.decoding = "async";
+            image.onload = uploadFloodPlaneTexture;
+            image.onerror = failed;
+            image.src = url;
+          } else {
+            // Reuse the mounted image without taking ownership of Leaflet's
+            // load handlers. Start the native raster before the GPU upload.
+            queueMicrotask(uploadFloodPlaneTexture);
+          }
         });
         return this.textureLoadPromise;
       },
@@ -653,7 +697,7 @@
       },
 
       render: function (gl, args) {
-        if (!this.visible || !this.textureReady || !this.program || !this.buffer || !this.texture) return;
+        if (!this.visible || !this.textureReady || !this.pipeline || !this.buffer || !this.texture) return;
         var matrix = args && args.defaultProjectionData && args.defaultProjectionData.mainMatrix
           ? args.defaultProjectionData.mainMatrix
           : args && args.projectionMatrix
@@ -674,14 +718,14 @@
         localMatrix[13] = matrix[1] * origin.x + matrix[5] * origin.y + matrix[9] * origin.z + matrix[13];
         localMatrix[14] = matrix[2] * origin.x + matrix[6] * origin.y + matrix[10] * origin.z + matrix[14];
         localMatrix[15] = matrix[3] * origin.x + matrix[7] * origin.y + matrix[11] * origin.z + matrix[15];
-        gl.useProgram(this.program);
-        gl.uniformMatrix4fv(this.matrixLocation, false, localMatrix);
-        gl.uniform1f(this.opacityLocation, this.opacity);
+        gl.useProgram(this.pipeline.program);
+        gl.uniformMatrix4fv(this.pipeline.matrixLocation, false, localMatrix);
+        gl.uniform1f(this.pipeline.opacityLocation, this.opacity);
         gl.bindVertexArray(this.vertexArray);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         while (this.retiredTextures.length) gl.deleteTexture(this.retiredTextures.pop());
-        gl.uniform1i(this.imageLocation, 0);
+        gl.uniform1i(this.pipeline.imageLocation, 0);
         // MapLibre brackets custom render callbacks with context.setDirty().
         // Set every state this draw needs, then let that guard restore its
         // cached defaults. Per-frame getParameter() readbacks force a GPU/CPU
@@ -723,11 +767,13 @@
         while (this.retiredTextures.length) gl.deleteTexture(this.retiredTextures.pop());
         if (this.vertexArray) gl.deleteVertexArray(this.vertexArray);
         if (this.buffer) gl.deleteBuffer(this.buffer);
-        if (this.program) gl.deleteProgram(this.program);
+        releaseFloodPlaneProgram(gl, this.pipeline);
         this.texture = null;
         this.vertexArray = null;
         this.buffer = null;
-        this.program = null;
+        this.pipeline = null;
+        this.geometrySignature = null;
+        this.decodedImage = null;
         this.gl = null;
         this.map = null;
       }
@@ -999,7 +1045,8 @@
     pendingFlood3dRequest = request;
     var accepted = false;
     try {
-      var url = layer._url || layer.getElement?.()?.src;
+      var layerImage = layer.getElement?.();
+      var url = layer._url || layerImage?.src;
       var coordinates = layer?._worldFileAffine && layer._worldFileCorners
         ? layer._worldFileCorners.map(function (corner) { return [corner.lng, corner.lat]; })
         : coordinatesFromLeafletBounds(layer.getBounds?.()) || activeFloodCoordinates();
@@ -1020,7 +1067,9 @@
         request.options.id = floodPlaneLayer
           ? (floodPlaneLayer.id === "nw-flood-overlay" ? "nw-flood-overlay-next" : "nw-flood-overlay")
           : floodPlaneSlotId;
-        request.plane = createFlatFloodPlane(request.options);
+        var decodedImage = layerImage?.complete && layerImage.naturalWidth > 0 &&
+          (layerImage.currentSrc || layerImage.src) === url ? layerImage : null;
+        request.plane = createFlatFloodPlane({ ...request.options, decodedImage: decodedImage });
         request.drape = floodDrapeIds(request.plane);
         addLayerBelowMask(request.plane);
         updateImageLayer({ sourceId: request.drape.sourceId, layerId: request.drape.layerId,
@@ -2155,6 +2204,7 @@
       glStyleReady = false;
       // GPU handles belong to the lost context. MapLibre drops custom layers
       // from the recovered style, so the old layer object must not be reused.
+      if (floodPlaneLayer?.gl) floodPlanePrograms.delete(floodPlaneLayer.gl);
       if (floodPlaneLayer && floodPlaneLayer.cancelTextureLoad) floodPlaneLayer.cancelTextureLoad();
       floodPlaneLayer = null;
       document.body.dataset.map3d = "recovering";

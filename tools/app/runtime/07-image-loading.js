@@ -1,4 +1,25 @@
     let startupOverlayCandidate = null;
+    const transferableFloodProbeImages = new WeakMap();
+
+    function cacheVerifiedFloodImage(url, image, probeGeneration) {
+      if (drainageRasterImageCache.has(url)) return;
+      transferableFloodProbeImages.set(image, probeGeneration);
+      drainageRasterImageCache.set(url, image);
+      while (drainageRasterImageCache.size > DRAINAGE_RASTER_IMAGE_CACHE_LIMIT) {
+        drainageRasterImageCache.delete(drainageRasterImageCache.keys().next().value);
+      }
+    }
+
+    function takeVerifiedFloodImage(url) {
+      const image = drainageRasterImageCache.get(url);
+      if (!image?.complete || !image.naturalWidth || image.isConnected ||
+          transferableFloodProbeImages.get(image) !== imageExistsCache) return null;
+      // Once mounted, Leaflet owns this element and may change its source on
+      // disposal. A canvas consumer must use a different image.
+      transferableFloodProbeImages.delete(image);
+      drainageRasterImageCache.delete(url);
+      return image;
+    }
 
     async function testImageUrl(url) {
       if (!url) return { ok: false };
@@ -28,12 +49,16 @@
         if (cancelIfRequested()) return;
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
         img.crossOrigin = "anonymous";
+        img.decoding = "async";
         img.fetchPriority = "high";
         img.onload = () => {
-          if (!settled && imageExistsCache === cache && !exportInProgress &&
-              document.body.dataset.initialFloodFrame === "loading") {
+          if (!settled && imageExistsCache === cache && !exportInProgress) {
             img.alt = "";
-            startupOverlayCandidate = { url, image: img };
+            if (document.body.dataset.initialFloodFrame === "loading") {
+              startupOverlayCandidate = { url, image: img };
+            } else {
+              cacheVerifiedFloodImage(url, img, cache);
+            }
           }
           done({ ok: true });
         };
@@ -50,13 +75,11 @@
       return result;
     }
 
-    function preloadImage(url, priority = "low") {
+    function loadDecodedFloodImage(url, priority, loadedImage = null) {
       if (!url) return Promise.resolve(null);
-      if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);
-
       const releaseRaster = retainRasterObjectUrl(url);
-      const promise = new Promise(resolve => {
-        const img = new Image();
+      return new Promise(resolve => {
+        const img = loadedImage || new Image();
         let settled = false;
         let cancelTimer = null;
         let timeoutTimer = null;
@@ -66,9 +89,8 @@
           releaseRaster();
           if (cancelTimer) window.clearInterval(cancelTimer);
           if (timeoutTimer) window.clearTimeout(timeoutTimer);
-          img.onload = null;
-          img.onerror = null;
-          if (!value) img.removeAttribute?.("src");
+          if (!loadedImage) img.onload = img.onerror = null;
+          if (!value && !img.isConnected) img.removeAttribute?.("src");
           resolve(value);
         };
         const cancelIfRequested = () => {
@@ -78,15 +100,26 @@
         };
         if (cancelIfRequested()) return;
         if (exportInProgress) cancelTimer = window.setInterval(cancelIfRequested, 80);
-        img.crossOrigin = "anonymous";
-        img.decoding = "async";
-        img.fetchPriority = priority === "high" ? "high" : "low";
-        img.onload = async () => done(await decodeFloodFrameImage(img) ? url : null);
-        img.onerror = () => done(null);
+        const decode = async () => done(await decodeFloodFrameImage(img) ? img : null);
         timeoutTimer = window.setTimeout(() => done(null), 20000);
-        img.src = url;
+        if (loadedImage) {
+          if (img.src === url && !img.isConnected) void decode();
+          else done(null);
+        } else {
+          img.crossOrigin = "anonymous";
+          img.decoding = "async";
+          img.fetchPriority = priority === "high" ? "high" : "low";
+          img.onload = decode;
+          img.onerror = () => done(null);
+          img.src = url;
+        }
       });
+    }
 
+    function preloadImage(url, priority = "low") {
+      if (!url) return Promise.resolve(null);
+      if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);
+      const promise = loadDecodedFloodImage(url, priority).then(image => image ? url : null);
       preloadPromiseCache.set(url, promise);
       promise.then(result => {
         if (!result && preloadPromiseCache.get(url) === promise) preloadPromiseCache.delete(url);

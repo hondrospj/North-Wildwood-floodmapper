@@ -63,26 +63,21 @@ const start = (page,index) => page.evaluate(index=>{
   renderHour(index).then(()=>{if (job===window.__mapTestJob) window.__mapTestDone=true;});
 },index);
 const waitDone = page => page.waitForFunction(()=>window.__mapTestDone,{}, {timeout:65000});
-// Hold only the custom plane's native Image transport; the hidden Leaflet
-// image still loads normally, exposing the original premature metadata commit.
+// Hold the custom plane's decode before GPU upload. Leaflet and MapLibre's
+// own decodes proceed so the previous paint has to survive both requests.
 const holdTextures = page => page.evaluate(()=>{
-  window.__mapNativeImage = window.Image;
-  const descriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');
+  const decode = window.__mapNativeDecode = HTMLImageElement.prototype.decode;
   window.__mapHeldImages = [];
-  window.Image = function(...args) {
-    const image = new window.__mapNativeImage(...args);
-    if ((new Error().stack || '').includes('loadTexture')) {
-      Object.defineProperty(image,'src',{get(){return descriptor.get.call(image);},
-        set(value){window.__mapHeldImages.push({image,value});}});
+  HTMLImageElement.prototype.decode = function(...args) {
+    if ((new Error().stack || '').includes('uploadFloodPlaneTexture')) {
+      return new Promise(resolve=>window.__mapHeldImages.push(()=>resolve(decode.apply(this,args))));
     }
-    return image;
+    return decode.apply(this,args);
   };
-  window.Image.prototype = window.__mapNativeImage.prototype;
 });
 const releaseTextures = page => page.evaluate(()=>{
-  window.Image = window.__mapNativeImage;
-  const setter = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src').set;
-  for (const {image,value} of window.__mapHeldImages) setter.call(image,value);
+  HTMLImageElement.prototype.decode = window.__mapNativeDecode;
+  for (const release of window.__mapHeldImages) release();
 });
 async function screenshot(page,label) {
   if (output) await page.screenshot({path:path.join(output,`${name}-map-${label}.png`)});
@@ -222,7 +217,7 @@ try {
         const latestTarget = await differentIndex(page,[before.index,target]);
         await holdTextures(page);await start(page,target);
         await page.waitForFunction(()=>window.__mapHeldImages.length>0);
-        await page.evaluate(()=>window.Image=window.__mapNativeImage);
+        await page.evaluate(()=>HTMLImageElement.prototype.decode=window.__mapNativeDecode);
         await start(page,latestTarget);await waitDone(page);const latest = await snapshot(page);
         assert.equal(latest.index,latestTarget);assert.equal(latest.url,latest.committedUrl);
         await releaseTextures(page);await page.waitForTimeout(1000);after = await snapshot(page);
@@ -243,7 +238,7 @@ try {
           const lost = await snapshot(page);
           for (const key of ['index','stage','time']) assert.equal(lost[key],before[key],key);
           assert.equal(lost.flood,'failed');
-          await page.evaluate(()=>{window.Image=window.__mapNativeImage;window.__mapLoseContext.restoreContext();});
+          await page.evaluate(()=>{HTMLImageElement.prototype.decode=window.__mapNativeDecode;window.__mapLoseContext.restoreContext();});
           await page.waitForFunction(()=>document.body.dataset.map3d==='ready' && document.body.dataset.map3dFloodTexture==='ready',{}, {timeout:50000});
           after = await snapshot(page);assert.equal(after.index,before.index);assert.equal(after.committedUrl,before.committedUrl);
           checks.push({scenario:'native context loss during pending upload restores the previous frame',lost,after});

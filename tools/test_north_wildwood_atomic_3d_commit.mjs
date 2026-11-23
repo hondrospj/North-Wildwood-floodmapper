@@ -14,18 +14,31 @@ const flush = flushAtomic3d;
 function fixture(pitch = 60) {
   const timers = new Map(), intervals = new Map(), images = [], deleted = [], listeners = new Map();
   const layers = new Map(), sources = new Map(), draws = [];
+  const gpu = { programs: [], deletedPrograms: [], images: [], geometryUploads: 0 };
   let nextTimer = 0, nextTexture = 0, boundTexture = null, activeTexture = 0;
   const gl = {
     ACTIVE_TEXTURE: 1, UNPACK_FLIP_Y_WEBGL: 2, UNPACK_PREMULTIPLY_ALPHA_WEBGL: 3,
     TEXTURE_BINDING_2D: 4, TEXTURE0: 0, NO_ERROR: 0,
+    VERTEX_ARRAY_BINDING: 5, ARRAY_BUFFER_BINDING: 6,
     getParameter: key => key === 1 ? activeTexture : key === 4 ? boundTexture : false,
     activeTexture: value => { activeTexture = value; },
     bindTexture: (_kind, value) => { boundTexture = value; },
+    createShader: () => ({}), shaderSource() {}, compileShader() {},
+    getShaderParameter: () => true, getProgramParameter: () => true,
+    attachShader() {}, linkProgram() {}, deleteShader() {},
+    createProgram() { const program = {}; gpu.programs.push(program); return program; },
+    deleteProgram: program => gpu.deletedPrograms.push(program),
+    getUniformLocation: (_program, name) => name,
+    getAttribLocation: (_program, name) => name === 'a_position' ? 0 : 1,
+    createVertexArray: () => ({}), createBuffer: () => ({}),
+    bindBuffer() {}, enableVertexAttribArray() {}, vertexAttribPointer() {},
+    bufferData() { gpu.geometryUploads += 1; },
     createTexture: () => ({ texture: ++nextTexture }),
-    texParameteri() {}, pixelStorei() {}, texImage2D() {}, generateMipmap() {},
+    texParameteri() {}, pixelStorei() {}, generateMipmap() {},
+    texImage2D(...args) { gpu.images.push(args.at(-1)); },
     getError: () => 0, isContextLost: () => false,
     deleteTexture: texture => { deleted.push(texture); },
-    deleteVertexArray() {}, deleteBuffer() {}, deleteProgram() {},
+    deleteVertexArray() {}, deleteBuffer() {},
     useProgram() {}, uniformMatrix4fv() {}, uniform1f() {}, bindVertexArray() {},
     uniform1i() {}, enable() {}, disable() {}, blendEquationSeparate() {},
     blendFuncSeparate() {}, depthFunc() {}, depthMask() {},
@@ -75,7 +88,10 @@ function fixture(pitch = 60) {
     off(name, callback) { listeners.get(name)?.delete(callback); }
   };
   const c = vm.createContext({
-    console, Image: class { constructor() { images.push(this); } async decode() {} },
+    console, queueMicrotask, Image: class { constructor() { images.push(this); } async decode() {} },
+    maplibregl: {
+      MercatorCoordinate: { fromLngLat: ({ lng, lat }, altitude) => ({ x: lng, y: lat, z: altitude }) }
+    },
     window: {
       setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id; },
       clearTimeout: id => timers.delete(id),
@@ -92,19 +108,6 @@ function fixture(pitch = 60) {
   vm.runInContext(initialVars, c);
   for (const { body: declaration } of functions) vm.runInContext(declaration, c);
   Object.assign(c, { glMap: map3d, glStyleReady: true });
-  // Compile/link and quad math have separate regressions; retain the actual
-  // asynchronous texture upload, staging, promotion, draw and disposal paths.
-  const createPlane = c.createFlatFloodPlane;
-  c.createFlatFloodPlane = options => {
-    const plane = createPlane(options);
-    plane.onAdd = function (mapInstance, context) {
-      Object.assign(this, { map: mapInstance, gl: context, texture: context.createTexture(),
-        program: {}, buffer: {}, vertexArray: {}, mercatorOrigin: { x: 0, y: 0, z: 0 } });
-      this.loadTexture(this.url);
-    };
-    plane.updateGeometry = () => {};
-    return plane;
-  };
   c.syncBuildingWaterComposite3d = () => {};
   c.syncBuildingVisibilityForCamera = () => {};
   c.placeFloodForScaleDepthPass = () => {};
@@ -136,8 +139,9 @@ function fixture(pitch = 60) {
     }
     return draws.slice(start);
   }
-  return { c, body, layers, sources, oldLayer, newLayer, oldPlane, oldNative,
+  return { c, body, layers, sources, oldLayer, newLayer, oldPlane, oldNative, gl, gpu,
     images, deleted, timers, intervals, finishImages, finishNative, renderVisible,
+    fire(event) { for (const callback of [...(listeners.get(event) || [])]) callback(); },
     poll() { for (const { callback } of [...intervals.values()]) callback(); },
     setPitch(value) { pitch = value; c.syncFloodPresentationMode(); } };
 }
@@ -345,6 +349,75 @@ for (const nativeLoaded of [true, false]) {
   assert.equal(h.oldNative.updates, updates, 'Cancellation cannot refetch the unchanged active image');
   assert.equal(h.layers.size, 2);
   assert.equal(h.sources.size, 1);
+  checks++;
+}
+
+{
+  const h = await readyAtomic3dFixture(60);
+  let finishDecode;
+  const borrowed = {
+    complete: true, naturalWidth: 32, currentSrc: 'new',
+    onload() {}, onerror() {},
+    decode: () => new Promise(resolve => { finishDecode = resolve; })
+  };
+  const handlers = [borrowed.onload, borrowed.onerror];
+  h.newLayer.getElement = () => borrowed;
+  const imageRequests = h.images.length;
+  const initialGeometryUploads = h.gpu.geometryUploads;
+  const oldProgram = h.oldPlane.pipeline.program;
+  const pending = h.c.prepareFloodFrame3d(h.newLayer, { stage: 5 }, 2);
+  await flush();
+  h.finishNative('new');
+  const candidate = h.c.pendingFlood3dRequest.plane;
+  assert.equal(candidate.pipeline.program, oldProgram, 'Both slots share the linked WebGL program');
+  assert.notEqual(candidate.buffer, h.oldPlane.buffer);
+  assert.notEqual(candidate.vertexArray, h.oldPlane.vertexArray);
+  assert.equal(h.gpu.programs.length, 1);
+  assert.equal(h.images.length, imageRequests, 'The custom plane reuses the mounted Leaflet image');
+  assert.equal(candidate.textureReady, false);
+  assert.deepEqual(h.renderVisible(), [h.oldTexture]);
+
+  finishDecode();
+  assert.equal(await pending, true);
+  assert.equal(h.gpu.images.at(-1), borrowed, 'Upload receives the mounted image itself');
+  assert.deepEqual([borrowed.onload, borrowed.onerror], handlers);
+  assert.equal(h.c.commitFloodFrame3d(h.newLayer, 2), true);
+  assert.deepEqual(h.gpu.deletedPrograms, [], 'Removing the previous plane keeps the active program');
+  assert.equal(h.gpu.geometryUploads, initialGeometryUploads + 1, 'Preparing and promoting one unchanged geometry uploads its quad once');
+  h.c.currentFloodLayer = null;
+  h.c.syncFloodLayer3d();
+  assert.deepEqual(h.gpu.deletedPrograms, [oldProgram], 'The final owner releases the shared program');
+  checks++;
+}
+
+{
+  const h = await readyAtomic3dFixture(0);
+  h.newLayer.getElement = () => ({
+    complete: true, naturalWidth: 4, currentSrc: 'another-frame',
+    decode: () => assert.fail('Different pixels must be loaded from the selected URL')
+  });
+  const pending = h.c.prepareFloodFrame3d(h.newLayer, { stage: 5 }, 2);
+  h.finishNative('new');
+  await h.finishImages('new');
+  assert.equal(await pending, true);
+  assert.equal(h.gpu.images.at(-1).src, 'new');
+  checks++;
+}
+
+{
+  const h = await readyAtomic3dFixture(60);
+  const oldProgram = h.oldPlane.pipeline.program;
+  h.c.setStatus = () => {};
+  h.c.wire3dContextRecovery(h.c.glMap);
+  h.fire('webglcontextlost');
+  assert.equal(h.c.floodPlanePrograms.has(h.gl), false);
+  const restored = h.c.acquireFloodPlaneProgram(h.gl);
+  assert.notEqual(restored.program, oldProgram, 'A restored context needs a newly linked program');
+  h.c.glMap.removeLayer(h.oldPlane.id);
+  assert.equal(h.c.floodPlanePrograms.get(h.gl), restored, 'Retiring an old layer preserves the restored program');
+  assert.deepEqual(h.gpu.deletedPrograms, []);
+  h.c.releaseFloodPlaneProgram(h.gl, restored);
+  assert.deepEqual(h.gpu.deletedPrograms, [restored.program]);
   checks++;
 }
 

@@ -34,7 +34,7 @@ function fixture(fetchResponse,{physics=false,restoredUi=false,shortDeadline=fal
   const glSources=new Map(),glLayers=new Map();
   const gl={getSource:id=>glSources.get(id),getLayer:id=>glLayers.get(id),addSource(id,options){glSources.set(id,{data:options.data,setData(data){this.data=data;}});},addLayer(layer){glLayers.set(layer.id,layer);},setLayoutProperty(id,key,value){glLayers.get(id).layout[key]=value;}};
   let fetchCount=0;
-  const ctx={URL,console,AbortController,Uint8ClampedArray,APP_BASE:new URL('https://example.test/north-wildwood/'),map,
+  const ctx={URL,console,AbortController,Uint8ClampedArray,performance,APP_BASE:new URL('https://example.test/north-wildwood/'),map,
     currentFloodLayer:frame,floodFrameState:'ready',lastRenderToken:1,floodLatLngBounds:bounds,
     currentSeriesHours:[{stage:2}],currentHourIndex:0,currentOverlayMode:'depth',
     getSelectedStageNavd88:()=>2,getHydraulicPhaseForEntry:()=> 'filling',

@@ -77,14 +77,50 @@ function rasterFixture(limit = 2) {
     get src() { return this.url; }
     async decode() {}
   }
-  const context = vm.createContext({ console, Image: FakeImage,
+  const context = vm.createContext({ console, Image: FakeImage, imageExistsCache: new Map(),
+    document: { body: { dataset: { initialFloodFrame: 'ready' } } },
+    startupOverlayCandidate: null, exportCancelRequested: false, exportInProgress: false,
+    transferableFloodProbeImages: new WeakMap(),
     drainageRasterImageCache: new Map(), DRAINAGE_RASTER_IMAGE_CACHE_LIMIT: limit,
     retainRasterObjectUrl: () => () => {},
     window: { setTimeout(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms }); return id; }, clearTimeout(id) { timers.delete(id); } },
   });
-  load(context, ['awaitRasterRequest', 'getDrainageRasterImage']);
+  load(context, ['awaitRasterRequest', 'getDrainageRasterImage', 'testImageUrl',
+    'cacheVerifiedFloodImage', 'takeVerifiedFloodImage']);
   return { context, images, timers };
 }
+
+await test('A successful atlas probe can supply exactly one detached frame image', async () => {
+  const { context, images } = rasterFixture();
+  const first = context.testImageUrl('frame.webp');
+  images[0].onload();
+  assert.equal((await first).ok, true);
+  assert.equal(context.takeVerifiedFloodImage('frame.webp'), images[0]);
+  assert.equal(context.takeVerifiedFloodImage('frame.webp'), null);
+  assert.equal((await context.testImageUrl('frame.webp')).ok, true);
+  assert.equal(images.length, 1, 'Reusing a probe must avoid another atlas load');
+});
+
+await test('Atlas reuse leaves composite-owned, connected and retired probe images alone', async () => {
+  const { context, images } = rasterFixture();
+  const probe = async url => {
+    const result = context.testImageUrl(url);
+    images.at(-1).onload();
+    assert.equal((await result).ok, true);
+    return images.at(-1);
+  };
+  const composite = await probe('composite.webp');
+  assert.equal(await context.getDrainageRasterImage('composite.webp'), composite);
+  assert.equal(context.takeVerifiedFloodImage('composite.webp'), null);
+  assert.equal(images.length, 1, 'The canvas should draw the already probed raster');
+  const attached = await probe('attached.webp');
+  attached.isConnected = true;
+  assert.equal(context.takeVerifiedFloodImage('attached.webp'), null);
+  await probe('old-generation.webp');
+  assert.equal(context.drainageRasterImageCache.size, 2, 'Decoded atlas images share the existing bounded cache');
+  context.imageExistsCache = new Map();
+  assert.equal(context.takeVerifiedFloodImage('old-generation.webp'), null);
+});
 await test('A failed raster decode can be retried successfully', async () => {
   const { context, images } = rasterFixture();
   const failed = context.getDrainageRasterImage('raster-A.png');
@@ -248,6 +284,25 @@ function rasterCompositeFixture() {
   load(context, [...cacheFunctions, 'getFillingInterpolatedOverlayRecord', 'getHydraulicOverlayRecord']);
   return { context, grid, lower };
 }
+
+await test('A cold filling frame loads both grids and its lower image while resolving the upper atlas URL', async () => {
+  const { context, grid, lower } = rasterCompositeFixture();
+  const upper = deferred();
+  const requested = [];
+  context.getOverlayRecord = async () => { requested.push('upper-atlas'); return upper.promise; };
+  context.getDrainageRasterImage = async url => {
+    requested.push(url);
+    return { naturalWidth: 1, naturalHeight: 1 };
+  };
+  context.getDevelopedQueryGrid = async () => { requested.push('developed-grid'); return grid; };
+  context.getDepthQueryGrid = async () => { requested.push('query-grid'); return grid; };
+
+  const pending = context.getFillingInterpolatedOverlayRecord('depth', 4.5, 'filling', { stage: 4.57 }, lower);
+  assert.deepEqual(requested, ['upper-atlas', 'lower.png', 'developed-grid', 'query-grid']);
+  upper.resolve({ url: 'upper.png' });
+  assert.equal((await pending).isContinuousFillingComposite, true);
+  assert.deepEqual(requested.slice(4), ['upper.png'], 'One verified upper image supplies the interpolated frame');
+});
 
 await test('A shared filling fallback retries after mask failure and caches the completed raster', async () => {
   const { context, grid, lower } = rasterCompositeFixture();

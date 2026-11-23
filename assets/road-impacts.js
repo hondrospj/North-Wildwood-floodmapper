@@ -5,6 +5,7 @@ function installGridRoadImpacts(config) {
   const COLOR = "#ef4444";
   const ROAD_STEP_METERS = 5;
   const MIN_DEPTH_FT = 0.5;
+  const ROAD_UPDATE_SLICE_MS = 7;
   let enabled = false;
   let revision = 0;
   let dataVersion = 0;
@@ -197,16 +198,16 @@ function installGridRoadImpacts(config) {
     }
     setStatus("Loading road impacts…");
     try {
-      const roads = await loadRoads();
+      const [roads, exceedsDepth] = await Promise.all([loadRoads(), depthSampler(entry, stage, phase)]);
       if (!enabled || request !== revision || frameToken !== lastRenderToken) return;
       const isWet = wetSampler(image, layer);
-      const exceedsDepth = await depthSampler(entry, stage, phase);
-      if (!enabled || request !== revision || frameToken !== lastRenderToken) return;
       const features = [];
+      let sliceStarted = performance.now();
       for (let roadIndex = 0; roadIndex < roads.length; roadIndex += 1) {
-        if (roadIndex % 30 === 0) {
+        if (performance.now() - sliceStarted >= ROAD_UPDATE_SLICE_MS) {
           await new Promise(resolve => requestAnimationFrame(resolve));
           if (!enabled || request !== revision || frameToken !== lastRenderToken) return;
+          sliceStarted = performance.now();
         }
         const road = roads[roadIndex];
         let run = [];
@@ -270,7 +271,8 @@ function installGridRoadImpacts(config) {
     if (!enabled || frameToken !== lastRenderToken) return result;
     // A retained flood frame keeps its roads while its replacement loads.
     // Clear the old roads when the replacement becomes the displayed frame.
-    if (currentFloodLayer !== previousLayer && (!previousFrame || previousFrame !== roadFrameKey(currentFloodLayer))) {
+    const currentFrame = roadFrameKey(currentFloodLayer);
+    if (currentFrame !== previousFrame || (!currentFrame && currentFloodLayer !== previousLayer)) {
       invalidate();
     }
     if (result !== false || document.body.dataset.roadImpactsState === "loading") await refresh();

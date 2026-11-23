@@ -1,0 +1,760 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "a1e0fc8bf9d26dbc9ccc396b8a547922da2eee88",
+  "scope": "Reduce raster decoding and compositing work, reuse the mounted image and linked 3D shader, and limit road-render scheduling delays.",
+  "files": [
+    {
+      "source": "assets/3d/north-wildwood-3d.js",
+      "beforeSha256": "038f46adc728dc070845c3e73101e913f516d7aa4e26ed64261917ac94b67e36",
+      "afterSha256": "4322fedf3d56abdb1e3b36ed1867e75736337dda998015daa6c17b323e099522",
+      "edits": [
+        [
+          1280,
+          1322,
+          ""
+        ],
+        [
+          15012,
+          17500,
+          ""
+        ],
+        [
+          18106,
+          18128,
+          "      program: null,\n"
+        ],
+        [
+          18194,
+          18194,
+          "      matrixLocation: null,\n      opacityLocation: null,\n      imageLocation: null,\n      positionLocation: -1,\n      textureLocation: -1,\n"
+        ],
+        [
+          18879,
+          18960,
+          ""
+        ],
+        [
+          19469,
+          21191,
+          "        var vertexSource = '#version 300 es\\n' +\n          'precision highp float;\\n' +\n          'uniform mat4 u_matrix;\\n' +\n          'in vec3 a_position;\\n' +\n          'in vec2 a_texture;\\n' +\n          'out vec2 v_texture;\\n' +\n          'void main(){\\n' +\n          '  v_texture = a_texture;\\n' +\n          '  gl_Position = u_matrix * vec4(a_position, 1.0);\\n' +\n          '}';\n        var fragmentSource = '#version 300 es\\n' +\n          'precision highp float;\\n' +\n          'uniform sampler2D u_image;\\n' +\n          'uniform float u_opacity;\\n' +\n          'in vec2 v_texture;\\n' +\n          'out vec4 fragColor;\\n' +\n          'void main(){ vec4 pixel = texture(u_image, v_texture); float alpha = pixel.a * u_opacity; if(alpha < 0.012) discard; fragColor = vec4(pixel.rgb * alpha, alpha); }';\n        var vertexShader = compileFloodPlaneShader(gl, gl.VERTEX_SHADER, vertexSource);\n        var fragmentShader = compileFloodPlaneShader(gl, gl.FRAGMENT_SHADER, fragmentSource);\n        this.program = gl.createProgram();\n        gl.attachShader(this.program, vertexShader);\n        gl.attachShader(this.program, fragmentShader);\n        gl.linkProgram(this.program);\n        gl.deleteShader(vertexShader);\n        gl.deleteShader(fragmentShader);\n        if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {\n          throw new Error(\"The flat-water renderer could not link: \" + (gl.getProgramInfoLog(this.program) || \"Unknown program error\"));\n"
+        ],
+        [
+          21201,
+          21201,
+          "        this.matrixLocation = gl.getUniformLocation(this.program, \"u_matrix\");\n        this.opacityLocation = gl.getUniformLocation(this.program, \"u_opacity\");\n        this.imageLocation = gl.getUniformLocation(this.program, \"u_image\");\n        this.positionLocation = gl.getAttribLocation(this.program, \"a_position\");\n        this.textureLocation = gl.getAttribLocation(this.program, \"a_texture\");\n        this.buffer = gl.createBuffer();\n        this.vertexArray = gl.createVertexArray();\n        gl.bindVertexArray(this.vertexArray);\n        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);\n        gl.enableVertexAttribArray(this.positionLocation);\n        gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 20, 0);\n        gl.enableVertexAttribArray(this.textureLocation);\n        gl.vertexAttribPointer(this.textureLocation, 2, gl.FLOAT, false, 20, 12);\n        this.texture = gl.createTexture();\n        gl.bindTexture(gl.TEXTURE_2D, this.texture);\n        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);\n        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);\n        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);\n        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);\n        this.updateGeometry();\n        this.loadTexture(this.url);\n        // onAdd runs outside MapLibre's guarded custom render pass. Restore\n        // every binding we touched so the next terrain frame starts from the\n        // state MapLibre recorded in its own WebGL cache.\n        gl.bindTexture(gl.TEXTURE_2D, priorTexture0);\n        gl.activeTexture(priorActiveTexture);\n        gl.bindBuffer(gl.ARRAY_BUFFER, priorArrayBuffer);\n        gl.bindVertexArray(priorVertexArray);\n"
+        ],
+        [
+          21346,
+          21485,
+          ""
+        ],
+        [
+          23122,
+          23166,
+          ""
+        ],
+        [
+          23258,
+          23308,
+          "      loadTexture: function (url) {\n"
+        ],
+        [
+          23495,
+          23583,
+          "        var image = new Image();\n        image.crossOrigin = \"anonymous\";\n        image.decoding = \"async\";\n"
+        ],
+        [
+          23957,
+          24021,
+          "            image.onload = image.onerror = null;\n"
+        ],
+        [
+          24500,
+          24553,
+          "          image.onload = async function () {\n"
+        ],
+        [
+          24607,
+          24751,
+          ""
+        ],
+        [
+          28637,
+          29114,
+          "          };\n          image.onerror = failed;\n          image.src = url;\n"
+        ],
+        [
+          31128,
+          31236,
+          "        if (!this.visible || !this.textureReady || !this.program || !this.buffer || !this.texture) return;\n"
+        ],
+        [
+          32490,
+          32682,
+          "        gl.useProgram(this.program);\n        gl.uniformMatrix4fv(this.matrixLocation, false, localMatrix);\n        gl.uniform1f(this.opacityLocation, this.opacity);\n"
+        ],
+        [
+          32910,
+          32964,
+          "        gl.uniform1i(this.imageLocation, 0);\n"
+        ],
+        [
+          35219,
+          35272,
+          "        if (this.program) gl.deleteProgram(this.program);\n"
+        ],
+        [
+          35362,
+          35465,
+          "        this.program = null;\n"
+        ],
+        [
+          48261,
+          48353,
+          "      var url = layer._url || layer.getElement?.()?.src;\n"
+        ],
+        [
+          49652,
+          49913,
+          "        request.plane = createFlatFloodPlane(request.options);\n"
+        ],
+        [
+          101805,
+          101883,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "1785a69bf677411ed4ccc92bb378dd2fa6855e419bc7afb9f1cc04b4165345d4",
+      "afterSha256": "a77fa3e9d14747b0a31f44c81053ba507191a5a768f5563e4d9642a369fe614f",
+      "edits": [
+        [
+          152713,
+          153707,
+          ""
+        ],
+        [
+          154826,
+          154858,
+          ""
+        ],
+        [
+          154923,
+          155000,
+          "          if (!settled && imageExistsCache === cache && !exportInProgress &&\n              document.body.dataset.initialFloodFrame === \"loading\") {\n"
+        ],
+        [
+          155026,
+          155251,
+          "            startupOverlayCandidate = { url, image: img };\n"
+        ],
+        [
+          155685,
+          155757,
+          "    function preloadImage(url, priority = \"low\") {\n"
+        ],
+        [
+          155803,
+          155803,
+          "      if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);\n\n"
+        ],
+        [
+          155859,
+          155945,
+          "      const promise = new Promise(resolve => {\n        const img = new Image();\n"
+        ],
+        [
+          156280,
+          156413,
+          "          img.onload = null;\n          img.onerror = null;\n          if (!value) img.removeAttribute?.(\"src\");\n"
+        ],
+        [
+          156728,
+          156816,
+          "        img.crossOrigin = \"anonymous\";\n        img.decoding = \"async\";\n        img.fetchPriority = priority === \"high\" ? \"high\" : \"low\";\n        img.onload = async () => done(await decodeFloodFrameImage(img) ? url : null);\n        img.onerror = () => done(null);\n"
+        ],
+        [
+          156883,
+          157271,
+          "        img.src = url;\n"
+        ],
+        [
+          157281,
+          157287,
+          ""
+        ],
+        [
+          157288,
+          157556,
+          ""
+        ],
+        [
+          164356,
+          164509,
+          "      return !isWetRasterPixel(lowerPixels, offset) &&\n        isWetRasterPixel(upperPixels, offset) &&\n"
+        ],
+        [
+          164573,
+          164692,
+          "    function getFillingTransitionPixelDepth(queryPixels, developedPixels, pixel, rawStageFt) {\n"
+        ],
+        [
+          165472,
+          165679,
+          "      const developed = isDevelopedRasterPixel(developedPixels, offset);\n      const adjustedStageFt = stageFt - (developed ? getVerticalBathtubPenalty(stageFt) : 0);\n      if (groundFt > adjustedStageFt + 1e-9) return null;\n"
+        ],
+        [
+          165759,
+          165811,
+          "      return Math.max(0.005, adjustedStageFt - groundFt);\n"
+        ],
+        [
+          165999,
+          165999,
+          "      depthPixels = upperPixels,\n"
+        ],
+        [
+          166568,
+          166804,
+          ""
+        ],
+        [
+          167152,
+          167200,
+          "          rawStageFt\n"
+        ],
+        [
+          169035,
+          169135,
+          ""
+        ],
+        [
+          169159,
+          169593,
+          "      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {\n        if (!isWetRasterPixel(currentPixels, offset) || crestPixels[offset + 3] > 0) continue;\n        currentPixels[offset] = 0;\n        currentPixels[offset + 1] = 0;\n        currentPixels[offset + 2] = 0;\n        currentPixels[offset + 3] = 0;\n        modified += 1;\n      }\n      const retained = new Uint8Array(pixelCount);\n      for (const historyPixels of history) {\n        for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {\n          if (!retained[pixel] && crestPixels[offset + 3] > 0 &&\n              isWetRasterPixel(historyPixels, offset)) retained[pixel] = 1;\n"
+        ],
+        [
+          169603,
+          169639,
+          "      }\n\n      const retainedStageRgb = getDrainageStageColor(stageFt);\n      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {\n        if (!retained[pixel] || isWetRasterPixel(currentPixels, offset)) continue;\n"
+        ],
+        [
+          169815,
+          169857,
+          "        const depthFt = Number(stageFt) - groundFt;\n"
+        ],
+        [
+          169899,
+          170123,
+          ""
+        ],
+        [
+          172958,
+          173281,
+          "      if (drainageRasterImageCache.has(url)) return awaitRasterRequest(drainageRasterImageCache.get(url));\n"
+        ],
+        [
+          185047,
+          185301,
+          "        const upperRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase);\n        const depthRequest = mode === \"depth\"\n          ? upperRequest\n          : getOverlayRecord(\"depth\", upperStageFt, normalizedPhase);\n        const [upperRecord, depthRecord] = await Promise.all([upperRequest, depthRequest]);\n        if (!upperRecord || !depthRecord) return null;\n        const [lowerImage, upperImage, depthImage, developedGrid, queryGrid] = await Promise.all([\n"
+        ],
+        [
+          185352,
+          185381,
+          "          getDrainageRasterImage(upperRecord.url),\n          getDrainageRasterImage(depthRecord.url),\n"
+        ],
+        [
+          185458,
+          185543,
+          "        if (!lowerImage || !upperImage || !depthImage || !developedGrid || !queryGrid) return null;\n"
+        ],
+        [
+          185727,
+          185727,
+          "            depthImage.naturalWidth !== width || depthImage.naturalHeight !== height ||\n"
+        ],
+        [
+          186530,
+          186530,
+          "        let depthPixels = upperPixels;\n        if (depthImage !== upperImage) {\n          context.clearRect(0, 0, width, height);\n          context.drawImage(depthImage, 0, 0);\n          depthPixels = context.getImageData(0, 0, width, height).data;\n        }\n"
+        ],
+        [
+          186775,
+          186775,
+          "          depthPixels,\n"
+        ],
+        [
+          188919,
+          188919,
+          "          const historicalRecords = await Promise.all(milestones.map(item => {\n            const itemStage = getOverlayStage(getStageValue(item));\n            return itemStage == null\n              ? Promise.resolve(null)\n              : getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));\n          }));\n"
+        ],
+        [
+          189079,
+          189079,
+          "          if (historicalRecords.some(record => !record)) return null;\n\n"
+        ],
+        [
+          189243,
+          189614,
+          "            ...historicalRecords.map(record => getDrainageRasterImage(record.url))\n"
+        ],
+        [
+          388882,
+          388967,
+          "    function waitForRecoveryFloodLayer(layer, token, onReady) {\n"
+        ],
+        [
+          390002,
+          390164,
+          "          if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);\n          await new Promise(requestAnimationFrame);\n"
+        ],
+        [
+          454602,
+          454652,
+          ""
+        ],
+        [
+          455052,
+          455052,
+          "        // The atlas resolver already downloaded this image to verify its URL.\n        // Reuse it for the first frame without retaining every probed raster.\n        let initialImage = null;\n        if (document.body.dataset.initialFloodFrame === \"loading\") {\n          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;\n          startupOverlayCandidate = null;\n        }\n        const loaded = initialImage || await preloadImage(overlayUrl, \"high\");\n        if (token !== lastRenderToken) return;\n        if (!loaded) {\n          return false;\n        }\n\n"
+        ],
+        [
+          455283,
+          455332,
+          ""
+        ],
+        [
+          455400,
+          455487,
+          "          map.removeLayer(pendingFloodLayer);\n"
+        ],
+        [
+          455534,
+          456972,
+          "        const previousLayer = currentFloodLayer;\n        const nextLayer = createHydraulicImageOverlay(\n"
+        ],
+        [
+          457149,
+          457171,
+          "            className: currentDataMode === \"return-interval\" && mode === \"depth\"\n              ? \"return-interval-depth-overlay\"\n              : \"\"\n"
+        ],
+        [
+          457184,
+          457207,
+          "          initialImage || overlayUrl\n"
+        ],
+        [
+          457258,
+          457295,
+          "        return await waitForRecoveryFloodLayer(nextLayer, token, async () => {\n"
+        ],
+        [
+          458060,
+          458127,
+          ""
+        ],
+        [
+          458298,
+          458391,
+          "          if (previousLayer && map.hasLayer(previousLayer)) {\n"
+        ],
+        [
+          458435,
+          459077,
+          ""
+        ],
+        [
+          459303,
+          459628,
+          "        });\n"
+        ],
+        [
+          460673,
+          460817,
+          "      const loaded = await preloadImage(overlayUrl, \"high\");\n      if (token !== lastRenderToken) return;\n      if (!loaded) {\n        return false;\n      }\n"
+        ],
+        [
+          460931,
+          460978,
+          ""
+        ],
+        [
+          461044,
+          461129,
+          "        map.removeLayer(pendingFloodLayer);\n"
+        ],
+        [
+          461171,
+          461245,
+          "      const previousLayer = currentFloodLayer;\n      const nextLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {\n"
+        ],
+        [
+          462515,
+          462539,
+          "      });\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/road-impacts.js",
+      "beforeSha256": "cb6eff46cae098a07fa70bddcbc67e54f4cc173d1a66aaf30fa1e403758cc9c8",
+      "afterSha256": "9333e6527db48b0dfc343ec494283c0ab22d27534e09f010e9af2e5186628c46",
+      "edits": [
+        [
+          205,
+          239,
+          ""
+        ],
+        [
+          9726,
+          9831,
+          "      const roads = await loadRoads();\n"
+        ],
+        [
+          9963,
+          9963,
+          "      const exceedsDepth = await depthSampler(entry, stage, phase);\n      if (!enabled || request !== revision || frameToken !== lastRenderToken) return;\n"
+        ],
+        [
+          9990,
+          10034,
+          ""
+        ],
+        [
+          10108,
+          10180,
+          "        if (roadIndex % 30 === 0) {\n"
+        ],
+        [
+          10342,
+          10386,
+          ""
+        ],
+        [
+          13260,
+          13418,
+          "    if (currentFloodLayer !== previousLayer && (!previousFrame || previousFrame !== roadFrameKey(currentFloodLayer))) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "b073ff6558d2a4140c91bf58b5cad5814a56ec737084ca6243acbe0c7ab3e234",
+      "afterSha256": "a521f9e2b26f9c33e39bc6b2b6fac9a7910a0cea6d496ff725a01b665ac3af28",
+      "edits": [
+        [
+          109828,
+          109926,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=1785a69bf677411e\"></script>\n"
+        ],
+        [
+          110076,
+          110220,
+          "<script src=\"./assets/3d/north-wildwood-3d.js?v=038f46adc728dc07\"></script>\n<script src=\"./assets/road-impacts.js?v=cb6eff46cae098a0\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/07-image-loading.js",
+      "beforeSha256": "32601fc2acf040159eb2b156f1ce61bf6ca4146d11dbab1ea74079fdcbbbbe5f",
+      "afterSha256": "d53dfbdaddfb8a5b2bb9ec8361d556a5516d92315519924c5e256288ed572fb1",
+      "edits": [
+        [
+          40,
+          1034,
+          ""
+        ],
+        [
+          2153,
+          2185,
+          ""
+        ],
+        [
+          2250,
+          2327,
+          "          if (!settled && imageExistsCache === cache && !exportInProgress &&\n              document.body.dataset.initialFloodFrame === \"loading\") {\n"
+        ],
+        [
+          2353,
+          2578,
+          "            startupOverlayCandidate = { url, image: img };\n"
+        ],
+        [
+          3012,
+          3084,
+          "    function preloadImage(url, priority = \"low\") {\n"
+        ],
+        [
+          3130,
+          3130,
+          "      if (preloadPromiseCache.has(url)) return preloadPromiseCache.get(url);\n\n"
+        ],
+        [
+          3186,
+          3272,
+          "      const promise = new Promise(resolve => {\n        const img = new Image();\n"
+        ],
+        [
+          3607,
+          3740,
+          "          img.onload = null;\n          img.onerror = null;\n          if (!value) img.removeAttribute?.(\"src\");\n"
+        ],
+        [
+          4055,
+          4143,
+          "        img.crossOrigin = \"anonymous\";\n        img.decoding = \"async\";\n        img.fetchPriority = priority === \"high\" ? \"high\" : \"low\";\n        img.onload = async () => done(await decodeFloodFrameImage(img) ? url : null);\n        img.onerror = () => done(null);\n"
+        ],
+        [
+          4210,
+          4598,
+          "        img.src = url;\n"
+        ],
+        [
+          4608,
+          4614,
+          ""
+        ],
+        [
+          4615,
+          4883,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/08-filling-and-drainage.js",
+      "beforeSha256": "c4332584b8e9e4bda77054a4eece36971f6aa5c80942c0ff05351eb5086f0b2d",
+      "afterSha256": "f8bfb1d5ad22581243c0283e4d907d99d7fda3f3bf64cdec7a25669208303b4c",
+      "edits": [
+        [
+          2164,
+          2317,
+          "      return !isWetRasterPixel(lowerPixels, offset) &&\n        isWetRasterPixel(upperPixels, offset) &&\n"
+        ],
+        [
+          2381,
+          2500,
+          "    function getFillingTransitionPixelDepth(queryPixels, developedPixels, pixel, rawStageFt) {\n"
+        ],
+        [
+          3280,
+          3487,
+          "      const developed = isDevelopedRasterPixel(developedPixels, offset);\n      const adjustedStageFt = stageFt - (developed ? getVerticalBathtubPenalty(stageFt) : 0);\n      if (groundFt > adjustedStageFt + 1e-9) return null;\n"
+        ],
+        [
+          3567,
+          3619,
+          "      return Math.max(0.005, adjustedStageFt - groundFt);\n"
+        ],
+        [
+          3807,
+          3807,
+          "      depthPixels = upperPixels,\n"
+        ],
+        [
+          4376,
+          4612,
+          ""
+        ],
+        [
+          4960,
+          5008,
+          "          rawStageFt\n"
+        ],
+        [
+          6843,
+          6943,
+          ""
+        ],
+        [
+          6967,
+          7401,
+          "      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {\n        if (!isWetRasterPixel(currentPixels, offset) || crestPixels[offset + 3] > 0) continue;\n        currentPixels[offset] = 0;\n        currentPixels[offset + 1] = 0;\n        currentPixels[offset + 2] = 0;\n        currentPixels[offset + 3] = 0;\n        modified += 1;\n      }\n      const retained = new Uint8Array(pixelCount);\n      for (const historyPixels of history) {\n        for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {\n          if (!retained[pixel] && crestPixels[offset + 3] > 0 &&\n              isWetRasterPixel(historyPixels, offset)) retained[pixel] = 1;\n"
+        ],
+        [
+          7411,
+          7447,
+          "      }\n\n      const retainedStageRgb = getDrainageStageColor(stageFt);\n      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {\n        if (!retained[pixel] || isWetRasterPixel(currentPixels, offset)) continue;\n"
+        ],
+        [
+          7623,
+          7665,
+          "        const depthFt = Number(stageFt) - groundFt;\n"
+        ],
+        [
+          7707,
+          7931,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/09-raster-lifecycle.js",
+      "beforeSha256": "09f812120ae45b11337d59f1839d88bd3067b082b18aec7135cccf054862d35a",
+      "afterSha256": "e8fbd187cf8559f2d4b27392555318c198c9d137d9d6206cbe4943cd778afd40",
+      "edits": [
+        [
+          1083,
+          1406,
+          "      if (drainageRasterImageCache.has(url)) return awaitRasterRequest(drainageRasterImageCache.get(url));\n"
+        ],
+        [
+          13172,
+          13426,
+          "        const upperRequest = getOverlayRecord(mode, upperStageFt, normalizedPhase);\n        const depthRequest = mode === \"depth\"\n          ? upperRequest\n          : getOverlayRecord(\"depth\", upperStageFt, normalizedPhase);\n        const [upperRecord, depthRecord] = await Promise.all([upperRequest, depthRequest]);\n        if (!upperRecord || !depthRecord) return null;\n        const [lowerImage, upperImage, depthImage, developedGrid, queryGrid] = await Promise.all([\n"
+        ],
+        [
+          13477,
+          13506,
+          "          getDrainageRasterImage(upperRecord.url),\n          getDrainageRasterImage(depthRecord.url),\n"
+        ],
+        [
+          13583,
+          13668,
+          "        if (!lowerImage || !upperImage || !depthImage || !developedGrid || !queryGrid) return null;\n"
+        ],
+        [
+          13852,
+          13852,
+          "            depthImage.naturalWidth !== width || depthImage.naturalHeight !== height ||\n"
+        ],
+        [
+          14655,
+          14655,
+          "        let depthPixels = upperPixels;\n        if (depthImage !== upperImage) {\n          context.clearRect(0, 0, width, height);\n          context.drawImage(depthImage, 0, 0);\n          depthPixels = context.getImageData(0, 0, width, height).data;\n        }\n"
+        ],
+        [
+          14900,
+          14900,
+          "          depthPixels,\n"
+        ],
+        [
+          17044,
+          17044,
+          "          const historicalRecords = await Promise.all(milestones.map(item => {\n            const itemStage = getOverlayStage(getStageValue(item));\n            return itemStage == null\n              ? Promise.resolve(null)\n              : getOverlayRecord(mode, itemStage, getHydraulicPhaseForEntry(item, null, series));\n          }));\n"
+        ],
+        [
+          17204,
+          17204,
+          "          if (historicalRecords.some(record => !record)) return null;\n\n"
+        ],
+        [
+          17368,
+          17739,
+          "            ...historicalRecords.map(record => getDrainageRasterImage(record.url))\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/18-flood-frame-rendering.js",
+      "beforeSha256": "4e1f915780ea89a47a5d60bc088b75d3b588ebbac1bf0126e50622b4631e91c1",
+      "afterSha256": "c429b56f8175359f4bc544d6c78e4cd9fb0adaf2316ab99714ae0f5032f1c381",
+      "edits": [
+        [
+          3169,
+          3254,
+          "    function waitForRecoveryFloodLayer(layer, token, onReady) {\n"
+        ],
+        [
+          4289,
+          4451,
+          "          if (!await decodeFloodFrameImage(layer.getElement())) return finish(false);\n          await new Promise(requestAnimationFrame);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/20-timeline-rendering.js",
+      "beforeSha256": "6ba1ee5b4c9df7433f6bfb57bf86708f7fbd81bfe63f1bf1f1981acf92d18006",
+      "afterSha256": "998a3d365c945a3a677a4ac04a6c213ea50959430d75c0b352d2625e5732b2f3",
+      "edits": [
+        [
+          10102,
+          10152,
+          ""
+        ],
+        [
+          10552,
+          10552,
+          "        // The atlas resolver already downloaded this image to verify its URL.\n        // Reuse it for the first frame without retaining every probed raster.\n        let initialImage = null;\n        if (document.body.dataset.initialFloodFrame === \"loading\") {\n          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;\n          startupOverlayCandidate = null;\n        }\n        const loaded = initialImage || await preloadImage(overlayUrl, \"high\");\n        if (token !== lastRenderToken) return;\n        if (!loaded) {\n          return false;\n        }\n\n"
+        ],
+        [
+          10783,
+          10832,
+          ""
+        ],
+        [
+          10900,
+          10987,
+          "          map.removeLayer(pendingFloodLayer);\n"
+        ],
+        [
+          11034,
+          12472,
+          "        const previousLayer = currentFloodLayer;\n        const nextLayer = createHydraulicImageOverlay(\n"
+        ],
+        [
+          12649,
+          12671,
+          "            className: currentDataMode === \"return-interval\" && mode === \"depth\"\n              ? \"return-interval-depth-overlay\"\n              : \"\"\n"
+        ],
+        [
+          12684,
+          12707,
+          "          initialImage || overlayUrl\n"
+        ],
+        [
+          12758,
+          12795,
+          "        return await waitForRecoveryFloodLayer(nextLayer, token, async () => {\n"
+        ],
+        [
+          13560,
+          13627,
+          ""
+        ],
+        [
+          13798,
+          13891,
+          "          if (previousLayer && map.hasLayer(previousLayer)) {\n"
+        ],
+        [
+          13935,
+          14577,
+          ""
+        ],
+        [
+          14803,
+          15128,
+          "        });\n"
+        ],
+        [
+          16173,
+          16317,
+          "      const loaded = await preloadImage(overlayUrl, \"high\");\n      if (token !== lastRenderToken) return;\n      if (!loaded) {\n        return false;\n      }\n"
+        ],
+        [
+          16431,
+          16478,
+          ""
+        ],
+        [
+          16544,
+          16629,
+          "        map.removeLayer(pendingFloodLayer);\n"
+        ],
+        [
+          16671,
+          16745,
+          "      const previousLayer = currentFloodLayer;\n      const nextLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {\n"
+        ],
+        [
+          18015,
+          18039,
+          "      });\n"
+        ]
+      ]
+    }
+  ]
+}

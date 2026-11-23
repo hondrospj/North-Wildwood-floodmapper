@@ -95,7 +95,7 @@ const query = new Uint8ClampedArray([
 
 assert.equal(
   context.applyFillingTransitionPixels(
-    lower, upper, developed, 4, 1, 3.74, 3.7, "depth", upper, query
+    lower, upper, developed, 4, 1, 3.74, 3.7, "depth", query
   ),
   2,
   "All physically ready pixels should share the transition",
@@ -109,7 +109,7 @@ assert.deepEqual(Array.from(lower.slice(12, 16)), green,
   "Ground above the adjusted water surface must remain green");
 assert.equal(
   context.applyFillingTransitionPixels(
-    lower, upper, developed, 4, 1, 3.74, 3.7, "depth", upper, null
+    lower, upper, developed, 4, 1, 3.74, 3.7, "depth", null
   ),
   0,
   "Missing packed-query data must fall back without inventing a transition line",

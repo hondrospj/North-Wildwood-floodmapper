@@ -321,7 +321,6 @@ assert.equal(fillingContext.applyFillingTransitionPixels(
   3.74,
   3.7,
   "depth",
-  upperTransitionPixels,
   queryTransitionPixels
 ), 3, "Every physically ready developed pixel should advance together");
 assert.deepEqual(Array.from(lowerTransitionPixels.slice(0, 4)), shallowPixel);
@@ -366,7 +365,6 @@ assert.equal(fillingContext.applyFillingTransitionPixels(
   3.74,
   3.7,
   "depth",
-  feederUpperPixels,
   feederQueryPixels
 ), 10, "The full eligible feeder component and basin edge should advance together");
 for (let y = 1; y < feederHeight; y += 1) {
@@ -398,7 +396,7 @@ if(/getOverlayRecord\(/.test(prefetch))assert.match(prefetch,/distance <= 12/);
 assert.doesNotMatch(extractFunction("setTimelineIntervalMinutes"), /clearFloodLayer\(\)/);
 assert.match(extractFunction("testImageUrl"), /const cache = imageExistsCache;[\s\S]+cache\.set\(url, request\)[\s\S]+await request/);
 assert.match(extractFunction("getOverlayRecord"), /overlayRecordCache\.set\(key, request\)[\s\S]+await request/);
-assert.match(extractFunction("setFloodLayer"), /(?:await new Promise|await waitForRecoveryFloodLayer)[\s\S]+markInitialFloodFrameReady\(\)/);
+assert.match(extractFunction("setFloodLayer"), /await loadDecodedFloodImage\([\s\S]+const commit = async \(\) => \{[\s\S]+markInitialFloodFrameReady\(\)[\s\S]+await waitForRecoveryFloodLayer\(nextLayer, token, commit, decodedImage\)/);
 assert.match(extractFunction("setPhysicsFloodLayer"), /(?:await new Promise|await waitForRecoveryFloodLayer)[\s\S]+markInitialFloodFrameReady\(\)/);
 assert.match(
   extractFunction("reloadAll"),
@@ -1048,7 +1046,7 @@ assert.match(
 );
 assert.match(
   extractFunction("setFloodLayer"),
-  /className: currentDataMode === "return-interval" && mode === "depth"[\s\S]+return-interval-depth-overlay/
+  /const className = currentDataMode === "return-interval" && mode === "depth"[\s\S]+return-interval-depth-overlay/
 );
 assert.match(
   extractFunction("setExportFloodLayer"),

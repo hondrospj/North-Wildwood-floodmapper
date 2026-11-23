@@ -157,6 +157,7 @@
       try {
         toast("");
         ensureMap();
+        const imageGeneration = imageExistsCache;
 
         const match = await getHydraulicOverlayRecord(mode, stageValue, phase, entry, series);
         if (token !== lastRenderToken) return;
@@ -168,19 +169,6 @@
 
         const overlayUrl = match.url;
         releaseRaster = retainRasterObjectUrl(overlayUrl);
-        // The atlas resolver already downloaded this image to verify its URL.
-        // Reuse it for the first frame without retaining every probed raster.
-        let initialImage = null;
-        if (document.body.dataset.initialFloodFrame === "loading") {
-          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
-          startupOverlayCandidate = null;
-        }
-        const loaded = initialImage || await preloadImage(overlayUrl, "high");
-        if (token !== lastRenderToken) return;
-        if (!loaded) {
-          return false;
-        }
-
         try {
           await ensureOverlayBounds(overlayUrl);
         } catch (err) {
@@ -190,13 +178,34 @@
 
         if (token !== lastRenderToken) return;
 
+        const previousLayer = currentFloodLayer;
         if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
-          map.removeLayer(pendingFloodLayer);
+          if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
           pendingFloodLayer = null;
         }
 
-        const previousLayer = currentFloodLayer;
-        const nextLayer = createHydraulicImageOverlay(
+        const className = currentDataMode === "return-interval" && mode === "depth"
+          ? "return-interval-depth-overlay"
+          : "";
+        const mountedImage = previousLayer?.getElement?.();
+        const reuseMountedLayer = previousLayer?._url === overlayUrl &&
+          previousLayer._floodmapperImageGeneration === imageGeneration &&
+          previousLayer._floodmapperFrame?.overlayMode === mode &&
+          (previousLayer.options?.className || "") === className &&
+          Boolean(previousLayer._worldFileAffine) === (floodOverlayGeometryMode === "world-file") &&
+          previousLayer.getBounds?.()?.equals?.(floodLatLngBounds) &&
+          mountedImage?.complete && mountedImage.naturalWidth > 0 && map.hasLayer(previousLayer);
+        let initialImage = null;
+        if (document.body.dataset.initialFloodFrame === "loading") {
+          if (startupOverlayCandidate?.url === overlayUrl) initialImage = startupOverlayCandidate.image;
+          startupOverlayCandidate = null;
+        }
+        // Decode off the map, then mount that exact image for a single swap.
+        const decodedImage = reuseMountedLayer ? mountedImage : await loadDecodedFloodImage(
+          overlayUrl, "high", initialImage || takeVerifiedFloodImage(overlayUrl)
+        );
+        if (token !== lastRenderToken || !decodedImage) return false;
+        const nextLayer = reuseMountedLayer ? previousLayer : createHydraulicImageOverlay(
           overlayUrl,
           {
             opacity: 0,
@@ -204,15 +213,13 @@
             crossOrigin: true,
             zIndex: 500,
             pane: "floodPane",
-            className: currentDataMode === "return-interval" && mode === "depth"
-              ? "return-interval-depth-overlay"
-              : ""
+            className
           },
-          initialImage || overlayUrl
+          decodedImage
         );
 
         pendingFloodLayer = nextLayer;
-        return await waitForRecoveryFloodLayer(nextLayer, token, async () => {
+        const commit = async () => {
           // Leaflet also backs the visible WebGL map. Its hidden image being
           // decoded is only the first half of a frame commit in pitched 3D.
           if (typeof window !== "undefined" && window.NORTH_WILDWOOD_3D?.prepareFloodFrame &&
@@ -222,20 +229,37 @@
               !window.NORTH_WILDWOOD_3D.commitFloodFrame(nextLayer, token)) return false;
           nextLayer.setOpacity(overlayOpacity);
           nextLayer._floodmapperFrame = frameMetadata;
+          nextLayer._floodmapperImageGeneration = imageGeneration;
           currentFloodLayer = nextLayer;
           floodFrameState = "ready";
           document.body.dataset.floodFrame = "ready";
           pendingFloodLayer = null;
   
-          if (previousLayer && map.hasLayer(previousLayer)) {
+          if (previousLayer && previousLayer !== nextLayer && map.hasLayer(previousLayer)) {
             map.removeLayer(previousLayer);
+            if (previousLayer._floodmapperImageGeneration === imageGeneration &&
+                mountedImage?.complete && mountedImage.naturalWidth > 0 &&
+                mountedImage.src === previousLayer._url && !mountedImage.isConnected) {
+              // The shared small raster cache can supply this decoded image on a later seek.
+              // Strip Leaflet's display style before lending the detached element again.
+              mountedImage.removeAttribute?.("class");
+              mountedImage.removeAttribute?.("style");
+              cacheVerifiedFloodImage(previousLayer._url, mountedImage, imageGeneration);
+            }
           }
   
           updatePersistentDepthQueryPopup();
   
           if (!mapHasFit && floodLatLngBounds) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
           markInitialFloodFrameReady();
-        });
+          return true;
+        };
+        if (!reuseMountedLayer) return await waitForRecoveryFloodLayer(nextLayer, token, commit, decodedImage);
+        try {
+          return await commit();
+        } finally {
+          if (token === lastRenderToken && pendingFloodLayer === nextLayer) pendingFloodLayer = null;
+        }
       } finally {
         releaseRaster?.();
       }
@@ -255,20 +279,17 @@
       if (!overlayUrl || !Array.isArray(bounds) || bounds.length !== 2) {
         throw new Error("The selected physics frame is incomplete.");
       }
-      const loaded = await preloadImage(overlayUrl, "high");
-      if (token !== lastRenderToken) return;
-      if (!loaded) {
-        return false;
-      }
+      const decodedImage = await loadDecodedFloodImage(overlayUrl, "high");
+      if (token !== lastRenderToken || !decodedImage) return false;
       floodLatLngBounds = L.latLngBounds(bounds[0], bounds[1]);
       floodOverlayGeometryMode = "axis-aligned";
 
+      const previousLayer = currentFloodLayer;
       if (pendingFloodLayer && map.hasLayer(pendingFloodLayer)) {
-        map.removeLayer(pendingFloodLayer);
+        if (pendingFloodLayer !== previousLayer) map.removeLayer(pendingFloodLayer);
         pendingFloodLayer = null;
       }
-      const previousLayer = currentFloodLayer;
-      const nextLayer = L.imageOverlay(overlayUrl, floodLatLngBounds, {
+      const nextLayer = L.imageOverlay(decodedImage, floodLatLngBounds, {
         opacity: 0,
         interactive: false,
         crossOrigin: true,
@@ -292,7 +313,7 @@
         if (previousLayer && map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
         if (!mapHasFit) fitInitialFloodView(getBoundaryDrivenOverlayBounds() || floodLatLngBounds);
         markInitialFloodFrameReady();
-      });
+      }, decodedImage);
     }
 
     function ownPlaybackFrame(playback, token) {

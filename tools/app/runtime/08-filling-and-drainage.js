@@ -46,12 +46,13 @@
 
     function isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel) {
       const offset = pixel * 4;
-      return !isWetRasterPixel(lowerPixels, offset) &&
-        isWetRasterPixel(upperPixels, offset) &&
+      return upperPixels[offset + 3] > 0 &&
+        !isWetRasterPixel(lowerPixels, offset) &&
+        !isDisconnectedRasterPixel(upperPixels, offset) &&
         isDevelopedRasterPixel(developedPixels, offset);
     }
 
-    function getFillingTransitionPixelDepth(queryPixels, developedPixels, pixel, rawStageFt) {
+    function getFillingTransitionPixelDepth(queryPixels, developedPixels, pixel, rawStageFt, adjustedStageFt = null) {
       if (!queryPixels || !developedPixels || queryPixels.length !== developedPixels.length) return null;
       const offset = pixel * 4;
       const encodedGround = queryPixels[offset] * 256 + queryPixels[offset + 1];
@@ -64,11 +65,11 @@
       // its quantized connection code to the in-between gauge value or the
       // whole surface remains green until the next catalog frame.
       if (!Number.isFinite(stageFt) || connectionCode === 255) return null;
-      const developed = isDevelopedRasterPixel(developedPixels, offset);
-      const adjustedStageFt = stageFt - (developed ? getVerticalBathtubPenalty(stageFt) : 0);
-      if (groundFt > adjustedStageFt + 1e-9) return null;
+      const surfaceFt = adjustedStageFt ?? (stageFt - (isDevelopedRasterPixel(developedPixels, offset)
+        ? getVerticalBathtubPenalty(stageFt) : 0));
+      if (groundFt > surfaceFt + 1e-9) return null;
       // Use the same local water surface as the query and catalog depth model.
-      return Math.max(0.005, adjustedStageFt - groundFt);
+      return Math.max(0.005, surfaceFt - groundFt);
     }
 
     function applyFillingTransitionPixels(
@@ -80,7 +81,6 @@
       rawStageFt,
       lowerStageFt,
       mode,
-      depthPixels = upperPixels,
       queryPixels = null
     ) {
       if (!lowerPixels || !upperPixels || lowerPixels.length !== upperPixels.length ||
@@ -91,6 +91,9 @@
       if (!(fraction > 0)) return 0;
       const blend = getFillingTransitionBlend(fraction);
       const transitionStageRgb = getDrainageStageColor(rawStageFt);
+      // Transition candidates already passed the developed-land mask, so
+      // every cell in this frame uses the same adjusted water surface.
+      const adjustedStageFt = Number(rawStageFt) - getVerticalBathtubPenalty(rawStageFt);
       let added = 0;
       const pixelCount = width * height;
       for (let pixel = 0; pixel < pixelCount; pixel += 1) {
@@ -99,7 +102,8 @@
           queryPixels,
           developedPixels,
           pixel,
-          rawStageFt
+          rawStageFt,
+          adjustedStageFt
         );
         if (!Number.isFinite(depthFt)) continue;
         const offset = pixel * 4;
@@ -136,31 +140,34 @@
       // A confirmed blue pixel over the full crest footprint stays blue; it
       // may become shallower or disappear, but it never downgrades to green.
       const crestPixels = history[0];
-      let modified = 0;
-      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
-        if (!isWetRasterPixel(currentPixels, offset) || crestPixels[offset + 3] > 0) continue;
-        currentPixels[offset] = 0;
-        currentPixels[offset + 1] = 0;
-        currentPixels[offset + 2] = 0;
-        currentPixels[offset + 3] = 0;
-        modified += 1;
-      }
-      const retained = new Uint8Array(pixelCount);
-      for (const historyPixels of history) {
-        for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
-          if (!retained[pixel] && crestPixels[offset + 3] > 0 &&
-              isWetRasterPixel(historyPixels, offset)) retained[pixel] = 1;
-        }
-      }
-
       const retainedStageRgb = getDrainageStageColor(stageFt);
-      for (let pixel = 0, offset = 0; pixel < pixelCount; pixel += 1, offset += 4) {
-        if (!retained[pixel] || isWetRasterPixel(currentPixels, offset)) continue;
+      const stage = Number(stageFt);
+      let modified = 0;
+      for (let offset = 0; offset < pixelCount * 4; offset += 4) {
+        const currentlyWet = isWetRasterPixel(currentPixels, offset);
+        if (!crestPixels[offset + 3]) {
+          if (currentlyWet) {
+            currentPixels[offset] = 0;
+            currentPixels[offset + 1] = 0;
+            currentPixels[offset + 2] = 0;
+            currentPixels[offset + 3] = 0;
+            modified += 1;
+          }
+          continue;
+        }
+        if (currentlyWet) continue;
         const encodedGround = queryPixels[offset] * 256 + queryPixels[offset + 1];
         if (!encodedGround) continue;
         const groundFt = (encodedGround - 32768) / 10;
-        const depthFt = Number(stageFt) - groundFt;
+        const depthFt = stage - groundFt;
         if (!(depthFt > 0.005)) continue;
+        let wasWet = false;
+        for (const historyPixels of history) {
+          if (!isWetRasterPixel(historyPixels, offset)) continue;
+          wasWet = true;
+          break;
+        }
+        if (!wasWet) continue;
         const color = mode === "depth" ? getDrainageDepthColor(depthFt) : retainedStageRgb;
         currentPixels[offset] = color[0];
         currentPixels[offset + 1] = color[1];
