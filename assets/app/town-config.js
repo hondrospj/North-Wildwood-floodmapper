@@ -13,7 +13,10 @@ function bunnyCdnUrl(path) {
 }
 
 TOWN_CONFIG = FLOODMAPPER_TOWN_DATA;
-installFloodDataReaders(TOWN_CONFIG);
+if (TOWN_CONFIG.compatibility.hydraulicCatalog !== "v29" ||
+    TOWN_CONFIG.data.observedFormat === "days" || TOWN_CONFIG.structures?.certifiedFirstFloorsPath) {
+  installFloodDataReaders(TOWN_CONFIG);
+}
 applyTownConfig(TOWN_CONFIG);
 installRoadImpacts(TOWN_CONFIG);
 

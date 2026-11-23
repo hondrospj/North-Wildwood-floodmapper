@@ -812,6 +812,7 @@ function cloneStyleObject(value) {
     let observedData = null;
     let canonicalDailyData = null;
     let observed15MinuteData = null;
+    let observed15MinuteArchivePromise = null;
     let observedArchiveIndexTextPromise = null;
     let observed15MinuteDaysByDate = new Map();
     // Distinct caches: identical dates do not imply identical gauge or cadence.
@@ -2119,25 +2120,34 @@ function parseStoredLocalNyToDate(timeEST) {
 
     async function ensureObserved15MinuteArchive() {
       if (observed15MinuteData) return observed15MinuteData;
+      if (observed15MinuteArchivePromise) return observed15MinuteArchivePromise;
       const generation = archiveGeneration;
-      const indexRequest = preloadObservedArchiveIndexText();
-      let payload;
-      try {
-        payload = JSON.parse(await indexRequest);
-        if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-        if (observed15MinuteData) return observed15MinuteData;
-        addArchiveShardDays(payload, "stone-harbor", { summary: true });
-      } catch (indexError) {
-        if (generation !== archiveGeneration) throw indexError;
-        if (observedArchiveIndexTextPromise === indexRequest) observedArchiveIndexTextPromise = null;
-        console.warn("Optimized observed archive index unavailable; using the compact archive.", indexError);
-        payload = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
-        if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-        if (observed15MinuteData) return observed15MinuteData;
-        addArchiveShardDays(payload, "stone-harbor");
-      }
-      observed15MinuteData = payload;
-      return observed15MinuteData;
+      // Ranking and replay can both request the archive while the index is
+      // pending. Share validation and the compact fallback as well as the index.
+      const request = (async () => {
+        const indexRequest = preloadObservedArchiveIndexText();
+        let payload;
+        try {
+          payload = JSON.parse(await indexRequest);
+          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+          if (observed15MinuteData) return observed15MinuteData;
+          addArchiveShardDays(payload, "stone-harbor", { summary: true });
+        } catch (indexError) {
+          if (generation !== archiveGeneration) throw indexError;
+          if (observedArchiveIndexTextPromise === indexRequest) observedArchiveIndexTextPromise = null;
+          console.warn("Optimized observed archive index unavailable; using the compact archive.", indexError);
+          payload = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
+          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+          if (observed15MinuteData) return observed15MinuteData;
+          addArchiveShardDays(payload, "stone-harbor");
+        }
+        observed15MinuteData = payload;
+        return observed15MinuteData;
+      })().finally(() => {
+        if (observed15MinuteArchivePromise === request) observed15MinuteArchivePromise = null;
+      });
+      observed15MinuteArchivePromise = request;
+      return request;
     }
 
     async function ensureLewesHourlyArchive() {
@@ -3493,16 +3503,6 @@ function setDatumHelpOpen(isOpen) {
         isDevelopedRasterPixel(developedPixels, offset);
     }
 
-    function isShallowFillingTransitionPixel(depthPixels, pixel) {
-      if (!depthPixels) return false;
-      const offset = pixel * 4;
-      const shallow = DRAINAGE_DEPTH_COLORS[0];
-      return depthPixels[offset + 3] > 0 &&
-        Math.abs(depthPixels[offset] - shallow[0]) <= 4 &&
-        Math.abs(depthPixels[offset + 1] - shallow[1]) <= 4 &&
-        Math.abs(depthPixels[offset + 2] - shallow[2]) <= 4;
-    }
-
     function getFillingTransitionPixelDepth(queryPixels, developedPixels, pixel, rawStageFt) {
       if (!queryPixels || !developedPixels || queryPixels.length !== developedPixels.length) return null;
       const offset = pixel * 4;
@@ -3521,144 +3521,6 @@ function setDatumHelpOpen(isOpen) {
       if (groundFt > adjustedStageFt + 1e-9) return null;
       // Use the same local water surface as the query and catalog depth model.
       return Math.max(0.005, adjustedStageFt - groundFt);
-    }
-
-    function buildFillingTransitionQueue(
-      lowerPixels,
-      upperPixels,
-      developedPixels,
-      width,
-      height,
-      depthPixels = upperPixels
-    ) {
-      const pixelCount = width * height;
-      const candidateState = new Uint8Array(pixelCount);
-      const shallowState = new Uint8Array(pixelCount);
-      // The upper catalog raster is the authority for where the next tenth
-      // may flood. Restrict the in-between front to developed pixels and never
-      // invent water outside that authoritative mask.
-      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-        if (isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel)) {
-          candidateState[pixel] = 1;
-          if (isShallowFillingTransitionPixel(depthPixels, pixel)) shallowState[pixel] = 1;
-        }
-      }
-      const hasLowerWetNeighbour = pixel => {
-        const x = pixel % width;
-        const y = Math.floor(pixel / width);
-        return (x > 0 && isWetRasterPixel(lowerPixels, (pixel - 1) * 4)) ||
-          (x + 1 < width && isWetRasterPixel(lowerPixels, (pixel + 1) * 4)) ||
-          (y > 0 && isWetRasterPixel(lowerPixels, (pixel - width) * 4)) ||
-          (y + 1 < height && isWetRasterPixel(lowerPixels, (pixel + width) * 4));
-      };
-
-      const neighboursOf = pixel => {
-        const x = pixel % width;
-        const y = Math.floor(pixel / width);
-        const neighbours = [];
-        if (x > 0) neighbours.push(pixel - 1);
-        if (x + 1 < width) neighbours.push(pixel + 1);
-        if (y > 0) neighbours.push(pixel - width);
-        if (y + 1 < height) neighbours.push(pixel + width);
-        return neighbours;
-      };
-
-      // Feeder cells are deliberately encoded by the hydraulic generator as
-      // the 0.00-0.10 ft depth class. Reveal each source-connected shallow
-      // component before widening the surrounding basin. This preserves the
-      // visible source-to-basin trickle at fractional tenth-foot stages.
-      const shallowVisited = new Uint8Array(pixelCount);
-      const shallowComponents = [];
-      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-        if (shallowState[pixel] !== 1 || shallowVisited[pixel]) continue;
-        const members = [];
-        const componentQueue = [pixel];
-        let seed = -1;
-        shallowVisited[pixel] = 1;
-        for (let head = 0; head < componentQueue.length; head += 1) {
-          const current = componentQueue[head];
-          members.push(current);
-          if (seed < 0 && hasLowerWetNeighbour(current)) seed = current;
-          for (const neighbour of neighboursOf(current)) {
-            if (shallowState[neighbour] !== 1 || shallowVisited[neighbour]) continue;
-            shallowVisited[neighbour] = 1;
-            componentQueue.push(neighbour);
-          }
-        }
-        if (seed < 0) continue;
-
-        // Trace one shortest source-to-interior spine through the component.
-        // The upper depth raster already encodes the generator's feeder as
-        // shallow water, so this reaches the end of that feeder before area
-        // is spent widening its edges.
-        const memberSet = new Set(members);
-        const seeds = members.filter(hasLowerWetNeighbour);
-        const ordered = seeds.slice();
-        const predecessor = new Map(seeds.map(current => [current, -1]));
-        const distance = new Map(seeds.map(current => [current, 1]));
-        let farthest = seed;
-        for (let head = 0; head < ordered.length; head += 1) {
-          const current = ordered[head];
-          const currentDistance = distance.get(current);
-          if (currentDistance > distance.get(farthest) ||
-              (currentDistance === distance.get(farthest) && current < farthest)) {
-            farthest = current;
-          }
-          for (const neighbour of neighboursOf(current)) {
-            if (!memberSet.has(neighbour) || predecessor.has(neighbour)) continue;
-            predecessor.set(neighbour, current);
-            distance.set(neighbour, currentDistance + 1);
-            ordered.push(neighbour);
-          }
-        }
-        const spine = [];
-        for (let current = farthest; current >= 0; current = predecessor.get(current)) {
-          spine.push(current);
-        }
-        spine.reverse();
-        shallowComponents.push({ first: pixel, size: members.length, ordered, spine });
-      }
-
-      shallowComponents.sort((left, right) =>
-        right.size - left.size || left.first - right.first
-      );
-      const queue = [];
-      const queued = new Set();
-      for (const component of shallowComponents) {
-        for (const pixel of component.spine) {
-          queue.push(pixel);
-          queued.add(pixel);
-        }
-      }
-      for (const component of shallowComponents) {
-        for (const pixel of component.ordered) {
-          if (queued.has(pixel)) continue;
-          queue.push(pixel);
-          queued.add(pixel);
-        }
-      }
-
-      // Then expand through every remaining eligible pixel by sides. Filtering
-      // the shallow prefix out of this ordinary BFS keeps the result monotonic
-      // while preserving the same final upper-stage footprint.
-      const expansionQueue = [];
-      for (let pixel = 0; pixel < pixelCount; pixel += 1) {
-        if (candidateState[pixel] !== 1 || !hasLowerWetNeighbour(pixel)) continue;
-        candidateState[pixel] = 2;
-        expansionQueue.push(pixel);
-      }
-      for (let head = 0; head < expansionQueue.length; head += 1) {
-        const pixel = expansionQueue[head];
-        for (const neighbour of neighboursOf(pixel)) {
-          if (candidateState[neighbour] !== 1) continue;
-          candidateState[neighbour] = 2;
-          expansionQueue.push(neighbour);
-        }
-      }
-      for (const pixel of expansionQueue) {
-        if (!queued.has(pixel)) queue.push(pixel);
-      }
-      return queue;
     }
 
     function applyFillingTransitionPixels(
@@ -11631,6 +11493,7 @@ function populateCalendarSelectors() {
       forecastData = null;
       returnIntervalData = null;
       observed15MinuteData = null;
+      observed15MinuteArchivePromise = null;
       observedArchiveIndexTextPromise = null;
       observed15MinuteDaysByDate = new Map();
       lewesHourlyDaysByDate = new Map();

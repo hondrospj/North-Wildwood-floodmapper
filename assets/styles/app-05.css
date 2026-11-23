@@ -1681,7 +1681,7 @@ html.win-compact-ui .leaflet-top.leaflet-right{
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)) {
   :root{
     --pj-logo-rail-width-final:246px;
     --pj-zoom-logo-gap-final:12px;
@@ -1883,8 +1883,6 @@ html.win-compact-ui .leaflet-top.leaflet-right{
   }
 
 
-  html body #leftPanel > .data-source-card{ order:1 !important; }
-  html body #leftPanel > .forecast-scenario-card{ order:2 !important; }
   html body.observed-mode #leftPanel > .forecast-scenario-card{
     display:none !important;
     height:0 !important;
@@ -1895,11 +1893,6 @@ html.win-compact-ui .leaflet-top.leaflet-right{
     border:0 !important;
     overflow:hidden !important;
   }
-  html body #leftPanel > #calendarCard{ order:2 !important; }
-  html body #leftPanel > .overlay-card{ order:3 !important; }
-  html body #leftPanel > .datum-card{ order:4 !important; }
-  html body #leftPanel > .opacity-card{ order:5 !important; }
-  html body #leftPanel > #legendDock{ order:6 !important; }
 
 
   html body #leftPanel > .snapshot-card,
@@ -1991,11 +1984,6 @@ html.win-compact-ui .leaflet-top.leaflet-right{
     border-radius:12px !important;
     font-size:13px !important;
     font-weight:900 !important;
-  }
-  html body.observed-mode #leftPanel .calendar-key,
-  html body.observed-mode.calendar-picker-open #leftPanel .calendar-key{
-    gap:5px !important;
-    margin-top:3px !important;
   }
   html body.observed-mode #leftPanel .calendar-key-item,
   html body.observed-mode.calendar-picker-open #leftPanel .calendar-key-item{
@@ -2647,14 +2635,6 @@ html body #rightRail .right-logo-card{
   padding:12px !important;
 }
 
-html body #rightRail .right-logo-card .right-logo-link{
-  display:flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  width:100% !important;
-  height:100% !important;
-  overflow:visible !important;
-}
 
 html body #rightRail .right-logo-card .right-rail-logo,
 html body #rightRail .right-logo-card .shorelysafe-logo{
@@ -3558,7 +3538,7 @@ html body #topBannerCloseBtn:active{
 }
 
 
-@media (min-width:901px) and (max-width:1280px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1280px) and (min-height:561px), (min-width:901px) and (max-width:1280px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1280px) and (pointer:fine), (min-width:901px) and (max-width:1280px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1280px) and (pointer:none) {
+@media (min-width:901px) and (max-width:1280px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:901px) and (max-width:1280px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:901px) and (max-width:1280px) and (pointer:none) and (not (any-pointer:coarse)) {
   html body #mapTitleBadge,
   html body #mapTitleBadge.shorely-title-badge,
   html body.forecast-mode #mapTitleBadge.shorely-title-badge,
@@ -3596,7 +3576,7 @@ html body #topBannerCloseBtn:active{
 }
 
 
-@media (min-width:901px) and (max-width:1080px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1080px) and (min-height:561px), (min-width:901px) and (max-width:1080px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1080px) and (pointer:fine), (min-width:901px) and (max-width:1080px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1080px) and (pointer:none) {
+@media (min-width:901px) and (max-width:1080px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:901px) and (max-width:1080px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:901px) and (max-width:1080px) and (pointer:none) and (not (any-pointer:coarse)) {
   html body #mapTitleBadge,
   html body #mapTitleBadge.shorely-title-badge,
   html body.forecast-mode #mapTitleBadge.shorely-title-badge,
@@ -3731,16 +3711,6 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   flex:0 0 auto !important;
 }
 
-html body #timelineBubble::after,
-html body.observed-mode #timelineBubble::after,
-html.os-mac body #timelineBubble::after,
-html.os-windows body #timelineBubble::after,
-html.win-compact-ui body #timelineBubble::after{
-  bottom:-10px !important;
-  border-left-width:10px !important;
-  border-right-width:10px !important;
-  border-top-width:10px !important;
-}
 
 html body #timelineDock,
 html body.observed-mode #timelineDock,
@@ -3785,13 +3755,6 @@ html.win-compact-ui body #timelineDock{
     padding:3px 9px 4px !important;
   }
 
-  html body #timelineBubble::after,
-  html body.observed-mode #timelineBubble::after{
-    bottom:-8px !important;
-    border-left-width:8px !important;
-    border-right-width:8px !important;
-    border-top-width:8px !important;
-  }
 }
 
 @media (max-width:420px){
@@ -4001,12 +3964,8 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
     transform:none !important;
   }
 
-  html body #leftPanel > .data-source-card{ order:1 !important; }
   html body #leftPanel > .forecast-scenario-card{ order:2 !important; }
   html body #leftPanel > #calendarCard{ order:2 !important; }
-  html body #leftPanel > .overlay-card{ order:3 !important; }
-  html body #leftPanel > .datum-card{ order:4 !important; }
-  html body #leftPanel > .opacity-card{ order:5 !important; }
   html body #leftPanel > #legendDock{ order:6 !important; }
   html body #leftPanel > .snapshot-card{ order:7 !important; }
   html body #leftPanel > .mobile-top-tides-card{ order:8 !important; }
@@ -4054,12 +4013,6 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
     line-height:1 !important;
   }
 
-  html body.observed-mode #leftPanel .calendar-head,
-  html body.observed-mode #leftPanel .calendar-grid,
-  html body.observed-mode.calendar-picker-open #leftPanel .calendar-head,
-  html body.observed-mode.calendar-picker-open #leftPanel .calendar-grid{
-    gap:3px !important;
-  }
 
   html body.observed-mode #leftPanel .calendar-head div,
   html body.observed-mode.calendar-picker-open #leftPanel .calendar-head div{
@@ -4415,14 +4368,14 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)) {
   :root{
     --pj-fixed-left-width:340px;
     --pj-fixed-right-width:244px;
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1120px) {
+@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)) {
   :root{
     --pj-fixed-left-width:320px;
     --pj-fixed-right-width:228px;
@@ -5470,14 +5423,14 @@ html body #timelineDock #hourSlider{
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)) {
   :root{
     --pj-equal-left-width:340px;
     --pj-equal-right-width:244px;
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1120px) {
+@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)) {
   :root{
     --pj-equal-left-width:320px;
     --pj-equal-right-width:228px;
@@ -9549,7 +9502,7 @@ html body.observed-mode[data-floodmapper-unified] #leftPanel > #calendarCard .se
     html body[data-floodmapper-unified]:not(.mobile-optimized) #townAddressForm label {font-size:10px!important;line-height:1.1!important;margin-bottom:3px!important;}
     html body[data-floodmapper-unified]:not(.mobile-optimized) #legendDock :is(.legend-labels,.depth-legend-labels) {font-size:11px!important;}
   }
-  @media (min-width:901px) and (max-width:1200px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1200px) {
+  @media (min-width:901px) and (max-width:1200px) and (not (any-pointer:coarse)) {
     html body[data-floodmapper-unified]:not(.mobile-optimized) #mapTitleBadge #mapTitleText {font-size:20px!important;}
   }
 }

@@ -1,0 +1,843 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "d5b7a6179efa2d090545b70ca6ade3aa544b580e",
+  "scope": "Skip unused native mapper dependencies, simplify unreachable filling and repeated CSS, share history fallback requests, and retain the pause glyph in forced colors.",
+  "files": [
+    {
+      "source": "assets/app/runtime.js",
+      "beforeSha256": "e7f03be2490aba7636562d23ebd8c02a9b324c0c5ea04660672be97b7632d0d9",
+      "afterSha256": "1cb3b596bf2daef7627ea2389d7d8b0a634e65bf3a102fc9b54f73f0f8f456dd",
+      "edits": [
+        [
+          35722,
+          35769,
+          ""
+        ],
+        [
+          93986,
+          94067,
+          ""
+        ],
+        [
+          94111,
+          95609,
+          "      const indexRequest = preloadObservedArchiveIndexText();\n      let payload;\n      try {\n        payload = JSON.parse(await indexRequest);\n        if (generation !== archiveGeneration) throw new Error(\"Archive request superseded by Reload\");\n        if (observed15MinuteData) return observed15MinuteData;\n        addArchiveShardDays(payload, \"stone-harbor\", { summary: true });\n      } catch (indexError) {\n        if (generation !== archiveGeneration) throw indexError;\n        if (observedArchiveIndexTextPromise === indexRequest) observedArchiveIndexTextPromise = null;\n        console.warn(\"Optimized observed archive index unavailable; using the compact archive.\", indexError);\n        payload = await fetchJson(OBSERVED_15MIN_URL, { cache: \"default\" });\n        if (generation !== archiveGeneration) throw new Error(\"Archive request superseded by Reload\");\n        if (observed15MinuteData) return observed15MinuteData;\n        addArchiveShardDays(payload, \"stone-harbor\");\n      }\n      observed15MinuteData = payload;\n      return observed15MinuteData;\n"
+        ],
+        [
+          162968,
+          162968,
+          "    function isShallowFillingTransitionPixel(depthPixels, pixel) {\n      if (!depthPixels) return false;\n      const offset = pixel * 4;\n      const shallow = DRAINAGE_DEPTH_COLORS[0];\n      return depthPixels[offset + 3] > 0 &&\n        Math.abs(depthPixels[offset] - shallow[0]) <= 4 &&\n        Math.abs(depthPixels[offset + 1] - shallow[1]) <= 4 &&\n        Math.abs(depthPixels[offset + 2] - shallow[2]) <= 4;\n    }\n\n"
+        ],
+        [
+          164206,
+          164206,
+          "    }\n\n    function buildFillingTransitionQueue(\n      lowerPixels,\n      upperPixels,\n      developedPixels,\n      width,\n      height,\n      depthPixels = upperPixels\n    ) {\n      const pixelCount = width * height;\n      const candidateState = new Uint8Array(pixelCount);\n      const shallowState = new Uint8Array(pixelCount);\n      // The upper catalog raster is the authority for where the next tenth\n      // may flood. Restrict the in-between front to developed pixels and never\n      // invent water outside that authoritative mask.\n      for (let pixel = 0; pixel < pixelCount; pixel += 1) {\n        if (isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel)) {\n          candidateState[pixel] = 1;\n          if (isShallowFillingTransitionPixel(depthPixels, pixel)) shallowState[pixel] = 1;\n        }\n      }\n      const hasLowerWetNeighbour = pixel => {\n        const x = pixel % width;\n        const y = Math.floor(pixel / width);\n        return (x > 0 && isWetRasterPixel(lowerPixels, (pixel - 1) * 4)) ||\n          (x + 1 < width && isWetRasterPixel(lowerPixels, (pixel + 1) * 4)) ||\n          (y > 0 && isWetRasterPixel(lowerPixels, (pixel - width) * 4)) ||\n          (y + 1 < height && isWetRasterPixel(lowerPixels, (pixel + width) * 4));\n      };\n\n      const neighboursOf = pixel => {\n        const x = pixel % width;\n        const y = Math.floor(pixel / width);\n        const neighbours = [];\n        if (x > 0) neighbours.push(pixel - 1);\n        if (x + 1 < width) neighbours.push(pixel + 1);\n        if (y > 0) neighbours.push(pixel - width);\n        if (y + 1 < height) neighbours.push(pixel + width);\n        return neighbours;\n      };\n\n      // Feeder cells are deliberately encoded by the hydraulic generator as\n      // the 0.00-0.10 ft depth class. Reveal each source-connected shallow\n      // component before widening the surrounding basin. This preserves the\n      // visible source-to-basin trickle at fractional tenth-foot stages.\n      const shallowVisited = new Uint8Array(pixelCount);\n      const shallowComponents = [];\n      for (let pixel = 0; pixel < pixelCount; pixel += 1) {\n        if (shallowState[pixel] !== 1 || shallowVisited[pixel]) continue;\n        const members = [];\n        const componentQueue = [pixel];\n        let seed = -1;\n        shallowVisited[pixel] = 1;\n        for (let head = 0; head < componentQueue.length; head += 1) {\n          const current = componentQueue[head];\n          members.push(current);\n          if (seed < 0 && hasLowerWetNeighbour(current)) seed = current;\n          for (const neighbour of neighboursOf(current)) {\n            if (shallowState[neighbour] !== 1 || shallowVisited[neighbour]) continue;\n            shallowVisited[neighbour] = 1;\n            componentQueue.push(neighbour);\n          }\n        }\n        if (seed < 0) continue;\n\n        // Trace one shortest source-to-interior spine through the component.\n        // The upper depth raster already encodes the generator's feeder as\n        // shallow water, so this reaches the end of that feeder before area\n        // is spent widening its edges.\n        const memberSet = new Set(members);\n        const seeds = members.filter(hasLowerWetNeighbour);\n        const ordered = seeds.slice();\n        const predecessor = new Map(seeds.map(current => [current, -1]));\n        const distance = new Map(seeds.map(current => [current, 1]));\n        let farthest = seed;\n        for (let head = 0; head < ordered.length; head += 1) {\n          const current = ordered[head];\n          const currentDistance = distance.get(current);\n          if (currentDistance > distance.get(farthest) ||\n              (currentDistance === distance.get(farthest) && current < farthest)) {\n            farthest = current;\n          }\n          for (const neighbour of neighboursOf(current)) {\n            if (!memberSet.has(neighbour) || predecessor.has(neighbour)) continue;\n            predecessor.set(neighbour, current);\n            distance.set(neighbour, currentDistance + 1);\n            ordered.push(neighbour);\n          }\n        }\n        const spine = [];\n        for (let current = farthest; current >= 0; current = predecessor.get(current)) {\n          spine.push(current);\n        }\n        spine.reverse();\n        shallowComponents.push({ first: pixel, size: members.length, ordered, spine });\n      }\n\n      shallowComponents.sort((left, right) =>\n        right.size - left.size || left.first - right.first\n      );\n      const queue = [];\n      const queued = new Set();\n      for (const component of shallowComponents) {\n        for (const pixel of component.spine) {\n          queue.push(pixel);\n          queued.add(pixel);\n        }\n      }\n      for (const component of shallowComponents) {\n        for (const pixel of component.ordered) {\n          if (queued.has(pixel)) continue;\n          queue.push(pixel);\n          queued.add(pixel);\n        }\n      }\n\n      // Then expand through every remaining eligible pixel by sides. Filtering\n      // the shallow prefix out of this ordinary BFS keeps the result monotonic\n      // while preserving the same final upper-stage footprint.\n      const expansionQueue = [];\n      for (let pixel = 0; pixel < pixelCount; pixel += 1) {\n        if (candidateState[pixel] !== 1 || !hasLowerWetNeighbour(pixel)) continue;\n        candidateState[pixel] = 2;\n        expansionQueue.push(pixel);\n      }\n      for (let head = 0; head < expansionQueue.length; head += 1) {\n        const pixel = expansionQueue[head];\n        for (const neighbour of neighboursOf(pixel)) {\n          if (candidateState[neighbour] !== 1) continue;\n          candidateState[neighbour] = 2;\n          expansionQueue.push(neighbour);\n        }\n      }\n      for (const pixel of expansionQueue) {\n        if (!queued.has(pixel)) queue.push(pixel);\n      }\n      return queue;\n"
+        ],
+        [
+          529983,
+          530028,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/app/town-config.js",
+      "beforeSha256": "d32e9ae6f99f43f2a3dc01a54b73675cd088360d0ace59ae5efcbe39f45fa223",
+      "afterSha256": "c14b5f7c1ddaedeafafe6c8b395abbcd607ae2a6d81ad01fd59e29a07c39a5e1",
+      "edits": [
+        [
+          425,
+          629,
+          "installFloodDataReaders(TOWN_CONFIG);\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/avalon-mobile.css",
+      "beforeSha256": "3bc8c35d8049abd3669dd9ffa25cce2c71a50147ecb1a911ad3855665fdd4c74",
+      "afterSha256": "1e81ac5dfc4c8445ab1aa1a665c5652c839c93e9094d0c81cc6763751317e01e",
+      "edits": [
+        [
+          2380,
+          2380,
+          "    #mapTitleBadge #mapTitlePartnerLogo { display:none !important; }\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/north-wildwood-controls.css",
+      "beforeSha256": "2084b394c72251e77909f681a859e7d62c40efbd3cda063d3a769052c3cb6bc1",
+      "afterSha256": "b48d5b4be2080babfac82fd21b7292ed8db9630428497cdcdbb22d7b1b56b63b",
+      "edits": [
+        [
+          16445,
+          16735,
+          "  @media (min-width:901px) and (max-width:1320px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1320px) and (min-height:561px), (min-width:901px) and (max-width:1320px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1320px) and (pointer:fine), (min-width:901px) and (max-width:1320px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1320px) and (pointer:none) {\n"
+        ],
+        [
+          16801,
+          17091,
+          "  @media (min-width:901px) and (max-width:1120px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1120px) and (min-height:561px), (min-width:901px) and (max-width:1120px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1120px) and (pointer:fine), (min-width:901px) and (max-width:1120px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1120px) and (pointer:none) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/north-wildwood-phone.css",
+      "beforeSha256": "e95d5d3a3099af743df9880316b751d7e3e9693898f767136c354b7de2dd7fa4",
+      "afterSha256": "efee85676f89fe14d8c9b260c2bff665043e5da986bc57dc42eafade615c987c",
+      "edits": [
+        [
+          33120,
+          33303,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "assets/styles/app-01.css",
+      "beforeSha256": "be79111ab98987bc96acfa942740d28500eeb899ca8d99eeecb3a755081d5078",
+      "afterSha256": "763fb8da3b870f071e3e239557f055dda8ac000ca577cffbdd7f83935fdc44fe",
+      "edits": [
+        [
+          18207,
+          18497,
+          "  @media (min-width:901px) and (max-width:1199px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1199px) and (min-height:561px), (min-width:901px) and (max-width:1199px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1199px) and (pointer:fine), (min-width:901px) and (max-width:1199px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1199px) and (pointer:none) {\n"
+        ],
+        [
+          86679,
+          86969,
+          "  @media (min-width:901px) and (max-width:1320px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1320px) and (min-height:561px), (min-width:901px) and (max-width:1320px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1320px) and (pointer:fine), (min-width:901px) and (max-width:1320px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1320px) and (pointer:none) {\n"
+        ],
+        [
+          87035,
+          87325,
+          "  @media (min-width:901px) and (max-width:1120px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1120px) and (min-height:561px), (min-width:901px) and (max-width:1120px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1120px) and (pointer:fine), (min-width:901px) and (max-width:1120px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1120px) and (pointer:none) {\n"
+        ],
+        [
+          109357,
+          109737,
+          "@media(max-width:1100px) and (min-width:901px) and (not (any-pointer:coarse)), (max-width:1100px) and (min-width:1367px) {html body[data-floodmapper-reference] #mapTitleBadge #mapTitlePartnerLogo {width:64px!important;min-width:64px!important;height:28px!important;}html body[data-floodmapper-reference] #mapTitleBadge #mapTitleLogo[src]:not([src=\"\"]){width:30px!important;min-width:30px!important;height:30px!important;}}\n"
+        ],
+        [
+          129996,
+          130077,
+          " @media(min-width:901px) and (max-width:1200px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1200px) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/styles/app-03.css",
+      "beforeSha256": "a9c19868b18cbebcb8121fb0cb326a810e15cb662eca2db61ede668fa4177f0d",
+      "afterSha256": "dc8e796a1b301262eeea68faa589a6e34e207f7092c3afc50d08f4303a2814ca",
+      "edits": [
+        [
+          1825,
+          2117,
+          "    @media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {\n"
+        ],
+        [
+          2220,
+          2512,
+          "    @media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1120px) {\n"
+        ],
+        [
+          94627,
+          94627,
+          "      .leaflet-control-zoom a{\n        width:38px !important;\n        height:38px !important;\n        line-height:38px !important;\n      }\n"
+        ],
+        [
+          104399,
+          104399,
+          "      body.mobile-controls-open #leftPanel{\n        transform:translateX(0) !important;\n      }\n"
+        ],
+        [
+          107061,
+          107061,
+          "      body.mobile-optimized.mobile-legend-open #legendDock .legend-row:nth-child(n+9){\n        display:grid !important;\n      }\n"
+        ],
+        [
+          110070,
+          110070,
+          "      #hourSlider{ height:3px !important; }\n"
+        ],
+        [
+          113198,
+          113198,
+          "      body.mobile-controls-open #leftPanel{\n        transform:translateX(0) !important;\n      }\n"
+        ],
+        [
+          113664,
+          113664,
+          "      .timeline-top{ display:none !important; }\n"
+        ],
+        [
+          113765,
+          113765,
+          "      .timeline-end,\n      .timeline-scale{ display:none !important; }\n      .timeline-trackRow{ grid-template-columns:1fr !important; }\n"
+        ],
+        [
+          116302,
+          116302,
+          "      body.mobile-optimized.mobile-legend-open #legendDock::before{\n        display:none !important;\n      }\n"
+        ],
+        [
+          129669,
+          129669,
+          "      body.mobile-optimized #legendDock[data-legend-mode=\"dynamic\"]::before{\n        background:linear-gradient(90deg,\n          var(--minor) 0 34%,\n          var(--moderate) 34% 67%,\n          var(--major) 67% 100%) !important;\n      }\n"
+        ],
+        [
+          249816,
+          249816,
+          "      body.mobile-optimized.mobile-controls-open #mobileDrawerBackdrop{\n        display:block !important;\n      }\n"
+        ],
+        [
+          253324,
+          253324,
+          "      body.mobile-optimized #rightRail{\n        display:none !important;\n      }\n"
+        ],
+        [
+          253325,
+          253325,
+          "      body.mobile-optimized #mobileRailMount{\n        display:grid !important;\n        gap:8px !important;\n      }\n"
+        ],
+        [
+          279842,
+          279842,
+          "      body.mobile-optimized #timelineDock .timeline-key-item::after{\n        font-size:10px !important;\n      }\n"
+        ],
+        [
+          337902,
+          337902,
+          "      :root{ --pj-long-pill-h:108px; }\n"
+        ],
+        [
+          340356,
+          340356,
+          "      body.mobile-optimized #timelineDock .timeline-key-item::after{\n        font-size:9px !important;\n      }\n"
+        ],
+        [
+          362078,
+          362078,
+          "      body.mobile-optimized .timeline-bubble-edge{ font-size:7.5px !important; }\n      body.mobile-optimized .timeline-bubble-current{ font-size:9px !important; }\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/styles/app-05.css",
+      "beforeSha256": "f7b7567b075a7aeeef0eac140b1233349db7dbc64cb10ad669428a687c877dd0",
+      "afterSha256": "244aa39c8a42ca08fd7b10b9a8f283cc510c9687b94e0c5d608ca4e5281f145b",
+      "edits": [
+        [
+          53207,
+          53495,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {\n"
+        ],
+        [
+          60228,
+          60228,
+          "  html body #leftPanel > .data-source-card{ order:1 !important; }\n  html body #leftPanel > .forecast-scenario-card{ order:2 !important; }\n"
+        ],
+        [
+          60516,
+          60516,
+          "  html body #leftPanel > #calendarCard{ order:2 !important; }\n  html body #leftPanel > .overlay-card{ order:3 !important; }\n  html body #leftPanel > .datum-card{ order:4 !important; }\n  html body #leftPanel > .opacity-card{ order:5 !important; }\n  html body #leftPanel > #legendDock{ order:6 !important; }\n"
+        ],
+        [
+          63950,
+          63950,
+          "  }\n  html body.observed-mode #leftPanel .calendar-key,\n  html body.observed-mode.calendar-picker-open #leftPanel .calendar-key{\n    gap:5px !important;\n    margin-top:3px !important;\n"
+        ],
+        [
+          83164,
+          83164,
+          "html body #rightRail .right-logo-card .right-logo-link{\n  display:flex !important;\n  align-items:center !important;\n  justify-content:center !important;\n  width:100% !important;\n  height:100% !important;\n  overflow:visible !important;\n}\n"
+        ],
+        [
+          110935,
+          111223,
+          "@media (min-width:901px) and (max-width:1280px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1280px) and (min-height:561px), (min-width:901px) and (max-width:1280px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1280px) and (pointer:fine), (min-width:901px) and (max-width:1280px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1280px) and (pointer:none) {\n"
+        ],
+        [
+          112486,
+          112774,
+          "@media (min-width:901px) and (max-width:1080px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1080px) and (min-height:561px), (min-width:901px) and (max-width:1080px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1080px) and (pointer:fine), (min-width:901px) and (max-width:1080px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1080px) and (pointer:none) {\n"
+        ],
+        [
+          117031,
+          117031,
+          "html body #timelineBubble::after,\nhtml body.observed-mode #timelineBubble::after,\nhtml.os-mac body #timelineBubble::after,\nhtml.os-windows body #timelineBubble::after,\nhtml.win-compact-ui body #timelineBubble::after{\n  bottom:-10px !important;\n  border-left-width:10px !important;\n  border-right-width:10px !important;\n  border-top-width:10px !important;\n}\n"
+        ],
+        [
+          118403,
+          118403,
+          "  html body #timelineBubble::after,\n  html body.observed-mode #timelineBubble::after{\n    bottom:-8px !important;\n    border-left-width:8px !important;\n    border-right-width:8px !important;\n    border-top-width:8px !important;\n  }\n"
+        ],
+        [
+          125033,
+          125033,
+          "  html body #leftPanel > .data-source-card{ order:1 !important; }\n"
+        ],
+        [
+          125167,
+          125167,
+          "  html body #leftPanel > .overlay-card{ order:3 !important; }\n  html body #leftPanel > .datum-card{ order:4 !important; }\n  html body #leftPanel > .opacity-card{ order:5 !important; }\n"
+        ],
+        [
+          126836,
+          126836,
+          "  html body.observed-mode #leftPanel .calendar-head,\n  html body.observed-mode #leftPanel .calendar-grid,\n  html body.observed-mode.calendar-picker-open #leftPanel .calendar-head,\n  html body.observed-mode.calendar-picker-open #leftPanel .calendar-grid{\n    gap:3px !important;\n  }\n"
+        ],
+        [
+          138220,
+          138508,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {\n"
+        ],
+        [
+          138591,
+          138879,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1120px) {\n"
+        ],
+        [
+          174353,
+          174641,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {\n"
+        ],
+        [
+          174724,
+          175012,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1120px) {\n"
+        ],
+        [
+          341478,
+          341561,
+          "  @media (min-width:901px) and (max-width:1200px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1200px) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "e8f91a320309177c723f8ea0ad6d6497771d0cc05d75a83de4beda8ae850003a",
+      "afterSha256": "1980c12c922dff85cc9b87780b454e4fec93352e4ba6c722305b1f4415ad6435",
+      "edits": [
+        [
+          33735,
+          33827,
+          "<link rel=\"preload\" as=\"style\" href=\"./assets/north-wildwood-phone.css?v=e95d5d3a3099af74\">\n"
+        ],
+        [
+          33989,
+          34074,
+          "<link rel=\"preload\" as=\"style\" href=\"./assets/styles/app-01.css?v=be79111ab98987bc\">\n"
+        ],
+        [
+          34934,
+          35017,
+          "<link rel=\"preload\" as=\"style\" href=\"assets/avalon-mobile.css?v=20261021-tablet1\">\n"
+        ],
+        [
+          35514,
+          35601,
+          "  <link rel=\"preload\" as=\"style\" href=\"./assets/styles/app-03.css?v=a9c19868b18cbebc\">\n"
+        ],
+        [
+          36050,
+          36143,
+          "<link rel=\"preload\" as=\"style\" href=\"assets/north-wildwood-controls.css?v=20261021-tablet1\">\n"
+        ],
+        [
+          36483,
+          36568,
+          "<link rel=\"preload\" as=\"style\" href=\"./assets/styles/app-05.css?v=f7b7567b075a7aee\">\n"
+        ],
+        [
+          64973,
+          65080,
+          "<link data-nww-startup-style rel=\"stylesheet\" href=\"./assets/north-wildwood-phone.css?v=e95d5d3a3099af74\">\n"
+        ],
+        [
+          65186,
+          65317,
+          "<link data-nww-startup-style rel=\"stylesheet\" data-nww-style-bundle=\"app-01\" href=\"./assets/styles/app-01.css?v=be79111ab98987bc\">\n"
+        ],
+        [
+          65578,
+          65676,
+          "<link data-nww-startup-style rel=\"stylesheet\" href=\"assets/avalon-mobile.css?v=20261021-tablet1\">\n"
+        ],
+        [
+          66087,
+          66218,
+          "<link data-nww-startup-style rel=\"stylesheet\" data-nww-style-bundle=\"app-03\" href=\"./assets/styles/app-03.css?v=a9c19868b18cbebc\">\n"
+        ],
+        [
+          66662,
+          66770,
+          "<link data-nww-startup-style rel=\"stylesheet\" href=\"assets/north-wildwood-controls.css?v=20261021-tablet1\">\n"
+        ],
+        [
+          67090,
+          67221,
+          "<link data-nww-startup-style rel=\"stylesheet\" data-nww-style-bundle=\"app-05\" href=\"./assets/styles/app-05.css?v=f7b7567b075a7aee\">\n"
+        ],
+        [
+          67297,
+          67346,
+          "  <div id=\"topBanner\">\n"
+        ],
+        [
+          81883,
+          82154,
+          "            <div class=\"layer-item\">\n              <div id=\"buildingsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show buildings above floodwater\"></div>\n"
+        ],
+        [
+          109814,
+          109913,
+          "  <script data-nww-script=\"script-004\" src=\"./assets/app/runtime.js?v=e7f03be2490aba76\"></script>\n  <script src=\"./assets/app/hydraulic-catalog.js?v=7ff5333da9ddbab8\"></script>\n"
+        ],
+        [
+          110020,
+          110060,
+          "<script data-nww-script=\"script-006\" src=\"./assets/app/alert-interaction.js?v=b02a3674db55dfda\"></script>\n"
+        ],
+        [
+          110360,
+          110460,
+          "<script data-nww-script=\"script-007\" src=\"./assets/app/town-config.js?v=d32e9ae6f99f43f2\"></script>\n"
+        ],
+        [
+          112285,
+          112325,
+          "<script id=\"county-buildings-20261015\" data-nww-script=\"script-009\" src=\"./assets/app/county-buildings.js?v=e5e8b97fc74cbcc7\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "36b0393fb29e852eccb594fda6e93fe5fc931b9d53e966b4469e1919ed43bdc8",
+      "afterSha256": "3378d0fc1f252a4720f820bee7f3a6795d85d868d1d61c839c63177f1cea5b7a",
+      "edits": [
+        [
+          2249,
+          2314,
+          "<link rel=\"stylesheet\" href=\"assets/avalon-mobile.css?v=20261021-tablet1\">\n"
+        ],
+        [
+          3093,
+          3168,
+          "<link rel=\"stylesheet\" href=\"assets/north-wildwood-controls.css?v=20261021-tablet1\">\n"
+        ],
+        [
+          8715,
+          8784,
+          "  <div id=\"topBanner\">\n"
+        ],
+        [
+          23357,
+          23647,
+          "            <div class=\"layer-item\">\n              <div id=\"buildingsToggle\" class=\"toggle\" role=\"switch\" tabindex=\"0\" aria-checked=\"false\" aria-label=\"Show buildings above floodwater\"></div>\n"
+        ],
+        [
+          51398,
+          51446,
+          "  <script src=\"./assets/app/hydraulic-catalog.js?v=shared\"></script>\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/00-configuration.js",
+      "beforeSha256": "51c4adf6897c01fccf355ca39cb6f8cf806d87cd74110cd8c8e46140ba5906ff",
+      "afterSha256": "5c490b414d21982241a57e8ab8f0d64e74be7908999b8d2dfb1738af9add5e02",
+      "edits": [
+        [
+          35722,
+          35769,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/04-observation-archives.js",
+      "beforeSha256": "47c92234e14e93a1affc61e7754c9ed901425458a68a659ebfa644026f9724a0",
+      "afterSha256": "d71a0bdeb1327b42242fa888a00a93a26916e096ae7d734d966b422d0420d1ff",
+      "edits": [
+        [
+          8972,
+          9053,
+          ""
+        ],
+        [
+          9097,
+          10595,
+          "      const indexRequest = preloadObservedArchiveIndexText();\n      let payload;\n      try {\n        payload = JSON.parse(await indexRequest);\n        if (generation !== archiveGeneration) throw new Error(\"Archive request superseded by Reload\");\n        if (observed15MinuteData) return observed15MinuteData;\n        addArchiveShardDays(payload, \"stone-harbor\", { summary: true });\n      } catch (indexError) {\n        if (generation !== archiveGeneration) throw indexError;\n        if (observedArchiveIndexTextPromise === indexRequest) observedArchiveIndexTextPromise = null;\n        console.warn(\"Optimized observed archive index unavailable; using the compact archive.\", indexError);\n        payload = await fetchJson(OBSERVED_15MIN_URL, { cache: \"default\" });\n        if (generation !== archiveGeneration) throw new Error(\"Archive request superseded by Reload\");\n        if (observed15MinuteData) return observed15MinuteData;\n        addArchiveShardDays(payload, \"stone-harbor\");\n      }\n      observed15MinuteData = payload;\n      return observed15MinuteData;\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/08-filling-and-drainage.js",
+      "beforeSha256": "d7210e36e5186b05fb3825e35dcea8c34c9dc789f815980f6e3d839743d07699",
+      "afterSha256": "c4332584b8e9e4bda77054a4eece36971f6aa5c80942c0ff05351eb5086f0b2d",
+      "edits": [
+        [
+          2332,
+          2332,
+          "    function isShallowFillingTransitionPixel(depthPixels, pixel) {\n      if (!depthPixels) return false;\n      const offset = pixel * 4;\n      const shallow = DRAINAGE_DEPTH_COLORS[0];\n      return depthPixels[offset + 3] > 0 &&\n        Math.abs(depthPixels[offset] - shallow[0]) <= 4 &&\n        Math.abs(depthPixels[offset + 1] - shallow[1]) <= 4 &&\n        Math.abs(depthPixels[offset + 2] - shallow[2]) <= 4;\n    }\n\n"
+        ],
+        [
+          3570,
+          3570,
+          "    }\n\n    function buildFillingTransitionQueue(\n      lowerPixels,\n      upperPixels,\n      developedPixels,\n      width,\n      height,\n      depthPixels = upperPixels\n    ) {\n      const pixelCount = width * height;\n      const candidateState = new Uint8Array(pixelCount);\n      const shallowState = new Uint8Array(pixelCount);\n      // The upper catalog raster is the authority for where the next tenth\n      // may flood. Restrict the in-between front to developed pixels and never\n      // invent water outside that authoritative mask.\n      for (let pixel = 0; pixel < pixelCount; pixel += 1) {\n        if (isFillingTransitionCandidate(lowerPixels, upperPixels, developedPixels, pixel)) {\n          candidateState[pixel] = 1;\n          if (isShallowFillingTransitionPixel(depthPixels, pixel)) shallowState[pixel] = 1;\n        }\n      }\n      const hasLowerWetNeighbour = pixel => {\n        const x = pixel % width;\n        const y = Math.floor(pixel / width);\n        return (x > 0 && isWetRasterPixel(lowerPixels, (pixel - 1) * 4)) ||\n          (x + 1 < width && isWetRasterPixel(lowerPixels, (pixel + 1) * 4)) ||\n          (y > 0 && isWetRasterPixel(lowerPixels, (pixel - width) * 4)) ||\n          (y + 1 < height && isWetRasterPixel(lowerPixels, (pixel + width) * 4));\n      };\n\n      const neighboursOf = pixel => {\n        const x = pixel % width;\n        const y = Math.floor(pixel / width);\n        const neighbours = [];\n        if (x > 0) neighbours.push(pixel - 1);\n        if (x + 1 < width) neighbours.push(pixel + 1);\n        if (y > 0) neighbours.push(pixel - width);\n        if (y + 1 < height) neighbours.push(pixel + width);\n        return neighbours;\n      };\n\n      // Feeder cells are deliberately encoded by the hydraulic generator as\n      // the 0.00-0.10 ft depth class. Reveal each source-connected shallow\n      // component before widening the surrounding basin. This preserves the\n      // visible source-to-basin trickle at fractional tenth-foot stages.\n      const shallowVisited = new Uint8Array(pixelCount);\n      const shallowComponents = [];\n      for (let pixel = 0; pixel < pixelCount; pixel += 1) {\n        if (shallowState[pixel] !== 1 || shallowVisited[pixel]) continue;\n        const members = [];\n        const componentQueue = [pixel];\n        let seed = -1;\n        shallowVisited[pixel] = 1;\n        for (let head = 0; head < componentQueue.length; head += 1) {\n          const current = componentQueue[head];\n          members.push(current);\n          if (seed < 0 && hasLowerWetNeighbour(current)) seed = current;\n          for (const neighbour of neighboursOf(current)) {\n            if (shallowState[neighbour] !== 1 || shallowVisited[neighbour]) continue;\n            shallowVisited[neighbour] = 1;\n            componentQueue.push(neighbour);\n          }\n        }\n        if (seed < 0) continue;\n\n        // Trace one shortest source-to-interior spine through the component.\n        // The upper depth raster already encodes the generator's feeder as\n        // shallow water, so this reaches the end of that feeder before area\n        // is spent widening its edges.\n        const memberSet = new Set(members);\n        const seeds = members.filter(hasLowerWetNeighbour);\n        const ordered = seeds.slice();\n        const predecessor = new Map(seeds.map(current => [current, -1]));\n        const distance = new Map(seeds.map(current => [current, 1]));\n        let farthest = seed;\n        for (let head = 0; head < ordered.length; head += 1) {\n          const current = ordered[head];\n          const currentDistance = distance.get(current);\n          if (currentDistance > distance.get(farthest) ||\n              (currentDistance === distance.get(farthest) && current < farthest)) {\n            farthest = current;\n          }\n          for (const neighbour of neighboursOf(current)) {\n            if (!memberSet.has(neighbour) || predecessor.has(neighbour)) continue;\n            predecessor.set(neighbour, current);\n            distance.set(neighbour, currentDistance + 1);\n            ordered.push(neighbour);\n          }\n        }\n        const spine = [];\n        for (let current = farthest; current >= 0; current = predecessor.get(current)) {\n          spine.push(current);\n        }\n        spine.reverse();\n        shallowComponents.push({ first: pixel, size: members.length, ordered, spine });\n      }\n\n      shallowComponents.sort((left, right) =>\n        right.size - left.size || left.first - right.first\n      );\n      const queue = [];\n      const queued = new Set();\n      for (const component of shallowComponents) {\n        for (const pixel of component.spine) {\n          queue.push(pixel);\n          queued.add(pixel);\n        }\n      }\n      for (const component of shallowComponents) {\n        for (const pixel of component.ordered) {\n          if (queued.has(pixel)) continue;\n          queue.push(pixel);\n          queued.add(pixel);\n        }\n      }\n\n      // Then expand through every remaining eligible pixel by sides. Filtering\n      // the shallow prefix out of this ordinary BFS keeps the result monotonic\n      // while preserving the same final upper-stage footprint.\n      const expansionQueue = [];\n      for (let pixel = 0; pixel < pixelCount; pixel += 1) {\n        if (candidateState[pixel] !== 1 || !hasLowerWetNeighbour(pixel)) continue;\n        candidateState[pixel] = 2;\n        expansionQueue.push(pixel);\n      }\n      for (let head = 0; head < expansionQueue.length; head += 1) {\n        const pixel = expansionQueue[head];\n        for (const neighbour of neighboursOf(pixel)) {\n          if (candidateState[neighbour] !== 1) continue;\n          candidateState[neighbour] = 2;\n          expansionQueue.push(neighbour);\n        }\n      }\n      for (const pixel of expansionQueue) {\n        if (!queued.has(pixel)) queue.push(pixel);\n      }\n      return queue;\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/runtime/23-refresh-and-playback.js",
+      "beforeSha256": "49227127d28719df3ccad3e99480dff3c4d55d083b4f1811f52ed29c2c9dea53",
+      "afterSha256": "c6a83bacb251391ec500446ef11e346f94f79b6d19afcb1c7b3ff956aaa2a64b",
+      "edits": [
+        [
+          5417,
+          5462,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-002.css",
+      "beforeSha256": "2ccb86436d7af5350728f48c6545da45b16a0d210a8d54553378149e80b65d54",
+      "afterSha256": "c56bbc7f9e7dd5158d32b18fd4f75cd22dd2eccf5caf37ca9c3956603d8848f9",
+      "edits": [
+        [
+          9728,
+          10018,
+          "  @media (min-width:901px) and (max-width:1199px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1199px) and (min-height:561px), (min-width:901px) and (max-width:1199px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1199px) and (pointer:fine), (min-width:901px) and (max-width:1199px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1199px) and (pointer:none) {\n"
+        ],
+        [
+          78200,
+          78490,
+          "  @media (min-width:901px) and (max-width:1320px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1320px) and (min-height:561px), (min-width:901px) and (max-width:1320px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1320px) and (pointer:fine), (min-width:901px) and (max-width:1320px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1320px) and (pointer:none) {\n"
+        ],
+        [
+          78556,
+          78846,
+          "  @media (min-width:901px) and (max-width:1120px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1120px) and (min-height:561px), (min-width:901px) and (max-width:1120px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1120px) and (pointer:fine), (min-width:901px) and (max-width:1120px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1120px) and (pointer:none) {\n"
+        ],
+        [
+          100878,
+          101258,
+          "@media(max-width:1100px) and (min-width:901px) and (not (any-pointer:coarse)), (max-width:1100px) and (min-width:1367px) {html body[data-floodmapper-reference] #mapTitleBadge #mapTitlePartnerLogo {width:64px!important;min-width:64px!important;height:28px!important;}html body[data-floodmapper-reference] #mapTitleBadge #mapTitleLogo[src]:not([src=\"\"]){width:30px!important;min-width:30px!important;height:30px!important;}}\n"
+        ],
+        [
+          121517,
+          121598,
+          " @media(min-width:901px) and (max-width:1200px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1200px) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-008.css",
+      "beforeSha256": "c3edaec8864edb0abd0cce80f92fcf355c0bcfe1d365c566dfa20c573af6ecdb",
+      "afterSha256": "8d4d965aa2771d8fa539fd54f31a3401900718153e88c3b911e831b73b74050d",
+      "edits": [
+        [
+          1825,
+          2117,
+          "    @media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {\n"
+        ],
+        [
+          2220,
+          2512,
+          "    @media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1120px) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-009.css",
+      "beforeSha256": "16be6b56a4b82ef3b2f2425166f5cfbeea6e101cf3549929727fbaf657113717",
+      "afterSha256": "4fa26212c74b69d6731a6ca4b31397d2699e109625810ba2f848943463d0dada",
+      "edits": [
+        [
+          90934,
+          90934,
+          "      .leaflet-control-zoom a{\n        width:38px !important;\n        height:38px !important;\n        line-height:38px !important;\n      }\n"
+        ],
+        [
+          100706,
+          100706,
+          "      body.mobile-controls-open #leftPanel{\n        transform:translateX(0) !important;\n      }\n"
+        ],
+        [
+          103368,
+          103368,
+          "      body.mobile-optimized.mobile-legend-open #legendDock .legend-row:nth-child(n+9){\n        display:grid !important;\n      }\n"
+        ],
+        [
+          106377,
+          106377,
+          "      #hourSlider{ height:3px !important; }\n"
+        ],
+        [
+          109505,
+          109505,
+          "      body.mobile-controls-open #leftPanel{\n        transform:translateX(0) !important;\n      }\n"
+        ],
+        [
+          109971,
+          109971,
+          "      .timeline-top{ display:none !important; }\n"
+        ],
+        [
+          110072,
+          110072,
+          "      .timeline-end,\n      .timeline-scale{ display:none !important; }\n      .timeline-trackRow{ grid-template-columns:1fr !important; }\n"
+        ],
+        [
+          112609,
+          112609,
+          "      body.mobile-optimized.mobile-legend-open #legendDock::before{\n        display:none !important;\n      }\n"
+        ],
+        [
+          125976,
+          125976,
+          "      body.mobile-optimized #legendDock[data-legend-mode=\"dynamic\"]::before{\n        background:linear-gradient(90deg,\n          var(--minor) 0 34%,\n          var(--moderate) 34% 67%,\n          var(--major) 67% 100%) !important;\n      }\n"
+        ],
+        [
+          246123,
+          246123,
+          "      body.mobile-optimized.mobile-controls-open #mobileDrawerBackdrop{\n        display:block !important;\n      }\n"
+        ],
+        [
+          249631,
+          249631,
+          "      body.mobile-optimized #rightRail{\n        display:none !important;\n      }\n"
+        ],
+        [
+          249632,
+          249632,
+          "      body.mobile-optimized #mobileRailMount{\n        display:grid !important;\n        gap:8px !important;\n      }\n"
+        ],
+        [
+          276149,
+          276149,
+          "      body.mobile-optimized #timelineDock .timeline-key-item::after{\n        font-size:10px !important;\n      }\n"
+        ],
+        [
+          334209,
+          334209,
+          "      :root{ --pj-long-pill-h:108px; }\n"
+        ],
+        [
+          336663,
+          336663,
+          "      body.mobile-optimized #timelineDock .timeline-key-item::after{\n        font-size:9px !important;\n      }\n"
+        ],
+        [
+          358385,
+          358385,
+          "      body.mobile-optimized .timeline-bubble-edge{ font-size:7.5px !important; }\n      body.mobile-optimized .timeline-bubble-current{ font-size:9px !important; }\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-019.css",
+      "beforeSha256": "e569989cac6d48346786c6bf268e7240989f1ac62550fbc8c2af72b296439961",
+      "afterSha256": "87dde18f21ed0f0ea62319c69d6276e07cbf87b0afe7f91c1a31f8d25a1f4a52",
+      "edits": [
+        [
+          1818,
+          2106,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-021.css",
+      "beforeSha256": "580304f44f07c025101c3348ac9581d1057be3b590473d8c42371cd9aad9e295",
+      "afterSha256": "ab30d2560072d980cd0add3e547db3684be0faa412a1977a8e555422eccd4bd2",
+      "edits": [
+        [
+          3440,
+          3440,
+          "  html body #leftPanel > .data-source-card{ order:1 !important; }\n  html body #leftPanel > .forecast-scenario-card{ order:2 !important; }\n"
+        ],
+        [
+          3728,
+          3728,
+          "  html body #leftPanel > #calendarCard{ order:2 !important; }\n  html body #leftPanel > .overlay-card{ order:3 !important; }\n  html body #leftPanel > .datum-card{ order:4 !important; }\n  html body #leftPanel > .opacity-card{ order:5 !important; }\n  html body #leftPanel > #legendDock{ order:6 !important; }\n"
+        ],
+        [
+          7162,
+          7162,
+          "  }\n  html body.observed-mode #leftPanel .calendar-key,\n  html body.observed-mode.calendar-picker-open #leftPanel .calendar-key{\n    gap:5px !important;\n    margin-top:3px !important;\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-023.css",
+      "beforeSha256": "79e7af5fc4e4f494598ffe42a3f65053e201f39a94d3590d17dba67bd413a0da",
+      "afterSha256": "9dbb822c4d03992431d02a3c2b193c2e79d8eb16581821745f2876059fa659d7",
+      "edits": [
+        [
+          1271,
+          1271,
+          "html body #rightRail .right-logo-card .right-logo-link{\n  display:flex !important;\n  align-items:center !important;\n  justify-content:center !important;\n  width:100% !important;\n  height:100% !important;\n  overflow:visible !important;\n}\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-029.css",
+      "beforeSha256": "5bf7ae7a6829328750633dc45ed815b03cfbabcc26541a75d128bb7c65803cf2",
+      "afterSha256": "231e699122fce70d518a60b2fa3e081324f7b746c6dbd9d8c155e81a579809a8",
+      "edits": [
+        [
+          3556,
+          3844,
+          "@media (min-width:901px) and (max-width:1280px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1280px) and (min-height:561px), (min-width:901px) and (max-width:1280px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1280px) and (pointer:fine), (min-width:901px) and (max-width:1280px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1280px) and (pointer:none) {\n"
+        ],
+        [
+          5107,
+          5395,
+          "@media (min-width:901px) and (max-width:1080px) and (min-height:561px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1080px) and (min-height:561px), (min-width:901px) and (max-width:1080px) and (pointer:fine) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1080px) and (pointer:fine), (min-width:901px) and (max-width:1080px) and (pointer:none) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1080px) and (pointer:none) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-031.css",
+      "beforeSha256": "a823835c83a5ebcbe8dae1812585f11a2b95edc14f21cacafd80f624624ef836",
+      "afterSha256": "c0601d61a8d168c85b15827ba10d20b5addd6ab630f89a1d99510b964a8498b3",
+      "edits": [
+        [
+          2079,
+          2079,
+          "html body #timelineBubble::after,\nhtml body.observed-mode #timelineBubble::after,\nhtml.os-mac body #timelineBubble::after,\nhtml.os-windows body #timelineBubble::after,\nhtml.win-compact-ui body #timelineBubble::after{\n  bottom:-10px !important;\n  border-left-width:10px !important;\n  border-right-width:10px !important;\n  border-top-width:10px !important;\n}\n"
+        ],
+        [
+          3451,
+          3451,
+          "  html body #timelineBubble::after,\n  html body.observed-mode #timelineBubble::after{\n    bottom:-8px !important;\n    border-left-width:8px !important;\n    border-right-width:8px !important;\n    border-top-width:8px !important;\n  }\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-034.css",
+      "beforeSha256": "d0c7a62e396bf9536274204bd8bf56eb1482372239fe1fd551d810481834878f",
+      "afterSha256": "7fcbb1183241c1154627427e3e776c318020f28ea42c66768008f52ddc668ad0",
+      "edits": [
+        [
+          2491,
+          2491,
+          "  html body #leftPanel > .data-source-card{ order:1 !important; }\n"
+        ],
+        [
+          2625,
+          2625,
+          "  html body #leftPanel > .overlay-card{ order:3 !important; }\n  html body #leftPanel > .datum-card{ order:4 !important; }\n  html body #leftPanel > .opacity-card{ order:5 !important; }\n"
+        ],
+        [
+          4294,
+          4294,
+          "  html body.observed-mode #leftPanel .calendar-head,\n  html body.observed-mode #leftPanel .calendar-grid,\n  html body.observed-mode.calendar-picker-open #leftPanel .calendar-head,\n  html body.observed-mode.calendar-picker-open #leftPanel .calendar-grid{\n    gap:3px !important;\n  }\n"
+        ],
+        [
+          15678,
+          15966,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {\n"
+        ],
+        [
+          16049,
+          16337,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1120px) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-037.css",
+      "beforeSha256": "ad0f248dfd6c02d069337cb28d32209787939e23b8257573a1fa5e3156eb9dce",
+      "afterSha256": "ce908eb7125cf6df623d87903ed234e8d7a0befcddee16103d48a83ee0475643",
+      "edits": [
+        [
+          10540,
+          10828,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {\n"
+        ],
+        [
+          10911,
+          11199,
+          "@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1120px) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/styles/style-076.css",
+      "beforeSha256": "7f2205f5f217613cf4cae1344095a0292de49488464641eb4dcc4b47ffffce17",
+      "afterSha256": "6667256060d63206662e66220902c0d5dbb1c24b543d9d9e733369849e90abd8",
+      "edits": [
+        [
+          5265,
+          5348,
+          "  @media (min-width:901px) and (max-width:1200px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1200px) {\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/town-config.js",
+      "beforeSha256": "d32e9ae6f99f43f2a3dc01a54b73675cd088360d0ace59ae5efcbe39f45fa223",
+      "afterSha256": "c14b5f7c1ddaedeafafe6c8b395abbcd607ae2a6d81ad01fd59e29a07c39a5e1",
+      "edits": [
+        [
+          425,
+          629,
+          "installFloodDataReaders(TOWN_CONFIG);\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app_source.cjs",
+      "beforeSha256": "8b52ddc842d3125782ae8d7d8ad10b8e02f0e9702fed97bc41b6971825848f35",
+      "afterSha256": "2c6e5fdc377e707a41732ee6ff50245f95d9c211d7a536a21174b1d0d7cf6eca",
+      "edits": [
+        [
+          1845,
+          2203,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "tools/build_north_wildwood_app.mjs",
+      "beforeSha256": "c49a6676de0e5c3565196cec3ef9a78f16cf93b0398de7671129a7c5a4b11032",
+      "afterSha256": "e84bdb6d59aed3cb4a22f21d63a904be1fa67b1e951e25ee024d6ffde5db2138",
+      "edits": [
+        [
+          707,
+          799,
+          ""
+        ],
+        [
+          1242,
+          1727,
+          ""
+        ],
+        [
+          1953,
+          2189,
+          ""
+        ],
+        [
+          2302,
+          2435,
+          ""
+        ],
+        [
+          3814,
+          4125,
+          "  replacements.set(`<!-- nww:script:${entry.id} -->`, `${open}${entry.closeTag}`);\n"
+        ],
+        [
+          4128,
+          4149,
+          "let html = fs.readFileSync(path.join(root, 'tools/app/index.template.html'), 'utf8');\n"
+        ]
+      ]
+    }
+  ]
+}

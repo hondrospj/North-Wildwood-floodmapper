@@ -59,9 +59,7 @@ for (const name of [
   "getFillingTransitionBlend",
   "isDevelopedRasterPixel",
   "isFillingTransitionCandidate",
-  "isShallowFillingTransitionPixel",
   "getFillingTransitionPixelDepth",
-  "buildFillingTransitionQueue",
   "applyFillingTransitionPixels",
 ]) {
   vm.runInContext(`${extractFunction(name)}; globalThis.${name} = ${name};`, context);

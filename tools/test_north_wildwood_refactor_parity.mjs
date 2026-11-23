@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const MAPPER_BLOAT_PATH = "tools/fixtures/north-wildwood-20261123-mapper-bloat.json";
+const priorMapperBloatSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mapper-bloat-snapshot");
+const mapperBloatText = fs.readFileSync(localPath(MAPPER_BLOAT_PATH));
+assert.equal(hashReleaseBytes(mapperBloatText), "bfad88e6054a65dc0f1889fa51e3cdfc446e689c4e9d96eb0cc96ccafbbf343e", "Retain the exact mapper bloat inverse");
+const mapperBloat = JSON.parse(mapperBloatText);
+assert.equal(mapperBloat.schemaVersion, 1);
+assert.equal(mapperBloat.baselineCommit, "d5b7a6179efa2d090545b70ca6ade3aa544b580e");
+const mapperBloatFiles = new Map(mapperBloat.files.map(entry => [entry.source, entry]));
 const TIMELINE_PANEL_PATH = "tools/fixtures/north-wildwood-20261123-timeline-panel.json";
 const priorTimelinePanelSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-timeline-panel-snapshot");
 const timelinePanelText = fs.readFileSync(localPath(TIMELINE_PANEL_PATH));
@@ -87,8 +95,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeTimelinePanel(relative) {
+function readBeforeMapperBloat(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = mapperBloatFiles.get(relative);
+  return priorMapperBloatSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "mapper bloat cleanup");
+}
+if (!priorMapperBloatSnapshot) {
+  for (const file of mapperBloat.files) readBeforeMapperBloat(file.source);
+}
+
+function readBeforeTimelinePanel(relative) {
+  const bytes = readBeforeMapperBloat(relative);
   const entry = timelinePanelFiles.get(relative);
   return priorTimelinePanelSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "timeline panel");
 }
@@ -2813,6 +2830,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      MAPPER_BLOAT_PATH, ...mapperBloat.files.map(file => file.source),
       TIMELINE_PANEL_PATH, ...timelinePanel.files.map(file => file.source),
       TIMELINE_CONTROLS_PATH, ...timelineControls.files.map(file => file.source),
       TIMELINE_KEY_PATH, ...timelineKey.files.map(file => file.source),
@@ -2834,7 +2852,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeTimelinePanel = (args = []) => runRelease(["--prior-timeline-panel-snapshot", ...args]);
+    const runBeforeMapperBloat = (args = []) => runRelease(["--prior-mapper-bloat-snapshot", ...args]);
+    const runBeforeTimelinePanel = (args = []) => runBeforeMapperBloat(["--prior-timeline-panel-snapshot", ...args]);
     const runBeforeTimelineControls = (args = []) => runBeforeTimelinePanel(["--prior-timeline-controls-snapshot", ...args]);
     const runBeforeTimelineKey = (args = []) => runBeforeTimelineControls(["--prior-timeline-key-snapshot", ...args]);
     const runBeforeTimelinePill = (args = []) => runBeforeTimelineKey(["--prior-timeline-pill-snapshot", ...args]);
@@ -2858,12 +2877,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered mapper bloat inverse", path.join(scratch, MAPPER_BLOAT_PATH), Buffer.concat([mapperBloatText, Buffer.from(" ")])],
+      ...mapperBloat.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed mapper bloat byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of mapperBloat.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeMapperBloat(file.source));
+    assert.equal(runBeforeMapperBloat().status, 0, "The restored application before the mapper cleanup must pass");
+    assertMutationsRejected([
       ["altered timeline panel inverse", path.join(scratch, TIMELINE_PANEL_PATH), Buffer.concat([timelinePanelText, Buffer.from(" ")])],
       ...timelinePanel.files.map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed timeline panel byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeMapperBloat);
     for (const file of timelinePanel.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeTimelinePanel(file.source));
     assert.equal(runBeforeTimelinePanel().status, 0, "The restored application before the timeline panel change must pass");
     assertMutationsRejected([
@@ -3600,7 +3628,8 @@ if (process.argv.includes("--self-test")) {
     const timelineKeyCases = timelineKey.files.length + 1;
     const timelineControlsCases = timelineControls.files.length + 1;
     const timelinePanelCases = timelinePanel.files.length + 1;
-    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases + runtimeAuditCases + timelineKeyCases + timelineControlsCases + timelinePanelCases} dropped, moved, altered or stale artifacts were rejected.`);
+    const mapperBloatCases = mapperBloat.files.length + 1;
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases + runtimeAuditCases + timelineKeyCases + timelineControlsCases + timelinePanelCases + mapperBloatCases} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

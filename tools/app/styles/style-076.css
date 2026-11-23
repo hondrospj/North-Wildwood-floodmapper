@@ -35,7 +35,7 @@
     html body[data-floodmapper-unified]:not(.mobile-optimized) #townAddressForm label {font-size:10px!important;line-height:1.1!important;margin-bottom:3px!important;}
     html body[data-floodmapper-unified]:not(.mobile-optimized) #legendDock :is(.legend-labels,.depth-legend-labels) {font-size:11px!important;}
   }
-  @media (min-width:901px) and (max-width:1200px) and (not (any-pointer:coarse)), (min-width:1367px) and (max-width:1200px) {
+  @media (min-width:901px) and (max-width:1200px) and (not (any-pointer:coarse)) {
     html body[data-floodmapper-unified]:not(.mobile-optimized) #mapTitleBadge #mapTitleText {font-size:20px!important;}
   }
 }

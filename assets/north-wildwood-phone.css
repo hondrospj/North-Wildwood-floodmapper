@@ -902,6 +902,8 @@
     html.county-compact[data-nww-phone] body :is(#legendDock, #nwwMobileUtilities #mapTitleBadge, #nwwMobileUtilities .nww-mobile-actions) { border-color: ButtonText !important; }
     html[data-nww-phone] body #nwwMobileUtilities .nww-mobile-actions > button[aria-expanded="true"] { border-color: Highlight !important; }
     html[data-nww-phone] body #timelineDock #playBtn .playTriangle { border-left-color: ButtonText !important; }
+    html[data-nww-phone] body #timelineDock #playBtn .pauseIcon::before,
+    html[data-nww-phone] body #timelineDock #playBtn .pauseIcon::after { background: ButtonText !important; }
     html[data-nww-phone] body #timelineDock :is(#playBtn.is-playing, #timelineSpeedBtn[aria-pressed="true"]) {
       border-color: Highlight !important;
       outline: 1px solid Highlight;

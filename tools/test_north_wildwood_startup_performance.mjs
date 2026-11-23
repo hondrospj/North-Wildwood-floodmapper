@@ -41,7 +41,6 @@ assert.deepEqual(parserBlockingScripts, [
   "https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js",
   `assets/road-labels.js?v=${roadVersion}`,
   `./assets/app/raster-readers.js?v=${contentVersion(readAsset("assets/app/raster-readers.js"))}`,
-  `./assets/app/hydraulic-catalog.js?v=${contentVersion(readAsset("assets/app/hydraulic-catalog.js"))}`,
   `./assets/3d/north-wildwood-3d.js?v=${rendererVersion}`,
   `./assets/road-impacts.js?v=${roadImpactsVersion}`,
   "assets/avalon-mobile.js?v=20261026-holistic1",
@@ -49,7 +48,9 @@ assert.deepEqual(parserBlockingScripts, [
 ]);
 
 const html = readAsset("index.html");
-assert.doesNotMatch(html, /\b(?:src|href)="[^"]*(?:\/proj4\.js|\/elevation-contours\.js)\b/);
+assert.doesNotMatch(html, /\b(?:src|href)="[^"]*\/(?:hydraulic-catalog|proj4|elevation-contours|alert-interaction|county-buildings)\.js\b/);
+assert.match(html, /<div id="topBanner" hidden aria-hidden="true">/);
+assert.match(html, /<div class="layer-item" title="Show buildings in the current map view\.">\s*<div id="buildingsToggle"[^>]*aria-label="Show buildings" title="Show buildings in the current map view\.">/);
 assert.match(html, /<template id="elevationContoursTemplate">/);
 
 assert.match(source, /const OPTIONAL_SCRIPT_URLS = \{[\s\S]+html2canvas[\s\S]+jszip[\s\S]+geotiff/);

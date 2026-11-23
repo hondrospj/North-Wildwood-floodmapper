@@ -38,7 +38,7 @@ assert.throws(()=>cache.addArchiveShardDays({...primary,schema:'north-wildwood-o
 
 
 const compact=context(['ensureObserved15MinuteArchive'],{
-  observed15MinuteData:null,OBSERVED_15MIN_URL:'fallback',observedArchiveIndexTextPromise:null,
+  observed15MinuteData:null,observed15MinuteArchivePromise:null,OBSERVED_15MIN_URL:'fallback',observedArchiveIndexTextPromise:null,
   TOWN_CONFIG:{observed:{usgsGaugeId:'01411360'}},
   async preloadObservedArchiveIndexText(){throw Error('index unavailable')},
   async fetchJson(){return {...primary,stationId:'1005'}},

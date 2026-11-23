@@ -94,8 +94,6 @@
   }
 
 
-  html body #leftPanel > .data-source-card{ order:1 !important; }
-  html body #leftPanel > .forecast-scenario-card{ order:2 !important; }
   html body.observed-mode #leftPanel > .forecast-scenario-card{
     display:none !important;
     height:0 !important;
@@ -106,11 +104,6 @@
     border:0 !important;
     overflow:hidden !important;
   }
-  html body #leftPanel > #calendarCard{ order:2 !important; }
-  html body #leftPanel > .overlay-card{ order:3 !important; }
-  html body #leftPanel > .datum-card{ order:4 !important; }
-  html body #leftPanel > .opacity-card{ order:5 !important; }
-  html body #leftPanel > #legendDock{ order:6 !important; }
 
 
   html body #leftPanel > .snapshot-card,
@@ -202,11 +195,6 @@
     border-radius:12px !important;
     font-size:13px !important;
     font-weight:900 !important;
-  }
-  html body.observed-mode #leftPanel .calendar-key,
-  html body.observed-mode.calendar-picker-open #leftPanel .calendar-key{
-    gap:5px !important;
-    margin-top:3px !important;
   }
   html body.observed-mode #leftPanel .calendar-key-item,
   html body.observed-mode.calendar-picker-open #leftPanel .calendar-key-item{

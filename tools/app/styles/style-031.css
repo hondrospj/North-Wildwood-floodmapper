@@ -60,16 +60,6 @@ html.win-compact-ui body #timelineBubble .timeline-bubble-stage{
   flex:0 0 auto !important;
 }
 
-html body #timelineBubble::after,
-html body.observed-mode #timelineBubble::after,
-html.os-mac body #timelineBubble::after,
-html.os-windows body #timelineBubble::after,
-html.win-compact-ui body #timelineBubble::after{
-  bottom:-10px !important;
-  border-left-width:10px !important;
-  border-right-width:10px !important;
-  border-top-width:10px !important;
-}
 
 html body #timelineDock,
 html body.observed-mode #timelineDock,
@@ -114,13 +104,6 @@ html.win-compact-ui body #timelineDock{
     padding:3px 9px 4px !important;
   }
 
-  html body #timelineBubble::after,
-  html body.observed-mode #timelineBubble::after{
-    bottom:-8px !important;
-    border-left-width:8px !important;
-    border-right-width:8px !important;
-    border-top-width:8px !important;
-  }
 }
 
 @media (max-width:420px){

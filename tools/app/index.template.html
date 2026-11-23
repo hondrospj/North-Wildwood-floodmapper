@@ -51,7 +51,7 @@
 
 <!-- nww:style:style-007 -->
 
-<link rel="stylesheet" href="assets/avalon-mobile.css?v=20261021-tablet1">
+<link rel="stylesheet" href="assets/avalon-mobile.css?v=shared">
 <link rel="stylesheet" href="assets/north-wildwood-timeline.css?v=20261021-tablet1">
 <!-- nww:script:script-002 -->
 
@@ -73,7 +73,7 @@
 <link rel="stylesheet" href="assets/north-wildwood-mobile.css?v=20261026-holistic1">
 <!-- nww:style:style-012 -->
 <link rel="stylesheet" href="assets/north-wildwood-layers.css?v=20261021-tablet1">
-<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=20261021-tablet1">
+<link rel="stylesheet" href="assets/north-wildwood-controls.css?v=shared">
 <link rel="stylesheet" href="assets/north-wildwood-calendar.css?v=20261021-tablet1">
 <link rel="stylesheet" href="assets/export-date-time-picker.css?v=9a8f640254cba6b4">
 <link rel="stylesheet" href="assets/north-wildwood-type.css?v=20261021-tablet1">
@@ -190,7 +190,7 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
   <img id="startupMapPreview" src="<!-- floodmapper:startup-map-image -->" alt="" aria-hidden="true" data-html2canvas-ignore="true" fetchpriority="high" elementtiming="north-wildwood-startup-map" style="position:fixed;inset:0;width:100vw;height:100dvh;object-fit:cover;pointer-events:none">
   <!-- floodmapper:startup-resources -->
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
-  <div id="topBanner">
+  <div id="topBanner"<!-- floodmapper:disabled-alert-attributes -->>
     <div class="banner-text">
       <div class="banner-eyebrow">Flood alert <span id="bannerCount">0 active</span></div>
       <div id="bannerTitle" class="banner-title">Checking alerts</div>
@@ -430,8 +430,8 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
                 <div class="layer-name">Satellite</div>
               </div>
             </div>
-            <div class="layer-item">
-              <div id="buildingsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Show buildings above floodwater"></div>
+            <div class="layer-item"<!-- floodmapper:native-buildings-title -->>
+              <div id="buildingsToggle" class="toggle" role="switch" tabindex="0" aria-checked="false" aria-label="<!-- floodmapper:buildings-toggle-label -->"<!-- floodmapper:native-buildings-title -->></div>
               <div class="layer-meta title-with-help">
                 <div class="layer-name">Buildings</div>
               </div>
@@ -854,7 +854,7 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
 
   <script src="./assets/app/raster-readers.js?v=shared"></script>
   <!-- nww:script:script-004 -->
-  <script src="./assets/app/hydraulic-catalog.js?v=shared"></script>
+<!-- floodmapper:optional-hydraulic-catalog -->
 
 <!-- nww:script:script-005 -->
 

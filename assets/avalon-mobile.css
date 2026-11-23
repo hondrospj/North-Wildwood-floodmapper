@@ -21,7 +21,6 @@
     }
     #mapTitleBadge #mapTitleText { font-size:17px !important; line-height:1.2 !important; letter-spacing:0 !important; white-space:nowrap !important; min-width:0 !important; margin:0 auto !important; max-width:calc(100% - 72px) !important; }
     #mapTitleBadge #mapTitleLogo { position:absolute !important; left:12px !important; display:block !important; width:30px !important; height:30px !important; min-width:30px !important; max-width:30px !important; object-fit:contain !important; }
-    #mapTitleBadge #mapTitlePartnerLogo { display:none !important; }
     #mobileControlsToggle, #legendDock {
       position:fixed !important; top:calc(60px + env(safe-area-inset-top)) !important; bottom:auto !important;
       height:44px !important; min-height:44px !important; max-height:44px !important; margin:0 !important;

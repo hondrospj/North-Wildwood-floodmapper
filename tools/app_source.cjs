@@ -32,6 +32,12 @@ function readAppSource(input = path.join(__dirname, '..', 'index.html')) {
   }
   for (const entry of manifest.scripts) {
     const pattern = new RegExp(`<script\\b[^>]*data-nww-script="${entry.id}"[^>]*>[\\s\\S]*?<\\/script>`);
+    // An explicit build marker distinguishes a profile-disabled script from
+    // a missing asset. Keep the reconstructed page faithful to what loads.
+    if (expanded.includes(`<!-- nww:script-disabled:${entry.id} -->`)) {
+      if (pattern.test(expanded)) throw new Error(`Built script block is enabled and disabled: ${entry.id}`);
+      continue;
+    }
     if (!pattern.test(expanded)) throw new Error(`Missing built script block: ${entry.id}`);
     const body = fs.readFileSync(path.join(root, entry.output), 'utf8');
     expanded = expanded.replace(pattern, () => entry.openTag + body + entry.closeTag);

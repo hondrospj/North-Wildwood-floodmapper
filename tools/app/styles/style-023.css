@@ -49,14 +49,6 @@ html body #rightRail .right-logo-card{
   padding:12px !important;
 }
 
-html body #rightRail .right-logo-card .right-logo-link{
-  display:flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  width:100% !important;
-  height:100% !important;
-  overflow:visible !important;
-}
 
 html body #rightRail .right-logo-card .right-rail-logo,
 html body #rightRail .right-logo-card .shorelysafe-logo{

@@ -11,18 +11,28 @@ const replacements = new Map();
 const readSources = entry => entry.sources.map(source => fs.readFileSync(path.join(root, source), 'utf8')).join('');
 const version = text => crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
 const town = JSON.parse(fs.readFileSync(path.join(root, 'tools/app/town-profile.json'), 'utf8'));
+const template = fs.readFileSync(path.join(root, 'tools/app/index.template.html'), 'utf8');
 const htmlEscape = text => String(text).replace(/[&<>"']/g, char =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 const embeddedJson = value => JSON.stringify(value).replace(/[<&]/g, char =>
   char === '<' ? '\\u003c' : '\\u0026');
 const hasElevationContours = Boolean(town.config.assets?.elevationContoursPath);
 const needsProj4 = hasElevationContours || Boolean(town.config.overlays?.legacyExactQuery);
+const needsFloodDataReaders = town.config.compatibility.hydraulicCatalog !== 'v29' ||
+  town.config.data.observedFormat === 'days' || Boolean(town.config.structures?.certifiedFirstFloorsPath);
+const alertsDisabled = town.config.alerts?.enabled === false;
+const hasNativeBuildings = Boolean(town.config.structures?.buildings3dPath) && template.includes(' id="buildingsToggle"');
+const nativeBuildingsTitle = hasNativeBuildings ? ' title="Show buildings in the current map view."' : '';
 for (const [tag, value] of Object.entries({
   'profile': embeddedJson(town.config),
   'webcams': embeddedJson(town.webcams),
   'page-title': htmlEscape(town.config.pageTitle),
   'town-name': htmlEscape(town.config.site.name),
+  'disabled-alert-attributes': alertsDisabled ? ' hidden aria-hidden="true"' : '',
+  'buildings-toggle-label': hasNativeBuildings ? 'Show buildings' : 'Show buildings above floodwater',
+  'native-buildings-title': nativeBuildingsTitle,
   'startup-loader-css': fs.readFileSync(path.join(root, 'assets/north-wildwood-loading.css'), 'utf8').trimEnd(),
+  'optional-hydraulic-catalog': needsFloodDataReaders ? '  <script src="./assets/app/hydraulic-catalog.js?v=shared"></script>' : '',
   'optional-proj4': needsProj4 ? '<script src="https://unpkg.com/proj4@2.11.0/dist/proj4.js" defer></script>' : '',
   'optional-elevation-contours': hasElevationContours ? '<script src="./assets/3d/elevation-contours.js?v=shared" defer></script>' : '',
 })) replacements.set(`<!-- floodmapper:${tag} -->`, value);
@@ -45,10 +55,14 @@ for (const entry of manifest.scripts) {
   // In particular, the domain fragments compile into ONE runtime scope so
   // function hoisting, lexical bindings and microtask checkpoints stay intact.
   const open = entry.openTag.replace(/>$/, ` data-nww-script="${entry.id}" src="./${entry.output}?v=${version(source)}">`);
-  replacements.set(`<!-- nww:script:${entry.id} -->`, `${open}${entry.closeTag}`);
+  const omit = (entry.output === 'assets/app/alert-interaction.js' && alertsDisabled) ||
+    (entry.output === 'assets/app/county-buildings.js' && hasNativeBuildings);
+  replacements.set(`<!-- nww:script:${entry.id} -->`, omit
+    ? `<!-- nww:script-disabled:${entry.id} -->`
+    : `${open}${entry.closeTag}`);
 }
 
-let html = fs.readFileSync(path.join(root, 'tools/app/index.template.html'), 'utf8');
+let html = template;
 const tokens = html.match(/<!-- nww:(?:style|script):[^ ]+ -->/g) || [];
 if (tokens.length !== manifest.styles.length + manifest.scripts.length || new Set(tokens).size !== tokens.length) {
   throw new Error('Application template must contain every manifest block exactly once.');

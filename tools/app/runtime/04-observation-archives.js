@@ -183,25 +183,34 @@
 
     async function ensureObserved15MinuteArchive() {
       if (observed15MinuteData) return observed15MinuteData;
+      if (observed15MinuteArchivePromise) return observed15MinuteArchivePromise;
       const generation = archiveGeneration;
-      const indexRequest = preloadObservedArchiveIndexText();
-      let payload;
-      try {
-        payload = JSON.parse(await indexRequest);
-        if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-        if (observed15MinuteData) return observed15MinuteData;
-        addArchiveShardDays(payload, "stone-harbor", { summary: true });
-      } catch (indexError) {
-        if (generation !== archiveGeneration) throw indexError;
-        if (observedArchiveIndexTextPromise === indexRequest) observedArchiveIndexTextPromise = null;
-        console.warn("Optimized observed archive index unavailable; using the compact archive.", indexError);
-        payload = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
-        if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
-        if (observed15MinuteData) return observed15MinuteData;
-        addArchiveShardDays(payload, "stone-harbor");
-      }
-      observed15MinuteData = payload;
-      return observed15MinuteData;
+      // Ranking and replay can both request the archive while the index is
+      // pending. Share validation and the compact fallback as well as the index.
+      const request = (async () => {
+        const indexRequest = preloadObservedArchiveIndexText();
+        let payload;
+        try {
+          payload = JSON.parse(await indexRequest);
+          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+          if (observed15MinuteData) return observed15MinuteData;
+          addArchiveShardDays(payload, "stone-harbor", { summary: true });
+        } catch (indexError) {
+          if (generation !== archiveGeneration) throw indexError;
+          if (observedArchiveIndexTextPromise === indexRequest) observedArchiveIndexTextPromise = null;
+          console.warn("Optimized observed archive index unavailable; using the compact archive.", indexError);
+          payload = await fetchJson(OBSERVED_15MIN_URL, { cache: "default" });
+          if (generation !== archiveGeneration) throw new Error("Archive request superseded by Reload");
+          if (observed15MinuteData) return observed15MinuteData;
+          addArchiveShardDays(payload, "stone-harbor");
+        }
+        observed15MinuteData = payload;
+        return observed15MinuteData;
+      })().finally(() => {
+        if (observed15MinuteArchivePromise === request) observed15MinuteArchivePromise = null;
+      });
+      observed15MinuteArchivePromise = request;
+      return request;
     }
 
     async function ensureLewesHourlyArchive() {

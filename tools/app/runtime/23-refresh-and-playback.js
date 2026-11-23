@@ -127,6 +127,7 @@
       forecastData = null;
       returnIntervalData = null;
       observed15MinuteData = null;
+      observed15MinuteArchivePromise = null;
       observedArchiveIndexTextPromise = null;
       observed15MinuteDaysByDate = new Map();
       lewesHourlyDaysByDate = new Map();

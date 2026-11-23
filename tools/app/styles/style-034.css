@@ -66,12 +66,8 @@
     transform:none !important;
   }
 
-  html body #leftPanel > .data-source-card{ order:1 !important; }
   html body #leftPanel > .forecast-scenario-card{ order:2 !important; }
   html body #leftPanel > #calendarCard{ order:2 !important; }
-  html body #leftPanel > .overlay-card{ order:3 !important; }
-  html body #leftPanel > .datum-card{ order:4 !important; }
-  html body #leftPanel > .opacity-card{ order:5 !important; }
   html body #leftPanel > #legendDock{ order:6 !important; }
   html body #leftPanel > .snapshot-card{ order:7 !important; }
   html body #leftPanel > .mobile-top-tides-card{ order:8 !important; }
@@ -119,12 +115,6 @@
     line-height:1 !important;
   }
 
-  html body.observed-mode #leftPanel .calendar-head,
-  html body.observed-mode #leftPanel .calendar-grid,
-  html body.observed-mode.calendar-picker-open #leftPanel .calendar-head,
-  html body.observed-mode.calendar-picker-open #leftPanel .calendar-grid{
-    gap:3px !important;
-  }
 
   html body.observed-mode #leftPanel .calendar-head div,
   html body.observed-mode.calendar-picker-open #leftPanel .calendar-head div{
@@ -480,14 +470,14 @@
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1320px), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1320px), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1320px) {
+@media (min-width:901px) and (min-height:561px) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:fine) and (max-width:1320px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:none) and (max-width:1320px) and (not (any-pointer:coarse)) {
   :root{
     --pj-fixed-left-width:340px;
     --pj-fixed-right-width:244px;
   }
 }
 
-@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (min-height:561px) and (max-width:1120px), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:fine) and (max-width:1120px), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:1367px) and (pointer:none) and (max-width:1120px) {
+@media (min-width:901px) and (min-height:561px) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:fine) and (max-width:1120px) and (not (any-pointer:coarse)), (min-width:901px) and (pointer:none) and (max-width:1120px) and (not (any-pointer:coarse)) {
   :root{
     --pj-fixed-left-width:320px;
     --pj-fixed-right-width:228px;

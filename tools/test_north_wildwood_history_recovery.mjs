@@ -35,7 +35,7 @@ for (const phase of ['headers', 'body']) {
       setTimeout(fn, ms) { const id = ++nextTimer; timers.set(id, {fn, ms}); return id; },
       clearTimeout(id) { timers.delete(id); }
     },
-    observedArchiveIndexTextPromise: null, observed15MinuteData: null, archiveGeneration: 0,
+    observedArchiveIndexTextPromise: null, observed15MinuteArchivePromise: null, observed15MinuteData: null, archiveGeneration: 0,
     OBSERVED_ARCHIVE_INDEX_URL: 'index.json', OBSERVED_15MIN_URL: 'compact.json',
     TOWN_CONFIG: {observed: {usgsGaugeId: '01411360'}},
     fetch(url, options) {
@@ -60,6 +60,61 @@ for (const phase of ['headers', 'body']) {
   c.fetch = async () => ({ok: true, text: async () => JSON.stringify(compact)});
   assert.equal(await c.preloadObservedArchiveIndexText(), JSON.stringify(compact));
   assert.equal(timers.size, 0);
+  cases++;
+}
+
+for (const failIndex of [false, true]) {
+  const index = deferred(), fallback = deferred();
+  let fallbackRequests = 0, commits = 0;
+  const c = create(['ensureObserved15MinuteArchive'], {
+    archiveGeneration: 0, observed15MinuteData: null, observed15MinuteArchivePromise: null,
+    observedArchiveIndexTextPromise: index.promise, OBSERVED_15MIN_URL: 'compact.json',
+    preloadObservedArchiveIndexText: () => index.promise,
+    fetchJson(url) { assert.equal(url, 'compact.json'); fallbackRequests++; return fallback.promise; },
+    addArchiveShardDays(_data, source) { assert.equal(source, 'stone-harbor'); commits++; }
+  });
+  const warming = c.ensureObserved15MinuteArchive();
+  const openingPast = c.ensureObserved15MinuteArchive();
+  index.resolve(failIndex ? 'Invalid JSON' : JSON.stringify(compact));
+  await tick();
+  assert.equal(fallbackRequests, failIndex ? 1 : 0, 'Ranking and Past share a single compact transfer');
+  const selectingFlood = c.ensureObserved15MinuteArchive();
+  fallback.resolve(compact);
+  const [first, second, third] = await Promise.all([warming, openingPast, selectingFlood]);
+  assert.equal(first, second);
+  assert.equal(second, third);
+  assert.equal(commits, 1, 'The common result is validated and installed once');
+  assert.equal(c.observed15MinuteArchivePromise, null);
+  cases++;
+}
+
+{
+  const oldFallback = deferred(), newFallback = deferred();
+  const c = create(['ensureObserved15MinuteArchive'], {
+    archiveGeneration: 0, observed15MinuteData: null, observed15MinuteArchivePromise: null,
+    observedArchiveIndexTextPromise: null, OBSERVED_15MIN_URL: 'compact.json',
+    async preloadObservedArchiveIndexText() { return 'Invalid JSON'; },
+    fetchJson: () => oldFallback.promise,
+    addArchiveShardDays() {}
+  });
+  const stale = c.ensureObserved15MinuteArchive();
+  await tick();
+  // Reload clears the memo and starts a new generation while the old fallback
+  // is still in flight.
+  c.archiveGeneration++;
+  c.observed15MinuteArchivePromise = null;
+  c.fetchJson = () => newFallback.promise;
+  const current = c.ensureObserved15MinuteArchive();
+  const currentRequest = c.observed15MinuteArchivePromise;
+  oldFallback.resolve({ days: [] });
+  await assert.rejects(stale, /superseded by Reload/);
+  assert.equal(c.observed15MinuteArchivePromise, currentRequest);
+  assert.equal(c.observed15MinuteData, null);
+  newFallback.reject(new Error('Fallback unavailable'));
+  await assert.rejects(current, /Fallback unavailable/);
+  assert.equal(c.observed15MinuteArchivePromise, null);
+  c.fetchJson = async () => compact;
+  assert.equal(await c.ensureObserved15MinuteArchive(), compact);
   cases++;
 }
 
@@ -112,7 +167,7 @@ function warmContext(extra = {}) {
   let nextTimer = 0, canonicalLoads = 0;
   const canonical = {days: [{date:'2026-01-01', peakNAVD88:1}]};
   const {c, stats} = warmContext({
-    observedArchiveIndexTextPromise: null, OBSERVED_ARCHIVE_INDEX_URL: 'index.json',
+    observedArchiveIndexTextPromise: null, observed15MinuteArchivePromise: null, OBSERVED_ARCHIVE_INDEX_URL: 'index.json',
     OBSERVED_15MIN_URL: 'compact.json', TOWN_CONFIG: {observed: {usgsGaugeId:'01411360'}},
     window: {setTimeout(fn, ms) {const id = ++nextTimer; timers.set(id, {fn, ms}); return id;},
       clearTimeout(id) {timers.delete(id);}},

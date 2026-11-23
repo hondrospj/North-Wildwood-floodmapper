@@ -812,6 +812,7 @@ function cloneStyleObject(value) {
     let observedData = null;
     let canonicalDailyData = null;
     let observed15MinuteData = null;
+    let observed15MinuteArchivePromise = null;
     let observedArchiveIndexTextPromise = null;
     let observed15MinuteDaysByDate = new Map();
     // Distinct caches: identical dates do not imply identical gauge or cadence.
