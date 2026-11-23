@@ -40,7 +40,6 @@
 <!-- nww:style:style-006 -->
 <!-- Shorely Safe browser-tab branding -->
 <link rel="icon" type="image/png" href="./assets/shorelysafe-favicon-20261008.png" />
-<link rel="stylesheet" href="assets/north-wildwood-loading.css?v=20261027-lines1">
 
 
 <!-- Keep optional work outside the initial flood-map loading path. -->
@@ -155,9 +154,11 @@
 <!-- nww:style:style-080 -->
 <!-- nww:style:style-081 -->
 <style id="floodmapper-first-paint-priority">@layer floodmapper-first-paint;</style>
-<style id="floodmapper-quiet-loading-20261119">
-/* Keep request/readiness state and failure recovery; omit loading presentation. */
-body:not([data-site-loader$="error"]):not([data-site-loader$="failed"]) #nwSiteLoader{display:none!important}
+<style id="floodmapper-loading-screen">
+<!-- floodmapper:startup-loader-css -->
+</style>
+<style id="floodmapper-startup-visibility">
+/* Keep the map underlay available while preventing interaction with unready controls. */
 html body.nw-app-loading #app[inert]{filter:none!important;animation:none!important}
 html body.nw-app-loading :is(#mobileControlsToggle,#legendDock):not([inert]),html body.nw-app-loading #topBanner{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}
 html body.nw-app-loading #app{opacity:1!important;visibility:hidden!important}
@@ -165,7 +166,7 @@ html body.nw-app-loading #app :not(#map,#map *){visibility:hidden!important}
 @layer floodmapper-first-paint{html body.nw-app-loading #mapTitleBadge{opacity:0!important;visibility:hidden!important}}
 html body.nw-app-loading #map{visibility:visible!important}
 #startupMapPreview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
-#nwSiteLoader::before,#nwSiteLoader::after,.nw-loader-spinner,.nw-loader-progress,.flood-history-spinner,.download-btn-spinner{display:none!important;animation:none!important}
+.flood-history-spinner,.download-btn-spinner{display:none!important;animation:none!important}
 .flood-history-loading{display:none!important}
 #stageSubText:empty,#floodFrameStatus:empty{display:none!important}
 body[data-road-impacts-state="loading"] #roadImpactsStatus{display:none!important}
@@ -174,20 +175,20 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
 .nww-picker-message:empty{display:none!important}
 </style>
 </head>
-<body data-floodmapper-loading-ui="quiet-20261119" data-county-viewport="20261017" data-county-mobile="20261015" data-county-fix="20261015" class="nw-app-loading" data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261017" data-flood-frame-resilience="retain-retry-20261013" data-floodmapper-reference="20261017" data-fleet-viewport-existing="true" data-floodmapper-unified="20261017.3">
-  <!-- Geographic reference from NJOGIS roads, the municipal boundary, and 2024 Census area water. -->
-  <img id="startupMapPreview" src="<!-- floodmapper:startup-map-image -->" alt="" aria-hidden="true" data-html2canvas-ignore="true" fetchpriority="high" elementtiming="north-wildwood-startup-map" style="position:fixed;inset:0;width:100vw;height:100dvh;object-fit:cover;pointer-events:none">
-  <!-- floodmapper:startup-resources -->
+<body data-floodmapper-loading-ui="branded" data-county-viewport="20261017" data-county-mobile="20261015" data-county-fix="20261015" class="nw-app-loading" data-flood-frame-cache="bounded-composites-20261008" data-flood-frame-swap="decode-before-swap-20261008" data-shorelysafe-ui="20261017" data-flood-frame-resilience="retain-retry-20261013" data-floodmapper-reference="20261017" data-fleet-viewport-existing="true" data-floodmapper-unified="20261017.3">
   <div id="nwSiteLoader" role="status" aria-live="polite" aria-label="Map status">
     <div class="nw-loader-card">
       <div class="nw-loader-spinner" aria-hidden="true"></div>
       <div class="nw-loader-eyebrow">ShorelySafe</div>
       <h1><!-- floodmapper:page-title --></h1>
-      <p id="nwLoaderStatus" class="nw-loader-status"></p>
+      <p id="nwLoaderStatus" class="nw-loader-status">Preparing forecast and map data…</p>
       <div class="nw-loader-progress" aria-hidden="true"><span id="nwLoaderProgress"></span></div>
       <button id="nwLoaderRetry" type="button" hidden>Retry loading map</button>
     </div>
   </div>
+  <!-- Geographic reference from NJOGIS roads, the municipal boundary, and 2024 Census area water. -->
+  <img id="startupMapPreview" src="<!-- floodmapper:startup-map-image -->" alt="" aria-hidden="true" data-html2canvas-ignore="true" fetchpriority="high" elementtiming="north-wildwood-startup-map" style="position:fixed;inset:0;width:100vw;height:100dvh;object-fit:cover;pointer-events:none">
+  <!-- floodmapper:startup-resources -->
   <div id="floodFrameStatus" role="status" aria-live="polite" hidden></div>
   <div id="topBanner">
     <div class="banner-text">
@@ -394,7 +395,7 @@ body:has(#contoursToggle[aria-busy="true"]) #contoursStatus{display:none!importa
           const preview = document.getElementById('startupMapPreview');
           preview.removeAttribute('style');
           document.getElementById('map').prepend(preview);
-          const anchor = document.getElementById('floodmapper-quiet-loading-20261119');
+          const anchor = document.getElementById('floodmapper-startup-visibility');
           for (const style of document.querySelectorAll('[data-nww-startup-style]')) anchor.before(style);
         }
       </script>

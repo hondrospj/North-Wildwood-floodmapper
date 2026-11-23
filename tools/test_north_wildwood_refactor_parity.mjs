@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const LOADER_DISPLAY_PATH = "tools/fixtures/north-wildwood-20261123-loader-display.json";
+const priorLoaderDisplaySnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-loader-display-snapshot");
+const loaderDisplayText = fs.readFileSync(localPath(LOADER_DISPLAY_PATH));
+assert.equal(hashReleaseBytes(loaderDisplayText), "37c02ad28a87e117bcaaccb2a4714e2db63ca5437ae049c140fd1072693a7102", "Retain the exact loader display inverse");
+const loaderDisplay = JSON.parse(loaderDisplayText);
+assert.equal(loaderDisplay.schemaVersion, 1);
+assert.equal(loaderDisplay.baselineCommit, "cd0acffcf7fef4c1606e3d4d2542bd5877cf0a25");
+const loaderDisplayFiles = new Map(loaderDisplay.files.map(entry => [entry.source, entry]));
 const RUNTIME_AUDIT_PATH = "tools/fixtures/north-wildwood-20261122-runtime-audit.json";
 const priorRuntimeAudit = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-runtime-audit-snapshot");
 const runtimeAuditText = fs.readFileSync(localPath(RUNTIME_AUDIT_PATH));
@@ -47,8 +55,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeRuntimeAudit(relative) {
+function readBeforeLoaderDisplay(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = loaderDisplayFiles.get(relative);
+  return priorLoaderDisplaySnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "loader display");
+}
+if (!priorLoaderDisplaySnapshot) {
+  for (const file of loaderDisplay.files) readBeforeLoaderDisplay(file.source);
+}
+
+function readBeforeRuntimeAudit(relative) {
+  const bytes = readBeforeLoaderDisplay(relative);
   const entry = runtimeAuditFiles.get(relative);
   return priorRuntimeAudit || !entry ? bytes : restoreReleaseBytes(bytes, entry, "runtime audit");
 }
@@ -2728,6 +2745,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      LOADER_DISPLAY_PATH, ...loaderDisplay.files.map(file => file.source),
       RUNTIME_AUDIT_PATH, ...runtimeAudit.files.map(file => file.source),
       QUIET_LOADING_PATH, ...quietLoading.files.map(file => file.source),
       MAPPER_FIX_PATH, ...mapperFix.files.map(file => file.source),
@@ -2744,7 +2762,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeRuntimeAudit = (args = []) => runRelease(["--prior-runtime-audit-snapshot", ...args]);
+    const runBeforeLoaderDisplay = (args = []) => runRelease(["--prior-loader-display-snapshot", ...args]);
+    const runBeforeRuntimeAudit = (args = []) => runBeforeLoaderDisplay(["--prior-runtime-audit-snapshot", ...args]);
     const runBeforeDataDelivery = (args = []) => runBeforeRuntimeAudit(["--prior-data-delivery-snapshot", ...args]);
     const runBeforeFirstMapPaint = (args = []) => runBeforeDataDelivery(["--prior-first-map-paint-snapshot", ...args]);
     const runCurrent = (args = []) => runBeforeFirstMapPaint(["--prior-shared-app-snapshot", ...args]);
@@ -2763,12 +2782,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered loader display inverse", path.join(scratch, LOADER_DISPLAY_PATH), Buffer.concat([loaderDisplayText, Buffer.from(" ")])],
+      ...loaderDisplay.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed loader display byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of loaderDisplay.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeLoaderDisplay(file.source));
+    assert.equal(runBeforeLoaderDisplay().status, 0, "The restored application before the loader display fix must pass");
+    assertMutationsRejected([
       ["altered runtime audit inverse", path.join(scratch, RUNTIME_AUDIT_PATH), Buffer.concat([runtimeAuditText, Buffer.from(" ")])],
       ...runtimeAudit.files.map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed runtime audit byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeLoaderDisplay);
     for (const file of runtimeAudit.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeRuntimeAudit(file.source));
     assert.equal(runBeforeRuntimeAudit().status, 0, "The restored application before the runtime audit must pass");
     assertMutationsRejected([

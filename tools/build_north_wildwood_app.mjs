@@ -22,6 +22,7 @@ for (const [tag, value] of Object.entries({
   'webcams': embeddedJson(town.webcams),
   'page-title': htmlEscape(town.config.pageTitle),
   'town-name': htmlEscape(town.config.site.name),
+  'startup-loader-css': fs.readFileSync(path.join(root, 'assets/north-wildwood-loading.css'), 'utf8').trimEnd(),
   'optional-proj4': needsProj4 ? '<script src="https://unpkg.com/proj4@2.11.0/dist/proj4.js" defer></script>' : '',
   'optional-elevation-contours': hasElevationContours ? '<script src="./assets/3d/elevation-contours.js?v=shared" defer></script>' : '',
 })) replacements.set(`<!-- floodmapper:${tag} -->`, value);
@@ -60,14 +61,14 @@ html = html.replace(/<!-- floodmapper:[^ ]+ -->/g, token => replacements.get(tok
 html = html.replace(/(\b(?:src|href)="(?:\.\/)?)(assets\/[^"?#]+)\?v=shared"/g, (_, prefix, relative) =>
   `${prefix}${relative}?v=${version(outputs.get(relative) ?? fs.readFileSync(path.join(root, relative)))}"`);
 
-// Start the same downloads early, but let the geographic preview paint before
-// the parser encounters stylesheets and classic scripts that can block it.
+// Paint the loading screen and its map underlay before the parser encounters
+// stylesheets and classic scripts that can block the rest of the app.
 const headEnd = html.indexOf('</head>');
 const startupResources = [];
 const head = html.slice(0, headEnd).replace(
   /<link rel="stylesheet"[^>]*>|<style\b[^>]*>[\s\S]*?<\/style>|<script\b[^>]*\bsrc="[^">]+"[^>]*><\/script>/g,
   tag => {
-    if (/^<style id="floodmapper-(first-paint-priority|quiet-loading-20261119)"/.test(tag)) return tag;
+    if (/^<style id="floodmapper-(first-paint-priority|loading-screen|startup-visibility)"/.test(tag)) return tag;
     const script = tag.startsWith('<script');
     startupResources.push(script ? tag : tag.replace(/^<(link|style)/, '<$1 data-nww-startup-style'));
     const url = tag.match(/\b(?:src|href)="([^"]+)"/)?.[1];

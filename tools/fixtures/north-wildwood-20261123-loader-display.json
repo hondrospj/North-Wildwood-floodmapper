@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "cd0acffcf7fef4c1606e3d4d2542bd5877cf0a25",
+  "files": [
+    {
+      "source": "index.html",
+      "beforeSha256": "c503b183be8a83b5e48a52d887b4265c254b65c5c8929dba30b45179cb76d09a",
+      "afterSha256": "d7a947f6994fa30b22fbf33c10f33b1aa57ee4a68804e9477c18a25013a45715",
+      "edits": [
+        [
+          34415,
+          34415,
+          "<link rel=\"preload\" as=\"style\" href=\"assets/north-wildwood-loading.css?v=20261027-lines1\">\n"
+        ],
+        [
+          38631,
+          42980,
+          "<style id=\"floodmapper-quiet-loading-20261119\">\n/* Keep request/readiness state and failure recovery; omit loading presentation. */\nbody:not([data-site-loader$=\"error\"]):not([data-site-loader$=\"failed\"]) #nwSiteLoader{display:none!important}\n"
+        ],
+        [
+          43723,
+          43817,
+          "#nwSiteLoader::before,#nwSiteLoader::after,.nw-loader-spinner,.nw-loader-progress,.flood-history-spinner,.download-btn-spinner{display:none!important;animation:none!important}\n"
+        ],
+        [
+          44354,
+          45381,
+          "<body data-floodmapper-loading-ui=\"quiet-20261119\" data-county-viewport=\"20261017\" data-county-mobile=\"20261015\" data-county-fix=\"20261015\" class=\"nw-app-loading\" data-flood-frame-cache=\"bounded-composites-20261008\" data-flood-frame-swap=\"decode-before-swap-20261008\" data-shorelysafe-ui=\"20261017\" data-flood-frame-resilience=\"retain-retry-20261013\" data-floodmapper-reference=\"20261017\" data-fleet-viewport-existing=\"true\" data-floodmapper-unified=\"20261017.3\">\n"
+        ],
+        [
+          65317,
+          65317,
+          "<link data-nww-startup-style rel=\"stylesheet\" href=\"assets/north-wildwood-loading.css?v=20261027-lines1\">\n"
+        ],
+        [
+          67221,
+          67221,
+          "  <div id=\"nwSiteLoader\" role=\"status\" aria-live=\"polite\" aria-label=\"Map status\">\n    <div class=\"nw-loader-card\">\n      <div class=\"nw-loader-spinner\" aria-hidden=\"true\"></div>\n      <div class=\"nw-loader-eyebrow\">ShorelySafe</div>\n      <h1>North Wildwood Flood Mapper</h1>\n      <p id=\"nwLoaderStatus\" class=\"nw-loader-status\"></p>\n      <div class=\"nw-loader-progress\" aria-hidden=\"true\"><span id=\"nwLoaderProgress\"></span></div>\n      <button id=\"nwLoaderRetry\" type=\"button\" hidden>Retry loading map</button>\n    </div>\n  </div>\n"
+        ],
+        [
+          79400,
+          79484,
+          "          const anchor = document.getElementById('floodmapper-quiet-loading-20261119');\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/app/index.template.html",
+      "beforeSha256": "db340ec56ee068690bf086fcc20d096593b8016f54feb15485c11fd1e75478c2",
+      "afterSha256": "cbe754f6521532e9dd089965edae575b3ac425a2a1d7f6ad33a9324972f41242",
+      "edits": [
+        [
+          1838,
+          1838,
+          "<link rel=\"stylesheet\" href=\"assets/north-wildwood-loading.css?v=20261027-lines1\">\n"
+        ],
+        [
+          5596,
+          5819,
+          "<style id=\"floodmapper-quiet-loading-20261119\">\n/* Keep request/readiness state and failure recovery; omit loading presentation. */\nbody:not([data-site-loader$=\"error\"]):not([data-site-loader$=\"failed\"]) #nwSiteLoader{display:none!important}\n"
+        ],
+        [
+          6562,
+          6656,
+          "#nwSiteLoader::before,#nwSiteLoader::after,.nw-loader-spinner,.nw-loader-progress,.flood-history-spinner,.download-btn-spinner{display:none!important;animation:none!important}\n"
+        ],
+        [
+          7193,
+          7650,
+          "<body data-floodmapper-loading-ui=\"quiet-20261119\" data-county-viewport=\"20261017\" data-county-mobile=\"20261015\" data-county-fix=\"20261015\" class=\"nw-app-loading\" data-flood-frame-cache=\"bounded-composites-20261008\" data-flood-frame-swap=\"decode-before-swap-20261008\" data-shorelysafe-ui=\"20261017\" data-flood-frame-resilience=\"retain-retry-20261013\" data-floodmapper-reference=\"20261017\" data-fleet-viewport-existing=\"true\" data-floodmapper-unified=\"20261017.3\">\n  <!-- Geographic reference from NJOGIS roads, the municipal boundary, and 2024 Census area water. -->\n  <img id=\"startupMapPreview\" src=\"<!-- floodmapper:startup-map-image -->\" alt=\"\" aria-hidden=\"true\" data-html2canvas-ignore=\"true\" fetchpriority=\"high\" elementtiming=\"north-wildwood-startup-map\" style=\"position:fixed;inset:0;width:100vw;height:100dvh;object-fit:cover;pointer-events:none\">\n  <!-- floodmapper:startup-resources -->\n"
+        ],
+        [
+          7931,
+          8024,
+          "      <p id=\"nwLoaderStatus\" class=\"nw-loader-status\"></p>\n"
+        ],
+        [
+          8224,
+          8659,
+          ""
+        ],
+        [
+          20858,
+          20942,
+          "          const anchor = document.getElementById('floodmapper-quiet-loading-20261119');\n"
+        ]
+      ]
+    },
+    {
+      "source": "tools/build_north_wildwood_app.mjs",
+      "beforeSha256": "68262e3bed024c8e219184ba72d08d66cf0dde812ce3bea1757a46d0c28d0a4f",
+      "afterSha256": "c49a6676de0e5c3565196cec3ef9a78f16cf93b0398de7671129a7c5a4b11032",
+      "edits": [
+        [
+          1376,
+          1489,
+          ""
+        ],
+        [
+          3825,
+          3974,
+          "// Start the same downloads early, but let the geographic preview paint before\n// the parser encounters stylesheets and classic scripts that can block it.\n"
+        ],
+        [
+          4212,
+          4327,
+          "    if (/^<style id=\"floodmapper-(first-paint-priority|quiet-loading-20261119)\"/.test(tag)) return tag;\n"
+        ]
+      ]
+    },
+    {
+      "source": "assets/north-wildwood-loading.css",
+      "beforeSha256": "39c95551c8b00bc75f9eb6e311556951727eb162ebf15031f93d7a1651963ba5",
+      "afterSha256": "b2cad6634fd81013c05c1af053104ae8446e2d119b13ae4e30e9a641ead781a3",
+      "edits": [
+        [
+          1381,
+          1739,
+          "    .nw-loader-card{position:relative;z-index:1;width:min(430px,calc(100vw - 40px));display:grid;justify-items:center;padding:34px 32px 29px;border:1px solid rgba(125,249,255,.24);border-radius:28px;background:rgba(8,15,31,.88);box-shadow:0 30px 100px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(20px);text-align:center}\n"
+        ]
+      ]
+    }
+  ]
+}

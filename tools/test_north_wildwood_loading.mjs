@@ -12,13 +12,18 @@ assert.ok(loaderTag, 'The loading-screen controller must be connected');
 assert.doesNotMatch(loaderTag, /\b(?:defer|async)\b/, 'The watchdog must start before blocking core scripts');
 assert.ok(html.indexOf(loaderTag) > html.indexOf('id="exportStage"'));
 assert.ok(html.indexOf(loaderTag) < html.indexOf('<script src="https://unpkg.com/leaflet@'));
-assert.match(html, /id="floodmapper-quiet-loading-20261119"/);
+const criticalStyle = html.match(/<style id="floodmapper-loading-screen">\n([\s\S]*?)\n<\/style>/);
+assert.ok(criticalStyle, 'Inline the established loader CSS to paint before blocking resources');
+assert.equal(criticalStyle[1], fs.readFileSync(new URL('../assets/north-wildwood-loading.css', import.meta.url), 'utf8').trimEnd());
+assert.match(html, /data-floodmapper-loading-ui="branded"/);
+assert.match(html, /class="nw-loader-status">Preparing forecast and map data…<\/p>/);
+assert.ok(html.indexOf('id="nwSiteLoader"') < html.indexOf('<link data-nww-startup-style'),
+  'Parse the loading screen before the app stylesheets');
 const previewTag = html.match(/<img\b[^>]*\bid="startupMapPreview"\s+src="data:image\/webp;base64,([^"]+)"[^>]*>/);
 assert.ok(previewTag, 'Use an inline geographic preview so the first map image never waits for an asset request');
 assert.deepEqual(Buffer.from(previewTag[1], 'base64'), fs.readFileSync(new URL('../assets/north-wildwood-startup-map.webp', import.meta.url)));
 assert.ok(previewTag.index < html.indexOf('<link data-nww-startup-style'), 'Parse the preview before loading the existing stylesheets');
-assert.ok(html.includes('body:not([data-site-loader$="error"]):not([data-site-loader$="failed"]) #nwSiteLoader{display:none!important}'),
-  'Normal loading stays hidden while real startup errors retain their recovery UI');
+assert.match(html, /id="floodmapper-startup-visibility"/);
 
 function fixture({ready = false, reducedMotion = false, dependenciesReady = true, parsing = false, unified = false, layoutReady = false} = {}) {
   const classes = new Set(['nw-app-loading', ...(ready ? ['nw-app-ready'] : [])]);

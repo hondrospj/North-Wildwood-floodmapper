@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Quiet startup/readiness coverage; browser environment follows the full-app suite.
+// Branded startup, map underlay, and readiness coverage in the full app.
 import assert from 'node:assert/strict';
 const {chromium,webkit}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const engine=process.env.NWW_BROWSER==='webkit' ? webkit : chromium;
@@ -10,8 +10,8 @@ const browser=await engine.launch({headless:true,
 const url=process.env.NWW_TEST_URL || 'http://127.0.0.1:8765/index.html';
 const twoPaints=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
 
-async function earlyPreviewScenario() {
-  const context=await browser.newContext({viewport:{width:1440,height:900}});
+async function earlyPreviewScenario(viewport) {
+  const context=await browser.newContext({viewport});
   const page=await context.newPage();
   let releaseStyles,receiveStyles;
   const stylesReleased=new Promise(resolve=>{releaseStyles=resolve;});
@@ -40,11 +40,36 @@ async function earlyPreviewScenario() {
     });
     assert.deepEqual(early,{visibility:'visible',display:'block',opacity:1,coversViewport:true,mounted:false},
       'The geographic preview must fill the first viewport before the real stylesheet or map runtime can finish');
+    const splash=await page.evaluate(()=>{
+      const loader=document.getElementById('nwSiteLoader');
+      const style=loader&&getComputedStyle(loader);
+      const card=loader?.querySelector(".nw-loader-card")?.getBoundingClientRect();
+      return {
+        mode:document.body.dataset.floodmapperLoadingUi,
+        brand:loader?.querySelector('.nw-loader-eyebrow')?.textContent,
+        title:loader?.querySelector('h1')?.textContent,
+        status:document.getElementById('nwLoaderStatus')?.textContent,
+        visible:!!style&&style.visibility==='visible'&&style.display!=='none'&&Number(style.opacity)>0,
+        spinner:loader?.querySelector('.nw-loader-spinner')?.getBoundingClientRect().width>0,
+        bar:document.getElementById('nwLoaderProgress')?.getBoundingClientRect().width>0,
+        inFront:!!document.elementFromPoint(innerWidth/2,innerHeight/2)?.closest('#nwSiteLoader'),
+        cardFits:!!card&&card.left>=0&&card.right<=innerWidth&&card.top>=0&&card.bottom<=innerHeight,
+        app:document.getElementById('app')?.getClientRects().length>0
+      };
+    });
+    assert.equal(splash.mode,'branded');
+    assert.equal(splash.brand,'ShorelySafe');
+    assert.equal(splash.title,'North Wildwood Flood Mapper');
+    assert.ok(splash.status?.trim(),'Provide a startup status while the other assets are blocked');
+    assert.ok(splash.visible&&splash.spinner&&splash.bar&&splash.inFront,
+      'The loading screen, spinner and progress bar must render above the geographic preview while app-01.css is stalled');
+    assert.equal(splash.cardFits,true,`The loading card fits a ${viewport.width}px viewport before app styles arrive`);
+    assert.equal(splash.app,false,'The loader and preview can render without mounting the app');
     assert.equal(forecastRequests,1,'Start the forecast request while the startup stylesheet is still blocked');
     releaseStyles();
     await page.waitForFunction(()=>document.body?.dataset.siteLoader==='complete');
     assert.equal(forecastRequests,1,'Use the early forecast response to render the first frame');
-    console.log('PASS geographic preview and forecast request while the startup stylesheet is held');
+    console.log(`PASS ${viewport.width}px loading screen, geographic preview and forecast request while the startup stylesheet is held`);
   } finally {
     releaseStyles();await navigation?.catch(()=>{});await context.close();
   }
@@ -110,6 +135,8 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
           progress:Number(document.getElementById('nwLoaderProgress')?.dataset.progress || 0),
           status:document.getElementById('nwLoaderStatus')?.textContent,
           brand:loader.querySelector('.nw-loader-eyebrow')?.textContent,
+          spinner:paints(loader.querySelector('.nw-loader-spinner')),
+          progressTrack:paints(loader.querySelector('.nw-loader-progress')),
           rect:{x:r.x,y:r.y,width:r.width,height:r.height},
           card:card&&{x:card.x,y:card.y,width:card.width,height:card.height},
           activeBehind:!!document.activeElement?.closest('#app,#nwwMobileUtilities,#mobileControlsToggle,#legendDock'),
@@ -142,10 +169,10 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     // parser reaches the app. Inspect only after its actual DOM position exists.
     await page.locator('script[src*="north-wildwood-loading.js"]').waitFor({state:'attached'});
     // WebKit exposes parsed DOM before preceding blocking stylesheets have
-    // joined the active cascade. Wait for the quiet sheet to be active without
+    // joined the active cascade. Wait for the startup sheet to be active without
     // waiting for any expected visibility value.
     await page.waitForFunction(()=>{
-      const sheet=document.getElementById('floodmapper-quiet-loading-20261119')?.sheet;
+      const sheet=document.getElementById('floodmapper-startup-visibility')?.sheet;
       return sheet&&Array.from(document.styleSheets).includes(sheet);
     },null,{polling:25});
     await page.waitForFunction(()=>{
@@ -164,7 +191,9 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
       return {snapshot:window.__captureLoaderBrowser(),focusable,controls:controls.length};
     });
     assert.ok(beforeController.controls>0,'Exercise the actual parsed controls before the readiness controller runs');
-    assert.equal(beforeController.snapshot.visible,false,'No splash before the controller arrives');
+    assert.ok(beforeController.snapshot.visible&&beforeController.snapshot.spinner&&beforeController.snapshot.progressTrack,
+      'The branded loading screen renders before its controller arrives');
+    assert.equal(beforeController.snapshot.brand,'ShorelySafe');
     assert.equal(beforeController.snapshot.appOpacity,1,'Allow the geographic preview to paint before the controller arrives');
     assert.equal(beforeController.snapshot.appVisibility,'hidden','Keep unfinished controls hidden until the controller makes them inert');
     assert.equal(beforeController.snapshot.mapInitialized,false,'The geographic preview must not claim the live map is initialized');
@@ -181,7 +210,7 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
     await requested;
     await twoPaints(page);
     pending=await page.evaluate(()=>window.__captureLoaderBrowser());
-    assert.equal(pending.visible,false,`${name}: no loading splash may paint`);
+    assert.ok(pending.visible&&pending.spinner&&pending.progressTrack,`${name}: show the branded loader while real data is pending`);
     assert.equal(pending.brand,'ShorelySafe');
     assert.equal(pending.ready,false,'Pending initial data must not falsely signal readiness');
     assert.equal(pending.loading,true);assert.equal(pending.appBusy,'true');
@@ -214,7 +243,7 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
         'Timeout releases controls without claiming the forecast finished');
     } else {
       await page.waitForFunction(()=>Number(document.getElementById('nwLoaderProgress')?.dataset.progress)>=11);
-      assert.equal(await page.evaluate(()=>window.__captureLoaderBrowser().visible),false,'Real pending startup stays quiet');
+      assert.equal(await page.evaluate(()=>window.__captureLoaderBrowser().visible),true,'Keep the loading screen open until readiness');
       release();
       await page.waitForFunction(()=>document.body.dataset.siteLoader==='complete',{},{timeout:90000});
     }
@@ -254,11 +283,12 @@ async function scenario({mobile=false,reduced=false,timeout=false,fail=false,cac
       assert.equal(await page.locator('#nwSiteLoader').isVisible(),false);
     }
     audit=await page.evaluate(()=>{window.__loaderBrowserAudit.stopped=true;return window.__loaderBrowserAudit;});
-    assert.equal(audit.samples[0].visible,false,'The first eligible document paint has no loader');
+    const first=audit.samples[0];
+    assert.ok(first.visible&&first.spinner&&first.progressTrack,'The first eligible loader frame is styled');
     assert.ok(audit.samples.some(sample=>sample.loading&&sample.mapPainted&&!sample.ready),
       'Observe the early basemap in a painted frame before the forecast becomes ready');
     for(const sample of audit.samples)if(sample.loading) {
-      assert.equal(sample.visible,false,'No loading splash frame during startup');
+      assert.equal(sample.visible,true,'The loading screen stays in place while the map starts');
       assert.ok(sample.appOpacity===null||sample.appVisibility==='hidden'||sample.appInert,
         'No interactive app may appear during startup');
       if(sample.mapPainted)assert.deepEqual(sample.visibleControls,[],'Only the map underlay may paint before readiness');
@@ -302,6 +332,7 @@ async function delayedLayoutScenario({timeout=false}={}) {
     });
     assert.equal(pending.passes,0,'Exercise actual delayed UI layout after actual core readiness');
     assert.notEqual(pending.reason,'complete');
+    assert.ok(await page.locator('#nwSiteLoader').isVisible(),'Keep loading visible through the initial layout pass');
     assert.equal(pending.inert,true);assert.equal(pending.appVisibility,'hidden');
     assert.equal(pending.mapVisibility,'visible');assert.equal(pending.busy,'true');
     await page.locator('#dataSourceHelpBtn').focus();
@@ -330,7 +361,8 @@ async function delayedLayoutScenario({timeout=false}={}) {
 }
 
 try {
-  await earlyPreviewScenario();
+  await earlyPreviewScenario({width:1440,height:900});
+  await earlyPreviewScenario({width:390,height:844});
   await scenario({cached:true});
   await scenario({mobile:true,reduced:true});
   await scenario({reduced:true,fail:true});
