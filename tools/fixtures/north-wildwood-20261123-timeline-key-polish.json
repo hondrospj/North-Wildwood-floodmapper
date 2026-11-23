@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "3a1080ca69c4b059ecef975fa2a5ed79a52a3fce",
+  "scope": "Increase flood-key swatch spacing, soften its divider, and clarify the active double-speed control.",
+  "files": [
+    {
+      "source": "assets/north-wildwood-phone.css",
+      "beforeSha256": "efee85676f89fe14d8c9b260c2bff665043e5da986bc57dc42eafade615c987c",
+      "afterSha256": "9e288317b8e63880e3ceeb527874e4472848eb735e257a86307cae8fa4afabf0",
+      "edits": [
+        [
+          1028,
+          1072,
+          "    border-inline-start: 1px solid #38475d;\n"
+        ],
+        [
+          1536,
+          1561,
+          ""
+        ],
+        [
+          3131,
+          3257,
+          ""
+        ]
+      ]
+    },
+    {
+      "source": "index.html",
+      "beforeSha256": "1980c12c922dff85cc9b87780b454e4fec93352e4ba6c722305b1f4415ad6435",
+      "afterSha256": "2c1f24609b31742e980e7aa60795936c07676f0713577f7f77b95979d5293777",
+      "edits": [
+        [
+          33735,
+          33827,
+          "<link rel=\"preload\" as=\"style\" href=\"./assets/north-wildwood-phone.css?v=efee85676f89fe14\">\n"
+        ],
+        [
+          64973,
+          65080,
+          "<link data-nww-startup-style rel=\"stylesheet\" href=\"./assets/north-wildwood-phone.css?v=efee85676f89fe14\">\n"
+        ]
+      ]
+    }
+  ]
+}

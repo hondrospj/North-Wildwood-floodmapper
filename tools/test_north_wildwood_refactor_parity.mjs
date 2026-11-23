@@ -12,6 +12,14 @@ import vm from "node:vm";
 
 const ROOT = process.env.NWW_PARITY_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const hashReleaseBytes = bytes => createHash("sha256").update(bytes).digest("hex");
+const KEY_POLISH_PATH = "tools/fixtures/north-wildwood-20261123-timeline-key-polish.json";
+const priorKeyPolishSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-key-polish-snapshot");
+const keyPolishText = fs.readFileSync(localPath(KEY_POLISH_PATH));
+assert.equal(hashReleaseBytes(keyPolishText), "69a8a632422507c74081f7cc11b6038403932f669084f90c2b5d6818d6a157e6", "Retain the exact timeline key polish inverse");
+const keyPolish = JSON.parse(keyPolishText);
+assert.equal(keyPolish.schemaVersion, 1);
+assert.equal(keyPolish.baselineCommit, "3a1080ca69c4b059ecef975fa2a5ed79a52a3fce");
+const keyPolishFiles = new Map(keyPolish.files.map(entry => [entry.source, entry]));
 const MAPPER_BLOAT_PATH = "tools/fixtures/north-wildwood-20261123-mapper-bloat.json";
 const priorMapperBloatSnapshot = Boolean(process.env.NWW_PARITY_ROOT) && process.argv.includes("--prior-mapper-bloat-snapshot");
 const mapperBloatText = fs.readFileSync(localPath(MAPPER_BLOAT_PATH));
@@ -95,8 +103,17 @@ function restoreReleaseBytes(bytes, entry, scope) {
   return restored;
 }
 
-function readBeforeMapperBloat(relative) {
+function readBeforeKeyPolish(relative) {
   const bytes = fs.readFileSync(localPath(relative));
+  const entry = keyPolishFiles.get(relative);
+  return priorKeyPolishSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "timeline key polish");
+}
+if (!priorKeyPolishSnapshot) {
+  for (const file of keyPolish.files) readBeforeKeyPolish(file.source);
+}
+
+function readBeforeMapperBloat(relative) {
+  const bytes = readBeforeKeyPolish(relative);
   const entry = mapperBloatFiles.get(relative);
   return priorMapperBloatSnapshot || !entry ? bytes : restoreReleaseBytes(bytes, entry, "mapper bloat cleanup");
 }
@@ -2830,6 +2847,7 @@ if (process.argv.includes("--self-test")) {
       SHARED_APP_PATH, ...sharedApp.files.map(file => file.source), ...sharedApp.added.map(file => file.source),
       FIRST_MAP_PAINT_PATH, ...firstMapPaint.files.map(file => file.source), ...firstMapPaint.added.map(file => file.source),
       DATA_DELIVERY_PATH, ...dataDelivery.files.map(file => file.source), ...dataDelivery.added.map(file => file.source),
+      KEY_POLISH_PATH, ...keyPolish.files.map(file => file.source),
       MAPPER_BLOAT_PATH, ...mapperBloat.files.map(file => file.source),
       TIMELINE_PANEL_PATH, ...timelinePanel.files.map(file => file.source),
       TIMELINE_CONTROLS_PATH, ...timelineControls.files.map(file => file.source),
@@ -2852,7 +2870,8 @@ if (process.argv.includes("--self-test")) {
     const runRelease = (args = []) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], {
       env: { ...process.env, NWW_PARITY_ROOT: scratch }, encoding: "utf8"
     });
-    const runBeforeMapperBloat = (args = []) => runRelease(["--prior-mapper-bloat-snapshot", ...args]);
+    const runBeforeKeyPolish = (args = []) => runRelease(["--prior-key-polish-snapshot", ...args]);
+    const runBeforeMapperBloat = (args = []) => runBeforeKeyPolish(["--prior-mapper-bloat-snapshot", ...args]);
     const runBeforeTimelinePanel = (args = []) => runBeforeMapperBloat(["--prior-timeline-panel-snapshot", ...args]);
     const runBeforeTimelineControls = (args = []) => runBeforeTimelinePanel(["--prior-timeline-controls-snapshot", ...args]);
     const runBeforeTimelineKey = (args = []) => runBeforeTimelineControls(["--prior-timeline-key-snapshot", ...args]);
@@ -2877,12 +2896,21 @@ if (process.argv.includes("--self-test")) {
       }
     };
     assertMutationsRejected([
+      ["altered timeline key polish inverse", path.join(scratch, KEY_POLISH_PATH), Buffer.concat([keyPolishText, Buffer.from(" ")])],
+      ...keyPolish.files.map(file => {
+        const target = path.join(scratch, file.source);
+        return [`unreviewed timeline key polish byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
+      })
+    ], runRelease);
+    for (const file of keyPolish.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeKeyPolish(file.source));
+    assert.equal(runBeforeKeyPolish().status, 0, "The restored application before timeline key polish must pass");
+    assertMutationsRejected([
       ["altered mapper bloat inverse", path.join(scratch, MAPPER_BLOAT_PATH), Buffer.concat([mapperBloatText, Buffer.from(" ")])],
       ...mapperBloat.files.map(file => {
         const target = path.join(scratch, file.source);
         return [`unreviewed mapper bloat byte in ${file.source}`, target, Buffer.concat([fs.readFileSync(target), Buffer.from("\n")])];
       })
-    ], runRelease);
+    ], runBeforeKeyPolish);
     for (const file of mapperBloat.files) fs.writeFileSync(path.join(scratch, file.source), readBeforeMapperBloat(file.source));
     assert.equal(runBeforeMapperBloat().status, 0, "The restored application before the mapper cleanup must pass");
     assertMutationsRejected([
@@ -3629,7 +3657,8 @@ if (process.argv.includes("--self-test")) {
     const timelineControlsCases = timelineControls.files.length + 1;
     const timelinePanelCases = timelinePanel.files.length + 1;
     const mapperBloatCases = mapperBloat.files.length + 1;
-    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases + runtimeAuditCases + timelineKeyCases + timelineControlsCases + timelinePanelCases + mapperBloatCases} dropped, moved, altered or stale artifacts were rejected.`);
+    const keyPolishCases = keyPolish.files.length + 1;
+    console.log(`Parity mutation checks passed: ${allCases.length + lineAuditCases.length + mapperFixCases.length + firstMapPaintCases + dataDeliveryCases + runtimeAuditCases + timelineKeyCases + timelineControlsCases + timelinePanelCases + mapperBloatCases + keyPolishCases} dropped, moved, altered or stale artifacts were rejected.`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }
